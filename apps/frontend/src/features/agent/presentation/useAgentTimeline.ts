@@ -16,18 +16,18 @@ import {
   recordAgentPerformanceMetric,
 } from '@/features/agent/state/agentPerformanceStore'
 import {
-  localAgentClient,
+  providerSessionClient,
   type AgentTimelineItem,
   type AgentTimelinePage,
-} from '@/shared/infrastructure/localAgentClient'
+} from '@/shared/infrastructure/providerSessionClient'
 import { generationProgressListFromEvents } from '@/features/agent/domain/agentGenerationMedia'
 import type { ChatMessage, ChatMessageMeta } from '@/features/agent/state/agentStore'
 
 const TIMELINE_PAGE_SIZE = 10
 
 interface UseAgentTimelineInput {
-  localSessionId?: string
-  localThreadId?: string
+  providerSessionId?: string
+  providerThreadId?: string
   requireThread?: boolean
 }
 
@@ -61,15 +61,15 @@ const EMPTY_TIMELINE_VIEW_STATE: TimelineViewState = {
 }
 
 export function useAgentTimeline({
-  localSessionId,
-  localThreadId,
+  providerSessionId,
+  providerThreadId,
   requireThread = false,
 }: UseAgentTimelineInput): AgentTimelineView {
-  const { sessionId, threadId } = timelineEffectiveScope({ localSessionId, localThreadId, requireThread })
+  const { sessionId, threadId } = timelineEffectiveScope({ providerSessionId, providerThreadId, requireThread })
   const scopeKey = timelineScopeKey(sessionId, threadId)
-  const runtimeClient = useMemo(() => sessionId
-    ? localAgentClient.forSession({ sessionId })
-    : localAgentClient, [sessionId])
+  const providerSessionTimelineClient = useMemo(() => sessionId
+    ? providerSessionClient.forSession({ sessionId })
+    : providerSessionClient, [sessionId])
   const [state, dispatch] = useReducer(timelineViewReducer, EMPTY_TIMELINE_VIEW_STATE)
 
   const fetchPage = useCallback(async (input: { before?: string; signal?: AbortSignal } = {}) => {
@@ -82,7 +82,7 @@ export function useAgentTimeline({
     const startedAt = performanceNow()
     if (sessionId) {
       try {
-        const page = await runtimeClient.listSessionTimeline(sessionId, {
+        const page = await providerSessionTimelineClient.listSessionTimeline(sessionId, {
           ...query,
           ...(threadId ? { threadId } : {}),
         }, input.signal)
@@ -95,7 +95,7 @@ export function useAgentTimeline({
     }
     if (threadId) {
       try {
-        const page = await runtimeClient.listThreadTimeline(threadId, query, input.signal)
+        const page = await providerSessionTimelineClient.listThreadTimeline(threadId, query, input.signal)
         recordTimelinePageMetrics(page, { source, stage, status: 'success', startedAt })
         return page
       } catch (error) {
@@ -110,7 +110,7 @@ export function useAgentTimeline({
     } satisfies AgentTimelinePage
     recordTimelinePageMetrics(page, { source, stage, status: 'success', startedAt })
     return page
-  }, [runtimeClient, sessionId, threadId])
+  }, [providerSessionTimelineClient, sessionId, threadId])
 
   const reloadLatest = useCallback(async (signal?: AbortSignal) => {
     const operationId = beginAgentPerformanceOperation({
@@ -189,7 +189,7 @@ export function useAgentTimeline({
     if (!threadId && !sessionId) return
     const controller = new AbortController()
     const stream = sessionId
-      ? runtimeClient.streamSessionTimeline(sessionId, {
+      ? providerSessionTimelineClient.streamSessionTimeline(sessionId, {
         signal: controller.signal,
         ...(threadId ? { threadId } : {}),
         onTimelineEvent: (event) => {
@@ -197,7 +197,7 @@ export function useAgentTimeline({
           if (event.type === 'timeline.reset_required') void reloadLatest(controller.signal).catch(() => undefined)
         },
       })
-      : runtimeClient.streamThreadTimeline(threadId, {
+      : providerSessionTimelineClient.streamThreadTimeline(threadId, {
         signal: controller.signal,
         onTimelineEvent: (event) => {
           dispatch({ type: 'event', scopeKey, event })
@@ -206,7 +206,7 @@ export function useAgentTimeline({
       })
     void stream.catch(() => undefined)
     return () => controller.abort()
-  }, [reloadLatest, runtimeClient, scopeKey, sessionId, threadId])
+  }, [providerSessionTimelineClient, reloadLatest, scopeKey, sessionId, threadId])
 
   useEffect(() => {
     if (!threadId && !sessionId) return
@@ -276,10 +276,10 @@ export function timelineScopeKey(sessionId: string, threadId: string): string {
 }
 
 export function timelineEffectiveScope(input: UseAgentTimelineInput): { sessionId: string; threadId: string } {
-  const threadId = input.localThreadId?.trim() ?? ''
+  const threadId = input.providerThreadId?.trim() ?? ''
   if (input.requireThread && !threadId) return { sessionId: '', threadId: '' }
   return {
-    sessionId: input.localSessionId?.trim() ?? '',
+    sessionId: input.providerSessionId?.trim() ?? '',
     threadId,
   }
 }
@@ -315,27 +315,30 @@ export function isTranscriptTimelineItem(item: AgentTimelineItem): boolean {
 }
 
 function timelineItemMeta(item: AgentTimelineItem): ChatMessageMeta {
-  const runtimeMessage = {
-    threadId: item.runtimeRefs.threadId,
-    ...(item.runtimeRefs.messageId ? { messageId: item.runtimeRefs.messageId } : {}),
-    ...(item.runtimeRefs.runId ? { runId: item.runtimeRefs.runId } : {}),
+  const providerSessionMessage = {
+    threadId: item.providerSessionRefs.threadId,
+    ...(item.providerSessionRefs.messageId ? { messageId: item.providerSessionRefs.messageId } : {}),
+    ...(item.providerSessionRefs.runId ? { runId: item.providerSessionRefs.runId } : {}),
   }
+  const providerSessionInput = item.origin === 'user'
+    ? {
+        ...providerSessionMessage,
+        deliveryStatus: providerSessionInputDeliveryStatusFromTimelineItem(item),
+      }
+    : undefined
   const generationJobs = item.activity ? generationProgressListFromEvents(item.activity.events ?? []) : []
   return {
-    runtimeMessage,
+    providerSessionMessage,
     ...(generationJobs.length > 0 ? { generationJobs } : {}),
-    ...(item.origin === 'user'
+    ...(providerSessionInput
       ? {
-        runtimeInput: {
-          ...runtimeMessage,
-          deliveryStatus: runtimeInputDeliveryStatusFromTimelineItem(item),
-        },
+        providerSessionInput,
       }
       : {}),
   }
 }
 
-function runtimeInputDeliveryStatusFromTimelineItem(item: AgentTimelineItem): NonNullable<ChatMessageMeta['runtimeInput']>['deliveryStatus'] {
+function providerSessionInputDeliveryStatusFromTimelineItem(item: AgentTimelineItem): NonNullable<ChatMessageMeta['providerSessionInput']>['deliveryStatus'] {
   if (item.status === 'failed') return 'failed'
   if (item.status === 'pending') return 'pending'
   return 'accepted'

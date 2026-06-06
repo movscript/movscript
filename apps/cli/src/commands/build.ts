@@ -13,7 +13,7 @@ export async function cmdBuild(options: BuildOptions) {
   const cwd = options.cwd ? resolve(options.cwd) : process.cwd()
   const outDir = resolve(cwd, options.out)
 
-  // 1. Load and validate .codex-plugin/plugin.json, falling back to legacy mov.json.
+  // 1. Load and validate provider plugin manifest, falling back to legacy mov.json.
   let manifest: PluginProjectManifest
   try {
     manifest = loadPluginProjectManifest(cwd)
@@ -25,8 +25,8 @@ export async function cmdBuild(options: BuildOptions) {
   console.log(`Building ${manifest.id}@${manifest.version}...`)
   mkdirSync(outDir, { recursive: true })
 
-  // 2. Bundle logic entry (src/index.ts or manifest.main). Codex-style
-  // plugins may be skills/MCP-only, so no JS runtime entry is required.
+  // 2. Bundle logic entry (src/index.ts or manifest.main). Provider plugins
+  // may be skills/MCP-only, so no JS runtime entry is required.
   const mainEntry = resolve(cwd, manifest.main ?? 'src/index.ts')
   if (existsSync(mainEntry)) {
     await esbuild({
@@ -93,7 +93,7 @@ function buildOutputManifest(m: PluginProjectManifest, hasUi: boolean) {
     ...(m.contributes ? { contributes: m.contributes } : {}),
     ...(m.hasCompile ? { hasCompile: true } : {}),
     manifestFormat: m.manifestFormat,
-    ...(m.codex ? { codex: m.codex } : {}),
+    ...(m.providerPlugin ? { providerPlugin: m.providerPlugin } : {}),
   }
   return base
 }
@@ -121,28 +121,31 @@ function packMovpkg(outDir: string, pkgPath: string, hasUi: boolean, cwd: string
       archive.directory(assetsDir, 'assets')
     }
 
-    const codexPluginDir = join(cwd, '.codex-plugin')
-    if (existsSync(codexPluginDir)) {
-      archive.directory(codexPluginDir, '.codex-plugin')
+    const providerPluginDir = join(cwd, '.provider-plugin')
+    if (existsSync(providerPluginDir)) {
+      archive.directory(providerPluginDir, '.provider-plugin')
     }
 
-    const codexMcpConfigPath = resolveCodexPluginMcpConfigPath(cwd, manifest)
-    if (codexMcpConfigPath && existsSync(codexMcpConfigPath)) {
-      archive.file(codexMcpConfigPath, { name: relative(cwd, codexMcpConfigPath).replace(/\\/g, '/') })
+    const upstreamCompatibilityPluginDir = join(cwd, '.codex-plugin')
+    if (existsSync(upstreamCompatibilityPluginDir)) {
+      archive.directory(upstreamCompatibilityPluginDir, '.codex-plugin')
     }
 
-    const codexSkillsDir = resolveCodexPluginSkillsDir(cwd)
-    if (codexSkillsDir && existsSync(codexSkillsDir)) {
-      archive.directory(codexSkillsDir, 'agent-skills')
+    const providerMcpConfigPath = resolveProviderPluginMcpConfigPath(cwd, manifest)
+    if (providerMcpConfigPath && existsSync(providerMcpConfigPath)) {
+      archive.file(providerMcpConfigPath, { name: relative(cwd, providerMcpConfigPath).replace(/\\/g, '/') })
     }
 
-    // Include agent catalog contributions if present. Plugin manifests can
-    // reference these paths via contributes.agentSkills/contributes.tools, and
-    // packs/config files enable them in the agent catalog.
-    for (const dirName of ['agent-skills', 'agent-tools', 'agent-packs', 'agent-config-files']) {
-      const agentCatalogDir = join(cwd, dirName)
-      if (existsSync(agentCatalogDir)) {
-        archive.directory(agentCatalogDir, dirName)
+    const providerSkillsDir = resolveProviderPluginSkillsDir(cwd)
+    if (providerSkillsDir && existsSync(providerSkillsDir)) {
+      archive.directory(providerSkillsDir, 'plugin-skills')
+    }
+
+    // Include provider plugin catalog contributions if present.
+    for (const dirName of pluginCatalogContributionDirs()) {
+      const catalogDir = join(cwd, dirName)
+      if (existsSync(catalogDir)) {
+        archive.directory(catalogDir, dirName)
       }
     }
 
@@ -150,14 +153,18 @@ function packMovpkg(outDir: string, pkgPath: string, hasUi: boolean, cwd: string
   })
 }
 
-function resolveCodexPluginMcpConfigPath(cwd: string, manifest: PluginProjectManifest): string | undefined {
-  if (manifest.manifestFormat !== 'codex') return undefined
-  const configured = manifest.codex?.mcpServers?.trim() || './.mcp.json'
+function pluginCatalogContributionDirs(): string[] {
+  return ['plugin-skills', 'plugin-tools', 'plugin-packs', 'plugin-config-files']
+}
+
+function resolveProviderPluginMcpConfigPath(cwd: string, manifest: PluginProjectManifest): string | undefined {
+  if (manifest.manifestFormat !== 'provider-plugin') return undefined
+  const configured = manifest.providerPlugin?.mcpServers?.trim() || './.mcp.json'
   return resolvePluginRelativePath(cwd, configured)
 }
 
-function resolveCodexPluginSkillsDir(cwd: string): string | undefined {
-  const manifestPath = join(cwd, '.codex-plugin', 'plugin.json')
+function resolveProviderPluginSkillsDir(cwd: string): string | undefined {
+  const manifestPath = providerPluginManifestPath(cwd)
   if (!existsSync(manifestPath)) return undefined
   try {
     const raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
@@ -166,6 +173,10 @@ function resolveCodexPluginSkillsDir(cwd: string): string | undefined {
   } catch {
     return join(cwd, 'skills')
   }
+}
+
+function providerPluginManifestPath(cwd: string): string {
+  return join(cwd, '.provider-plugin', 'plugin.json')
 }
 
 function resolvePluginRelativePath(rootDir: string, value: string): string | undefined {

@@ -41,7 +41,7 @@ import {
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { agentRunPath } from '@/routes/projectRoutes'
-import { listRuntimeRunSummariesFromWorkspace, type AgentWorkspaceRunListItem } from '@/features/agent/application/agentRuntimeThreadQueryCache'
+import { listProviderSessionRunSummariesFromProviderSessions, type ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import { runRoleLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentAttentionStatusRecipe, agentRunStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 
@@ -59,8 +59,8 @@ export default function AgentRunsPage() {
   const [filter, setFilter] = useState<RunFilter>('all')
   const [search, setSearch] = useState('')
   const runsQuery = useQuery({
-    queryKey: ['agent-runs-page', 'workspace-sessions'],
-    queryFn: () => listRuntimeRunSummariesFromWorkspace(),
+    queryKey: ['agent-runs-page', 'provider-sessions'],
+    queryFn: () => listProviderSessionRunSummariesFromProviderSessions(),
     retry: false,
   })
   const runs = useMemo(() => sortRuns(runsQuery.data ?? []), [runsQuery.data])
@@ -161,7 +161,7 @@ export default function AgentRunsPage() {
   )
 }
 
-function RunRecordRow({ run }: { run: AgentWorkspaceRunListItem }) {
+function RunRecordRow({ run }: { run: ProviderSessionRunListItem }) {
   const pendingApprovals = run.pendingApprovals?.filter((item) => item.status === 'pending').length ?? 0
   const pendingInputs = run.pendingInputRequests?.filter((item) => item.status === 'pending').length ?? 0
   const subagentName = typeof run.metadata?.subagentName === 'string' ? run.metadata.subagentName : ''
@@ -209,7 +209,7 @@ function RunMetric({ title, value, icon, tone }: { title: string; value: number;
   return <AgentRunMetricCard title={title} value={value} state={tone} icon={icon} />
 }
 
-function summarizeRuns(runs: AgentWorkspaceRunListItem[]) {
+function summarizeRuns(runs: ProviderSessionRunListItem[]) {
   return {
     total: runs.length,
     active: runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').length,
@@ -219,14 +219,14 @@ function summarizeRuns(runs: AgentWorkspaceRunListItem[]) {
   }
 }
 
-function runMatchesFilter(run: AgentWorkspaceRunListItem, filter: RunFilter) {
+function runMatchesFilter(run: ProviderSessionRunListItem, filter: RunFilter) {
   if (filter === 'all') return true
   if (filter === 'active') return run.status === 'queued' || run.status === 'in_progress'
   if (filter === 'done') return run.status === 'completed' || run.status === 'completed_with_warnings' || run.status === 'cancelled'
   return run.status === filter
 }
 
-function sortRuns(runs: AgentWorkspaceRunListItem[]) {
+function sortRuns(runs: ProviderSessionRunListItem[]) {
   return [...runs].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
 }
 

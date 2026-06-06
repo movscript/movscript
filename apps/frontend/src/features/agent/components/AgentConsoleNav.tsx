@@ -9,7 +9,13 @@ import {
   AgentConsoleNavShell,
 } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
-import { enabledAgentProviders, normalizeAgentProviderSettings, useAgentProviderConfigStore } from '@/features/agent/state/agentProviderConfigStore'
+import {
+  enabledProviders,
+  normalizeProviderSettings,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+} from '@/shared/infrastructure/providerConfigStore'
+import { providerRoute } from '@/features/agent/application/providerRoutes'
 
 const agentConsoleSections = [
   {
@@ -26,9 +32,9 @@ const agentConsoleSections = [
     icon: Database,
   },
   {
-    to: ROUTES.agentsMovscript,
+    to: ROUTES.agents,
     label: 'Agents',
-    description: 'MovScript Agent、Codex 启用与生命周期',
+    description: 'Provider 启用与生命周期',
     icon: Bot,
     match: ['/agents', ROUTES.agentSettings, ROUTES.agentRuns],
   },
@@ -37,12 +43,12 @@ const agentConsoleSections = [
     label: 'Plugins',
     description: '全局插件、Pack、Skills/Tools 贡献',
     icon: Blocks,
-    match: [ROUTES.plugins, ROUTES.legacyAgentPlugins],
+    match: [ROUTES.plugins],
   },
   {
     to: ROUTES.workspaceConfig,
-    label: 'Workspace Config',
-    description: '.movscript workspace 配置文件',
+    label: 'Workspace',
+    description: '.movscript/data、reviews、sync、agents',
     icon: FileCog,
     match: [ROUTES.workspaceConfig, ROUTES.agentFiles],
   },
@@ -50,8 +56,15 @@ const agentConsoleSections = [
 
 export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
   const location = useLocation()
-  const savedSettings = useAgentProviderConfigStore((state) => state.settings)
-  const enabledCount = enabledAgentProviders(normalizeAgentProviderSettings(savedSettings)).length
+  const savedSettings = useProviderConfigStore((state) => state.settings)
+  const settings = normalizeProviderSettings(savedSettings)
+  const enabledProviderList = enabledProviders(settings)
+  const enabledCount = enabledProviderList.length
+  const defaultProvider = settings.providers.find((provider) => provider.id === settings.defaultProviderId)
+  const appServerProvider = usesAppServerProtocol(defaultProvider)
+    ? defaultProvider
+    : enabledProviderList.find(usesAppServerProtocol)
+  const agentsRoute = appServerProvider ? providerRoute(appServerProvider) : ROUTES.agents
   return (
     <AgentConsoleNavShell compact={compact}>
       <nav aria-label="Agent 控制台全局导航">
@@ -60,11 +73,12 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
             const Icon = section.icon
             const active = sectionIsActive(section, location.pathname)
             const description = section.label === 'Agents'
-              ? `${enabledCount} 个 Agent 启用`
+              ? `${enabledCount} 个 Provider 启用`
               : section.description
+            const to = section.label === 'Agents' ? agentsRoute : section.to
             return (
               <AgentConsoleNavLinkWrapper key={section.to}>
-                <Link to={section.to}>
+                <Link to={to}>
                   <AgentConsoleNavItem
                     active={active}
                     compact={compact}
@@ -80,10 +94,10 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
         {!compact && (
           <AgentConsoleNavMetaRow>
             <AgentConsoleNavMeta icon={ClipboardList}>
-              插件和 workspace 配置是全局入口
+              插件和 workspace root 是全局入口
             </AgentConsoleNavMeta>
             <AgentConsoleNavMeta>
-              Agent 页面只负责 MovScript / Codex 的启用、关闭、配置和运行状态
+              Agent 页面只负责 provider 的启用、关闭、配置和运行状态
             </AgentConsoleNavMeta>
           </AgentConsoleNavMetaRow>
         )}

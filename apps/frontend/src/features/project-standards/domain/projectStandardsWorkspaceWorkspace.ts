@@ -27,7 +27,7 @@ export interface ProjectPromptRulePatch {
   order?: number
 }
 
-export interface ProjectStandardsWorkspaceWorkspaceContent {
+export interface ProjectStandardsWorkspaceArtifactShellContent {
   schema: typeof PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA
   scope: typeof PROJECT_STANDARDS_WORKSPACE_SCOPE
   mode: 'snapshot'
@@ -41,14 +41,17 @@ export interface ProjectStandardsWorkspaceWorkspaceContent {
   createdAt: string
 }
 
-export function buildEmptyProjectStandardsWorkspaceWorkspaceContent(input: {
+/** @deprecated Use ProjectStandardsWorkspaceArtifactShellContent. */
+export type ProjectStandardsWorkspaceWorkspaceContent = ProjectStandardsWorkspaceArtifactShellContent
+
+export function buildEmptyProjectStandardsWorkspaceArtifactShellContent(input: {
   projectId?: number
   productionId?: number
   mode?: 'snapshot'
   projectStyle?: ProjectStylePatch
   createdAt?: string
   summary?: string
-} = {}): ProjectStandardsWorkspaceWorkspaceContent {
+} = {}): ProjectStandardsWorkspaceArtifactShellContent {
   return {
     schema: PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA,
     scope: PROJECT_STANDARDS_WORKSPACE_SCOPE,
@@ -63,6 +66,9 @@ export function buildEmptyProjectStandardsWorkspaceWorkspaceContent(input: {
     createdAt: input.createdAt ?? new Date().toISOString(),
   }
 }
+
+/** @deprecated Use buildEmptyProjectStandardsWorkspaceArtifactShellContent. */
+export const buildEmptyProjectStandardsWorkspaceWorkspaceContent = buildEmptyProjectStandardsWorkspaceArtifactShellContent
 
 export function buildDefaultProjectStylePatch(): ProjectStylePatch {
   return {

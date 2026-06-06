@@ -2,6 +2,7 @@ import type {
   AgentChatInput,
   AgentChatThreadItem,
 } from '@/features/agent/domain/agentChatThreadItems'
+import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
 
 export {
   agentChatInputFromAttachment,
@@ -17,7 +18,7 @@ export type {
   AgentChatThreadItem,
 } from '@/features/agent/domain/agentChatThreadItems'
 
-export type AgentChatProviderKind = 'codex' | 'movscript' | 'movscript-agent' | (string & {})
+export type AgentChatProviderKind = 'codex' | 'mova' | 'claude' | (string & {})
 
 export type AgentChatThreadStatus = 'notLoaded' | 'idle' | 'running' | 'failed' | 'completed' | 'cancelled' | 'unknown'
 export type AgentChatTurnStatus = 'completed' | 'interrupted' | 'failed' | 'inProgress' | (string & {})
@@ -188,22 +189,28 @@ export interface AgentChatModelSelection {
   modelProvider?: string | null
 }
 
+export interface AgentChatRunProfileOptions {
+  runProfile?: AgentRunProfileSelection
+}
+
 export interface AgentChatDataSource {
   provider: AgentChatProviderKind
+  providerId?: string
+  providerInstanceId?: string
   label: string
   serverRequestSubscriptionMode?: 'global' | 'globalWithThreadFallback'
   capabilities?: AgentChatCapabilities
   listThreads(input?: { limit?: number; cursor?: string | null }): Promise<{ threads: AgentChatThread[]; nextCursor?: string | null }>
   readThread(threadId: string, input?: { includeTurns?: boolean }): Promise<AgentChatThread>
-  startThread(input?: { title?: string; projectId?: number } & AgentChatModelSelection): Promise<AgentChatThread>
+  startThread(input?: { title?: string; projectId?: number; cwd?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions): Promise<AgentChatThread>
   renameThread?(input: { threadId: string; name: string }): Promise<AgentChatThread | unknown>
   archiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   unarchiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   deleteThread?(input: { threadId: string }): Promise<unknown>
-  startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null } & AgentChatModelSelection): Promise<AgentChatTurn>
+  startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions): Promise<AgentChatTurn>
   steerTurn?(input: { threadId: string; turnId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null }): Promise<unknown>
   interruptTurn?(input: { threadId: string; turnId: string; reason?: string | null }): Promise<unknown>
-  startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null } & AgentChatModelSelection): Promise<AgentChatTurn>
+  startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions): Promise<AgentChatTurn>
   subscribeThread?(input: {
     threadId: string
     onNotification?: (notification: AgentChatNotification) => void

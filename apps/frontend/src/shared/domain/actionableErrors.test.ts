@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { needsModelSetupAction } from '@/shared/domain/actionableErrors'
 
-test('needsModelSetupAction detects missing runtime model configuration', () => {
+test('needsModelSetupAction detects missing provider model configuration', () => {
   assert.equal(needsModelSetupAction('no model config found — configure a backend model config first'), true)
   assert.equal(needsModelSetupAction(new Error('no text-capable model configured and enabled')), true)
 })

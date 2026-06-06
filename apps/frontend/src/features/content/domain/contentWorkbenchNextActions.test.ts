@@ -108,7 +108,7 @@ test('content workbench opens generation canvas only when all gates are ready', 
   }])
 })
 
-test('content workbench reviews pending AI workspaces before opening generation canvas', () => {
+test('content workbench reviews pending AI drafts before opening generation canvas', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 1,
@@ -125,7 +125,7 @@ test('content workbench reviews pending AI workspaces before opening generation 
   }])
 })
 
-test('content workbench does not block generation after AI workspaces are reviewed', () => {
+test('content workbench does not block generation after AI drafts are reviewed', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 1,

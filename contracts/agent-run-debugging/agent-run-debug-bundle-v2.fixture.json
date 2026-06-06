@@ -5,8 +5,8 @@
   "capabilities": [
     "runSummary",
     "readinessChecklist",
-    "runtimeSummary",
-    "runtimeFrames",
+    "providerSessionSummary",
+    "providerSessionFrames",
     "fullDebugEvents",
     "fullContextDiffs",
     "fullPromptPayloads",
@@ -55,7 +55,7 @@
     "issues": []
   },
   "readinessChecklist": [],
-  "runtimeSummary": {
+  "providerSessionSummary": {
     "skills": {
       "activeSkillIds": ["skill_a"],
       "loadedSkillIds": ["skill_a"],
@@ -80,7 +80,7 @@
       "contextProjectionCount": 1
     }
   },
-  "runtimeFrames": [
+  "providerSessionFrames": [
     {
       "id": "round:id:round_1",
       "kind": "round",

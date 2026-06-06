@@ -1,4 +1,4 @@
-import type { AgentClientInput } from '@/shared/infrastructure/localAgentClient'
+import type { ProviderSessionClientInput } from '@/shared/infrastructure/providerSessionClient'
 import { ROUTES } from '@/routes/projectRoutes'
 
 type AgentSelectionHint = {
@@ -20,7 +20,7 @@ export function isDiagnosticAgentCommand(message: string): boolean {
 
 export function buildCommandFirstClientInput(input: {
   message: string
-  attachments?: AgentClientInput['attachments']
+  attachments?: ProviderSessionClientInput['attachments']
   labels?: string[]
   hints?: {
     projectId?: number
@@ -33,7 +33,7 @@ export function buildCommandFirstClientInput(input: {
     selection?: AgentSelectionHint
     route?: { pathname?: string; search?: string; hash?: string }
   }
-}): AgentClientInput {
+}): ProviderSessionClientInput {
   const route = input.hints?.route ?? inferRouteFromLabels(input.labels)
   const pageContext = buildPageContext({
     route,

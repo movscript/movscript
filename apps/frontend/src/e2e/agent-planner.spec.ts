@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import {
   APPROVAL_WORKER_RUN_ID,
   INPUT_WORKER_RUN_ID,
@@ -9,7 +9,7 @@ import {
   PLANNER_RUN_ID,
   WORKER_RUN_ID,
   approvalWorkerRunFixture,
-  buildPlannerAgentBootstrap,
+  buildPlannerProviderSessionSeed,
   inputWorkerRunFixture,
   plannerPlanSnapshotFixture,
   plannerRunFixture,
@@ -19,8 +19,8 @@ import {
 } from './agentPlannerSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 
-async function seedPlannerAgentBootstrap(page: Page, baseURL: string, options: { clipboardWriteError?: string } = {}) {
-  const seed = buildPlannerAgentBootstrap(baseURL) as unknown
+async function seedPlannerProviderSession(page: Page, baseURL: string, options: { clipboardWriteError?: string } = {}) {
+  const seed = buildPlannerProviderSessionSeed(baseURL) as unknown
   await (page as unknown as {
     addInitScript(
       script: (arg: { key: string; seed: unknown; clipboardWriteError?: string }) => void,
@@ -51,10 +51,10 @@ test('planner run exposes taskGraph overview and run detail drilldown', async ({
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page)
+  await mockPlannerProviderSession(page)
 
   await page.goto('/project/overview')
 
@@ -183,7 +183,7 @@ test('planner run exposes taskGraph overview and run detail drilldown', async ({
   expect(debugBundleText).toContain('"schemaUrl": "https://movscript.dev/schemas/agent-run-debug-bundle-v2.schema.json"')
   expect(debugBundleText).toContain('"generatedAt"')
   expect(debugBundleText).toContain('"capabilities"')
-  expect(debugBundleText).toContain('"runtimeFrames"')
+  expect(debugBundleText).toContain('"providerSessionFrames"')
   expect(debugBundleText).toContain('"fullContextDiffs"')
   expect(debugBundleText).toContain('"readinessChecklist"')
   expect(debugBundleText).toContain('"redactedDebugData"')
@@ -202,7 +202,7 @@ test('planner run exposes taskGraph overview and run detail drilldown', async ({
   expect(debugBundleText).toContain('"modelCalls"')
   expect(debugBundleText).toContain('"hasRequestPayload": true')
   expect(debugBundleText).toContain('"hasResponseBody": true')
-  expect(debugBundleText).toContain('"runtimeFrames"')
+  expect(debugBundleText).toContain('"providerSessionFrames"')
   expect(debugBundleText).toContain('"correlationLabel": "相邻事件窗口"')
   expect(debugBundleText).toContain('"modelEventIds"')
   expect(debugBundleText).toContain(`"eventId": "trace_${WORKER_RUN_ID}_tool"`)
@@ -427,10 +427,10 @@ test('planner run detail remains usable on mobile width', async ({ page }, testI
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page)
+  await mockPlannerProviderSession(page)
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-header')).toBeVisible()
@@ -448,10 +448,10 @@ test('planner worker cancel failure is visible on run detail', async ({ page }, 
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failCancel: true })
+  await mockPlannerProviderSession(page, { failCancel: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-cancel-worker')).toBeVisible()
@@ -470,10 +470,10 @@ test('planner run detail can load all paginated trace events', async ({ page }, 
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { longWorkerTrace: true })
+  await mockPlannerProviderSession(page, { longWorkerTrace: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-summary')).toContainText('34 个事件')
@@ -503,10 +503,10 @@ test('planner run detail stops debug bundle copy when full trace load fails', as
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { longWorkerTrace: true, failTraceAfterCursorOnce: true })
+  await mockPlannerProviderSession(page, { longWorkerTrace: true, failTraceAfterCursorOnce: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(25)
@@ -524,10 +524,10 @@ test('planner run detail surfaces failed model call summary', async ({ page }, t
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failedModelTrace: true })
+  await mockPlannerProviderSession(page, { failedModelTrace: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-attention-events')).toContainText('异常/需关注事件')
@@ -547,10 +547,10 @@ test('planner run detail can retry after trace load failure', async ({ page }, t
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failTraceOnce: true })
+  await mockPlannerProviderSession(page, { failTraceOnce: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-load-error')).toContainText('trace unavailable')
@@ -564,10 +564,10 @@ test('planner run detail shows debug report copy failure', async ({ page }, test
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL), { clipboardWriteError: 'clipboard denied by test' })
+  await seedPlannerProviderSession(page, String(baseURL), { clipboardWriteError: 'clipboard denied by test' })
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page)
+  await mockPlannerProviderSession(page)
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
@@ -581,10 +581,10 @@ test('planner run detail can retry after trace summary failure', async ({ page }
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failTraceSummaryOnce: true })
+  await mockPlannerProviderSession(page, { failTraceSummaryOnce: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-summary-error')).toContainText('统计加载失败')
@@ -599,10 +599,10 @@ test('planner run detail exposes taskGraph context load failures as alerts', asy
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failPlanSnapshotTimes: 2 })
+  await mockPlannerProviderSession(page, { failPlanSnapshotTimes: 2 })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-taskGraph-context-error')).toContainText('taskGraph snapshot unavailable')
@@ -618,10 +618,10 @@ test('planner run detail exposes missing run load failures as alerts', async ({ 
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page)
+  await mockPlannerProviderSession(page)
 
   await page.goto('/agent/runs/run_missing_e2e')
   await expect(page.getByTestId('agent-run-detail-error')).toContainText('run not found')
@@ -634,10 +634,10 @@ test('planner run detail can retry after run detail load failure', async ({ page
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failRunOnce: true })
+  await mockPlannerProviderSession(page, { failRunOnce: true })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-detail-error')).toContainText('run detail unavailable')
@@ -651,10 +651,10 @@ test('planner worker approval can be resolved from run detail', async ({ page },
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page)
+  await mockPlannerProviderSession(page)
 
   await page.goto(`/agent/runs/${APPROVAL_WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-sidebar')).toContainText('Hawking')
@@ -686,10 +686,10 @@ test('planner worker approval failure is visible on run detail', async ({ page }
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failApproval: true })
+  await mockPlannerProviderSession(page, { failApproval: true })
 
   await page.goto(`/agent/runs/${APPROVAL_WORKER_RUN_ID}`)
   await expect(page.getByRole('button', { name: '拒绝执行movscript_publish_assets' })).toBeVisible()
@@ -703,10 +703,10 @@ test('planner worker input can be answered from run detail', async ({ page }, te
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page)
+  await mockPlannerProviderSession(page)
 
   await page.goto(`/agent/runs/${INPUT_WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-sidebar')).toContainText('Turing')
@@ -735,10 +735,10 @@ test('planner worker input failure is visible on run detail', async ({ page }, t
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await seedPlannerAgentBootstrap(page, String(baseURL))
+  await seedPlannerProviderSession(page, String(baseURL))
 
   await mockGenerationAppShell(page)
-  await mockPlannerAgentRuntime(page, { failInput: true })
+  await mockPlannerProviderSession(page, { failInput: true })
 
   await page.goto(`/agent/runs/${INPUT_WORKER_RUN_ID}`)
   await page.getByTestId('agent-run-input-text').fill('只看正式素材')
@@ -749,7 +749,7 @@ test('planner worker input failure is visible on run detail', async ({ page }, t
   await expect(page.getByTestId('agent-run-pending-input')).toContainText('确认素材范围')
 })
 
-async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boolean; failApproval?: boolean; failInput?: boolean; longWorkerTrace?: boolean; failedModelTrace?: boolean; failRunOnce?: boolean; failTraceOnce?: boolean; failTraceAfterCursorOnce?: boolean; failTraceSummaryOnce?: boolean; failPlanSnapshot?: boolean; failPlanSnapshotOnce?: boolean; failPlanSnapshotTimes?: number } = {}) {
+async function mockPlannerProviderSession(page: Page, options: { failCancel?: boolean; failApproval?: boolean; failInput?: boolean; longWorkerTrace?: boolean; failedModelTrace?: boolean; failRunOnce?: boolean; failTraceOnce?: boolean; failTraceAfterCursorOnce?: boolean; failTraceSummaryOnce?: boolean; failPlanSnapshot?: boolean; failPlanSnapshotOnce?: boolean; failPlanSnapshotTimes?: number } = {}) {
   let snapshot = plannerPlanSnapshotFixture()
   let workerRun = workerRunFixture()
   let approvalWorkerRun = approvalWorkerRunFixture()
@@ -774,7 +774,7 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
     if (url.pathname === '/runtime/compat' || url.pathname === '/health') {
       await fulfillJSON(route, {
         ok: true,
-        service: 'movscript-agent',
+        service: 'mova',
         mode: 'e2e',
         mcpEndpoint: 'http://127.0.0.1:29999/mcp',
         runtime: { apiVersion: 1, features: ['model-config', 'runtime-capabilities'], endpoints: ['/livez', '/runtime/compat'] },

@@ -12,7 +12,7 @@ toolGrants:
 
 # Project And Script Context
 
-Use this skill when a user asks Codex to inspect MovScript projects, create a project, find the current project focus, list scripts, or locate screenplay/script passages.
+Use this skill when a user asks the provider to inspect MovScript projects, create a project, find the current project focus, list scripts, or locate screenplay/script passages.
 
 ## Workflow
 

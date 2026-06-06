@@ -17,14 +17,6 @@ Build:
 pnpm --filter @movscript/cli build
 ```
 
-Inspect local agent sessions without starting an agent runtime:
-
-```bash
-pnpm --filter @movscript/cli build
-node apps/cli/dist/index.js agent sessions
-node apps/cli/dist/index.js agent sessions --workspace /tmp/movscript-agent-debug --json
-```
-
 ## Global Options
 
 ```text

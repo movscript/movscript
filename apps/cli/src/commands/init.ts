@@ -18,11 +18,11 @@ export async function cmdInit(name: string | undefined, options: InitOptions) {
 
   mkdirSync(join(dir, 'src'), { recursive: true })
   mkdirSync(join(dir, 'assets'), { recursive: true })
-  mkdirSync(join(dir, '.codex-plugin'), { recursive: true })
+  mkdirSync(join(dir, '.provider-plugin'), { recursive: true })
 
-  // Codex-compatible plugin manifest. MovScript-specific runtime fields are
-  // optional extensions that Codex ignores.
-  writeFileSync(join(dir, '.codex-plugin', 'plugin.json'), JSON.stringify({
+  // App-server plugin manifest. Provider-specific runtimes can ignore
+  // MovScript extensions they do not understand.
+  const providerPluginManifest = JSON.stringify({
     name: pluginName,
     version: '0.1.0',
     description: 'A MovScript plugin',
@@ -37,7 +37,8 @@ export async function cmdInit(name: string | undefined, options: InitOptions) {
       required: [],
       properties: {},
     },
-  }, null, 2) + '\n')
+  }, null, 2) + '\n'
+  writeFileSync(join(dir, '.provider-plugin', 'plugin.json'), providerPluginManifest)
 
   // package.json
   writeFileSync(join(dir, 'package.json'), JSON.stringify({
@@ -113,7 +114,7 @@ export async function cmdInit(name: string | undefined, options: InitOptions) {
   writeFileSync(join(dir, '.gitignore'), 'node_modules/\ndist/\n*.movpkg\n')
 
   console.log(`Created plugin project: ${pluginName}/`)
-  console.log(`  .codex-plugin/plugin.json — manifest`)
+  console.log(`  .provider-plugin/plugin.json — provider manifest`)
   console.log(`  src/index.ts   — logic entry`)
   if (options.webview) console.log(`  src/ui.tsx     — UI entry (webview)`)
   console.log(`  assets/logo.png — plugin icon`)

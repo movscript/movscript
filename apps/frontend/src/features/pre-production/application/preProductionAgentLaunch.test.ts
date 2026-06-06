@@ -72,7 +72,7 @@ test('media candidate generation result normalizes output resource ids', () => {
   assert.deepEqual(mediaCandidateOutputResourceIds(undefined), [])
 })
 
-test('pre-production launch review search preserves related workspace workspaces', () => {
+test('pre-production launch review search preserves related workspace artifacts', () => {
   const assetSearch = buildAssetCandidateWorkspaceReviewSearchParams(new URLSearchParams('kind=image'), {
     assetSlotId: 51,
     fallbackWorkspaceId: 'fallback-asset',
@@ -82,7 +82,7 @@ test('pre-production launch review search preserves related workspace workspaces
   assert.equal(assetSearch.get('view'), 'review')
   assert.equal(assetSearch.get('asset_slot_id'), '51')
   assert.equal(assetSearch.get('workspaceId'), 'artifact-asset')
-  assert.equal(assetSearch.get('assetWorkspaceWorkspaceId'), 'artifact-asset')
+  assert.equal(assetSearch.get('assetWorkspaceArtifactId'), 'artifact-asset')
 
   const auditSearch = buildPreProductionAuditReviewSearchParams(new URLSearchParams(), {
     artifacts: [
@@ -93,5 +93,5 @@ test('pre-production launch review search preserves related workspace workspaces
   assert.equal(auditSearch.get('view'), 'review')
   assert.equal(auditSearch.get('workspaceId'), 'setting-workspace')
   assert.equal(auditSearch.get('settingWorkspaceId'), 'setting-workspace')
-  assert.equal(auditSearch.get('assetWorkspaceWorkspaceId'), 'asset-workspace')
+  assert.equal(auditSearch.get('assetWorkspaceArtifactId'), 'asset-workspace')
 })

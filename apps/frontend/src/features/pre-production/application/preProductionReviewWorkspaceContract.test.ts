@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-test('pre-production review only loads explicitly opened workspace workspaces', () => {
+test('pre-production review only loads explicitly opened workspace artifacts', () => {
   const source = readFileSync(resolve('src/features/pre-production/components/PreProductionPage.tsx'), 'utf8')
   const launchSource = readFileSync(resolve('src/features/pre-production/application/preProductionAgentLaunch.ts'), 'utf8')
   const canvasLaunchSource = readFileSync(resolve('src/features/pre-production/application/preProductionCanvasLaunch.ts'), 'utf8')
@@ -26,10 +26,12 @@ test('pre-production review only loads explicitly opened workspace workspaces', 
 
   assert.match(source, /usePreProductionReviewController\(\{ projectId, searchParams, setSearchParams \}\)/)
   assert.match(reviewControllerSource, /export async function loadPreProductionReviewWorkspaces/)
-  assert.match(reviewControllerSource, /localAgentClient\.getWorkspace\(workspaceId\)/)
+  assert.match(reviewControllerSource, /providerSessionClient\.getWorkspaceArtifact\(workspaceId\)/)
   assert.match(reviewControllerSource, /openedSettingWorkspaceId/)
-  assert.match(reviewControllerSource, /openedAssetWorkspaceWorkspaceId/)
-  assert.match(reviewControllerSource, /queryKey: \['asset-workspace-workspaces', projectId, openedAssetWorkspaceWorkspaceId, openedWorkspaceId\]/)
+  assert.match(reviewControllerSource, /openedAssetWorkspaceArtifactId/)
+  assert.match(reviewControllerSource, /searchParams\.get\('assetWorkspaceArtifactId'\)/)
+  assert.match(reviewControllerSource, /searchParams\.get\('assetWorkspaceWorkspaceId'\)/)
+  assert.match(reviewControllerSource, /queryKey: \['asset-workspace-workspaces', projectId, openedAssetWorkspaceArtifactId, openedWorkspaceId\]/)
   assert.match(reviewControllerSource, /queryKey: \['setting-workspace-workspaces', projectId, openedSettingWorkspaceId, openedWorkspaceId\]/)
   assert.doesNotMatch(source, /buildPreProductionAssetWorkspaceMutationOptions/)
   assert.doesNotMatch(source, /runPreProductionMediaCandidateGeneration/)
@@ -98,7 +100,7 @@ test('pre-production review only loads explicitly opened workspace workspaces', 
   assert.match(candidateControllerSource, /api\.patch/)
   assert.match(candidateControllerSource, /api\.post/)
   assert.match(assetWorkspaceControllerSource, /export function buildPreProductionAssetWorkspaceMutationOptions/)
-  assert.match(assetWorkspaceControllerSource, /createAssetCandidateWorkspaceWorkspace/)
+  assert.match(assetWorkspaceControllerSource, /createAssetCandidateWorkspaceArtifact/)
   assert.match(assetWorkspaceControllerSource, /launchAssetCandidateWorkspaceAgent/)
   assert.match(assetWorkspaceControllerSource, /candidateReferenceResourceIds/)
   assert.match(assetWorkspaceControllerSource, /buildAssetCandidateWorkspaceReviewSearchParams/)
@@ -202,18 +204,18 @@ test('pre-production review only loads explicitly opened workspace workspaces', 
   assert.doesNotMatch(source, /launchAssetCandidateWorkspaceAgent/)
   assert.doesNotMatch(source, /buildAssetCandidateWorkspaceReviewSearchParams/)
   assert.doesNotMatch(source, /taskType: 'asset_candidate_generation'/)
-  assert.doesNotMatch(source, /localAgentClient\.listWorkspaces\(\{ projectId, kind: 'setting_workspace'/)
-  assert.doesNotMatch(source, /localAgentClient\.listWorkspaces\(\{ projectId, kind: 'asset_workspace'/)
+  assert.doesNotMatch(source, /providerSessionClient\.listWorkspaces\(\{ projectId, kind: 'setting_workspace'/)
+  assert.doesNotMatch(source, /providerSessionClient\.listWorkspaces\(\{ projectId, kind: 'asset_workspace'/)
   assert.doesNotMatch(source, /function loadPreProductionReviewWorkspaces/)
-  assert.doesNotMatch(source, /localAgentClient\.getWorkspace\(workspaceId\)/)
+  assert.doesNotMatch(source, /providerSessionClient\.getWorkspace\(workspaceId\)/)
   assert.doesNotMatch(source, /openedSettingWorkspaceId/)
-  assert.doesNotMatch(source, /openedAssetWorkspaceWorkspaceId/)
+  assert.doesNotMatch(source, /openedAssetWorkspaceArtifactId/)
 })
 
 test('pre-production workspace panel does not link to historical workspace inventory', () => {
   const source = readFileSync(resolve('src/features/pre-production/components/workspaces/PreProductionWorkspaceReviewPanel.tsx'), 'utf8')
 
-  assert.doesNotMatch(source, /查看全部 AI 工作区/)
+  assert.doesNotMatch(source, /查看全部 AI 草案/)
   assert.doesNotMatch(source, /href="\/agent\/workspaces"/)
   assert.doesNotMatch(source, /FileText/)
 })

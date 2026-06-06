@@ -1,4 +1,4 @@
-import type { AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
+import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 type TranslationFn = (key: string, options?: Record<string, unknown>) => string
@@ -34,6 +34,6 @@ export function formatAgentRelativeTime(value: string | number, locale: string, 
   return formatter.format(Math.round(diffMs / (365 * 24 * 60 * 60_000)), 'year')
 }
 
-export function localThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id'>, t: TranslationFn) {
-  return thread.title || t('agents.chat.panel.runtime.localThreadTitle', { id: thread.id.slice(-6) })
+export function providerThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id'>, t: TranslationFn) {
+  return thread.title || t('agents.chat.panel.providerSession.providerThreadTitle', { id: thread.id.slice(-6) })
 }

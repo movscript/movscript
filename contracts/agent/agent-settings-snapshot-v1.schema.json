@@ -25,7 +25,7 @@
       "format": "date-time"
     },
     "model": {
-      "description": "Model routing values exported for partial import. Import saves Runtime model settings; API keys are intentionally excluded.",
+      "description": "Model routing values exported for partial import. Import saves Provider model settings; API keys are intentionally excluded.",
       "type": "object",
       "additionalProperties": false,
       "required": ["model"],
@@ -50,9 +50,14 @@
       "type": "array",
       "items": { "$ref": "#/$defs/configFile" }
     },
+    "providerSessionLimits": {
+      "description": "Provider-session budget values exported for partial import. Import writes these values into the target config file limits; they are not global Agent identity.",
+      "$ref": "#/$defs/providerSessionLimits"
+    },
     "runtimeLimits": {
-      "description": "Runtime budget values exported for partial import. Import writes these values into the target config file limits; they are not global Agent identity.",
-      "$ref": "#/$defs/runtimeLimits"
+      "description": "Compatibility alias for older exported snapshots. New exports use providerSessionLimits.",
+      "$ref": "#/$defs/providerSessionLimits",
+      "deprecated": true
     },
     "skillConfig": {
       "description": "Config-file skill activation export. Import writes enabled choices into the target config file skillIds; Skill instruction editing belongs to the Pack or plugin marketplace surface.",
@@ -102,14 +107,14 @@
             "routes": { "type": "array" }
           }
         },
-        "limits": { "$ref": "#/$defs/runtimeLimits" },
+        "limits": { "$ref": "#/$defs/providerSessionLimits" },
         "metadata": {
           "type": "object",
           "additionalProperties": true
         }
       }
     },
-    "runtimeLimits": {
+    "providerSessionLimits": {
       "type": "object",
       "properties": {
         "maxToolCalls": { "type": "number", "minimum": 0 },

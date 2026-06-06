@@ -1,5 +1,5 @@
 import { plannerRunIdForPlanAction } from '@/features/agent/domain/agentPlanUi'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/providerSessionClient'
 
 export type PlanDispatchSettings = {
   maxWorkers: number
@@ -7,14 +7,14 @@ export type PlanDispatchSettings = {
   workerTimeoutMs: number
 }
 
-export type PlanConversationRuntimePatch = {
+export type PlanConversationProviderSessionPatch = {
   loading?: boolean
   stopping?: boolean
 }
 
 export interface AgentPlanActionDeps {
   setBusy: (busy: boolean) => void
-  setConversationRun: (run: AgentRun, patch: PlanConversationRuntimePatch) => void
+  setConversationRun: (run: AgentRun, patch: PlanConversationProviderSessionPatch) => void
   reportError: (message: string) => void
   dispatchTaskGraph: (taskGraphId: string, input: {
     plannerRunId?: string

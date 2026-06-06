@@ -52,7 +52,7 @@ test('processExternalAgentTask builds and commits auto-send workspaces', async (
   ])
 })
 
-test('processExternalAgentTask reports build failures through runtime state and page task notifications', async () => {
+test('processExternalAgentTask reports build failures through provider-session state and page task notifications', async () => {
   const calls: string[] = []
   const result = await processExternalAgentTask({
     task: task({ payload: { message: 'Run this', requestId: 'req_1', autoSend: true } }),
@@ -154,7 +154,7 @@ function workspace(): AgentSendWorkspace {
   return {
     id: 'workspace_1',
     createdAt: 1,
-    route: 'local-runtime',
+    route: 'provider-session',
     visibleUserContent: 'Hello',
     attachments: [],
     model: { id: 1 },
@@ -172,7 +172,7 @@ function workspace(): AgentSendWorkspace {
       messages: [],
     },
     httpRequests: [],
-    localRuntime: {},
+    providerSession: {},
     warnings: [],
   }
 }

@@ -3,11 +3,11 @@ import test from 'node:test'
 import {
   buildPreProductionWorkspaceContentForEntries,
   buildPreProductionWorkspaceEntryDiffRows,
-  parsePreProductionWorkspaceWorkspace,
+  parsePreProductionWorkspaceArtifact,
 } from '@/features/pre-production/domain/preProductionWorkspaceReview'
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 
-function workspace(input: Partial<AgentWorkspace> & Pick<AgentWorkspace, 'id' | 'kind' | 'content'>): AgentWorkspace {
+function workspace(input: Partial<WorkspaceArtifact> & Pick<WorkspaceArtifact, 'id' | 'kind' | 'content'>): WorkspaceArtifact {
   return {
     title: input.id,
     status: 'workspace',
@@ -18,7 +18,7 @@ function workspace(input: Partial<AgentWorkspace> & Pick<AgentWorkspace, 'id' | 
 }
 
 test('project layer workspace review can isolate setting workspace entries', () => {
-  const view = parsePreProductionWorkspaceWorkspace(
+  const view = parsePreProductionWorkspaceArtifact(
     workspace({
       id: 'setting-workspace',
       kind: 'setting_workspace',
@@ -49,7 +49,7 @@ test('project layer workspace review can isolate setting workspace entries', () 
 })
 
 test('project layer workspace review matches backend-shaped setting workspace rows by uppercase ID', () => {
-  const view = parsePreProductionWorkspaceWorkspace(
+  const view = parsePreProductionWorkspaceArtifact(
     workspace({
       id: 'setting-workspace',
       kind: 'setting_workspace',
@@ -102,7 +102,7 @@ test('project layer workspace review matches backend-shaped setting workspace ro
 })
 
 test('project layer workspace review can isolate asset slot workspace entries and diff owner', () => {
-  const view = parsePreProductionWorkspaceWorkspace(
+  const view = parsePreProductionWorkspaceArtifact(
     workspace({
       id: 'asset-workspace-workspace',
       kind: 'asset_workspace',
@@ -152,7 +152,7 @@ test('project layer workspace review can isolate asset slot workspace entries an
 })
 
 test('project layer workspace review matches backend-shaped asset slot workspace rows by uppercase ID', () => {
-  const view = parsePreProductionWorkspaceWorkspace(
+  const view = parsePreProductionWorkspaceArtifact(
     workspace({
       id: 'asset-workspace',
       kind: 'asset_workspace',
@@ -225,7 +225,7 @@ test('buildPreProductionWorkspaceContentForEntries keeps unselected backend rows
     ],
     assetSlots: [],
   }
-  const view = parsePreProductionWorkspaceWorkspace(sourceWorkspace, data, { includeAssetSlots: false })
+  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeAssetSlots: false })
   const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.creativeReferences[0]!], data)) as Record<string, any>
 
   assert.equal(payload.mode, 'snapshot')
@@ -260,7 +260,7 @@ test('buildPreProductionWorkspaceContentForEntries scopes asset workspace payloa
       { ID: 12, name: '旧头像', kind: 'image', creative_reference_id: 7 },
     ],
   }
-  const view = parsePreProductionWorkspaceWorkspace(sourceWorkspace, data, { includeCreativeReferences: false })
+  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeCreativeReferences: false })
   const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.assetSlots[0]!], data)) as Record<string, any>
 
   assert.equal(payload.mode, 'snapshot')
@@ -292,7 +292,7 @@ test('buildPreProductionWorkspaceContentForEntries rebases stale asset owner ids
     ],
     assetSlots: [],
   }
-  const view = parsePreProductionWorkspaceWorkspace(sourceWorkspace, data, { includeCreativeReferences: false })
+  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeCreativeReferences: false })
   const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.assetSlots[0]!], data)) as Record<string, any>
   const slot = payload.workspace.asset_slots[0]
 

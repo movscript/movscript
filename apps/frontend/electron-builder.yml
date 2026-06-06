@@ -19,15 +19,10 @@ extraResources:
       - server
       - server.exe
       - admin/**
-  - from: movscript-agent
-    to: movscript-agent
-    filter:
-      - dist/**
-      - catalog/**
-      - package.json
   - from: ../../plugins/movscript
-    to: codex-plugins/movscript
+    to: provider-plugins/movscript
     filter:
+      - .provider-plugin/**
       - .codex-plugin/**
       - .mcp.json
       - bin/**

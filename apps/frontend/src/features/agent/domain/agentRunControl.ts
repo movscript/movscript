@@ -1,9 +1,9 @@
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import { isAgentRunTerminalStatus } from '@movscript/protocol'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import { isAgentRunTerminalStatus } from '@/features/agent/domain/agentProtocol'
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 
-export type RunControlRuntimePatch = {
+export type RunControlProviderSessionPatch = {
   stopping?: boolean
   loading?: boolean
   building?: boolean
@@ -11,12 +11,12 @@ export type RunControlRuntimePatch = {
   error?: string
 }
 
-export interface StopLocalRunActionDeps {
+export interface StopProviderSessionRunActionDeps {
   abortActiveSend: () => void
   setPendingAssistantState: (state: null) => void
   resetStreamingAssistant: () => void
-  setConversationRun: (run: AgentRun, patch: RunControlRuntimePatch) => void
-  setConversationRuntime: (patch: RunControlRuntimePatch) => void
+  setConversationRun: (run: AgentRun, patch: RunControlProviderSessionPatch) => void
+  setConversationProviderSessionState: (patch: RunControlProviderSessionPatch) => void
   cancelGenerationJobIfActive: () => void
   cancelRun: (runId: string, input: { reason?: string }) => Promise<AgentRun>
   getRun: (runId: string) => Promise<AgentRun>
@@ -39,7 +39,7 @@ export function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined)
   return isAgentRunTerminalStatus(status)
 }
 
-export function createLocalAgentStopAbortError(): Error {
+export function createProviderSessionStopAbortError(): Error {
   try {
     return new DOMException('用户停止了当前会话。', 'AbortError')
   } catch {
@@ -49,13 +49,14 @@ export function createLocalAgentStopAbortError(): Error {
   }
 }
 
-export function stopLocalRunAction(input: {
+
+export function stopProviderSessionRunAction(input: {
   run: AgentRun | null
   loading: boolean
   building: boolean
   stopping: boolean
   stopRequestedBeforeRun: boolean
-  deps: StopLocalRunActionDeps
+  deps: StopProviderSessionRunActionDeps
 }): void {
   const { run, loading, building, stopping, stopRequestedBeforeRun, deps } = input
   deps.abortActiveSend()
@@ -64,7 +65,7 @@ export function stopLocalRunAction(input: {
 
   if (!isStoppableAgentRun(run)) {
     if ((loading || building) && !stopping) {
-      deps.setConversationRuntime({ stopRequested: false, stopping: false, loading: false, building: false })
+      deps.setConversationProviderSessionState({ stopRequested: false, stopping: false, loading: false, building: false })
     }
     return
   }
@@ -84,7 +85,7 @@ export function stopLocalRunAction(input: {
     loading: false,
     stopRequested: false,
   })
-  deps.setConversationRuntime({ stopping: false, loading: false, stopRequested: false })
+  deps.setConversationProviderSessionState({ stopping: false, loading: false, stopRequested: false })
 
   try {
     deps.cancelGenerationJobIfActive()
@@ -105,7 +106,7 @@ export function stopLocalRunAction(input: {
           }
           return
         }
-        deps.setConversationRuntime({ stopping: false, loading: false, stopRequested: false, error: message })
+        deps.setConversationProviderSessionState({ stopping: false, loading: false, stopRequested: false, error: message })
       })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -114,9 +115,9 @@ export function stopLocalRunAction(input: {
         deps.setConversationRun(latestRun, { stopRequested: false, stopping: false, loading: false })
       }).catch(() => undefined)
     } else {
-      deps.setConversationRuntime({ stopping: false, loading: false, stopRequested: false, error: message })
+      deps.setConversationProviderSessionState({ stopping: false, loading: false, stopRequested: false, error: message })
     }
   } finally {
-    deps.setConversationRuntime({ stopRequested: false, stopping: false, loading: false, building: false })
+    deps.setConversationProviderSessionState({ stopRequested: false, stopping: false, loading: false, building: false })
   }
 }

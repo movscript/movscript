@@ -2,7 +2,7 @@ import { generationTraceReplayFixtures } from '@/features/agent/domain/agentGene
 import { replayGenerationTrace } from '@/features/agent/domain/agentGenerationMedia'
 import type { E2EBootstrapSeed } from '@/shared/infrastructure/e2eBootstrap'
 import type { AgentAttachment, ChatGenerationJob, ChatMessage, Conversation } from '@/features/agent/state/agentStore'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { Project } from '@/types'
 
 const USER_ID = 1001
@@ -165,7 +165,7 @@ export function buildGenerationAppBootstrapScenario(
     id: RUN_ID,
     threadId: THREAD_ID,
     status: outcome === 'success' ? 'in_progress' : outcome === 'timeout' ? 'completed_with_warnings' : 'failed',
-    runtimeLimits: { approvalMode: 'auto_readonly',
+    providerSessionLimits: { approvalMode: 'auto_readonly',
       sandboxMode: false,
       maxToolCalls: 4,
       maxIterations: 4,
@@ -249,7 +249,7 @@ export function buildGenerationAppBootstrapScenario(
       }],
     },
     session: {
-      conversationRuntimes: {
+      conversationProviderSessionStates: {
         [conversation.id]: {
           conversationId: conversation.id,
           requestId: 'request-generation-e2e',
@@ -265,7 +265,7 @@ export function buildGenerationAppBootstrapScenario(
           updatedAt: Date.now(),
         },
       },
-      localThreadIdsByConversation: {
+      providerThreadIdsByConversation: {
         [conversation.id]: THREAD_ID,
       },
     },

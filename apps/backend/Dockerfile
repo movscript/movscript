@@ -8,7 +8,6 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY .npmrc ./
 COPY apps/admin/package.json ./apps/admin/package.json
-COPY apps/agent/package.json ./apps/agent/package.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
 COPY apps/cli/package.json ./apps/cli/package.json
 COPY packages/workspaces/package.json ./packages/workspaces/package.json

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildEmptyProjectStandardsWorkspaceWorkspaceContent } from '@/features/project-standards/domain/projectStandardsWorkspaceWorkspace'
+import { buildEmptyProjectStandardsWorkspaceArtifactShellContent } from '@/features/project-standards/domain/projectStandardsWorkspaceWorkspace'
 
-test('buildEmptyProjectStandardsWorkspaceWorkspaceContent can seed editable snapshot content', () => {
-  const content = buildEmptyProjectStandardsWorkspaceWorkspaceContent({
+test('buildEmptyProjectStandardsWorkspaceArtifactShellContent can seed editable snapshot content', () => {
+  const content = buildEmptyProjectStandardsWorkspaceArtifactShellContent({
     projectId: 4,
     mode: 'snapshot',
     projectStyle: {

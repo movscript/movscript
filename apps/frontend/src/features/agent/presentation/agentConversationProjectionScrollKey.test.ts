@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { projectionItemsScrollKey } from '@/features/agent/presentation/agentConversationProjectionScrollKey'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 
@@ -97,7 +97,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 8,
       maxIterations: 4,
       allowNetwork: false,

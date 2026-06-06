@@ -86,7 +86,7 @@ import {
   isRecord,
   loadProjectStandardsWorkspaceData,
   normalizeRuleForm,
-  parseProjectStandardsWorkspaceWorkspace,
+  parseProjectStandardsWorkspaceArtifact,
   parseProjectStyleWorkspaceRows,
   projectPromptRulePayload,
   projectPromptRules,
@@ -107,7 +107,7 @@ import {
   projectStandardsReadyRecipe,
   projectStandardsRequiredRuleRecipe,
 } from '@/features/project-standards/presentation/projectStandardsSemanticUi'
-import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -219,16 +219,16 @@ export function ProjectStandardsContent() {
     if (openedWorkspaceId) setReviewDialogOpen(true)
   }, [openedWorkspaceId])
 
-  const workspacesQuery = useQuery<AgentWorkspace[]>({
-    queryKey: ['project-workspace-workspaces', projectId, pageKey, activeWorkspaceId, openedWorkspaceId],
+  const workspaceArtifactsQuery = useQuery<WorkspaceArtifact[]>({
+    queryKey: ['project-workspace-artifacts', projectId, pageKey, activeWorkspaceId, openedWorkspaceId],
     queryFn: async () => {
       if (!projectId || !pageKey) return []
       const scopedWorkspaceId = openedWorkspaceId || activeWorkspaceId
       if (scopedWorkspaceId) {
-        const workspace = await localAgentClient.getWorkspace(scopedWorkspaceId)
+        const workspace = await providerSessionClient.getWorkspaceArtifact(scopedWorkspaceId)
         return workspace.kind === 'project_standards_workspace' ? [workspace] : []
       }
-      const { workspaces } = await localAgentClient.listWorkspaces({ projectId, kind: 'project_standards_workspace', pageKey, limit: 20 })
+      const { workspaces } = await providerSessionClient.listWorkspaceArtifacts({ projectId, kind: 'project_standards_workspace', pageKey, limit: 20 })
       return workspaces
     },
     enabled: !!projectId && !!pageKey,
@@ -237,12 +237,12 @@ export function ProjectStandardsContent() {
   })
 
   const workspaceCounts = useMemo(() => {
-    const workspaces = (workspacesQuery.data ?? []).filter((workspace) => !isProjectStandardsWorkspaceHelperWorkspace(workspace))
+    const workspaceArtifacts = (workspaceArtifactsQuery.data ?? []).filter((workspace) => !isProjectStandardsWorkspaceHelperWorkspace(workspace))
     return {
-      workspace: workspaces.filter((item) => item.status === 'workspace').length,
-      applied: workspaces.filter((item) => item.status === 'applied').length,
+      workspace: workspaceArtifacts.filter((item) => item.status === 'workspace').length,
+      applied: workspaceArtifacts.filter((item) => item.status === 'applied').length,
     }
-  }, [workspacesQuery.data])
+  }, [workspaceArtifactsQuery.data])
 
   function handleReviewDialogOpenChange(open: boolean) {
     setReviewDialogOpen(open)
@@ -256,13 +256,13 @@ export function ProjectStandardsContent() {
     }, { replace: true })
   }
 
-  async function applyWorkspace(workspace: AgentWorkspace) {
+  async function applyWorkspace(workspace: WorkspaceArtifact) {
     if (!projectId) return
     if (workspace.kind === 'project_standards_workspace') {
       setApplyingWorkspaceId(workspace.id)
       try {
         const proposedValue = buildProjectStyleApplyPayload(workspace)
-        await localAgentClient.updateWorkspace(workspace.id, {
+        await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
           metadata: {
             ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
             reviewedFrom: 'project-standards-workbench',
@@ -270,7 +270,7 @@ export function ProjectStandardsContent() {
           },
         })
         try {
-          await localAgentClient.applyWorkspace(workspace.id, {
+          await providerSessionClient.applyWorkspaceArtifact(workspace.id, {
             target: {
               projectId,
               entityType: 'project',
@@ -286,7 +286,7 @@ export function ProjectStandardsContent() {
           })
         } catch (error) {
           await applyProjectStandardsWorkspace(projectId, JSON.parse(proposedValue) as Record<string, unknown>)
-          await localAgentClient.updateWorkspace(workspace.id, {
+          await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
             status: 'applied',
             target: {
               projectId,
@@ -307,7 +307,7 @@ export function ProjectStandardsContent() {
         useProjectStore.getState().setCurrent(nextProject)
         toast.success('项目规范已写入后端')
         await refetch()
-        await workspacesQuery.refetch()
+        await workspaceArtifactsQuery.refetch()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '应用项目规范工作区失败')
       } finally {
@@ -319,15 +319,15 @@ export function ProjectStandardsContent() {
 
   function refreshAll() {
     void refetch()
-    void workspacesQuery.refetch()
+    void workspaceArtifactsQuery.refetch()
   }
 
-  const workspaces = (workspacesQuery.data ?? []).filter((workspace) => !isProjectStandardsWorkspaceHelperWorkspace(workspace))
-  const reviewWorkspaces = useMemo(() => workspaces.map((workspace) => ({
+  const workspaceArtifacts = (workspaceArtifactsQuery.data ?? []).filter((workspace) => !isProjectStandardsWorkspaceHelperWorkspace(workspace))
+  const reviewWorkspaceArtifacts = useMemo(() => workspaceArtifacts.map((workspace) => ({
     workspace,
-    workspaceView: parseProjectStandardsWorkspaceWorkspace(workspace, pageKey),
+    workspaceView: parseProjectStandardsWorkspaceArtifact(workspace, pageKey),
     styleRows: parseProjectStyleWorkspaceRows(workspace, data.project),
-  })), [data.project, workspaces, pageKey])
+  })), [data.project, workspaceArtifacts, pageKey])
 
   const filledStandardCount = projectStandardFilledCount(data.project)
   const missingStandardLabels = projectStandardMissingLabels(data.project)
@@ -518,7 +518,7 @@ export function ProjectStandardsContent() {
                 <ProjectStandardsMetric label="核心规范" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `待补充 ${missingStandardLabels.length} 项` : '已覆盖'} tone={missingStandardLabels.length > 0 ? 'warning' : 'success'} compact />
                 <ProjectStandardsMetric label="自定义规则" value={visibleCustomRules.length} detail={`${enabledCustomRules.length} 条启用`} compact />
                 <ProjectStandardsMetric label="风格参考" value={styleReferenceIds.length} detail="参考图" tone={styleReferenceIds.length > 0 ? 'success' : 'neutral'} compact />
-                <ProjectStandardsMetric label="待审工作区" value={workspaceCounts.workspace} detail="Agent workspace" tone={workspaceCounts.workspace > 0 ? 'warning' : 'neutral'} compact />
+                <ProjectStandardsMetric label="待审草案" value={workspaceCounts.workspace} detail="Agent artifact" tone={workspaceCounts.workspace > 0 ? 'warning' : 'neutral'} compact />
               </ProjectStandardsMetricGrid>
               <ProjectStandardsAppSurface className="project-standards-status-strip">
                 <ProjectStandardsTinyText className="text-foreground">{statusSummary}</ProjectStandardsTinyText>
@@ -539,7 +539,7 @@ export function ProjectStandardsContent() {
                           <ProjectStandardsDescription>按创作语境查看规范；点击卡片右上角即可编辑，启用的内容会进入右侧预览。</ProjectStandardsDescription>
                         </div>
                         <div className="project-standards-board-actions">
-                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={refreshAll} loading={isFetching || workspacesQuery.isFetching}>
+                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={refreshAll} loading={isFetching || workspaceArtifactsQuery.isFetching}>
                             刷新
                           </ProjectStandardsActionButton>
                           <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => setReviewDialogOpen(true)} disabled={!projectId}>
@@ -801,9 +801,9 @@ export function ProjectStandardsContent() {
           <ProjectStandardsDialogTitle className="sr-only">项目规范审阅</ProjectStandardsDialogTitle>
           <ProjectStandardsDialogBody>
             <ProjectStandardsWorkspaceReviewPanel
-              loading={workspacesQuery.isLoading}
+              loading={workspaceArtifactsQuery.isLoading}
               workspaceCount={workspaceCounts.workspace}
-              workspaces={reviewWorkspaces}
+              workspaces={reviewWorkspaceArtifacts}
               applyingWorkspaceId={applyingWorkspaceId}
               onApplyWorkspace={(workspace) => { void applyWorkspace(workspace) }}
             />

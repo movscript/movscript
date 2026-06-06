@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildRunActivitySnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildRunActivitySnapshot preserves all live model rounds and totals token usage', () => {
@@ -170,7 +170,7 @@ function runWithDetailedActivity(): AgentRun {
     id: 'run_test',
     threadId: 'thread_test',
     status: 'completed',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,

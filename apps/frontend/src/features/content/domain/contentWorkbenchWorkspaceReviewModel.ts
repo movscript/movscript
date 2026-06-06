@@ -1,11 +1,11 @@
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import {
-  contentWorkbenchWorkspaceFieldString,
-  contentWorkbenchWorkspaceSnapshot,
-  contentWorkbenchWorkspaceUnitKey,
-  contentWorkbenchWorkspaceUnitTitle,
-  normalizeContentWorkbenchWorkspaceText,
-} from './contentWorkbenchWorkspaceWorkspace'
+  contentWorkbenchWorkspaceArtifactFieldString,
+  contentWorkbenchWorkspaceArtifactSnapshot,
+  contentWorkbenchWorkspaceArtifactUnitKey,
+  contentWorkbenchWorkspaceArtifactUnitTitle,
+  normalizeContentWorkbenchWorkspaceArtifactText,
+} from './contentWorkbenchWorkspaceArtifact'
 import { firstText, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils.ts'
 import {
   contentUnitStoryboardBriefPromptText,
@@ -41,7 +41,7 @@ export interface ContentSnapshotDiff {
 }
 
 export interface ContentWorkspaceReviewModel {
-  workspace: AgentWorkspace
+  workspace: WorkspaceArtifact
   summary: string
   targetLabel: string
   diffs: ContentSnapshotDiff[]
@@ -71,7 +71,7 @@ export type ContentWorkbenchReviewRow = {
 }
 
 export function buildContentWorkspaceReviewModel(
-  workspace: AgentWorkspace,
+  workspace: WorkspaceArtifact,
   context: {
     rowByMomentId: Map<number, ContentWorkbenchReviewRow>
     rowByUnitId: Map<number, ContentWorkbenchReviewRow>
@@ -107,21 +107,21 @@ export function buildContentWorkspaceReviewModel(
     }
 
     proposedUnits.forEach((unit, index) => {
-      if ('action' in unit) warnings.push(`草案制作项「${contentWorkbenchWorkspaceUnitTitle(unit, index)}」包含旧版操作字段；snapshot 审阅不会把它当作草案语义。`)
+      if ('action' in unit) warnings.push(`草案制作项「${contentWorkbenchWorkspaceArtifactUnitTitle(unit, index)}」包含旧版操作字段；snapshot 审阅不会把它当作草案语义。`)
       const current = matchCurrentContentUnit(unit, currentUnits, usedCurrentIds, index)
       const fields = compareContentUnitFields(current, unit)
       const state: ContentSnapshotDiffState = current ? (fields.length > 0 ? 'changed' : 'unchanged') : 'added'
       if (current) usedCurrentIds.add(current.ID)
       diffs.push({
-        key: `unit-${index}-${current?.ID ?? contentWorkbenchWorkspaceUnitKey(unit, index)}`,
+        key: `unit-${index}-${current?.ID ?? contentWorkbenchWorkspaceArtifactUnitKey(unit, index)}`,
         state,
         kind: 'content_unit',
-        title: contentWorkbenchWorkspaceUnitTitle(unit, index),
+        title: contentWorkbenchWorkspaceArtifactUnitTitle(unit, index),
         target: current ? `当前制作项 #${current.ID}` : '新增制作项',
         detail: contentUnitChangeDetail(current, unit, fields),
         impact: contentUnitChangeImpact(state, current, fields),
         before: current ? contentUnitSnapshot(current) : undefined,
-        after: contentWorkbenchWorkspaceSnapshot(unit),
+        after: contentWorkbenchWorkspaceArtifactSnapshot(unit),
         fields,
         currentUnitId: current?.ID,
       workspace: unit,
@@ -190,7 +190,7 @@ export function workspaceEntityId(value?: Record<string, unknown>) {
   return numberOf(value?.entityId)
 }
 
-export function dedupeWorkspaces(workspaces: AgentWorkspace[]) {
+export function dedupeWorkspaceArtifacts(workspaces: WorkspaceArtifact[]) {
   const seen = new Set<string>()
   return workspaces.filter((workspace) => {
     if (seen.has(workspace.id)) return false
@@ -198,6 +198,9 @@ export function dedupeWorkspaces(workspaces: AgentWorkspace[]) {
     return true
   })
 }
+
+/** @deprecated Use dedupeWorkspaceArtifacts. */
+export const dedupeWorkspaces = dedupeWorkspaceArtifacts
 
 function extractJsonBlock(raw: string): string | null {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw)
@@ -218,13 +221,13 @@ function matchCurrentContentUnit(
   usedCurrentIds: Set<number>,
   index: number,
 ) {
-  const proposedTitle = normalizeContentWorkbenchWorkspaceText(contentWorkbenchWorkspaceFieldString(proposed, ['title']))
-  const proposedKind = normalizeContentWorkbenchWorkspaceText(contentWorkbenchWorkspaceFieldString(proposed, ['kind']))
-  const exact = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchWorkspaceText(titleOfRecord(unit)) === proposedTitle && normalizeContentWorkbenchWorkspaceText(unit.kind) === proposedKind)
+  const proposedTitle = normalizeContentWorkbenchWorkspaceArtifactText(contentWorkbenchWorkspaceArtifactFieldString(proposed, ['title']))
+  const proposedKind = normalizeContentWorkbenchWorkspaceArtifactText(contentWorkbenchWorkspaceArtifactFieldString(proposed, ['kind']))
+  const exact = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchWorkspaceArtifactText(titleOfRecord(unit)) === proposedTitle && normalizeContentWorkbenchWorkspaceArtifactText(unit.kind) === proposedKind)
   if (exact) return exact
-  const byTitle = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchWorkspaceText(titleOfRecord(unit)) === proposedTitle)
+  const byTitle = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchWorkspaceArtifactText(titleOfRecord(unit)) === proposedTitle)
   if (byTitle) return byTitle
-  const byKind = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchWorkspaceText(unit.kind) === proposedKind)
+  const byKind = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchWorkspaceArtifactText(unit.kind) === proposedKind)
   if (byKind) return byKind
   return currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && index === 0) ?? undefined
 }
@@ -273,25 +276,25 @@ function compareContentUnitFields(current: ContentWorkbenchReviewRecord | undefi
   const shot = isRecord(proposed.shot) ? proposed.shot : undefined
   const timing = isRecord(proposed.timing) ? proposed.timing : undefined
   return compactFieldChanges([
-    { label: '标题', before: current ? titleOfRecord(current) : undefined, after: contentWorkbenchWorkspaceUnitTitle(proposed, 0) },
-    { label: '类型', before: current?.kind === undefined ? undefined : String(current.kind), after: contentWorkbenchWorkspaceFieldString(proposed, ['kind']) },
-    { label: '描述', before: current?.description === undefined ? undefined : String(current.description), after: contentWorkbenchWorkspaceFieldString(proposed, ['description']) },
-    { label: '提示词', before: current?.prompt === undefined ? undefined : String(current.prompt), after: contentWorkbenchWorkspaceFieldString(proposed, ['prompt']) },
+    { label: '标题', before: current ? titleOfRecord(current) : undefined, after: contentWorkbenchWorkspaceArtifactUnitTitle(proposed, 0) },
+    { label: '类型', before: current?.kind === undefined ? undefined : String(current.kind), after: contentWorkbenchWorkspaceArtifactFieldString(proposed, ['kind']) },
+    { label: '描述', before: current?.description === undefined ? undefined : String(current.description), after: contentWorkbenchWorkspaceArtifactFieldString(proposed, ['description']) },
+    { label: '提示词', before: current?.prompt === undefined ? undefined : String(current.prompt), after: contentWorkbenchWorkspaceArtifactFieldString(proposed, ['prompt']) },
     { label: '时长', before: current?.duration_sec ? `${current.duration_sec}s` : undefined, after: numberOf(proposed.duration_sec) > 0 ? `${numberOf(proposed.duration_sec)}s` : undefined },
-    { label: '景别', before: current?.shot_size === undefined ? undefined : String(current.shot_size), after: contentWorkbenchWorkspaceFieldString(shot ?? {}, ['shot_size']) },
-    { label: '机位', before: current?.camera_angle === undefined ? undefined : String(current.camera_angle), after: contentWorkbenchWorkspaceFieldString(shot ?? {}, ['camera_angle']) },
-    { label: '运动', before: current?.camera_motion === undefined ? undefined : String(current.camera_motion), after: contentWorkbenchWorkspaceFieldString(shot ?? {}, ['camera_movement', 'camera_motion']) },
+    { label: '景别', before: current?.shot_size === undefined ? undefined : String(current.shot_size), after: contentWorkbenchWorkspaceArtifactFieldString(shot ?? {}, ['shot_size']) },
+    { label: '机位', before: current?.camera_angle === undefined ? undefined : String(current.camera_angle), after: contentWorkbenchWorkspaceArtifactFieldString(shot ?? {}, ['camera_angle']) },
+    { label: '运动', before: current?.camera_motion === undefined ? undefined : String(current.camera_motion), after: contentWorkbenchWorkspaceArtifactFieldString(shot ?? {}, ['camera_movement', 'camera_motion']) },
     { label: '视觉调度', before: current ? contentUnitVisualPlanPromptText(current) : undefined, after: proposedContentUnitVisualPlanText(proposed) },
     { label: '故事板', before: current ? contentUnitStoryboardBriefPromptText(current) : undefined, after: proposedContentUnitStoryboardBriefText(proposed) },
     { label: '局部开始', before: undefined, after: formatTimelineSeconds(timing?.local_start_sec) },
-    { label: '节奏角色', before: undefined, after: contentWorkbenchWorkspaceFieldString(timing ?? {}, ['rhythm_role']) },
-    { label: '入场节奏', before: undefined, after: contentWorkbenchWorkspaceFieldString(timing ?? {}, ['transition_in']) },
-    { label: '出场节奏', before: undefined, after: contentWorkbenchWorkspaceFieldString(timing ?? {}, ['transition_out']) },
+    { label: '节奏角色', before: undefined, after: contentWorkbenchWorkspaceArtifactFieldString(timing ?? {}, ['rhythm_role']) },
+    { label: '入场节奏', before: undefined, after: contentWorkbenchWorkspaceArtifactFieldString(timing ?? {}, ['transition_in']) },
+    { label: '出场节奏', before: undefined, after: contentWorkbenchWorkspaceArtifactFieldString(timing ?? {}, ['transition_out']) },
   ])
 }
 
 function contentUnitChangeDetail(current: ContentWorkbenchReviewRecord | undefined, proposed: Record<string, unknown>, fields: ContentSnapshotFieldDiff[]) {
-  if (!current) return compactContentParts([contentWorkbenchWorkspaceFieldString(proposed, ['description']), contentWorkbenchWorkspaceFieldString(proposed, ['prompt'])])
+  if (!current) return compactContentParts([contentWorkbenchWorkspaceArtifactFieldString(proposed, ['description']), contentWorkbenchWorkspaceArtifactFieldString(proposed, ['prompt'])])
   if (fields.length === 0) return '与当前制作项一致，可视为复用。'
   return `调整 ${fields.map((field) => field.label).slice(0, 4).join('、')}`
 }
@@ -313,7 +316,7 @@ function formatTimelineSeconds(value: unknown) {
 }
 
 function compactFieldChanges(items: Array<ContentSnapshotFieldDiff>): ContentSnapshotFieldDiff[] {
-  return items.filter((item) => normalizeContentWorkbenchWorkspaceText(item.before) !== normalizeContentWorkbenchWorkspaceText(item.after))
+  return items.filter((item) => normalizeContentWorkbenchWorkspaceArtifactText(item.before) !== normalizeContentWorkbenchWorkspaceArtifactText(item.after))
 }
 
 function compactContentParts(parts: Array<unknown>) {

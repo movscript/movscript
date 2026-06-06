@@ -5,6 +5,8 @@ import {
   createInstrumentedAgentStateStorage,
   finishAgentPerformanceOperation,
   markAgentPerformancePhase,
+  operationKindLabel,
+  phaseLabel,
   recordAgentPerformanceMetric,
   resetAgentTelemetrySink,
   setAgentTelemetrySink,
@@ -13,7 +15,7 @@ import {
   type AgentPerformanceOperation,
   type AgentTelemetrySink,
 } from './agentPerformanceStore'
-import { isAgentTelemetryReportableMetricName } from '@movscript/protocol'
+import { isAgentTelemetryReportableMetricName } from '@/features/agent/domain/agentProtocol'
 
 test('agent performance instrumentation forwards completed operation without storing local history', () => {
   resetAgentTelemetrySink()
@@ -73,6 +75,12 @@ test('agent performance metrics summarize p95 and max by metric name', () => {
   assert.equal(sendMetric?.count, 3)
   assert.equal(sendMetric?.p95, 100)
   assert.equal(sendMetric?.max, 100)
+})
+
+test('agent performance labels use provider-session and active-run vocabulary', () => {
+  assert.equal(operationKindLabel('active_run_input'), '活动 Run 输入')
+  assert.equal(phaseLabel('provider_session_input_final_thread_start'), 'Provider Session 输入最终 Thread 开始')
+  assert.equal(phaseLabel('provider_session_input_final_thread_done'), 'Provider Session 输入最终 Thread 完成')
 })
 
 test('agent telemetry sink can be replaced without changing instrumentation call sites', () => {

@@ -52,7 +52,7 @@ import {
   AgentPageShellHeader,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { localAgentClient, type AgentRuntimeTelemetryOperation, type AgentRuntimeTelemetrySpan } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type ProviderSessionTelemetryOperation, type ProviderSessionTelemetrySpan } from '@/shared/infrastructure/providerSessionClient'
 import {
   formatBytes,
   formatMs,
@@ -80,9 +80,9 @@ export default function AIAgentPerformancePage() {
     refetchInterval: 5_000,
     retry: false,
   })
-  const runtimeTelemetryQuery = useQuery({
-    queryKey: ['agent-runtime-telemetry', localAgentClient.baseURL],
-    queryFn: ({ signal }) => localAgentClient.getRuntimeTelemetry(signal),
+  const providerSessionTelemetryQuery = useQuery({
+    queryKey: ['provider-session-telemetry', providerSessionClient.baseURL],
+    queryFn: ({ signal }) => providerSessionClient.getProviderSessionTelemetry(signal),
     refetchInterval: 5_000,
     retry: false,
   })
@@ -101,36 +101,36 @@ export default function AIAgentPerformancePage() {
   const summary = useMemo(() => summarizeOperations(operations), [operations])
   const combinedMetrics = useMemo(() => [
     ...metrics,
-    ...(runtimeTelemetryQuery.data?.metrics.map((sample) => ({
-      id: `runtime:${sample.name}:${sample.createdAt}:${sample.value}`,
+    ...(providerSessionTelemetryQuery.data?.metrics.map((sample) => ({
+      id: `provider-session:${sample.name}:${sample.createdAt}:${sample.value}`,
       name: sample.name,
       value: sample.value,
       unit: sample.unit,
       createdAt: sample.createdAt,
       labels: sample.labels,
     })) ?? []),
-  ], [metrics, runtimeTelemetryQuery.data?.metrics])
+  ], [metrics, providerSessionTelemetryQuery.data?.metrics])
   const combinedLogs = useMemo(() => [
     ...logs,
-    ...(runtimeTelemetryQuery.data?.logs.map((log) => ({
-      id: `runtime:${log.createdAt}:${log.message}`,
+    ...(providerSessionTelemetryQuery.data?.logs.map((log) => ({
+      id: `provider-session:${log.createdAt}:${log.message}`,
       level: log.level,
-      message: `[runtime] ${log.message}`,
+      message: `[provider session] ${log.message}`,
       createdAt: log.createdAt,
       operationId: log.operationId,
       details: log.details,
     })) ?? []),
-  ].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)), [logs, runtimeTelemetryQuery.data?.logs])
+  ].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)), [logs, providerSessionTelemetryQuery.data?.logs])
   const metricSummary = useMemo(() => summarizeAgentPerformanceMetrics(combinedMetrics).slice(0, 12), [combinedMetrics])
   const maxLongTask = longTasks.reduce((max, task) => Math.max(max, task.durationMs), 0)
   const clientSummary = clientSnapshot?.summary
-  const runtimeSummary = runtimeTelemetryQuery.data?.summary
-  const runtimeOperations = runtimeTelemetryQuery.data?.operations ?? []
-  const runtimeSpans = runtimeTelemetryQuery.data?.spans ?? []
-  const runtimeService = runtimeTelemetryQuery.data?.service
-  const latencySeries = useMemo(() => latencyTrendSeries(combinedMetrics, operations, runtimeSpans), [combinedMetrics, operations, runtimeSpans])
-  const spanKindRows = useMemo(() => spanKindDistribution(runtimeSpans), [runtimeSpans])
-  const slowRows = useMemo(() => slowDiagnosticRows(operations, runtimeSpans, longTasks), [operations, runtimeSpans, longTasks])
+  const providerSessionSummary = providerSessionTelemetryQuery.data?.summary
+  const providerSessionOperations = providerSessionTelemetryQuery.data?.operations ?? []
+  const providerSessionSpans = providerSessionTelemetryQuery.data?.spans ?? []
+  const providerSessionService = providerSessionTelemetryQuery.data?.service
+  const latencySeries = useMemo(() => latencyTrendSeries(combinedMetrics, operations, providerSessionSpans), [combinedMetrics, operations, providerSessionSpans])
+  const spanKindRows = useMemo(() => spanKindDistribution(providerSessionSpans), [providerSessionSpans])
+  const slowRows = useMemo(() => slowDiagnosticRows(operations, providerSessionSpans, longTasks), [operations, providerSessionSpans, longTasks])
 
   return (
     <AgentPageShell data-testid="agent-performance-page">
@@ -145,11 +145,11 @@ export default function AIAgentPerformancePage() {
               </AgentPerformanceStatusBadge>
             </AgentPerformanceHeaderTitleRow>
             <AgentPerformanceHeaderDescription>
-              以三层数据排查 Agent：前端只采集并上报，后端聚合趋势和阶段耗时，Runtime telemetry 提供 agent 侧 spans。
+              以三层数据排查 Agent：前端只采集并上报，后端聚合趋势和阶段耗时，Provider session telemetry 提供 agent 侧 spans。
             </AgentPerformanceHeaderDescription>
           </AgentPerformanceHeaderCopy>
           <AgentPerformanceHeaderActions>
-            <AgentPerformanceActionButton type="button" size="sm" variant="outline" onClick={() => { void clientTelemetryQuery.refetch(); void runtimeTelemetryQuery.refetch() }}>
+            <AgentPerformanceActionButton type="button" size="sm" variant="outline" onClick={() => { void clientTelemetryQuery.refetch(); void providerSessionTelemetryQuery.refetch() }}>
               <AgentPerformanceIcon icon={RefreshCw} size={14} />
               刷新后端快照
             </AgentPerformanceActionButton>
@@ -166,7 +166,7 @@ export default function AIAgentPerformancePage() {
           <PerformanceStat title="确认耗时" value={formatMs(summary.approvalP95)} detail={`确认样本 ${summary.approvalCount} 次`} icon={<ListTree size={15} />} tone={summary.approvalP95 > 600 ? 'warning' : 'ready'} />
           <PerformanceStat title="后端样本" value={`${clientSummary?.samples ?? 0}`} detail={`${clientSummary?.batches ?? 0} batches / ${clientSummary?.rejected ?? 0} rejected`} icon={<Database size={15} />} tone={(clientSummary?.rejected ?? 0) > 0 ? 'warning' : 'ready'} />
           <PerformanceStat title="主线程阻塞" value={formatMs(maxLongTask)} detail={`${clientSnapshot?.long_tasks.count ?? 0} 条 Long Task`} icon={<AlertTriangle size={15} />} tone={maxLongTask > 500 ? 'warning' : 'ready'} />
-          <PerformanceStat title="Runtime 指标" value={`${runtimeSummary?.operationCount ?? 0}`} detail={`${runtimeSummary?.spanCount ?? 0} spans / ${runtimeService?.storage ?? 'memory'} window`} icon={<Gauge size={15} />} tone={(runtimeSummary?.slowOperationCount ?? 0) + (runtimeSummary?.slowSpanCount ?? 0) > 0 ? 'warning' : 'ready'} />
+          <PerformanceStat title="Provider Session 指标" value={`${providerSessionSummary?.operationCount ?? 0}`} detail={`${providerSessionSummary?.spanCount ?? 0} spans / ${providerSessionService?.storage ?? 'memory'} window`} icon={<Gauge size={15} />} tone={(providerSessionSummary?.slowOperationCount ?? 0) + (providerSessionSummary?.slowSpanCount ?? 0) > 0 ? 'warning' : 'ready'} />
         </AgentPerformanceStatGrid>
 
         <AgentPerformanceThreeColumnGrid>
@@ -248,12 +248,12 @@ export default function AIAgentPerformancePage() {
         </AgentPerformanceMainGrid>
 
         <AgentPerformanceTwoColumnGrid>
-          <PerformancePanel title="Runtime Operations" icon={<Route size={14} />}>
-            <RuntimeOperationList operations={runtimeOperations} loading={runtimeTelemetryQuery.isLoading} />
+          <PerformancePanel title="Provider Session Operations" icon={<Route size={14} />}>
+            <ProviderSessionOperationList operations={providerSessionOperations} loading={providerSessionTelemetryQuery.isLoading} />
           </PerformancePanel>
 
-          <PerformancePanel title="Runtime Trace Spans" icon={<Activity size={14} />}>
-            <RuntimeSpanList spans={runtimeSpans} loading={runtimeTelemetryQuery.isLoading} />
+          <PerformancePanel title="Provider Session Trace Spans" icon={<Activity size={14} />}>
+            <ProviderSessionSpanList spans={providerSessionSpans} loading={providerSessionTelemetryQuery.isLoading} />
           </PerformancePanel>
 
           <PerformancePanel title="Backend Telemetry Ingest" icon={<Database size={14} />}>
@@ -285,8 +285,8 @@ export default function AIAgentPerformancePage() {
   )
 }
 
-function RuntimeSpanList({ spans, loading }: { spans: AgentRuntimeTelemetrySpan[]; loading: boolean }) {
-  if (loading && spans.length === 0) return <AgentPerformanceEmptyState>正在读取 runtime telemetry。</AgentPerformanceEmptyState>
+function ProviderSessionSpanList({ spans, loading }: { spans: ProviderSessionTelemetrySpan[]; loading: boolean }) {
+  if (loading && spans.length === 0) return <AgentPerformanceEmptyState>正在读取 provider session telemetry。</AgentPerformanceEmptyState>
   if (spans.length === 0) return <AgentPerformanceEmptyState>模型、工具、审批等后端 trace 会作为 spans 出现在这里。</AgentPerformanceEmptyState>
   return (
     <AgentPerformanceStack density="compact">
@@ -306,20 +306,20 @@ function RuntimeSpanList({ spans, loading }: { spans: AgentRuntimeTelemetrySpan[
   )
 }
 
-function RuntimeOperationList({ operations, loading }: { operations: AgentRuntimeTelemetryOperation[]; loading: boolean }) {
-  if (loading && operations.length === 0) return <AgentPerformanceEmptyState>正在读取 runtime operations。</AgentPerformanceEmptyState>
+function ProviderSessionOperationList({ operations, loading }: { operations: ProviderSessionTelemetryOperation[]; loading: boolean }) {
+  if (loading && operations.length === 0) return <AgentPerformanceEmptyState>正在读取 provider session operations。</AgentPerformanceEmptyState>
   if (operations.length === 0) return <AgentPerformanceEmptyState>后端 HTTP、run 创建、stream、审批等操作会出现在这里。</AgentPerformanceEmptyState>
   return (
     <AgentPerformanceStack density="compact">
       {operations.slice(0, 10).map((operation) => {
-        const slowest = slowestRuntimePhase(operation)
+        const slowest = slowestProviderSessionPhase(operation)
         return (
           <AgentPerformanceListItem
             key={operation.id}
             title={`${operation.method ? `${operation.method} ` : ''}${operation.requestPath ?? operation.kind}`}
             meta={`${operation.kind}${operation.runId ? ` · ${operation.runId}` : ''}${slowest ? ` · slowest ${slowest.label}` : ''}`}
             badge={(
-              <AgentPerformanceStatusBadge {...agentPerformanceOperationRecipe(operation.status, isSlowRuntimeOperation(operation))}>
+              <AgentPerformanceStatusBadge {...agentPerformanceOperationRecipe(operation.status, isSlowProviderSessionOperation(operation))}>
                 {operation.status === 'running' ? 'running' : formatMs(operation.durationMs ?? 0)}
               </AgentPerformanceStatusBadge>
             )}
@@ -626,7 +626,7 @@ interface SlowDiagnosticRow {
   tone: 'warning' | 'error'
 }
 
-function latencyTrendSeries(metrics: AgentPerformanceMetricSample[], operations: AgentPerformanceOperation[], spans: AgentRuntimeTelemetrySpan[]): LatencyPoint[] {
+function latencyTrendSeries(metrics: AgentPerformanceMetricSample[], operations: AgentPerformanceOperation[], spans: ProviderSessionTelemetrySpan[]): LatencyPoint[] {
   const metricPoints = metrics
     .filter((sample) => sample.unit === 'ms' && (sample.name.endsWith('operation_duration_ms') || sample.name.endsWith('trace_span_duration_ms')))
     .slice(0, 24)
@@ -652,7 +652,7 @@ function latencyTrendSeries(metrics: AgentPerformanceMetricSample[], operations:
   ].slice(0, 24)
 }
 
-function spanKindDistribution(spans: AgentRuntimeTelemetrySpan[]): SpanKindRow[] {
+function spanKindDistribution(spans: ProviderSessionTelemetrySpan[]): SpanKindRow[] {
   const rows = new Map<string, { durations: number[]; count: number; slow: number; failed: number }>()
   for (const span of spans) {
     const row = rows.get(span.kind) ?? { durations: [], count: 0, slow: 0, failed: 0 }
@@ -673,7 +673,7 @@ function spanKindDistribution(spans: AgentRuntimeTelemetrySpan[]): SpanKindRow[]
     .sort((a, b) => b.count - a.count || b.p95 - a.p95)
 }
 
-function slowDiagnosticRows(operations: AgentPerformanceOperation[], spans: AgentRuntimeTelemetrySpan[], longTasks: Array<{ id: string; startedAt: string; durationMs: number }>): SlowDiagnosticRow[] {
+function slowDiagnosticRows(operations: AgentPerformanceOperation[], spans: ProviderSessionTelemetrySpan[], longTasks: Array<{ id: string; startedAt: string; durationMs: number }>): SlowDiagnosticRow[] {
   return [
     ...operations.filter(slowOperation).map((operation) => ({
       id: `operation:${operation.id}`,
@@ -702,13 +702,13 @@ function slowDiagnosticRows(operations: AgentPerformanceOperation[], spans: Agen
   ].sort((a, b) => b.durationMs - a.durationMs)
 }
 
-function slowestRuntimePhase(operation: AgentRuntimeTelemetryOperation): AgentRuntimeTelemetryOperation['phases'][number] | undefined {
+function slowestProviderSessionPhase(operation: ProviderSessionTelemetryOperation): ProviderSessionTelemetryOperation['phases'][number] | undefined {
   return operation.phases
     .filter((phase) => phase.name !== 'operation_start')
     .sort((a, b) => b.deltaMs - a.deltaMs)[0]
 }
 
-function isSlowRuntimeOperation(operation: AgentRuntimeTelemetryOperation): boolean {
+function isSlowProviderSessionOperation(operation: ProviderSessionTelemetryOperation): boolean {
   const duration = operation.durationMs ?? 0
   if (operation.kind === 'http_request' || operation.kind === 'run_stream') return duration > 1_000
   return duration > 600

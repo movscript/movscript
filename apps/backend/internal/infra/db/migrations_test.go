@@ -165,6 +165,68 @@ func TestRunMigrationsAcceptsMigration000026LegacyChecksum(t *testing.T) {
 	}
 }
 
+func TestMigration000039RepairsLegacyCreativeReferenceWorkspaceClientID(t *testing.T) {
+	const legacyChecksum = "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201"
+
+	db := testutil.OpenSQLiteWithConfig(t, "migrations_000039_creative_reference_workspace_client_id.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`
+		CREATE TABLE creative_references (
+			id integer primary key autoincrement,
+			created_at datetime,
+			updated_at datetime,
+			deleted_at datetime,
+			project_id integer not null,
+			proposal_client_id text,
+			kind text not null,
+			name text not null,
+			alias text,
+			description text,
+			content text,
+			importance text,
+			status text,
+			profile_json text,
+			tags_json text
+		)
+	`).Error; err != nil {
+		t.Fatalf("create legacy creative_references table: %v", err)
+	}
+	if db.Migrator().HasColumn(&model.CreativeReference{}, "workspace_client_id") {
+		t.Fatal("workspace_client_id exists before repair migration")
+	}
+
+	foundRepairMigration := false
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version == "000039" {
+			foundRepairMigration = true
+			continue
+		}
+		checksum := migrationChecksum(migration)
+		if migration.Version == "000026" {
+			checksum = legacyChecksum
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  checksum,
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+	if !foundRepairMigration {
+		t.Fatal("migration 000039 is not registered")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+	if !db.Migrator().HasColumn(&model.CreativeReference{}, "workspace_client_id") {
+		t.Fatal("workspace_client_id was not added by repair migration")
+	}
+}
+
 func TestMigration000029ChecksumCompatibility(t *testing.T) {
 	var migration Migration
 	for _, registered := range RegisteredMigrations() {

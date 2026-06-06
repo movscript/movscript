@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 
 export type AgentTraceCategory = 'context' | 'action' | 'impact' | 'http' | 'decision' | 'attention'
 

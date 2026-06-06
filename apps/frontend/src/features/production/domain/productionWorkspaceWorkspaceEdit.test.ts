@@ -2,21 +2,21 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/workspaces'
 
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import {
-  appendProductionWorkspaceWorkspaceSceneMoment,
-  appendProductionWorkspaceWorkspaceSegment,
-  appendProductionWorkspaceWorkspaceCreativeReference,
-  productionWorkspaceWorkspaceNodeKey,
-  removeProductionWorkspaceWorkspaceCreativeReference,
-  removeProductionWorkspaceWorkspaceSceneMoment,
-  removeProductionWorkspaceWorkspaceSegment,
-  replaceProductionWorkspaceWorkspaceSceneMoment,
-  replaceProductionWorkspaceWorkspaceSegment,
-  updateProductionWorkspaceWorkspaceText,
+  appendProductionWorkspaceArtifactSceneMoment,
+  appendProductionWorkspaceArtifactSegment,
+  appendProductionWorkspaceArtifactCreativeReference,
+  productionWorkspaceArtifactNodeKey,
+  removeProductionWorkspaceArtifactCreativeReference,
+  removeProductionWorkspaceArtifactSceneMoment,
+  removeProductionWorkspaceArtifactSegment,
+  replaceProductionWorkspaceArtifactSceneMoment,
+  replaceProductionWorkspaceArtifactSegment,
+  updateProductionWorkspaceArtifactText,
 } from './productionWorkspaceWorkspaceEdit'
 
-test('production workspace workspace edits patch workspace content text', () => {
+test('production workspace artifact edits patch workspace content text', () => {
   const workspace = productionWorkspace({
     workspace: {
       segments: [{
@@ -35,14 +35,14 @@ test('production workspace workspace edits patch workspace content text', () => 
     },
   })
 
-  const result = updateProductionWorkspaceWorkspaceText(workspace, (content) => {
-    const segmentKey = productionWorkspaceWorkspaceNodeKey(content.workspace.segments[0]!, 'segment:0')
-    replaceProductionWorkspaceWorkspaceSegment(content, segmentKey, {
+  const result = updateProductionWorkspaceArtifactText(workspace, (content) => {
+    const segmentKey = productionWorkspaceArtifactNodeKey(content.workspace.segments[0]!, 'segment:0')
+    replaceProductionWorkspaceArtifactSegment(content, segmentKey, {
       ...content.workspace.segments[0]!,
       title: '新段落',
       summary: '新摘要',
     })
-    replaceProductionWorkspaceWorkspaceSceneMoment(content, segmentKey, 'id:20', {
+    replaceProductionWorkspaceArtifactSceneMoment(content, segmentKey, 'id:20', {
       ...content.workspace.segments[0]!.scene_moments![0]!,
       action_text: '推门进入',
     })
@@ -56,7 +56,7 @@ test('production workspace workspace edits patch workspace content text', () => 
   assert.equal(content.workspace.segments[0].scene_moments[0].action_text, '推门进入')
 })
 
-test('production workspace workspace edits add and remove workspace nodes', () => {
+test('production workspace artifact edits add and remove workspace nodes', () => {
   const workspace = productionWorkspace({
     workspace: {
       segments: [{
@@ -67,14 +67,14 @@ test('production workspace workspace edits add and remove workspace nodes', () =
     },
   })
 
-  const result = updateProductionWorkspaceWorkspaceText(workspace, (content) => {
-    removeProductionWorkspaceWorkspaceSceneMoment(content, 'client:segment-a', 'client:moment-a')
-    appendProductionWorkspaceWorkspaceSceneMoment(content, 'client:segment-a', {
+  const result = updateProductionWorkspaceArtifactText(workspace, (content) => {
+    removeProductionWorkspaceArtifactSceneMoment(content, 'client:segment-a', 'client:moment-a')
+    appendProductionWorkspaceArtifactSceneMoment(content, 'client:segment-a', {
       client_id: 'moment-b',
       title: '情节 B',
       action_text: '新的动作',
     })
-    appendProductionWorkspaceWorkspaceSegment(content, {
+    appendProductionWorkspaceArtifactSegment(content, {
       client_id: 'segment-b',
       title: '段落 B',
       summary: '新增段落',
@@ -89,7 +89,7 @@ test('production workspace workspace edits add and remove workspace nodes', () =
   assert.equal(content.workspace.segments[1].order, 2)
 })
 
-test('production workspace workspace edits can clear script block bindings', () => {
+test('production workspace artifact edits can clear script block bindings', () => {
   const workspace = productionWorkspace({
     workspace: {
       segments: [{
@@ -101,9 +101,9 @@ test('production workspace workspace edits can clear script block bindings', () 
     },
   })
 
-  const result = updateProductionWorkspaceWorkspaceText(workspace, (content) => {
-    replaceProductionWorkspaceWorkspaceSegment(content, 'client:segment-a', { script_block_id: null })
-    replaceProductionWorkspaceWorkspaceSceneMoment(content, 'client:segment-a', 'client:moment-a', { script_block_id: null })
+  const result = updateProductionWorkspaceArtifactText(workspace, (content) => {
+    replaceProductionWorkspaceArtifactSegment(content, 'client:segment-a', { script_block_id: null })
+    replaceProductionWorkspaceArtifactSceneMoment(content, 'client:segment-a', 'client:moment-a', { script_block_id: null })
   })
 
   assert.equal(result.error, '')
@@ -112,15 +112,15 @@ test('production workspace workspace edits can clear script block bindings', () 
   assert.equal(content.workspace.segments[0].scene_moments[0].script_block_id, null)
 })
 
-test('production workspace workspace edit rejects invalid workspace text', () => {
-  const result = updateProductionWorkspaceWorkspaceText({ ...productionWorkspace({}), content: '{"schema":"wrong"}' }, () => {
+test('production workspace artifact edit rejects invalid workspace text', () => {
+  const result = updateProductionWorkspaceArtifactText({ ...productionWorkspace({}), content: '{"schema":"wrong"}' }, () => {
     throw new Error('should not run')
   })
 
   assert.equal(result.error, '这不是可编辑的 production workspace snapshot 工作区。')
 })
 
-test('production workspace workspace edit can remove a segment from the workspace', () => {
+test('production workspace artifact edit can remove a segment from the workspace', () => {
   const workspace = productionWorkspace({
     workspace: {
       segments: [
@@ -130,9 +130,9 @@ test('production workspace workspace edit can remove a segment from the workspac
     },
   })
 
-  const result = updateProductionWorkspaceWorkspaceText(workspace, (content) => {
-    assert.equal(replaceProductionWorkspaceWorkspaceSegment(content, 'missing', { title: '不会写入' }), false)
-    const removed = removeProductionWorkspaceWorkspaceSegment(content, 'client:remove')
+  const result = updateProductionWorkspaceArtifactText(workspace, (content) => {
+    assert.equal(replaceProductionWorkspaceArtifactSegment(content, 'missing', { title: '不会写入' }), false)
+    const removed = removeProductionWorkspaceArtifactSegment(content, 'client:remove')
     assert.equal(removed, true)
   })
 
@@ -141,7 +141,7 @@ test('production workspace workspace edit can remove a segment from the workspac
   assert.deepEqual(content.workspace.segments.map((segment: { client_id: string }) => segment.client_id), ['keep'])
 })
 
-test('production workspace workspace edits scene moment creative references', () => {
+test('production workspace artifact edits scene moment creative references', () => {
   const workspace = productionWorkspace({
     workspace: {
       segments: [{
@@ -156,14 +156,14 @@ test('production workspace workspace edits scene moment creative references', ()
     },
   })
 
-  const result = updateProductionWorkspaceWorkspaceText(workspace, (content) => {
-    appendProductionWorkspaceWorkspaceCreativeReference(content, 'client:segment-a', 'client:moment-a', {
+  const result = updateProductionWorkspaceArtifactText(workspace, (content) => {
+    appendProductionWorkspaceArtifactCreativeReference(content, 'client:segment-a', 'client:moment-a', {
       id: 2,
       name: '新人物',
       kind: 'person',
       role: 'protagonist',
     })
-    removeProductionWorkspaceWorkspaceCreativeReference(content, 'client:segment-a', 'client:moment-a', 'id:1')
+    removeProductionWorkspaceArtifactCreativeReference(content, 'client:segment-a', 'client:moment-a', 'id:1')
   })
 
   assert.equal(result.error, '')
@@ -176,7 +176,7 @@ test('production workspace workspace edits scene moment creative references', ()
   }])
 })
 
-function productionWorkspace(content: Record<string, unknown>): AgentWorkspace {
+function productionWorkspace(content: Record<string, unknown>): WorkspaceArtifact {
   return {
     id: 'workspace-production',
     kind: 'production_workspace',

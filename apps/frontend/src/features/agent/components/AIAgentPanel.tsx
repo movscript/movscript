@@ -9,14 +9,9 @@ export function AIAgentPanel() {
   const userId = currentUser ? String(currentUser.ID) : ''
   const {
     dockLayout,
-    handlePendingPanelActionSettled,
-    handlePendingThreadHandled,
     open,
     panelRef,
     panelWidth,
-    pendingPanelAction,
-    pendingThreadIdToOpen,
-    pendingThreadSessionIdToOpen,
     resizeHandleProps,
     toggleOpen,
   } = useAIAgentPanelDockController()
@@ -58,11 +53,6 @@ export function AIAgentPanel() {
         onCollapse={toggleOpen}
         showCollapse={false}
         host={dockLayout ? 'dock-panel' : 'floating-panel'}
-        pendingStartupStatus={pendingPanelAction}
-        pendingThreadIdToOpen={pendingThreadIdToOpen}
-        pendingThreadSessionIdToOpen={pendingThreadSessionIdToOpen}
-        onPendingThreadHandled={handlePendingThreadHandled}
-        onStartupSettled={handlePendingPanelActionSettled}
       />
     </AgentPanelShell>
   )

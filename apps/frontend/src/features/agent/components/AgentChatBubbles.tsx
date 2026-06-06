@@ -18,6 +18,10 @@ import {
   AgentModelSetupCalloutDescription,
   AgentModelSetupCalloutIcon,
   AgentModelSetupCalloutTitle,
+  ProviderSessionStatusContent,
+  ProviderSessionStatusDetail,
+  ProviderSessionStatusHeader,
+  ProviderSessionStatusSuccessIcon,
   Button,
 } from '@movscript/ui'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
@@ -33,13 +37,14 @@ import {
   AgentMarkdownContent as MarkdownContent,
   AgentMessageSection,
 } from '@/features/agent/components/AgentMessageContent'
-import { AgentWorkspaceResultCards } from '@/features/agent/components/AgentWorkspaceResultCards'
+import { AgentArtifactResultCards } from '@/features/agent/components/AgentArtifactResultCards'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
-import { localAgentApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
+import { providerSessionApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
 import { shallowReferenceArrayEqual } from '@/features/agent/components/AgentRenderEquality'
 import { useAgentMessageBubbleModel } from '@/features/agent/presentation/useAgentMessageFactsModel'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
+import type { AgentRunApprovalDecisionInput } from '@/features/agent/application/agentRunInteractionActions'
 import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 type MessageBubbleModel = ReturnType<typeof useAgentMessageBubbleModel>
@@ -71,11 +76,17 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
         )}
       >
         <AgentChatContentStack>
-          <AgentChatStatusLine>
-            <Loader2 size={12} className="animate-spin" />
-            <span>{label}</span>
-          </AgentChatStatusLine>
-          {detail ? <MarkdownContent text={detail} /> : null}
+          <ProviderSessionStatusContent>
+            <ProviderSessionStatusHeader>
+              <AgentChatStatusLine>
+                <ProviderSessionStatusSuccessIcon>
+                  <Loader2 size={12} className="animate-spin" />
+                </ProviderSessionStatusSuccessIcon>
+                <span>{label}</span>
+              </AgentChatStatusLine>
+            </ProviderSessionStatusHeader>
+            {detail ? <ProviderSessionStatusDetail>{detail}</ProviderSessionStatusDetail> : null}
+          </ProviderSessionStatusContent>
         </AgentChatContentStack>
       </AgentChatMessage>
     </AgentChatBubbleStack>
@@ -95,10 +106,10 @@ interface MessageBubbleProps {
   timelineActivity?: ChatRunActivity
   liveInteractionRun?: AgentRun | null
   liveInteractionEvents?: ChatRunActivityEvent[]
-  approvingLocalRun?: boolean
-  onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
-  onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
-  onAnswerLocalRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+  approvingActiveRun?: boolean
+  onApproveRun?: (runId: string, approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => void
+  onRejectRun?: (runId: string, approvalIds?: string[]) => void
+  onAnswerRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
   hiddenActivityActionItemIds?: Set<string>
 }
 
@@ -108,10 +119,10 @@ export const MessageBubble = React.memo(function MessageBubble({
   timelineActivity,
   liveInteractionRun,
   liveInteractionEvents = [],
-  approvingLocalRun = false,
-  onApproveLocalRun,
-  onRejectLocalRun,
-  onAnswerLocalRunInput,
+  approvingActiveRun = false,
+  onApproveRun,
+  onRejectRun,
+  onAnswerRunInput,
   hiddenActivityActionItemIds,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
@@ -146,9 +157,9 @@ export const MessageBubble = React.memo(function MessageBubble({
       author={shell.author}
       time={shell.time}
       data-agent-message-id={shell.messageId}
-      data-agent-runtime-thread-id={shell.runtimeThreadId}
-      data-agent-runtime-message-id={shell.runtimeMessageId}
-      data-agent-runtime-run-id={shell.runtimeRunId}
+      data-agent-session-thread-id={shell.providerThreadId}
+      data-agent-session-message-id={shell.providerSessionMessageId}
+      data-agent-session-run-id={shell.providerSessionRunId}
       head={shell.headLabel ? <AgentMessageHeadLabel>{shell.headLabel}</AgentMessageHeadLabel> : undefined}
       actions={action.kind === 'copy' ? (
         <Button
@@ -168,10 +179,10 @@ export const MessageBubble = React.memo(function MessageBubble({
       <MessageBubbleActivity
         activity={activity}
         liveInteractionEvents={liveInteractionEvents}
-        approvingLocalRun={approvingLocalRun}
-        onApproveLocalRun={onApproveLocalRun}
-        onRejectLocalRun={onRejectLocalRun}
-        onAnswerLocalRunInput={onAnswerLocalRunInput}
+        approvingActiveRun={approvingActiveRun}
+        onApproveRun={onApproveRun}
+        onRejectRun={onRejectRun}
+        onAnswerRunInput={onAnswerRunInput}
         hiddenActivityActionItemIds={hiddenActivityActionItemIds}
       />
       <MessageBubbleSections sections={sections} projectId={projectId} />
@@ -183,14 +194,14 @@ function MessageBubbleFooter({ footer }: { footer: MessageBubbleFooterModel }) {
   if (!footer.hasFooter) return null
   return (
     <AgentChatFooterBadges align={footer.align}>
-      {footer.runtimeInputBadge && (
+      {footer.activeRunInputBadge && (
         <AgentChatTinyStatusBadge
-          tone={footer.runtimeInputBadge.tone}
-          title={footer.runtimeInputBadge.title}
+          tone={footer.activeRunInputBadge.tone}
+          title={footer.activeRunInputBadge.title}
         >
-          {footer.runtimeInputBadge.icon === 'spinner' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
-          {footer.runtimeInputBadge.icon === 'error' && <AlertCircle size={10} className="mr-1 inline" />}
-          {footer.runtimeInputBadge.label}
+          {footer.activeRunInputBadge.icon === 'spinner' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
+          {footer.activeRunInputBadge.icon === 'error' && <AlertCircle size={10} className="mr-1 inline" />}
+          {footer.activeRunInputBadge.label}
         </AgentChatTinyStatusBadge>
       )}
       {footer.contextLabels.map((label) => (
@@ -205,18 +216,18 @@ function MessageBubbleFooter({ footer }: { footer: MessageBubbleFooterModel }) {
 function MessageBubbleActivity({
   activity,
   liveInteractionEvents,
-  approvingLocalRun,
-  onApproveLocalRun,
-  onRejectLocalRun,
-  onAnswerLocalRunInput,
+  approvingActiveRun,
+  onApproveRun,
+  onRejectRun,
+  onAnswerRunInput,
   hiddenActivityActionItemIds,
 }: {
   activity: MessageBubbleActivityModel
   liveInteractionEvents: ChatRunActivityEvent[]
-  approvingLocalRun: boolean
-  onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
-  onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
-  onAnswerLocalRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+  approvingActiveRun: boolean
+  onApproveRun?: (runId: string, approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => void
+  onRejectRun?: (runId: string, approvalIds?: string[]) => void
+  onAnswerRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
   hiddenActivityActionItemIds?: Set<string>
 }) {
   const liveRun = activity.liveRun
@@ -228,11 +239,12 @@ function MessageBubbleActivity({
           run={liveRun}
           events={liveInteractionEvents}
           className={activity.className}
-          approving={approvingLocalRun}
-          onApprove={onApproveLocalRun ? (approvalIds) => onApproveLocalRun(liveRun.id, approvalIds) : undefined}
-          onReject={onRejectLocalRun ? (approvalIds) => onRejectLocalRun(liveRun.id, approvalIds) : undefined}
-          onAnswerInput={onAnswerLocalRunInput ? (requestId, answer) => onAnswerLocalRunInput(liveRun.id, requestId, answer) : undefined}
-          approvalDetails={localAgentApprovalDetails}
+          approving={approvingActiveRun}
+          onApprove={onApproveRun ? (approvalIds) => onApproveRun(liveRun.id, approvalIds) : undefined}
+          onApproveForSession={onApproveRun ? (approvalIds) => onApproveRun(liveRun.id, approvalIds, { scope: 'session' }) : undefined}
+          onReject={onRejectRun ? (approvalIds) => onRejectRun(liveRun.id, approvalIds) : undefined}
+          onAnswerInput={onAnswerRunInput ? (requestId, answer) => onAnswerRunInput(liveRun.id, requestId, answer) : undefined}
+          approvalDetails={providerSessionApprovalDetails}
           hiddenActionItemIds={hiddenActivityActionItemIds}
         />
       )}
@@ -281,7 +293,7 @@ function MessageBubbleSections({
       {sections.showResultSection && (
         <AgentChatResultStack>
           {sections.showLargeMedia && <GeneratedResultCard attachments={sections.largeMediaAttachments} projectId={projectId} />}
-          <AgentWorkspaceResultCards artifacts={sections.workspaceArtifacts} />
+          <AgentArtifactResultCards artifacts={sections.workspaceArtifacts} />
           {sections.showCompactAttachmentGrid && (
             <AgentChatAttachmentGrid columns={sections.compactAttachmentColumns}>
               {sections.compactAttachments.map((attachment) => (
@@ -314,10 +326,10 @@ function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbl
     && prev.timelineActivity === next.timelineActivity
     && prev.liveInteractionRun === next.liveInteractionRun
     && shallowReferenceArrayEqual(prev.liveInteractionEvents, next.liveInteractionEvents)
-    && prev.approvingLocalRun === next.approvingLocalRun
-    && prev.onApproveLocalRun === next.onApproveLocalRun
-    && prev.onRejectLocalRun === next.onRejectLocalRun
-    && prev.onAnswerLocalRunInput === next.onAnswerLocalRunInput
+    && prev.approvingActiveRun === next.approvingActiveRun
+    && prev.onApproveRun === next.onApproveRun
+    && prev.onRejectRun === next.onRejectRun
+    && prev.onAnswerRunInput === next.onAnswerRunInput
     && prev.hiddenActivityActionItemIds === next.hiddenActivityActionItemIds
 }
 

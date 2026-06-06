@@ -1,4 +1,4 @@
-import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 
 export function traceEventIdFromHash(hash: string | undefined): string | undefined {

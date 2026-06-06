@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildAgentConversationLiveBlocks } from '@/features/agent/domain/agentConversationLiveBlocks'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 const baseRun: AgentRun = {
   id: 'run_1',
   threadId: 'thread_1',
   status: 'in_progress',
-  runtimeLimits: { approvalMode: 'interactive',
+  providerSessionLimits: { approvalMode: 'interactive',
     maxToolCalls: 8,
     maxIterations: 4,
     allowNetwork: false,

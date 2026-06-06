@@ -13,13 +13,13 @@ export interface AgentConversationProjectionItemsProps extends AgentConversation
 }
 
 export function AgentConversationProjectionItems({
-  approvingLocalRun,
+  approvingActiveRun,
   hiddenActivityActionItemIds,
   items,
   projectId,
-  onAnswerLocalRunInput,
-  onApproveLocalRun,
-  onRejectLocalRun,
+  onAnswerRunInput,
+  onApproveRun,
+  onRejectRun,
 }: AgentConversationProjectionItemsProps) {
   const renderContentItem = (item: AgentConversationProjectionContentItem) => {
     return (
@@ -28,10 +28,10 @@ export function AgentConversationProjectionItems({
         item={item}
         projectId={projectId}
         hiddenActivityActionItemIds={hiddenActivityActionItemIds}
-        approvingLocalRun={approvingLocalRun}
-        onApproveLocalRun={onApproveLocalRun}
-        onRejectLocalRun={onRejectLocalRun}
-        onAnswerLocalRunInput={onAnswerLocalRunInput}
+        approvingActiveRun={approvingActiveRun}
+        onApproveRun={onApproveRun}
+        onRejectRun={onRejectRun}
+        onAnswerRunInput={onAnswerRunInput}
       />
     )
   }

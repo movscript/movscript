@@ -46,7 +46,7 @@ import {
 import {
   buildCurrentProductionWorkspaceSnapshot,
 } from '@/features/production/domain/productionWorkspaceReviewModel'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import {
   buildProductionOrchestrationStaleContentUnitParams,
   useProductionOrchestrationPageController,
@@ -215,10 +215,10 @@ export default function ProductionOrchestrationPage() {
   const {
     openedWorkspaceId,
     openedSettingWorkspaceId,
-    openedAssetWorkspaceWorkspaceId,
+    openedAssetWorkspaceArtifactId,
     openedWorkspaceQuery,
     openedSettingWorkspaceQuery,
-    openedAssetWorkspaceWorkspaceQuery,
+    openedAssetWorkspaceArtifactQuery,
     workspacePreviewWorkspace,
     workspaceNodeDecisions,
     setWorkspaceNodeDecisions,
@@ -329,24 +329,25 @@ export default function ProductionOrchestrationPage() {
       next.delete('view')
       next.delete('workspaceId')
       next.delete('settingWorkspaceId')
+      next.delete('assetWorkspaceArtifactId')
       next.delete('assetWorkspaceWorkspaceId')
       return next
     }, { replace: true })
   }
 
-  async function handleWorkspaceWorkspaceUpdated() {
+  async function handleWorkspaceArtifactUpdated() {
     await Promise.all([
       openedWorkspaceQuery.refetch(),
       openedSettingWorkspaceQuery.refetch(),
-      openedAssetWorkspaceWorkspaceQuery.refetch(),
+      openedAssetWorkspaceArtifactQuery.refetch(),
       refetch(),
     ])
     queryClient.invalidateQueries({ queryKey })
   }
 
-  async function discardWorkspaceWorkspace() {
+  async function discardWorkspaceArtifact() {
     if (openedWorkspaceId) {
-      await localAgentClient.rejectWorkspace(openedWorkspaceId, '用户放弃 production workspace patch').catch(() => undefined)
+      await providerSessionClient.rejectWorkspaceArtifact(openedWorkspaceId, '用户放弃 production workspace patch').catch(() => undefined)
     }
     clearWorkspacePatchParams()
   }
@@ -421,9 +422,9 @@ export default function ProductionOrchestrationPage() {
     description: '组织剧本、设定和素材约束，形成创作蓝图。',
     badges: (
       <>
-        {openedSettingWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>设定 workspace</ProductionOrchestrationHeaderMetaBadge> : null}
-        {openedAssetWorkspaceWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>素材需求 workspace</ProductionOrchestrationHeaderMetaBadge> : null}
-        {openedWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>已打开 workspace</ProductionOrchestrationHeaderMetaBadge> : null}
+        {openedSettingWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>设定草案</ProductionOrchestrationHeaderMetaBadge> : null}
+        {openedAssetWorkspaceArtifactId ? <ProductionOrchestrationHeaderMetaBadge>素材需求草案</ProductionOrchestrationHeaderMetaBadge> : null}
+        {openedWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>已打开草案</ProductionOrchestrationHeaderMetaBadge> : null}
       </>
     ),
     headerBody: (
@@ -586,21 +587,21 @@ export default function ProductionOrchestrationPage() {
           <ProductionOrchestrationReviewDialogTitle />
           <div className="production-orchestration-review-dialog-toolbar">
             <div className="production-orchestration-review-dialog-toolbar__copy">
-              <span className="production-orchestration-review-dialog-toolbar__title">工作区 Patch</span>
+              <span className="production-orchestration-review-dialog-toolbar__title">工作区草案</span>
               <span className="production-orchestration-review-dialog-toolbar__meta">
-                {workspacePreviewWorkspace ? `待审节点 ${workspaceReviewNodeCount}` : '等待 workspace'}
+                {workspacePreviewWorkspace ? `待审节点 ${workspaceReviewNodeCount}` : '等待草案'}
               </span>
             </div>
           </div>
           {workspacePreviewWorkspace ? (
             <ProductionWorkspaceReviewPanel
               projectId={projectId}
-              workspaceWorkspace={workspacePreviewWorkspace}
+              workspaceArtifact={workspacePreviewWorkspace}
               currentSnapshot={currentProductionSnapshot}
               nodeDecisions={workspaceNodeDecisions}
               onNodeDecisionsChange={setWorkspaceNodeDecisions}
               onAccepted={closeWorkspacePatchDialog}
-              onDiscard={() => { void discardWorkspaceWorkspace() }}
+              onDiscard={() => { void discardWorkspaceArtifact() }}
               onApplied={() => { void handleWorkspaceApplied() }}
             />
           ) : (

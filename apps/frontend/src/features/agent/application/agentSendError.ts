@@ -1,8 +1,8 @@
 import type { AgentPanelRunSettledPayload } from '@/features/agent/application/agentPanelBridge'
-import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationProviderSessionState } from '@/features/agent/state/agentSessionStore'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
-type ConversationRuntimePatch = Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>
+type ConversationProviderSessionPatch = Partial<Omit<AgentConversationProviderSessionState, 'conversationId' | 'updatedAt'>>
 
 export interface SendErrorCleanupDeps {
   userId: string
@@ -11,7 +11,7 @@ export interface SendErrorCleanupDeps {
   setPendingAssistantState: (state: null) => void
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
   resetStreamingAssistant: () => void
-  setConversationRuntime: (conversationId: string, patch: ConversationRuntimePatch) => void
+  setConversationProviderSessionState: (conversationId: string, patch: ConversationProviderSessionPatch) => void
   notifyRunSettled: (payload: AgentPanelRunSettledPayload) => void
 }
 
@@ -23,7 +23,7 @@ export interface SendFailureDeps extends SendErrorCleanupDeps {
 export function handleSendAbort(error: unknown, deps: SendErrorCleanupDeps): void {
   const message = errorMessage(error)
   cleanupStreamingState(deps)
-  deps.setConversationRuntime(deps.conversationId, { stopRequested: false, stopping: false, loading: false, building: false })
+  deps.setConversationProviderSessionState(deps.conversationId, { stopRequested: false, stopping: false, loading: false, building: false })
   deps.notifyRunSettled({
     ...(deps.requestId ? { requestId: deps.requestId } : {}),
     status: 'cancelled',
@@ -35,7 +35,7 @@ export function handleSendFailure(error: unknown, deps: SendFailureDeps): void {
   const message = errorMessage(error)
   deps.toastError(error)
   cleanupStreamingState(deps)
-  deps.setConversationRuntime(deps.conversationId, { error: deps.assistantErrorContent(message), loading: false, building: false })
+  deps.setConversationProviderSessionState(deps.conversationId, { error: deps.assistantErrorContent(message), loading: false, building: false })
   deps.notifyRunSettled({
     ...(deps.requestId ? { requestId: deps.requestId } : {}),
     status: 'error',

@@ -61,27 +61,27 @@ test('agent chat plan item view preserves structured steps in details', () => {
     id: 'plan_structured',
     text: 'Runtime plan',
     items: [
-      { text: 'Inspect Agent runtime event', status: 'completed', raw: { id: 'step_1', owner: 'runtime' } },
+      { text: 'Inspect provider session event', status: 'completed', raw: { id: 'step_1', owner: 'runtime' } },
       { text: 'Render neutral plan item', status: 'in_progress', raw: { id: 'step_2', priority: 'high' } },
     ],
     raw: {
       explanation: 'Runtime plan',
-      plan: [{ step: 'Inspect Agent runtime event', status: 'completed', id: 'step_1' }],
+      plan: [{ step: 'Inspect provider session event', status: 'completed', id: 'step_1' }],
     },
   })
 
   assert.equal(view.intro, 'Runtime plan')
   assert.deepEqual(view.steps.map((step) => [step.text, step.status]), [
-    ['Inspect Agent runtime event', 'completed'],
+    ['Inspect provider session event', 'completed'],
     ['Render neutral plan item', 'in_progress'],
   ])
   assert.deepEqual(view.details, {
     raw: {
       explanation: 'Runtime plan',
-      plan: [{ step: 'Inspect Agent runtime event', status: 'completed', id: 'step_1' }],
+      plan: [{ step: 'Inspect provider session event', status: 'completed', id: 'step_1' }],
     },
     steps: [
-      { index: 1, text: 'Inspect Agent runtime event', status: 'completed', raw: { id: 'step_1', owner: 'runtime' } },
+      { index: 1, text: 'Inspect provider session event', status: 'completed', raw: { id: 'step_1', owner: 'runtime' } },
       { index: 2, text: 'Render neutral plan item', status: 'in_progress', raw: { id: 'step_2', priority: 'high' } },
     ],
   })

@@ -7,7 +7,7 @@ import { useAgentChatContextState } from '@/features/agent/presentation/useAgent
 import { useAgentChatInteractionController } from '@/features/agent/presentation/useAgentChatInteractionController'
 import { useAgentTimeline } from '@/features/agent/presentation/useAgentTimeline'
 import { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
-import { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
+import { useAgentChatProviderSessionState } from '@/features/agent/presentation/useAgentChatProviderSessionState'
 import { useAgentChatStoreBindings } from '@/features/agent/presentation/useAgentChatStoreBindings'
 import { useAgentPlanDispatchSettings } from '@/features/agent/presentation/useAgentPlanDispatchSettings'
 import { conversationWithTimelineTranscript } from '@/features/agent/domain/agentConversationTranscript'
@@ -28,7 +28,7 @@ export interface AgentChatViewControllerInput {
   onCloseConversations: (ids: string[]) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onRestoreArchivedConversation?: (id: string) => void
-  onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
+  onRestoreProviderThread: (threadId: string, sessionId?: string) => Promise<void>
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalWorkspaceConsumed?: () => void
@@ -50,7 +50,7 @@ export function useAgentChatViewController({
   onCloseConversations,
   onReorderConversation,
   onRestoreArchivedConversation,
-  onRestoreLocalThread,
+  onRestoreProviderThread,
   externalTask,
   pageToolRequestId,
   onExternalWorkspaceConsumed,
@@ -63,8 +63,8 @@ export function useAgentChatViewController({
     userId,
   })
   const timeline = useAgentTimeline({
-    localSessionId: store.localSessionId,
-    localThreadId: store.localThreadId,
+    providerSessionId: store.providerSessionId,
+    providerThreadId: store.providerThreadId,
     requireThread: true,
   })
   const effectiveConversation = useMemo(
@@ -75,9 +75,9 @@ export function useAgentChatViewController({
     settings: store.settings,
     updateSettings: store.updateSettings,
   })
-  const activeLocalRun = store.conversationRuntime?.run ?? null
-  const runtime = useAgentChatRuntimeState({
-    activeRunId: activeLocalRun?.id,
+  const activeRun = store.conversationProviderSessionState?.run ?? null
+  const providerSessionState = useAgentChatProviderSessionState({
+    activeRunId: activeRun?.id,
     conversationId: conv.id,
   })
   const composer = useAgentChatComposerState({
@@ -86,47 +86,47 @@ export function useAgentChatViewController({
     workspace: store.workspace,
     settings: store.settings,
     updateSettings: store.updateSettings,
-    fileRef: runtime.fileRef,
-    inputRef: runtime.inputRef,
+    fileRef: providerSessionState.fileRef,
+    inputRef: providerSessionState.inputRef,
   })
 
-  const loading = store.conversationRuntime?.loading ?? false
-  const buildingSendWorkspace = store.conversationRuntime?.building ?? false
+  const loading = store.conversationProviderSessionState?.loading ?? false
+  const buildingSendWorkspace = store.conversationProviderSessionState?.building ?? false
 
   const context = useAgentChatContextState({
     agentContextConfig: store.agentContextConfig,
     composerAttachmentsCount: composer.composerAttachments.length,
     includeProjectContext: store.settings.includeProjectContext,
     currentProject: store.currentProject,
-    localRuntimeEnabled: store.localRuntimeEnabled,
-    localSessionId: store.localSessionId,
+    providerSessionEnabled: store.providerSessionEnabled,
+    providerSessionId: store.providerSessionId,
   })
   const presentation = useAgentChatPresentationState({
-    activeRun: activeLocalRun,
+    activeRun: activeRun,
     conversationId: conv.id,
-    localRuntimeEnabled: store.localRuntimeEnabled,
-    localAgentOnline: context.localAgentOnline,
-    localSessionId: store.localSessionId,
+    providerSessionEnabled: store.providerSessionEnabled,
+    providerSessionOnline: context.providerSessionOnline,
+    providerSessionId: store.providerSessionId,
     composerAttachments: composer.composerAttachments,
     input: composer.input,
     inputPlaceholder: t('agents.chat.inputPlaceholder'),
     loading,
     messages: effectiveConversation.transcriptMessages,
-    pendingAssistantState: runtime.pendingAssistantState,
-    pendingSendWorkspace: runtime.pendingSendWorkspace,
-    runtimeApproving: store.conversationRuntime?.approving,
-    runtimeBuilding: buildingSendWorkspace,
-    runtimeStopping: store.conversationRuntime?.stopping,
-    runtimeStopRequested: store.conversationRuntime?.stopRequested,
-    streamingAssistantMessageId: runtime.streamingAssistantMessageId,
-    streamingAssistantText: runtime.streamingAssistantText,
-    submittedInteractionRuns: runtime.submittedInteractionRuns,
+    pendingAssistantState: providerSessionState.pendingAssistantState,
+    pendingSendWorkspace: providerSessionState.pendingSendWorkspace,
+    providerSessionApproving: store.conversationProviderSessionState?.approving,
+    providerSessionBuilding: buildingSendWorkspace,
+    providerSessionStopping: store.conversationProviderSessionState?.stopping,
+    providerSessionStopRequested: store.conversationProviderSessionState?.stopRequested,
+    streamingAssistantMessageId: providerSessionState.streamingAssistantMessageId,
+    streamingAssistantText: providerSessionState.streamingAssistantText,
+    submittedInteractionRuns: providerSessionState.submittedInteractionRuns,
     timelineItems: timeline.timelineItems,
     uploading: composer.uploading,
-    visibleActivityEvents: runtime.visibleActivityEvents,
+    visibleActivityEvents: providerSessionState.visibleActivityEvents,
   })
   const interaction = useAgentChatInteractionController(buildAgentChatInteractionControllerInput({
-    activeLocalRun,
+    activeRun,
     buildingSendWorkspace,
     composer,
     context,
@@ -137,13 +137,13 @@ export function useAgentChatViewController({
     pageToolRequestId,
     taskGraph,
     presentation,
-    runtime,
+    providerSessionState,
     store,
     userId,
   }))
 
   return buildAgentChatViewLayoutProps({
-    activeLocalRun,
+    activeRun,
     composer,
     conv: effectiveConversation,
     conversations,
@@ -152,10 +152,10 @@ export function useAgentChatViewController({
     currentProject: store.currentProject,
     interaction,
     timelineLoading: timeline.initialLoading,
-    planActionBusy: runtime.planActionBusy,
+    planActionBusy: providerSessionState.planActionBusy,
     planDispatchSettings: taskGraph.planDispatchSettings,
     presentation,
-    runtime,
+    providerSessionState,
     onBack,
     onCloseConversation,
     onCloseConversations,
@@ -164,7 +164,7 @@ export function useAgentChatViewController({
     onRenameConversation,
     onReorderConversation,
     onRestoreArchivedConversation,
-    onRestoreLocalThread,
+    onRestoreProviderThread,
     onSelectConversation,
     showCollapse,
     showConversationControls,

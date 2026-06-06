@@ -9,12 +9,12 @@ import { AgentChatHeaderSection } from '@/features/agent/components/AgentChatHea
 import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
-import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
+import { conversationDisplayTitle, formatAgentDate, providerThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { latestTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
-import { listRuntimeThreadPageFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { listProviderSessionThreadPageFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
-import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
+import type { AgentChatHost } from '@/features/agent/components/agentChatHost'
 
 const HISTORY_PAGE_SIZE = 20
 const HISTORY_MIN_RATIO = 1 / 3
@@ -26,7 +26,7 @@ export function AgentChatPanelLayout({
   debugPreview,
   header,
   host = 'dock-panel',
-  runtimeHistory,
+  providerSessionHistory,
   thread,
 }: AgentChatViewLayoutProps & { host?: AgentChatHost }) {
   const { t, i18n } = useTranslation()
@@ -38,9 +38,9 @@ export function AgentChatPanelLayout({
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const historyQuery = useInfiniteQuery({
-    queryKey: ['local-agent-panel-thread-history', localAgentClient.baseURL],
+    queryKey: ['provider-session-panel-thread-history', providerSessionClient.baseURL],
     queryFn: async ({ pageParam, signal }) => {
-      return listRuntimeThreadPageFromWorkspace({
+      return listProviderSessionThreadPageFromWorkspace({
         limit: HISTORY_PAGE_SIZE,
         includeProvisional: true,
         ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
@@ -54,24 +54,24 @@ export function AgentChatPanelLayout({
   })
   const historyThreads = historyQuery.data?.pages
     .flatMap((page) => page.threads)
-    .filter((runtimeThread) => runtimeThread.id !== header.activeConversation.runtimeThreadId) ?? []
+    .filter((providerThread) => providerThread.id !== header.activeConversation.providerThreadId) ?? []
   const archivedConversations = useMemo(
-    () => runtimeHistory.archivedConversations
+    () => providerSessionHistory.archivedConversations
       .filter((conversation) => conversation.id !== header.activeConversation.id)
       .sort((a, b) => b.updatedAt - a.updatedAt),
-    [header.activeConversation.id, runtimeHistory.archivedConversations],
+    [header.activeConversation.id, providerSessionHistory.archivedConversations],
   )
-  const archivedRuntimeThreadIds = useMemo(
-    () => new Set(archivedConversations.flatMap((conversation) => conversation.runtimeThreadId ? [conversation.runtimeThreadId] : [])),
+  const archivedProviderThreadIds = useMemo(
+    () => new Set(archivedConversations.flatMap((conversation) => conversation.providerThreadId ? [conversation.providerThreadId] : [])),
     [archivedConversations],
   )
-  const openRuntimeThreadIds = useMemo(
-    () => new Set(runtimeHistory.conversations.flatMap((conversation) => {
-      const ids = conversation.runtimeThreadId ? [conversation.runtimeThreadId] : []
+  const openProviderThreadIds = useMemo(
+    () => new Set(providerSessionHistory.conversations.flatMap((conversation) => {
+      const ids = conversation.providerThreadId ? [conversation.providerThreadId] : []
       if (conversation.id.startsWith('thread_')) ids.push(conversation.id)
       return ids
     })),
-    [runtimeHistory.conversations],
+    [providerSessionHistory.conversations],
   )
   const historyItems = useMemo(() => [
     ...archivedConversations.map((conversation) => ({
@@ -81,14 +81,14 @@ export function AgentChatPanelLayout({
       conversation,
     })),
     ...historyThreads
-      .filter((runtimeThread) => !archivedRuntimeThreadIds.has(runtimeThread.id) && !openRuntimeThreadIds.has(runtimeThread.id))
-      .map((runtimeThread) => ({
-        type: 'runtime-thread' as const,
-        id: runtimeThread.id,
-        timestamp: Date.parse(runtimeThread.updatedAt) || 0,
-        runtimeThread,
+      .filter((providerThread) => !archivedProviderThreadIds.has(providerThread.id) && !openProviderThreadIds.has(providerThread.id))
+      .map((providerThread) => ({
+        type: 'provider-thread' as const,
+        id: providerThread.id,
+        timestamp: Date.parse(providerThread.updatedAt) || 0,
+        providerThread,
       })),
-  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, historyThreads, openRuntimeThreadIds])
+  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedProviderThreadIds, historyThreads, openProviderThreadIds])
   const hasPinnedStatus = hasAgentPinnedStatus({
     plan: thread.currentPlan,
     generationProgressStates: thread.generationProgressStates,
@@ -98,7 +98,7 @@ export function AgentChatPanelLayout({
   async function restoreThread(threadId: string, sessionId?: string) {
     setRestoringThreadId(threadId)
     try {
-      await runtimeHistory.onRestoreLocalThread(threadId, sessionId)
+      await providerSessionHistory.onRestoreProviderThread(threadId, sessionId)
     } finally {
       setRestoringThreadId(null)
     }
@@ -176,23 +176,23 @@ export function AgentChatPanelLayout({
                   description={lastMessage || t('agents.chat.archivedConversation')}
                   meta={formatAgentDate(item.conversation.updatedAt, locale)}
                   className="ai-agent-panel-empty-history-item"
-                  onClick={() => runtimeHistory.onRestoreArchivedConversation?.(item.conversation.id)}
+                  onClick={() => providerSessionHistory.onRestoreArchivedConversation?.(item.conversation.id)}
                 />
               </div>
             )
           }
-          const runtimeThread = item.runtimeThread
+          const providerThread = item.providerThread
           return (
             <div key={item.id} className="group relative">
               <AgentConversationItem
-                title={localThreadTitle(runtimeThread, t)}
+                title={providerThreadTitle(providerThread, t)}
                 description={[
-                  t('agents.chat.messagesCount', { count: runtimeThread.messageCount }),
-                  runtimeThread.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: runtimeThread.projectId }) : null,
+                  t('agents.chat.messagesCount', { count: providerThread.messageCount }),
+                  providerThread.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: providerThread.projectId }) : null,
                 ].filter(Boolean).join(' · ')}
-                meta={restoringThreadId === runtimeThread.id ? t('agents.chat.restoring') : formatAgentDate(runtimeThread.updatedAt, locale)}
+                meta={restoringThreadId === providerThread.id ? t('agents.chat.restoring') : formatAgentDate(providerThread.updatedAt, locale)}
                 className="ai-agent-panel-empty-history-item"
-                onClick={() => { void restoreThread(runtimeThread.id, runtimeThread.sessionId) }}
+                onClick={() => { void restoreThread(providerThread.id, providerThread.sessionId) }}
               />
             </div>
           )

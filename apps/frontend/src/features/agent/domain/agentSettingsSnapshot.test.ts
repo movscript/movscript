@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { PublicModel } from '@/types'
-import type { AgentCatalogConfigFile, AgentCatalogSkill } from '@/shared/infrastructure/localAgentClient'
+import type { ProviderCatalogConfigFile, ProviderCatalogSkill } from '@/shared/infrastructure/providerSessionClient'
 import {
   AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL,
   AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
@@ -61,14 +61,25 @@ test('buildSettingsSnapshot exports model, config files, defaults and config-fil
   assert.equal(snapshot.activeConfigFileId, 'base')
   assert.equal(snapshot.configFiles?.[0].id, 'base')
   assert.equal(snapshot.configFiles?.[0].approvalDefaults?.write, 'on_write')
-  assert.equal(snapshot.runtimeLimits?.maxHistoryMessages, 16)
-  assert.equal(snapshot.runtimeLimits?.maxToolCalls, 9)
-  assert.equal(snapshot.runtimeLimits?.executionMode, 'compact')
-  assert.equal(snapshot.runtimeLimits?.allowForcedToolCalls, false)
-  assert.equal(parseSettingsSnapshot(JSON.stringify(snapshot)).runtimeLimits?.executionMode, 'compact')
+  assert.equal(snapshot.providerSessionLimits?.maxHistoryMessages, 16)
+  assert.equal(snapshot.providerSessionLimits?.maxToolCalls, 9)
+  assert.equal(snapshot.providerSessionLimits?.executionMode, 'compact')
+  assert.equal(snapshot.providerSessionLimits?.allowForcedToolCalls, false)
+  assert.equal(snapshot.runtimeLimits, undefined)
+  assert.equal(parseSettingsSnapshot(JSON.stringify(snapshot)).providerSessionLimits?.executionMode, 'compact')
   assert.deepEqual(snapshot.skillConfig?.[0], { id: 'skill-a', enabled: true })
   assert.equal(snapshot.toolPermissionOverrides?.[0].configFileId, 'base')
   assert.equal(snapshot.toolPermissionOverrides?.[0].toolGrants[0]?.approval, 'on_write')
+})
+
+test('parseSettingsSnapshot accepts legacy runtime limits as provider-session limits', () => {
+  const snapshot = parseSettingsSnapshot(JSON.stringify(settingsSnapshotFixture({
+    runtimeLimits: { maxHistoryMessages: 8, executionMode: 'standard' },
+  })))
+
+  assert.equal(snapshot.providerSessionLimits?.maxHistoryMessages, 8)
+  assert.equal(snapshot.providerSessionLimits?.executionMode, 'standard')
+  assert.equal(snapshot.runtimeLimits?.maxHistoryMessages, 8)
 })
 
 test('buildSettingsSnapshot strips sensitive model URL credentials and omits secret model ids', () => {
@@ -287,7 +298,7 @@ test('validateSettingsSnapshotReferences rejects missing backend model reference
   assert.match(issues.map((issue) => issue.message).join('\n'), /model model_config:404 not found/)
 })
 
-function skillFixture(id: string, patch: Partial<AgentCatalogSkill> = {}): AgentCatalogSkill {
+function skillFixture(id: string, patch: Partial<ProviderCatalogSkill> = {}): ProviderCatalogSkill {
   return {
     id,
     name: id,
@@ -310,7 +321,7 @@ function modelFixture(id: number, patch: Partial<PublicModel> = {}): PublicModel
   }
 }
 
-function configFileFixture(patch: Partial<AgentCatalogConfigFile> = {}): AgentCatalogConfigFile {
+function configFileFixture(patch: Partial<ProviderCatalogConfigFile> = {}): ProviderCatalogConfigFile {
   return {
     schema: 'movscript.agent.config_file.v1',
     id: 'config-file-default',

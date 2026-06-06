@@ -2,7 +2,7 @@ import type {
   AgentConversationProjectionContentItem,
   AgentConversationProjectionItem,
 } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function projectionItemsScrollKey(items: AgentConversationProjectionItem[]): string {

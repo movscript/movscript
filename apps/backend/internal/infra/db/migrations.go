@@ -352,6 +352,13 @@ func RegisteredMigrations() []Migration {
 				return dropFeatureConfigsTable(db)
 			},
 		},
+		{
+			Version: "000039",
+			Name:    "repair_creative_reference_workspace_client_id",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.CreativeReference{})
+			},
+		},
 	}
 	return core
 }

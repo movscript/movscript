@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 import { agentMessageBubbleModel } from '@/features/agent/presentation/agentMessageBubbleModel'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface UseAgentMessageBubbleModelInput {

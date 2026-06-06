@@ -2,11 +2,11 @@ import type {
   AgentChatSendPipelineInput,
   BuildAgentChatInteractionControllerInputOptions,
 } from '@/features/agent/presentation/agentChatInteractionInputTypes'
-import { sendActiveRunRuntimeInput } from '@/features/agent/application/agentRuntimeInput'
+import { sendActiveRunInput } from '@/features/agent/application/agentActiveRunInput'
 import { isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 
 export function buildAgentChatSendPipelineInput({
-  activeLocalRun,
+  activeRun,
   buildingSendWorkspace,
   composer,
   context,
@@ -15,7 +15,7 @@ export function buildAgentChatSendPipelineInput({
   onExternalWorkspaceConsumed,
   pageToolRequestId,
   presentation,
-  runtime,
+  providerSessionState,
   store,
   userId,
 }: BuildAgentChatInteractionControllerInputOptions): AgentChatSendPipelineInput {
@@ -29,47 +29,47 @@ export function buildAgentChatSendPipelineInput({
       currentProject: store.currentProject,
       systemPrompt: '',
       contextLabels: context.contextLabels,
-      localThreadId: store.localThreadId,
+      providerThreadId: store.providerThreadId,
       modelId: composer.modelId,
       activeModel: composer.activeModel,
       activeConversationManifest: context.activeConversationManifest,
       externalTask,
       pageToolRequestId,
-      localRuntimeSessionId: store.localSessionId,
-      localAgentOnline: context.localAgentOnline,
-      ...(context.localAgentHealth?.mcpEndpoint ? { mcpEndpoint: context.localAgentHealth.mcpEndpoint } : {}),
-      refetchLocalAgentHealth: context.refetchLocalAgentHealth,
+      providerSessionId: store.providerSessionId,
+      providerSessionOnline: context.providerSessionOnline,
+      ...(context.providerSessionHealth?.mcpEndpoint ? { mcpEndpoint: context.providerSessionHealth.mcpEndpoint } : {}),
+      refetchProviderSessionHealth: context.refetchProviderSessionHealth,
     },
     commitWorkspace: {
       userId,
       conversationId: conv.id,
-      localAgentOnline: context.localAgentOnline,
-      ...(context.localAgentHealth?.mcpEndpoint ? { mcpEndpoint: context.localAgentHealth.mcpEndpoint } : {}),
-      activeSendAbortControllerRef: runtime.activeSendAbortControllerRef,
-      cancelRequestedRunIdsRef: runtime.cancelRequestedRunIdsRef,
-      liveTraceEventsRef: runtime.liveTraceEventsRef,
+      providerSessionOnline: context.providerSessionOnline,
+      ...(context.providerSessionHealth?.mcpEndpoint ? { mcpEndpoint: context.providerSessionHealth.mcpEndpoint } : {}),
+      activeSendAbortControllerRef: providerSessionState.activeSendAbortControllerRef,
+      cancelRequestedRunIdsRef: providerSessionState.cancelRequestedRunIdsRef,
+      liveTraceEventsRef: providerSessionState.liveTraceEventsRef,
       clearConversationWorkspace: store.clearConversationWorkspace,
       setConversationSessionId: store.setConversationSessionId,
-      setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
-      setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
-        store.setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
+      setConversationProviderThreadId: store.setConversationProviderThreadId,
+      setConversationProviderSessionId: (targetUserId, conversationId, sessionId) => {
+        store.setConversationProviderSessionId(targetUserId, conversationId, sessionId)
         store.setConversationSessionId(conversationId, sessionId)
       },
       updateConversationTitle: store.updateConversationTitle,
-      setLocalThreadId: store.setLocalThreadId,
+      setProviderThreadId: store.setProviderThreadId,
       setPageTaskRunning: store.setPageTaskRunning,
       setConversationRun: store.setConversationRun,
-      setConversationRuntime: store.setConversationRuntime,
-      setLiveTraceEvents: runtime.setLiveTraceEvents,
-      setPendingHttpEvents: runtime.setPendingHttpEvents,
-      setPendingAssistantState: runtime.setPendingAssistantState,
-      resetStreamingAssistant: runtime.resetStreamingAssistant,
-      updateStreamingAssistantText: runtime.updateStreamingAssistantText,
-      recordLiveTraceEvent: runtime.recordLiveTraceEvent,
+      setConversationProviderSessionState: store.setConversationProviderSessionState,
+      setLiveTraceEvents: providerSessionState.setLiveTraceEvents,
+      setPendingHttpEvents: providerSessionState.setPendingHttpEvents,
+      setPendingAssistantState: providerSessionState.setPendingAssistantState,
+      resetStreamingAssistant: providerSessionState.resetStreamingAssistant,
+      updateStreamingAssistantText: providerSessionState.updateStreamingAssistantText,
+      recordLiveTraceEvent: providerSessionState.recordLiveTraceEvent,
       revokeAttachmentPreviewUrls: composer.revokeAttachmentPreviewUrls,
       setMentionRange: composer.setMentionRange,
-      refetchLocalAgentHealth: context.refetchLocalAgentHealth,
-      refreshAgentCatalogContext: context.refreshAgentCatalogContext,
+      refetchProviderSessionHealth: context.refetchProviderSessionHealth,
+      refreshProviderCatalogContext: context.refreshProviderCatalogContext,
     },
     sendActions: {
       input: composer.input,
@@ -80,42 +80,42 @@ export function buildAgentChatSendPipelineInput({
       answeringPendingInput: presentation.answeringPendingInput,
       activePendingInputRequest: presentation.activePendingInputRequest,
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
-      canSendActiveRunRuntimeInput: canSendActiveRunRuntimeInput({
-        run: activeLocalRun ?? store.conversationRuntime?.run ?? null,
-        sessionId: store.localSessionId,
+      canSendActiveRunInput: canSendActiveRunInput({
+        run: activeRun ?? store.conversationProviderSessionState?.run ?? null,
+        sessionId: store.providerSessionId,
       }),
       modelId: composer.modelId,
-      debugBeforeSend: runtime.debugBeforeSend,
-      pendingSendWorkspace: runtime.pendingSendWorkspace,
+      debugBeforeSend: providerSessionState.debugBeforeSend,
+      pendingSendWorkspace: providerSessionState.pendingSendWorkspace,
       externalTask,
-      processedExternalTaskRequestIdRef: runtime.processedExternalTaskRequestIdRef,
-      inputRef: runtime.inputRef,
+      processedExternalTaskRequestIdRef: providerSessionState.processedExternalTaskRequestIdRef,
+      inputRef: providerSessionState.inputRef,
       onExternalWorkspaceConsumed,
       updateWorkspace: composer.updateWorkspace,
       setMentionRange: composer.setMentionRange,
-      setConversationBuilding: (patch) => store.setConversationRuntime(conv.id, patch),
-      sendActiveRunRuntimeInput: async ({ content, attachments }) => {
-        const run = activeLocalRun ?? store.conversationRuntime?.run
-        if (!run || !store.localSessionId) throw new Error('active runtime session run is not available')
-        await sendActiveRunRuntimeInput({
+      setConversationBuilding: (patch) => store.setConversationProviderSessionState(conv.id, patch),
+      sendActiveRunInput: async ({ content, attachments }) => {
+        const run = activeRun ?? store.conversationProviderSessionState?.run
+        if (!run || !store.providerSessionId) throw new Error('active provider session run is not available')
+        await sendActiveRunInput({
           content,
           attachments,
           deps: {
             conversationId: conv.id,
-            sessionId: store.localSessionId,
+            sessionId: store.providerSessionId,
             run,
             setConversationRun: store.setConversationRun,
-            setConversationRuntime: store.setConversationRuntime,
+            setConversationProviderSessionState: store.setConversationProviderSessionState,
           },
         })
       },
-      setPendingSendWorkspace: runtime.setPendingSendWorkspace,
+      setPendingSendWorkspace: providerSessionState.setPendingSendWorkspace,
     },
   }
 }
 
-function canSendActiveRunRuntimeInput(input: {
-  run: NonNullable<BuildAgentChatInteractionControllerInputOptions['activeLocalRun']> | null
+function canSendActiveRunInput(input: {
+  run: NonNullable<BuildAgentChatInteractionControllerInputOptions['activeRun']> | null
   sessionId?: string
 }): boolean {
   return !!input.run && !isTerminalAgentRun(input.run) && !!input.sessionId?.trim()

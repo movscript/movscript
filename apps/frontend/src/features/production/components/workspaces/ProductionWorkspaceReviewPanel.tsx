@@ -24,14 +24,14 @@ import {
 } from '@/features/production/components/workspaces/ProductionWorkspaceSemanticDiffPanel'
 import { useProductionWorkspaceReviewController } from '@/features/production/presentation/useProductionWorkspaceReviewController'
 import type {
-  WorkspaceWorkspaceContent,
+  ProductionWorkspaceArtifactContent,
   WorkspaceNodeDecisions,
   WorkspaceSegmentNode,
 } from '@/features/production/domain/productionWorkspaceReviewModel'
 
 export function ProductionWorkspaceReviewPanel({
   projectId,
-  workspaceWorkspace,
+  workspaceArtifact,
   currentSnapshot,
   nodeDecisions,
   onNodeDecisionsChange,
@@ -41,7 +41,7 @@ export function ProductionWorkspaceReviewPanel({
   onApplied,
 }: {
   projectId?: number
-  workspaceWorkspace: WorkspaceWorkspaceContent
+  workspaceArtifact: ProductionWorkspaceArtifactContent
   currentSnapshot: { segments: WorkspaceSegmentNode[] }
   nodeDecisions: WorkspaceNodeDecisions
   onNodeDecisionsChange: Dispatch<SetStateAction<WorkspaceNodeDecisions>>
@@ -52,7 +52,7 @@ export function ProductionWorkspaceReviewPanel({
 }) {
   const review = useProductionWorkspaceReviewController({
     projectId,
-    workspaceWorkspace,
+    workspaceArtifact,
     currentSnapshot,
     nodeDecisions,
     onNodeDecisionsChange,
@@ -115,10 +115,10 @@ export function ProductionWorkspaceReviewPanel({
   return (
     <ProductionWorkspaceReviewShell
       kind="production_workspace"
-      title="AI 编排工作区"
-      description="逐条审阅 AI 工作区，决定哪些编排和表达可以进入当前稿。"
+      title="AI 编排草案"
+      description="逐条审阅 AI 草案，决定哪些编排和表达可以进入当前稿。"
       icon={GitBranch}
-      countLabel={workspaceWorkspace.proposedAt ? '已加载工作区' : undefined}
+      countLabel={workspaceArtifact.proposedAt ? '已加载工作区' : undefined}
       action={(
         <ProductionWorkspaceReviewActionGroup>
           <ProductionWorkspaceReviewActionButton size="sm" variant="outline" onClick={acceptAllNodes}>
@@ -133,7 +133,7 @@ export function ProductionWorkspaceReviewPanel({
       )}
     >
       <ProductionWorkspaceReviewHeader
-        summary={workspaceWorkspace.summary}
+        summary={workspaceArtifact.summary}
         status={reviewStatus}
         metrics={[
           { icon: GitBranch, label: '工作区节点', value: `${reviewNodes.length}` },

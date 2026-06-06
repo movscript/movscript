@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentTranscriptMessageItems } from '@/features/agent/domain/agentTranscriptMessageItems'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('buildAgentTranscriptMessageItems filters run interaction answer echoes', () => {
@@ -218,7 +218,7 @@ function timelineItem(id: string, activity?: ChatRunActivity): AgentTimelineItem
     updatedAt: '2026-05-19T00:00:00.000Z',
     revision: 1,
     cursor: id,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     ...(activity ? { activity } : {}),
   }
 }
@@ -283,7 +283,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

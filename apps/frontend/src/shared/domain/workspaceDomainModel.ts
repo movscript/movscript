@@ -1,10 +1,10 @@
 import { getActiveSchemaForKind, getWorkspaceSchemaEntry, type JSONSchema7 } from '@movscript/workspaces'
-import type { AgentWorkspaceKind } from '@/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '@/shared/contracts/movscriptWorkspace'
 
 export type WorkspaceSeedMode = 'empty' | 'snapshot' | 'editable_snapshot'
 
 export interface WorkspaceDomainModel {
-  kind: AgentWorkspaceKind
+  kind: MovScriptWorkspaceKind
   title: string
   targetEntityType: string
   contentSchemaId?: string
@@ -31,7 +31,7 @@ export interface WorkspaceDomainModel {
   }
 }
 
-export const WORKSPACE_DOMAIN_MODELS: Partial<Record<AgentWorkspaceKind, WorkspaceDomainModel>> = {
+export const WORKSPACE_DOMAIN_MODELS: Partial<Record<MovScriptWorkspaceKind, WorkspaceDomainModel>> = {
   setting_workspace: {
     kind: 'setting_workspace',
     title: 'Setting workspace',
@@ -174,7 +174,7 @@ export const WORKSPACE_DOMAIN_MODELS: Partial<Record<AgentWorkspaceKind, Workspa
   },
 }
 
-export function getWorkspaceDomainModel(kind: AgentWorkspaceKind): WorkspaceDomainModel | null {
+export function getWorkspaceDomainModel(kind: MovScriptWorkspaceKind): WorkspaceDomainModel | null {
   const model = WORKSPACE_DOMAIN_MODELS[kind]
   if (!model) return null
   const schema = resolveWorkspaceContentSchema(kind, model.contentSchemaId)
@@ -184,7 +184,7 @@ export function getWorkspaceDomainModel(kind: AgentWorkspaceKind): WorkspaceDoma
   }
 }
 
-function resolveWorkspaceContentSchema(kind: AgentWorkspaceKind, schemaId?: string): JSONSchema7 | undefined {
+function resolveWorkspaceContentSchema(kind: MovScriptWorkspaceKind, schemaId?: string): JSONSchema7 | undefined {
   const direct = schemaId ? getWorkspaceSchemaEntry(schemaId)?.jsonSchema : undefined
   if (direct) return direct
   try {

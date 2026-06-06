@@ -5,9 +5,9 @@ import type { AgentConversationListItem } from '@movscript/ui'
 import { AgentConversationListPanel } from '@movscript/ui'
 import { conversationDisplayTitle, formatAgentDate } from '@/features/agent/presentation/agentConversationLabels'
 import { latestTranscriptChatMessage, transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
-import { listRuntimeSessionSummariesFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
-import { runtimeSessionConversationTitle } from '@/features/agent/presentation/agentRuntimeThreadConversation'
-import { localAgentClient, type AgentSessionSummary } from '@/shared/infrastructure/localAgentClient'
+import { listProviderSessionSummariesFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { providerSessionConversationTitle } from '@/features/agent/presentation/providerSessionThreadConversation'
+import { providerSessionClient, type AgentSessionSummary } from '@/shared/infrastructure/providerSessionClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 export function ConversationList({
@@ -20,7 +20,7 @@ export function ConversationList({
   onRename,
   onCollapse,
   showCollapse = true,
-  onRestoreLocalThread,
+  onRestoreProviderThread,
 }: {
   conversations: Conversation[]
   archivedConversations?: Conversation[]
@@ -31,13 +31,13 @@ export function ConversationList({
   onRename: (id: string, title: string) => void
   onCollapse: () => void
   showCollapse?: boolean
-  onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
+  onRestoreProviderThread: (threadId: string, sessionId?: string) => Promise<void>
 }) {
   const { t, i18n } = useTranslation()
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
-  const { data: localSessions = [], refetch: refetchLocalSessions } = useQuery<AgentSessionSummary[]>({
-    queryKey: ['local-agent-sessions', localAgentClient.baseURL],
-    queryFn: () => listRuntimeSessionSummariesFromWorkspace(),
+  const { data: providerSessions = [], refetch: refetchProviderSessions } = useQuery<AgentSessionSummary[]>({
+    queryKey: ['provider-sessions', providerSessionClient.baseURL],
+    queryFn: () => listProviderSessionSummariesFromWorkspace(),
     enabled: true,
     retry: false,
   })
@@ -47,7 +47,7 @@ export function ConversationList({
   async function restoreThread(threadId: string, sessionId?: string) {
     setRestoringThreadId(threadId)
     try {
-      await onRestoreLocalThread(threadId, sessionId)
+      await onRestoreProviderThread(threadId, sessionId)
     } finally {
       setRestoringThreadId(null)
     }
@@ -70,13 +70,13 @@ export function ConversationList({
     onArchive: () => onArchive(conv.id),
   })), [conversationDescription, conversations, locale, onArchive, onRename, onSelect, t])
 
-  const archivedRuntimeSessionIds = useMemo(
-    () => new Set(archivedConversations.flatMap((conversation) => conversation.runtimeSessionId ? [conversation.runtimeSessionId] : [])),
+  const archivedProviderSessionIds = useMemo(
+    () => new Set(archivedConversations.flatMap((conversation) => conversation.providerSessionId ? [conversation.providerSessionId] : [])),
     [archivedConversations],
   )
-  const openRuntimeSessionIds = useMemo(
+  const openProviderSessionIds = useMemo(
     () => new Set(conversations.flatMap((conversation) => {
-      const ids = conversation.runtimeSessionId ? [conversation.runtimeSessionId] : []
+      const ids = conversation.providerSessionId ? [conversation.providerSessionId] : []
       if (conversation.id.startsWith('session_')) ids.push(conversation.id)
       return ids
     })),
@@ -92,39 +92,39 @@ export function ConversationList({
       onRename: (title: string) => onRename(conv.id, title),
       onDelete: () => onDelete(conv.id),
     })),
-    ...localSessions
-      .filter((session) => !archivedRuntimeSessionIds.has(session.id) && !openRuntimeSessionIds.has(session.id))
+    ...providerSessions
+      .filter((session) => !archivedProviderSessionIds.has(session.id) && !openProviderSessionIds.has(session.id))
       .flatMap((session) => {
         const threadId = session.interactiveThreadId ?? session.rootThreadId ?? session.activeThreadId
         if (!threadId) return []
         return [{
           id: session.id,
-          title: runtimeSessionConversationTitle(session, t),
+          title: providerSessionConversationTitle(session, t),
           description: session.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: session.projectId }) : '',
           meta: restoringThreadId === threadId ? t('agents.chat.restoring') : formatAgentDate(session.updatedAt, locale),
           onClick: () => { void restoreThread(threadId, session.id) },
           onDelete: () => onDelete(threadId),
         }]
     }),
-  ], [archivedConversations, archivedRuntimeSessionIds, conversationDescription, locale, localSessions, onDelete, onRename, onSelect, openRuntimeSessionIds, restoringThreadId, t])
+  ], [archivedConversations, archivedProviderSessionIds, conversationDescription, locale, providerSessions, onDelete, onRename, onSelect, openProviderSessionIds, restoringThreadId, t])
 
   return (
     <AgentConversationListPanel
       conversations={mappedConversations}
-      localThreads={mappedHistoryItems}
+      providerSessionThreads={mappedHistoryItems}
       onNew={onNew}
       onCollapse={onCollapse}
-      onRefreshLocalThreads={() => { void refetchLocalSessions() }}
+      onRefreshProviderSessionThreads={() => { void refetchProviderSessions() }}
       showCollapse={showCollapse}
       emptyLabel={t('agents.chat.noConversations')}
-      localRuntimeLabel={t('agents.chat.conversationHistory')}
-      localRuntimeThreadsEmptyLabel={t('agents.chat.noHistoryConversations')}
+      providerSessionThreadsLabel={t('agents.chat.conversationHistory')}
+      providerSessionThreadsEmptyLabel={t('agents.chat.noHistoryConversations')}
       newConversationLabel={t('agents.chat.newConversation')}
       collapseAssistantLabel={t('agents.chat.collapseAssistant')}
       archiveConversationLabel={t('agents.chat.archiveConversation')}
       deleteConversationLabel={t('agents.chat.deleteConversation')}
       renameConversationLabel={t('agents.chat.renameConversation')}
-      refreshLabel={t('agents.chat.localRuntime')}
+      refreshLabel={t('agents.chat.providerSession')}
     />
   )
 }

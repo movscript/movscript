@@ -8,6 +8,7 @@ import {
   normalizeWorkspaceModelTarget,
   normalizeWorkspaceSeedMode,
 } from './target'
+import { materializeWorkspaceModelProjection } from './projection'
 
 export async function getWorkspaceModelContract(args: Record<string, unknown>): Promise<unknown> {
   const kind = normalizeWorkspaceModelKind(getRequiredString(args, 'kind'))
@@ -25,6 +26,13 @@ export async function getWorkspaceModelContract(args: Record<string, unknown>): 
     : undefined
   const reviewRoute = buildWorkspaceModelReviewRoute(model.routes.reviewTemplate, target)
   const modelRef = `frontend:WorkspaceModel:${kind}:v1`
+  const initialContent = buildInitialWorkspaceContent(kind, target, seedData?.data)
+  const projection = await materializeWorkspaceModelProjection({
+    kind,
+    target,
+    initialContent,
+    sourceVersions: isRecord(seedData?.sourceVersions) ? seedData.sourceVersions : undefined,
+  })
   return {
     contractVersion: 1,
     kind,
@@ -51,18 +59,30 @@ export async function getWorkspaceModelContract(args: Record<string, unknown>): 
     },
     workspaceProtocol: {
       owner: 'frontend',
+      role: 'canonical_snapshot_editing_surface',
+      format: 'json',
+      sync: {
+        owner: 'frontend',
+        agentWritable: false,
+      },
       open: {
         contentRequired: false,
         initialContentSource: 'mcp.initialContent',
       },
       validation: {
         effectsRequiredBeforeSave: true,
+        effectsRequiredBeforeMaterialize: true,
+        snapshotRequired: true,
       },
       save: {
         boundary: model.applyBoundary.backendApply,
+        updateTool: 'workspace_update',
+        materializeTool: 'workspace_apply',
+        previewTool: 'workspace_apply_review',
       },
     },
-    initialContent: buildInitialWorkspaceContent(kind, target, seedData?.data),
+    initialContent,
+    projection,
     ...(model.contentSchemaId ? { contentSchemaId: model.contentSchemaId } : {}),
     ...(model.contentSchema ? { contentSchema: model.contentSchema } : {}),
     fieldGuide: model.fieldGuide,
@@ -129,17 +149,36 @@ function buildInitialWorkspaceContent(
       summary: '',
     }
   }
+  const sceneMomentId = contentUnitSceneMomentId(target, data)
+  const scopedContentUnitId = contentUnitId(target, data)
   return {
     schema: 'movscript.content_unit_workspace.v1',
     scope: 'content_unit_workspace',
-    productionId: numericId(data.production_id) ?? numericId(data.productionId) ?? 0,
+    productionId: numericId(data.production_id) ?? numericId(data.productionId) ?? numericId(target.productionId) ?? numericId(target.production_id) ?? 0,
     ...(numericId(data.segment_id) !== undefined ? { segmentId: numericId(data.segment_id) } : {}),
-    ...(numericId(target.entityId) !== undefined ? { sceneMomentId: numericId(target.entityId) } : {}),
+    ...(sceneMomentId !== undefined ? { sceneMomentId } : {}),
+    ...(scopedContentUnitId !== undefined ? { contentUnitId: scopedContentUnitId } : {}),
     workspace: {
       units: Array.isArray(data.content_units) ? data.content_units : [],
     },
     summary: '',
   }
+}
+
+function contentUnitSceneMomentId(target: Record<string, unknown>, data: Record<string, unknown>): number | undefined {
+  return numericId(target.sceneMomentId)
+    ?? numericId(target.scene_moment_id)
+    ?? numericId(data.sceneMomentId)
+    ?? numericId(data.scene_moment_id)
+    ?? (target.entityType === 'scene_moment' ? numericId(target.entityId) : undefined)
+}
+
+function contentUnitId(target: Record<string, unknown>, data: Record<string, unknown>): number | undefined {
+  return numericId(target.contentUnitId)
+    ?? numericId(target.content_unit_id)
+    ?? numericId(data.contentUnitId)
+    ?? numericId(data.content_unit_id)
+    ?? (target.entityType === 'content_unit' ? numericId(target.entityId) : undefined)
 }
 
 function projectStyleSeed(data: Record<string, unknown>): Record<string, unknown> {

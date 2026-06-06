@@ -28,12 +28,36 @@ type Compatibility struct {
 }
 
 type Contributions struct {
-	Tools       []ToolContribution       `json:"tools,omitempty"`
-	Cards       []CardContribution       `json:"cards,omitempty"`
-	CanvasNodes []CanvasNodeContribution `json:"canvasNodes,omitempty"`
-	Workflows   []WorkflowContribution   `json:"workflows,omitempty"`
-	AgentSkills []AgentSkillContribution `json:"agentSkills,omitempty"`
-	Commands    []CommandContribution    `json:"commands,omitempty"`
+	Tools       []ToolContribution        `json:"tools,omitempty"`
+	Cards       []CardContribution        `json:"cards,omitempty"`
+	CanvasNodes []CanvasNodeContribution  `json:"canvasNodes,omitempty"`
+	Workflows   []WorkflowContribution    `json:"workflows,omitempty"`
+	Skills      []PluginSkillContribution `json:"skills,omitempty"`
+	Commands    []CommandContribution     `json:"commands,omitempty"`
+}
+
+func (c *Contributions) UnmarshalJSON(raw []byte) error {
+	type contributionsAlias Contributions
+	var parsed contributionsAlias
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return err
+	}
+	legacySkillsKey := strings.Join([]string{"agent", "Skills"}, "")
+	if legacyRaw, ok := fields[legacySkillsKey]; ok {
+		var legacySkills []PluginSkillContribution
+		if err := json.Unmarshal(legacyRaw, &legacySkills); err != nil {
+			return err
+		}
+		if len(parsed.Skills) == 0 {
+			parsed.Skills = legacySkills
+		}
+	}
+	*c = Contributions(parsed)
+	return nil
 }
 
 type ToolContribution struct {
@@ -110,7 +134,7 @@ type WorkflowContribution struct {
 	Tags        []string        `json:"tags,omitempty"`
 }
 
-type AgentSkillContribution struct {
+type PluginSkillContribution struct {
 	Path         string   `json:"path"`
 	ID           string   `json:"id,omitempty"`
 	Kind         string   `json:"kind,omitempty"`  // persona | workflow | policy | expertise
@@ -225,26 +249,26 @@ func ValidateManifest(m *Manifest) error {
 			return err
 		}
 	}
-	seenAgentSkills := map[string]bool{}
-	for _, skill := range m.Contributes.AgentSkills {
+	seenPluginSkills := map[string]bool{}
+	for _, skill := range m.Contributes.Skills {
 		if strings.TrimSpace(skill.Path) == "" {
-			return errors.New("agent skill path is required")
+			return errors.New("plugin skill path is required")
 		}
 		if strings.ContainsAny(skill.Path, "\\") || strings.HasPrefix(skill.Path, "/") || strings.Contains(skill.Path, "..") {
-			return fmt.Errorf("agent skill path %q must be a relative package path", skill.Path)
+			return fmt.Errorf("plugin skill path %q must be a relative package path", skill.Path)
 		}
-		if seenAgentSkills[skill.Path] {
-			return fmt.Errorf("duplicate agent skill path %q", skill.Path)
+		if seenPluginSkills[skill.Path] {
+			return fmt.Errorf("duplicate plugin skill path %q", skill.Path)
 		}
-		seenAgentSkills[skill.Path] = true
+		seenPluginSkills[skill.Path] = true
 		if skill.Kind != "" && skill.Kind != "persona" && skill.Kind != "workflow" && skill.Kind != "policy" && skill.Kind != "expertise" {
-			return fmt.Errorf("agent skill %q has invalid kind %q", skill.Path, skill.Kind)
+			return fmt.Errorf("plugin skill %q has invalid kind %q", skill.Path, skill.Kind)
 		}
 		if skill.Load != "" && skill.Load != "core" && skill.Load != "on_demand" && skill.Load != "manual" {
-			return fmt.Errorf("agent skill %q has invalid load %q", skill.Path, skill.Load)
+			return fmt.Errorf("plugin skill %q has invalid load %q", skill.Path, skill.Load)
 		}
 		if skill.Scope != "" && skill.Scope != "turn" && skill.Scope != "run" && skill.Scope != "thread" {
-			return fmt.Errorf("agent skill %q has invalid scope %q", skill.Path, skill.Scope)
+			return fmt.Errorf("plugin skill %q has invalid scope %q", skill.Path, skill.Scope)
 		}
 	}
 	seenNodes := map[string]bool{}

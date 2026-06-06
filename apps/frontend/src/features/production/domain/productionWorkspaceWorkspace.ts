@@ -85,7 +85,7 @@ export interface ProductionWorkspaceSegmentSnapshot {
   before?: Record<string, unknown>
 }
 
-export interface ProductionWorkspaceWorkspaceContent {
+export interface ProductionWorkspaceArtifactShellContent {
   schema: typeof PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA
   scope: typeof PRODUCTION_WORKSPACE_SCOPE
   mode: 'snapshot'
@@ -102,14 +102,17 @@ export interface ProductionWorkspaceWorkspaceContent {
   projectWorkspaceId?: string
 }
 
-export function buildEmptyProductionWorkspaceWorkspaceContent(input: {
+/** @deprecated Use ProductionWorkspaceArtifactShellContent. */
+export type ProductionWorkspaceWorkspaceContent = ProductionWorkspaceArtifactShellContent
+
+export function buildEmptyProductionWorkspaceArtifactShellContent(input: {
   projectId?: number
   productionId: number
   projectWorkspaceId?: string
   snapshotBase?: Record<string, unknown>
   proposedAt?: string
   summary?: string
-}): ProductionWorkspaceWorkspaceContent {
+}): ProductionWorkspaceArtifactShellContent {
   return {
     schema: PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA,
     scope: PRODUCTION_WORKSPACE_SCOPE,
@@ -125,3 +128,6 @@ export function buildEmptyProductionWorkspaceWorkspaceContent(input: {
     ...(input.projectWorkspaceId ? { projectWorkspaceId: input.projectWorkspaceId } : {}),
   }
 }
+
+/** @deprecated Use buildEmptyProductionWorkspaceArtifactShellContent. */
+export const buildEmptyProductionWorkspaceWorkspaceContent = buildEmptyProductionWorkspaceArtifactShellContent

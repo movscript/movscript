@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bot, Cable, ListTree, Play, Power, RefreshCw, RotateCw, Save, Settings, Square } from 'lucide-react'
+import { Bot, Cable, Play, Power, RefreshCw, RotateCw, Save, Square } from 'lucide-react'
 import {
   AgentConsoleActionButton,
   AgentConsoleCallout,
@@ -24,7 +24,6 @@ import {
   AgentConsoleLocalToolFields,
   AgentConsoleLocalToolHeader,
   AgentConsoleLocalToolTitle,
-  AgentConsoleManagementLink,
   AgentConsolePanel,
   AgentConsolePanelActions,
   AgentConsoleSavedText,
@@ -39,25 +38,38 @@ import {
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
-import { listRuntimeRunSummariesFromWorkspace, listRuntimeThreadSummariesFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import {
-  DEFAULT_AGENT_PROVIDER_SETTINGS,
-  enabledAgentProviders,
-  normalizeAgentProviderSettings,
-  resolveCodexAppServerProfile,
-  useAgentProviderConfigStore,
-  type AgentProviderConfig,
-} from '@/features/agent/state/agentProviderConfigStore'
+  providerRouteForKey,
+  providerTitle,
+  appServerKey,
+  providerRouteKey,
+  normalizedProviderKey,
+} from '@/features/agent/application/providerRoutes'
+import {
+  DEFAULT_PROVIDER_SETTINGS,
+  MOVA_PROVIDER_ID,
+  enabledProviders,
+  normalizeProviderSettings,
+  resolveAppServerProfile,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+  type ProviderConfig,
+} from '@/shared/infrastructure/providerConfigStore'
 import { publicModelId } from '@/shared/domain/modelDisplay'
-import { localAgentClient, type AgentWorkspaceRuntimeConfig } from '@/shared/infrastructure/localAgentClient'
+import { ProviderSessionClient, providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
+import {
+  ensureAppServer as ensureAppServerService,
+  getAppServerStatus,
+  stopAppServer as stopAppServerService,
+} from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { PublicModel } from '@/types'
 
-type AgentTab = 'movscript' | 'codex'
-type AgentConfigKey = 'movscript' | 'codex'
-type AgentAuthSource = 'model-provider' | 'local-codex-home' | 'managed-codex-home' | 'custom-config' | 'none'
+type AppServerAuthSource = 'model-provider' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
 
-type AgentProviderOption = {
+const PROVIDER_LOCAL_HOME_COMPAT_MODE = ['local', 'Codex'].join('')
+
+type ProviderOption = {
   id: string
   label: string
   source: 'backend' | 'local'
@@ -68,38 +80,34 @@ type AgentProviderOption = {
   apiKind?: string
 }
 
-type AgentConfigDraft = {
+type ProviderConfigDraft = {
   providerRef: string
-  authSource: AgentAuthSource
+  authSource: AppServerAuthSource
   home: string
   workspaceDir: string
 }
 
-const MOVSCRIPT_DEFAULT_CONFIG: AgentConfigDraft = {
-  providerRef: '',
-  authSource: 'model-provider',
-  home: '.movscript/agents/movscript',
-  workspaceDir: '.',
-}
-
-const CODEX_DEFAULT_CONFIG: AgentConfigDraft = {
-  providerRef: '',
-  authSource: 'local-codex-home',
-  home: '.movscript/.codex',
-  workspaceDir: '.',
-}
-
 export default function AgentsPage() {
   const location = useLocation()
-  const tab: AgentTab = location.pathname.includes('/codex') ? 'codex' : 'movscript'
-  const savedSettings = useAgentProviderConfigStore((state) => state.settings)
-  const setSettings = useAgentProviderConfigStore((state) => state.setSettings)
-  const settings = useMemo(() => normalizeAgentProviderSettings(savedSettings), [savedSettings])
+  const savedSettings = useProviderConfigStore((state) => state.settings)
+  const setSettings = useProviderConfigStore((state) => state.setSettings)
+  const settings = useMemo(() => normalizeProviderSettings(savedSettings), [savedSettings])
   const providers = settings.providers
-  const enabledCount = enabledAgentProviders(settings).length
+  const appServerProviders = useMemo(() => providers.filter(usesAppServerProtocol), [providers])
+  const activeProviderKey = activeProviderKeyFromPath(location.pathname, appServerProviders)
+    ?? (appServerProviders[0] ? providerRouteKey(appServerProviders[0]) : MOVA_PROVIDER_ID)
+  const activeProvider = appServerProviders.find((provider) => providerMatchesRouteKey(provider, activeProviderKey))
+  const activeAppServerKey = activeProvider ? appServerKey(activeProvider) : activeProviderKey
+  const enabledCount = enabledProviders(settings).length
+  const defaultWorkspaceConfigQuery = useQuery({
+    queryKey: ['agents-workspace-config', 'default'],
+    queryFn: () => providerSessionClient.getWorkspaceConfig(),
+    retry: false,
+  })
+  const activeProfileSessionClient = useMemo(() => new ProviderSessionClient(undefined, { providerProfileKey: activeAppServerKey }), [activeAppServerKey])
   const workspaceConfigQuery = useQuery({
-    queryKey: ['agents-workspace-config'],
-    queryFn: () => localAgentClient.getWorkspaceConfig(),
+    queryKey: ['agents-workspace-config', activeAppServerKey],
+    queryFn: () => activeProfileSessionClient.getWorkspaceConfig(),
     retry: false,
   })
   const backendModelsQuery = useQuery({
@@ -108,18 +116,25 @@ export default function AgentsPage() {
     retry: false,
   })
   const providerOptions = useMemo(() => {
-    return buildAgentProviderOptions(workspaceConfigQuery.data, backendModelsQuery.data ?? [])
-  }, [workspaceConfigQuery.data, backendModelsQuery.data])
+    return buildProviderOptions(defaultWorkspaceConfigQuery.data, backendModelsQuery.data ?? [])
+  }, [defaultWorkspaceConfigQuery.data, backendModelsQuery.data])
 
-  function patchProvider(id: string, patch: Partial<AgentProviderConfig>) {
-    setSettings(normalizeAgentProviderSettings({
+  function patchProvider(id: string, patch: Partial<ProviderConfig>) {
+    const provider = providers.find((item) => item.id === id)
+      ?? DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === id)
+    if (!provider) return
+    const nextProvider = { ...provider, ...patch }
+    const nextProviders = providers.some((item) => item.id === id)
+      ? providers.map((item) => item.id === id ? nextProvider : item)
+      : [...providers, nextProvider]
+    setSettings(normalizeProviderSettings({
       ...settings,
-      providers: providers.map((provider) => provider.id === id ? { ...provider, ...patch } : provider),
+      providers: nextProviders,
     }))
   }
 
   function refreshConfig() {
-    void Promise.all([workspaceConfigQuery.refetch(), backendModelsQuery.refetch()])
+    void Promise.all([defaultWorkspaceConfigQuery.refetch(), workspaceConfigQuery.refetch(), backendModelsQuery.refetch()])
   }
 
   return (
@@ -133,10 +148,10 @@ export default function AgentsPage() {
               <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
                 {enabledCount} 个启用
               </AgentConsoleStatusBadge>
-              {(workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
+              {(defaultWorkspaceConfigQuery.isLoading || workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理 MovScript Agent 与 Codex 的启用状态、provider 引用、home、workspaceDir 和运行生命周期；运行中配置会锁定。
+              管理 app-server providers 的启用状态、provider 引用、home、workspaceDir 和运行生命周期；运行中配置会锁定。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -159,34 +174,29 @@ export default function AgentsPage() {
       <AgentPageShellBody>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <AgentTabButton to={ROUTES.agentsMovscript} active={tab === 'movscript'} icon={<Bot size={14} />}>
-              MovScript Agent
-            </AgentTabButton>
-            <AgentTabButton to={ROUTES.agentsCodex} active={tab === 'codex'} icon={<Cable size={14} />}>
-              Codex
-            </AgentTabButton>
+            {appServerProviders.map((provider) => {
+              const key = providerRouteKey(provider)
+              return (
+                <AgentTabButton key={provider.id} to={providerRoute(key)} active={providerMatchesRouteKey(provider, activeProviderKey)} icon={<Cable size={14} />}>
+                  {provider.label}
+                </AgentTabButton>
+              )
+            })}
           </div>
 
+          {defaultWorkspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(defaultWorkspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
           {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
           {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
 
-          {tab === 'movscript' ? (
-            <MovScriptAgentPanel
-              provider={providers.find((provider) => provider.kind === 'movscript-agent')}
-              providerOptions={providerOptions}
-              workspaceConfig={workspaceConfigQuery.data}
-              onConfigSaved={() => void workspaceConfigQuery.refetch()}
-              onPatch={patchProvider}
-            />
-          ) : (
-            <CodexAgentPanel
-              provider={providers.find((provider) => provider.kind === 'codex')}
-              providerOptions={providerOptions}
-              workspaceConfig={workspaceConfigQuery.data}
-              onConfigSaved={() => void workspaceConfigQuery.refetch()}
-              onPatch={patchProvider}
-            />
-          )}
+          <AppServerPanel
+            providerKey={activeAppServerKey}
+            provider={activeProvider}
+            providerOptions={providerOptions}
+            workspaceConfig={workspaceConfigQuery.data}
+            onConfigSaved={() => void workspaceConfigQuery.refetch()}
+            providerSessionClient={activeProfileSessionClient}
+            onPatch={patchProvider}
+          />
         </div>
       </AgentPageShellBody>
     </AgentPageShell>
@@ -204,265 +214,106 @@ function AgentTabButton({ to, active, icon, children }: { to: string; active: bo
   )
 }
 
-function MovScriptAgentPanel({
-  provider,
-  providerOptions,
-  workspaceConfig,
-  onConfigSaved,
-  onPatch,
-}: {
-  provider?: AgentProviderConfig
-  providerOptions: AgentProviderOption[]
-  workspaceConfig?: AgentWorkspaceRuntimeConfig
-  onConfigSaved: () => void
-  onPatch: (id: string, patch: Partial<AgentProviderConfig>) => void
-}) {
-  const runtimeSessionsQuery = useQuery({
-    queryKey: ['agents-movscript-runtime-sessions'],
-    queryFn: () => localAgentClient.listRuntimeSessionsFromWorkspace().then((result) => result.sessions),
-    retry: false,
-  })
-  const threadsQuery = useQuery({
-    queryKey: ['agents-movscript-threads'],
-    queryFn: () => listRuntimeThreadSummariesFromWorkspace({ includeProvisional: true }),
-    retry: false,
-  })
-  const runsQuery = useQuery({
-    queryKey: ['agents-movscript-runs'],
-    queryFn: () => listRuntimeRunSummariesFromWorkspace(),
-    retry: false,
-  })
-  const resolved = provider ?? DEFAULT_AGENT_PROVIDER_SETTINGS.providers.find((item) => item.kind === 'movscript-agent')!
-  const [draft, setDraft] = useState<AgentConfigDraft>(() => agentConfigDraftFromWorkspace(workspaceConfig, 'movscript', MOVSCRIPT_DEFAULT_CONFIG, providerOptions))
-  const [ensuring, setEnsuring] = useState(false)
-  const [stopping, setStopping] = useState(false)
-  const [restarting, setRestarting] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const sessions = runtimeSessionsQuery.data ?? []
-  const runningCount = sessions.filter((session) => session.running && !session.stale).length
-  const configLocked = runningCount > 0
-  const runCount = runsQuery.data?.length ?? 0
-  const threadCount = threadsQuery.data?.length ?? 0
-  const loading = runtimeSessionsQuery.isLoading || threadsQuery.isLoading || runsQuery.isLoading
-
-  useEffect(() => {
-    if (!workspaceConfig) return
-    setDraft(agentConfigDraftFromWorkspace(workspaceConfig, 'movscript', MOVSCRIPT_DEFAULT_CONFIG, providerOptions))
-  }, [workspaceConfig, providerOptions])
-
-  async function ensureRuntime() {
-    if (!window.api?.ensureAgentRuntime) {
-      setError('当前运行环境不支持启动 MovScript Agent runtime。')
-      return
-    }
-    setEnsuring(true)
-    setError(null)
-    try {
-      await window.api.ensureAgentRuntime({ source: 'agents-page' })
-      await refreshRuntime()
-    } catch (runtimeError) {
-      setError(errorMessage(runtimeError))
-    } finally {
-      setEnsuring(false)
-    }
-  }
-
-  async function stopRuntime() {
-    if (!window.api?.stopAgentRuntime) {
-      setError('当前运行环境不支持停止 MovScript Agent runtime。')
-      return
-    }
-    setStopping(true)
-    setError(null)
-    try {
-      await window.api.stopAgentRuntime()
-      await refreshRuntime()
-    } catch (runtimeError) {
-      setError(errorMessage(runtimeError))
-    } finally {
-      setStopping(false)
-    }
-  }
-
-  async function restartRuntime() {
-    if (!window.api?.ensureAgentRuntime || !window.api?.stopAgentRuntime) {
-      setError('当前运行环境不支持重启 MovScript Agent runtime。')
-      return
-    }
-    setRestarting(true)
-    setError(null)
-    try {
-      await window.api.stopAgentRuntime()
-      await window.api.ensureAgentRuntime({ source: 'agents-page-restart' })
-      await refreshRuntime()
-    } catch (runtimeError) {
-      setError(errorMessage(runtimeError))
-    } finally {
-      setRestarting(false)
-    }
-  }
-
-  async function refreshRuntime() {
-    await Promise.all([runtimeSessionsQuery.refetch(), threadsQuery.refetch(), runsQuery.refetch()])
-  }
-
-  async function saveConfig() {
-    if (configLocked || saving) return
-    setSaving(true)
-    setError(null)
-    try {
-      await saveAgentConfig('movscript', buildMovScriptAgentRecord(draft, resolved.enabled), workspaceConfig)
-      onConfigSaved()
-      setSaved(true)
-      window.setTimeout(() => setSaved(false), 1800)
-    } catch (saveError) {
-      setError(errorMessage(saveError))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <AgentConsolePanel
-      title="MovScript Agent"
-      icon={<Bot size={14} />}
-      action={(
-        <AgentConsolePanelActions>
-          {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
-          {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleStatusBadge intent={resolved.enabled ? 'success' : 'neutral'} emphasis="soft">
-            {resolved.enabled ? '启用' : '停用'}
-          </AgentConsoleStatusBadge>
-          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void refreshRuntime()}>
-            <RefreshCw size={14} />
-            刷新状态
-          </AgentConsoleActionButton>
-        </AgentConsolePanelActions>
-      )}
-    >
-      <div className="space-y-4">
-        {configLocked ? (
-          <AgentConsoleCallout compact tone="warning">
-            MovScript Agent 运行中：停止 runtime 后才能修改 provider、home 和 workspaceDir。
-          </AgentConsoleCallout>
-        ) : null}
-        {providerOptions.length === 0 ? (
-          <AgentConsoleCallout compact tone="warning">
-            当前没有可选 Model Provider。请先在 Model Providers 中配置后端模型或本地 provider。
-          </AgentConsoleCallout>
-        ) : null}
-
-        <AgentConsoleLocalToolCard>
-          <AgentConsoleLocalToolHeader>
-            <AgentConsoleLocalToolCopy>
-              <AgentConsoleLocalToolTitle>{resolved.label}</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>自研 workspace runtime / session registry / run trace</AgentConsoleLocalToolDetail>
-            </AgentConsoleLocalToolCopy>
-            <AgentConsoleLocalToolControls>
-              <AgentConsoleStatusBadge intent={runningCount > 0 ? 'success' : 'warning'} emphasis="soft">
-                {runningCount}/{sessions.length} 在线
-              </AgentConsoleStatusBadge>
-              <input
-                type="checkbox"
-                checked={resolved.enabled}
-                disabled={configLocked}
-                onChange={(event) => onPatch(resolved.id, { enabled: event.target.checked })}
-                aria-label="MovScript Agent enabled"
-              />
-            </AgentConsoleLocalToolControls>
-          </AgentConsoleLocalToolHeader>
-          <AgentConsoleLocalToolFields disabled={!resolved.enabled || configLocked}>
-            <AgentConsoleFormField label="显示名称" value={resolved.label} disabled={configLocked} onChange={(event) => onPatch(resolved.id, { label: event.target.value })} />
-            <ProviderSelect value={draft.providerRef} options={providerOptions} disabled={!resolved.enabled || configLocked} onChange={(providerRef) => setDraft((current) => ({ ...current, providerRef }))} />
-            <AgentConsoleFormField label="Codex home path" value={draft.home} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, home: event.target.value }))} />
-            <AgentConsoleFormField label="Workspace Dir" value={draft.workspaceDir} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, workspaceDir: event.target.value }))} />
-            <AgentConsoleCallout compact>
-              当前 workspace：{sessions[0]?.workspaceDir ?? '尚未创建 runtime session'}；{threadCount} 个 thread / {runCount} 个 run。
-            </AgentConsoleCallout>
-          </AgentConsoleLocalToolFields>
-          <AgentConsoleLocalToolActions>
-            <AgentConsoleActionButton type="button" size="sm" onClick={() => void saveConfig()} disabled={configLocked || saving}>
-              <Save size={14} />
-              {saving ? '保存中...' : '保存配置'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void ensureRuntime()} disabled={!resolved.enabled || ensuring}>
-              <Play size={14} />
-              {runningCount > 0 ? '确认运行' : '启动 Runtime'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void stopRuntime()} disabled={runningCount === 0 || stopping}>
-              <Square size={14} />
-              停止
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void restartRuntime()} disabled={!resolved.enabled || runningCount === 0 || restarting}>
-              <RotateCw size={14} />
-              {restarting ? '重启中...' : '重启'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.agentSettings}>
-                <Settings size={14} />
-                Skills / Tools / Limits
-              </Link>
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.agentRuns}>
-                <ListTree size={14} />
-                运行记录
-              </Link>
-            </AgentConsoleActionButton>
-          </AgentConsoleLocalToolActions>
-        </AgentConsoleLocalToolCard>
-
-        {(runtimeSessionsQuery.error || threadsQuery.error || runsQuery.error) ? (
-          <AgentConsoleInlineError>
-            {errorMessage(runtimeSessionsQuery.error ?? threadsQuery.error ?? runsQuery.error)}
-          </AgentConsoleInlineError>
-        ) : null}
-        {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
-
-        <AgentConsoleDivider>
-          <AgentConsoleGrid columns="three">
-            <AgentInfoCard title="Runtime Sessions" detail={`${runningCount} online / ${sessions.length} indexed`} />
-            <AgentInfoCard title="Threads" detail={`${threadCount} registered conversation refs`} />
-            <AgentInfoCard title="Runs" detail={`${runCount} run records with trace support`} />
-          </AgentConsoleGrid>
-        </AgentConsoleDivider>
-      </div>
-    </AgentConsolePanel>
-  )
+function activeProviderKeyFromPath(pathname: string, providers: ProviderConfig[]): string | undefined {
+  const key = pathname.match(/^\/agents\/([^/?#]+)/)?.[1]
+  if (!key) return undefined
+  const decoded = normalizedProviderKey(safeDecodeURIComponent(key))
+  return providers.some((provider) => providerMatchesRouteKey(provider, decoded))
+    ? decoded
+    : undefined
 }
 
-function CodexAgentPanel({
+function providerMatchesRouteKey(provider: ProviderConfig, key: string): boolean {
+  const decoded = normalizedProviderKey(key)
+  return providerRouteKey(provider) === decoded
+    || appServerKey(provider) === decoded
+    || normalizedProviderKey(provider.kind) === decoded
+}
+
+function providerRoute(providerKey: string): string {
+  return providerRouteForKey(providerKey)
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function providerDisplayTitle(providerKey: string): string {
+  return providerTitle(providerKey)
+}
+
+function defaultProviderConfigDraft(providerKey: string): ProviderConfigDraft {
+  const key = normalizedProviderKey(providerKey)
+  return {
+    providerRef: '',
+    authSource: 'local-home',
+    home: `.movscript/.${key}`,
+    workspaceDir: '.',
+  }
+}
+
+function fallbackAppServerProvider(providerKey: string): ProviderConfig {
+  const key = normalizedProviderKey(providerKey)
+  const title = providerDisplayTitle(key)
+  return {
+    id: key,
+    kind: key,
+    protocol: 'app-server',
+    messageAdapter: 'thread-turn-item',
+    label: `MovScript ${title}`,
+    enabled: true,
+    appServerProfile: {
+      id: `${key}-movscript-home`,
+      label: `MovScript ${title}`,
+      providerKey: key,
+      home: `.movscript/.${key}`,
+      lifecycle: 'movscript-owned',
+    },
+  }
+}
+
+function AppServerPanel({
+  providerKey,
   provider,
   providerOptions,
   workspaceConfig,
   onConfigSaved,
+  providerSessionClient,
   onPatch,
 }: {
-  provider?: AgentProviderConfig
-  providerOptions: AgentProviderOption[]
-  workspaceConfig?: AgentWorkspaceRuntimeConfig
+  providerKey: string
+  provider?: ProviderConfig
+  providerOptions: ProviderOption[]
+  workspaceConfig?: MovScriptWorkspaceConfig
   onConfigSaved: () => void
-  onPatch: (id: string, patch: Partial<AgentProviderConfig>) => void
+  providerSessionClient: ProviderSessionClient
+  onPatch: (id: string, patch: Partial<ProviderConfig>) => void
 }) {
-  const resolved = provider ?? DEFAULT_AGENT_PROVIDER_SETTINGS.providers.find((item) => item.kind === 'codex')!
-  const profile = resolveCodexAppServerProfile(resolved)
-  const [draft, setDraft] = useState<AgentConfigDraft>(() => agentConfigDraftFromWorkspace(workspaceConfig, 'codex', CODEX_DEFAULT_CONFIG, providerOptions))
+  const title = provider?.label || providerDisplayTitle(providerKey)
+  const defaultConfig = useMemo(() => defaultProviderConfigDraft(providerKey), [providerKey])
+  const resolved = provider
+    ?? DEFAULT_PROVIDER_SETTINGS.providers.find((item) => appServerKey(item) === normalizedProviderKey(providerKey) || item.kind === normalizedProviderKey(providerKey))
+    ?? fallbackAppServerProvider(providerKey)
+  const profile = resolveAppServerProfile(resolved)
+  const [draft, setDraft] = useState<ProviderConfigDraft>(() => providerConfigDraftFromWorkspaceConfig(workspaceConfig, providerKey, defaultConfig, providerOptions))
   const [saving, setSaving] = useState(false)
   const [restarting, setRestarting] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const statusQuery = useQuery({
-    queryKey: ['agents-codex-app-server-status', profile.id],
+    queryKey: ['agents-app-server-status', providerKey, profile.id],
     queryFn: async () => {
-      const status = await window.api?.getCodexAppServerStatus?.({ profileId: profile.id })
+      const status = await getAppServerStatus({ profileId: profile.id })
       return status ?? {
         ok: false,
         running: false,
         managed: false,
         profileId: profile.id,
-        error: '当前运行环境不支持 Codex app-server 管理。',
+        error: `当前运行环境不支持 ${title} app-server 管理。`,
       }
     },
     enabled: resolved.enabled,
@@ -470,54 +321,55 @@ function CodexAgentPanel({
   })
   const status = statusQuery.data
   const running = Boolean(status?.ok && status.running)
+  const statusConfig = status?.config
   const configLocked = running
 
   useEffect(() => {
     if (!workspaceConfig) return
-    setDraft(agentConfigDraftFromWorkspace(workspaceConfig, 'codex', CODEX_DEFAULT_CONFIG, providerOptions))
-  }, [workspaceConfig, providerOptions])
+    setDraft(providerConfigDraftFromWorkspaceConfig(workspaceConfig, providerKey, defaultConfig, providerOptions))
+  }, [providerKey, defaultConfig, workspaceConfig, providerOptions])
 
-  async function ensureCodex() {
+  async function ensureAppServer() {
     setError(null)
     try {
-      await window.api?.ensureCodexAppServer?.({
+      await ensureAppServerService({
         profile: {
           ...profile,
           workspaceDir: draft.workspaceDir || profile.workspaceDir,
-          codexHome: draft.home || profile.codexHome,
+          home: draft.home || profile.home,
         },
       })
       await statusQuery.refetch()
-    } catch (codexError) {
-      setError(errorMessage(codexError))
+    } catch (appServerError) {
+      setError(errorMessage(appServerError))
     }
   }
 
-  async function stopCodex() {
+  async function stopAppServer() {
     setError(null)
     try {
-      await window.api?.stopCodexAppServer?.({ profileId: profile.id })
+      await stopAppServerService({ profileId: profile.id })
       await statusQuery.refetch()
-    } catch (codexError) {
-      setError(errorMessage(codexError))
+    } catch (appServerError) {
+      setError(errorMessage(appServerError))
     }
   }
 
-  async function restartCodex() {
+  async function restartAppServer() {
     setRestarting(true)
     setError(null)
     try {
-      if (running) await window.api?.stopCodexAppServer?.({ profileId: profile.id })
-      await window.api?.ensureCodexAppServer?.({
+      if (running) await stopAppServerService({ profileId: profile.id })
+      await ensureAppServerService({
         profile: {
           ...profile,
           workspaceDir: draft.workspaceDir || profile.workspaceDir,
-          codexHome: draft.home || profile.codexHome,
+          home: draft.home || profile.home,
         },
       })
       await statusQuery.refetch()
-    } catch (codexError) {
-      setError(errorMessage(codexError))
+    } catch (appServerError) {
+      setError(errorMessage(appServerError))
     } finally {
       setRestarting(false)
     }
@@ -529,7 +381,7 @@ function CodexAgentPanel({
     setError(null)
     try {
       const providerOption = providerOptions.find((option) => option.id === draft.providerRef)
-      await saveAgentConfig('codex', buildCodexAgentRecord(draft, providerOption, resolved.enabled), workspaceConfig)
+      await saveProviderConfig(providerSessionClient, providerKey, buildAppServerRecord(draft, providerOption, resolved.enabled, resolved.appServerProfile), workspaceConfig)
       onConfigSaved()
       setSaved(true)
       window.setTimeout(() => setSaved(false), 1800)
@@ -540,13 +392,13 @@ function CodexAgentPanel({
     }
   }
 
-  function patchProfile(patch: Partial<NonNullable<AgentProviderConfig['codexProfile']>>) {
-    onPatch(resolved.id, { codexProfile: { ...profile, ...patch } })
+  function patchProfile(patch: Partial<NonNullable<ProviderConfig['appServerProfile']>>) {
+    onPatch(resolved.id, { appServerProfile: { ...profile, ...patch } })
   }
 
   return (
     <AgentConsolePanel
-      title="Codex"
+      title={title}
       icon={<Cable size={14} />}
       action={(
         <AgentConsolePanelActions>
@@ -565,12 +417,12 @@ function CodexAgentPanel({
       <div className="space-y-4">
         {configLocked ? (
           <AgentConsoleCallout compact tone="warning">
-            Codex 运行中：停止 app-server 后才能修改 provider、auth、home 和 workspaceDir。
+            {title} 运行中：停止 app-server 后才能修改 provider、auth、home 和 workspaceDir。
           </AgentConsoleCallout>
         ) : null}
         {draft.authSource === 'model-provider' && providerOptions.find((option) => option.id === draft.providerRef)?.source === 'backend' ? (
           <AgentConsoleCallout compact tone="warning">
-            Backend Provider 会作为引用保存；当前 Codex 启动链路不能直接读取后端 API Key，如需立即启动请使用本机 ~/.codex/auth.json 或 Local Provider。
+            Backend Provider 会作为引用保存；当前 {title} 启动链路不能直接读取后端 API Key，如需立即启动请使用本机 app-server 账号文件或 Local Provider。
           </AgentConsoleCallout>
         ) : null}
 
@@ -578,7 +430,7 @@ function CodexAgentPanel({
           <AgentConsoleLocalToolHeader>
             <AgentConsoleLocalToolCopy>
               <AgentConsoleLocalToolTitle>{resolved.label}</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>MovScript 托管 Codex app-server / Codex home={profile.codexHome}</AgentConsoleLocalToolDetail>
+              <AgentConsoleLocalToolDetail>MovScript 托管 {title} app-server / home={profile.home}</AgentConsoleLocalToolDetail>
             </AgentConsoleLocalToolCopy>
             <AgentConsoleLocalToolControls>
               <AgentConsoleStatusBadge intent={resolved.enabled ? 'success' : 'neutral'} emphasis="soft">
@@ -589,29 +441,29 @@ function CodexAgentPanel({
                 checked={resolved.enabled}
                 disabled={configLocked}
                 onChange={(event) => onPatch(resolved.id, { enabled: event.target.checked })}
-                aria-label="Codex enabled"
+                aria-label={`${title} enabled`}
               />
             </AgentConsoleLocalToolControls>
           </AgentConsoleLocalToolHeader>
           <AgentConsoleLocalToolFields disabled={!resolved.enabled || configLocked}>
             <AgentConsoleFormField label="显示名称" value={resolved.label} disabled={configLocked} onChange={(event) => onPatch(resolved.id, { label: event.target.value })} />
             <ProviderSelect value={draft.providerRef} options={providerOptions} disabled={!resolved.enabled || configLocked} onChange={(providerRef) => setDraft((current) => ({ ...current, providerRef }))} />
-            <AgentConsoleSelectField label="Auth Source" value={draft.authSource} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, authSource: event.target.value as AgentAuthSource }))}>
-              <option value="local-codex-home">复用本机 ~/.codex/auth.json</option>
-              <option value="managed-codex-home">复用托管 Codex home auth.json</option>
+            <AgentConsoleSelectField label="Auth Source" value={draft.authSource} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, authSource: event.target.value as AppServerAuthSource }))}>
+              <option value="local-home">复用本机 app-server 账号文件</option>
+              <option value="managed-home">复用托管 home 账号文件</option>
               <option value="model-provider">使用选中的 Model Provider</option>
               <option value="custom-config">手动维护 config.toml / auth.json</option>
               <option value="none">不配置账号</option>
             </AgentConsoleSelectField>
-            <AgentConsoleFormField label="Codex 可执行文件" value={profile.executablePath ?? ''} disabled={configLocked} onChange={(event) => patchProfile({ executablePath: event.target.value })} placeholder="留空时使用 PATH 中的 codex" />
+            <AgentConsoleFormField label={`${title} 可执行文件`} value={profile.executablePath ?? ''} disabled={configLocked} onChange={(event) => patchProfile({ executablePath: event.target.value })} placeholder={`留空时使用 PATH 中的 ${providerKey}`} />
             <AgentConsoleFormField label="Home" value={draft.home} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, home: event.target.value }))} />
             <AgentConsoleFormField label="Workspace Dir" value={draft.workspaceDir} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, workspaceDir: event.target.value }))} />
             <AgentConsoleCallout compact tone={running ? 'success' : status?.error ? 'warning' : 'neutral'}>
-              {running ? `运行中：${status?.endpoint ?? '-'}` : status?.error ?? 'Codex app-server 尚未启动。'}
+              {running ? `运行中：${status?.endpoint ?? '-'}` : status?.error ?? `${title} app-server 尚未启动。`}
             </AgentConsoleCallout>
-            {status?.codexConfig ? (
-              <AgentConsoleCallout compact tone={status.codexConfig.accountConfigured ? 'success' : 'warning'}>
-                {status.codexConfig.baseURL} / provider={status.codexConfig.accountSource} / account={status.codexConfig.accountConfigured ? 'configured' : 'missing'}
+            {statusConfig ? (
+              <AgentConsoleCallout compact tone={statusConfig.accountConfigured ? 'success' : 'warning'}>
+                {statusConfig.baseURL} / provider={statusConfig.accountSource} / account={statusConfig.accountConfigured ? 'configured' : 'missing'}
               </AgentConsoleCallout>
             ) : null}
           </AgentConsoleLocalToolFields>
@@ -620,15 +472,15 @@ function CodexAgentPanel({
               <Save size={14} />
               {saving ? '保存中...' : '保存配置'}
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void ensureCodex()} disabled={!resolved.enabled || statusQuery.isFetching}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void ensureAppServer()} disabled={!resolved.enabled || statusQuery.isFetching}>
               <Play size={14} />
               {running ? '重连 / 确认运行' : '启动'}
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void stopCodex()} disabled={!running || statusQuery.isFetching}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void stopAppServer()} disabled={!running || statusQuery.isFetching}>
               <Square size={14} />
               停止
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void restartCodex()} disabled={!resolved.enabled || !running || statusQuery.isFetching || restarting}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void restartAppServer()} disabled={!resolved.enabled || !running || statusQuery.isFetching || restarting}>
               <RotateCw size={14} />
               {restarting ? '重启中...' : '重启'}
             </AgentConsoleActionButton>
@@ -645,7 +497,7 @@ function CodexAgentPanel({
 
         <AgentConsoleDivider>
           <AgentConsoleDescription>
-            Codex 的 app-server 生命周期由 MovScript 托管；账号和 Base URL 从 workspace 的 Agent 配置投影到托管 Codex home，并在启动时作为 CODEX_HOME 环境变量传入。
+            {title} 的 app-server 生命周期由 MovScript 托管；账号和 Base URL 从 workspace 的 provider 配置投影到托管 home，并在启动时传给 app-server 进程。
           </AgentConsoleDescription>
           <AgentConsoleToolbar>
             <AgentConsoleStatusBadge intent="neutral" emphasis="soft">profile={profile.id}</AgentConsoleStatusBadge>
@@ -664,7 +516,7 @@ function ProviderSelect({
   onChange,
 }: {
   value: string
-  options: AgentProviderOption[]
+  options: ProviderOption[]
   disabled: boolean
   onChange: (value: string) => void
 }) {
@@ -680,16 +532,8 @@ function ProviderSelect({
   )
 }
 
-function AgentInfoCard({ title, detail }: { title: string; detail: string }) {
-  return (
-    <AgentConsoleManagementLink icon={<Bot size={14} />} title={title} detail={detail}>
-      <span />
-    </AgentConsoleManagementLink>
-  )
-}
-
-function buildAgentProviderOptions(config: AgentWorkspaceRuntimeConfig | undefined, backendModels: PublicModel[]): AgentProviderOption[] {
-  const options: AgentProviderOption[] = []
+function buildProviderOptions(config: MovScriptWorkspaceConfig | undefined, backendModels: PublicModel[]): ProviderOption[] {
+  const options: ProviderOption[] = []
   for (const provider of groupBackendProviders(backendModels)) options.push(provider)
   const localProviders = Array.isArray(config?.modelProviders) ? config.modelProviders : []
   for (const record of localProviders) {
@@ -712,7 +556,7 @@ function buildAgentProviderOptions(config: AgentWorkspaceRuntimeConfig | undefin
   return options
 }
 
-function groupBackendProviders(models: PublicModel[]): AgentProviderOption[] {
+function groupBackendProviders(models: PublicModel[]): ProviderOption[] {
   const groups = new Map<string, { label: string; models: PublicModel[]; capabilities: Set<string> }>()
   for (const model of models) {
     const key = `backend:${model.credential_id}`
@@ -737,59 +581,51 @@ function groupBackendProviders(models: PublicModel[]): AgentProviderOption[] {
   })
 }
 
-async function saveAgentConfig(key: AgentConfigKey, record: Record<string, unknown>, currentConfig: AgentWorkspaceRuntimeConfig | undefined): Promise<void> {
-  const config = currentConfig ?? await localAgentClient.getWorkspaceConfig()
-  await localAgentClient.saveWorkspaceConfig({
-    agents: {
-      ...(isRecord(config.agents) ? config.agents : {}),
+async function saveProviderConfig(client: ProviderSessionClient, key: string, record: Record<string, unknown>, currentConfig: MovScriptWorkspaceConfig | undefined): Promise<void> {
+  const config = currentConfig ?? await client.getWorkspaceConfig()
+  await client.saveWorkspaceConfig({
+    providers: {
+      ...(isRecord(config.providers) ? config.providers : {}),
       [key]: {
-        ...(isRecord(config.agents?.[key]) ? config.agents[key] : {}),
+        ...(isRecord(config.providers?.[key]) ? config.providers[key] : {}),
         ...record,
       },
     },
   })
 }
 
-function agentConfigDraftFromWorkspace(
-  config: AgentWorkspaceRuntimeConfig | undefined,
-  key: AgentConfigKey,
-  fallback: AgentConfigDraft,
-  providerOptions: AgentProviderOption[],
-): AgentConfigDraft {
-  const record = isRecord(config?.agents?.[key]) ? config.agents[key] : {}
+function providerConfigDraftFromWorkspaceConfig(
+  config: MovScriptWorkspaceConfig | undefined,
+  key: string,
+  fallback: ProviderConfigDraft,
+  providerOptions: ProviderOption[],
+): ProviderConfigDraft {
+  const record = isRecord(config?.providers?.[key]) ? config.providers[key] : {}
   return {
     providerRef: stringField(record.providerRef) ?? providerOptions[0]?.id ?? fallback.providerRef,
-    authSource: key === 'codex' ? codexAuthSourceFromRecord(record) : fallback.authSource,
+    authSource: appServerAuthSourceFromRecord(record),
     home: stringField(record.home) ?? fallback.home,
     workspaceDir: stringField(record.workspaceDir) ?? fallback.workspaceDir,
   }
 }
 
-function buildMovScriptAgentRecord(draft: AgentConfigDraft, enabled: boolean): Record<string, unknown> {
-  return {
-    enabled,
-    providerRef: draft.providerRef,
-    home: draft.home,
-    workspaceDir: draft.workspaceDir,
-  }
-}
-
-function buildCodexAgentRecord(draft: AgentConfigDraft, provider: AgentProviderOption | undefined, enabled: boolean): Record<string, unknown> {
+function buildAppServerRecord(draft: ProviderConfigDraft, provider: ProviderOption | undefined, enabled: boolean, profile?: ProviderConfig['appServerProfile']): Record<string, unknown> {
   const base = {
     enabled,
     providerRef: draft.providerRef,
     authSource: draft.authSource,
     home: draft.home,
     workspaceDir: draft.workspaceDir,
+    ...(profile?.compatibilityHomeEnvNames?.length ? { appServer: { compatibilityHomeEnvNames: profile.compatibilityHomeEnvNames } } : {}),
   }
   switch (draft.authSource) {
-    case 'local-codex-home':
+    case 'local-home':
       return {
         ...base,
-        config: { mode: 'localCodex' },
-        auth: { mode: 'localCodex' },
+        config: { mode: 'local-home' },
+        auth: { mode: 'local-home' },
       }
-    case 'managed-codex-home':
+    case 'managed-home':
       return {
         ...base,
         config: { mode: 'auto' },
@@ -827,17 +663,17 @@ function buildCodexAgentRecord(draft: AgentConfigDraft, provider: AgentProviderO
   }
 }
 
-function codexAuthSourceFromRecord(record: Record<string, unknown>): AgentAuthSource {
+function appServerAuthSourceFromRecord(record: Record<string, unknown>): AppServerAuthSource {
   const explicit = stringField(record.authSource)
-  if (explicit === 'model-provider' || explicit === 'local-codex-home' || explicit === 'managed-codex-home' || explicit === 'custom-config' || explicit === 'none') {
+  if (explicit === 'model-provider' || explicit === 'local-home' || explicit === 'managed-home' || explicit === 'custom-config' || explicit === 'none') {
     return explicit
   }
-  const mode = stringField(recordField(record.config, 'mode')) ?? stringField(recordField(record.auth, 'mode'))
-  if (mode === 'localCodex' || mode === 'local-codex-home') return 'local-codex-home'
+  const mode = stringField(recordField(record, 'config')?.mode) ?? stringField(recordField(record, 'auth')?.mode)
+  if (mode === PROVIDER_LOCAL_HOME_COMPAT_MODE || mode === 'local-home') return 'local-home'
   if (mode === 'customApiKey' || mode === 'apiKey' || mode === 'backendKey' || mode === 'backend-api-key') return 'model-provider'
   if (mode === 'customConfig' || mode === 'custom-config' || mode === 'manual') return 'custom-config'
   if (mode === 'none') return 'none'
-  return 'managed-codex-home'
+  return 'managed-home'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

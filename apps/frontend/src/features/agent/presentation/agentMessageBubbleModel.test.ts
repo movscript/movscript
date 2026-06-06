@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 import { agentMessageBubbleModel } from '@/features/agent/presentation/agentMessageBubbleModel'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('agentMessageBubbleModel keeps message body and footer visibility in presentation', () => {
@@ -30,7 +30,7 @@ test('agentMessageBubbleModel keeps message body and footer visibility in presen
     role: 'user',
     content: '',
     meta: {
-      runtimeInput: {
+      providerSessionInput: {
         runId: 'run_1',
         deliveryStatus: 'pending',
       },
@@ -50,11 +50,11 @@ test('agentMessageBubbleModel keeps message body and footer visibility in presen
   })
 })
 
-test('agentMessageBubbleModel projects runtime message ids for DOM attributes', () => {
+test('agentMessageBubbleModel projects provider-session message ids for DOM attributes', () => {
   const assistantShell = bubbleModel(message({
     role: 'assistant',
     meta: {
-      runtimeMessage: {
+      providerSessionMessage: {
         threadId: 'thread_1',
         messageId: 'msg_1',
         runId: 'run_1',
@@ -64,15 +64,15 @@ test('agentMessageBubbleModel projects runtime message ids for DOM attributes', 
   assert.equal(assistantShell.role, 'assistant')
   assert.equal(assistantShell.avatar, 'assistant')
   assert.equal(assistantShell.messageId, 'msg_1')
-  assert.equal(assistantShell.runtimeThreadId, 'thread_1')
-  assert.equal(assistantShell.runtimeMessageId, 'msg_1')
-  assert.equal(assistantShell.runtimeRunId, 'run_1')
+  assert.equal(assistantShell.providerThreadId, 'thread_1')
+  assert.equal(assistantShell.providerSessionMessageId, 'msg_1')
+  assert.equal(assistantShell.providerSessionRunId, 'run_1')
 
   assert.deepEqual(bubbleModel(message({
     id: 'user_msg',
     role: 'user',
     meta: {
-      runtimeMessage: {
+      providerSessionMessage: {
         threadId: 'thread_1',
         messageId: 'msg_1',
         runId: 'run_1',
@@ -84,8 +84,8 @@ test('agentMessageBubbleModel projects runtime message ids for DOM attributes', 
     author: 'You',
     time: '09:30',
     messageId: 'user_msg',
-    runtimeThreadId: 'thread_1',
-    runtimeMessageId: 'msg_1',
+    providerThreadId: 'thread_1',
+    providerSessionMessageId: 'msg_1',
   })
 })
 
@@ -131,12 +131,12 @@ test('agentMessageBubbleModel projects shell, activity, and actions', () => {
   assert.deepEqual(liveModel.action, { kind: 'none' })
 })
 
-test('agentMessageBubbleModel projects footer alignment, labels, and runtime input badge', () => {
+test('agentMessageBubbleModel projects footer alignment, labels, and active run input badge', () => {
   const userModel = bubbleModel(message({
     role: 'user',
     meta: {
       contextLabels: ['Project Alpha'],
-      runtimeInput: {
+      providerSessionInput: {
         runId: 'run_1',
         deliveryStatus: 'pending',
       },
@@ -145,12 +145,12 @@ test('agentMessageBubbleModel projects footer alignment, labels, and runtime inp
   assert.equal(userModel.footer.hasFooter, true)
   assert.equal(userModel.footer.align, 'end')
   assert.deepEqual(userModel.footer.contextLabels, ['Project Alpha'])
-  assert.equal(userModel.footer.runtimeInputBadge?.icon, 'spinner')
+  assert.equal(userModel.footer.activeRunInputBadge?.icon, 'spinner')
 
   assert.deepEqual(bubbleModel(message({ content: '' })).footer, {
     hasFooter: false,
     align: 'start',
-    runtimeInputBadge: null,
+    activeRunInputBadge: null,
     contextLabels: [],
   })
 })
@@ -274,7 +274,7 @@ function agentRun(id: string): AgentRun {
     id,
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: {},
+    providerSessionLimits: {},
     createdAt: '2026-05-19T00:00:00.000Z',
     updatedAt: '2026-05-19T00:00:01.000Z',
     steps: [toolStep('step_live')],

@@ -5,7 +5,7 @@ import {
   summarizeAgentControlCapabilityHealth,
 } from './agentControlCenter'
 import type { AgentChatDataSource } from '@/features/agent/domain/agentChatProtocol'
-import type { AgentProviderConfig } from '@/features/agent/state/agentProviderConfigStore'
+import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 
 test('agent control capability health counts tools, skills, and plugins from provider responses', async () => {
   let pluginListCalled = false
@@ -88,11 +88,18 @@ test('agent control capability health reports missing provider capability surfac
   assert.equal(summary.warningCount, health.warningCount)
 })
 
-test('agent control capability health counts MovScript resolved catalog tools without requiring Codex-only surfaces', async () => {
-  const health = await inspectAgentControlDataSourceCapabilities(providerFixture({ kind: 'movscript-agent' }), {
-    provider: 'movscript',
-    label: 'MovScript Agent',
+test('agent control capability health counts Mova app-server capability surfaces and resolved catalog tools', async () => {
+  const health = await inspectAgentControlDataSourceCapabilities(providerFixture({ kind: 'mova' }), {
+    provider: 'mova',
+    label: 'Mova',
     capabilities: {
+      command: {
+        exec: async () => ({}),
+      },
+      fs: {
+        readFile: async () => ({}),
+        writeFile: async () => ({}),
+      },
       plugins: {
         list: async () => ({ plugins: [{ id: 'movscript' }] }),
       },
@@ -105,6 +112,11 @@ test('agent control capability health counts MovScript resolved catalog tools wi
           },
         }),
       },
+      mcp: {
+        listServers: async () => ({ servers: [] }),
+        readResource: async () => ({}),
+        callTool: async () => ({}),
+      },
     },
     listThreads: async () => ({ threads: [] }),
     readThread: async () => { throw new Error('not used') },
@@ -113,23 +125,23 @@ test('agent control capability health counts MovScript resolved catalog tools wi
   } satisfies AgentChatDataSource)
 
   assert.equal(health.ok, true)
-  assert.equal(health.toolCount, 2)
+  assert.equal(health.toolCount, 4)
   assert.equal(health.blockedToolCount, 1)
   assert.equal(health.skillCount, 2)
   assert.equal(health.pluginCount, 1)
   assert.deepEqual(health.warnings, [])
 
   const summary = summarizeAgentControlCapabilityHealth([health], 1)
-  assert.equal(summary.toolSummary.available, 2)
+  assert.equal(summary.toolSummary.available, 4)
   assert.equal(summary.toolSummary.blocked, 1)
 })
 
-function providerFixture(patch: Partial<AgentProviderConfig> = {}): AgentProviderConfig {
+function providerFixture(patch: Partial<ProviderConfig> = {}): ProviderConfig {
   return {
     id: 'codex',
     kind: 'codex',
     label: 'Codex',
     enabled: true,
     ...patch,
-  } as AgentProviderConfig
+  } as ProviderConfig
 }

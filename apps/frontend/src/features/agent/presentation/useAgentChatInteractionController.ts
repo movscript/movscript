@@ -5,7 +5,7 @@ export interface UseAgentChatInteractionControllerInput {
   actionBindings: UseAgentChatActionBindingsInput
   sendPipeline: Omit<UseAgentChatSendPipelineInput, 'commitWorkspace' | 'sendActions'> & {
     commitWorkspace: UseAgentChatSendPipelineInput['commitWorkspace']
-    sendActions: Omit<UseAgentChatSendPipelineInput['sendActions'], 'answerActiveLocalRunInput'>
+    sendActions: Omit<UseAgentChatSendPipelineInput['sendActions'], 'answerActiveRunInput'>
   }
 }
 
@@ -18,7 +18,7 @@ export function useAgentChatInteractionController({
     ...sendPipeline,
     sendActions: {
       ...sendPipeline.sendActions,
-      answerActiveLocalRunInput: actions.answerActiveLocalRunInput,
+      answerActiveRunInput: actions.answerActiveRunInput,
     },
   })
 

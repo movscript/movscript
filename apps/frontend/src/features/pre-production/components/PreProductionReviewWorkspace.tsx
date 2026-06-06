@@ -13,25 +13,25 @@ import {
   ResourcePrepReviewWorkspaceRoot,
   WorkbenchKeyValue,
 } from '@movscript/ui'
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import type { AssetSlotRecord, CreativeReferenceRecord } from '@/features/pre-production/domain/preProductionAssetRows'
 
 export function PreProductionReviewWorkspace({
   projectId,
-  settingWorkspaces,
-  settingWorkspacesLoading,
-  workspaces,
-  loading,
+  settingWorkspaceArtifacts,
+  settingWorkspaceArtifactsLoading,
+  assetWorkspaceArtifacts,
+  assetWorkspaceArtifactsLoading,
   creativeReferences,
   assetSlots,
   onApplied,
   setWorkspaceView,
 }: {
   projectId?: number
-  settingWorkspaces: AgentWorkspace[]
-  settingWorkspacesLoading: boolean
-  workspaces: AgentWorkspace[]
-  loading: boolean
+  settingWorkspaceArtifacts: WorkspaceArtifact[]
+  settingWorkspaceArtifactsLoading: boolean
+  assetWorkspaceArtifacts: WorkspaceArtifact[]
+  assetWorkspaceArtifactsLoading: boolean
   creativeReferences: CreativeReferenceRecord[]
   assetSlots: AssetSlotRecord[]
   onApplied: () => Promise<void>
@@ -45,7 +45,7 @@ export function PreProductionReviewWorkspace({
             <GitBranch size={14} />
             <ResourcePrepReviewBreadcrumbText>前期准备</ResourcePrepReviewBreadcrumbText>
             <ChevronRight size={14} />
-            <ResourcePrepReviewBreadcrumbText>工作区审阅</ResourcePrepReviewBreadcrumbText>
+            <ResourcePrepReviewBreadcrumbText>草案审阅</ResourcePrepReviewBreadcrumbText>
           </ResourcePrepReviewBreadcrumb>
         )}
         title="前期准备审阅"
@@ -53,7 +53,7 @@ export function PreProductionReviewWorkspace({
         action={(
           <ResourcePrepReviewBackButton onClick={() => setWorkspaceView('main')}>
             <Database size={14} />
-            返回工作区
+            返回前期准备
           </ResourcePrepReviewBackButton>
         )}
       />
@@ -62,22 +62,22 @@ export function PreProductionReviewWorkspace({
           <PreProductionWorkspaceReviewPanel
             projectId={projectId}
             kind="setting_workspace"
-            title="设定工作区"
-            description="只确认人物、地点、道具、产品、风格和世界规则；素材需求不在此工作区内写入。"
-            emptyMessage="暂无待审阅设定工作区。"
-            workspaces={settingWorkspaces}
-            loading={settingWorkspacesLoading}
+            title="设定草案"
+            description="只确认人物、地点、道具、产品、风格和世界规则；素材需求不在此草案内写入。"
+            emptyMessage="暂无待审阅设定草案。"
+            workspaces={settingWorkspaceArtifacts}
+            loading={settingWorkspaceArtifactsLoading}
             data={{ creativeReferences, assetSlots }}
             onApplied={onApplied}
           />
           <PreProductionWorkspaceReviewPanel
             projectId={projectId}
             kind="asset_workspace"
-            title="素材需求工作区"
+            title="素材需求草案"
             description="只确认需要什么素材、属于哪个设定、用途、优先级、复用边界和下一步。"
-            emptyMessage="暂无待审阅素材需求工作区。"
-            workspaces={workspaces}
-            loading={loading}
+            emptyMessage="暂无待审阅素材需求草案。"
+            workspaces={assetWorkspaceArtifacts}
+            loading={assetWorkspaceArtifactsLoading}
             data={{ creativeReferences, assetSlots }}
             onApplied={onApplied}
           />

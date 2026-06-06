@@ -19,10 +19,17 @@ import {
 
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
-import { startSharedProvisionalConversation } from '@/features/agent/application/agentRuntimeThreadQueryCache'
+import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
+import { startSharedProvisionalConversation } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { openAppServerThread } from '@/features/agent/components/AppServerChatShell'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { api } from '@/shared/infrastructure/api'
+import {
+  resolveNewConversationProvider,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+} from '@/shared/infrastructure/providerConfigStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { routeForWorkMode } from '@/routes/appRouteModel'
@@ -53,13 +60,16 @@ export default function GlobalHomePage() {
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
-  const createRuntimeConversation = useAgentSessionStore((s) => s.createRuntimeConversation)
+  const createProviderSessionConversation = useAgentSessionStore((s) => s.createProviderSessionConversation)
   const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
   const updateConversationTitle = useAgentSessionStore((s) => s.updateConversationTitle)
-  const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
+  const setConversationProviderThreadId = useAgentSessionStore((s) => s.setConversationProviderThreadId)
   const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
-  const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
+  const setConversationProviderSessionState = useAgentSessionStore((s) => s.setConversationProviderSessionState)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
+  const providerSettings = useProviderConfigStore((s) => s.settings)
+  const activeProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
+  const appServerMode = usesAppServerProtocol(activeProvider)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
   const projectsQuery = useQuery<Project[]>({
@@ -77,20 +87,34 @@ export default function GlobalHomePage() {
     setWorkMode('agent')
     void (async () => {
       const label = String(t(`home.inspiration.${option.key}`))
+      const prompt = String(t(`home.inspirationPrompts.${option.key}`))
       try {
+        if (appServerMode) {
+          const dataSource = await createAgentChatDataSourceForProvider(activeProvider, {
+            workspaceContext: {
+              scope: 'global',
+              ...(userId ? { userId } : {}),
+            },
+          })
+          const thread = await dataSource.startThread({ title: label })
+          openAppServerThread({ threadId: thread.id, provider: activeProvider })
+          navigate(ROUTES.project.agent)
+          return
+        }
+
         const thread = await startSharedProvisionalConversation({ title: label })
         const createdAt = Date.parse(thread.createdAt)
         const updatedAt = Date.parse(thread.updatedAt)
-        const conversationId = createRuntimeConversation(userId, {
+        const conversationId = createProviderSessionConversation(userId, {
           threadId: thread.id,
           ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
           ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
           createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
           updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
         })
-        setLocalThreadId(conversationId, thread.id)
+        setConversationProviderThreadId(userId, conversationId, thread.id)
         if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
-        setConversationRuntime(conversationId, {
+        setConversationProviderSessionState(conversationId, {
           ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
           threadId: thread.id,
           loading: false,
@@ -99,7 +123,7 @@ export default function GlobalHomePage() {
         })
         updateConversationTitle(userId, conversationId, label)
         updateConversationWorkspace(userId, conversationId, {
-          input: String(t(`home.inspirationPrompts.${option.key}`)),
+          input: prompt,
         })
         navigate(ROUTES.project.agent)
       } catch (error) {

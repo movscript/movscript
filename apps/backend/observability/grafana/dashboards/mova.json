@@ -1,0 +1,120 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operations_total[$window])) by (kind, status)", "legendFormat": "client {{kind}} {{status}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_slow_operations_total[$window])) by (kind, status)", "legendFormat": "slow {{kind}} {{status}}", "refId": "B" }
+      ],
+      "title": "Agent Operation Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1e-9)", "legendFormat": "client {{kind}} {{status}} avg", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_operation_duration_milliseconds_max) by (kind, status)", "legendFormat": "client {{kind}} {{status}} max", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "provider-session {{kind}} {{status}} p95", "refId": "C" }
+      ],
+      "title": "Agent Operation Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[$window])) by (kind, phase) / clamp_min(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[$window])) by (kind, phase), 1e-9)", "legendFormat": "{{kind}} {{phase}}", "refId": "A" }],
+      "title": "Frontend Agent Phase Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_trace_span_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped {{kind}} {{status}} {{tool_name}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"movscript_agent_trace_span_duration_ms\"}[$window])) by (kind, status, tool_name) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"movscript_agent_trace_span_duration_ms\"}[$window])) by (kind, status, tool_name), 1e-9)", "legendFormat": "forwarded {{kind}} {{status}} {{tool_name}}", "refId": "B" }
+      ],
+      "title": "Runtime Trace Span Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 5,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "topk(20, sort_desc(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[$window])) by (kind, phase) / clamp_min(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[$window])) by (kind, phase), 1e-9)))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" }],
+      "title": "Slowest Agent Phases",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 6,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "topk(20, sum(rate(movscript_agent_client_metric_count_total{metric=\"movscript_agent_trace_event_total\",status=~\"failed|error\"}[$window])) by (kind, status, tool_name))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_error_trace_span_total", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "B" }
+      ],
+      "title": "Runtime Failure Evidence",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_storage_flush_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped flush {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_storage_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped storage {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_trace_store_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped trace {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "C" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=~\"movscript_agent_(storage_flush_duration_ms|storage_operation_duration_ms|trace_store_operation_duration_ms)\"}[$window])) by (metric, component, kind, stage, status) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=~\"movscript_agent_(storage_flush_duration_ms|storage_operation_duration_ms|trace_store_operation_duration_ms)\"}[$window])) by (metric, component, kind, stage, status), 1e-9)", "legendFormat": "forwarded {{metric}} {{component}} {{kind}} {{stage}} {{status}} avg", "refId": "D" }
+      ],
+      "title": "Agent Storage Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 8,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_storage_file_bytes", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" }],
+      "title": "Agent Storage File Size",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["movscript", "agent", "observability"],
+  "templating": { "list": [{ "current": { "selected": true, "text": "5m", "value": "5m" }, "hide": 0, "includeAll": false, "label": "Window", "name": "window", "options": [{ "selected": true, "text": "5m", "value": "5m" }, { "selected": false, "text": "15m", "value": "15m" }, { "selected": false, "text": "1h", "value": "1h" }], "query": "5m,15m,1h", "skipUrlSync": false, "type": "custom" }] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Mova",
+  "uid": "mova",
+  "version": 1,
+  "weekStart": ""
+}

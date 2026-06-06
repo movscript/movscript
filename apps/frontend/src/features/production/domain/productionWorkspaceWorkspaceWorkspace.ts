@@ -9,15 +9,15 @@ import type {
   WritingExpressionRecord,
 } from '@/features/production/domain/productionOrchestrationData'
 import {
-  productionWorkspaceWorkspaceNodeKey,
+  productionWorkspaceArtifactNodeKey,
 } from '@/features/production/domain/productionWorkspaceWorkspaceEdit'
 import type {
   WorkspaceAssetSlotNode,
   WorkspaceCreativeRefNode,
-  WorkspaceWorkspaceContent,
+  ProductionWorkspaceArtifactContent,
 } from '@/features/production/domain/productionWorkspaceReviewModel'
 
-export interface ProductionWorkspaceWorkspaceWorkspaceData {
+export interface ProductionWorkspaceArtifactData {
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
   writingExpressions: WritingExpressionRecord[]
@@ -32,13 +32,16 @@ export interface ProductionWorkspaceWorkspaceWorkspaceData {
   referenceUsageByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; referenceKey: string }>
 }
 
-export function buildProductionWorkspaceWorkspaceWorkspaceData(
-  workspace: WorkspaceWorkspaceContent,
+/** @deprecated Use ProductionWorkspaceArtifactData. */
+export type ProductionWorkspaceWorkspaceWorkspaceData = ProductionWorkspaceArtifactData
+
+export function buildProductionWorkspaceArtifactData(
+  workspace: ProductionWorkspaceArtifactContent,
   input: {
     productionId: number
     creativeReferences: CreativeReferenceRecord[]
   },
-): ProductionWorkspaceWorkspaceWorkspaceData {
+): ProductionWorkspaceArtifactData {
   const segments: SegmentRecord[] = []
   const sceneMoments: SceneMomentRecord[] = []
   const writingExpressions: WritingExpressionRecord[] = []
@@ -54,7 +57,7 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
   const referenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
 
   workspace.workspace.segments.forEach((segment, segmentIndex) => {
-    const segmentKey = productionWorkspaceWorkspaceNodeKey(segment, `segment:${segmentIndex}`)
+    const segmentKey = productionWorkspaceArtifactNodeKey(segment, `segment:${segmentIndex}`)
     const segmentId = workspaceIdForWorkspaceNode(segmentKey, segment.id)
     segmentKeyByWorkspaceId.set(segmentId, segmentKey)
     segments.push({
@@ -69,7 +72,7 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
     })
 
     ;(segment.scene_moments ?? []).forEach((moment, momentIndex) => {
-      const momentKey = productionWorkspaceWorkspaceNodeKey(moment, `moment:${momentIndex}`)
+      const momentKey = productionWorkspaceArtifactNodeKey(moment, `moment:${momentIndex}`)
       const momentId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}`, moment.id)
       sceneMomentKeyByWorkspaceId.set(momentId, { segmentKey, momentKey })
       sceneMoments.push({
@@ -89,7 +92,7 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
       })
 
       ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
-        const unitKey = productionWorkspaceWorkspaceNodeKey(unit, `unit:${unitIndex}`)
+        const unitKey = productionWorkspaceArtifactNodeKey(unit, `unit:${unitIndex}`)
         const unitId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}/${unitKey}`, unit.id)
         contentUnitKeyByWorkspaceId.set(unitId, { segmentKey, momentKey, unitKey })
         contentUnits.push({
@@ -111,7 +114,7 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
       })
 
       ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
-        const expressionKey = productionWorkspaceWorkspaceNodeKey(expression, `expression:${expressionIndex}`)
+        const expressionKey = productionWorkspaceArtifactNodeKey(expression, `expression:${expressionIndex}`)
         const expressionId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}/${expressionKey}`, expression.id)
         writingExpressionKeyByWorkspaceId.set(expressionId, { segmentKey, momentKey, expressionKey })
         writingExpressions.push({
@@ -128,7 +131,7 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
       })
 
       ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
-        const referenceKey = productionWorkspaceWorkspaceNodeKey(reference, `reference:${referenceIndex}`)
+        const referenceKey = productionWorkspaceArtifactNodeKey(reference, `reference:${referenceIndex}`)
         const referenceId = workspaceReferenceId(reference, referenceKey, referenceById)
         const usageId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}/${referenceKey}/usage`)
         referenceUsageByWorkspaceId.set(usageId, { segmentKey, momentKey, referenceKey })
@@ -143,7 +146,7 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
       })
 
       ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
-        const slotKey = productionWorkspaceWorkspaceNodeKey(slot, `slot:${slotIndex}`)
+        const slotKey = productionWorkspaceArtifactNodeKey(slot, `slot:${slotIndex}`)
         const slotId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}/${slotKey}`, slot.id)
         assetSlots.push({
           ID: slotId,
@@ -175,6 +178,9 @@ export function buildProductionWorkspaceWorkspaceWorkspaceData(
     referenceUsageByWorkspaceId,
   }
 }
+
+/** @deprecated Use buildProductionWorkspaceArtifactData. */
+export const buildProductionWorkspaceWorkspaceWorkspaceData = buildProductionWorkspaceArtifactData
 
 export function workspaceIdForWorkspaceNode(key: string, persistedId?: number) {
   if (typeof persistedId === 'number' && Number.isFinite(persistedId) && persistedId > 0) return persistedId

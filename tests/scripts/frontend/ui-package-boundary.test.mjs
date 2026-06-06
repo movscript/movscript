@@ -77,7 +77,7 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/panel/shell-layout/styles.css',
     'packages/ui/src/components/business/agent/panel/thread-message/styles.css',
     'packages/ui/src/components/business/agent/panel/context/styles.css',
-    'packages/ui/src/components/business/agent/panel/embedded-runtime/styles.css',
+    'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
     'packages/ui/src/components/business/agent/page/styles.css',
     'packages/ui/src/components/business/agent/shell/styles.css',
     'packages/ui/src/components/business/agent/shell/layout/styles.css',
@@ -94,7 +94,7 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
     'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
     'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
-    'packages/ui/src/components/business/agent/shell/runtime-code/styles.css',
+    'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/generated/styles.css',
     'packages/ui/src/components/business/agent/generated/media-preview/styles.css',
     'packages/ui/src/components/business/agent/generated/result-card/styles.css',
@@ -1090,7 +1090,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/panel/shell-layout/styles.css',
     'packages/ui/src/components/business/agent/panel/thread-message/styles.css',
     'packages/ui/src/components/business/agent/panel/context/styles.css',
-    'packages/ui/src/components/business/agent/panel/embedded-runtime/styles.css',
+    'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
     'packages/ui/src/components/business/agent/page/styles.css',
     'packages/ui/src/components/business/agent/shell/styles.css',
     'packages/ui/src/components/business/agent/shell/layout/styles.css',
@@ -1107,7 +1107,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
     'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
     'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
-    'packages/ui/src/components/business/agent/shell/runtime-code/styles.css',
+    'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/generated/styles.css',
     'packages/ui/src/components/business/agent/generated/media-preview/styles.css',
     'packages/ui/src/components/business/agent/generated/result-card/styles.css',
@@ -3018,7 +3018,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentRunsPackageSource = readProjectFile('packages/ui/src/components/business/agent/run/list/index.tsx')
   const agentPerformanceSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')
   const agentPerformancePackageSource = readProjectFile('packages/ui/src/components/business/agent/performance/index.tsx')
-  const aiWorkspacesSource = readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')
+  const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentSettingsUiSource = readProjectFile('packages/ui/src/components/business/agent/settings/index.tsx')
   const agentRunSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')
@@ -3026,7 +3026,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentBrowserSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserPanel.tsx')
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const agentResultSurfaceSources = [
-    'apps/frontend/src/features/agent/components/AgentWorkspaceResultCards.tsx',
+    'apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanOverviewPanel.tsx',
     'apps/frontend/src/features/agent/components/GeneratedResultCard.tsx',
     'apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx',
@@ -3036,11 +3036,11 @@ test('agent surface blocks own reusable shell and row styling', () => {
     'apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx',
     'apps/frontend/src/features/agent/components/AgentComposerSection.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-  const sources = `${agentConsoleSource}\n${agentRunsSource}\n${agentPerformanceSource}\n${aiWorkspacesSource}\n${agentRunSource}`
+  const sources = `${agentConsoleSource}\n${agentRunsSource}\n${agentPerformanceSource}\n${agentRunSource}`
   const agentSettingsOwnershipSource = `${agentSettingsSource}\n${agentSettingsUiSource}`
   const migratedSettingsSurfaceIds = [
     'agent-settings-config-file-limits',
-    'agent-settings-skill-config-section',
+    'agent-settings-config-file-skill-activation',
     'agent-settings-tool-permissions-filters',
     'agent-settings-tool-permissions-filter-presets',
     'agent-settings-tool-permissions-bulk-actions',
@@ -3066,7 +3066,13 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(uiCss, /\.ms-agent-surface-block\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-agent-surface-block--subtle\s*\{/)
   assert.match(sources, /AgentSurfaceBlock/)
-  assert.match(aiWorkspacesSource, /AppCodeBlock/)
+  assert.match(movScriptWorkspaceFilesSource, /MovScriptWorkspaceFilesPage/)
+  assert.match(movScriptWorkspaceFilesSource, /<AgentPageShell data-testid="movscript-workspace-files-page">/)
+  assert.match(movScriptWorkspaceFilesSource, /\bAgentPageShellHeader\b/)
+  assert.match(movScriptWorkspaceFilesSource, /\bAgentPageShellBody\b/)
+  assert.match(movScriptWorkspaceFilesSource, /\brequireWorkspaceFilesAPI\b/)
+  assert.doesNotMatch(movScriptWorkspaceFilesSource, /\bAIWorkspacesPage\b/)
+  assert.doesNotMatch(movScriptWorkspaceFilesSource, /\bagentWorkspaceFiles\b/)
   assert.match(agentRunsSource, /\bAgentRunsSearchInput\b/)
   assert.match(agentRunsSource, /\bAgentRunsFilterButton\b/)
   assert.match(agentRunsSource, /RUN_FILTERS\.map[\s\S]*?<AgentRunsFilterButton[\s\S]*?active=\{filter === item\.value\}/)
@@ -3080,7 +3086,9 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentRunCardPackageSource, /function AgentRunMetricCard[\s\S]*?<AgentRunToneSurfaceBlock[\s\S]*?variant="card"/)
   assert.match(agentRunCardPackageSource, /function AgentRunMetricCard[\s\S]*?<AgentRunToneText/)
   assert.doesNotMatch(agentRunsSource, /\b(?:toneTextClass|toneSurfaceClass)\b/)
-  assert.match(agentConsoleSource, /function LocalToolCard[\s\S]*?<AgentConsoleLocalToolCard[\s\S]*?invalid=\{invalid\}/)
+  assert.match(agentConsoleSource, /<AgentConsoleLocalToolCard invalid=\{!provider\.ok\}>/)
+  assert.match(agentConsoleSource, /<AgentConsoleLocalToolCard invalid=\{!result\.ok\}>/)
+  assert.match(agentConsoleSource, /<AgentConsoleLocalToolCard invalid=\{status === 'failed'\}>/)
   assert.match(agentConsoleSource, /function ConsoleMetricCard[\s\S]*?<AgentConsoleMetricCard/)
   assert.match(agentConsolePackageSource, /function AgentConsoleLocalToolCard[\s\S]*?<AgentConsoleToneSurfaceBlock[\s\S]*?tone=\{invalid \? "danger" : undefined\}/)
   assert.match(agentConsolePackageSource, /AgentConsoleToneSurfaceBlock[\s\S]*?toneSurfaceClass\(tone\)/)
@@ -3112,7 +3120,6 @@ test('agent surface blocks own reusable shell and row styling', () => {
     'AgentPerformanceProgressBar',
     'AgentPerformanceStatCard',
     'AgentPerformanceStatusBadge',
-    'AgentPerformanceStorageBar',
     'AgentPerformanceTimelineDetail',
     'AgentPerformanceTrendFrame',
     'AgentPerformanceTrendPoint',
@@ -3130,14 +3137,9 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentCss, /\.agent-performance-operation-button\s*\{/)
   assert.match(agentCss, /\.agent-performance-panel__header\s*\{/)
   assert.match(agentCss, /\.agent-performance-stat-card\s*\{/)
-  assert.match(aiWorkspacesSource, /\bInput\b/)
-  assert.match(aiWorkspacesSource, /\bAppInlineError\b/)
-  assert.match(aiWorkspacesSource, /workspaces\.map\(\(workspace\)[\s\S]*?<AgentSurfaceBlock key=\{workspace\.id\} asChild variant="subtle"[\s\S]*?<Button/)
-  assert.doesNotMatch(aiWorkspacesSource, /<pre\b/)
+  assert.doesNotMatch(movScriptWorkspaceFilesSource, /<pre\b/)
   assert.doesNotMatch(agentRunsSource, /<input\b/)
   assert.doesNotMatch(agentRunsSource, /<button\b/)
-  assert.doesNotMatch(aiWorkspacesSource, /<input\b/)
-  assert.doesNotMatch(aiWorkspacesSource, /<button\b/)
   assert.doesNotMatch(agentPerformanceSource, /<button\b/)
   assert.doesNotMatch(agentPerformanceSource, /block w-full rounded-md border px-3 py-2/)
   assert.doesNotMatch(agentPerformanceSource, /overflow-hidden rounded-md border border-border/)
@@ -3148,8 +3150,6 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentPerformanceSource, /bg-current/)
   assert.doesNotMatch(agentRunsSource, /rounded-md border border-input/)
   assert.doesNotMatch(agentRunsSource, /text-destructive/)
-  assert.doesNotMatch(aiWorkspacesSource, /rounded-md border border-input/)
-  assert.doesNotMatch(aiWorkspacesSource, /rounded-md border border-destructive\/30 bg-destructive\/10/)
   assert.doesNotMatch(sources, /rounded-md border border-border bg-(?:background|muted\/10|card)/)
   assert.match(agentResultSurfaceSources, /AgentSurfaceBlock/)
   const agentBrowserExportNames = [
@@ -3245,8 +3245,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
     if (testId === 'agent-settings-model-compatibility-probes') {
       assert.match(agentSettingsSource, /<AgentSettingsStatusPanel[\s\S]*?testId="agent-settings-model-compatibility-probes"/)
       assert.match(agentSettingsUiSource, /<AgentSurfaceBlock[^>]+data-testid=\{testId\}/)
-    } else if (testId === 'agent-settings-skill-config-section') {
-      assert.match(agentSettingsSource, /<AgentSettingsStack data-testid="agent-settings-skill-config-section"/)
+    } else if (testId === 'agent-settings-config-file-skill-activation') {
+      assert.match(agentSettingsSource, /<AgentSettingsStack data-testid="agent-settings-config-file-skill-activation"/)
     } else if (testId === 'agent-settings-config-file-limits') {
       assert.match(agentSettingsSource, /<AgentSettingsFormGrid columns="model" data-testid="agent-settings-config-file-limits"/)
     } else {
@@ -3281,7 +3281,6 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotImpactPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsFormGrid/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsFormField/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsPackPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsFilterPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsFilterPresetPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsBulkActionPanel/)
@@ -3301,8 +3300,6 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentSettingsSource, /flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2 type-label/)
   assert.match(agentSettingsSource, /testResult && \([\s\S]*?<AgentDataBlock>[\s\S]*?<AgentSettingsCodeBlock>/)
   assert.doesNotMatch(agentSettingsSource, /\bAppCodeBlock\b/)
-  assert.match(agentSettingsSource, /<AgentSettingsPackPanel[\s\S]*?installedPlugins=\{packPlugins\.map\(\(plugin\) => \(\{/)
-  assert.match(agentSettingsUiSource, /installedPlugins\.map\(\(plugin\) => \([\s\S]*?<AgentSurfaceBlock key=\{plugin\.id\} variant="card"/)
   assert.doesNotMatch(agentSettingsSource, /packPlugins\.map[\s\S]*?<AgentSurfaceBlock key=\{plugin\.pluginId\} variant="card"/)
   assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsFilterPanel[\s\S]*?filterOptions=\{TOOL_PERMISSIONS_FILTER_OPTIONS\.map/)
   assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets=\{agentSettings\.toolPermissionsFilterPresets\.map/)
@@ -3312,8 +3309,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
   assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?data-testid="agent-settings-tool-permissions-bulk-actions"/)
   assert.doesNotMatch(agentSettingsSource, /agentSettings\.toolPermissionsFilterPresets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
-  assert.match(agentSettingsSource, /textModels\.slice\(0, 12\)\.map[\s\S]*?<AgentSettingsModelOptionButton[\s\S]*?onSelect=\{\(\) => setSelectedModelId\(publicModelId\(model\)\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsModelOptionButton[\s\S]*?<AgentSurfaceBlock[\s\S]*?asChild[\s\S]*?variant="card"[\s\S]*?<Button/)
+  assert.match(agentSettingsSource, /<Select value=\{selectedModelId\} onValueChange=\{setSelectedModelId\}>[\s\S]*?textModels\.map\(\(model\) => \([\s\S]*?<SelectItem key=\{model\.id\} value=\{publicModelId\(model\)\}>/)
+  assert.doesNotMatch(agentSettingsSource, /AgentSettingsModelOptionButton/)
   assert.match(agentSettingsSource, /function SettingsSnapshotImportScopeSelector[\s\S]*?<AgentSettingsSnapshotImportScopePanel/)
   assert.match(agentSettingsSource, /function SettingsSnapshotSummary[\s\S]*?<AgentSettingsSnapshotSummaryPanel/)
   assert.match(agentSettingsSource, /function SettingsAuditTrailPanel[\s\S]*?<AgentSettingsAuditTrailPanel/)
@@ -3394,15 +3391,15 @@ test('agent message and pill primitives share internal base classes', () => {
     'AgentModelSetupCalloutDescription',
     'AgentModelSetupCalloutIcon',
     'AgentModelSetupCalloutTitle',
-    'AgentRuntimeStatusContent',
-    'AgentRuntimeStatusDetail',
-    'AgentRuntimeStatusHeader',
-    'AgentRuntimeStatusSuccessIcon',
+    'ProviderSessionStatusContent',
+    'ProviderSessionStatusDetail',
+    'ProviderSessionStatusHeader',
+    'ProviderSessionStatusSuccessIcon',
   ]) {
     assert.match(agentSource, new RegExp(`export (?:const|function) ${exportName}\\b`), `${exportName} must be package-owned`)
     assert.match(chatBubblesSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by agent chat bubbles`)
   }
-  assert.match(agentSource, /AgentRuntimeStatusSuccessIcon[\s\S]*?toneTextClass\("success"\)/)
+  assert.match(agentSource, /ProviderSessionStatusSuccessIcon[\s\S]*?toneTextClass\("success"\)/)
   for (const sharedClass of [
     'ms-agent-chat-footer-badges',
     'ms-agent-chat-tiny-badge',
@@ -3410,8 +3407,8 @@ test('agent message and pill primitives share internal base classes', () => {
     'ms-agent-chat-result-stack',
     'ms-agent-chat-attachment-grid',
     'ms-agent-model-setup-callout',
-    'ms-agent-runtime-status',
-    'ms-agent-runtime-status__icon',
+    'ms-agent-session-status',
+    'ms-agent-session-status__icon',
   ]) {
     assert.match(agentCss, cssClassSelectorPattern(sharedClass), `${sharedClass} styles must live in @movscript/ui agent`)
   }
@@ -3483,10 +3480,9 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
   const agentRunsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentRunsPage.tsx')
   const agentPerformanceSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')
-  const aiWorkspacesSource = readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')
+  const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentRunSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')
-  const agentDebugSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx')
   const projectAgentModeSource = readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx')
   const agentModePackageSource = readProjectFile('packages/ui/src/components/business/agent/mode/index.tsx')
   const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
@@ -3501,7 +3497,7 @@ test('agent panel and page surfaces use package agent styles', () => {
     'ai-agent-panel-conversation-tabs',
     'ai-agent-panel-conversation-tab',
     'ai-agent-panel-conversation-tab-main',
-    'ai-agent-panel-conversation-tab-runtime-light',
+    'ai-agent-panel-conversation-tab-session-light',
     'ai-agent-panel-conversation-tab-title',
     'ai-agent-panel-conversation-tab-count',
     'ai-agent-panel-conversation-tab-close',
@@ -3549,14 +3545,10 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.match(agentRunsSource, /AgentRunsRecordItem/)
   assert.match(agentPerformanceSource, /AgentPerformanceMetricTable/)
   assert.doesNotMatch(agentPerformanceSource, /\b(?:AgentSurfaceBlock|AgentDataBlock)\b/)
-  assert.match(aiWorkspacesSource, /AgentSurfaceBlock/)
-  assert.match(agentSettingsSource, /AgentSettingsModelOptionButton/)
+  assert.match(movScriptWorkspaceFilesSource, /AgentPageShell/)
+  assert.match(agentSettingsSource, /<Select value=\{selectedModelId\} onValueChange=\{setSelectedModelId\}>/)
   assert.match(agentRunSource, /AgentSurfaceBlock/)
-  assert.match(agentDebugSource, /\bAgentDebugPanel\b/)
   assert.match(readProjectFile('packages/ui/src/components/business/agent/debug/index.tsx'), /export function AgentDebugPanel[\s\S]*?<AppPanel/)
-  assert.doesNotMatch(agentDebugSource, /\bAppPanel\b/)
-  assert.match(agentDebugSource, /\bAgentDataBlock\b/)
-  assert.match(agentDebugSource, /\bAgentDebugTabs\b/)
   assert.match(readProjectFile('packages/ui/src/components/business/agent/debug/index.tsx'), /\bTabs\b/)
   assert.match(aiAgentPanelSource, /\bAgentPanelShell\b/)
   assert.doesNotMatch(aiAgentPanelSource, /className=\{cn\(/)
@@ -7682,7 +7674,7 @@ test('generation cards use package tone contracts', () => {
   assert.doesNotMatch(genResultCardSource, /function MediaCell/)
 })
 
-test('agent generation and local runtime interactions use package tone contracts', () => {
+test('agent generation and provider session interactions use package tone contracts', () => {
   const generationDisplaySource = readProjectFile('apps/frontend/src/features/agent/domain/agentGenerationDisplay.ts')
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
@@ -7692,15 +7684,15 @@ test('agent generation and local runtime interactions use package tone contracts
   const agentRunInteractionApprovalStatusSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/status/index.ts')
   const agentRunInteractionApprovalCardSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/card/index.tsx')
   const agentSemanticUiSource = readProjectFile('apps/frontend/src/features/agent/presentation/agentSemanticUi.ts')
-  const localRuntimeSource = readProjectFile('apps/frontend/src/features/agent/components/localRuntime.tsx')
-  const aiWorkspacesSource = readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')
-  const agentWorkspaceResultCardsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentWorkspaceResultCards.tsx')
+  const providerSessionInteractionsSource = readProjectFile('apps/frontend/src/features/agent/components/providerSessionInteractions.tsx')
+  const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
+  const agentArtifactResultCardsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx')
   const sources = [
     generationCardsSource,
     pinnedStatusShelfSource,
-    localRuntimeSource,
-    aiWorkspacesSource,
-    agentWorkspaceResultCardsSource,
+    providerSessionInteractionsSource,
+    movScriptWorkspaceFilesSource,
+    agentArtifactResultCardsSource,
   ].join('\n')
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
 
@@ -7740,16 +7732,17 @@ test('agent generation and local runtime interactions use package tone contracts
   assert.match(generationCardsSource, /errors\.map[\s\S]*?<AgentGeneratedItem[\s\S]*?intent="danger"/)
   assert.doesNotMatch(generationCardsSource, /text-destructive/)
   assert.doesNotMatch(generationCardsSource, /\b(?:ReviewCallout|ReviewStat|toneTextClass|toneSurfaceClass)\b/)
-  assert.doesNotMatch(localRuntimeSource, /AgentSurfaceBlock/)
-  assert.match(localRuntimeSource, /AgentRunInteractionRuntimePanel/)
-  assert.match(localRuntimeSource, /AgentRunInteractionRequestCard/)
-  assert.match(localRuntimeSource, /AgentRunInteractionRequestActions/)
-  assert.match(localRuntimeSource, /agentRunStatusRecipe/)
-  assert.match(localRuntimeSource, /agentRunInteractionActionStatusRecipe/)
-  assert.match(localRuntimeSource, /AgentRunInteractionSection/)
-  assert.match(localRuntimeSource, /AgentRunInteractionChoiceButton/)
-  assert.match(localRuntimeSource, /AgentRunInteractionActionButton/)
-  assert.doesNotMatch(localRuntimeSource, /agentRunInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge|InputChoice|InputItem|InputRail|InputBadge|InputAnswer|RejectAction)Class/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /AgentSurfaceBlock/)
+  assert.match(providerSessionInteractionsSource, /AgentRunInteractionProviderSessionPanel/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /AgentRunInteractionRuntimePanel/)
+  assert.match(providerSessionInteractionsSource, /AgentRunInteractionRequestCard/)
+  assert.match(providerSessionInteractionsSource, /AgentRunInteractionRequestActions/)
+  assert.match(providerSessionInteractionsSource, /agentRunStatusRecipe/)
+  assert.match(providerSessionInteractionsSource, /agentRunInteractionActionStatusRecipe/)
+  assert.match(providerSessionInteractionsSource, /AgentRunInteractionSection/)
+  assert.match(providerSessionInteractionsSource, /AgentRunInteractionChoiceButton/)
+  assert.match(providerSessionInteractionsSource, /AgentRunInteractionActionButton/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /agentRunInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge|InputChoice|InputItem|InputRail|InputBadge|InputAnswer|RejectAction)Class/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalSectionClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalBadgeClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalInputChoiceClass/)
@@ -7761,34 +7754,33 @@ test('agent generation and local runtime interactions use package tone contracts
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionStateBadge[\s\S]*?<Badge/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionStatusBadge[\s\S]*?<StatusBadge/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionMarkerDot[\s\S]*?<AppMarkerDot/)
-  assert.doesNotMatch(localRuntimeSource, /\b(?:AgentSurfaceBlock|AppMarkerDot|Badge|Button|Input|StatusBadge)\b/)
-  assert.match(localRuntimeSource, /\bAgentRunInteractionMarkerDot\b/)
-  assert.match(localRuntimeSource, /\bAgentRunInteractionTextInput\b/)
-  assert.match(aiWorkspacesSource, /agentWorkspaceStatusRecipe/)
-  assert.match(agentWorkspaceResultCardsSource, /agentWorkspaceStatusRecipe/)
-  assert.match(localRuntimeSource, /<AgentRunInteractionTextInput[\s\S]*?data-testid="agent-run-input-text"/)
-  assert.doesNotMatch(localRuntimeSource, /runInteractionActionDotProps[\s\S]*?return \{ tone: 'danger' as const \}/)
-  assert.doesNotMatch(localRuntimeSource, /\b(?:accentBadgeClass|accentDotClass|accentSurfaceClass|accentTextClass|toneDotClass|toneSurfaceClass|toneTextClass)\b/)
-  assert.doesNotMatch(localRuntimeSource, /function runInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge)Class\b/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /\b(?:AgentSurfaceBlock|AppMarkerDot|Badge|Button|Input|StatusBadge)\b/)
+  assert.match(providerSessionInteractionsSource, /\bAgentRunInteractionMarkerDot\b/)
+  assert.match(providerSessionInteractionsSource, /\bAgentRunInteractionTextInput\b/)
+  assert.match(agentArtifactResultCardsSource, /workspaceArtifactStatusRecipe/)
+  assert.match(providerSessionInteractionsSource, /<AgentRunInteractionTextInput[\s\S]*?data-testid="agent-run-input-text"/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /runInteractionActionDotProps[\s\S]*?return \{ tone: 'danger' as const \}/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /\b(?:accentBadgeClass|accentDotClass|accentSurfaceClass|accentTextClass|toneDotClass|toneSurfaceClass|toneTextClass)\b/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /function runInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge)Class\b/)
   assert.doesNotMatch(generationCardsSource, /ms-semantic-(?:icon|badge|surface|dot)--/)
   assert.doesNotMatch(sources, /function (?:generationJobStatusTone|workspaceStatusTone|runInteractionActionBadgeTone)\b/)
   assert.doesNotMatch(sources, /<StatusBadge\b[^>]*\btone=/)
-  assert.doesNotMatch(localRuntimeSource, /<input\b/)
-  assert.doesNotMatch(localRuntimeSource, /border-destructive\//)
-  assert.doesNotMatch(localRuntimeSource, /bg-destructive/)
-  assert.doesNotMatch(localRuntimeSource, /text-destructive/)
-  assert.doesNotMatch(localRuntimeSource, /bg-muted-foreground/)
-  assert.doesNotMatch(localRuntimeSource, /bg-border/)
-  assert.doesNotMatch(localRuntimeSource, /h-1\.5 w-1\.5 shrink-0 rounded-full/)
-  assert.doesNotMatch(localRuntimeSource, /runInteractionActionDotClass/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /<input\b/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /border-destructive\//)
+  assert.doesNotMatch(providerSessionInteractionsSource, /bg-destructive/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /text-destructive/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /bg-muted-foreground/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /bg-border/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /h-1\.5 w-1\.5 shrink-0 rounded-full/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /runInteractionActionDotClass/)
   assert.doesNotMatch(generationCardsSource, /rounded bg-background\/70 px-2 py-1\.5/)
   assert.doesNotMatch(generationCardsSource, /rounded-md border border-border\/80 bg-background\/70/)
   assert.doesNotMatch(generationCardsSource, /rounded border border-border\/80 bg-muted\/20/)
   assert.doesNotMatch(generationCardsSource, /h-1\.5 overflow-hidden rounded-full bg-muted/)
-  assert.doesNotMatch(localRuntimeSource, /rounded-md border border-border\/80 bg-background\/70/)
-  assert.doesNotMatch(localRuntimeSource, /rounded-md border border-border\/80 bg-muted\/20/)
-  assert.doesNotMatch(localRuntimeSource, /rounded border border-border\/80 bg-background\/70/)
-  assert.doesNotMatch(localRuntimeSource, /relative overflow-hidden rounded-md border bg-background\/35/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /rounded-md border border-border\/80 bg-background\/70/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /rounded-md border border-border\/80 bg-muted\/20/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /rounded border border-border\/80 bg-background\/70/)
+  assert.doesNotMatch(providerSessionInteractionsSource, /relative overflow-hidden rounded-md border bg-background\/35/)
 })
 
 test('agent run settings and preview surfaces use package tone contracts', () => {
@@ -7805,7 +7797,6 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   const agentCss = readAgentCss()
   const agentRunSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')
   const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
-  const agentDebugSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentPerformanceSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')
   const debugPreviewSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewDialog.tsx')
@@ -7817,19 +7808,18 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   const contextDiagnosticSource = readProjectFile('apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx')
   const runInteractionBubbleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentRunInteractionBubble.tsx')
   const activityFeedSource = readProjectFile('apps/frontend/src/features/agent/components/AgentActivityFeed.tsx')
-  const activityFeedDomainSource = readProjectFile('apps/frontend/src/features/agent/domain/agentActivityFeed.ts')
+  const activityFeedPresentationSource = readProjectFile('apps/frontend/src/features/agent/presentation/agentActivityFeed.ts')
   const generatedResultSource = readProjectFile('apps/frontend/src/features/agent/components/GeneratedResultCard.tsx')
   const composerSectionSource = readProjectFile('apps/frontend/src/features/agent/components/AgentComposerSection.tsx')
   const dataBlockSources = [
-    'apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx',
-    'apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx',
+    'apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx',
     'apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanCard.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
   const sources = [
     'apps/frontend/src/features/agent/components/AIAgentRunPage.tsx',
-    'apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx',
+    'apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanOverviewPanel.tsx',
@@ -7942,14 +7932,13 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentSemanticUiSource, /agentRunStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentRunInteractionStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentRunInteractionActionStatusRecipe/)
-  assert.match(agentSemanticUiSource, /agentWorkspaceStatusRecipe/)
+  assert.match(agentSemanticUiSource, /workspaceArtifactStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentGenerationStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentToolCallStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentConfigStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentTestResultRecipe/)
   assert.match(agentSemanticUiSource, /agentReadinessStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentAvailabilityStatusRecipe/)
-  assert.match(agentSemanticUiSource, /agentOptionalStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentSeverityStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentPerformanceHealthRecipe/)
   assert.match(agentSemanticUiSource, /agentPerformanceOperationRecipe/)
@@ -7960,11 +7949,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentSemanticUiSource, /defineFeatureStatusRecipeGroup\('agent\.run\.status'/)
   assert.match(agentConsoleSource, /agentRunStatusRecipe/)
   assert.match(agentConsoleSource, /agentReadinessStatusRecipe/)
-  assert.match(agentConsoleSource, /agentOptionalStatusRecipe/)
   assert.match(agentConsoleSource, /agentSeverityStatusRecipe/)
-  assert.match(agentDebugSource, /agentRunStatusRecipe/)
-  assert.match(agentDebugSource, /agentAvailabilityStatusRecipe/)
-  assert.match(agentDebugSource, /agentSeverityStatusRecipe/)
   assert.match(agentRunSource, /agentToolCallStatusRecipe/)
   assert.match(agentSettingsSource, /agentConfigStatusRecipe/)
   assert.match(agentSettingsSource, /agentTestResultRecipe/)
@@ -7983,7 +7968,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(planOverviewSource, /agentRunInteractionStatusRecipe/)
   assert.doesNotMatch(`${agentRunSource}\n${agentSettingsSource}\n${agentPerformanceSource}\n${debugPreviewSource}\n${contextDiagnosticSource}`, /<StatusBadge\b[^>]*\btone=|<AgentDiagnosticStatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(agentRunSource, /function toolCallStatusTone\b/)
-  assert.doesNotMatch(`${agentConsoleSource}\n${agentDebugSource}\n${agentRunsSource}\n${runActivitySource}\n${planOverviewSource}`, /function (?:runStatusTone|runInteractionTone)\b/)
+  assert.doesNotMatch(`${agentConsoleSource}\n${agentRunsSource}\n${runActivitySource}\n${planOverviewSource}`, /function (?:runStatusTone|runInteractionTone)\b/)
   assert.doesNotMatch(runActivitySource, /\bAgentSurfaceBlock\b/)
   assert.doesNotMatch(runActivitySource, /\bAppCodeBlock\b/)
   assert.doesNotMatch(runActivitySource, /\bReviewCallout\b/)
@@ -8100,11 +8085,11 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.doesNotMatch(activityFeedSource, /\bDropdownMenuContent\b/)
   assert.match(activityFeedSource, /function AgentActivityItemRow[\s\S]*?<AgentActivityFrame[\s\S]*kind=\{item\.kind\}/)
   assert.match(activityFeedSource, /<AgentActivityKindLabel kind=\{item\.kind\}>/)
-  assert.doesNotMatch(`${activityFeedSource}\n${activityFeedDomainSource}\n${agentPackageSource}`, /\bAgentActivityTone\b|\bAgentActivityToneLabel\b/)
+  assert.doesNotMatch(`${activityFeedSource}\n${activityFeedPresentationSource}\n${agentPackageSource}`, /\bAgentActivityTone\b|\bAgentActivityToneLabel\b/)
   assert.doesNotMatch(activityFeedSource, /<AgentActivityFrame\b[\s\S]{0,160}\btone=/)
   assert.doesNotMatch(activityFeedSource, /<AgentActivityKindLabel\b[\s\S]{0,160}\btone=/)
   assert.doesNotMatch(activityFeedSource, /\bitem\.tone\b/)
-  assert.doesNotMatch(activityFeedDomainSource, /\btone\??:|\btone:\s*['"]|\b\.tone\b/)
+  assert.doesNotMatch(activityFeedPresentationSource, /\btone\??:|\btone:\s*['"]|\b\.tone\b/)
   assert.match(activityFeedSource, /item\.code[\s\S]*?<AgentActivityCodePanel title=\{item\.code\.label\}/)
   assert.match(activityFeedSource, /function AgentActivityDebugDetailView[\s\S]*?<AgentActivityCodePanel title="调试详情"/)
   assert.doesNotMatch(activityFeedSource, /rounded border border-border\/60 bg-background\/70/)
@@ -8265,9 +8250,9 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentRunSource, /function ToolDetail[\s\S]*?AgentRunDebugStack/)
   assert.match(agentRunSource, /<AgentRunChildRunButton[\s\S]*?data-testid="agent-run-child-run"/)
   assert.match(agentRunSource, /<AgentRunTraceCategoryButton[\s\S]*?data-testid="agent-run-trace-category-filter"[\s\S]*?<AgentRunPageBadge/)
-  assert.match(agentRunSource, /data-testid="agent-run-trace-view-mode"[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('debug'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('runtime'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('context'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('timeline'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('tools'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('skills'\)/)
+  assert.match(agentRunSource, /data-testid="agent-run-trace-view-mode"[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('all'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('context'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('model'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('tool'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('skill'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('approval'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('attention'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('raw'\)/)
   assert.match(agentRunSource, /<AgentRunTraceSearchInput[\s\S]*?data-testid="agent-run-trace-search"/)
-  assert.match(agentRunSource, /<AgentRunTraceEventActionButton[\s\S]*?data-testid="agent-run-skill-trace-event"/)
+  assert.match(agentRunSource, /function ProviderSessionSkillList[\s\S]*?data-testid="agent-run-provider-session-frame-skills"[\s\S]*?<AgentRunTraceEventActionButton[\s\S]*?onFocusEvent\(skill\.eventId\)/)
   assert.doesNotMatch(agentRunSource, /<button\b/)
   assert.doesNotMatch(agentRunSource, /<input\b/)
   assert.doesNotMatch(agentRunSource, /data-testid="agent-run-child-run"[\s\S]{0,160}hover:bg-muted\/30/)
@@ -8292,9 +8277,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.doesNotMatch(agentRunSource, /data-testid="agent-run-model-request-headers"[^>]+rounded bg-muted\/20/)
   assert.doesNotMatch(agentRunSource, /data-testid="agent-run-model-response-headers"[^>]+rounded bg-muted\/20/)
   assert.doesNotMatch(agentRunSource, /data-testid="agent-run-tool-args"[^>]+rounded border border-border\/60 bg-background\/90/)
-  assert.match(agentDebugSource, /\bAgentDebugNativeSelect\b/)
   assert.match(readProjectFile('packages/ui/src/components/business/agent/debug/index.tsx'), /function AgentDebugNativeSelect[\s\S]*?<NativeSelect/)
-  assert.doesNotMatch(agentDebugSource, /<select\b/)
   assert.doesNotMatch(sources, /function MiniStat/)
 })
 
@@ -9016,8 +8999,11 @@ test('resources and pre-production inspector use package menu and empty primitiv
 test('agent debug console and shared editor surfaces use package tone contracts', () => {
   const crudDialogSource = readProjectFile('apps/frontend/src/shared/ui/SemanticEntityCrudDialog.tsx')
   const agentDebugPreviewSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDebugPreviewDialog.tsx')
-  const agentDebugSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx')
   const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
+  const agentConfigSources = [
+    'apps/frontend/src/features/agent/components/AgentsPage.tsx',
+    'apps/frontend/src/features/agent/components/ModelProvidersPage.tsx',
+  ].map((relativePath) => readProjectFile(relativePath)).join('\n')
   const inlineEditorSource = readProjectFile('apps/frontend/src/shared/ui/SemanticEntityInlineEditor.tsx')
   const uiDetailSource = readDetailSource()
   const uiCss = readProjectFile('packages/ui/src/base.css')
@@ -9032,7 +9018,6 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   const agentDebugPackageSource = readProjectFile('packages/ui/src/components/business/agent/debug/index.tsx')
   const agentDebugPackageCss = readProjectFile('packages/ui/src/components/business/agent/debug/styles.css')
   const sources = [
-    'apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx',
     'apps/frontend/src/features/agent/components/AgentConsolePage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx',
     'apps/frontend/src/features/agent/components/AgentRunsPage.tsx',
@@ -9053,7 +9038,7 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.doesNotMatch(sources, rawPaletteClassPattern)
   assert.match(`${agentDebugPackageSource}\n${agentConsolePackageSource}\n${canvasToolFullCardSource}`, /toneTextClass|toneSurfaceClass|ReviewCallout|accent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class/)
   assert.doesNotMatch(sources, /\b(?:ReviewCallout|toneTextClass|toneSurfaceClass|accent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class)\b/)
-  assert.match(sources, /AppInlineError|AppTextEmptyState/)
+  assert.match(sources, /AgentConsoleInlineError|AgentConsoleEmptyText/)
   for (const exportName of ['DetailEntityEditorActions', 'DetailEntityEditorEmptyState', 'DetailEntityEditorHeader', 'DetailEntityEditorHero', 'DetailEntityEditorShell', 'DetailEntityFieldControl', 'DetailEntityFieldGrid', 'DetailEntityForm', 'DetailEntityHorizontalRail', 'DetailEntitySourceLockNotice']) {
     assert.match(inlineEditorSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by semantic inline editor`)
     assert.match(uiDetailEntityEditorSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
@@ -9131,19 +9116,6 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.doesNotMatch(agentDebugPreviewSource, /grid gap-2 md:grid-cols-2/)
   assert.doesNotMatch(agentDebugPreviewSource, /flex items-center justify-between border-b border-border\/60 px-2 py-1/)
   assert.doesNotMatch(agentDebugPreviewSource, /max-h-(?:28|44) px-2 py-1\.5 type-tiny/)
-  assert.match(agentDebugSource, /\bAgentDataBlock\b/)
-  assert.match(agentDebugSource, /\bAgentDebugEmptyText\b/)
-  assert.match(agentDebugSource, /\bAgentDebugJsonPanel\b/)
-  assert.match(agentDebugSource, /\bAgentDebugStateMessage\b/)
-  assert.match(agentDebugSource, /\bAgentDebugMetricCard\b/)
-  assert.match(agentDebugSource, /\bAgentDebugKeyValue\b/)
-  assert.match(agentDebugSource, /\bAgentDebugCallout\b/)
-  assert.match(agentDebugSource, /\bAgentDebugInlineMeta\b/)
-  assert.match(agentDebugSource, /\bAgentDebugToneText\b/)
-  assert.match(agentDebugSource, /\bAgentDebugStatusIcon\b/)
-  assert.match(agentDebugSource, /\bAgentDebugSeverityBlock\b/)
-  assert.match(agentDebugSource, /\bAgentDebugListRow\b/)
-  assert.match(agentDebugSource, /\bAgentDebugRunListRow\b/)
   assert.match(agentDebugPackageSource, /export function AgentDebugJsonPanel/)
   assert.match(agentDebugPackageSource, /export function AgentDebugListRow/)
   assert.match(agentDebugPackageSource, /export function AgentDebugStateMessage/)
@@ -9168,32 +9140,11 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.match(agentDebugPackageCss, /\.agent-debug-list-row\s*\{/)
   assert.match(agentDebugPackageCss, /\.agent-debug-workspace-diff-code\s*\{/)
   assert.match(agentDebugPackageCss, /\.agent-debug-workspace-diff-line\s*\{/)
-  assert.match(agentDebugSource, /\bAgentDebugCodeBlock\b/)
   assert.match(agentDebugPackageSource, /function AgentDebugCodeBlock[\s\S]*?<AppCodeBlock/)
-  assert.match(agentDebugSource, /\bAppInlineError\b/)
-  assert.doesNotMatch(agentDebugSource, /\b(?:AppInlineMeta|AppKeyValue|AppMetricCard|AppStateMessage|AppTextEmptyState|ReviewCallout|toneTextClass|toneSurfaceClass)\b/)
-  assert.match(agentDebugSource, /data-testid="agent-debug-scope-boundary"[\s\S]*?<AgentDebugInlineMeta>[\s\S]*?<AgentDebugInlineMeta>[\s\S]*?<AgentDebugInlineMeta>/)
-  assert.match(agentDebugSource, /data-testid="agent-debug-warning-group"[\s\S]*?AgentDataBlock/)
-  assert.match(agentDebugSource, /data-testid="agent-debug-triage-item"[\s\S]*?AgentDebugSeverityBlock/)
-  assert.doesNotMatch(agentDebugSource, /item\.severity === 'action'[\s\S]*?toneSurfaceClass\('danger'\)/)
-  assert.doesNotMatch(agentDebugSource, /text-destructive/)
-  assert.match(agentDebugSource, /preview\.promptPreview\.debugParts\.map[\s\S]*?<AgentDataBlock[\s\S]*?<AgentDebugCodeBlock>/)
-  assert.match(agentDebugSource, /data-testid="agent-debug-remediation-observe-only"[\s\S]*?AgentDebugInlineMeta/)
-  assert.doesNotMatch(agentDebugSource, /rounded border border-border bg-muted\/30 px-2 py-1/)
-  assert.doesNotMatch(agentDebugSource, /rounded border border-border bg-background px-2 py-1/)
-  assert.doesNotMatch(agentDebugSource, /rounded-md border border-destructive\/30 bg-destructive\/10 p-2/)
-  assert.doesNotMatch(agentDebugSource, /function ListRow\b/)
-  assert.doesNotMatch(agentDebugSource, /function JsonPanel\b/)
-  assert.doesNotMatch(agentDebugSource, /function EmptyText\b/)
-  assert.doesNotMatch(agentDebugSource, /data-testid="agent-debug-triage-item"[\s\S]{0,160}rounded-md border p-2/)
-  assert.doesNotMatch(agentDebugSource, /data-testid="agent-debug-warning-group"[^>]+rounded bg-background\/70/)
-  assert.doesNotMatch(agentDebugSource, /max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2/)
-  assert.doesNotMatch(agentDebugSource, /max-h-\[68vh\] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3/)
-  assert.doesNotMatch(agentDebugSource, /data-testid="agent-debug-remediation-observe-only"[^>]+rounded border border-border bg-background/)
   assert.match(agentConsoleSource, /\bAgentConsoleCallout\b/)
-  assert.match(agentConsoleSource, /\bAgentConsoleSelectField\b/)
-  assert.match(agentConsoleSource, /\bAgentConsoleEnableCheckbox\b/)
-  assert.match(agentConsoleSource, /function LocalToolCard[\s\S]*?AgentConsoleLocalToolCard/)
+  assert.match(agentConfigSources, /\bAgentConsoleSelectField\b/)
+  assert.match(agentConfigSources, /\bAgentConsoleFormField\b/)
+  assert.match(agentConsoleSource, /<AgentConsoleLocalToolCard\b/)
   assert.match(agentConsoleSource, /function BoundaryCard[\s\S]*?AgentConsoleBoundaryCard/)
   assert.match(agentConsoleSource, /function ConsoleMetricCard[\s\S]*?AgentConsoleMetricCard/)
   assert.match(agentConsoleSource, /function HistoryClearControl[\s\S]*?AgentConsoleHistoryClearSurface/)
@@ -9202,7 +9153,6 @@ test('agent debug console and shared editor surfaces use package tone contracts'
     'AgentConsoleBoundaryCard',
     'AgentConsoleCallout',
     'AgentConsoleEmptyText',
-    'AgentConsoleEnableCheckbox',
     'AgentConsoleFormField',
     'AgentConsoleHeader',
     'AgentConsoleHistoryClearIcon',
@@ -9213,11 +9163,13 @@ test('agent debug console and shared editor surfaces use package tone contracts'
     'AgentConsolePanel',
     'AgentConsoleSelectField',
   ]) {
-    assert.match(agentConsoleSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by agent console`)
+    const consumerSource = exportName === 'AgentConsoleFormField' || exportName === 'AgentConsoleSelectField'
+      ? agentConfigSources
+      : agentConsoleSource
+    assert.match(consumerSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by agent console/config surfaces`)
     assert.match(agentConsolePackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
   }
   assert.match(agentConsolePackageSource, /\bNativeSelect\b/)
-  assert.match(agentConsolePackageSource, /\bCheckboxField\b/)
   assert.match(agentConsolePackageSource, /\bAgentSurfaceBlock\b/)
   assert.match(agentConsolePackageSource, /export function AgentConsoleToneSurfaceBlock\b/)
   assert.match(agentConsolePackageSource, /\bReviewCallout\b/)
@@ -9292,7 +9244,6 @@ test('agent debug console and shared editor surfaces use package tone contracts'
 test('agent admin surfaces use package structural primitives', () => {
   const sourcesByPath = new Map([
     ['apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')],
-    ['apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx')],
     ['apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')],
     ['apps/frontend/src/features/agent/components/AgentRunsPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentRunsPage.tsx')],
     ['apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx')],
@@ -9395,12 +9346,12 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.match(agentSettingsUiSource, /function AgentSettingsConfigFileSummaryList[\s\S]*?AgentSurfaceBlock/)
   assert.doesNotMatch(agentSettingsSource, /function ConfigFileDiffSectionView\b/)
   assert.doesNotMatch(agentSettingsSource, /function ConfigFileSummaryList\b/)
-  assert.match(agentSettingsSource, /textModels\.slice\(0, 12\)\.map\(\(model\)[\s\S]*?<AgentSettingsModelOptionButton[\s\S]*?onSelect=\{\(\) => setSelectedModelId\(publicModelId\(model\)\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsModelOptionButton[\s\S]*?<AgentSurfaceBlock[\s\S]*?<Button[\s\S]*?onClick=\{onSelect\}/)
+  assert.match(agentSettingsSource, /<Select value=\{selectedModelId\} onValueChange=\{setSelectedModelId\}>[\s\S]*?textModels\.map\(\(model\) => \([\s\S]*?<SelectItem key=\{model\.id\} value=\{publicModelId\(model\)\}>/)
+  assert.doesNotMatch(agentSettingsUiSource, /function AgentSettingsModelOptionButton/)
   assert.match(agentSettingsSource, /function ConfigFileRow[\s\S]*?<AgentSettingsConfigFileCard/)
   assert.match(agentSettingsUiSource, /function AgentSettingsConfigFileCard[\s\S]*?<AgentSurfaceBlock[\s\S]*?asChild[\s\S]*?<Button/)
-  assert.match(agentSettingsSource, /function ConfigurationMapPanel[\s\S]*?<AgentSettingsNavigationButton[\s\S]*?onClick=\{\(\) => onJump\(section\.id\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsNavigationButton[\s\S]*?<AgentDataBlock[\s\S]*?asChild[\s\S]*?<Button[\s\S]*?onClick=\{onClick\}/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigurationMapPanel\b/)
+  assert.doesNotMatch(agentSettingsUiSource, /function AgentSettingsNavigationButton\b/)
   assert.match(agentSettingsSource, /function SettingsSnapshotImportScopeSelector[\s\S]*?<AgentSettingsSnapshotImportScopePanel/)
   assert.match(agentSettingsUiSource, /function AgentSettingsSnapshotImportScopePanel[\s\S]*?<CheckboxField[\s\S]*?data-testid="agent-settings-snapshot-import-scope"/)
   assert.match(agentSettingsSource, /function SettingsAuditTrailPanel[\s\S]*?<AgentSettingsAuditTrailPanel/)
@@ -9408,9 +9359,8 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.match(agentSettingsSource, /data-testid="agent-settings-scope-boundary"[\s\S]*?<AgentSettingsScopeBadge>[\s\S]*?agents\.settings\.scope\.controlPlane/)
   assert.match(agentSettingsUiSource, /function AgentSettingsScopeBadge[\s\S]*?<AppInlineMeta/)
   assert.doesNotMatch(agentSettingsSource, /\bAppInlineMeta\b/)
-  assert.match(agentSettingsSource, /<AgentSettingsPackPanel[\s\S]*?fileInputRef=\{packFileInputRef\}/)
-  assert.match(agentSettingsUiSource, /<Input[\s\S]*?ref=\{fileInputRef\}[\s\S]*?type="file"/)
-  assert.match(agentSettingsSource, /<AgentSettingsInput[\s\S]*?ref=\{settingsSnapshotFileInputRef\}[\s\S]*?type="file"/)
+  assert.doesNotMatch(agentSettingsSource, /packFileInputRef/)
+  assert.match(agentSettingsSource, /<AgentSettingsInput[\s\S]*?ref=\{configFileInputRef\}[\s\S]*?type="file"/)
   assert.match(agentSettingsSource, /\bAgentSettingsCodeBlock\b/)
   assert.doesNotMatch(agentSettingsSource, /<pre\b/)
   assert.doesNotMatch(agentSettingsSource, /<button\b/)
@@ -9449,11 +9399,10 @@ test('agent full-page surfaces use package page shell layout', () => {
   const sourcesByPath = new Map([
     ['apps/frontend/src/features/agent/components/AgentConsolePage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')],
     ['apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')],
-    ['apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx')],
     ['apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')],
     ['apps/frontend/src/features/agent/components/AgentRunsPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentRunsPage.tsx')],
     ['apps/frontend/src/features/agent/components/AIAgentRunPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')],
-    ['apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')],
+    ['apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')],
     ['apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx')],
   ])
   const joinedSources = Array.from(sourcesByPath.values()).join('\n')

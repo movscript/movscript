@@ -4,14 +4,14 @@ export interface UseAgentConversationAutoScrollOptions {
   conversationId: string
   conversationProjectionScrollKey: string
   generationProgressKey?: string
-  pendingRuntimeInputQueueKey?: string
+  pendingActiveRunInputQueueKey?: string
 }
 
 export function useAgentConversationAutoScroll({
   conversationId,
   conversationProjectionScrollKey,
   generationProgressKey,
-  pendingRuntimeInputQueueKey,
+  pendingActiveRunInputQueueKey,
 }: UseAgentConversationAutoScrollOptions) {
   const threadRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -22,8 +22,8 @@ export function useAgentConversationAutoScroll({
   }, [conversationId])
 
   useEffect(() => {
-    if (pendingRuntimeInputQueueKey) shouldAutoScrollRef.current = true
-  }, [pendingRuntimeInputQueueKey])
+    if (pendingActiveRunInputQueueKey) shouldAutoScrollRef.current = true
+  }, [pendingActiveRunInputQueueKey])
 
   useEffect(() => {
     const thread = threadRef.current
@@ -33,7 +33,7 @@ export function useAgentConversationAutoScroll({
     conversationId,
     conversationProjectionScrollKey,
     generationProgressKey,
-    pendingRuntimeInputQueueKey,
+    pendingActiveRunInputQueueKey,
   ])
 
   const handleThreadScroll = useCallback((event: UIEvent<HTMLDivElement>) => {

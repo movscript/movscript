@@ -13,13 +13,12 @@ export const ROUTES = {
   shotLibrary: '/shot-library',
   jobs: '/jobs',
   plugins: '/plugins',
-  legacyAgentPlugins: '/agent/plugins',
   agentConsole: '/agent',
   agents: '/agents',
-  agentsMovscript: '/agents/movscript',
-  agentsCodex: '/agents/codex',
+  agentProvider: '/agents/:providerRouteKey',
   modelProviders: '/model-providers',
   workspaceConfig: '/workspace/config',
+  workspaceReview: '/workspace/review',
   agentFiles: '/agent/files',
   agentSettings: '/agent/settings',
   agentRuns: '/agent/runs',
@@ -73,9 +72,9 @@ export function mergeSearch(pathname: string, search: string, nextParams: Record
   return query ? `${pathname}?${query}` : pathname
 }
 
-export function agentRunPath(runId: string, runtime?: { sessionId?: string; workspaceDir?: string }) {
+export function agentRunPath(runId: string, providerSession?: { sessionId?: string; workspaceDir?: string }) {
   return withRouteParams(`/agent/runs/${encodeURIComponent(runId)}`, {
-    sessionId: runtime?.sessionId,
-    workspaceDir: runtime?.workspaceDir,
+    sessionId: providerSession?.sessionId,
+    workspaceDir: providerSession?.workspaceDir,
   })
 }

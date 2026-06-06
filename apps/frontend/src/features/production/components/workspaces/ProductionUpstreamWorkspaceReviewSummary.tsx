@@ -11,7 +11,7 @@ import {
   type ReviewWorkspaceUpstreamEntry,
 } from '@movscript/ui'
 
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 interface WorkspaceEntityRecord {
@@ -44,29 +44,29 @@ interface InlinePreProductionWorkspaceView {
 
 export function ProductionUpstreamWorkspaceReviewSummary({
   settingWorkspace,
-  assetWorkspaceWorkspace,
+  assetWorkspaceArtifact,
   projectName,
   productionName,
   creativeReferences,
   assetSlots,
 }: {
-  settingWorkspace: AgentWorkspace | null | undefined
-  assetWorkspaceWorkspace: AgentWorkspace | null | undefined
+  settingWorkspace: WorkspaceArtifact | null | undefined
+  assetWorkspaceArtifact: WorkspaceArtifact | null | undefined
   projectName: string
   productionName: string
   creativeReferences: WorkspaceEntityRecord[]
   assetSlots: WorkspaceEntityRecord[]
 }) {
-  const settingView = useMemo(() => parseInlinePreProductionWorkspaceWorkspace(settingWorkspace, creativeReferences, []), [creativeReferences, settingWorkspace])
-  const assetWorkspaceView = useMemo(() => parseInlinePreProductionWorkspaceWorkspace(assetWorkspaceWorkspace, [], assetSlots), [assetWorkspaceWorkspace, assetSlots])
+  const settingView = useMemo(() => parseInlinePreProductionWorkspaceArtifact(settingWorkspace, creativeReferences, []), [creativeReferences, settingWorkspace])
+  const assetWorkspaceView = useMemo(() => parseInlinePreProductionWorkspaceArtifact(assetWorkspaceArtifact, [], assetSlots), [assetWorkspaceArtifact, assetSlots])
   const deletedCount = (settingView?.creativeReferences ?? []).filter((entry) => entry.changeType === 'deleted').length
     + (assetWorkspaceView?.assetSlots ?? []).filter((entry) => entry.changeType === 'deleted').length
-  const hasWorkspace = Boolean(settingWorkspace || assetWorkspaceWorkspace)
+  const hasWorkspace = Boolean(settingWorkspace || assetWorkspaceArtifact)
 
   return (
     <ReviewWorkspaceUpstreamSection
       icon={Sparkles}
-      title="设定与素材需求工作区"
+      title="设定与素材需求草案"
       description={`${projectName} · ${productionName}`}
       loaded={hasWorkspace}
       actions={
@@ -79,9 +79,9 @@ export function ProductionUpstreamWorkspaceReviewSummary({
               </Link>
             </ReviewWorkspaceUpstreamActionButton>
           ) : null}
-          {assetWorkspaceWorkspace ? (
+          {assetWorkspaceArtifact ? (
             <ReviewWorkspaceUpstreamActionButton>
-              <Link to={withRouteParams(ROUTES.project.preProduction, { view: 'review', workspaceId: assetWorkspaceWorkspace.id })}>
+              <Link to={withRouteParams(ROUTES.project.preProduction, { view: 'review', workspaceId: assetWorkspaceArtifact.id })}>
                 <PackageCheck size={12} />
                 打开素材需求审阅
               </Link>
@@ -89,7 +89,7 @@ export function ProductionUpstreamWorkspaceReviewSummary({
           ) : null}
         </>
       }
-      empty="还没有上游工作区工作区。生成制作工作区时，如果 agent 发现必须补齐项目级设定或素材需求，这里会显示对应工作区。"
+      empty="还没有上游草案。生成制作工作区时，如果 agent 发现必须补齐项目级设定或素材需求，这里会显示对应草案。"
     >
       <ReviewWorkspaceUpstreamMetricGrid
         metrics={[
@@ -103,8 +103,8 @@ export function ProductionUpstreamWorkspaceReviewSummary({
         {[settingView?.summary, assetWorkspaceView?.summary].filter(Boolean).join(' / ')}
       </ReviewWorkspaceUpstreamSummary>
       <ReviewWorkspaceUpstreamPreviewGrid>
-        <ReviewWorkspaceUpstreamEntryPreview title="设定资料" empty="没有设定工作区工作区。" entries={reviewWorkspaceUpstreamEntries(settingView?.creativeReferences ?? [])} />
-        <ReviewWorkspaceUpstreamEntryPreview title="素材需求" empty="没有素材需求工作区工作区。" entries={reviewWorkspaceUpstreamEntries(assetWorkspaceView?.assetSlots ?? [])} />
+        <ReviewWorkspaceUpstreamEntryPreview title="设定资料" empty="没有设定草案。" entries={reviewWorkspaceUpstreamEntries(settingView?.creativeReferences ?? [])} />
+        <ReviewWorkspaceUpstreamEntryPreview title="素材需求" empty="没有素材需求草案。" entries={reviewWorkspaceUpstreamEntries(assetWorkspaceView?.assetSlots ?? [])} />
       </ReviewWorkspaceUpstreamPreviewGrid>
     </ReviewWorkspaceUpstreamSection>
   )
@@ -120,8 +120,8 @@ function reviewWorkspaceUpstreamEntries(entries: InlinePreProductionWorkspaceEnt
   }))
 }
 
-function parseInlinePreProductionWorkspaceWorkspace(
-  workspace: AgentWorkspace | null | undefined,
+function parseInlinePreProductionWorkspaceArtifact(
+  workspace: WorkspaceArtifact | null | undefined,
   creativeReferenceRecords: WorkspaceEntityRecord[] = [],
   assetSlotRecords: WorkspaceEntityRecord[] = [],
 ): InlinePreProductionWorkspaceView | null {
@@ -176,7 +176,7 @@ function parseInlinePreProductionWorkspaceWorkspace(
 }
 
 function inferInlinePreProductionWorkspaceSnapshotDeletes(
-  workspace: AgentWorkspace,
+  workspace: WorkspaceArtifact,
   workspacePayload: Record<string, unknown>,
   creativeReferenceRecords: WorkspaceEntityRecord[],
   assetSlotRecords: WorkspaceEntityRecord[],

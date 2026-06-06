@@ -127,7 +127,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const [assetCreateReferenceId, setAssetCreateReferenceId] = useState<string>('')
   const resourceLibrary = usePreProductionResourceLibrary()
   const reviewController = usePreProductionReviewController({ projectId, searchParams, setSearchParams })
-  const { workspaceView, assetWorkspaceWorkspacesQuery, settingWorkspaceWorkspacesQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
+  const { workspaceView, assetWorkspaceArtifactsQuery, settingWorkspaceArtifactsQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
   const preProductionData = usePreProductionWorkbenchData(projectId)
   const {
     slotConfig,
@@ -301,8 +301,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     await refreshPreProductionWorkbenchContext({
       projectId,
       queryClient,
-      refetchSettingWorkspaces: settingWorkspaceWorkspacesQuery.refetch,
-      refetchAssetWorkspaceWorkspaces: assetWorkspaceWorkspacesQuery.refetch,
+      refetchSettingWorkspaceArtifacts: settingWorkspaceArtifactsQuery.refetch,
+      refetchAssetWorkspaceArtifacts: assetWorkspaceArtifactsQuery.refetch,
     })
   }
 
@@ -391,10 +391,10 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const reviewWorkspace = (
     <PreProductionReviewWorkspace
       projectId={projectId}
-      settingWorkspaces={settingWorkspaceWorkspacesQuery.data ?? []}
-      settingWorkspacesLoading={settingWorkspaceWorkspacesQuery.isLoading}
-      workspaces={assetWorkspaceWorkspacesQuery.data ?? []}
-      loading={assetWorkspaceWorkspacesQuery.isLoading}
+      settingWorkspaceArtifacts={settingWorkspaceArtifactsQuery.data ?? []}
+      settingWorkspaceArtifactsLoading={settingWorkspaceArtifactsQuery.isLoading}
+      assetWorkspaceArtifacts={assetWorkspaceArtifactsQuery.data ?? []}
+      assetWorkspaceArtifactsLoading={assetWorkspaceArtifactsQuery.isLoading}
       creativeReferences={creativeReferences}
       assetSlots={visibleSlots}
       onApplied={refreshPreProduction}

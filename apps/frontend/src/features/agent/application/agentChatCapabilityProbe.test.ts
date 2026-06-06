@@ -2,21 +2,24 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { AgentChatDataSource } from '@/features/agent/domain/agentChatProtocol'
-import type { AgentProviderConfig } from '@/features/agent/state/agentProviderConfigStore'
+import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 import {
   failedAgentChatCapabilityProbeResult,
   probeAgentChatDataSourceCapabilities,
 } from '@/features/agent/application/agentChatCapabilityProbe'
 
-const codexProvider: AgentProviderConfig = {
-  id: 'codex',
-  kind: 'codex',
-  label: 'Codex',
+const movaProvider: ProviderConfig = {
+  id: 'mova',
+  kind: 'mova',
+  label: 'Mova',
   enabled: true,
-  codexProfile: {
-    id: 'codex-movscript-home',
-    label: 'Codex',
-    codexHome: '.movscript/.codex',
+  protocol: 'app-server',
+  messageAdapter: 'thread-turn-item',
+  appServerProfile: {
+    id: 'mova-movscript-home',
+    label: 'Mova',
+    providerKey: 'mova',
+    home: '.movscript/.mova',
     lifecycle: 'movscript-owned',
   },
 }
@@ -24,8 +27,8 @@ const codexProvider: AgentProviderConfig = {
 test('probes provider-neutral agent data-source capabilities without leaking Codex protocol types into UI', async () => {
   const requestedMethods: string[] = []
   const dataSource: AgentChatDataSource = {
-    provider: 'codex',
-    label: 'Codex app-server',
+    provider: 'mova',
+    label: 'Mova app-server',
     listThreads: async () => {
       requestedMethods.push('thread/list')
       return { threads: [], nextCursor: null }
@@ -102,11 +105,11 @@ test('probes provider-neutral agent data-source capabilities without leaking Cod
     },
   }
 
-  const result = await probeAgentChatDataSourceCapabilities({ provider: codexProvider, dataSource })
+  const result = await probeAgentChatDataSourceCapabilities({ provider: movaProvider, dataSource })
 
-  assert.equal(result.providerId, 'codex')
-  assert.equal(result.providerKind, 'codex')
-  assert.equal(result.dataSourceLabel, 'Codex app-server')
+  assert.equal(result.providerId, 'mova')
+  assert.equal(result.providerKind, 'mova')
+  assert.equal(result.dataSourceLabel, 'Mova app-server')
   assert.equal(result.ok, true)
   assert.equal(result.items.find((item) => item.id === 'command-exec')?.detail, '已实现命令/终端流入口；探针不会主动执行命令。')
   assert.equal(result.items.find((item) => item.id === 'filesystem')?.detail, '已实现文件系统流入口；探针不会主动读取路径。')
@@ -125,15 +128,15 @@ test('probes provider-neutral agent data-source capabilities without leaking Cod
 })
 
 test('marks missing or failing capabilities as warnings without blocking other probes', async () => {
-  const movscriptProvider: AgentProviderConfig = {
-    id: 'movscript-agent',
-    kind: 'movscript-agent',
-    label: 'MovScript Agent',
+  const movaProvider: ProviderConfig = {
+    id: 'mova',
+    kind: 'mova',
+    label: 'Mova',
     enabled: true,
   }
   const dataSource: AgentChatDataSource = {
-    provider: 'movscript',
-    label: 'MovScript Agent',
+    provider: 'mova',
+    label: 'Mova',
     listThreads: async () => ({ threads: [], nextCursor: null }),
     readThread: async () => { throw new Error('not used') },
     startThread: async () => { throw new Error('not used') },
@@ -151,7 +154,7 @@ test('marks missing or failing capabilities as warnings without blocking other p
     },
   }
 
-  const result = await probeAgentChatDataSourceCapabilities({ provider: movscriptProvider, dataSource })
+  const result = await probeAgentChatDataSourceCapabilities({ provider: movaProvider, dataSource })
 
   assert.equal(result.ok, false)
   assert.equal(result.items.find((item) => item.id === 'plugins')?.tone, 'action')
@@ -162,12 +165,12 @@ test('marks missing or failing capabilities as warnings without blocking other p
 
 test('builds a failed probe result when a provider data source cannot be created', () => {
   const result = failedAgentChatCapabilityProbeResult({
-    provider: codexProvider,
-    error: new Error('Codex app-server failed to start'),
+    provider: movaProvider,
+    error: new Error('Mova app-server failed to start'),
   })
 
   assert.equal(result.ok, false)
   assert.equal(result.warningCount, 1)
   assert.equal(result.items[0]?.method, 'createAgentChatDataSourceForProvider')
-  assert.equal(result.items[0]?.detail, 'Codex app-server failed to start')
+  assert.equal(result.items[0]?.detail, 'Mova app-server failed to start')
 })

@@ -15,8 +15,11 @@ export { summarizeModelContractForAgent } from './modelContracts'
 export { listModels } from './modelCatalog'
 export { listScripts } from './scriptList'
 export { locateScriptPassages } from './scriptLocate'
-export { getWorkspaceModelContract } from './workspaceModelContract'
-export { applyWorkspaceReview } from './workspaceReviewApply'
+export {
+  applyWorkspaceReview,
+  previewApplyWorkspaceReview,
+  updateWorkspaceSnapshot,
+} from './workspaceReviewApply'
 export { readResource } from './resources'
 export {
   attachAssetSlotCandidate,

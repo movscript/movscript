@@ -210,7 +210,7 @@ export function AgentBrowserPanel() {
   const [addressWorkspace, setAddressWorkspace] = useState('')
   const [toolbarAddressWorkspace, setToolbarAddressWorkspace] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const available = typeof window !== 'undefined' && typeof window.api?.agentBrowserNavigate === 'function'
+  const available = typeof window !== 'undefined' && typeof window.api?.embeddedBrowserNavigate === 'function'
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
   const activeWebState = activeTab?.kind === 'web' ? webStates[activeTab.id] ?? { ...EMPTY_WEB_STATE, tabId: activeTab.id, url: activeTab.url ?? '' } : null
   const activeWebURL = activeTab?.kind === 'web' ? activeWebState?.url || activeTab.url || '' : ''
@@ -231,15 +231,15 @@ export function AgentBrowserPanel() {
   const syncBounds = useCallback(() => {
     if (!available) return
     if (!activeTab || activeTab.kind !== 'web' || !(activeWebState?.url || activeTab.url)) {
-      void window.api?.agentBrowserHide?.()
+      void window.api?.embeddedBrowserHide?.()
       return
     }
-    void window.api?.agentBrowserActivate?.({ tabId: activeTab.id, bounds: readBounds() })
+    void window.api?.embeddedBrowserActivate?.({ tabId: activeTab.id, bounds: readBounds() })
   }, [activeTab, activeWebState?.url, available, readBounds])
 
   useEffect(() => {
     if (!available) return
-    const unsubscribe = window.api?.onAgentBrowserState?.((next) => {
+    const unsubscribe = window.api?.onEmbeddedBrowserState?.((next) => {
       setWebStates((current) => ({ ...current, [next.tabId]: next }))
       if (next.title || next.url) {
         setTabs((current) => current.map((tab) => (
@@ -270,7 +270,7 @@ export function AgentBrowserPanel() {
 
   useEffect(() => {
     return () => {
-      void window.api?.agentBrowserHide?.()
+      void window.api?.embeddedBrowserHide?.()
     }
   }, [])
 
@@ -291,7 +291,7 @@ export function AgentBrowserPanel() {
       [tabId]: { ...(current[tabId] ?? EMPTY_WEB_STATE), tabId, url, loading: true, error: undefined },
     }))
     try {
-      const next = await window.api?.agentBrowserNavigate?.({
+      const next = await window.api?.embeddedBrowserNavigate?.({
         tabId,
         url,
         bounds: readBounds(),
@@ -325,7 +325,7 @@ export function AgentBrowserPanel() {
     setActiveTabId(id)
     setLauncherOpen(false)
     setAddressWorkspace('')
-    void window.api?.agentBrowserHide?.()
+    void window.api?.embeddedBrowserHide?.()
   }
 
   function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'project_standards', title: string, options?: { replaceActiveBlank?: boolean }) {
@@ -338,7 +338,7 @@ export function AgentBrowserPanel() {
       )))
       setActiveTabId(activeTab.id)
       setLauncherOpen(false)
-      void window.api?.agentBrowserHide?.()
+      void window.api?.embeddedBrowserHide?.()
       return
     }
 
@@ -346,7 +346,7 @@ export function AgentBrowserPanel() {
     if (existing) {
       setActiveTabId(existing.id)
       setLauncherOpen(false)
-      void window.api?.agentBrowserHide?.()
+      void window.api?.embeddedBrowserHide?.()
       return
     }
 
@@ -354,7 +354,7 @@ export function AgentBrowserPanel() {
     setTabs((current) => [...current, { id, kind, title, createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
-    void window.api?.agentBrowserHide?.()
+    void window.api?.embeddedBrowserHide?.()
   }
 
   function openResourceLibraryTab() {
@@ -420,7 +420,7 @@ export function AgentBrowserPanel() {
     const closingTab = tabs[closingIndex]
     if (!closingTab) return
     if (closingTab.kind === 'web') {
-      void window.api?.agentBrowserClose?.({ tabId })
+      void window.api?.embeddedBrowserClose?.({ tabId })
       setWebStates((current) => {
         const next = { ...current }
         delete next[tabId]
@@ -451,13 +451,13 @@ export function AgentBrowserPanel() {
       label: '后退',
       icon: ArrowLeft,
       disabled: webNavigationDisabled || !activeWebState?.canGoBack,
-      action: () => { if (activeTab?.kind === 'web') void window.api?.agentBrowserGoBack?.({ tabId: activeTab.id }) },
+      action: () => { if (activeTab?.kind === 'web') void window.api?.embeddedBrowserGoBack?.({ tabId: activeTab.id }) },
     },
     {
       label: '前进',
       icon: ArrowRight,
       disabled: webNavigationDisabled || !activeWebState?.canGoForward,
-      action: () => { if (activeTab?.kind === 'web') void window.api?.agentBrowserGoForward?.({ tabId: activeTab.id }) },
+      action: () => { if (activeTab?.kind === 'web') void window.api?.embeddedBrowserGoForward?.({ tabId: activeTab.id }) },
     },
     {
       label: activeWebState?.loading ? '停止加载' : '刷新',
@@ -466,8 +466,8 @@ export function AgentBrowserPanel() {
       action: () => {
         if (activeTab?.kind !== 'web') return
         void (activeWebState?.loading
-          ? window.api?.agentBrowserStop?.({ tabId: activeTab.id })
-          : window.api?.agentBrowserReload?.({ tabId: activeTab.id }))
+          ? window.api?.embeddedBrowserStop?.({ tabId: activeTab.id })
+          : window.api?.embeddedBrowserReload?.({ tabId: activeTab.id }))
       },
     },
   ], [activeTab, activeWebState?.canGoBack, activeWebState?.canGoForward, activeWebState?.loading, webNavigationDisabled])
@@ -761,32 +761,32 @@ function ProjectHomeBrowserPage({
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
   const scriptsQuery = useQuery<Script[]>({
-    queryKey: ['agent-browser-navigation', projectId, 'scripts'],
+    queryKey: ['embedded-browser-navigation', projectId, 'scripts'],
     queryFn: () => api.get(`/projects/${projectId}/scripts`).then((response) => response.data as Script[]),
     enabled: !!projectId,
   })
   const referencesQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['agent-browser-navigation', projectId, 'creativeReferences'],
+    queryKey: ['embedded-browser-navigation', projectId, 'creativeReferences'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')),
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['agent-browser-navigation', projectId, 'assetSlots'],
+    queryKey: ['embedded-browser-navigation', projectId, 'assetSlots'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')),
     enabled: !!projectId,
   })
   const productionsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['agent-browser-navigation', projectId, 'productions'],
+    queryKey: ['embedded-browser-navigation', projectId, 'productions'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')),
     enabled: !!projectId,
   })
   const sceneMomentsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['agent-browser-navigation', projectId, 'sceneMoments'],
+    queryKey: ['embedded-browser-navigation', projectId, 'sceneMoments'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')),
     enabled: !!projectId,
   })
   const contentUnitsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['agent-browser-navigation', projectId, 'contentUnits'],
+    queryKey: ['embedded-browser-navigation', projectId, 'contentUnits'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')),
     enabled: !!projectId,
   })

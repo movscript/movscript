@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { agentToolNameWithId } from '@/features/agent/domain/agentToolDisplay'
 import type { AgentTraceContextGroup } from './types'
 import {

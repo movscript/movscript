@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { answerRunInteractionInputAction, approveRunInteractionAction, rejectRunInteractionAction, type AgentRunInteractionActionDeps } from './agentRunInteractionActions'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 test('approveRunInteractionAction applies optimistic approval and streams follow-up', async () => {
   const calls: string[] = []
@@ -28,7 +28,7 @@ test('approveRunInteractionAction applies optimistic approval and streams follow
     deps,
   })
 
-  assert.deepEqual(calls, ['runtime:true:none', 'approve', 'setRun:in_progress', 'stream', 'runtime:false:none'])
+  assert.deepEqual(calls, ['providerSession:true:none', 'approve', 'setRun:in_progress', 'stream', 'providerSession:false:none'])
 })
 
 test('approveRunInteractionAction resolves multiple approval interactions serially before streaming', async () => {
@@ -90,13 +90,38 @@ test('approveRunInteractionAction resolves multiple approval interactions serial
   await action
 
   assert.deepEqual(calls, [
-    'runtime:true:none',
+    'providerSession:true:none',
     'approve:interaction_approval_1',
     'approve:interaction_approval_2',
     'secondAfterFirst:true',
     'setRun:in_progress',
     'stream:run_requires_action',
-    'runtime:false:none',
+    'providerSession:false:none',
+  ])
+})
+
+test('approveRunInteractionAction forwards approval decision options', async () => {
+  const calls: unknown[] = []
+  const deps = depsFixture([])
+  deps.streamFollowUpRun = async () => makeRun({ id: 'run_requires_action', status: 'completed' })
+  const run = makeRun({
+    id: 'run_requires_action',
+    pendingApprovals: [approval('approval_1', 'pending')],
+  })
+
+  await approveRunInteractionAction({
+    run,
+    approvalIds: ['approval_1'],
+    approvalDecision: { scope: 'session' },
+    approveInteraction: async (interactionId, decision) => {
+      calls.push({ interactionId, decision })
+      return { interaction: {} as never, run: makeRun({ id: 'run_requires_action', status: 'in_progress' }) }
+    },
+    deps,
+  })
+
+  assert.deepEqual(calls, [
+    { interactionId: 'interaction_approval_1', decision: { scope: 'session' } },
   ])
 })
 
@@ -139,13 +164,13 @@ test('answerRunInteractionInputAction reports failures through runtime error and
   })
 
   assert.deepEqual(calls, [
-    'runtime:true:none',
-    'runtime:false:补充信息提交失败：backend offline',
-    'runtime:false:none',
+    'providerSession:true:none',
+    'providerSession:false:补充信息提交失败：backend offline',
+    'providerSession:false:none',
   ])
 })
 
-test('answerRunInteractionInputAction streams follow-up after runtime accepts input', async () => {
+test('answerRunInteractionInputAction streams follow-up after provider session accepts input', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
@@ -163,11 +188,11 @@ test('answerRunInteractionInputAction streams follow-up after runtime accepts in
   })
 
   assert.deepEqual(calls, [
-    'runtime:true:none',
+    'providerSession:true:none',
     'answer:none',
     'setRun:in_progress',
     'stream',
-    'runtime:false:none',
+    'providerSession:false:none',
   ])
 })
 
@@ -177,8 +202,8 @@ function depsFixture(calls: string[]): AgentRunInteractionActionDeps {
     setSubmittedInteractionRuns: (updater) => {
       updater([])
     },
-    setConversationRuntime: (patch) => {
-      calls.push(`runtime:${patch.approving === true}:${patch.error ?? 'none'}`)
+    setConversationProviderSessionState: (patch) => {
+      calls.push(`providerSession:${patch.approving === true}:${patch.error ?? 'none'}`)
     },
     setConversationRun: (run) => {
       calls.push(`setRun:${run.status}`)
@@ -187,8 +212,8 @@ function depsFixture(calls: string[]): AgentRunInteractionActionDeps {
       calls.push('stream')
       return makeRun({ status: 'completed' })
     },
-    runTouchesAgentCatalog: () => false,
-    refreshAgentCatalogContext: () => {
+    runTouchesProviderCatalog: () => false,
+    refreshProviderCatalogContext: () => {
       calls.push('refreshCatalog')
     },
   }
@@ -199,7 +224,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

@@ -1,7 +1,7 @@
 import { extractAgentTaskArtifacts, type AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { threadResolutionActivityEvent, upsertActivityEvent } from '@/features/agent/application/agentSendActivity'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
-import type { AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
@@ -11,18 +11,18 @@ export interface CompleteSendRunResultDeps {
   liveEvents: () => ChatRunActivityEvent[]
   setLiveEventsRef: (events: ChatRunActivityEvent[]) => void
   getRun: (runId: string) => Promise<AgentRun>
-  setLocalThreadId: (conversationId: string, threadId: string) => void
+  setProviderThreadId: (conversationId: string, threadId: string) => void
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
-  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
-  setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
+  setConversationProviderSessionId?: (userId: string, conversationId: string, sessionId: string) => void
+  setConversationProviderThreadId: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
   setPendingAssistantState: (state: AgentThinkingState | null) => void
   setLiveTraceEvents: (events: ChatRunActivityEvent[]) => void
-  runTouchesAgentCatalog: (run: AgentRun) => boolean
-  refreshAgentCatalogContext: () => void
+  runTouchesProviderCatalog: (run: AgentRun) => boolean
+  refreshProviderCatalogContext: () => void
   notifyRunSettled: (input: {
     requestId?: string
     status: 'completed' | 'error' | 'cancelled'
@@ -46,15 +46,15 @@ export async function completeSendRunResult(input: {
   const sessionId = thread.sessionId ?? run.sessionId
   if (sessionId) {
     deps.setConversationSessionId?.(deps.conversationId, sessionId)
-    deps.setConversationRuntimeSessionId?.(deps.userId, deps.conversationId, sessionId)
+    deps.setConversationProviderSessionId?.(deps.userId, deps.conversationId, sessionId)
   }
-  deps.setLocalThreadId(deps.conversationId, thread.id)
-  deps.setConversationRuntimeThreadId(deps.userId, deps.conversationId, thread.id)
+  deps.setProviderThreadId(deps.conversationId, thread.id)
+  deps.setConversationProviderThreadId(deps.userId, deps.conversationId, thread.id)
   if (thread.title?.trim()) {
     deps.updateConversationTitle(deps.userId, deps.conversationId, thread.title.trim())
   }
-  if (workspace.localRuntime?.requestId) {
-    deps.setPageTaskRunning(workspace.localRuntime.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
+  if (workspace.providerSession?.requestId) {
+    deps.setPageTaskRunning(workspace.providerSession.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
   }
   deps.setConversationRun(deps.conversationId, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
   deps.setPendingHttpEvents(settledBridgeActivityEvents(deps.liveEvents()))
@@ -66,9 +66,9 @@ export async function completeSendRunResult(input: {
   deps.setLiveEventsRef(liveEvents)
   deps.setLiveEventsRef([])
   deps.setLiveTraceEvents([])
-  if (deps.runTouchesAgentCatalog(run)) deps.refreshAgentCatalogContext()
+  if (deps.runTouchesProviderCatalog(run)) deps.refreshProviderCatalogContext()
   deps.notifyRunSettled({
-    ...(workspace.localRuntime?.requestId ? { requestId: workspace.localRuntime.requestId } : {}),
+    ...(workspace.providerSession?.requestId ? { requestId: workspace.providerSession.requestId } : {}),
     status: runtimeSendSettledStatusFromRun(run),
     run,
     thread,

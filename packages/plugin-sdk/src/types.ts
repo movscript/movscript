@@ -128,38 +128,38 @@ export interface CanvasNodeContribution {
   defaultData?: Record<string, unknown>
 }
 
-export type AgentSkillContributionLoadMode = 'core' | 'on_demand' | 'manual'
-export type AgentSkillContributionScope = 'turn' | 'run' | 'thread'
+export type PluginSkillContributionLoadMode = 'core' | 'on_demand' | 'manual'
+export type PluginSkillContributionScope = 'turn' | 'run' | 'thread'
 
 /**
- * Codex-style agent skill contribution.
+ * Provider-visible skill contribution.
  *
  * Prefer the low-friction form:
- *   { "path": "agent-skills/director-jiangwen" }
+ *   { "path": "plugin-skills/director-jiangwen" }
  *
  * The path must point to a directory containing SKILL.md, or directly to a
  * SKILL.md / *.skill.md file. The SKILL.md frontmatter should include at least
  * `name` and `description`; MovScript-specific fields here are optional
  * overrides for indexing, routing, and conflict management.
  */
-export interface AgentSkillContribution {
+export interface PluginSkillContribution {
   path: string
   id?: string
   tags?: string[]
   aliases?: string[]
   useWhen?: string[]
-  load?: AgentSkillContributionLoadMode
-  scope?: AgentSkillContributionScope
+  load?: PluginSkillContributionLoadMode
+  scope?: PluginSkillContributionScope
   dependencies?: string[]
   conflicts?: string[]
 }
 
 export interface PluginContributions {
-  /** Agent/MCP-visible tools contributed by this plugin. Canvas nodes are declared separately. */
+  /** Provider/MCP-visible tools contributed by this plugin. Canvas nodes are declared separately. */
   tools?: AgentToolContribution[]
   cards?: PluginCardContribution[]
   canvasNodes?: CanvasNodeContribution[]
-  agentSkills?: AgentSkillContribution[]
+  skills?: PluginSkillContribution[]
   commands?: Array<{ id: string; title: string; tool?: string }>
 }
 

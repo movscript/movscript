@@ -1,5 +1,6 @@
 import { isTranscriptAssistantChatMessage, transcriptAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionMessageRef } from '@/features/agent/domain/providerSessionMessageRefs'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export type AgentRunInteractionDisplayAnchorPlacement = 'before' | 'after'
@@ -64,8 +65,8 @@ function buildRunInteractionAnchorMessagesById(messages: ChatMessage[]): Map<str
   const byId = new Map<string, ChatMessage>()
   for (const message of messages) {
     byId.set(message.id, message)
-    const runtimeMessageId = message.meta?.runtimeMessage?.messageId?.trim()
-    if (runtimeMessageId) byId.set(runtimeMessageId, message)
+    const providerSessionMessageId = providerSessionMessageRef(message)?.messageId?.trim()
+    if (providerSessionMessageId) byId.set(providerSessionMessageId, message)
   }
   return byId
 }
@@ -96,7 +97,7 @@ function runInteractionDisplayAnchors(interactionRun: AgentRun): Array<{
 function runInteractionAnchorMessageIds(message: ChatMessage): Set<string> {
   return new Set([
     message.id,
-    normalizeId(message.meta?.runtimeMessage?.messageId),
+    normalizeId(providerSessionMessageRef(message)?.messageId),
   ].filter((id): id is string => Boolean(id)))
 }
 

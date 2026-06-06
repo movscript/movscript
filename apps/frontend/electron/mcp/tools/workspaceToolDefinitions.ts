@@ -15,7 +15,7 @@ export function workspaceTools(): MCPTool[] {
     },
     {
       name: 'movscript_project_list',
-      description: 'List all visible projects as numbered Markdown summaries.',
+      description: 'List visible projects for the current user as numbered Markdown summaries.',
       inputSchema: objectSchema(
         {
           limit: { type: 'number' },
@@ -123,117 +123,24 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
-      name: 'get_workspace_model',
-      description: 'Return the frontend-owned WorkspaceModel contract for a workspace kind and target. This is the single source for workspace field ownership, seed policy, apply boundary, and optional hydrated seed data.',
+      name: 'workspace_update',
+      description: 'Refresh a MovScript business projection path from the backend database, overwriting local changes under that file or folder. Supports workspace JSON, project.json, script.md, and the read-only user projects index. Legacy snapshot payloads are still accepted for compatibility.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'] },
-          target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
-          seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
-          include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
-          hydrate: { type: 'boolean', description: 'When true, include seed.data loaded from allowed backend endpoints. Defaults to true for non-empty seed modes.' },
-        },
-        ['kind']
-      ),
-      outputSchema: objectSchema(
-        {
-          contractVersion: { type: 'number' },
-          kind: { type: 'string' },
-          title: { type: 'string' },
-          targetEntityType: { type: 'string' },
-          target: { type: 'object' },
-          seedPolicy: { type: 'object' },
-          seed: { type: 'object' },
-          workspaceProtocol: { type: 'object' },
-          initialContent: { type: 'object' },
-          initialContentText: { type: 'string' },
-          contentSchemaId: { type: 'string' },
-          contentSchema: { type: 'object' },
-          fieldGuide: { type: 'object' },
-          applyBoundary: { type: 'object' },
-          reviewRouteTemplate: { type: 'string' },
-          reviewRoute: { type: 'string' },
-          modelRef: { type: 'string' },
-        },
-        ['contractVersion', 'kind', 'targetEntityType', 'target', 'seedPolicy', 'workspaceProtocol', 'initialContent', 'fieldGuide', 'applyBoundary', 'reviewRouteTemplate', 'reviewRoute', 'modelRef']
-      ),
-    },
-    {
-      name: 'workspace_file_list',
-      description: 'List files under the frontend-owned MovScript agent workspace directory (.movscript). Paths are relative to that root.',
-      inputSchema: objectSchema(
-        {
-          path: { type: 'string', description: 'Optional relative directory or file path under the .movscript workspace root.' },
-          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+          path: { type: 'string', description: 'Projection file or folder under .movscript/data. Defaults to the current user/project/production projection folder when omitted by path-based clients.' },
+          cwd: { type: 'string', description: 'Optional agent thread cwd. Agent sessions should use a .movscript/data projection folder directly.' },
+          kind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'], description: 'Workspace kind. Alias: workspaceKind.' },
+          workspaceKind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'], description: 'Alias for kind.' },
+          target: { type: 'object', additionalProperties: true, description: 'Target entity anchor, e.g. projectId/entityType/entityId.' },
+          content: { description: 'Complete workspace snapshot JSON object or JSON string. Aliases: snapshot, proposedValue.' },
+          snapshot: { description: 'Alias for content.' },
+          proposedValue: { description: 'Legacy alias for content.' },
+          currentValue: { description: 'Optional current snapshot for validation context.' },
+          workspaceId: { type: 'string', description: 'Optional frontend workspace id.' },
+          workspacePath: { type: 'string', description: 'Legacy .movscript-relative projection path alias. Prefer path.' },
+          workspace_path: { type: 'string', description: 'Snake-case alias for workspacePath.' },
+          projection: { type: 'object', additionalProperties: true, description: 'Legacy projection object. workspacePath is used when content is omitted.' },
         }
-      ),
-      outputSchema: objectSchema(
-        {
-          rootPath: { type: 'string' },
-          path: { type: 'string' },
-          entries: { type: 'array', items: { type: 'object' } },
-        },
-        ['rootPath', 'path', 'entries']
-      ),
-    },
-    {
-      name: 'workspace_file_read',
-      description: 'Read a UTF-8 text file under the frontend-owned MovScript agent workspace directory (.movscript).',
-      inputSchema: objectSchema(
-        {
-          path: { type: 'string', description: 'Relative file path under the .movscript workspace root.' },
-          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
-        },
-        ['path']
-      ),
-      outputSchema: objectSchema(
-        {
-          rootPath: { type: 'string' },
-          path: { type: 'string' },
-          content: { type: 'string' },
-          size: { type: 'number' },
-          updatedAt: { type: 'string' },
-        },
-        ['rootPath', 'path', 'content', 'size', 'updatedAt']
-      ),
-    },
-    {
-      name: 'workspace_file_write',
-      description: 'Write a UTF-8 text file under the frontend-owned MovScript agent workspace directory (.movscript). Use this for staged workspace JSON files, not direct backend entity mutation.',
-      inputSchema: objectSchema(
-        {
-          path: { type: 'string', description: 'Relative file path under the .movscript workspace root.' },
-          content: { type: 'string', description: 'Full UTF-8 file content to write.' },
-          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
-        },
-        ['path', 'content']
-      ),
-      outputSchema: objectSchema(
-        {
-          rootPath: { type: 'string' },
-          path: { type: 'string' },
-          content: { type: 'string' },
-          size: { type: 'number' },
-          updatedAt: { type: 'string' },
-        },
-        ['rootPath', 'path', 'content', 'size', 'updatedAt']
-      ),
-    },
-    {
-      name: 'workspace_file_delete',
-      description: 'Delete a file or directory under the frontend-owned MovScript agent workspace directory (.movscript). The workspace root itself cannot be deleted.',
-      inputSchema: objectSchema(
-        {
-          path: { type: 'string', description: 'Relative file or directory path under the .movscript workspace root.' },
-          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
-        },
-        ['path']
-      ),
-      outputSchema: objectSchema(
-        {
-          ok: { type: 'boolean' },
-        },
-        ['ok']
       ),
     },
     {
@@ -250,25 +157,37 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
-      name: 'workspace_review_apply',
-      description: 'Apply an approved local workspace review to the formal MovScript backend entity. This writes backend state and must only run after UI approval.',
+      name: 'workspace_apply_review',
+      description: 'Preview what applying a local MovScript business projection file or folder would change in the backend database. This does not write backend entity state.',
       inputSchema: objectSchema(
         {
-          review: { type: 'object' },
+          path: { type: 'string', description: 'Projection file or folder under .movscript/data. Defaults to the projection root when omitted by path-based clients.' },
+          cwd: { type: 'string', description: 'Optional agent thread cwd. Agent sessions should use a .movscript/data projection folder directly.' },
           userId: { type: 'number' },
-        },
-        ['review']
+        }
       ),
     },
     {
-      name: 'workspace_review_apply_preview',
-      description: 'Preview backend effects for applying a local workspace review without writing final entity state when the backend supports dry run.',
+      name: 'workspace_apply',
+      description: 'Apply a local MovScript business projection file or folder to the backend database when that projection has a writable backend route. Legacy review payloads are still accepted for frontend review handoff compatibility.',
       inputSchema: objectSchema(
         {
-          review: { type: 'object' },
+          path: { type: 'string', description: 'Projection file or folder under .movscript/data. When provided, local files are read and submitted to the backend.' },
+          cwd: { type: 'string', description: 'Optional agent thread cwd. Agent sessions should use a .movscript/data projection folder directly.' },
+          review: { type: 'object', description: 'Legacy review wrapper. Prefer kind/target/content for new calls.' },
+          kind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'], description: 'Workspace kind. Alias: workspaceKind.' },
+          workspaceKind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'], description: 'Alias for kind.' },
+          target: { type: 'object', additionalProperties: true, description: 'Target entity anchor, e.g. projectId/entityType/entityId.' },
+          content: { description: 'Complete workspace snapshot JSON object or JSON string. Aliases: snapshot, proposedValue.' },
+          snapshot: { description: 'Alias for content.' },
+          proposedValue: { description: 'Legacy alias for content.' },
+          currentValue: { description: 'Optional current snapshot for validation context.' },
+          workspaceId: { type: 'string', description: 'Optional frontend workspace id.' },
+          workspacePath: { type: 'string', description: 'Legacy .movscript-relative projection path alias. When content is omitted, apply reads this file.' },
+          workspace_path: { type: 'string', description: 'Snake-case alias for workspacePath.' },
+          projection: { type: 'object', additionalProperties: true, description: 'Legacy projection object. workspacePath is used when content is omitted.' },
           userId: { type: 'number' },
-        },
-        ['review']
+        }
       ),
     },
   ]

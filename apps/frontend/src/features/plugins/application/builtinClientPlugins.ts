@@ -11,7 +11,7 @@ export interface EnsureBundledClientPluginsResult {
 export interface EnsureBundledClientPluginsDeps {
   loadPlugins?: () => Promise<ClientPluginManifest[]>
   savePlugin?: (plugin: ClientPluginManifest) => Promise<void>
-  uninstallAgentCatalogPack?: (input: { pluginId: string }, signal?: AbortSignal) => Promise<unknown>
+  uninstallPluginCatalogPack?: (input: { pluginId: string }, signal?: AbortSignal) => Promise<unknown>
   now?: () => string
   signal?: AbortSignal
 }

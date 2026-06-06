@@ -1,6 +1,6 @@
 import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain/agentPinnedStatus'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface AgentChatGenerationProgressViewStateInput {

@@ -8,8 +8,8 @@ import {
 } from '@/features/agent/application/agentPanelBridge'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { selectLatestGeneratedResource, type AgentGeneratedResourceRef } from '@/features/agent/domain/agentGenerationArtifacts'
-import { buildEmptyAssetWorkspaceWorkspaceContent } from '@/features/pre-production/domain/assetWorkspaceWorkspace'
-import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import { buildEmptyAssetWorkspaceArtifactShellContent } from '@/features/pre-production/domain/assetWorkspaceWorkspace'
+import { providerSessionClient, type AgentRun, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import {
   mergeProjectWorkbenchArtifactReviewSearchParams,
   type ProjectWorkbenchArtifactReviewSearchInput,
@@ -18,7 +18,7 @@ import { ROUTES } from '@/routes/projectRoutes'
 
 export type PreProductionCandidateGenerationKind = 'image' | 'video'
 
-export interface CreateAssetCandidateWorkspaceWorkspaceInput {
+export interface CreateAssetCandidateWorkspaceArtifactInput {
   projectId: number
   assetSlotId: number
   slotName: string
@@ -29,6 +29,9 @@ export interface CreateAssetCandidateWorkspaceWorkspaceInput {
   referenceResourceIds: number[]
   requestedOutputKind: PreProductionCandidateGenerationKind
 }
+
+/** @deprecated Use CreateAssetCandidateWorkspaceArtifactInput. */
+export type CreateAssetCandidateWorkspaceWorkspaceInput = CreateAssetCandidateWorkspaceArtifactInput
 
 export interface AssetCandidateWorkspaceAgentPayloadInput {
   requestId: string
@@ -65,12 +68,12 @@ export interface PreProductionAuditReviewSearchInput {
   artifacts?: AgentTaskArtifactRef[]
 }
 
-export async function createAssetCandidateWorkspaceWorkspace(input: CreateAssetCandidateWorkspaceWorkspaceInput): Promise<AgentWorkspace> {
-  return localAgentClient.createWorkspace({
+export async function createAssetCandidateWorkspaceArtifact(input: CreateAssetCandidateWorkspaceArtifactInput): Promise<WorkspaceArtifact> {
+  return providerSessionClient.createWorkspaceArtifact({
     projectId: input.projectId,
     kind: 'asset_workspace',
-    title: `素材候选 workspace - ${input.slotName}`,
-    content: JSON.stringify(buildEmptyAssetWorkspaceWorkspaceContent({
+    title: `素材候选草案 - ${input.slotName}`,
+    content: JSON.stringify(buildEmptyAssetWorkspaceArtifactShellContent({
       projectId: input.projectId,
       assetSlotId: input.assetSlotId,
       slotName: input.slotName,
@@ -102,6 +105,9 @@ export async function createAssetCandidateWorkspaceWorkspace(input: CreateAssetC
   })
 }
 
+/** @deprecated Use createAssetCandidateWorkspaceArtifact. */
+export const createAssetCandidateWorkspaceWorkspace = createAssetCandidateWorkspaceArtifact
+
 export function buildAssetCandidateWorkspaceReviewSearchParams(current: URLSearchParams, input: AssetCandidateWorkspaceReviewSearchInput): URLSearchParams {
   return mergeProjectWorkbenchArtifactReviewSearchParams(current, buildAssetCandidateWorkspaceReviewSearchInput(input))
 }
@@ -113,7 +119,7 @@ export function buildPreProductionAuditReviewSearchParams(current: URLSearchPara
     primary: { workspaceKind: 'setting_workspace' },
     relatedWorkspaceParams: [
       { workspaceKind: 'setting_workspace', queryParam: 'settingWorkspaceId' },
-      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId' },
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceArtifactId' },
     ],
   })
 }
@@ -122,13 +128,13 @@ export function buildAssetCandidateWorkspaceAgentPanelWorkspacePayload(input: As
   return {
     requestId: input.requestId,
     taskType: 'asset_candidate_workspace',
-    message: `请准备素材候选 workspace：${input.slotName}`,
+    message: `请准备素材候选草案：${input.slotName}`,
     title: `素材 workspace: ${input.slotName}`,
     newConversation: true,
     autoSend: true,
     projectId: input.projectId,
     clientInput: buildCommandFirstClientInput({
-      message: `请为当前素材需求编写一份可审阅的素材候选 workspace：${input.slotName}`,
+      message: `请为当前素材需求编写一份可审阅的素材候选草案：${input.slotName}`,
       labels: ['asset-slots', 'asset-workspace', 'workspace-save'],
       hints: {
         projectId: input.projectId,
@@ -159,10 +165,10 @@ export function buildPreProductionAuditAgentPanelWorkspacePayload(input: PreProd
       message: [
         `请梳理当前项目「${input.projectLabel}」的前期准备。`,
         '读取当前 workspace model / 已有 workspace 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅工作区变更：',
-        '1. 如果设定资料缺漏、重复、下一步不清晰，打开或更新 setting_workspace workspace；只修改 workspace.creative_references，不写 asset_slots。',
-        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，打开或更新 asset_workspace workspace；只修改 workspace.asset_slots，workspace.creative_references 必须为空。',
-        '3. 本轮只做设定与素材需求 workspace；不处理图片/视频输出、媒体任务或候选 prompt。',
-        '4. 已有 setting_workspace workspace 时，直接读取并局部编辑 workspace 的 workspace.creative_references；不要用 live creative reference 查询重写整份快照。',
+        '1. 如果设定资料缺漏、重复、下一步不清晰，打开或更新 setting_workspace 草案；只修改 workspace.creative_references，不写 asset_slots。',
+        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，打开或更新 asset_workspace 草案；只修改 workspace.asset_slots，workspace.creative_references 必须为空。',
+        '3. 本轮只做设定与素材需求草案；不处理图片/视频输出、媒体任务或候选 prompt。',
+        '4. 已有 setting_workspace 草案时，直接读取并局部编辑 workspace.creative_references；不要用 live creative reference 查询重写整份快照。',
         '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 workspace seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
         '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
       ].join('\n'),
@@ -234,7 +240,11 @@ export function launchMediaCandidateGenerationAgent(input: MediaCandidateGenerat
 }
 
 export function getMediaCandidateGenerationResult(payload: AgentPanelRunSettledPayload): AgentGeneratedResourceRef | undefined {
-  return selectLatestGeneratedResource(payload.run)
+  return isCompleteAgentRun(payload.run) ? selectLatestGeneratedResource(payload.run) : undefined
+}
+
+function isCompleteAgentRun(run: AgentPanelRunSettledPayload['run']): run is AgentRun {
+  return !!run && 'steps' in run && Array.isArray(run.steps)
 }
 
 export function mediaCandidateOutputResourceIds(generated?: AgentGeneratedResourceRef): number[] {
@@ -258,7 +268,7 @@ export function buildAssetCandidateWorkspaceReviewSearchInput(input: AssetCandid
     entityType: 'asset_slot',
     entityId: input.assetSlotId,
     relatedWorkspaceParams: [
-      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId', fallbackWorkspaceId: input.fallbackWorkspaceId },
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceArtifactId', fallbackWorkspaceId: input.fallbackWorkspaceId },
     ],
   }
 }

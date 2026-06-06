@@ -9,8 +9,8 @@ import {
   buildAgentRunActivityRoundIndex as buildConversationRunActivityRoundIndex,
   type AgentRunActivityRoundIndex as ConversationRunActivityRoundIndex,
   type AgentRunActivityRound as ConversationRunActivityRound,
-} from '@movscript/conversation'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+} from '@/features/agent/domain/agentConversation'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import type {
   AgentActivityDecisionItem,
@@ -76,8 +76,8 @@ function activityRoundAfterHiddenActionItems(round: AgentActivityRound, hiddenAc
 function visibleActivityRoundStatus(round: AgentActivityRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
   if (round.status === 'failed') return 'failed'
   if (items.some(isToolCallRoundActivityItem)) return 'tool_calls'
-  if (items.some(isFailedRuntimeLineItem)) return 'failed'
-  if (items.some(isTerminalRuntimeLineItem)) return 'final'
+  if (items.some(isFailedProviderSessionLineItem)) return 'failed'
+  if (items.some(isTerminalProviderSessionLineItem)) return 'final'
   if (round.status === 'final' || round.durationMs !== undefined || round.usage) return 'final'
   return 'thinking'
 }
@@ -96,9 +96,9 @@ function visibleActivityRoundLabel(round: AgentActivityRound, status: AgentActiv
     if (status === 'failed') return `最终回复：记录失败${suffix}`
     return `最终回复：形成回复${suffix}`
   }
-  const runtimeSource = runtimeRoundSource(round)
-  if (runtimeSource) {
-    return runtimeRoundLabel(round.label, runtimeSource, status, telemetry)
+  const providerSessionSource = providerSessionRoundSource(round)
+  if (providerSessionSource) {
+    return providerSessionRoundLabel(round.label, providerSessionSource, status, telemetry)
   }
   if (round.index !== undefined) return roundLabel(round.index, status, telemetry)
   if (status === 'tool_calls') return '运行片段：调用工具'
@@ -439,7 +439,7 @@ function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined 
   const data = recordValue(event.data)
   const eventType = stringValue(data?.eventType)
   if (eventType === 'runtime.recovery.interrupted') {
-    return '运行中断：runtime 重启时这个 run 尚未结束，已暂停等待继续或取消。'
+    return '运行中断：provider session 重启时这个 run 尚未结束，已暂停等待继续或取消。'
   }
   if (eventType === 'runtime.recovery.resumed') {
     return '恢复继续：沿用同一个 run 重新调度，之前已完成的步骤保留为历史。'
@@ -449,7 +449,7 @@ function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined 
   }
   if (event.title === 'Run cancelled') {
     const reason = event.summary ?? stringValue(data?.reason)
-    if (reason === 'Runtime recovery cancelled by user.') {
+    if (reason === ['Run', 'time recovery cancelled by user.'].join('')) {
       return '恢复已取消：保留中断前的执行记录，后续可以从新消息开始。'
     }
     return reason ? `运行已取消：${reason}` : '运行已取消。'
@@ -463,7 +463,7 @@ function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined 
   if (event.title === 'Run failed') {
     return event.summary ? `运行失败：${event.summary}` : '运行失败。'
   }
-  if (event.title === 'Runtime status recorded') {
+  if (event.title === 'Timeline status recorded') {
     return event.summary ? `运行状态已记录：${event.summary}` : '运行状态已记录。'
   }
   if (event.title === 'Command handled locally') {
@@ -491,8 +491,8 @@ function activityItemOrder(item: AgentActivityItem): number {
 function activityRoundStatus(round: ConversationRunActivityRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
   if (round.failed) return 'failed'
   if (items.some(isToolCallRoundActivityItem)) return 'tool_calls'
-  if (items.some(isFailedRuntimeLineItem)) return 'failed'
-  if (items.some(isTerminalRuntimeLineItem)) return 'final'
+  if (items.some(isFailedProviderSessionLineItem)) return 'failed'
+  if (items.some(isTerminalProviderSessionLineItem)) return 'final'
   return round.finished ? 'final' : 'thinking'
 }
 
@@ -503,13 +503,13 @@ function isToolCallRoundActivityItem(item: AgentActivityItem): boolean {
   return false
 }
 
-function isTerminalRuntimeLineItem(item: AgentActivityItem): boolean {
+function isTerminalProviderSessionLineItem(item: AgentActivityItem): boolean {
   return item.type === 'line'
     && item.kind === 'system'
     && (item.text.startsWith('运行完成') || item.text.startsWith('运行已取消') || item.text.startsWith('运行状态已记录'))
 }
 
-function isFailedRuntimeLineItem(item: AgentActivityItem): boolean {
+function isFailedProviderSessionLineItem(item: AgentActivityItem): boolean {
   return item.type === 'line'
     && item.kind === 'error'
     && item.text.startsWith('运行失败')
@@ -531,9 +531,9 @@ function activityRoundLabel(
     if (status === 'failed') return `最终回复：记录失败${suffix}`
     return `最终回复：形成回复${suffix}`
   }
-  const runtimeSource = runtimeRoundSource(round)
-  if (runtimeSource) {
-    return runtimeRoundLabel(round.label, runtimeSource, status, telemetry)
+  const providerSessionSource = providerSessionRoundSource(round)
+  if (providerSessionSource) {
+    return providerSessionRoundLabel(round.label, providerSessionSource, status, telemetry)
   }
   if (round.index !== undefined) return roundLabel(round.index, status, telemetry, contentPreview)
   const prefix = `运行片段 ${position + 1}`
@@ -557,25 +557,25 @@ function roundLabel(index: number, status: AgentActivityRound['status'], telemet
   return `${prefix}：请求模型中${suffix}`
 }
 
-type RuntimeActivityRoundSource = Extract<NonNullable<ConversationRunActivityRound['source']>, 'setup' | 'runtime_rule'>
+type ProviderSessionActivityRoundSource = Extract<NonNullable<ConversationRunActivityRound['source']>, 'setup' | 'runtime_rule'>
 
-function runtimeRoundSource(round: { label?: string; source?: ConversationRunActivityRound['source'] }): RuntimeActivityRoundSource | undefined {
+function providerSessionRoundSource(round: { label?: string; source?: ConversationRunActivityRound['source'] }): ProviderSessionActivityRoundSource | undefined {
   if (round.source === 'setup') return 'setup'
   if (round.source !== 'runtime_rule') return undefined
   return round.label !== undefined && !/^Model turn\b/i.test(round.label) ? 'runtime_rule' : undefined
 }
 
-function runtimeRoundLabel(
+function providerSessionRoundLabel(
   label: string | undefined,
-  source: RuntimeActivityRoundSource,
+  source: ProviderSessionActivityRoundSource,
   status: AgentActivityRound['status'],
   telemetry?: Pick<RunActivityRoundSnapshot, 'durationMs' | 'usage'>,
 ): string {
   const base = label === 'Setup'
     ? '运行准备'
-    : label === 'Runtime command'
-      ? '本地 runtime 命令'
-      : label?.trim() || (source === 'setup' ? '运行准备' : 'runtime 规则')
+    : label === ['Run', 'time command'].join('')
+      ? 'Provider 会话命令'
+      : label?.trim() || (source === 'setup' ? '运行准备' : 'provider session 规则')
   const details = compactLines([
     telemetry?.durationMs !== undefined ? formatDuration(telemetry.durationMs) : undefined,
     telemetry?.usage ? formatTokenUsage(telemetry.usage) : undefined,

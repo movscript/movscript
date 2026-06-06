@@ -1,4 +1,4 @@
-import type { ChangeEvent, ComponentProps, HTMLAttributes, ReactNode, Ref } from "react";
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 import {
   Badge,
@@ -101,17 +101,6 @@ export type AgentSettingsToolPermissionsBulkActionItem = {
   label: ReactNode;
   disabled?: boolean;
   onClick: () => void;
-};
-
-export type AgentSettingsPackPluginItem = {
-  id: string;
-  path: ReactNode;
-  actionLabel: ReactNode;
-  actionIcon?: ReactNode;
-  actionIntent?: "neutral" | "danger";
-  actionVariant?: "solid" | "ghost";
-  disabled?: boolean;
-  onAction: () => void;
 };
 
 export type AgentSettingsSnapshotPresetItem = {
@@ -273,10 +262,6 @@ export function AgentSettingsMain({ className, ...props }: HTMLAttributes<HTMLEl
   return <section className={cn("agent-settings-main", className)} {...props} />;
 }
 
-export function AgentSettingsSidebar({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <aside className={cn("agent-settings-sidebar", className)} {...props} />;
-}
-
 export function AgentSettingsStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-settings-stack", className)} {...props} />;
 }
@@ -361,71 +346,6 @@ export function AgentSettingsModelRouteCard({
       </span>
       <span className="agent-settings-model-route__source">{sourceLabel}</span>
       {modelLabel ? <span className="agent-settings-model-route__model">{modelLabel}</span> : null}
-    </AgentDataBlock>
-  );
-}
-
-export function AgentSettingsModelOptionButton({
-  title,
-  detail,
-  selected,
-  selectedIcon,
-  onSelect,
-}: {
-  title: ReactNode;
-  detail: ReactNode;
-  selected?: boolean;
-  selectedIcon?: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <AgentSurfaceBlock
-      asChild
-      variant="card"
-      className={cn("agent-settings-model-option", selected ? "agent-settings-model-option--selected" : undefined)}
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onSelect}
-        className="agent-settings-model-option__button"
-      >
-        <span className="agent-settings-model-option__header">
-          <span className="agent-settings-model-option__title">{title}</span>
-          {selected ? <span className="agent-settings-model-option__selected-icon">{selectedIcon}</span> : null}
-        </span>
-        <span className="agent-settings-model-option__detail">{detail}</span>
-      </Button>
-    </AgentSurfaceBlock>
-  );
-}
-
-export function AgentSettingsNavigationList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-settings-navigation-list", className)} {...props} />;
-}
-
-export function AgentSettingsNavigationButton({
-  title,
-  description,
-  onClick,
-}: {
-  title: ReactNode;
-  description: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <AgentDataBlock asChild>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onClick}
-        className="agent-settings-navigation-button"
-      >
-        <span className="agent-settings-navigation-button__title">{title}</span>
-        <span className="agent-settings-navigation-button__description">{description}</span>
-      </Button>
     </AgentDataBlock>
   );
 }
@@ -1486,184 +1406,6 @@ export function AgentSettingsToolPermissionsBulkActionPanel({
       ))}
       <span className="agent-settings-tool-permissions-bulk__help">{help}</span>
     </AgentSurfaceBlock>
-  );
-}
-
-export function AgentSettingsPackPanel({
-  title,
-  description,
-  fileInputRef,
-  onFileChange,
-  loadFileLabel,
-  onLoadFile,
-  installLabel,
-  installIcon,
-  installDisabled,
-  onInstall,
-  fileLoadedLabel,
-  textValue,
-  onTextChange,
-  placeholder,
-  workspaceSummary,
-  workspaceError,
-  installError,
-  installResult,
-  installedTitle,
-  installedPlugins,
-  uninstallLabel,
-  uninstallValue,
-  onUninstallValueChange,
-  uninstallPlaceholder,
-  uninstallActionLabel,
-  uninstallIcon,
-  uninstallDisabled,
-  onUninstall,
-  uninstallHelp,
-  uninstallInputError,
-  uninstallError,
-  uninstallResult,
-}: {
-  title: ReactNode;
-  description: ReactNode;
-  fileInputRef?: Ref<HTMLInputElement>;
-  onFileChange: (file?: File | null) => void;
-  loadFileLabel: ReactNode;
-  onLoadFile: () => void;
-  installLabel: ReactNode;
-  installIcon?: ReactNode;
-  installDisabled?: boolean;
-  onInstall: () => void;
-  fileLoadedLabel?: ReactNode;
-  textValue: string;
-  onTextChange: (value: string) => void;
-  placeholder?: string;
-  workspaceSummary?: ReactNode;
-  workspaceError?: ReactNode;
-  installError?: ReactNode;
-  installResult?: ReactNode;
-  installedTitle: ReactNode;
-  installedPlugins: AgentSettingsPackPluginItem[];
-  uninstallLabel: ReactNode;
-  uninstallValue: string;
-  onUninstallValueChange: (value: string) => void;
-  uninstallPlaceholder?: string;
-  uninstallActionLabel: ReactNode;
-  uninstallIcon?: ReactNode;
-  uninstallDisabled?: boolean;
-  onUninstall: () => void;
-  uninstallHelp: ReactNode;
-  uninstallInputError?: ReactNode;
-  uninstallError?: ReactNode;
-  uninstallResult?: ReactNode;
-}) {
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    onFileChange(event.target.files?.[0]);
-  }
-
-  return (
-    <AgentDataBlock className="agent-settings-pack">
-      <div className="agent-settings-pack__header">
-        <div className="agent-settings-item-body">
-          <p className="agent-settings-item-title">{title}</p>
-          <p className="agent-settings-item-detail">{description}</p>
-        </div>
-        <div className="agent-settings-pack__actions">
-          <Input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="agent-settings-pack__file-input"
-            onChange={handleFileChange}
-          />
-          <Button type="button" size="sm" variant="outline" onClick={onLoadFile}>
-            {loadFileLabel}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onInstall} disabled={installDisabled}>
-            {installIcon}
-            {installLabel}
-          </Button>
-        </div>
-      </div>
-      {fileLoadedLabel ? <p className="agent-settings-pack__message">{fileLoadedLabel}</p> : null}
-      <Textarea
-        value={textValue}
-        onChange={(event) => onTextChange(event.target.value)}
-        placeholder={placeholder}
-        className="agent-settings-pack__textarea"
-      />
-      {workspaceSummary ? (
-        <p data-testid="agent-settings-pack-workspace-summary" className="agent-settings-pack__message">
-          {workspaceSummary}
-        </p>
-      ) : null}
-      {!installError && workspaceError ? (
-        <div className="agent-settings-pack__feedback" data-testid="agent-settings-pack-workspace-error">
-          <AppInlineError>{workspaceError}</AppInlineError>
-        </div>
-      ) : null}
-      {installError ? (
-        <div className="agent-settings-pack__feedback">
-          <AppInlineError>{installError}</AppInlineError>
-        </div>
-      ) : null}
-      {installResult ? <p className="agent-settings-pack__message">{installResult}</p> : null}
-      <div className="agent-settings-pack__uninstall">
-        {installedPlugins.length > 0 ? (
-          <div className="agent-settings-pack__installed">
-            <p className="agent-settings-pack__installed-title">{installedTitle}</p>
-            <div className="agent-settings-pack__installed-list">
-              {installedPlugins.map((plugin) => (
-                <AgentSurfaceBlock key={plugin.id} variant="card" className="agent-settings-pack__installed-item">
-                  <div className="agent-settings-item-body">
-                    <p className="agent-settings-pack__plugin-id">{plugin.id}</p>
-                    <p className="agent-settings-pack__plugin-path">{plugin.path}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant={plugin.actionVariant ?? "ghost"}
-                    intent={plugin.actionIntent ?? "neutral"}
-                    onClick={plugin.onAction}
-                    disabled={plugin.disabled}
-                    data-testid="agent-settings-installed-pack-uninstall"
-                  >
-                    {plugin.actionIcon}
-                    {plugin.actionLabel}
-                  </Button>
-                </AgentSurfaceBlock>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        <div className="agent-settings-pack__uninstall-row">
-          <label className="agent-settings-pack__uninstall-field">
-            <span className="agent-settings-pack__field-label">{uninstallLabel}</span>
-            <Input
-              value={uninstallValue}
-              onChange={(event) => onUninstallValueChange(event.target.value)}
-              placeholder={uninstallPlaceholder}
-              className="agent-settings-pack__uninstall-input"
-            />
-          </label>
-          <Button type="button" size="sm" variant="outline" onClick={onUninstall} disabled={uninstallDisabled}>
-            {uninstallIcon}
-            {uninstallActionLabel}
-          </Button>
-        </div>
-        <p className="agent-settings-pack__help">{uninstallHelp}</p>
-        {uninstallInputError ? (
-          <div className="agent-settings-pack__feedback" data-testid="agent-settings-uninstall-plugin-id-error">
-            <AppInlineError>{uninstallInputError}</AppInlineError>
-          </div>
-        ) : null}
-        {uninstallError ? (
-          <div className="agent-settings-pack__feedback">
-            <AppInlineError>{uninstallError}</AppInlineError>
-          </div>
-        ) : null}
-        {uninstallResult ? <p className="agent-settings-pack__message">{uninstallResult}</p> : null}
-      </div>
-    </AgentDataBlock>
   );
 }
 

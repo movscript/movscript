@@ -16,7 +16,7 @@ import { AgentConversationThreadSection } from '@/features/agent/components/Agen
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
-import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
+import type { AgentChatHost } from '@/features/agent/components/agentChatHost'
 
 export function AgentChatPageLayout({
   composer,

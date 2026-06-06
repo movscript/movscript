@@ -19,10 +19,10 @@ export const AgentProjectedMessageBubble = React.memo(function AgentProjectedMes
   hiddenActivityActionItemIds,
   item,
   projectId,
-  approvingLocalRun,
-  onApproveLocalRun,
-  onRejectLocalRun,
-  onAnswerLocalRunInput,
+  approvingActiveRun,
+  onApproveRun,
+  onRejectRun,
+  onAnswerRunInput,
 }: AgentProjectedMessageBubbleProps) {
   const { message } = item
   const { activity } = item
@@ -33,10 +33,10 @@ export const AgentProjectedMessageBubble = React.memo(function AgentProjectedMes
       timelineActivity={activity.timelineActivity}
       liveInteractionRun={activity.embeddedInteractionRun}
       liveInteractionEvents={activity.embeddedInteractionEvents}
-      approvingLocalRun={approvingLocalRun}
-      onApproveLocalRun={onApproveLocalRun}
-      onRejectLocalRun={onRejectLocalRun}
-      onAnswerLocalRunInput={onAnswerLocalRunInput}
+      approvingActiveRun={approvingActiveRun}
+      onApproveRun={onApproveRun}
+      onRejectRun={onRejectRun}
+      onAnswerRunInput={onAnswerRunInput}
       hiddenActivityActionItemIds={hiddenActivityActionItemIds}
     />
   )
@@ -51,8 +51,8 @@ function areAgentProjectedMessageBubblePropsEqual(
   return agentProjectedTranscriptMessageItemsEqual(prev.item, next.item)
     && prev.hiddenActivityActionItemIds === next.hiddenActivityActionItemIds
     && prev.projectId === next.projectId
-    && (!comparesRunInteractionActions || prev.approvingLocalRun === next.approvingLocalRun)
-    && (!comparesRunInteractionActions || prev.onApproveLocalRun === next.onApproveLocalRun)
-    && (!comparesRunInteractionActions || prev.onRejectLocalRun === next.onRejectLocalRun)
-    && (!comparesRunInteractionActions || prev.onAnswerLocalRunInput === next.onAnswerLocalRunInput)
+    && (!comparesRunInteractionActions || prev.approvingActiveRun === next.approvingActiveRun)
+    && (!comparesRunInteractionActions || prev.onApproveRun === next.onApproveRun)
+    && (!comparesRunInteractionActions || prev.onRejectRun === next.onRejectRun)
+    && (!comparesRunInteractionActions || prev.onAnswerRunInput === next.onAnswerRunInput)
 }

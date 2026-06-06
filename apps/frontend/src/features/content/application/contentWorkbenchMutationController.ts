@@ -9,7 +9,7 @@ import { apiErrorMessage } from '@/features/content/domain/contentWorkbenchStatu
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord } from '@/features/content/domain/contentWorkbenchModel'
 import type { ContentWorkbenchDropPosition } from '@/features/content/domain/contentWorkbenchTimeline'
 import { workspaceEntityId } from '@/features/content/domain/contentWorkbenchWorkspaceReviewModel'
-import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { toast } from '@/shared/ui/toastStore'
 
@@ -18,14 +18,16 @@ export interface ContentWorkbenchMutationQueryClient {
 }
 
 export function buildRejectContentWorkspaceMutationOptions(input: {
-  refetchWorkspaces: () => Promise<unknown>
+  refetchWorkspaceArtifacts?: () => Promise<unknown>
+  /** @deprecated Use refetchWorkspaceArtifacts. */
+  refetchWorkspaces?: () => Promise<unknown>
   closeReview: () => void
 }) {
   return {
-    mutationFn: async (workspace: AgentWorkspace) => localAgentClient.rejectWorkspace(workspace.id, '用户在内容编排工作台退回该制作项草案'),
+    mutationFn: async (workspace: WorkspaceArtifact) => providerSessionClient.rejectWorkspaceArtifact(workspace.id, '用户在内容编排工作台退回该制作项草案'),
     onSuccess: async () => {
       toast.success('AI 草案已退回')
-      await input.refetchWorkspaces()
+      await (input.refetchWorkspaceArtifacts ?? input.refetchWorkspaces)?.()
       input.closeReview()
     },
     onError: (error: unknown) => {
@@ -37,11 +39,13 @@ export function buildRejectContentWorkspaceMutationOptions(input: {
 export function buildMarkContentWorkspaceReviewedMutationOptions(input: {
   projectId?: number
   selectedMomentId?: number
-  refetchWorkspaces: () => Promise<unknown>
+  refetchWorkspaceArtifacts?: () => Promise<unknown>
+  /** @deprecated Use refetchWorkspaceArtifacts. */
+  refetchWorkspaces?: () => Promise<unknown>
   closeReview: () => void
 }) {
   return {
-    mutationFn: async (workspace: AgentWorkspace) => localAgentClient.updateWorkspace(workspace.id, {
+    mutationFn: async (workspace: WorkspaceArtifact) => providerSessionClient.updateWorkspaceArtifact(workspace.id, {
       status: 'applied',
       target: {
         ...(isRecord(workspace.target) ? workspace.target : {}),
@@ -60,7 +64,7 @@ export function buildMarkContentWorkspaceReviewedMutationOptions(input: {
     }),
     onSuccess: async () => {
       toast.success('AI 草案已标记为处理完成')
-      await input.refetchWorkspaces()
+      await (input.refetchWorkspaceArtifacts ?? input.refetchWorkspaces)?.()
       input.closeReview()
     },
     onError: (error: unknown) => {

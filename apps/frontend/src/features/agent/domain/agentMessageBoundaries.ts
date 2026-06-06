@@ -1,16 +1,17 @@
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
+import { providerSessionInputRef, providerSessionMessageRef } from '@/features/agent/domain/providerSessionMessageRefs'
 
 export function isTranscriptAssistantChatMessage(message: Pick<ChatMessage, 'role' | 'meta'>): boolean {
   return message.role === 'assistant'
 }
 
-export function transcriptAssistantRuntimeMessageRunId(message: Pick<ChatMessage, 'role' | 'meta'>): string | undefined {
+export function transcriptAssistantProviderSessionRunId(message: Pick<ChatMessage, 'role' | 'meta'>): string | undefined {
   if (!isTranscriptAssistantChatMessage(message)) return undefined
-  return normalizeRunId(message.meta?.runtimeMessage?.runId)
+  return normalizeRunId(providerSessionMessageRef(message)?.runId)
 }
 
 export function assistantMessageCompletesStreamingRun(message: Pick<ChatMessage, 'role' | 'meta'>, runId: string): boolean {
-  return transcriptAssistantRuntimeMessageRunId(message) === normalizeRunId(runId)
+  return transcriptAssistantProviderSessionRunId(message) === normalizeRunId(runId)
 }
 
 export function streamingAssistantRunIdFromMessageId(messageId: string): string | undefined {
@@ -32,13 +33,13 @@ export function visibleStreamingAssistantTextForTranscript(input: {
 
 export function transcriptAssistantRelatedRunId(message: Pick<ChatMessage, 'role' | 'meta'>): string | undefined {
   if (!isTranscriptAssistantChatMessage(message)) return undefined
-  return normalizeRunId(message.meta?.runtimeMessage?.runId)
+  return normalizeRunId(providerSessionMessageRef(message)?.runId)
 }
 
 export function transcriptUserRelatedRunId(message: Pick<ChatMessage, 'role' | 'meta'>): string | undefined {
   if (message.role !== 'user') return undefined
-  return normalizeRunId(message.meta?.runtimeInput?.runId)
-    ?? normalizeRunId(message.meta?.runtimeMessage?.runId)
+  return normalizeRunId(providerSessionInputRef(message)?.runId)
+    ?? normalizeRunId(providerSessionMessageRef(message)?.runId)
 }
 
 export function transcriptMessageItemRelatedRunId(item: {

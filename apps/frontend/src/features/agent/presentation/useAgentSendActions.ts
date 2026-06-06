@@ -6,6 +6,11 @@ import type { BuildAgentSendWorkspaceOptions } from '@/features/agent/presentati
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
+import {
+  DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
+  agentRunProfilePresetById,
+  type AgentRunProfilePresetId,
+} from '@/features/agent/domain/agentRunProfilePreset'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import {
   beginAgentPerformanceOperation,
@@ -28,7 +33,7 @@ export interface UseAgentSendActionsInput {
   answeringPendingInput: boolean
   activePendingInputRequest: PendingInputRequestRef | null | undefined
   canAnswerPendingInputWithText: boolean
-  canSendActiveRunRuntimeInput: boolean
+  canSendActiveRunInput: boolean
   modelId: number | null
   debugBeforeSend: boolean
   pendingSendWorkspace: AgentSendWorkspace | null
@@ -38,8 +43,8 @@ export interface UseAgentSendActionsInput {
   onExternalWorkspaceConsumed?: () => void
   updateWorkspace: (patch: { input?: string; attachments?: AgentAttachment[] }) => void
   setMentionRange: (range: null) => void
-  answerActiveLocalRunInput: (requestId: string, answer: AgentInputAnswer) => Promise<unknown>
-  sendActiveRunRuntimeInput: (input: { content: string; attachments: AgentAttachment[] }) => Promise<unknown>
+  answerActiveRunInput: (requestId: string, answer: AgentInputAnswer) => Promise<unknown>
+  sendActiveRunInput: (input: { content: string; attachments: AgentAttachment[] }) => Promise<unknown>
   setConversationBuilding: (patch: { building: boolean; loading?: boolean; error?: string }) => void
   buildSendWorkspace: (options?: BuildAgentSendWorkspaceOptions) => Promise<AgentSendWorkspace>
   commitSendWorkspace: (workspace: AgentSendWorkspace) => Promise<unknown>
@@ -60,7 +65,7 @@ export function useAgentSendActions({
   answeringPendingInput,
   activePendingInputRequest,
   canAnswerPendingInputWithText,
-  canSendActiveRunRuntimeInput,
+  canSendActiveRunInput,
   modelId,
   debugBeforeSend,
   pendingSendWorkspace,
@@ -70,8 +75,8 @@ export function useAgentSendActions({
   onExternalWorkspaceConsumed,
   updateWorkspace,
   setMentionRange,
-  answerActiveLocalRunInput,
-  sendActiveRunRuntimeInput,
+  answerActiveRunInput,
+  sendActiveRunInput,
   setConversationBuilding,
   buildSendWorkspace,
   commitSendWorkspace,
@@ -112,7 +117,7 @@ export function useAgentSendActions({
     updateWorkspace,
   ])
 
-  const send = useCallback(async () => {
+  const send = useCallback(async (profilePresetId: AgentRunProfilePresetId = DEFAULT_AGENT_RUN_PROFILE_PRESET_ID) => {
     if ((!input.trim() && composerAttachments.length === 0) || uploading || buildingSendWorkspace) return
     if (answeringPendingInput && activePendingInputRequest) {
       const text = input.trim()
@@ -125,7 +130,7 @@ export function useAgentSendActions({
       updateWorkspace({ input: '' })
       setMentionRange(null)
       try {
-        await answerActiveLocalRunInput(activePendingInputRequest.id, { text })
+        await answerActiveRunInput(activePendingInputRequest.id, { text })
         finishAgentPerformanceOperation(operationId, 'success')
       } catch (error) {
         finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
@@ -133,18 +138,18 @@ export function useAgentSendActions({
       }
       return
     }
-    if (canSendActiveRunRuntimeInput) {
+    if (canSendActiveRunInput) {
       const content = input.trim()
       const attachments = composerAttachments
       const operationId = beginAgentPerformanceOperation({
-        kind: 'runtime_input',
+        kind: 'active_run_input',
         meta: { inputLength: content.length, attachmentCount: attachments.length },
       })
       markAgentPerformancePhase(operationId, 'click_send')
       updateWorkspace({ input: '', attachments: [] })
       setMentionRange(null)
       try {
-        await sendActiveRunRuntimeInput({ content, attachments })
+        await sendActiveRunInput({ content, attachments })
         finishAgentPerformanceOperation(operationId, 'success')
       } catch (error) {
         finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
@@ -169,7 +174,11 @@ export function useAgentSendActions({
     schedulePendingSendFrame(operationId, sendStartedMs)
     try {
       markAgentPerformancePhase(operationId, 'build_workspace_start')
-      const workspace = await buildSendWorkspace({ includeRuntimePreview: debugBeforeSend, performanceOperationId: operationId })
+      const workspace = await buildSendWorkspace({
+        includeProviderSessionPreview: debugBeforeSend,
+        performanceOperationId: operationId,
+        runProfile: agentRunProfilePresetById(profilePresetId),
+      })
       markAgentPerformancePhase(operationId, 'build_workspace_done', {
         details: { warningCount: workspace.warnings.length, messageCount: workspace.outbound.messages.length },
       })
@@ -196,11 +205,11 @@ export function useAgentSendActions({
     answeringPendingInput,
     activePendingInputRequest,
     canAnswerPendingInputWithText,
-    canSendActiveRunRuntimeInput,
+    canSendActiveRunInput,
     updateWorkspace,
     setMentionRange,
-    answerActiveLocalRunInput,
-    sendActiveRunRuntimeInput,
+    answerActiveRunInput,
+    sendActiveRunInput,
     modelId,
     labels,
     setConversationBuilding,

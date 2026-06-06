@@ -36,7 +36,7 @@ import {
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
-import { localAgentClient, type AgentWorkspaceRuntimeConfig } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
 import type { PublicModel } from '@/types'
 
 type ModelProviderAPIKind = 'openai_responses' | 'openai_chat_completions' | 'anthropic_messages'
@@ -79,7 +79,7 @@ const API_KIND_OPTIONS: Array<{ value: ModelProviderAPIKind; label: string }> = 
 export default function ModelProvidersPage() {
   const workspaceConfigQuery = useQuery({
     queryKey: ['workspace-model-providers-config'],
-    queryFn: () => localAgentClient.getWorkspaceConfig(),
+    queryFn: () => providerSessionClient.getWorkspaceConfig(),
     retry: false,
   })
   const backendModelsQuery = useQuery({
@@ -94,7 +94,7 @@ export default function ModelProvidersPage() {
   const [testResults, setTestResults] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    if (workspaceConfigQuery.data) setProviders(normalizeModelProviders(workspaceConfigQuery.data))
+    if (workspaceConfigQuery.data) setProviders(normalizeWorkspaceModelProviders(workspaceConfigQuery.data))
   }, [workspaceConfigQuery.data])
 
   const backendProviders = useMemo(() => groupBackendModelProviders(backendModelsQuery.data ?? []), [backendModelsQuery.data])
@@ -133,7 +133,7 @@ export default function ModelProvidersPage() {
     setSaveError(null)
     setSaving(true)
     try {
-      await localAgentClient.saveWorkspaceConfig({ modelProviders: providers.map(modelProviderToConfigRecord) })
+      await providerSessionClient.saveWorkspaceConfig({ modelProviders: providers.map(modelProviderToConfigRecord) })
       await workspaceConfigQuery.refetch()
       setSaved(true)
       window.setTimeout(() => setSaved(false), 1800)
@@ -265,11 +265,11 @@ export default function ModelProvidersPage() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <AgentConsoleDescription>
-                Local Providers 只保存在当前 workspace config 中，用于接入后端目录之外的模型服务。
+                Local Providers 只保存在当前 provider profile config 中，用于接入后端目录之外的模型服务。
               </AgentConsoleDescription>
               <AgentConsoleToolbar>
                 <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                  workspace config / modelProviders
+                  provider profile config / modelProviders
                 </AgentConsoleStatusBadge>
               </AgentConsoleToolbar>
             </div>
@@ -332,7 +332,7 @@ export default function ModelProvidersPage() {
   )
 }
 
-function normalizeModelProviders(config: AgentWorkspaceRuntimeConfig): WorkspaceModelProvider[] {
+function normalizeWorkspaceModelProviders(config: MovScriptWorkspaceConfig): WorkspaceModelProvider[] {
   const providers = Array.isArray(config.modelProviders)
     ? config.modelProviders.map(modelProviderFromRecord).filter((provider): provider is WorkspaceModelProvider => Boolean(provider))
     : []

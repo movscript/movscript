@@ -1,4 +1,4 @@
-import type { AgentTelemetryMetricUnit } from '@movscript/protocol'
+import type { AgentTelemetryMetricUnit } from '@/features/agent/domain/agentProtocol'
 
 export type AgentPerformanceOperationKind =
   | 'send'
@@ -6,7 +6,7 @@ export type AgentPerformanceOperationKind =
   | 'approval'
   | 'rejection'
   | 'input_answer'
-  | 'runtime_input'
+  | 'active_run_input'
   | 'external_task'
   | 'conversation_create'
   | 'conversation_open'
@@ -87,7 +87,7 @@ const SLOW_OPERATION_THRESHOLDS_MS: Record<AgentPerformanceOperationKind, number
   approval: 600,
   rejection: 600,
   input_answer: 600,
-  runtime_input: 600,
+  active_run_input: 600,
   external_task: 1_000,
   conversation_create: 800,
   conversation_open: 800,
@@ -538,7 +538,7 @@ export function operationKindLabel(kind: AgentPerformanceOperationKind): string 
     case 'approval': return '工具确认'
     case 'rejection': return '工具拒绝'
     case 'input_answer': return '输入回答'
-    case 'runtime_input': return '运行时输入'
+    case 'active_run_input': return '活动 Run 输入'
     case 'external_task': return '外部任务'
     case 'conversation_create': return '新建会话'
     case 'conversation_open': return '打开会话'
@@ -561,15 +561,15 @@ export function phaseLabel(name: string): string {
     preview_ready: '预览就绪',
     commit_start: '提交开始',
     clear_workspace_done: '清空输入工作区',
-    runtime_loading_set: '运行状态已设置',
+    provider_session_loading_set: '运行状态已设置',
     source_message_prepared: '消息来源已准备',
     post_commit_frame: '下一帧已提交',
-    prepare_runtime_start: '准备 Runtime 开始',
-    prepare_runtime_done: '准备 Runtime 完成',
-    ensure_runtime_start: '启动 Runtime 开始',
-    ensure_runtime_done: '启动 Runtime 完成',
-    health_refetch_start: '刷新 Runtime 健康开始',
-    health_refetch_done: '刷新 Runtime 健康完成',
+    prepare_provider_session_start: '准备 Provider Session 开始',
+    prepare_provider_session_done: '准备 Provider Session 完成',
+    ensure_provider_session_start: '启动 Provider Session 开始',
+    ensure_provider_session_done: '启动 Provider Session 完成',
+    provider_session_health_refetch_start: '刷新 Provider Session 健康开始',
+    provider_session_health_refetch_done: '刷新 Provider Session 健康完成',
     mcp_ready_check_start: '检查 MCP 开始',
     mcp_ready_check_done: '检查 MCP 完成',
     model_config_sync_start: '同步模型配置开始',
@@ -579,15 +579,15 @@ export function phaseLabel(name: string): string {
     resolve_thread_done: '解析 Thread 完成',
     create_message_run_start: '创建消息 Run 开始',
     create_message_run_done: '创建消息 Run 完成',
-    source_message_accepted: '消息被 Runtime 接收',
-    runtime_input_final_thread_start: '运行时输入最终 Thread 开始',
-    runtime_input_final_thread_done: '运行时输入最终 Thread 完成',
+    source_message_accepted: '消息被 Provider Session 接收',
+    provider_session_input_final_thread_start: 'Provider Session 输入最终 Thread 开始',
+    provider_session_input_final_thread_done: 'Provider Session 输入最终 Thread 完成',
     run_stream_start: 'Run 流开始',
     run_stream_done_client: '客户端 Run 流完成',
     final_thread_fetch_start: '最终 Thread 读取开始',
     final_thread_fetch_done: '最终 Thread 读取完成',
     first_run_update: '首次 Run 更新',
-    first_runtime_event: '首次 Runtime 事件',
+    first_provider_session_event: '首次 Provider Session 事件',
     first_assistant_progress: '首次助手进度',
     first_stream_text_visible: '首次流式文字可见',
     stream_progress_sample: '流式进度采样',
@@ -608,11 +608,11 @@ export function phaseLabel(name: string): string {
     conversation_create_start: '新建会话开始',
     provisional_thread_start: '创建临时 Thread 开始',
     provisional_thread_done: '创建临时 Thread 完成',
-    runtime_conversation_create_start: '创建前端会话状态开始',
-    runtime_conversation_create_done: '创建前端会话状态完成',
-    runtime_thread_cache_upserted: 'Thread 缓存已更新',
+    provider_session_conversation_create_start: '创建前端会话状态开始',
+    provider_session_conversation_create_done: '创建前端会话状态完成',
+    provider_session_thread_cache_upserted: 'Thread 缓存已更新',
     conversation_panel_opened: '会话面板已打开',
-    runtime_threads_refetch_queued: 'Thread 列表刷新已排队',
+    provider_session_threads_refetch_queued: 'Thread 列表刷新已排队',
     conversation_restore_start: '恢复会话开始',
     conversation_restore_deduped_pending: '复用进行中的恢复',
     conversation_restore_session_state_ready: '会话映射状态已读取',

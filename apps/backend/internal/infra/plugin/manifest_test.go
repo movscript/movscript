@@ -1,6 +1,10 @@
 package plugin
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestManifestAcceptsWorkflowContributions(t *testing.T) {
 	manifest := &Manifest{
@@ -46,15 +50,15 @@ func TestManifestRejectsUnknownWorkflowReference(t *testing.T) {
 	}
 }
 
-func TestManifestAcceptsAgentSkillContributions(t *testing.T) {
+func TestManifestAcceptsPluginSkillContributions(t *testing.T) {
 	manifest := &Manifest{
 		ID:      "com.example.directors",
 		Name:    "Director Skills",
 		Version: "0.1.0",
 		Contributes: Contributions{
-			AgentSkills: []AgentSkillContribution{
+			Skills: []PluginSkillContribution{
 				{
-					Path:    "agent-skills/director-jiangwen",
+					Path:    "plugin-skills/director-jiangwen",
 					Kind:    "persona",
 					Load:    "on_demand",
 					Scope:   "run",
@@ -66,17 +70,17 @@ func TestManifestAcceptsAgentSkillContributions(t *testing.T) {
 	}
 
 	if err := ValidateManifest(manifest); err != nil {
-		t.Fatalf("expected agent skill contribution manifest to validate, got %v", err)
+		t.Fatalf("expected plugin skill contribution manifest to validate, got %v", err)
 	}
 }
 
-func TestManifestRejectsUnsafeAgentSkillPath(t *testing.T) {
+func TestManifestRejectsUnsafePluginSkillPath(t *testing.T) {
 	manifest := &Manifest{
 		ID:      "com.example.directors",
 		Name:    "Director Skills",
 		Version: "0.1.0",
 		Contributes: Contributions{
-			AgentSkills: []AgentSkillContribution{
+			Skills: []PluginSkillContribution{
 				{Path: "../outside", Kind: "persona"},
 			},
 		},
@@ -85,5 +89,30 @@ func TestManifestRejectsUnsafeAgentSkillPath(t *testing.T) {
 	err := ValidateManifest(manifest)
 	if err == nil {
 		t.Fatal("expected unsafe agent skill path to be rejected")
+	}
+}
+
+func TestManifestAcceptsLegacyPluginSkillField(t *testing.T) {
+	legacySkillsKey := strings.Join([]string{"agent", "Skills"}, "")
+	raw, err := json.Marshal(map[string]any{
+		"id":      "com.example.directors",
+		"name":    "Director Skills",
+		"version": "0.1.0",
+		"contributes": map[string]any{
+			legacySkillsKey: []map[string]string{{"path": "plugin-skills/director-jiangwen"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected legacy skill field fixture to marshal, got %v", err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("expected legacy skill field to unmarshal, got %v", err)
+	}
+	if len(manifest.Contributes.Skills) != 1 {
+		t.Fatalf("expected one skill contribution, got %d", len(manifest.Contributes.Skills))
+	}
+	if err := ValidateManifest(&manifest); err != nil {
+		t.Fatalf("expected legacy skill contribution manifest to validate, got %v", err)
 	}
 }

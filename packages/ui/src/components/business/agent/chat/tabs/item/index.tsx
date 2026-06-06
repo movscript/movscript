@@ -146,12 +146,12 @@ export function AgentConversationTab({
             onCloseConversation(item.id);
           }}
         >
-          {item.runtimeState ? (
+          {item.sessionState ? (
             <span
-              className="ai-agent-panel-conversation-tab-runtime-light"
-              data-runtime-state={item.runtimeState}
+              className="ai-agent-panel-conversation-tab-session-light"
+              data-session-state={item.sessionState}
               aria-hidden="true"
-              title={item.runtimeDetail}
+              title={item.sessionDetail}
             />
           ) : null}
           <span className="ai-agent-panel-conversation-tab-title">{item.title}</span>

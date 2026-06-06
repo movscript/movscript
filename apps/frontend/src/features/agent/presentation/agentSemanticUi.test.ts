@@ -4,9 +4,7 @@ import {
   agentAttentionStatusRecipe,
   agentAvailabilityStatusRecipe,
   agentConfigStatusRecipe,
-  agentWorkspaceStatusRecipe,
   agentGenerationStatusRecipe,
-  agentOptionalStatusRecipe,
   agentPerformanceHealthRecipe,
   agentPerformanceLogRecipe,
   agentPerformanceOperationRecipe,
@@ -18,6 +16,7 @@ import {
   agentToolCallStatusRecipe,
   agentRunInteractionActionStatusRecipe,
   agentRunInteractionStatusRecipe,
+  workspaceArtifactStatusRecipe,
 } from './agentSemanticUi'
 
 test('agent run statuses map to UI semantic recipes', () => {
@@ -45,11 +44,11 @@ test('agent run interaction action statuses map to UI semantic recipes', () => {
   assert.deepEqual(agentRunInteractionActionStatusRecipe('unknown'), { intent: 'neutral', emphasis: 'soft' })
 })
 
-test('agent workspace statuses map to UI semantic recipes', () => {
-  assert.deepEqual(agentWorkspaceStatusRecipe('applied'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentWorkspaceStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(agentWorkspaceStatusRecipe('accepted'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(agentWorkspaceStatusRecipe('workspace'), { intent: 'neutral', emphasis: 'soft' })
+test('workspace artifact statuses map to UI semantic recipes', () => {
+  assert.deepEqual(workspaceArtifactStatusRecipe('applied'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(workspaceArtifactStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(workspaceArtifactStatusRecipe('accepted'), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(workspaceArtifactStatusRecipe('workspace'), { intent: 'neutral', emphasis: 'soft' })
 })
 
 test('agent generation badge states map to UI semantic recipes', () => {
@@ -83,8 +82,6 @@ test('agent boolean status helpers keep common business states semantic', () => 
   assert.deepEqual(agentReadinessStatusRecipe(false), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(agentAvailabilityStatusRecipe(true), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(agentAvailabilityStatusRecipe(false), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(agentOptionalStatusRecipe(true), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentOptionalStatusRecipe(false), { intent: 'neutral', emphasis: 'soft' })
 })
 
 test('agent severities map to UI semantic recipes', () => {

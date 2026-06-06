@@ -1,7 +1,7 @@
 import { isRunInteractionAnswerEchoMessage, runInteractionFromActivity } from '@/features/agent/domain/agentRunInteraction'
 import { runInteractionPlacementForMessage } from '@/features/agent/domain/agentRunInteractionAnchors'
 import { timelineActivityByMessageId } from '@/features/agent/domain/agentTimelineActivityItems'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 export interface AgentTranscriptMessageItem {

@@ -10,7 +10,7 @@ import type {
 import type { AgentConversationProjectionRunInteractions } from '@/features/agent/domain/agentConversationProjectionRunInteractions'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export function buildAgentConversationProjection(input: {

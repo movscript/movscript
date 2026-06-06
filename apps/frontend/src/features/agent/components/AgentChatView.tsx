@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
+import type { AgentChatHost } from '@/features/agent/components/agentChatHost'
 import { AgentChatPageLayout } from '@/features/agent/components/AgentChatPageLayout'
 import { AgentChatPanelLayout } from '@/features/agent/components/AgentChatPanelLayout'
 import {

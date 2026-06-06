@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Copy, MoreHorizontal, Route } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, MoreHorizontal, Route } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
   AgentActivityCardItem,
@@ -43,8 +43,8 @@ import {
   type AgentActivityRound as AgentActivityRoundModel,
 } from '@/features/agent/presentation/agentActivityFeed'
 import { agentRunPath } from '@/routes/projectRoutes'
-import { LocalAgentApprovalRequestCard, LocalAgentInputRequestCard, type LocalAgentApprovalRequest } from '@/features/agent/components/localRuntime'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { ProviderSessionApprovalRequestCard, ProviderSessionInputRequestCard, type ProviderSessionApprovalRequest } from '@/features/agent/components/providerSessionInteractions'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
@@ -55,6 +55,7 @@ export function AgentActivityFeedView({
   className,
   approving = false,
   onApprove,
+  onApproveForSession,
   onReject,
   onAnswerInput,
   approvalDetails,
@@ -66,12 +67,14 @@ export function AgentActivityFeedView({
   className?: string
   approving?: boolean
   onApprove?: (approvalIds?: string[]) => void
+  onApproveForSession?: (approvalIds?: string[]) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
-  approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
+  approvalDetails?: (approval: ProviderSessionApprovalRequest) => ReactNode
   hiddenActionItemIds?: Set<string>
 }) {
   const [expandedDebugItems, setExpandedDebugItems] = useState<Set<string>>(() => new Set())
+  const [roundPageById, setRoundPageById] = useState<Record<string, number>>({})
   const feed = useMemo(() => buildAgentActivityFeed({ activity, run, events, hiddenActionItemIds }), [activity, events, hiddenActionItemIds, run])
   if (!feed || (feed.items.length === 0 && feed.rounds.length === 0)) return null
   const rounds = feed.rounds.length ? feed.rounds : [{ id: 'all', label: '活动', status: 'tool_calls' as const, items: feed.items }]
@@ -84,6 +87,9 @@ export function AgentActivityFeedView({
       return next
     })
   }
+  function updateRoundPage(roundId: string, page: number) {
+    setRoundPageById((current) => ({ ...current, [roundId]: page }))
+  }
   return (
     <AgentActivityFeedRoot className={className}>
       {rounds.map((round) => (
@@ -93,9 +99,12 @@ export function AgentActivityFeedView({
           approving={approving}
           expandedDebugItems={expandedDebugItems}
           onApprove={onApprove}
+          onApproveForSession={onApproveForSession}
           onReject={onReject}
           onAnswerInput={onAnswerInput}
           approvalDetails={approvalDetails}
+          page={roundPageById[round.id] ?? 0}
+          onPageChange={(page) => updateRoundPage(round.id, page)}
           onToggleDebugItem={toggleDebugItem}
         />
       ))}
@@ -189,38 +198,67 @@ function AgentActivityRoundSection({
   approving,
   expandedDebugItems,
   onApprove,
+  onApproveForSession,
   onReject,
   onAnswerInput,
   approvalDetails,
+  page,
+  onPageChange,
   onToggleDebugItem,
 }: {
   round: AgentActivityRoundModel
   approving?: boolean
   expandedDebugItems: Set<string>
   onApprove?: (approvalIds?: string[]) => void
+  onApproveForSession?: (approvalIds?: string[]) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
-  approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
+  approvalDetails?: (approval: ProviderSessionApprovalRequest) => ReactNode
+  page: number
+  onPageChange: (page: number) => void
   onToggleDebugItem: (itemId: string) => void
 }) {
+  const entries = useMemo(() => activityRoundRenderEntries(round.items), [round.items])
+  const pagedEntries = entries.filter((entry): entry is AgentActivityPagedRenderEntry => entry.type === 'paged')
+  const pageCount = Math.max(1, ...pagedEntries.map((entry) => entry.items.length))
+  const safePage = Math.min(page, pageCount - 1)
+
+  useEffect(() => {
+    if (page !== safePage) onPageChange(safePage)
+  }, [onPageChange, page, safePage])
+
   return (
     <AgentActivityRound>
-      <AgentActivityRoundHeader>{round.label}</AgentActivityRoundHeader>
+      <AgentActivityRoundHeader>
+        <span className="ms-agent-activity-round__label-text">{round.label}</span>
+        {pageCount > 1 && (
+          <AgentActivityRoundPager
+            page={safePage}
+            pageCount={pageCount}
+            onPageChange={onPageChange}
+          />
+        )}
+      </AgentActivityRoundHeader>
       {round.items.length > 0 ? (
         <AgentActivityRoundItems>
-          {round.items.map((item) => (
-            <AgentActivityItemRow
-              key={item.id}
-              item={item}
-              approving={approving}
-              expanded={expandedDebugItems.has(item.id)}
-              onApprove={onApprove}
-              onReject={onReject}
-              onAnswerInput={onAnswerInput}
-              approvalDetails={approvalDetails}
-              onToggleDebug={() => onToggleDebugItem(item.id)}
-            />
-          ))}
+          {entries.map((entry) => {
+            const item = entry.type === 'item' ? entry.item : entry.items[Math.min(safePage, entry.items.length - 1)]
+            if (!item) return null
+            return (
+              <AgentActivityItemRow
+                key={entry.id}
+                item={item}
+                approving={approving}
+                expanded={expandedDebugItems.has(item.id)}
+                onApprove={onApprove}
+                onApproveForSession={onApproveForSession}
+                onReject={onReject}
+                onAnswerInput={onAnswerInput}
+                approvalDetails={approvalDetails}
+                onToggleDebug={() => onToggleDebugItem(item.id)}
+              />
+            )
+          })}
         </AgentActivityRoundItems>
       ) : (
         <AgentActivityRoundEmpty>
@@ -231,11 +269,97 @@ function AgentActivityRoundSection({
   )
 }
 
+interface AgentActivityItemRenderEntry {
+  id: string
+  type: 'item'
+  item: AgentActivityItem
+}
+
+interface AgentActivityPagedRenderEntry {
+  id: string
+  type: 'paged'
+  items: AgentActivityItem[]
+}
+
+type AgentActivityRenderEntry = AgentActivityItemRenderEntry | AgentActivityPagedRenderEntry
+
+function activityRoundRenderEntries(items: AgentActivityItem[]): AgentActivityRenderEntry[] {
+  const entries: AgentActivityRenderEntry[] = []
+  let group: AgentActivityItem[] = []
+
+  function flushGroup() {
+    if (group.length === 0) return
+    if (group.length === 1) {
+      entries.push({ id: group[0].id, type: 'item', item: group[0] })
+    } else {
+      entries.push({ id: `paged-${group[0].id}-${group.length}`, type: 'paged', items: group })
+    }
+    group = []
+  }
+
+  for (const item of items) {
+    if (isPagedActivityItem(item)) {
+      group.push(item)
+      continue
+    }
+    flushGroup()
+    entries.push({ id: item.id, type: 'item', item })
+  }
+  flushGroup()
+  return entries
+}
+
+function isPagedActivityItem(item: AgentActivityItem): boolean {
+  return item.type === 'block'
+    || item.type === 'decision'
+    || item.type === 'input_request'
+    || item.type === 'approval_request'
+}
+
+function AgentActivityRoundPager({
+  page,
+  pageCount,
+  onPageChange,
+}: {
+  page: number
+  pageCount: number
+  onPageChange: (page: number) => void
+}) {
+  const previousPage = Math.max(0, page - 1)
+  const nextPage = Math.min(pageCount - 1, page + 1)
+  return (
+    <span className="ms-agent-activity-round__pager">
+      <button
+        type="button"
+        className="ms-agent-activity-round__pager-button"
+        disabled={page <= 0}
+        onClick={() => onPageChange(previousPage)}
+        aria-label="上一条请求"
+        title="上一条请求"
+      >
+        <ChevronLeft size={12} />
+      </button>
+      <span className="ms-agent-activity-round__pager-count">{page + 1}/{pageCount}</span>
+      <button
+        type="button"
+        className="ms-agent-activity-round__pager-button"
+        disabled={page >= pageCount - 1}
+        onClick={() => onPageChange(nextPage)}
+        aria-label="下一条请求"
+        title="下一条请求"
+      >
+        <ChevronRight size={12} />
+      </button>
+    </span>
+  )
+}
+
 function AgentActivityItemRow({
   item,
   approving = false,
   expanded = false,
   onApprove,
+  onApproveForSession,
   onReject,
   onAnswerInput,
   approvalDetails,
@@ -245,9 +369,10 @@ function AgentActivityItemRow({
   approving?: boolean
   expanded?: boolean
   onApprove?: (approvalIds?: string[]) => void
+  onApproveForSession?: (approvalIds?: string[]) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
-  approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
+  approvalDetails?: (approval: ProviderSessionApprovalRequest) => ReactNode
   onToggleDebug?: () => void
 }) {
   if (item.type === 'line') {
@@ -273,7 +398,7 @@ function AgentActivityItemRow({
   if (item.type === 'input_request') {
     return (
       <AgentActivityCardItem>
-        <LocalAgentInputRequestCard
+        <ProviderSessionInputRequestCard
           request={item.request}
           disabled={approving || item.request.status !== 'pending' || !onAnswerInput}
           onAnswer={(answer) => onAnswerInput?.(item.request.id, answer)}
@@ -285,10 +410,11 @@ function AgentActivityItemRow({
   if (item.type === 'approval_request') {
     return (
       <AgentActivityCardItem>
-        <LocalAgentApprovalRequestCard
+        <ProviderSessionApprovalRequestCard
           approval={item.approval}
           approving={approving}
           onApprove={onApprove}
+          onApproveForSession={onApproveForSession}
           onReject={onReject}
           approvalDetails={approvalDetails}
         />

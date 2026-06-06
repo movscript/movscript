@@ -43,7 +43,7 @@ test('project workbench workspace review search prefers latest matching artifact
   assert.equal(result?.searchParams.toString(), 'panel=review&view=review&workspaceId=latest-workspace&productionId=301')
 })
 
-test('project workbench artifact review search merges related workspace workspaces', () => {
+test('project workbench artifact review search merges related workspace artifacts', () => {
   const result = mergeProjectWorkbenchArtifactReviewSearchParams(new URLSearchParams('kind=all'), {
     workbenchId: 'pre_production',
     artifacts: [
@@ -53,7 +53,7 @@ test('project workbench artifact review search merges related workspace workspac
     primary: { workspaceKind: 'setting_workspace' },
     relatedWorkspaceParams: [
       { workspaceKind: 'setting_workspace', queryParam: 'settingWorkspaceId' },
-      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId' },
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceArtifactId' },
     ],
   })
 
@@ -61,7 +61,7 @@ test('project workbench artifact review search merges related workspace workspac
   assert.equal(result.get('view'), 'review')
   assert.equal(result.get('workspaceId'), 'setting-1')
   assert.equal(result.get('settingWorkspaceId'), 'setting-1')
-  assert.equal(result.get('assetWorkspaceWorkspaceId'), 'asset-1')
+  assert.equal(result.get('assetWorkspaceArtifactId'), 'asset-1')
 })
 
 test('project workbench artifact review search covers all active workspace workbenches', () => {
@@ -81,14 +81,14 @@ test('project workbench artifact review search covers all active workspace workb
     primary: { workspaceKind: 'asset_workspace', entityType: 'asset_slot', entityId: 51 },
     relatedWorkspaceParams: [
       { workspaceKind: 'setting_workspace', queryParam: 'settingWorkspaceId' },
-      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId' },
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceArtifactId' },
     ],
   })
   assert.equal(preProduction.get('view'), 'review')
   assert.equal(preProduction.get('workspaceId'), 'asset-2')
   assert.equal(preProduction.get('asset_slot_id'), '51')
   assert.equal(preProduction.get('settingWorkspaceId'), 'setting-2')
-  assert.equal(preProduction.get('assetWorkspaceWorkspaceId'), 'asset-2')
+  assert.equal(preProduction.get('assetWorkspaceArtifactId'), 'asset-2')
 
   const creativeTaskGraph = mergeProjectWorkbenchArtifactReviewSearchParams(new URLSearchParams('workspace=structure'), {
     workbenchId: 'orchestration_production',
@@ -100,14 +100,14 @@ test('project workbench artifact review search covers all active workspace workb
     primary: { workspaceKind: 'production_workspace', entityType: 'production', entityId: 301 },
     relatedWorkspaceParams: [
       { workspaceKind: 'setting_workspace', queryParam: 'settingWorkspaceId' },
-      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId' },
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceArtifactId' },
     ],
   })
   assert.equal(creativeTaskGraph.get('workspace'), 'structure')
   assert.equal(creativeTaskGraph.get('workspaceId'), 'production-3')
   assert.equal(creativeTaskGraph.get('productionId'), '301')
   assert.equal(creativeTaskGraph.get('settingWorkspaceId'), 'setting-3')
-  assert.equal(creativeTaskGraph.get('assetWorkspaceWorkspaceId'), 'asset-3')
+  assert.equal(creativeTaskGraph.get('assetWorkspaceArtifactId'), 'asset-3')
 
   const contentOrchestration = mergeProjectWorkbenchArtifactReviewSearchParams(new URLSearchParams('mode=timeline'), {
     workbenchId: 'content_orchestration',

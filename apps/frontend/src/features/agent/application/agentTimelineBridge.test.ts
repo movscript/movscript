@@ -6,7 +6,7 @@ import {
   timelineItemFromAcceptedSource,
   isAcceptedSourceTimelineItem,
 } from '@/features/agent/application/agentTimelineBridge'
-import type { AgentTimelineItem, AgentMessage, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem, AgentMessage, AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 test('accepted source timeline bridge projects only user transcript messages', () => {
   const item = timelineItemFromAcceptedSource(message({ role: 'user' }), run())
@@ -17,8 +17,8 @@ test('accepted source timeline bridge projects only user transcript messages', (
   assert.equal(item?.surface, 'message_stream')
   assert.equal(item?.contentPromptEligibility, 'include')
   assert.equal(item?.sortRank, 10)
-  assert.equal(item?.runtimeRefs.messageId, 'msg_1')
-  assert.equal(item?.runtimeRefs.runId, 'run_1')
+  assert.equal(item?.providerSessionRefs.messageId, 'msg_1')
+  assert.equal(item?.providerSessionRefs.runId, 'run_1')
   assert.equal(item?.cursor, '1779148801000:10:message%3Amsg_1')
   assert.equal(isAcceptedSourceTimelineItem(item), true)
 })
@@ -45,11 +45,11 @@ test('accepted source item predicate rejects runtime-only or mismatched local it
   assert.equal(isAcceptedSourceTimelineItem(timelineItem({ id: 'assistant:run_1', origin: 'agent' })), false)
   assert.equal(isAcceptedSourceTimelineItem(timelineItem({
     id: 'message:other',
-    runtimeRefs: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_1' },
+    providerSessionRefs: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_1' },
   })), false)
   assert.equal(isAcceptedSourceTimelineItem(timelineItem({
     id: 'message:msg_1',
-    runtimeRefs: { threadId: 'thread_1', messageId: 'msg_1' },
+    providerSessionRefs: { threadId: 'thread_1', messageId: 'msg_1' },
   })), false)
 })
 
@@ -71,7 +71,7 @@ function run(patch: Partial<AgentRun> = {}): AgentRun {
     status: 'in_progress',
     createdAt: '2026-05-19T00:00:01.000Z',
     updatedAt: '2026-05-19T00:00:02.000Z',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 10,
       maxIterations: 10,
@@ -99,7 +99,7 @@ function timelineItem(patch: Partial<AgentTimelineItem> = {}): AgentTimelineItem
     updatedAt: '2026-05-19T00:00:02.000Z',
     revision: 1779148802000,
     cursor: `1779148801000:10:${encodeURIComponent(id)}`,
-    runtimeRefs: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_1' },
+    providerSessionRefs: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_1' },
     ...patch,
   }
 }

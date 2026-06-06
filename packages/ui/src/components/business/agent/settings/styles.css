@@ -949,123 +949,6 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-pack__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--ms-space-2);
-}
-
-.agent-settings-pack__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ms-space-2);
-}
-
-.agent-settings-pack__file-input {
-  display: none;
-}
-
-.agent-settings-pack__textarea {
-  min-height: 6rem;
-  margin-top: var(--ms-space-2);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
-}
-
-.agent-settings-pack__message,
-.agent-settings-pack__help {
-  margin: var(--ms-space-2) 0 0;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
-}
-
-.agent-settings-pack__feedback {
-  margin-top: var(--ms-space-2);
-}
-
-.agent-settings-pack__uninstall {
-  margin-top: var(--ms-space-3);
-  border-top: 1px solid var(--ms-color-border);
-  padding-top: var(--ms-space-3);
-}
-
-.agent-settings-pack__installed {
-  margin-bottom: var(--ms-space-3);
-}
-
-.agent-settings-pack__installed-title {
-  margin: 0 0 6px;
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
-  font-weight: 500;
-  line-height: var(--ms-leading-caption);
-}
-
-.agent-settings-pack__installed-list {
-  display: grid;
-  gap: 6px;
-}
-
-.agent-settings-pack__installed-item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ms-space-2);
-  padding: 6px var(--ms-space-2);
-}
-
-.agent-settings-pack__plugin-id,
-.agent-settings-pack__plugin-path {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-settings-pack__plugin-id {
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
-  font-weight: 500;
-  line-height: var(--ms-leading-caption);
-}
-
-.agent-settings-pack__plugin-path {
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
-}
-
-.agent-settings-pack__uninstall-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--ms-space-2);
-}
-
-.agent-settings-pack__uninstall-field {
-  min-width: 14rem;
-  flex: 1;
-}
-
-.agent-settings-pack__field-label {
-  display: block;
-  margin-bottom: var(--ms-space-1);
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
-  font-weight: 500;
-  line-height: var(--ms-leading-caption);
-}
-
-.agent-settings-pack__uninstall-input {
-  height: 28px;
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
-}
-
 .agent-settings-tool-permissions-filter {
   display: grid;
   gap: var(--ms-space-2);
@@ -1358,8 +1241,7 @@
   padding: 0;
 }
 
-.agent-settings-model-route__header,
-.agent-settings-model-option__header {
+.agent-settings-model-route__header {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -1368,7 +1250,6 @@
 }
 
 .agent-settings-model-route__title,
-.agent-settings-model-option__title,
 .agent-settings-navigation-button__title {
   min-width: 0;
   overflow: hidden;
@@ -1387,7 +1268,6 @@
 
 .agent-settings-model-route__source,
 .agent-settings-model-route__model,
-.agent-settings-model-option__detail,
 .agent-settings-navigation-button__description {
   display: block;
   min-width: 0;
@@ -1404,22 +1284,6 @@
   margin-top: var(--ms-space-1);
 }
 
-.agent-settings-model-option {
-  transition:
-    background-color var(--ms-duration-fast) var(--ms-easing-standard),
-    border-color var(--ms-duration-fast) var(--ms-easing-standard);
-}
-
-.agent-settings-model-option:not(.agent-settings-model-option--selected):hover {
-  background: var(--ms-color-muted);
-}
-
-.agent-settings-model-option--selected {
-  border-color: var(--ms-color-primary);
-  background: var(--ms-color-muted);
-}
-
-.agent-settings-model-option__button,
 .agent-settings-navigation-button {
   height: auto;
   width: 100%;
@@ -1427,19 +1291,10 @@
   text-align: left;
 }
 
-.agent-settings-model-option__button {
-  padding: var(--ms-space-2);
-}
-
-.agent-settings-model-option__button .ms-button__content,
 .agent-settings-navigation-button .ms-button__content {
   display: block;
   width: 100%;
   text-align: left;
-}
-
-.agent-settings-model-option__selected-icon {
-  flex-shrink: 0;
 }
 
 .agent-settings-navigation-list {

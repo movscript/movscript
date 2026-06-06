@@ -13,12 +13,12 @@ import {
 } from '@/features/plugins/application/clientPlugins'
 import { ensureBundledClientPluginsInstalled } from '@/features/plugins/application/builtinClientPlugins'
 import {
-  installAgentMarketplacePlugin,
-  loadAgentPluginMarketplaceState,
-  uninstallAgentMarketplacePlugin,
-  type AgentPluginMarketplaceItem,
-  type AgentPluginMarketplaceState,
-} from '@/features/plugins/application/agentPluginMarketplace'
+  installProviderMarketplacePlugin,
+  loadProviderPluginMarketplaceState,
+  uninstallProviderMarketplacePlugin,
+  type ProviderPluginMarketplaceItem,
+  type ProviderPluginMarketplaceState,
+} from '@/features/plugins/application/providerPluginMarketplace'
 import {
   Button,
   Input,
@@ -62,8 +62,8 @@ import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 
 type Tab = 'installed' | 'marketplace'
 
-const EMPTY_AGENT_PLUGIN_MARKETPLACE_STATE: AgentPluginMarketplaceState = {
-  agents: [],
+const EMPTY_PROVIDER_PLUGIN_MARKETPLACE_STATE: ProviderPluginMarketplaceState = {
+  providers: [],
   items: [],
   errors: [],
 }
@@ -109,14 +109,14 @@ function PluginCard({ plugin, onRemove }: {
 
       <PluginCardFooter>
         <PluginCardId>{plugin.id}</PluginCardId>
-        <PluginStatusMeta>{t('plugins.agentSkills')}</PluginStatusMeta>
+        <PluginStatusMeta>{t('plugins.pluginSkills')}</PluginStatusMeta>
       </PluginCardFooter>
     </PluginCardSurface>
   )
 }
 
-function AgentPluginCard({ item, onUninstall }: {
-  item: AgentPluginMarketplaceItem
+function ProviderPluginCard({ item, onUninstall }: {
+  item: ProviderPluginMarketplaceItem
   onUninstall?: () => void
 }) {
   const { t } = useTranslation()
@@ -126,7 +126,7 @@ function AgentPluginCard({ item, onUninstall }: {
         <PluginCardCopy>
           <PluginCardTitle>{item.displayName}</PluginCardTitle>
           <PluginCardMeta>
-            {item.agentLabel} · {item.marketplaceDisplayName}{item.version ? ` · v${item.version}` : ''}
+            {item.providerLabel} · {item.marketplaceDisplayName}{item.version ? ` · v${item.version}` : ''}
           </PluginCardMeta>
         </PluginCardCopy>
         <PluginCardActions>
@@ -154,11 +154,11 @@ function AgentPluginCard({ item, onUninstall }: {
 // ── Marketplace view ──────────────────────────────────────────────────────────
 
 function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRefresh }: {
-  items: AgentPluginMarketplaceItem[]
-  errors: AgentPluginMarketplaceState['errors']
+  items: ProviderPluginMarketplaceItem[]
+  errors: ProviderPluginMarketplaceState['errors']
   loading: boolean
-  onInstall: (item: AgentPluginMarketplaceItem) => Promise<void>
-  onUninstall: (item: AgentPluginMarketplaceItem) => Promise<void>
+  onInstall: (item: ProviderPluginMarketplaceItem) => Promise<void>
+  onUninstall: (item: ProviderPluginMarketplaceItem) => Promise<void>
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
@@ -171,7 +171,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
     return items.filter(
       (p) => p.name.toLowerCase().includes(q) ||
         p.displayName.toLowerCase().includes(q) ||
-        p.agentLabel.toLowerCase().includes(q) ||
+        p.providerLabel.toLowerCase().includes(q) ||
         p.marketplaceDisplayName.toLowerCase().includes(q) ||
         p.sourceLabel.toLowerCase().includes(q) ||
         (p.description ?? '').toLowerCase().includes(q) ||
@@ -179,7 +179,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
     )
   }, [items, search])
 
-  async function handleInstall(item: AgentPluginMarketplaceItem) {
+  async function handleInstall(item: ProviderPluginMarketplaceItem) {
     setInstalling(item.key)
     try {
       await onInstall(item)
@@ -188,7 +188,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
     }
   }
 
-  async function handleUninstall(item: AgentPluginMarketplaceItem) {
+  async function handleUninstall(item: ProviderPluginMarketplaceItem) {
     setInstalling(item.key)
     try {
       await onUninstall(item)
@@ -217,7 +217,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
 
       {errors.length > 0 ? (
         <PluginStateBanner tone="danger" icon={<AlertCircle size={12} />}>
-          {errors.map((error) => `${error.agentLabel}: ${error.message}`).join(' · ')}
+          {errors.map((error) => `${error.providerLabel}: ${error.message}`).join(' · ')}
         </PluginStateBanner>
       ) : null}
 
@@ -246,7 +246,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
                   <PluginCardCopy>
                     <PluginCardTitle>{entry.displayName}</PluginCardTitle>
                     <PluginCardMeta>
-                      {entry.agentLabel} · {entry.marketplaceDisplayName}{entry.version ? ` · v${entry.version}` : ''}
+                      {entry.providerLabel} · {entry.marketplaceDisplayName}{entry.version ? ` · v${entry.version}` : ''}
                     </PluginCardMeta>
                   </PluginCardCopy>
                   {entry.installed ? (
@@ -291,24 +291,24 @@ export default function ClientPluginsPage() {
   const { t } = useTranslation()
   const [tab, setTab] = useState<Tab>('installed')
   const [plugins, setPlugins] = useState<ClientPluginManifest[]>([])
-  const [agentPluginState, setAgentPluginState] = useState<AgentPluginMarketplaceState>(EMPTY_AGENT_PLUGIN_MARKETPLACE_STATE)
-  const [agentPluginLoading, setAgentPluginLoading] = useState(false)
-  const [agentPluginError, setAgentPluginError] = useState<string>()
+  const [providerPluginState, setProviderPluginState] = useState<ProviderPluginMarketplaceState>(EMPTY_PROVIDER_PLUGIN_MARKETPLACE_STATE)
+  const [providerPluginLoading, setProviderPluginLoading] = useState(false)
+  const [providerPluginError, setProviderPluginError] = useState<string>()
   const [migrationNote, setMigrationNote] = useState<string>()
   const [fileInstalling, setFileInstalling] = useState(false)
   const [fileError, setFileError] = useState<string>()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const refreshAgentPlugins = useCallback(() => {
-    setAgentPluginLoading(true)
-    setAgentPluginError(undefined)
-    loadAgentPluginMarketplaceState()
-      .then(setAgentPluginState)
+  const refreshProviderPlugins = useCallback(() => {
+    setProviderPluginLoading(true)
+    setProviderPluginError(undefined)
+    loadProviderPluginMarketplaceState()
+      .then(setProviderPluginState)
       .catch((error) => {
-        setAgentPluginState(EMPTY_AGENT_PLUGIN_MARKETPLACE_STATE)
-        setAgentPluginError(error instanceof Error ? error.message : String(error))
+        setProviderPluginState(EMPTY_PROVIDER_PLUGIN_MARKETPLACE_STATE)
+        setProviderPluginError(error instanceof Error ? error.message : String(error))
       })
-      .finally(() => setAgentPluginLoading(false))
+      .finally(() => setProviderPluginLoading(false))
   }, [])
 
   useEffect(() => {
@@ -337,11 +337,11 @@ export default function ClientPluginsPage() {
   }, [t])
 
   useEffect(() => {
-    refreshAgentPlugins()
-  }, [refreshAgentPlugins])
+    refreshProviderPlugins()
+  }, [refreshProviderPlugins])
 
-  const installedAgentPlugins = useMemo(() => agentPluginState.items.filter((item) => item.installed), [agentPluginState.items])
-  const installedCount = plugins.length + installedAgentPlugins.length
+  const installedProviderPlugins = useMemo(() => providerPluginState.items.filter((item) => item.installed), [providerPluginState.items])
+  const installedCount = plugins.length + installedProviderPlugins.length
 
   async function handleRemove(id: string) {
     const plugin = plugins.find((item) => item.id === id)
@@ -350,14 +350,14 @@ export default function ClientPluginsPage() {
     setPlugins((prev) => prev.filter((p) => p.id !== id))
   }
 
-  async function handleAgentPluginInstall(item: AgentPluginMarketplaceItem) {
-    await installAgentMarketplacePlugin(item)
-    refreshAgentPlugins()
+  async function handleProviderPluginInstall(item: ProviderPluginMarketplaceItem) {
+    await installProviderMarketplacePlugin(item)
+    refreshProviderPlugins()
   }
 
-  async function handleAgentPluginUninstall(item: AgentPluginMarketplaceItem) {
-    await uninstallAgentMarketplacePlugin(item)
-    refreshAgentPlugins()
+  async function handleProviderPluginUninstall(item: ProviderPluginMarketplaceItem) {
+    await uninstallProviderMarketplacePlugin(item)
+    refreshProviderPlugins()
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -386,7 +386,7 @@ export default function ClientPluginsPage() {
               <h1 className="type-title font-semibold text-foreground">{t('plugins.title')}</h1>
             </PluginPageHeaderTitleRow>
             <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">
-              管理全局插件、Pack 安装来源以及贡献给 Agent、工具页和工作区的扩展能力。
+              管理全局插件、Pack 安装来源以及贡献给 provider、工具页和工作区的扩展能力。
             </p>
           </PluginPageHeaderCopy>
           <PluginPageHeaderActions>
@@ -457,30 +457,30 @@ export default function ClientPluginsPage() {
         </PluginStateBanner>
       )}
 
-      {agentPluginError && (
+      {providerPluginError && (
         <PluginStateBanner
           tone="danger"
           icon={<AlertCircle size={12} />}
         >
-          {agentPluginError}
-          <Button size="xs" variant="link" className="ml-auto" onClick={() => setAgentPluginError(undefined)}>{t('common.close')}</Button>
+          {providerPluginError}
+          <Button size="xs" variant="link" className="ml-auto" onClick={() => setProviderPluginError(undefined)}>{t('common.close')}</Button>
         </PluginStateBanner>
       )}
 
       {tab === 'marketplace' && (
         <MarketplaceView
-          items={agentPluginState.items}
-          errors={agentPluginState.errors}
-          loading={agentPluginLoading}
-          onInstall={handleAgentPluginInstall}
-          onUninstall={handleAgentPluginUninstall}
-          onRefresh={refreshAgentPlugins}
+          items={providerPluginState.items}
+          errors={providerPluginState.errors}
+          loading={providerPluginLoading}
+          onInstall={handleProviderPluginInstall}
+          onUninstall={handleProviderPluginUninstall}
+          onRefresh={refreshProviderPlugins}
         />
       )}
 
       {tab === 'installed' && (
         <PluginPageScrollBody>
-          {plugins.length === 0 && installedAgentPlugins.length === 0 ? (
+          {plugins.length === 0 && installedProviderPlugins.length === 0 ? (
             <PluginEmptyState
               icon={Plus}
               title={t('plugins.empty')}
@@ -500,11 +500,11 @@ export default function ClientPluginsPage() {
             />
           ) : (
             <PluginPageCardGrid>
-              {installedAgentPlugins.map((plugin) => (
-                <AgentPluginCard
+              {installedProviderPlugins.map((plugin) => (
+                <ProviderPluginCard
                   key={plugin.key}
                   item={plugin}
-                  onUninstall={() => void handleAgentPluginUninstall(plugin)}
+                  onUninstall={() => void handleProviderPluginUninstall(plugin)}
                 />
               ))}
               {plugins.map((plugin) => (

@@ -319,7 +319,7 @@
   line-height: 0;
 }
 
-.agent-mode-conversation-runtime-light {
+.agent-mode-conversation-session-light {
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
@@ -329,15 +329,15 @@
     0 0 0 2px color-mix(in srgb, var(--ms-color-border) 80%, transparent);
 }
 
-.agent-mode-conversation-runtime-light[data-runtime-state="stopped"] {
+.agent-mode-conversation-session-light[data-session-state="stopped"] {
   background: rgb(239 68 68);
 }
 
-.agent-mode-conversation-runtime-light[data-runtime-state="waiting"] {
+.agent-mode-conversation-session-light[data-session-state="waiting"] {
   background: rgb(245 158 11);
 }
 
-.agent-mode-conversation-runtime-light[data-runtime-state="active"] {
+.agent-mode-conversation-session-light[data-session-state="active"] {
   background: rgb(16 185 129);
 }
 

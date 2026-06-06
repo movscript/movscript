@@ -116,7 +116,7 @@ export function resourceMediaTools(): MCPTool[] {
         outputPath: { type: 'string', description: 'Camel-case alias for output_path.' },
         workspace_path: { type: 'string', description: 'Optional output path under the frontend-owned .movscript workspace root.' },
         workspacePath: { type: 'string', description: 'Camel-case alias for workspace_path.' },
-        workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+        workspaceDir: { type: 'string', description: 'Optional MovScript workspace root directory. Defaults to the desktop workspace root.' },
       }),
       outputSchema: objectSchema(
         {
@@ -146,7 +146,7 @@ export function resourceMediaTools(): MCPTool[] {
         path: { type: 'string', description: 'Alias for local_path.' },
         workspace_path: { type: 'string', description: 'Path under the frontend-owned .movscript workspace root.' },
         workspacePath: { type: 'string', description: 'Camel-case alias for workspace_path.' },
-        workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+        workspaceDir: { type: 'string', description: 'Optional MovScript workspace root directory. Defaults to the desktop workspace root.' },
         data_url: { type: 'string', description: 'Image data URL to upload.' },
         dataUrl: { type: 'string', description: 'Camel-case alias for data_url.' },
         base64: { type: 'string', description: 'Base64 image payload without the data URL prefix.' },

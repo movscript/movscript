@@ -13,14 +13,14 @@ export interface AgentConversationListItem {
 
 export interface AgentConversationListPanelProps {
   conversations: AgentConversationListItem[];
-  localThreads: AgentConversationListItem[];
+  providerSessionThreads: AgentConversationListItem[];
   onNew: () => void;
   onCollapse: () => void;
-  onRefreshLocalThreads: () => void;
+  onRefreshProviderSessionThreads: () => void;
   showCollapse?: boolean;
   emptyLabel: string;
-  localRuntimeLabel: string;
-  localRuntimeThreadsEmptyLabel: string;
+  providerSessionThreadsLabel: string;
+  providerSessionThreadsEmptyLabel: string;
   newConversationLabel: string;
   collapseAssistantLabel: string;
   archiveConversationLabel: string;
@@ -33,8 +33,8 @@ export interface AgentConversationTabItem {
   id: string;
   title: string;
   messageCount?: number;
-  runtimeState?: "stopped" | "waiting" | "active";
-  runtimeDetail?: string;
+  sessionState?: "stopped" | "waiting" | "active";
+  sessionDetail?: string;
   onRename?: (title: string) => void | Promise<void>;
 }
 

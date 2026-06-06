@@ -8,7 +8,7 @@ import {
 } from '@movscript/ui'
 import { ContextDiagnosticCard } from '@/features/agent/components/ContextDiagnosticCard'
 import type { ChatContextDiagnostic } from '@/features/agent/state/agentStore'
-import type { AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 export interface ContextDiagnosticDialogProps {
   timelineItems: AgentTimelineItem[]
@@ -49,7 +49,7 @@ export function latestContextDiagnosticTimelineItem(items: AgentTimelineItem[]):
 }
 
 export function contextDiagnosticFromTimelineItem(item: AgentTimelineItem): ChatContextDiagnostic | undefined {
-  if (item.origin !== 'system_runtime') return undefined
+  if (item.origin !== 'provider_session') return undefined
   if (item.purpose !== 'diagnostic') return undefined
   if (item.surface !== 'debug_panel') return undefined
   if (item.contentPromptEligibility !== 'exclude') return undefined

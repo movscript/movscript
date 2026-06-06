@@ -1,6 +1,6 @@
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import type { DebugHttpRequest } from '@/features/agent/application/agentSendWorkspace'
-import type { AgentThreadResolution } from '@/shared/infrastructure/localAgentClient'
+import type { AgentThreadResolution } from '@/shared/infrastructure/providerSessionClient'
 
 export function debugHttpRequestEvents(requests: DebugHttpRequest[], startedAt = new Date().toISOString()): ChatRunActivityEvent[] {
   return requests.map((request) => ({
@@ -50,19 +50,19 @@ export function upsertActivityEvent(events: ChatRunActivityEvent[], item: ChatRu
       }
       : candidate)
   }
-  const setupItems = [...events.filter((candidate) => candidate.id.startsWith('local-runtime-')), item]
+  const setupItems = [...events.filter((candidate) => candidate.id.startsWith('provider-session-')), item]
   const httpItems = events.filter((candidate) => candidate.id.startsWith('http-request-'))
-  const runtimeItems = events.filter((candidate) => !candidate.id.startsWith('local-runtime-') && !candidate.id.startsWith('http-request-'))
-  return [...setupItems, ...httpItems, ...runtimeItems]
+  const activityItems = events.filter((candidate) => !candidate.id.startsWith('provider-session-') && !candidate.id.startsWith('http-request-'))
+  return [...setupItems, ...httpItems, ...activityItems]
 }
 
 export function threadResolutionActivityEvent(resolution: AgentThreadResolution | undefined, createdAt = new Date().toISOString()): ChatRunActivityEvent | null {
   if (!resolution) return null
   if (resolution.missingRequestedThread && resolution.requestedThreadId) {
     return {
-      id: `local-thread-resolution-${resolution.threadId}`,
-      kind: 'runtime',
-      title: '本地线程不存在，已创建新线程',
+      id: `provider-thread-resolution-${resolution.threadId}`,
+      kind: 'provider_session',
+      title: 'Provider 线程不存在，已创建新线程',
       summary: `${resolution.requestedThreadId} -> ${resolution.threadId}`,
       status: 'info',
       data: {
@@ -75,9 +75,9 @@ export function threadResolutionActivityEvent(resolution: AgentThreadResolution 
   }
   if (resolution.reusedExistingThread && resolution.requestedThreadId) {
     return {
-      id: `local-thread-resolution-${resolution.threadId}`,
-      kind: 'runtime',
-      title: '已延续本地线程',
+      id: `provider-thread-resolution-${resolution.threadId}`,
+      kind: 'provider_session',
+      title: '已延续Provider 线程',
       summary: resolution.threadId,
       status: 'completed',
       data: {
@@ -90,9 +90,9 @@ export function threadResolutionActivityEvent(resolution: AgentThreadResolution 
   }
   if (resolution.createdNewThread) {
     return {
-      id: `local-thread-resolution-${resolution.threadId}`,
-      kind: 'runtime',
-      title: '已创建本地线程',
+      id: `provider-thread-resolution-${resolution.threadId}`,
+      kind: 'provider_session',
+      title: '已创建Provider 线程',
       summary: resolution.threadId,
       status: 'completed',
       data: {

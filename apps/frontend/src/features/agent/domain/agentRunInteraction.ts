@@ -1,4 +1,4 @@
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 export type AgentInputAnswer = { choiceIds?: string[]; text?: string }
@@ -142,7 +142,7 @@ export function runInteractionFromActivity(activity: ChatRunActivity | undefined
     status: normalizedAgentRunStatus(activity.status),
     pendingInputRequests,
     pendingApprovals,
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 0,
       maxIterations: 0,
       allowNetwork: false,
@@ -185,12 +185,12 @@ function inputAnswerEchoesFromRun(run: AgentRun): string[] {
   return (run.pendingInputRequests ?? [])
     .flatMap((request) => request.answer ? [
       formatInputAnswerForChat(request, request.answer),
-      legacyInputAnswerEcho(request, request.answer),
+      providerInputAnswerEchoCompat(request, request.answer),
     ] : [])
     .filter((content) => content.trim().length > 0)
 }
 
-function legacyInputAnswerEcho(request: AgentPendingInputRequest, answer: AgentInputAnswer): string {
+function providerInputAnswerEchoCompat(request: AgentPendingInputRequest, answer: AgentInputAnswer): string {
   const selected = (answer.choiceIds ?? [])
     .map((choiceId) => request.choices.find((choice) => choice.id === choiceId))
     .filter((choice): choice is AgentPendingInputRequest['choices'][number] => Boolean(choice))

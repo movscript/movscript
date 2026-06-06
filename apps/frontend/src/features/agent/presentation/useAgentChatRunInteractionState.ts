@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { actionableRunsForTaskGraph, interactionRunsForTaskGraph } from '@/features/agent/domain/agentPlanUi'
 import { firstPendingInputRequest, interactionRunsForChat } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 interface UseAgentChatRunInteractionStateInput {
   activePlanSnapshot?: AgentTaskGraphSnapshot
@@ -14,18 +14,18 @@ export function useAgentChatRunInteractionState({
   run,
   submittedInteractionRuns,
 }: UseAgentChatRunInteractionStateInput) {
-  const actionableLocalRuns = useMemo(() => actionableRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
+  const actionableRuns = useMemo(() => actionableRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
   const planInteractionRuns = useMemo(() => interactionRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
-  const actionableLocalRun = actionableLocalRuns[0] ?? null
+  const actionableRun = actionableRuns[0] ?? null
   const interactionRuns = useMemo(() => interactionRunsForChat(submittedInteractionRuns, planInteractionRuns), [planInteractionRuns, submittedInteractionRuns])
-  const activePendingInputRequest = firstPendingInputRequest(actionableLocalRun)
+  const activePendingInputRequest = firstPendingInputRequest(actionableRun)
   const answeringPendingInput = !!activePendingInputRequest
   const canAnswerPendingInputWithText = !!activePendingInputRequest
     && (activePendingInputRequest.inputType === 'text' || activePendingInputRequest.allowCustomAnswer)
 
   return {
-    actionableLocalRun,
-    actionableLocalRuns,
+    actionableRun,
+    actionableRuns,
     activePendingInputRequest,
     answeringPendingInput,
     canAnswerPendingInputWithText,

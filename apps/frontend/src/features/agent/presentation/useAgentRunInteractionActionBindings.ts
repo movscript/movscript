@@ -2,10 +2,11 @@ import { useCallback, useMemo } from 'react'
 import {
   answerRunInteractionInputAction,
   approveRunInteractionAction,
+  type AgentRunApprovalDecisionInput,
   rejectRunInteractionAction,
   type AgentRunInteractionActionDeps,
 } from '@/features/agent/application/agentRunInteractionActions'
-import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 
 export interface UseAgentRunInteractionActionBindingsInput {
@@ -15,11 +16,11 @@ export interface UseAgentRunInteractionActionBindingsInput {
   interactionRuns?: AgentRun[]
   approving: boolean
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
-  setConversationRuntime: (conversationId: string, patch: Parameters<AgentRunInteractionActionDeps['setConversationRuntime']>[0]) => void
+  setConversationProviderSessionState: (conversationId: string, patch: Parameters<AgentRunInteractionActionDeps['setConversationProviderSessionState']>[0]) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentRunInteractionActionDeps['setConversationRun']>[1]) => void
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
-  runTouchesAgentCatalog: (run: AgentRun) => boolean
-  refreshAgentCatalogContext: () => void
+  runTouchesProviderCatalog: (run: AgentRun) => boolean
+  refreshProviderCatalogContext: () => void
 }
 
 export function useAgentRunInteractionActionBindings({
@@ -29,30 +30,30 @@ export function useAgentRunInteractionActionBindings({
   interactionRuns,
   approving,
   setSubmittedInteractionRuns,
-  setConversationRuntime,
+  setConversationProviderSessionState,
   setConversationRun,
   streamFollowUpRun,
-  runTouchesAgentCatalog,
-  refreshAgentCatalogContext,
+  runTouchesProviderCatalog,
+  refreshProviderCatalogContext,
 }: UseAgentRunInteractionActionBindingsInput) {
-  const runtimeClient = useMemo(() => sessionId?.trim()
-    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
-    : localAgentClient, [sessionId])
+  const providerSessionRunClient = useMemo(() => sessionId?.trim()
+    ? providerSessionClient.forSession({ sessionId: sessionId.trim() })
+    : providerSessionClient, [sessionId])
 
   const deps = useMemo<AgentRunInteractionActionDeps>(() => ({
     conversationId,
     setSubmittedInteractionRuns,
-    setConversationRuntime: (patch) => setConversationRuntime(conversationId, patch),
+    setConversationProviderSessionState: (patch) => setConversationProviderSessionState(conversationId, patch),
     setConversationRun: (run, patch) => setConversationRun(conversationId, run, patch),
     streamFollowUpRun,
-    runTouchesAgentCatalog,
-    refreshAgentCatalogContext,
+    runTouchesProviderCatalog,
+    refreshProviderCatalogContext,
   }), [
     conversationId,
-    refreshAgentCatalogContext,
-    runTouchesAgentCatalog,
+    refreshProviderCatalogContext,
+    runTouchesProviderCatalog,
     setConversationRun,
-    setConversationRuntime,
+    setConversationProviderSessionState,
     setSubmittedInteractionRuns,
     streamFollowUpRun,
   ])
@@ -62,62 +63,63 @@ export function useAgentRunInteractionActionBindings({
     return new Map(runs.map((run) => [run.id, run]))
   }, [actionableRun, interactionRuns])
 
-  const approveLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
+  const approveRun = useCallback(async (runId: string, approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => {
     const run = runById.get(runId)
     if (!run || !runHasPendingApproval(run, approvalIds)) return
     await approveRunInteractionAction({
       run,
       approvalIds,
-      approveInteraction: (interactionId) => runtimeClient.approveInteraction(interactionId),
+      approvalDecision,
+      approveInteraction: (interactionId, decision) => providerSessionRunClient.approveInteraction(interactionId, decision),
       deps,
     })
-  }, [deps, runById, runtimeClient])
+  }, [deps, providerSessionRunClient, runById])
 
-  const rejectLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
+  const rejectRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
     if (!run || !runHasPendingApproval(run, approvalIds)) return
     await rejectRunInteractionAction({
       run,
       approvalIds,
-      rejectInteraction: (interactionId) => runtimeClient.rejectInteraction(interactionId),
+      rejectInteraction: (interactionId) => providerSessionRunClient.rejectInteraction(interactionId),
       deps,
     })
-  }, [deps, runById, runtimeClient])
+  }, [deps, providerSessionRunClient, runById])
 
-  const answerLocalRunInput = useCallback(async (runId: string, requestId: string, answer: AgentInputAnswer) => {
+  const answerRunInput = useCallback(async (runId: string, requestId: string, answer: AgentInputAnswer) => {
     const run = runById.get(runId)
     if (!run || run.status !== 'requires_action' || approving) return
     await answerRunInteractionInputAction({
       run,
       requestId,
       answer,
-      answerRunInput: (runId, input) => runtimeClient.answerRunInput(runId, input),
+      answerRunInput: (runId, input) => providerSessionRunClient.answerRunInput(runId, input),
       deps,
     })
-  }, [approving, deps, runById, runtimeClient])
+  }, [approving, deps, providerSessionRunClient, runById])
 
-  const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
+  const approveActiveRun = useCallback(async (approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => {
     if (!actionableRun) return
-    await approveLocalRun(actionableRun.id, approvalIds)
-  }, [actionableRun, approveLocalRun])
+    await approveRun(actionableRun.id, approvalIds, approvalDecision)
+  }, [actionableRun, approveRun])
 
-  const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
+  const rejectActiveRun = useCallback(async (approvalIds?: string[]) => {
     if (!actionableRun) return
-    await rejectLocalRun(actionableRun.id, approvalIds)
-  }, [actionableRun, rejectLocalRun])
+    await rejectRun(actionableRun.id, approvalIds)
+  }, [actionableRun, rejectRun])
 
-  const answerActiveLocalRunInput = useCallback(async (requestId: string, answer: AgentInputAnswer) => {
+  const answerActiveRunInput = useCallback(async (requestId: string, answer: AgentInputAnswer) => {
     if (!actionableRun) return
-    await answerLocalRunInput(actionableRun.id, requestId, answer)
-  }, [actionableRun, answerLocalRunInput])
+    await answerRunInput(actionableRun.id, requestId, answer)
+  }, [actionableRun, answerRunInput])
 
   return {
-    answerActiveLocalRunInput,
-    answerLocalRunInput,
-    approveActiveLocalRun,
-    approveLocalRun,
-    rejectActiveLocalRun,
-    rejectLocalRun,
+    answerActiveRunInput,
+    answerRunInput,
+    approveActiveRun,
+    approveRun,
+    rejectActiveRun,
+    rejectRun,
   }
 }
 

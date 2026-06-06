@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain/agentPinnedStatus'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('generationProgressStatesForPinnedStatus restores completed generation jobs from historical messages', () => {
@@ -75,13 +75,13 @@ test('generationProgressStatesForPinnedStatus accepts background work completion
       id: 'trace_background_completed',
       runId: 'run_background',
       kind: 'tool_call',
-      title: 'Runtime work observed: generation_job',
+      title: 'Provider work observed: generation_job',
       status: 'completed',
       toolName: 'core_work_wait',
       createdAt: '2026-05-22T01:00:02.000Z',
       completedAt: '2026-05-22T01:00:02.000Z',
       data: {
-        runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'completed' },
+        providerWork: { id: 'work_1', kind: 'generation_job', status: 'completed' },
         generation: {
           jobId: 42,
           status: 'finished',
@@ -156,7 +156,7 @@ function timelineItemWithGenerationActivity(): AgentTimelineItem {
     updatedAt: '2026-05-22T01:00:02.000Z',
     revision: 1,
     cursor: 'message_2',
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     activity: {
       runId: 'run_2',
       threadId: 'thread_1',
@@ -191,7 +191,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 8,
       maxIterations: 8,

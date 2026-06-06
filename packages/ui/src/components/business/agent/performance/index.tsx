@@ -503,26 +503,4 @@ export function AgentPerformanceTimelineBody({ className, ...props }: HTMLAttrib
   return <div className={cn("agent-performance-timeline-detail__body", className)} {...props} />;
 }
 
-export function AgentPerformanceStorageBar({
-  label,
-  value,
-  valueText,
-  ariaLabel,
-}: {
-  label: ReactNode;
-  value: number;
-  valueText: string;
-  ariaLabel: string;
-}) {
-  return (
-    <div className="agent-performance-storage-bar">
-      <div className="agent-performance-storage-bar__header">
-        <span className="agent-performance-storage-bar__label">{label}</span>
-        <span className="agent-performance-storage-bar__value">{valueText}</span>
-      </div>
-      <AppProgressBar value={value} size="md" aria-label={ariaLabel} aria-valuetext={valueText} />
-    </div>
-  );
-}
-
 export type AgentPerformanceProgressTone = "brand" | UiSemanticIntent;

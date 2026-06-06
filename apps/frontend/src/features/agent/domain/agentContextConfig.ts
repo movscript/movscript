@@ -1,8 +1,8 @@
-import type { AgentManifest } from '@/shared/infrastructure/localAgentClient'
+import type { ProviderManifest } from '@/shared/infrastructure/providerSessionClient'
 
 export interface ConversationAgentContextConfig {
   enabled: boolean
-  manifest: AgentManifest | null
+  manifest: ProviderManifest | null
 }
 
 export const EMPTY_AGENT_CONTEXT_CONFIG: ConversationAgentContextConfig = {

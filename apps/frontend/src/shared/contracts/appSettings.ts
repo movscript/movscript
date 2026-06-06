@@ -3,6 +3,7 @@ export interface AppSettings {
   launchMode: 'cloud' | 'local'
   workMode: 'detail' | 'agent'
   onboardingCompleted: boolean
+  movScriptWorkspaceDir?: string
   localDisplayName?: string
   shotLibrarySources?: ShotLibrarySourceConfig[]
   defaultShotLibrarySourceId?: string

@@ -14,34 +14,34 @@ export const AgentInlineEmpty = React.forwardRef<HTMLDivElement, React.HTMLAttri
 
 AgentInlineEmpty.displayName = "AgentInlineEmpty";
 
-export const AgentRuntimeStatusContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+export const ProviderSessionStatusContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-runtime-status", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-session-status", className)} {...props} />;
   }
 );
 
-AgentRuntimeStatusContent.displayName = "AgentRuntimeStatusContent";
+ProviderSessionStatusContent.displayName = "ProviderSessionStatusContent";
 
-export const AgentRuntimeStatusHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+export const ProviderSessionStatusHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-runtime-status__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-session-status__header", className)} {...props} />;
   }
 );
 
-AgentRuntimeStatusHeader.displayName = "AgentRuntimeStatusHeader";
+ProviderSessionStatusHeader.displayName = "ProviderSessionStatusHeader";
 
-export const AgentRuntimeStatusSuccessIcon = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
+export const ProviderSessionStatusSuccessIcon = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-runtime-status__icon", toneTextClass("success"), className)} {...props} />;
+    return <span ref={ref} className={cn("ms-agent-session-status__icon", toneTextClass("success"), className)} {...props} />;
   }
 );
 
-AgentRuntimeStatusSuccessIcon.displayName = "AgentRuntimeStatusSuccessIcon";
+ProviderSessionStatusSuccessIcon.displayName = "ProviderSessionStatusSuccessIcon";
 
-export const AgentRuntimeStatusDetail = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
+export const ProviderSessionStatusDetail = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-runtime-status__detail", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-agent-session-status__detail", className)} {...props} />;
   }
 );
 
-AgentRuntimeStatusDetail.displayName = "AgentRuntimeStatusDetail";
+ProviderSessionStatusDetail.displayName = "ProviderSessionStatusDetail";

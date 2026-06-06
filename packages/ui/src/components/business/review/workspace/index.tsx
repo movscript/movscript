@@ -1,5 +1,7 @@
 export { ReviewWorkspaceApplyGatePanel, type ReviewWorkspaceApplyGateStatus } from "./apply-gate";
 export {
+  ReviewWorkspaceArtifactList,
+  ReviewWorkspaceArtifactPanel,
   ReviewWorkspaceWorkspaceList,
   ReviewWorkspaceWorkspacePanel,
   ReviewWorkspaceEntryHeader,

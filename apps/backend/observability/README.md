@@ -1,6 +1,6 @@
 # Movscript Backend Observability
 
-The backend exposes Prometheus metrics at `GET /metrics`. This stack starts Prometheus and Grafana with provisioned dashboards for the backend, Agent runtime/client behavior, frontend health, infrastructure pressure, and alerts.
+The backend exposes Prometheus metrics at `GET /metrics`. This stack starts Prometheus and Grafana with provisioned dashboards for the backend, provider-session and app-server behavior, frontend health, infrastructure pressure, and alerts.
 
 ## Start
 
@@ -15,7 +15,7 @@ Ports:
 - Prometheus: `http://127.0.0.1:9091`
 - Grafana: `http://127.0.0.1:3002`
 - Backend metrics target inside compose: `http://backend:8765/metrics`
-- Optional local Agent runtime target from compose: `http://host.docker.internal:28765/metrics`
+- Optional local provider-session app-server target from compose: `http://host.docker.internal:28765/metrics`
 - Host metrics target inside compose: `http://node-exporter:9100/metrics`
 - Container metrics target inside compose: `http://cadvisor:8080/metrics`
 
@@ -39,7 +39,7 @@ Ports:
 - Prometheus: `http://127.0.0.1:9091`
 - Grafana: `http://127.0.0.1:3002`
 - Backend metrics target: `http://host.docker.internal:8765/metrics`
-- Optional local Agent runtime target: `http://host.docker.internal:28765/metrics`
+- Optional local provider-session app-server target: `http://host.docker.internal:28765/metrics`
 - Host metrics target: `http://127.0.0.1:9100/metrics`
 - Container metrics target: `http://127.0.0.1:8081/metrics`
 
@@ -55,7 +55,7 @@ Prometheus loads `rules/movscript-alerts.yml` automatically in both the root `do
 - HTTP 5xx spikes and route p95 latency
 - Agent telemetry rejected batches
 - Agent frontend network latency and frontend errors
-- Centralized Agent runtime failed spans and slow runtime stages
+- Centralized provider-session failed spans and slow provider stages
 - Web Vitals thresholds for LCP, INP, and CLS
 - Infrastructure exporter availability, host memory pressure, and host disk pressure
 
@@ -66,9 +66,9 @@ The rules intentionally use the same low-cardinality labels as the dashboards, s
 Grafana provisions all JSON dashboards under `grafana/dashboards`. The current dashboard set is organized by the question an engineer is trying to answer:
 
 - `MovScript Overview`: first-screen system health, HTTP/Agent/frontend status, and active alerts.
-- `MovScript Agent`: Agent client operations, runtime spans, phase latency, slow stages, local storage/trace store health, and failure evidence.
+- `Mova`: assistant client operations, provider spans, phase latency, slow stages, local storage/trace store health, and failure evidence.
 - `MovScript Frontend`: Web Vitals, frontend errors, network latency, Long Task, frontend storage latency, Agent send-stage latency, and composer input latency.
-- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and runtime compatibility panels.
+- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and app-server compatibility panels.
 - `MovScript Infrastructure`: host CPU/memory/disk/network, container CPU/memory, and scrape target health.
 - `MovScript Alerts`: firing/pending alerts, telemetry rejection, down targets, and alert evidence.
 - `Movscript Backend`: legacy combined dashboard retained temporarily for compatibility while the split dashboards settle.
@@ -102,9 +102,9 @@ Frontend and Agent telemetry share the same generic sample shape for extensibili
 }
 ```
 
-The shared telemetry core lives in `@movscript/protocol`: `AGENT_CLIENT_TELEMETRY_SCHEMA`, `AGENT_TELEMETRY_LABEL_KEYS`, `AGENT_TELEMETRY_REPORTABLE_METRICS`, `createAgentTelemetryMetricSample`, `createAgentTelemetryLogSample`, and `isAgentTelemetryReportableMetricName`. The JSON Schema contract is `contracts/agent-telemetry/agent-client-telemetry-v1.schema.json`. Frontend and Agent runtime collectors should keep their runtime-specific observation code separate, then adapt samples through this shared core instead of introducing one-off metric payloads. The backend keeps only allowlisted low-cardinality labels and drops arbitrary labels.
+The desktop frontend telemetry contract lives in `apps/frontend/src/features/agent/domain/agentProtocol.ts`: `AGENT_CLIENT_TELEMETRY_SCHEMA`, `AGENT_TELEMETRY_LABEL_KEYS`, `AGENT_TELEMETRY_REPORTABLE_METRICS`, `createAgentTelemetryMetricSample`, `createAgentTelemetryLogSample`, and `isAgentTelemetryReportableMetricName`. The JSON Schema contract is `contracts/agent-telemetry/agent-client-telemetry-v1.schema.json`. Frontend and provider collectors should keep provider-specific observation code separate, then adapt samples through this shared contract instead of introducing one-off metric payloads. The backend keeps only allowlisted low-cardinality labels and drops arbitrary labels.
 
-The desktop frontend also polls the local Agent runtime telemetry snapshot after authentication and forwards reportable runtime metrics through the same backend telemetry endpoint. This keeps Enterprise and community Grafana dashboards useful even when Prometheus cannot directly scrape a user's local Agent process.
+The desktop frontend also polls the local provider-session app-server telemetry snapshot after authentication and forwards reportable provider metrics through the same backend telemetry endpoint. This keeps Enterprise and community Grafana dashboards useful even when Prometheus cannot directly scrape a user's local app-server process.
 
 ## Agent Client Metrics
 
@@ -113,7 +113,7 @@ The desktop Agent UI reports a small, privacy-safe telemetry batch to `POST /api
 - operation kind, status, duration, and slow-operation flag
 - phase names and phase durations
 - browser Long Task duration
-- frontend send-stage latency, local runtime storage latency, trace-store latency, and storage file sizes
+- frontend send-stage latency, local provider-session storage latency, trace-store latency, and storage file sizes
 - sampled composer input latency and bounded telemetry queues so monitoring cannot grow without limit during degraded network conditions
 
 It does not report prompts, tool arguments, model responses, user text, run IDs, or request IDs. The backend aggregates the batch in memory and emits Prometheus metrics from `GET /metrics`, so Grafana reads the same backend scrape target as the rest of the observability stack. The old user-facing Agent performance page is not required for normal users.

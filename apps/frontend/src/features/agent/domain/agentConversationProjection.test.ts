@@ -7,7 +7,7 @@ import type {
   AgentConversationProjectionItem,
 } from '@/features/agent/domain/agentConversationProjectionTypes'
 import type { AgentConversationLiveBlock } from '@/features/agent/domain/agentConversationLiveBlocks'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationProjection inserts live blocks inside the active run turn', () => {
@@ -22,8 +22,8 @@ test('buildAgentConversationProjection inserts live blocks inside the active run
         role: 'user',
         timestamp: 1,
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', deliveryStatus: 'accepted' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
+          providerSessionInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       message({
@@ -31,15 +31,15 @@ test('buildAgentConversationProjection inserts live blocks inside the active run
         role: 'user',
         timestamp: 2,
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'supplement', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'supplement', runId: 'run_1', deliveryStatus: 'accepted' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'supplement', runId: 'run_1' },
+          providerSessionInput: { threadId: 'thread_1', messageId: 'supplement', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       message({
         id: 'assistant',
         role: 'assistant',
         timestamp: 3,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_1' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_1' } },
       }),
     ],
   })
@@ -127,7 +127,7 @@ test('buildAgentConversationProjection hides live activity once final timeline a
         id: 'assistant:run_1',
         role: 'assistant',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_1' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_1' } },
       }),
     ],
   })
@@ -155,7 +155,7 @@ test('buildAgentConversationProjection embeds mapped interaction runs in assista
         id: 'assistant',
         role: 'assistant',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_embed' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_embed' } },
       }),
     ],
   })
@@ -187,7 +187,7 @@ test('buildAgentConversationProjection projects interaction action runs next to 
         id: 'trigger',
         role: 'user',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_action' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_action' } },
       }),
     ],
   })
@@ -213,7 +213,7 @@ test('buildAgentConversationProjection suppresses non-terminal active run intera
         id: 'assistant',
         role: 'assistant',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_active' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_active' } },
       }),
     ],
   })
@@ -254,7 +254,7 @@ test('buildAgentConversationProjection filters standalone interaction runs alrea
         id: 'assistant',
         role: 'assistant',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_embed' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'assistant', runId: 'run_embed' } },
       }),
     ],
   })
@@ -322,7 +322,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'in_progress',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
@@ -385,7 +385,7 @@ function timelineItemWithActivity(id: string, runId: string): AgentTimelineItem 
     updatedAt: '2026-05-19T00:00:01.000Z',
     revision: 1,
     cursor: id,
-    runtimeRefs: { threadId: 'thread_1', runId },
+    providerSessionRefs: { threadId: 'thread_1', runId },
     activity: {
       runId,
       threadId: 'thread_1',

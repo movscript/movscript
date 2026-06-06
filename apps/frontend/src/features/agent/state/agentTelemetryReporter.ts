@@ -1,13 +1,13 @@
 import { getAPIV1BaseURL } from '@/shared/infrastructure/config'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
-import { localAgentClient, type AgentRuntimeTelemetryLogEntry, type AgentRuntimeTelemetryMetricSample, type AgentRuntimeTelemetrySnapshot } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type ProviderSessionTelemetryLogEntry, type ProviderSessionTelemetryMetricSample, type ProviderSessionTelemetrySnapshot } from '@/shared/infrastructure/providerSessionClient'
 import {
   AGENT_CLIENT_TELEMETRY_SCHEMA,
   createAgentTelemetryLogSample,
   createAgentTelemetryMetricSample,
   isAgentTelemetryReportableMetricName,
   type AgentTelemetryMetricSample,
-} from '@movscript/protocol'
+} from '@/features/agent/domain/agentProtocol'
 import {
   createTransientAgentTelemetrySink,
   setAgentTelemetrySink,
@@ -18,18 +18,18 @@ import {
 } from '@/features/agent/state/agentPerformanceStore'
 
 const REPORT_DEBOUNCE_MS = 2_000
-const RUNTIME_TELEMETRY_POLL_MS = 15_000
+const PROVIDER_SESSION_TELEMETRY_POLL_MS = 15_000
 const MAX_BATCH_ITEMS = 40
 const MAX_PENDING_ITEMS = 400
-const MAX_RUNTIME_DEDUP_IDS = 2_000
+const MAX_PROVIDER_SESSION_DEDUP_IDS = 2_000
 
 let reporterInstalled = false
 let flushTimer: ReturnType<typeof setTimeout> | undefined
-let runtimeTelemetryPollTimer: ReturnType<typeof setTimeout> | undefined
-let runtimeTelemetryPolling = false
+let providerSessionTelemetryPollTimer: ReturnType<typeof setTimeout> | undefined
+let providerSessionTelemetryPolling = false
 
-const sentRuntimeMetricIds = new Set<string>()
-const sentRuntimeLogIds = new Set<string>()
+const sentProviderSessionMetricIds = new Set<string>()
+const sentProviderSessionLogIds = new Set<string>()
 const pendingOperations: AgentPerformanceOperation[] = []
 const pendingLongTasks: AgentPerformanceLongTask[] = []
 const pendingMetrics: QueuedTelemetryMetric[] = []
@@ -113,10 +113,10 @@ export function installAgentTelemetryReporter(): void {
   useUserStore.subscribe((state) => {
     if (state.token) {
       scheduleFlush()
-      scheduleRuntimeTelemetryPoll(0)
+      scheduleProviderSessionTelemetryPoll(0)
     }
   })
-  if (useUserStore.getState().token) scheduleRuntimeTelemetryPoll(0)
+  if (useUserStore.getState().token) scheduleProviderSessionTelemetryPoll(0)
 }
 
 export async function fetchAgentTelemetrySnapshot(signal?: AbortSignal): Promise<AgentClientTelemetrySnapshot> {
@@ -137,12 +137,12 @@ export function queueAgentTelemetryMetricForTest(metric: AgentPerformanceMetricS
 export function resetAgentTelemetryReporterForTest(): void {
   reporterInstalled = false
   if (flushTimer) clearTimeout(flushTimer)
-  if (runtimeTelemetryPollTimer) clearTimeout(runtimeTelemetryPollTimer)
+  if (providerSessionTelemetryPollTimer) clearTimeout(providerSessionTelemetryPollTimer)
   flushTimer = undefined
-  runtimeTelemetryPollTimer = undefined
-  runtimeTelemetryPolling = false
-  sentRuntimeMetricIds.clear()
-  sentRuntimeLogIds.clear()
+  providerSessionTelemetryPollTimer = undefined
+  providerSessionTelemetryPolling = false
+  sentProviderSessionMetricIds.clear()
+  sentProviderSessionLogIds.clear()
   pendingOperations.splice(0)
   pendingLongTasks.splice(0)
   pendingMetrics.splice(0)
@@ -171,11 +171,11 @@ function queueLog(log: AgentPerformanceLogEntry): void {
   scheduleFlush()
 }
 
-function queueRuntimeMetrics(metrics: AgentRuntimeTelemetryMetricSample[]): void {
+function queueProviderSessionMetrics(metrics: ProviderSessionTelemetryMetricSample[]): void {
   for (const metric of metrics) {
     if (!reportableMetric(metric)) continue
-    const id = runtimeMetricId(metric)
-    if (!rememberRuntimeId(sentRuntimeMetricIds, id)) continue
+    const id = providerSessionMetricId(metric)
+    if (!rememberProviderSessionTelemetryId(sentProviderSessionMetricIds, id)) continue
     enqueuePending(pendingMetrics, {
       id,
       name: metric.name,
@@ -187,17 +187,17 @@ function queueRuntimeMetrics(metrics: AgentRuntimeTelemetryMetricSample[]): void
   scheduleFlush()
 }
 
-function queueRuntimeLogs(logs: AgentRuntimeTelemetryLogEntry[]): void {
+function queueProviderSessionLogs(logs: ProviderSessionTelemetryLogEntry[]): void {
   for (const log of logs) {
-    const kind = runtimeLogKind(log)
+    const kind = providerSessionLogKind(log)
     if (!kind) continue
-    const id = runtimeLogId(log, kind)
-    if (!rememberRuntimeId(sentRuntimeLogIds, id)) continue
+    const id = providerSessionLogId(log, kind)
+    if (!rememberProviderSessionTelemetryId(sentProviderSessionLogIds, id)) continue
     enqueuePending(pendingLogs, {
       id,
       level: log.level,
       details: {
-        telemetryArea: 'agent_runtime',
+        telemetryArea: 'agent_provider_session',
         telemetryKind: kind,
       },
     })
@@ -212,10 +212,10 @@ function enqueuePending<T>(queue: T[], item: T): void {
   }
 }
 
-function rememberRuntimeId(ids: Set<string>, id: string): boolean {
+function rememberProviderSessionTelemetryId(ids: Set<string>, id: string): boolean {
   if (ids.has(id)) return false
   ids.add(id)
-  while (ids.size > MAX_RUNTIME_DEDUP_IDS) {
+  while (ids.size > MAX_PROVIDER_SESSION_DEDUP_IDS) {
     const oldest = ids.values().next().value
     if (oldest === undefined) break
     ids.delete(oldest)
@@ -232,35 +232,35 @@ function scheduleFlush(): void {
   }, REPORT_DEBOUNCE_MS)
 }
 
-function scheduleRuntimeTelemetryPoll(delayMs = RUNTIME_TELEMETRY_POLL_MS): void {
-  if (runtimeTelemetryPollTimer || typeof window === 'undefined') return
-  runtimeTelemetryPollTimer = setTimeout(() => {
-    runtimeTelemetryPollTimer = undefined
-    void pollRuntimeTelemetry()
+function scheduleProviderSessionTelemetryPoll(delayMs = PROVIDER_SESSION_TELEMETRY_POLL_MS): void {
+  if (providerSessionTelemetryPollTimer || typeof window === 'undefined') return
+  providerSessionTelemetryPollTimer = setTimeout(() => {
+    providerSessionTelemetryPollTimer = undefined
+    void pollProviderSessionTelemetry()
   }, delayMs)
 }
 
-async function pollRuntimeTelemetry(): Promise<void> {
-  if (runtimeTelemetryPolling) return
+async function pollProviderSessionTelemetry(): Promise<void> {
+  if (providerSessionTelemetryPolling) return
   if (!useUserStore.getState().token) {
-    scheduleRuntimeTelemetryPoll()
+    scheduleProviderSessionTelemetryPoll()
     return
   }
-  runtimeTelemetryPolling = true
+  providerSessionTelemetryPolling = true
   try {
-    const snapshot = await localAgentClient.getRuntimeTelemetry()
-    queueRuntimeTelemetrySnapshot(snapshot)
+    const snapshot = await providerSessionClient.getProviderSessionTelemetry()
+    queueProviderSessionTelemetrySnapshot(snapshot)
   } catch {
-    // Local runtime telemetry is optional and must never affect Agent UX.
+    // Local provider session telemetry is optional and must never affect Agent UX.
   } finally {
-    runtimeTelemetryPolling = false
-    scheduleRuntimeTelemetryPoll()
+    providerSessionTelemetryPolling = false
+    scheduleProviderSessionTelemetryPoll()
   }
 }
 
-function queueRuntimeTelemetrySnapshot(snapshot: AgentRuntimeTelemetrySnapshot): void {
-  queueRuntimeMetrics(snapshot.metrics)
-  queueRuntimeLogs(snapshot.logs)
+function queueProviderSessionTelemetrySnapshot(snapshot: ProviderSessionTelemetrySnapshot): void {
+  queueProviderSessionMetrics(snapshot.metrics)
+  queueProviderSessionLogs(snapshot.logs)
 }
 
 async function flushAgentTelemetry(): Promise<void> {
@@ -335,12 +335,12 @@ function reportableMetric(metric: Pick<AgentPerformanceMetricSample, 'name'>): b
 }
 
 function reportableLog(log: AgentPerformanceLogEntry): boolean {
-  return log.details?.telemetryArea === 'agent_frontend' || log.details?.telemetryArea === 'agent_runtime'
+  return log.details?.telemetryArea === 'agent_frontend' || log.details?.telemetryArea === 'agent_provider_session'
 }
 
-function runtimeMetricId(metric: AgentRuntimeTelemetryMetricSample): string {
+function providerSessionMetricId(metric: ProviderSessionTelemetryMetricSample): string {
   return [
-    'runtime_metric',
+    'provider_session_metric',
     metric.createdAt,
     metric.name,
     metric.unit,
@@ -349,9 +349,9 @@ function runtimeMetricId(metric: AgentRuntimeTelemetryMetricSample): string {
   ].join(':')
 }
 
-function runtimeLogId(log: AgentRuntimeTelemetryLogEntry, kind: string): string {
+function providerSessionLogId(log: ProviderSessionTelemetryLogEntry, kind: string): string {
   return [
-    'runtime_log',
+    'provider_session_log',
     log.createdAt,
     log.level,
     log.operationId ?? '',
@@ -360,7 +360,7 @@ function runtimeLogId(log: AgentRuntimeTelemetryLogEntry, kind: string): string 
   ].join(':')
 }
 
-function runtimeLogKind(log: AgentRuntimeTelemetryLogEntry): string | undefined {
+function providerSessionLogKind(log: ProviderSessionTelemetryLogEntry): string | undefined {
   const kind = log.details?.kind
   if (typeof kind === 'string' && kind.trim()) return kind
   if (log.spanId) return 'span'

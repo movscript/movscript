@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
-import { buildContentWorkspaceReviewModel, dedupeWorkspaces, workspaceEntityId, parseWorkspaceJsonContent } from './contentWorkbenchWorkspaceReviewModel'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
+import { buildContentWorkspaceReviewModel, dedupeWorkspaceArtifacts, workspaceEntityId, parseWorkspaceJsonContent } from './contentWorkbenchWorkspaceReviewModel'
 
-const baseWorkspace: AgentWorkspace = {
+const baseWorkspace: WorkspaceArtifact = {
   id: 'workspace-1',
   kind: 'content_unit_workspace',
   title: '制作项草案',
@@ -20,7 +20,7 @@ test('content workbench workspace review parses fenced JSON blocks', () => {
 })
 
 test('content workbench workspace review builds snapshot diffs for content units', () => {
-  const workspace: AgentWorkspace = {
+  const workspace: WorkspaceArtifact = {
     ...baseWorkspace,
     target: { entityId: 9 },
     content: JSON.stringify({
@@ -107,7 +107,7 @@ test('content workbench workspace review reports invalid or risky workspaces', (
 
 test('content workbench workspace review helpers dedupe and read entity ids', () => {
   assert.equal(workspaceEntityId({ entityId: '12' }), 12)
-  assert.deepEqual(dedupeWorkspaces([
+  assert.deepEqual(dedupeWorkspaceArtifacts([
     { ...baseWorkspace, id: 'a' },
     { ...baseWorkspace, id: 'a', title: '重复' },
     { ...baseWorkspace, id: 'b' },

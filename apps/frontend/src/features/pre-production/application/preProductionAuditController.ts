@@ -15,8 +15,12 @@ export interface PreProductionAuditControllerOptions {
   queryClient: PreProductionAuditQueryClient
   setLaunching: (launching: boolean) => void
   setReviewSearchParams: (updater: (current: URLSearchParams) => URLSearchParams) => void
-  refetchSettingWorkspaces: () => Promise<unknown>
-  refetchAssetWorkspaceWorkspaces: () => Promise<unknown>
+  refetchSettingWorkspaceArtifacts?: () => Promise<unknown>
+  refetchAssetWorkspaceArtifacts?: () => Promise<unknown>
+  /** @deprecated Use refetchSettingWorkspaceArtifacts. */
+  refetchSettingWorkspaces?: () => Promise<unknown>
+  /** @deprecated Use refetchAssetWorkspaceArtifacts. */
+  refetchAssetWorkspaceWorkspaces?: () => Promise<unknown>
 }
 
 export function runPreProductionAudit(options: PreProductionAuditControllerOptions) {
@@ -27,6 +31,8 @@ export function runPreProductionAudit(options: PreProductionAuditControllerOptio
     queryClient,
     setLaunching,
     setReviewSearchParams,
+    refetchSettingWorkspaceArtifacts,
+    refetchAssetWorkspaceArtifacts,
     refetchSettingWorkspaces,
     refetchAssetWorkspaceWorkspaces,
   } = options
@@ -52,15 +58,15 @@ export function runPreProductionAudit(options: PreProductionAuditControllerOptio
         toast.error(payload.run?.error || payload.error || '前期准备梳理失败')
       } else {
         setReviewSearchParams((current) => buildPreProductionAuditReviewSearchParams(current, { artifacts: payload.artifacts }))
-        toast.success('前期准备梳理完成，可在审阅区查看设定和素材工作区')
+        toast.success('前期准备梳理完成，可在审阅区查看设定和素材草案')
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
-        refetchSettingWorkspaces(),
-        refetchAssetWorkspaceWorkspaces(),
+        (refetchSettingWorkspaceArtifacts ?? refetchSettingWorkspaces)?.(),
+        (refetchAssetWorkspaceArtifacts ?? refetchAssetWorkspaceWorkspaces)?.(),
       ])
     },
   })
-  toast.info('已打开前期准备梳理会话；AI 生成的工作区会回到审阅区')
+  toast.info('已打开前期准备梳理会话；AI 生成的草案会回到审阅区')
 }

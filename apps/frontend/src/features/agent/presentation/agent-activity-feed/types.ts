@@ -1,5 +1,5 @@
 import type { RunActivityTokenUsage } from '@/features/agent/domain/agentRunActivitySnapshot'
-import type { AgentRunActivityRound as ConversationRunActivityRound } from '@movscript/conversation'
+import type { AgentRunActivityRound as ConversationRunActivityRound } from '@/features/agent/domain/agentConversation'
 import type { ChatRunActivity, ChatRunActivityApproval, ChatRunActivityInputRequest } from '@/features/agent/state/agentStore'
 
 export type AgentActivityKind = 'read' | 'workspace' | 'write' | 'task' | 'system' | 'error'

@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import type { ReactNode } from 'react'
 
-const AGENT_MODE_CONTENT_PANEL_COLLAPSED_STORAGE_KEY = 'movscript-agent-mode-content-panel-collapsed'
-const AGENT_MODE_SIDEBAR_COLLAPSED_STORAGE_KEY = 'movscript-agent-mode-sidebar-collapsed'
+const AGENT_MODE_CONTENT_PANEL_COLLAPSED_STORAGE_KEY = 'movscript-ai-ui-content-panel-collapsed'
+const AGENT_MODE_SIDEBAR_COLLAPSED_STORAGE_KEY = 'movscript-ai-ui-sidebar-collapsed'
 
 function readAgentModeContentPanelCollapsed() {
   if (typeof window === 'undefined') return true

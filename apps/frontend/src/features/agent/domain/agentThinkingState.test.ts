@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { getAgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('getAgentThinkingState reports active tool calls from run steps', () => {
@@ -89,7 +89,7 @@ function run(patch: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'in_progress',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,

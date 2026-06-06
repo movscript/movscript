@@ -113,7 +113,7 @@
   line-height: inherit;
 }
 
-.ai-agent-panel-conversation-tab-runtime-light {
+.ai-agent-panel-conversation-tab-session-light {
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
@@ -121,15 +121,15 @@
   box-shadow: 0 0 0 1px var(--ms-color-background), 0 0 0 2px color-mix(in srgb, var(--ms-color-border) 80%, transparent);
 }
 
-.ai-agent-panel-conversation-tab-runtime-light[data-runtime-state="stopped"] {
+.ai-agent-panel-conversation-tab-session-light[data-session-state="stopped"] {
   background: rgb(239 68 68);
 }
 
-.ai-agent-panel-conversation-tab-runtime-light[data-runtime-state="waiting"] {
+.ai-agent-panel-conversation-tab-session-light[data-session-state="waiting"] {
   background: rgb(245 158 11);
 }
 
-.ai-agent-panel-conversation-tab-runtime-light[data-runtime-state="active"] {
+.ai-agent-panel-conversation-tab-session-light[data-session-state="active"] {
   background: rgb(16 185 129);
 }
 

@@ -8,14 +8,8 @@ import {
 import {
   applyWorkspaceReview,
   previewApplyWorkspaceReview,
+  updateWorkspaceSnapshot,
 } from '../workspaceReviewApply'
-import {
-  deleteAgentWorkspaceFile,
-  listAgentWorkspaceFiles,
-  readAgentWorkspaceFile,
-  writeAgentWorkspaceFile,
-} from '../../services/agentWorkspaceFiles'
-import { getWorkspaceModelContract } from '../workspaceModelContract'
 import { listModels } from '../modelCatalog'
 import {
   generateImage,
@@ -95,47 +89,20 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await queryAssetSlots(args))
     case 'movscript_production_context_query':
       return toolText(await queryProductionContext(args))
-    case 'get_workspace_model':
-      return toolText(await getWorkspaceModelContract(args))
-    case 'workspace_file_list':
-      return toolText(await listAgentWorkspaceFiles(normalizeWorkspaceFileInput(args)))
-    case 'workspace_file_read':
-      return toolText(await readAgentWorkspaceFile(normalizeWorkspaceFileInput(args)))
-    case 'workspace_file_write':
-      return toolText(await writeAgentWorkspaceFile(normalizeWorkspaceFileWriteInput(args)))
-    case 'workspace_file_delete':
-      await deleteAgentWorkspaceFile(normalizeWorkspaceFileInput(args))
-      return toolText({ ok: true })
+    case 'workspace_update':
+      return toolText(await updateWorkspaceSnapshot(args))
     case 'movscript_project_create':
       return toolText(await createProject(args))
     case 'candidate_asset_slot_attach':
       return toolText(await attachAssetSlotCandidate(args))
     case 'candidate_keyframe_attach':
       return toolText(await attachKeyframeCandidate(args))
-    case 'workspace_review_apply':
+    case 'workspace_apply':
       return toolText(await applyWorkspaceReview(args))
-    case 'workspace_review_apply_preview':
+    case 'workspace_apply_review':
       return toolText(await previewApplyWorkspaceReview(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
-  }
-}
-
-function normalizeWorkspaceFileInput(args: Record<string, unknown>): { workspaceDir?: string; path?: string } {
-  const path = typeof args.path === 'string' ? args.path : undefined
-  const workspaceDir = typeof args.workspaceDir === 'string' ? args.workspaceDir : undefined
-  return {
-    ...(workspaceDir ? { workspaceDir } : {}),
-    ...(path ? { path } : {}),
-  }
-}
-
-function normalizeWorkspaceFileWriteInput(args: Record<string, unknown>): { workspaceDir?: string; path?: string; content: string } {
-  const content = typeof args.content === 'string' ? args.content : undefined
-  if (content === undefined) throw new Error('content is required')
-  return {
-    ...normalizeWorkspaceFileInput(args),
-    content,
   }
 }
 

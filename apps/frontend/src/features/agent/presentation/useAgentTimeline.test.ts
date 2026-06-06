@@ -13,12 +13,12 @@ import {
   type TimelineViewState,
 } from '@/features/agent/presentation/useAgentTimeline'
 import {
-  AGENT_RUNTIME_CHAT_TIMELINE_ORIGIN_COVERAGE,
-  AGENT_RUNTIME_CHAT_TIMELINE_PURPOSE_COVERAGE,
-  AGENT_RUNTIME_CHAT_TIMELINE_STATUS_COVERAGE,
-  AGENT_RUNTIME_CHAT_TIMELINE_SURFACE_COVERAGE,
-} from '@/shared/infrastructure/local-agent-client/agentRuntimeChatTimelineCoverage'
-import type { AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+  PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE,
+  PROVIDER_SESSION_TIMELINE_PURPOSE_COVERAGE,
+  PROVIDER_SESSION_TIMELINE_STATUS_COVERAGE,
+  PROVIDER_SESSION_TIMELINE_SURFACE_COVERAGE,
+} from '@/shared/infrastructure/provider-session-client/providerSessionTimelineCoverage'
+import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 test('visibleTimelineStateForScope hides stale items synchronously when item scope changes', () => {
   const previous = state({
@@ -49,15 +49,15 @@ test('visibleTimelineStateForScope keeps current scope items', () => {
 
 test('timelineEffectiveScope can require a thread for chat timelines', () => {
   assert.deepEqual(timelineEffectiveScope({
-    localSessionId: ' session_1 ',
+    providerSessionId: ' session_1 ',
     requireThread: true,
   }), {
     sessionId: '',
     threadId: '',
   })
   assert.deepEqual(timelineEffectiveScope({
-    localSessionId: ' session_1 ',
-    localThreadId: ' thread_1 ',
+    providerSessionId: ' session_1 ',
+    providerThreadId: ' thread_1 ',
     requireThread: true,
   }), {
     sessionId: 'session_1',
@@ -105,7 +105,7 @@ test('timelineItemToChatMessage keeps timeline status metadata out of chat messa
   const chatMessage = timelineItemToChatMessage(message({
     id: 'assistant:run_1',
     content: 'Plan updated',
-    runtimeRefs: { threadId: 'thread_1', messageId: 'msg_plan', runId: 'run_1' },
+    providerSessionRefs: { threadId: 'thread_1', messageId: 'msg_plan', runId: 'run_1' },
     meta: {
       planRevision: {
         schema: 'movscript.agent.plan-revision.v1',
@@ -136,23 +136,23 @@ test('timelineItemToChatMessage keeps timeline status metadata out of chat messa
   assert.ok(chatMessage)
   assert.equal(Object.prototype.hasOwnProperty.call(chatMessage.meta ?? {}, 'planRevision'), false)
   assert.equal(Object.prototype.hasOwnProperty.call(chatMessage.meta ?? {}, 'runtimeStatus'), false)
-  assert.equal(chatMessage.meta?.runtimeMessage?.messageId, 'msg_plan')
-  assert.equal(chatMessage.meta?.runtimeMessage?.runId, 'run_1')
+  assert.equal(chatMessage.meta?.providerSessionMessage?.messageId, 'msg_plan')
+  assert.equal(chatMessage.meta?.providerSessionMessage?.runId, 'run_1')
 })
 
 test('timelineItemToChatMessage only projects transcript text messages into chat', () => {
   assert.equal(isTranscriptTimelineItem(message({ origin: 'agent', purpose: 'transcript', surface: 'message_stream' })), true)
   assert.equal(isTranscriptTimelineItem(message({ origin: 'user', purpose: 'transcript', surface: 'message_stream' })), true)
-  assert.equal(isTranscriptTimelineItem(message({ origin: 'system_runtime', purpose: 'status', surface: 'status_strip', content: 'status' })), false)
+  assert.equal(isTranscriptTimelineItem(message({ origin: 'provider_session', purpose: 'status', surface: 'status_strip', content: 'status' })), false)
   assert.equal(timelineItemToChatMessage(message({
-    origin: 'system_runtime',
+    origin: 'provider_session',
     purpose: 'status',
     surface: 'status_strip',
     contentPromptEligibility: 'exclude',
-    content: 'runtime status',
+    content: 'provider session status',
   })), undefined)
   assert.equal(timelineItemToChatMessage(message({
-    origin: 'system_runtime',
+    origin: 'provider_session',
     purpose: 'diagnostic',
     surface: 'debug_panel',
     contentPromptEligibility: 'exclude',
@@ -161,27 +161,27 @@ test('timelineItemToChatMessage only projects transcript text messages into chat
 })
 
 test('timeline projection coverage matches every MovScript timeline origin purpose and surface', () => {
-  const protocol = readFileSync(resolve('../../packages/protocol/src/index.ts'), 'utf8')
-  const origins = Object.keys(AGENT_RUNTIME_CHAT_TIMELINE_ORIGIN_COVERAGE).sort() as Array<keyof typeof AGENT_RUNTIME_CHAT_TIMELINE_ORIGIN_COVERAGE>
-  const purposes = Object.keys(AGENT_RUNTIME_CHAT_TIMELINE_PURPOSE_COVERAGE).sort() as Array<keyof typeof AGENT_RUNTIME_CHAT_TIMELINE_PURPOSE_COVERAGE>
-  const surfaces = Object.keys(AGENT_RUNTIME_CHAT_TIMELINE_SURFACE_COVERAGE).sort() as Array<keyof typeof AGENT_RUNTIME_CHAT_TIMELINE_SURFACE_COVERAGE>
+  const protocol = readFileSync(resolve('src/features/agent/domain/agentProtocol.ts'), 'utf8')
+  const origins = Object.keys(PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE>
+  const purposes = Object.keys(PROVIDER_SESSION_TIMELINE_PURPOSE_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_PURPOSE_COVERAGE>
+  const surfaces = Object.keys(PROVIDER_SESSION_TIMELINE_SURFACE_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_SURFACE_COVERAGE>
 
   assert.deepEqual(origins, protocolStringUnion(protocol, 'AgentTimelineOrigin'))
   assert.deepEqual(purposes, protocolStringUnion(protocol, 'AgentTimelinePurpose'))
   assert.deepEqual(surfaces, protocolStringUnion(protocol, 'AgentTimelineSurface'))
-  assert.deepEqual(origins.map((origin) => isTranscriptTimelineItem(message({ origin }))), origins.map((origin) => AGENT_RUNTIME_CHAT_TIMELINE_ORIGIN_COVERAGE[origin].transcriptEligible))
-  assert.deepEqual(origins.map((origin) => timelineItemToChatMessage(message({ origin }))?.role ?? null), origins.map((origin) => AGENT_RUNTIME_CHAT_TIMELINE_ORIGIN_COVERAGE[origin].transcriptRole))
-  assert.deepEqual(purposes.map((purpose) => isTranscriptTimelineItem(message({ origin: 'user', purpose }))), purposes.map((purpose) => AGENT_RUNTIME_CHAT_TIMELINE_PURPOSE_COVERAGE[purpose].messageStreamEligible))
-  assert.deepEqual(surfaces.map((surface) => isTranscriptTimelineItem(message({ origin: 'user', surface }))), surfaces.map((surface) => AGENT_RUNTIME_CHAT_TIMELINE_SURFACE_COVERAGE[surface].messageStreamEligible))
+  assert.deepEqual(origins.map((origin) => isTranscriptTimelineItem(message({ origin }))), origins.map((origin) => PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE[origin].transcriptEligible))
+  assert.deepEqual(origins.map((origin) => timelineItemToChatMessage(message({ origin }))?.role ?? null), origins.map((origin) => PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE[origin].transcriptRole))
+  assert.deepEqual(purposes.map((purpose) => isTranscriptTimelineItem(message({ origin: 'user', purpose }))), purposes.map((purpose) => PROVIDER_SESSION_TIMELINE_PURPOSE_COVERAGE[purpose].messageStreamEligible))
+  assert.deepEqual(surfaces.map((surface) => isTranscriptTimelineItem(message({ origin: 'user', surface }))), surfaces.map((surface) => PROVIDER_SESSION_TIMELINE_SURFACE_COVERAGE[surface].messageStreamEligible))
 })
 
 test('timeline status coverage matches user input delivery projection', () => {
-  const protocol = readFileSync(resolve('../../packages/protocol/src/index.ts'), 'utf8')
-  const statuses = Object.keys(AGENT_RUNTIME_CHAT_TIMELINE_STATUS_COVERAGE).sort() as Array<keyof typeof AGENT_RUNTIME_CHAT_TIMELINE_STATUS_COVERAGE>
+  const protocol = readFileSync(resolve('src/features/agent/domain/agentProtocol.ts'), 'utf8')
+  const statuses = Object.keys(PROVIDER_SESSION_TIMELINE_STATUS_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_STATUS_COVERAGE>
   const messages = statuses.map((status) => timelineItemToChatMessage(message({
     origin: 'user',
     status,
-    runtimeRefs: {
+    providerSessionRefs: {
       threadId: 'thread_1',
       messageId: `message_${status}`,
       runId: `run_${status}`,
@@ -189,7 +189,7 @@ test('timeline status coverage matches user input delivery projection', () => {
   })))
 
   assert.deepEqual(statuses, protocolStringUnion(protocol, 'AgentTimelineStatus'))
-  assert.deepEqual(messages.map((item) => item?.meta?.runtimeInput?.deliveryStatus), statuses.map((status) => AGENT_RUNTIME_CHAT_TIMELINE_STATUS_COVERAGE[status].userInputDeliveryStatus))
+  assert.deepEqual(messages.map((item) => item?.meta?.providerSessionInput?.deliveryStatus), statuses.map((status) => PROVIDER_SESSION_TIMELINE_STATUS_COVERAGE[status].userInputDeliveryStatus))
   assert.deepEqual(messages.map((item) => Object.prototype.hasOwnProperty.call(item?.meta ?? {}, 'status')), statuses.map(() => false))
 })
 
@@ -247,7 +247,7 @@ function message(patch: Partial<AgentTimelineItem> = {}): AgentTimelineItem {
     updatedAt: createdAt,
     revision: 1,
     cursor: `1:${encodeURIComponent(id)}`,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     ...patch,
   }
 }

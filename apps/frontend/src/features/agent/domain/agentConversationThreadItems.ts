@@ -2,7 +2,7 @@ import {
   transcriptMessageItemThreadRunId,
   transcriptUserRelatedRunId,
 } from '@/features/agent/domain/agentMessageBoundaries'
-import { runtimeInputIsWaitingForDelivery } from '@/features/agent/domain/agentRuntimeInputMessages'
+import { activeRunInputIsWaitingForDelivery } from '@/features/agent/domain/agentActiveRunInputMessages'
 import {
   type AgentTranscriptMessageItem,
 } from '@/features/agent/domain/agentTranscriptMessageItems'
@@ -29,7 +29,7 @@ export function buildAgentConversationThreadItems(input: {
   const seenUserRunIds = new Set<string>()
 
   for (const item of input.transcriptMessageItems) {
-    if (isPendingRuntimeInputMessage(item.message)) continue
+    if (isPendingActiveRunInputMessage(item.message)) continue
     const userRunId = transcriptUserRelatedRunId(item.message)
     if (userRunId && !seenUserRunIds.has(userRunId)) {
       seenUserRunIds.add(userRunId)
@@ -68,8 +68,8 @@ export function buildAgentConversationThreadItems(input: {
   return threadItems.filter((item) => item.type === 'message' || item.items.length > 0)
 }
 
-function isPendingRuntimeInputMessage(message: ChatMessage): boolean {
-  return runtimeInputIsWaitingForDelivery(message)
+function isPendingActiveRunInputMessage(message: ChatMessage): boolean {
+  return activeRunInputIsWaitingForDelivery(message)
 }
 
 function runGroupIdForMessageItem(item: AgentTranscriptMessageItem): string | undefined {

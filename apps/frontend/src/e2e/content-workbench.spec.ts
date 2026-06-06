@@ -132,18 +132,18 @@ test('content workbench AI planning task carries selected scene context', async 
   await openContentWorkbenchPage(page, testInfo, { hideReviewWorkspace: true })
   await page.goto('/project/content-units/workbench?scene_moment_id=404')
   await page.evaluate(() => {
-    const target = window as typeof window & { __contentWorkbenchAgentWorkspace?: unknown }
-    target.__contentWorkbenchAgentWorkspace = null
+    const target = window as typeof window & { __contentWorkbenchProviderWorkspace?: unknown }
+    target.__contentWorkbenchProviderWorkspace = null
     window.addEventListener('movscript:agent-panel-workspace', (event) => {
-      target.__contentWorkbenchAgentWorkspace = (event as CustomEvent).detail
+      target.__contentWorkbenchProviderWorkspace = (event as CustomEvent).detail
     }, { once: true })
   })
 
   await page.getByRole('button', { name: /让 AI 规划制作项/ }).click()
 
   const workspace = await expect.poll(() => page.evaluate(() => {
-    const target = window as typeof window & { __contentWorkbenchAgentWorkspace?: unknown }
-    return target.__contentWorkbenchAgentWorkspace
+    const target = window as typeof window & { __contentWorkbenchProviderWorkspace?: unknown }
+    return target.__contentWorkbenchProviderWorkspace
   })).toMatchObject({
     taskType: 'content_unit_suggest',
     clientInput: {
@@ -159,8 +159,8 @@ test('content workbench AI planning task carries selected scene context', async 
   void workspace
 
   const message = await page.evaluate(() => {
-    const target = window as typeof window & { __contentWorkbenchAgentWorkspace?: { message?: string } }
-    return target.__contentWorkbenchAgentWorkspace?.message ?? ''
+    const target = window as typeof window & { __contentWorkbenchProviderWorkspace?: { message?: string } }
+    return target.__contentWorkbenchProviderWorkspace?.message ?? ''
   })
   expect(message).toContain('当前情节：窗边迟疑')
   expect(message).toContain('情节 ID：404')

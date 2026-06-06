@@ -714,12 +714,12 @@ test('AgentChatThreadItemView renders structured plan items as task cards', () =
         id: 'plan_structured',
         text: 'Runtime plan',
         items: [
-          { text: 'Inspect Agent runtime event', status: 'completed', raw: { id: 'step_1', owner: 'runtime' } },
+          { text: 'Inspect provider session event', status: 'completed', raw: { id: 'step_1', owner: 'runtime' } },
           { text: 'Render neutral plan item', status: 'in_progress', raw: { id: 'step_2', priority: 'high' } },
         ],
         raw: {
           explanation: 'Runtime plan',
-          plan: [{ step: 'Inspect Agent runtime event', status: 'completed', id: 'step_1' }],
+          plan: [{ step: 'Inspect provider session event', status: 'completed', id: 'step_1' }],
         },
       }}
     />,
@@ -728,7 +728,7 @@ test('AgentChatThreadItemView renders structured plan items as task cards', () =
   assert.match(html, /Plan/)
   assert.match(html, /2 step/)
   assert.match(html, /Runtime plan/)
-  assert.match(html, /Inspect Agent runtime event/)
+  assert.match(html, /Inspect provider session event/)
   assert.match(html, /Render neutral plan item/)
   assert.match(html, /in_progress/)
   assert.match(html, /Plan details/)
@@ -858,12 +858,12 @@ test('AgentChatThreadItemView renders web search query and action separately', (
   assert.match(html, /<details[^>]*data-tone="neutral"/)
 })
 
-test('AgentChatThreadItemView renders legacy web search open actions as summaries', () => {
+test('AgentChatThreadItemView renders compatibility web search open actions as summaries', () => {
   const html = renderToStaticMarkup(
     <AgentChatThreadItemView
       item={{
         type: 'webSearch',
-        id: 'web_legacy',
+        id: 'web_compat',
         query: 'agent protocol UI',
         action: { type: 'open_page', url: 'https://example.com' },
       }}

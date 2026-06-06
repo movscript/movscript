@@ -1,4 +1,4 @@
-import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
 import type { WorkspaceSeedData } from './types'
 import {
   collectSeedSourceVersions,
@@ -7,7 +7,7 @@ import { hydrateWorkspaceSeedInclude } from './seedHydrationIncludes'
 import { resolveWorkspaceSeedHydrationTarget } from './seedHydrationTarget'
 
 export async function hydrateWorkspaceSeedData(
-  kind: AgentWorkspaceKind,
+  kind: MovScriptWorkspaceKind,
   target: Record<string, unknown>,
   include: string[],
 ): Promise<WorkspaceSeedData> {

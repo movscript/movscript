@@ -1,10 +1,10 @@
-import type { AgentCatalogConfigFile, AgentCatalogSkill, AgentManifest, RuntimeModelConfigPublic } from '@/shared/infrastructure/localAgentClient'
+import type { ProviderCatalogConfigFile, ProviderCatalogSkill, ProviderManifest, ProviderModelConfigPublic } from '@/shared/infrastructure/providerSessionClient'
 import { hasSensitiveTextSecret, hasSensitiveURLSecret, stripSensitiveURLSecrets } from '@/features/agent/domain/agentTraceDebugData'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
 
-export type RuntimeModelAPIKind = NonNullable<RuntimeModelConfigPublic['apiKind']>
-export type ToolGrantWorkspace = AgentManifest['tools'][number]
+export type ProviderModelAPIKind = NonNullable<ProviderModelConfigPublic['apiKind']>
+export type ToolGrantWorkspace = ProviderManifest['tools'][number]
 export type SkillConfigWorkspace = { id: string; enabled: boolean }
 export type ConfigFileToolPermissionOverrides = { configFileId: string; toolGrants: ToolGrantWorkspace[] }
 export const AGENT_SETTINGS_SNAPSHOT_SCHEMA = 'movscript.agent.settings.snapshot.v1'
@@ -23,27 +23,29 @@ export type AgentSettingsSnapshot = {
   model?: {
     model: string
     platformModelId?: string
-    apiKind?: RuntimeModelAPIKind
+    apiKind?: ProviderModelAPIKind
     baseURL?: string
     useForChat?: boolean
     useForPlanner?: boolean
   }
   activeConfigFileId?: string
-  configFiles?: AgentCatalogConfigFile[]
-  runtimeLimits?: AgentCatalogConfigFile['limits']
+  configFiles?: ProviderCatalogConfigFile[]
+  providerSessionLimits?: ProviderCatalogConfigFile['limits']
+  /** Compatibility input for older exported settings snapshots. New exports use providerSessionLimits. */
+  runtimeLimits?: ProviderCatalogConfigFile['limits']
   skillConfig?: SkillConfigWorkspace[]
   toolPermissionOverrides?: ConfigFileToolPermissionOverrides[]
 }
 
 export function buildSettingsSnapshot(input: {
-  config: RuntimeModelConfigPublic | null
+  config: ProviderModelConfigPublic | null
   configFileId: string
-  configFiles: AgentCatalogConfigFile[]
+  configFiles: ProviderCatalogConfigFile[]
   skillConfig: SkillConfigWorkspace[]
   toolPermissionOverrides: ConfigFileToolPermissionOverrides[]
 }): AgentSettingsSnapshot {
   const model = buildSnapshotModel(input.config)
-  const runtimeLimits = input.configFiles.find((configFile) => configFile.id === input.configFileId)?.limits
+  const providerSessionLimits = input.configFiles.find((configFile) => configFile.id === input.configFileId)?.limits
   return {
     schema: AGENT_SETTINGS_SNAPSHOT_SCHEMA,
     schemaVersion: AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
@@ -52,7 +54,7 @@ export function buildSettingsSnapshot(input: {
     ...(model ? { model } : {}),
     ...(input.configFileId ? { activeConfigFileId: input.configFileId } : {}),
     ...(input.configFiles.length > 0 ? { configFiles: input.configFiles.map(cloneSnapshotConfigFile) } : {}),
-    ...(runtimeLimits ? { runtimeLimits: { ...runtimeLimits } } : {}),
+    ...(providerSessionLimits ? { providerSessionLimits: { ...providerSessionLimits } } : {}),
     skillConfig: input.skillConfig.map((skill) => ({
       id: skill.id,
       enabled: skill.enabled,
@@ -61,7 +63,7 @@ export function buildSettingsSnapshot(input: {
   }
 }
 
-function buildSnapshotModel(config: RuntimeModelConfigPublic | null): AgentSettingsSnapshot['model'] | undefined {
+function buildSnapshotModel(config: ProviderModelConfigPublic | null): AgentSettingsSnapshot['model'] | undefined {
   if (!config?.configured) return undefined
   if (hasSensitiveTextSecret(config.model)) return undefined
   return {
@@ -83,7 +85,7 @@ export function parseSettingsSnapshot(text: string): AgentSettingsSnapshot {
   }
   if (!isRecord(parsed)) throw new Error('agent settings snapshot must be a JSON object')
   if (parsed.schema !== AGENT_SETTINGS_SNAPSHOT_SCHEMA) throw new Error('unsupported agent settings snapshot schema')
-  assertAllowedKeys(parsed, 'agent settings snapshot', ['schema', 'schemaVersion', 'schemaUrl', 'exportedAt', 'model', 'activeConfigFileId', 'configFiles', 'runtimeLimits', 'skillConfig', 'toolPermissionOverrides'])
+  assertAllowedKeys(parsed, 'agent settings snapshot', ['schema', 'schemaVersion', 'schemaUrl', 'exportedAt', 'model', 'activeConfigFileId', 'configFiles', 'providerSessionLimits', 'runtimeLimits', 'skillConfig', 'toolPermissionOverrides'])
   if (parsed.schemaVersion !== undefined && parsed.schemaVersion !== AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION) throw new Error('unsupported agent settings snapshot schemaVersion')
   if (parsed.schemaUrl !== undefined && parsed.schemaUrl !== AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL) throw new Error('unsupported agent settings snapshot schemaUrl')
   const snapshot: AgentSettingsSnapshot = {
@@ -99,17 +101,24 @@ export function parseSettingsSnapshot(text: string): AgentSettingsSnapshot {
   const activeConfigFileId = parseOptionalNonEmptyString(parsed.activeConfigFileId, 'agent settings snapshot activeConfigFileId')
   if (activeConfigFileId) snapshot.activeConfigFileId = activeConfigFileId
   if (parsed.configFiles !== undefined) snapshot.configFiles = parseSnapshotConfigFiles(parsed.configFiles)
-  if (parsed.runtimeLimits !== undefined) snapshot.runtimeLimits = parseSnapshotLimits(parsed.runtimeLimits, 'agent settings snapshot runtimeLimits')
+  if (parsed.providerSessionLimits !== undefined) {
+    snapshot.providerSessionLimits = parseSnapshotLimits(parsed.providerSessionLimits, 'agent settings snapshot providerSessionLimits')
+  }
+  if (parsed.runtimeLimits !== undefined) {
+    const runtimeLimits = parseSnapshotLimits(parsed.runtimeLimits, 'agent settings snapshot runtimeLimits')
+    snapshot.runtimeLimits = runtimeLimits
+    if (!snapshot.providerSessionLimits) snapshot.providerSessionLimits = runtimeLimits
+  }
   if (parsed.skillConfig !== undefined) snapshot.skillConfig = parseSnapshotSkillConfig(parsed.skillConfig)
   if (parsed.toolPermissionOverrides !== undefined) snapshot.toolPermissionOverrides = parseSnapshotToolPermissionOverrides(parsed.toolPermissionOverrides)
   return snapshot
 }
 
-export function buildConfigFileExportText(configFile: AgentCatalogConfigFile): string {
+export function buildConfigFileExportText(configFile: ProviderCatalogConfigFile): string {
   return JSON.stringify(cloneSnapshotConfigFile(configFile), null, 2)
 }
 
-export function parseConfigFileExport(text: string): AgentCatalogConfigFile {
+export function parseConfigFileExport(text: string): ProviderCatalogConfigFile {
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -125,9 +134,9 @@ export function validateSettingsSnapshotReferences(
   snapshot: AgentSettingsSnapshot,
   input: {
     textModels?: PublicModel[]
-    configFiles: AgentCatalogConfigFile[]
-    currentConfigFile: AgentCatalogConfigFile | null
-    skills: AgentCatalogSkill[]
+    configFiles: ProviderCatalogConfigFile[]
+    currentConfigFile: ProviderCatalogConfigFile | null
+    skills: ProviderCatalogSkill[]
   },
 ): AgentSettingsSnapshotReferenceIssue[] {
   const issues: AgentSettingsSnapshotReferenceIssue[] = []
@@ -172,7 +181,7 @@ export function validateSettingsSnapshotReferences(
   return issues
 }
 
-function cloneSnapshotConfigFile(configFile: AgentCatalogConfigFile): AgentCatalogConfigFile {
+function cloneSnapshotConfigFile(configFile: ProviderCatalogConfigFile): ProviderCatalogConfigFile {
   return {
     schema: 'movscript.agent.config_file.v1',
     id: configFile.id,
@@ -189,7 +198,7 @@ function cloneSnapshotConfigFile(configFile: AgentCatalogConfigFile): AgentCatal
     })),
     ...(configFile.model ? { model: cloneSnapshotConfigFileModel(configFile.model) } : {}),
     ...(configFile.limits ? { limits: { ...configFile.limits } } : {}),
-    ...(configFile.metadata ? { metadata: JSON.parse(JSON.stringify(configFile.metadata)) as AgentCatalogConfigFile['metadata'] } : {}),
+    ...(configFile.metadata ? { metadata: JSON.parse(JSON.stringify(configFile.metadata)) as ProviderCatalogConfigFile['metadata'] } : {}),
   }
 }
 
@@ -204,7 +213,7 @@ function cloneSnapshotToolPermissionOverrides(overrides: ConfigFileToolPermissio
   }
 }
 
-function cloneSnapshotConfigFileModel(model: NonNullable<AgentCatalogConfigFile['model']>): NonNullable<AgentCatalogConfigFile['model']> {
+function cloneSnapshotConfigFileModel(model: NonNullable<ProviderCatalogConfigFile['model']>): NonNullable<ProviderCatalogConfigFile['model']> {
   return {
     provider: model.provider,
     modelId: model.modelId,
@@ -272,7 +281,7 @@ function parseSnapshotModel(input: Record<string, unknown>): NonNullable<AgentSe
   }
 }
 
-function parseSnapshotAPIKind(input: unknown): RuntimeModelAPIKind | undefined {
+function parseSnapshotAPIKind(input: unknown): ProviderModelAPIKind | undefined {
   if (input === undefined) return undefined
   if (input === 'openai_responses' || input === 'openai_chat_completions' || input === 'anthropic_messages') return input
   throw new Error('agent settings snapshot model.apiKind is invalid')
@@ -331,7 +340,7 @@ function parseSnapshotToolPermissionGrants(input: unknown, label: string): ToolG
   })
 }
 
-function parseSnapshotConfigFiles(input: unknown): AgentCatalogConfigFile[] {
+function parseSnapshotConfigFiles(input: unknown): ProviderCatalogConfigFile[] {
   if (!Array.isArray(input)) throw new Error('agent settings snapshot configFiles must be an array')
   const seenIds = new Set<string>()
   return input.map((item, index) => {
@@ -358,7 +367,7 @@ function parseSnapshotConfigFiles(input: unknown): AgentCatalogConfigFile[] {
   })
 }
 
-function parseSnapshotConfigFileToolGrants(input: unknown, configFileIndex: number): AgentCatalogConfigFile['toolGrants'] {
+function parseSnapshotConfigFileToolGrants(input: unknown, configFileIndex: number): ProviderCatalogConfigFile['toolGrants'] {
   if (!Array.isArray(input)) throw new Error(`agent settings snapshot configFiles ${configFileIndex} toolGrants must be an array`)
   const seenNames = new Set<string>()
   return input.map((item, index) => {
@@ -379,10 +388,10 @@ function parseSnapshotConfigFileToolGrants(input: unknown, configFileIndex: numb
   })
 }
 
-function parseSnapshotApprovalDefaults(input: unknown, label: string): NonNullable<AgentCatalogConfigFile['approvalDefaults']> {
+function parseSnapshotApprovalDefaults(input: unknown, label: string): NonNullable<ProviderCatalogConfigFile['approvalDefaults']> {
   if (!isRecord(input)) throw new Error(`${label} must be an object`)
   assertAllowedKeys(input, label, ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'])
-  const defaults: NonNullable<AgentCatalogConfigFile['approvalDefaults']> = {}
+  const defaults: NonNullable<ProviderCatalogConfigFile['approvalDefaults']> = {}
   for (const key of ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'] as const) {
     const value = input[key]
     if (value === undefined) continue
@@ -392,7 +401,7 @@ function parseSnapshotApprovalDefaults(input: unknown, label: string): NonNullab
   return defaults
 }
 
-function parseSnapshotConfigFileModel(input: unknown, configFileIndex: number): NonNullable<AgentCatalogConfigFile['model']> {
+function parseSnapshotConfigFileModel(input: unknown, configFileIndex: number): NonNullable<ProviderCatalogConfigFile['model']> {
   if (!isRecord(input)) throw new Error(`agent settings snapshot configFiles ${configFileIndex} model must be an object`)
   assertAllowedKeys(input, `agent settings snapshot configFiles ${configFileIndex} model`, ['provider', 'modelId', 'platformModelId', 'routes'])
   return {
@@ -403,13 +412,13 @@ function parseSnapshotConfigFileModel(input: unknown, configFileIndex: number): 
   }
 }
 
-function parseSnapshotConfigFileLimits(input: unknown, configFileIndex: number): NonNullable<AgentCatalogConfigFile['limits']> {
+function parseSnapshotConfigFileLimits(input: unknown, configFileIndex: number): NonNullable<ProviderCatalogConfigFile['limits']> {
   return parseSnapshotLimits(input, `agent settings snapshot configFiles ${configFileIndex} limits`)
 }
 
-function parseSnapshotLimits(input: unknown, label: string): NonNullable<AgentCatalogConfigFile['limits']> {
+function parseSnapshotLimits(input: unknown, label: string): NonNullable<ProviderCatalogConfigFile['limits']> {
   if (!isRecord(input)) throw new Error(`${label} must be an object`)
-  const limits: NonNullable<AgentCatalogConfigFile['limits']> = {}
+  const limits: NonNullable<ProviderCatalogConfigFile['limits']> = {}
   for (const [key, value] of Object.entries(input)) {
     if (!key.trim()) throw new Error(`${label} keys must be non-empty`)
     if (key === 'executionMode') {
@@ -430,10 +439,10 @@ function parseSnapshotLimits(input: unknown, label: string): NonNullable<AgentCa
   return limits
 }
 
-function parseSnapshotConfigFileMetadata(input: unknown, configFileIndex: number): AgentCatalogConfigFile['metadata'] {
+function parseSnapshotConfigFileMetadata(input: unknown, configFileIndex: number): ProviderCatalogConfigFile['metadata'] {
   if (!isRecord(input)) throw new Error(`agent settings snapshot configFiles ${configFileIndex} metadata must be an object`)
   if (!isJSONValue(input)) throw new Error(`agent settings snapshot configFiles ${configFileIndex} metadata must be JSON-compatible`)
-  return JSON.parse(JSON.stringify(input)) as AgentCatalogConfigFile['metadata']
+  return JSON.parse(JSON.stringify(input)) as ProviderCatalogConfigFile['metadata']
 }
 
 function parseSnapshotStringList(input: unknown, label: string): string[] {
@@ -454,8 +463,8 @@ function parseSnapshotJSONArray(input: unknown, label: string): unknown[] {
 }
 
 function validateSnapshotConfigFileReferences(
-  configFiles: AgentCatalogConfigFile[],
-  skills: AgentCatalogSkill[],
+  configFiles: ProviderCatalogConfigFile[],
+  skills: ProviderCatalogSkill[],
 ): AgentSettingsSnapshotReferenceIssue[] {
   const skillById = new Map(skills.map((skill) => [skill.id, skill]))
   const issues: AgentSettingsSnapshotReferenceIssue[] = []
@@ -474,8 +483,8 @@ function validateSnapshotConfigFileReferences(
 
 function validateSnapshotSkillConfigReferences(
   defaults: SkillConfigWorkspace[],
-  skills: AgentCatalogSkill[],
-  configFile: AgentCatalogConfigFile | null,
+  skills: ProviderCatalogSkill[],
+  configFile: ProviderCatalogConfigFile | null,
 ): AgentSettingsSnapshotReferenceIssue[] {
   const issues = new Map<string, AgentSettingsSnapshotReferenceIssue>()
   const skillById = new Map(skills.map((skill) => [skill.id, skill]))
@@ -528,7 +537,7 @@ function validateSnapshotSkillConfigReferences(
 
 function validateSnapshotToolPermissionReferences(
   permissions: ToolGrantWorkspace[],
-  configFile: AgentCatalogConfigFile,
+  configFile: ProviderCatalogConfigFile,
   pathPrefix: string,
 ): AgentSettingsSnapshotReferenceIssue[] {
   const baseByName = new Map(configFile.toolGrants.map((grant) => [grant.name, grant]))

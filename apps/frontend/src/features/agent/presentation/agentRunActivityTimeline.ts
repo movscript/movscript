@@ -2,9 +2,9 @@ import { generationStatusText } from '@/features/agent/domain/agentGenerationDis
 import { buildRunActivitySnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
 import { agentTraceView, approvalStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import type { JSONValue } from '@movscript/protocol'
+import type { JSONValue } from '@/features/agent/domain/agentProtocol'
 
 export type AgentRunActivityTimelineItemType = 'approval' | 'input_request' | 'tool_call' | 'message' | 'generation_job' | 'http' | 'trace_event'
 

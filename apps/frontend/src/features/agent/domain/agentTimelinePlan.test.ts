@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { latestPlanFromTimelineItems } from '@/features/agent/domain/agentTimelinePlan'
-import type { AgentPlan, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentPlan, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 test('latestPlanFromTimelineItems returns the newest plan status timeline item', () => {
   const olderPlan = plan('older')
@@ -35,7 +35,7 @@ function plan(id: string): AgentPlan {
 function planStatusItem(id: string, snapshot: AgentPlan): AgentTimelineItem {
   return {
     ...transcriptItem(id),
-    origin: 'system_runtime',
+    origin: 'provider_session',
     purpose: 'status',
     surface: 'status_strip',
     contentPromptEligibility: 'exclude',
@@ -66,6 +66,6 @@ function transcriptItem(id: string): AgentTimelineItem {
     updatedAt: '2026-05-19T00:00:00.000Z',
     revision: 1,
     cursor: id,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
   }
 }

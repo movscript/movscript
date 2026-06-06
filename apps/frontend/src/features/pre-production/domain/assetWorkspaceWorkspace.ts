@@ -25,7 +25,7 @@ export interface AssetWorkspaceCandidateTaskGraph {
   risks?: string[]
 }
 
-export interface AssetWorkspaceWorkspaceContent {
+export interface AssetWorkspaceArtifactShellContent {
   schema: typeof ASSET_WORKSPACE_WORKSPACE_SCHEMA
   scope: typeof ASSET_WORKSPACE_SCOPE
   mode: 'snapshot'
@@ -53,7 +53,10 @@ export interface AssetWorkspaceWorkspaceContent {
   createdAt: string
 }
 
-export function buildEmptyAssetWorkspaceWorkspaceContent(input: {
+/** @deprecated Use AssetWorkspaceArtifactShellContent. */
+export type AssetWorkspaceWorkspaceContent = AssetWorkspaceArtifactShellContent
+
+export function buildEmptyAssetWorkspaceArtifactShellContent(input: {
   projectId?: number
   assetSlotId: number
   slotName: string
@@ -63,7 +66,7 @@ export function buildEmptyAssetWorkspaceWorkspaceContent(input: {
   ownerLabel?: string
   referenceResourceIds?: number[]
   createdAt?: string
-}): AssetWorkspaceWorkspaceContent {
+}): AssetWorkspaceArtifactShellContent {
   return {
     schema: ASSET_WORKSPACE_WORKSPACE_SCHEMA,
     scope: ASSET_WORKSPACE_SCOPE,
@@ -95,3 +98,6 @@ export function buildEmptyAssetWorkspaceWorkspaceContent(input: {
     createdAt: input.createdAt ?? new Date().toISOString(),
   }
 }
+
+/** @deprecated Use buildEmptyAssetWorkspaceArtifactShellContent. */
+export const buildEmptyAssetWorkspaceWorkspaceContent = buildEmptyAssetWorkspaceArtifactShellContent

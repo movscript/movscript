@@ -1,9 +1,9 @@
 import { getMCPContextSnapshot } from '../context/store'
 import { isRecord } from '../valueUtils'
 import type { WorkspaceSeedMode } from '../../../src/shared/domain/workspaceDomainModel'
-import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
 
-export function normalizeWorkspaceModelKind(value: string): AgentWorkspaceKind {
+export function normalizeWorkspaceModelKind(value: string): MovScriptWorkspaceKind {
   switch (value.trim()) {
   case 'setting_workspace':
     return 'setting_workspace'

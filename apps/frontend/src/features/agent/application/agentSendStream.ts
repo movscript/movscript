@@ -1,26 +1,26 @@
 import { extractAgentTaskArtifacts } from '@/features/agent/domain/agentArtifacts'
 import { generationProgressFromEvents } from '@/features/agent/domain/agentGenerationMedia'
-import { isStoppableAgentRun, isTerminalAgentRun, type RunControlRuntimePatch } from '@/features/agent/domain/agentRunControl'
+import { isStoppableAgentRun, isTerminalAgentRun, type RunControlProviderSessionPatch } from '@/features/agent/domain/agentRunControl'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { setActivityEventStatus } from '@/features/agent/application/agentSendActivity'
-import type { AgentRun, AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
-import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
+import type { AgentRun, ProviderSessionEventV2, ProviderSessionLimits } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentPageTaskRunningPatch } from '@/features/agent/state/agentSessionStore'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import { runtimeRunFromEvent, runtimeThreadTitleFromEvent } from '@movscript/event-state'
+import { providerSessionRunFromEvent, providerSessionThreadTitleFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
 
 export interface AgentSendRunUpdateDeps {
   conversationId: string
   requestId?: string
   liveEvents: () => ChatRunActivityEvent[]
   cancelledRunIds: Set<string>
-  getConversationRuntime: () => { stopRequested?: boolean; run?: AgentRun } | undefined
+  getConversationProviderSessionState: () => { stopRequested?: boolean; run?: AgentRun } | undefined
   setPendingAssistantState: (value: AgentThinkingState | null | ((current: AgentThinkingState | null) => AgentThinkingState | null)) => void
   thinkingStateForRun: (run: AgentRun) => AgentThinkingState
-  runTouchesAgentCatalog: (run: AgentRun) => boolean
-  refreshAgentCatalogContext: () => void
-  setPageTaskRunning: (requestId: string, patch: Partial<AgentPageTaskState>) => void
-  setConversationRun: (run: AgentRun, patch: RunControlRuntimePatch & { approving?: boolean }) => void
-  setConversationRuntime: (patch: RunControlRuntimePatch) => void
+  runTouchesProviderCatalog: (run: AgentRun) => boolean
+  refreshProviderCatalogContext: () => void
+  setPageTaskRunning: (requestId: string, patch: AgentPageTaskRunningPatch) => void
+  setConversationRun: (run: AgentRun, patch: RunControlProviderSessionPatch & { approving?: boolean }) => void
+  setConversationProviderSessionState: (patch: RunControlProviderSessionPatch) => void
   cancelGenerationJobIfActive: (state: ReturnType<typeof generationProgressFromEvents>) => void
   cancelRun: (runId: string, input: { reason?: string }) => Promise<AgentRun>
   getRun: (runId: string) => Promise<AgentRun>
@@ -29,14 +29,14 @@ export interface AgentSendRunUpdateDeps {
 export interface AgentSendStreamEventDeps {
   updateConversationTitle: (title: string) => void
   updateActivityEvents: (updater: (events: ChatRunActivityEvent[]) => ChatRunActivityEvent[]) => void
-  recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
+  recordLiveTraceEvent: (event: ProviderSessionEventV2) => void
   onRunUpdate?: (run: AgentRun) => void
   now?: () => Date
 }
 
 export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateDeps): void {
-  const currentRuntime = deps.getConversationRuntime()
-  const currentRun = currentRuntime?.run
+  const currentProviderSessionState = deps.getConversationProviderSessionState()
+  const currentRun = currentProviderSessionState?.run
   const keepCurrentInteractionRun = shouldKeepCurrentInteractionRun(currentRun, nextRun)
   const artifacts = extractAgentTaskArtifacts(nextRun)
   if (keepCurrentInteractionRun) {
@@ -49,7 +49,7 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
   } else if (isTerminalAgentRun(nextRun)) {
     deps.setPendingAssistantState(null)
   }
-  if (deps.runTouchesAgentCatalog(nextRun)) deps.refreshAgentCatalogContext()
+  if (deps.runTouchesProviderCatalog(nextRun)) deps.refreshProviderCatalogContext()
   if (deps.requestId) {
     deps.setPageTaskRunning(deps.requestId, {
       conversationId: deps.conversationId,
@@ -65,8 +65,8 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
     })
   }
 
-  const nextRuntime = currentRuntime ?? deps.getConversationRuntime()
-  if (!nextRuntime?.stopRequested || !isStoppableAgentRun(nextRun) || deps.cancelledRunIds.has(nextRun.id)) return
+  const nextProviderSessionState = currentProviderSessionState ?? deps.getConversationProviderSessionState()
+  if (!nextProviderSessionState?.stopRequested || !isStoppableAgentRun(nextRun) || deps.cancelledRunIds.has(nextRun.id)) return
 
   deps.cancelledRunIds.add(nextRun.id)
   deps.cancelGenerationJobIfActive(generationProgressFromEvents(deps.liveEvents()))
@@ -91,16 +91,16 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
       }
     })
     .finally(() => {
-      deps.setConversationRuntime({ stopRequested: false, stopping: false, loading: false })
+      deps.setConversationProviderSessionState({ stopRequested: false, stopping: false, loading: false })
     })
 }
 
-export function handleSendRuntimeEvent(event: AgentRuntimeEventV2, deps: AgentSendStreamEventDeps): void {
-  const title = runtimeThreadTitleFromEvent(event)
+export function handleSendProviderSessionEvent(event: ProviderSessionEventV2, deps: AgentSendStreamEventDeps): void {
+  const title = providerSessionThreadTitleFromEvent(event)
   if (title) {
     deps.updateConversationTitle(title)
   }
-  const run = runtimeRunFromEvent(event)
+  const run = normalizeProviderSessionEventRun(providerSessionRunFromEvent(event))
   if (run?.id) {
     const completedAt = (deps.now ?? (() => new Date()))().toISOString()
     deps.updateActivityEvents((current) => current.map((item) => (
@@ -111,6 +111,20 @@ export function handleSendRuntimeEvent(event: AgentRuntimeEventV2, deps: AgentSe
     deps.onRunUpdate?.(run)
   }
   deps.recordLiveTraceEvent(event)
+}
+
+type AgentRunCompatInput = Omit<AgentRun, 'providerSessionLimits'> & {
+  providerSessionLimits?: ProviderSessionLimits
+  runtimeLimits?: ProviderSessionLimits
+}
+
+function normalizeProviderSessionEventRun(run: AgentRunCompatInput | undefined): AgentRun | undefined {
+  if (!run) return undefined
+  const providerSessionLimits = run.providerSessionLimits ?? run.runtimeLimits
+  return {
+    ...run,
+    ...(providerSessionLimits ? { providerSessionLimits } : {}),
+  } as AgentRun
 }
 
 function shouldKeepCurrentInteractionRun(currentRun: AgentRun | undefined, nextRun: AgentRun): boolean {

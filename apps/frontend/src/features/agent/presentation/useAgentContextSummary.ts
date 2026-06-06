@@ -8,7 +8,7 @@ interface UseAgentContextSummaryInput {
   composerAttachmentsCount: number
   includeProjectContext: AgentSettings['includeProjectContext']
   labels: {
-    localRuntime: string
+    providerSession: string
     customCapabilities: string
     attachmentsCount?: string | null
   }
@@ -23,7 +23,7 @@ export function useAgentContextSummary({
 }: UseAgentContextSummaryInput) {
   const activeConversationManifest = agentContextConfig.enabled ? agentContextConfig.manifest ?? undefined : undefined
   const contextLabels = useMemo(() => [
-    labels.localRuntime,
+    labels.providerSession,
     activeConversationManifest ? labels.customCapabilities : null,
     includeProjectContext ? currentProjectName : null,
     composerAttachmentsCount > 0 ? labels.attachmentsCount : null,
@@ -34,7 +34,7 @@ export function useAgentContextSummary({
     includeProjectContext,
     labels.attachmentsCount,
     labels.customCapabilities,
-    labels.localRuntime,
+    labels.providerSession,
   ])
 
   return {

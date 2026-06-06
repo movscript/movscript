@@ -7,7 +7,7 @@ import { buildAgentConversationProjectionRunInteractions } from '@/features/agen
 import { visibleStreamingAssistantTextForTranscript } from '@/features/agent/domain/agentMessageBoundaries'
 import { filterActivityEventsForRun, timelineItemsContainRunActivity } from '@/features/agent/domain/agentTimelineActivityItems'
 import { getAgentThinkingState, type AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface AgentChatConversationProjectionStateInput {

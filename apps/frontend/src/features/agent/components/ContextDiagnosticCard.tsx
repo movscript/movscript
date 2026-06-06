@@ -26,7 +26,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { toolApprovalLabel } from '@/features/agent/domain/agentRunUi'
-import { localAgentApprovalRiskText } from '@/features/agent/components/localRuntime'
+import { providerSessionApprovalRiskText } from '@/features/agent/components/providerSessionInteractions'
 import { agentSeverityStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import type { ChatContextDiagnostic, ChatContextDiagnosticTool } from '@/features/agent/state/agentStore'
 
@@ -145,7 +145,7 @@ function ContextDiagnosticToolRow({ tool, parameters }: { tool: ChatContextDiagn
     <AgentDiagnosticToolItem>
       <AgentDiagnosticToolHeader>
         <AgentDiagnosticToolName title={tool.name}>{agentToolNameLabel(tool.name, t)}</AgentDiagnosticToolName>
-        {'risk' in tool && tool.risk && <AgentDiagnosticBadge>{localAgentApprovalRiskText(tool.risk, t)}</AgentDiagnosticBadge>}
+        {'risk' in tool && tool.risk && <AgentDiagnosticBadge>{providerSessionApprovalRiskText(tool.risk, t)}</AgentDiagnosticBadge>}
         {'approval' in tool && tool.approval && <AgentDiagnosticBadge variant="soft">{toolApprovalLabel(tool.approval)}</AgentDiagnosticBadge>}
         {'unavailableReason' in tool && tool.unavailableReason && (
           <AgentDiagnosticStatusBadge intent={agentSeverityStatusRecipe('warning').intent} emphasis={agentSeverityStatusRecipe('warning').emphasis}>

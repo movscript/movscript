@@ -10,8 +10,8 @@ import {
   ProjectWorkspaceReviewLoadingState,
   ProjectWorkspaceReviewNoteList,
   ProjectWorkspaceReviewStatusBadge,
-  ReviewWorkspaceWorkspaceList,
-  ReviewWorkspaceWorkspacePanel,
+  ReviewWorkspaceArtifactList,
+  ReviewWorkspaceArtifactPanel,
   ReviewWorkspaceEntryHeader,
   ReviewWorkspaceFieldDiffList,
   ReviewWorkspaceFieldDiffRow,
@@ -19,14 +19,14 @@ import {
   ReviewWorkspaceSummaryCallout,
 } from '@movscript/ui'
 
-import { localAgentClient, type AgentWorkspace, type AgentWorkspaceKind } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type WorkspaceArtifact, type MovScriptWorkspaceKind } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import {
   buildPreProductionWorkspaceContentForEntries,
   buildPreProductionWorkspaceEntryDiffRows,
   workspaceAppliedEntryKeySet,
   formatPreProductionWorkspaceEntry,
-  parsePreProductionWorkspaceWorkspace,
+  parsePreProductionWorkspaceArtifact,
   preProductionWorkspaceEntryChangeLabel,
   preProductionWorkspaceEntryLabel,
   type PreProductionWorkspaceData,
@@ -37,7 +37,7 @@ import { toast } from '@/shared/ui/toastStore'
 import {
   preProductionWorkspaceCountRecipe,
   preProductionWorkspaceDecisionRecipe,
-  preProductionWorkspaceWorkspaceStatusRecipe,
+  preProductionWorkspaceArtifactStatusRecipe,
   preProductionWorkspaceEntryChangeRecipe,
 } from '@/features/pre-production/presentation/preProductionSemanticUi'
 
@@ -46,11 +46,11 @@ type EntryDecisions = Record<string, EntryDecision>
 
 export interface PreProductionWorkspaceReviewPanelProps {
   projectId?: number
-  kind: Extract<AgentWorkspaceKind, 'setting_workspace' | 'asset_workspace'>
+  kind: Extract<MovScriptWorkspaceKind, 'setting_workspace' | 'asset_workspace'>
   title: string
   description: string
   emptyMessage: string
-  workspaces: AgentWorkspace[]
+  workspaces: WorkspaceArtifact[]
   loading: boolean
   data: PreProductionWorkspaceData
   onApplied?: () => Promise<void> | void
@@ -86,7 +86,7 @@ export function PreProductionWorkspaceReviewPanel({
     })
   }
 
-  function metadataWithAppliedEntries(workspace: AgentWorkspace, entryKeys: string[]) {
+  function metadataWithAppliedEntries(workspace: WorkspaceArtifact, entryKeys: string[]) {
     const appliedEntryKeys = new Set([
       ...workspaceAppliedEntryKeySet(workspace),
       ...entryKeys,
@@ -100,7 +100,7 @@ export function PreProductionWorkspaceReviewPanel({
   }
 
   async function applyEntries(
-    workspace: AgentWorkspace,
+    workspace: WorkspaceArtifact,
     entries: PreProductionWorkspaceEntry[],
     lockId: string = workspace.id,
     proposedValueOverride?: string,
@@ -111,7 +111,7 @@ export function PreProductionWorkspaceReviewPanel({
       const proposedValue = proposedValueOverride ?? buildPreProductionWorkspaceContentForEntries(workspace, entries, data, entries.length === 1
         ? `单项提交：${formatPreProductionWorkspaceEntry(entries[0])}`
         : `批量提交：${entries.length} 项`)
-      await localAgentClient.applyWorkspace(workspace.id, {
+      await providerSessionClient.applyWorkspaceArtifact(workspace.id, {
         target: {
           projectId,
           entityType: 'project',
@@ -124,7 +124,7 @@ export function PreProductionWorkspaceReviewPanel({
         },
         proposedValue,
       })
-      await localAgentClient.updateWorkspace(workspace.id, {
+      await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
         metadata: metadataWithAppliedEntries(workspace, entries.map((entry) => entry.key)),
       })
       toast.success(entries.length === 1 ? '已提交此项' : '工作区已提交')
@@ -138,10 +138,10 @@ export function PreProductionWorkspaceReviewPanel({
     }
   }
 
-  async function applyEntry(workspace: AgentWorkspace, entry: PreProductionWorkspaceEntry) {
+  async function applyEntry(workspace: WorkspaceArtifact, entry: PreProductionWorkspaceEntry) {
     try {
       const proposedValue = buildPreProductionWorkspaceContentForEntries(workspace, [entry], data, `单项提交：${formatPreProductionWorkspaceEntry(entry)}`)
-      const helperWorkspace = await localAgentClient.createWorkspace({
+      const helperWorkspace = await providerSessionClient.createWorkspaceArtifact({
         projectId,
         kind,
         title: `单项提交 - ${formatPreProductionWorkspaceEntry(entry)}`,
@@ -166,7 +166,7 @@ export function PreProductionWorkspaceReviewPanel({
       })
       const applied = await applyEntries(helperWorkspace, [entry], workspace.id, proposedValue)
       if (!applied) return
-      await localAgentClient.updateWorkspace(workspace.id, {
+      await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
         metadata: metadataWithAppliedEntries(workspace, [entry.key]),
       })
       markDecision(entry.key, 'submitted')
@@ -176,7 +176,7 @@ export function PreProductionWorkspaceReviewPanel({
     }
   }
 
-  async function applyWorkspace(workspace: AgentWorkspace, view: PreProductionWorkspaceView) {
+  async function applyWorkspace(workspace: WorkspaceArtifact, view: PreProductionWorkspaceView) {
     const entries = [
       ...(includeCreativeReferences ? view.creativeReferences : []),
       ...(includeAssetSlots ? view.assetSlots : []),
@@ -197,11 +197,11 @@ export function PreProductionWorkspaceReviewPanel({
       icon={GitBranch}
       countLabel={`${reviewableWorkspaces.length} 项`}
     >
-      <ReviewWorkspaceWorkspaceList>
+      <ReviewWorkspaceArtifactList>
         {loading ? <ProjectWorkspaceReviewLoadingState text="读取审阅工作区..." /> : null}
         {!loading && reviewableWorkspaces.length === 0 ? <ProjectWorkspaceReviewEmptyText>{emptyMessage}</ProjectWorkspaceReviewEmptyText> : null}
         {reviewableWorkspaces.map((workspace) => {
-          const view = parsePreProductionWorkspaceWorkspace(workspace, data, { includeCreativeReferences, includeAssetSlots })
+          const view = parsePreProductionWorkspaceArtifact(workspace, data, { includeCreativeReferences, includeAssetSlots })
           const entries = view ? [...view.creativeReferences, ...view.assetSlots] : []
           const diffEntries = entries.filter((entry) => entry.changeType !== 'unchanged')
           const pendingEntries = entries.filter((entry) => decisions[entry.key] !== 'rejected' && !entry.applied && entry.changeType !== 'unchanged')
@@ -211,13 +211,13 @@ export function PreProductionWorkspaceReviewPanel({
           const modifiedEntries = entries.filter((entry) => entry.changeType === 'modified')
           const deletedEntries = entries.filter((entry) => entry.changeType === 'deleted')
           return (
-            <ReviewWorkspaceWorkspacePanel
+            <ReviewWorkspaceArtifactPanel
               key={workspace.id}
               title={workspace.title}
               meta={`${formatDate(workspace.updatedAt)} · ${workspace.id}`}
               badges={
                 <>
-                  <ProjectWorkspaceReviewStatusBadge {...preProductionWorkspaceWorkspaceStatusRecipe(workspace.status)}>{workspace.status}</ProjectWorkspaceReviewStatusBadge>
+                  <ProjectWorkspaceReviewStatusBadge {...preProductionWorkspaceArtifactStatusRecipe(workspace.status)}>{workspace.status}</ProjectWorkspaceReviewStatusBadge>
                   <ProjectWorkspaceReviewBadge variant="outline">{diffEntries.length} 条变更</ProjectWorkspaceReviewBadge>
                 </>
               }
@@ -262,7 +262,7 @@ export function PreProductionWorkspaceReviewPanel({
                   />
 
                   {diffEntries.length > 0 ? (
-                    <ReviewWorkspaceWorkspaceList>
+                    <ReviewWorkspaceArtifactList>
                       {diffEntries.map((entry) => {
                         const rows = buildPreProductionWorkspaceEntryDiffRows(entry, data, referenceLabels)
                         const isSubmitted = entry.applied || decisions[entry.key] === 'submitted'
@@ -329,7 +329,7 @@ export function PreProductionWorkspaceReviewPanel({
                           </ProjectWorkspaceReviewEntryCallout>
                         )
                       })}
-                    </ReviewWorkspaceWorkspaceList>
+                    </ReviewWorkspaceArtifactList>
                   ) : (
                     <ProjectWorkspaceReviewEmptyText>
                       这份工作区没有可展示的 diff。
@@ -347,16 +347,16 @@ export function PreProductionWorkspaceReviewPanel({
                   无法解析这份工作区的差异。
                 </ProjectWorkspaceReviewEmptyText>
               )}
-            </ReviewWorkspaceWorkspacePanel>
+            </ReviewWorkspaceArtifactPanel>
           )
         })}
 
-      </ReviewWorkspaceWorkspaceList>
+      </ReviewWorkspaceArtifactList>
     </ReviewWorkspaceShell>
   )
 }
 
-function isHelperWorkspace(workspace: AgentWorkspace) {
+function isHelperWorkspace(workspace: WorkspaceArtifact) {
   const metadata = isRecord(workspace.metadata) ? workspace.metadata : {}
   return typeof metadata.sourceWorkspaceId === 'string' && metadata.sourceWorkspaceId.trim().length > 0
 }

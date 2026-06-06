@@ -1,5 +1,5 @@
 import { reasoningTextFromStreamEvent, toolNameFromToolCallStreamEvent } from '@/features/agent/domain/agentRunActivity'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface AgentThinkingState {

@@ -5,7 +5,7 @@ import {
   buildAgentChatConversationProjectionState,
 } from '@/features/agent/presentation/agentChatConversationProjectionState'
 import type { AgentConversationProjectionItem } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('buildAgentChatConversationProjectionState suppresses streaming text after the final assistant message lands', () => {
@@ -117,7 +117,7 @@ function run(patch: Partial<AgentRun>): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'in_progress',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,

@@ -15,13 +15,13 @@ scrape_configs:
           service: movscript-backend
           source: local-dev
 
-  - job_name: movscript-agent-runtime
+  - job_name: mova-provider
     metrics_path: /metrics
     static_configs:
       - targets:
           - host.docker.internal:28765
         labels:
-          service: movscript-agent
+          service: mova
           source: local-dev
 
   - job_name: node-exporter

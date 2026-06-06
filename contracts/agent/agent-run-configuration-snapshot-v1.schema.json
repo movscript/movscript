@@ -9,8 +9,8 @@
     "capturedAt",
     "catalogSnapshot",
     "activeConfigFileId",
-    "runtimeLimits",
-    "activeAgentManifest",
+    "providerSessionLimits",
+    "activeProviderManifest",
     "toolPermissionOverridesByConfigFile",
     "configFiles",
     "packs",
@@ -46,8 +46,8 @@
       "minLength": 1,
       "description": "The config file that was active when this Run was created. This is top-level snapshot data so Run details do not need to infer it from mutable Agent settings or manifest metadata."
     },
-    "runtimeLimits": {
-      "description": "Frozen run-time approval, sandbox, execution mode, and budget limits captured when this Run was created.",
+    "providerSessionLimits": {
+      "description": "Frozen provider-session approval, sandbox, execution mode, and budget limits captured when this Run was created.",
       "type": "object",
       "additionalProperties": true,
       "properties": {
@@ -63,7 +63,18 @@
         }
       }
     },
-    "activeAgentManifest": { "$ref": "#/$defs/agentManifest" },
+    "runtimeLimits": {
+      "description": "Compatibility alias for older run configuration snapshots. New snapshots use providerSessionLimits.",
+      "type": "object",
+      "additionalProperties": true,
+      "deprecated": true
+    },
+    "activeProviderManifest": { "$ref": "#/$defs/providerManifest" },
+    "activeAgentManifest": {
+      "$ref": "#/$defs/providerManifest",
+      "description": "Compatibility alias for older run configuration snapshots. New snapshots use activeProviderManifest.",
+      "deprecated": true
+    },
     "toolPermissionOverridesByConfigFile": {
       "type": "object",
       "description": "Frozen per-config-file tool permission overrides captured at Run creation time. Run details should read this top-level snapshot fact instead of inferring overrides from mutable settings or manifest metadata.",
@@ -106,7 +117,7 @@
     }
   },
   "$defs": {
-    "agentManifest": {
+    "providerManifest": {
       "type": "object",
       "additionalProperties": true,
       "required": ["schema", "id", "version", "name", "tools"],

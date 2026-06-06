@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import type { ClipboardEvent, DragEvent, RefObject } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { fetchResourceById } from '@/features/agent/domain/agentResourceLookup'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import {
   RESOURCE_MENTION_RE,
   RESOURCE_MENTION_TRIGGER_RE,
@@ -16,12 +18,23 @@ import {
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import type { RawResource } from '@/types'
+import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
+import type { Project, RawResource } from '@/types'
+
+const USER_WORKSPACE_VALUE = '__user__'
+const PROJECT_WORKSPACE_VALUE = '__project__'
+
+export interface AgentWorkspaceContextSelectOption {
+  value: string
+  label: string
+  meta?: string
+}
 
 interface UseAgentComposerControllerInput {
   userId: string
   conversationId: string
-  workspace: { input: string; attachments: AgentAttachment[] }
+  workspace: { input: string; attachments: AgentAttachment[]; workspaceContext?: MovScriptWorkspaceContext }
   recentResources: RawResource[]
   fileRef: RefObject<HTMLInputElement>
   inputRef: RefObject<HTMLDivElement>
@@ -36,6 +49,8 @@ export function useAgentComposerController({
   inputRef,
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
+  const location = useLocation()
+  const currentProject = useProjectStore((s) => s.current)
   const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -44,6 +59,62 @@ export function useAgentComposerController({
   const [draggingFiles, setDraggingFiles] = useState(false)
   const input = workspace.input
   const attachments = workspace.attachments
+  const routeProductionId = useMemo(() => productionIdFromLocation(location.pathname, location.search), [location.pathname, location.search])
+  const effectiveWorkspaceContext = useMemo(() => normalizeAgentWorkspaceContext(
+    workspace.workspaceContext,
+    {
+      userId,
+      projectId: currentProject?.ID,
+      productionId: routeProductionId,
+    },
+  ), [currentProject?.ID, routeProductionId, userId, workspace.workspaceContext])
+  const selectedProjectId = positiveInteger(effectiveWorkspaceContext.projectId)
+  const selectedProductionId = effectiveWorkspaceContext.scope === 'production'
+    ? positiveInteger(effectiveWorkspaceContext.productionId)
+    : undefined
+  const { data: projectsData = [], isLoading: projectsLoading } = useQuery<Project[]>({
+    queryKey: ['agent-composer-workspace-projects'],
+    queryFn: () => api.get('/projects').then((response) => response.data),
+  })
+  const projects = useMemo(() => mergeCurrentProject(projectsData, currentProject), [currentProject, projectsData])
+  const { data: productions = [], isLoading: productionsLoading } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['agent-composer-workspace-productions', selectedProjectId],
+    queryFn: () => listSemanticEntities(selectedProjectId!, semanticEntityConfig('productions')),
+    enabled: selectedProjectId !== undefined,
+  })
+  const workspaceProjectOptions = useMemo<AgentWorkspaceContextSelectOption[]>(() => [
+    { value: USER_WORKSPACE_VALUE, label: '用户根', meta: '所有项目' },
+    ...projects
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((project) => ({
+        value: String(project.ID),
+        label: project.name || `项目 #${project.ID}`,
+        meta: project.status || undefined,
+      })),
+  ], [projects])
+  const selectedProject = selectedProjectId !== undefined
+    ? projects.find((project) => project.ID === selectedProjectId) ?? null
+    : null
+  const workspaceProductionOptions = useMemo<AgentWorkspaceContextSelectOption[]>(() => {
+    if (selectedProjectId === undefined) return []
+    const sortedProductions = productions
+      .slice()
+      .sort((a, b) => workspaceRecordLabel(a, '制作').localeCompare(workspaceRecordLabel(b, '制作')))
+      .map((production) => ({
+        value: String(production.ID),
+        label: workspaceRecordLabel(production, '制作'),
+        meta: stringValue(production.status),
+      }))
+    return [
+      {
+        value: PROJECT_WORKSPACE_VALUE,
+        label: '项目根',
+        meta: selectedProject?.name || `项目 #${selectedProjectId}`,
+      },
+      ...sortedProductions,
+    ]
+  }, [productions, selectedProject?.name, selectedProjectId])
 
   const resourceAttachmentIndex = useMemo(() => {
     const map = new Map<number, AgentAttachment>()
@@ -107,6 +178,46 @@ export function useAgentComposerController({
 
   function updateWorkspace(patch: Partial<typeof workspace>) {
     updateConversationWorkspace(userId, conversationId, patch)
+  }
+
+  function changeWorkspaceProject(value: string) {
+    if (value === USER_WORKSPACE_VALUE) {
+      updateWorkspace({ workspaceContext: { scope: 'global', ...(userId ? { userId } : {}) } })
+      return
+    }
+    const projectId = positiveInteger(value)
+    if (projectId === undefined) return
+    updateWorkspace({
+      workspaceContext: {
+        scope: 'project',
+        ...(userId ? { userId } : {}),
+        projectId,
+      },
+    })
+  }
+
+  function changeWorkspaceProduction(value: string) {
+    if (selectedProjectId === undefined) return
+    if (value === PROJECT_WORKSPACE_VALUE) {
+      updateWorkspace({
+        workspaceContext: {
+          scope: 'project',
+          ...(userId ? { userId } : {}),
+          projectId: selectedProjectId,
+        },
+      })
+      return
+    }
+    const productionId = positiveInteger(value)
+    if (productionId === undefined) return
+    updateWorkspace({
+      workspaceContext: {
+        scope: 'production',
+        ...(userId ? { userId } : {}),
+        projectId: selectedProjectId,
+        productionId,
+      },
+    })
   }
 
   function revokeAttachmentPreviewUrls(items: AgentAttachment[]) {
@@ -375,6 +486,13 @@ export function useAgentComposerController({
     mentionRange,
     mentionResults,
     resourceAttachmentIndex,
+    selectedWorkspaceContext: effectiveWorkspaceContext,
+    workspaceProjectOptions,
+    workspaceProjectValue: selectedProjectId === undefined ? USER_WORKSPACE_VALUE : String(selectedProjectId),
+    workspaceProjectsLoading: projectsLoading,
+    workspaceProductionOptions,
+    workspaceProductionValue: selectedProductionId === undefined ? PROJECT_WORKSPACE_VALUE : String(selectedProductionId),
+    workspaceProductionsLoading: productionsLoading,
     uploading,
     uploadedFileCount,
     uploadingFileNames,
@@ -385,6 +503,8 @@ export function useAgentComposerController({
     handleComposerDrop,
     handleComposerPaste,
     insertResourceMention,
+    changeWorkspaceProduction,
+    changeWorkspaceProject,
     removeAttachment,
     revokeAttachmentPreviewUrls,
     setMentionRange,
@@ -392,4 +512,76 @@ export function useAgentComposerController({
     updateMentionState,
     uploadFiles,
   }
+}
+
+function normalizeAgentWorkspaceContext(
+  context: MovScriptWorkspaceContext | undefined,
+  fallback: { userId: string; projectId?: number; productionId?: number },
+): MovScriptWorkspaceContext {
+  const userId = stringValue(context?.userId) ?? (fallback.userId || undefined)
+  const projectId = positiveInteger(context?.projectId)
+  const productionId = positiveInteger(context?.productionId)
+  if (context?.scope === 'production' && projectId !== undefined && productionId !== undefined) {
+    return {
+      scope: 'production',
+      ...(userId ? { userId } : {}),
+      projectId,
+      productionId,
+    }
+  }
+  if ((context?.scope === 'project' || projectId !== undefined) && projectId !== undefined) {
+    return {
+      scope: 'project',
+      ...(userId ? { userId } : {}),
+      projectId,
+    }
+  }
+  if (fallback.projectId !== undefined) {
+    if (fallback.productionId !== undefined) {
+      return {
+        scope: 'production',
+        ...(fallback.userId ? { userId: fallback.userId } : {}),
+        projectId: fallback.projectId,
+        productionId: fallback.productionId,
+      }
+    }
+    return {
+      scope: 'project',
+      ...(fallback.userId ? { userId: fallback.userId } : {}),
+      projectId: fallback.projectId,
+    }
+  }
+  return {
+    scope: 'global',
+    ...(fallback.userId ? { userId: fallback.userId } : {}),
+  }
+}
+
+function productionIdFromLocation(pathname: string, search: string): number | undefined {
+  const queryValue = new URLSearchParams(search).get('productionId')
+  const queryId = positiveInteger(queryValue)
+  if (queryId !== undefined) return queryId
+  const match = pathname.match(/(?:^|\/)production(?:s|Orchestration)?\/(\d+)(?:\/|$)/i)
+  return positiveInteger(match?.[1])
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed || undefined
+}
+
+function workspaceRecordLabel(record: SemanticEntityRecord, fallback: string): string {
+  return stringValue(record.name) ?? stringValue(record.title) ?? stringValue(record.label) ?? `${fallback} #${record.ID}`
+}
+
+function mergeCurrentProject(projects: Project[], currentProject: Project | null): Project[] {
+  if (!currentProject || projects.some((project) => project.ID === currentProject.ID)) return projects
+  return [currentProject, ...projects]
 }

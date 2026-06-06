@@ -28,7 +28,7 @@ toolGrants:
 
 # Generation
 
-Use this skill when a user asks Codex to generate or plan generated images/videos through MovScript.
+Use this skill when a user asks the provider to generate or plan generated images/videos through MovScript.
 
 ## Workflow
 

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildDebugHttpRequests, buildLocalAgentSendWorkspace, resourceMentionAttachments, type AgentSendWorkspaceHttpLabels } from '@/features/agent/application/agentSendWorkspace'
-import type { AgentRunPreview } from '@/shared/infrastructure/localAgentClient'
+import { buildDebugHttpRequests, buildProviderSessionSendWorkspace, resourceMentionAttachments, type AgentSendWorkspaceHttpLabels } from '@/features/agent/application/agentSendWorkspace'
+import type { AgentRunPreview } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentAttachment, AgentSettings } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel } from '@/types'
@@ -19,9 +19,9 @@ const labels: AgentSendWorkspaceHttpLabels = {
   fetchFinalThread: 'Fetch final thread',
 }
 
-test('buildLocalAgentSendWorkspace binds composer input, attachments, and session runtime', async () => {
-  const workspace = await buildLocalAgentSendWorkspace({
-    options: { localRuntimeSessionId: 'session_1' },
+test('buildProviderSessionSendWorkspace binds composer input, attachments, and provider session', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
+    options: { providerSessionId: 'session_1' },
     workspaceInput: 'Render this @[resource:42]',
     attachments: [],
     composerAttachments: [attachment({ resourceId: 42, name: 'shot.png', type: 'image', mimeType: 'image/png', size: 2048 })],
@@ -30,11 +30,11 @@ test('buildLocalAgentSendWorkspace binds composer input, attachments, and sessio
     currentProject: project(),
     systemPrompt: '',
     contextLabels: ['Project Alpha'],
-    localThreadId: 'thread_1',
+    providerThreadId: 'thread_1',
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
     now: () => 123,
     makeId: () => 'trace_test',
@@ -43,21 +43,21 @@ test('buildLocalAgentSendWorkspace binds composer input, attachments, and sessio
   assert.equal(workspace.id, 'trace_test')
   assert.equal(workspace.createdAt, 123)
   assert.equal(workspace.visibleUserContent, 'Render this @[resource:42]')
-  assert.equal(workspace.localRuntime?.sessionId, 'session_1')
-  assert.equal(workspace.localRuntime?.threadId, undefined)
-  assert.equal(workspace.localRuntime?.clientInput?.message, 'Render this @[resource:42]')
-  assert.equal(workspace.localRuntime?.clientInput?.uiSnapshot?.project?.id, 101)
-  assert.equal(workspace.localRuntime?.runtimeLimits, undefined)
-  assert.equal(workspace.model.runtimeModelId, 'gpt-test')
+  assert.equal(workspace.providerSession?.sessionId, 'session_1')
+  assert.equal(workspace.providerSession?.threadId, undefined)
+  assert.equal(workspace.providerSession?.clientInput?.message, 'Render this @[resource:42]')
+  assert.equal(workspace.providerSession?.clientInput?.uiSnapshot?.project?.id, 101)
+  assert.equal(workspace.providerSession?.providerSessionLimits, undefined)
+  assert.equal(workspace.model.providerModelId, 'gpt-test')
   assert.deepEqual(workspace.outbound.messages.map((message) => message.role), ['system', 'user'])
   assert.equal(workspace.outbound.messages.some((message) => message.content === 'Hi'), false)
-  assert.equal(workspace.httpRequests.some((request) => request.id === 'local-session-message-run'), true)
-  assert.equal(workspace.httpRequests.some((request) => request.id === 'local-get-thread'), false)
-  assert.equal(workspace.httpRequests.some((request) => request.id === 'local-create-thread'), false)
+  assert.equal(workspace.httpRequests.some((request) => request.id === 'provider-session-message-run'), true)
+  assert.equal(workspace.httpRequests.some((request) => request.id === 'provider-get-thread'), false)
+  assert.equal(workspace.httpRequests.some((request) => request.id === 'provider-create-thread'), false)
 })
 
-test('buildLocalAgentSendWorkspace resolves image attachments to runtime input data URLs', async () => {
-  const workspace = await buildLocalAgentSendWorkspace({
+test('buildProviderSessionSendWorkspace resolves image attachments to active run input data URLs', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
     workspaceInput: 'Describe this image',
     attachments: [],
     composerAttachments: [attachment({ resourceId: 42, name: 'shot.png', type: 'image', mimeType: 'image/png' })],
@@ -69,18 +69,18 @@ test('buildLocalAgentSendWorkspace resolves image attachments to runtime input d
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
     resolveAttachmentDataUrl: async (item) => item.resourceId === 42 ? 'data:image/png;base64,AAAA' : undefined,
   })
 
-  assert.equal(workspace.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, 'data:image/png;base64,AAAA')
-  assert.match(workspace.outbound.enrichedUserContent, /runtime 预处理/)
+  assert.equal(workspace.providerSession?.clientInput?.attachments?.[0]?.dataUrl, 'data:image/png;base64,AAAA')
+  assert.match(workspace.outbound.enrichedUserContent, /提供方会话预处理/)
   assert.doesNotMatch(workspace.outbound.enrichedUserContent, /data:image\/png/)
 })
 
-test('buildLocalAgentSendWorkspace keeps sending when image attachment data URL resolution fails', async () => {
-  const workspace = await buildLocalAgentSendWorkspace({
+test('buildProviderSessionSendWorkspace keeps sending when image attachment data URL resolution fails', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
     workspaceInput: 'Describe this image',
     attachments: [],
     composerAttachments: [attachment({ resourceId: 42, name: 'shot.png', type: 'image', mimeType: 'image/png' })],
@@ -92,22 +92,22 @@ test('buildLocalAgentSendWorkspace keeps sending when image attachment data URL 
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
     resolveAttachmentDataUrl: async () => {
       throw new Error('download stalled')
     },
   })
 
-  assert.equal(workspace.localRuntime?.clientInput?.attachments?.[0]?.resourceId, 42)
-  assert.equal(workspace.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, undefined)
+  assert.equal(workspace.providerSession?.clientInput?.attachments?.[0]?.resourceId, 42)
+  assert.equal(workspace.providerSession?.clientInput?.attachments?.[0]?.dataUrl, undefined)
   assert.match(workspace.warnings.join('\n'), /metadata-only/)
   assert.match(workspace.warnings.join('\n'), /download stalled/)
 })
 
-test('buildLocalAgentSendWorkspace keeps video attachments metadata-only for local frame extraction', async () => {
+test('buildProviderSessionSendWorkspace keeps video attachments metadata-only for frame extraction', async () => {
   let resolved = false
-  const workspace = await buildLocalAgentSendWorkspace({
+  const workspace = await buildProviderSessionSendWorkspace({
     workspaceInput: 'Describe this video',
     attachments: [],
     composerAttachments: [attachment({ resourceId: 88, name: 'clip.mp4', type: 'video', mimeType: 'video/mp4' })],
@@ -119,7 +119,7 @@ test('buildLocalAgentSendWorkspace keeps video attachments metadata-only for loc
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
     resolveAttachmentDataUrl: async () => {
       resolved = true
@@ -128,14 +128,14 @@ test('buildLocalAgentSendWorkspace keeps video attachments metadata-only for loc
   })
 
   assert.equal(resolved, false)
-  assert.equal(workspace.localRuntime?.clientInput?.attachments?.[0]?.resourceId, 88)
-  assert.equal(workspace.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, undefined)
+  assert.equal(workspace.providerSession?.clientInput?.attachments?.[0]?.resourceId, 88)
+  assert.equal(workspace.providerSession?.clientInput?.attachments?.[0]?.dataUrl, undefined)
   assert.match(workspace.outbound.enrichedUserContent, /video_payload=metadata_only/)
-  assert.match(workspace.outbound.enrichedUserContent, /本地抽帧工具/)
+  assert.match(workspace.outbound.enrichedUserContent, /抽帧工具/)
 })
 
-test('buildLocalAgentSendWorkspace uses external task payload when the composer has no explicit override', async () => {
-  const workspace = await buildLocalAgentSendWorkspace({
+test('buildProviderSessionSendWorkspace uses external task payload when the composer has no explicit override', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
     workspaceInput: 'ignored composer',
     attachments: [],
     composerAttachments: [],
@@ -149,22 +149,22 @@ test('buildLocalAgentSendWorkspace uses external task payload when the composer 
     externalTask: externalTask(),
     pageToolRequestId: 'page_request',
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
   })
 
   assert.equal(workspace.visibleUserContent, 'ignored composer')
-  assert.equal(workspace.localRuntime?.clientInput?.message, 'ignored composer')
-  assert.equal(workspace.localRuntime?.projectId, 202)
-  assert.equal(workspace.localRuntime?.requestId, 'page_request')
-  assert.equal(workspace.localRuntime?.timeoutMs, 30_000)
-  assert.equal(workspace.localRuntime?.runtimeLimits, undefined)
+  assert.equal(workspace.providerSession?.clientInput?.message, 'ignored composer')
+  assert.equal(workspace.providerSession?.projectId, 202)
+  assert.equal(workspace.providerSession?.requestId, 'page_request')
+  assert.equal(workspace.providerSession?.timeoutMs, 30_000)
+  assert.equal(workspace.providerSession?.providerSessionLimits, undefined)
 })
 
-test('buildLocalAgentSendWorkspace preserves explicit runtime limits overrides', async () => {
-  const workspace = await buildLocalAgentSendWorkspace({
+test('buildProviderSessionSendWorkspace preserves explicit provider-session limits overrides', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
     options: {
-      runtimeLimits: {
+      providerSessionLimits: {
         approvalMode: 'interactive',
         maxToolCalls: 12,
         execution: {
@@ -185,21 +185,21 @@ test('buildLocalAgentSendWorkspace preserves explicit runtime limits overrides',
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
   })
 
-  assert.equal(workspace.localRuntime?.runtimeLimits?.approvalMode, 'interactive')
-  assert.equal(workspace.localRuntime?.runtimeLimits?.maxToolCalls, 12)
-  assert.deepEqual(workspace.localRuntime?.runtimeLimits?.execution, {
+  assert.equal(workspace.providerSession?.providerSessionLimits?.approvalMode, 'interactive')
+  assert.equal(workspace.providerSession?.providerSessionLimits?.maxToolCalls, 12)
+  assert.deepEqual(workspace.providerSession?.providerSessionLimits?.execution, {
     mode: 'compact',
     includeMemories: false,
     allowForcedToolCalls: false,
   })
 })
 
-test('buildLocalAgentSendWorkspace preserves saved thread for diagnostic commands and omits debug artifacts on request', async () => {
-  const workspace = await buildLocalAgentSendWorkspace({
+test('buildProviderSessionSendWorkspace preserves saved thread for diagnostic commands and omits debug artifacts on request', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
     options: {
       message: '/context local',
       omitDebugArtifacts: true,
@@ -212,24 +212,24 @@ test('buildLocalAgentSendWorkspace preserves saved thread for diagnostic command
     currentProject: null,
     systemPrompt: 'System',
     contextLabels: [],
-    localThreadId: 'thread_saved',
+    providerThreadId: 'thread_saved',
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
   })
 
-  assert.equal(workspace.localRuntime?.threadId, 'thread_saved')
-  assert.equal(workspace.localRuntime?.diagnosticCommand, true)
+  assert.equal(workspace.providerSession?.threadId, 'thread_saved')
+  assert.equal(workspace.providerSession?.diagnosticCommand, true)
   assert.deepEqual(workspace.httpRequests, [])
   assert.deepEqual(workspace.outbound.messages, [])
 })
 
-test('buildLocalAgentSendWorkspace retries preview without stale thread when runtime reports missing thread', async () => {
+test('buildProviderSessionSendWorkspace retries preview without stale thread when provider session reports missing thread', async () => {
   const previewCalls: Array<{ threadId?: string }> = []
-  const workspace = await buildLocalAgentSendWorkspace({
-    options: { includeRuntimePreview: true },
+  const workspace = await buildProviderSessionSendWorkspace({
+    options: { includeProviderSessionPreview: true },
     workspaceInput: 'Hello',
     attachments: [],
     composerAttachments: [],
@@ -238,18 +238,18 @@ test('buildLocalAgentSendWorkspace retries preview without stale thread when run
     currentProject: null,
     systemPrompt: '',
     contextLabels: [],
-    localThreadId: 'missing_thread',
+    providerThreadId: 'missing_thread',
     modelId: 7,
     activeModel: model(),
     attachmentOnlyMessageLabel: 'Attachment only',
-    localAgentBaseURL: 'http://127.0.0.1:39291',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
     httpLabels: labels,
     previewDeps: {
-      localAgentOnline: true,
+      providerSessionOnline: true,
       ensureRunning: async () => undefined,
-      refetchLocalAgentHealth: async () => undefined,
-      syncRuntimeModelConfig: async () => undefined,
-      isLocalAgentNotFoundError: (error) => error instanceof Error && error.message === 'missing',
+      refetchProviderSessionHealth: async () => undefined,
+      syncProviderSessionModelConfig: async () => undefined,
+      isProviderSessionNotFoundError: (error) => error instanceof Error && error.message === 'missing',
       previewRun: async (input) => {
         previewCalls.push({ threadId: input.threadId })
         if (input.threadId) throw new Error('missing')
@@ -259,8 +259,8 @@ test('buildLocalAgentSendWorkspace retries preview without stale thread when run
   })
 
   assert.deepEqual(previewCalls, [{ threadId: 'missing_thread' }, { threadId: undefined }])
-  assert.equal(workspace.localRuntime?.preview?.id, 'preview_1')
-  assert.equal(workspace.warnings.includes('Saved local thread was not found; retried preview as a new thread.'), true)
+  assert.equal(workspace.providerSession?.preview?.id, 'preview_1')
+  assert.equal(workspace.warnings.includes('Saved provider session thread was not found; retried preview as a new thread.'), true)
 })
 
 test('resourceMentionAttachments resolves known resources and creates placeholders for unknown mentions', () => {
@@ -278,7 +278,7 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
     modelId: 7,
     modelName: 'gpt-test',
     messages: [{ role: 'user', content: 'x'.repeat(4100) }],
-    localRuntime: {
+    providerSession: {
       sessionId: 'session_1',
       clientInput: {
         message: 'x'.repeat(4100),
@@ -288,7 +288,7 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
     labels,
   })
 
-  const sessionRun = requests.find((request) => request.id === 'local-session-message-run')
+  const sessionRun = requests.find((request) => request.id === 'provider-session-message-run')
   const body = sessionRun?.body as { clientInput?: { message?: string; attachments?: Array<{ dataUrl?: string }> } } | undefined
   assert.match(body?.clientInput?.message ?? '', /truncated/)
   assert.equal(body?.clientInput?.attachments?.[0]?.dataUrl, '[image data URL redacted: 26 chars]')
@@ -296,7 +296,7 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
 
 function settings(overrides: Partial<AgentSettings> = {}): AgentSettings {
   return {
-    activeAgentRuntimeId: 'movscript-agent',
+    activeProviderProfileConfigId: 'mova',
     modelId: 7,
     includeProjectContext: true,
     includeRecentResources: false,

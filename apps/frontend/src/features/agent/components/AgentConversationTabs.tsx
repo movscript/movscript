@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@movscript/ui'
 import { conversationDisplayTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
-import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
+import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import { AgentProviderControls } from '@/features/agent/components/AgentProviderControls'
+import { ProviderControls } from '@/features/agent/components/ProviderControls'
 
 export interface AgentConversationTabsProps {
   activeConversationId: string
@@ -20,7 +20,7 @@ export interface AgentConversationTabsProps {
   onSelectConversation: (id: string) => void
   onToggleHistory?: () => void
   historyOpen?: boolean
-  runtimeStatusLights?: Partial<Record<string, AgentRuntimeStatusLight>>
+  providerSessionStatusLights?: Partial<Record<string, ProviderSessionStatusLight>>
 }
 
 export function AgentConversationTabs({
@@ -36,29 +36,29 @@ export function AgentConversationTabs({
   onSelectConversation,
   onToggleHistory,
   historyOpen,
-  runtimeStatusLights,
+  providerSessionStatusLights,
 }: AgentConversationTabsProps) {
   const { t } = useTranslation()
 
   const mappedConversations: AgentConversationTabItem[] = useMemo(() => conversations.map((item) => {
-    const runtimeStatusLight = runtimeStatusLights?.[item.id]
+    const providerSessionStatusLight = providerSessionStatusLights?.[item.id]
     const visibleMessageCount = transcriptMessageCount(item)
     return {
       id: item.id,
       title: conversationDisplayTitle(item, t),
       messageCount: visibleMessageCount > 0 ? visibleMessageCount : undefined,
-      runtimeState: runtimeStatusLight?.state,
-      runtimeDetail: runtimeStatusLight?.detail,
+      sessionState: providerSessionStatusLight?.state,
+      sessionDetail: providerSessionStatusLight?.detail,
       onRename: (title: string) => onRenameConversation(item.id, title),
     }
-  }), [conversations, onRenameConversation, runtimeStatusLights, t])
+  }), [conversations, onRenameConversation, providerSessionStatusLights, t])
 
   return (
     <AgentConversationTabsPanel
       activeConversationId={activeConversationId}
       conversations={mappedConversations}
       endAccessory={(
-        <AgentProviderControls
+        <ProviderControls
           historyOpen={historyOpen}
           onNewConversation={onNewConversation}
           onToggleHistory={onToggleHistory}

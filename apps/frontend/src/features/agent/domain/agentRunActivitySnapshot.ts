@@ -1,6 +1,6 @@
 import { compactRunActivity, liveTraceEventKey, mergeRunActivityEvents } from '@/features/agent/domain/agentRunActivity'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface RunActivitySnapshotInput {
@@ -64,7 +64,7 @@ function normalizeRunActivity(input: RunActivitySnapshotInput): ChatRunActivity 
   if (!input.events?.length || base.events === input.events) return normalizedBase
   const scopedEvents = input.events.filter((event) => activityEventBelongsToRun(event, normalizedBase.runId))
   if (scopedEvents.length === 0) return normalizedBase
-  const merged = mergeRunActivityEvents(normalizedBase, scopedEvents, { runtimeLimit: Number.POSITIVE_INFINITY })
+  const merged = mergeRunActivityEvents(normalizedBase, scopedEvents, { activityLimit: Number.POSITIVE_INFINITY })
   return { ...merged, events: normalizeEvents(merged.events) }
 }
 

@@ -1,7 +1,9 @@
 export type AgentToolDisplayTranslator = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => string
 
 const TOOL_NAME_LABELS_ZH: Record<string, string> = {
-  workspace_apply: '应用工作区',
+  workspace_update: '刷新工作区投影',
+  workspace_apply: '提交工作区修改',
+  workspace_apply_review: '预览工作区提交',
   candidate_asset_slot_attach: '加入素材槽候选',
   candidate_keyframe_attach: '加入关键帧候选',
   generation_job_cancel: '取消生成任务',
@@ -21,8 +23,6 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   core_file_search: '搜索文件',
   core_file_edit: '编辑文件',
   core_update_plan: '更新执行计划',
-  workspace_apply_preview: '预览应用工作区',
-  get_workspace_model: '读取工作区模型',
   movscript_focus_get: '读取当前焦点',
   generation_job_get: '查看生成任务',
   reference_get: '读取参考',
@@ -76,7 +76,7 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'agent.work.write': '提交异步任务',
   'agent.skills.manage': '管理 Agent 技能',
   'asset.candidate.write': '写入素材候选',
-  'workspace.apply': '应用工作区变更',
+  'workspace.apply': '提交工作区修改',
   'workspace.read': '读取工作区',
   'workspace.write': '写入工作区',
   'generation.create': '创建生成任务',

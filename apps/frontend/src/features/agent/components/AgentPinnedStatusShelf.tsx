@@ -35,7 +35,7 @@ import type { GenerationProgressState } from '@/features/agent/domain/agentGener
 import { buildPlanOverviewStats, buildPlanTaskViews } from '@/features/agent/domain/agentPlanUi'
 import { resolveAgentPinnedStatusView, type AgentPinnedStatusView } from '@/features/agent/presentation/agentPinnedStatusView'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
-import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@/shared/infrastructure/localAgentClient'
+import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentPinnedStatusShelfProps {
   plan?: AgentPlan

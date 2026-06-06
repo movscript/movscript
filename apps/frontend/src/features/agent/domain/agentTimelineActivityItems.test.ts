@@ -8,7 +8,7 @@ import {
   timelineItemsContainRunActivity,
   timelineActivityByMessageId,
 } from '@/features/agent/domain/agentTimelineActivityItems'
-import type { AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('runIdsWithTimelineActivityItems reads embedded activity from timeline items', () => {
@@ -94,7 +94,7 @@ test('timelineItemsContainRunActivity detects matching timeline activity', () =>
 
 test('filterActivityEventsForRun drops prior run activity but keeps unscoped pending local events', () => {
   const events: ChatRunActivityEvent[] = [
-    activityEvent({ id: 'http-request-1', kind: 'runtime', title: 'HTTP', status: 'started' }),
+    activityEvent({ id: 'http-request-1', kind: 'provider_session', title: 'HTTP', status: 'started' }),
     activityEvent({ id: 'trace_old', runId: 'run_1', kind: 'tool_call', title: '旧工具结果', status: 'completed' }),
     activityEvent({ id: 'trace_current', runId: 'run_2', kind: 'model_call', title: '当前模型', status: 'started' }),
   ]
@@ -117,7 +117,7 @@ function timelineItem(id: string, activity?: ChatRunActivity): AgentTimelineItem
     updatedAt: '2026-05-19T00:00:00.000Z',
     revision: 1,
     cursor: id,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     ...(activity ? { activity } : {}),
   }
 }

@@ -308,7 +308,7 @@ function parseCanvasDebugOptions(search: string): CanvasDebugOptions {
 }
 
 function canvasRenderDiagnosticsEnabled(debugOptions?: CanvasDebugOptions) {
-  return import.meta.env.DEV && (import.meta.env.VITE_MOVSCRIPT_AGENT_MODE_RENDER_DIAGNOSTICS === '1' || !!debugOptions?.enabled)
+  return import.meta.env.DEV && (import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS === '1' || !!debugOptions?.enabled)
 }
 
 function compactCanvasDebugOptions(options: CanvasDebugOptions) {

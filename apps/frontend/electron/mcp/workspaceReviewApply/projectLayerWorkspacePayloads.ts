@@ -1,8 +1,8 @@
 import { isRecord, stringValue } from '../valueUtils'
-import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
 import type { WorkspaceReviewApplyRequest } from './types'
 import {
-  inferProjectLayerWorkspaceWorkspaceKind,
+  inferProjectLayerWorkspaceKind,
   projectLayerWorkspaceRouteSegment,
 } from './projectLayerWorkspaceKind'
 import { normalizeProjectStylePatch } from './projectLayerWorkspaceStyle'
@@ -15,8 +15,8 @@ export { isProjectLayerWorkspaceTarget } from './workspaceTargets'
 
 export function buildProjectLayerWorkspaceRequest(review: Record<string, unknown>): WorkspaceReviewApplyRequest {
   const projectId = resolveWorkspaceProjectId(review, { allowProjectEntityFallback: isProjectLayerWorkspaceTarget(review) })
-  const payload = normalizeProjectLayerWorkspacePayloadForKind(review.proposedValue, stringValue(review.workspaceKind) as AgentWorkspaceKind)
-  const routeSegment = projectLayerWorkspaceRouteSegment(inferProjectLayerWorkspaceWorkspaceKind(payload, stringValue(review.workspaceKind) as AgentWorkspaceKind))
+  const payload = normalizeProjectLayerWorkspacePayloadForKind(review.proposedValue, stringValue(review.workspaceKind) as MovScriptWorkspaceKind)
+  const routeSegment = projectLayerWorkspaceRouteSegment(inferProjectLayerWorkspaceKind(payload, stringValue(review.workspaceKind) as MovScriptWorkspaceKind))
   return {
     method: 'POST',
     path: `/projects/${encodeURIComponent(String(projectId))}/entities/${routeSegment}/apply`,
@@ -32,17 +32,17 @@ function normalizeProjectLayerWorkspacePayload(value: unknown): Record<string, u
     } catch {
       // handled below
     }
-    throw new Error('project-layer workspace workspace content must be a JSON object')
+    throw new Error('project-layer workspace model content must be a JSON object')
   }
   if (!isRecord(value)) {
-    throw new Error('project-layer workspace workspace content must be a JSON object')
+    throw new Error('project-layer workspace model content must be a JSON object')
   }
   return value
 }
 
-function normalizeProjectLayerWorkspacePayloadForKind(value: unknown, kind: AgentWorkspaceKind): Record<string, unknown> {
+function normalizeProjectLayerWorkspacePayloadForKind(value: unknown, kind: MovScriptWorkspaceKind): Record<string, unknown> {
   const payload = normalizeProjectLayerWorkspacePayload(value)
-  const effectiveKind = inferProjectLayerWorkspaceWorkspaceKind(payload, kind)
+  const effectiveKind = inferProjectLayerWorkspaceKind(payload, kind)
   const workspace = isRecord(payload.workspace) ? payload.workspace : {}
   if (effectiveKind === 'setting_workspace' || effectiveKind === 'asset_workspace') {
     const creativeReferences = effectiveKind === 'setting_workspace' ? normalizeProjectLayerWorkspaceSnapshotNodes(workspace.creative_references) : []

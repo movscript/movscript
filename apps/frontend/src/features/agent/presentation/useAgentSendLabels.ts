@@ -17,7 +17,7 @@ export function useAgentSendLabels(t: TFunction) {
 
   const commitSendLabels = useMemo(() => ({
     selectModelFirst: t('agents.chat.selectModelFirst'),
-    localRuntime: t('agents.chat.localRuntime'),
+    providerSession: t('agents.chat.providerSession'),
   }), [t])
 
   const sendActionLabels = useMemo(() => ({

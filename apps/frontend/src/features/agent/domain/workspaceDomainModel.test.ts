@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildWorkspaceArtifactReviewPath, buildWorkspaceReviewPath, getWorkspaceDomainModel } from './workspaceDomainModel'
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 
-function workspace(input: Partial<AgentWorkspace> & Pick<AgentWorkspace, 'id' | 'kind'>): AgentWorkspace {
+function workspace(input: Partial<WorkspaceArtifact> & Pick<WorkspaceArtifact, 'id' | 'kind'>): WorkspaceArtifact {
   return {
     title: input.id,
     content: '',

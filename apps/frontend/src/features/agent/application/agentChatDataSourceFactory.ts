@@ -2,45 +2,70 @@ import type { AgentChatDataSource, AgentChatModelSelection } from '@/features/ag
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import {
-  resolveCodexAppServerProfile,
-  type AgentProviderConfig,
-} from '@/features/agent/state/agentProviderConfigStore'
-import { createCodexAgentChatDataSource } from '@/shared/infrastructure/codex-app-server/codexAgentChatDataSource'
+  resolveAppServerProfile,
+  providerInstanceId,
+  usesAppServerProtocol,
+  type ProviderConfig,
+} from '@/shared/infrastructure/providerConfigStore'
+import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import {
-  codexAppServerRpcClientForURL,
-  ensureCodexAppServerRpcClient,
-} from '@/shared/infrastructure/codex-app-server/codexAppServerRpcClient'
+  appServerRpcClientForURL,
+  ensureAppServer,
+  ensureAppServerRpcClient,
+  getAppServerStatus,
+} from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { publicModelId } from '@/shared/domain/modelDisplay'
-import { createMovScriptAgentChatDataSource } from '@/shared/infrastructure/local-agent-client/movscriptAgentChatDataSource'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
 export interface AgentChatDataSourceFactoryOptions {
-  codexAppServerPolicy?: 'ensure' | 'status-only'
+  appServerPolicy?: 'ensure' | 'status-only'
+  workspaceContext?: MovScriptWorkspaceContext
 }
 
 export async function createAgentChatDataSourceForProvider(
-  provider: AgentProviderConfig,
+  provider: ProviderConfig,
   options: AgentChatDataSourceFactoryOptions = {},
 ): Promise<AgentChatDataSource> {
-  if (provider.kind === 'codex') {
-    const client = options.codexAppServerPolicy === 'status-only'
-      ? await currentCodexAppServerRpcClient(provider)
-      : await ensureCodexAppServerRpcClient(provider)
-    if (!client) throw new Error('Codex app-server is not available')
-    const textModels = await fetchAgentBackendModels().catch(() => [])
-    return createCodexAgentChatDataSource(client, {
-      resolveModelForRequest: () => selectedAgentModel(textModels),
-    })
-  }
-  return createMovScriptAgentChatDataSource(localAgentClient)
+  if (!usesAppServerProtocol(provider)) throw new Error(`${provider.label} does not expose a supported app-server protocol`)
+  const ensured = options.workspaceContext && options.appServerPolicy !== 'status-only'
+    ? await ensureScopedAppServer(provider, options.workspaceContext)
+    : undefined
+  const client = ensured?.client ?? (options.appServerPolicy === 'status-only'
+    ? await currentAppServerRpcClient(provider)
+    : await ensureAppServerRpcClient(provider))
+  if (!client) throw new Error(`${provider.label} app-server is not available`)
+  const textModels = await fetchAgentBackendModels().catch(() => [])
+  return createAppServerChatDataSource(client, {
+    provider: provider.kind,
+    providerId: provider.id,
+    providerInstanceId: providerInstanceId(provider),
+    label: provider.label,
+    messageAdapter: provider.messageAdapter,
+    ...(ensured?.providerSessionCwd ? { defaultThreadCwd: ensured.providerSessionCwd } : {}),
+    resolveModelForRequest: () => selectedAgentModel(textModels),
+  })
 }
 
-async function currentCodexAppServerRpcClient(provider: AgentProviderConfig) {
-  const profile = resolveCodexAppServerProfile(provider)
-  const electronApi = typeof window === 'undefined' ? undefined : window.api
-  const status = await electronApi?.getCodexAppServerStatus?.({ profileId: profile.id })
-  if (!status?.ok || !status.endpoint) throw new Error(status?.error || `Codex app-server is not running: ${profile.id}`)
-  return codexAppServerRpcClientForURL(status.endpoint)
+async function ensureScopedAppServer(provider: ProviderConfig, workspaceContext: MovScriptWorkspaceContext) {
+  const profile = resolveAppServerProfile(provider)
+  const status = await ensureAppServer({
+    profile: {
+      ...profile,
+      workspaceContext,
+    },
+  })
+  if (!status?.ok || !status.endpoint) throw new Error(status?.error || `${provider.label} app-server failed to start: ${profile.id}`)
+  return {
+    client: appServerRpcClientForURL(status.endpoint),
+    providerSessionCwd: status.providerSessionCwd,
+  }
+}
+
+async function currentAppServerRpcClient(provider: ProviderConfig) {
+  const profile = resolveAppServerProfile(provider)
+  const status = await getAppServerStatus({ profileId: profile.id })
+  if (!status?.ok || !status.endpoint) throw new Error(status?.error || `${provider.label} app-server is not running: ${profile.id}`)
+  return appServerRpcClientForURL(status.endpoint)
 }
 
 function selectedAgentModel(textModels: Awaited<ReturnType<typeof fetchAgentBackendModels>>): AgentChatModelSelection {

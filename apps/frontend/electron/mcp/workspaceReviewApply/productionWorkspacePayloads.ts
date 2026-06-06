@@ -24,21 +24,21 @@ function normalizeProductionWorkspacePayload(value: unknown, fallbackProductionI
     try {
       parsed = JSON.parse(value)
     } catch {
-      throw new Error('production workspace workspace content must be a JSON object')
+      throw new Error('production workspace model content must be a JSON object')
     }
   }
   if (!isRecord(parsed)) {
-    throw new Error('production workspace workspace content must be a JSON object')
+    throw new Error('production workspace model content must be a JSON object')
   }
   const productionId = parsed.production_id ?? parsed.productionId ?? fallbackProductionId
   if ((typeof productionId !== 'string' && typeof productionId !== 'number') || String(productionId).trim() === '') {
-    throw new Error('production workspace workspace content requires productionId')
+    throw new Error('production workspace model content requires productionId')
   }
   if (!isRecord(parsed.workspace)) {
-    throw new Error('production workspace workspace content requires workspace')
+    throw new Error('production workspace model content requires workspace')
   }
   if (parsed.mode !== 'snapshot') {
-    throw new Error('production workspace workspace content requires mode "snapshot"')
+    throw new Error('production workspace model content requires mode "snapshot"')
   }
   if (containsActionField(parsed.workspace)) {
     throw new Error('production workspace snapshot must not include action fields')

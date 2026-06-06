@@ -6,7 +6,7 @@ import {
   previewProductionWorkspaceApply,
 } from '@/shared/infrastructure/api/semanticEntities'
 import { translateApiError, type APIErrorBody } from '@/shared/infrastructure/apiError'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import type { ProductionWorkspaceBackendPreviewIssue, ProductionWorkspaceReviewStatus } from '@/features/production/presentation/productionWorkspaceReviewPresentationTypes'
 import type { ProductionWorkspaceNodeDecision } from '@/features/production/domain/productionWorkspaceReviewTypes'
 import {
@@ -21,7 +21,7 @@ import {
   countWorkspaceActions,
   findProductionWorkspaceSnapshotIssue,
   workspaceDecisionSnapshotKey,
-  type WorkspaceWorkspaceContent,
+  type ProductionWorkspaceArtifactContent,
   type WorkspaceNodeDecisions,
   type WorkspaceSegmentNode,
   type WorkspaceSimulationResult,
@@ -29,7 +29,7 @@ import {
 
 export function useProductionWorkspaceReviewController({
   projectId,
-  workspaceWorkspace,
+  workspaceArtifact,
   currentSnapshot,
   nodeDecisions,
   onNodeDecisionsChange,
@@ -37,7 +37,7 @@ export function useProductionWorkspaceReviewController({
   onApplied,
 }: {
   projectId?: number
-  workspaceWorkspace: WorkspaceWorkspaceContent
+  workspaceArtifact: ProductionWorkspaceArtifactContent
   currentSnapshot: { segments: WorkspaceSegmentNode[] }
   nodeDecisions: WorkspaceNodeDecisions
   onNodeDecisionsChange: Dispatch<SetStateAction<WorkspaceNodeDecisions>>
@@ -51,12 +51,12 @@ export function useProductionWorkspaceReviewController({
   const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
   const [simulationResult, setSimulationResult] = useState<WorkspaceSimulationResult | null>(null)
   const [backendPreviewDecisionKey, setBackendPreviewDecisionKey] = useState('')
-  const workspaceSegments = workspaceWorkspace.workspace?.segments ?? []
+  const workspaceSegments = workspaceArtifact.workspace?.segments ?? []
   const segments = useMemo(() => buildWorkspaceReviewSegments(workspaceSegments, currentSnapshot), [currentSnapshot, workspaceSegments])
   const workspaceContext = useMemo(() => collectWorkspaceContextResources(segments), [segments])
   const semanticDiff = useMemo(() => buildWorkspaceSemanticDiff(segments), [segments])
   const currentApplyPreview = useMemo(() => buildWorkspaceApplyPreview(segments, nodeDecisions), [nodeDecisions, segments])
-  const workspaceSnapshotKey = useMemo(() => JSON.stringify({ workspace: workspaceWorkspace.workspace ?? null, currentSnapshot }), [currentSnapshot, workspaceWorkspace.workspace])
+  const workspaceSnapshotKey = useMemo(() => JSON.stringify({ workspace: workspaceArtifact.workspace ?? null, currentSnapshot }), [currentSnapshot, workspaceArtifact.workspace])
   const reviewNodes = useMemo(() => collectWorkspaceReviewNodes(segments), [segments])
   const currentDecisionKey = useMemo(() => workspaceDecisionSnapshotKey(reviewNodes, nodeDecisions), [nodeDecisions, reviewNodes])
   const actionCounts = useMemo(() => countWorkspaceActions(segments), [segments])
@@ -123,7 +123,7 @@ export function useProductionWorkspaceReviewController({
         icon: Eye,
         label: '当前状态',
         title: '等待制作工作区',
-        detail: '打开制作工作区工作区后，这里会进入工作区审阅模式。',
+        detail: '打开制作工作区草案后，这里会进入草案审阅模式。',
       }
     }
     if (reviewedCount === 0) {
@@ -238,8 +238,8 @@ export function useProductionWorkspaceReviewController({
     try {
       const result = await previewProductionWorkspaceApply(projectId, {
         mode: 'snapshot',
-        production_id: workspaceWorkspace.productionId,
-        workspace_scope: workspaceWorkspace.workspaceScope ?? 'production',
+        production_id: workspaceArtifact.productionId,
+        workspace_scope: workspaceArtifact.workspaceScope ?? 'production',
         workspace,
       })
       setSimulationResult({
@@ -302,12 +302,12 @@ export function useProductionWorkspaceReviewController({
     try {
       const result = await applyProductionWorkspace(projectId, {
         mode: 'snapshot',
-        production_id: workspaceWorkspace.productionId,
-        workspace_scope: workspaceWorkspace.workspaceScope ?? 'production',
+        production_id: workspaceArtifact.productionId,
+        workspace_scope: workspaceArtifact.workspaceScope ?? 'production',
         workspace,
       })
-      if (workspaceWorkspace.workspaceId) {
-        await localAgentClient.updateWorkspace(workspaceWorkspace.workspaceId, {
+      if (workspaceArtifact.workspaceId) {
+        await providerSessionClient.updateWorkspaceArtifact(workspaceArtifact.workspaceId, {
           status: 'applied',
           metadata: {
             appliedFrom: 'production-orchestration-page',

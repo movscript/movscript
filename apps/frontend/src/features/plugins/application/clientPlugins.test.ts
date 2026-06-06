@@ -2,16 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  extractMovpkgAgentCatalogFiles,
+  extractMovpkgPluginCatalogFiles,
   readPluginArchiveManifest,
 } from './clientPlugins'
 
-test('reads Codex plugin archive manifest without MovScript manifest.json', async () => {
+test('reads provider plugin archive manifest without MovScript manifest.json', async () => {
   const zip = fakeZip({
-    '.codex-plugin/plugin.json': JSON.stringify({
+    '.provider-plugin/plugin.json': JSON.stringify({
       name: 'story-pack',
       version: '1.0.0',
-      description: 'Codex story skills.',
+      description: 'Provider story skills.',
       skills: './skills',
       mcpServers: './mcp.json',
     }),
@@ -35,9 +35,9 @@ test('reads Codex plugin archive manifest without MovScript manifest.json', asyn
     id: 'story-pack',
     name: 'story-pack',
     version: '1.0.0',
-    description: 'Codex story skills.',
+    description: 'Provider story skills.',
     contributes: {
-      agentSkills: [{ path: './skills' }],
+      skills: [{ path: './skills' }],
       mcpServers: [{
         id: 'story',
         label: 'Story MCP',
@@ -45,42 +45,56 @@ test('reads Codex plugin archive manifest without MovScript manifest.json', asyn
         tools: [{ name: 'story_outline', description: 'Outline story.' }],
       }],
     },
-    codex: {
+    providerPlugin: {
       name: 'story-pack',
       version: '1.0.0',
-      description: 'Codex story skills.',
+      description: 'Provider story skills.',
       skills: './skills',
       mcpServers: './mcp.json',
     },
-    manifestFormat: 'codex',
+    manifestFormat: 'provider-plugin',
     bundle: undefined,
     sourceUrl: 'story-pack.zip',
     installedAt: manifest.installedAt,
   })
 })
 
-test('maps Codex plugin skills directory into agent catalog files', async () => {
+test('maps provider plugin skills directory into plugin catalog files', async () => {
   const zip = fakeZip({
-    '.codex-plugin/plugin.json': JSON.stringify({ name: 'story-pack', skills: './skills' }),
+    '.provider-plugin/plugin.json': JSON.stringify({ name: 'story-pack', skills: './skills' }),
     'skills/story/SKILL.md': '---\nname: Story\ndescription: Story skill.\n---\nUse story.',
     'skills/README.md': 'Shared notes.',
   })
 
-  const files = await extractMovpkgAgentCatalogFiles(zip, {
+  const files = await extractMovpkgPluginCatalogFiles(zip, {
     name: 'story-pack',
     skills: './skills',
   })
 
   assert.deepEqual(files, [
     {
-      path: 'agent-skills/README.md',
+      path: 'plugin-skills/README.md',
       content: 'Shared notes.',
     },
     {
-      path: 'agent-skills/story/SKILL.md',
+      path: 'plugin-skills/story/SKILL.md',
       content: '---\nname: Story\ndescription: Story skill.\n---\nUse story.',
     },
   ])
+})
+
+test('rejects provider-specific plugin archive manifests without neutral provider metadata', async () => {
+  const zip = fakeZip({
+    [['.codex-plugin', 'plugin.json'].join('/')]: JSON.stringify({
+      name: 'legacy-pack',
+      version: '1.0.0',
+    }),
+  })
+
+  await assert.rejects(
+    () => readPluginArchiveManifest(zip, { name: 'legacy-pack.zip' }),
+    /provider plugin manifest/,
+  )
 })
 
 function fakeZip(files: Record<string, string>) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 interface UseAgentConversationRunResetInput {
   activeRunId?: string | null

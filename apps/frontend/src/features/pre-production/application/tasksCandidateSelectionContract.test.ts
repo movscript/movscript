@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
@@ -25,7 +25,7 @@ test('task creation selects asset slot candidates from the current target instea
   assert.match(source, /指定素材候选缺少资源或已不可采纳/)
   assert.match(source, /requestedAssetCandidateUnavailable && <option value="">指定候选不可采纳<\/option>/)
   assert.match(source, /JSON\.stringify\(\{\s*asset_slot_candidate_id: selectedCandidate\.ID\s*\}\)/)
-  assert.match(source, /<NativeSelect[\s\S]*value=\{selectedCandidate \? String\(selectedCandidate\.ID\) : ''\}/)
+  assert.match(source, /<ProjectTaskSelect[\s\S]*value=\{selectedCandidate \? String\(selectedCandidate\.ID\) : ''\}/)
   assert.match(source, /当前素材需求暂无可采纳候选/)
   assert.doesNotMatch(source, /placeholder="输入 asset_slot_candidate_id"/)
   assert.doesNotMatch(source, /optionalPositiveID\(candidateID\)/)
@@ -57,7 +57,7 @@ test('task creation can select keyframe candidates from the current target', () 
   assert.match(source, /重新选择一个可采纳候选/)
   assert.match(source, /requestedKeyframeCandidateUnavailable && <option value="">指定候选不可采纳<\/option>/)
   assert.match(source, /JSON\.stringify\(\{\s*keyframe_candidate_id: selectedKeyframeCandidate\.ID\s*\}\)/)
-  assert.match(source, /<NativeSelect[\s\S]*value=\{selectedKeyframeCandidate \? String\(selectedKeyframeCandidate\.ID\) : ''\}/)
+  assert.match(source, /<ProjectTaskSelect[\s\S]*value=\{selectedKeyframeCandidate \? String\(selectedKeyframeCandidate\.ID\) : ''\}/)
   assert.match(source, /!isGeneratedKeyframeCandidateRecord\(record\)/)
   assert.match(source, /当前画面锚点暂无 AI 候选/)
   assert.match(source, /采纳候选画面锚点，或直接将当前画面锚点状态变为 accepted/)
@@ -87,8 +87,8 @@ test('task detail can publish work items into the agent panel and reopen the lin
   const source = readFileSync(resolve('src/features/project/components/TasksPage.tsx'), 'utf8')
   const bridgeSource = readFileSync(resolve('src/features/agent/application/agentPanelBridge.ts'), 'utf8')
   const panelSource = readFileSync(resolve('src/features/agent/components/AIAgentPanel.tsx'), 'utf8')
-  const builtinChatShellSource = readFileSync(resolve('src/features/agent/components/AgentBuiltinChatShell.tsx'), 'utf8')
-  const builtinChatControllerSource = readFileSync(resolve('src/features/agent/presentation/useAgentBuiltinChatController.ts'), 'utf8')
+  const dockControllerSource = readFileSync(resolve('src/features/agent/presentation/useAIAgentPanelDockController.ts'), 'utf8')
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
 
   assert.match(source, /openAgentPanelWorkspace/)
   assert.match(source, /openAgentPanelThread/)
@@ -112,12 +112,15 @@ test('task detail can publish work items into the agent panel and reopen the lin
 
   assert.match(bridgeSource, /AGENT_PANEL_THREAD_EVENT/)
   assert.match(bridgeSource, /function openAgentPanelThread\(input: string \| AgentPanelThreadPayload, sessionId\?: string\)/)
-  assert.match(bridgeSource, /sessionId: payload\.sessionId\.trim\(\)/)
-  assert.match(panelSource, /pendingThreadIdToOpen/)
-  assert.match(panelSource, /pendingThreadSessionIdToOpen/)
-  assert.match(panelSource, /<AgentBuiltinChatShell/)
-  assert.match(builtinChatShellSource, /useAgentBuiltinChatController\(\{/)
-  assert.match(builtinChatControllerSource, /handleRestoreLocalThread\(pendingThreadIdToOpen, pendingThreadSessionIdToOpen \?\? undefined\)/)
+  assert.match(bridgeSource, /pendingThreadPayloads\.push\(normalizedPayload\)/)
+  assert.match(bridgeSource, /function consumeAgentPanelThread\(\)/)
+  assert.match(bridgeSource, /payload\.sessionId\?\.trim\(\) \? \{ sessionId: payload\.sessionId\.trim\(\) \} : \{\}/)
+  assert.match(panelSource, /<AgentUnifiedChatShell/)
+  assert.match(dockControllerSource, /window\.addEventListener\(AGENT_PANEL_THREAD_EVENT, handleThreadOpen\)/)
+  assert.match(dataSourceShellSource, /consumeAgentPanelThread\(\)/)
+  assert.match(dataSourceShellSource, /window\.addEventListener\(AGENT_PANEL_THREAD_EVENT, handlePanelThreadOpen\)/)
+  assert.equal(existsSync(resolve('src/features/agent/components/AgentBuiltinChatShell.tsx')), false)
+  assert.equal(existsSync(resolve('src/features/agent/presentation/useAgentBuiltinChatController.ts')), false)
 })
 
 test('task creation dialog keeps publish controls visible and can publish to a named agent', () => {
@@ -131,10 +134,10 @@ test('task creation dialog keeps publish controls visible and can publish to a n
   assert.match(source, /交付检查 Agent/)
   assert.match(source, /agentKey\?: TaskAgentKey/)
   assert.match(source, /const \[agentKey, setAgentKey\] = useState<TaskAgentKey \| ''>\(''\)/)
-  assert.match(source, /<DialogContent className="flex max-h-\[88vh\] w-\[min\(920px,calc\(100vw-32px\)\)\] flex-col overflow-hidden p-0">/)
-  assert.match(source, /<DialogHeader className="shrink-0 border-b border-border px-5 py-4">/)
-  assert.match(source, /<div className="min-h-0 flex-1 overflow-y-auto">/)
-  assert.match(source, /<DialogFooter className="shrink-0 border-t border-border bg-card px-5 py-4">/)
+  assert.match(source, /<ProjectTaskDialogContent>/)
+  assert.match(source, /<ProjectTaskDialogHeader>/)
+  assert.match(source, /<ProjectTaskDialogBody>/)
+  assert.match(source, /<ProjectTaskDialogFooter>/)
   assert.match(source, /<option value="">不发送给 AI 助手<\/option>/)
   assert.match(source, /taskAgentOptions\.map\(\(agent\) =>/)
   assert.match(source, /发布后交给\{selectedAgent\.name\}/)

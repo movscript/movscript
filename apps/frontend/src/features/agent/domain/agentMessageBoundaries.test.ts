@@ -7,7 +7,7 @@ import {
   latestTranscriptChatMessage,
   streamingAssistantRunIdFromMessageId,
   transcriptAssistantRelatedRunId,
-  transcriptAssistantRuntimeMessageRunId,
+  transcriptAssistantProviderSessionRunId,
   transcriptMessageCount,
   transcriptMessageItemRelatedRunId,
   transcriptMessageItemThreadRunId,
@@ -24,18 +24,26 @@ test('transcript helpers read projected chat messages directly', () => {
   assert.equal(latestTranscriptChatMessage({ transcriptMessages: [user, final] })?.id, 'final_message')
 })
 
-test('transcript assistant run helpers read runtime message ids only', () => {
-  const runtimeMessage = message({
+test('transcript assistant run helpers read provider-session message ids only', () => {
+  const providerSessionMessage = message({
     meta: {
-      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: ' run_runtime ' },
+      providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: ' run_provider_session ' },
     },
   })
-  const messageWithoutRuntime = message()
-  assert.equal(isTranscriptAssistantChatMessage(runtimeMessage), true)
-  assert.equal(transcriptAssistantRuntimeMessageRunId(runtimeMessage), 'run_runtime')
-  assert.equal(transcriptAssistantRelatedRunId(runtimeMessage), 'run_runtime')
-  assert.equal(transcriptAssistantRuntimeMessageRunId(messageWithoutRuntime), undefined)
-  assert.equal(transcriptAssistantRelatedRunId(messageWithoutRuntime), undefined)
+  const messageWithoutProviderSession = message()
+  assert.equal(isTranscriptAssistantChatMessage(providerSessionMessage), true)
+  assert.equal(transcriptAssistantProviderSessionRunId(providerSessionMessage), 'run_provider_session')
+  assert.equal(transcriptAssistantRelatedRunId(providerSessionMessage), 'run_provider_session')
+  assert.equal(transcriptAssistantProviderSessionRunId(messageWithoutProviderSession), undefined)
+  assert.equal(transcriptAssistantRelatedRunId(messageWithoutProviderSession), undefined)
+})
+
+test('transcript assistant run helpers accept compatibility message refs through the provider-session helper', () => {
+  assert.equal(transcriptAssistantProviderSessionRunId(message({
+    meta: {
+      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_compat' },
+    },
+  })), 'run_compat')
 })
 
 test('assistantMessageCompletesStreamingRun only accepts final assistant messages for the matching run', () => {
@@ -43,7 +51,7 @@ test('assistantMessageCompletesStreamingRun only accepts final assistant message
     id: 'assistant_run_1',
     content: '最终回复',
     meta: {
-      runtimeMessage: {
+      providerSessionMessage: {
         threadId: 'thread_1',
         messageId: 'assistant_run_1',
         runId: ' run_1 ',
@@ -56,12 +64,12 @@ test('assistantMessageCompletesStreamingRun only accepts final assistant message
   assert.equal(assistantMessageCompletesStreamingRun({ ...finalAssistantMessage, role: 'user' }, 'run_1'), false)
 })
 
-test('assistantMessageCompletesStreamingRun ignores timeline activity and reads runtime message ids', () => {
+test('assistantMessageCompletesStreamingRun ignores timeline activity and reads provider-session message ids', () => {
   const finalAssistantMessage = message({
     id: 'assistant_run_1',
     content: '最终回复',
     meta: {
-      runtimeMessage: {
+      providerSessionMessage: {
         threadId: 'thread_1',
         messageId: 'assistant_run_1',
         runId: 'run_1',
@@ -114,7 +122,7 @@ test('visibleStreamingAssistantTextForTranscript hides streaming text after fina
   }), '正在回答')
 })
 
-test('transcript user run helpers prefer runtime input ids before runtime message ids', () => {
+test('transcript user run helpers prefer active run input ids before provider-session message ids', () => {
   const runtimeInputMessage = message({
     role: 'user',
     meta: {

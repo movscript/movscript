@@ -1,0 +1,423 @@
+import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
+import type { SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
+import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
+import {
+  appServerThreadTurnItemServerRequestResponseFromAgentChat,
+  appServerThreadTurnItemUserInputFromAgentChat,
+  agentChatNotificationFromAppServerThreadTurnItem,
+  agentChatServerRequestFromAppServerThreadTurnItem,
+  agentChatThreadFromAppServerThreadTurnItem,
+  agentChatTurnFromAppServerThreadTurnItem,
+} from '@/shared/infrastructure/app-server/appServerThreadTurnItemAdapter'
+import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
+
+export interface AppServerChatDataSourceOptions {
+  provider?: AgentChatProviderKind
+  providerId?: string
+  providerInstanceId?: string
+  label?: string
+  messageAdapter?: AppServerChatMessageAdapterKind
+  defaultThreadCwd?: string
+  resolveModelForRequest?: () => AgentChatModelSelection
+}
+
+export type AppServerChatMessageAdapterKind = 'thread-turn-item' | (string & {})
+
+export function createAppServerChatDataSource(client: AppServerRpcClient, options: AppServerChatDataSourceOptions = {}): AgentChatDataSource {
+  const provider = options.provider ?? MOVA_PROVIDER_ID
+  const adapter = appServerMessageAdapter(options.messageAdapter, {
+    provider,
+    providerId: options.providerId,
+    providerInstanceId: options.providerInstanceId,
+    label: options.label,
+  })
+  const label = options.label?.trim() || `${appServerProviderTitle(provider)} app-server`
+  return {
+    provider,
+    ...(options.providerId?.trim() ? { providerId: options.providerId.trim() } : {}),
+    ...(options.providerInstanceId?.trim() ? { providerInstanceId: options.providerInstanceId.trim() } : {}),
+    label,
+    serverRequestSubscriptionMode: 'global',
+    capabilities: createAppServerChatCapabilities(client, provider, adapter),
+    async listThreads(input = {}) {
+      const response = await client.listThreads(input)
+      return {
+        threads: (response.data ?? []).map((thread) => adapter.thread(thread, provider)),
+        nextCursor: response.nextCursor,
+      }
+    },
+    async readThread(threadId, input = {}) {
+      const response = await client.readThread(threadId, input)
+      return adapter.thread(response.thread, provider)
+    },
+    async startThread(input = {}) {
+      const modelSelection = modelSelectionForRequest(options, input)
+      const runProfileParams = appServerRunProfileParams(input.runProfile, 'thread')
+      const threadParams = {
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
+        ...(modelSelection.modelProvider ? { modelProvider: modelSelection.modelProvider } : {}),
+        ...(input.cwd?.trim() ? { cwd: input.cwd.trim() } : options.defaultThreadCwd?.trim() ? { cwd: options.defaultThreadCwd.trim() } : {}),
+        ...runProfileParams,
+        threadSource: 'user' as const,
+      }
+      const response = await client.startThread(threadParams)
+      return adapter.thread(response.thread, provider)
+    },
+    async renameThread(input) {
+      const response = await client.requestProtocol<{ thread?: unknown }>('thread/name/set', {
+        threadId: input.threadId,
+        name: input.name,
+      })
+      return threadFromLifecycleResponse(response, provider, adapter)
+    },
+    async archiveThread(input) {
+      const response = await client.requestProtocol<{ thread?: unknown }>('thread/archive', {
+        threadId: input.threadId,
+      })
+      return threadFromLifecycleResponse(response, provider, adapter)
+    },
+    async unarchiveThread(input) {
+      const response = await client.requestProtocol<{ thread?: unknown }>('thread/unarchive', {
+        threadId: input.threadId,
+      })
+      return threadFromLifecycleResponse(response, provider, adapter)
+    },
+    async startTurn(input) {
+      const modelSelection = modelSelectionForRequest(options, input)
+      const runProfileParams = appServerRunProfileParams(input.runProfile, 'turn')
+      const turnParams = {
+        threadId: input.threadId,
+        clientUserMessageId: input.clientUserMessageId ?? undefined,
+        input: input.inputs.map(adapter.userInput),
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
+        ...runProfileParams,
+      }
+      const response = await client.startTurn(turnParams)
+      return adapter.turn(response.turn)
+    },
+    steerTurn(input) {
+      return client.steerTurn({
+        threadId: input.threadId,
+        expectedTurnId: input.turnId,
+        clientUserMessageId: input.clientUserMessageId ?? undefined,
+        input: input.inputs.map(adapter.userInput),
+      })
+    },
+    interruptTurn(input) {
+      return client.interruptTurn({
+        threadId: input.threadId,
+        turnId: input.turnId,
+      })
+    },
+    async startTextTurn(input) {
+      const modelSelection = modelSelectionForRequest(options, input)
+      const runProfileParams = appServerRunProfileParams(input.runProfile, 'turn')
+      const turnParams = {
+        threadId: input.threadId,
+        text: input.text,
+        clientUserMessageId: input.clientUserMessageId ?? undefined,
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
+        ...runProfileParams,
+      }
+      const response = await client.startTextTurn(turnParams)
+      return adapter.turn(response.turn)
+    },
+    subscribeThread({ threadId, onNotification, onServerRequest }) {
+      const disposeNotification = client.onNotification((notification) => {
+        const notificationThreadId = threadIdFromParams(notification.params)
+        if (notificationThreadId && notificationThreadId !== threadId) return
+        onNotification?.(adapter.notification(notification, provider))
+      })
+      const disposeServerRequest = client.onServerRequest((request) => {
+        const nextRequest = adapter.serverRequest(request)
+        if (nextRequest.threadId && nextRequest.threadId !== threadId) return undefined
+        return Promise.resolve(onServerRequest?.(nextRequest)).then((nextResponse) => (
+          nextResponse ? adapter.serverRequestResponse(nextRequest, nextResponse) : undefined
+        ))
+      })
+      return () => {
+        disposeNotification()
+        disposeServerRequest()
+      }
+    },
+    subscribeServerRequests({ onServerRequest, onNotification }) {
+      const disposeNotification = client.onNotification((notification) => {
+        if (notification.method === 'serverRequest/resolved') onNotification?.(adapter.notification(notification, provider))
+      })
+      const disposeServerRequest = client.onServerRequest((request) => {
+        const nextRequest = adapter.serverRequest(request)
+        return Promise.resolve(onServerRequest?.(nextRequest)).then((nextResponse) => (
+          nextResponse ? adapter.serverRequestResponse(nextRequest, nextResponse) : undefined
+        ))
+      })
+      return () => {
+        disposeNotification()
+        disposeServerRequest()
+      }
+    },
+  }
+}
+
+function appServerProviderTitle(provider: string): string {
+  return provider
+    .split(/[-_\s]+/g)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ') || provider
+}
+
+function appServerMessageAdapter(
+  kind: AppServerChatMessageAdapterKind | undefined,
+  context: {
+    provider: AgentChatProviderKind
+    providerId?: string
+    providerInstanceId?: string
+    label?: string
+  },
+) {
+  if (!kind || kind === 'thread-turn-item') {
+    return {
+      thread: agentChatThreadFromAppServerThreadTurnItem,
+      turn: agentChatTurnFromAppServerThreadTurnItem,
+      notification: agentChatNotificationFromAppServerThreadTurnItem,
+      serverRequest: agentChatServerRequestFromAppServerThreadTurnItem,
+      serverRequestResponse: appServerThreadTurnItemServerRequestResponseFromAgentChat,
+      userInput: appServerThreadTurnItemUserInputFromAgentChat,
+    }
+  }
+  console.error('Unsupported app-server message adapter', {
+    messageAdapter: kind,
+    provider: context.provider,
+    providerId: context.providerId,
+    providerInstanceId: context.providerInstanceId,
+    label: context.label,
+  })
+  throw new Error(`Unsupported app-server message adapter: ${kind}`)
+}
+
+function appServerRunProfileParams(profile: AgentRunProfileSelection | undefined, target: 'thread' | 'turn') {
+  if (!profile) return {}
+  return {
+    approvalPolicy: profile.approvalPolicy,
+    approvalsReviewer: profile.approvalsReviewer,
+    ...(profile.permissionProfileId
+      ? { permissions: profile.permissionProfileId }
+      : target === 'thread'
+        ? { sandbox: profile.fallbackSandbox }
+        : { sandboxPolicy: sandboxPolicyFromRunProfile(profile) }),
+  }
+}
+
+function sandboxPolicyFromRunProfile(profile: AgentRunProfileSelection): SandboxPolicy {
+  if (profile.fallbackSandbox === 'danger-full-access') return { type: 'dangerFullAccess' }
+  if (profile.fallbackSandbox === 'read-only') return { type: 'readOnly', networkAccess: false }
+  return {
+    type: 'workspaceWrite',
+    writableRoots: [],
+    networkAccess: false,
+    excludeTmpdirEnvVar: false,
+    excludeSlashTmp: false,
+  }
+}
+
+function modelSelectionForRequest(
+  options: AppServerChatDataSourceOptions,
+  input: AgentChatModelSelection,
+): { model?: string; modelProvider?: string } {
+  const resolved = options.resolveModelForRequest?.() ?? {}
+  const model = input.model?.trim() || resolved.model?.trim() || undefined
+  const modelProvider = input.modelProvider?.trim() || resolved.modelProvider?.trim() || undefined
+  return {
+    ...(model ? { model } : {}),
+    ...(modelProvider ? { modelProvider } : {}),
+  }
+}
+
+type AppServerChatMessageAdapter = ReturnType<typeof appServerMessageAdapter>
+
+function threadFromLifecycleResponse(response: { thread?: unknown }, provider: AgentChatProviderKind, adapter: AppServerChatMessageAdapter): ReturnType<typeof agentChatThreadFromAppServerThreadTurnItem> | unknown {
+  return response.thread && typeof response.thread === 'object'
+    ? adapter.thread(response.thread as Parameters<typeof agentChatThreadFromAppServerThreadTurnItem>[0], provider)
+    : response
+}
+
+function createAppServerChatCapabilities(client: AppServerRpcClient, provider: AgentChatProviderKind, adapter: AppServerChatMessageAdapter): AgentChatCapabilities {
+  const request = <T = unknown>(method: string, params?: unknown) => client.requestProtocol<T>(method, params)
+  return {
+    command: {
+      exec(input) {
+        const { raw, ...params } = input
+        return request('command/exec', { ...params, ...(raw ?? {}) })
+      },
+      write(input) {
+        const { dataBase64, ...params } = input
+        return request('command/exec/write', {
+          ...params,
+          deltaBase64: input.deltaBase64 ?? dataBase64 ?? undefined,
+        })
+      },
+      resize(input) {
+        const { rows, cols, ...params } = input
+        return request('command/exec/resize', params)
+      },
+      terminate(input) {
+        return request('command/exec/terminate', input)
+      },
+    },
+    fs: {
+      readFile(input) {
+        return request('fs/readFile', input)
+      },
+      writeFile(input) {
+        return request('fs/writeFile', input)
+      },
+      createDirectory(input) {
+        return request('fs/createDirectory', input)
+      },
+      readDirectory(input) {
+        return request('fs/readDirectory', input)
+      },
+      getMetadata(input) {
+        return request('fs/getMetadata', input)
+      },
+      copy(input) {
+        const { source, destination, ...params } = input
+        return request('fs/copy', {
+          ...params,
+          sourcePath: params.sourcePath ?? source,
+          destinationPath: params.destinationPath ?? destination,
+        })
+      },
+      remove(input) {
+        return request('fs/remove', input)
+      },
+      watch(input) {
+        return request('fs/watch', input)
+      },
+      unwatch(input) {
+        return request('fs/unwatch', input)
+      },
+    },
+    mcp: {
+      listServers(input = {}) {
+        return request('mcpServerStatus/list', input)
+      },
+      readResource(input) {
+        return request('mcpServer/resource/read', input)
+      },
+      callTool(input) {
+        return request('mcpServer/tool/call', input)
+      },
+      oauthLogin(input) {
+        return request('mcpServer/oauth/login', input)
+      },
+      reload() {
+        return request('config/mcpServer/reload')
+      },
+    },
+    plugins: {
+      list(input = {}) {
+        return request('plugin/list', input)
+      },
+      installed(input = {}) {
+        return request('plugin/installed', input)
+      },
+      install(input) {
+        return request('plugin/install', input)
+      },
+      uninstall(input) {
+        return request('plugin/uninstall', input)
+      },
+      read(input) {
+        return request('plugin/read', input)
+      },
+      readSkill(input) {
+        return request('plugin/skill/read', input)
+      },
+    },
+    skills: {
+      list(input = {}) {
+        return request('skills/list', input)
+      },
+      writeConfig(input) {
+        return request('skills/config/write', input)
+      },
+      setExtraRoots(input) {
+        return request('skills/extraRoots/set', input)
+      },
+    },
+    models: {
+      list(input = {}) {
+        return request('model/list', input)
+      },
+      readProviderCapabilities(input = {}) {
+        return request('modelProvider/capabilities/read', input)
+      },
+    },
+    config: {
+      read(input = {}) {
+        return request('config/read', input)
+      },
+      writeValue(input) {
+        return request('config/value/write', input)
+      },
+      writeBatch(input) {
+        return request('config/batchWrite', input)
+      },
+      listPermissionProfiles(input = {}) {
+        return request('permissionProfile/list', input)
+      },
+    },
+    account: {
+      read(input = {}) {
+        return request('account/read', input)
+      },
+      loginStart(input) {
+        return request('account/login/start', input)
+      },
+      loginCancel(input) {
+        return request('account/login/cancel', input)
+      },
+      logout() {
+        return request('account/logout')
+      },
+      readRateLimits() {
+        return request('account/rateLimits/read')
+      },
+    },
+    realtime: {
+      supported: true,
+      listVoices(input = {}) {
+        return request('thread/realtime/listVoices', input)
+      },
+      start(input) {
+        return request('thread/realtime/start', input)
+      },
+      appendAudio(input) {
+        return request('thread/realtime/appendAudio', input)
+      },
+      appendText(input) {
+        return request('thread/realtime/appendText', input)
+      },
+      stop(input) {
+        return request('thread/realtime/stop', input)
+      },
+      subscribe({ threadId, onNotification }) {
+        const dispose = client.onNotification((notification) => {
+          if (!notification.method.startsWith('thread/realtime/')) return
+          const notificationThreadId = threadIdFromParams(notification.params)
+          if (notificationThreadId && notificationThreadId !== threadId) return
+          onNotification(adapter.notification(notification, provider) as AgentChatNotification)
+        })
+        return dispose
+      },
+    },
+  }
+}
+
+function threadIdFromParams(params: unknown): string | undefined {
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return undefined
+  const value = (params as Record<string, unknown>).threadId
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}

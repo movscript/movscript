@@ -50,7 +50,7 @@ export function AgentConversationTabsPanel({
             isDragging={draggingConversationId === item.id}
             isEditing={editingConversationId === item.id}
             dropPosition={dropTarget?.conversationId === item.id ? dropTarget.position : undefined}
-            tabLabel={item.runtimeState ? `${item.title}，Runtime ${item.runtimeState}` : item.title}
+            tabLabel={item.sessionState ? `${item.title}，Session ${item.sessionState}` : item.title}
             conversationTabsLabel={conversationTabsLabel}
             closeConversationLabel={closeConversationLabel}
             renameConversationLabel={renameConversationLabel}

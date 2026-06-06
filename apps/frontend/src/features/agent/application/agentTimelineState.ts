@@ -2,7 +2,7 @@ import type {
   AgentTimelineItem,
   AgentTimelinePage,
   AgentTimelineStreamEvent,
-} from '@/shared/infrastructure/localAgentClient'
+} from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentTimelineState {
   items: AgentTimelineItem[]

@@ -1,6 +1,6 @@
 import {
   buildAssetCandidateWorkspaceReviewSearchParams,
-  createAssetCandidateWorkspaceWorkspace,
+  createAssetCandidateWorkspaceArtifact,
   launchAssetCandidateWorkspaceAgent,
 } from '@/features/pre-production/application/preProductionAgentLaunch'
 import {
@@ -27,7 +27,7 @@ export function buildPreProductionAssetWorkspaceMutationOptions({
       if (!projectId) throw new Error('请先选择项目')
       const referenceIds = candidateReferenceResourceIds(row)
       const slotName = row.slot.name || `素材需求 #${row.slot.ID}`
-      const workspaceShell = await createAssetCandidateWorkspaceWorkspace({
+      const workspaceShell = await createAssetCandidateWorkspaceArtifact({
         projectId,
         assetSlotId: row.slot.ID,
         slotName,
@@ -67,7 +67,7 @@ export function buildPreProductionAssetWorkspaceMutationOptions({
           }
           setReviewSearchParams((current) => buildAssetCandidateWorkspaceReviewSearchParams(current, reviewSearchInput))
           const workspaceId = buildAssetCandidateWorkspaceReviewSearchParams(new URLSearchParams(), reviewSearchInput).get('workspaceId') ?? workspaceShell.id
-          toast.success(`素材候选工作区已准备，可在 AI 工作区中审阅：${workspaceId}`)
+          toast.success(`素材候选草案已准备，可在 AI 草案中审阅：${workspaceId}`)
           cleanupRef.current?.()
           cleanupRef.current = null
         },
@@ -75,7 +75,7 @@ export function buildPreProductionAssetWorkspaceMutationOptions({
       return { workspace: workspaceShell }
     },
     onSuccess: () => {
-      toast.success('已打开 AI 素材候选工作区助手')
+      toast.success('已打开 AI 素材候选草案助手')
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : '准备素材候选工作区失败')

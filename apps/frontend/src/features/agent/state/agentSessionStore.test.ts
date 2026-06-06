@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { conversationIdForRuntimeThread } from '@movscript/conversation'
-import { pageTaskStatusFromRuntime, useAgentSessionStore } from './agentSessionStore'
+import { conversationIdForProviderThread } from '@/features/agent/domain/agentConversation'
+import { pageTaskStatusFromProviderSession, useAgentSessionStore } from './agentSessionStore'
 
-test('conversationIdForRuntimeThread resolves persisted direct conversation mappings first', () => {
-  assert.equal(conversationIdForRuntimeThread({
+test('conversationIdForProviderThread resolves persisted direct conversation mappings first', () => {
+  assert.equal(conversationIdForProviderThread({
     threadId: 'thread_1',
-    localThreadIdsByConversation: {
+    providerThreadIdsByConversation: {
       conv_direct: 'thread_1',
     },
-    conversationRuntimes: {
+    conversationProviderSessionStates: {
       conv_runtime: {
         threadId: 'thread_1',
         updatedAt: 2000,
@@ -19,11 +19,11 @@ test('conversationIdForRuntimeThread resolves persisted direct conversation mapp
   }), 'conv_direct')
 })
 
-test('conversationIdForRuntimeThread falls back to the latest runtime mapping', () => {
-  assert.equal(conversationIdForRuntimeThread({
+test('conversationIdForProviderThread falls back to the latest provider-session mapping', () => {
+  assert.equal(conversationIdForProviderThread({
     threadId: 'thread_1',
-    localThreadIdsByConversation: {},
-    conversationRuntimes: {
+    providerThreadIdsByConversation: {},
+    conversationProviderSessionStates: {
       conv_old: {
         threadId: 'thread_1',
         updatedAt: 1000,
@@ -40,13 +40,13 @@ test('conversationIdForRuntimeThread falls back to the latest runtime mapping', 
   }), 'conv_new')
 })
 
-test('conversationIdForRuntimeThread returns undefined for unmapped runtime threads', () => {
-  assert.equal(conversationIdForRuntimeThread({
+test('conversationIdForProviderThread returns undefined for unmapped provider-session threads', () => {
+  assert.equal(conversationIdForProviderThread({
     threadId: 'thread_missing',
-    localThreadIdsByConversation: {
+    providerThreadIdsByConversation: {
       conv_direct: 'thread_1',
     },
-    conversationRuntimes: {
+    conversationProviderSessionStates: {
       conv_runtime: {
         threadId: 'thread_2',
         updatedAt: 1000,
@@ -55,13 +55,13 @@ test('conversationIdForRuntimeThread returns undefined for unmapped runtime thre
   }), undefined)
 })
 
-test('agent session persistence excludes runtime thread mappings and projections', () => {
+test('agent session persistence excludes provider-session thread mappings and projections', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: { user_1: 'conv_1' },
     workspacesByUser: { user_1: { conv_1: { input: 'workspace check', attachments: [] } } },
-    localThreadIdsByConversation: { conv_1: 'thread_1' },
+    providerThreadIdsByConversation: { conv_1: 'thread_1' },
     sessionIdsByConversation: { conv_1: 'session_1' },
-    conversationRuntimes: {
+    conversationProviderSessionStates: {
       conv_1: {
         conversationId: 'conv_1',
         threadId: 'thread_1',
@@ -81,33 +81,33 @@ test('agent session persistence excludes runtime thread mappings and projections
   assert.deepEqual(partialized, {})
 })
 
-test('createRuntimeConversation stores explicit conversation titles', () => {
+test('createProviderSessionConversation stores explicit conversation titles', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
     workspacesByUser: {},
-    localThreadIdsByConversation: {},
+    providerThreadIdsByConversation: {},
     sessionIdsByConversation: {},
-    conversationRuntimes: {},
+    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
 
-  const conversationId = useAgentSessionStore.getState().createRuntimeConversation('user_1', {
+  const conversationId = useAgentSessionStore.getState().createProviderSessionConversation('user_1', {
     threadId: 'thread_titled',
     title: '上下文',
   })
 
   assert.equal(conversationId, 'thread_titled')
-  assert.equal(useAgentSessionStore.getState().conversationRuntimes.thread_titled?.title, '上下文')
+  assert.equal(useAgentSessionStore.getState().conversationProviderSessionStates.thread_titled?.title, '上下文')
 })
 
 test('setActiveConversation ignores duplicate active conversation ids', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: { user_1: 'conv_1' },
     workspacesByUser: {},
-    localThreadIdsByConversation: {},
+    providerThreadIdsByConversation: {},
     sessionIdsByConversation: {},
-    conversationRuntimes: {},
+    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
@@ -118,20 +118,20 @@ test('setActiveConversation ignores duplicate active conversation ids', () => {
   assert.equal(useAgentSessionStore.getState().activeConversationIdsByUser, before)
 })
 
-test('pageTaskStatusFromRuntime settles explicit panel payload statuses', () => {
-  assert.equal(pageTaskStatusFromRuntime({ status: 'completed' }, 'running'), 'completed')
-  assert.equal(pageTaskStatusFromRuntime({ status: 'error' }, 'running'), 'error')
-  assert.equal(pageTaskStatusFromRuntime({ status: 'cancelled' }, 'running'), 'cancelled')
+test('pageTaskStatusFromProviderSession settles explicit panel payload statuses', () => {
+  assert.equal(pageTaskStatusFromProviderSession({ status: 'completed' }, 'running'), 'completed')
+  assert.equal(pageTaskStatusFromProviderSession({ status: 'error' }, 'running'), 'error')
+  assert.equal(pageTaskStatusFromProviderSession({ status: 'cancelled' }, 'running'), 'cancelled')
 })
 
-test('pageTaskStatusFromRuntime maps terminal run statuses to settled task statuses', () => {
-  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'completed' } as any }, 'running'), 'completed')
-  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'completed_with_warnings' } as any }, 'running'), 'completed')
-  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'failed' } as any }, 'running'), 'error')
-  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'cancelled' } as any }, 'running'), 'cancelled')
+test('pageTaskStatusFromProviderSession maps terminal run statuses to settled task statuses', () => {
+  assert.equal(pageTaskStatusFromProviderSession({ run: { status: 'completed' } as any }, 'running'), 'completed')
+  assert.equal(pageTaskStatusFromProviderSession({ run: { status: 'completed_with_warnings' } as any }, 'running'), 'completed')
+  assert.equal(pageTaskStatusFromProviderSession({ run: { status: 'failed' } as any }, 'running'), 'error')
+  assert.equal(pageTaskStatusFromProviderSession({ run: { status: 'cancelled' } as any }, 'running'), 'cancelled')
 })
 
-test('pageTaskStatusFromRuntime preserves active statuses while claiming queued tasks', () => {
-  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'in_progress' } as any }, 'queued'), 'claimed')
-  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'in_progress' } as any }, 'running'), 'running')
+test('pageTaskStatusFromProviderSession preserves active statuses while claiming queued tasks', () => {
+  assert.equal(pageTaskStatusFromProviderSession({ run: { status: 'in_progress' } as any }, 'queued'), 'claimed')
+  assert.equal(pageTaskStatusFromProviderSession({ run: { status: 'in_progress' } as any }, 'running'), 'running')
 })

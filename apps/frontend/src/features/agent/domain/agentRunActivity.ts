@@ -1,7 +1,7 @@
-import type { AgentRun, AgentRuntimeEventV2, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, ProviderSessionEventV2, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import { runtimeRunIdFromEvent, runtimeTraceFromEvent } from '@movscript/event-state'
+import { providerSessionRunIdFromEvent, providerSessionTraceFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
 
 export interface LiveRunPendingAssistantState {
   status: 'thinking' | 'preparing_tool_call' | 'calling_tool'
@@ -127,11 +127,11 @@ function compactTimelineTraceData(data: unknown): Record<string, unknown> | unde
   if (!isRecord(data)) return undefined
   const generation = compactGenerationTraceData(data.generation)
   const model = compactModelTraceData(data)
-  const runtime = compactRuntimeTraceData(data)
+  const providerSession = compactProviderSessionTraceData(data)
   const compact = {
     ...(generation ? { generation } : {}),
     ...model,
-    ...runtime,
+    ...providerSession,
   }
   return Object.keys(compact).length > 0 ? compact : undefined
 }
@@ -154,7 +154,7 @@ function compactModelTraceData(data: Record<string, unknown>): Record<string, un
   return compact
 }
 
-function compactRuntimeTraceData(data: Record<string, unknown>): Record<string, unknown> {
+function compactProviderSessionTraceData(data: Record<string, unknown>): Record<string, unknown> {
   const compact: Record<string, unknown> = {}
   if (Array.isArray(data.forcedCalls)) compact.forcedCalls = data.forcedCalls.filter((item) => typeof item === 'string')
   if (Array.isArray(data.origins)) compact.origins = data.origins.filter(isRecord)
@@ -206,20 +206,20 @@ export function liveTraceEventKey(event: ChatRunActivityEvent): string {
   return `model-tool-call-stream:${index}`
 }
 
-export function mergeLiveRunActivityEvent(current: ChatRunActivityEvent[], item: ChatRunActivityEvent, input: { runtimeLimit?: number } = {}): ChatRunActivityEvent[] {
+export function mergeLiveRunActivityEvent(current: ChatRunActivityEvent[], item: ChatRunActivityEvent, input: { activityLimit?: number } = {}): ChatRunActivityEvent[] {
   const itemKey = liveTraceEventKey(item)
   const existingIndex = current.findIndex((candidate) => liveTraceEventKey(candidate) === itemKey)
   const next = existingIndex >= 0
     ? current.map((candidate, index) => index === existingIndex ? item : candidate)
     : [...current, item]
   const httpItems = next.filter((candidate) => candidate.id.startsWith('http-request-'))
-  const runtimeItems = next.filter((candidate) => !candidate.id.startsWith('http-request-'))
-  const limit = input.runtimeLimit ?? Number.POSITIVE_INFINITY
-  return [...httpItems, ...(Number.isFinite(limit) ? runtimeItems.slice(-limit) : runtimeItems)]
+  const activityItems = next.filter((candidate) => !candidate.id.startsWith('http-request-'))
+  const limit = input.activityLimit ?? Number.POSITIVE_INFINITY
+  return [...httpItems, ...(Number.isFinite(limit) ? activityItems.slice(-limit) : activityItems)]
 }
 
-export function projectLiveRunRuntimeTraceEvent(event: AgentRuntimeEventV2): LiveRunTraceProjection | null {
-  const trace = runtimeTraceFromEvent(event)
+export function projectLiveRunProviderSessionTraceEvent(event: ProviderSessionEventV2): LiveRunTraceProjection | null {
+  const trace = providerSessionTraceFromEvent(event)
   if (!trace) return null
   if (!isLiveRunActivityTraceKind(trace.kind)) return null
   const activityEvent = chatRunActivityEventFromTrace(trace, event)
@@ -230,19 +230,19 @@ export function projectLiveRunRuntimeTraceEvent(event: AgentRuntimeEventV2): Liv
   }
 }
 
-export function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[], input: { runtimeLimit?: number } = {}): ChatRunActivity {
+export function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[], input: { activityLimit?: number } = {}): ChatRunActivity {
   if (events.length === 0) return activity
   const existingKeys = new Set(activity.events.map(liveTraceEventKey))
   const mergedEvents = [
     ...activity.events,
     ...events.filter((event) => !existingKeys.has(liveTraceEventKey(event))),
   ]
-  const limit = input.runtimeLimit ?? 48
+  const limit = input.activityLimit ?? 48
   return { ...activity, events: Number.isFinite(limit) ? mergedEvents.slice(-limit) : mergedEvents }
 }
 
-function chatRunActivityEventFromTrace(trace: AgentTraceEvent, event?: AgentRuntimeEventV2): ChatRunActivityEvent {
-  const runId = trace.runId || (event ? runtimeRunIdFromEvent(event) : undefined)
+function chatRunActivityEventFromTrace(trace: AgentTraceEvent, event?: ProviderSessionEventV2): ChatRunActivityEvent {
+  const runId = trace.runId || (event ? providerSessionRunIdFromEvent(event) : undefined)
   const data = isRecord(trace.data) ? trace.data : undefined
   return {
     id: trace.id,

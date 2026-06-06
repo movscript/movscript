@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentChatGenerationProgressViewState } from '@/features/agent/presentation/agentChatGenerationProgressViewState'
-import type { AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildAgentChatGenerationProgressViewState exposes current generation progress and scroll key', () => {
@@ -100,7 +100,7 @@ function timelineItemWithGenerationActivity(): AgentTimelineItem {
     updatedAt: '2026-05-22T01:00:02.000Z',
     revision: 1,
     cursor: 'message_2',
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     activity: {
       runId: 'run_2',
       threadId: 'thread_1',

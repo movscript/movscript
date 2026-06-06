@@ -1,5 +1,5 @@
 import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
-import { contentWorkbenchWorkspaceDefaults } from '@/features/content/domain/contentWorkbenchWorkspaceWorkspace'
+import { contentWorkbenchWorkspaceArtifactDefaults } from '@/features/content/domain/contentWorkbenchWorkspaceArtifact'
 import { mergeMetadataJSON, parseMetadataJSON } from '@/features/content/domain/contentUnitPlanningMetadata'
 import { type ContentWorkbenchDropPosition, pickPreviewTimelineItemForUnit, reorderContentWorkbenchUnits } from '@/features/content/domain/contentWorkbenchTimeline'
 import { byOrder, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
@@ -48,7 +48,7 @@ export interface ContentCandidateAttachmentResource {
 }
 
 export function buildContentUnitWorkspacePatch(current: ContentWorkbenchRecord | undefined, workspace: Record<string, unknown>): SemanticEntityPayload {
-  const defaults = contentWorkbenchWorkspaceDefaults(workspace)
+  const defaults = contentWorkbenchWorkspaceArtifactDefaults(workspace)
   const { status: _status, metadata_json, ...basePayload } = defaults
   const payload: SemanticEntityPayload = { ...basePayload }
   if (metadata_json) {

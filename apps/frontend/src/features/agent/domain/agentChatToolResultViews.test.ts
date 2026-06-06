@@ -193,7 +193,7 @@ test('agent chat tool call view builds provider-neutral metadata and pending sta
     mcpAppResourceUri: 'mcp://resource/1',
     result: null,
     error: null,
-    raw: { provider: 'agent-runtime' },
+    raw: { provider: 'provider-session' },
   })
 
   assert.equal(mcpView.title, 'movscript_workspace/movscript_focus_get')
@@ -201,7 +201,7 @@ test('agent chat tool call view builds provider-neutral metadata and pending sta
   assert.equal(mcpView.tone, 'process')
   assert.deepEqual(mcpView.argumentsDetails, { resource: 'focus' })
   assert.deepEqual(mcpView.mcpPending, ['waiting for MCP approval request or tool result'])
-  assert.deepEqual(mcpView.rawDetails, { provider: 'agent-runtime' })
+  assert.deepEqual(mcpView.rawDetails, { provider: 'provider-session' })
   assert.equal(mcpView.dynamicOutput, null)
 
   const dynamicView = agentChatToolCallView({

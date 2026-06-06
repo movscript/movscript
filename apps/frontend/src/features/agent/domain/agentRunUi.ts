@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentTraceView } from './agent-run-ui/types'
 import { traceKindLabel as traceKindLabelImpl } from './agent-run-ui/labels'
 import { agentTraceView as agentTraceViewImpl, hasUnloadedTraceEvents as hasUnloadedTraceEventsImpl } from './agent-run-ui/traceView'

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Blocks, Bot, Cable, ClipboardList, ListTree, MessageSquare, Network, Play, PlugZap, Power, RefreshCw, RotateCw, Settings, Square, Terminal, Trash2 } from 'lucide-react'
+import { AlertTriangle, Blocks, Bot, Cable, ClipboardList, MessageSquare, Network, Play, PlugZap, Power, RefreshCw, RotateCw, Settings, Square, Terminal, Trash2 } from 'lucide-react'
 import {
   AgentConsoleActionButton,
   AgentConsoleBoundaryCard,
@@ -25,7 +25,6 @@ import {
   AgentConsoleHistoryClearTitle,
   AgentConsoleIcon,
   AgentConsoleInlineError,
-  AgentConsoleInlineLink,
   AgentConsoleIntroRow,
   AgentConsoleIssueRowSurface,
   AgentConsoleLocalToolActions,
@@ -43,12 +42,6 @@ import {
   AgentConsoleMetricGrid,
   AgentConsolePanel,
   AgentConsolePanelActions,
-  AgentConsoleRunSummaryCopy,
-  AgentConsoleRunSummaryDetail,
-  AgentConsoleRunSummaryHeader,
-  AgentConsoleRunSummaryId,
-  AgentConsoleRunSummaryLink,
-  AgentConsoleRunSummaryMeta,
   AgentConsoleSectionSpacer,
   AgentConsoleSidebar,
   AgentConsoleStack,
@@ -62,9 +55,10 @@ import {
   type AgentConsoleIssueTone,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { agentRunPath, ROUTES } from '@/routes/projectRoutes'
-import { runRoleLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
+import { ROUTES } from '@/routes/projectRoutes'
+import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { useAgentControlCenter } from '@/features/agent/presentation/useAgentControlCenter'
+import { providerRoute } from '@/features/agent/application/providerRoutes'
 import {
   failedAgentChatCapabilityProbeResult,
   probeAgentChatDataSourceCapabilities,
@@ -77,8 +71,8 @@ import {
   agentRunStatusRecipe,
   agentSeverityStatusRecipe,
 } from '@/features/agent/presentation/agentSemanticUi'
-import { type AgentRuntimeSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
-import { type AgentWorkspaceRunListItem } from '@/features/agent/application/agentRuntimeThreadQueryCache'
+import { type ProviderSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import { type ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import {
   errorMessage,
   modelDisplay,
@@ -87,12 +81,13 @@ import {
   type AgentControlIssue,
 } from '@/features/agent/application/agentControlCenter'
 import {
-  enabledAgentProviders,
-  normalizeAgentProviderSettings,
-  resolveCodexAppServerProfile,
-  useAgentProviderConfigStore,
-  type AgentProviderConfig,
-} from '@/features/agent/state/agentProviderConfigStore'
+  enabledProviders,
+  normalizeProviderSettings,
+  resolveAppServerProfile,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+  type ProviderConfig,
+} from '@/shared/infrastructure/providerConfigStore'
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 type ConsoleIssue = AgentControlIssue
@@ -100,20 +95,20 @@ type ConsoleIssue = AgentControlIssue
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
   const {
-    runtimeSessionsQuery,
+    providerSessionsQuery,
     modelQuery,
     runsQuery,
     threadsQuery,
-    codexStatusQuery,
+    appServerStatusQuery,
     capabilityHealthQuery,
-    runtimeSessions,
+    providerSessions,
     runs,
     threads,
     enabledProvidersForConsole,
+    providerSettings,
     defaultProvider,
-    movscriptProvider,
-    codexProvider,
-    codexProfile,
+    appServerProvider,
+    appServerProfile,
     threadSummary,
     runSummary,
     capabilityHealth,
@@ -123,8 +118,8 @@ export default function AgentConsolePage() {
     attentionIssues,
     loading,
     consoleStatusRecipe,
-    runningSessionCount,
-    codexRunning,
+    onlineProviderSessionCount,
+    appServerRunning,
     controlAction,
     controlError,
     clearConfirming,
@@ -133,16 +128,18 @@ export default function AgentConsolePage() {
     clearHistoryResult,
     refreshAll,
     runControlAction,
-    ensureMovScriptAgent,
-    stopMovScriptAgent,
-    restartMovScriptAgent,
-    ensureCodexAgent,
-    stopCodexAgent,
-    restartCodexAgent,
+    ensureAppServer,
+    stopAppServer,
+    restartAppServer,
     clearThreadHistory,
     setClearConfirming,
   } = controlCenter
   const executingHistoryRunCount = runSummary.active
+  const appServerProvidersForManagement = useMemo(
+    () => providerSettings.providers.filter(usesAppServerProtocol),
+    [providerSettings],
+  )
+  const agentsConfigRoute = appServerProvider ? providerRoute(appServerProvider) : ROUTES.agents
 
   return (
     <AgentPageShell data-testid="agent-console-page">
@@ -158,12 +155,12 @@ export default function AgentConsolePage() {
               {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              聚合 Model Providers、Agents、Plugins 和 Workspace Config 的状态；业务页面只消费已配置好的能力。
+              聚合 Model Providers、Agents、Plugins 和 Workspace Root 的状态；业务页面只消费已配置好的能力。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
             <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.agentsMovscript}>
+              <Link to={agentsConfigRoute}>
                 <Settings size={14} />
                 Agents
               </Link>
@@ -199,13 +196,13 @@ export default function AgentConsolePage() {
             tone={enabledProvidersForConsole.length > 0 ? 'ready' : 'action'}
           />
           <ConsoleMetricCard
-            title="Runtime"
-            value={runtimeSessionsQuery.error ? '索引不可用' : `${runningSessionCount}/${runtimeSessions.length} 在线`}
-            detail="从 workspace session 文件读取，作为本地 provider 的运行实例索引"
-            tone={runtimeSessionsQuery.error ? 'action' : 'ready'}
+            title="Provider Sessions"
+            value={providerSessionsQuery.error ? '索引不可用' : `${onlineProviderSessionCount}/${providerSessions.length} 在线`}
+            detail="按 provider/profile 聚合会话实例；不同 provider 通过各自 adapter 接入"
+            tone={providerSessionsQuery.error ? 'action' : 'ready'}
           />
           <ConsoleMetricCard
-            title="Agent Profile"
+            title="Provider Profile"
             value={modelQuery.data?.configured ? modelDisplay(modelQuery.data.model) : '模型未配置'}
             detail={modelQuery.error ? errorMessage(modelQuery.error) : `${modelQuery.data?.apiKind ?? '模型'} / Skills / Tools / Limits 属于 profile 层`}
             tone={modelQuery.data?.configured ? 'ready' : 'action'}
@@ -215,7 +212,7 @@ export default function AgentConsolePage() {
             value={capabilityHealth.checkedProviderCount > 0 ? `${toolSummary.available} 工具 / ${skillSummary.enabled} Skills` : '等待运行中 Agent'}
             detail={capabilityHealth.checkedProviderCount > 0
               ? `${pluginSummary.enabled} Plugins；已检查 ${capabilityHealth.checkedProviderCount}/${capabilityHealth.providerCount} 个运行中 Agent`
-              : '启动 MovScript Agent 或 Codex 后读取统一能力入口'}
+              : '启动任一 app-server provider 后读取统一能力入口'}
             tone={capabilityHealth.warningCount > 0 ? 'warning' : capabilityHealth.checkedProviderCount > 0 ? 'ready' : 'warning'}
           />
           <ConsoleMetricCard
@@ -229,23 +226,19 @@ export default function AgentConsolePage() {
         <AgentConsoleMainGrid>
           <AgentConsoleMainColumn>
             <AgentControlMatrixPanel
-              movscriptEnabled={movscriptProvider?.enabled !== false}
-              movscriptRunningCount={runningSessionCount}
-              movscriptSessionCount={runtimeSessions.length}
-              codexEnabled={codexProvider?.enabled !== false}
-              codexRunning={codexRunning}
-              codexProfileId={codexProfile.id}
-              codexEndpoint={codexStatusQuery.data?.endpoint}
-              loading={Boolean(controlAction) || runtimeSessionsQuery.isFetching || codexStatusQuery.isFetching}
+              appServerLabel={appServerProvider?.label ?? 'App Server Agent'}
+              appServerConfigRoute={agentsConfigRoute}
+              appServerEnabled={appServerProvider?.enabled === true}
+              appServerRunning={appServerRunning}
+              appServerProfileId={appServerProfile?.id ?? 'none'}
+              appServerEndpoint={appServerStatusQuery.data?.endpoint}
+              loading={Boolean(controlAction) || providerSessionsQuery.isFetching || appServerStatusQuery.isFetching}
               action={controlAction}
               error={controlError}
               onRefresh={refreshAll}
-              onStartMovscript={() => void runControlAction('start-movscript', ensureMovScriptAgent)}
-              onStopMovscript={() => void runControlAction('stop-movscript', stopMovScriptAgent)}
-              onRestartMovscript={() => void runControlAction('restart-movscript', restartMovScriptAgent)}
-              onStartCodex={() => void runControlAction('start-codex', ensureCodexAgent)}
-              onStopCodex={() => void runControlAction('stop-codex', stopCodexAgent)}
-              onRestartCodex={() => void runControlAction('restart-codex', restartCodexAgent)}
+              onStartAppServer={() => void runControlAction('start-app-server', ensureAppServer)}
+              onStopAppServer={() => void runControlAction('stop-app-server', stopAppServer)}
+              onRestartAppServer={() => void runControlAction('restart-app-server', restartAppServer)}
             />
 
             <AgentCapabilityHealthPanel
@@ -256,33 +249,22 @@ export default function AgentConsolePage() {
             <AgentCapabilityProbePanel />
 
             <AgentSessionIntegrationPanel
-              runtimeSessions={runtimeSessions}
+              providerSessions={providerSessions}
               threads={threads}
               runs={runs}
               providers={enabledProvidersForConsole}
-              loading={threadsQuery.isLoading || runtimeSessionsQuery.isLoading}
-              error={threadsQuery.error ?? runtimeSessionsQuery.error}
+              loading={threadsQuery.isLoading || providerSessionsQuery.isLoading}
+              error={threadsQuery.error ?? providerSessionsQuery.error}
             />
 
-            <ConsolePanel title="MovScript Agent 最近运行" icon={<ListTree size={14} />} action={<ConsoleLink to={ROUTES.agentRuns}>查看全部</ConsoleLink>}>
-              {runsQuery.error ? (
-                <AgentConsoleInlineError>{errorMessage(runsQuery.error)}</AgentConsoleInlineError>
-              ) : runs.length === 0 ? (
-                <EmptyText>还没有 MovScript Agent 运行记录。Codex 线程目前只在聊天会话里管理，不进入 Run / Trace 列表。</EmptyText>
-              ) : (
-                <AgentConsoleStack>
-                  {runs.slice(0, 6).map((run) => <RunSummaryRow key={run.id} run={run} />)}
-                </AgentConsoleStack>
-              )}
-            </ConsolePanel>
           </AgentConsoleMainColumn>
 
           <AgentConsoleSidebar>
             <ConsolePanel title="当前边界" icon={<ClipboardList size={14} />}>
               <AgentConsoleGrid>
                 <BoundaryCard title="业务前台" detail="Agent 面板发起任务，业务页面负责对比、审阅和应用建议。" />
-                <BoundaryCard title="控制台" detail="集中处理 Provider 配置、会话注册和 MovScript Agent 运行记录。" />
-                <BoundaryCard title="Trace 详情" detail="目前只有 MovScript Agent 有 Run / Trace；Codex 先按聊天线程管理。" />
+                <BoundaryCard title="控制台" detail="集中处理 Provider 配置、会话注册和 app-server 生命周期。" />
+                <BoundaryCard title="线程详情" detail="app-server provider 通过 thread/list 接入统一会话。" />
               </AgentConsoleGrid>
             </ConsolePanel>
 
@@ -299,13 +281,19 @@ export default function AgentConsolePage() {
             <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
               <AgentConsoleGrid>
                 <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Model Providers" detail="管理本地模型供应商、Base URL、API Key 和默认模型路由。" />
-                <ManagementLink to={ROUTES.agentsMovscript} icon={<Bot size={14} />} title="MovScript Agent" detail="管理自研 Agent 启用状态、Skills、Tools、Limits 和运行记录。" />
-                <ManagementLink to={ROUTES.agentsCodex} icon={<Terminal size={14} />} title="Codex" detail="管理 Codex app-server、Codex home path、启动、停止和运行状态。" />
-                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace Config" detail="查看和编辑 .movscript workspace 配置文件。" />
+                {appServerProvidersForManagement.map((provider) => (
+                  <ManagementLink
+                    key={provider.id}
+                    to={providerRoute(provider)}
+                    icon={<Terminal size={14} />}
+                    title={provider.label}
+                    detail={`管理 ${provider.label} 的 app-server、托管 home 和运行状态。`}
+                  />
+                ))}
+                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace" detail="查看和编辑 .movscript/data、reviews、sync 和 provider session 文件。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Terminal size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
-                <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Plugins" detail="插件是全局扩展入口，也可以贡献 Agent Skills、Tools 和 UI 扩展。" />
-                <ManagementLink to={ROUTES.agentRuns} icon={<ListTree size={14} />} title="MovScript 运行记录" detail="查看自研 Agent 的 Run 状态，并进入 trace 详情。" />
+                <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Plugins" detail="插件是全局扩展入口，也可以贡献 Provider Skills、Tools 和 UI 扩展。" />
               </AgentConsoleGrid>
               <AgentConsoleDivider>
                 <HistoryClearControl
@@ -329,10 +317,10 @@ export default function AgentConsolePage() {
 }
 
 function AgentCapabilityProbePanel() {
-  const savedSettings = useAgentProviderConfigStore((state) => state.settings)
-  const providers = useMemo(() => enabledAgentProviders(normalizeAgentProviderSettings(savedSettings)), [savedSettings])
+  const savedSettings = useProviderConfigStore((state) => state.settings)
+  const providers = useMemo(() => enabledProviders(normalizeProviderSettings(savedSettings)), [savedSettings])
   const probeQuery = useQuery({
-    queryKey: ['agent-console-provider-capability-probe', providers.map(agentProviderProbeKey).join('|')],
+    queryKey: ['agent-console-provider-capability-probe', providers.map(providerProbeKey).join('|')],
     queryFn: async () => Promise.all(providers.map(async (provider) => {
       try {
         const dataSource = await createAgentChatDataSourceForProvider(provider)
@@ -351,7 +339,7 @@ function AgentCapabilityProbePanel() {
 
   return (
     <ConsolePanel
-      title="Agent 数据流与能力探针"
+      title="Provider 数据流与能力探针"
       icon={<Cable size={14} />}
       action={
         <AgentConsolePanelActions>
@@ -362,18 +350,18 @@ function AgentCapabilityProbePanel() {
           ) : null}
           <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void probeQuery.refetch()} disabled={probeQuery.isFetching || providers.length === 0}>
             <AgentConsoleIcon icon={RefreshCw} size={14} spinning={probeQuery.isFetching} />
-            {probeQuery.isFetching ? '探测中' : '刷新 Agent 能力'}
+            {probeQuery.isFetching ? '探测中' : '刷新 Provider 能力'}
           </AgentConsoleActionButton>
         </AgentConsolePanelActions>
       }
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          通过统一 AgentChatDataSource capability 探测每个已启用 Agent。Codex 会按 profile 启动 app-server；MovScript Agent 走本地 runtime adapter；后续 Agent 只需要实现同一组能力入口。
+          通过统一数据源 capability 探测每个已启用 provider。app-server provider 可以按各自 profile 启动；后续 provider 只需要实现同一组能力入口。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
           <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length > 0 ? `${providers.length} 个 Agent 可探测` : '没有已启用 Agent'}
+            {providers.length > 0 ? `${providers.length} 个 Provider 可探测` : '没有已启用 Provider'}
           </AgentConsoleStatusBadge>
         </AgentConsoleToolbar>
       </AgentConsoleIntroRow>
@@ -400,7 +388,7 @@ function AgentCapabilityHealthPanel({
 }) {
   return (
     <ConsolePanel
-      title="运行中 Agent 能力健康"
+      title="运行中 Provider 能力健康"
       icon={<PlugZap size={14} />}
       action={
         <AgentConsolePanelActions>
@@ -412,7 +400,7 @@ function AgentCapabilityHealthPanel({
       }
     >
       {capabilityHealth.providers.length === 0 ? (
-        <EmptyText>启动 MovScript Agent 或 Codex 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</EmptyText>
+        <EmptyText>启动任一 app-server provider 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</EmptyText>
       ) : (
         <AgentConsoleGrid columns="server">
           {capabilityHealth.providers.map((provider) => (
@@ -450,7 +438,7 @@ function AgentCapabilityHealthCard({
           <AgentConsoleTestResult tone="success">
             Skills：{provider.skillCount} / Plugins：{provider.pluginCount}
           </AgentConsoleTestResult>
-          <AgentConsoleTestResult tone={provider.mcpServerCount > 0 || provider.providerKind !== 'codex' ? 'success' : 'warning'}>
+          <AgentConsoleTestResult tone={provider.mcpServerCount > 0 ? 'success' : 'neutral'}>
             MCP：{provider.mcpServerCount} servers / {provider.mcpToolCount} tools
           </AgentConsoleTestResult>
           {provider.warnings.map((warning) => (
@@ -498,8 +486,8 @@ function capabilityProbeItemTone(item: AgentChatCapabilityProbeItem): 'success' 
   return 'danger'
 }
 
-function agentProviderProbeKey(provider: AgentProviderConfig): string {
-  const profile = provider.kind === 'codex' ? resolveCodexAppServerProfile(provider) : undefined
+function providerProbeKey(provider: ProviderConfig): string {
+  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
   return [
     provider.id,
     provider.kind,
@@ -507,29 +495,29 @@ function agentProviderProbeKey(provider: AgentProviderConfig): string {
     provider.label,
     profile?.id ?? '',
     profile?.executablePath ?? '',
-    profile?.codexHome ?? '',
+    profile?.home ?? '',
     profile?.workspaceDir ?? '',
   ].join(':')
 }
 
 function AgentSessionIntegrationPanel({
-  runtimeSessions,
+  providerSessions,
   threads,
   runs,
   providers,
   loading,
   error,
 }: {
-  runtimeSessions: AgentRuntimeSessionSummary[]
+  providerSessions: ProviderSessionSummary[]
   threads: AgentThreadSummary[]
-  runs: AgentWorkspaceRunListItem[]
-  providers: AgentProviderConfig[]
+  runs: ProviderSessionRunListItem[]
+  providers: ProviderConfig[]
   loading: boolean
   error: unknown
 }) {
   const threadSummary = summarizeAgentControlThreads(threads)
   const runsByThreadId = useMemo(() => {
-    const grouped = new Map<string, AgentWorkspaceRunListItem[]>()
+    const grouped = new Map<string, ProviderSessionRunListItem[]>()
     for (const run of runs) {
       const list = grouped.get(run.threadId) ?? []
       list.push(run)
@@ -537,7 +525,7 @@ function AgentSessionIntegrationPanel({
     }
     return grouped
   }, [runs])
-  const sessionsById = useMemo(() => new Map(runtimeSessions.map((session) => [session.session.id, session])), [runtimeSessions])
+  const sessionsById = useMemo(() => new Map(providerSessions.map((session) => [session.session.id, session])), [providerSessions])
 
   return (
     <ConsolePanel
@@ -554,21 +542,21 @@ function AgentSessionIntegrationPanel({
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          先把用户看到的 Conversation 和 provider 内部 thread/session 拆开：控制台负责注册和恢复映射，聊天壳只负责渲染选中的 AgentChatDataSource。
+          先把用户看到的 Conversation 和 provider 内部 thread/session 拆开：控制台负责注册和恢复映射，聊天壳只负责渲染选中的统一数据源。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
           <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
             {providers.length} 个 Provider source
           </AgentConsoleStatusBadge>
-          <AgentConsoleStatusBadge intent={runtimeSessions.length > 0 ? 'success' : 'neutral'} emphasis="soft">
-            {runtimeSessions.length} 个 Runtime session
+          <AgentConsoleStatusBadge intent={providerSessions.length > 0 ? 'success' : 'neutral'} emphasis="soft">
+            {providerSessions.length} 个 Provider session
           </AgentConsoleStatusBadge>
         </AgentConsoleToolbar>
       </AgentConsoleIntroRow>
 
       <AgentConsoleGrid columns="three">
         <BoundaryCard title="Conversation Record" detail="面板、项目页和历史列表共用一个会话对象；不再按 provider 分散保存 activeThreadId。" />
-        <BoundaryCard title="Agent ThreadRef" detail="ThreadRef 携带 providerId、providerInstanceId、threadId、sessionId、workspaceDir，避免跨 provider 冲突。" />
+        <BoundaryCard title="Provider ThreadRef" detail="ThreadRef 携带 providerId、providerInstanceId、threadId、sessionId、workspaceDir，避免跨 provider 冲突。" />
         <BoundaryCard title="Participants" detail="主会话可以挂多个 worker/subagent thread，Pinned Status 和 Trace 从 participant refs 聚合。" />
       </AgentConsoleGrid>
 
@@ -578,8 +566,8 @@ function AgentSessionIntegrationPanel({
             <ProviderConversationSourceCard
               key={provider.id}
               provider={provider}
-              threadCount={provider.kind === 'movscript-agent' ? threads.length : 0}
-              sessionCount={provider.kind === 'movscript-agent' ? runtimeSessions.length : 0}
+              threadCount={0}
+              sessionCount={0}
             />
           ))}
         </AgentConsoleGrid>
@@ -589,7 +577,7 @@ function AgentSessionIntegrationPanel({
         <AgentConsoleInlineError>{errorMessage(error)}</AgentConsoleInlineError>
       ) : threads.length === 0 ? (
         <AgentConsoleDivider>
-          <EmptyText>当前 workspace 还没有可注册的本地 runtime 会话。Codex 线程会通过对应 app-server 的 thread/list 接入同一个 registry。</EmptyText>
+          <EmptyText>当前 workspace 还没有可注册的 provider session。任一 provider 都可以通过自己的协议 adapter 接入同一个 registry。</EmptyText>
         </AgentConsoleDivider>
       ) : (
         <AgentConsoleDivider>
@@ -614,21 +602,21 @@ function ProviderConversationSourceCard({
   threadCount,
   sessionCount,
 }: {
-  provider: AgentProviderConfig
+  provider: ProviderConfig
   threadCount: number
   sessionCount: number
 }) {
-  const isCodex = provider.kind === 'codex'
-  const profile = isCodex ? resolveCodexAppServerProfile(provider) : undefined
+  const isAppServer = usesAppServerProtocol(provider)
+  const profile = isAppServer ? resolveAppServerProfile(provider) : undefined
   return (
     <AgentConsoleLocalToolCard>
       <AgentConsoleLocalToolHeader>
         <AgentConsoleLocalToolCopy>
           <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            {isCodex
-              ? `Codex app-server / ${profile?.id ?? provider.id}`
-              : 'MovScript workspace runtime'}
+            {isAppServer
+              ? `${provider.label} app-server / ${profile?.id ?? provider.id}`
+              : 'MovScript provider profile'}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
@@ -639,13 +627,13 @@ function ProviderConversationSourceCard({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleTestResult tone="neutral">
-          <Network size={12} /> source：{isCodex ? 'thread/list + realtime subscription' : 'workspace sessions + runtime stream'}
+          <Network size={12} /> source：{isAppServer ? 'thread/list + realtime subscription' : 'provider sessions + event stream'}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone="neutral">
           <PlugZap size={12} /> registry key：{provider.kind}:{provider.id}:{profile?.id ?? provider.id}
         </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone={isCodex || threadCount > 0 ? 'success' : 'warning'}>
-          {isCodex ? '等待 app-server thread list 接入' : `${sessionCount} session / ${threadCount} thread`}
+        <AgentConsoleTestResult tone={isAppServer || threadCount > 0 ? 'success' : 'warning'}>
+          {isAppServer ? '等待 app-server thread list 接入' : `${sessionCount} session / ${threadCount} thread`}
         </AgentConsoleTestResult>
       </AgentConsoleLocalToolFields>
     </AgentConsoleLocalToolCard>
@@ -658,19 +646,20 @@ function ConversationThreadRefRow({
   runs,
 }: {
   thread: AgentThreadSummary
-  session?: AgentRuntimeSessionSummary
-  runs: AgentWorkspaceRunListItem[]
+  session?: ProviderSessionSummary
+  runs: ProviderSessionRunListItem[]
 }) {
   const status = thread.status ?? 'idle'
   const statusRecipe = agentRunStatusRecipe(status === 'running' ? 'in_progress' : status === 'requires_action' ? 'requires_action' : status === 'failed' ? 'failed' : 'completed')
   const latestRun = sortAgentControlRuns(runs)[0]
+  const providerKey = providerKeyForThreadRef(thread, session)
   return (
     <AgentConsoleLocalToolCard invalid={status === 'failed'}>
       <AgentConsoleLocalToolHeader>
         <AgentConsoleLocalToolCopy>
           <AgentConsoleLocalToolTitle>{thread.title || thread.id}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            provider=movscript-agent / session={thread.sessionId ?? '-'} / thread={thread.id}
+            provider={providerKey} / session={thread.sessionId ?? '-'} / thread={thread.id}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
@@ -681,10 +670,10 @@ function ConversationThreadRefRow({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleTestResult tone="neutral">
-          conversation key：movscript-agent:{thread.sessionId ?? 'session'}:{thread.id}
+          conversation key：{providerKey}:{thread.sessionId ?? 'session'}:{thread.id}
         </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone={session?.running && !session.stale ? 'success' : 'warning'}>
-          runtime：{session?.running && !session.stale ? 'online' : 'offline/stale'} / messages={thread.messageCount ?? 0}
+        <AgentConsoleTestResult tone={session?.state?.status === 'running' || session?.state?.status === 'requires_action' ? 'success' : 'neutral'}>
+          provider session：{session?.state?.status ?? 'indexed'} / messages={thread.messageCount ?? 0}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone={latestRun?.status === 'failed' ? 'danger' : latestRun?.status === 'requires_action' ? 'warning' : 'neutral'}>
           latest run：{latestRun ? `${latestRun.id} / ${runStatusLabel(latestRun.status)}` : 'none'}
@@ -694,42 +683,56 @@ function ConversationThreadRefRow({
   )
 }
 
+function providerKeyForThreadRef(thread: AgentThreadSummary, session?: ProviderSessionSummary): string {
+  const rawMetadata = (thread as { metadata?: unknown }).metadata
+  const metadata = isRecord(rawMetadata) ? rawMetadata : undefined
+  const rawSession: unknown = session?.session
+  const sessionRecord = isRecord(rawSession) ? rawSession : undefined
+  const providerId = stringField(metadata?.providerId)
+    ?? stringField(metadata?.provider)
+    ?? stringField(metadata?.providerKind)
+    ?? stringField(sessionRecord?.providerId)
+    ?? stringField(sessionRecord?.provider)
+    ?? stringField(sessionRecord?.providerKind)
+  return providerId?.trim() || 'provider'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
 function AgentControlMatrixPanel({
-  movscriptEnabled,
-  movscriptRunningCount,
-  movscriptSessionCount,
-  codexEnabled,
-  codexRunning,
-  codexProfileId,
-  codexEndpoint,
+  appServerLabel,
+  appServerConfigRoute,
+  appServerEnabled,
+  appServerRunning,
+  appServerProfileId,
+  appServerEndpoint,
   loading,
   action,
   error,
   onRefresh,
-  onStartMovscript,
-  onStopMovscript,
-  onRestartMovscript,
-  onStartCodex,
-  onStopCodex,
-  onRestartCodex,
+  onStartAppServer,
+  onStopAppServer,
+  onRestartAppServer,
 }: {
-  movscriptEnabled: boolean
-  movscriptRunningCount: number
-  movscriptSessionCount: number
-  codexEnabled: boolean
-  codexRunning: boolean
-  codexProfileId: string
-  codexEndpoint?: string
+  appServerLabel: string
+  appServerConfigRoute: string
+  appServerEnabled: boolean
+  appServerRunning: boolean
+  appServerProfileId: string
+  appServerEndpoint?: string
   loading: boolean
   action: string | null
   error: string | null
   onRefresh: () => void
-  onStartMovscript: () => void
-  onStopMovscript: () => void
-  onRestartMovscript: () => void
-  onStartCodex: () => void
-  onStopCodex: () => void
-  onRestartCodex: () => void
+  onStartAppServer: () => void
+  onStopAppServer: () => void
+  onRestartAppServer: () => void
 }) {
   return (
     <ConsolePanel
@@ -747,11 +750,11 @@ function AgentControlMatrixPanel({
     >
       <AgentConsoleIntroRow>
         <AgentConsoleDescription>
-          控制台是 Agent 生命周期入口：这里启动、停止和刷新 Agent 状态；运行中的 Agent 需要先停止再修改配置。
+          控制台是 Provider 生命周期入口：这里启动、停止和刷新 Provider 状态；运行中的 app-server 需要先停止再修改配置。
         </AgentConsoleDescription>
         <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={movscriptRunningCount > 0 || codexRunning ? 'success' : 'warning'} emphasis="soft">
-            {movscriptRunningCount + (codexRunning ? 1 : 0)} 个运行中
+          <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
+            {appServerRunning ? '1 个运行中' : '未启动'}
           </AgentConsoleStatusBadge>
         </AgentConsoleToolbar>
       </AgentConsoleIntroRow>
@@ -762,80 +765,38 @@ function AgentControlMatrixPanel({
         <AgentConsoleLocalToolCard>
           <AgentConsoleLocalToolHeader>
             <AgentConsoleLocalToolCopy>
-              <AgentConsoleLocalToolTitle>MovScript Agent</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>{movscriptRunningCount}/{movscriptSessionCount} runtime session 在线</AgentConsoleLocalToolDetail>
+              <AgentConsoleLocalToolTitle>{appServerLabel}</AgentConsoleLocalToolTitle>
+              <AgentConsoleLocalToolDetail>profile={appServerProfileId} / {appServerEndpoint ?? 'endpoint pending'}</AgentConsoleLocalToolDetail>
             </AgentConsoleLocalToolCopy>
             <AgentConsoleLocalToolControls>
-              <AgentConsoleStatusBadge intent={movscriptEnabled ? 'success' : 'neutral'} emphasis="soft">
-                {movscriptEnabled ? '启用' : '停用'}
+              <AgentConsoleStatusBadge intent={appServerEnabled ? 'success' : 'neutral'} emphasis="soft">
+                {appServerEnabled ? '启用' : '停用'}
               </AgentConsoleStatusBadge>
-              <AgentConsoleStatusBadge intent={movscriptRunningCount > 0 ? 'success' : 'warning'} emphasis="soft">
-                {movscriptRunningCount > 0 ? '运行中' : '未启动'}
+              <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
+                {appServerRunning ? '运行中' : '未启动'}
               </AgentConsoleStatusBadge>
             </AgentConsoleLocalToolControls>
           </AgentConsoleLocalToolHeader>
           <AgentConsoleLocalToolFields>
             <AgentConsoleCallout compact>
-              自研 runtime 负责 workspace session、thread registry、run trace 和本地工具调用。
+              app-server 由 MovScript 托管，home path 由对应 provider profile 投影给启动进程；可在 Agents 中配置继承本机账号或使用托管 home。
             </AgentConsoleCallout>
           </AgentConsoleLocalToolFields>
           <AgentConsoleLocalToolActions>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStartMovscript} disabled={!movscriptEnabled || action === 'start-movscript'}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStartAppServer} disabled={!appServerEnabled || action === 'start-app-server'}>
               <Play size={14} />
-              {movscriptRunningCount > 0 ? '确认运行' : '启动'}
+              {appServerRunning ? '重连' : '启动'}
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStopMovscript} disabled={movscriptRunningCount === 0 || action === 'stop-movscript'}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStopAppServer} disabled={!appServerRunning || action === 'stop-app-server'}>
               <Square size={14} />
               停止
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRestartMovscript} disabled={!movscriptEnabled || movscriptRunningCount === 0 || action === 'restart-movscript'}>
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRestartAppServer} disabled={!appServerEnabled || !appServerRunning || action === 'restart-app-server'}>
               <RotateCw size={14} />
               重启
             </AgentConsoleActionButton>
             <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.agentsMovscript}>
-                <Settings size={14} />
-                配置
-              </Link>
-            </AgentConsoleActionButton>
-          </AgentConsoleLocalToolActions>
-        </AgentConsoleLocalToolCard>
-
-        <AgentConsoleLocalToolCard>
-          <AgentConsoleLocalToolHeader>
-            <AgentConsoleLocalToolCopy>
-              <AgentConsoleLocalToolTitle>Codex</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>profile={codexProfileId} / {codexEndpoint ?? 'endpoint pending'}</AgentConsoleLocalToolDetail>
-            </AgentConsoleLocalToolCopy>
-            <AgentConsoleLocalToolControls>
-              <AgentConsoleStatusBadge intent={codexEnabled ? 'success' : 'neutral'} emphasis="soft">
-                {codexEnabled ? '启用' : '停用'}
-              </AgentConsoleStatusBadge>
-              <AgentConsoleStatusBadge intent={codexRunning ? 'success' : 'warning'} emphasis="soft">
-                {codexRunning ? '运行中' : '未启动'}
-              </AgentConsoleStatusBadge>
-            </AgentConsoleLocalToolControls>
-          </AgentConsoleLocalToolHeader>
-          <AgentConsoleLocalToolFields>
-            <AgentConsoleCallout compact>
-              Codex app-server 由 MovScript 托管，Codex home path 由 MovScript 投影为 CODEX_HOME；可在 Agents 中选择继承本机 ~/.codex。
-            </AgentConsoleCallout>
-          </AgentConsoleLocalToolFields>
-          <AgentConsoleLocalToolActions>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStartCodex} disabled={!codexEnabled || action === 'start-codex'}>
-              <Play size={14} />
-              {codexRunning ? '重连' : '启动'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStopCodex} disabled={!codexRunning || action === 'stop-codex'}>
-              <Square size={14} />
-              停止
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRestartCodex} disabled={!codexEnabled || !codexRunning || action === 'restart-codex'}>
-              <RotateCw size={14} />
-              重启
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.agentsCodex}>
+              <Link to={appServerConfigRoute}>
                 <Settings size={14} />
                 配置
               </Link>
@@ -857,30 +818,6 @@ function ConsolePanel({ title, icon, action, children }: { title: string; icon: 
 
 function BoundaryCard({ title, detail }: { title: string; detail: string }) {
   return <AgentConsoleBoundaryCard title={title} detail={detail} />
-}
-
-function RunSummaryRow({ run }: { run: AgentWorkspaceRunListItem }) {
-  const statusRecipe = agentRunStatusRecipe(run.status)
-  return (
-    <AgentConsoleRunSummaryLink>
-      <Link to={agentRunPath(run.id, { sessionId: run.sessionId, workspaceDir: run.workspaceDir })}>
-        <AgentConsoleRunSummaryHeader>
-          <AgentConsoleRunSummaryCopy>
-            <AgentConsoleRunSummaryId>{run.id}</AgentConsoleRunSummaryId>
-            <AgentConsoleRunSummaryMeta>
-            {runRoleLabel(run.role)} / {formatDate(run.updatedAt)}
-            </AgentConsoleRunSummaryMeta>
-          </AgentConsoleRunSummaryCopy>
-          <AgentConsoleStatusBadge intent={statusRecipe.intent} emphasis={statusRecipe.emphasis}>{runStatusLabel(run.status)}</AgentConsoleStatusBadge>
-        </AgentConsoleRunSummaryHeader>
-        {(run.error || run.blockedReason || run.warnings?.length) && (
-          <AgentConsoleRunSummaryDetail>
-            {run.error ?? run.blockedReason ?? `${run.warnings?.length ?? 0} 条警告`}
-          </AgentConsoleRunSummaryDetail>
-        )}
-      </Link>
-    </AgentConsoleRunSummaryLink>
-  )
 }
 
 function IssueRow({ issue }: { issue: ConsoleIssue }) {
@@ -934,7 +871,7 @@ function HistoryClearControl({
         <AgentConsoleHistoryClearBody>
           <AgentConsoleHistoryClearTitle>历史会话记录</AgentConsoleHistoryClearTitle>
           <AgentConsoleHistoryClearDetail>
-            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除 MovScript Agent 会话、Run、计划、运行态记录和 trace 文件。
+            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除 provider 会话、Run、计划、运行态记录和 trace 文件。
           </AgentConsoleHistoryClearDetail>
           {blocked && (
             <AgentConsoleCallout tone="warning" compact>
@@ -974,25 +911,10 @@ function HistoryClearControl({
   )
 }
 
-function ConsoleLink({ to, children }: { to: string; children: React.ReactNode }) {
-  return (
-    <AgentConsoleInlineLink>
-      <Link to={to}>{children}</Link>
-    </AgentConsoleInlineLink>
-  )
-}
-
 function EmptyText({ children }: { children: React.ReactNode }) {
   return <AgentConsoleEmptyText>{children}</AgentConsoleEmptyText>
 }
 
 function agentSettingsSectionPath(sectionId: string): string {
   return `${ROUTES.agentSettings}#${encodeURIComponent(sectionId)}`
-}
-
-function formatDate(value: string | undefined) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }

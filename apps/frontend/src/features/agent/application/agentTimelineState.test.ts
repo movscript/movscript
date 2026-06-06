@@ -7,7 +7,7 @@ import {
   mergeTimelineResetPage,
   replaceTimelinePage,
 } from '@/features/agent/application/agentTimelineState'
-import type { AgentTimelineItem, AgentTimelinePage } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem, AgentTimelinePage } from '@/shared/infrastructure/providerSessionClient'
 
 test('timeline state replaces initial latest page', () => {
   const state = replaceTimelinePage(page([
@@ -117,7 +117,7 @@ test('timeline state honors explicit sortRank for same-timestamp timeline items'
   const createdAt = '2026-05-19T00:00:01.000Z'
   const state = replaceTimelinePage(page([
     item({ id: 'assistant:run_1', createdAt, cursor: 'opaque-final', content: 'Final', revision: 3 }),
-    item({ id: 'item:msg_status', createdAt, origin: 'system_runtime', purpose: 'status', surface: 'status_strip', contentPromptEligibility: 'exclude', sortRank: 20, cursor: 'opaque-status', content: 'Status', revision: 2 }),
+    item({ id: 'item:msg_status', createdAt, origin: 'provider_session', purpose: 'status', surface: 'status_strip', contentPromptEligibility: 'exclude', sortRank: 20, cursor: 'opaque-status', content: 'Status', revision: 2 }),
     item({ id: 'item:msg_user', createdAt, origin: 'user', sortRank: 10, cursor: 'opaque-user', content: 'User', revision: 1 }),
   ], { snapshotRevision: 3 }))
 
@@ -175,7 +175,7 @@ function item(patch: Partial<AgentTimelineItem> = {}): AgentTimelineItem {
     updatedAt: createdAt,
     revision: 1,
     cursor: `1:${encodeURIComponent(id)}`,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     ...patch,
   }
 }

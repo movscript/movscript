@@ -8,14 +8,14 @@ import type { AgentConversationListItem, AgentConversationListPanelProps } from 
 
 export function AgentConversationListPanel({
   conversations,
-  localThreads,
+  providerSessionThreads,
   onNew,
   onCollapse,
-  onRefreshLocalThreads,
+  onRefreshProviderSessionThreads,
   showCollapse = true,
   emptyLabel,
-  localRuntimeLabel,
-  localRuntimeThreadsEmptyLabel,
+  providerSessionThreadsLabel,
+  providerSessionThreadsEmptyLabel,
   newConversationLabel,
   collapseAssistantLabel,
   archiveConversationLabel,
@@ -72,14 +72,14 @@ export function AgentConversationListPanel({
               <h2 className="ms-agent-sidebar__title px-0">
                 <span className="inline-flex items-center gap-1">
                   <span aria-hidden="true">•</span>
-                  {localRuntimeLabel}
+                  {providerSessionThreadsLabel}
                 </span>
               </h2>
               <Button
                 type="button"
                 variant="ghost"
                 size="xs"
-                onClick={onRefreshLocalThreads}
+                onClick={onRefreshProviderSessionThreads}
                 className="px-1 type-tiny text-muted-foreground"
                 aria-label={refreshLabel}
                 title={refreshLabel}
@@ -87,10 +87,10 @@ export function AgentConversationListPanel({
                 <RefreshIcon />
               </Button>
             </div>
-            {localThreads.length === 0 ? (
-              <p className="px-1 type-tiny text-muted-foreground">{localRuntimeThreadsEmptyLabel}</p>
+            {providerSessionThreads.length === 0 ? (
+              <p className="px-1 type-tiny text-muted-foreground">{providerSessionThreadsEmptyLabel}</p>
             ) : (
-              localThreads.map((thread) => (
+              providerSessionThreads.map((thread) => (
                 <div key={thread.id} className="group relative">
                   <EditableConversationListRow item={thread} renameConversationLabel={renameConversationLabel} />
                   {thread.onDelete ? (

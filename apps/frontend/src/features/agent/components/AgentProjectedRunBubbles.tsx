@@ -1,4 +1,4 @@
-import { LocalAgentRunInteractionBubble } from '@/features/agent/components/AgentRunInteractionBubble'
+import { ProviderSessionRunInteractionBubble } from '@/features/agent/components/AgentRunInteractionBubble'
 import { LiveRunActivityBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import type { AgentConversationProjectionContentItem } from '@/features/agent/domain/agentConversationProjectionTypes'
 import {
@@ -32,7 +32,7 @@ export function AgentProjectedRunInteractionBubble({
   item: Extract<AgentConversationProjectionContentItem, { type: 'run_interaction' }>
 }) {
   return (
-    <LocalAgentRunInteractionBubble
+    <ProviderSessionRunInteractionBubble
       run={item.run}
       {...agentProjectionRunInteractionActions(item, actions)}
     />

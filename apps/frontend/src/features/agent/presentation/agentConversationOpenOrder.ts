@@ -1,6 +1,6 @@
-const AGENT_CONVERSATION_OPEN_STATE_STORAGE_KEY = 'movscript-agent-conversation-open-state'
-const AGENT_ACTIVE_CONVERSATION_STORAGE_KEY = 'movscript-agent-active-conversation'
-export const AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT = 'movscript-agent-conversation-open-state-changed'
+const AGENT_CONVERSATION_OPEN_STATE_STORAGE_KEY = 'movscript-ai-ui-conversation-open-state'
+const AGENT_ACTIVE_CONVERSATION_STORAGE_KEY = 'movscript-ai-ui-active-conversation'
+export const AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT = 'movscript-ai-ui-conversation-open-state-changed'
 
 export interface AgentConversationOpenRecord {
   id: string

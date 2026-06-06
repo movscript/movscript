@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { bindAcceptedSourceRuntimeScope } from '@/features/agent/application/agentSendCommit'
+import { bindAcceptedSourceProviderSessionScope } from '@/features/agent/application/agentSendCommit'
 
-test('bindAcceptedSourceRuntimeScope binds thread and session as soon as runtime accepts the source message', () => {
+test('bindAcceptedSourceProviderSessionScope binds thread and session as soon as provider session accepts the source message', () => {
   const calls: string[] = []
 
-  bindAcceptedSourceRuntimeScope({
+  bindAcceptedSourceProviderSessionScope({
     message: { threadId: 'thread_1' },
     run: { sessionId: 'session_1' },
     deps: scopeDeps(calls),
@@ -14,24 +14,24 @@ test('bindAcceptedSourceRuntimeScope binds thread and session as soon as runtime
 
   assert.deepEqual(calls, [
     'session:session_1',
-    'runtimeSession:session_1',
-    'localThread:thread_1',
-    'runtimeThread:thread_1',
+    'providerSession:session_1',
+    'providerThread:thread_1',
+    'providerThread:thread_1',
   ])
 })
 
-test('bindAcceptedSourceRuntimeScope binds thread without writing an empty session', () => {
+test('bindAcceptedSourceProviderSessionScope binds thread without writing an empty session', () => {
   const calls: string[] = []
 
-  bindAcceptedSourceRuntimeScope({
+  bindAcceptedSourceProviderSessionScope({
     message: { threadId: 'thread_1' },
     run: {},
     deps: scopeDeps(calls),
   })
 
   assert.deepEqual(calls, [
-    'localThread:thread_1',
-    'runtimeThread:thread_1',
+    'providerThread:thread_1',
+    'providerThread:thread_1',
   ])
 })
 
@@ -42,14 +42,14 @@ function scopeDeps(calls: string[]) {
     setConversationSessionId: (_conversationId: string, sessionId: string) => {
       calls.push(`session:${sessionId}`)
     },
-    setConversationRuntimeSessionId: (_userId: string, _conversationId: string, sessionId: string) => {
-      calls.push(`runtimeSession:${sessionId}`)
+    setConversationProviderSessionId: (_userId: string, _conversationId: string, sessionId: string) => {
+      calls.push(`providerSession:${sessionId}`)
     },
-    setLocalThreadId: (_conversationId: string, threadId: string) => {
-      calls.push(`localThread:${threadId}`)
+    setProviderThreadId: (_conversationId: string, threadId: string) => {
+      calls.push(`providerThread:${threadId}`)
     },
-    setConversationRuntimeThreadId: (_userId: string, _conversationId: string, threadId: string) => {
-      calls.push(`runtimeThread:${threadId}`)
+    setConversationProviderThreadId: (_userId: string, _conversationId: string, threadId: string) => {
+      calls.push(`providerThread:${threadId}`)
     },
   }
 }

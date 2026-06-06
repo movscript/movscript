@@ -1,4 +1,4 @@
-import { runTouchesAgentCatalog } from '@/features/agent/application/agentCatalogRun'
+import { runTouchesProviderCatalog } from '@/features/agent/application/providerCatalogRun'
 import { useAgentPlanActionBindings, type UseAgentPlanActionBindingsInput } from '@/features/agent/presentation/useAgentPlanActionBindings'
 import { useAgentRunResultActions, type UseAgentRunResultActionsInput } from '@/features/agent/presentation/useAgentRunResultActions'
 import { useAgentRunStopAction, type UseAgentRunStopActionInput } from '@/features/agent/presentation/useAgentRunStopAction'
@@ -6,7 +6,7 @@ import { useAgentRunInteractionActionBindings, type UseAgentRunInteractionAction
 
 export interface UseAgentChatActionBindingsInput {
   runResultActions: UseAgentRunResultActionsInput
-  runInteractionActions: Omit<UseAgentRunInteractionActionBindingsInput, 'streamFollowUpRun' | 'runTouchesAgentCatalog'>
+  runInteractionActions: Omit<UseAgentRunInteractionActionBindingsInput, 'streamFollowUpRun' | 'runTouchesProviderCatalog'>
   planActions: UseAgentPlanActionBindingsInput
   stopAction: UseAgentRunStopActionInput
 }
@@ -22,15 +22,15 @@ export function useAgentChatActionBindings({
   const runInteraction = useAgentRunInteractionActionBindings({
     ...runInteractionActions,
     streamFollowUpRun,
-    runTouchesAgentCatalog,
+    runTouchesProviderCatalog,
   })
 
   const taskGraph = useAgentPlanActionBindings(planActions)
 
-  const stopActiveLocalRun = useAgentRunStopAction(stopAction)
+  const stopActiveRun = useAgentRunStopAction(stopAction)
 
   return {
-    stopActiveLocalRun,
+    stopActiveRun,
     ...runInteraction,
     ...taskGraph,
   }

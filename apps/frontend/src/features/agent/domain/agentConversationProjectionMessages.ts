@@ -3,7 +3,7 @@ import { projectionInteractionRunsForMessageItem } from '@/features/agent/domain
 import type {
   AgentConversationProjectionContentItem,
 } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 type ProjectedMessageItem = Extract<AgentConversationProjectionContentItem, { type: 'message' }>['item']

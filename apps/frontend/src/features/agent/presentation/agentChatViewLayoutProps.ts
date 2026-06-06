@@ -1,16 +1,16 @@
 import type { useAgentChatComposerState } from '@/features/agent/presentation/useAgentChatComposerState'
 import type { useAgentChatInteractionController } from '@/features/agent/presentation/useAgentChatInteractionController'
 import type { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
-import type { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
+import type { useAgentChatProviderSessionState } from '@/features/agent/presentation/useAgentChatProviderSessionState'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { Project } from '@/types'
 import { buildAgentChatThreadViewState } from '@/features/agent/presentation/agentChatThreadViewState'
 import { conversationHasTranscriptMessages } from '@/features/agent/domain/agentConversationTranscript'
 
 interface BuildAgentChatViewLayoutPropsInput {
-  activeLocalRun: AgentRun | null
+  activeRun: AgentRun | null
   composer: ReturnType<typeof useAgentChatComposerState>
   conv: Conversation
   conversations: Conversation[]
@@ -22,7 +22,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
   presentation: ReturnType<typeof useAgentChatPresentationState>
-  runtime: ReturnType<typeof useAgentChatRuntimeState>
+  providerSessionState: ReturnType<typeof useAgentChatProviderSessionState>
   onBack: () => void
   onCloseConversation: (id: string) => void
   onCloseConversations: (ids: string[]) => void
@@ -31,7 +31,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   onRenameConversation: (id: string, title: string) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onRestoreArchivedConversation?: (id: string) => void
-  onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
+  onRestoreProviderThread: (threadId: string, sessionId?: string) => Promise<void>
   onSelectConversation: (id: string) => void
   showCollapse?: boolean
   showConversationControls?: boolean
@@ -40,7 +40,7 @@ interface BuildAgentChatViewLayoutPropsInput {
 }
 
 export function buildAgentChatViewLayoutProps({
-  activeLocalRun,
+  activeRun,
   composer,
   conv,
   conversations,
@@ -52,7 +52,7 @@ export function buildAgentChatViewLayoutProps({
   planActionBusy,
   planDispatchSettings,
   presentation,
-  runtime,
+  providerSessionState,
   onBack,
   onCloseConversation,
   onCloseConversations,
@@ -61,7 +61,7 @@ export function buildAgentChatViewLayoutProps({
   onRenameConversation,
   onReorderConversation,
   onRestoreArchivedConversation,
-  onRestoreLocalThread,
+  onRestoreProviderThread,
   onSelectConversation,
   showCollapse,
   showConversationControls,
@@ -69,7 +69,7 @@ export function buildAgentChatViewLayoutProps({
   updateTaskGraphDispatchSettings,
 }: BuildAgentChatViewLayoutPropsInput) {
   const threadViewState = buildAgentChatThreadViewState({
-    activeRun: activeLocalRun,
+    activeRun: activeRun,
     conversationProjection: presentation.conversationProjection,
     hasTranscriptMessages: conversationHasTranscriptMessages(conv),
     timelineItems,
@@ -78,9 +78,9 @@ export function buildAgentChatViewLayoutProps({
 
   return {
     debugPreview: {
-      workspace: runtime.pendingSendWorkspace,
+      workspace: providerSessionState.pendingSendWorkspace,
       sending: presentation.loading,
-      onCancel: () => runtime.setPendingSendWorkspace(null),
+      onCancel: () => providerSessionState.setPendingSendWorkspace(null),
       onConfirm: interaction.confirmPendingSendWorkspace,
     },
     contextDiagnosticDialog: {
@@ -97,19 +97,19 @@ export function buildAgentChatViewLayoutProps({
       onRenameConversation,
       onReorderConversation,
       onSelectConversation,
-      activeConversationRuntimeStatusLight: runtime.runtimeStatusLight,
+      activeConversationProviderSessionStatusLight: providerSessionState.providerSessionStatusLight,
       showCollapse,
       showConversationControls,
     },
-    runtimeHistory: {
+    providerSessionHistory: {
       archivedConversations,
       conversations,
       onRestoreArchivedConversation,
-      onRestoreLocalThread,
+      onRestoreProviderThread,
     },
     thread: {
       activePlanSnapshot: presentation.activePlanSnapshot,
-      approvingLocalRun: presentation.approvingLocalRun,
+      approvingActiveRun: presentation.approvingActiveRun,
       bottomRef: presentation.bottomRef,
       conversationId: conv.id,
       conversationProjection: presentation.conversationProjection,
@@ -122,11 +122,11 @@ export function buildAgentChatViewLayoutProps({
       projectId: currentProject?.ID,
       threadRef: presentation.threadRef,
       onAcceptPlanReview: interaction.acceptPlanTaskReview,
-      onAnswerLocalRunInput: interaction.answerLocalRunInput,
-      onApproveLocalRun: interaction.approveLocalRun,
+      onAnswerRunInput: interaction.answerRunInput,
+      onApproveRun: interaction.approveRun,
       onCancelPlanTree: interaction.cancelActivePlanTree,
       onDispatchTaskGraph: interaction.dispatchActiveTaskGraph,
-      onRejectLocalRun: interaction.rejectLocalRun,
+      onRejectRun: interaction.rejectRun,
       onRejectPlanReview: interaction.rejectPlanTaskReview,
       onRetaskGraph: interaction.replanActiveTaskGraph,
       onReworkPlanReview: interaction.reworkPlanTaskReview,
@@ -140,22 +140,28 @@ export function buildAgentChatViewLayoutProps({
       buildingSendWorkspace: presentation.buildingSendWorkspace,
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
       canSend: presentation.canSend,
-      canStopLocalRun: presentation.canStopLocalRun,
+      canStopActiveRun: presentation.canStopActiveRun,
       composerAttachmentEntries: composer.composerAttachmentEntries,
       composerAttachmentsCount: composer.composerAttachments.length,
       composerPlaceholder: presentation.composerPlaceholder,
-      debugBeforeSend: runtime.debugBeforeSend,
+      debugBeforeSend: providerSessionState.debugBeforeSend,
       draggingFiles: composer.draggingFiles,
-      fileRef: runtime.fileRef,
-      inputRef: runtime.inputRef,
+      fileRef: providerSessionState.fileRef,
+      inputRef: providerSessionState.inputRef,
       loading: presentation.loading,
       mentionResults: composer.mentionResults,
       mentionRangeActive: !!composer.mentionRange,
-      pendingRuntimeInputQueue: presentation.pendingRuntimeInputQueue,
-      stoppingLocalRun: presentation.stoppingLocalRun,
+      pendingActiveRunInputQueue: presentation.pendingActiveRunInputQueue,
+      stoppingActiveRun: presentation.stoppingActiveRun,
       uploading: composer.uploading,
       uploadedFileCount: composer.uploadedFileCount,
       uploadingFileNames: composer.uploadingFileNames,
+      workspaceProjectOptions: composer.workspaceProjectOptions,
+      workspaceProjectValue: composer.workspaceProjectValue,
+      workspaceProjectsLoading: composer.workspaceProjectsLoading,
+      workspaceProductionOptions: composer.workspaceProductionOptions,
+      workspaceProductionValue: composer.workspaceProductionValue,
+      workspaceProductionsLoading: composer.workspaceProductionsLoading,
       onAcceptMention: () => {
         if (composer.mentionRange && composer.mentionResults.length > 0) {
           composer.insertResourceMention(composer.mentionResults[0])
@@ -168,15 +174,17 @@ export function buildAgentChatViewLayoutProps({
       onComposerDragOver: composer.handleComposerDragOver,
       onComposerDrop: composer.handleComposerDrop,
       onComposerPaste: composer.handleComposerPaste,
-      onDebugBeforeSendChange: runtime.setDebugBeforeSend,
+      onDebugBeforeSendChange: providerSessionState.setDebugBeforeSend,
       onInputChange: (value: string) => updateWorkspace({ input: value }),
       onMentionEscape: () => composer.setMentionRange(null),
       onMentionSelect: composer.insertResourceMention,
       onMentionState: composer.updateMentionState,
       onRemoveAttachment: composer.removeAttachment,
       onSend: interaction.send,
-      onStopLocalRun: interaction.stopActiveLocalRun,
+      onStopActiveRun: interaction.stopActiveRun,
       onUploadFiles: composer.uploadFiles,
+      onWorkspaceProjectChange: composer.changeWorkspaceProject,
+      onWorkspaceProductionChange: composer.changeWorkspaceProduction,
     },
   }
 }

@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { buildAgentChatThreadViewState } from '@/features/agent/presentation/agentChatThreadViewState'
 import type { AgentConversationProjection, AgentConversationProjectionItem } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 test('buildAgentChatThreadViewState starts conversations from transcript or projection content', () => {
   assert.equal(buildAgentChatThreadViewState({
@@ -103,7 +103,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'in_progress',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 8,
       maxIterations: 4,
       allowNetwork: false,
@@ -120,7 +120,7 @@ function planTimelineItem(id: string): AgentTimelineItem {
   return {
     id,
     threadId: 'thread_1',
-    origin: 'system_runtime',
+    origin: 'provider_session',
     purpose: 'status',
     surface: 'status_strip',
     contentPromptEligibility: 'exclude',
@@ -130,7 +130,7 @@ function planTimelineItem(id: string): AgentTimelineItem {
     updatedAt: '2026-05-19T00:00:01.000Z',
     revision: 1,
     cursor: id,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     meta: {
       planRevision: {
         snapshot: {

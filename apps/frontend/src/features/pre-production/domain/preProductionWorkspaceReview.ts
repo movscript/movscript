@@ -1,4 +1,4 @@
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 
 export { isRecord } from '@/shared/domain/jsonValue'
@@ -59,8 +59,8 @@ export interface PreProductionWorkspaceDiffRow {
   changeType: PreProductionWorkspaceEntryChangeType
 }
 
-export function parsePreProductionWorkspaceWorkspace(
-  workspace: AgentWorkspace,
+export function parsePreProductionWorkspaceArtifact(
+  workspace: WorkspaceArtifact,
   data: PreProductionWorkspaceData,
   options: { includeCreativeReferences?: boolean; includeAssetSlots?: boolean } = {},
 ): PreProductionWorkspaceView | null {
@@ -130,8 +130,11 @@ export function parsePreProductionWorkspaceWorkspace(
   }
 }
 
+/** @deprecated Use parsePreProductionWorkspaceArtifact. */
+export const parsePreProductionWorkspaceWorkspace = parsePreProductionWorkspaceArtifact
+
 export function buildPreProductionWorkspaceContentForEntries(
-  workspace: AgentWorkspace,
+  workspace: WorkspaceArtifact,
   entries: PreProductionWorkspaceEntry[],
   data: PreProductionWorkspaceData,
   summary?: string,
@@ -407,7 +410,7 @@ export function preProductionWorkspaceEntryChangeLabel(entry: PreProductionWorks
   return '修改'
 }
 
-export function workspaceAppliedEntryKeySet(workspace: AgentWorkspace) {
+export function workspaceAppliedEntryKeySet(workspace: WorkspaceArtifact) {
   const metadata = isRecord(workspace.metadata) ? workspace.metadata : {}
   const appliedEntryKeys = Array.isArray(metadata.appliedEntryKeys) ? metadata.appliedEntryKeys : []
   return new Set(appliedEntryKeys.map((value) => asKey(value, '')).filter(Boolean))
@@ -470,7 +473,7 @@ function preProductionRecordHasFieldDiff(kind: PreProductionWorkspaceEntryKind, 
 }
 
 function inferSnapshotDeletionEntries(
-  workspace: AgentWorkspace,
+  workspace: WorkspaceArtifact,
   workspacePayload: Record<string, unknown>,
   data: PreProductionWorkspaceData,
   appliedEntryKeys: Set<string>,

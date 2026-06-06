@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { handleSendRunUpdate, handleSendRuntimeEvent, type AgentSendRunUpdateDeps } from '@/features/agent/application/agentSendStream'
+import { handleSendRunUpdate, handleSendProviderSessionEvent, type AgentSendRunUpdateDeps } from '@/features/agent/application/agentSendStream'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('handleSendRunUpdate projects in-progress run into thinking, task, and conversation state', () => {
@@ -101,7 +101,7 @@ test('handleSendRunUpdate carries live reasoning text across run snapshots', () 
 test('handleSendRunUpdate clears pending assistant state for terminal runs and refreshes catalog context', () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
-  deps.runTouchesAgentCatalog = () => true
+  deps.runTouchesProviderCatalog = () => true
 
   handleSendRunUpdate(makeRun({ status: 'completed' }), deps)
 
@@ -119,7 +119,7 @@ test('handleSendRunUpdate cancels a stoppable run when stop was requested', asyn
   assert.equal(calls.includes('cancelGeneration'), true)
   assert.equal(calls.includes('cancel:run_1:用户停止了当前会话。'), true)
   assert.equal(calls.includes('setRun:run_1:cancelled:true:true:false'), true)
-  assert.equal(calls.includes('runtime:false:false:false'), true)
+  assert.equal(calls.includes('providerSession:false:false:false'), true)
 })
 
 test('handleSendRunUpdate only sends one cancel request per run id', () => {
@@ -151,23 +151,23 @@ test('handleSendRunUpdate recovers latest run when cancel reports already finish
   assert.equal(calls.includes('setRun:run_1:completed:false:false:false'), true)
 })
 
-test('handleSendRuntimeEvent trims thread titles, completes started http events, and records the event', () => {
+test('handleSendProviderSessionEvent trims thread titles, completes started http events, and records the event', () => {
   const calls: string[] = []
   let events = [
-    event({ id: 'http-request-local-session-message-run', status: 'started' }),
+    event({ id: 'http-request-provider-session-message-run', status: 'started' }),
     event({ id: 'agent-step-1', status: 'started' }),
   ]
 
-  handleSendRuntimeEvent(runtimeThreadEvent('  New title  '), {
+  handleSendProviderSessionEvent(providerThreadEvent('  New title  '), {
     updateConversationTitle: (title) => calls.push(`title:${title}`),
     updateActivityEvents: (updater) => { events = updater(events) },
-    recordLiveTraceEvent: (runtimeEvent) => calls.push(`record:${runtimeEvent.kind}`),
+    recordLiveTraceEvent: (providerSessionEvent) => calls.push(`record:${providerSessionEvent.kind}`),
     now: () => new Date('2026-05-19T00:00:01.000Z'),
   })
-  handleSendRuntimeEvent(runtimeRunEvent(makeRun({ status: 'in_progress' })), {
+  handleSendProviderSessionEvent(providerSessionRunEvent(makeRun({ status: 'in_progress' })), {
     updateConversationTitle: (title) => calls.push(`title:${title}`),
     updateActivityEvents: (updater) => { events = updater(events) },
-    recordLiveTraceEvent: (runtimeEvent) => calls.push(`record:${runtimeEvent.kind}`),
+    recordLiveTraceEvent: (providerSessionEvent) => calls.push(`record:${providerSessionEvent.kind}`),
     now: () => new Date('2026-05-19T00:00:01.000Z'),
   })
 
@@ -177,14 +177,14 @@ test('handleSendRuntimeEvent trims thread titles, completes started http events,
   assert.equal(events[1]?.status, 'started')
 })
 
-test('handleSendRuntimeEvent forwards run upserts to the run update handler', () => {
+test('handleSendProviderSessionEvent forwards run upserts to the run update handler', () => {
   const calls: string[] = []
-  let events = [event({ id: 'http-request-local-run-message', status: 'started' })]
+  let events = [event({ id: 'http-request-provider-run-message', status: 'started' })]
 
-  handleSendRuntimeEvent(runtimeRunEvent(makeRun({ id: 'run_streamed', status: 'requires_action' })), {
+  handleSendProviderSessionEvent(providerSessionRunEvent(makeRun({ id: 'run_streamed', status: 'requires_action' })), {
     updateConversationTitle: (title) => calls.push(`title:${title}`),
     updateActivityEvents: (updater) => { events = updater(events) },
-    recordLiveTraceEvent: (runtimeEvent) => calls.push(`record:${runtimeEvent.kind}`),
+    recordLiveTraceEvent: (providerSessionEvent) => calls.push(`record:${providerSessionEvent.kind}`),
     onRunUpdate: (run) => calls.push(`run:${run.id}:${run.status}`),
     now: () => new Date('2026-05-19T00:00:01.000Z'),
   })
@@ -204,14 +204,14 @@ function depsFixture(calls: string[], options: {
     requestId: 'request_1',
     liveEvents: () => [] satisfies ChatRunActivityEvent[],
     cancelledRunIds: options.cancelledRunIds ?? new Set<string>(),
-    getConversationRuntime: () => ({ stopRequested: options.stopRequested, run: options.currentRun }),
+    getConversationProviderSessionState: () => ({ stopRequested: options.stopRequested, run: options.currentRun }),
     setPendingAssistantState: (value) => {
       const resolved = typeof value === 'function' ? value(options.currentPending ?? null) : value
       calls.push(`pending:${resolved?.status ?? 'null'}`)
     },
     thinkingStateForRun: () => ({ status: 'thinking' }),
-    runTouchesAgentCatalog: () => false,
-    refreshAgentCatalogContext: () => {
+    runTouchesProviderCatalog: () => false,
+    refreshProviderCatalogContext: () => {
       calls.push('refreshCatalog')
     },
     setPageTaskRunning: (requestId, patch) => {
@@ -220,8 +220,8 @@ function depsFixture(calls: string[], options: {
     setConversationRun: (run, patch) => {
       calls.push(`setRun:${run.id}:${run.status}:${patch.loading === true}:${patch.stopping === true}:${patch.approving}`)
     },
-    setConversationRuntime: (patch) => {
-      calls.push(`runtime:${patch.loading === true}:${patch.stopping === true}:${patch.stopRequested}`)
+    setConversationProviderSessionState: (patch) => {
+      calls.push(`providerSession:${patch.loading === true}:${patch.stopping === true}:${patch.stopRequested}`)
     },
     cancelGenerationJobIfActive: () => {
       calls.push('cancelGeneration')
@@ -248,7 +248,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'queued',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,
@@ -261,7 +261,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function runtimeThreadEvent(title: string): AgentRuntimeEventV2 {
+function providerThreadEvent(title: string): ProviderSessionEventV2 {
   return {
     schema: 'movscript.agent.runtime-event.v2',
     protocolVersion: 'movscript.agent.protocol.v1',
@@ -285,7 +285,7 @@ function runtimeThreadEvent(title: string): AgentRuntimeEventV2 {
   }
 }
 
-function runtimeRunEvent(run: AgentRun): AgentRuntimeEventV2 {
+function providerSessionRunEvent(run: AgentRun): ProviderSessionEventV2 {
   return {
     schema: 'movscript.agent.runtime-event.v2',
     protocolVersion: 'movscript.agent.protocol.v1',
@@ -303,7 +303,7 @@ function runtimeRunEvent(run: AgentRun): AgentRuntimeEventV2 {
 function event(overrides: Partial<ChatRunActivityEvent> = {}): ChatRunActivityEvent {
   return {
     id: 'event_1',
-    kind: 'runtime',
+    kind: 'provider_session',
     title: 'Event',
     status: 'info',
     createdAt: '2026-05-19T00:00:00.000Z',

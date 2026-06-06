@@ -6,7 +6,7 @@ import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('debugHttpRequestEvents maps debug requests into visible activity events', () => {
   const events = debugHttpRequestEvents([{
-    id: 'local-session-message-run',
+    id: 'provider-session-message-run',
     label: 'Create session run',
     method: 'POST',
     url: 'http://agent.local/sessions/session_1/runs',
@@ -14,7 +14,7 @@ test('debugHttpRequestEvents maps debug requests into visible activity events', 
     body: { message: 'Hello' },
   }], '2026-05-19T00:00:00.000Z')
 
-  assert.equal(events[0]?.id, 'http-request-local-session-message-run')
+  assert.equal(events[0]?.id, 'http-request-provider-session-message-run')
   assert.equal(events[0]?.kind, 'model_call')
   assert.equal(events[0]?.title, 'POST Create session run')
   assert.deepEqual(events[0]?.data, {
@@ -39,16 +39,16 @@ test('setActivityEventStatus only updates the targeted event', () => {
   assert.equal(next[1], events[1])
 })
 
-test('upsertActivityEvent keeps setup events before http events and runtime events last', () => {
+test('upsertActivityEvent keeps setup events before http events and activity events last', () => {
   const events = [
-    event({ id: 'http-request-local-session-message-run' }),
+    event({ id: 'http-request-provider-session-message-run' }),
     event({ id: 'agent-step-1' }),
   ]
-  const next = upsertActivityEvent(events, event({ id: 'local-runtime-ensure-running' }))
+  const next = upsertActivityEvent(events, event({ id: 'provider-session-ensure-running' }))
 
   assert.deepEqual(next.map((item) => item.id), [
-    'local-runtime-ensure-running',
-    'http-request-local-session-message-run',
+    'provider-session-ensure-running',
+    'http-request-provider-session-message-run',
     'agent-step-1',
   ])
 })
@@ -87,7 +87,7 @@ test('threadResolutionActivityEvent describes missing and reused thread outcomes
 function event(overrides: Partial<ChatRunActivityEvent> = {}): ChatRunActivityEvent {
   return {
     id: 'event_1',
-    kind: 'runtime',
+    kind: 'provider_session',
     title: 'Event',
     status: 'info',
     createdAt: '2026-05-19T00:00:00.000Z',

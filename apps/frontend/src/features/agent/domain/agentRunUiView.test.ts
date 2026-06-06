@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentPermissionLabel } from '@/features/agent/domain/agentToolDisplay'
 import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 
 function traceEvent(overrides: Partial<AgentTraceEvent>): AgentTraceEvent {
   return {
@@ -47,11 +47,11 @@ test('agentTraceView translates prompt composition into readable Chinese summary
   assert.equal(view.promptDetail?.title, '模型上下文详情')
   assert.equal(view.promptDetail?.totalChars, '1024')
   assert.equal(view.promptDetail?.layers[0]?.label, '核心契约')
-  assert.equal(view.promptDetail?.contextLayers[0]?.label, '运行契约')
+  assert.equal(view.promptDetail?.contextLayers[0]?.label, 'Provider 契约')
   assert.equal(view.promptDetail?.parts[0]?.id, 'runtime.contract')
   assert.equal(view.promptDetail?.parts[0]?.layer, '核心契约')
   assert.deepEqual(view.promptDetail?.partGroups.map((group) => [group.contextLayer, group.count, group.chars]), [
-    ['运行契约', 1, '300'],
+    ['Provider 契约', 1, '300'],
     ['页面焦点', 1, '200'],
   ])
   assert.deepEqual(view.promptDetail?.skills, ['skill.a', 'skill.b'])
@@ -61,7 +61,7 @@ test('agentTraceView translates prompt composition into readable Chinese summary
 test('agentTraceView shows refreshed manifest after active skill updates', () => {
   const view = agentTraceView(traceEvent({
     kind: 'tool_catalog',
-    title: 'Agent catalog refreshed',
+    title: 'Provider catalog refreshed',
     summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_script_locate=available/granted.',
     data: {
       skillIds: ['movscript.script_reading'],
@@ -398,7 +398,7 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalRiskLabel('destructive'), '破坏性')
   assert.equal(approvalPermissionLabel('filesystem'), '文件系统')
   assert.equal(approvalPermissionLabel('project.assets.write'), '项目素材写入')
-  assert.equal(approvalPermissionLabel('workspace.apply'), '应用工作区变更')
+  assert.equal(approvalPermissionLabel('workspace.apply'), '提交工作区修改')
   assert.equal(approvalPermissionLabel('generation.create'), '创建生成任务')
   assert.equal(approvalPermissionLabel('memory.write'), '记忆写入')
   assert.equal(approvalPermissionLabel('custom.scope'), '未识别权限：custom.scope')
@@ -406,7 +406,7 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalStatusLabel('approved'), '已同意')
   assert.equal(approvalStatusLabel('unknown_status'), '未知审批状态 (unknown_status)')
   assert.equal(approvalImpactLabel({ toolName: 'movscript_publish_assets', permission: 'project.assets.write', risk: 'write', preview: undefined }), '批准后会写入项目数据。')
-  assert.equal(approvalImpactLabel({ toolName: 'workspace_apply', permission: 'workspace.apply', risk: 'write', preview: undefined }), '批准后会把工作区变更应用到当前项目。')
+  assert.equal(approvalImpactLabel({ toolName: 'workspace_apply', permission: 'workspace.apply', risk: 'write', preview: undefined }), '批准后会提交工作区修改，并交给前端审阅视图接收。')
   assert.equal(approvalImpactLabel({ toolName: 'custom_tool', permission: 'unknown', risk: 'read', preview: { review: { sideEffect: '更新素材标记' } } }), '批准后会执行预览变更：更新素材标记')
   assert.equal(runApprovalModeLabel('auto_readonly'), '只读自动')
   assert.equal(toolApprovalLabel('on_write'), '写入时审批')
@@ -419,12 +419,12 @@ test('run trace labels localize categories and statuses', () => {
 
 test('agent permission display supports i18n labels and unknown fallback interpolation', () => {
   const t = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => {
-    if (key === 'agents.tools.permissions.workspace_apply') return 'Apply workspace changes'
+    if (key === 'agents.tools.permissions.workspace_apply') return 'Submit workspace changes'
     if (key === 'agents.tools.unknown.permission') return `Unrecognized permission: ${options?.value}`
     return options?.defaultValue ?? key
   }
 
-  assert.equal(agentPermissionLabel('workspace.apply', t), 'Apply workspace changes')
+  assert.equal(agentPermissionLabel('workspace.apply', t), 'Submit workspace changes')
   assert.equal(agentPermissionLabel('custom.scope', t), 'Unrecognized permission: custom.scope')
 })
 
@@ -539,7 +539,7 @@ test('agentTraceView localizes common planner and worker trace fallbacks', () =>
   }))
   const dispatchView = agentTraceView(traceEvent({
     kind: 'tool_call',
-    title: 'Runtime work dispatch tool call',
+    title: 'Provider work dispatch tool call',
     toolName: 'core_work_start',
     summary: 'Spawned worker Einstein.',
   }))

@@ -1,5 +1,5 @@
 import { getMCPContextSnapshot } from '../context/store'
-import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
 import type { WorkspaceSeedTargetIds } from './types'
 import { numericValue } from './utils'
 
@@ -8,7 +8,7 @@ export interface WorkspaceSeedHydrationTarget {
   targetIds: WorkspaceSeedTargetIds
 }
 
-export function resolveWorkspaceSeedHydrationTarget(kind: AgentWorkspaceKind, target: Record<string, unknown>): WorkspaceSeedHydrationTarget {
+export function resolveWorkspaceSeedHydrationTarget(kind: MovScriptWorkspaceKind, target: Record<string, unknown>): WorkspaceSeedHydrationTarget {
   return {
     projectId: numericValue(target.projectId)
       ?? (isProjectLayerWorkspaceKind(kind) ? numericValue(target.entityId) : getMCPContextSnapshot().project?.id),
@@ -22,6 +22,6 @@ export function resolveWorkspaceSeedHydrationTarget(kind: AgentWorkspaceKind, ta
   }
 }
 
-function isProjectLayerWorkspaceKind(kind: AgentWorkspaceKind): boolean {
+function isProjectLayerWorkspaceKind(kind: MovScriptWorkspaceKind): boolean {
   return kind === 'setting_workspace' || kind === 'asset_workspace' || kind === 'project_standards_workspace'
 }

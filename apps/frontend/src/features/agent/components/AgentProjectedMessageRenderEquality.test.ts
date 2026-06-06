@@ -6,7 +6,7 @@ import {
   agentProjectedTranscriptMessageItemsEqual,
 } from '@/features/agent/components/AgentProjectedMessageRenderEquality'
 import type { AgentConversationProjectionContentItem } from '@/features/agent/domain/agentConversationProjectionTypes'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 type ProjectedMessageItem = Extract<AgentConversationProjectionContentItem, { type: 'message' }>['item']
@@ -54,7 +54,7 @@ function agentRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 8,
       maxIterations: 4,
       allowNetwork: false,

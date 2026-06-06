@@ -1,4 +1,4 @@
-import type { AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function timelineActivityByMessageId(timelineItems: AgentTimelineItem[]): Map<string, ChatRunActivity> {

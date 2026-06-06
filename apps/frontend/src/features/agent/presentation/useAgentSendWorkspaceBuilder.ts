@@ -1,34 +1,38 @@
 import { useCallback } from 'react'
-import { buildLocalAgentSendWorkspace, type AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
-import { syncRuntimeModelConfig } from '@/shared/infrastructure/runtimeChat'
+import { buildProviderSessionSendWorkspace, type AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
+import { syncProviderSessionModelConfig } from '@/shared/infrastructure/providerSessionChat'
 import { toastMCPError } from './mcpStatus'
 import {
-  isLocalAgentNotFoundError,
-  localAgentClient,
-  type AgentClientInput,
-  type AgentManifest,
-  type AgentRuntimeLimitsOverride,
-} from '@/shared/infrastructure/localAgentClient'
+  isProviderSessionNotFoundError,
+  providerSessionClient,
+  type ProviderSessionClientInput,
+  type ProviderManifest,
+  type ProviderSessionLimitsOverride,
+} from '@/shared/infrastructure/providerSessionClient'
 import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
 import type { AgentAttachment, AgentSettings } from '@/features/agent/state/agentStore'
+import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel } from '@/types'
 
 export interface BuildAgentSendWorkspaceOptions {
-  includeRuntimePreview?: boolean
+  includeProviderSessionPreview?: boolean
   message?: string
   displayMessage?: string
   title?: string
   projectId?: number
-  clientInput?: AgentClientInput
-  agentManifest?: AgentManifest
-  runtimeLimits?: AgentRuntimeLimitsOverride
+  clientInput?: ProviderSessionClientInput
+  providerManifest?: ProviderManifest
+  providerSessionLimits?: ProviderSessionLimitsOverride
+  /** Legacy provider wire key. New client code should use providerSessionLimits. */
+  runtimeLimits?: ProviderSessionLimitsOverride
+  runProfile?: AgentRunProfileSelection
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
   performanceOperationId?: string
-  localRuntimeWorkspaceDir?: string
-  localRuntimeSessionId?: string
+  providerSessionWorkspaceDir?: string
+  providerSessionId?: string
 }
 
 export interface UseAgentSendWorkspaceBuilderInput {
@@ -40,17 +44,17 @@ export interface UseAgentSendWorkspaceBuilderInput {
   currentProject: Project | null
   systemPrompt: string
   contextLabels: string[]
-  localThreadId: string
+  providerThreadId: string
   modelId: number | null
   activeModel?: PublicModel
-  activeConversationManifest?: AgentManifest
+  activeConversationManifest?: ProviderManifest
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
-  localRuntimeWorkspaceDir?: string
-  localRuntimeSessionId?: string
-  localAgentOnline: boolean
+  providerSessionWorkspaceDir?: string
+  providerSessionId?: string
+  providerSessionOnline: boolean
   mcpEndpoint?: string
-  refetchLocalAgentHealth: () => Promise<unknown>
+  refetchProviderSessionHealth: () => Promise<unknown>
   labels: {
     attachmentOnlyMessage: string
     syncModelConfig: string
@@ -67,19 +71,19 @@ export interface UseAgentSendWorkspaceBuilderInput {
 
 export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilderInput) {
   return useCallback(async (options: BuildAgentSendWorkspaceOptions = {}): Promise<AgentSendWorkspace> => {
-    const runtimeWorkspaceDir = options.localRuntimeWorkspaceDir ?? input.localRuntimeWorkspaceDir
-    const runtimeSessionId = options.localRuntimeSessionId ?? input.localRuntimeSessionId
-    const runtimeClient = runtimeSessionId?.trim()
-      ? localAgentClient.forSession({
-          sessionId: runtimeSessionId.trim(),
-          ...(runtimeWorkspaceDir?.trim() ? { workspaceDir: runtimeWorkspaceDir.trim() } : {}),
-        })
-      : localAgentClient
-    return buildLocalAgentSendWorkspace({
+    const providerSessionWorkspaceDir = options.providerSessionWorkspaceDir ?? input.providerSessionWorkspaceDir
+    const providerSessionId = options.providerSessionId ?? input.providerSessionId
+    const providerSessionRunClient = providerSessionId?.trim()
+      ? providerSessionClient.forSession({
+          sessionId: providerSessionId.trim(),
+          ...(providerSessionWorkspaceDir?.trim() ? { workspaceDir: providerSessionWorkspaceDir.trim() } : {}),
+      })
+      : providerSessionClient
+    return buildProviderSessionSendWorkspace({
       options: {
         ...options,
-        ...(runtimeWorkspaceDir?.trim() ? { localRuntimeWorkspaceDir: runtimeWorkspaceDir.trim() } : {}),
-        ...(runtimeSessionId?.trim() ? { localRuntimeSessionId: runtimeSessionId.trim() } : {}),
+        ...(providerSessionWorkspaceDir?.trim() ? { providerSessionWorkspaceDir: providerSessionWorkspaceDir.trim() } : {}),
+        ...(providerSessionId?.trim() ? { providerSessionId: providerSessionId.trim() } : {}),
       },
       workspaceInput: input.input,
       attachments: input.attachments,
@@ -89,14 +93,14 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
       currentProject: input.currentProject,
       systemPrompt: input.systemPrompt,
       contextLabels: input.contextLabels,
-      localThreadId: input.localThreadId,
+      providerThreadId: input.providerThreadId,
       modelId: input.modelId,
       ...(input.activeModel ? { activeModel: input.activeModel } : {}),
       ...(input.activeConversationManifest ? { activeConversationManifest: input.activeConversationManifest } : {}),
       externalTask: input.externalTask,
       pageToolRequestId: input.pageToolRequestId,
       attachmentOnlyMessageLabel: input.labels.attachmentOnlyMessage,
-      localAgentBaseURL: runtimeClient.baseURL,
+      providerSessionBaseURL: providerSessionRunClient.baseURL,
       httpLabels: {
         syncModelConfig: input.labels.syncModelConfig,
         loadExistingThread: input.labels.loadExistingThread,
@@ -109,13 +113,13 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
         fetchFinalThread: input.labels.fetchFinalThread,
       },
       previewDeps: {
-        localAgentOnline: runtimeSessionId ? false : input.localAgentOnline,
-        ensureRunning: () => runtimeClient.ensureRunning(),
-        refetchLocalAgentHealth: input.refetchLocalAgentHealth,
-        syncRuntimeModelConfig: (modelId) => syncRuntimeModelConfig(modelId, { client: runtimeClient }),
-        previewRun: (clientInput) => runtimeClient.previewRun(clientInput),
-        isLocalAgentNotFoundError,
-        onPreviewError: (error) => toastMCPError(error, input.mcpEndpoint ?? runtimeClient.baseURL),
+        providerSessionOnline: providerSessionId ? false : input.providerSessionOnline,
+        ensureRunning: () => providerSessionRunClient.ensureRunning(),
+        refetchProviderSessionHealth: input.refetchProviderSessionHealth,
+        syncProviderSessionModelConfig: (modelId) => syncProviderSessionModelConfig(modelId, { client: providerSessionRunClient }),
+        previewRun: (clientInput) => providerSessionRunClient.previewRun(clientInput),
+        isProviderSessionNotFoundError,
+        onPreviewError: (error) => toastMCPError(error, input.mcpEndpoint ?? providerSessionRunClient.baseURL),
       },
       resolveAttachmentDataUrl: resolveAgentAttachmentDataUrl,
     })
@@ -128,17 +132,17 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
     input.currentProject,
     input.systemPrompt,
     input.contextLabels,
-    input.localThreadId,
+    input.providerThreadId,
     input.modelId,
     input.activeModel,
     input.activeConversationManifest,
     input.externalTask,
     input.pageToolRequestId,
-    input.localRuntimeWorkspaceDir,
-    input.localRuntimeSessionId,
-    input.localAgentOnline,
+    input.providerSessionWorkspaceDir,
+    input.providerSessionId,
+    input.providerSessionOnline,
     input.mcpEndpoint,
-    input.refetchLocalAgentHealth,
+    input.refetchProviderSessionHealth,
     input.labels,
   ])
 }

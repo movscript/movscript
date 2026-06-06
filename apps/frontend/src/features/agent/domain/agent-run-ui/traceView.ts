@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import type {
   AgentTraceCategory,
@@ -132,14 +132,14 @@ function localizedPromptLayer(layer: string | undefined): string | undefined {
     case 'level0_core': return '核心契约'
     case 'level1_context': return '上下文'
     case 'level2_behavior': return '行为约束'
-    case 'runtime_warnings': return '运行警告'
+    case 'runtime_warnings': return 'Provider 警告'
     default: return layer
   }
 }
 
 function localizedPromptContextLayer(layer: string | undefined): string | undefined {
   switch (layer) {
-    case 'runtime_contract': return '运行契约'
+    case 'runtime_contract': return 'Provider 契约'
     case 'focus': return '页面焦点'
     case 'behavior': return '行为约束'
     case 'thread_continuity': return '线程连续性'
@@ -173,7 +173,7 @@ function traceTitle(event: AgentTraceEvent, eventType?: string, phase?: string):
   if (event.kind === 'approval') return '等待用户审批'
   if (event.kind === 'tool_catalog') return '解析可用工具'
   if (event.kind === 'skill') return '激活技能'
-  if (event.kind === 'manifest') return '解析 Agent 配置'
+  if (event.kind === 'manifest') return '解析 Provider 配置'
   const localizedTitle = localizedTraceTitle(event.title)
   if (localizedTitle) return localizedTitle
   return event.title

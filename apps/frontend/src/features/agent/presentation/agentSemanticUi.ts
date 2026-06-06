@@ -1,6 +1,6 @@
 import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/presentation/semanticRecipe'
 import type { GenerationJobBadgeState } from '@/features/agent/domain/agentGenerationDisplay'
-import type { AgentWorkspaceStatus, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifactStatus, AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 export type AgentStatusRecipe = UiStatusRecipe
 
@@ -16,8 +16,8 @@ export function agentRunInteractionActionStatusRecipe(status: string): AgentStat
   return agentRunInteractionActionStatus.recipe(status)
 }
 
-export function agentWorkspaceStatusRecipe(status: AgentWorkspaceStatus | string): AgentStatusRecipe {
-  return agentWorkspaceStatus.recipe(status)
+export function workspaceArtifactStatusRecipe(status: WorkspaceArtifactStatus | string): AgentStatusRecipe {
+  return workspaceArtifactStatus.recipe(status)
 }
 
 export function agentGenerationStatusRecipe(state: GenerationJobBadgeState): AgentStatusRecipe {
@@ -48,10 +48,6 @@ export function agentReadinessStatusRecipe(ready: boolean): AgentStatusRecipe {
 
 export function agentAvailabilityStatusRecipe(available: boolean): AgentStatusRecipe {
   return agentAvailabilityStatus.recipe(available ? 'available' : 'unavailable')
-}
-
-export function agentOptionalStatusRecipe(present: boolean): AgentStatusRecipe {
-  return agentOptionalStatus.recipe(present ? 'present' : 'default')
 }
 
 export function agentSeverityStatusRecipe(severity: string): AgentStatusRecipe {
@@ -114,7 +110,7 @@ const agentRunInteractionActionStatus = defineFeatureStatusRecipeGroup('agent.ru
   default: 'neutral',
 })
 
-const agentWorkspaceStatus = defineFeatureStatusRecipeGroup('agent.workspace.status', {
+const workspaceArtifactStatus = defineFeatureStatusRecipeGroup('provider.workspace-artifact.status', {
   applied: 'success',
   rejected: 'danger',
   accepted: 'warning',
@@ -157,11 +153,6 @@ const agentReadinessStatus = defineFeatureStatusRecipeGroup('agent.readiness.sta
 const agentAvailabilityStatus = defineFeatureStatusRecipeGroup('agent.availability.status', {
   available: 'success',
   unavailable: 'danger',
-  default: 'neutral',
-})
-
-const agentOptionalStatus = defineFeatureStatusRecipeGroup('agent.optional.status', {
-  present: 'success',
   default: 'neutral',
 })
 

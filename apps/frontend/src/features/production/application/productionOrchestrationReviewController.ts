@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import {
   buildWorkspaceReviewSegments,
   collectWorkspaceReviewNodes,
-  parseProductionWorkspaceWorkspace,
-  type WorkspaceWorkspaceContent,
+  parseProductionWorkspaceArtifact,
+  type ProductionWorkspaceArtifactContent,
   type WorkspaceNodeDecisions,
   type WorkspaceSegmentNode,
 } from '@/features/production/domain/productionWorkspaceReviewModel'
@@ -26,34 +26,36 @@ export function useProductionOrchestrationReviewController({
 }: ProductionOrchestrationReviewControllerInput) {
   const openedWorkspaceId = searchParams.get('workspaceId')?.trim() || ''
   const openedSettingWorkspaceId = searchParams.get('settingWorkspaceId')?.trim() || ''
-  const openedAssetWorkspaceWorkspaceId = searchParams.get('assetWorkspaceWorkspaceId')?.trim() || ''
+  const openedAssetWorkspaceArtifactId = searchParams.get('assetWorkspaceArtifactId')?.trim()
+    || searchParams.get('assetWorkspaceWorkspaceId')?.trim()
+    || ''
   const reviewOpen = searchParams.get('view') === 'review'
-  const [workspacePreviewWorkspace, setWorkspacePreviewWorkspace] = useState<WorkspaceWorkspaceContent | null>(null)
+  const [workspacePreviewWorkspace, setWorkspacePreviewWorkspace] = useState<ProductionWorkspaceArtifactContent | null>(null)
   const [workspaceNodeDecisions, setWorkspaceNodeDecisions] = useState<WorkspaceNodeDecisions>({})
 
-  const openedWorkspaceQuery = useQuery<AgentWorkspace | null>({
+  const openedWorkspaceQuery = useQuery<WorkspaceArtifact | null>({
     queryKey: ['production-orchestration-workspace', projectId, openedWorkspaceId],
     queryFn: async () => {
       if (!projectId || !openedWorkspaceId) return null
-      return localAgentClient.getWorkspace(openedWorkspaceId)
+      return providerSessionClient.getWorkspaceArtifact(openedWorkspaceId)
     },
     enabled: !!projectId && !!openedWorkspaceId,
   })
-  const openedSettingWorkspaceQuery = useQuery<AgentWorkspace | null>({
+  const openedSettingWorkspaceQuery = useQuery<WorkspaceArtifact | null>({
     queryKey: ['production-orchestration-setting-workspace', projectId, openedSettingWorkspaceId],
     queryFn: async () => {
       if (!projectId || !openedSettingWorkspaceId) return null
-      return localAgentClient.getWorkspace(openedSettingWorkspaceId)
+      return providerSessionClient.getWorkspaceArtifact(openedSettingWorkspaceId)
     },
     enabled: !!projectId && !!openedSettingWorkspaceId,
   })
-  const openedAssetWorkspaceWorkspaceQuery = useQuery<AgentWorkspace | null>({
-    queryKey: ['production-orchestration-asset-workspace-workspace', projectId, openedAssetWorkspaceWorkspaceId],
+  const openedAssetWorkspaceArtifactQuery = useQuery<WorkspaceArtifact | null>({
+    queryKey: ['production-orchestration-asset-workspace-workspace', projectId, openedAssetWorkspaceArtifactId],
     queryFn: async () => {
-      if (!projectId || !openedAssetWorkspaceWorkspaceId) return null
-      return localAgentClient.getWorkspace(openedAssetWorkspaceWorkspaceId)
+      if (!projectId || !openedAssetWorkspaceArtifactId) return null
+      return providerSessionClient.getWorkspaceArtifact(openedAssetWorkspaceArtifactId)
     },
-    enabled: !!projectId && !!openedAssetWorkspaceWorkspaceId,
+    enabled: !!projectId && !!openedAssetWorkspaceArtifactId,
   })
 
   const workspaceReviewNodeCount = useMemo(
@@ -63,7 +65,7 @@ export function useProductionOrchestrationReviewController({
   const workspaceStatusLabel = reviewOpen
     ? workspacePreviewWorkspace
       ? `待审节点 ${workspaceReviewNodeCount}`
-      : '等待 AI 工作区'
+      : '等待 AI 草案'
     : structureStatusLabel
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export function useProductionOrchestrationReviewController({
       setWorkspacePreviewWorkspace(null)
       return
     }
-    const parsed = parseProductionWorkspaceWorkspace(workspace)
+    const parsed = parseProductionWorkspaceArtifact(workspace)
     setWorkspacePreviewWorkspace(parsed)
     setWorkspaceNodeDecisions({})
   }, [openedWorkspaceId, openedWorkspaceQuery.data])
@@ -91,10 +93,10 @@ export function useProductionOrchestrationReviewController({
   return {
     openedWorkspaceId,
     openedSettingWorkspaceId,
-    openedAssetWorkspaceWorkspaceId,
+    openedAssetWorkspaceArtifactId,
     openedWorkspaceQuery,
     openedSettingWorkspaceQuery,
-    openedAssetWorkspaceWorkspaceQuery,
+    openedAssetWorkspaceArtifactQuery,
     workspacePreviewWorkspace,
     workspaceNodeDecisions,
     setWorkspaceNodeDecisions,

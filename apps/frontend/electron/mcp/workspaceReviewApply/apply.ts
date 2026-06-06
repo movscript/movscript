@@ -1,31 +1,105 @@
-import { backendPatch, backendPost, getMCPAPIBaseURL } from '../backendClient'
+import { backendPost, getMCPAPIBaseURL } from '../backendClient'
 import { isRecord, stringValue } from '../valueUtils'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
+import {
+  buildWorkspaceChangeHandoffNavigation,
+  WORKSPACE_CHANGE_HANDOFF_SCHEMA,
+} from '../../../src/shared/contracts/workspaceChangeHandoff'
+import {
+  patchWorkspaceModelProjectionMetaState,
+  readWorkspaceModelProjectionSnapshot,
+  writeWorkspaceModelProjectionSnapshot,
+} from '../workspaceModelContract/projection'
+import {
+  applyWorkspacePath,
+  isWorkspacePathRequest,
+  previewWorkspacePathApply,
+  updateWorkspacePath,
+} from './pathWorkspace'
 import {
   buildApplyRequest,
-  getReviewParam,
   isProductionWorkspaceTarget,
   isProjectLayerWorkspaceTarget,
 } from './request'
+import { writeWorkspaceReviewFile } from './reviewFiles'
 
 export async function applyWorkspaceReview(args: Record<string, unknown>): Promise<unknown> {
-  const review = getReviewParam(args)
+  if (isWorkspacePathRequest(args)) return applyWorkspacePath(args)
+  const review = await getWorkspaceReviewParam(args)
   const request = buildApplyRequest(review)
-  const response = request.method === 'PATCH'
-    ? await backendPatch(request.path, request.payload, args.userId)
-    : await backendPost(request.path, request.payload, args.userId)
+  const validation = buildWorkspaceValidation(review)
+  const workspaceKind = stringValue(review.workspaceKind)
+  const workspaceId = stringValue(review.workspaceId)
+  const workspacePath = isRecord(review.projection) ? stringValue(review.projection.workspacePath) : undefined
+  const navigation = buildWorkspaceChangeHandoffNavigation({
+    workspaceKind,
+    workspaceId,
+    workspacePath,
+    target: isRecord(review.target) ? review.target : undefined,
+    projection: isRecord(review.projection) ? review.projection : undefined,
+  })
+  const now = new Date().toISOString()
+  const projectionMeta = patchWorkspaceModelProjectionMetaState(review.projection, {
+    dirty: true,
+    lastSubmittedAt: now,
+    lastChangeSubmittedAt: now,
+    lastSubmitSaveable: validation.ok,
+  })
   return {
     performed: true,
+    submitted: true,
+    changeSubmitted: true,
+    materialized: false,
+    applyBoundary: 'frontend_review',
     method: request.method,
-    url: `${getMCPAPIBaseURL()}${request.path}`,
+    plannedUrl: `${getMCPAPIBaseURL()}${request.path}`,
     payload: request.payload,
-    response,
+    validation,
+    effects: validation.effects,
+    saveable: validation.ok,
+    ...(review.projection !== undefined ? { projection: review.projection } : {}),
+    changeSubmission: {
+      schema: WORKSPACE_CHANGE_HANDOFF_SCHEMA,
+      status: 'change_submitted',
+      source: 'mcp_workspace_apply',
+      createdAt: now,
+      workspaceKind,
+      workspaceId,
+      workspacePath,
+      target: review.target,
+      projection: review.projection,
+      navigation,
+    },
+    handoff: {
+      schema: WORKSPACE_CHANGE_HANDOFF_SCHEMA,
+      status: 'change_submitted',
+      source: 'mcp_workspace_apply',
+      createdAt: now,
+      workspacePath,
+      navigation,
+    },
+    ...(projectionMeta ? { projectionMeta } : {}),
   }
 }
 
 export async function previewApplyWorkspaceReview(args: Record<string, unknown>): Promise<unknown> {
-  const review = getReviewParam(args)
+  if (isWorkspacePathRequest(args)) return previewWorkspacePathApply(args)
+  const review = await getWorkspaceReviewParam(args)
   const validation = buildWorkspaceValidation(review)
   if (!supportsBackendWorkspacePreview(review)) {
+    const reviewFile = await writeWorkspaceReviewFile({
+      status: 'local_preview',
+      workspaceKind: stringValue(review.workspaceKind),
+      target: review.target,
+      projection: review.projection,
+      validation,
+      effects: validation.effects,
+    })
+    const projectionMeta = patchWorkspaceModelProjectionMetaState(review.projection, {
+      lastPreviewAt: new Date().toISOString(),
+      lastReviewPath: reviewFile.path,
+      lastPreviewSaveable: validation.ok,
+    })
     return {
       performed: true,
       backendPreviewPerformed: false,
@@ -33,11 +107,33 @@ export async function previewApplyWorkspaceReview(args: Record<string, unknown>)
       validation,
       effects: validation.effects,
       saveable: validation.ok,
+      ...(review.projection !== undefined ? { projection: review.projection } : {}),
+      reviewFile,
+      ...(projectionMeta ? { projectionMeta } : {}),
     }
   }
   const request = buildApplyRequest(review)
   const path = request.path.replace(/\/apply$/, '/apply-preview')
   const response = await backendPost(path, request.payload, args.userId)
+  const reviewFile = await writeWorkspaceReviewFile({
+    status: 'previewed',
+    workspaceKind: stringValue(review.workspaceKind),
+    target: review.target,
+    projection: review.projection,
+    validation,
+    effects: validation.effects,
+    request: {
+      method: request.method,
+      path,
+      payload: request.payload,
+    },
+    response,
+  })
+  const projectionMeta = patchWorkspaceModelProjectionMetaState(review.projection, {
+    lastPreviewAt: new Date().toISOString(),
+    lastReviewPath: reviewFile.path,
+    lastPreviewSaveable: validation.ok,
+  })
   return {
     performed: true,
     backendPreviewPerformed: true,
@@ -47,8 +143,146 @@ export async function previewApplyWorkspaceReview(args: Record<string, unknown>)
     validation,
     effects: validation.effects,
     saveable: validation.ok,
+    ...(review.projection !== undefined ? { projection: review.projection } : {}),
+    reviewFile,
+    ...(projectionMeta ? { projectionMeta } : {}),
     response,
   }
+}
+
+export async function updateWorkspaceSnapshot(args: Record<string, unknown>): Promise<unknown> {
+  if (isWorkspacePathRequest(args)) return updateWorkspacePath(args)
+  const review = await getWorkspaceReviewParam(args)
+  const proposedValue = parseProposedValue(review.proposedValue)
+  const normalizedReview: Record<string, unknown> = {
+    ...review,
+    proposedValue,
+  }
+  const validation = buildWorkspaceValidation(normalizedReview)
+  const workspaceKind = normalizeMovScriptWorkspaceKind(stringValue(normalizedReview.workspaceKind))
+  const projection = workspaceKind && isRecord(proposedValue)
+    ? await writeWorkspaceModelProjectionSnapshot({
+        kind: workspaceKind,
+        target: isRecord(normalizedReview.target) ? normalizedReview.target : {},
+        snapshot: proposedValue,
+      })
+    : undefined
+  return {
+    performed: true,
+    persisted: !!projection?.materialized,
+    persistenceOwner: 'frontend',
+    agentWritable: false,
+    ...(projection ? { projection } : {}),
+    updateKind: 'complete_snapshot',
+    review: normalizedReview,
+    snapshot: proposedValue,
+    validation,
+    effects: validation.effects,
+    saveable: validation.ok,
+    materialize: {
+      previewTool: 'workspace_apply_review',
+      applyTool: 'workspace_apply',
+    },
+  }
+}
+
+async function getWorkspaceReviewParam(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const input = workspaceReviewInput(args)
+  let proposedValue = input.proposedValue ?? input.content ?? input.snapshot
+  let workspaceKind = stringValue(input.workspaceKind) ?? stringValue(input.kind)
+  let target = isRecord(input.target) ? input.target : {}
+  const workspacePath = stringValue(args.workspacePath)
+    ?? stringValue(args.workspace_path)
+    ?? stringValue(input.workspacePath)
+    ?? stringValue(input.workspace_path)
+    ?? (isRecord(args.projection) ? stringValue(args.projection.workspacePath) : undefined)
+    ?? (isRecord(input.projection) ? stringValue(input.projection.workspacePath) : undefined)
+  let projection: unknown = isRecord(input.projection) ? input.projection : undefined
+  if (proposedValue === undefined && (workspacePath || workspaceKind)) {
+    const projectionRead = await readWorkspaceModelProjectionSnapshot({
+      kind: normalizeMovScriptWorkspaceKind(workspaceKind),
+      target,
+      workspacePath,
+    })
+    projection = projectionRead.projection
+    proposedValue = projectionRead.snapshot
+    workspaceKind = workspaceKind ?? stringValue(projectionRead.meta?.workspaceKind)
+    target = mergeProjectionMetaTarget(target, projectionRead.meta)
+    if (!projectionRead.exists) {
+      throw new Error(`workspace projection file was not found${workspacePath ? `: ${workspacePath}` : ''}`)
+    }
+  }
+  if (proposedValue === undefined) {
+    throw new Error('review, content, snapshot, proposedValue, or workspacePath is required')
+  }
+  const parsedValue = parseProposedValue(proposedValue)
+  return normalizeWorkspaceReview({
+    ...(stringValue(input.workspaceId) ? { workspaceId: stringValue(input.workspaceId) } : {}),
+    ...(workspaceKind ? { workspaceKind } : {}),
+    target,
+    ...(input.currentValue !== undefined ? { currentValue: input.currentValue } : {}),
+    ...(projection !== undefined ? { projection } : {}),
+    proposedValue: parsedValue,
+  })
+}
+
+function workspaceReviewInput(args: Record<string, unknown>): Record<string, unknown> {
+  if (!isRecord(args.review)) return args
+  const merged = { ...args.review }
+  for (const key of ['workspaceKind', 'kind', 'target', 'content', 'snapshot', 'proposedValue', 'currentValue', 'workspaceId', 'workspacePath', 'workspace_path', 'projection'] as const) {
+    if (args[key] !== undefined) merged[key] = args[key]
+  }
+  return merged
+}
+
+function mergeProjectionMetaTarget(target: Record<string, unknown>, meta: unknown): Record<string, unknown> {
+  if (!isRecord(meta) || !isRecord(meta.entity)) return target
+  const entity = meta.entity
+  const entityType = stringValue(entity.type) ?? stringValue(target.entityType)
+  const entityId = target.entityId ?? entity.id
+  const projectId = target.projectId ?? entity.projectId
+  return {
+    ...target,
+    ...(entityType ? { entityType } : {}),
+    ...(entityId !== undefined ? { entityId } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(entity.productionId !== undefined && target.productionId === undefined ? { productionId: entity.productionId } : {}),
+  }
+}
+
+function normalizeWorkspaceReview(review: Record<string, unknown>): Record<string, unknown> {
+  const workspaceKind = stringValue(review.workspaceKind)
+  const proposedValue = parseProposedValue(review.proposedValue)
+  return {
+    ...review,
+    proposedValue,
+    target: normalizeWorkspaceReviewTarget(workspaceKind, review.target, proposedValue),
+  }
+}
+
+function normalizeWorkspaceReviewTarget(kind: string | undefined, targetValue: unknown, proposedValue: unknown): Record<string, unknown> {
+  const target = isRecord(targetValue) ? targetValue : {}
+  const proposed = isRecord(proposedValue) ? proposedValue : {}
+  if (kind === 'setting_workspace' || kind === 'asset_workspace' || kind === 'project_standards_workspace') {
+    const projectId = target.projectId ?? proposed.projectId ?? target.entityId
+    return {
+      ...target,
+      entityType: 'project',
+      ...(projectId !== undefined ? { entityId: target.entityId ?? projectId, projectId } : {}),
+      field: 'workspace',
+    }
+  }
+  if (kind === 'production_workspace') {
+    const productionId = target.entityId ?? target.productionId ?? proposed.productionId ?? proposed.production_id
+    const projectId = target.projectId ?? proposed.projectId
+    return {
+      ...target,
+      entityType: 'production',
+      ...(productionId !== undefined ? { entityId: productionId } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
+    }
+  }
+  return target
 }
 
 function supportsBackendWorkspacePreview(review: Record<string, unknown>): boolean {
@@ -69,7 +303,7 @@ interface WorkspaceValidationEffect {
   fields?: string[]
 }
 
-function buildWorkspaceValidation(review: Record<string, unknown>): {
+export function buildWorkspaceValidation(review: Record<string, unknown>): {
   ok: boolean
   source: 'frontend_mcp'
   workspaceId?: string
@@ -178,6 +412,19 @@ function parseProposedValue(value: unknown): unknown {
   } catch {
     return value
   }
+}
+
+function normalizeMovScriptWorkspaceKind(value: string | undefined): MovScriptWorkspaceKind | undefined {
+  if (
+    value === 'setting_workspace'
+    || value === 'asset_workspace'
+    || value === 'project_standards_workspace'
+    || value === 'production_workspace'
+    || value === 'content_unit_workspace'
+  ) {
+    return value
+  }
+  return undefined
 }
 
 function objectKeys(value: Record<string, unknown>): string[] {

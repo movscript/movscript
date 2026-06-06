@@ -1,5 +1,5 @@
 import { selectLatestWorkspaceArtifact, type AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
-import type { AgentWorkspaceKind } from '@/shared/infrastructure/localAgentClient'
+import type { MovScriptWorkspaceKind } from '@/shared/infrastructure/providerSessionClient'
 import {
   getProjectWorkbenchDefinition,
   mergeProjectWorkbenchReviewSearchParams,
@@ -8,7 +8,7 @@ import {
 
 export interface ProjectWorkbenchWorkspaceReviewSearchInput {
   workbenchId: ProjectWorkbenchId
-  workspaceKind: AgentWorkspaceKind
+  workspaceKind: MovScriptWorkspaceKind
   artifacts?: AgentTaskArtifactRef[]
   fallbackWorkspaceId?: string
   entityType?: string
@@ -16,7 +16,7 @@ export interface ProjectWorkbenchWorkspaceReviewSearchInput {
 }
 
 export interface ProjectWorkbenchArtifactWorkspaceParam {
-  workspaceKind: AgentWorkspaceKind
+  workspaceKind: MovScriptWorkspaceKind
   queryParam: string
   fallbackWorkspaceId?: string
 }

@@ -11,8 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@movscript/ui'
 import { AgentConversationTabs } from '@/features/agent/components/AgentConversationTabs'
-import { useAgentConversationTabRuntimeStatusLights } from '@/features/agent/presentation/useAgentConversationTabRuntimeStatusLights'
-import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
+import { useAgentConversationTabProviderSessionStatusLights } from '@/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights'
+import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 type ConversationTabMenuState = {
@@ -35,7 +35,7 @@ export interface AgentChatHeaderSectionProps {
   showCollapse?: boolean
   showConversationControls?: boolean
   historyOpen?: boolean
-  activeConversationRuntimeStatusLight?: AgentRuntimeStatusLight
+  activeConversationProviderSessionStatusLight?: ProviderSessionStatusLight
   pinnedStatusExpanded?: boolean
   showPinnedStatusControl?: boolean
   onNewConversation: () => void
@@ -54,7 +54,7 @@ export function AgentChatHeaderSection({
   onCollapse,
   showCollapse = true,
   showConversationControls = true,
-  activeConversationRuntimeStatusLight,
+  activeConversationProviderSessionStatusLight,
   historyOpen,
   onRenameConversation,
   onReorderConversation,
@@ -68,12 +68,12 @@ export function AgentChatHeaderSection({
     const mapped = conversations.map((item) => item.id === activeConversation.id ? { ...item, ...activeConversation } : item)
     return hasActiveConversation ? mapped : [activeConversation, ...mapped]
   }, [activeConversation, conversations])
-  const tabRuntimeStatusLights = useAgentConversationTabRuntimeStatusLights(conversationTabs)
-  const runtimeStatusLights = useMemo(() => {
-    if (!activeConversationRuntimeStatusLight) return tabRuntimeStatusLights
-    if (activeConversationRuntimeStatusLight.state === 'stopped' && tabRuntimeStatusLights[activeConversation.id]) return tabRuntimeStatusLights
-    return { ...tabRuntimeStatusLights, [activeConversation.id]: activeConversationRuntimeStatusLight }
-  }, [activeConversation.id, activeConversationRuntimeStatusLight, tabRuntimeStatusLights])
+  const tabProviderSessionStatusLights = useAgentConversationTabProviderSessionStatusLights(conversationTabs)
+  const providerSessionStatusLights = useMemo(() => {
+    if (!activeConversationProviderSessionStatusLight) return tabProviderSessionStatusLights
+    if (activeConversationProviderSessionStatusLight.state === 'stopped' && tabProviderSessionStatusLights[activeConversation.id]) return tabProviderSessionStatusLights
+    return { ...tabProviderSessionStatusLights, [activeConversation.id]: activeConversationProviderSessionStatusLight }
+  }, [activeConversation.id, activeConversationProviderSessionStatusLight, tabProviderSessionStatusLights])
   const [tabContextMenu, setTabContextMenu] = useState<ConversationTabMenuState>(null)
   const closeAllConversationTabs = useCallback(() => {
     onCloseConversations(conversationTabs.map((item) => item.id))
@@ -204,7 +204,7 @@ export function AgentChatHeaderSection({
             <AgentConversationTabs
               activeConversationId={activeConversation.id}
               conversations={conversationTabs}
-              runtimeStatusLights={runtimeStatusLights}
+              providerSessionStatusLights={providerSessionStatusLights}
               onCloseConversation={onCloseConversation}
               onCloseTabContextMenu={closeTabContextMenu}
               onOpenKeyboardMenu={openConversationTabKeyboardMenu}

@@ -1,7 +1,7 @@
 import { agentTraceView, traceEventDurationMs, traceEventStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentToolCallSummary {
   eventId: string

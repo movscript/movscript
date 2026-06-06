@@ -72,6 +72,19 @@ export async function backendPatch(path: string, body: Record<string, unknown>, 
   return text.trim() ? JSON.parse(text) : null
 }
 
+export async function backendDelete(path: string, userId?: unknown): Promise<any> {
+  const headers = backendHeaders({ userId })
+  const res = await fetch(`${getMCPAPIBaseURL()}${path}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!res.ok) {
+    throw await BackendHTTPError.fromResponse('DELETE', path, res)
+  }
+  const text = await res.text()
+  return text.trim() ? JSON.parse(text) : null
+}
+
 function backendHeaders(input: { json?: boolean; userId?: unknown } = {}): Record<string, string> {
   const headers: Record<string, string> = input.json ? { 'Content-Type': 'application/json' } : {}
   const authToken = getMCPAuthToken()

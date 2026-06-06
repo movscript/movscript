@@ -3,10 +3,10 @@ import test from 'node:test'
 
 import { completeSendRunResult, type CompleteSendRunResultDeps } from '@/features/agent/application/agentSendCompletion'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
-import type { AgentMessage, AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastructure/localAgentClient'
+import type { AgentMessage, AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
-test('completeSendRunResult binds runtime thread, run state, and settled notification', async () => {
+test('completeSendRunResult binds provider-session thread, run state, and settled notification', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
@@ -16,8 +16,8 @@ test('completeSendRunResult binds runtime thread, run state, and settled notific
     deps,
   })
 
-  assert.equal(calls.includes('setLocalThread:thread_1'), true)
-  assert.equal(calls.includes('runtimeThread:thread_1'), true)
+  assert.equal(calls.includes('setProviderThread:thread_1'), true)
+  assert.equal(calls.includes('providerThread:thread_1'), true)
   assert.equal(calls.includes('title:Thread title'), true)
   assert.equal(calls.includes('task:request_1:run_1:thread_1:0'), true)
   assert.equal(calls.includes('setRun:run_1:completed:false'), true)
@@ -38,8 +38,8 @@ test('completeSendRunResult binds diagnostic command threads so local diagnostic
     deps,
   })
 
-  assert.equal(calls.includes('setLocalThread:thread_1'), true)
-  assert.equal(calls.includes('runtimeThread:thread_1'), true)
+  assert.equal(calls.includes('setProviderThread:thread_1'), true)
+  assert.equal(calls.includes('providerThread:thread_1'), true)
   assert.equal(calls.includes('title:Thread title'), true)
 })
 
@@ -66,7 +66,7 @@ test('completeSendRunResult keeps settled generation activity for pinned status'
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.liveEvents = () => [
-    activityEvent({ id: 'http-request-local-session-message-run' }),
+    activityEvent({ id: 'http-request-provider-session-message-run' }),
     activityEvent({
       id: 'trace_generation_completed',
       kind: 'tool_call',
@@ -180,7 +180,7 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
   return {
     userId: 'user_1',
     conversationId: 'conv_1',
-    liveEvents: () => [activityEvent({ id: 'http-request-local-session-message-run' })],
+    liveEvents: () => [activityEvent({ id: 'http-request-provider-session-message-run' })],
     setLiveEventsRef: (events) => {
       calls.push(`liveRef:${events.length}`)
     },
@@ -188,11 +188,11 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
       calls.push('getRun')
       return makeRun({ id: runId, status: 'completed' })
     },
-    setLocalThreadId: (_conversationId, threadId) => {
-      calls.push(`setLocalThread:${threadId}`)
+    setProviderThreadId: (_conversationId, threadId) => {
+      calls.push(`setProviderThread:${threadId}`)
     },
-    setConversationRuntimeThreadId: (_userId, _conversationId, threadId) => {
-      calls.push(`runtimeThread:${threadId}`)
+    setConversationProviderThreadId: (_userId, _conversationId, threadId) => {
+      calls.push(`providerThread:${threadId}`)
     },
     updateConversationTitle: (_userId, _conversationId, title) => {
       calls.push(`title:${title}`)
@@ -213,8 +213,8 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     setLiveTraceEvents: (events) => {
       calls.push(`liveState:${events.length}`)
     },
-    runTouchesAgentCatalog: () => false,
-    refreshAgentCatalogContext: () => {
+    runTouchesProviderCatalog: () => false,
+    refreshProviderCatalogContext: () => {
       calls.push('refreshCatalog')
     },
     notifyRunSettled: (input) => {
@@ -223,11 +223,11 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
   }
 }
 
-function workspace(localRuntime: NonNullable<AgentSendWorkspace['localRuntime']> = {}): AgentSendWorkspace {
+function workspace(providerSession: NonNullable<AgentSendWorkspace['providerSession']> = {}): AgentSendWorkspace {
   return {
     id: 'workspace_1',
     createdAt: 1,
-    route: 'local-runtime',
+    route: 'provider-session',
     visibleUserContent: 'Hello',
     attachments: [],
     model: { id: 1 },
@@ -245,7 +245,7 @@ function workspace(localRuntime: NonNullable<AgentSendWorkspace['localRuntime']>
       messages: [],
     },
     httpRequests: [],
-    localRuntime,
+    providerSession,
     warnings: [],
   }
 }
@@ -297,7 +297,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,
@@ -313,7 +313,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function activityEvent(overrides: Partial<ChatRunActivityEvent> = {}): ChatRunActivityEvent {
   return {
     id: 'event_1',
-    kind: 'runtime',
+    kind: 'provider_session',
     title: 'Event',
     status: 'completed',
     createdAt: '2026-05-19T00:00:00.000Z',

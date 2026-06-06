@@ -273,15 +273,11 @@ export function verifyDesktopPackage(root, options = {}) {
   } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
   const backendBinDir = resolve(root, 'apps/backend/bin')
-  const agentDir = resolve(root, 'apps/frontend/movscript-agent')
   const ffmpegPath = resolveDesktopFFmpegPath(root, platform, arch)
 
   const requiredPaths = [
     resolve(backendBinDir, platform === 'win32' ? 'server.exe' : 'server'),
     resolve(backendBinDir, 'admin/index.html'),
-    resolve(agentDir, 'dist/server.js'),
-    resolve(agentDir, 'dist/server.bundle.js'),
-    resolve(agentDir, 'package.json'),
     ffmpegPath,
   ]
 

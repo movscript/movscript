@@ -1,5 +1,5 @@
-import { agentTimelineStatusFromRunStatus } from '@movscript/protocol'
-import type { AgentTimelineItem, AgentMessage, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { agentTimelineStatusFromRunStatus } from '@/features/agent/domain/agentProtocol'
+import type { AgentTimelineItem, AgentMessage, AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 export const AGENT_TIMELINE_LOCAL_EVENT = 'movscript:agent-timeline-local'
 
@@ -33,7 +33,7 @@ export function timelineItemFromAcceptedSource(message: AgentMessage, run: Agent
     updatedAt: run.updatedAt || createdAt,
     revision,
     cursor: acceptedSourceTimelineCursor(createdAt, id),
-    runtimeRefs: {
+    providerSessionRefs: {
       ...(run.sessionId ? { sessionId: run.sessionId } : {}),
       threadId: message.threadId,
       messageId: message.id,
@@ -49,8 +49,8 @@ export function acceptedSourceTimelineCursor(createdAt: string, id: string): str
 export function isAcceptedSourceTimelineItem(item: AgentTimelineItem | undefined): item is AgentTimelineItem {
   if (!item) return false
   if (item.origin !== 'user' || item.purpose !== 'transcript' || item.surface !== 'message_stream') return false
-  const messageId = item.runtimeRefs?.messageId
-  const runId = item.runtimeRefs?.runId
+  const messageId = item.providerSessionRefs?.messageId
+  const runId = item.providerSessionRefs?.runId
   if (!messageId || !runId) return false
   return item.id === `message:${messageId}`
 }

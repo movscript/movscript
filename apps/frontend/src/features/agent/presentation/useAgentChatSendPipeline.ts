@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { runTouchesAgentCatalog } from '@/features/agent/application/agentCatalogRun'
+import { runTouchesProviderCatalog } from '@/features/agent/application/providerCatalogRun'
 import { useAgentCommitSendWorkspace, type UseAgentCommitSendWorkspaceInput } from '@/features/agent/presentation/useAgentCommitSendWorkspace'
 import { useAgentSendActions, type UseAgentSendActionsInput } from '@/features/agent/presentation/useAgentSendActions'
 import { useAgentSendWorkspaceBuilder, type UseAgentSendWorkspaceBuilderInput } from '@/features/agent/presentation/useAgentSendWorkspaceBuilder'
@@ -7,7 +7,7 @@ import { useAgentSendLabels } from '@/features/agent/presentation/useAgentSendLa
 
 export interface UseAgentChatSendPipelineInput {
   workspaceBuilder: Omit<UseAgentSendWorkspaceBuilderInput, 'labels'>
-  commitWorkspace: Omit<UseAgentCommitSendWorkspaceInput, 'labels' | 'runTouchesAgentCatalog'>
+  commitWorkspace: Omit<UseAgentCommitSendWorkspaceInput, 'labels' | 'runTouchesProviderCatalog'>
   sendActions: Omit<UseAgentSendActionsInput, 'buildSendWorkspace' | 'commitSendWorkspace' | 'labels'>
 }
 
@@ -29,7 +29,7 @@ export function useAgentChatSendPipeline({
 
   const commitSendWorkspace = useAgentCommitSendWorkspace({
     ...commitWorkspace,
-    runTouchesAgentCatalog,
+    runTouchesProviderCatalog,
     labels: commitSendLabels,
   })
 

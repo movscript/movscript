@@ -1,8 +1,8 @@
 import type { MCPTool } from '../types'
-import imageGenerateTool from '../../../../agent/catalog/tools/generation/image-generate.tool.json'
-import imageJobGetTool from '../../../../agent/catalog/tools/generation/image-job-get.tool.json'
-import videoGenerateTool from '../../../../agent/catalog/tools/generation/video-generate.tool.json'
-import videoJobGetTool from '../../../../agent/catalog/tools/generation/video-job-get.tool.json'
+import imageGenerateTool from './generation/image-generate.tool.json'
+import imageJobGetTool from './generation/image-job-get.tool.json'
+import videoGenerateTool from './generation/video-generate.tool.json'
+import videoJobGetTool from './generation/video-job-get.tool.json'
 
 type AgentCatalogTool = {
   name: string

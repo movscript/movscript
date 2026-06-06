@@ -9,7 +9,7 @@ import {
   type AgentPlanActionDeps,
   type PlanDispatchSettings,
 } from '@/features/agent/application/agentPlanActions'
-import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 export interface UseAgentPlanActionBindingsInput {
   conversationId: string
@@ -20,7 +20,7 @@ export interface UseAgentPlanActionBindingsInput {
   dispatchSettings: PlanDispatchSettings
   setBusy: (busy: boolean) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentPlanActionDeps['setConversationRun']>[1]) => void
-  setConversationRuntime: (conversationId: string, patch: { error?: string; loading?: boolean }) => void
+  setConversationProviderSessionState: (conversationId: string, patch: { error?: string; loading?: boolean }) => void
   refetchPlanSnapshot: () => Promise<unknown>
 }
 
@@ -33,23 +33,23 @@ export function useAgentPlanActionBindings({
   dispatchSettings,
   setBusy,
   setConversationRun,
-  setConversationRuntime,
+  setConversationProviderSessionState,
   refetchPlanSnapshot,
 }: UseAgentPlanActionBindingsInput) {
-  const runtimeClient = useMemo(() => sessionId?.trim()
-    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
-    : localAgentClient, [sessionId])
+  const providerSessionPlanClient = useMemo(() => sessionId?.trim()
+    ? providerSessionClient.forSession({ sessionId: sessionId.trim() })
+    : providerSessionClient, [sessionId])
   const deps = useMemo<AgentPlanActionDeps>(() => ({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
-    reportError: (message) => setConversationRuntime(conversationId, { error: message, loading: false }),
-    dispatchTaskGraph: (taskGraphId, input) => runtimeClient.dispatchTaskGraph(taskGraphId, input),
-    replanRun: (runId, input) => runtimeClient.replanRun(runId, input),
-    updateTask: (taskId, input) => runtimeClient.updateTask(taskId, input),
-    cancelRunTree: (runId, input) => runtimeClient.cancelRunTree(runId, input),
-    getRun: (runId) => runtimeClient.getRun(runId),
+    reportError: (message) => setConversationProviderSessionState(conversationId, { error: message, loading: false }),
+    dispatchTaskGraph: (taskGraphId, input) => providerSessionPlanClient.dispatchTaskGraph(taskGraphId, input),
+    replanRun: (runId, input) => providerSessionPlanClient.replanRun(runId, input),
+    updateTask: (taskId, input) => providerSessionPlanClient.updateTask(taskId, input),
+    cancelRunTree: (runId, input) => providerSessionPlanClient.cancelRunTree(runId, input),
+    getRun: (runId) => providerSessionPlanClient.getRun(runId),
     refetchPlanSnapshot,
-  }), [conversationId, refetchPlanSnapshot, runtimeClient, setBusy, setConversationRun, setConversationRuntime])
+  }), [conversationId, providerSessionPlanClient, refetchPlanSnapshot, setBusy, setConversationRun, setConversationProviderSessionState])
 
   const dispatchActiveTaskGraph = useCallback(async () => {
     if (busy) return

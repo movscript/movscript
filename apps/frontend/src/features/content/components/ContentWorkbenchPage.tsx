@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 
 import { pickContentWorkbenchFirstUsableUnit } from '@/features/content/domain/contentWorkbenchCandidateFocus'
-import { contentWorkbenchWorkspaceDefaults } from '@/features/content/domain/contentWorkbenchWorkspaceWorkspace'
+import { contentWorkbenchWorkspaceArtifactDefaults } from '@/features/content/domain/contentWorkbenchWorkspaceArtifact'
 import { useContentWorkbenchPageController } from '@/features/content/application/contentWorkbenchPageController'
 import { useContentWorkbenchReviewController } from '@/features/content/application/contentWorkbenchReviewController'
 import {
@@ -214,8 +214,8 @@ export function ContentWorkbenchPage() {
     setSearchParams,
   })
   const {
-    workspaces: reviewWorkspaces,
-    workspacesQuery: reviewWorkspacesQuery,
+    workspaceArtifacts: reviewWorkspaceArtifacts,
+    workspaceArtifactsQuery: reviewWorkspaceArtifactsQuery,
     selectedWorkspace: selectedReviewWorkspace,
     reviewModel: contentWorkspaceReview,
     queueSummary: reviewQueueSummary,
@@ -226,13 +226,13 @@ export function ContentWorkbenchPage() {
   } = reviewController
 
   const rejectContentWorkspace = useMutation(buildRejectContentWorkspaceMutationOptions({
-    refetchWorkspaces: reviewWorkspacesQuery.refetch,
+    refetchWorkspaceArtifacts: reviewWorkspaceArtifactsQuery.refetch,
     closeReview,
   }))
   const markContentWorkspaceReviewed = useMutation(buildMarkContentWorkspaceReviewedMutationOptions({
     projectId,
     selectedMomentId: selected?.moment.ID,
-    refetchWorkspaces: reviewWorkspacesQuery.refetch,
+    refetchWorkspaceArtifacts: reviewWorkspaceArtifactsQuery.refetch,
     closeReview,
   }))
   const applyContentUnitWorkspace = useMutation(buildApplyContentUnitWorkspaceMutationOptions({
@@ -290,9 +290,9 @@ export function ContentWorkbenchPage() {
 
   function openReviewQueue() {
     reviewController.setCollapsed(false)
-    const workspace = selectedReviewWorkspace ?? reviewWorkspaces[0]
+    const workspace = selectedReviewWorkspace ?? reviewWorkspaceArtifacts[0]
     if (!workspace) {
-      toast.info('暂无待审 AI 工作区')
+      toast.info('暂无待审 AI 草案')
       return
     }
     selectReviewWorkspace(workspace.id)
@@ -308,7 +308,7 @@ export function ContentWorkbenchPage() {
   }
 
   function openCreateUnitFromWorkspace(workspace: Record<string, unknown>) {
-    setUnitWorkspaceDefaults(contentWorkbenchWorkspaceDefaults(workspace))
+    setUnitWorkspaceDefaults(contentWorkbenchWorkspaceArtifactDefaults(workspace))
     setCreatingUnit(true)
   }
 
@@ -457,7 +457,7 @@ export function ContentWorkbenchPage() {
                           {showReviewPanel ? (
                             <ContentWorkbenchReviewPanel
                               reviewMode={reviewMode}
-                              workspaces={reviewWorkspaces}
+                              workspaces={reviewWorkspaceArtifacts}
                               selectedWorkspace={selectedReviewWorkspace}
                               reviewModel={contentWorkspaceReview}
                               queueSummary={reviewQueueSummary}

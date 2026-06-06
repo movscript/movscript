@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { actionableRunForTaskGraph, actionableRunsForTaskGraph, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, interactionRunsForTaskGraph, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from '@/features/agent/domain/agentPlanUi'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTask } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask } from '@/shared/infrastructure/providerSessionClient'
 
 function run(input: Partial<AgentRun> & { id: string }): AgentRun {
   return {
@@ -16,7 +16,7 @@ function run(input: Partial<AgentRun> & { id: string }): AgentRun {
     blockedReason: input.blockedReason,
     pendingInputRequests: input.pendingInputRequests,
     pendingApprovals: input.pendingApprovals,
-    runtimeLimits: { approvalMode: 'auto',
+    providerSessionLimits: { approvalMode: 'auto',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

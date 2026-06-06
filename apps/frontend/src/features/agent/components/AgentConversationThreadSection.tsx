@@ -19,13 +19,14 @@ import {
   AGENT_THREAD_RENDER_WINDOW_INITIAL_SIZE,
 } from '@/features/agent/components/AgentThreadRenderWindow'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
+import type { AgentRunApprovalDecisionInput } from '@/features/agent/application/agentRunInteractionActions'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
-import type { AgentTaskGraphSnapshot, AgentPlan } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentPlan } from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentConversationThreadSectionProps {
   activePlanSnapshot?: AgentTaskGraphSnapshot
-  approvingLocalRun: boolean
+  approvingActiveRun: boolean
   bottomRef: RefObject<HTMLDivElement>
   conversationId: string
   conversationProjection: AgentConversationProjection
@@ -38,12 +39,12 @@ export interface AgentConversationThreadSectionProps {
   projectId?: number
   threadRef: RefObject<HTMLDivElement>
   onAcceptPlanReview: (taskId: string) => void
-  onAnswerLocalRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
-  onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
+  onAnswerRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+  onApproveRun: (runId: string, approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => void
   onCancelPlanTree: () => void
   onDispatchTaskGraph: () => void
   onPinnedStatusExpandedChange?: (expanded: boolean) => void
-  onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
+  onRejectRun: (runId: string, approvalIds?: string[]) => void
   onRejectPlanReview: (taskId: string) => void
   onRetaskGraph: () => void
   onReworkPlanReview: (taskId: string) => void
@@ -53,7 +54,7 @@ export interface AgentConversationThreadSectionProps {
 
 export function AgentConversationThreadSection({
   activePlanSnapshot,
-  approvingLocalRun,
+  approvingActiveRun,
   bottomRef,
   conversationId,
   conversationProjection,
@@ -66,12 +67,12 @@ export function AgentConversationThreadSection({
   projectId,
   threadRef,
   onAcceptPlanReview,
-  onAnswerLocalRunInput,
-  onApproveLocalRun,
+  onAnswerRunInput,
+  onApproveRun,
   onCancelPlanTree,
   onDispatchTaskGraph,
   onPinnedStatusExpandedChange,
-  onRejectLocalRun,
+  onRejectRun,
   onRejectPlanReview,
   onRetaskGraph,
   onReworkPlanReview,
@@ -149,10 +150,10 @@ export function AgentConversationThreadSection({
           items={threadWindow.visibleItems}
           projectId={projectId}
           hiddenActivityActionItemIds={hiddenActivityActionItemIds}
-          approvingLocalRun={approvingLocalRun}
-          onApproveLocalRun={onApproveLocalRun}
-          onRejectLocalRun={onRejectLocalRun}
-          onAnswerLocalRunInput={onAnswerLocalRunInput}
+          approvingActiveRun={approvingActiveRun}
+          onApproveRun={onApproveRun}
+          onRejectRun={onRejectRun}
+          onAnswerRunInput={onAnswerRunInput}
         />
         <AgentPlanOverviewPanel
           id="agent-taskGraph-overview"

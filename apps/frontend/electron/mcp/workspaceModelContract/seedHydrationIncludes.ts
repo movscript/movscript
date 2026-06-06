@@ -1,5 +1,5 @@
 import { backendGet } from '../backendClient'
-import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
 import type { WorkspaceSeedTargetIds } from './types'
 import {
   activeWorkspaceSeedAssetSlots,
@@ -14,7 +14,7 @@ import {
 } from './seedProduction'
 import { backendList, numericValue } from './utils'
 
-export async function hydrateWorkspaceSeedInclude(kind: AgentWorkspaceKind, projectId: number, targetIds: WorkspaceSeedTargetIds, include: string): Promise<unknown> {
+export async function hydrateWorkspaceSeedInclude(kind: MovScriptWorkspaceKind, projectId: number, targetIds: WorkspaceSeedTargetIds, include: string): Promise<unknown> {
   const entityId = targetIds.entityId
   const sceneMomentId = targetIds.sceneMomentId ?? (kind === 'content_unit_workspace' ? entityId : undefined)
   const contentUnitId = targetIds.contentUnitId

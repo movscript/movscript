@@ -5,7 +5,7 @@ import {
   type SemanticEntityKind,
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 
 export type WorkspaceRecord = SemanticEntityRecord & {
   description?: string
@@ -38,7 +38,7 @@ export interface WorkspaceData {
   contentUnits: WorkspaceRecord[]
 }
 
-export interface ProjectStandardsWorkspaceWorkspaceView {
+export interface ProjectStandardsWorkspaceArtifactView {
   summary: string
   impactNotes: string[]
   debug: {
@@ -52,6 +52,9 @@ export interface ProjectStandardsWorkspaceWorkspaceView {
   }
 }
 
+/** @deprecated Use ProjectStandardsWorkspaceArtifactView. */
+export type ProjectStandardsWorkspaceWorkspaceView = ProjectStandardsWorkspaceArtifactView
+
 export interface ProjectStyleWorkspaceRow {
   key: string
   label: string
@@ -62,8 +65,8 @@ export interface ProjectStyleWorkspaceRow {
 }
 
 export interface ProjectStandardsReviewWorkspace {
-  workspace: AgentWorkspace
-  workspaceView: ProjectStandardsWorkspaceWorkspaceView | null
+  workspace: WorkspaceArtifact
+  workspaceView: ProjectStandardsWorkspaceArtifactView | null
   styleRows: ProjectStyleWorkspaceRow[]
 }
 
@@ -167,13 +170,13 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
-export function isProjectStandardsWorkspaceHelperWorkspace(workspace: AgentWorkspace) {
+export function isProjectStandardsWorkspaceHelperWorkspace(workspace: WorkspaceArtifact) {
   if (workspace.kind !== 'project_standards_workspace') return false
   const metadata = isRecord(workspace.metadata) ? workspace.metadata : {}
   return typeof metadata.sourceWorkspaceId === 'string' && metadata.sourceWorkspaceId.trim().length > 0
 }
 
-export function parseProjectStandardsWorkspaceWorkspace(workspace: AgentWorkspace, pageKey?: string): ProjectStandardsWorkspaceWorkspaceView | null {
+export function parseProjectStandardsWorkspaceArtifact(workspace: WorkspaceArtifact, pageKey?: string): ProjectStandardsWorkspaceArtifactView | null {
   try {
     const content = JSON.parse(workspace.content) as Record<string, unknown>
     const impactNotes = [
@@ -201,7 +204,10 @@ export function parseProjectStandardsWorkspaceWorkspace(workspace: AgentWorkspac
   }
 }
 
-export function buildProjectStyleApplyPayload(workspace: AgentWorkspace) {
+/** @deprecated Use parseProjectStandardsWorkspaceArtifact. */
+export const parseProjectStandardsWorkspaceWorkspace = parseProjectStandardsWorkspaceArtifact
+
+export function buildProjectStyleApplyPayload(workspace: WorkspaceArtifact) {
   const content = JSON.parse(workspace.content) as Record<string, unknown>
   const workspacePayload = isRecord(content.workspace) ? content.workspace : {}
   return JSON.stringify({
@@ -371,7 +377,7 @@ export function buildProjectPromptPreview(project?: WorkspaceRecord | null) {
   return sections.length > 0 ? `项目规范：\n${sections.join('\n')}` : '项目规范：\n- 暂无已启用规范。'
 }
 
-export function parseProjectStyleWorkspaceRows(workspace: AgentWorkspace, project?: WorkspaceRecord | null): ProjectStyleWorkspaceRow[] {
+export function parseProjectStyleWorkspaceRows(workspace: WorkspaceArtifact, project?: WorkspaceRecord | null): ProjectStyleWorkspaceRow[] {
   try {
     const content = JSON.parse(workspace.content) as Record<string, unknown>
     const workspacePayload = isRecord(content.workspace) ? content.workspace : {}

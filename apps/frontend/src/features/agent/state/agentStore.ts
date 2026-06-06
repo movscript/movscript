@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
+import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
 import type {
   AgentAttachment as ProtocolAgentAttachment,
   AgentChatMessage,
@@ -23,19 +24,19 @@ import type {
   AgentTimelineActivityEvent,
   AgentTimelineActivityInputRequest,
   AgentTimelineActivityStep,
-  AgentRuntimeInputRef,
-  AgentRuntimeMessageRef,
-  AgentCatalogConfigFile,
-  AgentToolApprovalMode,
-  AgentToolGrantMode,
-} from '@movscript/protocol'
+  ProviderSessionInputRef,
+  ProviderSessionMessageRef,
+  ProviderCatalogConfigFile,
+  ProviderToolApprovalMode,
+  ProviderToolGrantMode,
+} from '@/features/agent/domain/agentProtocol'
 
 export type ChatMessage = AgentChatMessage
 export type Conversation = AgentConversation
 export type ConversationWorkspace = AgentConversationWorkspace
 
 export interface AgentSettings {
-  activeAgentRuntimeId: AgentSettingsAgentRuntimeId
+  activeProviderProfileConfigId: AgentSettingsProviderProfileConfigId
   modelId: number | null
   includeProjectContext: boolean
   includeRecentResources: boolean
@@ -48,7 +49,7 @@ export interface AgentSettings {
   lastConfigFileBackup: AgentSettingsConfigFileBackup | null
 }
 
-export type AgentSettingsAgentRuntimeId = 'movscript-agent' | 'codex'
+export type AgentSettingsProviderProfileConfigId = string
 
 export type AgentToolPermissionsFilterPresetFilter = 'all' | 'available' | 'blocked' | 'config_file_granted' | 'requires_approval' | 'write_risk'
 
@@ -73,16 +74,16 @@ export interface AgentSettingsImportBackup {
 }
 
 export interface AgentSettingsConfigFileBackup {
-  configFile: AgentCatalogConfigFile
-  toolPermissionOverrides?: AgentCatalogConfigFile['toolGrants']
+  configFile: ProviderCatalogConfigFile
+  toolPermissionOverrides?: ProviderCatalogConfigFile['toolGrants']
   activeConfigFileId: string | null
   createdAt: string
 }
 
 export type AgentAttachment = ProtocolAgentAttachment
 export type ChatMessageMeta = AgentChatMessageMeta
-export type ChatRuntimeMessageRef = AgentRuntimeMessageRef
-export type ChatRuntimeInputRef = AgentRuntimeInputRef
+export type ChatProviderSessionMessageRef = ProviderSessionMessageRef
+export type ChatProviderSessionInputRef = ProviderSessionInputRef
 export type ChatContextDiagnostic = AgentContextDiagnostic
 export type ChatContextDiagnosticTool = AgentContextDiagnosticTool
 export type ChatGenerationJob = AgentGenerationJob
@@ -112,7 +113,7 @@ function genId() {
 }
 
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
-  activeAgentRuntimeId: 'movscript-agent',
+  activeProviderProfileConfigId: MOVA_PROVIDER_ID,
   modelId: null,
   includeProjectContext: true,
   includeRecentResources: true,
@@ -128,12 +129,12 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 const MAX_AGENT_SETTINGS_IMPORT_BACKUP_BYTES = 1024 * 1024
 const MAX_AGENT_TOOL_PERMISSIONS_FILTER_PRESETS = 12
 
-const LEGACY_AGENT_STORAGE_KEYS = ['agent-store-v3', 'agent-session-store-v1']
+const REMOVED_CONVERSATION_SESSION_STORAGE_KEYS = ['agent-store-v3', 'agent-session-store-v1']
 const agentStoreStorage = createInstrumentedAgentStateStorage('agent_store')
 const agentStorePartialize = createAgentStorePartialize()
 
 if (typeof window !== 'undefined') {
-  for (const key of LEGACY_AGENT_STORAGE_KEYS) {
+  for (const key of REMOVED_CONVERSATION_SESSION_STORAGE_KEYS) {
     try {
       window.localStorage.removeItem(key)
     } catch {
@@ -240,14 +241,26 @@ function createAgentStorePersistStorage(): PersistStorage<AgentStorePersistedSta
   }
 }
 
-export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {
-  const merged = { ...DEFAULT_AGENT_SETTINGS, ...settings }
+type PersistedAgentSettings = Partial<AgentSettings> & {
+  activeWorkspaceConfigId?: unknown
+  activeWorkspaceProfileId?: unknown
+}
+
+export function normalizeAgentSettings(settings?: PersistedAgentSettings | null): AgentSettings {
+  const merged = {
+    ...DEFAULT_AGENT_SETTINGS,
+    ...settings,
+    activeProviderProfileConfigId: settings?.activeProviderProfileConfigId
+      ?? settings?.activeWorkspaceConfigId
+      ?? settings?.activeWorkspaceProfileId
+      ?? DEFAULT_AGENT_SETTINGS.activeProviderProfileConfigId,
+  }
   const workerOptions = [1, 2, 3, 4]
   const attemptOptions = [1, 2, 3]
   const timeoutOptions = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]
   return {
     ...merged,
-    activeAgentRuntimeId: normalizeAgentSettingsAgentRuntimeId(merged.activeAgentRuntimeId),
+    activeProviderProfileConfigId: normalizeAgentSettingsProviderProfileConfigId(merged.activeProviderProfileConfigId),
     modelId: normalizePersistedModelId(merged.modelId),
     includeProjectContext: typeof merged.includeProjectContext === 'boolean' ? merged.includeProjectContext : DEFAULT_AGENT_SETTINGS.includeProjectContext,
     includeRecentResources: typeof merged.includeRecentResources === 'boolean' ? merged.includeRecentResources : DEFAULT_AGENT_SETTINGS.includeRecentResources,
@@ -267,8 +280,10 @@ export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null)
   }
 }
 
-function normalizeAgentSettingsAgentRuntimeId(value: unknown): AgentSettingsAgentRuntimeId {
-  return value === 'codex' ? 'codex' : 'movscript-agent'
+function normalizeAgentSettingsProviderProfileConfigId(value: unknown): AgentSettingsProviderProfileConfigId {
+  if (typeof value !== 'string') return MOVA_PROVIDER_ID
+  const key = value.trim().toLowerCase()
+  return /^[a-z][a-z0-9_-]{0,63}$/.test(key) ? key : MOVA_PROVIDER_ID
 }
 
 function normalizeToolPermissionsFilterPresets(value: unknown): AgentToolPermissionsFilterPreset[] {
@@ -331,13 +346,13 @@ function normalizeSettingsConfigFileBackup(value: unknown): AgentSettingsConfigF
   }
 }
 
-function normalizeSettingsBackupConfigFile(value: unknown): AgentCatalogConfigFile | null {
+function normalizeSettingsBackupConfigFile(value: unknown): ProviderCatalogConfigFile | null {
   if (!isRecord(value)) return null
   const id = typeof value.id === 'string' && value.id.trim() ? value.id.trim() : ''
   const version = typeof value.version === 'string' && value.version.trim() ? value.version.trim() : '1.0.0'
   const name = typeof value.name === 'string' && value.name.trim() ? value.name.trim() : ''
   if (!id || !name) return null
-  const configFile: AgentCatalogConfigFile = {
+  const configFile: ProviderCatalogConfigFile = {
     schema: 'movscript.agent.config_file.v1',
     id,
     version,
@@ -347,16 +362,16 @@ function normalizeSettingsBackupConfigFile(value: unknown): AgentCatalogConfigFi
     toolGrants: normalizeSettingsBackupToolGrants(value.toolGrants),
   }
   if (typeof value.description === 'string' && value.description.trim()) configFile.description = value.description.trim()
-  if (isRecord(value.approvalDefaults)) configFile.approvalDefaults = value.approvalDefaults as AgentCatalogConfigFile['approvalDefaults']
-  if (isRecord(value.model)) configFile.model = value.model as AgentCatalogConfigFile['model']
+  if (isRecord(value.approvalDefaults)) configFile.approvalDefaults = value.approvalDefaults as ProviderCatalogConfigFile['approvalDefaults']
+  if (isRecord(value.model)) configFile.model = value.model as ProviderCatalogConfigFile['model']
   if (isRecord(value.limits)) configFile.limits = normalizeSettingsBackupConfigFileLimits(value.limits)
-  if (isRecord(value.metadata)) configFile.metadata = value.metadata as AgentCatalogConfigFile['metadata']
+  if (isRecord(value.metadata)) configFile.metadata = value.metadata as ProviderCatalogConfigFile['metadata']
   return configFile
 }
 
-function normalizeSettingsBackupToolGrants(value: unknown): AgentCatalogConfigFile['toolGrants'] {
+function normalizeSettingsBackupToolGrants(value: unknown): ProviderCatalogConfigFile['toolGrants'] {
   if (!Array.isArray(value)) return []
-  const grants: AgentCatalogConfigFile['toolGrants'] = []
+  const grants: ProviderCatalogConfigFile['toolGrants'] = []
   const seen = new Set<string>()
   for (const item of value) {
     if (!isRecord(item)) continue
@@ -364,7 +379,7 @@ function normalizeSettingsBackupToolGrants(value: unknown): AgentCatalogConfigFi
     if (!name || seen.has(name)) continue
     const mode = normalizeToolGrantMode(item.mode)
     if (!mode) continue
-    const grant: AgentCatalogConfigFile['toolGrants'][number] = { name, mode }
+    const grant: ProviderCatalogConfigFile['toolGrants'][number] = { name, mode }
     const approval = normalizeToolApprovalMode(item.approval)
     if (approval) grant.approval = approval
     grants.push(grant)
@@ -373,11 +388,11 @@ function normalizeSettingsBackupToolGrants(value: unknown): AgentCatalogConfigFi
   return grants
 }
 
-function normalizeToolGrantMode(value: unknown): AgentToolGrantMode | null {
+function normalizeToolGrantMode(value: unknown): ProviderToolGrantMode | null {
   return value === 'allow' || value === 'deny' ? value : null
 }
 
-function normalizeToolApprovalMode(value: unknown): AgentToolApprovalMode | null {
+function normalizeToolApprovalMode(value: unknown): ProviderToolApprovalMode | null {
   return value === 'never' || value === 'always' || value === 'on_write' ? value : null
 }
 
@@ -386,8 +401,8 @@ function normalizeStringList(value: unknown): string[] {
   return Array.from(new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)))
 }
 
-function normalizeSettingsBackupConfigFileLimits(value: Record<string, unknown>): NonNullable<AgentCatalogConfigFile['limits']> {
-  const limits: NonNullable<AgentCatalogConfigFile['limits']> = {}
+function normalizeSettingsBackupConfigFileLimits(value: Record<string, unknown>): NonNullable<ProviderCatalogConfigFile['limits']> {
+  const limits: NonNullable<ProviderCatalogConfigFile['limits']> = {}
   for (const [key, item] of Object.entries(value)) {
     if (key === 'executionMode') {
       if (item === 'compact' || item === 'standard' || item === 'deep') limits.executionMode = item

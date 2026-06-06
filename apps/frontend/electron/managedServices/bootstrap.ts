@@ -1,8 +1,5 @@
 import { setMCPAPIBaseURL } from '../mcp/server'
 import {
-  setAgentRuntimeAPIBaseURL,
-} from '../services/agentRuntime'
-import {
   getBackendLaunchPolicy,
   LOCAL_BACKEND_URL,
   startBackend,
@@ -21,9 +18,8 @@ async function bootstrapBackendServices(): Promise<boolean> {
     return false
   }
 
-  console.info(`[bootstrap] local backend ready at ${LOCAL_BACKEND_URL}; session agents will use this backend by default`)
+  console.info(`[bootstrap] local backend ready at ${LOCAL_BACKEND_URL}; provider sessions will use this backend by default`)
   setMCPAPIBaseURL(LOCAL_BACKEND_URL)
-  await setAgentRuntimeAPIBaseURL(LOCAL_BACKEND_URL)
   return true
 }
 

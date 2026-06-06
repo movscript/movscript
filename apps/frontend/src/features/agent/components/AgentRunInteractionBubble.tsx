@@ -25,21 +25,22 @@ import {
   safeJSONStringify,
 } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
-import { type LocalAgentApprovalRequest } from '@/features/agent/components/localRuntime'
+import { type ProviderSessionApprovalRequest } from '@/features/agent/components/providerSessionInteractions'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type {
   AgentInputAnswer,
   AgentPendingApprovalRequest,
   AgentPendingInputRequest,
 } from '@/features/agent/domain/agentRunInteraction'
+import type { AgentRunApprovalDecisionInput } from '@/features/agent/application/agentRunInteractionActions'
 
-type LocalAgentRunInteractionInteraction =
+type ProviderSessionRunInteractionInteraction =
   | { id: string; kind: 'input'; createdAt: string; request: AgentPendingInputRequest }
   | { id: string; kind: 'approval'; createdAt: string; approval: AgentPendingApprovalRequest }
 
-export function LocalAgentRunInteractionBubble({
+export function ProviderSessionRunInteractionBubble({
   run,
   approving = false,
   onApprove,
@@ -48,7 +49,7 @@ export function LocalAgentRunInteractionBubble({
 }: {
   run: AgentRun | null
   approving?: boolean
-  onApprove?: (approvalIds?: string[]) => void
+  onApprove?: (approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
 }) {
@@ -65,15 +66,16 @@ export function LocalAgentRunInteractionBubble({
         run={run}
         approving={approving}
         onApprove={onApprove}
+        onApproveForSession={onApprove ? (approvalIds) => onApprove(approvalIds, { scope: 'session' }) : undefined}
         onReject={onReject}
         onAnswerInput={onAnswerInput}
-        approvalDetails={(approval) => localAgentApprovalDetails(approval)}
+        approvalDetails={(approval) => providerSessionApprovalDetails(approval)}
       />
     </AgentChatMessage>
   )
 }
 
-export function localAgentApprovalDetails(approval: LocalAgentApprovalRequest) {
+export function providerSessionApprovalDetails(approval: ProviderSessionApprovalRequest) {
   const generationApproval = generationJobApprovalView(approval)
   const assetCandidateApproval = assetSlotCandidateApprovalView(approval)
   const args = approvalArgs(approval)
@@ -250,7 +252,7 @@ function ApprovalResourceThumbnail({ resourceId }: { resourceId?: number }) {
   )
 }
 
-function generationJobApprovalView(approval: LocalAgentApprovalRequest): GenerationJobApprovalView | null {
+function generationJobApprovalView(approval: ProviderSessionApprovalRequest): GenerationJobApprovalView | null {
   const args = asRecord(approvalArgs(approval))
   if (!args) return null
   const kind = stringValue(args.kind)
@@ -288,7 +290,7 @@ function isGenerationSubmitApproval(toolName: string | undefined, kind: string |
     || (toolName === 'core_work_start' && kind === 'generation_job')
 }
 
-function assetSlotCandidateApprovalView(approval: LocalAgentApprovalRequest): AssetSlotCandidateApprovalView | null {
+function assetSlotCandidateApprovalView(approval: ProviderSessionApprovalRequest): AssetSlotCandidateApprovalView | null {
   if (approval.toolName !== 'candidate_asset_slot_attach' && approval.toolName !== 'asset_candidate_write') return null
   const args = asRecord(approvalArgs(approval))
   if (!args) return null
@@ -313,11 +315,11 @@ function assetSlotCandidateApprovalView(approval: LocalAgentApprovalRequest): As
   }
 }
 
-function approvalArgs(approval: LocalAgentApprovalRequest): unknown {
+function approvalArgs(approval: ProviderSessionApprovalRequest): unknown {
   return 'args' in approval ? approval.args : undefined
 }
 
-function approvalPreview(approval: LocalAgentApprovalRequest): unknown {
+function approvalPreview(approval: ProviderSessionApprovalRequest): unknown {
   return 'preview' in approval ? approval.preview : undefined
 }
 
@@ -350,7 +352,7 @@ function isRedundantAssetCandidateNote(note: string, view: AssetSlotCandidateApp
   return mentionsCandidate && mentionsGeneration && mentionsResource && mentionsSource
 }
 
-function runInteractions(run: AgentRun): LocalAgentRunInteractionInteraction[] {
+function runInteractions(run: AgentRun): ProviderSessionRunInteractionInteraction[] {
   const approvals = run.pendingApprovals ?? []
   const inputs = run.pendingInputRequests ?? []
   return [

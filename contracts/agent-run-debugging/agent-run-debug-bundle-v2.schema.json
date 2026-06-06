@@ -16,8 +16,8 @@
     "fieldGuide",
     "coverage",
     "readinessChecklist",
-    "runtimeSummary",
-    "runtimeFrames",
+    "providerSessionSummary",
+    "providerSessionFrames",
     "attentionEvents",
     "pendingActions",
     "events"
@@ -33,8 +33,8 @@
         "enum": [
           "runSummary",
           "readinessChecklist",
-          "runtimeSummary",
-          "runtimeFrames",
+          "providerSessionSummary",
+          "providerSessionFrames",
           "fullDebugEvents",
           "fullContextDiffs",
           "fullPromptPayloads",
@@ -44,7 +44,7 @@
           "redactedDebugData"
         ]
       },
-      "contains": { "const": "runtimeFrames" },
+      "contains": { "const": "providerSessionFrames" },
       "uniqueItems": true
     },
     "runId": { "type": "string", "minLength": 1 },
@@ -62,17 +62,28 @@
     "fieldGuide": { "type": "array", "items": { "type": "object" } },
     "coverage": { "type": "object" },
     "readinessChecklist": { "type": "array", "items": { "type": "object" } },
-    "runtimeSummary": { "type": "object" },
-    "runtimeFrames": {
+    "providerSessionSummary": { "type": "object" },
+    "providerSessionFrames": {
       "type": "array",
-      "items": { "$ref": "#/$defs/runtimeFrame" }
+      "items": { "$ref": "#/$defs/providerSessionFrame" }
+    },
+    "runtimeSummary": {
+      "description": "Compatibility alias for older copied debug bundles. New bundles use providerSessionSummary.",
+      "type": "object",
+      "deprecated": true
+    },
+    "runtimeFrames": {
+      "description": "Compatibility alias for older copied debug bundles. New bundles use providerSessionFrames.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerSessionFrame" },
+      "deprecated": true
     },
     "attentionEvents": { "type": "array", "items": { "type": "object" } },
     "pendingActions": { "type": "array", "items": { "type": "object" } },
     "events": { "type": "array", "items": { "type": "object" } }
   },
   "$defs": {
-    "runtimeFrame": {
+    "providerSessionFrame": {
       "type": "object",
       "additionalProperties": true,
       "required": [

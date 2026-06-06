@@ -1,35 +1,35 @@
 import type { AppSettings } from '@/shared/infrastructure/config'
-import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationProviderSessionState } from '@/features/agent/state/agentSessionStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentSettings, Conversation, ConversationWorkspace } from '@/features/agent/state/agentStore'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore, type AuthSession } from '@/shared/infrastructure/session/userStore'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { Project } from '@/types'
 
 export const E2E_BOOTSTRAP_STORAGE_KEY = 'movscript-e2e-bootstrap'
 
-function normalizeConversationRuntime(
+function normalizeConversationProviderSessionState(
   conversationId: string,
-  runtime: Partial<AgentConversationRuntimeState> & { run?: AgentRun },
-): AgentConversationRuntimeState {
-  const updatedAt = runtime.updatedAt ?? Date.now()
+  providerSessionState: Partial<AgentConversationProviderSessionState> & { run?: AgentRun },
+): AgentConversationProviderSessionState {
+  const updatedAt = providerSessionState.updatedAt ?? Date.now()
   return {
     conversationId,
-    loading: runtime.loading ?? false,
-    building: runtime.building ?? false,
-    approving: runtime.approving ?? false,
-    stopping: runtime.stopping ?? false,
-    stopRequested: runtime.stopRequested ?? false,
+    loading: providerSessionState.loading ?? false,
+    building: providerSessionState.building ?? false,
+    approving: providerSessionState.approving ?? false,
+    stopping: providerSessionState.stopping ?? false,
+    stopRequested: providerSessionState.stopRequested ?? false,
     updatedAt,
-    requestId: runtime.requestId,
-    threadId: runtime.threadId,
-    runId: runtime.runId,
-    run: runtime.run,
-    status: runtime.status,
-    error: runtime.error,
+    requestId: providerSessionState.requestId,
+    threadId: providerSessionState.threadId,
+    runId: providerSessionState.runId,
+    run: providerSessionState.run,
+    status: providerSessionState.status,
+    error: providerSessionState.error,
   }
 }
 
@@ -46,8 +46,8 @@ export interface E2EBootstrapSeed {
     }>
   }
   session?: {
-    conversationRuntimes?: Record<string, Partial<AgentConversationRuntimeState> & { run?: AgentRun }>
-    localThreadIdsByConversation?: Record<string, string>
+    conversationProviderSessionStates?: Record<string, Partial<AgentConversationProviderSessionState> & { run?: AgentRun }>
+    providerThreadIdsByConversation?: Record<string, string>
   }
 }
 
@@ -123,17 +123,17 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
 
   if (seed.session) {
     useAgentSessionStore.setState((state) => {
-      const conversationRuntimes: Record<string, AgentConversationRuntimeState> = {
-        ...state.conversationRuntimes,
+      const conversationProviderSessionStates: Record<string, AgentConversationProviderSessionState> = {
+        ...state.conversationProviderSessionStates,
       }
-      for (const [conversationId, runtime] of Object.entries(seed.session?.conversationRuntimes ?? {})) {
-        conversationRuntimes[conversationId] = normalizeConversationRuntime(conversationId, runtime)
+      for (const [conversationId, providerSessionState] of Object.entries(seed.session?.conversationProviderSessionStates ?? {})) {
+        conversationProviderSessionStates[conversationId] = normalizeConversationProviderSessionState(conversationId, providerSessionState)
       }
       return {
-        conversationRuntimes,
-        localThreadIdsByConversation: {
-          ...state.localThreadIdsByConversation,
-          ...(seed.session?.localThreadIdsByConversation ?? {}),
+        conversationProviderSessionStates,
+        providerThreadIdsByConversation: {
+          ...state.providerThreadIdsByConversation,
+          ...(seed.session?.providerThreadIdsByConversation ?? {}),
         },
       }
     })

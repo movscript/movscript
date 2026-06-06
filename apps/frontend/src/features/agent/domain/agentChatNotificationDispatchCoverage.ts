@@ -125,7 +125,7 @@ export const AGENT_CHAT_NOTIFICATION_EVENT_DISPATCH_COVERAGE: Record<AgentChatNo
   },
   threadLifecycle: {
     handling: ['thread-state', 'pending-state', 'streaming-state', 'refresh-effect'],
-    note: 'Archive/close clears local thread state; unarchive triggers a canonical thread reload.',
+    note: 'Archive/close clears provider thread state; unarchive triggers a canonical thread reload.',
   },
   serverRequestResolved: {
     handling: ['pending-state'],

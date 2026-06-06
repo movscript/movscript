@@ -1,21 +1,21 @@
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentWorkspace, AgentWorkspaceKind } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact, MovScriptWorkspaceKind } from '@/shared/infrastructure/providerSessionClient'
 import { buildProjectWorkbenchReviewPath, getProjectWorkbenchDefinitionForWorkspaceKind, type ProjectWorkbenchDefinition } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 export { WORKSPACE_DOMAIN_MODELS, getWorkspaceDomainModel } from '@/shared/domain/workspaceDomainModel'
 export type { WorkspaceDomainModel, WorkspaceSeedMode } from '@/shared/domain/workspaceDomainModel'
 
-const productionRelatedKinds: AgentWorkspaceKind[] = [
+const productionRelatedKinds: MovScriptWorkspaceKind[] = [
   'production_workspace',
 ]
 
-const contentUnitRelatedKinds: AgentWorkspaceKind[] = [
+const contentUnitRelatedKinds: MovScriptWorkspaceKind[] = [
   'content_unit_workspace',
 ]
 
-export function buildWorkspaceReviewPath(workspace: AgentWorkspace): string | null {
+export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string | null {
   const source = isRecord(workspace.source) ? workspace.source : undefined
   const target = isRecord(workspace.target) ? workspace.target : undefined
   const sourceEntityType = stringValue(source?.entityType)
@@ -74,7 +74,7 @@ export function buildWorkspaceReviewPath(workspace: AgentWorkspace): string | nu
 }
 
 function buildWorkbenchWorkspaceReviewPath(input: {
-  kind: AgentWorkspaceKind
+  kind: MovScriptWorkspaceKind
   workspaceId: string
   sourceEntityType?: string
   sourceEntityId?: number

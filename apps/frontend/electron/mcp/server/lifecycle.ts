@@ -31,7 +31,7 @@ export async function startMCPHTTPServer(handleHTTP: (req: IncomingMessage, res:
   let lastError: unknown
   for (const port of ports) {
     const nextServer = createServer(handleHTTP)
-    // Keep-alive intentionally disabled: clients (movscript-agent) may otherwise reuse a half-open
+    // Keep-alive intentionally disabled: clients may otherwise reuse a half-open
     // socket after Electron main-process restarts (dev hot reload) and observe a 3ms ECONNRESET.
     // Pair with the per-response `Connection: close` header in writeJSON so every fetch opens a
     // fresh TCP connection.

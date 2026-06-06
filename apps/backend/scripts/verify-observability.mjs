@@ -11,7 +11,7 @@ const dashboardsDir = join(observabilityRoot, 'grafana/dashboards')
 
 const expectedDashboards = new Map([
   ['movscript-overview', 'MovScript Overview'],
-  ['movscript-agent', 'MovScript Agent'],
+  ['mova', 'Mova'],
   ['movscript-frontend', 'MovScript Frontend'],
   ['movscript-backend-drilldown', 'MovScript Backend'],
   ['movscript-infrastructure', 'MovScript Infrastructure'],
@@ -20,7 +20,7 @@ const expectedDashboards = new Map([
 
 const expectedJobs = [
   'movscript-backend',
-  'movscript-agent-runtime',
+  'mova-provider',
   'node-exporter',
   'cadvisor',
 ]

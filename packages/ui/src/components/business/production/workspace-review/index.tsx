@@ -436,7 +436,7 @@ export function ProductionWorkspaceSemanticDiffEmptyText({
 
 export function ProductionWorkspaceSemanticDiffOverview({
   icon,
-  title = "工作区审阅",
+  title = "草案审阅",
   filteredCount,
   totalCount,
   summary,

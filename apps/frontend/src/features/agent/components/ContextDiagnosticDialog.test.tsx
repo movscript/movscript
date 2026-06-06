@@ -5,7 +5,7 @@ import {
   contextDiagnosticFromTimelineItem,
   latestContextDiagnosticTimelineItem,
 } from '@/features/agent/components/ContextDiagnosticDialog'
-import type { AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 test('context diagnostic dialog accepts only debug-panel diagnostic timeline items', () => {
   assert.equal(contextDiagnosticFromTimelineItem(item()), diagnostic)
@@ -45,7 +45,7 @@ function item(patch: Partial<AgentTimelineItem> = {}): AgentTimelineItem {
   return {
     id,
     threadId: 'thread_1',
-    origin: 'system_runtime',
+    origin: 'provider_session',
     purpose: 'diagnostic',
     surface: 'debug_panel',
     contentPromptEligibility: 'exclude',
@@ -56,7 +56,7 @@ function item(patch: Partial<AgentTimelineItem> = {}): AgentTimelineItem {
     updatedAt: createdAt,
     revision: 1,
     cursor: `1:${encodeURIComponent(id)}`,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     ...patch,
   }
 }

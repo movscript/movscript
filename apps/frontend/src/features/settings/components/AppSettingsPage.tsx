@@ -86,11 +86,14 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
   const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
+  const setMovScriptWorkspaceDir = useAppSettingsStore((s) => s.setMovScriptWorkspaceDir)
   const setShotLibrarySources = useAppSettingsStore((s) => s.setShotLibrarySources)
   const resetSettings = useAppSettingsStore((s) => s.reset)
   const [apiBaseURL, setAPIBaseURLInput] = useState(settings.apiBaseURL)
+  const [workspaceDir, setWorkspaceDirInput] = useState(settings.movScriptWorkspaceDir ?? '')
   const [shotSourcesText, setShotSourcesText] = useState(formatShotLibrarySources(settings))
   const [saved, setSaved] = useState(false)
+  const [workspaceSaved, setWorkspaceSaved] = useState(false)
   const [shotSourcesSaved, setShotSourcesSaved] = useState(false)
   const [testState, setTestState] = useState<TestState>({ status: 'idle', message: '' })
   const [resourceGCState, setResourceGCState] = useState<TestState>({ status: 'idle', message: '' })
@@ -103,6 +106,7 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
     }
   }, [apiBaseURL])
   const hasChanged = normalized !== settings.apiBaseURL
+  const workspaceDirChanged = workspaceDir.trim() !== (settings.movScriptWorkspaceDir ?? '')
   const isValid = /^https?:\/\/.+/i.test(normalized)
   const parsedShotSources = useMemo(() => parseShotLibrarySources(shotSourcesText), [shotSourcesText])
   const shotSourcesValid = parsedShotSources.ok
@@ -137,6 +141,11 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
     }, 450)
   }
 
+  function saveWorkspaceRoot() {
+    setMovScriptWorkspaceDir(workspaceDir)
+    setWorkspaceSaved(true)
+  }
+
   function saveShotLibrarySources() {
     if (!parsedShotSources.ok) return
     setShotLibrarySources(parsedShotSources.sources, parsedShotSources.defaultSourceId)
@@ -146,7 +155,9 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
   function resetToDefault() {
     resetSettings()
     setAPIBaseURLInput(getDefaultAPIBaseURL())
+    setWorkspaceDirInput('')
     setSaved(true)
+    setWorkspaceSaved(false)
     setTestState({ status: 'idle', message: '' })
     setTimeout(() => {
       window.location.reload()
@@ -242,6 +253,57 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
                 )
               })}
             </AppSettingsChoiceGrid>
+          </AppSettingsSection>
+
+          <AppSettingsSection
+            icon={HardDrive}
+            title={t('appSettings.movScriptWorkspaceTitle')}
+            description={t('appSettings.movScriptWorkspaceHint')}
+          >
+            <AppSettingsField
+              label={t('appSettings.movScriptWorkspaceDir')}
+              htmlFor="movScriptWorkspaceDir"
+              help={t('appSettings.movScriptWorkspaceDirHelp')}
+            >
+              <AppSettingsInput
+                id="movScriptWorkspaceDir"
+                value={workspaceDir}
+                onChange={(e) => {
+                  setWorkspaceDirInput(e.target.value)
+                  setWorkspaceSaved(false)
+                }}
+                placeholder={t('appSettings.movScriptWorkspaceDirPlaceholder')}
+                spellCheck={false}
+              />
+            </AppSettingsField>
+
+            <AppSettingsEndpointSurface
+              label={t('appSettings.movScriptWorkspaceEffectiveRoot')}
+              value={settings.movScriptWorkspaceDir?.trim() || t('appSettings.movScriptWorkspaceDefaultRoot')}
+            />
+
+            {workspaceSaved && (
+              <AppSettingsFeedbackText tone="success" icon={<CheckCircle2 size={14} />}>
+                {t('appSettings.saved')}
+              </AppSettingsFeedbackText>
+            )}
+
+            <AppSettingsActionRow>
+              <AppSettingsActionButton onClick={saveWorkspaceRoot} disabled={!workspaceDirChanged}>
+                {t('common.save')}
+              </AppSettingsActionButton>
+              <AppSettingsActionButton
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setWorkspaceDirInput('')
+                  setMovScriptWorkspaceDir('')
+                  setWorkspaceSaved(true)
+                }}
+              >
+                {t('appSettings.movScriptWorkspaceUseDefault')}
+              </AppSettingsActionButton>
+            </AppSettingsActionRow>
           </AppSettingsSection>
 
           <AppSettingsSection

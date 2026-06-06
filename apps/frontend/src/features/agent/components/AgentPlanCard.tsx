@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, Dot, ListChecks } from 'lucide-react'
 import { AgentDataBlock, AgentPlanOverviewTaskStatusIcon } from '@movscript/ui'
 import { cn } from '@/shared/ui/cn'
-import type { AgentPlan, AgentPlanTaskStatus } from '@/shared/infrastructure/localAgentClient'
+import type { AgentPlan, AgentPlanTaskStatus } from '@/shared/infrastructure/providerSessionClient'
 
 export function AgentCurrentPlanPanel({ plan }: { plan?: AgentPlan }) {
   if (!plan || plan.items.length === 0) return null

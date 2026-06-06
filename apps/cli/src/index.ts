@@ -3,7 +3,6 @@ import { cmdInit } from './commands/init.js'
 import { cmdBuild } from './commands/build.js'
 import { cmdInstall } from './commands/install.js'
 import { cmdList } from './commands/list.js'
-import { cmdAgentSessions } from './commands/agent.js'
 
 const program = new Command()
 
@@ -38,16 +37,5 @@ program
   .description('List available plugins in the registry')
   .option('--registry <url>', 'Plugin registry base URL', 'https://registry.movscript.com')
   .action(cmdList)
-
-const agent = program
-  .command('agent')
-  .description('Inspect local agent workspace state')
-
-agent
-  .command('sessions')
-  .description('List agent sessions from the workspace without starting an agent runtime')
-  .option('--workspace <dir>', 'Agent workspace directory; defaults to MOVSCRIPT_AGENT_WORKSPACE_DIR, MOVSCRIPT_WORKSPACE_DIR, or ~/.movscript')
-  .option('--json', 'Print raw JSON')
-  .action(cmdAgentSessions)
 
 program.parse()

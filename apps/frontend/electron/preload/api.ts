@@ -1,12 +1,12 @@
 import type { IpcRenderer } from 'electron'
 import type { ElectronAPI } from '../../src/shared/contracts/electronApi'
-import { createAgentBrowserAPI } from './api/agentBrowser'
-import { createAgentCatalogPackStoreAPI } from './api/agentCatalogPackStore'
-import { createAgentRuntimeAPI } from './api/agentRuntime'
+import { createEmbeddedBrowserAPI } from './api/embeddedBrowser'
+import { createPluginCatalogPackStoreAPI } from './api/pluginCatalogPackStore'
 import { createBackendAPI } from './api/backend'
-import { createCodexAppServerAPI } from './api/codexAppServer'
+import { createAppServerAPI } from './api/appServer'
 import { createDialogAPI } from './api/dialog'
 import { createMCPAPI } from './api/mcp'
+import { createMovScriptWorkspaceAPI } from './api/movscriptWorkspace'
 import { createSettingsAPI } from './api/settings'
 import { createVideoAPI } from './api/video'
 import { createWindowAPI } from './api/window'
@@ -19,10 +19,10 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createSettingsAPI(ipcRenderer),
     ...createBackendAPI(ipcRenderer),
     ...createWindowAPI(ipcRenderer),
-    ...createAgentBrowserAPI(ipcRenderer),
-    ...createAgentCatalogPackStoreAPI(ipcRenderer),
-    ...createAgentRuntimeAPI(ipcRenderer),
-    ...createCodexAppServerAPI(ipcRenderer),
+    ...createEmbeddedBrowserAPI(ipcRenderer),
+    ...createPluginCatalogPackStoreAPI(ipcRenderer),
+    ...createMovScriptWorkspaceAPI(ipcRenderer),
+    ...createAppServerAPI(ipcRenderer),
     ...createVideoAPI(ipcRenderer),
   }
 }

@@ -1,4 +1,4 @@
-import type { AgentApprovalRequest, AgentRun, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentApprovalRequest, AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { agentPermissionLabel, agentRiskLabel } from '@/features/agent/domain/agentToolDisplay'
 import type { AgentTraceCategory } from './types'
@@ -143,7 +143,7 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   }
 
   const permission = approval.permission ?? ''
-  if (permission === 'workspace.apply') return '批准后会把工作区变更应用到当前项目。'
+  if (permission === 'workspace.apply') return '批准后会提交工作区修改，并交给前端审阅视图接收。'
   if (permission.includes('generation')) return '批准后会影响生成任务。'
   if (permission.includes('project') && permission.includes('write')) return '批准后会写入项目数据。'
   if (permission.includes('workspace') && permission.includes('write')) return '批准后会写入工作区数据。'

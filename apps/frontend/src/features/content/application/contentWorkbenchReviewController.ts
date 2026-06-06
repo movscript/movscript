@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { buildContentWorkspaceReviewModel, dedupeWorkspaces } from '@/features/content/domain/contentWorkbenchWorkspaceReviewModel'
+import { buildContentWorkspaceReviewModel, dedupeWorkspaceArtifacts } from '@/features/content/domain/contentWorkbenchWorkspaceReviewModel'
 import type { ContentGenerationMomentRow } from '@/features/content/domain/contentWorkbenchModel'
 import { buildContentWorkbenchReviewQueueSummary } from '@/features/content/domain/contentWorkbenchReviewQueue'
-import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { mergeProjectWorkbenchArtifactReviewSearchParams } from '@/features/project-workbenches/application/projectWorkbenchWorkspaceReview'
 
 type SearchParamsSetter = (
@@ -31,25 +31,25 @@ export function useContentWorkbenchReviewController({
     if (reviewMode) setCollapsed(false)
   }, [reviewMode])
 
-  const workspacesQuery = useQuery<AgentWorkspace[]>({
+  const workspaceArtifactsQuery = useQuery<WorkspaceArtifact[]>({
     queryKey: ['workbench', 'production', 'content-workspaces', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const contentUnitWorkspaces = await localAgentClient.listWorkspaces({
+      const contentUnitWorkspaces = await providerSessionClient.listWorkspaceArtifacts({
         projectId,
         kind: 'content_unit_workspace',
         status: ['workspace', 'accepted'],
         limit: 20,
       })
-      return dedupeWorkspaces(contentUnitWorkspaces.workspaces)
+      return dedupeWorkspaceArtifacts(contentUnitWorkspaces.workspaces)
     },
     enabled: !!projectId,
     retry: false,
   })
 
-  const workspaces = workspacesQuery.data ?? []
-  const workspacesById = useMemo(() => new Map(workspaces.map((workspace) => [workspace.id, workspace] as const)), [workspaces])
-  const selectedWorkspace = reviewWorkspaceId ? workspacesById.get(reviewWorkspaceId) ?? null : workspaces[0] ?? null
+  const workspaceArtifacts = workspaceArtifactsQuery.data ?? []
+  const workspaceArtifactsById = useMemo(() => new Map(workspaceArtifacts.map((workspace) => [workspace.id, workspace] as const)), [workspaceArtifacts])
+  const selectedWorkspace = reviewWorkspaceId ? workspaceArtifactsById.get(reviewWorkspaceId) ?? null : workspaceArtifacts[0] ?? null
   const reviewModel = useMemo(() => {
     if (!selectedWorkspace) return null
     return buildContentWorkspaceReviewModel(selectedWorkspace, {
@@ -58,14 +58,14 @@ export function useContentWorkbenchReviewController({
     })
   }, [rows, selectedWorkspace])
   const queueSummary = useMemo(() => buildContentWorkbenchReviewQueueSummary({
-    workspaces,
+    workspaces: workspaceArtifacts,
     selectedReview: reviewModel ? {
       warningCount: reviewModel.warnings.length,
       diffCount: reviewModel.diffs.length,
       addedCount: reviewModel.diffs.filter((diff) => diff.state === 'added').length,
       changedCount: reviewModel.diffs.filter((diff) => diff.state === 'changed').length,
     } : null,
-  }), [workspaces, reviewModel])
+  }), [workspaceArtifacts, reviewModel])
 
   function selectWorkspace(workspaceId: string) {
     setCollapsed(false)
@@ -93,12 +93,14 @@ export function useContentWorkbenchReviewController({
     setCollapsed,
     reviewWorkspaceId,
     reviewMode,
-    workspacesQuery,
-    workspaces,
+    workspaceArtifactsQuery,
+    workspaceArtifacts,
+    workspacesQuery: workspaceArtifactsQuery,
+    workspaces: workspaceArtifacts,
     selectedWorkspace,
     reviewModel,
     queueSummary,
-    showReviewPanel: reviewMode || workspacesQuery.isLoading || (workspaces.length > 0 && !collapsed),
+    showReviewPanel: reviewMode || workspaceArtifactsQuery.isLoading || (workspaceArtifacts.length > 0 && !collapsed),
     selectWorkspace,
     closeReview,
   }

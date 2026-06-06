@@ -3,4 +3,4 @@
 @import "./primitives/styles.css";
 @import "./attachment/styles.css";
 @import "./chat-message/styles.css";
-@import "./runtime-code/styles.css";
+@import "./code-block/styles.css";

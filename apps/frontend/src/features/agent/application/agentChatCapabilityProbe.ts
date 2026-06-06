@@ -1,5 +1,5 @@
 import type { AgentChatDataSource } from '@/features/agent/domain/agentChatProtocol'
-import type { AgentProviderConfig } from '@/features/agent/state/agentProviderConfigStore'
+import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 
 export type AgentChatCapabilityProbeTone = 'ready' | 'warning' | 'action'
 
@@ -17,7 +17,7 @@ export interface AgentChatCapabilityProbeItem {
 
 export interface AgentChatCapabilityProbeResult {
   providerId: string
-  providerKind: AgentProviderConfig['kind']
+  providerKind: ProviderConfig['kind']
   providerLabel: string
   dataSourceLabel: string
   ok: boolean
@@ -45,7 +45,7 @@ const PROBES: ProbeDefinition[] = [
   },
   {
     id: 'thread-stream',
-    label: 'JSON-RPC / Runtime Stream',
+    label: 'JSON-RPC / Provider Session Stream',
     method: 'thread/subscribe',
     supported: (dataSource) => Boolean(dataSource.subscribeThread),
     passiveDetail: '已实现 thread 事件订阅入口。',
@@ -130,7 +130,7 @@ const PROBES: ProbeDefinition[] = [
 ]
 
 export async function probeAgentChatDataSourceCapabilities(input: {
-  provider: AgentProviderConfig
+  provider: ProviderConfig
   dataSource: AgentChatDataSource
 }): Promise<AgentChatCapabilityProbeResult> {
   const items = await Promise.all(PROBES.map((probe) => runProbe(input.dataSource, probe)))
@@ -149,7 +149,7 @@ export async function probeAgentChatDataSourceCapabilities(input: {
 }
 
 export function failedAgentChatCapabilityProbeResult(input: {
-  provider: AgentProviderConfig
+  provider: ProviderConfig
   error: unknown
 }): AgentChatCapabilityProbeResult {
   return {

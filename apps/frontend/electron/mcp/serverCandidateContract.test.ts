@@ -39,10 +39,10 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
   const candidateAttachContractSource = `${candidateAttachSource}\n${candidateAttachModuleSources}`
   const mcpContractSource = `${serverSource}\n${toolRegistrySource}\n${generationToolDefinitionModuleSources}\n${toolSchemaSource}\n${toolCallRouterSource}\n${workspaceReviewApplySource}\n${workspaceReviewApplyModuleSources}\n${candidateAttachContractSource}`
   const candidateParamsSource = readFileSync(resolve('electron/mcp/candidateAttach/candidateParams.ts'), 'utf8')
-  const imageGenerateTool = JSON.parse(readFileSync(resolve('../agent/catalog/tools/generation/image-generate.tool.json'), 'utf8'))
-  const imageJobGetTool = JSON.parse(readFileSync(resolve('../agent/catalog/tools/generation/image-job-get.tool.json'), 'utf8'))
-  const videoGenerateTool = JSON.parse(readFileSync(resolve('../agent/catalog/tools/generation/video-generate.tool.json'), 'utf8'))
-  const videoJobGetTool = JSON.parse(readFileSync(resolve('../agent/catalog/tools/generation/video-job-get.tool.json'), 'utf8'))
+  const imageGenerateTool = JSON.parse(readFileSync(resolve('electron/mcp/tools/generation/image-generate.tool.json'), 'utf8'))
+  const imageJobGetTool = JSON.parse(readFileSync(resolve('electron/mcp/tools/generation/image-job-get.tool.json'), 'utf8'))
+  const videoGenerateTool = JSON.parse(readFileSync(resolve('electron/mcp/tools/generation/video-generate.tool.json'), 'utf8'))
+  const videoJobGetTool = JSON.parse(readFileSync(resolve('electron/mcp/tools/generation/video-job-get.tool.json'), 'utf8'))
 
   assert.match(mcpContractSource, /name:\s*'candidate_asset_slot_attach'/)
   assert.match(mcpContractSource, /name:\s*'candidate_keyframe_attach'/)

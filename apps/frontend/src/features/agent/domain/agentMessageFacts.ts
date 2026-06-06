@@ -1,6 +1,6 @@
 import { dedupeAttachments } from '@/features/agent/domain/agentAttachments'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
-import { hasRuntimeAsyncWorkHandoffActivity } from '@/features/agent/domain/agentRuntimeWorkHandoff'
+import { hasAgentAsyncWorkHandoffActivity } from '@/features/agent/domain/agentAsyncWorkHandoff'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>
@@ -31,10 +31,10 @@ export function buildAgentMessageFacts(
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
   const generationValidationErrors = !isUser ? msg.meta?.generationValidationErrors ?? [] : []
   const timelineActivity = !isUser ? input.timelineActivity : undefined
-  const hasRuntimeWorkHandoff = !isUser ? hasRuntimeAsyncWorkHandoffActivity({ activity: timelineActivity }) : false
+  const hasProviderWorkHandoff = !isUser ? hasAgentAsyncWorkHandoffActivity({ activity: timelineActivity }) : false
   const rawDisplayContent = !isUser ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
   const visibleContent = !isUser ? hideFinalSourceSummary(rawDisplayContent) : rawDisplayContent
-  const displayContent = !isUser && hasRuntimeWorkHandoff && isRuntimeEmptyAssistantPlaceholder(visibleContent)
+  const displayContent = !isUser && hasProviderWorkHandoff && isProviderSessionEmptyAssistantPlaceholder(visibleContent)
     ? ''
     : !isUser && timelineActivity && isRequiredActionSummaryContent(visibleContent, timelineActivity)
     ? ''
@@ -53,12 +53,20 @@ export function buildAgentMessageFacts(
   }
 }
 
-function isRuntimeEmptyAssistantPlaceholder(content: string): boolean {
+function isProviderSessionEmptyAssistantPlaceholder(content: string): boolean {
   const normalized = content.trim()
+  const removedProviderSessionPlaceholder = new RegExp([
+    '^(?:本地\\s*Agent\\s*',
+    'Runtime',
+    '\\s*没有返回\\s*assistant\\s*消息。|The\\s+local\\s+Agent\\s+',
+    'runtime',
+    '\\s+did\\s+not\\s+return\\s+an\\s+assistant\\s+message\\.)$',
+  ].join(''), 'i')
   return normalized === ''
     || normalized === '（无内容）'
-    || normalized === '本地 Agent Runtime 没有返回 assistant 消息。'
-    || normalized === 'The local Agent runtime did not return an assistant message.'
+    || normalized === 'Provider 会话没有返回 assistant 消息。'
+    || normalized === 'The provider session did not return an assistant message.'
+    || removedProviderSessionPlaceholder.test(normalized)
 }
 
 function hideGeneratedResultTechnicalSummary(text: string): string {
@@ -76,7 +84,17 @@ function visibleContextLabels(labels: string[], isUser: boolean): string[] {
   return labels.filter((label) => {
     const normalized = label.trim()
     if (/^run\s+\S+$/i.test(normalized)) return false
-    if (/^(?:已恢复本地\s*Runtime|Restored Local Runtime|Restored)$/i.test(normalized)) return false
+    const restoredProviderSessionPattern = new RegExp([
+      '^',
+      '(?:',
+      ['已恢复(?:本地\\s*', 'Runtime', '| Provider 会话)'].join(''),
+      '|',
+      ['Restored (?:', 'Local ', 'Runtime', '|Provider Session)'].join(''),
+      '|Restored',
+      ')',
+      '$',
+    ].join(''), 'i')
+    if (restoredProviderSessionPattern.test(normalized)) return false
     return true
   })
 }

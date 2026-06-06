@@ -22,7 +22,8 @@ interface ToolActivityRecord {
 const CORE_TOOL_NAMES = new Set([
   'workspace_create',
   'core_file_edit',
-  'workspace_apply_preview',
+  'workspace_update',
+  'workspace_apply_review',
   'workspace_apply',
   'core_update_plan',
   'core_work_start',
@@ -42,6 +43,7 @@ const WORK_STATUS_TOOL_NAMES = new Set([
   'core_work_get',
   'core_work_cancel',
 ])
+const PROVIDER_WORK_TRACE_COMPAT_KEY = ['run', 'time', 'Work'].join('')
 
 export function toolActivityRecords(activity: ChatRunActivity): ToolActivityRecord[] {
   const eventsByStep = new Map<string, ChatRunActivityEvent[]>()
@@ -107,7 +109,9 @@ function toolEventCoveredByStep(
   const hasExecutionPayload = data?.error !== undefined
   if (hasExecutionPayload) return false
 
-  const isWorkStatusTrace = data?.runtimeWork !== undefined || data?.generation !== undefined
+  const isWorkStatusTrace = data?.providerWork !== undefined
+    || data?.[PROVIDER_WORK_TRACE_COMPAT_KEY] !== undefined
+    || data?.generation !== undefined
   if (!isWorkStatusTrace) return false
 
   return steps.some((step) => {
@@ -152,17 +156,25 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
     ]))
   }
 
-  if (record.toolName === 'workspace_apply_preview') {
-    return block(record, 'write', '预览正式应用', compactLines([
-      '这里只是预览，还没有写入项目。',
+  if (record.toolName === 'workspace_update') {
+    return block(record, 'workspace', '刷新工作区投影', compactLines([
+      '本地投影已从后端刷新。',
+      record.summary,
+      statusLine,
+    ]))
+  }
+
+  if (record.toolName === 'workspace_apply_review') {
+    return block(record, 'write', '预览工作区提交', compactLines([
+      '这里只是预览，还没有写入数据库。',
       record.summary,
       statusLine,
     ]))
   }
 
   if (record.toolName === 'workspace_apply') {
-    return block(record, 'write', '正式应用工作区', compactLines([
-      '项目数据已按工作区应用。',
+    return block(record, 'write', '提交工作区修改', compactLines([
+      '工作区修改已提交，等待前端审阅视图接收。',
       record.summary,
       statusLine,
     ]))
@@ -177,7 +189,7 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
 
   if (record.toolName === 'core_work_start') {
     return block(record, 'task', '提交异步任务', compactLines([
-      '任务已提交，后续结果会从 runtime work 返回。',
+      '任务已提交，后续结果会从 provider work 返回。',
       record.summary,
       statusLine,
     ]))

@@ -8,7 +8,7 @@ import { ReviewCallout } from "../../callout";
 
 export type ReviewWorkspaceFieldDiffChange = "added" | "deleted" | "modified" | "unchanged";
 
-export function ReviewWorkspaceWorkspaceList({
+export function ReviewWorkspaceArtifactList({
   children,
   className,
   scroll = false,
@@ -19,7 +19,7 @@ export function ReviewWorkspaceWorkspaceList({
   return <div className={cn("review-workspace-workspace-list", scroll && "review-workspace-workspace-list--scroll", className)}>{children}</div>;
 }
 
-export function ReviewWorkspaceWorkspacePanel({
+export function ReviewWorkspaceArtifactPanel({
   title,
   meta,
   badges,
@@ -45,6 +45,9 @@ export function ReviewWorkspaceWorkspacePanel({
     </AppPanel>
   );
 }
+
+export const ReviewWorkspaceWorkspaceList = ReviewWorkspaceArtifactList;
+export const ReviewWorkspaceWorkspacePanel = ReviewWorkspaceArtifactPanel;
 
 export function ReviewWorkspaceSummaryCallout({
   title,

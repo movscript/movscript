@@ -1,4 +1,4 @@
-import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type {
   AgentTraceContextGroup,
@@ -164,7 +164,7 @@ export function localizedTraceTitle(title: string): string | undefined {
     case 'Worker started': return '执行器启动'
     case 'Planner started': return '规划器启动'
     case 'Asset review tool call': return '素材风险审计工具调用'
-    case 'Runtime work dispatch tool call': return '异步任务调度工具调用'
+    case 'Provider work dispatch tool call': return '异步任务调度工具调用'
     case 'Thread history compacted': return '压缩线程历史'
     case 'Reference searched': return '检索参考源'
     case 'Reference loaded': return '加载参考片段'
@@ -223,7 +223,7 @@ export function modelFinishReasonLabel(value: string | undefined): string | unde
 export function messageSourceLabel(value: string | undefined): string | undefined {
   switch (value) {
     case 'model': return '模型输出 (model)'
-    case 'runtime': return '运行时 (runtime)'
+    case 'runtime': return 'Provider 会话 (runtime)'
     case 'tool': return '工具结果 (tool)'
     case 'user': return '用户 (user)'
     default: return value

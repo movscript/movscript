@@ -1,10 +1,11 @@
 import { buildAgentActivityFeed } from '@/features/agent/presentation/agentActivityFeed'
-import { transcriptAssistantRuntimeMessageRunId } from '@/features/agent/domain/agentMessageBoundaries'
+import { transcriptAssistantProviderSessionRunId } from '@/features/agent/domain/agentMessageBoundaries'
+import { providerSessionMessageRef } from '@/features/agent/domain/providerSessionMessageRefs'
 import { agentMessageDividerLabel } from '@/features/agent/presentation/agentMessageDivider'
 import type { AgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
-import { runtimeInputDeliveryBadge, type AgentRuntimeInputDeliveryBadge } from '@/features/agent/presentation/agentRuntimeInputDeliveryBadge'
+import { activeRunInputDeliveryBadge, type AgentActiveRunInputDeliveryBadge } from '@/features/agent/presentation/agentActiveRunInputDeliveryBadge'
 import { needsModelSetupAction } from '@/shared/domain/actionableErrors'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentAttachment, ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>
@@ -15,7 +16,7 @@ interface AgentMessageBubbleVisibility {
   hasRenderableBubble: boolean
 }
 
-interface AgentMessageRuntimeAttributes {
+interface AgentMessageProviderSessionAttributes {
   threadId?: string
   messageId?: string
   runId?: string
@@ -28,9 +29,9 @@ interface AgentMessageBubbleShell {
   time?: string
   headLabel?: string
   messageId: string
-  runtimeThreadId?: string
-  runtimeMessageId?: string
-  runtimeRunId?: string
+  providerThreadId?: string
+  providerSessionMessageId?: string
+  providerSessionRunId?: string
 }
 
 interface AgentMessageActivityContentState {
@@ -63,7 +64,7 @@ type AgentMessageBubbleAction =
 interface AgentMessageBubbleFooter {
   hasFooter: boolean
   align: 'end' | 'start'
-  runtimeInputBadge: AgentRuntimeInputDeliveryBadge | null
+  activeRunInputBadge: AgentActiveRunInputDeliveryBadge | null
   contextLabels: string[]
 }
 
@@ -129,7 +130,7 @@ export function agentMessageBubbleModel(
       sections,
       {
         hasActivityContent: activityState.hasActivityContent,
-        hasRuntimeInputBadge: !!footer.runtimeInputBadge,
+        hasActiveRunInputBadge: !!footer.activeRunInputBadge,
       },
     ),
   }
@@ -145,7 +146,7 @@ function agentMessageBubbleVisibility(
     | 'showResultSection'
     | 'showDiagnosticSection'
   >,
-  input: { hasActivityContent: boolean; hasRuntimeInputBadge: boolean },
+  input: { hasActivityContent: boolean; hasActiveRunInputBadge: boolean },
 ): AgentMessageBubbleVisibility {
   const hasMessageBody = facts.isUser
     ? !!sections.contentText.trim() || sections.compactAttachments.length > 0
@@ -154,7 +155,7 @@ function agentMessageBubbleVisibility(
       || sections.showModelSetupAction
       || sections.showResultSection
       || sections.showDiagnosticSection
-  const hasFooter = facts.contextLabels.length > 0 || input.hasRuntimeInputBadge
+  const hasFooter = facts.contextLabels.length > 0 || input.hasActiveRunInputBadge
   return {
     hasMessageBody,
     hasFooter,
@@ -162,10 +163,11 @@ function agentMessageBubbleVisibility(
   }
 }
 
-function agentMessageRuntimeAttributes(message: Pick<ChatMessage, 'meta' | 'role'>): AgentMessageRuntimeAttributes {
-  const threadId = message.meta?.runtimeMessage?.threadId
-  const messageId = message.meta?.runtimeMessage?.messageId
-  const runId = transcriptAssistantRuntimeMessageRunId(message)
+function agentMessageProviderSessionAttributes(message: Pick<ChatMessage, 'meta' | 'role'>): AgentMessageProviderSessionAttributes {
+  const providerSessionMessage = providerSessionMessageRef(message)
+  const threadId = providerSessionMessage?.threadId
+  const messageId = providerSessionMessage?.messageId
+  const runId = transcriptAssistantProviderSessionRunId(message)
   return {
     ...(threadId ? { threadId } : {}),
     ...(messageId ? { messageId } : {}),
@@ -229,7 +231,7 @@ function agentMessageBubbleShell(
   input: { time: string },
 ): AgentMessageBubbleShell {
   const chrome = agentMessageBubbleChrome(facts, input)
-  const runtimeAttributes = agentMessageRuntimeAttributes(message)
+  const providerSessionAttributes = agentMessageProviderSessionAttributes(message)
   return {
     role: chrome.role,
     avatar: chrome.avatar,
@@ -237,9 +239,9 @@ function agentMessageBubbleShell(
     ...(chrome.time ? { time: chrome.time } : {}),
     ...(chrome.headLabel ? { headLabel: chrome.headLabel } : {}),
     messageId: message.id,
-    ...(runtimeAttributes.threadId ? { runtimeThreadId: runtimeAttributes.threadId } : {}),
-    ...(runtimeAttributes.messageId ? { runtimeMessageId: runtimeAttributes.messageId } : {}),
-    ...(runtimeAttributes.runId ? { runtimeRunId: runtimeAttributes.runId } : {}),
+    ...(providerSessionAttributes.threadId ? { providerThreadId: providerSessionAttributes.threadId } : {}),
+    ...(providerSessionAttributes.messageId ? { providerSessionMessageId: providerSessionAttributes.messageId } : {}),
+    ...(providerSessionAttributes.runId ? { providerSessionRunId: providerSessionAttributes.runId } : {}),
   }
 }
 
@@ -274,11 +276,11 @@ function agentMessageBubbleFooter(
   facts: Pick<AgentMessageFacts, 'isUser' | 'contextLabels'>,
   message: Pick<ChatMessage, 'meta'>,
 ): AgentMessageBubbleFooter {
-  const runtimeInputBadge = runtimeInputDeliveryBadge(message)
+  const activeRunInputBadge = activeRunInputDeliveryBadge(message)
   return {
-    hasFooter: facts.contextLabels.length > 0 || !!runtimeInputBadge,
+    hasFooter: facts.contextLabels.length > 0 || !!activeRunInputBadge,
     align: facts.isUser ? 'end' : 'start',
-    runtimeInputBadge,
+    activeRunInputBadge,
     contextLabels: facts.contextLabels,
   }
 }

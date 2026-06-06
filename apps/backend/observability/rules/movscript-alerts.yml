@@ -66,9 +66,9 @@ groups:
           summary: "Agent frontend errors reported"
           description: "Frontend error kind {{ $labels.kind }} has been reported for 5 minutes."
 
-  - name: movscript.agent.runtime
+  - name: movscript.provider-session
     rules:
-      - alert: MovscriptAgentRuntimeStageLatencyHigh
+      - alert: MovscriptProviderSessionStageLatencyHigh
         expr: |
           sum(rate(movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_trace_span_duration_ms"}[5m])) by (kind, status)
             /
@@ -76,20 +76,20 @@ groups:
         for: 10m
         labels:
           severity: warning
-          area: agent-runtime
+          area: agent-session
         annotations:
-          summary: "Agent runtime span latency is high"
-          description: "Runtime span kind {{ $labels.kind }} average latency is above 3s for status {{ $labels.status }}."
+          summary: "Provider session span latency is high"
+          description: "Provider session span kind {{ $labels.kind }} average latency is above 3s for status {{ $labels.status }}."
 
-      - alert: MovscriptAgentRuntimeFailedSpans
+      - alert: MovscriptProviderSessionFailedSpans
         expr: sum(rate(movscript_agent_client_metric_count_total{metric="movscript_agent_trace_event_total",status=~"failed|error"}[5m])) by (kind, status) > 0
         for: 5m
         labels:
           severity: warning
-          area: agent-runtime
+          area: agent-session
         annotations:
-          summary: "Agent runtime failed spans reported"
-          description: "Runtime span kind {{ $labels.kind }} is reporting status {{ $labels.status }}."
+          summary: "Provider session failed spans reported"
+          description: "Provider session span kind {{ $labels.kind }} is reporting status {{ $labels.status }}."
 
   - name: movscript.frontend.web-vitals
     rules:

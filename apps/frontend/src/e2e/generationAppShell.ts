@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import { Buffer } from 'node:buffer'
-import { installAgentRuntimeApiMock } from './agentRuntimeApiMock'
+import { installProviderWorkspaceApiMock } from './providerWorkspaceApiMock'
 
 const PROJECT = {
   ID: 123,
@@ -52,7 +52,7 @@ const TINY_MP4 = Buffer.from(
 export type GenerationMediaKind = 'image' | 'video'
 
 export async function mockGenerationAppShell(page: Page, kind: GenerationMediaKind = 'image') {
-  await installAgentRuntimeApiMock(page)
+  await installProviderWorkspaceApiMock(page)
 
   const resource = kind === 'video'
     ? {
@@ -100,7 +100,7 @@ export async function mockGenerationAppShell(page: Page, kind: GenerationMediaKi
     if (url.pathname === '/runtime/compat' || url.pathname === '/health') {
       await fulfillJSON(route, {
         ok: true,
-        service: 'movscript-agent',
+        service: 'mova',
         mode: 'e2e',
         mcpEndpoint: 'http://127.0.0.1:29999/mcp',
         runtime: { apiVersion: 1, features: ['model-config', 'runtime-capabilities', 'generation-monitoring'], endpoints: ['/livez', '/runtime/compat'] },

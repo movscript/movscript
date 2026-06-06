@@ -7,25 +7,25 @@ import {
   type Conversation,
 } from '@/features/agent/state/agentStore'
 import { EMPTY_CONVERSATION_WORKSPACE, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
-import { runtimeThreadSummaryFromThread, upsertCachedLocalAgentThread } from '@/features/agent/application/agentRuntimeThreadQueryCache'
-import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { providerSessionThreadSummaryFromThread, upsertCachedProviderSessionThread } from '@/features/agent/application/providerSessionThreadQueryCache'
+import type { AgentConversationProviderSessionState } from '@/features/agent/state/agentSessionStore'
 
 interface UseAgentChatStoreBindingsInput {
   conversation: Conversation
   userId: string
 }
 
-export interface AgentChatRuntimeBindingIdsInput {
-  conversation: Pick<Conversation, 'id' | 'runtimeSessionId' | 'runtimeThreadId'>
-  conversationRuntime?: Pick<AgentConversationRuntimeState, 'sessionId' | 'threadId'> | null
-  localSessionId?: string
-  localThreadId?: string
+export interface AgentChatProviderSessionBindingIdsInput {
+  conversation: Pick<Conversation, 'id' | 'providerSessionId' | 'providerThreadId'>
+  conversationProviderSessionState?: Pick<AgentConversationProviderSessionState, 'sessionId' | 'threadId'> | null
+  providerSessionId?: string
+  providerThreadId?: string
 }
 
-export interface AgentChatRuntimeBindingIds {
-  localSessionId: string
-  localThreadId: string
+export interface AgentChatProviderSessionBindingIds {
+  providerSessionId: string
+  providerThreadId: string
 }
 
 export function useAgentChatStoreBindings({
@@ -38,23 +38,23 @@ export function useAgentChatStoreBindings({
     updateSettings,
   } = useAgentStore()
   const currentProject = useProjectStore((state) => state.current)
-  const conversationRuntime = useAgentSessionStore((state) => state.conversationRuntimes[conversation.id] ?? null)
+  const conversationProviderSessionState = useAgentSessionStore((state) => state.conversationProviderSessionStates[conversation.id] ?? null)
   const storedSessionId = useAgentSessionStore((state) => state.sessionIdsByConversation[conversation.id])
-  const storedThreadId = useAgentSessionStore((state) => state.localThreadIdsByConversation[conversation.id])
-  const bindingIds = useMemo(() => resolveAgentChatRuntimeBindingIds({
+  const storedThreadId = useAgentSessionStore((state) => state.providerThreadIdsByConversation[conversation.id])
+  const bindingIds = useMemo(() => resolveAgentChatProviderSessionBindingIds({
     conversation,
-    conversationRuntime,
-    localSessionId: storedSessionId,
-    localThreadId: storedThreadId,
-  }), [conversation, conversationRuntime, storedSessionId, storedThreadId])
-  const localSessionId = bindingIds.localSessionId
-  const localThreadId = bindingIds.localThreadId
+    conversationProviderSessionState,
+    providerSessionId: storedSessionId,
+    providerThreadId: storedThreadId,
+  }), [conversation, conversationProviderSessionState, storedSessionId, storedThreadId])
+  const providerSessionId = bindingIds.providerSessionId
+  const providerThreadId = bindingIds.providerThreadId
   const setConversationSessionId = useAgentSessionStore((state) => state.setConversationSessionId)
-  const setConversationRuntime = useAgentSessionStore((state) => state.setConversationRuntime)
-  const setConversationRuntimeSessionId = useAgentSessionStore((state) => state.setConversationRuntimeSessionId)
-  const setConversationRuntimeThreadId = useAgentSessionStore((state) => state.setConversationRuntimeThreadId)
+  const setConversationProviderSessionState = useAgentSessionStore((state) => state.setConversationProviderSessionState)
+  const setConversationProviderSessionId = useAgentSessionStore((state) => state.setConversationProviderSessionId)
+  const setConversationProviderThreadId = useAgentSessionStore((state) => state.setConversationProviderThreadId)
   const setConversationRun = useAgentSessionStore((state) => state.setConversationRun)
-  const setLocalThreadId = useAgentSessionStore((state) => state.setLocalThreadId)
+  const setProviderThreadId = useAgentSessionStore((state) => state.setProviderThreadId)
   const setPageTaskRunning = useAgentSessionStore((state) => state.setPageTaskRunning)
   const updateConversationTitle = useAgentSessionStore((state) => state.updateConversationTitle)
   const workspace = useAgentSessionStore((state) => state.workspacesByUser[userId]?.[conversation.id] ?? EMPTY_CONVERSATION_WORKSPACE)
@@ -62,32 +62,32 @@ export function useAgentChatStoreBindings({
   const updateConversationTitleAndPersist = useCallback((targetUserId: string, conversationId: string, title: string) => {
     updateConversationTitle(targetUserId, conversationId, title)
     const trimmed = title.trim()
-    const threadId = conversationId === conversation.id ? localThreadId : ''
+    const threadId = conversationId === conversation.id ? providerThreadId : ''
     if (!trimmed || !threadId) return
-    const runtimeClient = localSessionId
-      ? localAgentClient.forSession({ sessionId: localSessionId })
-      : localAgentClient
-    void runtimeClient.updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
-      .then((thread) => upsertCachedLocalAgentThread(queryClient, runtimeThreadSummaryFromThread(thread)))
+    const client = providerSessionId
+      ? providerSessionClient.forSession({ sessionId: providerSessionId })
+      : providerSessionClient
+    void client.updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
+      .then((thread) => upsertCachedProviderSessionThread(queryClient, providerSessionThreadSummaryFromThread(thread)))
       .catch((error) => {
-        console.error('[agent] failed to persist runtime conversation title', error)
+        console.error('[agent] failed to persist provider-session conversation title', error)
       })
-  }, [conversation.id, localSessionId, localThreadId, queryClient, updateConversationTitle])
+  }, [conversation.id, providerSessionId, providerThreadId, queryClient, updateConversationTitle])
 
   return {
     agentContextConfig: EMPTY_AGENT_CONTEXT_CONFIG,
-    conversationRuntime,
+    conversationProviderSessionState,
     currentProject,
     workspace,
-    localRuntimeEnabled: true,
-    localSessionId,
-    localThreadId,
-    setConversationRuntimeSessionId,
+    providerSessionEnabled: true,
+    providerSessionId,
+    providerThreadId,
+    setConversationProviderSessionId,
     setConversationSessionId,
     setConversationRun,
-    setConversationRuntime,
-    setConversationRuntimeThreadId,
-    setLocalThreadId,
+    setConversationProviderSessionState,
+    setConversationProviderThreadId,
+    setProviderThreadId,
     setPageTaskRunning,
     settings,
     updateConversationTitle: updateConversationTitleAndPersist,
@@ -96,17 +96,17 @@ export function useAgentChatStoreBindings({
   }
 }
 
-export function resolveAgentChatRuntimeBindingIds(input: AgentChatRuntimeBindingIdsInput): AgentChatRuntimeBindingIds {
+export function resolveAgentChatProviderSessionBindingIds(input: AgentChatProviderSessionBindingIdsInput): AgentChatProviderSessionBindingIds {
   return {
-    localSessionId: firstTrimmedString(
-      input.localSessionId,
-      input.conversation.runtimeSessionId,
-      input.conversationRuntime?.sessionId,
+    providerSessionId: firstTrimmedString(
+      input.providerSessionId,
+      input.conversation.providerSessionId,
+      input.conversationProviderSessionState?.sessionId,
     ),
-    localThreadId: firstTrimmedString(
-      input.localThreadId,
-      input.conversation.runtimeThreadId,
-      input.conversationRuntime?.threadId,
+    providerThreadId: firstTrimmedString(
+      input.providerThreadId,
+      input.conversation.providerThreadId,
+      input.conversationProviderSessionState?.threadId,
     ),
   }
 }

@@ -1,4 +1,4 @@
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA } from '@/features/production/domain/productionWorkspaceWorkspace'
 import type {
   ProductionWorkspacePreviewSemanticChange,
@@ -123,7 +123,7 @@ export interface WorkspaceSegmentNode {
   __delete?: boolean
 }
 
-export interface WorkspaceWorkspaceContent {
+export interface ProductionWorkspaceArtifactContent {
   mode?: 'snapshot'
   productionId: number
   workspaceScope?: string
@@ -134,6 +134,9 @@ export interface WorkspaceWorkspaceContent {
   workspaceTitle?: string
   workspaceUpdatedAt?: string
 }
+
+/** @deprecated Use ProductionWorkspaceArtifactContent. */
+export type WorkspaceWorkspaceContent = ProductionWorkspaceArtifactContent
 
 export interface ApplyProductionWorkspaceCounts {
   segments_created: number
@@ -192,7 +195,7 @@ export interface BuildCurrentProductionWorkspaceSnapshotInput {
   writingExpressions: ProductionWorkspaceSnapshotRecord[]
 }
 
-export function parseProductionWorkspaceWorkspace(workspace: AgentWorkspace): WorkspaceWorkspaceContent | null {
+export function parseProductionWorkspaceArtifact(workspace: WorkspaceArtifact): ProductionWorkspaceArtifactContent | null {
   try {
     const content = JSON.parse(workspace.content) as Record<string, unknown>
     if (content.schema !== PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA) return null
@@ -227,6 +230,9 @@ export function parseProductionWorkspaceWorkspace(workspace: AgentWorkspace): Wo
     return null
   }
 }
+
+/** @deprecated Use parseProductionWorkspaceArtifact. */
+export const parseProductionWorkspaceWorkspace = parseProductionWorkspaceArtifact
 
 export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProductionWorkspaceSnapshotInput): { segments: WorkspaceSegmentNode[] } {
   const creativeReferenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
@@ -616,7 +622,7 @@ export function buildWorkspaceApplyGate(preview: WorkspaceApplyPreview, backendP
     return {
       status: 'empty',
       title: '还没有可写入内容',
-      detail: '请先在工作区审阅中接受至少一个编排段和它的情节。',
+      detail: '请先在草案审阅中接受至少一个编排段和它的情节。',
     }
   }
   if (preview.blocked.length > 0) {

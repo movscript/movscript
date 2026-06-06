@@ -1,14 +1,14 @@
 import type { CanvasPortDef } from '@/types'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
-import type { AgentPluginFile, AgentPluginFileManifest } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderPluginFile, ProviderPluginFileManifest } from '@/shared/infrastructure/providerSessionClient'
 import {
-  codexPluginArchiveContributions,
-  extractCodexPluginAgentCatalogFiles,
-  normalizeCodexPluginManifest,
-  readCodexPluginManifestFromArchive,
-  type CodexPluginArchive,
-  type CodexPluginManifest,
-} from '@movscript/agent-runtime/codex-plugin-archive'
+  providerPluginArchiveContributions,
+  extractProviderPluginCatalogFiles,
+  normalizeProviderPluginManifest,
+  readProviderPluginManifestFromArchive,
+  type ProviderPluginArchive,
+  type ProviderPluginManifest,
+} from '@movscript/workspaces'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ export interface ClientPluginInputSchema {
   required?: string[]
 }
 
-export interface ClientPluginAgentToolContribution {
+export interface ClientPluginToolContribution {
   id?: string
   name?: string
   title?: string
@@ -56,7 +56,7 @@ export interface ClientPluginCanvasNodeContribution {
 
 export interface ClientPluginContributions {
   canvasNodes?: ClientPluginCanvasNodeContribution[]
-  tools?: ClientPluginAgentToolContribution[]
+  tools?: ClientPluginToolContribution[]
   cards?: unknown[]
   mcpServers?: Array<{
     id: string
@@ -72,7 +72,7 @@ export interface ClientPluginContributions {
       description?: string
     }>
   }>
-  agentSkills?: Array<{
+  skills?: Array<{
     path: string
     id?: string
     tags?: string[]
@@ -86,9 +86,9 @@ export interface ClientPluginContributions {
   commands?: unknown[]
 }
 
-export type ClientPluginCodexManifest = CodexPluginManifest
+export type ClientPluginProviderManifest = ProviderPluginManifest
 
-export interface ClientPluginManifest extends AgentPluginFileManifest {
+export interface ClientPluginManifest extends ProviderPluginFileManifest {
   schema: 'movscript.clientPlugin.v1' | 'movscript.clientPlugin.webview' | string
   id: string
   name: string
@@ -108,11 +108,11 @@ export interface ClientPluginManifest extends AgentPluginFileManifest {
   sourceUrl?: string
   /** Logo as data URL (extracted from .movpkg assets/) */
   logoDataUrl?: string
-  /** Result of installing contributed agent catalog files into the shared pack store. */
-  agentCatalogPackInstall?: unknown
-  /** Original Codex-compatible plugin manifest when installed from .codex-plugin/plugin.json. */
-  codex?: ClientPluginCodexManifest
-  manifestFormat?: 'codex' | 'movscript' | string
+  /** Result of installing contributed plugin catalog files into the shared pack store. */
+  pluginCatalogPackInstall?: unknown
+  /** Original provider plugin manifest when installed from a provider plugin archive. */
+  providerPlugin?: ClientPluginProviderManifest
+  manifestFormat?: 'provider-plugin' | 'movscript' | string
   /** Bundled with MovScript and maintained by the application. */
   builtin?: boolean
   /** Explicitly false when a plugin should be visible but not removable. */
@@ -131,18 +131,18 @@ interface PluginArchiveEntry {
   async: (type: 'text' | 'base64') => Promise<string>
 }
 
-interface PluginArchiveZip extends CodexPluginArchive {
+interface PluginArchiveZip extends ProviderPluginArchive {
   file: (path: string) => PluginArchiveEntry | null
   forEach: (callback: (relativePath: string, file: PluginArchiveEntry) => void) => void
 }
 
 export async function loadClientPlugins(): Promise<ClientPluginManifest[]> {
-  const result = await localAgentClient.listPlugins()
+  const result = await providerSessionClient.listPlugins()
   return result.plugins.filter(isClientPluginManifest) as ClientPluginManifest[]
 }
 
 export async function saveClientPlugin(plugin: ClientPluginManifest): Promise<void> {
-  await localAgentClient.savePlugin(plugin)
+  await providerSessionClient.savePlugin(plugin)
 }
 
 export async function removeClientPlugin(id: string): Promise<void> {
@@ -150,7 +150,7 @@ export async function removeClientPlugin(id: string): Promise<void> {
   if (existing && !isClientPluginRemovable(existing)) {
     throw new Error('plugin is managed by MovScript and cannot be removed')
   }
-  await localAgentClient.removePlugin(id)
+  await providerSessionClient.removePlugin(id)
 }
 
 export function isClientPluginRemovable(plugin: ClientPluginManifest): boolean {
@@ -165,7 +165,7 @@ export async function migrateFromLocalStorage(): Promise<number> {
 
 export async function installPluginFromFile(file: File): Promise<ClientPluginManifest> {
   if (!file.name.endsWith('.movpkg') && !file.name.endsWith('.zip')) {
-    throw new Error('Only .movpkg or Codex plugin .zip files are supported.')
+    throw new Error('Only .movpkg or provider plugin .zip files are supported.')
   }
   return installPluginFromMovpkg(file)
 }
@@ -176,20 +176,20 @@ async function installPluginFromMovpkg(file: File): Promise<ClientPluginManifest
 
   const manifest = await readPluginArchiveManifest(zip, file)
   if (!isClientPluginManifest(manifest)) throw new Error('invalid plugin manifest in package')
-  const agentCatalogFiles = await extractMovpkgAgentCatalogFiles(zip, manifest.codex)
-  if (manifest.contributes?.agentSkills?.length && !agentCatalogFiles.some((file) => file.path.startsWith('agent-skills/'))) {
-    throw new Error('.movpkg declares contributes.agentSkills but does not include agent-skills/ files')
+  const pluginCatalogFiles = await extractMovpkgPluginCatalogFiles(zip, manifest.providerPlugin)
+  if (pluginSkillContributions(manifest.contributes).length && !pluginCatalogFiles.some((file) => file.path.startsWith('plugin-skills/'))) {
+    throw new Error('.movpkg declares contributes.skills but does not include plugin-skills/ files')
   }
-  const installed = await localAgentClient.installPlugin({
+  const installed = await providerSessionClient.installPlugin({
     plugin: manifest,
-    agentCatalogFiles,
+    pluginCatalogFiles,
   })
   return (installed.plugin ?? manifest) as ClientPluginManifest
 }
 
 export async function readPluginArchiveManifest(zip: PluginArchiveZip, file: Pick<File, 'name'>): Promise<ClientPluginManifest> {
   const manifestFile = zip.file('manifest.json')
-  if (!manifestFile) return readCodexPluginArchiveManifest(zip, file)
+  if (!manifestFile) return readProviderPluginArchiveManifest(zip, file)
   const manifestText = await manifestFile.async('text')
   const raw = JSON.parse(manifestText) as Record<string, unknown>
 
@@ -211,7 +211,7 @@ export async function readPluginArchiveManifest(zip: PluginArchiveZip, file: Pic
     inputSchema: raw.inputSchema as ClientPluginInputSchema | undefined,
     contributes: raw.contributes as ClientPluginContributions | undefined,
     bundle,
-    codex: isRecord(raw.codex) ? normalizeCodexPluginManifest(raw.codex) : undefined,
+    providerPlugin: providerPluginManifestFromClientPluginRaw(raw),
     manifestFormat: typeof raw.manifestFormat === 'string' ? raw.manifestFormat : undefined,
     ...(logoDataUrl ? { logoDataUrl } : {}),
     installedAt: new Date().toISOString(),
@@ -219,19 +219,19 @@ export async function readPluginArchiveManifest(zip: PluginArchiveZip, file: Pic
   return manifest
 }
 
-async function readCodexPluginArchiveManifest(zip: PluginArchiveZip, file: Pick<File, 'name'>): Promise<ClientPluginManifest> {
-  const codex = await readCodexPluginManifestFromArchive(zip)
-  if (!codex) throw new Error('plugin package is missing manifest.json or .codex-plugin/plugin.json')
-  const contributions = await codexPluginArchiveContributions(zip, codex) as ClientPluginContributions | undefined
+async function readProviderPluginArchiveManifest(zip: PluginArchiveZip, file: Pick<File, 'name'>): Promise<ClientPluginManifest> {
+  const providerPlugin = await readProviderPluginManifestFromArchive(zip)
+  if (!providerPlugin) throw new Error('plugin package is missing manifest.json or provider plugin manifest')
+  const contributions = await providerPluginArchiveContributions(zip, providerPlugin) as ClientPluginContributions | undefined
   const manifest: ClientPluginManifest = {
     schema: 'movscript.clientPlugin.v1',
-    id: codex.id ?? codex.name,
-    name: codex.name,
-    version: codex.version ?? '0.0.0',
-    description: codex.description,
+    id: providerPlugin.id ?? providerPlugin.name,
+    name: providerPlugin.name,
+    version: providerPlugin.version ?? '0.0.0',
+    description: providerPlugin.description,
     contributes: contributions,
-    codex,
-    manifestFormat: 'codex',
+    providerPlugin,
+    manifestFormat: 'provider-plugin',
     bundle: await optionalArchiveText(zip, 'bundle.js'),
     sourceUrl: file.name,
     installedAt: new Date().toISOString(),
@@ -253,25 +253,42 @@ async function readArchiveLogo(zip: PluginArchiveZip): Promise<string | undefine
   return undefined
 }
 
-export async function extractMovpkgAgentCatalogFiles(zip: PluginArchiveZip, codex?: ClientPluginCodexManifest): Promise<AgentPluginFile[]> {
-  const pending: Array<Promise<AgentPluginFile>> = []
+export async function extractMovpkgPluginCatalogFiles(zip: PluginArchiveZip, providerPlugin?: ClientPluginProviderManifest): Promise<ProviderPluginFile[]> {
+  const pending: Array<Promise<ProviderPluginFile>> = []
   zip.forEach((relativePath, entry) => {
     if (entry.dir) return
-    const mappedPath = mapLegacyPluginArchiveAgentCatalogPath(relativePath)
+    const mappedPath = pluginCatalogArchivePluginCatalogPath(relativePath)
     if (!mappedPath) return
     pending.push(entry.async('text').then((content) => ({ path: mappedPath, content })))
   })
   const files = await Promise.all(pending)
-  if (codex) files.push(...await extractCodexPluginAgentCatalogFiles(zip, codex))
+  if (providerPlugin) files.push(...await extractProviderPluginCatalogFiles(zip, providerPlugin))
   return files.sort((left, right) => left.path.localeCompare(right.path))
 }
 
-function mapLegacyPluginArchiveAgentCatalogPath(relativePath: string): string | undefined {
-  if (relativePath.startsWith('agent-skills/') && /\.(md|json|txt)$/i.test(relativePath)) return relativePath
-  if (relativePath.startsWith('agent-tools/') && /\.tool\.json$/i.test(relativePath)) return relativePath
-  if (relativePath.startsWith('agent-packs/') && /\.json$/i.test(relativePath)) return relativePath
-  if (relativePath.startsWith('agent-config-files/') && /\.json$/i.test(relativePath)) return relativePath
+function providerPluginManifestFromClientPluginRaw(raw: Record<string, unknown>): ClientPluginProviderManifest | undefined {
+  if (isRecord(raw.providerPlugin)) return normalizeProviderPluginManifest(raw.providerPlugin)
   return undefined
+}
+
+function pluginCatalogArchivePluginCatalogPath(relativePath: string): string | undefined {
+  for (const [currentPrefix, pattern] of pluginCatalogArchivePathPrefixes()) {
+    if (relativePath.startsWith(`${currentPrefix}/`) && pattern.test(relativePath)) return relativePath
+  }
+  return undefined
+}
+
+function pluginCatalogArchivePathPrefixes(): Array<[string, RegExp]> {
+  return [
+    ['plugin-skills', /\.(md|json|txt)$/i],
+    ['plugin-tools', /\.tool\.json$/i],
+    ['plugin-packs', /\.json$/i],
+    ['plugin-config-files', /\.json$/i],
+  ]
+}
+
+function pluginSkillContributions(contributions: ClientPluginContributions | undefined): NonNullable<ClientPluginContributions['skills']> {
+  return contributions?.skills ?? []
 }
 
 async function optionalArchiveText(zip: PluginArchiveZip, path: string): Promise<string | undefined> {
@@ -299,7 +316,7 @@ function isClientPluginManifest(value: unknown): value is ClientPluginManifest {
   if (!value || typeof value !== 'object') return false
   const item = value as Partial<ClientPluginManifest>
   const hasContributions = Boolean(
-    item.contributes?.agentSkills?.length ||
+    pluginSkillContributions(item.contributes).length ||
     item.contributes?.mcpServers?.length ||
     item.contributes?.canvasNodes?.length ||
     item.contributes?.tools?.length ||

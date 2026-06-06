@@ -594,7 +594,7 @@ export function ProductionOrchestrationWorkspaceBanner({
     <WorkbenchSurfaceItem className={cn("production-orchestration-workspace-banner", className)} {...props}>
       <div className="production-orchestration-workspace-banner__message">
         <GitBranch size={13} className="production-orchestration-workspace-banner__icon" />
-        <span className="production-orchestration-workspace-banner__text">正在审阅 AI 编排工作区工作区。</span>
+        <span className="production-orchestration-workspace-banner__text">正在审阅 AI 编排草案。</span>
         {saving ? <Badge className="production-orchestration-workspace-banner__saving">保存中</Badge> : null}
       </div>
       <div className="production-orchestration-workspace-banner__actions">
@@ -645,7 +645,7 @@ export function ProductionOrchestrationReviewDialogTitle({
 }
 
 export function ProductionOrchestrationReviewEmptyNotice({
-  children = "当前没有可应用的 production workspace workspace。",
+  children = "当前没有可应用的 production workspace 草案。",
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
@@ -667,7 +667,7 @@ export function ProductionOrchestrationRevisionDialogContent({
   title = "让 Agent 调整工作区",
   label = "调整要求",
   placeholder = "例如：把开场压缩成一个情节；强化主角和产品设定的关联；补齐缺少素材需求的镜头。",
-  notice = "Agent 会读取并编辑当前 production workspace workspace 文件；正式项目只会在你点击“应用工作区到项目”后写入。",
+  notice = "Agent 会读取并编辑当前 production workspace 草案；正式项目只会在你点击“应用工作区到项目”后写入。",
   cancelLabel = "取消",
   launchLabel = "开始调整",
   className,

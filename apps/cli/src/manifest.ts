@@ -32,7 +32,7 @@ export interface MovJson {
   }
 }
 
-export interface CodexPluginJson {
+export interface ProviderPluginJson {
   name: string
   version?: string
   description?: string
@@ -41,7 +41,7 @@ export interface CodexPluginJson {
   mcpServers?: string
   apps?: string
   interface?: Record<string, unknown>
-  /** MovScript compatibility extension for legacy runtime bundles. Codex ignores unknown fields. */
+  /** MovScript compatibility extension for provider plugin bundles. */
   id?: string
   main?: string
   ui?: string
@@ -52,20 +52,20 @@ export interface CodexPluginJson {
 }
 
 export type PluginProjectManifest = MovJson & {
-  manifestFormat: 'codex' | 'movscript'
-  codex?: CodexPluginJson
+  manifestFormat: 'provider-plugin' | 'movscript'
+  providerPlugin?: ProviderPluginJson
 }
 
 export function loadPluginProjectManifest(dir: string): PluginProjectManifest {
-  const codexManifestPath = resolve(dir, '.codex-plugin', 'plugin.json')
-  if (existsSync(codexManifestPath)) {
+  const providerManifestPath = providerPluginManifestPath(dir)
+  if (providerManifestPath) {
     let raw: unknown
     try {
-      raw = JSON.parse(readFileSync(codexManifestPath, 'utf8'))
+      raw = JSON.parse(readFileSync(providerManifestPath, 'utf8'))
     } catch {
-      throw new Error(`.codex-plugin/plugin.json is not valid JSON`)
+      throw new Error(`${providerManifestPath} is not valid JSON`)
     }
-    return validateCodexPluginJson(raw)
+    return validateProviderPluginJson(raw, providerManifestPath)
   }
   return {
     ...loadMovJson(dir),
@@ -111,14 +111,14 @@ export function validateMovJson(raw: unknown): MovJson {
   }
 }
 
-export function validateCodexPluginJson(raw: unknown): PluginProjectManifest {
-  if (typeof raw !== 'object' || raw === null) throw new Error('.codex-plugin/plugin.json must be an object')
+export function validateProviderPluginJson(raw: unknown, manifestName = 'provider plugin manifest'): PluginProjectManifest {
+  if (typeof raw !== 'object' || raw === null) throw new Error(`${manifestName} must be an object`)
   const m = raw as Record<string, unknown>
   const name = stringField(m.name)
-  if (!name) throw new Error('.codex-plugin/plugin.json: "name" is required and must be a non-empty string')
+  if (!name) throw new Error(`${manifestName}: "name" is required and must be a non-empty string`)
   const version = stringField(m.version) ?? '0.0.0'
-  validateContributedToolNames(m, '.codex-plugin/plugin.json')
-  const codex: CodexPluginJson = {
+  validateContributedToolNames(m, manifestName)
+  const providerPlugin: ProviderPluginJson = {
     name,
     ...(stringField(m.version) ? { version: stringField(m.version) } : {}),
     ...(stringField(m.description) ? { description: stringField(m.description) } : {}),
@@ -140,16 +140,22 @@ export function validateCodexPluginJson(raw: unknown): PluginProjectManifest {
     id: stringField(m.id) ?? name,
     name,
     version,
-    ...(codex.description ? { description: codex.description } : {}),
-    ...(codex.permissions ? { permissions: codex.permissions } : {}),
-    ...(codex.main ? { main: codex.main } : {}),
-    ...(codex.ui ? { ui: codex.ui } : {}),
-    ...(codex.logo ? { logo: codex.logo } : {}),
-    ...(codex.inputSchema ? { inputSchema: codex.inputSchema } : {}),
-    ...(codex.contributes ? { contributes: codex.contributes } : {}),
-    manifestFormat: 'codex',
-    codex,
+    ...(providerPlugin.description ? { description: providerPlugin.description } : {}),
+    ...(providerPlugin.permissions ? { permissions: providerPlugin.permissions } : {}),
+    ...(providerPlugin.main ? { main: providerPlugin.main } : {}),
+    ...(providerPlugin.ui ? { ui: providerPlugin.ui } : {}),
+    ...(providerPlugin.logo ? { logo: providerPlugin.logo } : {}),
+    ...(providerPlugin.inputSchema ? { inputSchema: providerPlugin.inputSchema } : {}),
+    ...(providerPlugin.contributes ? { contributes: providerPlugin.contributes } : {}),
+    manifestFormat: 'provider-plugin',
+    providerPlugin,
   }
+}
+
+function providerPluginManifestPath(dir: string): string | undefined {
+  const neutralPath = resolve(dir, '.provider-plugin', 'plugin.json')
+  if (existsSync(neutralPath)) return neutralPath
+  return undefined
 }
 
 function validateContributedToolNames(manifest: Record<string, unknown>, manifestName = 'mov.json'): void {

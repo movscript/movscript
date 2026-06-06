@@ -1,6 +1,7 @@
 import type { AppSettings } from './appSettings'
 import type { GenerationToolServer, GenerationToolsSettings } from './generationTools'
 import type { MCPContextUpdate } from './mcpContext'
+import type { MovScriptWorkspaceConfig } from '@movscript/workspaces/node'
 
 export type ElectronBackendStatus = {
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
@@ -17,14 +18,14 @@ export type ElectronMCPServerStatus = {
   error?: string
 }
 
-export type ElectronAgentBrowserBounds = {
+export type ElectronEmbeddedBrowserBounds = {
   x: number
   y: number
   width: number
   height: number
 }
 
-export type ElectronAgentBrowserState = {
+export type ElectronEmbeddedBrowserState = {
   tabId: string
   visible: boolean
   url: string
@@ -166,91 +167,86 @@ export type ElectronShotCutResult = {
   code?: string
 }
 
-export type ElectronAgentRuntimeTransportKind = 'http' | 'unix-socket' | 'named-pipe' | 'websocket'
-
-export type ElectronAgentRuntimeEnsureInput = {
-  baseURL?: string
-  transportKind?: ElectronAgentRuntimeTransportKind
-  socketPath?: string
-  agentRuntimeDirName?: string
-  workspaceDir?: string
-  sessionId?: string
-  source?: string
-}
-
-export type ElectronAgentRuntimeStatus = {
-  ok: boolean
-  running: boolean
-  managed: boolean
-  started: boolean
-  baseURL: string
-  transportKind?: ElectronAgentRuntimeTransportKind
-  endpoint?: string
-  socketPath?: string
-  agentRuntimeDirName?: string
-  workspaceDir?: string
-  sessionId?: string
-  pid?: number
-  error?: string
-}
-
-export type ElectronAgentRuntimeRequestInput = ElectronAgentRuntimeEnsureInput & {
-  path: string
-  method?: string
-  headers?: Record<string, string>
-  body?: string
-}
-
-export type ElectronAgentRuntimeResponse = {
-  status: number
-  statusText?: string
-  headers: Record<string, string>
-  body: string
-}
-
-export type ElectronAgentRuntimeStreamInput = ElectronAgentRuntimeRequestInput & {
-  streamId: string
-}
-
-export type ElectronAgentRuntimeStreamCloseInput = {
-  streamId: string
-}
-
-export type ElectronAgentRuntimeStreamMessage = {
-  streamId: string
-  kind: 'message' | 'error' | 'end'
-  data?: string
-  error?: string
-}
-
-export type ElectronCodexAppServerConnectInput = {
+export type ElectronAppServerConnectInput = {
   url: string
 }
 
-export type ElectronCodexAppServerLifecycle = 'movscript-owned'
+export type ElectronAppServerLifecycle = 'movscript-owned'
+export type ElectronMovScriptWorkspaceScope = 'global' | 'project' | 'production'
 
-export type ElectronCodexAppServerProfile = {
+export type ElectronMovScriptWorkspaceContext = {
+  scope?: ElectronMovScriptWorkspaceScope
+  userId?: string | number
+  projectId?: string | number
+  productionId?: string | number
+}
+
+export type ElectronAppServerProfile = {
   id: string
   label?: string
+  providerKey?: 'codex' | 'mova' | (string & {})
   executablePath?: string
-  codexHome?: string
+  executableCommand?: string
+  executableEnvVar?: string
+  compatibilityBinEnvNames?: string[]
+  candidateRootRelativePaths?: string[]
+  candidateBinaryNames?: string[]
+  pathFallbackReady?: boolean
+  home?: string
   workspaceDir?: string
-  lifecycle?: ElectronCodexAppServerLifecycle
+  workspaceContext?: ElectronMovScriptWorkspaceContext
+  lifecycle?: ElectronAppServerLifecycle
 }
 
-export type ElectronCodexAppServerEnsureInput = {
-  profile: ElectronCodexAppServerProfile
+export type ElectronAppServerEnsureInput = {
+  profile: ElectronAppServerProfile
 }
 
-export type ElectronCodexAppServerStatusInput = {
+export type ElectronAppServerStatusInput = {
   profileId?: string
 }
 
-export type ElectronCodexAppServerStopInput = {
+export type ElectronAppServerStopInput = {
   profileId?: string
 }
 
-export type ElectronCodexAppServerStatus = {
+export type ElectronAppServerConfigStatus = {
+  ok: boolean
+  sourceConfigPath: string
+  configTomlPath: string
+  authJsonPath: string
+  baseURL: string
+  apiKind: string
+  apiKeyConfigured: boolean
+  accountConfigured: boolean
+  accountSource: 'movscript-account' | 'movscript-environment' | 'movscript-model-config' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
+  distributedAt: string
+  warning?: string
+}
+
+export type ElectronAppServerPluginStatus = {
+  ok: boolean
+  marketplaceName: string
+  pluginName: string
+  pluginKey: string
+  pluginSourcePath: string
+  marketplaceRoot: string
+  installedPluginRoot: string
+  version: string
+  hash: string
+  error?: string
+}
+
+export type ElectronAppServerExecutableDiagnostic = {
+  ok: boolean
+  message: string
+  envVar?: string
+  cwd?: string
+  sourceDir?: string
+  candidatePaths?: string[]
+}
+
+export type ElectronAppServerStatus = {
   ok: boolean
   running: boolean
   managed: boolean
@@ -259,21 +255,11 @@ export type ElectronCodexAppServerStatus = {
   endpoint?: string
   pid?: number
   executablePath?: string
-  codexHome?: string
+  home?: string
   workspaceDir?: string
-  codexConfig?: {
-    ok: boolean
-    sourceConfigPath: string
-    configTomlPath: string
-    authJsonPath: string
-    baseURL: string
-    apiKind: string
-    apiKeyConfigured: boolean
-    accountConfigured: boolean
-    accountSource: 'movscript-agent-account' | 'movscript-environment' | 'movscript-model-config' | 'local-codex-home' | 'codex-home' | 'custom-config' | 'none'
-    distributedAt: string
-    warning?: string
-  }
+  config?: ElectronAppServerConfigStatus
+  workspaceContext?: ElectronMovScriptWorkspaceContext
+  providerSessionCwd?: string
   preflight?: {
     ok: boolean
     configTomlExists: boolean
@@ -282,42 +268,32 @@ export type ElectronCodexAppServerStatus = {
     accountConfigured: boolean
     detail: string
   }
-  codexPlugin?: {
-    ok: boolean
-    marketplaceName: string
-    pluginName: string
-    pluginKey: string
-    pluginSourcePath: string
-    marketplaceRoot: string
-    installedPluginRoot: string
-    version: string
-    hash: string
-    error?: string
-  }
+  plugin?: ElectronAppServerPluginStatus
+  executableDiagnostic?: ElectronAppServerExecutableDiagnostic
   error?: string
 }
 
-export type ElectronCodexAppServerConnection = {
+export type ElectronAppServerConnection = {
   connectionId: string
 }
 
-export type ElectronCodexAppServerSendInput = {
+export type ElectronAppServerSendInput = {
   connectionId: string
   payload: string
 }
 
-export type ElectronCodexAppServerCloseInput = {
+export type ElectronAppServerCloseInput = {
   connectionId: string
 }
 
-export type ElectronCodexAppServerMessage = {
+export type ElectronAppServerMessage = {
   connectionId: string
   kind: 'message' | 'error' | 'close'
   data?: string
   error?: string
 }
 
-export type ElectronAgentRuntimeRunSummary = {
+export type ElectronProviderRunSummary = {
   id: string
   sessionId?: string
   threadId: string
@@ -342,7 +318,7 @@ export type ElectronAgentRuntimeRunSummary = {
   steps: unknown[]
 }
 
-export type ElectronAgentRuntimeSessionSummary = {
+export type ElectronProviderSessionSummary = {
   session: {
     id: string
     title?: string
@@ -352,6 +328,8 @@ export type ElectronAgentRuntimeSessionSummary = {
     archived?: boolean
   }
   workspaceDir?: string
+  workspaceContext?: ElectronMovScriptWorkspaceContext
+  providerSessionCwd?: string
   state?: {
     rootThreadId?: string
     interactiveThreadId?: string
@@ -364,53 +342,61 @@ export type ElectronAgentRuntimeSessionSummary = {
     messageCount: number
     lastMessageAt?: string
   }
-  runs?: ElectronAgentRuntimeRunSummary[]
-  paths: {
-    sessionDate: string
-    sessionDir: string
-    runtimeLogPath: string
-    runtimePath: string
-    lockPath: string
-    heartbeatPath: string
-    socketPath: string
-  }
-  runtime?: {
-    pid: number
-    endpoint: string
-    transport: 'http' | 'unix-socket' | 'stdio'
-    startedAt: string
-    heartbeatAt: string
-    version: string
-    startedBy: 'desktop' | 'cli' | 'agent' | 'unknown'
-  }
-  running: boolean
-  stale: boolean
-  heartbeatAgeMs?: number
+  runs?: ElectronProviderRunSummary[]
 }
 
-export type ElectronAgentWorkspaceConfig = {
-  schema: 'movscript.agent.workspace-config.v1'
+export type ElectronMovScriptWorkspaceConfig = {
+  schema: MovScriptWorkspaceConfig['schema']
   updatedAt: string
   modelConfig?: Record<string, unknown>
   toolProviders?: Array<Record<string, unknown>>
   modelProviders?: Array<Record<string, unknown>>
   permissions?: Record<string, unknown>
   environment?: Record<string, string>
-  agents?: Record<string, Record<string, unknown>>
+  providers?: Record<string, Record<string, unknown>>
 }
 
-export type ElectronAgentWorkspaceConfigSaveInput = {
-  agentRuntimeDirName?: string
+export type ElectronMovScriptWorkspaceConfigSaveInput = {
+  providerProfileKey?: string
   workspaceDir?: string
   modelConfig?: Record<string, unknown> | null
   toolProviders?: Array<Record<string, unknown>> | null
   modelProviders?: Array<Record<string, unknown>> | null
   permissions?: Record<string, unknown> | null
   environment?: Record<string, string> | null
-  agents?: Record<string, Record<string, unknown>> | null
+  providers?: Record<string, Record<string, unknown>> | null
 }
 
-export type ElectronAgentWorkspaceFileEntry = {
+export type ElectronMovScriptWorkspaceRootManifest = {
+  schema: 'movscript.workspace-root.v1'
+  workspaceId: string
+  createdAt: string
+  updatedAt: string
+  backend?: {
+    kind?: 'local' | 'cloud' | 'custom'
+    baseURL?: string
+  }
+  activeUserId?: number
+  layout: {
+    projectionRoot: 'data'
+    reviewsRoot: 'reviews'
+    syncRoot: 'sync'
+    providerConfigRoot: 'providers'
+  }
+}
+
+export type ElectronMovScriptWorkspaceRootResult = {
+  workspaceDir: string
+  controlDir: string
+  manifestPath: string
+  projectionRootDir: string
+  reviewsDir: string
+  syncDir: string
+  providersDir: string
+  manifest: ElectronMovScriptWorkspaceRootManifest
+}
+
+export type ElectronMovScriptWorkspaceFileEntry = {
   name: string
   path: string
   kind: 'file' | 'directory'
@@ -418,18 +404,18 @@ export type ElectronAgentWorkspaceFileEntry = {
   updatedAt: string
 }
 
-export type ElectronAgentWorkspaceFilesInput = {
+export type ElectronMovScriptWorkspaceFilesInput = {
   workspaceDir?: string
   path?: string
 }
 
-export type ElectronAgentWorkspaceFilesListResult = {
+export type ElectronMovScriptWorkspaceFilesListResult = {
   rootPath: string
   path: string
-  entries: ElectronAgentWorkspaceFileEntry[]
+  entries: ElectronMovScriptWorkspaceFileEntry[]
 }
 
-export type ElectronAgentWorkspaceFileReadResult = {
+export type ElectronMovScriptWorkspaceFileReadResult = {
   rootPath: string
   path: string
   content: string
@@ -437,11 +423,11 @@ export type ElectronAgentWorkspaceFileReadResult = {
   updatedAt: string
 }
 
-export type ElectronAgentWorkspaceFileWriteInput = ElectronAgentWorkspaceFilesInput & {
+export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspaceFilesInput & {
   content: string
 }
 
-export type ElectronAgentCatalogPackStoreDirs = {
+export type ElectronPluginCatalogPackStoreDirs = {
   rootDir: string
   skillsDir: string
   toolsDir: string
@@ -449,34 +435,34 @@ export type ElectronAgentCatalogPackStoreDirs = {
   configFilesDir: string
 }
 
-export type ElectronAgentCatalogPackFile = {
+export type ElectronPluginCatalogPackFile = {
   path: string
   content: string
 }
 
-export type ElectronAgentCatalogPackInstallInput = {
+export type ElectronPluginCatalogPackInstallInput = {
   pluginId: string
-  files: ElectronAgentCatalogPackFile[]
+  files: ElectronPluginCatalogPackFile[]
 }
 
-export type ElectronAgentCatalogPackInstallResult = {
+export type ElectronPluginCatalogPackInstallResult = {
   pluginId: string
-  dirs: ElectronAgentCatalogPackStoreDirs
+  dirs: ElectronPluginCatalogPackStoreDirs
   targetDirs: Partial<Record<'skills' | 'tools' | 'packs' | 'configFiles', string>>
   installedFiles: string[]
 }
 
-export type ElectronAgentCatalogPackUninstallInput = {
+export type ElectronPluginCatalogPackUninstallInput = {
   pluginId: string
 }
 
-export type ElectronAgentCatalogPackUninstallResult = {
+export type ElectronPluginCatalogPackUninstallResult = {
   pluginId: string
-  dirs: ElectronAgentCatalogPackStoreDirs
+  dirs: ElectronPluginCatalogPackStoreDirs
   removed: boolean
 }
 
-export type ElectronAgentCatalogPackPlugin = {
+export type ElectronPluginCatalogPackPlugin = {
   pluginId: string
   kinds: Array<'skills' | 'tools' | 'packs' | 'configFiles'>
   paths: Partial<Record<'skills' | 'tools' | 'packs' | 'configFiles', string>>
@@ -513,40 +499,35 @@ export type ElectronAPI = {
   onBackendStatus?: (handler: (status: ElectronBackendStatus) => void) => () => void
   getBackendStatus?: () => Promise<ElectronBackendStatus>
   openAdminConsole?: (input?: { baseURL?: string; path?: string }) => Promise<{ url: string }>
-  agentBrowserNavigate?: (input: { tabId?: string; url: string; bounds?: ElectronAgentBrowserBounds | null }) => Promise<ElectronAgentBrowserState>
-  agentBrowserActivate?: (input: { tabId: string; bounds?: ElectronAgentBrowserBounds | null }) => Promise<ElectronAgentBrowserState>
-  agentBrowserSetBounds?: (input: { bounds?: ElectronAgentBrowserBounds | null } | null) => Promise<ElectronAgentBrowserState>
-  agentBrowserHide?: () => Promise<ElectronAgentBrowserState>
-  agentBrowserGetState?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
-  agentBrowserClose?: (input: { tabId: string }) => Promise<ElectronAgentBrowserState>
-  agentBrowserGoBack?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
-  agentBrowserGoForward?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
-  agentBrowserReload?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
-  agentBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
-  onAgentBrowserState?: (handler: (state: ElectronAgentBrowserState) => void) => () => void
-  ensureAgentRuntime?: (input?: ElectronAgentRuntimeEnsureInput) => Promise<ElectronAgentRuntimeStatus>
-  stopAgentRuntime?: () => Promise<{ ok: true }>
-  agentRuntimeRequest?: (input: ElectronAgentRuntimeRequestInput) => Promise<ElectronAgentRuntimeResponse>
-  agentRuntimeOpenEventStream?: (input: ElectronAgentRuntimeStreamInput) => Promise<ElectronAgentRuntimeResponse>
-  agentRuntimeCloseEventStream?: (input: ElectronAgentRuntimeStreamCloseInput) => Promise<void>
-  onAgentRuntimeStreamMessage?: (handler: (message: ElectronAgentRuntimeStreamMessage) => void) => () => void
-  ensureCodexAppServer?: (input: ElectronCodexAppServerEnsureInput) => Promise<ElectronCodexAppServerStatus>
-  getCodexAppServerStatus?: (input?: ElectronCodexAppServerStatusInput) => Promise<ElectronCodexAppServerStatus>
-  stopCodexAppServer?: (input?: ElectronCodexAppServerStopInput) => Promise<ElectronCodexAppServerStatus>
-  codexAppServerConnect?: (input: ElectronCodexAppServerConnectInput) => Promise<ElectronCodexAppServerConnection>
-  codexAppServerSend?: (input: ElectronCodexAppServerSendInput) => Promise<void>
-  codexAppServerClose?: (input: ElectronCodexAppServerCloseInput) => Promise<void>
-  onCodexAppServerMessage?: (handler: (message: ElectronCodexAppServerMessage) => void) => () => void
-  listAgentRuntimeSessions?: (input?: { workspaceDir?: string; agentRuntimeDirName?: string }) => Promise<{ sessions: ElectronAgentRuntimeSessionSummary[] }>
-  getAgentWorkspaceConfig?: (input?: { workspaceDir?: string; agentRuntimeDirName?: string }) => Promise<ElectronAgentWorkspaceConfig>
-  saveAgentWorkspaceConfig?: (input: ElectronAgentWorkspaceConfigSaveInput) => Promise<ElectronAgentWorkspaceConfig>
-  listAgentWorkspaceFiles?: (input?: ElectronAgentWorkspaceFilesInput) => Promise<ElectronAgentWorkspaceFilesListResult>
-  readAgentWorkspaceFile?: (input: ElectronAgentWorkspaceFilesInput) => Promise<ElectronAgentWorkspaceFileReadResult>
-  writeAgentWorkspaceFile?: (input: ElectronAgentWorkspaceFileWriteInput) => Promise<ElectronAgentWorkspaceFileReadResult>
-  deleteAgentWorkspaceFile?: (input: ElectronAgentWorkspaceFilesInput) => Promise<{ ok: true }>
-  listAgentCatalogPackPlugins?: () => Promise<{ dirs: ElectronAgentCatalogPackStoreDirs; plugins: ElectronAgentCatalogPackPlugin[] }>
-  installAgentCatalogPack?: (input: ElectronAgentCatalogPackInstallInput) => Promise<ElectronAgentCatalogPackInstallResult>
-  uninstallAgentCatalogPack?: (input: ElectronAgentCatalogPackUninstallInput) => Promise<ElectronAgentCatalogPackUninstallResult>
+  embeddedBrowserNavigate?: (input: { tabId?: string; url: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserActivate?: (input: { tabId: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserSetBounds?: (input: { bounds?: ElectronEmbeddedBrowserBounds | null } | null) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserHide?: () => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserGetState?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserClose?: (input: { tabId: string }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserGoBack?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserGoForward?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserReload?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
+  embeddedBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
+  onEmbeddedBrowserState?: (handler: (state: ElectronEmbeddedBrowserState) => void) => () => void
+  ensureAppServer?: (input: ElectronAppServerEnsureInput) => Promise<ElectronAppServerStatus>
+  getAppServerStatus?: (input?: ElectronAppServerStatusInput) => Promise<ElectronAppServerStatus>
+  stopAppServer?: (input?: ElectronAppServerStopInput) => Promise<ElectronAppServerStatus>
+  appServerConnect?: (input: ElectronAppServerConnectInput) => Promise<ElectronAppServerConnection>
+  appServerSend?: (input: ElectronAppServerSendInput) => Promise<void>
+  appServerClose?: (input: ElectronAppServerCloseInput) => Promise<void>
+  onAppServerMessage?: (handler: (message: ElectronAppServerMessage) => void) => () => void
+  listProviderSessions?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
+  getMovScriptWorkspaceRoot?: (input?: { workspaceDir?: string }) => Promise<ElectronMovScriptWorkspaceRootResult>
+  getMovScriptWorkspaceConfig?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>
+  saveMovScriptWorkspaceConfig?: (input: ElectronMovScriptWorkspaceConfigSaveInput) => Promise<ElectronMovScriptWorkspaceConfig>
+  listMovScriptWorkspaceFiles?: (input?: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFilesListResult>
+  readMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
+  writeMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFileWriteInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
+  deleteMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<{ ok: true }>
+  listPluginCatalogPackPlugins?: () => Promise<{ dirs: ElectronPluginCatalogPackStoreDirs; plugins: ElectronPluginCatalogPackPlugin[] }>
+  installPluginCatalogPack?: (input: ElectronPluginCatalogPackInstallInput) => Promise<ElectronPluginCatalogPackInstallResult>
+  uninstallPluginCatalogPack?: (input: ElectronPluginCatalogPackUninstallInput) => Promise<ElectronPluginCatalogPackUninstallResult>
   clipVideo?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
   exportTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
   getVideoClipStatus?: () => Promise<ElectronVideoClipStatus>

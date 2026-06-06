@@ -17,13 +17,13 @@ export interface AgentConversationProjectionContentItemViewProps extends AgentCo
 }
 
 export function AgentConversationProjectionContentItemView({
-  approvingLocalRun,
+  approvingActiveRun,
   hiddenActivityActionItemIds,
   item,
   projectId,
-  onAnswerLocalRunInput,
-  onApproveLocalRun,
-  onRejectLocalRun,
+  onAnswerRunInput,
+  onApproveRun,
+  onRejectRun,
 }: AgentConversationProjectionContentItemViewProps) {
   if (item.type === 'message') {
     return (
@@ -31,10 +31,10 @@ export function AgentConversationProjectionContentItemView({
         item={item.item}
         projectId={projectId}
         hiddenActivityActionItemIds={hiddenActivityActionItemIds}
-        approvingLocalRun={approvingLocalRun}
-        onApproveLocalRun={onApproveLocalRun}
-        onRejectLocalRun={onRejectLocalRun}
-        onAnswerLocalRunInput={onAnswerLocalRunInput}
+        approvingActiveRun={approvingActiveRun}
+        onApproveRun={onApproveRun}
+        onRejectRun={onRejectRun}
+        onAnswerRunInput={onAnswerRunInput}
       />
     )
   }
@@ -44,10 +44,10 @@ export function AgentConversationProjectionContentItemView({
       <AgentProjectedRunActivityBubble
         item={item}
         hiddenActivityActionItemIds={hiddenActivityActionItemIds}
-        approvingLocalRun={approvingLocalRun}
-        onApproveLocalRun={onApproveLocalRun}
-        onRejectLocalRun={onRejectLocalRun}
-        onAnswerLocalRunInput={onAnswerLocalRunInput}
+        approvingActiveRun={approvingActiveRun}
+        onApproveRun={onApproveRun}
+        onRejectRun={onRejectRun}
+        onAnswerRunInput={onAnswerRunInput}
       />
     )
   }
@@ -55,10 +55,10 @@ export function AgentConversationProjectionContentItemView({
     return (
       <AgentProjectedRunInteractionBubble
         item={item}
-        approvingLocalRun={approvingLocalRun}
-        onApproveLocalRun={onApproveLocalRun}
-        onRejectLocalRun={onRejectLocalRun}
-        onAnswerLocalRunInput={onAnswerLocalRunInput}
+        approvingActiveRun={approvingActiveRun}
+        onApproveRun={onApproveRun}
+        onRejectRun={onRejectRun}
+        onAnswerRunInput={onAnswerRunInput}
       />
     )
   }

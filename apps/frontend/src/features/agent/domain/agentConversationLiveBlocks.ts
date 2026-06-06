@@ -1,4 +1,4 @@
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 

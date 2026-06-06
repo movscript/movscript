@@ -36,31 +36,32 @@ test('production workspace review applies accepted changes over the current snap
   assert.equal(existsSync(resolve('src/features/production/application/productionOrchestrationLaunchController.ts')), false)
   assert.match(source, /useProductionOrchestrationReviewController\(\{/)
   assert.match(orchestrationReviewControllerSource, /buildWorkspaceReviewSegments\(workspacePreviewWorkspace\.workspace\.segments, currentProductionSnapshot\)/)
-  assert.match(orchestrationReviewControllerSource, /parseProductionWorkspaceWorkspace\(workspace\)/)
-  assert.match(orchestrationReviewControllerSource, /localAgentClient\.getWorkspace/)
+  assert.match(orchestrationReviewControllerSource, /parseProductionWorkspaceArtifact\(workspace\)/)
+  assert.match(orchestrationReviewControllerSource, /providerSessionClient\.getWorkspaceArtifact/)
   assert.doesNotMatch(source, /openWorkspacePatchDialog/)
   assert.match(source, /<Dialog open=\{reviewOpen\}/)
-  assert.match(source, /工作区 Patch/)
+  assert.match(source, /工作区草案/)
   assert.doesNotMatch(source, /buildProductionWorkspaceWorkspaceWorkspaceData/)
   assert.doesNotMatch(source, /updateProductionWorkspaceWorkspaceText/)
   assert.doesNotMatch(source, /workspaceModeActive/)
   assert.doesNotMatch(source, /workspaceSegments/)
   assert.doesNotMatch(source, /canDeleteFallbackContentUnits=\{workspaceModeActive\}/)
   assert.doesNotMatch(source, /正式项目当前只读/)
-  assert.doesNotMatch(source, /localAgentClient\.updateWorkspace/)
+  assert.doesNotMatch(source, /providerSessionClient\.updateWorkspace\(/)
   assert.doesNotMatch(source, /Agent 调整工作区/)
   assert.doesNotMatch(source, /workspaceRevisionInstruction/)
-  assert.doesNotMatch(source, /Agent 会读取并编辑当前 production workspace workspace 文件/)
+  assert.match(source, /Agent 会读取并编辑当前 production workspace 草案/)
   assert.match(source, /<ProductionWorkspaceReviewPanel/)
   assert.match(controlsSource, /<ReviewWorkspaceFooterActions/)
   assert.match(reviewUiSource, /应用工作区到项目/)
   assert.match(panelSource, /useProductionWorkspaceReviewController\(/)
+  assert.match(panelSource, /workspaceArtifact: ProductionWorkspaceArtifactContent/)
   assert.match(controllerSource, /return buildMergedProductionWorkspace\(currentSnapshot, segments, nodeDecisions\)/)
   assert.match(controllerSource, /previewProductionWorkspaceApply\(projectId/)
   assert.match(controllerSource, /applyProductionWorkspace\(projectId/)
 })
 
-test('production workspace workspace seed metadata records source versions and script brief', () => {
+test('production workspace artifact seed metadata records source versions and script brief', () => {
   const seed = buildProductionWorkspaceSeedMetadata({
     projectId: 7,
     production: {

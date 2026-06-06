@@ -9,7 +9,6 @@ import { ReviewCallout } from "../../review";
 import {
   Badge,
   Button,
-  CheckboxField,
   Input,
   Label,
   NativeSelect,
@@ -339,10 +338,6 @@ export function AgentConsoleTestResult({
   tone: SemanticTone;
 }) {
   return <AgentConsoleToneText tone={tone} className={cn("agent-console-test-result", className)} {...props} />;
-}
-
-export function AgentConsoleEnableCheckbox(props: ComponentProps<typeof CheckboxField>) {
-  return <CheckboxField controlSize="sm" {...props} />;
 }
 
 export function AgentConsoleFormField({

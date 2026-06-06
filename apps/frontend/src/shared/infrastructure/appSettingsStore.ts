@@ -17,6 +17,7 @@ interface AppSettingsStore {
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
   setWorkMode: (workMode: AppSettings['workMode']) => void
   setAPIBaseURL: (apiBaseURL: string) => void
+  setMovScriptWorkspaceDir: (workspaceDir: string) => void
   setShotLibrarySources: (sources: ShotLibrarySourceConfig[], defaultSourceId?: string) => void
   reset: () => void
 }
@@ -38,6 +39,7 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
     launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
     workMode: settings?.workMode === 'agent' ? 'agent' : 'detail',
     onboardingCompleted: settings?.onboardingCompleted ?? defaultSettings.onboardingCompleted,
+    movScriptWorkspaceDir: settings?.movScriptWorkspaceDir?.trim() || undefined,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
     apiBaseURL,
     shotLibrarySources,
@@ -141,6 +143,11 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       },
       setAPIBaseURL: (apiBaseURL) => {
         const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, apiBaseURL })
+        set({ settings: next, savedAt: new Date().toISOString() })
+        syncElectronSettings(next)
+      },
+      setMovScriptWorkspaceDir: (movScriptWorkspaceDir) => {
+        const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, movScriptWorkspaceDir })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },

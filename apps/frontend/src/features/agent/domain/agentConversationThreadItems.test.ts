@@ -7,7 +7,7 @@ import {
 import type { AgentTranscriptMessageItem } from '@/features/agent/domain/agentTranscriptMessageItems'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
-test('buildAgentConversationThreadItems keeps trigger messages outside run groups and nests runtime inputs', () => {
+test('buildAgentConversationThreadItems keeps trigger messages outside run groups and nests active-run inputs', () => {
   const items = buildAgentConversationThreadItems({
     transcriptMessageItems: [
       messageItem({
@@ -16,8 +16,8 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
         content: 'Start work',
         timestamp: 1,
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', deliveryStatus: 'accepted' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
+          providerSessionInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       messageItem({
@@ -26,8 +26,8 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
         content: 'Add this constraint',
         timestamp: 2,
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', deliveryStatus: 'accepted' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1' },
+          providerSessionInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       messageItem({
@@ -35,7 +35,7 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
         role: 'assistant',
         content: 'Done',
         timestamp: 3,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
       }),
     ],
   })
@@ -50,14 +50,14 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
   ])
 })
 
-test('buildAgentConversationThreadItems keeps pending runtime inputs out of the thread until accepted', () => {
+test('buildAgentConversationThreadItems keeps pending active run inputs out of the thread until accepted', () => {
   const messages = [
     messageItem({
       id: 'trigger',
       role: 'user',
       content: 'Start work',
       timestamp: 1,
-      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_trigger', runId: 'run_1' } },
+      meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_trigger', runId: 'run_1' } },
     }),
     messageItem({
       id: 'pending',
@@ -65,7 +65,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs out of the 
       content: 'Add this once the run accepts it',
       timestamp: 2,
       meta: {
-        runtimeInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
+        providerSessionInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
       },
     }),
     messageItem({
@@ -73,7 +73,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs out of the 
       role: 'assistant',
       content: 'Working',
       timestamp: 3,
-      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+      meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
     }),
   ]
   const threadItems = buildAgentConversationThreadItems({
@@ -88,7 +88,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs out of the 
   ])
 })
 
-test('runtime input pending status is treated as accepted once runtime assigns a message id', () => {
+test('active run input pending status is treated as accepted once provider session assigns a message id', () => {
   const messages = [
     messageItem({
       id: 'supplement',
@@ -96,8 +96,8 @@ test('runtime input pending status is treated as accepted once runtime assigns a
       content: 'Use this extra constraint',
       timestamp: 2,
       meta: {
-        runtimeMessage: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1' },
-        runtimeInput: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1', deliveryStatus: 'pending' },
+        providerSessionMessage: { threadId: 'thread_1', messageId: 'provider_session_msg_1', runId: 'run_1' },
+        providerSessionInput: { threadId: 'thread_1', messageId: 'provider_session_msg_1', runId: 'run_1', deliveryStatus: 'pending' },
       },
     }),
   ]
@@ -110,7 +110,7 @@ test('runtime input pending status is treated as accepted once runtime assigns a
     : item.items.map((messageItem) => messageItem.message.id)), ['supplement'])
 })
 
-test('buildAgentConversationThreadItems filters pending local run interaction input answer workspaces', () => {
+test('buildAgentConversationThreadItems filters pending active run interaction input answer workspaces', () => {
   const items = buildAgentConversationThreadItems({
     transcriptMessageItems: [
       messageItem({
@@ -118,7 +118,7 @@ test('buildAgentConversationThreadItems filters pending local run interaction in
         role: 'user',
         content: 'Start work',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' } },
       }),
       messageItem({
         id: 'answer',
@@ -126,7 +126,7 @@ test('buildAgentConversationThreadItems filters pending local run interaction in
         content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
         timestamp: 2,
         meta: {
-          runtimeInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
+          providerSessionInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
         },
       }),
     ],
@@ -137,7 +137,7 @@ test('buildAgentConversationThreadItems filters pending local run interaction in
     : item.items.map((messageItem) => messageItem.message.id)), ['trigger'])
 })
 
-test('buildAgentConversationThreadItems keeps new trigger messages pending until runtime accepts them', () => {
+test('buildAgentConversationThreadItems keeps new trigger messages pending until provider session accepts them', () => {
   const messages = [
     messageItem({
       id: 'local_trigger',
@@ -145,7 +145,7 @@ test('buildAgentConversationThreadItems keeps new trigger messages pending until
       content: 'Start work',
       timestamp: 1,
       meta: {
-        runtimeInput: { deliveryStatus: 'pending' },
+        providerSessionInput: { deliveryStatus: 'pending' },
       },
     }),
   ]

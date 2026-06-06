@@ -1,5 +1,5 @@
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export type AgentConversationProjectionContentItem =

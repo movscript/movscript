@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type SetStateAction } from 'react'
-import { liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunRuntimeTraceEvent } from '@/features/agent/domain/agentRunActivity'
+import { liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunProviderSessionTraceEvent } from '@/features/agent/domain/agentRunActivity'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
+import type { ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function mergeVisibleActivityEvents(liveTraceEvents: ChatRunActivityEvent[], pendingHttpEvents: ChatRunActivityEvent[]): ChatRunActivityEvent[] {
@@ -38,8 +38,8 @@ export function useAgentLiveRunActivity() {
 
   const visibleActivityEvents = useMemo(() => mergeVisibleActivityEvents(liveTraceEvents, pendingHttpEvents), [liveTraceEvents, pendingHttpEvents])
 
-  const recordLiveTraceEvent = useCallback((event: AgentRuntimeEventV2) => {
-    const projected = projectLiveRunRuntimeTraceEvent(event)
+  const recordLiveTraceEvent = useCallback((event: ProviderSessionEventV2) => {
+    const projected = projectLiveRunProviderSessionTraceEvent(event)
     if (!projected) return
     if (projected.pendingAssistantState !== undefined) {
       const nextPendingAssistantState = projected.pendingAssistantState

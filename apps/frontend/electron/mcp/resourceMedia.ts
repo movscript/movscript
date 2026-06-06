@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { AGENT_WORKSPACE_DIR_NAME } from '@movscript/agent-runtime'
+import { ensureMovScriptWorkspaceRoot, resolveMovScriptWorkspaceRootPaths } from '@movscript/workspaces/node'
 import { backendGetBinary, backendPostMultipart } from './backendClient'
 import { resolveFFmpegPath } from '../services/videoClip/ffmpegPath'
 
@@ -761,8 +761,10 @@ async function loadUploadInput(args: Record<string, unknown>): Promise<{
 }
 
 async function resolveWorkspaceFilePath(workspaceDir: string | undefined, workspacePath: string): Promise<string> {
-  const rootDir = workspaceDir?.trim() || await resolveDefaultAgentWorkspaceDir()
-  const rootPath = resolve(rootDir, AGENT_WORKSPACE_DIR_NAME)
+  const rootDir = workspaceDir?.trim() || await resolveDefaultMovScriptWorkspaceDir()
+  const workspaceRoot = resolveMovScriptWorkspaceRootPaths(rootDir)
+  ensureMovScriptWorkspaceRoot(workspaceRoot)
+  const rootPath = workspaceRoot.controlDir
   const normalizedRelativePath = workspacePath.replace(/^[/\\]+/, '')
   const absolutePath = resolve(rootPath, normalizedRelativePath)
   const rootRelativePath = relative(rootPath, absolutePath)
@@ -772,9 +774,9 @@ async function resolveWorkspaceFilePath(workspaceDir: string | undefined, worksp
   throw new Error('workspace_path must stay inside the MovScript workspace directory')
 }
 
-async function resolveDefaultAgentWorkspaceDir(): Promise<string> {
-  const { resolveDesktopDefaultAgentWorkspaceDir } = await import('../services/agentRuntime/sessionTransport')
-  return resolveDesktopDefaultAgentWorkspaceDir()
+async function resolveDefaultMovScriptWorkspaceDir(): Promise<string> {
+  const { resolveDesktopDefaultMovScriptWorkspaceDir } = await import('../services/movscriptWorkspaceDefaults')
+  return resolveDesktopDefaultMovScriptWorkspaceDir()
 }
 
 function uploadFilename(args: Record<string, unknown>, mimeType: string, sourceFilename?: string): string {

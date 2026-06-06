@@ -31,7 +31,7 @@ export default function PluginToolPage() {
                     {t('plugins.title')}
                   </p>
                   <PluginToolStateMessage>
-                    Frontend only manages agent plugin files. Plugin execution and embedding are disabled here.
+                    {t('plugins.toolDisabledDescription')}
                   </PluginToolStateMessage>
                 </PluginToolInfoCopy>
               </PluginToolInfoHeader>

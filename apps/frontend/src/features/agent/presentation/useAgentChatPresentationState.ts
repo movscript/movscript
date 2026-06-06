@@ -2,29 +2,29 @@ import { useAgentActivePlanSnapshot } from '@/features/agent/presentation/useAge
 import { useAgentChatDerivedState, type UseAgentChatDerivedStateOptions } from '@/features/agent/presentation/useAgentChatDerivedState'
 import { useAgentConversationAutoScroll } from '@/features/agent/presentation/useAgentConversationAutoScroll'
 import { projectionItemsScrollKey } from '@/features/agent/presentation/agentConversationProjectionScrollKey'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 interface UseAgentChatPresentationStateInput extends Omit<UseAgentChatDerivedStateOptions, 'activePlanSnapshot' | 'run'> {
   activeRun: AgentRun | null
   conversationId: string
-  localRuntimeEnabled: boolean
-  localAgentOnline: boolean
-  localSessionId?: string
+  providerSessionEnabled: boolean
+  providerSessionOnline: boolean
+  providerSessionId?: string
 }
 
 export function useAgentChatPresentationState({
   activeRun,
   conversationId,
-  localRuntimeEnabled,
-  localAgentOnline,
-  localSessionId,
+  providerSessionEnabled,
+  providerSessionOnline,
+  providerSessionId,
   ...derivedInput
 }: UseAgentChatPresentationStateInput) {
   const { data: activePlanSnapshot, refetch: refetchActivePlanSnapshot } = useAgentActivePlanSnapshot({
     activeRun,
-    localRuntimeEnabled,
-    localAgentOnline,
-    sessionId: localSessionId,
+    providerSessionEnabled,
+    providerSessionOnline,
+    sessionId: providerSessionId,
   })
 
   const derived = useAgentChatDerivedState({
@@ -33,7 +33,7 @@ export function useAgentChatPresentationState({
     run: activeRun,
   })
   const conversationProjectionScrollKey = projectionItemsScrollKey(derived.conversationProjection.items)
-  const pendingRuntimeInputQueueKey = derived.pendingRuntimeInputQueue
+  const pendingActiveRunInputQueueKey = derived.pendingActiveRunInputQueue
     .map((item) => `${item.id}:${item.timestamp}:${item.content.length}`)
     .join('|')
 
@@ -41,7 +41,7 @@ export function useAgentChatPresentationState({
     conversationId,
     conversationProjectionScrollKey,
     generationProgressKey: derived.generationProgressKey,
-    pendingRuntimeInputQueueKey,
+    pendingActiveRunInputQueueKey,
   })
 
   return {

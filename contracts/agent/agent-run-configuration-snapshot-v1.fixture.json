@@ -6,7 +6,7 @@
     "version": "2026.05.18"
   },
   "activeConfigFileId": "movscript.config_file.base",
-  "runtimeLimits": {
+  "providerSessionLimits": {
     "approvalMode": "interactive",
     "sandboxMode": false,
     "maxToolCalls": 20,
@@ -19,7 +19,7 @@
       "allowForcedToolCalls": false
     }
   },
-  "activeAgentManifest": {
+  "activeProviderManifest": {
     "schema": "movscript.agent.current",
     "id": "movscript.config_file.base",
     "version": "1.0.0",
@@ -38,7 +38,7 @@
     ],
     "skills": [
       {
-        "id": "core.rules.runtime",
+        "id": "core.policy.safety",
         "enabled": true
       },
       {
@@ -81,7 +81,7 @@
       "name": "Base",
       "description": "Base runtime configuration.",
       "enabledPackIds": ["core.pack.base", "generation.pack.visual"],
-      "skillIds": ["core.rules.runtime", "generation.visual_execution"],
+      "skillIds": ["core.policy.safety", "generation.visual_execution"],
       "approvalDefaults": {
         "write": "on_write",
         "destructive": "always"
@@ -134,7 +134,7 @@
       "source": "builtin",
       "schemas": [],
       "tools": ["core_file_read", "core_file_edit"],
-      "skills": ["core.rules.runtime"],
+      "skills": ["core.policy.safety"],
       "reference": [],
       "requires": {
         "tools": {
@@ -156,7 +156,7 @@
   ],
   "skills": [
     {
-      "id": "core.rules.runtime",
+      "id": "core.policy.safety",
       "name": "Runtime Rules",
       "description": "Runtime boundary and instruction hygiene.",
       "version": "1.0.0",
@@ -192,9 +192,8 @@
           "any": ["image", "video", "visual generation"]
         }
       ],
-      "dependencies": ["core.rules.runtime"],
+      "dependencies": ["core.policy.safety"],
       "conflicts": [],
-      "toolGrants": ["generation_model_list"],
       "toolGrants": ["generation_model_list"],
       "schemaRefs": [],
       "metadata": {
@@ -239,24 +238,17 @@
         "resultRefStrategy": "summary_ref"
       },
       "projectScoped": false,
-      "requiresSkills": ["core.rules.runtime"]
+      "requiresSkills": ["core.policy.safety"]
     }
   ],
   "pluginCatalog": {
-    "skillsDir": "/agent/catalog/skills",
-    "toolsDir": "/agent/catalog/tools",
+    "skillsDir": ".movscript/providers/mova/catalog/skills",
+    "toolsDir": ".movscript/providers/mova/catalog/tools",
     "skillCount": 2,
     "toolCount": 2,
     "metadata": {
       "catalogVersion": "catalog_snapshot_20260518"
-    },
-    "packPlugins": [
-      {
-        "pluginId": "generation-tools",
-        "source": "plugin",
-        "packIds": ["generation.pack.visual"]
-      }
-    ]
+    }
   },
   "warnings": []
 }

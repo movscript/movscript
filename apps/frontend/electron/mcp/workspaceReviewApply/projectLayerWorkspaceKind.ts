@@ -1,6 +1,6 @@
-import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
+import type { MovScriptWorkspaceKind } from '../../../src/shared/contracts/movscriptWorkspace'
 
-export function inferProjectLayerWorkspaceWorkspaceKind(payload: Record<string, unknown>, kind: AgentWorkspaceKind): AgentWorkspaceKind {
+export function inferProjectLayerWorkspaceKind(payload: Record<string, unknown>, kind: MovScriptWorkspaceKind): MovScriptWorkspaceKind {
   if (kind === 'setting_workspace' || kind === 'asset_workspace' || kind === 'project_standards_workspace') return kind
   const schema = typeof payload.schema === 'string' ? payload.schema : ''
   if (schema === 'movscript.setting_workspace.v1') return 'setting_workspace'
@@ -11,7 +11,7 @@ export function inferProjectLayerWorkspaceWorkspaceKind(payload: Record<string, 
   return kind
 }
 
-export function projectLayerWorkspaceRouteSegment(kind: AgentWorkspaceKind): string {
+export function projectLayerWorkspaceRouteSegment(kind: MovScriptWorkspaceKind): string {
   switch (kind) {
   case 'setting_workspace':
     return 'setting-workspaces'

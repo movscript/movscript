@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AgentBody,
@@ -11,7 +12,7 @@ import {
   AgentThreadFill,
 } from '@movscript/ui'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
-import { AgentProviderControls } from '@/features/agent/components/AgentProviderControls'
+import { ProviderControls } from '@/features/agent/components/ProviderControls'
 import { AgentChatRecentCapabilityEventCard } from '@/features/agent/components/agent-chat-events/AgentChatRecentCapabilityEventCard'
 import { AgentChatServerRequestCard } from '@/features/agent/components/agent-chat-items/AgentChatServerRequestCard'
 import { AgentChatThreadItemView } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemView'
@@ -26,8 +27,15 @@ import {
   visibleAgentChatPendingServerRequests,
 } from '@/features/agent/domain/agentChatPendingServerRequests'
 import {
+  AGENT_PANEL_WORKSPACE_EVENT,
   AGENT_PANEL_NEW_CONVERSATION_EVENT,
+  AGENT_PANEL_THREAD_EVENT,
+  consumeAgentPanelWorkspace,
   consumeAgentPanelNewConversation,
+  consumeAgentPanelThread,
+  notifyAgentPanelRunSettled,
+  type AgentPanelThreadPayload,
+  type AgentPanelWorkspacePayload,
   type AgentPanelNewConversationPayload,
 } from '@/features/agent/application/agentPanelBridge'
 import {
@@ -65,6 +73,12 @@ import {
 import { useAgentComposerController } from '@/features/agent/presentation/useAgentComposerController'
 import { useAgentMentionEditorSync } from '@/features/agent/presentation/useAgentMentionEditorSync'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
+  agentRunProfilePresetById,
+  type AgentRunProfilePresetId,
+  type AgentRunProfileSelection,
+} from '@/features/agent/domain/agentRunProfilePreset'
 import { api } from '@/shared/infrastructure/api'
 import type { RawResource } from '@/types'
 
@@ -83,6 +97,7 @@ export interface AgentChatDataSourceShellLoadResult {
 export interface AgentChatDataSourceShellProps {
   userId: string
   loadDataSource: () => Promise<AgentChatDataSourceShellLoadResult>
+  loadDataSourceForNewThread?: (input: AgentPanelNewConversationPayload) => Promise<AgentChatDataSourceShellLoadResult>
   activeThreadStorageKey: string
   openThreadEventName: string
   providerLabel: string
@@ -103,6 +118,7 @@ export interface AgentChatDataSourceShellProps {
 export function AgentChatDataSourceShell({
   userId,
   loadDataSource,
+  loadDataSourceForNewThread,
   activeThreadStorageKey,
   openThreadEventName,
   providerLabel,
@@ -275,12 +291,44 @@ export function AgentChatDataSourceShell({
     return () => window.removeEventListener(openThreadEventName, handleOpenThread)
   }, [openThread, openThreadEventName])
 
-  const startThread = useCallback(async (input: AgentPanelNewConversationPayload = {}) => {
+  useEffect(() => {
+    if (!dataSource) return undefined
+
+    function openFromPayload(payload: AgentPanelThreadPayload | undefined) {
+      const threadId = payload?.threadId?.trim()
+      if (!threadId) return
+      void openThread(threadId)
+    }
+
+    for (let payload = consumeAgentPanelThread(); payload; payload = consumeAgentPanelThread()) {
+      openFromPayload(payload)
+    }
+
+    function handlePanelThreadOpen(event: Event) {
+      const detail = (event as CustomEvent<AgentPanelThreadPayload>).detail
+      openFromPayload(consumeAgentPanelThread() ?? detail)
+    }
+
+    window.addEventListener(AGENT_PANEL_THREAD_EVENT, handlePanelThreadOpen)
+    return () => window.removeEventListener(AGENT_PANEL_THREAD_EVENT, handlePanelThreadOpen)
+  }, [dataSource, openThread])
+
+  const startThread = useCallback(async (input: AgentPanelNewConversationPayload & { runProfile?: AgentRunProfileSelection } = {}) => {
     if (!dataSource) return null
     setError(null)
     try {
-      const thread = await dataSource.startThread({
-        ...input,
+      let nextDataSource = dataSource
+      if (input.workspaceContext && loadDataSourceForNewThread) {
+        const result = await loadDataSourceForNewThread(input)
+        if (result.dataSource) {
+          nextDataSource = result.dataSource
+          setDataSource(result.dataSource)
+          setEndpoint(result.endpoint)
+        }
+      }
+      const { workspaceContext: _workspaceContext, ...threadInput } = input
+      const thread = await nextDataSource.startThread({
+        ...threadInput,
         ...resolveModelForRequest(),
       })
       upsertThread(thread)
@@ -292,9 +340,63 @@ export function AgentChatDataSourceShell({
       setError(errorMessage(nextError))
       return null
     }
-  }, [activeThreadStorageKey, dataSource, markThreadOpen, resolveModelForRequest, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, dataSource, loadDataSourceForNewThread, markThreadOpen, resolveModelForRequest, setActiveThreadIdValue, upsertThread])
+
+  const startWorkspaceTask = useCallback(async (payload: AgentPanelWorkspacePayload) => {
+    if (!dataSource) return
+    const normalizedTitle = payload.title?.trim()
+    const thread = await startThread({
+      ...(normalizedTitle ? { title: normalizedTitle } : {}),
+      ...(typeof payload.projectId === 'number' ? { projectId: payload.projectId } : {}),
+    })
+    if (!thread) return
+    try {
+      const turn = payload.autoSend && payload.message.trim()
+        ? await dataSource.startTextTurn({
+            threadId: thread.id,
+            text: payload.message,
+            ...resolveModelForRequest(),
+          })
+        : undefined
+      if (payload.requestId) {
+        notifyAgentPanelRunSettled({
+          requestId: payload.requestId,
+          status: 'completed',
+          thread: {
+            id: thread.id,
+            sessionId: thread.sessionId,
+          },
+          ...(turn ? {
+            run: {
+              id: turn.id,
+              threadId: thread.id,
+              sessionId: thread.sessionId,
+              status: turn.status,
+              error: turn.error?.message ?? null,
+            },
+          } : {}),
+        })
+      }
+    } catch (nextError) {
+      if (payload.requestId) {
+        notifyAgentPanelRunSettled({
+          requestId: payload.requestId,
+          status: 'error',
+          thread: {
+            id: thread.id,
+            sessionId: thread.sessionId,
+          },
+          error: errorMessage(nextError),
+        })
+      }
+      throw nextError
+    }
+  }, [dataSource, resolveModelForRequest, startThread])
 
   const handleServerRequest = useCallback((request: AgentChatServerRequest) => {
+    if (request.method === 'attestation/generate') {
+      return agentChatServerRequestResponseForAction(request, { type: 'reject' })
+    }
     const requestThreadId = agentChatThreadIdForServerRequest(activeThreadIdRef.current, request)
     if (requestThreadId) {
       setActiveThreadIdValue(requestThreadId)
@@ -364,6 +466,7 @@ export function AgentChatDataSourceShell({
       void startThread({
         ...(payload?.title?.trim() ? { title: payload.title.trim() } : {}),
         ...(typeof payload?.projectId === 'number' ? { projectId: payload.projectId } : {}),
+        ...(payload?.workspaceContext ? { workspaceContext: payload.workspaceContext } : {}),
       })
     }
 
@@ -379,6 +482,27 @@ export function AgentChatDataSourceShell({
     window.addEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
     return () => window.removeEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
   }, [dataSource, startThread])
+
+  useEffect(() => {
+    if (!dataSource) return undefined
+
+    function startFromPayload(payload: AgentPanelWorkspacePayload | undefined) {
+      if (!payload) return
+      void startWorkspaceTask(payload).catch((nextError) => setError(errorMessage(nextError)))
+    }
+
+    for (let payload = consumeAgentPanelWorkspace(); payload; payload = consumeAgentPanelWorkspace()) {
+      startFromPayload(payload)
+    }
+
+    function handleWorkspace(event: Event) {
+      const detail = (event as CustomEvent<AgentPanelWorkspacePayload>).detail
+      startFromPayload(consumeAgentPanelWorkspace() ?? detail)
+    }
+
+    window.addEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
+    return () => window.removeEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
+  }, [dataSource, startWorkspaceTask])
 
   useEffect(() => {
     void loadThreads()
@@ -417,12 +541,13 @@ export function AgentChatDataSourceShell({
   const visiblePendingServerRequests = useMemo(() => (
     visibleAgentChatPendingServerRequests(pendingServerRequests, activeThreadId)
   ), [activeThreadId, pendingServerRequests])
+  const hasComposerActionLayer = visiblePendingServerRequests.length > 0
   const hasThreadBodyContent = Boolean(
     visibleItems.length
-    || visiblePendingServerRequests.length
     || recentCapabilityEvents.length
     || error,
   )
+  const hasChatContent = hasThreadBodyContent || hasComposerActionLayer
 
   useEffect(() => {
     if (!dataSource || !activeThreadId || activeThread || visiblePendingServerRequests.length === 0) return
@@ -444,20 +569,29 @@ export function AgentChatDataSourceShell({
   const shellClassName = surface === 'page'
     ? 'ai-agent-panel-shell agent-page-chat-shell project-agent-chat-shell'
     : 'ai-agent-panel-shell'
-  const sendMessage = useCallback(async () => {
+  const sendMessage = useCallback(async (profilePresetId: AgentRunProfilePresetId = DEFAULT_AGENT_RUN_PROFILE_PRESET_ID) => {
     if (!dataSource || sending) return
+    const runProfile = agentRunProfilePresetById(profilePresetId)
     const text = composer.input.trim()
     const inputs = agentChatInputsFromTextAndAttachments(text, composer.composerAttachments)
     if (inputs.length === 0) return
     const previousWorkspace = {
       input: composer.input,
       attachments: composer.attachments,
+      workspaceContext: composer.selectedWorkspaceContext,
     }
     let restoreConversationId = composerConversationId
     setSending(true)
     setError(null)
     try {
-      const thread = activeThread ?? await startThread()
+      const selectedWorkspaceProjectId = typeof composer.selectedWorkspaceContext.projectId === 'number'
+        ? composer.selectedWorkspaceContext.projectId
+        : undefined
+      const thread = activeThread ?? await startThread({
+        runProfile,
+        workspaceContext: composer.selectedWorkspaceContext,
+        ...(selectedWorkspaceProjectId !== undefined ? { projectId: selectedWorkspaceProjectId } : {}),
+      })
       if (!thread) return
       restoreConversationId = agentChatComposerConversationId(activeThreadStorageKey, thread.id)
       useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, { input: '', attachments: [] })
@@ -488,6 +622,7 @@ export function AgentChatDataSourceShell({
           threadId: thread.id,
           clientUserMessageId,
           inputs,
+          runProfile,
           ...resolveModelForRequest(),
         })
       } else {
@@ -495,6 +630,7 @@ export function AgentChatDataSourceShell({
           threadId: thread.id,
           clientUserMessageId,
           text,
+          runProfile,
           ...resolveModelForRequest(),
         })
       }
@@ -575,7 +711,7 @@ export function AgentChatDataSourceShell({
     id: thread.id,
     title: thread.name || thread.preview || 'Untitled thread',
     messageCount: thread.turns.reduce((count, turn) => count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length, 0),
-    runtimeState: agentChatThreadRuntimeState(thread),
+    sessionState: agentChatThreadProviderSessionState(thread),
     ...(dataSource?.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
   })), [dataSource?.renameThread, renameThread, threads])
 
@@ -591,7 +727,7 @@ export function AgentChatDataSourceShell({
     )
   }
 
-  const listPanel = showThreadList && !activeThread && !hasThreadBodyContent ? (
+  const listPanel = showThreadList && !activeThread && !hasChatContent ? (
     <AgentConversationListPanel
       conversations={threads.map((thread) => ({
         id: thread.id,
@@ -602,14 +738,14 @@ export function AgentChatDataSourceShell({
         ...(dataSource.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
         ...(dataSource.archiveThread ? { onArchive: () => void archiveThread(thread.id) } : {}),
       }))}
-      localThreads={[]}
+      providerSessionThreads={[]}
       onNew={() => void startThread()}
       onCollapse={onCollapse}
-      onRefreshLocalThreads={() => void loadThreads()}
+      onRefreshProviderSessionThreads={() => void loadThreads()}
       showCollapse={showCollapse}
       emptyLabel={loading ? 'Loading' : emptyThreadListLabel}
-      localRuntimeLabel={threadListLabel}
-      localRuntimeThreadsEmptyLabel={emptyThreadListLabel}
+      providerSessionThreadsLabel={threadListLabel}
+      providerSessionThreadsEmptyLabel={emptyThreadListLabel}
       newConversationLabel={newThreadLabel}
       collapseAssistantLabel="Collapse assistant"
       archiveConversationLabel="Archive conversation"
@@ -624,7 +760,7 @@ export function AgentChatDataSourceShell({
       {listPanel ?? (
         <AgentMain className={surface === 'page' ? 'agent-page-chat-main' : 'ai-agent-panel-main'} data-agent-chat-host={resolvedHost}>
           {surface === 'panel' ? (
-            <section className="ai-agent-panel-content-card" data-empty-conversation={!hasThreadBodyContent ? 'true' : undefined}>
+            <section className="ai-agent-panel-content-card" data-empty-conversation={!hasChatContent ? 'true' : undefined}>
               <AgentHeader className="ai-agent-panel-chat-header">
                 <div className="ai-agent-panel-chat-toolbar">
                   <div className="ai-agent-panel-chat-toolbar-tabs">
@@ -633,7 +769,7 @@ export function AgentChatDataSourceShell({
                         activeConversationId={activeThreadId}
                         conversations={threadTabs}
                         endAccessory={(
-                          <AgentProviderControls
+                          <ProviderControls
                             historyOpen={false}
                             onNewConversation={() => void startThread()}
                             onToggleHistory={showThreadHistory}
@@ -659,16 +795,14 @@ export function AgentChatDataSourceShell({
               <AgentChatDataSourceThreadBody
                 emptyThreadLabel={emptyThreadLabel}
                 error={error}
-                pendingServerRequests={visiblePendingServerRequests}
                 recentCapabilityEvents={recentCapabilityEvents}
-                onResolveServerRequest={resolveServerRequest}
                 scrollRef={scrollRef}
                 visibleItems={visibleItems}
               />
             </section>
           ) : (
-            <section className={`agent-page-chat-thread-shell${!hasThreadBodyContent ? ' agent-page-chat-thread-shell--empty' : ''}`} aria-label={composerPlaceholder}>
-              {!hasThreadBodyContent ? (
+            <section className={`agent-page-chat-thread-shell${!hasChatContent ? ' agent-page-chat-thread-shell--empty' : ''}`} aria-label={composerPlaceholder}>
+              {!hasChatContent ? (
                 <div className="agent-page-chat-empty">
                   <h1 className="agent-page-chat-empty-title">{emptyThreadLabel}</h1>
                 </div>
@@ -677,9 +811,7 @@ export function AgentChatDataSourceShell({
                   <AgentChatDataSourceThreadBody
                     emptyThreadLabel={emptyThreadLabel}
                     error={error}
-                    pendingServerRequests={visiblePendingServerRequests}
                     recentCapabilityEvents={recentCapabilityEvents}
-                    onResolveServerRequest={resolveServerRequest}
                     scrollRef={scrollRef}
                     visibleItems={visibleItems}
                   />
@@ -687,14 +819,18 @@ export function AgentChatDataSourceShell({
               )}
             </section>
           )}
-          <div className={surface === 'page' ? 'agent-page-chat-composer' : undefined}>
+          <div className={surface === 'page' ? 'agent-page-chat-composer relative z-30' : 'relative z-30'}>
+            <AgentComposerActionLayer
+              pendingServerRequests={visiblePendingServerRequests}
+              onResolveServerRequest={resolveServerRequest}
+            />
             <AgentComposerSection
               answeringPendingInput={false}
               addMentionTrigger={composer.addMentionTrigger}
               buildingSendWorkspace={false}
               canSend={canSend}
               canAnswerPendingInputWithText={false}
-              canStopLocalRun={canStopActiveTurn}
+              canStopActiveRun={canStopActiveTurn}
               chrome={surface === 'page' ? 'flush' : 'bottom-bar'}
               composerAttachmentEntries={composer.composerAttachmentEntries}
               composerAttachmentsCount={composer.composerAttachments.length}
@@ -706,11 +842,17 @@ export function AgentChatDataSourceShell({
               loading={sending}
               mentionRangeActive={!!composer.mentionRange}
               mentionResults={composer.mentionResults}
-              pendingRuntimeInputQueue={[]}
-              stoppingLocalRun={stoppingTurn}
+              pendingActiveRunInputQueue={[]}
+              stoppingActiveRun={stoppingTurn}
               uploadedFileCount={composer.uploadedFileCount}
               uploading={composer.uploading}
               uploadingFileNames={composer.uploadingFileNames}
+              workspaceProjectOptions={composer.workspaceProjectOptions}
+              workspaceProjectValue={composer.workspaceProjectValue}
+              workspaceProjectsLoading={composer.workspaceProjectsLoading}
+              workspaceProductionOptions={composer.workspaceProductionOptions}
+              workspaceProductionValue={composer.workspaceProductionValue}
+              workspaceProductionsLoading={composer.workspaceProductionsLoading}
               onAcceptMention={() => {
                 if (composer.mentionRange && composer.mentionResults.length > 0) {
                   composer.insertResourceMention(composer.mentionResults[0])
@@ -729,9 +871,12 @@ export function AgentChatDataSourceShell({
               onMentionSelect={composer.insertResourceMention}
               onMentionState={composer.updateMentionState}
               onRemoveAttachment={composer.removeAttachment}
-              onSend={() => void sendMessage()}
-              onStopLocalRun={() => void stopActiveTurn()}
+              onSend={(profilePresetId) => void sendMessage(profilePresetId)}
+              onStopActiveRun={() => void stopActiveTurn()}
               onUploadFiles={(files) => void composer.uploadFiles(files)}
+              onWorkspaceProjectChange={composer.changeWorkspaceProject}
+              onWorkspaceProductionChange={composer.changeWorkspaceProduction}
+              showApprovalPresetSelector={!activeTurn}
               showAttachmentTools
               showDebugPreview={false}
               showMentionTools
@@ -765,17 +910,13 @@ function isAgentChatThread(value: unknown): value is AgentChatThread {
 function AgentChatDataSourceThreadBody({
   emptyThreadLabel,
   error,
-  pendingServerRequests,
   recentCapabilityEvents,
-  onResolveServerRequest,
   scrollRef,
   visibleItems,
 }: {
   emptyThreadLabel: string
   error: string | null
-  pendingServerRequests: PendingServerRequest[]
   recentCapabilityEvents: RecentCapabilityEvent[]
-  onResolveServerRequest: (request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => void
   scrollRef: { current: HTMLDivElement | null }
   visibleItems: Array<{ viewId: string; item: AgentChatThreadItem; streaming: boolean }>
 }) {
@@ -784,24 +925,6 @@ function AgentChatDataSourceThreadBody({
       <AgentThreadFill ref={(node) => { scrollRef.current = node }} className="px-4 py-5">
         {error ? (
           <div className="mb-3 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
-        ) : null}
-        {pendingServerRequests.length > 0 ? (
-          <div className="mb-3 space-y-2">
-            {pendingServerRequests.map((entry) => (
-              <AgentChatServerRequestCard
-                key={agentChatPendingServerRequestEntryKey(entry)}
-                request={entry.request}
-                onApprove={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approve' }))}
-                onApproveForSession={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveForSession' }))}
-                onApproveWithExecPolicyAmendment={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveWithExecPolicyAmendment' }))}
-                onApproveWithNetworkPolicyAmendment={(amendmentIndex) => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveWithNetworkPolicyAmendment', amendmentIndex }))}
-                onApproveWithStrictAutoReview={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveWithStrictAutoReview' }))}
-                onAnswer={(response) => onResolveServerRequest(entry.request, response)}
-                onCancel={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'cancel' }))}
-                onReject={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'reject' }))}
-              />
-            ))}
-          </div>
         ) : null}
         {recentCapabilityEvents.length > 0 ? (
           <div className="mb-3 space-y-2" data-testid="agent-chat-capability-events">
@@ -823,6 +946,80 @@ function AgentChatDataSourceThreadBody({
       </AgentThreadFill>
     </AgentBody>
   )
+}
+
+function AgentComposerActionLayer({
+  pendingServerRequests,
+  onResolveServerRequest,
+}: {
+  pendingServerRequests: PendingServerRequest[]
+  onResolveServerRequest: (request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => void
+}) {
+  const [page, setPage] = useState(0)
+  const pageCount = pendingServerRequests.length
+  const safePage = clampPage(page, pageCount)
+  const entry = pendingServerRequests[safePage]
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage)
+  }, [page, safePage])
+
+  if (!entry) return null
+  const previousPage = Math.max(0, safePage - 1)
+  const nextPage = Math.min(pageCount - 1, safePage + 1)
+  return (
+    <div
+      className="absolute bottom-full left-0 right-0 z-40 mb-2 max-h-[min(56vh,520px)] overflow-y-auto overscroll-contain px-2"
+      data-testid="agent-composer-action-layer"
+      aria-live="polite"
+    >
+      <div className="rounded-md border border-border bg-background/95 p-2 shadow-xl backdrop-blur">
+        {pageCount > 1 ? (
+          <div className="mb-2 flex items-center justify-end gap-1 px-1">
+            <button
+              type="button"
+              className="ms-agent-run-interaction-pager__button"
+              disabled={safePage <= 0}
+              onClick={() => setPage(previousPage)}
+              aria-label="Previous tool request"
+              title="Previous tool request"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <span className="ms-agent-run-interaction-pager__count">{safePage + 1}/{pageCount}</span>
+            <button
+              type="button"
+              className="ms-agent-run-interaction-pager__button"
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage(nextPage)}
+              aria-label="Next tool request"
+              title="Next tool request"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        ) : null}
+        <AgentChatServerRequestCard
+          key={agentChatPendingServerRequestEntryKey(entry)}
+          request={entry.request}
+          onApprove={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approve' }))}
+          onApproveForSession={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveForSession' }))}
+          onApproveWithExecPolicyAmendment={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveWithExecPolicyAmendment' }))}
+          onApproveWithNetworkPolicyAmendment={(amendmentIndex) => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveWithNetworkPolicyAmendment', amendmentIndex }))}
+          onApproveWithStrictAutoReview={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'approveWithStrictAutoReview' }))}
+          onAnswer={(response) => onResolveServerRequest(entry.request, response)}
+          onCancel={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'cancel' }))}
+          onReject={() => onResolveServerRequest(entry.request, agentChatServerRequestResponseForAction(entry.request, { type: 'reject' }))}
+        />
+      </div>
+    </div>
+  )
+}
+
+function clampPage(page: number, itemCount: number): number {
+  if (itemCount <= 0) return 0
+  if (!Number.isFinite(page)) return 0
+  return Math.min(Math.max(0, Math.floor(page)), itemCount - 1)
 }
 
 export function openAgentChatDataSourceThread(input: {
@@ -855,7 +1052,7 @@ function formatAgentChatTime(value: number | undefined): string {
   return new Date(value * 1000).toLocaleString()
 }
 
-function agentChatThreadRuntimeState(thread: AgentChatThread): 'stopped' | 'waiting' | 'active' {
+function agentChatThreadProviderSessionState(thread: AgentChatThread): 'stopped' | 'waiting' | 'active' {
   if (thread.status === 'running') return 'active'
   if (thread.status === 'failed') return 'waiting'
   return 'stopped'

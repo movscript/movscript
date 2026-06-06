@@ -59,8 +59,8 @@ import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { agentPlanStatusLabel, agentTraceView, inputTypeLabel, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import { localAgentApprovalImpactText, localAgentApprovalPermissionText, localAgentApprovalRiskText } from '@/features/agent/components/localRuntime'
-import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionApprovalImpactText, providerSessionApprovalPermissionText, providerSessionApprovalRiskText } from '@/features/agent/components/providerSessionInteractions'
+import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { agentRunPath } from '@/routes/projectRoutes'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 
@@ -117,9 +117,9 @@ export function AgentPlanOverviewPanel({
   const [traceEventErrors, setTraceEventErrors] = useState<Record<string, string>>({})
   const [traceEventKindFilters, setTraceEventKindFilters] = useState<Record<string, 'all' | AgentTraceEvent['kind']>>({})
   const snapshotSessionId = snapshot?.taskGraph.sessionId?.trim()
-  const runtimeClient = useMemo(() => snapshotSessionId
-    ? localAgentClient.forSession({ sessionId: snapshotSessionId })
-    : localAgentClient,
+  const providerSessionTraceClient = useMemo(() => snapshotSessionId
+    ? providerSessionClient.forSession({ sessionId: snapshotSessionId })
+    : providerSessionClient,
   [snapshotSessionId])
   if (!snapshot) return null
   const taskViews = buildPlanTaskViews(snapshot)
@@ -162,7 +162,7 @@ export function AgentPlanOverviewPanel({
       return next
     })
     try {
-      const summary = await runtimeClient.getRunTraceSummary(runId)
+      const summary = await providerSessionTraceClient.getRunTraceSummary(runId)
       setTraceSummaries((current) => ({ ...current, [runId]: summary }))
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -182,7 +182,7 @@ export function AgentPlanOverviewPanel({
     try {
       const currentEvents = traceEventsByRunId[runId] ?? []
       const cursor = mode === 'more' ? currentEvents.at(-1)?.id : undefined
-      const response = await runtimeClient.getRunTraceEvents(runId, { limit: 8, ...(cursor ? { cursor } : {}) })
+      const response = await providerSessionTraceClient.getRunTraceEvents(runId, { limit: 8, ...(cursor ? { cursor } : {}) })
       setTraceEventsByRunId((current) => ({
         ...current,
         [runId]: mode === 'more' ? [...(current[runId] ?? []), ...response.events] : response.events,
@@ -627,12 +627,12 @@ export function AgentPlanOverviewPanel({
                           <AgentPlanOverviewItemCard key={approval.id}>
                             <AgentPlanOverviewItemHeader>
                               <AgentPlanOverviewItemTitle title={approval.toolName}>{agentToolNameLabel(approval.toolName, t)}</AgentPlanOverviewItemTitle>
-                              {approval.risk && <AgentPlanOverviewMetaText>{t('agents.chat.panel.runtime.risk')}: {localAgentApprovalRiskText(approval.risk, t)}</AgentPlanOverviewMetaText>}
+                              {approval.risk && <AgentPlanOverviewMetaText>{t('agents.chat.panel.providerSession.risk')}: {providerSessionApprovalRiskText(approval.risk, t)}</AgentPlanOverviewMetaText>}
                             </AgentPlanOverviewItemHeader>
                             <AgentPlanOverviewText>{approval.reason}</AgentPlanOverviewText>
-                            {approval.permission && <AgentPlanOverviewText>{t('agents.chat.panel.runtime.permission')}: {localAgentApprovalPermissionText(approval.permission, t)}</AgentPlanOverviewText>}
+                            {approval.permission && <AgentPlanOverviewText>{t('agents.chat.panel.providerSession.permission')}: {providerSessionApprovalPermissionText(approval.permission, t)}</AgentPlanOverviewText>}
                             <AgentPlanOverviewText>
-                              {t('agents.chat.task.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
+                              {t('agents.chat.task.approvalImpact.label')}: {providerSessionApprovalImpactText(approval, t)}
                             </AgentPlanOverviewText>
                           </AgentPlanOverviewItemCard>
                         ))}

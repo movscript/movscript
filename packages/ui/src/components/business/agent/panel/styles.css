@@ -4,4 +4,4 @@
 @import "./shell-layout/styles.css";
 @import "./thread-message/styles.css";
 @import "./context/styles.css";
-@import "./embedded-runtime/styles.css";
+@import "./provider-session/styles.css";

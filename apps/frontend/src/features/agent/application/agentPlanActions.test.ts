@@ -11,7 +11,7 @@ import {
   type AgentPlanActionDeps,
   type PlanDispatchSettings,
 } from '@/features/agent/application/agentPlanActions'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/providerSessionClient'
 
 const settings: PlanDispatchSettings = {
   maxWorkers: 3,
@@ -230,7 +230,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

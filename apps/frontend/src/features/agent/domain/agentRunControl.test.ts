@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createLocalAgentStopAbortError, isStoppableAgentRun, isTerminalAgentRun, stopLocalRunAction, type StopLocalRunActionDeps } from '@/features/agent/domain/agentRunControl'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { createProviderSessionStopAbortError, isStoppableAgentRun, isTerminalAgentRun, stopProviderSessionRunAction, type StopProviderSessionRunActionDeps } from '@/features/agent/domain/agentRunControl'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 test('run status helpers classify stoppable and terminal runs', () => {
   assert.equal(isStoppableAgentRun(makeRun({ status: 'queued' })), true)
@@ -11,18 +11,18 @@ test('run status helpers classify stoppable and terminal runs', () => {
   assert.equal(isTerminalAgentRun(makeRun({ status: 'requires_action' })), false)
 })
 
-test('createLocalAgentStopAbortError creates an abort-shaped error', () => {
-  const error = createLocalAgentStopAbortError()
+test('createProviderSessionStopAbortError creates an abort-shaped error', () => {
+  const error = createProviderSessionStopAbortError()
   assert.equal(error.name, 'AbortError')
   assert.equal(error.message, '用户停止了当前会话。')
 })
 
-test('stopLocalRunAction aborts active send and applies optimistic cancellation', async () => {
+test('stopProviderSessionRunAction aborts active send and applies optimistic cancellation', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.now = () => new Date('2026-05-19T10:00:00.000Z')
 
-  stopLocalRunAction({
+  stopProviderSessionRunAction({
     run: makeRun({ id: 'run_1', status: 'in_progress' }),
     loading: true,
     building: false,
@@ -37,17 +37,17 @@ test('stopLocalRunAction aborts active send and applies optimistic cancellation'
     'pending:null',
     'resetStreaming',
     'setRun:run_1:cancelled:false:false',
-    'runtime:false:false:undefined',
+    'providerSession:false:false:undefined',
     'cancelGeneration',
     'cancel:run_1:用户停止了当前会话。',
-    'runtime:false:false:false',
+    'providerSession:false:false:false',
     'setRun:run_1:cancelled:false:false',
   ])
 })
 
-test('stopLocalRunAction clears transient loading when no cancellable run exists', () => {
+test('stopProviderSessionRunAction clears transient loading when no cancellable run exists', () => {
   const calls: string[] = []
-  stopLocalRunAction({
+  stopProviderSessionRunAction({
     run: null,
     loading: true,
     building: false,
@@ -60,11 +60,11 @@ test('stopLocalRunAction clears transient loading when no cancellable run exists
     'abort',
     'pending:null',
     'resetStreaming',
-    'runtime:false:false:false',
+    'providerSession:false:false:false',
   ])
 })
 
-test('stopLocalRunAction recovers latest run when cancel reports already finished', async () => {
+test('stopProviderSessionRunAction recovers latest run when cancel reports already finished', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.cancelRun = async () => {
@@ -75,7 +75,7 @@ test('stopLocalRunAction recovers latest run when cancel reports already finishe
     return makeRun({ id: 'run_1', status: 'completed' })
   }
 
-  stopLocalRunAction({
+  stopProviderSessionRunAction({
     run: makeRun({ id: 'run_1', status: 'in_progress' }),
     loading: true,
     building: false,
@@ -89,7 +89,7 @@ test('stopLocalRunAction recovers latest run when cancel reports already finishe
   assert.equal(calls.includes('setRun:run_1:completed:false:false'), true)
 })
 
-function depsFixture(calls: string[]): StopLocalRunActionDeps {
+function depsFixture(calls: string[]): StopProviderSessionRunActionDeps {
   return {
     abortActiveSend: () => {
       calls.push('abort')
@@ -103,8 +103,8 @@ function depsFixture(calls: string[]): StopLocalRunActionDeps {
     setConversationRun: (run, patch) => {
       calls.push(`setRun:${run.id}:${run.status}:${patch.loading === true}:${patch.stopping === true}`)
     },
-    setConversationRuntime: (patch) => {
-      calls.push(`runtime:${patch.loading === true}:${patch.stopping === true}:${patch.building}`)
+    setConversationProviderSessionState: (patch) => {
+      calls.push(`providerSession:${patch.loading === true}:${patch.stopping === true}:${patch.building}`)
     },
     cancelGenerationJobIfActive: () => {
       calls.push('cancelGeneration')
@@ -131,7 +131,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

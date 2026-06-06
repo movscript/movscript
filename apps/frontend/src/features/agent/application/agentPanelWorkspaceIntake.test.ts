@@ -20,15 +20,15 @@ test('activateConversationForPanelWorkspace selects the active conversation by d
   ])
 })
 
-test('activateConversationForPanelWorkspace creates a runtime conversation when requested or when none is active', async () => {
+test('activateConversationForPanelWorkspace creates a workspace conversation when requested or when none is active', async () => {
   const calls: string[] = []
   const result = await activateConversationForPanelWorkspace({
     message: 'Hello',
     newConversation: true,
   }, depsFixture(calls, { activeConversationId: 'active_conv' }))
 
-  assert.equal(result, 'runtime_conv_1')
-  assert.deepEqual(calls, ['runtime:Hello:runtime_conv_1', 'active:runtime_conv_1'])
+  assert.equal(result, 'workspace_conv_1')
+  assert.deepEqual(calls, ['workspace:Hello:workspace_conv_1', 'active:workspace_conv_1'])
 })
 
 test('consumeQueuedPanelWorkspaces drains consecutive queued payloads with messages', async () => {
@@ -40,13 +40,13 @@ test('consumeQueuedPanelWorkspaces drains consecutive queued payloads with messa
   ]
   const result = await consumeQueuedPanelWorkspaces(() => queue.shift(), depsFixture(calls, { activeConversationId: null }))
 
-  assert.deepEqual(result, ['runtime_conv_1', 'runtime_conv_2'])
+  assert.deepEqual(result, ['workspace_conv_1', 'workspace_conv_2'])
   assert.deepEqual(calls, [
-    'runtime:One:runtime_conv_1',
-    'active:runtime_conv_1',
-    'runtime:Two:runtime_conv_2',
-    'title:runtime_conv_2:Second',
-    'active:runtime_conv_2',
+    'workspace:One:workspace_conv_1',
+    'active:workspace_conv_1',
+    'workspace:Two:workspace_conv_2',
+    'title:workspace_conv_2:Second',
+    'active:workspace_conv_2',
   ])
 })
 
@@ -59,8 +59,8 @@ function depsFixture(
     userId: 'user_1',
     createConversationForWorkspace: async (payload) => {
       createCount += 1
-      const id = `runtime_conv_${createCount}`
-      calls.push(`runtime:${payload.message}:${id}`)
+      const id = `workspace_conv_${createCount}`
+      calls.push(`workspace:${payload.message}:${id}`)
       return id
     },
     getActiveConversationId: () => options.activeConversationId,

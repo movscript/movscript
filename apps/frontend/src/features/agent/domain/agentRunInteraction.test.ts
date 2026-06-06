@@ -13,7 +13,7 @@ import {
   interactionRunsForChat,
   runInteractionFromActivity,
 } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('optimisticApprovalRun updates targeted pending approvals only', () => {
@@ -58,7 +58,7 @@ test('run interaction echo helpers hide user answer echoes restored from run act
   assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), true)
 })
 
-test('run interaction echo helpers hide accepted runtime input answer echoes', () => {
+test('run interaction echo helpers hide accepted active run input answer echoes', () => {
   const message: ChatMessage = {
     id: 'msg_echo',
     role: 'user',
@@ -88,7 +88,7 @@ test('run interaction echo helpers hide local input answer workspaces before ech
   assert.equal(isRunInteractionAnswerEchoMessage(message, new Set()), true)
 })
 
-test('run interaction echo helpers keep hiding legacy user answer echoes', () => {
+test('run interaction echo helpers keep hiding provider answer compatibility echoes', () => {
   const message: ChatMessage = {
     id: 'msg_echo',
     role: 'user',
@@ -179,7 +179,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

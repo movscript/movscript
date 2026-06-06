@@ -1,46 +1,47 @@
 ---
 name: workspace
-description: Edit frontend-owned MovScript workspace files using the workspace model contract.
+description: Refresh, preview, and apply MovScript workspace projection files or folders by path.
 toolGrants:
-  - mcp__movscript_workspace__get_workspace_model
-  - mcp__movscript_workspace__workspace_file_list
-  - mcp__movscript_workspace__workspace_file_read
-  - mcp__movscript_workspace__workspace_file_write
-  - mcp__movscript_workspace__workspace_file_delete
-  - mcp__movscript_workspace__workspace_review_apply_preview
-  - mcp__movscript_workspace__workspace_review_apply
+  - mcp__movscript_workspace__workspace_update
+  - mcp__movscript_workspace__workspace_apply_review
+  - mcp__movscript_workspace__workspace_apply
 ---
 
 # Workspace
 
-Use this skill when a user asks to create, review, modify, validate, or apply MovScript workspace changes such as project standards, settings, production structure, content units, or asset slots.
+Use this skill when a user asks to refresh, inspect, preview, or submit MovScript workspace projection files or folders.
+
+In MovScript agent workflows, a workspace is a local projection path. The path can point to one projection file or to a folder containing projection files. Projection files include workspace JSON files, `project.json`, `scripts/{scriptId}/script.md`, and the read-only user project index. The agent does not need to decide database entity routes directly; MovScript resolves them from projection metadata.
 
 ## Workflow
 
-1. Call `mcp__movscript_workspace__get_workspace_model` for the requested workspace kind and target before creating or editing content.
-2. Treat the frontend `.movscript` file path returned by the workspace tools as the authoritative editable workspace file.
-3. Read and edit workspace content through `mcp__movscript_workspace__workspace_file_read` / `mcp__movscript_workspace__workspace_file_write`; use `core_file_*` only for non-workspace file refs explicitly provided by the runtime.
-4. Keep review/apply as a UI handoff. Do not call backend entity mutation tools directly from the Agent.
-5. Use `mcp__movscript_workspace__workspace_review_apply_preview` or `mcp__movscript_workspace__workspace_review_apply` only when the UI review flow has already approved the staged workspace review.
+1. Edit local projection files under `.movscript/data` when local file editing is available.
+2. Use `mcp__movscript_workspace__workspace_apply_review` with `path` to preview what applying that file or folder would change in the backend database.
+3. Use `mcp__movscript_workspace__workspace_apply` with the same `path` to submit local projection changes to the backend database.
+4. Use `mcp__movscript_workspace__workspace_update` with `path` only when you intentionally want to refresh from the backend database and overwrite local changes under that file or folder.
 
-## Workspace Kinds
+## Paths
 
-- `project_standards_workspace`: project-wide visual, style, pacing, prompt, and quality rules.
-- `setting_workspace`: project creative references such as characters, places, or setting entities.
-- `production_workspace`: production-level segments and scene moments.
-- `content_unit_workspace`: content-unit slices and their scene moments.
-- `asset_workspace`: asset slots and generation requirements.
+- Omit `path` only when the current task context already clearly maps to a workspace path.
+- When `cwd` is available and points under `.movscript/data`, MovScript treats it as the projection folder for direct file editing.
+- When both `path` and `cwd` are omitted, MovScript uses the current MCP focus project/production to choose the default projection folder.
+- Prefer the narrowest path that contains the intended change.
+- Single-file examples: `data/users/{userId}/projects.index.json`, `data/users/1/projects/12/project.json`, `data/users/1/projects/12/scripts/34/script.md`, `data/users/1/projects/12/settings/setting.workspace.json`.
+- Folder examples: `data/users/{userId}`, `data/users/1/projects/12`, `data/users/1/projects/12/scripts`, `data/users/1/projects/12/productions/7`.
+- Paths are projection paths under `.movscript/data`; do not target `.movscript/sync`, `.movscript/reviews`, `.movscript/providers`, `.movscript/.codex`, or `.movscript/.mova`.
 
 ## Rules
 
-- Keep workspace content as JSON. Do not embed binary media or large resource payloads.
-- Preserve existing backend ids when they are present. Use stable `client_id` values for new rows.
-- Use the model contract field guide and apply boundary to decide which fields may be edited.
-- Treat apply as a frontend/UI boundary where staged workspace edits become durable project changes.
-- Do not bypass workspace tools by editing backend entities directly when a workspace schema exists for the change.
+- Keep projection files as JSON or documented text projections. Do not embed binary media or large resource payloads.
+- Preserve backend ids when present. Use stable `client_id` values for new rows.
+- Always run `workspace_apply_review` before `workspace_apply` unless the user explicitly asks to submit immediately.
+- Treat `workspace_update` as destructive for local edits in the selected path because it refreshes from backend state.
+- Treat `data/users/{userId}/projects.index.json` as a read-only index. Refresh and preview it, but do not apply it back to the backend.
+- Do not edit projection meta, sync records, review records, provider configs, or provider runtime homes as part of normal workspace changes.
+- Do not bypass workspace tools by writing backend entities directly when a projection path exists for the change.
 
 ## Tool Notes
 
-- `mcp__movscript_workspace__get_workspace_model` returns the WorkspaceModel contract, field guide, apply boundary, and optional hydrated initial content.
-- `mcp__movscript_workspace__workspace_file_list`, `mcp__movscript_workspace__workspace_file_read`, `mcp__movscript_workspace__workspace_file_write`, and `mcp__movscript_workspace__workspace_file_delete` are served by the MovScript frontend MCP server and operate under the frontend-owned `.movscript` directory.
-- `mcp__movscript_workspace__workspace_review_apply_preview` previews approved review effects; `mcp__movscript_workspace__workspace_review_apply` commits only through the approved review boundary.
+- `mcp__movscript_workspace__workspace_update` with `path` refreshes the local projection file or folder from the backend database and clears local dirty state. A project folder refreshes `project.json`, project-level workspace JSON files, and script markdown projections.
+- `mcp__movscript_workspace__workspace_apply_review` with `path` reads local projection files and previews backend effects without writing backend state.
+- `mcp__movscript_workspace__workspace_apply` with `path` reads local projection files and submits supported writable projections to the backend database.

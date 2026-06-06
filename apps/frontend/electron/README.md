@@ -9,7 +9,7 @@
 - `managedServices.ts`：长生命周期本地服务的稳定入口；实现细节在 `managedServices/`，包括 backend status broadcast、MCP readiness、bootstrap 和 shutdown。
 - `ipc/`：只做 IPC handler registration，把 preload 调用翻译成 service 调用，不承载 feature 业务规则。
 - `services/`：Electron 拥有的本地进程能力；顶层文件是稳定 facade，实现细节放进同名子目录。
-- `mcp/`：桌面端暴露的本地 MCP server 实现，负责 JSON-RPC transport、MCP tools/resources、backend client adapters 和 agent-facing response formatting。
+- `mcp/`：桌面端暴露的本地 MCP server 实现，负责 JSON-RPC transport、MCP tools/resources、backend client adapters 和 provider-facing response formatting。
 - `preload.ts`：暴露给 renderer 的 preload 入口；API 组装放在 `preload/`，按 IPC 能力分组，共享契约放在 `src/shared/contracts`。
 
 ## Renderer 边界

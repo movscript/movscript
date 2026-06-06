@@ -24,7 +24,7 @@ export interface ReviewWorkspaceUpstreamEntry {
 
 export function ReviewWorkspaceUpstreamSection({
   icon,
-  eyebrow = "上游工作区审阅",
+  eyebrow = "上游草案审阅",
   title,
   description,
   loaded,

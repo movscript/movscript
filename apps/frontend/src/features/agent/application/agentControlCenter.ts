@@ -1,9 +1,11 @@
 import { ROUTES } from '@/routes/projectRoutes'
-import { localAgentClient, type AgentRuntimeSessionSummary, type AgentThreadClearResult, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
-import type { AgentWorkspaceRunListItem } from '@/features/agent/application/agentRuntimeThreadQueryCache'
-import type { AgentProviderConfig } from '@/features/agent/state/agentProviderConfigStore'
+import { providerSessionClient, type ProviderSessionSummary, type AgentThreadClearResult, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type { ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
+import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
 import type { AgentChatDataSource } from '@/features/agent/domain/agentChatProtocol'
+import { providerProtocol } from '@/shared/infrastructure/providerConfigStore'
+import { providerRoute } from '@/features/agent/application/providerRoutes'
 
 export type AgentControlIssueTone = 'action' | 'warning' | 'ready'
 
@@ -27,7 +29,7 @@ export interface AgentControlCapabilityHealth {
 
 export interface AgentControlProviderCapabilityHealth {
   providerId: string
-  providerKind: AgentProviderConfig['kind']
+  providerKind: ProviderConfig['kind']
   providerLabel: string
   ok: boolean
   warningCount: number
@@ -82,12 +84,12 @@ export const EMPTY_AGENT_CONTROL_CAPABILITY_HEALTH: AgentControlCapabilityHealth
   providers: [],
 }
 
-export async function inspectAgentControlProviderCapabilities(providers: AgentProviderConfig[]): Promise<AgentControlCapabilityHealth> {
+export async function inspectAgentControlProviderCapabilities(providers: ProviderConfig[]): Promise<AgentControlCapabilityHealth> {
   const providerHealth = await Promise.all(providers.map(inspectAgentControlProviderCapability))
   return summarizeAgentControlCapabilityHealth(providerHealth, providers.length)
 }
 
-export async function clearWorkspaceSessionThreadHistory(sessions: AgentRuntimeSessionSummary[]): Promise<{ threadCount: number; runCount: number }> {
+export async function clearWorkspaceSessionThreadHistory(sessions: ProviderSessionSummary[]): Promise<{ threadCount: number; runCount: number }> {
   const scopedSessions = sessions
     .map((session) => ({
       sessionId: session.session.id.trim(),
@@ -100,7 +102,7 @@ export async function clearWorkspaceSessionThreadHistory(sessions: AgentRuntimeS
   }
 
   const results = await Promise.all(scopedSessions.map((session) => (
-    localAgentClient
+    providerSessionClient
       .forSession({
         sessionId: session.sessionId,
         ...(session.workspaceDir ? { workspaceDir: session.workspaceDir } : {}),
@@ -121,6 +123,7 @@ export function buildAgentControlIssues(input: {
   blockedTools: number
   capabilityWarnings: number
   checkedCapabilityProviders?: number
+  appServerProvider?: ProviderConfig
 }): AgentControlIssue[] {
   const issues: AgentControlIssue[] = []
   if (input.sessionIndexError) {
@@ -129,7 +132,7 @@ export function buildAgentControlIssues(input: {
       tone: 'action',
       title: 'Session 索引不可用',
       detail: errorMessage(input.sessionIndexError),
-      to: ROUTES.agentsMovscript,
+      to: input.appServerProvider ? providerRoute(input.appServerProvider) : ROUTES.agents,
     })
   }
   if (!input.modelConfigured || input.modelError) {
@@ -171,7 +174,7 @@ export function buildAgentControlIssues(input: {
   return issues
 }
 
-export function summarizeAgentControlRuns(runs: AgentWorkspaceRunListItem[]) {
+export function summarizeAgentControlRuns(runs: ProviderSessionRunListItem[]) {
   return {
     total: runs.length,
     active: runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').length,
@@ -189,7 +192,7 @@ export function summarizeAgentControlThreads(threads: AgentThreadSummary[]) {
   }
 }
 
-export function sortAgentControlRuns(runs: AgentWorkspaceRunListItem[]) {
+export function sortAgentControlRuns(runs: ProviderSessionRunListItem[]) {
   return [...runs].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
 }
 
@@ -214,9 +217,9 @@ function summarizeThreadClearResults(results: AgentThreadClearResult[]): { threa
   }
 }
 
-async function inspectAgentControlProviderCapability(provider: AgentProviderConfig): Promise<AgentControlProviderCapabilityHealth> {
+async function inspectAgentControlProviderCapability(provider: ProviderConfig): Promise<AgentControlProviderCapabilityHealth> {
   try {
-    const dataSource = await createAgentChatDataSourceForProvider(provider, { codexAppServerPolicy: 'status-only' })
+    const dataSource = await createAgentChatDataSourceForProvider(provider, { appServerPolicy: 'status-only' })
     return await inspectAgentControlDataSourceCapabilities(provider, dataSource)
   } catch (error) {
     return failedAgentControlProviderCapabilityHealth(provider, error)
@@ -224,7 +227,7 @@ async function inspectAgentControlProviderCapability(provider: AgentProviderConf
 }
 
 export async function inspectAgentControlDataSourceCapabilities(
-  provider: AgentProviderConfig,
+  provider: ProviderConfig,
   dataSource: AgentChatDataSource,
 ): Promise<AgentControlProviderCapabilityHealth> {
   const warnings: string[] = []
@@ -233,10 +236,11 @@ export async function inspectAgentControlDataSourceCapabilities(
   const mcp = await inspectCapabilityCall('MCP', () => dataSource.capabilities?.mcp?.listServers?.() ?? Promise.resolve(null))
   const plugins = await inspectCapabilityCall('Plugins', () => inspectAgentControlInstalledPlugins(dataSource))
   const skills = await inspectCapabilityCall('Skills', () => dataSource.capabilities?.skills?.list?.() ?? Promise.resolve(null))
+  const appServerProtocol = providerProtocol(provider) === 'app-server'
 
-  if (provider.kind === 'codex' && !commandAvailable) warnings.push('未实现 command/exec。')
-  if (provider.kind === 'codex' && !fsAvailable) warnings.push('未实现 fs/readFile。')
-  if (provider.kind === 'codex' && !dataSource.capabilities?.mcp?.listServers) warnings.push('未实现 mcpServerStatus/list。')
+  if (appServerProtocol && !commandAvailable) warnings.push('未实现 command/exec。')
+  if (appServerProtocol && !fsAvailable) warnings.push('未实现 fs/readFile。')
+  if (appServerProtocol && !dataSource.capabilities?.mcp?.listServers) warnings.push('未实现 mcpServerStatus/list。')
   if (!dataSource.capabilities?.plugins?.installed && !dataSource.capabilities?.plugins?.list) warnings.push('未实现 plugin/installed 或 plugin/list。')
   if (!dataSource.capabilities?.skills?.list) warnings.push('未实现 skills/list。')
   for (const result of [mcp, plugins, skills]) {
@@ -247,7 +251,7 @@ export async function inspectAgentControlDataSourceCapabilities(
   const mcpToolCount = mcp.ok ? countMcpTools(mcp.value) : 0
   const pluginCount = plugins.ok ? countPluginItems(plugins.value) : 0
   const skillCount = skills.ok ? countSkillItems(skills.value) : 0
-  const directToolCount = provider.kind === 'codex' ? [commandAvailable, fsAvailable].filter(Boolean).length : 0
+  const directToolCount = appServerProtocol ? [commandAvailable, fsAvailable].filter(Boolean).length : 0
   const catalogToolCount = skills.ok ? countResolvedTools(skills.value, 'available') : 0
   const blockedToolCount = skills.ok ? countResolvedTools(skills.value, 'blocked') : 0
 
@@ -301,7 +305,7 @@ export function summarizeAgentControlCapabilityHealth(
 }
 
 function failedAgentControlProviderCapabilityHealth(
-  provider: AgentProviderConfig,
+  provider: ProviderConfig,
   error: unknown,
 ): AgentControlProviderCapabilityHealth {
   return {

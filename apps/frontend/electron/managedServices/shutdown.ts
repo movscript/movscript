@@ -1,5 +1,4 @@
 import { stopMCPServer } from '../mcp/server'
-import { stopAgentRuntime } from '../services/agentRuntime'
 import { stopBackend } from '../services/backend'
 import { broadcastBackendStatus } from './backendStatus'
 
@@ -14,7 +13,6 @@ export async function shutdownManagedServices(): Promise<void> {
   if (shutdownPromise) return shutdownPromise
   shutdownPromise = (async () => {
     try {
-      await stopAgentRuntime()
       await stopMCPServer()
       await stopBackend(broadcastBackendStatus)
     } finally {

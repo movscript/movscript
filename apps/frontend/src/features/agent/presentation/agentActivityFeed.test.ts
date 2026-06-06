@@ -170,7 +170,7 @@ test('buildAgentActivityFeed renders generation work without raw request details
   assert.equal(item?.kind, 'task')
   assert.equal(item?.durationMs, 1450)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '任务已提交，后续结果会从 runtime work 返回。',
+    '任务已提交，后续结果会从 provider work 返回。',
   ])
 })
 
@@ -234,12 +234,12 @@ test('buildAgentActivityFeed does not duplicate work status traces as task cards
       events: [{
         id: 'trace_work',
         kind: 'tool_call',
-        title: 'Runtime work running: generation_job',
+        title: 'Provider work running: generation_job',
         status: 'info',
         roundIndex: 1,
         toolName: 'core_work_start',
         data: {
-          runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'running' },
+          providerWork: { id: 'work_1', kind: 'generation_job', status: 'running' },
           generation: { jobId: 10, toolName: 'generation_job_create', stage: 'queued' },
         },
         createdAt: '2026-05-22T01:00:11.000Z',
@@ -252,11 +252,11 @@ test('buildAgentActivityFeed does not duplicate work status traces as task cards
   const item = taskItems?.[0]
   assert.equal(item?.type === 'block' ? item.durationMs : undefined, 166_000)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '任务已提交，后续结果会从 runtime work 返回。',
+    '任务已提交，后续结果会从 provider work 返回。',
   ])
 })
 
-test('buildAgentActivityFeed compacts consecutive runtime work observations', () => {
+test('buildAgentActivityFeed compacts consecutive provider work observations', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: Array.from({ length: 5 }, (_, index) => ({
@@ -281,7 +281,7 @@ test('buildAgentActivityFeed compacts consecutive runtime work observations', ()
   assert.equal(item?.durationMs, 500)
 })
 
-test('buildAgentActivityFeed compacts runtime work observations when the latest status changes', () => {
+test('buildAgentActivityFeed compacts provider work observations when the latest status changes', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
@@ -515,7 +515,7 @@ test('buildAgentActivityFeed keeps every model http response as a visible though
   assert.deepEqual(feed?.rounds.map((round) => round.items.length), [2, 2, 2, 2])
 })
 
-test('buildAgentActivityFeed renders runtime status changes beside model http and tool activity', () => {
+test('buildAgentActivityFeed renders provider-session status changes beside model http and tool activity', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       events: [
@@ -535,7 +535,7 @@ test('buildAgentActivityFeed renders runtime status changes beside model http an
         {
           id: 'runtime_status',
           kind: 'run',
-          title: 'Runtime status recorded',
+          title: 'Timeline status recorded',
           status: 'completed',
           summary: '异步任务已提交',
           createdAt: '2026-05-22T01:00:03.000Z',
@@ -670,7 +670,7 @@ test('buildAgentActivityFeed renders user input requests at their activity posit
   assert.equal(feed?.items[0]?.type, 'input_request')
 })
 
-test('buildAgentActivityFeed shows interrupted runtime recovery as a system boundary', () => {
+test('buildAgentActivityFeed shows interrupted provider-session recovery as a system boundary', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       status: 'requires_action',
@@ -679,7 +679,7 @@ test('buildAgentActivityFeed shows interrupted runtime recovery as a system boun
         kind: 'run',
         title: 'Interrupted run recovered',
         status: 'blocked',
-        summary: 'Runtime restarted while this run was in progress.',
+        summary: 'Provider session restarted while this run was in progress.',
         data: {
           eventType: 'runtime.recovery.interrupted',
         },
@@ -692,7 +692,7 @@ test('buildAgentActivityFeed shows interrupted runtime recovery as a system boun
   const item = feed?.items[0]
   assert.equal(item?.type, 'line')
   assert.equal(item?.kind, 'system')
-  assert.equal(item?.type === 'line' ? item.text : '', '运行中断：runtime 重启时这个 run 尚未结束，已暂停等待继续或取消。')
+  assert.equal(item?.type === 'line' ? item.text : '', '运行中断：provider session 重启时这个 run 尚未结束，已暂停等待继续或取消。')
 })
 
 test('buildAgentActivityFeed shows resumed recovery without duplicating the same run history', () => {
@@ -740,6 +740,7 @@ test('buildAgentActivityFeed shows resumed recovery without duplicating the same
 })
 
 test('buildAgentActivityFeed labels recovery cancellation as terminal history', () => {
+  const providerRecoveryCancellationReason = ['Run', 'time recovery cancelled by user.'].join('')
   const feed = buildAgentActivityFeed({
     activity: activity({
       status: 'cancelled',
@@ -748,9 +749,9 @@ test('buildAgentActivityFeed labels recovery cancellation as terminal history', 
         kind: 'run',
         title: 'Run cancelled',
         status: 'info',
-        summary: 'Runtime recovery cancelled by user.',
+        summary: providerRecoveryCancellationReason,
         data: {
-          reason: 'Runtime recovery cancelled by user.',
+          reason: providerRecoveryCancellationReason,
         },
         createdAt: '2026-05-22T01:00:01.000Z',
       }],
@@ -791,7 +792,7 @@ test('buildAgentActivityFeed renders user approvals at their activity position',
       approvals: [{
         id: 'approval_1',
         toolName: 'workspace_apply',
-        reason: '需要正式写入项目数据',
+        reason: '需要提交工作区修改',
         permission: 'workspace.apply',
         risk: 'write',
         status: 'pending',

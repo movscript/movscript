@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { hiddenActivityActionItemIdsFromProjectionItems } from '@/features/agent/components/AgentConversationProjectionActivityFilters'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('hiddenActivityActionItemIdsFromProjectionItems reads projected interaction action ids', () => {
@@ -71,7 +71,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 8,
       maxIterations: 4,
       allowNetwork: false,

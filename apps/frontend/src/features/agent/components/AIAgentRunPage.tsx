@@ -126,7 +126,7 @@ import {
 } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/features/agent/components/AgentRunGenerationArtifacts'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { LocalAgentInputRequestCard } from '@/features/agent/components/localRuntime'
+import { ProviderSessionInputRequestCard } from '@/features/agent/components/providerSessionInteractions'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/features/agent/domain/agentPlanUi'
 import { buildApprovalImpactSummary, type AgentApprovalImpactSummary } from '@/features/agent/domain/agent-run-page/approvalImpact'
 import { buildRunConfigurationSnapshotView, type AgentRunConfigurationSnapshotView } from '@/features/agent/domain/agent-run-page/runConfigurationSnapshot'
@@ -135,9 +135,9 @@ import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPerm
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/features/agent/domain/agentTraceDebugData'
 import { agentToolCallStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import { useAgentRuntimeSessionLease } from '@/features/agent/presentation/useAgentRuntimeSessionLease'
+import { useProviderSessionLease } from '@/features/agent/presentation/useProviderSessionLease'
 import { isRecord } from '@/shared/domain/jsonValue'
-import { isLocalAgentNotFoundError, localAgentClient, type AgentRun, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
+import { isProviderSessionNotFoundError, providerSessionClient, type AgentRun, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/providerSessionClient'
 import { UrlImage } from '@/shared/ui/UrlMedia'
 import { agentRunPath } from '@/routes/projectRoutes'
 
@@ -151,8 +151,8 @@ const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v2'
 const DEBUG_BUNDLE_CAPABILITIES = [
   'runSummary',
   'readinessChecklist',
-  'runtimeSummary',
-  'runtimeFrames',
+  'providerSessionSummary',
+  'providerSessionFrames',
   'fullDebugEvents',
   'fullContextDiffs',
   'fullPromptPayloads',
@@ -176,7 +176,7 @@ const EMPTY_DEBUG_COVERAGE: AgentDebugCoverageSummary = {
   issues: [],
 }
 
-const EMPTY_RUNTIME_SUMMARY: AgentRunRuntimeSummary = {
+const EMPTY_PROVIDER_SESSION_SUMMARY: AgentRunProviderSessionSummary = {
   skills: {
     activeSkillIds: [],
     loadedSkillIds: [],
@@ -206,20 +206,26 @@ interface LoadedTraceEventsResult {
   hasMore: boolean
 }
 
-type AgentRuntimeRoundFrame = Extract<AgentTraceDebugView['runtimeFrames'][number], { kind: 'round' }>
-type AgentRuntimeLens = 'all' | AgentTraceDebugView['runtimeFrames'][number]['focus'][number]
+type ProviderSessionTraceFrame = AgentTraceDebugView['providerSessionFrames'][number]
+type ProviderSessionTraceFrames = AgentTraceDebugView['providerSessionFrames']
+type ProviderSessionTraceRoundFrame = Extract<ProviderSessionTraceFrame, { kind: 'round' }>
+type ProviderSessionTraceLens = 'all' | ProviderSessionTraceFrame['focus'][number]
 type AgentDebugCoverageSummary = AgentTraceDebugView['coverage']
 type AgentDebugReadinessItem = AgentTraceDebugView['readinessChecklist'][number]
 type AgentDebugAttentionEvent = AgentTraceDebugView['attentionEvents'][number]
-type AgentModelCallSummary = AgentRuntimeRoundFrame['modelCalls'][number]
-type AgentRunRuntimeSummary = AgentTraceDebugView['runtimeSummary']
-type AgentContextMutationView = AgentRuntimeRoundFrame['context']['diff']['mutations'][number]
-type AgentPromptDebugDetail = NonNullable<AgentRuntimeRoundFrame['context']['prompt']>
+type AgentModelCallSummary = ProviderSessionTraceRoundFrame['modelCalls'][number]
+type AgentRunProviderSessionSummary = AgentTraceDebugView['providerSessionSummary']
+type AgentContextMutationView = ProviderSessionTraceRoundFrame['context']['diff']['mutations'][number]
+type AgentPromptDebugDetail = NonNullable<ProviderSessionTraceRoundFrame['context']['prompt']>
 type AgentTraceEventView = ReturnType<typeof agentTraceView>
 type AgentModelRequestMessageView = NonNullable<AgentTraceEventView['modelDetail']>['messages'][number]
-type AgentPromptDetailDisplay = NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> & Partial<Pick<AgentPromptDebugDetail, 'budgetDecisions' | 'runtimeSkillState' | 'contextLedgerState'>>
+type AgentPromptDetailDisplay = NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> & {
+  budgetDecisions?: AgentPromptDebugDetail['budgetDecisions']
+  providerSessionSkillState?: AgentPromptDebugDetail['runtimeSkillState']
+  contextLedgerState?: AgentPromptDebugDetail['contextLedgerState']
+}
 type AgentTraceEventDisplayView = Omit<AgentTraceEventView, 'promptDetail'> & { promptDetail?: AgentPromptDetailDisplay }
-type AgentTraceViewMode = AgentRuntimeLens
+type AgentTraceViewMode = ProviderSessionTraceLens
 
 interface AgentDebugHotspot {
   id: string
@@ -235,19 +241,19 @@ export default function AIAgentRunPage() {
   const navigate = useNavigate()
   const { runId = '' } = useParams()
   const [searchParams] = useSearchParams()
-  const runtimeSessionId = searchParams.get('sessionId')?.trim() || undefined
-  const runtimeWorkspaceDir = searchParams.get('workspaceDir')?.trim() || undefined
-  const runtimeClient = useMemo(() => runtimeSessionId
-    ? localAgentClient.forSession({
-      sessionId: runtimeSessionId,
-      ...(runtimeWorkspaceDir ? { workspaceDir: runtimeWorkspaceDir } : {}),
+  const providerSessionId = searchParams.get('sessionId')?.trim() || undefined
+  const providerSessionWorkspaceDir = searchParams.get('workspaceDir')?.trim() || undefined
+  const providerSessionRunClient = useMemo(() => providerSessionId
+    ? providerSessionClient.forSession({
+      sessionId: providerSessionId,
+      ...(providerSessionWorkspaceDir ? { workspaceDir: providerSessionWorkspaceDir } : {}),
     })
-    : localAgentClient,
-  [runtimeSessionId, runtimeWorkspaceDir])
-  useAgentRuntimeSessionLease({
-    enabled: !!runtimeSessionId,
-    sessionId: runtimeSessionId,
-    workspaceDir: runtimeWorkspaceDir,
+    : providerSessionClient,
+  [providerSessionId, providerSessionWorkspaceDir])
+  useProviderSessionLease({
+    enabled: !!providerSessionId,
+    sessionId: providerSessionId,
+    workspaceDir: providerSessionWorkspaceDir,
     holder: 'trace-page',
   })
   const [traceViewMode, setTraceViewMode] = useState<AgentTraceViewMode>('all')
@@ -275,42 +281,42 @@ export default function AIAgentRunPage() {
   const initialTraceLoadRunIdRef = useRef<string | null>(null)
   const loadingEventsRef = useRef(false)
   const runQuery = useQuery({
-    queryKey: ['agent-run-detail', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
+    queryKey: ['agent-run-detail', providerSessionRunClient.baseURL, providerSessionId ?? null, providerSessionWorkspaceDir ?? null, runId],
     queryFn: async () => {
-      await runtimeClient.ensureRunning()
-      return runtimeClient.getRun(runId)
+      await providerSessionRunClient.ensureRunning()
+      return providerSessionRunClient.getRun(runId)
     },
     enabled: !!runId,
     retry: false,
   })
   const planQuery = useQuery({
-    queryKey: ['agent-run-taskGraph-context', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runQuery.data?.taskGraphId],
-    queryFn: async () => runtimeClient.getTaskGraphSnapshot(runQuery.data!.taskGraphId!),
+    queryKey: ['agent-run-taskGraph-context', providerSessionRunClient.baseURL, providerSessionId ?? null, providerSessionWorkspaceDir ?? null, runQuery.data?.taskGraphId],
+    queryFn: async () => providerSessionRunClient.getTaskGraphSnapshot(runQuery.data!.taskGraphId!),
     enabled: !!runQuery.data?.taskGraphId,
     retry: false,
   })
   const childRunsQuery = useQuery({
-    queryKey: ['agent-run-children', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
-    queryFn: async () => runtimeClient.getChildRuns(runId),
+    queryKey: ['agent-run-children', providerSessionRunClient.baseURL, providerSessionId ?? null, providerSessionWorkspaceDir ?? null, runId],
+    queryFn: async () => providerSessionRunClient.getChildRuns(runId),
     enabled: !!runId,
     retry: false,
   })
   const summaryQuery = useQuery({
-    queryKey: ['agent-run-trace-summary', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
-    queryFn: async () => runtimeClient.getRunTraceSummary(runId),
+    queryKey: ['agent-run-trace-summary', providerSessionRunClient.baseURL, providerSessionId ?? null, providerSessionWorkspaceDir ?? null, runId],
+    queryFn: async () => providerSessionRunClient.getRunTraceSummary(runId),
     enabled: !!runId,
     retry: false,
   })
   const debugViewQuery = useQuery({
-    queryKey: ['agent-run-trace-debug-view', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
-    queryFn: async () => runtimeClient.getRunTraceDebugView(runId),
+    queryKey: ['agent-run-trace-debug-view', providerSessionRunClient.baseURL, providerSessionId ?? null, providerSessionWorkspaceDir ?? null, runId],
+    queryFn: async () => providerSessionRunClient.getRunTraceDebugView(runId),
     enabled: !!runId,
     retry: false,
   })
   function runDetailPath(targetRunId: string, targetSessionId?: string) {
     return agentRunPath(targetRunId, {
-      sessionId: targetSessionId?.trim() || runtimeSessionId || runQuery.data?.sessionId,
-      ...(runtimeWorkspaceDir ? { workspaceDir: runtimeWorkspaceDir } : {}),
+      sessionId: targetSessionId?.trim() || providerSessionId || runQuery.data?.sessionId,
+      ...(providerSessionWorkspaceDir ? { workspaceDir: providerSessionWorkspaceDir } : {}),
     })
   }
   const visibleEvents = useMemo(() => {
@@ -322,9 +328,10 @@ export default function AIAgentRunPage() {
       return traceEventSearchText(event).includes(needle)
     })
   }, [eventCategory, eventKind, eventSearch, events])
+  const providerSessionFrames = providerSessionDebugFrames(debugViewQuery.data)
   const toolCallSummaries = useMemo<AgentToolCallSummary[]>(() => (
-    toolCallSummariesFromUnknown((debugViewQuery.data?.runtimeFrames ?? []).flatMap((frame) => frame.kind === 'round' ? frame.toolCalls : [])) ?? fallbackToolCallSummaries(events)
-  ), [debugViewQuery.data?.runtimeFrames, events])
+    toolCallSummariesFromUnknown(providerSessionFrames.flatMap((frame) => frame.kind === 'round' ? frame.toolCalls : [])) ?? fallbackToolCallSummaries(events)
+  ), [events, providerSessionFrames])
   const visibleToolCallSummaries = useMemo(() => {
     const needle = eventSearch.trim().toLowerCase()
     if (!needle) return toolCallSummaries
@@ -340,9 +347,8 @@ export default function AIAgentRunPage() {
     }
     return Array.from(counts.entries()).sort(([left], [right]) => traceCategoryLabel(left).localeCompare(traceCategoryLabel(right), 'zh-CN'))
   }, [events])
-  const runtimeFrames = debugViewQuery.data?.runtimeFrames ?? []
-  const runtimeRoundFrames = useMemo(() => runtimeFrames.filter((frame): frame is AgentRuntimeRoundFrame => frame.kind === 'round'), [runtimeFrames])
-  const promptDetails = useMemo(() => runtimeRoundFrames.flatMap((frame) => frame.context.prompt ? [frame.context.prompt] : []), [runtimeRoundFrames])
+  const providerSessionRoundFrames = useMemo(() => providerSessionFrames.filter((frame): frame is ProviderSessionTraceRoundFrame => frame.kind === 'round'), [providerSessionFrames])
+  const promptDetails = useMemo(() => providerSessionRoundFrames.flatMap((frame) => frame.context.prompt ? [frame.context.prompt] : []), [providerSessionRoundFrames])
   const promptDebugDetailByEventId = useMemo(() => new Map(
     promptDetails.map((detail) => [detail.eventId, detail]),
   ), [promptDetails])
@@ -350,21 +356,21 @@ export default function AIAgentRunPage() {
     event,
     view: mergePromptDebugDetail(agentTraceView(event), promptDebugDetailByEventId.get(event.id)),
   })), [promptDebugDetailByEventId, visibleEvents])
-  const visibleRuntimeFrames = useMemo(() => {
+  const visibleProviderSessionFrames = useMemo(() => {
     const needle = eventSearch.trim().toLowerCase()
-    return runtimeFrames.filter((frame) => {
+    return providerSessionFrames.filter((frame) => {
       if (traceViewMode !== 'all' && traceViewMode !== 'raw' && !frame.focus.includes(traceViewMode)) return false
       if (!needle) return true
-      return runtimeFrameSearchText(frame).includes(needle)
+      return providerSessionFrameSearchText(frame).includes(needle)
     })
-  }, [eventSearch, runtimeFrames, traceViewMode])
+  }, [eventSearch, providerSessionFrames, traceViewMode])
   const debugViewEvents = debugViewQuery.data?.events ?? events
-  const runtimeSummary = debugViewQuery.data?.runtimeSummary ?? EMPTY_RUNTIME_SUMMARY
+  const providerSessionSummary = providerSessionDebugSummary(debugViewQuery.data)
   const approvalImpactSummary = useMemo(
     () => buildApprovalImpactSummary(runQuery.data, debugViewEvents),
     [debugViewEvents, runQuery.data],
   )
-  const modelCallSummaries = runtimeRoundFrames.flatMap((frame) => frame.modelCalls) as AgentModelCallSummary[]
+  const modelCallSummaries = providerSessionRoundFrames.flatMap((frame) => frame.modelCalls) as AgentModelCallSummary[]
   const attentionEvents = (debugViewQuery.data?.attentionEvents ?? []) as AgentDebugAttentionEvent[]
   const debugHotspots = useMemo(
     () => buildDebugHotspots({
@@ -418,12 +424,12 @@ export default function AIAgentRunPage() {
   }, [runId])
 
   useEffect(() => {
-    if (!runId || !runQuery.error || !isLocalAgentNotFoundError(runQuery.error)) return undefined
+    if (!runId || !runQuery.error || !isProviderSessionNotFoundError(runQuery.error)) return undefined
     let disposed = false
     void (async () => {
       try {
-        const response = await localAgentClient.listRuntimeSessionsFromWorkspace({
-          ...(runtimeWorkspaceDir ? { workspaceDir: runtimeWorkspaceDir } : {}),
+        const response = await providerSessionClient.listProviderSessionsFromWorkspace({
+          ...(providerSessionWorkspaceDir ? { workspaceDir: providerSessionWorkspaceDir } : {}),
         })
         if (disposed) return
         const match = response.sessions.find((session) => (
@@ -432,8 +438,8 @@ export default function AIAgentRunPage() {
         const nextSessionId = match?.session.id?.trim()
         const matchedWorkspaceDir = match?.workspaceDir?.trim()
         if (!nextSessionId) return
-        const nextWorkspaceDir = matchedWorkspaceDir || runtimeWorkspaceDir
-        if (nextSessionId === runtimeSessionId && (nextWorkspaceDir ?? '') === (runtimeWorkspaceDir ?? '')) return
+        const nextWorkspaceDir = matchedWorkspaceDir || providerSessionWorkspaceDir
+        if (nextSessionId === providerSessionId && (nextWorkspaceDir ?? '') === (providerSessionWorkspaceDir ?? '')) return
         const nextPath = `${agentRunPath(runId, {
           sessionId: nextSessionId,
           ...(nextWorkspaceDir ? { workspaceDir: nextWorkspaceDir } : {}),
@@ -446,7 +452,7 @@ export default function AIAgentRunPage() {
     return () => {
       disposed = true
     }
-  }, [navigate, runId, runQuery.error, runtimeSessionId, runtimeWorkspaceDir])
+  }, [navigate, runId, runQuery.error, providerSessionId, providerSessionWorkspaceDir])
 
   useEffect(() => {
     setEvents([])
@@ -527,7 +533,7 @@ export default function AIAgentRunPage() {
         let cursor = nextEvents.at(-1)?.id
         let fetchedPageCount = 0
         while (currentRunIdRef.current === requestedRunId && fetchedPageCount < 100) {
-          const response = await runtimeClient.getRunTraceEvents(requestedRunId, { limit: TRACE_BULK_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
+          const response = await providerSessionRunClient.getRunTraceEvents(requestedRunId, { limit: TRACE_BULK_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
           if (currentRunIdRef.current !== requestedRunId) return
           if (response.events.length === 0) {
             setEvents(nextEvents)
@@ -551,7 +557,7 @@ export default function AIAgentRunPage() {
         return { events: nextEvents, hasMore: nextHasMore }
       }
       const cursor = mode === 'more' ? events.at(-1)?.id : undefined
-      const response = await runtimeClient.getRunTraceEvents(requestedRunId, { limit: TRACE_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
+      const response = await providerSessionRunClient.getRunTraceEvents(requestedRunId, { limit: TRACE_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
       if (currentRunIdRef.current !== requestedRunId) return
       const nextEvents = mode === 'more' ? mergeTraceEvents(events, response.events) : response.events
       setEvents(nextEvents)
@@ -633,8 +639,8 @@ export default function AIAgentRunPage() {
     setDebugBundleCopied(false)
     setDebugBundleCopyError(null)
     try {
-      const debugView = debugViewQuery.data ?? await runtimeClient.getRunTraceDebugView(runId)
-      await navigator.clipboard.writeText(formatAgentTraceDebugData(debugView.bundle))
+      const debugView = debugViewQuery.data ?? await providerSessionRunClient.getRunTraceDebugView(runId)
+      await navigator.clipboard.writeText(formatAgentTraceDebugData(providerSessionDebugBundle(debugView)))
       setDebugBundleCopied(true)
     } catch (error) {
       setDebugBundleCopyError(error instanceof Error ? error.message : String(error))
@@ -659,7 +665,7 @@ export default function AIAgentRunPage() {
     setCancelingRun(true)
     setCancelError(null)
     try {
-      await runtimeClient.cancelRunTree(runId, { reason: `从运行详情页取消 ${subagentName ?? runId}。` })
+      await providerSessionRunClient.cancelRunTree(runId, { reason: `从运行详情页取消 ${subagentName ?? runId}。` })
       await refreshRunPage()
     } catch (error) {
       setCancelError(error instanceof Error ? error.message : String(error))
@@ -671,7 +677,7 @@ export default function AIAgentRunPage() {
   async function resolveApproval(approval: NonNullable<AgentRun['pendingApprovals']>[number], action: 'approve' | 'reject') {
     if (!runId || approvalActionId) return
     if (!approval.interactionId) {
-      setApprovalError('缺少 runtime interaction，无法处理审批。')
+      setApprovalError('缺少 provider-session interaction，无法处理审批。')
       return
     }
     const approvalId = approval.id
@@ -679,10 +685,10 @@ export default function AIAgentRunPage() {
     setApprovalError(null)
     try {
       if (action === 'approve') {
-        await runtimeClient.approveInteraction(approval.interactionId)
-        await runtimeClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
+        await providerSessionRunClient.approveInteraction(approval.interactionId)
+        await providerSessionRunClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       } else {
-        await runtimeClient.rejectInteraction(approval.interactionId)
+        await providerSessionRunClient.rejectInteraction(approval.interactionId)
       }
       await refreshRunPage()
     } catch (error) {
@@ -697,8 +703,8 @@ export default function AIAgentRunPage() {
     setInputActionId(requestId)
     setInputError(null)
     try {
-      await runtimeClient.answerRunInput(runId, { requestId, ...answer })
-      await runtimeClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
+      await providerSessionRunClient.answerRunInput(runId, { requestId, ...answer })
+      await providerSessionRunClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       await refreshRunPage()
     } catch (error) {
       setInputError(error instanceof Error ? error.message : String(error))
@@ -847,9 +853,9 @@ export default function AIAgentRunPage() {
                       {runConfigurationSnapshot.limitItems.slice(0, 8).map((item) => <AgentRunPageBadge key={item} variant="outline">{item}</AgentRunPageBadge>)}
                     </AgentRunSummaryBadgeList>
                   )}
-                  {runConfigurationSnapshot.runtimeLimitItems.length > 0 && (
-                    <AgentRunSummaryBadgeList data-testid="agent-run-configuration-runtime-limits">
-                      {runConfigurationSnapshot.runtimeLimitItems.slice(0, 8).map((item) => <AgentRunPageBadge key={item} variant="outline">{item}</AgentRunPageBadge>)}
+                  {runConfigurationSnapshot.providerSessionLimitItems.length > 0 && (
+                    <AgentRunSummaryBadgeList data-testid="agent-run-configuration-provider-session-limits">
+                      {runConfigurationSnapshot.providerSessionLimitItems.slice(0, 8).map((item) => <AgentRunPageBadge key={item} variant="outline">{item}</AgentRunPageBadge>)}
                     </AgentRunSummaryBadgeList>
                   )}
                   {runConfigurationSnapshot.approvalDefaultItems.length > 0 && (
@@ -902,7 +908,7 @@ export default function AIAgentRunPage() {
                     </AgentRunCallout>
                   )}
                   {(runQuery.data.pendingInputRequests ?? []).filter((request) => request.status === 'pending').map((request) => (
-                    <LocalAgentInputRequestCard
+                    <ProviderSessionInputRequestCard
                       key={request.id}
                       request={request}
                       disabled={!!inputActionId}
@@ -1073,7 +1079,7 @@ export default function AIAgentRunPage() {
               )}
               {events.length > 0 && traceFiltersActive && (
                 <AgentRunTraceMeta data-testid="agent-run-trace-visible-count">
-                  当前显示 {traceViewMode === 'raw' ? visibleEvents.length : visibleRuntimeFrames.length} 个
+                  当前显示 {traceViewMode === 'raw' ? visibleEvents.length : visibleProviderSessionFrames.length} 个
                 </AgentRunTraceMeta>
               )}
             </AgentRunTraceSummary>
@@ -1167,7 +1173,7 @@ export default function AIAgentRunPage() {
                 data-testid="agent-run-trace-search"
                 value={eventSearch}
                 onChange={(event) => setEventSearch(event.target.value)}
-                placeholder={traceViewMode === 'raw' ? '搜索原始事件' : '搜索 runtime round'}
+                placeholder={traceViewMode === 'raw' ? '搜索原始事件' : '搜索 provider session round'}
                 aria-label="搜索运行调试内容"
               />
               {traceViewMode === 'raw' && (
@@ -1262,12 +1268,12 @@ export default function AIAgentRunPage() {
               </AgentRunTraceCallout>
             )}
             {traceViewMode !== 'raw' && (
-              <RuntimeFramesPanel
-                frames={visibleRuntimeFrames}
-                allFrameCount={runtimeFrames.length}
+              <ProviderSessionFramesPanel
+                frames={visibleProviderSessionFrames}
+                allFrameCount={providerSessionFrames.length}
                 lens={traceViewMode}
                 loading={debugViewQuery.isLoading || loadingEvents}
-                runtimeSummary={runtimeSummary}
+                providerSessionSummary={providerSessionSummary}
                 attentionEvents={attentionEvents}
                 copied={debugReportCopied}
                 copyError={debugReportCopyError}
@@ -1598,7 +1604,34 @@ function traceEventSearchText(event: AgentTraceEvent): string {
   ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
 }
 
-function runtimeFrameSearchText(frame: AgentTraceDebugView['runtimeFrames'][number]): string {
+function providerSessionDebugFrames(debugView: AgentTraceDebugView | undefined): ProviderSessionTraceFrames {
+  return debugView?.providerSessionFrames ?? debugView?.runtimeFrames ?? []
+}
+
+function providerSessionDebugSummary(debugView: AgentTraceDebugView | undefined): AgentRunProviderSessionSummary {
+  return debugView?.providerSessionSummary ?? debugView?.runtimeSummary ?? EMPTY_PROVIDER_SESSION_SUMMARY
+}
+
+function providerSessionDebugBundle(debugView: AgentTraceDebugView): Record<string, unknown> {
+  const { runtimeSummary: _runtimeSummary, runtimeFrames: _runtimeFrames, capabilities: rawCapabilities, ...bundle } = debugView.bundle
+  return {
+    ...bundle,
+    capabilities: providerSessionDebugBundleCapabilities(rawCapabilities),
+    providerSessionSummary: providerSessionDebugSummary(debugView),
+    providerSessionFrames: providerSessionDebugFrames(debugView),
+  }
+}
+
+function providerSessionDebugBundleCapabilities(value: unknown): string[] {
+  const values = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [...DEBUG_BUNDLE_CAPABILITIES]
+  return Array.from(new Set(values.map((capability) => {
+    if (capability === 'runtimeSummary') return 'providerSessionSummary'
+    if (capability === 'runtimeFrames') return 'providerSessionFrames'
+    return capability
+  })))
+}
+
+function providerSessionFrameSearchText(frame: ProviderSessionTraceFrame): string {
   return [
     frame.id,
     frame.kind,
@@ -1630,12 +1663,12 @@ function mergePromptDebugDetail(view: AgentTraceEventView, debugDetail?: AgentPr
   if (!view.promptDetail || !debugDetail) return view
   return {
     ...view,
-	    promptDetail: {
-	      ...view.promptDetail,
-	      budgetDecisions: debugDetail.budgetDecisions,
-	      ...(debugDetail.runtimeSkillState ? { runtimeSkillState: debugDetail.runtimeSkillState } : {}),
-	      ...(debugDetail.contextLedgerState ? { contextLedgerState: debugDetail.contextLedgerState } : {}),
-	    },
+    promptDetail: {
+      ...view.promptDetail,
+      budgetDecisions: debugDetail.budgetDecisions,
+      ...(debugDetail.runtimeSkillState ? { providerSessionSkillState: debugDetail.runtimeSkillState } : {}),
+      ...(debugDetail.contextLedgerState ? { contextLedgerState: debugDetail.contextLedgerState } : {}),
+    },
   }
 }
 
@@ -1686,12 +1719,12 @@ function mergeTraceEvents(current: AgentTraceEvent[], incoming: AgentTraceEvent[
   ]
 }
 
-function RuntimeFramesPanel({
+function ProviderSessionFramesPanel({
   frames,
   allFrameCount,
   lens,
   loading,
-  runtimeSummary,
+  providerSessionSummary,
   attentionEvents,
   copied,
   copyError,
@@ -1705,11 +1738,11 @@ function RuntimeFramesPanel({
   onCopyBundle,
   onLoadAll,
 }: {
-  frames: AgentTraceDebugView['runtimeFrames']
+  frames: ProviderSessionTraceFrames
   allFrameCount: number
   lens: AgentTraceViewMode
   loading: boolean
-  runtimeSummary: AgentRunRuntimeSummary
+  providerSessionSummary: AgentRunProviderSessionSummary
   attentionEvents: AgentDebugAttentionEvent[]
   copied: boolean
   copyError: string | null
@@ -1723,23 +1756,23 @@ function RuntimeFramesPanel({
   onCopyBundle: () => void
   onLoadAll: () => void
 }) {
-  const roundFrames = frames.filter((frame): frame is AgentRuntimeRoundFrame => frame.kind === 'round')
+  const roundFrames = frames.filter((frame): frame is ProviderSessionTraceRoundFrame => frame.kind === 'round')
   const modelCallCount = roundFrames.reduce((sum, frame) => sum + frame.modelCalls.length, 0)
   const toolCallCount = roundFrames.reduce((sum, frame) => sum + frame.toolCalls.length, 0)
   const contextChangeCount = roundFrames.reduce((sum, frame) => sum + frame.context.diff.changes.length, 0)
   const bundleCopyDisabled = loadingAll || bundleCopyDisabledReason !== null
   return (
-    <AgentRunDebugSection data-testid="agent-run-runtime-frames">
+    <AgentRunDebugSection data-testid="agent-run-provider-session-frames">
       <AgentRunDebugPanel variant="subtle">
         <AgentRunDebugHeader>
           <AgentRunDebugHeaderCopy>
-            <AgentRunDebugTitle>Runtime Frames</AgentRunDebugTitle>
-            <AgentRunDebugDescription>以 runtime round 为主线组织上下文、模型、工具、技能、审批和原始事件</AgentRunDebugDescription>
+            <AgentRunDebugTitle>Provider Session Frames</AgentRunDebugTitle>
+            <AgentRunDebugDescription>以 provider session round 为主线组织上下文、模型、工具、技能、审批和原始事件</AgentRunDebugDescription>
           </AgentRunDebugHeaderCopy>
           <AgentRunDebugActions>
             {loading && <AgentRunPageBadge variant="outline">加载中</AgentRunPageBadge>}
             <AgentRunPageBadge variant="outline">{frames.length} / {allFrameCount} frame</AgentRunPageBadge>
-            {lens !== 'all' && <AgentRunPageBadge variant="soft">{runtimeLensLabel(lens)}</AgentRunPageBadge>}
+            {lens !== 'all' && <AgentRunPageBadge variant="soft">{providerSessionLensLabel(lens)}</AgentRunPageBadge>}
             {attentionEvents.length > 0 && (
               <AgentRunDebugActionButton variant="outline" onClick={onShowAttentionEvents}>
                 只看异常
@@ -1765,20 +1798,20 @@ function RuntimeFramesPanel({
           <DebugCoverageMetric label="模型调用" value={String(modelCallCount)} />
           <DebugCoverageMetric label="工具调用" value={String(toolCallCount)} />
           <DebugCoverageMetric label="上下文 diff" value={String(contextChangeCount)} />
-          <DebugCoverageMetric label="激活技能" value={String(runtimeSummary.skills.activeSkillIds.length)} />
+          <DebugCoverageMetric label="激活技能" value={String(providerSessionSummary.skills.activeSkillIds.length)} />
           <DebugCoverageMetric label="异常" value={String(attentionEvents.length)} />
         </AgentRunDebugMetricGrid>
         {copyError && <AgentRunTraceCallout role="alert" tone="danger" compact>摘要复制失败：{copyError}</AgentRunTraceCallout>}
         {bundleCopyError && <AgentRunTraceCallout role="alert" tone="danger" compact>调试包复制失败：{bundleCopyError}</AgentRunTraceCallout>}
         {bundleCopyDisabledReason && !bundleCopyError && <AgentRunDebugStatusNote>{bundleCopyDisabledReason}</AgentRunDebugStatusNote>}
         {allFrameCount === 0 && !loading && (
-          <AgentRunTraceEmptyState data-testid="agent-run-runtime-frames-empty">
-            当前运行没有 runtime frame。请刷新或确认服务端已经生成 v2 调试视图。
+          <AgentRunTraceEmptyState data-testid="agent-run-provider-session-frames-empty">
+            当前运行没有 provider session frame。请刷新或确认服务端已经生成 v2 调试视图。
           </AgentRunTraceEmptyState>
         )}
         {allFrameCount > 0 && frames.length === 0 && (
-          <AgentRunTraceEmptyState data-testid="agent-run-runtime-frames-filter-empty">
-            当前 lens 没有匹配的 runtime frame。
+          <AgentRunTraceEmptyState data-testid="agent-run-provider-session-frames-filter-empty">
+            当前 lens 没有匹配的 provider session frame。
           </AgentRunTraceEmptyState>
         )}
       </AgentRunDebugPanel>
@@ -1786,7 +1819,7 @@ function RuntimeFramesPanel({
       {frames.length > 0 && (
         <AgentRunDebugList>
           {frames.map((frame, index) => (
-            <RuntimeFrameCard key={frame.id} frame={frame} index={index} onFocusEvent={onFocusEvent} onLoadAll={onLoadAll} loadingAll={loadingAll} />
+            <ProviderSessionFrameCard key={frame.id} frame={frame} index={index} onFocusEvent={onFocusEvent} onLoadAll={onLoadAll} loadingAll={loadingAll} />
           ))}
         </AgentRunDebugList>
       )}
@@ -1794,14 +1827,14 @@ function RuntimeFramesPanel({
   )
 }
 
-function RuntimeFrameCard({
+function ProviderSessionFrameCard({
   frame,
   index,
   onFocusEvent,
   onLoadAll,
   loadingAll,
 }: {
-  frame: AgentTraceDebugView['runtimeFrames'][number]
+  frame: ProviderSessionTraceFrame
   index: number
   onFocusEvent: (eventId: string) => void
   onLoadAll: () => void
@@ -1809,7 +1842,7 @@ function RuntimeFrameCard({
 }) {
   const tone = frame.status === 'failed' ? 'danger' : frame.status === 'blocked' ? 'warning' : 'neutral'
   return (
-    <AgentRunDebugHotspotCard data-testid="agent-run-runtime-frame" tone={tone}>
+    <AgentRunDebugHotspotCard data-testid="agent-run-provider-session-frame" tone={tone}>
       <AgentRunDebugHeader>
         <AgentRunDebugHeaderCopy>
           <AgentRunDebugTitle>{frame.label}</AgentRunDebugTitle>
@@ -1826,20 +1859,20 @@ function RuntimeFrameCard({
         </AgentRunDebugActions>
       </AgentRunDebugHeader>
       <AgentRunDebugTags>
-        {frame.focus.filter((focus) => focus !== 'raw').map((focus) => <AgentRunPageBadge key={focus} variant="outline">{runtimeLensLabel(focus)}</AgentRunPageBadge>)}
+        {frame.focus.filter((focus) => focus !== 'raw').map((focus) => <AgentRunPageBadge key={focus} variant="outline">{providerSessionLensLabel(focus)}</AgentRunPageBadge>)}
         <AgentRunPageBadge variant="outline">事件 {frame.eventIds.length}</AgentRunPageBadge>
         {frame.durationMs !== undefined && <AgentRunPageBadge variant="outline">耗时 {formatDurationMs(frame.durationMs)}</AgentRunPageBadge>}
       </AgentRunDebugTags>
-      {frame.kind === 'round' && <RuntimeRoundFrameDetail frame={frame} onFocusEvent={onFocusEvent} />}
+      {frame.kind === 'round' && <ProviderSessionRoundFrameDetail frame={frame} onFocusEvent={onFocusEvent} />}
       {frame.kind === 'setup' && (
         <AgentRunDebugStack>
-          <RuntimeSkillList skills={frame.skills} onFocusEvent={onFocusEvent} />
-          <RuntimeContextMutationList mutations={frame.contextMutations} onFocusEvent={onFocusEvent} />
+          <ProviderSessionSkillList skills={frame.skills} onFocusEvent={onFocusEvent} />
+          <ProviderSessionContextMutationList mutations={frame.contextMutations} onFocusEvent={onFocusEvent} />
         </AgentRunDebugStack>
       )}
       {frame.kind === 'finalize' && (
         <AgentRunDebugStack>
-          <RuntimeMessageWriteList writes={frame.messageWrites} onFocusEvent={onFocusEvent} />
+          <ProviderSessionMessageWriteList writes={frame.messageWrites} onFocusEvent={onFocusEvent} />
           {frame.pendingActions.length > 0 && <AgentRunTraceDetailLine label="待处理动作" value={String(frame.pendingActions.length)} />}
         </AgentRunDebugStack>
       )}
@@ -1861,11 +1894,11 @@ function RuntimeFrameCard({
   )
 }
 
-function RuntimeRoundFrameDetail({ frame, onFocusEvent }: { frame: AgentRuntimeRoundFrame; onFocusEvent: (eventId: string) => void }) {
+function ProviderSessionRoundFrameDetail({ frame, onFocusEvent }: { frame: ProviderSessionTraceRoundFrame; onFocusEvent: (eventId: string) => void }) {
   return (
     <AgentRunDebugStack>
       <AgentRunDebugSplit>
-        <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-context">
+        <AgentRunDebugPanel variant="card" data-testid="agent-run-provider-session-frame-context">
           <AgentRunDebugHeader>
             <AgentRunDebugTitle>上下文</AgentRunDebugTitle>
             {frame.context.projection && (
@@ -1905,7 +1938,7 @@ function RuntimeRoundFrameDetail({ frame, onFocusEvent }: { frame: AgentRuntimeR
           )}
         </AgentRunDebugPanel>
 
-        <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-model">
+        <AgentRunDebugPanel variant="card" data-testid="agent-run-provider-session-frame-model">
           <AgentRunDebugHeader>
             <AgentRunDebugTitle>模型</AgentRunDebugTitle>
             <AgentRunPageBadge variant="outline">{frame.modelCalls.length} 次</AgentRunPageBadge>
@@ -1937,9 +1970,9 @@ function RuntimeRoundFrameDetail({ frame, onFocusEvent }: { frame: AgentRuntimeR
         </AgentRunDebugPanel>
       </AgentRunDebugSplit>
 
-      <RuntimeToolList calls={frame.toolCalls} onFocusEvent={onFocusEvent} />
-      <RuntimeSkillList skills={frame.skills} onFocusEvent={onFocusEvent} />
-      <RuntimeMessageWriteList writes={frame.messageWrites} onFocusEvent={onFocusEvent} />
+      <ProviderSessionToolList calls={frame.toolCalls} onFocusEvent={onFocusEvent} />
+      <ProviderSessionSkillList skills={frame.skills} onFocusEvent={onFocusEvent} />
+      <ProviderSessionMessageWriteList writes={frame.messageWrites} onFocusEvent={onFocusEvent} />
       {frame.approvals.length > 0 && (
         <AgentRunDebugPanel variant="card">
           <AgentRunDebugTitle>审批/输入</AgentRunDebugTitle>
@@ -1960,10 +1993,10 @@ function RuntimeRoundFrameDetail({ frame, onFocusEvent }: { frame: AgentRuntimeR
   )
 }
 
-function RuntimeToolList({ calls, onFocusEvent }: { calls: AgentRuntimeRoundFrame['toolCalls']; onFocusEvent: (eventId: string) => void }) {
+function ProviderSessionToolList({ calls, onFocusEvent }: { calls: ProviderSessionTraceRoundFrame['toolCalls']; onFocusEvent: (eventId: string) => void }) {
   if (calls.length === 0) return null
   return (
-    <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-tools">
+    <AgentRunDebugPanel variant="card" data-testid="agent-run-provider-session-frame-tools">
       <AgentRunDebugHeader>
         <AgentRunDebugTitle>工具</AgentRunDebugTitle>
         <AgentRunPageBadge variant="outline">{calls.length} 次</AgentRunPageBadge>
@@ -1992,10 +2025,10 @@ function RuntimeToolList({ calls, onFocusEvent }: { calls: AgentRuntimeRoundFram
   )
 }
 
-function RuntimeSkillList({ skills, onFocusEvent }: { skills: AgentRuntimeRoundFrame['skills']; onFocusEvent: (eventId: string) => void }) {
+function ProviderSessionSkillList({ skills, onFocusEvent }: { skills: ProviderSessionTraceRoundFrame['skills']; onFocusEvent: (eventId: string) => void }) {
   if (skills.length === 0) return null
   return (
-    <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-skills">
+    <AgentRunDebugPanel variant="card" data-testid="agent-run-provider-session-frame-skills">
       <AgentRunDebugHeader>
         <AgentRunDebugTitle>技能状态</AgentRunDebugTitle>
         <AgentRunPageBadge variant="outline">{skills.length} 次</AgentRunPageBadge>
@@ -2025,10 +2058,10 @@ function RuntimeSkillList({ skills, onFocusEvent }: { skills: AgentRuntimeRoundF
   )
 }
 
-function RuntimeMessageWriteList({ writes, onFocusEvent }: { writes: AgentRuntimeRoundFrame['messageWrites']; onFocusEvent: (eventId: string) => void }) {
+function ProviderSessionMessageWriteList({ writes, onFocusEvent }: { writes: ProviderSessionTraceRoundFrame['messageWrites']; onFocusEvent: (eventId: string) => void }) {
   if (writes.length === 0) return null
   return (
-    <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-messages">
+    <AgentRunDebugPanel variant="card" data-testid="agent-run-provider-session-frame-messages">
       <AgentRunDebugHeader>
         <AgentRunDebugTitle>消息写入</AgentRunDebugTitle>
         <AgentRunPageBadge variant="outline">{writes.length} 条</AgentRunPageBadge>
@@ -2051,7 +2084,7 @@ function RuntimeMessageWriteList({ writes, onFocusEvent }: { writes: AgentRuntim
   )
 }
 
-function RuntimeContextMutationList({ mutations, onFocusEvent }: { mutations: AgentContextMutationView[]; onFocusEvent: (eventId: string) => void }) {
+function ProviderSessionContextMutationList({ mutations, onFocusEvent }: { mutations: AgentContextMutationView[]; onFocusEvent: (eventId: string) => void }) {
   if (mutations.length === 0) return null
   return (
     <AgentRunDebugPanel variant="card">
@@ -2075,7 +2108,7 @@ function RuntimeContextMutationList({ mutations, onFocusEvent }: { mutations: Ag
   )
 }
 
-function runtimeLensLabel(lens: AgentTraceViewMode): string {
+function providerSessionLensLabel(lens: AgentTraceViewMode): string {
   switch (lens) {
     case 'all': return '全部'
     case 'context': return '上下文'
@@ -2089,7 +2122,7 @@ function runtimeLensLabel(lens: AgentTraceViewMode): string {
   }
 }
 
-function contextChangeOpLabel(op: AgentRuntimeRoundFrame['context']['diff']['changes'][number]['op']): string {
+function contextChangeOpLabel(op: ProviderSessionTraceRoundFrame['context']['diff']['changes'][number]['op']): string {
   switch (op) {
     case 'append': return '新增'
     case 'amend': return '更新'
@@ -2257,13 +2290,13 @@ function ToolCallPreviewBlock({ title, value }: { title: string; value: string }
   )
 }
 
-function RunRuntimeSummaryPanel({
+function RunProviderSessionSummaryPanel({
   summary,
   promptDetails,
   approvalImpactSummary,
   onFocusEvent,
 }: {
-  summary: AgentRunRuntimeSummary
+  summary: AgentRunProviderSessionSummary
   promptDetails: AgentPromptDebugDetail[]
   approvalImpactSummary: AgentApprovalImpactSummary
   onFocusEvent: (eventId: string) => void
@@ -2275,11 +2308,11 @@ function RunRuntimeSummaryPanel({
   const promptBudgetDecisions = promptBudgetDetail?.budgetDecisions ?? []
   const promptEventId = summary.context.promptEventId ?? promptBudgetDetail?.eventId
   return (
-    <AgentRunDebugSection data-testid="agent-run-runtime-summary">
+    <AgentRunDebugSection data-testid="agent-run-provider-session-summary">
       <AgentRunDebugPanel variant="subtle">
         <AgentRunDebugHeader>
           <AgentRunDebugHeaderCopy>
-            <AgentRunDebugTitle>运行时实际状态</AgentRunDebugTitle>
+            <AgentRunDebugTitle>Provider Session 实际状态</AgentRunDebugTitle>
             <AgentRunDebugDescription>这次运行实际进入 prompt 的技能、可用工具、已调用工具和上下文变动</AgentRunDebugDescription>
           </AgentRunDebugHeaderCopy>
           <AgentRunDebugActions>
@@ -2311,17 +2344,17 @@ function RunRuntimeSummaryPanel({
       </AgentRunDebugPanel>
 
       <AgentRunDebugSplit>
-        <AgentRunDebugPanel data-testid="agent-run-runtime-skills">
+        <AgentRunDebugPanel data-testid="agent-run-provider-session-skills">
           <AgentRunDebugHeader>
             <AgentRunDebugHeaderCopy>
               <AgentRunDebugTitle>Skills</AgentRunDebugTitle>
-              <AgentRunDebugDescription>运行时技能状态来自 skill trace，而不是设置页静态配置</AgentRunDebugDescription>
+              <AgentRunDebugDescription>provider session 技能状态来自 skill trace，而不是设置页静态配置</AgentRunDebugDescription>
             </AgentRunDebugHeaderCopy>
           </AgentRunDebugHeader>
           {skillContextProjection.length > 0 && (
-            <AgentRunDebugList data-testid="agent-run-runtime-skill-context-projection">
+            <AgentRunDebugList data-testid="agent-run-provider-session-skill-context-projection">
               {skillContextProjection.map((skill) => (
-                <AgentRunDebugStatusNote key={skill.skillId} data-testid="agent-run-runtime-skill-context-item">
+                <AgentRunDebugStatusNote key={skill.skillId} data-testid="agent-run-provider-session-skill-context-item">
                   <AgentRunDebugHeader>
                     <AgentRunDebugHeaderCopy>
                       <AgentRunDebugTitle>{skill.name}</AgentRunDebugTitle>
@@ -2332,7 +2365,7 @@ function RunRuntimeSummaryPanel({
                     </AgentRunPageBadge>
                   </AgentRunDebugHeader>
                   <AgentRunDebugTags>
-                    {skill.activationReason && <AgentRunPageBadge variant="outline">{runtimeSkillActivationLabel(skill.activationReason)}</AgentRunPageBadge>}
+                    {skill.activationReason && <AgentRunPageBadge variant="outline">{providerSessionSkillActivationLabel(skill.activationReason)}</AgentRunPageBadge>}
                     {skill.contextBehavior && <AgentRunPageBadge variant="outline">上下文 {skill.contextBehavior}</AgentRunPageBadge>}
                     {skill.promptLayer && <AgentRunPageBadge variant="outline">{skill.promptLayer}</AgentRunPageBadge>}
                     {skill.renderedChars && <AgentRunPageBadge variant="outline">{skill.renderedChars} chars</AgentRunPageBadge>}
@@ -2347,9 +2380,9 @@ function RunRuntimeSummaryPanel({
             </AgentRunDebugList>
           )}
           {summary.skills.omissions.length > 0 && (
-            <AgentRunDebugList data-testid="agent-run-runtime-skill-omissions">
+            <AgentRunDebugList data-testid="agent-run-provider-session-skill-omissions">
               {summary.skills.omissions.map((skill) => (
-                <AgentRunDebugStatusNote key={`${skill.stage}:${skill.skillId}`} data-testid="agent-run-runtime-skill-omission-item">
+                <AgentRunDebugStatusNote key={`${skill.stage}:${skill.skillId}`} data-testid="agent-run-provider-session-skill-omission-item">
                   <AgentRunDebugHeader>
                     <AgentRunDebugHeaderCopy>
                       <AgentRunDebugTitle>{skill.name}</AgentRunDebugTitle>
@@ -2373,35 +2406,35 @@ function RunRuntimeSummaryPanel({
           <SkillIdList label="显式卸载" ids={summary.skills.unloadedSkillIds} compact />
           <SkillIdList label="目录可用" ids={summary.skills.availableSkillIds} compact />
           {summary.skills.activeSkillIds.length === 0 && (
-            <AgentRunDebugMutedNote>已加载 trace 中还没有运行时技能状态。</AgentRunDebugMutedNote>
+            <AgentRunDebugMutedNote>已加载 trace 中还没有provider session 技能状态。</AgentRunDebugMutedNote>
           )}
         </AgentRunDebugPanel>
 
-        <AgentRunDebugPanel data-testid="agent-run-runtime-tools">
+        <AgentRunDebugPanel data-testid="agent-run-provider-session-tools">
           <AgentRunDebugHeader>
             <AgentRunDebugHeaderCopy>
               <AgentRunDebugTitle>Tools</AgentRunDebugTitle>
-              <AgentRunDebugDescription>运行时工具状态来自 prompt 和 tool trace，反映这次 run 的实际可调用集合</AgentRunDebugDescription>
+              <AgentRunDebugDescription>provider session 工具状态来自 prompt 和 tool trace，反映这次 run 的实际可调用集合</AgentRunDebugDescription>
             </AgentRunDebugHeaderCopy>
             {summary.tools.blockedToolCount !== undefined && (
               <AgentRunPageBadge variant="outline">Prompt 阻塞 {summary.tools.blockedToolCount}</AgentRunPageBadge>
             )}
           </AgentRunDebugHeader>
-          <RuntimeNameList label="Prompt 可用" names={summary.tools.availableToolNames} />
-          <RuntimeNameList label="已调用" names={summary.tools.usedToolNames} />
-          <RuntimeNameList label="失败" names={summary.tools.failedToolNames} tone="warning" />
-          <RuntimeNameList label="阻塞" names={summary.tools.blockedToolNames} tone="warning" />
-          <RuntimeNameList label="需要审批" names={summary.tools.approvalRequiredToolNames} tone="warning" />
-          <RuntimeNameList label="权限拒绝" names={summary.tools.deniedToolNames} tone="warning" />
-          <RuntimeNameList label="权限门禁阻塞" names={summary.tools.permissionGateBlockedToolNames} tone="warning" />
-          <RuntimeNameList label="待审批" names={summary.tools.pendingApprovalToolNames} />
+          <ProviderSessionNameList label="Prompt 可用" names={summary.tools.availableToolNames} />
+          <ProviderSessionNameList label="已调用" names={summary.tools.usedToolNames} />
+          <ProviderSessionNameList label="失败" names={summary.tools.failedToolNames} tone="warning" />
+          <ProviderSessionNameList label="阻塞" names={summary.tools.blockedToolNames} tone="warning" />
+          <ProviderSessionNameList label="需要审批" names={summary.tools.approvalRequiredToolNames} tone="warning" />
+          <ProviderSessionNameList label="权限拒绝" names={summary.tools.deniedToolNames} tone="warning" />
+          <ProviderSessionNameList label="权限门禁阻塞" names={summary.tools.permissionGateBlockedToolNames} tone="warning" />
+          <ProviderSessionNameList label="待审批" names={summary.tools.pendingApprovalToolNames} />
           {summary.tools.availableToolNames.length === 0 && summary.tools.usedToolNames.length === 0 && (
             <AgentRunDebugMutedNote>已加载 trace 中还没有 prompt 工具清单或工具调用。</AgentRunDebugMutedNote>
           )}
         </AgentRunDebugPanel>
       </AgentRunDebugSplit>
 
-      <AgentRunDebugPanel data-testid="agent-run-runtime-approval-impact">
+      <AgentRunDebugPanel data-testid="agent-run-provider-session-approval-impact">
         <AgentRunDebugHeader>
           <AgentRunDebugHeaderCopy>
             <AgentRunDebugTitle>Approval Impact</AgentRunDebugTitle>
@@ -2418,9 +2451,9 @@ function RunRuntimeSummaryPanel({
           <DebugCoverageMetric label="已拒绝" value={String(approvalImpactSummary.rejectedCount)} />
         </AgentRunDebugMetricGrid>
         {approvalImpactSummary.items.length > 0 ? (
-          <AgentRunDebugList data-testid="agent-run-runtime-approval-impact-list">
+          <AgentRunDebugList data-testid="agent-run-provider-session-approval-impact-list">
             {approvalImpactSummary.items.slice(0, 8).map((approval) => (
-              <AgentRunDebugStatusNote key={approval.id} data-testid="agent-run-runtime-approval-impact-item">
+              <AgentRunDebugStatusNote key={approval.id} data-testid="agent-run-provider-session-approval-impact-item">
                 <AgentRunDebugHeader>
                   <AgentRunDebugHeaderCopy>
                     <AgentRunDebugTitle>{agentToolNameLabel(approval.toolName)}</AgentRunDebugTitle>
@@ -2451,11 +2484,11 @@ function RunRuntimeSummaryPanel({
         )}
       </AgentRunDebugPanel>
 
-      <AgentRunDebugPanel data-testid="agent-run-runtime-context">
+      <AgentRunDebugPanel data-testid="agent-run-provider-session-context">
         <AgentRunDebugHeader>
           <AgentRunDebugHeaderCopy>
             <AgentRunDebugTitle>Context</AgentRunDebugTitle>
-            <AgentRunDebugDescription>模型上下文是从 transcript 和 runtime state 投影出来的预算视图</AgentRunDebugDescription>
+            <AgentRunDebugDescription>模型上下文是从 transcript 和 provider-session state 投影出来的预算视图</AgentRunDebugDescription>
           </AgentRunDebugHeaderCopy>
           {promptEventId && (
             <AgentRunDebugActionButton variant="ghost" onClick={() => onFocusEvent(promptEventId)}>
@@ -2508,9 +2541,9 @@ function RunRuntimeSummaryPanel({
           <AgentRunTraceDetailLine label="最新变动原因" value={redactAgentTraceDebugText(summary.context.latestMutationReason)} />
         )}
         {summary.context.historyProjection && summary.context.historyProjection.decisions.length > 0 && (
-          <AgentRunDebugList data-testid="agent-run-runtime-history-projection">
+          <AgentRunDebugList data-testid="agent-run-provider-session-history-projection">
             {summary.context.historyProjection.decisions.map((decision, index) => (
-              <AgentRunDebugStatusNote key={`${decision.stage ?? decision.action}-${index}`} data-testid="agent-run-runtime-history-projection-item">
+              <AgentRunDebugStatusNote key={`${decision.stage ?? decision.action}-${index}`} data-testid="agent-run-provider-session-history-projection-item">
                 <AgentRunDebugHeader>
                   <AgentRunDebugHeaderCopy>
                     <AgentRunDebugTitle>{historyProjectionActionLabel(decision.action)}</AgentRunDebugTitle>
@@ -2524,9 +2557,9 @@ function RunRuntimeSummaryPanel({
           </AgentRunDebugList>
         )}
         {promptBudgetDecisions.length > 0 && (
-          <AgentRunDebugList data-testid="agent-run-runtime-prompt-budget-decisions">
+          <AgentRunDebugList data-testid="agent-run-provider-session-prompt-budget-decisions">
             {promptBudgetDecisions.slice(0, 8).map((decision, index) => (
-              <AgentRunDebugStatusNote key={`${decision.partId}:${decision.action}:${index}`} data-testid="agent-run-runtime-prompt-budget-decision">
+              <AgentRunDebugStatusNote key={`${decision.partId}:${decision.action}:${index}`} data-testid="agent-run-provider-session-prompt-budget-decision">
                 <AgentRunDebugHeader>
                   <AgentRunDebugHeaderCopy>
                     <AgentRunDebugTitle>{promptBudgetDecisionActionLabel(decision.action)}</AgentRunDebugTitle>
@@ -2542,9 +2575,9 @@ function RunRuntimeSummaryPanel({
             ))}
           </AgentRunDebugList>
         )}
-        <RuntimeProjectionDecisionList title="Tool loop 投影" projection={summary.context.toolLoopProjection} testId="agent-run-runtime-tool-loop-projection" />
-        <RuntimeProjectionDecisionList title="历史图片投影" projection={summary.context.historicalVisualProjection} testId="agent-run-runtime-historical-visual-projection" />
-        <RuntimeProjectionDecisionList title="附件投影" projection={summary.context.attachmentProjection} testId="agent-run-runtime-attachment-projection" />
+        <ProviderSessionProjectionDecisionList title="Tool loop 投影" projection={summary.context.toolLoopProjection} testId="agent-run-provider-session-tool-loop-projection" />
+        <ProviderSessionProjectionDecisionList title="历史图片投影" projection={summary.context.historicalVisualProjection} testId="agent-run-provider-session-historical-visual-projection" />
+        <ProviderSessionProjectionDecisionList title="附件投影" projection={summary.context.attachmentProjection} testId="agent-run-provider-session-attachment-projection" />
       </AgentRunDebugPanel>
     </AgentRunDebugSection>
   )
@@ -2601,7 +2634,7 @@ function ModelMessageImagePart({ part }: { part: Extract<AgentModelRequestMessag
   )
 }
 
-function RuntimeProjectionDecisionList({ title, projection, testId }: { title: string; projection?: { decisions: Array<Record<string, unknown>> }; testId: string }) {
+function ProviderSessionProjectionDecisionList({ title, projection, testId }: { title: string; projection?: { decisions: Array<Record<string, unknown>> }; testId: string }) {
   if (!projection || projection.decisions.length === 0) return null
   return (
     <AgentRunDebugList data-testid={testId}>
@@ -2654,7 +2687,7 @@ function promptBudgetDecisionActionLabel(action: string): string {
   return action
 }
 
-function RuntimeNameList({ label, names, tone, compact = true }: { label: string; names: string[]; tone?: 'warning'; compact?: boolean }) {
+function ProviderSessionNameList({ label, names, tone, compact = true }: { label: string; names: string[]; tone?: 'warning'; compact?: boolean }) {
   if (names.length === 0) return null
   const visible = compact ? names.slice(0, 10) : names
   return (
@@ -2938,23 +2971,23 @@ function PromptDetail({ detail }: { detail: AgentPromptDetailDisplay }) {
           {detail.tools.length > 0 && <PromptNameList title="可用工具" values={detail.tools} />}
         </AgentRunTraceContextGroups>
       )}
-      {(detail.runtimeSkillState || detail.contextLedgerState) && (
-        <AgentRunDebugPanel data-testid="agent-run-prompt-runtime-correlation" variant="card">
-          <AgentRunSectionEyebrow>运行时对齐</AgentRunSectionEyebrow>
+      {(detail.providerSessionSkillState || detail.contextLedgerState) && (
+        <AgentRunDebugPanel data-testid="agent-run-prompt-provider-session-correlation" variant="card">
+          <AgentRunSectionEyebrow>Provider Session 对齐</AgentRunSectionEyebrow>
           <AgentRunTraceContextGroupItems>
-            {detail.runtimeSkillState && (
+            {detail.providerSessionSkillState && (
               <>
                 <AgentRunTraceContextRow>
                   <AgentRunTraceContextKey>Skill 状态事件</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>{detail.runtimeSkillState.sourceEventId ?? '-'}</AgentRunTraceContextValue>
+                  <AgentRunTraceContextValue>{detail.providerSessionSkillState.sourceEventId ?? '-'}</AgentRunTraceContextValue>
                 </AgentRunTraceContextRow>
                 <AgentRunTraceContextRow>
                   <AgentRunTraceContextKey>当时激活</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>{detail.runtimeSkillState.activeSkillIds.join(', ') || '-'}</AgentRunTraceContextValue>
+                  <AgentRunTraceContextValue>{detail.providerSessionSkillState.activeSkillIds.join(', ') || '-'}</AgentRunTraceContextValue>
                 </AgentRunTraceContextRow>
                 <AgentRunTraceContextRow>
                   <AgentRunTraceContextKey>当时遗漏</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>{detail.runtimeSkillState.omissions.map((item) => `${item.skillId}:${item.stage}`).join(', ') || '-'}</AgentRunTraceContextValue>
+                  <AgentRunTraceContextValue>{detail.providerSessionSkillState.omissions.map((item) => `${item.skillId}:${item.stage}`).join(', ') || '-'}</AgentRunTraceContextValue>
                 </AgentRunTraceContextRow>
               </>
             )}
@@ -3320,7 +3353,7 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
   )
 }
 
-function runtimeSkillActivationLabel(reason: string): string {
+function providerSessionSkillActivationLabel(reason: string): string {
   if (reason === 'trigger') return '触发加载'
   if (reason === 'default') return '配置文件加载'
   return `加载 ${reason}`
@@ -3355,7 +3388,7 @@ function buildRunSummary(
       `${contextEvents} 个上下文相关事件`,
       approvals > 0 ? `${approvals} 个待审批项` : '无待审批项',
       inputs > 0 ? `${inputs} 个待输入项` : '无待输入项',
-      run.warnings?.length ? `${run.warnings.length} 条警告` : '无运行警告',
+      run.warnings?.length ? `${run.warnings.length} 条警告` : '无 Provider 警告',
     ].filter((item): item is string => !!item),
   }
 }

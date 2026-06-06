@@ -2,10 +2,10 @@
 
 export {
   AgentInlineEmpty,
-  AgentRuntimeStatusContent,
-  AgentRuntimeStatusDetail,
-  AgentRuntimeStatusHeader,
-  AgentRuntimeStatusSuccessIcon,
+  ProviderSessionStatusContent,
+  ProviderSessionStatusDetail,
+  ProviderSessionStatusHeader,
+  ProviderSessionStatusSuccessIcon,
 } from "./status";
 export {
   AgentStep,

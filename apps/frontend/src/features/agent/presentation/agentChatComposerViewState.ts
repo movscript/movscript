@@ -1,7 +1,7 @@
-import { buildPendingRuntimeInputQueueItems } from '@/features/agent/domain/agentRuntimeInputMessages'
+import { buildPendingActiveRunInputQueueItems } from '@/features/agent/domain/agentActiveRunInputMessages'
 import { isStoppableAgentRun, isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import type { AgentPendingInputRequest } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export interface AgentChatComposerViewStateInput {
@@ -15,7 +15,7 @@ export interface AgentChatComposerViewStateInput {
   inputBlockingLoading: boolean
   inputPlaceholder: string
   messages: ChatMessage[]
-  runtimeStopRequested: boolean
+  providerSessionStopRequested: boolean
   uploading: boolean
 }
 
@@ -25,15 +25,15 @@ export function buildAgentChatComposerViewState(input: AgentChatComposerViewStat
       ? input.canAnswerPendingInputWithText && !!input.input.trim()
       : (!!input.input.trim() || input.composerAttachmentCount > 0)
   ) && !input.uploading && !input.buildingSendWorkspace
-  const hasActiveLocalWork = !isTerminalAgentRun(input.activeRun) && (input.inputBlockingLoading || input.buildingSendWorkspace)
-  const canStopLocalRun = !input.answeringPendingInput
-    && (isStoppableAgentRun(input.activeRun) || hasActiveLocalWork || input.runtimeStopRequested)
+  const hasActiveProviderSessionWork = !isTerminalAgentRun(input.activeRun) && (input.inputBlockingLoading || input.buildingSendWorkspace)
+  const canStopActiveRun = !input.answeringPendingInput
+    && (isStoppableAgentRun(input.activeRun) || hasActiveProviderSessionWork || input.providerSessionStopRequested)
 
   return {
     canSend,
-    canStopLocalRun,
+    canStopActiveRun,
     composerPlaceholder: composerPlaceholderForPendingInput(input.activePendingInputRequest, input.inputPlaceholder),
-    pendingRuntimeInputQueue: buildPendingRuntimeInputQueueItems(input.messages),
+    pendingActiveRunInputQueue: buildPendingActiveRunInputQueueItems(input.messages),
   }
 }
 

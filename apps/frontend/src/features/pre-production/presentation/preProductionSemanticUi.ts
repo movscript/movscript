@@ -31,9 +31,12 @@ export function preProductionCandidateAvailabilityRecipe(canLock: boolean): PreP
   return preProductionCandidateAvailabilityStatus.recipe(canLock ? 'lockable' : 'blocked')
 }
 
-export function preProductionWorkspaceWorkspaceStatusRecipe(status?: string): PreProductionStatusRecipe {
-  return preProductionWorkspaceWorkspaceStatus.recipe(status)
+export function preProductionWorkspaceArtifactStatusRecipe(status?: string): PreProductionStatusRecipe {
+  return preProductionWorkspaceArtifactStatus.recipe(status)
 }
+
+/** @deprecated Use preProductionWorkspaceArtifactStatusRecipe. */
+export const preProductionWorkspaceWorkspaceStatusRecipe = preProductionWorkspaceArtifactStatusRecipe
 
 export function preProductionWorkspaceEntryChangeRecipe(changeType?: string): PreProductionStatusRecipe {
   return preProductionWorkspaceEntryChangeStatus.recipe(changeType)
@@ -87,7 +90,7 @@ const preProductionCandidateAvailabilityStatus = defineFeatureStatusRecipeGroup(
   default: 'neutral',
 })
 
-const preProductionWorkspaceWorkspaceStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.workspace.status', {
+const preProductionWorkspaceArtifactStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.artifact.status', {
   applied: 'success',
   rejected: 'danger',
   workspace: 'warning',

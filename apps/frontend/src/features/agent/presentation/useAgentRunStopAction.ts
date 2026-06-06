@@ -2,11 +2,11 @@ import { useCallback, useMemo } from 'react'
 import type { MutableRefObject } from 'react'
 import { api } from '@/shared/infrastructure/api'
 import {
-  createLocalAgentStopAbortError,
-  stopLocalRunAction,
-  type StopLocalRunActionDeps,
+  createProviderSessionStopAbortError,
+  stopProviderSessionRunAction,
+  type StopProviderSessionRunActionDeps,
 } from '@/features/agent/domain/agentRunControl'
-import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 
@@ -33,8 +33,8 @@ export interface UseAgentRunStopActionInput {
   activeSendAbortControllerRef: MutableRefObject<AbortController | null>
   setPendingAssistantState: (state: AgentThinkingState | null) => void
   resetStreamingAssistant: () => void
-  setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<StopLocalRunActionDeps['setConversationRun']>[1]) => void
-  setConversationRuntime: (conversationId: string, patch: Parameters<StopLocalRunActionDeps['setConversationRuntime']>[0]) => void
+  setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<StopProviderSessionRunActionDeps['setConversationRun']>[1]) => void
+  setConversationProviderSessionState: (conversationId: string, patch: Parameters<StopProviderSessionRunActionDeps['setConversationProviderSessionState']>[0]) => void
 }
 
 export function useAgentRunStopAction({
@@ -51,43 +51,43 @@ export function useAgentRunStopAction({
   setPendingAssistantState,
   resetStreamingAssistant,
   setConversationRun,
-  setConversationRuntime,
+  setConversationProviderSessionState,
 }: UseAgentRunStopActionInput) {
-  const runtimeClient = useMemo(() => sessionId?.trim()
-    ? localAgentClient.forSession({
+  const providerSessionRunClient = useMemo(() => sessionId?.trim()
+    ? providerSessionClient.forSession({
         sessionId: sessionId.trim(),
         ...(workspaceDir?.trim() ? { workspaceDir: workspaceDir.trim() } : {}),
       })
-    : localAgentClient, [sessionId, workspaceDir])
-  const deps = useMemo<StopLocalRunActionDeps>(() => ({
+    : providerSessionClient, [sessionId, workspaceDir])
+  const deps = useMemo<StopProviderSessionRunActionDeps>(() => ({
     abortActiveSend: () => {
       const sendController = activeSendAbortControllerRef.current
       if (sendController && !sendController.signal.aborted) {
-        sendController.abort(createLocalAgentStopAbortError())
+        sendController.abort(createProviderSessionStopAbortError())
       }
     },
     setPendingAssistantState,
     resetStreamingAssistant,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
-    setConversationRuntime: (patch) => setConversationRuntime(conversationId, patch),
+    setConversationProviderSessionState: (patch) => setConversationProviderSessionState(conversationId, patch),
     cancelGenerationJobIfActive: () => {
       void cancelGenerationJobIfActive(generationProgressState)
     },
-    cancelRun: (runId, input) => runtimeClient.cancelRun(runId, input),
-    getRun: (runId) => runtimeClient.getRun(runId),
+    cancelRun: (runId, input) => providerSessionRunClient.cancelRun(runId, input),
+    getRun: (runId) => providerSessionRunClient.getRun(runId),
   }), [
     activeSendAbortControllerRef,
     conversationId,
     generationProgressState,
     resetStreamingAssistant,
-    runtimeClient,
+    providerSessionRunClient,
     setConversationRun,
-    setConversationRuntime,
+    setConversationProviderSessionState,
     setPendingAssistantState,
   ])
 
   return useCallback(() => {
-    stopLocalRunAction({
+    stopProviderSessionRunAction({
       run,
       loading,
       building,

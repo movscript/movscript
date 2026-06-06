@@ -1,4 +1,4 @@
-import type { AgentPlan, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentPlan, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 export function latestPlanFromTimelineItems(items: AgentTimelineItem[]): AgentPlan | undefined {
   for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -11,7 +11,7 @@ export function latestPlanFromTimelineItems(items: AgentTimelineItem[]): AgentPl
 }
 
 function isPlanStatusTimelineItem(item: AgentTimelineItem): boolean {
-  return item.origin === 'system_runtime'
+  return item.origin === 'provider_session'
     && item.purpose === 'status'
     && item.surface === 'status_strip'
     && item.contentPromptEligibility === 'exclude'

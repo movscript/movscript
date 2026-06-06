@@ -8,7 +8,7 @@ export interface ExternalTaskWorkspaceOptions {
   title?: string
   projectId?: number
   clientInput?: AgentPageTaskState['payload']['clientInput']
-  agentManifest?: AgentPageTaskState['payload']['agentManifest']
+  providerManifest?: AgentPageTaskState['payload']['providerManifest']
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts: true
@@ -77,7 +77,7 @@ export function externalTaskWorkspaceOptions(payload: AgentPageTaskState['payloa
     ...(payload.title ? { title: payload.title } : {}),
     ...(payload.projectId ? { projectId: payload.projectId } : {}),
     ...(payload.clientInput ? { clientInput: payload.clientInput } : {}),
-    ...(payload.agentManifest ? { agentManifest: payload.agentManifest } : {}),
+    ...(payload.providerManifest ? { providerManifest: payload.providerManifest } : {}),
     ...(payload.requestId ? { requestId: payload.requestId } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
     omitDebugArtifacts: true,

@@ -56,13 +56,35 @@ export function AgentChatServerRequestCard({
   onReject: () => void
 }) {
   const view = agentChatServerRequestView(request)
+  const allowOptions = [
+    view.canApproveForSession ? {
+      key: 'session',
+      label: 'Allow for session',
+      onClick: onApproveForSession ?? onApprove,
+    } : null,
+    view.canApproveWithExecPolicyAmendment ? {
+      key: 'exec-policy',
+      label: 'Allow similar command',
+      onClick: onApproveWithExecPolicyAmendment ?? onApprove,
+    } : null,
+    ...view.networkPolicyAmendments.map((_, amendmentIndex) => ({
+      key: `network-policy:${amendmentIndex}`,
+      label: `Allow network policy ${amendmentIndex + 1}`,
+      onClick: () => onApproveWithNetworkPolicyAmendment?.(amendmentIndex),
+    })),
+    view.canApproveWithStrictAutoReview ? {
+      key: 'strict-review',
+      label: 'Allow with strict review',
+      onClick: onApproveWithStrictAutoReview ?? onApprove,
+    } : null,
+  ].filter((option): option is { key: string; label: string; onClick: () => void } => Boolean(option))
   return (
     <AgentChatMessage
       role="system"
       avatar="!"
       data-testid="agent-chat-server-request"
       actions={(
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {view.canReject ? (
             <Button type="button" size="sm" variant="ghost" onClick={onReject}>
               Reject
@@ -75,34 +97,31 @@ export function AgentChatServerRequestCard({
           ) : null}
           {view.canAnswer || view.canElicit || view.canSubmitToolResult ? null : (
             <>
-              {view.canApproveForSession ? (
-                <Button type="button" size="sm" variant="ghost" onClick={onApproveForSession ?? onApprove}>
-                  Approve session
-                </Button>
-              ) : null}
-              {view.canApproveWithExecPolicyAmendment ? (
-                <Button type="button" size="sm" variant="ghost" onClick={onApproveWithExecPolicyAmendment ?? onApprove}>
-                  Approve policy
-                </Button>
-              ) : null}
-              {view.networkPolicyAmendments.map((_, amendmentIndex) => (
-                <Button
-                  key={`network-policy:${amendmentIndex}`}
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onApproveWithNetworkPolicyAmendment?.(amendmentIndex)}
-                >
-                  Network policy {amendmentIndex + 1}
-                </Button>
-              ))}
-              {view.canApproveWithStrictAutoReview ? (
-                <Button type="button" size="sm" variant="ghost" onClick={onApproveWithStrictAutoReview ?? onApprove}>
-                  Strict review
-                </Button>
+              {allowOptions.length > 0 ? (
+                <details className="group relative">
+                  <summary className="inline-flex h-8 cursor-pointer list-none items-center rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&::-webkit-details-marker]:hidden">
+                    More allow options
+                  </summary>
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-50 mt-1 grid min-w-48 gap-1 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                  >
+                    {allowOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        role="menuitem"
+                        className="rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+                        onClick={option.onClick}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </details>
               ) : null}
               <Button type="button" size="sm" onClick={onApprove} disabled={!view.canApprove}>
-                Approve
+                {view.canApprove ? 'Allow once' : 'Approve'}
               </Button>
             </>
           )}

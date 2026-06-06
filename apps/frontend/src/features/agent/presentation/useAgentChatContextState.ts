@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useAgentContextSummary } from '@/features/agent/presentation/useAgentContextSummary'
-import { useAgentLocalRuntimeContextController } from '@/features/agent/presentation/useAgentLocalRuntimeContextController'
+import { useProviderSessionContextController } from '@/features/agent/presentation/useProviderSessionContextController'
 import type { ConversationAgentContextConfig } from '@/features/agent/domain/agentContextConfig'
 import type { AgentSettings } from '@/features/agent/state/agentStore'
 import type { Project } from '@/types'
@@ -10,8 +10,8 @@ interface UseAgentChatContextStateInput {
   composerAttachmentsCount: number
   currentProject: Project | null
   includeProjectContext: AgentSettings['includeProjectContext']
-  localRuntimeEnabled: boolean
-  localSessionId?: string
+  providerSessionEnabled: boolean
+  providerSessionId?: string
 }
 
 export function useAgentChatContextState({
@@ -19,13 +19,13 @@ export function useAgentChatContextState({
   composerAttachmentsCount,
   currentProject,
   includeProjectContext,
-  localRuntimeEnabled,
-  localSessionId,
+  providerSessionEnabled,
+  providerSessionId,
 }: UseAgentChatContextStateInput) {
   const { t } = useTranslation()
-  const runtime = useAgentLocalRuntimeContextController({
-    enabled: localRuntimeEnabled,
-    sessionId: localSessionId,
+  const providerSessionContext = useProviderSessionContextController({
+    enabled: providerSessionEnabled,
+    sessionId: providerSessionId,
   })
   const summary = useAgentContextSummary({
     agentContextConfig,
@@ -33,14 +33,14 @@ export function useAgentChatContextState({
     composerAttachmentsCount,
     includeProjectContext,
     labels: {
-      localRuntime: t('agents.chat.localRuntime'),
+      providerSession: t('agents.chat.providerSession'),
       customCapabilities: t('agents.chat.panel.capabilities.custom'),
       attachmentsCount: composerAttachmentsCount > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachmentsCount }) : null,
     },
   })
 
   return {
-    ...runtime,
+    ...providerSessionContext,
     ...summary,
     agentContextConfig,
   }

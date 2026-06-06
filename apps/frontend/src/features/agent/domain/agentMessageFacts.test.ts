@@ -103,7 +103,7 @@ test('buildAgentMessageFacts exposes assistant meta as view model fields', () =>
 test('buildAgentMessageFacts hides internal run status breadcrumbs', () => {
   const result = buildAgentMessageFacts(message({
     meta: {
-      contextLabels: ['run completed', '已恢复本地 Runtime', 'Restored Local Runtime', 'Project Alpha'],
+      contextLabels: ['run completed', '已恢复 Provider 会话', 'Restored Provider Session', 'Project Alpha'],
     },
   }))
 
@@ -112,7 +112,7 @@ test('buildAgentMessageFacts hides internal run status breadcrumbs', () => {
 
 test('buildAgentMessageFacts hides requires-action summary text while preserving inline activity', () => {
   const result = buildAgentMessageFacts(message({
-    content: '执行前需要确认：\n- workspace_apply: 需要正式写入项目数据',
+    content: '执行前需要确认：\n- workspace_apply: 需要提交工作区修改',
   }), {
     timelineActivity: {
       ...runActivity('run_action'),
@@ -121,7 +121,7 @@ test('buildAgentMessageFacts hides requires-action summary text while preserving
         id: 'approval_1',
         runId: 'run_action',
         toolName: 'workspace_apply',
-        reason: '需要正式写入项目数据',
+        reason: '需要提交工作区修改',
         status: 'pending',
         createdAt: '2026-05-19T00:00:00.000Z',
         updatedAt: '2026-05-19T00:00:00.000Z',
@@ -159,6 +159,27 @@ test('buildAgentMessageFacts promotes async work handoff out of empty assistant 
       status: 'completed',
       createdAt: '2026-05-23T00:00:00.000Z',
       updatedAt: '2026-05-23T00:00:01.000Z',
+      steps: [{
+        id: 'step_work',
+        type: 'tool_call',
+        status: 'completed',
+        toolName: 'core_work_start',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        completedAt: '2026-05-23T00:00:01.000Z',
+      }],
+    },
+  })
+
+  assert.equal(result.displayContent, '')
+})
+
+test('buildAgentMessageFacts hides removed local runtime placeholders through provider session compatibility', () => {
+  const result = buildAgentMessageFacts(message({
+    content: 'The local Agent runtime did not return an assistant message.',
+  }), {
+    timelineActivity: {
+      ...runActivity('run_compat_placeholder'),
+      status: 'completed',
       steps: [{
         id: 'step_work',
         type: 'tool_call',

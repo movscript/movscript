@@ -9,15 +9,15 @@ import {
   ProjectWorkspaceReviewLoadingState,
   ProjectWorkspaceReviewNoteList,
   ProjectWorkspaceReviewStatusBadge,
-  ReviewWorkspaceWorkspaceList,
-  ReviewWorkspaceWorkspacePanel,
+  ReviewWorkspaceArtifactList,
+  ReviewWorkspaceArtifactPanel,
   ReviewWorkspaceFieldDiffList,
   ReviewWorkspaceFieldDiffRow,
   ReviewWorkspaceShell,
   ReviewWorkspaceSummaryCallout,
 } from '@movscript/ui'
 
-import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import type { ProjectStandardsReviewWorkspace } from '@/features/project-standards/application/projectStandardsModel'
 import { ROUTES } from '@/routes/projectRoutes'
 import { projectStandardsWorkspaceStatusRecipe } from '@/features/project-standards/presentation/projectStandardsSemanticUi'
@@ -33,7 +33,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
   workspaceCount: number
   workspaces: ProjectStandardsReviewWorkspace[]
   applyingWorkspaceId: string | null
-  onApplyWorkspace: (workspace: AgentWorkspace) => void
+  onApplyWorkspace: (workspace: WorkspaceArtifact) => void
 }) {
   return (
     <ReviewWorkspaceShell
@@ -44,7 +44,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
       countLabel={`workspace ${workspaceCount}`}
       layout="contained-scroll"
     >
-      <ReviewWorkspaceWorkspaceList scroll>
+      <ReviewWorkspaceArtifactList scroll>
         {loading ? (
           <ProjectWorkspaceReviewLoadingState icon={<Loader2 size={12} className="animate-spin" />} text="读取工作区…" />
         ) : null}
@@ -52,7 +52,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
           <EmptyWorkspaceBlock title="暂无项目规范工作区" detail="从上方发起项目规范工作区后，AI 对核心规范和扩展规则的建议会进入这里审阅。" />
         ) : null}
         {workspaces.map(({ workspace, workspaceView, styleRows }) => (
-          <ReviewWorkspaceWorkspacePanel
+          <ReviewWorkspaceArtifactPanel
             key={workspace.id}
             title={workspace.title}
             className="last:mb-0"
@@ -129,9 +129,9 @@ export function ProjectStandardsWorkspaceReviewPanel({
                 无法解析这份工作区的差异。
               </ProjectWorkspaceReviewEmptyText>
             )}
-          </ReviewWorkspaceWorkspacePanel>
+          </ReviewWorkspaceArtifactPanel>
         ))}
-      </ReviewWorkspaceWorkspaceList>
+      </ReviewWorkspaceArtifactList>
     </ReviewWorkspaceShell>
   )
 }
@@ -142,8 +142,8 @@ function EmptyWorkspaceBlock({ title, detail }: { title: string; detail: string 
   )
 }
 
-function workspaceStatusLabel(status: AgentWorkspace['status']) {
-  const labels: Record<AgentWorkspace['status'], string> = {
+function workspaceStatusLabel(status: WorkspaceArtifact['status']) {
+  const labels: Record<WorkspaceArtifact['status'], string> = {
     workspace: '待应用',
     accepted: '已接受',
     rejected: '已拒绝',

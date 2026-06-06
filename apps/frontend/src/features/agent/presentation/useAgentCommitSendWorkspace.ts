@@ -3,27 +3,27 @@ import type { MutableRefObject } from 'react'
 import { commitAgentSendWorkspace, type CommitAgentSendWorkspaceDeps } from '@/features/agent/application/agentSendCommit'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import { toastMCPError } from './mcpStatus'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import { getAgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { cancelGenerationJobIfActive } from '@/features/agent/presentation/useAgentRunStopAction'
 
 export interface UseAgentCommitSendWorkspaceInput {
   userId: string
   conversationId: string
-  localAgentOnline: boolean
+  providerSessionOnline: boolean
   mcpEndpoint?: string
   activeSendAbortControllerRef: CommitAgentSendWorkspaceDeps['activeSendAbortControllerRef']
   cancelRequestedRunIdsRef: MutableRefObject<Set<string>>
   liveTraceEventsRef: CommitAgentSendWorkspaceDeps['liveTraceEventsRef']
   clearConversationWorkspace: CommitAgentSendWorkspaceDeps['clearConversationWorkspace']
   setConversationSessionId: CommitAgentSendWorkspaceDeps['setConversationSessionId']
-  setConversationRuntimeSessionId?: CommitAgentSendWorkspaceDeps['setConversationRuntimeSessionId']
-  setConversationRuntimeThreadId: CommitAgentSendWorkspaceDeps['setConversationRuntimeThreadId']
+  setConversationProviderSessionId?: CommitAgentSendWorkspaceDeps['setConversationProviderSessionId']
+  setConversationProviderThreadId: CommitAgentSendWorkspaceDeps['setConversationProviderThreadId']
   updateConversationTitle: CommitAgentSendWorkspaceDeps['updateConversationTitle']
-  setLocalThreadId: CommitAgentSendWorkspaceDeps['setLocalThreadId']
+  setProviderThreadId: CommitAgentSendWorkspaceDeps['setProviderThreadId']
   setPageTaskRunning: CommitAgentSendWorkspaceDeps['setPageTaskRunning']
   setConversationRun: CommitAgentSendWorkspaceDeps['setConversationRun']
-  setConversationRuntime: CommitAgentSendWorkspaceDeps['setConversationRuntime']
+  setConversationProviderSessionState: CommitAgentSendWorkspaceDeps['setConversationProviderSessionState']
   setLiveTraceEvents: CommitAgentSendWorkspaceDeps['setLiveTraceEvents']
   setPendingHttpEvents: CommitAgentSendWorkspaceDeps['setPendingHttpEvents']
   setPendingAssistantState: CommitAgentSendWorkspaceDeps['setPendingAssistantState']
@@ -32,13 +32,13 @@ export interface UseAgentCommitSendWorkspaceInput {
   recordLiveTraceEvent: CommitAgentSendWorkspaceDeps['recordLiveTraceEvent']
   revokeAttachmentPreviewUrls: CommitAgentSendWorkspaceDeps['revokeAttachmentPreviewUrls']
   setMentionRange: CommitAgentSendWorkspaceDeps['setMentionRange']
-  refetchLocalAgentHealth: CommitAgentSendWorkspaceDeps['refetchLocalAgentHealth']
-  runTouchesAgentCatalog: CommitAgentSendWorkspaceDeps['runTouchesAgentCatalog']
-  refreshAgentCatalogContext: CommitAgentSendWorkspaceDeps['refreshAgentCatalogContext']
+  refetchProviderSessionHealth: CommitAgentSendWorkspaceDeps['refetchProviderSessionHealth']
+  runTouchesProviderCatalog: CommitAgentSendWorkspaceDeps['runTouchesProviderCatalog']
+  refreshProviderCatalogContext: CommitAgentSendWorkspaceDeps['refreshProviderCatalogContext']
   labels: CommitAgentSendWorkspaceDeps['labels']
 }
 
-function isLocalAgentAbortError(error: unknown): boolean {
+function isProviderSessionAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return true
   if (!(error instanceof Error)) return false
   return error.name === 'AbortError'
@@ -48,20 +48,20 @@ function isLocalAgentAbortError(error: unknown): boolean {
 export function useAgentCommitSendWorkspace({
   userId,
   conversationId,
-  localAgentOnline,
+  providerSessionOnline,
   mcpEndpoint,
   activeSendAbortControllerRef,
   cancelRequestedRunIdsRef,
   liveTraceEventsRef,
   clearConversationWorkspace,
   setConversationSessionId,
-  setConversationRuntimeSessionId,
-  setConversationRuntimeThreadId,
+  setConversationProviderSessionId,
+  setConversationProviderThreadId,
   updateConversationTitle,
-  setLocalThreadId,
+  setProviderThreadId,
   setPageTaskRunning,
   setConversationRun,
-  setConversationRuntime,
+  setConversationProviderSessionState,
   setLiveTraceEvents,
   setPendingHttpEvents,
   setPendingAssistantState,
@@ -70,29 +70,29 @@ export function useAgentCommitSendWorkspace({
   recordLiveTraceEvent,
   revokeAttachmentPreviewUrls,
   setMentionRange,
-  refetchLocalAgentHealth,
-  runTouchesAgentCatalog,
-  refreshAgentCatalogContext,
+  refetchProviderSessionHealth,
+  runTouchesProviderCatalog,
+  refreshProviderCatalogContext,
   labels,
 }: UseAgentCommitSendWorkspaceInput) {
   return useCallback(async (workspace: AgentSendWorkspace) => {
     await commitAgentSendWorkspace(workspace, {
       userId,
       conversationId,
-      localAgentOnline,
+      providerSessionOnline,
       ...(mcpEndpoint ? { mcpEndpoint } : {}),
       activeSendAbortControllerRef,
       cancelRequestedRunIds: cancelRequestedRunIdsRef.current,
       liveTraceEventsRef,
       clearConversationWorkspace,
       setConversationSessionId,
-      setConversationRuntimeSessionId,
-      setConversationRuntimeThreadId,
+      setConversationProviderSessionId,
+      setConversationProviderThreadId,
       updateConversationTitle,
-      setLocalThreadId,
+      setProviderThreadId,
       setPageTaskRunning,
       setConversationRun,
-      setConversationRuntime,
+      setConversationProviderSessionState,
       setLiveTraceEvents,
       setPendingHttpEvents,
       setPendingAssistantState,
@@ -101,15 +101,15 @@ export function useAgentCommitSendWorkspace({
       recordLiveTraceEvent,
       revokeAttachmentPreviewUrls,
       setMentionRange,
-      refetchLocalAgentHealth,
-      isLocalAgentAbortError,
+      refetchProviderSessionHealth,
+      isProviderSessionAbortError,
       thinkingStateForRun: (run) => getAgentThinkingState(run, []),
-      runTouchesAgentCatalog,
-      refreshAgentCatalogContext,
+      runTouchesProviderCatalog,
+      refreshProviderCatalogContext,
       cancelGenerationJobIfActive: (state) => {
         void cancelGenerationJobIfActive(state)
       },
-      toastError: (error) => toastMCPError(error, mcpEndpoint ?? localAgentClient.baseURL),
+      toastError: (error) => toastMCPError(error, mcpEndpoint ?? providerSessionClient.baseURL),
       labels,
     })
   }, [
@@ -119,21 +119,21 @@ export function useAgentCommitSendWorkspace({
     conversationId,
     labels,
     liveTraceEventsRef,
-    localAgentOnline,
+    providerSessionOnline,
     mcpEndpoint,
     recordLiveTraceEvent,
-    refetchLocalAgentHealth,
-    refreshAgentCatalogContext,
+    refetchProviderSessionHealth,
+    refreshProviderCatalogContext,
     resetStreamingAssistant,
     revokeAttachmentPreviewUrls,
-    runTouchesAgentCatalog,
+    runTouchesProviderCatalog,
     setConversationSessionId,
-    setConversationRuntimeSessionId,
+    setConversationProviderSessionId,
     setConversationRun,
-    setConversationRuntime,
-    setConversationRuntimeThreadId,
+    setConversationProviderSessionState,
+    setConversationProviderThreadId,
     setLiveTraceEvents,
-    setLocalThreadId,
+    setProviderThreadId,
     setMentionRange,
     setPageTaskRunning,
     setPendingAssistantState,

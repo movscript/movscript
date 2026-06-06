@@ -1,13 +1,15 @@
 # Scripts
 
-Root scripts are workspace automation. App-only scripts should live under that app, such as `apps/agent/scripts/`.
+Root scripts are workspace automation. App-only scripts should live under the app or package that owns them.
 
 Release automation lives in `scripts/release/`. App-only automation belongs in the owning package's `scripts/` directory.
 
-Only cross-workspace runners and shared verifier helpers may live directly under `scripts/`:
+Only cross-workspace runners, shared verifier helpers, and provider-neutral app-server integration entrypoints may live directly under `scripts/`:
 
 - `run-node-tests.mjs`
 - `verifier-utils.mjs`
+- `install-app-server-plugin.mjs`
+- `sync-app-server-protocol.mjs`
 
 Tests for scripts live under `tests/scripts/`, not in this directory. Keep `scripts/` limited to callable entrypoints and shared helpers.
 

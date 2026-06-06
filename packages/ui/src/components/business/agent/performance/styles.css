@@ -543,27 +543,6 @@
   white-space: nowrap;
 }
 
-.agent-performance-storage-bar__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ms-space-2);
-  margin-bottom: var(--ms-space-1);
-}
-
-.agent-performance-storage-bar__label {
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
-  font-weight: 500;
-  line-height: var(--ms-leading-caption);
-}
-
-.agent-performance-storage-bar__value {
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
-}
-
 .agent-performance-timeline-detail {
   min-height: 360px;
   padding: var(--ms-space-3);

@@ -696,7 +696,7 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
-      "description": "Optional local/runtime Agent stage latency. It is populated when Prometheus also scrapes the Agent runtime /metrics target.",
+      "description": "Optional local provider-session stage latency. It is populated when Prometheus also scrapes the provider-session app-server /metrics target.",
       "fieldConfig": {
         "defaults": {
           "unit": "ms"
@@ -736,7 +736,7 @@
           "legendFormat": "{{kind}} {{status}} {{tool_name}} p95"
         }
       ],
-      "title": "Agent Runtime Stage Table",
+      "title": "Provider Session Stage Table",
       "type": "table"
     },
     {
@@ -910,7 +910,7 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
-      "description": "Centralized Agent runtime latency forwarded by the authenticated frontend reporter from /runtime/telemetry. This works when Grafana only scrapes the backend /metrics endpoint.",
+      "description": "Centralized provider-session latency forwarded by the authenticated frontend reporter from provider-session telemetry. This works when Grafana only scrapes the backend /metrics endpoint.",
       "fieldConfig": {
         "defaults": {
           "unit": "ms"
@@ -961,7 +961,7 @@
           "legendFormat": "{{kind}} {{status}} operation avg"
         }
       ],
-      "title": "Agent Runtime Central Table",
+      "title": "Provider Session Central Table",
       "type": "table"
     },
     {
@@ -1151,7 +1151,7 @@
     "web-vitals",
     "agent-network",
     "frontend-errors",
-    "agent-runtime-central",
+    "agent-session-central",
     "alerts"
   ],
   "templating": {

@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
 
-import { CodexThreadChatShell } from '@/features/agent/components/CodexThreadChatShell'
-import { MovScriptAgentChatShell } from '@/features/agent/components/MovScriptAgentChatShell'
+import { AppServerChatShell } from '@/features/agent/components/AppServerChatShell'
 import {
-  resolveNewConversationAgentProvider,
-  useAgentProviderConfigStore,
-} from '@/features/agent/state/agentProviderConfigStore'
+  resolveNewConversationProvider,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+} from '@/shared/infrastructure/providerConfigStore'
 
 export interface AgentUnifiedChatShellProps {
   userId: string
@@ -13,32 +13,18 @@ export interface AgentUnifiedChatShellProps {
   showCollapse?: boolean
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
-  pendingStartupStatus?: 'creating' | 'restoring' | null
-  pendingThreadIdToOpen?: string | null
-  pendingThreadSessionIdToOpen?: string | null
-  onPendingThreadHandled?: (threadId: string) => void
-  onStartupSettled?: () => void
 }
 
 export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
-  const agentProviderSettings = useAgentProviderConfigStore((s) => s.settings)
-  const activeProvider = useMemo(() => resolveNewConversationAgentProvider(agentProviderSettings), [agentProviderSettings])
+  const providerSettings = useProviderConfigStore((s) => s.settings)
+  const activeProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
 
-  if (activeProvider.kind === 'codex') {
-    return (
-      <CodexThreadChatShell
-        userId={props.userId}
-        host={props.host}
-        surface={props.surface}
-        showCollapse={props.showCollapse}
-        onCollapse={props.onCollapse}
-      />
-    )
-  }
+  if (!usesAppServerProtocol(activeProvider)) return null
 
   return (
-    <MovScriptAgentChatShell
+    <AppServerChatShell
       userId={props.userId}
+      provider={activeProvider}
       host={props.host}
       surface={props.surface}
       showCollapse={props.showCollapse}

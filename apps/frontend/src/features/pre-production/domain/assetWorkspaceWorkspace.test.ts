@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildEmptyAssetWorkspaceWorkspaceContent } from './assetWorkspaceWorkspace'
+import { buildEmptyAssetWorkspaceArtifactShellContent } from './assetWorkspaceWorkspace'
 
-test('buildEmptyAssetWorkspaceWorkspaceContent creates canonical snapshot shell', () => {
-  const content = buildEmptyAssetWorkspaceWorkspaceContent({
+test('buildEmptyAssetWorkspaceArtifactShellContent creates canonical snapshot shell', () => {
+  const content = buildEmptyAssetWorkspaceArtifactShellContent({
     projectId: 7,
     assetSlotId: 12,
     slotName: '角色半身照',

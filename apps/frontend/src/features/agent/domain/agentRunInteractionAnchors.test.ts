@@ -6,7 +6,7 @@ import {
   runInteractionDisplayAnchorPlacementForMessage,
   runInteractionPlacementForMessage,
 } from './agentRunInteractionAnchors'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('buildInteractionRunsByResultMessageId maps active non-terminal runs so they do not fall through as orphan run interaction cards', () => {
@@ -270,7 +270,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

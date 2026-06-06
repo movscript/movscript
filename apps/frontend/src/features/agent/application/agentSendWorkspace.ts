@@ -4,9 +4,10 @@ import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import { type AgentAttachment, type AgentSettings } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel, RawResource } from '@/types'
-import type { AgentClientInput, AgentManifest, AgentRuntimeLimitsOverride, AgentRunPreview } from '@/shared/infrastructure/localAgentClient'
+import type { ProviderSessionClientInput, ProviderManifest, ProviderSessionLimitsOverride, AgentRunPreview } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
 
-export type AgentSendRoute = 'local-runtime'
+export type AgentSendRoute = 'provider-session'
 
 export interface AgentSendWorkspace {
   id: string
@@ -18,7 +19,7 @@ export interface AgentSendWorkspace {
   model: {
     id: number | null
     name?: string
-    runtimeModelId?: string
+    providerModelId?: string
     provider?: string
   }
   agent: {
@@ -39,22 +40,26 @@ export interface AgentSendWorkspace {
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
   }
   httpRequests: DebugHttpRequest[]
-  localRuntime?: {
-    workspaceDir?: string
-    sessionId?: string
-    threadId?: string
-    title?: string
-    projectId?: number
-    clientInput?: AgentClientInput
-    agentManifest?: AgentManifest
-    runtimeLimits?: AgentRuntimeLimitsOverride
-    requestId?: string
-    timeoutMs?: number
-    diagnosticCommand?: boolean
-    preview?: AgentRunPreview
-    previewError?: string
-  }
+  providerSession?: AgentSendProviderSessionScope
+  runProfile?: AgentRunProfileSelection
   warnings: string[]
+}
+
+export interface AgentSendProviderSessionScope {
+  workspaceDir?: string
+  sessionId?: string
+  threadId?: string
+  title?: string
+  projectId?: number
+  clientInput?: ProviderSessionClientInput
+  providerManifest?: ProviderManifest
+  providerSessionLimits?: ProviderSessionLimitsOverride
+  runProfile?: AgentRunProfileSelection
+  requestId?: string
+  timeoutMs?: number
+  diagnosticCommand?: boolean
+  preview?: AgentRunPreview
+  previewError?: string
 }
 
 export interface DebugHttpRequest {
@@ -69,20 +74,23 @@ export interface DebugHttpRequest {
 }
 
 export interface AgentSendWorkspaceOptions {
-  includeRuntimePreview?: boolean
+  includeProviderSessionPreview?: boolean
   message?: string
   displayMessage?: string
   title?: string
   projectId?: number
-  clientInput?: AgentClientInput
-  agentManifest?: AgentManifest
-  runtimeLimits?: AgentRuntimeLimitsOverride
+  clientInput?: ProviderSessionClientInput
+  providerManifest?: ProviderManifest
+  providerSessionLimits?: ProviderSessionLimitsOverride
+  /** Legacy provider wire key. New client code should use providerSessionLimits. */
+  runtimeLimits?: ProviderSessionLimitsOverride
+  runProfile?: AgentRunProfileSelection
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
   performanceOperationId?: string
-  localRuntimeWorkspaceDir?: string
-  localRuntimeSessionId?: string
+  providerSessionWorkspaceDir?: string
+  providerSessionId?: string
 }
 
 export interface AgentSendWorkspaceHttpLabels {
@@ -98,21 +106,22 @@ export interface AgentSendWorkspaceHttpLabels {
 }
 
 export interface AgentSendWorkspacePreviewDeps {
-  localAgentOnline: boolean
+  providerSessionOnline: boolean
   ensureRunning: () => Promise<unknown>
-  refetchLocalAgentHealth: () => Promise<unknown>
-  syncRuntimeModelConfig: (modelId?: string) => Promise<unknown>
+  refetchProviderSessionHealth: () => Promise<unknown>
+  syncProviderSessionModelConfig: (modelId?: string) => Promise<unknown>
   previewRun: (input: {
     threadId?: string
-    clientInput: AgentClientInput
-    agentManifest?: AgentManifest
-    runtimeLimits?: AgentRuntimeLimitsOverride
+    clientInput: ProviderSessionClientInput
+    providerManifest?: ProviderManifest
+    providerSessionLimits?: ProviderSessionLimitsOverride
+    runProfile?: AgentRunProfileSelection
   }) => Promise<AgentRunPreview>
-  isLocalAgentNotFoundError: (error: unknown) => boolean
+  isProviderSessionNotFoundError: (error: unknown) => boolean
   onPreviewError?: (error: unknown) => void
 }
 
-export interface BuildLocalAgentSendWorkspaceInput {
+export interface BuildProviderSessionSendWorkspaceInput {
   options?: AgentSendWorkspaceOptions
   workspaceInput: string
   attachments: AgentAttachment[]
@@ -122,14 +131,14 @@ export interface BuildLocalAgentSendWorkspaceInput {
   currentProject: Project | null
   systemPrompt: string
   contextLabels: string[]
-  localThreadId?: string
+  providerThreadId?: string
   modelId: number | null
   activeModel?: PublicModel
-  activeConversationManifest?: AgentManifest
+  activeConversationManifest?: ProviderManifest
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   attachmentOnlyMessageLabel: string
-  localAgentBaseURL: string
+  providerSessionBaseURL: string
   httpLabels: AgentSendWorkspaceHttpLabels
   previewDeps?: AgentSendWorkspacePreviewDeps
   resolveAttachmentDataUrl?: (attachment: AgentAttachment) => Promise<string | undefined>
@@ -137,13 +146,14 @@ export interface BuildLocalAgentSendWorkspaceInput {
   makeId?: () => string
 }
 
-export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWorkspaceInput): Promise<AgentSendWorkspace> {
+export async function buildProviderSessionSendWorkspace(input: BuildProviderSessionSendWorkspaceInput): Promise<AgentSendWorkspace> {
   const options = input.options ?? {}
   const canUseExternalTask = !!input.externalTask
     && !input.externalTask.settledAt
     && (input.externalTask.status === 'queued' || input.externalTask.status === 'claimed')
   const taskPayload = canUseExternalTask && !options.clientInput && options.message === undefined ? input.externalTask?.payload : undefined
-  const effectiveRuntimeLimits = options.runtimeLimits
+  const providerSessionLimits = options.providerSessionLimits ?? options.runtimeLimits
+  const runProfile = options.runProfile
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined
   const text = (options.message ?? input.workspaceInput).trim()
   const warnings: string[] = []
@@ -153,25 +163,25 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
       ...(options.clientInput?.attachments?.length ? options.clientInput.attachments.map(attachmentFromClientInputRef) : input.attachments),
       ...resourceMentionAttachments(text, input.resourceAttachmentIndex),
     ])
-  const clientAttachmentRefs = await resolveAgentClientAttachmentRefs(sentAttachments, input.resolveAttachmentDataUrl, (warning) => warnings.push(warning))
+  const clientAttachmentRefs = await resolveProviderSessionClientAttachmentRefs(sentAttachments, input.resolveAttachmentDataUrl, (warning) => warnings.push(warning))
   const visibleText = (options.displayMessage ?? text).trim()
   const visibleUserContent = visibleText || input.attachmentOnlyMessageLabel
-  const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
-  const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
-  const requestedManifest = options.agentManifest ?? input.activeConversationManifest
+  const providerSessionMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
+  const diagnosticCommand = isDiagnosticAgentCommand(providerSessionMessage)
+  const requestedManifest = options.providerManifest ?? input.activeConversationManifest
   const clientInput = options.clientInput
     ?? (taskPayload?.clientInput
       ? {
           ...taskPayload.clientInput,
-          message: runtimeMessage,
+          message: providerSessionMessage,
           ...(sentAttachments.length > 0
             ? {
                 attachments: clientAttachmentRefs,
               }
             : {}),
         }
-      : buildAgentClientInput({
-          message: runtimeMessage,
+      : buildProviderSessionClientInput({
+          message: providerSessionMessage,
           attachmentRefs: clientAttachmentRefs,
           projectId: options.projectId ?? input.currentProject?.ID,
           labels: input.contextLabels,
@@ -186,51 +196,54 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
     { role: 'user' as const, content: enrichedUserContent },
   ]
   const debugMessages = options.omitDebugArtifacts ? [] : messages
-  const sessionId = options.localRuntimeSessionId?.trim() || undefined
-  const threadId = sessionId ? undefined : input.localThreadId || undefined
-  const workspaceDir = options.localRuntimeWorkspaceDir?.trim() || undefined
-  const localRuntimeProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
-  const localRuntime: AgentSendWorkspace['localRuntime'] = {
+  const sessionId = options.providerSessionId?.trim() || undefined
+  const threadId = sessionId ? undefined : input.providerThreadId || undefined
+  const workspaceDir = options.providerSessionWorkspaceDir?.trim() || undefined
+  const providerSessionProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
+  const providerSession: AgentSendProviderSessionScope = {
     ...(workspaceDir ? { workspaceDir } : {}),
     ...(sessionId ? { sessionId } : {}),
     ...(threadId ? { threadId } : {}),
     ...(threadId && (options.title ?? taskPayload?.title) ? { title: options.title ?? taskPayload?.title } : {}),
-    ...(localRuntimeProjectId !== undefined ? { projectId: localRuntimeProjectId } : {}),
+    ...(providerSessionProjectId !== undefined ? { projectId: providerSessionProjectId } : {}),
     clientInput,
-    ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-    ...(effectiveRuntimeLimits ? { runtimeLimits: effectiveRuntimeLimits } : {}),
+    ...(requestedManifest ? { providerManifest: requestedManifest } : {}),
+    ...(providerSessionLimits ? { providerSessionLimits } : {}),
+    ...(runProfile ? { runProfile } : {}),
     ...((options.requestId ?? taskRequestId) ? { requestId: options.requestId ?? taskRequestId } : {}),
     ...((options.timeoutMs ?? taskPayload?.timeoutMs) ? { timeoutMs: options.timeoutMs ?? taskPayload?.timeoutMs } : {}),
     diagnosticCommand,
   }
 
-  if (options.includeRuntimePreview && input.previewDeps) {
+  if (options.includeProviderSessionPreview && input.previewDeps) {
     try {
-      if (!input.previewDeps.localAgentOnline) {
+      if (!input.previewDeps.providerSessionOnline) {
         await input.previewDeps.ensureRunning()
-        await input.previewDeps.refetchLocalAgentHealth()
+        await input.previewDeps.refetchProviderSessionHealth()
       }
-      await input.previewDeps.syncRuntimeModelConfig(input.activeModel ? publicModelId(input.activeModel) : undefined)
+      await input.previewDeps.syncProviderSessionModelConfig(input.activeModel ? publicModelId(input.activeModel) : undefined)
       try {
-        localRuntime.preview = await input.previewDeps.previewRun({
+        providerSession.preview = await input.previewDeps.previewRun({
           ...(threadId ? { threadId } : {}),
           clientInput,
-          ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-          ...(effectiveRuntimeLimits ? { runtimeLimits: effectiveRuntimeLimits } : {}),
+          ...(requestedManifest ? { providerManifest: requestedManifest } : {}),
+          ...(providerSessionLimits ? { providerSessionLimits } : {}),
+          ...(runProfile ? { runProfile } : {}),
         })
       } catch (error) {
-        if (!threadId || !input.previewDeps.isLocalAgentNotFoundError(error)) throw error
-        warnings.push('Saved local thread was not found; retried preview as a new thread.')
-        localRuntime.preview = await input.previewDeps.previewRun({
+        if (!threadId || !input.previewDeps.isProviderSessionNotFoundError(error)) throw error
+        warnings.push('Saved provider session thread was not found; retried preview as a new thread.')
+        providerSession.preview = await input.previewDeps.previewRun({
           clientInput,
-          ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-          ...(effectiveRuntimeLimits ? { runtimeLimits: effectiveRuntimeLimits } : {}),
+          ...(requestedManifest ? { providerManifest: requestedManifest } : {}),
+          ...(providerSessionLimits ? { providerSessionLimits } : {}),
+          ...(runProfile ? { runProfile } : {}),
         })
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      localRuntime.previewError = message
-      warnings.push(`Local runtime dry-run failed: ${message}`)
+      providerSession.previewError = message
+      warnings.push(`Provider session dry-run failed: ${message}`)
       input.previewDeps.onPreviewError?.(error)
     }
   }
@@ -239,13 +252,13 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
     id: input.makeId?.() ?? makeTraceId(),
     createdAt: input.now?.() ?? Date.now(),
     ...(options.performanceOperationId ? { performanceOperationId: options.performanceOperationId } : {}),
-    route: 'local-runtime',
+    route: 'provider-session',
     visibleUserContent,
     attachments: sentAttachments,
     model: {
       id: input.modelId,
       ...(input.activeModel ? { name: publicModelLabel(input.activeModel) } : {}),
-      ...(input.activeModel ? { runtimeModelId: publicModelId(input.activeModel) } : {}),
+      ...(input.activeModel ? { providerModelId: publicModelId(input.activeModel) } : {}),
     },
     agent: {
       id: null,
@@ -268,19 +281,20 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
     httpRequests: options.omitDebugArtifacts
       ? []
       : buildDebugHttpRequests({
-        baseURL: input.localAgentBaseURL,
+        baseURL: input.providerSessionBaseURL,
         modelId: input.modelId,
         ...(input.activeModel ? { modelName: publicModelId(input.activeModel) } : {}),
         messages,
-        localRuntime,
+        providerSession,
         labels: input.httpLabels,
       }),
-    localRuntime,
+    providerSession,
+    ...(runProfile ? { runProfile } : {}),
     warnings,
   }
 }
 
-export function attachmentFromClientInputRef(attachment: NonNullable<AgentClientInput['attachments']>[number]): AgentAttachment {
+export function attachmentFromClientInputRef(attachment: NonNullable<ProviderSessionClientInput['attachments']>[number]): AgentAttachment {
   const type = attachment.type === 'image' || attachment.type === 'video' || attachment.type === 'audio' || attachment.type === 'text'
     ? attachment.type
     : 'file'
@@ -299,20 +313,20 @@ export function resourceMentionAttachments(text: string, byId: Map<number, Agent
   return parseResourceMentionIds(text).map((resourceId) => byId.get(resourceId) ?? placeholderAttachment(resourceId))
 }
 
-export function buildAgentClientInput(options: {
+export function buildProviderSessionClientInput(options: {
   message: string
   attachments?: AgentAttachment[]
-  attachmentRefs?: NonNullable<AgentClientInput['attachments']>
+  attachmentRefs?: NonNullable<ProviderSessionClientInput['attachments']>
   projectId?: number
   labels?: string[]
   route?: { pathname?: string; search?: string; hash?: string }
   productionId?: number
   workspaceId?: string
   selection?: { entityType?: string; entityId?: number | string; label?: string } | null
-}): AgentClientInput {
+}): ProviderSessionClientInput {
   return buildCommandFirstClientInput({
     message: options.message,
-    attachments: options.attachmentRefs ?? (options.attachments ?? []).map(agentAttachmentToClientInputRef),
+    attachments: options.attachmentRefs ?? (options.attachments ?? []).map(providerSessionAttachmentToClientInputRef),
     labels: options.labels,
     hints: {
       ...(options.projectId ? { projectId: options.projectId } : {}),
@@ -324,11 +338,11 @@ export function buildAgentClientInput(options: {
   })
 }
 
-async function resolveAgentClientAttachmentRefs(
+async function resolveProviderSessionClientAttachmentRefs(
   attachments: AgentAttachment[],
   resolveDataUrl?: (attachment: AgentAttachment) => Promise<string | undefined>,
   onWarning?: (warning: string) => void,
-): Promise<NonNullable<AgentClientInput['attachments']>> {
+): Promise<NonNullable<ProviderSessionClientInput['attachments']>> {
   return Promise.all(attachments.map(async (attachment) => {
     let dataUrl = attachment.dataUrl
     if (!dataUrl && isImageAttachment(attachment) && resolveDataUrl) {
@@ -340,7 +354,7 @@ async function resolveAgentClientAttachmentRefs(
         onWarning?.(`Image attachment ${attachment.name} (${id}) could not be loaded before send and will be metadata-only: ${message}`)
       }
     }
-    return agentAttachmentToClientInputRef(dataUrl ? { ...attachment, dataUrl } : attachment)
+    return providerSessionAttachmentToClientInputRef(dataUrl ? { ...attachment, dataUrl } : attachment)
   }))
 }
 
@@ -349,13 +363,13 @@ export function buildDebugHttpRequests(options: {
   modelId: number | null
   modelName?: string
   messages: AgentSendWorkspace['outbound']['messages']
-  localRuntime?: AgentSendWorkspace['localRuntime']
+  providerSession?: AgentSendProviderSessionScope
   labels: AgentSendWorkspaceHttpLabels
 }): DebugHttpRequest[] {
   const requests: DebugHttpRequest[] = []
   if (options.modelName) {
     requests.push({
-      id: 'local-save-model-config',
+      id: 'provider-save-model-config',
       label: options.labels.syncModelConfig,
       method: 'POST',
       url: `${options.baseURL}/model-config`,
@@ -368,22 +382,23 @@ export function buildDebugHttpRequests(options: {
     })
   }
 
-  const sessionId = options.localRuntime?.sessionId?.trim()
+  const sessionId = options.providerSession?.sessionId?.trim()
   if (sessionId) {
     requests.push(
       {
-        id: 'local-session-message-run',
+        id: 'provider-session-message-run',
         label: options.labels.createRun,
         method: 'POST',
         url: `${options.baseURL}/sessions/${encodeURIComponent(sessionId)}/runs`,
         headers: { 'Content-Type': 'application/json' },
         body: {
-          message: options.localRuntime?.clientInput?.message ?? options.messages.at(-1)?.content ?? '',
-          ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
+          message: options.providerSession?.clientInput?.message ?? options.messages.at(-1)?.content ?? '',
+          ...(options.providerSession?.clientInput ? { clientInput: options.providerSession.clientInput } : {}),
+          ...(options.providerSession?.runProfile ? { runProfile: options.providerSession.runProfile } : {}),
         },
       },
       {
-        id: 'local-poll-run',
+        id: 'provider-poll-run',
         label: options.labels.pollRun,
         method: 'GET',
         url: `${options.baseURL}/runs/{runId}`,
@@ -433,7 +448,7 @@ function attachmentPromptBlock(attachments: AgentAttachment[]) {
     const payload = attachment.dataUrl ? ', image_payload=data_url' : attachment.type === 'video' ? ', video_payload=metadata_only' : ''
     return `${index + 1}. ${attachment.name} (${attachment.type}, ${attachment.mimeType || 'unknown'}, ${formatBytesForPrompt(attachment.size)}, ${id}${payload})`
   })
-  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会先由本地 runtime 预处理，优化后的图片 payload 会优先进入 vision 模型上下文；预处理不可用或失败时回退发送原始图片 payload。视频附件只提供 resource_id 元数据，需要 agent 用本地抽帧工具读取代表帧。其他附件只提供元数据。`
+  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会先由提供方会话预处理，优化后的图片 payload 会优先进入 vision 模型上下文；预处理不可用或失败时回退发送原始图片 payload。视频附件只提供 resource_id 元数据，需要 agent 用抽帧工具读取代表帧。其他附件只提供元数据。`
 }
 
 function parseResourceMentionIds(text: string): number[] {
@@ -448,7 +463,7 @@ function parseResourceMentionIds(text: string): number[] {
   return ids
 }
 
-function agentAttachmentToClientInputRef(attachment: AgentAttachment): NonNullable<AgentClientInput['attachments']>[number] {
+function providerSessionAttachmentToClientInputRef(attachment: AgentAttachment): NonNullable<ProviderSessionClientInput['attachments']>[number] {
   return {
     id: attachment.id,
     name: attachment.name,

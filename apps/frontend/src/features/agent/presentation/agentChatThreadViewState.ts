@@ -1,6 +1,6 @@
 import type { AgentConversationProjection } from '@/features/agent/domain/agentConversationProjectionTypes'
 import { latestPlanFromTimelineItems } from '@/features/agent/domain/agentTimelinePlan'
-import type { AgentPlan, AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentPlan, AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentChatThreadViewStateInput {
   activeRun: AgentRun | null

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentConversationProjectionRunInteractions } from '@/features/agent/domain/agentConversationProjectionRunInteractions'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationProjectionRunInteractions maps anchored runs and leaves unanchored runs standalone', () => {
@@ -40,7 +40,7 @@ function run(patch: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
@@ -78,7 +78,7 @@ function timelineItem(id: string, activity: ChatRunActivity): AgentTimelineItem 
     updatedAt: '2026-05-19T00:00:00.000Z',
     revision: 1,
     cursor: id,
-    runtimeRefs: { threadId: 'thread_1' },
+    providerSessionRefs: { threadId: 'thread_1' },
     activity,
   }
 }

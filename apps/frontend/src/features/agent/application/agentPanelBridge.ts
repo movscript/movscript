@@ -1,17 +1,31 @@
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
 import { useAgentSessionStore, type AgentPageTaskPayload } from '@/features/agent/state/agentSessionStore'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
 export const AGENT_PANEL_WORKSPACE_EVENT = 'movscript:agent-panel-workspace'
 export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
 export const AGENT_PANEL_THREAD_EVENT = 'movscript:agent-panel-thread'
 export const AGENT_PANEL_NEW_CONVERSATION_EVENT = 'movscript:agent-panel-new-conversation'
 
+export type AgentPanelSettledRun = AgentRun | {
+  id: string
+  threadId?: string
+  sessionId?: string
+  status?: string
+  error?: string | null
+}
+
+export type AgentPanelSettledThread = AgentThread | {
+  id: string
+  sessionId?: string
+}
+
 export interface AgentPanelRunSettledPayload {
   requestId?: string
   status: 'completed' | 'error' | 'cancelled'
-  run?: AgentRun
-  thread?: AgentThread
+  run?: AgentPanelSettledRun
+  thread?: AgentPanelSettledThread
   error?: string
   artifacts?: AgentTaskArtifactRef[]
 }
@@ -20,6 +34,7 @@ export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void 
 
 const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
 const pendingNewConversationPayloads: AgentPanelNewConversationPayload[] = []
+const pendingThreadPayloads: AgentPanelThreadPayload[] = []
 
 export type AgentPanelWorkspacePayload = AgentPageTaskPayload
 
@@ -30,6 +45,7 @@ export interface AgentPanelThreadPayload {
 
 export interface AgentPanelNewConversationPayload {
   projectId?: number
+  workspaceContext?: MovScriptWorkspaceContext
   title?: string
 }
 
@@ -49,11 +65,13 @@ export function openAgentPanelThread(input: string | AgentPanelThreadPayload, se
     : input
   const normalizedThreadId = payload.threadId.trim()
   if (!normalizedThreadId) return
+  const normalizedPayload = {
+    threadId: normalizedThreadId,
+    ...(payload.sessionId?.trim() ? { sessionId: payload.sessionId.trim() } : {}),
+  }
+  pendingThreadPayloads.push(normalizedPayload)
   window.dispatchEvent(new CustomEvent<AgentPanelThreadPayload>(AGENT_PANEL_THREAD_EVENT, {
-    detail: {
-      threadId: normalizedThreadId,
-      ...(payload.sessionId?.trim() ? { sessionId: payload.sessionId.trim() } : {}),
-    },
+    detail: normalizedPayload,
   }))
 }
 
@@ -63,6 +81,10 @@ export function consumeAgentPanelWorkspace() {
 
 export function consumeAgentPanelNewConversation() {
   return pendingNewConversationPayloads.shift()
+}
+
+export function consumeAgentPanelThread() {
+  return pendingThreadPayloads.shift()
 }
 
 export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPageTool) {
@@ -75,7 +97,7 @@ export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPa
 }
 
 export function notifyAgentPanelRunSettled(payload: AgentPanelRunSettledPayload) {
-  useAgentSessionStore.getState().updatePageTaskFromRuntime(payload)
+  useAgentSessionStore.getState().updatePageTaskFromProviderSession(payload)
   window.dispatchEvent(new CustomEvent<AgentPanelRunSettledPayload>(AGENT_PANEL_RUN_SETTLED_EVENT, { detail: payload }))
   if (!payload.requestId) return
   const tool = pageToolsByRequestId.get(payload.requestId)

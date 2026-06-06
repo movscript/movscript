@@ -1,4 +1,4 @@
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type { ChatGenerationParamAudit, ChatGenerationValidationError } from '@/features/agent/state/agentStore'
 

@@ -1,6 +1,6 @@
 import { runApprovalModeLabel } from '@/features/agent/domain/agentRunUi'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentRunConfigurationSnapshotView {
   capturedAt: string
@@ -17,7 +17,7 @@ export interface AgentRunConfigurationSnapshotView {
   catalogToolCount: number
   modelLabel: string
   limitItems: string[]
-  runtimeLimitItems: string[]
+  providerSessionLimitItems: string[]
   packNames: string[]
   skillIds: string[]
   toolNames: string[]
@@ -37,7 +37,7 @@ export function buildRunConfigurationSnapshotView(run: AgentRun | undefined): Ag
   const snapshot = run?.metadata?.configurationSnapshot
   if (!isRecord(snapshot) || snapshot.schema !== 'movscript.agent.run-configuration-snapshot.v1') return null
 
-  const manifest = isRecord(snapshot.activeAgentManifest) ? snapshot.activeAgentManifest : {}
+  const manifest = activeProviderManifestFromRunConfigurationSnapshot(snapshot)
   const configFileId = stringValue(snapshot.activeConfigFileId)
   if (!configFileId) return null
   const configFiles = recordArray(snapshot.configFiles)
@@ -61,7 +61,7 @@ export function buildRunConfigurationSnapshotView(run: AgentRun | undefined): Ag
   const skillsById = new Map(skills.map((skill) => [stringValue(skill.id) ?? '', skill]))
   const toolsByName = new Map(tools.map((tool) => [stringValue(tool.name) ?? '', tool]))
   const metadata = isRecord(run?.metadata) ? run.metadata : {}
-  const runtimeLimits = isRecord(snapshot.runtimeLimits) ? snapshot.runtimeLimits : {}
+  const providerSessionLimits = providerSessionLimitsFromRunConfigurationSnapshot(snapshot)
   const actualSkillIds = stringArray(metadata.activeSkillIds)
   const visibleToolNames = stringArray(metadata.visibleToolNames)
   const omittedSkillIds = skillIds.filter((skillId) => !actualSkillIds.includes(skillId))
@@ -87,8 +87,8 @@ export function buildRunConfigurationSnapshotView(run: AgentRun | undefined): Ag
     catalogSkillCount: skills.length,
     catalogToolCount: tools.length,
     modelLabel,
-    limitItems: runtimeConfigFileLimitItems(limits),
-    runtimeLimitItems: runtimeLimitSummaryItems(runtimeLimits),
+    limitItems: configFileLimitItems(limits),
+    providerSessionLimitItems: providerSessionLimitSummaryItems(providerSessionLimits),
     approvalDefaultItems: Object.entries(approvalDefaults)
       .flatMap(([key, value]) => stringValue(value) ? [`${key}: ${stringValue(value)}`] : []),
     packNames: packs
@@ -173,7 +173,7 @@ function skillRunRelationSummary(skill: Record<string, unknown>): string | undef
   return counts.length > 0 ? counts.join(', ') : undefined
 }
 
-function runtimeLimitSummaryItems(limits: Record<string, unknown>): string[] {
+function providerSessionLimitSummaryItems(limits: Record<string, unknown>): string[] {
   const execution = isRecord(limits.execution) ? limits.execution : {}
   return [
     stringValue(limits.approvalMode) ? `运行审批: ${runApprovalModeLabel(stringValue(limits.approvalMode))}` : undefined,
@@ -186,7 +186,19 @@ function runtimeLimitSummaryItems(limits: Record<string, unknown>): string[] {
   ].filter((item): item is string => !!item)
 }
 
-function runtimeConfigFileLimitItems(limits: Record<string, unknown>): string[] {
+function providerSessionLimitsFromRunConfigurationSnapshot(snapshot: Record<string, unknown>): Record<string, unknown> {
+  if (isRecord(snapshot.providerSessionLimits)) return snapshot.providerSessionLimits
+  if (isRecord(snapshot.runtimeLimits)) return snapshot.runtimeLimits
+  return {}
+}
+
+function activeProviderManifestFromRunConfigurationSnapshot(snapshot: Record<string, unknown>): Record<string, unknown> {
+  if (isRecord(snapshot.activeProviderManifest)) return snapshot.activeProviderManifest
+  if (isRecord(snapshot.activeAgentManifest)) return snapshot.activeAgentManifest
+  return {}
+}
+
+function configFileLimitItems(limits: Record<string, unknown>): string[] {
   return Object.entries(limits).flatMap(([key, value]) => {
     if (typeof value === 'number' && Number.isFinite(value)) return [`${key}: ${value}`]
     if (typeof value === 'boolean') return [`${key}: ${value ? 'true' : 'false'}`]

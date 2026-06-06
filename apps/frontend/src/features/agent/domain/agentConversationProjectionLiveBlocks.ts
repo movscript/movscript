@@ -4,7 +4,7 @@ import type {
   AgentConversationProjectionContentItem,
 } from '@/features/agent/domain/agentConversationProjectionTypes'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
-import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function renderableLiveBlocksForProjection(input: {

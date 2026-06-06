@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  buildProductionWorkspaceWorkspaceWorkspaceData,
+  buildProductionWorkspaceArtifactData,
   workspaceIdForWorkspaceNode,
 } from './productionWorkspaceWorkspaceWorkspace'
-import type { WorkspaceWorkspaceContent } from './productionWorkspaceReviewModel'
+import type { ProductionWorkspaceArtifactContent } from './productionWorkspaceReviewModel'
 
-test('production workspace workspace workspace data mirrors ordinary orchestration records', () => {
-  const workspace: WorkspaceWorkspaceContent = {
+test('production workspace artifact data mirrors ordinary orchestration records', () => {
+  const workspace: ProductionWorkspaceArtifactContent = {
     mode: 'snapshot',
     productionId: 12,
     workspace: {
@@ -31,7 +31,7 @@ test('production workspace workspace workspace data mirrors ordinary orchestrati
     },
   }
 
-  const data = buildProductionWorkspaceWorkspaceWorkspaceData(workspace, {
+  const data = buildProductionWorkspaceArtifactData(workspace, {
     productionId: 12,
     creativeReferences: [{ ID: 7, name: '林夏', kind: 'person' }],
   })

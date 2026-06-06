@@ -2,37 +2,37 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { shouldPollPlanSnapshot } from '@/features/agent/domain/agentPlanUi'
 import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
-import { localAgentClient, type AgentRuntimeEventV2, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient, type ProviderSessionEventV2, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 interface UseAgentActivePlanSnapshotInput {
   activeRun: AgentRun | null
-  localRuntimeEnabled: boolean
-  localAgentOnline: boolean
+  providerSessionEnabled: boolean
+  providerSessionOnline: boolean
   sessionId?: string
 }
 
 export function useAgentActivePlanSnapshot({
   activeRun,
-  localRuntimeEnabled,
-  localAgentOnline,
+  providerSessionEnabled,
+  providerSessionOnline,
   sessionId,
 }: UseAgentActivePlanSnapshotInput) {
   const queryClient = useQueryClient()
-  const runtimeClient = useMemo(() => sessionId?.trim()
-    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
-    : localAgentClient, [sessionId])
+  const providerSessionPlanClient = useMemo(() => sessionId?.trim()
+    ? providerSessionClient.forSession({ sessionId: sessionId.trim() })
+    : providerSessionClient, [sessionId])
   const taskGraphId = activeRun?.taskGraphId
-  const enabled = localRuntimeEnabled && localAgentOnline && !!taskGraphId
+  const enabled = providerSessionEnabled && providerSessionOnline && !!taskGraphId
   const queryKey = useMemo(
-    () => ['local-agent-taskGraph-snapshot', runtimeClient.baseURL, sessionId?.trim() || null, taskGraphId ?? null] as const,
-    [runtimeClient.baseURL, sessionId, taskGraphId],
+    () => ['provider-session-taskGraph-snapshot', providerSessionPlanClient.baseURL, sessionId?.trim() || null, taskGraphId ?? null] as const,
+    [providerSessionPlanClient.baseURL, sessionId, taskGraphId],
   )
   const query = useQuery<AgentTaskGraphSnapshot>({
     queryKey,
     queryFn: async () => {
       if (!taskGraphId) throw new Error('active run is not attached to a task graph')
-      await runtimeClient.ensureRunning()
-      return runtimeClient.getTaskGraphSnapshot(taskGraphId)
+      await providerSessionPlanClient.ensureRunning()
+      return providerSessionPlanClient.getTaskGraphSnapshot(taskGraphId)
     },
     enabled,
     retry: false,
@@ -53,13 +53,13 @@ export function useAgentActivePlanSnapshot({
   useEffect(() => {
     if (!enabled || !taskGraphId) return
     const controller = new AbortController()
-    void runtimeClient.ensureRunning()
-      .then(() => runtimeClient.streamPlan(taskGraphId, {
+    void providerSessionPlanClient.ensureRunning()
+      .then(() => providerSessionPlanClient.streamPlan(taskGraphId, {
         signal: controller.signal,
-        onRuntimeEvent: (event) => {
+        onProviderEvent: (event) => {
           queryClient.setQueryData<AgentTaskGraphSnapshot | undefined>(
             queryKey,
-            (current) => applyPlanRuntimeEvent(current, event, taskGraphId),
+            (current) => applyPlanProviderSessionEvent(current, event, taskGraphId),
           )
         },
       }))
@@ -67,14 +67,14 @@ export function useAgentActivePlanSnapshot({
     return () => {
       controller.abort()
     }
-  }, [enabled, queryClient, queryKey, runtimeClient, taskGraphId])
+  }, [enabled, providerSessionPlanClient, queryClient, queryKey, taskGraphId])
 
   return query
 }
 
-function applyPlanRuntimeEvent(
+function applyPlanProviderSessionEvent(
   current: AgentTaskGraphSnapshot | undefined,
-  event: AgentRuntimeEventV2,
+  event: ProviderSessionEventV2,
   taskGraphId: string,
 ): AgentTaskGraphSnapshot | undefined {
   if (event.entity?.type === 'task_graph' && event.entity.value.taskGraph.id === taskGraphId) return event.entity.value

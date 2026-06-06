@@ -2,7 +2,7 @@ import type { ClipboardEventHandler, ComponentProps, CSSProperties, DragEventHan
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { AtSign, CircleStop, Eye, Loader2, Send, Upload } from 'lucide-react'
+import { AtSign, Check, ChevronDown, CircleStop, Eye, FolderTree, Loader2, Send, Upload } from 'lucide-react'
 import {
   AgentComposer,
   AgentComposerAction,
@@ -17,7 +17,18 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@movscript/ui'
 import { attachmentKey } from '@/features/agent/domain/agentAttachments'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
@@ -27,8 +38,14 @@ import {
   ComposerAttachmentChip,
   MentionResourceOption,
 } from '@/features/agent/components/AgentMentionEditor'
-import { AgentProviderMark } from '@/features/agent/components/AgentProviderControls'
-import type { AgentPendingRuntimeInputQueueItem } from '@/features/agent/domain/agentRuntimeInputMessages'
+import { ProviderMark } from '@/features/agent/components/ProviderControls'
+import type { AgentPendingActiveRunInputQueueItem } from '@/features/agent/domain/agentActiveRunInputMessages'
+import {
+  AGENT_RUN_PROFILE_PRESETS,
+  DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
+  agentRunProfilePresetById,
+  type AgentRunProfilePresetId,
+} from '@/features/agent/domain/agentRunProfilePreset'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 type MentionStateHandler = ComponentProps<typeof AgentMentionEditor>['onMentionState']
@@ -40,6 +57,12 @@ interface MentionMenuPosition {
   width: number
 }
 
+interface WorkspaceContextOption {
+  value: string
+  label: string
+  meta?: string
+}
+
 export interface AgentComposerSectionProps {
   chrome?: 'card' | 'bottom-bar' | 'flush'
   answeringPendingInput: boolean
@@ -48,7 +71,7 @@ export interface AgentComposerSectionProps {
   buildingSendWorkspace: boolean
   canAnswerPendingInputWithText: boolean
   canSend: boolean
-  canStopLocalRun: boolean
+  canStopActiveRun: boolean
   composerAttachmentEntries: { attachment: AgentAttachment }[]
   composerAttachmentsCount: number
   composerPlaceholder: string
@@ -59,11 +82,17 @@ export interface AgentComposerSectionProps {
   loading: boolean
   mentionResults: AgentAttachment[]
   mentionRangeActive: boolean
-  pendingRuntimeInputQueue: AgentPendingRuntimeInputQueueItem[]
-  stoppingLocalRun: boolean
+  pendingActiveRunInputQueue: AgentPendingActiveRunInputQueueItem[]
+  stoppingActiveRun: boolean
   uploading: boolean
   uploadedFileCount: number
   uploadingFileNames: string[]
+  workspaceProjectOptions?: WorkspaceContextOption[]
+  workspaceProjectValue?: string
+  workspaceProjectsLoading?: boolean
+  workspaceProductionOptions?: WorkspaceContextOption[]
+  workspaceProductionValue?: string
+  workspaceProductionsLoading?: boolean
   onAcceptMention: () => boolean
   onComposerDragEnter: DragEventHandler
   onComposerDragLeave: DragEventHandler
@@ -76,9 +105,12 @@ export interface AgentComposerSectionProps {
   onMentionSelect: (attachment: AgentAttachment) => void
   onMentionState: MentionStateHandler
   onRemoveAttachment: (attachmentId: string) => void
-  onSend: () => void
-  onStopLocalRun: () => void
+  onSend: (profilePresetId?: AgentRunProfilePresetId) => void
+  onStopActiveRun: () => void
   onUploadFiles: (files: FileList) => void
+  onWorkspaceProjectChange?: (value: string) => void
+  onWorkspaceProductionChange?: (value: string) => void
+  showApprovalPresetSelector?: boolean
   showAttachmentTools?: boolean
   showDebugPreview?: boolean
   showMentionTools?: boolean
@@ -91,7 +123,7 @@ export function AgentComposerSection({
   buildingSendWorkspace,
   canAnswerPendingInputWithText,
   canSend,
-  canStopLocalRun,
+  canStopActiveRun,
   composerAttachmentEntries,
   composerAttachmentsCount,
   composerPlaceholder,
@@ -102,11 +134,17 @@ export function AgentComposerSection({
   loading,
   mentionResults,
   mentionRangeActive,
-  pendingRuntimeInputQueue,
-  stoppingLocalRun,
+  pendingActiveRunInputQueue,
+  stoppingActiveRun,
   uploading,
   uploadedFileCount,
   uploadingFileNames,
+  workspaceProjectOptions = [],
+  workspaceProjectValue,
+  workspaceProjectsLoading = false,
+  workspaceProductionOptions = [],
+  workspaceProductionValue,
+  workspaceProductionsLoading = false,
   onAcceptMention,
   onComposerDragEnter,
   onComposerDragLeave,
@@ -120,8 +158,11 @@ export function AgentComposerSection({
   onMentionState,
   onRemoveAttachment,
   onSend,
-  onStopLocalRun,
+  onStopActiveRun,
   onUploadFiles,
+  onWorkspaceProjectChange,
+  onWorkspaceProductionChange,
+  showApprovalPresetSelector = true,
   showAttachmentTools = true,
   showDebugPreview = true,
   showMentionTools = true,
@@ -129,6 +170,8 @@ export function AgentComposerSection({
   const { t } = useTranslation()
   const editorDisabled = buildingSendWorkspace || (answeringPendingInput && !canAnswerPendingInputWithText)
   const [mentionMenuPosition, setMentionMenuPosition] = useState<MentionMenuPosition | null>(null)
+  const [profilePresetId, setProfilePresetId] = useState<AgentRunProfilePresetId>(DEFAULT_AGENT_RUN_PROFILE_PRESET_ID)
+  const runProfile = agentRunProfilePresetById(profilePresetId)
   const mentionMenuOpen = mentionRangeActive && mentionResults.length > 0
 
   useEffect(() => {
@@ -176,6 +219,13 @@ export function AgentComposerSection({
   }, [inputRef, mentionMenuOpen])
 
   const mentionMenuPortalTarget = typeof document === 'undefined' ? null : document.body
+  const workspaceSelectorDisabled = answeringPendingInput || buildingSendWorkspace || loading
+  const showWorkspaceSelector = workspaceProjectOptions.length > 0
+    && workspaceProjectValue !== undefined
+    && !!onWorkspaceProjectChange
+  const showProductionSelector = workspaceProductionOptions.length > 0
+    && workspaceProductionValue !== undefined
+    && !!onWorkspaceProductionChange
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
     <div
       className="ai-agent-resource-mention-menu overflow-hidden border border-border bg-background shadow-lg"
@@ -204,7 +254,7 @@ export function AgentComposerSection({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    onSend()
+    onSend(profilePresetId)
   }
 
   const uploadingFileCount = uploadingFileNames.length
@@ -245,17 +295,17 @@ export function AgentComposerSection({
             </div>
           </DialogContent>
         </Dialog>
-      {pendingRuntimeInputQueue.length > 0 && (
+      {pendingActiveRunInputQueue.length > 0 && (
         <div className="mb-2 space-y-1.5 px-2 py-1.5">
           <div className="flex items-center justify-between gap-2 type-tiny text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Loader2 size={10} className="animate-spin" />
               等待加入运行
             </span>
-            <span>{pendingRuntimeInputQueue.length}</span>
+            <span>{pendingActiveRunInputQueue.length}</span>
           </div>
           <div className="space-y-1">
-            {pendingRuntimeInputQueue.map((item) => (
+            {pendingActiveRunInputQueue.map((item) => (
               <div
                 key={item.id}
                 className="truncate border-t border-border px-0 py-1 type-tiny text-foreground first:border-t-0"
@@ -304,7 +354,7 @@ export function AgentComposerSection({
             onMentionState={onMentionState}
             onEscape={onMentionEscape}
             onAcceptMention={onAcceptMention}
-            onSubmit={onSend}
+            onSubmit={() => onSend(profilePresetId)}
             onPaste={onComposerPaste}
           />
           {draggingFiles && (
@@ -314,9 +364,57 @@ export function AgentComposerSection({
           )}
           {mentionMenu}
         </div>
+        {showWorkspaceSelector ? (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 type-tiny text-muted-foreground">
+            <span className="inline-flex items-center gap-1 pr-1">
+              <FolderTree size={12} />
+              工作目录
+            </span>
+            <Select
+              value={workspaceProjectValue}
+              onValueChange={onWorkspaceProjectChange}
+              disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
+            >
+              <SelectTrigger size="sm" className="h-7 w-[min(210px,100%)] min-w-0 type-tiny">
+                <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择项目'} />
+              </SelectTrigger>
+              <SelectContent>
+                {workspaceProjectOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{option.label}</span>
+                      {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {showProductionSelector ? (
+              <Select
+                value={workspaceProductionValue}
+                onValueChange={onWorkspaceProductionChange}
+                disabled={workspaceSelectorDisabled || workspaceProductionsLoading}
+              >
+                <SelectTrigger size="sm" className="h-7 w-[min(210px,100%)] min-w-0 type-tiny">
+                  <SelectValue placeholder={workspaceProductionsLoading ? '读取制作...' : '选择制作'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaceProductionOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">{option.label}</span>
+                        {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
+        ) : null}
         <AgentComposerToolbar>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            <AgentProviderMark />
+            <ProviderMark />
             {showAttachmentTools ? (
               <AgentComposerAction
                 onClick={() => fileRef.current?.click()}
@@ -356,29 +454,66 @@ export function AgentComposerSection({
                 {t('agents.chat.debugPreview')}
               </Button>
             ) : null}
-            {canStopLocalRun && (
+            {canStopActiveRun && (
               <AgentComposerAction
-                onClick={onStopLocalRun}
-                disabled={stoppingLocalRun}
+                onClick={onStopActiveRun}
+                disabled={stoppingActiveRun}
                 aria-label={t('agents.chat.stop')}
                 title={t('agents.chat.stop')}
               >
-                {stoppingLocalRun ? <Loader2 size={14} className="animate-spin" /> : <CircleStop size={14} />}
+                {stoppingActiveRun ? <Loader2 size={14} className="animate-spin" /> : <CircleStop size={14} />}
               </AgentComposerAction>
             )}
           </div>
-          <AgentComposerSubmit
-            type="submit"
-            running={loading || buildingSendWorkspace}
-            disabled={!canSend}
-            label={answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
-          >
-            {stoppingLocalRun
-              ? <Loader2 size={14} className="animate-spin" />
-              : buildingSendWorkspace
+          <div className="ms-agent-composer__submit-group">
+            {showApprovalPresetSelector && !answeringPendingInput ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="ms-control ms-agent-composer__approval-trigger"
+                    disabled={loading || buildingSendWorkspace || uploading}
+                    aria-label={`Run profile: ${runProfile.label}`}
+                    title={`Run profile: ${runProfile.label}`}
+                  >
+                    <span>{runProfile.shortLabel}</span>
+                    <ChevronDown size={12} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-64">
+                  <DropdownMenuLabel>Run Profile</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {AGENT_RUN_PROFILE_PRESETS.map((preset) => (
+                    <DropdownMenuItem
+                      key={preset.id}
+                      onSelect={() => setProfilePresetId(preset.id)}
+                      className="items-start gap-2"
+                    >
+                      <span className="mt-0.5 flex w-3 justify-center text-muted-foreground">
+                        {preset.id === profilePresetId ? <Check size={12} /> : null}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block type-tiny font-medium text-foreground">{preset.label}</span>
+                        <span className="block whitespace-normal type-tiny text-muted-foreground">{preset.description}</span>
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            <AgentComposerSubmit
+              type="submit"
+              running={loading || buildingSendWorkspace}
+              disabled={!canSend}
+              label={answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
+            >
+              {stoppingActiveRun
                 ? <Loader2 size={14} className="animate-spin" />
-                : debugBeforeSend && !loading ? <Eye size={14} /> : <Send size={14} />}
-          </AgentComposerSubmit>
+                : buildingSendWorkspace
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : debugBeforeSend && !loading ? <Eye size={14} /> : <Send size={14} />}
+            </AgentComposerSubmit>
+          </div>
         </AgentComposerToolbar>
       </AgentComposer>
       </section>

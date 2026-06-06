@@ -1,7 +1,7 @@
 import { approvalStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { recordArray, stringArray, stringValue } from '@/features/agent/domain/agent-run-page/runConfigurationSnapshot'
 import { isRecord } from '@/shared/domain/jsonValue'
-import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 
 export interface AgentApprovalImpactItem {
   id: string
@@ -65,7 +65,7 @@ export function buildApprovalImpactSummary(
       toolName: approval.toolName,
       status,
       statusLabel: approvalStatusLabel(status),
-      impact: approvalRuntimeImpactLabel(status),
+      impact: providerSessionApprovalImpactLabel(status),
       reason: approval.reason,
       risk: approval.risk,
       permission: approval.permission,
@@ -101,7 +101,7 @@ export function buildApprovalImpactSummary(
         if (existing.status === 'pending' || status !== 'pending') {
           existing.status = status
           existing.statusLabel = approvalStatusLabel(status)
-          existing.impact = approvalRuntimeImpactLabel(status)
+          existing.impact = providerSessionApprovalImpactLabel(status)
           existing.resolvedAt = status === 'pending' ? existing.resolvedAt : event.completedAt ?? event.createdAt
         }
         continue
@@ -112,7 +112,7 @@ export function buildApprovalImpactSummary(
         toolName,
         status,
         statusLabel: approvalStatusLabel(status),
-        impact: approvalRuntimeImpactLabel(status),
+        impact: providerSessionApprovalImpactLabel(status),
         reason: toolMeta.reason ?? event.summary ?? event.title,
         risk: toolMeta.risk,
         permission: toolMeta.permission,
@@ -163,10 +163,10 @@ function approvalEventToolMeta(event: AgentTraceEvent, toolName: string): { reas
   }
 }
 
-function approvalRuntimeImpactLabel(status: string): string {
-  if (status === 'approved') return '用户已批准；运行会带着已批准的工具调用继续执行。'
-  if (status === 'rejected') return '用户已拒绝；这次工具调用不会执行，运行继续处理拒绝结果或以警告完成。'
-  return '运行暂停等待审批；同意后会继续执行该工具，拒绝会阻止这次工具调用。'
+function providerSessionApprovalImpactLabel(status: string): string {
+  if (status === 'approved') return '用户已批准；Provider 会话会带着已批准的工具调用继续执行。'
+  if (status === 'rejected') return '用户已拒绝；这次工具调用不会执行，Provider 会话继续处理拒绝结果或以警告完成。'
+  return 'Provider 会话暂停等待审批；同意后会继续执行该工具，拒绝会阻止这次工具调用。'
 }
 
 function pushMapValue(map: Map<string, string[]>, key: string, value: string) {

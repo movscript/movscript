@@ -1,5 +1,5 @@
 import type { E2EBootstrapSeed } from '@/shared/infrastructure/e2eBootstrap'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentRunTraceSummary, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentRunTraceSummary, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, Conversation } from '@/features/agent/state/agentStore'
 import type { Project } from '@/types'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
@@ -14,7 +14,7 @@ const THREAD_ID = 'thread-task-graphner-e2e'
 const CONVERSATION_ID = 'conversation-task-graphner-e2e'
 const FIXED_NOW = '2026-05-12T09:00:00.000Z'
 
-export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed {
+export function buildPlannerProviderSessionSeed(apiBaseURL: string): E2EBootstrapSeed {
   const base = buildGenerationAppBootstrap(apiBaseURL)
   const userId = String(base.user?.user.ID ?? 1001)
   const userMessage: ChatMessage = {
@@ -46,7 +46,7 @@ export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed
       conversations: [{ conversation }],
     },
     session: {
-      conversationRuntimes: {
+      conversationProviderSessionStates: {
         [CONVERSATION_ID]: {
           conversationId: CONVERSATION_ID,
           requestId: 'request-task-graphner-e2e',
@@ -62,7 +62,7 @@ export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed
           updatedAt: Date.parse('2026-05-12T09:00:20.000Z'),
         },
       },
-      localThreadIdsByConversation: {
+      providerThreadIdsByConversation: {
         [CONVERSATION_ID]: THREAD_ID,
       },
     },
@@ -77,7 +77,7 @@ export function plannerRunFixture(): AgentRun {
     role: 'planner',
     taskGraphId: PLANNER_TASK_GRAPH_ID,
     progress: 0.45,
-    runtimeLimits: { approvalMode: 'auto_readonly',
+    providerSessionLimits: { approvalMode: 'auto_readonly',
       sandboxMode: false,
       maxToolCalls: 8,
       maxIterations: 6,
@@ -111,7 +111,7 @@ export function workerRunFixture(): AgentRun {
     taskGraphId: PLANNER_TASK_GRAPH_ID,
     taskId: 'task_einstein_audit',
     progress: 0.62,
-    runtimeLimits: { approvalMode: 'auto_readonly',
+    providerSessionLimits: { approvalMode: 'auto_readonly',
       sandboxMode: false,
       maxToolCalls: 4,
       maxIterations: 4,

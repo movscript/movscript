@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compactRunActivity, liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunRuntimeTraceEvent } from '@/features/agent/domain/agentRunActivity'
-import { AGENT_PROTOCOL_VERSION, AGENT_RUNTIME_EVENT_V2_SCHEMA } from '@movscript/protocol'
-import type { AgentRun, AgentRuntimeEventV2, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import { compactRunActivity, liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunProviderSessionTraceEvent } from '@/features/agent/domain/agentRunActivity'
+import { AGENT_PROTOCOL_VERSION, PROVIDER_SESSION_EVENT_V2_SCHEMA } from '@/features/agent/domain/agentProtocol'
+import type { AgentRun, ProviderSessionEventV2, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('liveTraceEventKey ignores non-plain live tool call payloads', () => {
-  class RuntimeToolCall {
+  class ProviderSessionToolCall {
     index = 7
   }
 
@@ -17,7 +17,7 @@ test('liveTraceEventKey ignores non-plain live tool call payloads', () => {
     status: 'started',
     data: {
       stream: {
-        toolCall: new RuntimeToolCall(),
+        toolCall: new ProviderSessionToolCall(),
       },
     },
     createdAt: '2026-05-17T00:00:00.000Z',
@@ -31,7 +31,7 @@ test('compactRunActivity preserves top-level step and trace durations', () => {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 4,
       maxIterations: 2,
       allowNetwork: false,
@@ -68,9 +68,9 @@ test('compactRunActivity preserves top-level step and trace durations', () => {
   assert.equal(activity.events[0]?.runId, 'run_1')
 })
 
-test('projectLiveRunRuntimeTraceEvent preserves run and thread scope', () => {
-  const projected = projectLiveRunRuntimeTraceEvent({
-    schema: AGENT_RUNTIME_EVENT_V2_SCHEMA,
+test('projectLiveRunProviderSessionTraceEvent preserves run and thread scope', () => {
+  const projected = projectLiveRunProviderSessionTraceEvent({
+    schema: PROVIDER_SESSION_EVENT_V2_SCHEMA,
     protocolVersion: AGENT_PROTOCOL_VERSION,
     id: 'event_1',
     scope: { type: 'thread', id: 'thread_1' },
@@ -101,7 +101,7 @@ test('compactRunActivity preserves approval and input request state', () => {
     id: 'run_action',
     threadId: 'thread_1',
     status: 'requires_action',
-    runtimeLimits: { approvalMode: 'interactive',
+    providerSessionLimits: { approvalMode: 'interactive',
       maxToolCalls: 4,
       maxIterations: 2,
       allowNetwork: false,
@@ -147,8 +147,8 @@ test('compactRunActivity preserves approval and input request state', () => {
   assert.deepEqual(activity.inputs?.[0]?.answer, { choiceIds: ['a'] })
 })
 
-test('projectLiveRunRuntimeTraceEvent maps visible trace events and pending assistant state', () => {
-  const event = runtimeTraceEvent({
+test('projectLiveRunProviderSessionTraceEvent maps visible trace events and pending assistant state', () => {
+  const event = providerSessionTraceEvent({
     id: 'trace_tool',
     runId: 'run_1',
     kind: 'tool_call',
@@ -158,7 +158,7 @@ test('projectLiveRunRuntimeTraceEvent maps visible trace events and pending assi
     createdAt: '2026-05-17T00:00:00.000Z',
   })
 
-  const projected = projectLiveRunRuntimeTraceEvent(event)
+  const projected = projectLiveRunProviderSessionTraceEvent(event)
 
   assert.equal(projected?.activityEvent.id, 'trace_tool')
   assert.deepEqual(projected?.pendingAssistantState, {
@@ -167,18 +167,18 @@ test('projectLiveRunRuntimeTraceEvent maps visible trace events and pending assi
   })
 })
 
-test('projectLiveRunRuntimeTraceEvent preserves generation completion trace data for pinned status', () => {
-  const event = runtimeTraceEvent({
+test('projectLiveRunProviderSessionTraceEvent preserves generation completion trace data for pinned status', () => {
+  const event = providerSessionTraceEvent({
     id: 'trace_generation_done',
     runId: 'run_background',
     kind: 'tool_call',
-    title: 'Runtime work observed: generation_job',
+    title: 'Provider work observed: generation_job',
     status: 'completed',
     toolName: 'core_work_wait',
     createdAt: '2026-05-17T00:00:00.000Z',
     completedAt: '2026-05-17T00:00:01.000Z',
     data: {
-      runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'completed' },
+      providerWork: { id: 'work_1', kind: 'generation_job', status: 'completed' },
       generation: {
         jobId: 42,
         status: 'finished',
@@ -190,7 +190,7 @@ test('projectLiveRunRuntimeTraceEvent preserves generation completion trace data
     },
   })
 
-  const projected = projectLiveRunRuntimeTraceEvent(event)
+  const projected = projectLiveRunProviderSessionTraceEvent(event)
 
   assert.equal(projected?.activityEvent.runId, 'run_background')
   assert.equal(projected?.activityEvent.status, 'completed')
@@ -198,8 +198,8 @@ test('projectLiveRunRuntimeTraceEvent preserves generation completion trace data
   assert.equal((projected?.activityEvent.data as { generation?: { terminal?: boolean; outputResourceId?: number } } | undefined)?.generation?.outputResourceId, 420)
 })
 
-test('projectLiveRunRuntimeTraceEvent derives preparing tool state from model tool-call deltas', () => {
-  const event = runtimeTraceEvent({
+test('projectLiveRunProviderSessionTraceEvent derives preparing tool state from model tool-call deltas', () => {
+  const event = providerSessionTraceEvent({
     id: 'trace_model',
     runId: 'run_1',
     kind: 'model_call',
@@ -216,7 +216,7 @@ test('projectLiveRunRuntimeTraceEvent derives preparing tool state from model to
     createdAt: '2026-05-17T00:00:00.000Z',
   })
 
-  const projected = projectLiveRunRuntimeTraceEvent(event)
+  const projected = projectLiveRunProviderSessionTraceEvent(event)
 
   assert.deepEqual(projected?.pendingAssistantState, {
     status: 'preparing_tool_call',
@@ -224,8 +224,8 @@ test('projectLiveRunRuntimeTraceEvent derives preparing tool state from model to
   })
 })
 
-test('projectLiveRunRuntimeTraceEvent derives thinking state from active model requests', () => {
-  const event = runtimeTraceEvent({
+test('projectLiveRunProviderSessionTraceEvent derives thinking state from active model requests', () => {
+  const event = providerSessionTraceEvent({
     id: 'trace_model_request',
     runId: 'run_1',
     kind: 'model_call',
@@ -234,15 +234,15 @@ test('projectLiveRunRuntimeTraceEvent derives thinking state from active model r
     createdAt: '2026-05-17T00:00:00.000Z',
   })
 
-  const projected = projectLiveRunRuntimeTraceEvent(event)
+  const projected = projectLiveRunProviderSessionTraceEvent(event)
 
   assert.deepEqual(projected?.pendingAssistantState, {
     status: 'thinking',
   })
 })
 
-test('projectLiveRunRuntimeTraceEvent derives thinking state from reasoning deltas', () => {
-  const event = runtimeTraceEvent({
+test('projectLiveRunProviderSessionTraceEvent derives thinking state from reasoning deltas', () => {
+  const event = providerSessionTraceEvent({
     id: 'trace_live_model-reasoning-stream:1',
     runId: 'run_1',
     kind: 'reasoning',
@@ -260,7 +260,7 @@ test('projectLiveRunRuntimeTraceEvent derives thinking state from reasoning delt
     createdAt: '2026-05-17T00:00:00.000Z',
   })
 
-  const projected = projectLiveRunRuntimeTraceEvent(event)
+  const projected = projectLiveRunProviderSessionTraceEvent(event)
 
   assert.equal(projected?.activityEvent.kind, 'reasoning')
   assert.deepEqual(projected?.pendingAssistantState, {
@@ -269,8 +269,8 @@ test('projectLiveRunRuntimeTraceEvent derives thinking state from reasoning delt
   })
 })
 
-test('projectLiveRunRuntimeTraceEvent clears pending state on terminal tool traces and ignores hidden kinds', () => {
-  const completedTool = runtimeTraceEvent({
+test('projectLiveRunProviderSessionTraceEvent clears pending state on terminal tool traces and ignores hidden kinds', () => {
+  const completedTool = providerSessionTraceEvent({
     id: 'trace_done',
     runId: 'run_1',
     kind: 'tool_call',
@@ -278,7 +278,7 @@ test('projectLiveRunRuntimeTraceEvent clears pending state on terminal tool trac
     status: 'completed',
     createdAt: '2026-05-17T00:00:00.000Z',
   })
-  const hidden = runtimeTraceEvent({
+  const hidden = providerSessionTraceEvent({
     id: 'trace_message',
     runId: 'run_1',
     kind: 'message',
@@ -287,8 +287,8 @@ test('projectLiveRunRuntimeTraceEvent clears pending state on terminal tool trac
     createdAt: '2026-05-17T00:00:00.000Z',
   })
 
-  assert.equal(projectLiveRunRuntimeTraceEvent(completedTool)?.pendingAssistantState, null)
-  assert.equal(projectLiveRunRuntimeTraceEvent(hidden), null)
+  assert.equal(projectLiveRunProviderSessionTraceEvent(completedTool)?.pendingAssistantState, null)
+  assert.equal(projectLiveRunProviderSessionTraceEvent(hidden), null)
 })
 
 test('mergeLiveRunActivityEvent replaces reasoning stream events by live key', () => {
@@ -314,10 +314,10 @@ test('mergeLiveRunActivityEvent replaces reasoning stream events by live key', (
   assert.deepEqual(merged[0]?.data, { stream: { kind: 'reasoning', accumulated: '正在检查上下文' } })
 })
 
-test('mergeLiveRunActivityEvent replaces by live key and keeps http setup events outside runtime limit', () => {
+test('mergeLiveRunActivityEvent replaces by live key and keeps http setup events outside activity limit', () => {
   const http: ChatRunActivityEvent = {
     id: 'http-request-1',
-    kind: 'runtime',
+    kind: 'provider_session',
     title: 'HTTP',
     status: 'started',
     createdAt: '2026-05-17T00:00:00.000Z',
@@ -343,7 +343,7 @@ test('mergeLiveRunActivityEvent replaces by live key and keeps http setup events
     createdAt: '2026-05-17T00:00:02.000Z',
   }
 
-  const merged = mergeLiveRunActivityEvent(mergeLiveRunActivityEvent([http, first], replacement, { runtimeLimit: 1 }), next, { runtimeLimit: 1 })
+  const merged = mergeLiveRunActivityEvent(mergeLiveRunActivityEvent([http, first], replacement, { activityLimit: 1 }), next, { activityLimit: 1 })
 
   assert.deepEqual(merged.map((event) => event.id), ['http-request-1', 'trace_context'])
 })
@@ -376,7 +376,7 @@ test('mergeLiveRunActivityEvent keeps complete live history unless a caller asks
   assert.deepEqual(merged.map((event) => event.id), ['trace_context_1', 'trace_context_2', 'trace_context_3'])
 })
 
-function runtimeTraceEvent(trace: AgentTraceEvent): AgentRuntimeEventV2 {
+function providerSessionTraceEvent(trace: AgentTraceEvent): ProviderSessionEventV2 {
   return {
     schema: 'movscript.agent.runtime-event.v2',
     protocolVersion: 'movscript.agent.protocol.v1',

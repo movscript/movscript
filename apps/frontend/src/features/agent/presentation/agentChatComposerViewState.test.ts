@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { buildAgentChatComposerViewState } from '@/features/agent/presentation/agentChatComposerViewState'
 import type { AgentPendingInputRequest } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('buildAgentChatComposerViewState enables normal sends from text or attachments', () => {
@@ -49,19 +49,19 @@ test('buildAgentChatComposerViewState disables stopping while answering input an
     activePendingInputRequest: inputRequest(),
     activeRun: run({ status: 'requires_action' }),
     answeringPendingInput: true,
-  }).canStopLocalRun, false)
+  }).canStopActiveRun, false)
   assert.equal(composerState({
     activeRun: run({ status: 'completed' }),
     inputBlockingLoading: true,
-  }).canStopLocalRun, false)
+  }).canStopActiveRun, false)
   assert.equal(composerState({
     activeRun: run({ status: 'in_progress' }),
     inputBlockingLoading: true,
-  }).canStopLocalRun, true)
-  assert.equal(composerState({ runtimeStopRequested: true }).canStopLocalRun, true)
+  }).canStopActiveRun, true)
+  assert.equal(composerState({ providerSessionStopRequested: true }).canStopActiveRun, true)
 })
 
-test('buildAgentChatComposerViewState exposes pending runtime input queue items', () => {
+test('buildAgentChatComposerViewState exposes pending active run input queue items', () => {
   const state = composerState({
     messages: [
       message({ id: 'accepted', role: 'user', meta: { runtimeInput: { deliveryStatus: 'accepted' } } }),
@@ -74,7 +74,7 @@ test('buildAgentChatComposerViewState exposes pending runtime input queue items'
     ],
   })
 
-  assert.deepEqual(state.pendingRuntimeInputQueue.map((item) => ({
+  assert.deepEqual(state.pendingActiveRunInputQueue.map((item) => ({
     id: item.id,
     runId: item.runId,
     content: item.content,
@@ -97,7 +97,7 @@ function composerState(overrides: Partial<Parameters<typeof buildAgentChatCompos
     inputBlockingLoading: false,
     inputPlaceholder: '输入消息',
     messages: [],
-    runtimeStopRequested: false,
+    providerSessionStopRequested: false,
     uploading: false,
     ...overrides,
   })
@@ -124,7 +124,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'in_progress',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,

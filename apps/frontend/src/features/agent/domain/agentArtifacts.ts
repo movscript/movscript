@@ -1,11 +1,11 @@
-import type { AgentWorkspaceKind, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { MovScriptWorkspaceKind, AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 
 export interface AgentTaskArtifactRef {
   type: 'workspace'
   workspaceId: string
   projectId?: number
-  workspaceKind?: AgentWorkspaceKind
+  workspaceKind?: MovScriptWorkspaceKind
   title?: string
   schema?: string
   source?: Record<string, unknown>
@@ -30,18 +30,18 @@ function numberValue(value: unknown): number | undefined {
   return undefined
 }
 
-function normalizeWorkspaceKind(value: unknown): AgentWorkspaceKind | undefined {
+function normalizeWorkspaceKind(value: unknown): MovScriptWorkspaceKind | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
   if (!normalized) return undefined
-  const allowed: AgentWorkspaceKind[] = [
+  const allowed: MovScriptWorkspaceKind[] = [
     'setting_workspace',
     'asset_workspace',
     'project_standards_workspace',
     'production_workspace',
     'content_unit_workspace',
   ]
-  return allowed.includes(normalized as AgentWorkspaceKind) ? normalized as AgentWorkspaceKind : undefined
+  return allowed.includes(normalized as MovScriptWorkspaceKind) ? normalized as MovScriptWorkspaceKind : undefined
 }
 
 function readWorkspaceCandidate(value: unknown): Record<string, unknown> | undefined {
@@ -105,7 +105,7 @@ export function extractAgentTaskArtifacts(run?: AgentRun): AgentTaskArtifactRef[
 
 export function selectLatestWorkspaceArtifact(
   artifacts: AgentTaskArtifactRef[] | undefined,
-  kind?: AgentWorkspaceKind,
+  kind?: MovScriptWorkspaceKind,
 ): AgentTaskArtifactRef | undefined {
   if (!artifacts?.length) return undefined
   const filtered = kind ? artifacts.filter((artifact) => artifact.workspaceKind === kind) : artifacts

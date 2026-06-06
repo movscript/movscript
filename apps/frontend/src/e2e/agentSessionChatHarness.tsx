@@ -7,7 +7,7 @@ import '@/i18n'
 import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 const queryClient = new QueryClient({
@@ -56,7 +56,7 @@ function AgentSessionChatHarness() {
     <QueryClientProvider client={queryClient}>
       <main className="h-screen bg-background p-4 text-foreground">
         <AgentConversationThreadSection
-          approvingLocalRun={false}
+          approvingActiveRun={false}
           bottomRef={createRef<HTMLDivElement>()}
           conversationId="agent-session-chat-harness"
           conversationProjection={buildAgentConversationProjection({
@@ -77,11 +77,11 @@ function AgentSessionChatHarness() {
           planDispatchSettings={planDispatchSettings()}
           threadRef={createRef<HTMLDivElement>()}
           onAcceptPlanReview={() => {}}
-          onAnswerLocalRunInput={() => {}}
-          onApproveLocalRun={() => {}}
+          onAnswerRunInput={() => {}}
+          onApproveRun={() => {}}
           onCancelPlanTree={() => {}}
           onDispatchTaskGraph={() => {}}
-          onRejectLocalRun={() => {}}
+          onRejectRun={() => {}}
           onRejectPlanReview={() => {}}
           onRetaskGraph={() => {}}
           onReworkPlanReview={() => {}}
@@ -108,7 +108,7 @@ function run(overrides: Partial<AgentRun>): AgentRun {
     id: 'run_1',
     threadId: 'thread_worker',
     status: 'requires_action',
-    runtimeLimits: {
+    providerSessionLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,

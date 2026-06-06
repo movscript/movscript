@@ -15,5 +15,5 @@ test('isLikelyMCPError recognizes MCP readiness timeouts', () => {
 })
 
 test('isLikelyMCPError ignores unrelated errors', () => {
-  assert.equal(isLikelyMCPError('local agent returned 500: backend unavailable'), false)
+  assert.equal(isLikelyMCPError('provider session returned 500: backend unavailable'), false)
 })

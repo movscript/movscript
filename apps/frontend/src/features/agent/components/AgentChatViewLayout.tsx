@@ -15,11 +15,11 @@ export interface AgentChatViewLayoutProps {
   contextDiagnosticDialog: ComponentProps<typeof ContextDiagnosticDialog>
   debugPreview: ComponentProps<typeof AgentDebugPreviewDialog>
   header: AgentChatHeaderSectionProps
-  runtimeHistory: {
+  providerSessionHistory: {
     archivedConversations: Conversation[]
     conversations: Conversation[]
     onRestoreArchivedConversation?: (id: string) => void
-    onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
+    onRestoreProviderThread: (threadId: string, sessionId?: string) => Promise<void>
   }
   thread: AgentChatThreadLayoutProps
 }

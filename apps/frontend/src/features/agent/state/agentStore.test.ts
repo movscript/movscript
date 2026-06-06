@@ -45,6 +45,24 @@ test('normalizeAgentSettings falls back from invalid persisted base settings', (
   assert.equal(settings.includeRecentResources, true)
 })
 
+test('normalizeAgentSettings defaults the active provider profile config to Mova', () => {
+  assert.equal(normalizeAgentSettings().activeProviderProfileConfigId, 'mova')
+  assert.equal(normalizeAgentSettings({}).activeProviderProfileConfigId, 'mova')
+})
+
+test('normalizeAgentSettings migrates compatibility active workspace profile ids to provider profile config ids', () => {
+  assert.equal(normalizeAgentSettings({ activeWorkspaceProfileId: 'mova' }).activeProviderProfileConfigId, 'mova')
+  assert.equal(normalizeAgentSettings({ activeWorkspaceProfileId: 'studio-agent' }).activeProviderProfileConfigId, 'studio-agent')
+  assert.equal(normalizeAgentSettings({ activeWorkspaceProfileId: '.codex' }).activeProviderProfileConfigId, 'mova')
+  assert.equal(normalizeAgentSettings({ activeWorkspaceConfigId: 'codex' }).activeProviderProfileConfigId, 'codex')
+})
+
+test('normalizeAgentSettings preserves custom provider profile config ids', () => {
+  assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: 'claude' }).activeProviderProfileConfigId, 'claude')
+  assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: 'studio-agent' }).activeProviderProfileConfigId, 'studio-agent')
+  assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: '../bad' }).activeProviderProfileConfigId, 'mova')
+})
+
 test('normalizeAgentSettings accepts numeric persisted model ids', () => {
   assert.equal(normalizeAgentSettings({ modelId: 42 }).modelId, 42)
   assert.equal(normalizeAgentSettings({ modelId: '42' as unknown as number }).modelId, 42)

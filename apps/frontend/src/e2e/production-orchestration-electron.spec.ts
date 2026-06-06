@@ -29,7 +29,7 @@ test('electron renderer smoke reaches production orchestration with project-leve
     await page.goto(`${baseURL}/project/production/orchestration?productionId=301`)
 
     await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-    await expect(page.getByRole('button', { name: /AI 工作区/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /AI 草案/ })).toHaveCount(0)
     await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
     await expect(page.getByText('剧本', { exact: true }).first()).toBeVisible()

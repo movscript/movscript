@@ -10,35 +10,41 @@ import {
   summarizeAgentControlRuns,
   summarizeAgentControlThreads,
 } from '@/features/agent/application/agentControlCenter'
-import { listRuntimeRunSummariesFromWorkspace, listRuntimeThreadSummariesFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
+import { listProviderSessionRunSummariesFromProviderSessions, listProviderSessionThreadSummariesFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
 import {
-  enabledAgentProviders,
-  normalizeAgentProviderSettings,
-  resolveCodexAppServerProfile,
-  useAgentProviderConfigStore,
-} from '@/features/agent/state/agentProviderConfigStore'
+  enabledProviders,
+  normalizeProviderSettings,
+  resolveAppServerProfile,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+} from '@/shared/infrastructure/providerConfigStore'
 import { agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import {
+  ensureAppServer as ensureAppServerService,
+  getAppServerStatus,
+  stopAppServer as stopAppServerService,
+} from '@/shared/infrastructure/app-server/appServerRpcClient'
 
 export function useAgentControlCenter() {
-  const runtimeSessionsQuery = useQuery({
-    queryKey: ['agent-console-runtime-sessions', 'workspace'],
-    queryFn: () => localAgentClient.listRuntimeSessionsFromWorkspace().then((result) => result.sessions),
+  const providerSessionsQuery = useQuery({
+    queryKey: ['agent-console-provider-sessions', 'workspace'],
+    queryFn: () => providerSessionClient.listProviderSessionsFromWorkspace().then((result) => result.sessions),
     retry: false,
   })
   const modelQuery = useQuery({
-    queryKey: ['agent-console-workspace-model-config'],
-    queryFn: () => localAgentClient.getWorkspaceModelConfig(),
+    queryKey: ['agent-console-provider-model-config'],
+    queryFn: () => providerSessionClient.getProviderModelConfig(),
     retry: false,
   })
   const runsQuery = useQuery({
-    queryKey: ['agent-console-runs', 'workspace-sessions'],
-    queryFn: () => listRuntimeRunSummariesFromWorkspace(),
+    queryKey: ['agent-console-runs', 'provider-sessions'],
+    queryFn: () => listProviderSessionRunSummariesFromProviderSessions(),
     retry: false,
   })
   const threadsQuery = useQuery({
-    queryKey: ['agent-console-threads', 'workspace-sessions'],
-    queryFn: () => listRuntimeThreadSummariesFromWorkspace({ includeProvisional: true }),
+    queryKey: ['agent-console-threads', 'provider-sessions'],
+    queryFn: () => listProviderSessionThreadSummariesFromWorkspace({ includeProvisional: true }),
     retry: false,
   })
   const [clearConfirming, setClearConfirming] = useState(false)
@@ -48,44 +54,57 @@ export function useAgentControlCenter() {
   const [controlAction, setControlAction] = useState<string | null>(null)
   const [controlError, setControlError] = useState<string | null>(null)
 
-  const runtimeSessions = runtimeSessionsQuery.data ?? []
+  const providerSessions = providerSessionsQuery.data ?? []
   const runs = useMemo(() => sortAgentControlRuns(runsQuery.data ?? []), [runsQuery.data])
   const threads = threadsQuery.data ?? []
-  const savedProviderSettings = useAgentProviderConfigStore((state) => state.settings)
-  const providerSettings = useMemo(() => normalizeAgentProviderSettings(savedProviderSettings), [savedProviderSettings])
-  const enabledProvidersForConsole = useMemo(() => enabledAgentProviders(providerSettings), [providerSettings])
+  const savedProviderSettings = useProviderConfigStore((state) => state.settings)
+  const providerSettings = useMemo(() => normalizeProviderSettings(savedProviderSettings), [savedProviderSettings])
+  const enabledProvidersForConsole = useMemo(() => enabledProviders(providerSettings), [providerSettings])
   const defaultProvider = providerSettings.providers.find((provider) => provider.id === providerSettings.defaultProviderId)
-  const movscriptProvider = providerSettings.providers.find((provider) => provider.kind === 'movscript-agent')
-  const codexProvider = providerSettings.providers.find((provider) => provider.kind === 'codex')
-  const codexProfile = useMemo(() => resolveCodexAppServerProfile(codexProvider), [codexProvider])
-  const codexStatusQuery = useQuery({
-    queryKey: ['agent-console-control-codex-status', codexProfile.id],
+  const appServerProvider = useMemo(() => {
+    if (usesAppServerProtocol(defaultProvider)) return defaultProvider
+    return enabledProvidersForConsole.find((provider) => usesAppServerProtocol(provider))
+  }, [defaultProvider, enabledProvidersForConsole])
+  const appServerProfile = useMemo(() => appServerProvider ? resolveAppServerProfile(appServerProvider) : undefined, [appServerProvider])
+  const appServerStatusQuery = useQuery({
+    queryKey: ['agent-console-control-app-server-status', appServerProvider?.id ?? 'none', appServerProfile?.id ?? 'none'],
     queryFn: async () => {
-      const status = await window.api?.getCodexAppServerStatus?.({ profileId: codexProfile.id })
+      if (!appServerProvider || !appServerProfile) {
+        return {
+          ok: false,
+          running: false,
+          managed: false,
+          profileId: 'none',
+          error: '当前没有启用的 app-server provider。',
+        }
+      }
+      const status = await getAppServerStatus({ profileId: appServerProfile.id })
       return status ?? {
         ok: false,
         running: false,
         managed: false,
-        profileId: codexProfile.id,
-        error: '当前运行环境不支持 Codex app-server 管理。',
+        profileId: appServerProfile.id,
+        error: `当前运行环境不支持 ${appServerProvider.label} app-server 管理。`,
       }
     },
-    enabled: codexProvider?.enabled !== false,
+    enabled: Boolean(appServerProvider?.enabled && appServerProfile),
     retry: false,
   })
   const threadSummary = useMemo(() => summarizeAgentControlThreads(threads), [threads])
   const runSummary = useMemo(() => summarizeAgentControlRuns(runs), [runs])
-  const runningSessionCount = runtimeSessions.filter((session) => session.running && !session.stale).length
-  const codexRunning = Boolean(codexStatusQuery.data?.ok && codexStatusQuery.data.running)
+  const onlineProviderSessionCount = providerSessions.filter((session) => {
+    const status = session.state?.status
+    return status === 'running' || status === 'requires_action'
+  }).length
+  const appServerRunning = Boolean(appServerStatusQuery.data?.ok && appServerStatusQuery.data.running)
   const capabilityProviders = useMemo(() => {
     return enabledProvidersForConsole.filter((provider) => {
-      if (provider.kind === 'codex') return codexRunning
-      if (provider.kind === 'movscript-agent') return runningSessionCount > 0
+      if (usesAppServerProtocol(provider)) return appServerRunning && provider.id === appServerProvider?.id
       return false
     })
-  }, [codexRunning, enabledProvidersForConsole, runningSessionCount])
+  }, [appServerProvider?.id, appServerRunning, enabledProvidersForConsole])
   const capabilityHealthQuery = useQuery({
-    queryKey: ['agent-control-capability-health', capabilityProviders.map(agentProviderControlHealthKey).join('|')],
+    queryKey: ['agent-control-capability-health', capabilityProviders.map(providerControlHealthKey).join('|')],
     queryFn: () => inspectAgentControlProviderCapabilities(capabilityProviders),
     enabled: capabilityProviders.length > 0,
     retry: false,
@@ -95,7 +114,7 @@ export function useAgentControlCenter() {
   const skillSummary = capabilityHealth.skillSummary
   const pluginSummary = capabilityHealth.pluginSummary
   const issues = useMemo(() => buildAgentControlIssues({
-    sessionIndexError: runtimeSessionsQuery.error,
+    sessionIndexError: providerSessionsQuery.error,
     modelConfigured: modelQuery.data?.configured ?? false,
     modelError: modelQuery.error,
     activeRuns: runSummary.active,
@@ -104,17 +123,18 @@ export function useAgentControlCenter() {
     blockedTools: toolSummary.blocked,
     capabilityWarnings: toolSummary.warningCount,
     checkedCapabilityProviders: capabilityHealth.checkedProviderCount,
-  }), [capabilityHealth.checkedProviderCount, runtimeSessionsQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
+    appServerProvider,
+  }), [appServerProvider, capabilityHealth.checkedProviderCount, providerSessionsQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
   const attentionIssues = issues.filter((item) => item.tone !== 'ready')
-  const loading = runtimeSessionsQuery.isLoading || modelQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading || capabilityHealthQuery.isLoading
+  const loading = providerSessionsQuery.isLoading || modelQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading || capabilityHealthQuery.isLoading
   const consoleStatusRecipe = agentReadinessStatusRecipe(attentionIssues.length === 0)
 
   function refreshAll() {
-    void runtimeSessionsQuery.refetch()
+    void providerSessionsQuery.refetch()
     void modelQuery.refetch()
     void runsQuery.refetch()
     void threadsQuery.refetch()
-    void codexStatusQuery.refetch()
+    void appServerStatusQuery.refetch()
     void capabilityHealthQuery.refetch()
   }
 
@@ -130,42 +150,29 @@ export function useAgentControlCenter() {
     }
   }
 
-  async function ensureMovScriptAgent() {
-    if (!window.api?.ensureAgentRuntime) throw new Error('当前运行环境不支持启动 MovScript Agent runtime。')
-    await window.api.ensureAgentRuntime({ source: 'agent-console' })
-    await Promise.all([runtimeSessionsQuery.refetch(), runsQuery.refetch(), threadsQuery.refetch()])
+  async function ensureAppServer() {
+    if (!appServerProvider || !appServerProfile) throw new Error('当前没有启用的 app-server provider。')
+    const status = await ensureAppServerService({ profile: appServerProfile })
+    if (!status) throw new Error(`当前运行环境不支持启动 ${appServerProvider.label} app-server。`)
+    await appServerStatusQuery.refetch()
   }
 
-  async function stopMovScriptAgent() {
-    if (!window.api?.stopAgentRuntime) throw new Error('当前运行环境不支持停止 MovScript Agent runtime。')
-    await window.api.stopAgentRuntime()
-    await Promise.all([runtimeSessionsQuery.refetch(), runsQuery.refetch(), threadsQuery.refetch()])
+  async function stopAppServer() {
+    if (!appServerProvider || !appServerProfile) throw new Error('当前没有启用的 app-server provider。')
+    const status = await stopAppServerService({ profileId: appServerProfile.id })
+    if (!status) throw new Error(`当前运行环境不支持停止 ${appServerProvider.label} app-server。`)
+    await appServerStatusQuery.refetch()
   }
 
-  async function restartMovScriptAgent() {
-    if (!window.api?.ensureAgentRuntime || !window.api?.stopAgentRuntime) throw new Error('当前运行环境不支持重启 MovScript Agent runtime。')
-    await window.api.stopAgentRuntime()
-    await window.api.ensureAgentRuntime({ source: 'agent-console-restart' })
-    await Promise.all([runtimeSessionsQuery.refetch(), runsQuery.refetch(), threadsQuery.refetch()])
-  }
-
-  async function ensureCodexAgent() {
-    if (!window.api?.ensureCodexAppServer) throw new Error('当前运行环境不支持启动 Codex app-server。')
-    await window.api.ensureCodexAppServer({ profile: codexProfile })
-    await codexStatusQuery.refetch()
-  }
-
-  async function stopCodexAgent() {
-    if (!window.api?.stopCodexAppServer) throw new Error('当前运行环境不支持停止 Codex app-server。')
-    await window.api.stopCodexAppServer({ profileId: codexProfile.id })
-    await codexStatusQuery.refetch()
-  }
-
-  async function restartCodexAgent() {
-    if (!window.api?.ensureCodexAppServer || !window.api?.stopCodexAppServer) throw new Error('当前运行环境不支持重启 Codex app-server。')
-    if (codexRunning) await window.api.stopCodexAppServer({ profileId: codexProfile.id })
-    await window.api.ensureCodexAppServer({ profile: codexProfile })
-    await codexStatusQuery.refetch()
+  async function restartAppServer() {
+    if (!appServerProvider || !appServerProfile) throw new Error('当前没有启用的 app-server provider。')
+    if (appServerRunning) {
+      const stopStatus = await stopAppServerService({ profileId: appServerProfile.id })
+      if (!stopStatus) throw new Error(`当前运行环境不支持重启 ${appServerProvider.label} app-server。`)
+    }
+    const startStatus = await ensureAppServerService({ profile: appServerProfile })
+    if (!startStatus) throw new Error(`当前运行环境不支持重启 ${appServerProvider.label} app-server。`)
+    await appServerStatusQuery.refetch()
   }
 
   async function clearThreadHistory() {
@@ -178,11 +185,11 @@ export function useAgentControlCenter() {
     }
     setClearingHistory(true)
     try {
-      const result = await clearWorkspaceSessionThreadHistory(runtimeSessions)
+      const result = await clearWorkspaceSessionThreadHistory(providerSessions)
       setClearConfirming(false)
       setClearHistoryResult(`已清空 ${result.threadCount} 个会话、${result.runCount} 个 Run。`)
       await Promise.all([
-        runtimeSessionsQuery.refetch(),
+        providerSessionsQuery.refetch(),
         runsQuery.refetch(),
         threadsQuery.refetch(),
       ])
@@ -194,21 +201,20 @@ export function useAgentControlCenter() {
   }
 
   return {
-    runtimeSessionsQuery,
+    providerSessionsQuery,
     modelQuery,
     runsQuery,
     threadsQuery,
-    codexStatusQuery,
+    appServerStatusQuery,
     capabilityHealthQuery,
-    runtimeSessions,
+    providerSessions,
     runs,
     threads,
     providerSettings,
     enabledProvidersForConsole,
     defaultProvider,
-    movscriptProvider,
-    codexProvider,
-    codexProfile,
+    appServerProvider,
+    appServerProfile,
     threadSummary,
     runSummary,
     capabilityHealth,
@@ -219,8 +225,8 @@ export function useAgentControlCenter() {
     attentionIssues,
     loading,
     consoleStatusRecipe,
-    runningSessionCount,
-    codexRunning,
+    onlineProviderSessionCount,
+    appServerRunning,
     controlAction,
     controlError,
     clearConfirming,
@@ -229,26 +235,23 @@ export function useAgentControlCenter() {
     clearHistoryResult,
     refreshAll,
     runControlAction,
-    ensureMovScriptAgent,
-    stopMovScriptAgent,
-    restartMovScriptAgent,
-    ensureCodexAgent,
-    stopCodexAgent,
-    restartCodexAgent,
+    ensureAppServer,
+    stopAppServer,
+    restartAppServer,
     clearThreadHistory,
     setClearConfirming,
   }
 }
 
-function agentProviderControlHealthKey(provider: ReturnType<typeof enabledAgentProviders>[number]): string {
-  const profile = provider.kind === 'codex' ? resolveCodexAppServerProfile(provider) : undefined
+function providerControlHealthKey(provider: ReturnType<typeof enabledProviders>[number]): string {
+  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
   return [
     provider.id,
     provider.kind,
     provider.enabled ? 'enabled' : 'disabled',
     provider.label,
     profile?.id ?? '',
-    profile?.codexHome ?? '',
+    profile?.home ?? '',
     profile?.workspaceDir ?? '',
   ].join(':')
 }

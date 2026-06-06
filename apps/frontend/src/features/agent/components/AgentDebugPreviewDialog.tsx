@@ -52,36 +52,40 @@ import {
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/features/agent/domain/agentRunUi'
 import type { AgentSendWorkspace, DebugHttpRequest } from '@/features/agent/application/agentSendWorkspace'
-import type { AgentDebugTool, AgentWorkspaceApplyPreview } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRunPreview, ProviderToolDescriptor, WorkspaceArtifactApplyPreview } from '@/shared/infrastructure/providerSessionClient'
 import {
-  localAgentApprovalImpactText,
-  localAgentApprovalRiskText,
-  localAgentApprovalStatusText,
-} from '@/features/agent/components/localRuntime'
+  providerSessionApprovalImpactText,
+  providerSessionApprovalRiskText,
+  providerSessionApprovalStatusText,
+} from '@/features/agent/components/providerSessionInteractions'
 import { agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 
 function emptyLabel(t: ReturnType<typeof useTranslation>['t']) {
-  return t('agents.chat.panel.runtime.empty')
+  return t('agents.chat.panel.providerSession.empty')
 }
 
 function countCharsLabel(t: ReturnType<typeof useTranslation>['t'], count: number) {
-  return t('agents.chat.panel.runtime.chars', { count })
+  return t('agents.chat.panel.providerSession.chars', { count })
 }
 
 export function safeJSONStringify(value: unknown) {
   return JSON.stringify(value, null, 2)
 }
 
-function toolResolutionLabel(tool: AgentDebugTool, t: ReturnType<typeof useTranslation>['t']) {
+function toolResolutionLabel(tool: ProviderToolDescriptor, t: ReturnType<typeof useTranslation>['t']) {
   const resolution = tool.resolution
-  if (!resolution) return tool.unavailableReason ?? t('agents.chat.panel.runtime.unknown')
+  if (!resolution) return tool.unavailableReason ?? t('agents.chat.panel.providerSession.unknown')
   return [
-    `${t('agents.chat.panel.runtime.authorized')}: ${resolution.authorized ? t('agents.chat.panel.runtime.yes') : t('agents.chat.panel.runtime.no')}`,
-    `${t('agents.chat.panel.runtime.visible')}: ${resolution.visible ? t('agents.chat.panel.runtime.yes') : t('agents.chat.panel.runtime.no')}`,
-    `${t('agents.chat.panel.runtime.grant')}: ${resolution.grantSource}`,
-    `${t('agents.chat.panel.runtime.activeSkills')}: ${resolution.activeSkillIds.length}`,
-    resolution.reason ? `${t('agents.chat.panel.runtime.reason')}: ${resolution.reason}` : undefined,
+    `${t('agents.chat.panel.providerSession.authorized')}: ${resolution.authorized ? t('agents.chat.panel.providerSession.yes') : t('agents.chat.panel.providerSession.no')}`,
+    `${t('agents.chat.panel.providerSession.visible')}: ${resolution.visible ? t('agents.chat.panel.providerSession.yes') : t('agents.chat.panel.providerSession.no')}`,
+    `${t('agents.chat.panel.providerSession.grant')}: ${resolution.grantSource}`,
+    `${t('agents.chat.panel.providerSession.activeSkills')}: ${resolution.activeSkillIds.length}`,
+    resolution.reason ? `${t('agents.chat.panel.providerSession.reason')}: ${resolution.reason}` : undefined,
   ].filter(Boolean).join(' · ')
+}
+
+function previewProviderSessionLimits(preview: AgentRunPreview | undefined) {
+  return preview?.providerSessionLimits ?? preview?.runtimeLimits
 }
 
 export function AgentDebugPreviewDialog({
@@ -99,7 +103,8 @@ export function AgentDebugPreviewDialog({
   const [copied, setCopied] = useState(false)
   if (!workspace) return null
   const raw = safeJSONStringify(workspace)
-  const preview = workspace.localRuntime?.preview
+  const preview = workspace.providerSession?.preview
+  const providerSessionLimits = previewProviderSessionLimits(preview)
   const pendingApprovals = preview?.pendingApprovals.filter((approval) => approval.status === 'pending') ?? []
   const primaryRequest = workspace.httpRequests[0]
 
@@ -133,7 +138,7 @@ export function AgentDebugPreviewDialog({
           <AgentDebugGrid columns="four">
             <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(workspace.model.name ?? workspace.model.id ?? t('common.emptyTitle'))} />
             <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={workspace.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
-            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={workspace.localRuntime?.preview?.runtimeLimits ? runApprovalModeLabel(workspace.localRuntime.preview.runtimeLimits.approvalMode) : t('agents.chat.panel.runtime.unknown')} />
+            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={providerSessionLimits ? runApprovalModeLabel(providerSessionLimits.approvalMode) : t('agents.chat.panel.providerSession.unknown')} />
             <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(workspace.httpRequests.length)} />
           </AgentDebugGrid>
 
@@ -174,7 +179,7 @@ export function AgentDebugPreviewDialog({
           {preview?.skills && (
             <AgentDebugSection title={t('agents.chat.panel.capabilities.skills')}>
               {preview.skills.length === 0 ? (
-                <AgentDebugSubtleText>{t('agents.chat.panel.runtime.noEnabledSkills')}</AgentDebugSubtleText>
+                <AgentDebugSubtleText>{t('agents.chat.panel.providerSession.noEnabledSkills')}</AgentDebugSubtleText>
               ) : (
                 <AgentDebugStack density="compact">
                   {preview.skills.map((skill) => (
@@ -183,7 +188,7 @@ export function AgentDebugPreviewDialog({
                         <AgentDebugCardTitle>{skill.name}</AgentDebugCardTitle>
                         <AgentDebugPreviewBadge variant="outline">p{skill.resolvedPriority}</AgentDebugPreviewBadge>
                       </AgentDebugCardHeader>
-                      <AgentDebugCardDetail>{skill.description || skill.compiledInstruction || t('agents.chat.panel.runtime.noInstruction')}</AgentDebugCardDetail>
+                      <AgentDebugCardDetail>{skill.description || skill.compiledInstruction || t('agents.chat.panel.providerSession.noInstruction')}</AgentDebugCardDetail>
                     </AgentDebugCard>
                   ))}
                 </AgentDebugStack>
@@ -191,30 +196,30 @@ export function AgentDebugPreviewDialog({
             </AgentDebugSection>
           )}
 
-          {preview?.runtimeLimits && (
-            <AgentDebugSection title={t('agents.chat.panel.runtime.runtimeLimits')}>
+          {providerSessionLimits && (
+            <AgentDebugSection title={t('agents.chat.panel.providerSession.limits')}>
               <AgentDebugGrid columns="four">
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={runApprovalModeLabel(preview.runtimeLimits.approvalMode)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.maxToolCalls')} value={String(preview.runtimeLimits.maxToolCalls)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.maxIterations')} value={String(preview.runtimeLimits.maxIterations)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.fileBytes')} value={preview.runtimeLimits.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.approvalMode')} value={runApprovalModeLabel(providerSessionLimits.approvalMode)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.maxToolCalls')} value={String(providerSessionLimits.maxToolCalls)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.maxIterations')} value={String(providerSessionLimits.maxIterations)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.fileBytes')} value={providerSessionLimits.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
               </AgentDebugGrid>
               <AgentDebugGrid columns="two">
                 <AgentDataBlock>
-                  <AgentDebugItemTitle>{t('agents.chat.panel.runtime.runtimeBoundaries')}</AgentDebugItemTitle>
+                  <AgentDebugItemTitle>{t('agents.chat.panel.providerSession.sessionBoundaries')}</AgentDebugItemTitle>
                   <AgentDebugMetaList
                     items={[
-                      `${t('agents.chat.panel.runtime.network')}: ${preview.runtimeLimits.allowNetwork ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}`,
-                      `${t('agents.chat.panel.runtime.fileBytes')}: ${preview.runtimeLimits.allowFileBytes ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}`,
-                      `${t('agents.chat.panel.runtime.costLimit')}: ${preview.runtimeLimits.costLimit ? `${preview.runtimeLimits.costLimit.amount} ${preview.runtimeLimits.costLimit.currency}` : t('agents.chat.panel.runtime.none')}`,
+                      `${t('agents.chat.panel.providerSession.network')}: ${providerSessionLimits.allowNetwork ? t('agents.chat.panel.providerSession.allowed') : t('agents.chat.panel.providerSession.blocked')}`,
+                      `${t('agents.chat.panel.providerSession.fileBytes')}: ${providerSessionLimits.allowFileBytes ? t('agents.chat.panel.providerSession.allowed') : t('agents.chat.panel.providerSession.blocked')}`,
+                      `${t('agents.chat.panel.providerSession.costLimit')}: ${providerSessionLimits.costLimit ? `${providerSessionLimits.costLimit.amount} ${providerSessionLimits.costLimit.currency}` : t('agents.chat.panel.providerSession.none')}`,
                     ]}
                   />
                 </AgentDataBlock>
                 <AgentDataBlock>
-                  <AgentDebugItemTitle>{t('agents.chat.panel.runtime.manifestGrants')}</AgentDebugItemTitle>
+                  <AgentDebugItemTitle>{t('agents.chat.panel.providerSession.manifestGrants')}</AgentDebugItemTitle>
                   <AgentDebugMetaList
-                    empty={t('agents.chat.panel.runtime.none')}
-                    items={(preview.agentManifest?.tools ?? []).slice(0, 8).map((grant) => `${grant.name} · ${toolGrantModeLabel(grant.mode)} · ${grant.approval ? toolApprovalLabel(grant.approval) : t('agents.chat.panel.debugPreview.default')}`)}
+                    empty={t('agents.chat.panel.providerSession.none')}
+                    items={(preview?.providerManifest?.tools ?? []).slice(0, 8).map((grant) => `${grant.name} · ${toolGrantModeLabel(grant.mode)} · ${grant.approval ? toolApprovalLabel(grant.approval) : t('agents.chat.panel.debugPreview.default')}`)}
                   />
                 </AgentDataBlock>
               </AgentDebugGrid>
@@ -224,26 +229,26 @@ export function AgentDebugPreviewDialog({
           {preview?.tools && (
             <AgentDebugSection title={t('agents.chat.panel.capabilities.tools')}>
               <AgentDebugGrid columns="three">
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.available')} value={String(preview.tools.available.length)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.blocked')} value={String(preview.tools.blocked.length)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.discovered')} value={String(preview.tools.discovered.length)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.available')} value={String(preview.tools.available.length)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.blocked')} value={String(preview.tools.blocked.length)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.providerSession.discovered')} value={String(preview.tools.discovered.length)} />
               </AgentDebugGrid>
               <AgentDebugGrid columns="two">
                 <AgentDataBlock>
-                  <AgentDebugItemTitle>{t('agents.chat.panel.runtime.availableTools')}</AgentDebugItemTitle>
+                  <AgentDebugItemTitle>{t('agents.chat.panel.providerSession.availableTools')}</AgentDebugItemTitle>
                   <AgentDebugMetaList
-                    empty={t('agents.chat.panel.runtime.none')}
+                    empty={t('agents.chat.panel.providerSession.none')}
                     items={preview.tools.available.slice(0, 8).map((tool) => (
-                      `${agentToolNameLabel(tool.name, t)} · ${tool.risk ? localAgentApprovalRiskText(tool.risk, t) : t('agents.chat.panel.runtime.unknown')} · ${toolApprovalLabel(tool.approval)} · ${toolResolutionLabel(tool, t)}`
+                      `${agentToolNameLabel(tool.name, t)} · ${tool.risk ? providerSessionApprovalRiskText(tool.risk, t) : t('agents.chat.panel.providerSession.unknown')} · ${toolApprovalLabel(tool.approval)} · ${toolResolutionLabel(tool, t)}`
                     ))}
                   />
                 </AgentDataBlock>
                 <AgentDataBlock>
-                  <AgentDebugItemTitle>{t('agents.chat.panel.runtime.blockedTools')}</AgentDebugItemTitle>
+                  <AgentDebugItemTitle>{t('agents.chat.panel.providerSession.blockedTools')}</AgentDebugItemTitle>
                   <AgentDebugMetaList
-                    empty={t('agents.chat.panel.runtime.none')}
+                    empty={t('agents.chat.panel.providerSession.none')}
                     items={preview.tools.blocked.slice(0, 8).map((tool) => (
-                      `${agentToolNameLabel(tool.name, t)} · ${tool.unavailableReason ?? t('agents.chat.panel.runtime.blocked')} · ${toolResolutionLabel(tool, t)}`
+                      `${agentToolNameLabel(tool.name, t)} · ${tool.unavailableReason ?? t('agents.chat.panel.providerSession.blocked')} · ${toolResolutionLabel(tool, t)}`
                     ))}
                   />
                 </AgentDataBlock>
@@ -252,12 +257,12 @@ export function AgentDebugPreviewDialog({
           )}
 
           {preview && (
-            <AgentDebugSection title={t('agents.chat.panel.runtime.agenticLoopPreview')}>
+            <AgentDebugSection title={t('agents.chat.panel.providerSession.agenticLoopPreview')}>
               <AgentDebugStack density="compact">
                 <AgentDataBlock>
                   <AgentDebugSimpleText>{preview.message}</AgentDebugSimpleText>
                   <AgentDebugSubtleText>
-                    {t('agents.chat.panel.runtime.project')}: {preview.currentProjectId ?? t('common.emptyTitle')} · {t('agents.chat.panel.runtime.memories')}: {preview.memoryCount} · {t('agents.chat.panel.runtime.toolCalls')}: {preview.toolCalls.length} · {t('agents.chat.panel.runtime.sandbox')}: {preview.runtimeLimits?.sandboxMode ? t('agents.chat.panel.runtime.on') : t('agents.chat.panel.runtime.off')}
+                    {t('agents.chat.panel.providerSession.project')}: {preview.currentProjectId ?? t('common.emptyTitle')} · {t('agents.chat.panel.providerSession.memories')}: {preview.memoryCount} · {t('agents.chat.panel.providerSession.toolCalls')}: {preview.toolCalls.length} · {t('agents.chat.panel.providerSession.sandbox')}: {providerSessionLimits?.sandboxMode ? t('agents.chat.panel.providerSession.on') : t('agents.chat.panel.providerSession.off')}
                   </AgentDebugSubtleText>
                 </AgentDataBlock>
                 <AgentDebugStack density="compact">
@@ -267,7 +272,7 @@ export function AgentDebugPreviewDialog({
                     <AgentDebugCard key={`${call.name}-${index}`}>
                       <AgentDebugCardHeader>
                         <AgentDebugCardTitle>{index + 1}. {call.name}</AgentDebugCardTitle>
-                        <AgentDebugPreviewBadge variant="outline">{t('agents.chat.panel.runtime.tool')}</AgentDebugPreviewBadge>
+                        <AgentDebugPreviewBadge variant="outline">{t('agents.chat.panel.providerSession.tool')}</AgentDebugPreviewBadge>
                       </AgentDebugCardHeader>
                       {call.args && (
                         <AgentDebugCodePanel size="small">{safeJSONStringify(call.args)}</AgentDebugCodePanel>
@@ -279,19 +284,19 @@ export function AgentDebugPreviewDialog({
             </AgentDebugSection>
           )}
 
-          {(workspace.localRuntime || pendingApprovals.length > 0) && (
+          {(workspace.providerSession || pendingApprovals.length > 0) && (
             <AgentDebugSection title={t('agents.chat.panel.prompt.approvals')}>
               <AgentDebugStack density="compact">
-                {workspace.localRuntime && (
+                {workspace.providerSession && (
                   <AgentDebugGrid columns="three">
-                    <AgentDebugSummaryItem label={t('agents.chat.panel.status.thread')} value={workspace.localRuntime.threadId ?? t('agents.chat.panel.status.newThread')} />
-                    <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={workspace.localRuntime.diagnosticCommand ? t('agents.chat.panel.debugPreview.diagnostic') : t('agents.chat.panel.debugPreview.conversation')} />
+                    <AgentDebugSummaryItem label={t('agents.chat.panel.status.thread')} value={workspace.providerSession.threadId ?? t('agents.chat.panel.status.newThread')} />
+                    <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={workspace.providerSession.diagnosticCommand ? t('agents.chat.panel.debugPreview.diagnostic') : t('agents.chat.panel.debugPreview.conversation')} />
                     <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={t('agents.chat.panel.debugPreview.default')} />
                   </AgentDebugGrid>
                 )}
-                {workspace.localRuntime?.previewError && (
+                {workspace.providerSession?.previewError && (
                   <AgentDebugErrorCallout>
-                    {workspace.localRuntime.previewError}
+                    {workspace.providerSession.previewError}
                   </AgentDebugErrorCallout>
                 )}
                 {pendingApprovals.length > 0 ? (
@@ -302,11 +307,11 @@ export function AgentDebugPreviewDialog({
                         <AgentDebugCard key={approval.id} variant="card">
                           <AgentDebugCardHeader>
                             <AgentDebugCardTitle title={approval.toolName}>{agentToolNameLabel(approval.toolName, t)}</AgentDebugCardTitle>
-                            <AgentDebugPreviewStatusBadge intent={agentRunInteractionActionStatusRecipe('pending').intent} emphasis={agentRunInteractionActionStatusRecipe('pending').emphasis}>{approval.risk ? localAgentApprovalRiskText(approval.risk, t) : localAgentApprovalStatusText(approval.status, t)}</AgentDebugPreviewStatusBadge>
+                            <AgentDebugPreviewStatusBadge intent={agentRunInteractionActionStatusRecipe('pending').intent} emphasis={agentRunInteractionActionStatusRecipe('pending').emphasis}>{approval.risk ? providerSessionApprovalRiskText(approval.risk, t) : providerSessionApprovalStatusText(approval.status, t)}</AgentDebugPreviewStatusBadge>
                           </AgentDebugCardHeader>
                           <AgentDebugCardDetail>{approval.reason}</AgentDebugCardDetail>
                           <AgentDebugCard variant="subtle">
-                            {t('agents.chat.task.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
+                            {t('agents.chat.task.approvalImpact.label')}: {providerSessionApprovalImpactText(approval, t)}
                           </AgentDebugCard>
                           {approval.args && (
                             <AgentDebugCodePanel size="small">
@@ -407,12 +412,12 @@ function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; i
         )}
         <AgentDebugGrid columns="two">
           {request.headers && (
-            <AgentDebugFieldCodePanel label={t('agents.chat.panel.runtime.headers')} size="medium">
+            <AgentDebugFieldCodePanel label={t('agents.chat.panel.providerSession.headers')} size="medium">
               {safeJSONStringify(request.headers)}
             </AgentDebugFieldCodePanel>
           )}
           {request.body !== undefined && (
-            <AgentDebugFieldCodePanel label={t('agents.chat.panel.runtime.body')} size="large" span={request.headers ? undefined : 'full'}>
+            <AgentDebugFieldCodePanel label={t('agents.chat.panel.providerSession.body')} size="large" span={request.headers ? undefined : 'full'}>
               {safeJSONStringify(request.body)}
             </AgentDebugFieldCodePanel>
           )}
@@ -440,7 +445,7 @@ function diffRows(currentValue: unknown, proposedValue: unknown) {
   ]
 }
 
-export function WorkspaceDiff({ preview }: { preview: AgentWorkspaceApplyPreview }) {
+export function WorkspaceDiff({ preview }: { preview: WorkspaceArtifactApplyPreview }) {
   const { t } = useTranslation()
   const rows = diffRows(preview.review.currentValue, preview.review.proposedValue)
   return (
@@ -472,9 +477,9 @@ export function WorkspaceDiff({ preview }: { preview: AgentWorkspaceApplyPreview
   )
 }
 
-export function isWorkspaceApplyPreview(value: unknown): value is AgentWorkspaceApplyPreview {
+export function isWorkspaceApplyPreview(value: unknown): value is WorkspaceArtifactApplyPreview {
   if (!value || typeof value !== 'object') return false
-  const record = value as Partial<AgentWorkspaceApplyPreview>
+  const record = value as Partial<WorkspaceArtifactApplyPreview>
   return !!record.review
     && typeof record.review === 'object'
     && typeof record.review.workspaceId === 'string'

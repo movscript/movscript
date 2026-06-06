@@ -19,7 +19,7 @@ const workspaceTools = [
   },
   {
     name: 'movscript_project_list',
-    description: 'List all visible projects as numbered Markdown summaries.',
+    description: 'List visible projects for the current user as numbered Markdown summaries.',
     inputSchema: objectSchema({
       limit: { type: 'number' },
     }),
@@ -74,64 +74,79 @@ const workspaceTools = [
     }),
   },
   {
-    name: 'get_workspace_model',
-    description: 'Return the frontend-owned WorkspaceModel contract for a workspace kind and target.',
+    name: 'workspace_update',
+    description: 'Refresh a MovScript business projection path from the backend database, overwriting local changes under that file or folder. Supports workspace JSON, project.json, script.md, and the read-only user projects index. Legacy snapshot payloads are still accepted for compatibility.',
     inputSchema: objectSchema({
+      path: { type: 'string', description: 'Projection file or folder under .movscript/data.' },
+      cwd: { type: 'string', description: 'Optional agent thread cwd. Agent sessions should use a .movscript/data projection folder directly.' },
       kind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'] },
+      workspaceKind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'] },
       target: { type: 'object', additionalProperties: true },
-      seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'] },
-      include: { type: 'array', items: { type: 'string' } },
-      hydrate: { type: 'boolean' },
-    }, ['kind']),
-  },
-  {
-    name: 'workspace_file_list',
-    description: 'List files under the frontend-owned MovScript agent workspace directory (.movscript).',
-    inputSchema: objectSchema({
-      path: { type: 'string' },
-      workspaceDir: { type: 'string' },
+      content: {},
+      snapshot: {},
+      proposedValue: {},
+      currentValue: {},
+      workspaceId: { type: 'string' },
+      workspacePath: { type: 'string', description: 'Legacy .movscript-relative projection path alias. Prefer path.' },
+      workspace_path: { type: 'string', description: 'Snake-case alias for workspacePath.' },
+      projection: { type: 'object', additionalProperties: true, description: 'Legacy projection object. workspacePath is used when content is omitted.' },
+    }),
+    outputSchema: objectSchema({
+      performed: { type: 'boolean' },
+      persisted: { type: 'boolean' },
+      persistenceOwner: { type: 'string' },
+      agentWritable: { type: 'boolean' },
+      projection: { type: 'object', additionalProperties: true },
+      validation: { type: 'object', additionalProperties: true },
+      effects: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      saveable: { type: 'boolean' },
     }),
   },
   {
-    name: 'workspace_file_read',
-    description: 'Read a UTF-8 text file under the frontend-owned MovScript agent workspace directory (.movscript).',
+    name: 'workspace_apply_review',
+    description: 'Preview what applying a local MovScript business projection file or folder would change in the backend database. This does not write backend entity state.',
     inputSchema: objectSchema({
-      path: { type: 'string' },
-      workspaceDir: { type: 'string' },
-    }, ['path']),
-  },
-  {
-    name: 'workspace_file_write',
-    description: 'Write a UTF-8 text file under the frontend-owned MovScript agent workspace directory (.movscript).',
-    inputSchema: objectSchema({
-      path: { type: 'string' },
-      content: { type: 'string' },
-      workspaceDir: { type: 'string' },
-    }, ['path', 'content']),
-  },
-  {
-    name: 'workspace_file_delete',
-    description: 'Delete a file or directory under the frontend-owned MovScript agent workspace directory (.movscript).',
-    inputSchema: objectSchema({
-      path: { type: 'string' },
-      workspaceDir: { type: 'string' },
-    }, ['path']),
-  },
-  {
-    name: 'workspace_review_apply_preview',
-    description: 'Preview backend effects for applying a local workspace review without writing final entity state.',
-    inputSchema: objectSchema({
-      review: { type: 'object' },
+      path: { type: 'string', description: 'Projection file or folder under .movscript/data.' },
+      cwd: { type: 'string', description: 'Optional agent thread cwd. Agent sessions should use a .movscript/data projection folder directly.' },
       userId: { type: 'number' },
-    }, ['review']),
+    }),
   },
   {
-    name: 'workspace_review_apply',
-    description: 'Apply an approved local workspace review to the formal MovScript backend entity.',
+    name: 'workspace_apply',
+    description: 'Apply a local MovScript business projection file or folder to the backend database when that projection has a writable backend route. Legacy review payloads are still accepted for frontend review handoff compatibility.',
     inputSchema: objectSchema({
-      review: { type: 'object' },
+      path: { type: 'string', description: 'Projection file or folder under .movscript/data.' },
+      cwd: { type: 'string', description: 'Optional agent thread cwd. Agent sessions should use a .movscript/data projection folder directly.' },
+      review: { type: 'object', description: 'Legacy review wrapper. Prefer kind/target/content for new calls.' },
+      kind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'] },
+      workspaceKind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'] },
+      target: { type: 'object', additionalProperties: true },
+      content: {},
+      snapshot: {},
+      proposedValue: {},
+      currentValue: {},
+      workspaceId: { type: 'string' },
+      workspacePath: { type: 'string', description: 'Legacy .movscript-relative projection path alias. When content is omitted, apply reads this file.' },
+      workspace_path: { type: 'string', description: 'Snake-case alias for workspacePath.' },
+      projection: { type: 'object', additionalProperties: true, description: 'Legacy projection object. workspacePath is used when content is omitted.' },
       userId: { type: 'number' },
-    }, ['review']),
+    }),
+    outputSchema: objectSchema({
+      performed: { type: 'boolean' },
+      submitted: { type: 'boolean' },
+      changeSubmitted: { type: 'boolean' },
+      materialized: { type: 'boolean' },
+      applyBoundary: { type: 'string' },
+      method: { type: 'string' },
+      plannedUrl: { type: 'string' },
+      projection: { type: 'object', additionalProperties: true },
+      changeSubmission: { type: 'object', additionalProperties: true },
+      handoff: { type: 'object', additionalProperties: true },
+      projectionMeta: { type: 'object', additionalProperties: true },
+      validation: { type: 'object', additionalProperties: true },
+      effects: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      saveable: { type: 'boolean' },
+    }),
   },
 ]
 
@@ -274,7 +289,7 @@ const queryTools = [
   },
   {
     name: 'movscript_resource_image_read',
-    description: 'Read a MovScript image RawResource and return it as MCP image content for Codex vision. Use when the agent needs to inspect actual image pixels.',
+    description: 'Read a MovScript image RawResource and return it as MCP image content for provider vision. Use when the provider needs to inspect actual image pixels.',
     inputSchema: objectSchema({
       resource_id: { type: 'number', description: 'MovScript RawResource ID.' },
       resourceId: { type: 'number', description: 'Camel-case alias for resource_id.' },
@@ -287,7 +302,7 @@ const queryTools = [
   },
   {
     name: 'movscript_resource_video_extract_frames',
-    description: 'Download a MovScript video RawResource, extract representative or precise frames with ffmpeg, and return them as MCP image content for Codex vision. Supports overview, timestamps, range, and burst sampling. The original video is not sent to the model.',
+    description: 'Download a MovScript video RawResource, extract representative or precise frames with ffmpeg, and return them as MCP image content for provider vision. Supports overview, timestamps, range, and burst sampling. The original video is not sent to the model.',
     inputSchema: objectSchema({
       resource_id: { type: 'number', description: 'MovScript RawResource ID.' },
       resourceId: { type: 'number', description: 'Camel-case alias for resource_id.' },
@@ -343,7 +358,7 @@ const queryTools = [
       outputPath: { type: 'string', description: 'Camel-case alias for output_path.' },
       workspace_path: { type: 'string', description: 'Optional output path under the frontend-owned .movscript workspace root.' },
       workspacePath: { type: 'string', description: 'Camel-case alias for workspace_path.' },
-      workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+      workspaceDir: { type: 'string', description: 'Optional MovScript workspace root directory. Defaults to the desktop workspace root.' },
     }),
   },
   {
@@ -357,7 +372,7 @@ const queryTools = [
       path: { type: 'string', description: 'Alias for local_path.' },
       workspace_path: { type: 'string', description: 'Path under the frontend-owned .movscript workspace root.' },
       workspacePath: { type: 'string', description: 'Camel-case alias for workspace_path.' },
-      workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+      workspaceDir: { type: 'string', description: 'Optional MovScript workspace root directory. Defaults to the desktop workspace root.' },
       data_url: { type: 'string', description: 'Image data URL to upload.' },
       dataUrl: { type: 'string', description: 'Camel-case alias for data_url.' },
       base64: { type: 'string', description: 'Base64 image payload without the data URL prefix.' },
@@ -506,7 +521,7 @@ async function handleMessage(message) {
     case 'initialize':
       return makeResult(id, {
         protocolVersion: '2025-06-18',
-        serverInfo: { name: 'movscript-codex-bridge', version: '0.1.2' },
+        serverInfo: { name: 'movscript-provider-bridge', version: '0.1.2' },
         capabilities: { tools: {}, resources: {} },
       })
     case 'initialized':
@@ -560,7 +575,7 @@ async function listResources(id) {
       {
         uri: 'movscript://resource-file/{resource_id}',
         name: 'MovScript resource file',
-        description: 'Dynamic binary RawResource reader. Replace {resource_id} with an ID. Prefer movscript_resource_image_read and movscript_resource_video_extract_frames for Codex vision workflows.',
+        description: 'Dynamic binary RawResource reader. Replace {resource_id} with an ID. Prefer movscript_resource_image_read and movscript_resource_video_extract_frames for provider vision workflows.',
         mimeType: 'application/octet-stream',
       },
       {

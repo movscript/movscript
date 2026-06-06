@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyWorkspaceReview, attachAssetSlotCandidate, attachKeyframeCandidate, getWorkspaceModelContract, listModels, listTools, locateScriptPassages, normalizeBackendHTTPErrorForMCP, queryCreativeReferences, queryProductionContext, readResource, setMCPAPIBaseURL, summarizeModelContractForAgent, updateMCPContextSnapshot } from './server'
+import { applyWorkspaceReview, attachAssetSlotCandidate, attachKeyframeCandidate, listModels, listTools, locateScriptPassages, normalizeBackendHTTPErrorForMCP, previewApplyWorkspaceReview, queryCreativeReferences, queryProductionContext, readResource, setMCPAPIBaseURL, summarizeModelContractForAgent, updateMCPContextSnapshot, updateWorkspaceSnapshot } from './server'
 import { handleJSONRPC } from './rpc/jsonRpc'
+import { callTool } from './toolCallRouter'
+import { getWorkspaceModelContract } from './workspaceModelContract/contract'
 
 const buildGenerationModelParamRules: any = undefined
 const buildGenerationParamValidationAudit: any = undefined
@@ -424,6 +427,1147 @@ test.skip('generation MCP tool descriptions expose versioned agent contracts', (
   assert.equal(attachKeyframe.outputSchema?.additionalProperties, staticAttachKeyframe.outputSchema?.additionalProperties)
   assert.deepEqual(attachCandidate.inputSchema.required, staticAttachCandidate.inputSchema.required)
   assert.deepEqual(attachKeyframe.inputSchema.required, staticAttachKeyframe.inputSchema.required)
+})
+
+test('workspace MCP tools expose only path update, apply review, and apply', () => {
+  const tools = listTools()
+  const workspaceToolNames = tools
+    .map((tool) => tool.name)
+    .filter((name) => name === 'get_workspace_model' || name.startsWith('workspace_'))
+    .sort()
+  const updateTool = tools.find((tool) => tool.name === 'workspace_update')
+  const previewTool = tools.find((tool) => tool.name === 'workspace_apply_review')
+  const applyTool = tools.find((tool) => tool.name === 'workspace_apply')
+
+  assert.deepEqual(workspaceToolNames, [
+    'workspace_apply',
+    'workspace_apply_review',
+    'workspace_update',
+  ])
+  assert.ok(updateTool)
+  assert.match(updateTool.description ?? '', /Refresh a MovScript business projection path/)
+  assert.match(updateTool.description ?? '', /overwriting local changes/)
+  assert.ok(previewTool)
+  assert.match(previewTool.description ?? '', /does not write backend entity state/)
+  assert.ok(applyTool)
+  assert.match(applyTool.description ?? '', /Apply a local MovScript business projection/)
+})
+
+test('workspace MCP router rejects removed legacy workspace tool names', async () => {
+  await assert.rejects(
+    () => callTool({
+      name: 'get_workspace_model',
+      arguments: { kind: 'setting_workspace', target: { projectId: 1 } },
+    }),
+    /Unknown tool: get_workspace_model/,
+  )
+  await assert.rejects(
+    () => callTool({
+      name: 'workspace_apply_preview',
+      arguments: { path: 'data/users/local' },
+    }),
+    /Unknown tool: workspace_apply_preview/,
+  )
+})
+
+test('workspace_update persists a complete snapshot to the frontend projection without backend apply', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-update-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    const result = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 1 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'character-a', name: 'Character A', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+
+    assert.equal(result.performed, true)
+    assert.equal(result.persisted, true)
+    assert.equal(result.persistenceOwner, 'frontend')
+    assert.equal(result.agentWritable, false)
+    assert.equal(result.projection.workspacePath, 'data/users/local/projects/1/settings/setting.workspace.json')
+    assert.equal(result.projection.syncPath, 'sync/users/local/projects/1/settings/setting.sync.json')
+    assert.equal(existsSync(join(workspaceDir, '.movscript', result.projection.workspacePath)), true)
+    const syncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', result.projection.syncPath), 'utf8'))
+    assert.equal(syncRecord.schema, 'movscript.projection-sync.v1')
+    assert.equal(syncRecord.workspaceKind, 'setting_workspace')
+    assert.equal(syncRecord.workspacePath, result.projection.workspacePath)
+    assert.equal(syncRecord.state.dirty, true)
+    assert.equal(syncRecord.action, 'updated')
+    assert.equal(typeof syncRecord.contentHash, 'string')
+    assert.equal(result.validation.ok, true)
+    assert.equal(result.effects[0].entityType, 'creative_reference')
+    assert.equal(result.materialize.previewTool, 'workspace_apply_review')
+    assert.equal(result.materialize.applyTool, 'workspace_apply')
+  } finally {
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_update with path refreshes local projection content from backend', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-path-update-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    const local = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 6 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'local-only', name: 'Local Only', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+    globalThis.fetch = mockFetch({
+      'GET /projects/6': { ID: 6, name: 'Project Six', updatedAt: 'db-project-rev' },
+      'GET /projects/6/entities/creative-references': [
+        { ID: 61, name: 'Database Character', kind: 'person', updatedAt: 'db-character-rev', status: 'active' },
+      ],
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: local.projection.workspacePath,
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.direction, 'backend_to_local_projection')
+    assert.equal(refreshed.overwriteLocalChanges, true)
+    assert.equal(refreshed.count, 1)
+    assert.equal(refreshed.items[0].projection.workspacePath, local.projection.workspacePath)
+    const snapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', local.projection.workspacePath), 'utf8'))
+    assert.equal(snapshot.workspace.creative_references[0].name, 'Database Character')
+    const syncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', local.projection.syncPath), 'utf8'))
+    assert.equal(syncRecord.state.dirty, false)
+    assert.equal(syncRecord.action, 'refreshed')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_update with a project folder creates missing local projections from backend', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-folder-update-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/10': { ID: 10, name: 'Project Ten', updatedAt: 'db-project-rev' },
+      'GET /projects/10/entities/creative-references': [
+        { ID: 101, name: 'Database Character', kind: 'person', updatedAt: 'db-character-rev', status: 'active' },
+      ],
+      'GET /projects/10/entities/asset-slots?include_internal=true': [
+        { ID: 201, name: 'Database Slot', kind: 'image', updatedAt: 'db-slot-rev', status: 'active' },
+      ],
+      'GET /projects/10/resources': [],
+      'GET /projects/10/scripts': [],
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/10',
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.direction, 'backend_to_local_projection')
+    assert.equal(refreshed.overwriteLocalChanges, true)
+    assert.equal(refreshed.path, 'data/users/local/projects/10')
+    assert.equal(refreshed.count, 6)
+    assert.deepEqual(refreshed.items.map((item: any) => item.projectionType === 'workspace' ? item.workspaceKind : item.projectionType).sort(), [
+      'asset_workspace',
+      'editable_project',
+      'editable_project',
+      'project',
+      'project_standards_workspace',
+      'setting_workspace',
+    ])
+    const projectPath = 'data/users/local/projects/10/project.json'
+    const settingPath = 'data/users/local/projects/10/settings/setting.workspace.json'
+    const assetPath = 'data/users/local/projects/10/assets/asset.workspace.json'
+    const standardsPath = 'data/users/local/projects/10/standards/project_standards.workspace.json'
+    const referencePath = 'data/users/local/projects/10/references/creative_reference_101.json'
+    const assetSlotPath = 'data/users/local/projects/10/assets/asset_slot_201.json'
+    assert.equal(existsSync(join(workspaceDir, '.movscript', projectPath)), true)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', settingPath)), true)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', assetPath)), true)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', standardsPath)), true)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', referencePath)), true)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', assetSlotPath)), true)
+    const projectSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', projectPath), 'utf8'))
+    const settingSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', settingPath), 'utf8'))
+    const assetSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', assetPath), 'utf8'))
+    const referenceSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', referencePath), 'utf8'))
+    const assetSlotSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', assetSlotPath), 'utf8'))
+    assert.equal(projectSnapshot.name, 'Project Ten')
+    assert.equal(settingSnapshot.workspace.creative_references[0].name, 'Database Character')
+    assert.equal(assetSnapshot.workspace.asset_slots[0].name, 'Database Slot')
+    assert.equal(referenceSnapshot.name, 'Database Character')
+    assert.equal(assetSlotSnapshot.name, 'Database Slot')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_update with an assets folder refreshes asset workspace and editable asset slot files', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-assets-folder-update-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/15/entities/asset-slots?include_internal=true': [
+        { ID: 305, project_id: 15, name: 'Folder Slot', kind: 'image', updatedAt: 'db-slot-rev', status: 'active' },
+      ],
+      'GET /projects/15/resources': [],
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/15/assets',
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.direction, 'backend_to_local_projection')
+    assert.equal(refreshed.overwriteLocalChanges, true)
+    assert.equal(refreshed.path, 'data/users/local/projects/15/assets')
+    assert.equal(refreshed.count, 2)
+    assert.deepEqual(refreshed.items.map((item: any) => item.projectionType === 'workspace' ? item.workspaceKind : `${item.projectionType}:${item.scope}`).sort(), [
+      'asset_workspace',
+      'editable_project:assets',
+    ])
+    const assetWorkspacePath = 'data/users/local/projects/15/assets/asset.workspace.json'
+    const assetSlotPath = 'data/users/local/projects/15/assets/asset_slot_305.json'
+    assert.equal(existsSync(join(workspaceDir, '.movscript', assetWorkspacePath)), true)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', assetSlotPath)), true)
+    const assetWorkspaceSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', assetWorkspacePath), 'utf8'))
+    const assetSlotSnapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', assetSlotPath), 'utf8'))
+    assert.equal(assetWorkspaceSnapshot.workspace.asset_slots[0].name, 'Folder Slot')
+    assert.equal(assetSlotSnapshot.name, 'Folder Slot')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_update with user root path creates a projects index projection from backend', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-global-update-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects': [
+        { ID: 11, name: 'User Project', status: 'planning', UpdatedAt: 'project-rev' },
+      ],
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: 'data/users/local',
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.count, 1)
+    assert.equal(refreshed.items[0].projectionType, 'user_projects')
+    assert.equal(refreshed.items[0].projection.workspacePath, 'data/users/local/projects.index.json')
+    const snapshot = JSON.parse(readFileSync(join(workspaceDir, '.movscript', 'data/users/local/projects.index.json'), 'utf8'))
+    assert.equal(snapshot.projects[0].name, 'User Project')
+    assert.equal(snapshot.scope, 'user')
+    assert.equal(snapshot.userId, 'local')
+    const syncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', 'sync/users/local/projects.index.sync.json'), 'utf8'))
+    assert.equal(syncRecord.projectionType, 'user_projects')
+    assert.equal(syncRecord.state.dirty, false)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review and workspace_apply support editable project reference projections', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-reference-'))
+  const patchBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/14/entities/creative-references': [
+        { ID: 8, project_id: 14, kind: 'person', name: 'Lina', description: 'Lead character', UpdatedAt: 'reference-v1' },
+      ],
+      'PATCH /projects/14/entities/creative-references/8': (body: Record<string, unknown>) => {
+        patchBodies.push(body)
+        return { ID: 8, ...body, UpdatedAt: 'reference-v2', status: 'active' }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/14/references',
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.count, 1)
+    assert.equal(refreshed.items[0].projectionType, 'editable_project')
+    assert.equal(refreshed.items[0].applyBoundary, 'editable_projection')
+    assert.equal(refreshed.items[0].scope, 'references')
+    const referencePath = join(workspaceDir, '.movscript', 'data/users/local/projects/14/references/creative_reference_8.json')
+    const reference = JSON.parse(readFileSync(referencePath, 'utf8'))
+    assert.equal(reference.name, 'Lina')
+    reference.description = 'Lead character with a sharper visual identity.'
+    writeFileSync(referencePath, `${JSON.stringify(reference, null, 2)}\n`, 'utf8')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: 'data/users/local/projects/14/references',
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'editable_project')
+    assert.equal(preview.items[0].applyBoundary, 'editable_projection')
+    assert.equal(preview.items[0].saveable, true)
+    assert.equal(preview.items[0].effects[0].entityType, 'creative_reference')
+    assert.equal(preview.items[0].effects[0].operation, 'update')
+
+    const apply = await applyWorkspaceReview({
+      path: 'data/users/local/projects/14/references',
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'editable_project')
+    assert.equal(apply.items[0].applyBoundary, 'editable_projection')
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(patchBodies.length, 1)
+    assert.equal(patchBodies[0].description, 'Lead character with a sharper visual identity.')
+    const canonical = JSON.parse(readFileSync(referencePath, 'utf8'))
+    assert.equal(canonical.status, 'active')
+    assert.equal(canonical.description, 'Lead character with a sharper visual identity.')
+    assert.equal(existsSync(join(workspaceDir, '.movscript', 'data/users/local/projects/14/meta/manifest.json')), true)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply creates canonical editable project reference files from local drafts', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-reference-create-'))
+  const postBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'POST /projects/17/entities/creative-references': (body: Record<string, unknown>) => {
+        postBodies.push(body)
+        return { ID: 1701, ...body, project_id: 17, UpdatedAt: 'reference-v1', status: 'active' }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const referencesDir = join(workspaceDir, '.movscript', 'data/users/local/projects/17/references')
+    mkdirSync(referencesDir, { recursive: true })
+    const draftPath = join(referencesDir, 'creative_reference_new_lina.json')
+    writeFileSync(draftPath, `${JSON.stringify({
+      schema: 'movscript.creative_reference.v1',
+      client_id: 'local-lina',
+      project_id: 17,
+      kind: 'person',
+      name: 'New Lina',
+      description: 'Created from a local file draft.',
+    }, null, 2)}\n`, 'utf8')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: 'data/users/local/projects/17/references',
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'editable_project')
+    assert.equal(preview.items[0].scope, 'references')
+    assert.equal(preview.items[0].saveable, true)
+    assert.equal(preview.items[0].effects[0].entityType, 'creative_reference')
+    assert.equal(preview.items[0].effects[0].operation, 'create')
+
+    const apply = await applyWorkspaceReview({
+      path: 'data/users/local/projects/17/references',
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'editable_project')
+    assert.equal(apply.items[0].scope, 'references')
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(postBodies.length, 1)
+    assert.equal(postBodies[0].name, 'New Lina')
+    assert.equal(postBodies[0].client_id, 'local-lina')
+    const canonicalPath = join(referencesDir, 'creative_reference_1701.json')
+    assert.equal(existsSync(canonicalPath), true)
+    assert.equal(existsSync(draftPath), false)
+    const canonical = JSON.parse(readFileSync(canonicalPath, 'utf8'))
+    assert.equal(canonical.id, 1701)
+    assert.equal(canonical.status, 'active')
+    assert.equal(canonical.description, 'Created from a local file draft.')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply deletes editable project reference files from local deletion drafts', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-reference-delete-'))
+  let deleteCalls = 0
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/14/entities/creative-references': [
+        { ID: 8, project_id: 14, kind: 'person', name: 'Lina', description: 'Lead character', UpdatedAt: 'reference-v1' },
+      ],
+      'DELETE /projects/14/entities/creative-references/8': () => {
+        deleteCalls += 1
+        return { ID: 8, project_id: 14, deleted: true }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/14/references',
+    })
+
+    const relativePath = 'data/users/local/projects/14/references/creative_reference_8.json'
+    const referencePath = join(workspaceDir, '.movscript', relativePath)
+    assert.equal(existsSync(referencePath), true)
+    rmSync(referencePath)
+
+    const preview = await previewApplyWorkspaceReview({
+      path: relativePath,
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'editable_project')
+    assert.equal(preview.items[0].saveable, true)
+    assert.equal(preview.items[0].effects[0].entityType, 'creative_reference')
+    assert.equal(preview.items[0].effects[0].operation, 'delete')
+
+    const apply = await applyWorkspaceReview({
+      path: relativePath,
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'editable_project')
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(deleteCalls, 1)
+    assert.equal(existsSync(referencePath), false)
+    const manifest = JSON.parse(readFileSync(join(workspaceDir, '.movscript', 'data/users/local/projects/14/meta/manifest.json'), 'utf8'))
+    assert.equal(manifest.files['references/creative_reference_8.json'], undefined)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review and workspace_apply support editable project asset slot projections', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-asset-slot-'))
+  const patchBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/14/entities/asset-slots?include_internal=true': [
+        {
+          ID: 21,
+          project_id: 14,
+          kind: 'image',
+          name: 'Hero portrait',
+          description: 'Initial image slot',
+          owner_type: 'creative_reference',
+          owner_id: 8,
+          UpdatedAt: 'asset-slot-v1',
+        },
+      ],
+      'PATCH /projects/14/entities/asset-slots/21': (body: Record<string, unknown>) => {
+        patchBodies.push(body)
+        return { ID: 21, ...body, UpdatedAt: 'asset-slot-v2', status: 'candidate' }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/14/assets/asset_slot_21.json',
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.count, 1)
+    assert.equal(refreshed.items[0].projectionType, 'editable_project')
+    assert.equal(refreshed.items[0].applyBoundary, 'editable_projection')
+    assert.equal(refreshed.items[0].scope, 'assets')
+    const slotPath = join(workspaceDir, '.movscript', 'data/users/local/projects/14/assets/asset_slot_21.json')
+    const slot = JSON.parse(readFileSync(slotPath, 'utf8'))
+    assert.equal(slot.name, 'Hero portrait')
+    slot.prompt_hint = 'Frontal portrait, warm practical light, consistent costume reference.'
+    writeFileSync(slotPath, `${JSON.stringify(slot, null, 2)}\n`, 'utf8')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: 'data/users/local/projects/14/assets/asset_slot_21.json',
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'editable_project')
+    assert.equal(preview.items[0].applyBoundary, 'editable_projection')
+    assert.equal(preview.items[0].saveable, true)
+    assert.equal(preview.items[0].effects[0].entityType, 'asset_slot')
+    assert.equal(preview.items[0].effects[0].operation, 'update')
+
+    const apply = await applyWorkspaceReview({
+      path: 'data/users/local/projects/14/assets/asset_slot_21.json',
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'editable_project')
+    assert.equal(apply.items[0].applyBoundary, 'editable_projection')
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(patchBodies.length, 1)
+    assert.equal(patchBodies[0].prompt_hint, 'Frontal portrait, warm practical light, consistent costume reference.')
+    assert.equal(patchBodies[0].owner_type, 'creative_reference')
+    assert.equal(patchBodies[0].owner_id, 8)
+    const canonical = JSON.parse(readFileSync(slotPath, 'utf8'))
+    assert.equal(canonical.status, 'candidate')
+    assert.equal(canonical.prompt_hint, 'Frontal portrait, warm practical light, consistent costume reference.')
+    assert.equal(existsSync(join(workspaceDir, '.movscript', 'data/users/local/projects/14/meta/manifest.json')), true)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply deletes editable project asset slot files from local deletion drafts', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-asset-slot-delete-'))
+  let deleteCalls = 0
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/14/entities/asset-slots?include_internal=true': [
+        {
+          ID: 21,
+          project_id: 14,
+          kind: 'image',
+          name: 'Hero portrait',
+          description: 'Initial image slot',
+          UpdatedAt: 'asset-slot-v1',
+        },
+      ],
+      'DELETE /projects/14/entities/asset-slots/21': () => {
+        deleteCalls += 1
+        return { ID: 21, project_id: 14, deleted: true }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/14/assets/asset_slot_21.json',
+    })
+
+    const relativePath = 'data/users/local/projects/14/assets/asset_slot_21.json'
+    const slotPath = join(workspaceDir, '.movscript', relativePath)
+    assert.equal(existsSync(slotPath), true)
+    rmSync(slotPath)
+
+    const preview = await previewApplyWorkspaceReview({
+      path: relativePath,
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'editable_project')
+    assert.equal(preview.items[0].saveable, true)
+    assert.equal(preview.items[0].effects[0].entityType, 'asset_slot')
+    assert.equal(preview.items[0].effects[0].operation, 'delete')
+
+    const apply = await applyWorkspaceReview({
+      path: relativePath,
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'editable_project')
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(deleteCalls, 1)
+    assert.equal(existsSync(slotPath), false)
+    const manifest = JSON.parse(readFileSync(join(workspaceDir, '.movscript', 'data/users/local/projects/14/meta/manifest.json'), 'utf8'))
+    assert.equal(manifest.files['assets/asset_slot_21.json'], undefined)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply creates canonical editable project asset slot files from local drafts', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-asset-slot-create-'))
+  const postBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'POST /projects/18/entities/asset-slots': (body: Record<string, unknown>) => {
+        postBodies.push(body)
+        return { ID: 1801, ...body, project_id: 18, UpdatedAt: 'asset-slot-v1', status: 'missing' }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const assetsDir = join(workspaceDir, '.movscript', 'data/users/local/projects/18/assets')
+    mkdirSync(assetsDir, { recursive: true })
+    const draftPath = join(assetsDir, 'asset_slot_new_portrait.json')
+    writeFileSync(draftPath, `${JSON.stringify({
+      schema: 'movscript.asset_slot.v1',
+      client_id: 'local-portrait',
+      project_id: 18,
+      kind: 'image',
+      name: 'New portrait slot',
+      prompt_hint: 'Created from a local asset slot file draft.',
+      owner_type: 'creative_reference',
+      owner_id: 1701,
+    }, null, 2)}\n`, 'utf8')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: 'data/users/local/projects/18/assets',
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'editable_project')
+    assert.equal(preview.items[0].scope, 'assets')
+    assert.equal(preview.items[0].saveable, true)
+    assert.equal(preview.items[0].effects[0].entityType, 'asset_slot')
+    assert.equal(preview.items[0].effects[0].operation, 'create')
+
+    const apply = await applyWorkspaceReview({
+      path: 'data/users/local/projects/18/assets',
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'editable_project')
+    assert.equal(apply.items[0].scope, 'assets')
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(postBodies.length, 1)
+    assert.equal(postBodies[0].name, 'New portrait slot')
+    assert.equal(postBodies[0].owner_type, 'creative_reference')
+    assert.equal(postBodies[0].owner_id, 1701)
+    const canonicalPath = join(assetsDir, 'asset_slot_1801.json')
+    assert.equal(existsSync(canonicalPath), true)
+    assert.equal(existsSync(draftPath), false)
+    const canonical = JSON.parse(readFileSync(canonicalPath, 'utf8'))
+    assert.equal(canonical.id, 1801)
+    assert.equal(canonical.status, 'missing')
+    assert.equal(canonical.prompt_hint, 'Created from a local asset slot file draft.')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply with an assets folder only applies editable asset slot drafts in that folder', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-editable-project-assets-apply-'))
+  const patchBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/16': { ID: 16, name: 'Project Sixteen', updatedAt: 'db-project-rev' },
+      'GET /projects/16/entities/creative-references': [
+        { ID: 1601, project_id: 16, kind: 'person', name: 'Reference Draft', description: 'Original reference', UpdatedAt: 'reference-v1' },
+      ],
+      'GET /projects/16/entities/asset-slots?include_internal=true': [
+        { ID: 1602, project_id: 16, kind: 'image', name: 'Asset Draft', prompt_hint: 'Original slot', UpdatedAt: 'slot-v1' },
+      ],
+      'GET /projects/16/resources': [],
+      'GET /projects/16/scripts': [],
+      'POST /projects/16/entities/asset-workspaces/apply': { ok: true },
+      'PATCH /projects/16/entities/asset-slots/1602': (body: Record<string, unknown>) => {
+        patchBodies.push(body)
+        return { ID: 1602, ...body, UpdatedAt: 'slot-v2', status: 'candidate' }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/16',
+    })
+
+    const referencePath = join(workspaceDir, '.movscript', 'data/users/local/projects/16/references/creative_reference_1601.json')
+    const slotPath = join(workspaceDir, '.movscript', 'data/users/local/projects/16/assets/asset_slot_1602.json')
+    const reference = JSON.parse(readFileSync(referencePath, 'utf8'))
+    const slot = JSON.parse(readFileSync(slotPath, 'utf8'))
+    reference.description = 'Reference draft should not be applied by assets folder apply.'
+    slot.prompt_hint = 'Asset folder apply should submit this slot prompt.'
+    writeFileSync(referencePath, `${JSON.stringify(reference, null, 2)}\n`, 'utf8')
+    writeFileSync(slotPath, `${JSON.stringify(slot, null, 2)}\n`, 'utf8')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: 'data/users/local/projects/16/assets',
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 2)
+    const editablePreview = preview.items.find((item: any) => item.projectionType === 'editable_project')
+    assert.equal(editablePreview.scope, 'assets')
+    assert.equal(editablePreview.reviewPath, 'assets')
+    assert.deepEqual(editablePreview.effects.map((effect: any) => effect.entityType), ['asset_slot'])
+
+    const apply = await applyWorkspaceReview({
+      path: 'data/users/local/projects/16/assets',
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 2)
+    const editableApply = apply.items.find((item: any) => item.projectionType === 'editable_project')
+    assert.equal(editableApply.scope, 'assets')
+    assert.equal(editableApply.reviewPath, 'assets')
+    assert.equal(editableApply.applied, true)
+    assert.equal(patchBodies.length, 1)
+    assert.equal(patchBodies[0].prompt_hint, 'Asset folder apply should submit this slot prompt.')
+    const referenceAfterApply = JSON.parse(readFileSync(referencePath, 'utf8'))
+    const slotAfterApply = JSON.parse(readFileSync(slotPath, 'utf8'))
+    assert.equal(referenceAfterApply.description, 'Reference draft should not be applied by assets folder apply.')
+    assert.equal(slotAfterApply.status, 'candidate')
+    assert.equal(slotAfterApply.prompt_hint, 'Asset folder apply should submit this slot prompt.')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review and workspace_apply support script markdown projection paths', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-script-apply-'))
+  const patchBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    globalThis.fetch = mockFetch({
+      'GET /projects/12/scripts/34': {
+        ID: 34,
+        project_id: 12,
+        title: 'Script Thirty Four',
+        raw_source: 'Original script text',
+        content: 'Original script text',
+        script_type: 'screenplay',
+        source_type: 'raw',
+        version: 1,
+        UpdatedAt: 'script-rev',
+      },
+      'PATCH /scripts/34': (body: Record<string, unknown>) => {
+        patchBodies.push(body)
+        return { ID: 34, raw_source: body.raw_source, content: body.content }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const refreshed = await updateWorkspaceSnapshot({
+      path: 'data/users/local/projects/12/scripts/34/script.md',
+    }) as any
+
+    assert.equal(refreshed.operation, 'workspace_update')
+    assert.equal(refreshed.count, 1)
+    assert.equal(refreshed.items[0].projectionType, 'script')
+    assert.equal(readFileSync(join(workspaceDir, '.movscript', 'data/users/local/projects/12/scripts/34/script.md'), 'utf8'), 'Original script text')
+
+    writeFileSync(join(workspaceDir, '.movscript', 'data/users/local/projects/12/scripts/34/script.md'), 'Edited script text', 'utf8')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: 'data/users/local/projects/12/scripts/34/script.md',
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projectionType, 'script')
+    assert.equal(preview.items[0].backendPreviewPerformed, false)
+    assert.equal(preview.items[0].effects[0].entityType, 'script')
+
+    const apply = await applyWorkspaceReview({
+      path: 'data/users/local/projects/12/scripts/34/script.md',
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.items[0].projectionType, 'script')
+    assert.equal(apply.items[0].method, 'PATCH')
+    assert.equal(patchBodies.length, 1)
+    assert.equal(patchBodies[0].raw_source, 'Edited script text')
+    assert.equal(patchBodies[0].content, 'Edited script text')
+    assert.equal(patchBodies[0].title, 'Script Thirty Four')
+    const syncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', 'sync/users/local/projects/12/scripts/34/script.sync.json'), 'utf8'))
+    assert.equal(syncRecord.state.dirty, false)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review can read a persisted projection snapshot by workspacePath', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-preview-path-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    const update = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 4 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'character-b', name: 'Character B', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+    globalThis.fetch = mockFetch({
+      'POST /projects/4/entities/setting-workspaces/apply-preview': (body: Record<string, unknown>) => ({
+        ok: true,
+        received: body,
+      }),
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const preview = await previewApplyWorkspaceReview({
+      kind: 'setting_workspace',
+      target: { projectId: 4 },
+      workspacePath: update.projection.workspacePath,
+    }) as any
+
+    assert.equal(preview.backendPreviewPerformed, true)
+    assert.equal(preview.projection.workspacePath, update.projection.workspacePath)
+    assert.match(preview.reviewFile.path, /^reviews\/setting_workspace-\d+-[a-f0-9]+\.json$/)
+    assert.equal(existsSync(join(workspaceDir, '.movscript', preview.reviewFile.path)), true)
+    assert.equal(preview.projectionMeta.state.dirty, true)
+    assert.equal(preview.projectionMeta.state.lastReviewPath, preview.reviewFile.path)
+    assert.equal(typeof preview.projectionMeta.state.lastPreviewAt, 'string')
+    const previewSyncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', preview.projection.syncPath), 'utf8'))
+    assert.equal(previewSyncRecord.state.lastReviewPath, preview.reviewFile.path)
+    assert.equal(previewSyncRecord.action, 'state_patched')
+    assert.equal(preview.payload.workspace.creative_references[0].name, 'Character B')
+    assert.equal(preview.response.received.workspace.creative_references[0].name, 'Character B')
+
+    const wrappedPreview = await previewApplyWorkspaceReview({
+      review: {
+        workspaceKind: 'setting_workspace',
+        target: { projectId: 4 },
+        workspacePath: update.projection.workspacePath,
+      },
+    }) as any
+
+    assert.equal(wrappedPreview.backendPreviewPerformed, true)
+    assert.equal(wrappedPreview.projection.workspacePath, update.projection.workspacePath)
+    assert.equal(wrappedPreview.payload.workspace.creative_references[0].name, 'Character B')
+
+    const overridePreview = await previewApplyWorkspaceReview({
+      review: {
+        workspaceKind: 'setting_workspace',
+        target: { projectId: 4 },
+        workspacePath: 'data/users/local/projects/4/settings/missing.workspace.json',
+      },
+      workspace_path: update.projection.workspacePath,
+    }) as any
+
+    assert.equal(overridePreview.backendPreviewPerformed, true)
+    assert.equal(overridePreview.projection.workspacePath, update.projection.workspacePath)
+    assert.equal(overridePreview.payload.workspace.creative_references[0].name, 'Character B')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply submits a persisted projection snapshot as a workspace change', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-apply-path-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    const update = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 5 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'character-c', name: 'Character C', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+    globalThis.fetch = mockFetch({}) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const apply = await applyWorkspaceReview({
+      review: {
+        workspaceKind: 'setting_workspace',
+        target: { projectId: 5 },
+        workspacePath: update.projection.workspacePath,
+      },
+    }) as any
+
+    assert.equal(apply.performed, true)
+    assert.equal(apply.submitted, true)
+    assert.equal(apply.changeSubmitted, true)
+    assert.equal(apply.materialized, false)
+    assert.equal(apply.applyBoundary, 'frontend_review')
+    assert.equal(apply.projection.workspacePath, update.projection.workspacePath)
+    assert.equal(apply.changeSubmission.status, 'change_submitted')
+    assert.equal(apply.changeSubmission.workspacePath, update.projection.workspacePath)
+    assert.equal(apply.handoff.navigation.path.includes(`workspacePath=${encodeURIComponent(update.projection.workspacePath)}`), true)
+    assert.equal(apply.projectionMeta.state.dirty, true)
+    assert.equal(typeof apply.projectionMeta.state.lastSubmittedAt, 'string')
+    assert.equal(typeof apply.projectionMeta.state.lastChangeSubmittedAt, 'string')
+    const applySyncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', apply.projection.syncPath), 'utf8'))
+    assert.equal(applySyncRecord.state.dirty, true)
+    assert.equal(applySyncRecord.action, 'state_patched')
+    assert.equal(apply.payload.workspace.creative_references[0].name, 'Character C')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review and workspace_apply with path preview and submit local projection to backend', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-path-apply-'))
+  const postedBodies: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    const update = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 7 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'character-d', name: 'Character D', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+    globalThis.fetch = mockFetch({
+      'POST /projects/7/entities/setting-workspaces/apply-preview': (body: Record<string, unknown>) => ({
+        previewed: true,
+        received: body,
+      }),
+      'POST /projects/7/entities/setting-workspaces/apply': (body: Record<string, unknown>) => {
+        postedBodies.push(body)
+        return { applied: true, counts: { creative_references_upserted: 1 } }
+      },
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const preview = await previewApplyWorkspaceReview({
+      path: update.projection.workspacePath,
+    }) as any
+
+    assert.equal(preview.operation, 'workspace_apply_review')
+    assert.equal(preview.direction, 'local_projection_to_backend_preview')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].backendPreviewPerformed, true)
+    assert.equal(preview.items[0].payload.workspace.creative_references[0].name, 'Character D')
+    assert.equal(preview.items[0].response.previewed, true)
+
+    const apply = await applyWorkspaceReview({
+      path: update.projection.workspacePath,
+    }) as any
+
+    assert.equal(apply.operation, 'workspace_apply')
+    assert.equal(apply.direction, 'local_projection_to_backend')
+    assert.equal(apply.count, 1)
+    assert.equal(apply.materialized, true)
+    assert.equal(apply.items[0].applied, true)
+    assert.equal(apply.items[0].response.applied, true)
+    assert.equal(postedBodies.length, 1)
+    assert.equal((postedBodies[0].workspace as any).creative_references[0].name, 'Character D')
+    const applySyncRecord = JSON.parse(readFileSync(join(workspaceDir, '.movscript', update.projection.syncPath), 'utf8'))
+    assert.equal(applySyncRecord.state.dirty, false)
+    assert.equal(applySyncRecord.action, 'state_patched')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review uses agent cwd under data as the projection folder', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-cwd-preview-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    const update = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 8 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'character-e', name: 'Character E', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+    globalThis.fetch = mockFetch({
+      'POST /projects/8/entities/setting-workspaces/apply-preview': (body: Record<string, unknown>) => ({
+        received: body,
+      }),
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const preview = await previewApplyWorkspaceReview({
+      cwd: join(workspaceDir, '.movscript', 'data', 'users', 'local', 'projects', '8'),
+    }) as any
+
+    assert.equal(preview.path, 'data/users/local/projects/8')
+    assert.equal(preview.pathSource, 'cwd')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projection.workspacePath, update.projection.workspacePath)
+    assert.equal(preview.items[0].payload.workspace.creative_references[0].name, 'Character E')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('workspace_apply_review defaults to the current MCP focus projection folder when path is omitted', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-focus-preview-'))
+  try {
+    process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+    updateMCPContextSnapshot({
+      route: { pathname: '/project/pre-production', search: '', hash: '' },
+      project: { id: 9, name: 'Focused Project' },
+      productionId: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date().toISOString(),
+    })
+    const update = await updateWorkspaceSnapshot({
+      kind: 'setting_workspace',
+      target: { projectId: 9 },
+      content: {
+        scope: 'setting_workspace',
+        mode: 'snapshot',
+        workspace: {
+          creative_references: [
+            { client_id: 'character-f', name: 'Character F', kind: 'person' },
+          ],
+        },
+      },
+    }) as any
+    globalThis.fetch = mockFetch({
+      'POST /projects/9/entities/setting-workspaces/apply-preview': (body: Record<string, unknown>) => ({
+        received: body,
+      }),
+    }) as typeof fetch
+    setMCPAPIBaseURL('http://mock.backend')
+
+    const preview = await previewApplyWorkspaceReview({}) as any
+
+    assert.equal(preview.path, 'data/users/local/projects/9')
+    assert.equal(preview.pathSource, 'focus')
+    assert.equal(preview.count, 1)
+    assert.equal(preview.items[0].projection.workspacePath, update.projection.workspacePath)
+    assert.equal(preview.items[0].payload.workspace.creative_references[0].name, 'Character F')
+  } finally {
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      productionId: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+    })
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
 })
 
 test.skip('local generation connector tools use configured ComfyUI and WebUI servers', async () => {
@@ -1779,7 +2923,7 @@ test('attach keyframe candidate rejects nested generated candidate targets', asy
   }
 })
 
-test('workspace model MCP tool exposes frontend-owned field and seed contract', async () => {
+test('workspace projection seed exposes frontend-owned field and seed contract', async () => {
   const result = await getWorkspaceModelContract({
     kind: 'production_workspace',
     target: { entityType: 'production', entityId: 301, projectId: 42 },
@@ -1804,7 +2948,7 @@ test('workspace model MCP tool exposes frontend-owned field and seed contract', 
   assert.equal(result.modelRef, 'frontend:WorkspaceModel:production_workspace:v1')
 })
 
-test('workspace model MCP tool rejects non-canonical workspace kind aliases', async () => {
+test('workspace projection seed rejects non-canonical workspace kind aliases', async () => {
   await assert.rejects(
     () => getWorkspaceModelContract({
       kind: 'project standards workspace',
@@ -1815,7 +2959,7 @@ test('workspace model MCP tool rejects non-canonical workspace kind aliases', as
   )
 })
 
-test('workspace model MCP tool hydrates production workspace snapshot with production brief and project scripts', async () => {
+test('workspace projection seed hydrates production workspace snapshot with production brief and project scripts', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42/entities/productions': [{
@@ -1876,7 +3020,7 @@ test('workspace model MCP tool hydrates production workspace snapshot with produ
   }
 })
 
-test('workspace model MCP tool hydrates asset workspace seed from allowed backend includes', async () => {
+test('workspace projection seed hydrates asset workspace seed from allowed backend includes', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42': { id: 42, name: 'Seed Project', UpdatedAt: '2026-05-13T00:00:00.000Z' },
@@ -2120,10 +3264,13 @@ test('applyWorkspaceReview posts direct asset workspace snapshot rows to asset w
     }) as Record<string, any>
 
     assert.equal(result.performed, true)
-    assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/asset-workspaces/apply')
-    assert.equal(postedBodies[0].scope, 'asset_workspace')
-    assert.equal(postedBodies[0].mode, 'snapshot')
-    assert.deepEqual(postedBodies[0].workspace, {
+    assert.equal(result.submitted, true)
+    assert.equal(result.materialized, false)
+    assert.equal(result.plannedUrl, 'http://mock.backend/api/v1/projects/4/entities/asset-workspaces/apply')
+    assert.equal(postedBodies.length, 0)
+    assert.equal(result.payload.scope, 'asset_workspace')
+    assert.equal(result.payload.mode, 'snapshot')
+    assert.deepEqual(result.payload.workspace, {
       creative_references: [],
       asset_slots: [{
         client_id: 'slot_001',
@@ -2166,7 +3313,9 @@ test('applyWorkspaceReview allows omitted asset ids because workspace is the des
       },
     }) as Record<string, any>
     assert.equal(result.performed, true)
-    assert.deepEqual(postedBodies[0]?.workspace, {
+    assert.equal(result.submitted, true)
+    assert.equal(postedBodies.length, 0)
+    assert.deepEqual(result.payload.workspace, {
       creative_references: [],
       asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
     })
@@ -2212,7 +3361,9 @@ test('applyWorkspaceReview normalizes project standards shot size object arrays 
     }) as Record<string, any>
 
     assert.equal(result.performed, true)
-    assert.deepEqual((postedBodies[0].workspace as any).project_style.shot_size_system, ['CU 特写：用于人物表情反转。；头肩构图。'])
+    assert.equal(result.submitted, true)
+    assert.equal(postedBodies.length, 0)
+    assert.deepEqual((result.payload.workspace as any).project_style.shot_size_system, ['CU 特写：用于人物表情反转。；头肩构图。'])
   } finally {
     setMCPAPIBaseURL('http://localhost:8765')
     globalThis.fetch = previousFetch
@@ -2937,22 +4088,12 @@ function loadParamValidationAuditFixture(): Record<string, any> {
 }
 
 function loadStaticCatalogTool(fileName: string): Record<string, any> {
-  const mappedPath: Record<string, string> = {
-    'list-models.tool.json': '../../apps/agent/catalog/tools/generation/model-list.tool.json',
-    'create-job.tool.json': '../../apps/agent/catalog/tools/generation/job-create.tool.json',
-    'attach-asset-slot-candidate.tool.json': '../../apps/agent/catalog/tools/candidate/asset-slot-attach.tool.json',
-    'attach-keyframe-candidate.tool.json': '../../apps/agent/catalog/tools/candidate/keyframe-attach.tool.json',
-  }
-  const candidatePaths = [
-    mappedPath[fileName],
-  ].filter((item): item is string => typeof item === 'string')
-  for (const path of candidatePaths) {
-    const fullPath = resolve(process.cwd(), path)
-    if (existsSync(fullPath)) return JSON.parse(readFileSync(fullPath, 'utf8')) as Record<string, any>
-  }
   const fallbackName: Record<string, string> = {
+    'list-models.tool.json': 'generation_model_list',
     'create-job.tool.json': 'generation_job_create',
     'wait-jobs.tool.json': 'generation_job_wait',
+    'attach-asset-slot-candidate.tool.json': 'candidate_asset_slot_attach',
+    'attach-keyframe-candidate.tool.json': 'candidate_keyframe_attach',
   }
   const fallbackTool = listTools().find((tool) => tool.name === fallbackName[fileName])
   if (fallbackTool) return fallbackTool as Record<string, any>

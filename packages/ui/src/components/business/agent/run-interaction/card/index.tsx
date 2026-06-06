@@ -22,31 +22,31 @@ import {
   type AgentRunInteractionApprovalSectionState,
 } from "../status";
 
-export const AgentRunInteractionRuntimePanel = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
+export const AgentRunInteractionProviderSessionPanel = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
   ({ className, ...props }, ref) => {
     return <AgentSurfaceBlock ref={ref} className={cn("ms-agent-run-interaction-panel", className)} {...props} />;
   }
 );
 
-AgentRunInteractionRuntimePanel.displayName = "AgentRunInteractionRuntimePanel";
+AgentRunInteractionProviderSessionPanel.displayName = "AgentRunInteractionProviderSessionPanel";
 
-export const AgentRunInteractionRuntimeHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+export const AgentRunInteractionProviderSessionHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
     return <div ref={ref} className={cn("ms-agent-run-interaction-panel__header", className)} {...props} />;
   }
 );
 
-AgentRunInteractionRuntimeHeader.displayName = "AgentRunInteractionRuntimeHeader";
+AgentRunInteractionProviderSessionHeader.displayName = "AgentRunInteractionProviderSessionHeader";
 
-export const AgentRunInteractionRuntimeTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+export const AgentRunInteractionProviderSessionTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
     return <div ref={ref} className={cn("ms-agent-run-interaction-panel__title", className)} {...props} />;
   }
 );
 
-AgentRunInteractionRuntimeTitle.displayName = "AgentRunInteractionRuntimeTitle";
+AgentRunInteractionProviderSessionTitle.displayName = "AgentRunInteractionProviderSessionTitle";
 
-export function AgentRunInteractionRuntimeStatusBadge({ className, ...props }: StatusBadgeProps) {
+export function AgentRunInteractionProviderSessionStatusBadge({ className, ...props }: StatusBadgeProps) {
   return <StatusBadge className={cn("ms-agent-run-interaction-status-badge", className)} {...props} />;
 }
 
@@ -193,7 +193,7 @@ export const AgentRunInteractionRequestCard = React.forwardRef<
   return (
     <AgentSurfaceBlock
       ref={ref}
-      data-runtime-approving={approving ? "true" : undefined}
+      data-provider-session-approving={approving ? "true" : undefined}
       variant={variant}
       className={cn("ms-agent-run-interaction-request-card", itemClass, className)}
       {...props}

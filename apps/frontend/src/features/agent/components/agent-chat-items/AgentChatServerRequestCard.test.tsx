@@ -46,9 +46,11 @@ test('AgentChatServerRequestCard renders approval requests with summary and raw 
   assert.match(html, /1 network policy amendment/)
   assert.match(html, /network policy 1: allow api.example.com/)
   assert.match(html, />Cancel</)
-  assert.match(html, />Approve session</)
-  assert.match(html, />Approve policy</)
-  assert.match(html, />Network policy 1</)
+  assert.match(html, />More allow options</)
+  assert.match(html, />Allow for session</)
+  assert.match(html, />Allow similar command</)
+  assert.match(html, />Allow network policy 1</)
+  assert.match(html, />Allow once</)
   assert.match(html, /Request details/)
 })
 
@@ -217,8 +219,10 @@ test('AgentChatServerRequestCard renders permission approval scopes', () => {
   assert.match(html, /fs entry: write \/repo\/generated/)
   assert.match(html, /fs entry: deny \/repo\/secrets/)
   assert.match(html, /glob scan max depth: 5/)
-  assert.match(html, />Approve session</)
-  assert.match(html, />Strict review</)
+  assert.match(html, />More allow options</)
+  assert.match(html, />Allow for session</)
+  assert.match(html, />Allow with strict review</)
+  assert.match(html, />Allow once</)
 })
 
 test('AgentChatServerRequestCard renders MCP tool permission approval context', () => {
@@ -260,7 +264,7 @@ test('AgentChatServerRequestCard renders MCP tool permission approval context', 
   assert.match(html, /connector: MovScript workspace/)
   assert.match(html, /connector id: movscript@movscript-bundled/)
   assert.match(html, /permissions requested/)
-  assert.match(html, />Approve</)
+  assert.match(html, />Allow once</)
 })
 
 test('AgentChatServerRequestCard renders MovScript tool approval args without session-only actions', () => {
@@ -305,12 +309,12 @@ test('AgentChatServerRequestCard renders MovScript tool approval args without se
   assert.match(html, /preview operation: read focused resource/)
   assert.match(html, /Arguments/)
   assert.match(html, /projectId/)
-  assert.match(html, />Approve</)
-  assert.doesNotMatch(html, />Approve session</)
-  assert.doesNotMatch(html, />Strict review</)
+  assert.match(html, />Allow once</)
+  assert.doesNotMatch(html, />Allow for session</)
+  assert.doesNotMatch(html, />Allow with strict review</)
 })
 
-test('AgentChatServerRequestCard summarizes MovScript Agent input requests', () => {
+test('AgentChatServerRequestCard summarizes Mova input requests', () => {
   const html = renderToStaticMarkup(
     <AgentChatServerRequestCard
       request={{

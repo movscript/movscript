@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   AgentChatMessage,
+  AgentRunActivityBubble,
   AgentRunActivityChatBadge,
   AgentRunActivityCodeDisclosure,
   AgentRunActivityDetailButton,
@@ -28,8 +29,9 @@ import { agentRunPath } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/presentation/agentActivityFeed'
 import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
+import type { AgentRunApprovalDecisionInput } from '@/features/agent/application/agentRunInteractionActions'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 function formatActivityTime(value: string | undefined, locale: string) {
@@ -181,7 +183,7 @@ export function LiveRunActivityBubble({
   run: AgentRun | null
   events: ChatRunActivityEvent[]
   approving?: boolean
-  onApprove?: (approvalIds?: string[]) => void
+  onApprove?: (approvalIds?: string[], approvalDecision?: AgentRunApprovalDecisionInput) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
   hiddenActionItemIds?: Set<string>
@@ -192,7 +194,7 @@ export function LiveRunActivityBubble({
   const runStatusText = interactionRunStatusLabel(run?.status ?? 'in_progress', t)
   const feed = buildAgentActivityFeed({ run, events, hiddenActionItemIds })
   return (
-    <div className="space-y-1">
+    <AgentRunActivityBubble>
       <AgentActivityStatusText run={run} events={events} fallback={statusLabel ?? runStatusText} />
       {feed && (feed.items.length > 0 || feed.rounds.length > 0) && (
         <AgentChatMessage
@@ -212,13 +214,14 @@ export function LiveRunActivityBubble({
             className="mt-0"
             approving={approving}
             onApprove={onApprove}
+            onApproveForSession={onApprove ? (approvalIds) => onApprove(approvalIds, { scope: 'session' }) : undefined}
             onReject={onReject}
             onAnswerInput={onAnswerInput}
             hiddenActionItemIds={hiddenActionItemIds}
           />
         </AgentChatMessage>
       )}
-    </div>
+    </AgentRunActivityBubble>
   )
 }
 

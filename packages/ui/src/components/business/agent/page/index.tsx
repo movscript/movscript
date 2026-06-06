@@ -204,6 +204,30 @@ export function AgentWorkspaceMetaItem({ label, value, title, className, ...prop
   );
 }
 
+export const AgentArtifactsPageBody = AgentWorkspacesPageBody;
+export const AgentArtifactsPageSidebar = AgentWorkspacesPageSidebar;
+export const AgentArtifactsPageSidebarControls = AgentWorkspacesPageSidebarControls;
+export const AgentArtifactsPageList = AgentWorkspacesPageList;
+export const AgentArtifactsPageMain = AgentWorkspacesPageMain;
+export const AgentArtifactsFilterGrid = AgentWorkspacesFilterGrid;
+export const AgentArtifactListState = AgentWorkspaceListState;
+export const AgentArtifactListItemButton = AgentWorkspaceListItemButton;
+export const AgentArtifactListItemHeader = AgentWorkspaceListItemHeader;
+export const AgentArtifactListItemTitle = AgentWorkspaceListItemTitle;
+export const AgentArtifactListItemMeta = AgentWorkspaceListItemMeta;
+export const AgentArtifactDetailStack = AgentWorkspaceDetailStack;
+export const AgentArtifactDetailCard = AgentWorkspaceDetailCard;
+export const AgentArtifactDetailHeader = AgentWorkspaceDetailHeader;
+export const AgentArtifactDetailCopy = AgentWorkspaceDetailCopy;
+export const AgentArtifactDetailTitle = AgentWorkspaceDetailTitle;
+export const AgentArtifactBadgeRow = AgentWorkspaceBadgeRow;
+export const AgentArtifactActionRow = AgentWorkspaceActionRow;
+export const AgentArtifactMetaGrid = AgentWorkspaceMetaGrid;
+export const AgentArtifactCodePanel = AgentWorkspaceCodePanel;
+export const AgentArtifactCodePanelHeader = AgentWorkspaceCodePanelHeader;
+export const AgentArtifactJsonGrid = AgentWorkspaceJsonGrid;
+export const AgentArtifactMetaItem = AgentWorkspaceMetaItem;
+
 export function AgentCanvasPageLayout({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-canvas-page-layout", className)} {...props} />;
 }

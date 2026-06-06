@@ -25,11 +25,22 @@ import { AlertTriangle, ArrowLeft, BriefcaseBusiness, Clapperboard, HardDrive, I
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from './routes/projectRoutes'
+import {
+  WORKSPACE_CHANGE_HANDOFF_EVENT,
+  workspaceChangeHandoffPathFromEventDetail,
+} from './shared/contracts/workspaceChangeHandoff'
 import { canvasBackPath, getAppRouteSurface, routeForWorkMode, type AppRouteSurface } from './routes/appRouteModel'
 import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
 import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
 import { useHasOpenAgentConversations } from './features/agent/presentation/useHasOpenAgentConversations'
+import { providerRoute, providerRouteForKey } from './features/agent/application/providerRoutes'
+import {
+  enabledProviders,
+  normalizeProviderSettings,
+  usesAppServerProtocol,
+  useProviderConfigStore,
+} from './shared/infrastructure/providerConfigStore'
 import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, AppErrorFallback, AppRouteViewport, AppWindowIconButton, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Textarea, UiDebugInspector } from '@movscript/ui'
 import { useAppShellDialogStore, type AccountSettingsDialogTab } from './features/app-shell/application/appShellDialogStore'
 import { api } from './shared/infrastructure/api'
@@ -69,13 +80,25 @@ const ScriptsPage = React.lazy(() => import('./pages/scripts/ScriptsPage'))
 const DeliveryPage = React.lazy(() => import('./pages/project/delivery/DeliveryPage'))
 const DeliveryWorkbenchPage = React.lazy(() => import('./pages/project/delivery/DeliveryWorkbenchPage'))
 const AgentConsolePage = React.lazy(() => import('./pages/agent/AgentConsolePage'))
-const AgentWorkspaceFilesPage = React.lazy(() => import('./pages/agent/AgentWorkspaceFilesPage'))
+const MovScriptWorkspaceFilesPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceFilesPage'))
+const MovScriptWorkspaceReviewPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceReviewPage'))
 const ModelProvidersPage = React.lazy(() => import('./pages/agent/ModelProvidersPage'))
 const AgentsPage = React.lazy(() => import('./pages/agent/AgentsPage'))
 const AIAgentRunPage = React.lazy(() => import('./pages/agent/AIAgentRunPage'))
 const AIAgentSettingsPage = React.lazy(() => import('./pages/agent/AIAgentSettingsPage'))
 const AgentRunsPage = React.lazy(() => import('./pages/agent/AgentRunsPage'))
 const ClientPluginsPage = React.lazy(() => import('./pages/plugins/ClientPluginsPage'))
+
+function AgentsRedirect() {
+  const savedSettings = useProviderConfigStore((state) => state.settings)
+  const settings = normalizeProviderSettings(savedSettings)
+  const enabledProviderList = enabledProviders(settings)
+  const defaultProvider = settings.providers.find((provider) => provider.id === settings.defaultProviderId)
+  const appServerProvider = usesAppServerProtocol(defaultProvider)
+    ? defaultProvider
+    : enabledProviderList.find(usesAppServerProtocol)
+  return <Navigate to={appServerProvider ? providerRoute(appServerProvider) : providerRouteForKey('mova')} replace />
+}
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -820,8 +843,16 @@ function RedirectListener() {
     function handler(e: Event) {
       navigate((e as CustomEvent<string>).detail, { replace: true })
     }
+    function workspaceReviewHandler(e: Event) {
+      const path = workspaceChangeHandoffPathFromEventDetail((e as CustomEvent<unknown>).detail)
+      if (path) navigate(path)
+    }
     window.addEventListener('api:redirect', handler)
-    return () => window.removeEventListener('api:redirect', handler)
+    window.addEventListener(WORKSPACE_CHANGE_HANDOFF_EVENT, workspaceReviewHandler)
+    return () => {
+      window.removeEventListener('api:redirect', handler)
+      window.removeEventListener(WORKSPACE_CHANGE_HANDOFF_EVENT, workspaceReviewHandler)
+    }
   }, [navigate])
   return null
 }
@@ -977,13 +1008,12 @@ export default function App() {
               <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
-              <Route path={ROUTES.legacyAgentPlugins} element={<Navigate to={ROUTES.plugins} replace />} />
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
               <Route path={ROUTES.modelProviders} element={<ModelProvidersPage />} />
-              <Route path={ROUTES.agents} element={<Navigate to={ROUTES.agentsMovscript} replace />} />
-              <Route path={ROUTES.agentsMovscript} element={<AgentsPage />} />
-              <Route path={ROUTES.agentsCodex} element={<AgentsPage />} />
-              <Route path={ROUTES.workspaceConfig} element={<AgentWorkspaceFilesPage />} />
+              <Route path={ROUTES.agents} element={<AgentsRedirect />} />
+              <Route path={ROUTES.agentProvider} element={<AgentsPage />} />
+              <Route path={ROUTES.workspaceConfig} element={<MovScriptWorkspaceFilesPage />} />
+              <Route path={ROUTES.workspaceReview} element={<MovScriptWorkspaceReviewPage />} />
               <Route path={ROUTES.agentFiles} element={<Navigate to={ROUTES.workspaceConfig} replace />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />

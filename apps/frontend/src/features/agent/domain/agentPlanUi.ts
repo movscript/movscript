@@ -1,4 +1,4 @@
-import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@/shared/infrastructure/providerSessionClient'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { runHasRunInteraction } from '@/features/agent/domain/agentRunInteraction'
 import { isStoppableAgentRunStatus, isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'

@@ -195,7 +195,7 @@ function LazyResourcePreview({ children, fallback }: { children: ReactNode; fall
 
 function mediaDiagnosticsEnabled() {
   if (!import.meta.env.DEV) return false
-  if (import.meta.env.VITE_MOVSCRIPT_AGENT_MODE_RENDER_DIAGNOSTICS === '1') return true
+  if (import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS === '1') return true
   try {
     if (new URLSearchParams(window.location.search).has('canvasDebug')) return true
     return !!window.localStorage.getItem('movscript.canvasDebug')
