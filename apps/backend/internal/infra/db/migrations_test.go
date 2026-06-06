@@ -56,6 +56,8 @@ func TestLegacyNoopMigrationChecksumCompatibility(t *testing.T) {
 	legacyChecksums := map[string]string{
 		"000009": "ceb24f4d054945bfdf180e7452c97df8f8db4632f4db9f8377e69032a4998d0a",
 		"000010": "117f6dcc99612418640970bab33d24a3c08a183fc4b886e97e534ba061be11ad",
+		"000026": "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201",
+		"000029": "83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972",
 	}
 
 	for _, migration := range RegisteredMigrations() {
@@ -85,6 +87,8 @@ func TestRunMigrationsAcceptsLegacyNoopChecksum(t *testing.T) {
 	legacyChecksums := map[string]string{
 		"000009": "ceb24f4d054945bfdf180e7452c97df8f8db4632f4db9f8377e69032a4998d0a",
 		"000010": "117f6dcc99612418640970bab33d24a3c08a183fc4b886e97e534ba061be11ad",
+		"000026": "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201",
+		"000029": "83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972",
 	}
 
 	for legacyVersion, legacyChecksum := range legacyChecksums {
@@ -116,295 +120,6 @@ func TestRunMigrationsAcceptsLegacyNoopChecksum(t *testing.T) {
 	}
 }
 
-func TestMigration000026ChecksumCompatibility(t *testing.T) {
-	const legacyChecksum = "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201"
-
-	var migration Migration
-	for _, registered := range RegisteredMigrations() {
-		if registered.Version == "000026" {
-			migration = registered
-			break
-		}
-	}
-	if migration.Version == "" {
-		t.Fatal("migration 000026 is not registered")
-	}
-	if migration.Name != "add_creative_reference_workspace_client_id" {
-		t.Fatalf("migration 000026 name = %q, want add_creative_reference_workspace_client_id", migration.Name)
-	}
-	if got := migrationChecksum(migration); got != "9ef89e5d9815ae4eeb9e5c49c78db4628107ed2b28858351476bb1ab08bea628" {
-		t.Fatalf("migration 000026 checksum = %q", got)
-	}
-	if !acceptsLegacyMigrationChecksum(migration, legacyChecksum) {
-		t.Fatal("migration 000026 should accept previously published proposal_client_id checksum")
-	}
-}
-
-func TestRunMigrationsAcceptsMigration000026LegacyChecksum(t *testing.T) {
-	const legacyChecksum = "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201"
-
-	db := testutil.OpenSQLite(t, "migrations_000026_legacy_checksum.db", &AppliedMigration{})
-	for _, migration := range RegisteredMigrations() {
-		checksum := migrationChecksum(migration)
-		if migration.Version == "000026" {
-			checksum = legacyChecksum
-		}
-		record := AppliedMigration{
-			Version:   migration.Version,
-			Name:      migration.Name,
-			Checksum:  checksum,
-			AppliedAt: time.Now().UTC(),
-		}
-		if err := db.Create(&record).Error; err != nil {
-			t.Fatalf("insert migration %s: %v", migration.Version, err)
-		}
-	}
-
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("RunMigrations() error = %v", err)
-	}
-}
-
-func TestMigration000039RepairsLegacyCreativeReferenceWorkspaceClientID(t *testing.T) {
-	const legacyChecksum = "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201"
-
-	db := testutil.OpenSQLiteWithConfig(t, "migrations_000039_creative_reference_workspace_client_id.db", &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &AppliedMigration{})
-	if err := db.Exec(`
-		CREATE TABLE creative_references (
-			id integer primary key autoincrement,
-			created_at datetime,
-			updated_at datetime,
-			deleted_at datetime,
-			project_id integer not null,
-			proposal_client_id text,
-			kind text not null,
-			name text not null,
-			alias text,
-			description text,
-			content text,
-			importance text,
-			status text,
-			profile_json text,
-			tags_json text
-		)
-	`).Error; err != nil {
-		t.Fatalf("create legacy creative_references table: %v", err)
-	}
-	if db.Migrator().HasColumn(&model.CreativeReference{}, "workspace_client_id") {
-		t.Fatal("workspace_client_id exists before repair migration")
-	}
-
-	foundRepairMigration := false
-	for _, migration := range RegisteredMigrations() {
-		if migration.Version == "000039" {
-			foundRepairMigration = true
-			continue
-		}
-		checksum := migrationChecksum(migration)
-		if migration.Version == "000026" {
-			checksum = legacyChecksum
-		}
-		if err := db.Create(&AppliedMigration{
-			Version:   migration.Version,
-			Name:      migration.Name,
-			Checksum:  checksum,
-			AppliedAt: time.Now().UTC(),
-		}).Error; err != nil {
-			t.Fatalf("insert migration %s: %v", migration.Version, err)
-		}
-	}
-	if !foundRepairMigration {
-		t.Fatal("migration 000039 is not registered")
-	}
-
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("RunMigrations() error = %v", err)
-	}
-	if !db.Migrator().HasColumn(&model.CreativeReference{}, "workspace_client_id") {
-		t.Fatal("workspace_client_id was not added by repair migration")
-	}
-}
-
-func TestMigration000029ChecksumCompatibility(t *testing.T) {
-	var migration Migration
-	for _, registered := range RegisteredMigrations() {
-		if registered.Version == "000029" {
-			migration = registered
-			break
-		}
-	}
-	if migration.Version == "" {
-		t.Fatal("migration 000029 is not registered")
-	}
-	if migration.Name != "remove_production_orchestrate_feature" {
-		t.Fatalf("migration 000029 name = %q, want remove_production_orchestrate_feature", migration.Name)
-	}
-	if got := migrationChecksum(migration); got != "1d7580b5ac39d9da7960b0bf599dbc61e87a379b86e4ac83059ba3d2a28eeb9e" {
-		t.Fatalf("migration 000029 checksum = %q", got)
-	}
-	if !acceptsLegacyMigrationChecksum(migration, "83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972") {
-		t.Fatal("migration 000029 should accept accidentally published drop_feature_configs checksum")
-	}
-}
-
-func TestRemoveProductionOrchestrateFeatureConfig(t *testing.T) {
-	db := testutil.OpenSQLite(t, "remove_production_orchestrate_feature_config.db")
-	if err := db.Exec(`CREATE TABLE feature_configs (id integer primary key autoincrement, feature_key text not null, display_name text)`).Error; err != nil {
-		t.Fatalf("create feature_configs: %v", err)
-	}
-	if err := db.Exec(
-		`INSERT INTO feature_configs (feature_key, display_name) VALUES (?, ?), (?, ?)`,
-		"production_orchestrate", "Production Orchestrate",
-		"brainstorm", "Brainstorm",
-	).Error; err != nil {
-		t.Fatalf("insert feature configs: %v", err)
-	}
-
-	if err := removeProductionOrchestrateFeatureConfig(db); err != nil {
-		t.Fatalf("removeProductionOrchestrateFeatureConfig() error = %v", err)
-	}
-
-	var removed int64
-	if err := db.Table("feature_configs").Where("feature_key = ?", "production_orchestrate").Count(&removed).Error; err != nil {
-		t.Fatalf("count removed feature: %v", err)
-	}
-	if removed != 0 {
-		t.Fatalf("production_orchestrate rows = %d, want 0", removed)
-	}
-
-	var kept int64
-	if err := db.Table("feature_configs").Where("feature_key = ?", "brainstorm").Count(&kept).Error; err != nil {
-		t.Fatalf("count kept feature: %v", err)
-	}
-	if kept != 1 {
-		t.Fatalf("brainstorm rows = %d, want 1", kept)
-	}
-}
-
-func TestMigration000020ResequencesAndEnforcesScriptVersionNumbers(t *testing.T) {
-	db := testutil.OpenSQLiteWithConfig(t, "migration_000020_script_version_number.db", &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &AppliedMigration{}, &model.Script{}, &model.ScriptVersion{})
-	script := model.Script{ProjectID: 1, Title: "Pilot", Content: "content", RawSource: "content", AuthorID: 1}
-	if err := db.Create(&script).Error; err != nil {
-		t.Fatalf("create script: %v", err)
-	}
-	versions := []model.ScriptVersion{
-		{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "v1", SourceType: "raw", Content: "one", Status: "active"},
-		{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "duplicate v1", SourceType: "raw", Content: "two", Status: "active"},
-		{ProjectID: 1, ScriptID: script.ID, VersionNumber: 7, Title: "v7", SourceType: "raw", Content: "three", Status: "active"},
-	}
-	for i := range versions {
-		if err := db.Create(&versions[i]).Error; err != nil {
-			t.Fatalf("create script version %d: %v", i, err)
-		}
-	}
-	for _, migration := range RegisteredMigrations() {
-		if migration.Version >= "000020" {
-			break
-		}
-		if err := db.Create(&AppliedMigration{
-			Version:   migration.Version,
-			Name:      migration.Name,
-			Checksum:  migrationChecksum(migration),
-			AppliedAt: time.Now().UTC(),
-		}).Error; err != nil {
-			t.Fatalf("insert migration %s: %v", migration.Version, err)
-		}
-	}
-
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("RunMigrations() error = %v", err)
-	}
-
-	var persisted []model.ScriptVersion
-	if err := db.Where("script_id = ?", script.ID).Order("id asc").Find(&persisted).Error; err != nil {
-		t.Fatalf("list script versions: %v", err)
-	}
-	got := make([]int, 0, len(persisted))
-	for _, version := range persisted {
-		got = append(got, version.VersionNumber)
-	}
-	want := []int{1, 2, 3}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("version numbers = %v, want %v", got, want)
-		}
-	}
-
-	duplicate := model.ScriptVersion{ProjectID: 1, ScriptID: script.ID, VersionNumber: 2, Title: "duplicate", SourceType: "raw", Content: "duplicate", Status: "active"}
-	if err := db.Create(&duplicate).Error; err == nil {
-		t.Fatal("create duplicate script version number succeeded, want unique constraint error")
-	}
-}
-
-func TestMigration000021ResequencesAndEnforcesStoryboardVersionNumbers(t *testing.T) {
-	db := testutil.OpenSQLiteWithConfig(t, "migration_000021_storyboard_version_number.db", &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &AppliedMigration{}, &model.Script{}, &model.ScriptVersion{}, &model.StoryboardScript{}, &model.StoryboardVersion{})
-	script := model.Script{ProjectID: 1, Title: "Pilot", Content: "content", RawSource: "content", AuthorID: 1}
-	if err := db.Create(&script).Error; err != nil {
-		t.Fatalf("create script: %v", err)
-	}
-	scriptVersion := model.ScriptVersion{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "Pilot", SourceType: "raw", Content: script.Content, RawSource: script.RawSource, Status: "active"}
-	if err := db.Create(&scriptVersion).Error; err != nil {
-		t.Fatalf("create script version: %v", err)
-	}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Storyboard", Status: "workspace"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	versions := []model.StoryboardVersion{
-		{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 1, Title: "v1", Source: "manual", Status: "active"},
-		{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 1, Title: "duplicate v1", Source: "manual", Status: "active"},
-		{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 9, Title: "v9", Source: "manual", Status: "active"},
-	}
-	for i := range versions {
-		if err := db.Create(&versions[i]).Error; err != nil {
-			t.Fatalf("create storyboard version %d: %v", i, err)
-		}
-	}
-	for _, migration := range RegisteredMigrations() {
-		if migration.Version >= "000021" {
-			break
-		}
-		if err := db.Create(&AppliedMigration{
-			Version:   migration.Version,
-			Name:      migration.Name,
-			Checksum:  migrationChecksum(migration),
-			AppliedAt: time.Now().UTC(),
-		}).Error; err != nil {
-			t.Fatalf("insert migration %s: %v", migration.Version, err)
-		}
-	}
-
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("RunMigrations() error = %v", err)
-	}
-
-	var persisted []model.StoryboardVersion
-	if err := db.Where("storyboard_script_id = ?", storyboardScript.ID).Order("id asc").Find(&persisted).Error; err != nil {
-		t.Fatalf("list storyboard versions: %v", err)
-	}
-	got := make([]int, 0, len(persisted))
-	for _, version := range persisted {
-		got = append(got, version.VersionNumber)
-	}
-	want := []int{1, 2, 3}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("version numbers = %v, want %v", got, want)
-		}
-	}
-
-	duplicate := model.StoryboardVersion{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 2, Title: "duplicate", Source: "manual", Status: "active"}
-	if err := db.Create(&duplicate).Error; err == nil {
-		t.Fatal("create duplicate storyboard version number succeeded, want unique constraint error")
-	}
-}
-
 func TestMigration000022BackfillsCurrentSchemaTables(t *testing.T) {
 	db := testutil.OpenSQLiteWithConfig(t, "migration_000022_current_schema.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -422,15 +137,15 @@ func TestMigration000022BackfillsCurrentSchemaTables(t *testing.T) {
 			t.Fatalf("insert migration %s: %v", migration.Version, err)
 		}
 	}
-	if db.Migrator().HasTable(&model.StoryboardScript{}) {
-		t.Fatal("storyboard_scripts table exists before backfill")
+	if db.Migrator().HasTable(&model.CloudFileConfig{}) {
+		t.Fatal("cloud_file_configs table exists before backfill")
 	}
 
 	if err := RunMigrations(db); err != nil {
 		t.Fatalf("RunMigrations() error = %v", err)
 	}
 
-	for _, table := range []any{&model.StoryboardScript{}, &model.StoryboardVersion{}, &model.CloudFileConfig{}, &model.AuditLog{}} {
+	for _, table := range []any{&model.CloudFileConfig{}, &model.AuditLog{}} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("expected table for %T to be backfilled", table)
 		}

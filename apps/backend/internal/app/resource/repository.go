@@ -193,13 +193,8 @@ func (r *gormRepository) ResourceReferenceCount(ctx context.Context, resourceID 
 		where string
 		args  []any
 	}{
-		{model: &persistencemodel.ResourceBinding{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.ShotReference{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.ShotReferenceGroup{}, where: "source_resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.AssetSlot{}, where: "resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.Keyframe{}, where: "resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.DeliveryTimelineItem{}, where: "resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.ExportRecord{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.CanvasTask{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.CanvasOutput{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.Job{}, where: "input_resource_id = ? OR output_resource_id = ? OR input_resource_ids = ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ?", args: jobResourceReferenceArgs(resourceID)},
@@ -267,18 +262,12 @@ func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, o
 	}
 	includeLegacy := r.includeLegacyPersonal(ctx, orgID)
 	if !resourceInOrgScope(resource.OrgID, orgID, resource.OwnerID, userID, includeLegacy) {
-		if r.resourceBoundToVisibleProject(ctx, resource.ID, userID, orgID, includeLegacy) {
-			return resource, nil
-		}
 		return resource, ErrForbidden
 	}
 	if resource.OwnerID == userID || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return resource, nil
 	}
-	if !r.resourceBoundToVisibleProject(ctx, resource.ID, userID, orgID, includeLegacy) {
-		return resource, ErrForbidden
-	}
-	return resource, nil
+	return resource, ErrForbidden
 }
 
 func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
@@ -377,29 +366,6 @@ func resourceInOrgScope(resourceOrgID, currentOrgID *uint, ownerID uint, userID 
 
 func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {
 	return resourceOrgID != nil && currentOrgID != nil && *resourceOrgID == *currentOrgID
-}
-
-func (r *gormRepository) resourceBoundToVisibleProject(ctx context.Context, resourceID uint, userID uint, orgID *uint, includeLegacy bool) bool {
-	query := r.db.WithContext(ctx).
-		Table("resource_bindings AS rb").
-		Joins("JOIN projects AS p ON p.id = rb.project_id").
-		Where("rb.resource_id = ? AND rb.deleted_at IS NULL AND p.deleted_at IS NULL", resourceID)
-	if orgID != nil {
-		if includeLegacy {
-			query = query.Where("(p.org_id = ? OR (p.org_id IS NULL AND p.owner_id = ?))", *orgID, userID)
-		} else {
-			query = query.Where("p.org_id = ?", *orgID)
-		}
-	} else {
-		query = query.
-			Joins("LEFT JOIN project_members AS pm ON pm.project_id = p.id AND pm.user_id = ? AND pm.deleted_at IS NULL", userID).
-			Where("p.org_id IS NULL AND (p.owner_id = ? OR pm.id IS NOT NULL)", userID)
-	}
-	var count int64
-	if err := query.Count(&count).Error; err != nil {
-		return false
-	}
-	return count > 0
 }
 
 func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {

@@ -75,7 +75,7 @@ export type ProductionWritingExpressionRecord = SemanticEntityRecord & {
   order?: number
 }
 
-export type ProductionCreativeReferenceRecord = SemanticEntityRecord & {
+export type ProductionSettingRecord = SemanticEntityRecord & {
   name?: string
   title?: string
   kind?: string
@@ -88,12 +88,12 @@ export type ProductionAssetSlotRecord = SemanticEntityRecord & {
   status?: string
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
+  setting_id?: number
 }
 
 export interface ProductionWritingLookup {
   contentUnitById: Map<number, ProductionContentUnitRecord>
-  creativeReferenceById: Map<number, ProductionCreativeReferenceRecord>
+  settingById: Map<number, ProductionSettingRecord>
   usagesByOwnerKey: Map<string, SemanticEntityRecord[]>
 }
 
@@ -228,12 +228,12 @@ export function writingExpressionPayload(workspace: ProductionWritingExpressionS
 
 export function buildSpeakerOptions(
   moment: ProductionSceneMomentRecord | null | undefined,
-  creativeReferences: ProductionCreativeReferenceRecord[],
+  settings: ProductionSettingRecord[],
   lookup: ProductionWritingLookup,
 ): ProductionSpeakerOption[] {
   const currentReferences = moment ? referencesForOwner('scene_moment', moment.ID, lookup).filter(isPersonReference) : []
   const currentIds = new Set(currentReferences.map((reference) => reference.ID))
-  const allPeople = creativeReferences.filter(isPersonReference)
+  const allPeople = settings.filter(isPersonReference)
   const ordered = [...currentReferences, ...allPeople.filter((reference) => !currentIds.has(reference.ID))]
   const seenNames = new Set<string>()
   return ordered.flatMap((reference) => {
@@ -251,19 +251,19 @@ export function buildSpeakerOptions(
 
 export function referencesForOwner(ownerType: string, ownerId: number, lookup: ProductionWritingLookup) {
   return (lookup.usagesByOwnerKey.get(ownerKey(ownerType, ownerId)) ?? [])
-    .map((usage) => usage.creative_reference_id ? lookup.creativeReferenceById.get(Number(usage.creative_reference_id)) : null)
-    .filter((reference): reference is ProductionCreativeReferenceRecord => Boolean(reference))
+    .map((usage) => usage.setting_id ? lookup.settingById.get(Number(usage.setting_id)) : null)
+    .filter((reference): reference is ProductionSettingRecord => Boolean(reference))
 }
 
-export function isPersonReference(reference: ProductionCreativeReferenceRecord) {
+export function isPersonReference(reference: ProductionSettingRecord) {
   return ['person', 'character'].includes(String(reference.kind ?? '').trim().toLowerCase())
 }
 
-export function isPlaceReference(reference: ProductionCreativeReferenceRecord) {
+export function isPlaceReference(reference: ProductionSettingRecord) {
   return ['place', 'location', 'scene'].includes(String(reference.kind ?? '').trim().toLowerCase())
 }
 
-export function creativeReferenceKindLabel(kind?: string) {
+export function settingKindLabel(kind?: string) {
   const normalized = String(kind ?? '').trim().toLowerCase()
   if (normalized === 'person' || normalized === 'character') return '人物'
   if (normalized === 'place' || normalized === 'location' || normalized === 'scene') return '场景'

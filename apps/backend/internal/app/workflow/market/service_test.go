@@ -47,7 +47,7 @@ func TestWorkflowMarketItemMatchSearchesTags(t *testing.T) {
 	if !domainmarket.MarketItemMatches(item, "starter") {
 		t.Fatal("expected query to match tags")
 	}
-	if domainmarket.MarketItemMatches(item, "storyboard") {
+	if domainmarket.MarketItemMatches(item, "timeline") {
 		t.Fatal("did not expect unrelated query to match")
 	}
 }
@@ -72,5 +72,5 @@ func newWorkflowMarketTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "workflowmarket.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &model.EntityRelation{}, &model.Canvas{}, &model.CanvasNode{}, &model.CanvasEdge{})
+	}, &model.Canvas{}, &model.CanvasNode{}, &model.CanvasEdge{})
 }

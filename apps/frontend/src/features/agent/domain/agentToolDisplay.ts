@@ -1,11 +1,13 @@
 export type AgentToolDisplayTranslator = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => string
 
 const TOOL_NAME_LABELS_ZH: Record<string, string> = {
+  workspace_fetch: '拉取工作区',
+  workspace_status: '检查工作区状态',
+  workspace_review: '审阅工作区',
+  workspace_submit: '提交工作区',
   workspace_update: '刷新工作区投影',
   workspace_apply: '提交工作区修改',
   workspace_apply_review: '预览工作区提交',
-  candidate_asset_slot_attach: '加入素材槽候选',
-  candidate_keyframe_attach: '加入关键帧候选',
   generation_job_cancel: '取消生成任务',
   workspace_create: '创建工作区',
   generation_image_generate: '提交图像生成',
@@ -32,10 +34,6 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   generation_job_list: '列出生成任务',
   generation_model_list: '查看生成模型',
   movscript_project_list: '列出项目',
-  movscript_asset_slot_query: '查询素材槽',
-  movscript_creative_reference_query: '查询创意参考',
-  movscript_production_context_query: '查询制作上下文',
-  movscript_script_locate: '读取项目剧本',
   core_user_input_request: '请求用户补充',
   reference_search: '搜索参考',
   core_memory_search: '搜索记忆',

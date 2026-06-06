@@ -195,10 +195,10 @@ func TestSearchTranslatesLocalizedQueryToCanonicalTags(t *testing.T) {
 
 	page, err := service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "角色发现真相前，镜头慢慢靠近脸", Page: 1, PageSize: 10})
 	if err != nil {
-		t.Fatalf("localized semantic search: %v", err)
+		t.Fatalf("localized vector search: %v", err)
 	}
 	if page.Total == 0 || len(page.Items) == 0 {
-		t.Fatalf("localized semantic search returned no results")
+		t.Fatalf("localized vector search returned no results")
 	}
 	if page.Items[0].ID != reveal.ID {
 		t.Fatalf("first result = %d, want reveal reference %d; other=%d page=%+v", page.Items[0].ID, reveal.ID, other.ID, page)

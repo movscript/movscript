@@ -358,6 +358,15 @@ test('media upload accept constants live in shared domain', () => {
   assert.deepEqual(offenders, [])
 })
 
+test('resource attachments use resource binding routes instead of semantic entity routes', () => {
+  const attachmentsSource = readFileSync(resolve('src/shared/ui/ResourceAttachments.tsx'), 'utf8')
+
+  assert.match(attachmentsSource, /\/resource-bindings/)
+  assert.match(attachmentsSource, /owner_type: ownerType/)
+  assert.match(attachmentsSource, /owner_id: ownerId/)
+  assert.doesNotMatch(attachmentsSource, /\/entities\/\$\{ownerType\}/)
+})
+
 test('text resource loading is isolated to the shared text helper', () => {
   const allowed = new Set([
     'src/shared/ui/resourceText.ts',

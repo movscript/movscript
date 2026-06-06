@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { AssetSlotViewModel, CreativeReferenceRecord, ReferenceAssetCluster } from '../domain/preProductionAssetRows'
+import type { AssetSlotViewModel, SettingRecord, ReferenceAssetCluster } from '../domain/preProductionAssetRows'
 import {
   buildPreProductionFilterParams,
   buildPreProductionReferenceSelectionParams,
@@ -13,7 +13,7 @@ import {
 
 function row(id: number, kind: AssetSlotViewModel['kind'], referenceId?: number): AssetSlotViewModel {
   return {
-    slot: { ID: id, kind, creative_reference_id: referenceId } as AssetSlotViewModel['slot'],
+    slot: { ID: id, kind, setting_id: referenceId } as AssetSlotViewModel['slot'],
     candidates: [],
     searchText: '',
     kind,
@@ -21,11 +21,11 @@ function row(id: number, kind: AssetSlotViewModel['kind'], referenceId?: number)
   }
 }
 
-function reference(id: number, name: string): CreativeReferenceRecord {
-  return { ID: id, name, entity_type: 'creative_reference', project_id: 1 } as CreativeReferenceRecord
+function reference(id: number, name: string): SettingRecord {
+  return { ID: id, name, entity_type: 'setting', project_id: 1 } as SettingRecord
 }
 
-function cluster(referenceRecord: CreativeReferenceRecord | null, rows: AssetSlotViewModel[]): ReferenceAssetCluster {
+function cluster(referenceRecord: SettingRecord | null, rows: AssetSlotViewModel[]): ReferenceAssetCluster {
   return {
     reference: referenceRecord,
     rows,

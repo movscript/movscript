@@ -10,9 +10,7 @@ COPY .npmrc ./
 COPY apps/admin/package.json ./apps/admin/package.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
 COPY apps/cli/package.json ./apps/cli/package.json
-COPY packages/workspaces/package.json ./packages/workspaces/package.json
-COPY packages/plugin-sdk/package.json ./packages/plugin-sdk/package.json
-COPY packages/plugin-sdk/examples/scene-summary/package.json ./packages/plugin-sdk/examples/scene-summary/package.json
+COPY packages/core/package.json ./packages/core/package.json
 COPY packages/tokens/package.json ./packages/tokens/package.json
 COPY packages/theme/package.json ./packages/theme/package.json
 COPY packages/ui/package.json ./packages/ui/package.json

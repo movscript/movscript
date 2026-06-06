@@ -16,8 +16,6 @@ func CanvasFromModel(canvas persistencemodel.Canvas) Canvas {
 		CanvasType:   canvas.CanvasType,
 		ProjectID:    canvas.ProjectID,
 		Stage:        canvas.Stage,
-		RefType:      canvas.RefType,
-		RefID:        canvas.RefID,
 		Visibility:   canvas.Visibility,
 		WorkflowKey:  canvas.WorkflowKey,
 		WorkflowTags: canvas.WorkflowTags,
@@ -53,8 +51,6 @@ func (canvas Canvas) ApplyToModel(target *persistencemodel.Canvas) {
 	target.CanvasType = canvas.CanvasType
 	target.ProjectID = canvas.ProjectID
 	target.Stage = canvas.Stage
-	target.RefType = canvas.RefType
-	target.RefID = canvas.RefID
 	target.Visibility = canvas.Visibility
 	target.WorkflowKey = canvas.WorkflowKey
 	target.WorkflowTags = canvas.WorkflowTags
@@ -159,55 +155,6 @@ func (edge CanvasEdge) ApplyToModel(target *persistencemodel.CanvasEdge) {
 	target.UpdatedAt = edge.UpdatedAt
 	if edge.DeletedAt != nil {
 		target.DeletedAt.Time = *edge.DeletedAt
-		target.DeletedAt.Valid = true
-	}
-}
-
-func EntityWriteAuditFromModel(audit persistencemodel.CanvasEntityWriteAudit) EntityWriteAudit {
-	domainAudit := EntityWriteAudit{
-		ID:                 audit.ID,
-		CanvasID:           audit.CanvasID,
-		CanvasRunID:        audit.CanvasRunID,
-		CanvasNodeID:       audit.CanvasNodeID,
-		PortID:             audit.PortID,
-		EntityKind:         audit.EntityKind,
-		EntityID:           audit.EntityID,
-		UserID:             audit.UserID,
-		OldValueJSON:       audit.OldValueJSON,
-		NewValueJSON:       audit.NewValueJSON,
-		ResourceBindingIDs: audit.ResourceBindingIDs,
-		CreatedAt:          audit.CreatedAt,
-		UpdatedAt:          audit.UpdatedAt,
-	}
-	if audit.DeletedAt.Valid {
-		deletedAt := audit.DeletedAt.Time
-		domainAudit.DeletedAt = &deletedAt
-	}
-	return domainAudit
-}
-
-func (audit EntityWriteAudit) ToModel() persistencemodel.CanvasEntityWriteAudit {
-	var target persistencemodel.CanvasEntityWriteAudit
-	audit.ApplyToModel(&target)
-	return target
-}
-
-func (audit EntityWriteAudit) ApplyToModel(target *persistencemodel.CanvasEntityWriteAudit) {
-	target.Model.ID = audit.ID
-	target.CanvasID = audit.CanvasID
-	target.CanvasRunID = audit.CanvasRunID
-	target.CanvasNodeID = audit.CanvasNodeID
-	target.PortID = audit.PortID
-	target.EntityKind = audit.EntityKind
-	target.EntityID = audit.EntityID
-	target.UserID = audit.UserID
-	target.OldValueJSON = audit.OldValueJSON
-	target.NewValueJSON = audit.NewValueJSON
-	target.ResourceBindingIDs = audit.ResourceBindingIDs
-	target.CreatedAt = audit.CreatedAt
-	target.UpdatedAt = audit.UpdatedAt
-	if audit.DeletedAt != nil {
-		target.DeletedAt.Time = *audit.DeletedAt
 		target.DeletedAt.Valid = true
 	}
 }
@@ -371,14 +318,6 @@ func CanvasTasksFromModels(tasks []persistencemodel.CanvasTask) []CanvasTask {
 	return out
 }
 
-func EntityWriteAuditsFromModels(audits []persistencemodel.CanvasEntityWriteAudit) []EntityWriteAudit {
-	out := make([]EntityWriteAudit, 0, len(audits))
-	for _, audit := range audits {
-		out = append(out, EntityWriteAuditFromModel(audit))
-	}
-	return out
-}
-
 func CanvasGraphFromModel(cv persistencemodel.Canvas) CanvasGraph {
 	nodes := make([]CanvasNode, 0, len(cv.Nodes))
 	for _, node := range cv.Nodes {
@@ -410,12 +349,17 @@ func (cv CanvasGraph) ToModel() persistencemodel.Canvas {
 
 func CanvasOutputFromModel(output persistencemodel.CanvasOutput) CanvasOutput {
 	return CanvasOutput{
-		ID:          output.ID,
-		CanvasID:    output.CanvasID,
-		CanvasRunID: output.CanvasRunID,
-		ResourceID:  output.ResourceID,
-		ValueJSON:   output.ValueJSON,
-		Status:      output.Status,
+		ID:           output.ID,
+		ProjectID:    output.ProjectID,
+		CanvasID:     output.CanvasID,
+		CanvasRunID:  output.CanvasRunID,
+		CanvasNodeID: output.CanvasNodeID,
+		PortID:       output.PortID,
+		OutputType:   output.OutputType,
+		ResourceID:   output.ResourceID,
+		ValueJSON:    output.ValueJSON,
+		Status:       output.Status,
+		MetadataJSON: output.MetadataJSON,
 	}
 }
 
@@ -427,11 +371,16 @@ func (output CanvasOutput) ToModel() persistencemodel.CanvasOutput {
 
 func (output CanvasOutput) ApplyToModel(target *persistencemodel.CanvasOutput) {
 	target.Model.ID = output.ID
+	target.ProjectID = output.ProjectID
 	target.CanvasID = output.CanvasID
 	target.CanvasRunID = output.CanvasRunID
+	target.CanvasNodeID = output.CanvasNodeID
+	target.PortID = output.PortID
+	target.OutputType = output.OutputType
 	target.ResourceID = output.ResourceID
 	target.ValueJSON = output.ValueJSON
 	target.Status = output.Status
+	target.MetadataJSON = output.MetadataJSON
 }
 
 func NewCanvasRun(cv persistencemodel.Canvas, inputValues any, startedAt time.Time) CanvasRun {

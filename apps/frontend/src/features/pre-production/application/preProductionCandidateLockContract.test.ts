@@ -14,9 +14,9 @@ test('pre-production candidate lock keeps slot and candidate statuses in sync', 
 
   assert.match(source, /buildPreProductionLockCandidateMutationOptions\(\{ projectId, queryClient \}\)/)
   assert.match(source, /buildPreProductionRejectCandidateMutationOptions\(\{ projectId, queryClient \}\)/)
-  assert.match(candidateControllerSource, /entities\/asset-slot-candidates\/\$\{candidate\.ID\}/)
-  assert.match(candidateControllerSource, /buildAssetCandidatePatchPayload\(row\.slot\.ID,\s*candidate,\s*'selected'\)/)
-  assert.match(candidateControllerSource, /buildAssetCandidatePatchPayload\(row\.slot\.ID,\s*candidate,\s*'rejected'\)/)
+  assert.doesNotMatch(candidateControllerSource, /entities\/asset-slot-candidates/)
+  assert.match(candidateControllerSource, /savePreProductionWorkspaceAssetSlot\(scopedProjectId,\s*row\.slot,\s*\{/)
+  assert.match(candidateControllerSource, /savePreProductionWorkspaceAssetSlot\(scopedProjectId,\s*candidate\.candidate_asset_slot,\s*\{ status: 'rejected' \}\)/)
   assert.match(candidateControllerSource, /if \(!assetSlotHasLoadedResource\(candidate\.candidate_asset_slot\)\) throw new Error\('候选资源不存在或未加载'\)/)
   assert.match(assetRowsSource, /export function assetSlotHasLoadedResource/)
   assert.match(assetRowsSource, /Boolean\(slot\?\.resource\?\.ID\)/)

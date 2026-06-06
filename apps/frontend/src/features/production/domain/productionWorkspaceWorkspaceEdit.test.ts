@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/workspaces'
+import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/core/workspace-contracts'
 
 import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import {
   appendProductionWorkspaceArtifactSceneMoment,
   appendProductionWorkspaceArtifactSegment,
-  appendProductionWorkspaceArtifactCreativeReference,
+  appendProductionWorkspaceArtifactSetting,
   productionWorkspaceArtifactNodeKey,
-  removeProductionWorkspaceArtifactCreativeReference,
+  removeProductionWorkspaceArtifactSetting,
   removeProductionWorkspaceArtifactSceneMoment,
   removeProductionWorkspaceArtifactSegment,
   replaceProductionWorkspaceArtifactSceneMoment,
@@ -141,7 +141,7 @@ test('production workspace artifact edit can remove a segment from the workspace
   assert.deepEqual(content.workspace.segments.map((segment: { client_id: string }) => segment.client_id), ['keep'])
 })
 
-test('production workspace artifact edits scene moment creative references', () => {
+test('production workspace artifact edits scene moment settings', () => {
   const workspace = productionWorkspace({
     workspace: {
       segments: [{
@@ -150,25 +150,25 @@ test('production workspace artifact edits scene moment creative references', () 
         scene_moments: [{
           client_id: 'moment-a',
           title: '情节 A',
-          creative_references: [{ id: 1, name: '旧人物', role: 'supporting' }],
+          settings: [{ id: 1, name: '旧人物', role: 'supporting' }],
         }],
       }],
     },
   })
 
   const result = updateProductionWorkspaceArtifactText(workspace, (content) => {
-    appendProductionWorkspaceArtifactCreativeReference(content, 'client:segment-a', 'client:moment-a', {
+    appendProductionWorkspaceArtifactSetting(content, 'client:segment-a', 'client:moment-a', {
       id: 2,
       name: '新人物',
       kind: 'person',
       role: 'protagonist',
     })
-    removeProductionWorkspaceArtifactCreativeReference(content, 'client:segment-a', 'client:moment-a', 'id:1')
+    removeProductionWorkspaceArtifactSetting(content, 'client:segment-a', 'client:moment-a', 'id:1')
   })
 
   assert.equal(result.error, '')
   const content = JSON.parse(result.content)
-  assert.deepEqual(content.workspace.segments[0].scene_moments[0].creative_references, [{
+  assert.deepEqual(content.workspace.segments[0].scene_moments[0].settings, [{
     id: 2,
     name: '新人物',
     kind: 'person',

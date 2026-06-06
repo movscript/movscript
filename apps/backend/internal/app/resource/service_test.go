@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
-	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/testutil"
@@ -141,25 +139,11 @@ func TestDeleteResourceRejectsReferencedResource(t *testing.T) {
 	db := newResourceTestDB(t)
 	ctx := context.Background()
 	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "hero.png", FilePath: "/tmp/hero.png"}
-	slot := model.AssetSlot{ProjectID: 1, Kind: "image", Name: "Hero", Status: "missing"}
 	if err := db.Create(&resource).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
 	}
-	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
-		t.Fatalf("create slot: %v", err)
-	}
-	binding := model.ResourceBinding{
-		ProjectID:  1,
-		ResourceID: resource.ID,
-		OwnerType:  "asset_slot",
-		OwnerID:    slot.ID,
-		Role:       "output",
-		Slot:       "image",
-		Status:     "selected",
-		SourceType: "manual",
-	}
-	if _, err := resourcebinding.NewService(db.Session(&gorm.Session{SkipHooks: true})).CreateBinding(ctx, domainbinding.BindingFromModel(binding)); err != nil {
-		t.Fatalf("create binding: %v", err)
+	if err := db.Create(&model.CanvasTask{CanvasNodeID: 1, ResourceID: &resource.ID, Status: "done"}).Error; err != nil {
+		t.Fatalf("create canvas task: %v", err)
 	}
 
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil)
@@ -168,24 +152,11 @@ func TestDeleteResourceRejectsReferencedResource(t *testing.T) {
 	}
 
 	var count int64
-	if err := db.Model(&model.ResourceBinding{}).Where("resource_id = ?", resource.ID).Count(&count).Error; err != nil {
-		t.Fatalf("count bindings: %v", err)
+	if err := db.Model(&model.CanvasTask{}).Where("resource_id = ?", resource.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count canvas tasks: %v", err)
 	}
 	if count != 1 {
-		t.Fatalf("expected binding to be preserved, got %d", count)
-	}
-	var updatedSlot model.AssetSlot
-	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
-		t.Fatalf("reload slot: %v", err)
-	}
-	if err := db.Model(&model.EntityRelation{}).
-		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?", "asset_slot", slot.ID, "raw_resource", resource.ID).
-		Where("valid_to IS NULL").
-		Count(&count).Error; err != nil {
-		t.Fatalf("count relations: %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("expected resource relation to be preserved, got %d", count)
+		t.Fatalf("expected canvas task to be preserved, got %d", count)
 	}
 }
 
@@ -306,29 +277,21 @@ func TestListIncludesTeamResourcesButKeepsPersonalStagingPrivate(t *testing.T) {
 	}
 }
 
-func TestGetVisibleAllowsProjectBoundResource(t *testing.T) {
+func TestGetVisibleRejectsPersonalResourceInTeamWithoutOrgScope(t *testing.T) {
 	db := newResourceTestDB(t)
 	ctx := context.Background()
 	org := model.Organization{Name: "Studio", Slug: "studio"}
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	project := model.Project{Name: "Show", OwnerID: 2, OrgID: &org.ID}
-	if err := db.Create(&project).Error; err != nil {
-		t.Fatalf("create project: %v", err)
-	}
-	resource := model.RawResource{OwnerID: 2, Type: "image", Name: "legacy-bound.png", FilePath: "/tmp/legacy-bound.png"}
+	resource := model.RawResource{OwnerID: 2, Type: "image", Name: "personal.png", FilePath: "/tmp/personal.png"}
 	if err := db.Create(&resource).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
 	}
-	binding := model.ResourceBinding{ProjectID: project.ID, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 7, Role: "reference", Status: "selected", SourceType: "legacy"}
-	if err := db.Create(&binding).Error; err != nil {
-		t.Fatalf("create binding: %v", err)
-	}
 
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil)
-	if _, err := service.GetVisible(ctx, resource.ID, 1, &org.ID); err != nil {
-		t.Fatalf("project-bound resource should be visible to the team: %v", err)
+	if _, err := service.GetVisible(ctx, resource.ID, 1, &org.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("team visibility error = %v, want ErrForbidden", err)
 	}
 }
 
@@ -336,5 +299,5 @@ func newResourceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "resource.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &model.EntityRelation{}, &model.Organization{}, &model.Project{}, &model.ProjectMember{}, &model.ResourceBlob{}, &model.RawResource{}, &model.ShotReference{}, &model.AssetSlot{}, &model.ResourceBinding{})
+	}, &model.Organization{}, &model.Project{}, &model.ProjectMember{}, &model.ResourceBlob{}, &model.RawResource{}, &model.ShotReference{}, &model.CanvasTask{})
 }

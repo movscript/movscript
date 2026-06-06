@@ -43,7 +43,7 @@ import {
   type AssetKind,
   type AssetSlotRecord,
   type AssetSlotViewModel,
-  type CreativeReferenceRecord,
+  type SettingRecord,
   type ReferenceAssetCluster,
   type SlotStatus,
 } from '@/features/pre-production/domain/preProductionAssetRows'
@@ -81,7 +81,7 @@ export function PreProductionAssetBoard({
 }: {
   clusters: ReferenceAssetCluster[]
   selectedCluster: ReferenceAssetCluster | null
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   rows: AssetSlotViewModel[]
   selected: AssetSlotViewModel | null
   loading: boolean
@@ -670,7 +670,7 @@ function ReferenceAssetTile({
   onContextMenu,
 }: {
   row: AssetSlotViewModel
-  reference?: CreativeReferenceRecord | null
+  reference?: SettingRecord | null
   selected: boolean
   onSelect: () => void
   onContextMenu?: (event: MouseEvent) => void
@@ -691,8 +691,8 @@ function ReferenceAssetTile({
 }
 
 function referenceForRow(clusters: ReferenceAssetCluster[], row: AssetSlotViewModel) {
-  if (!row.slot.creative_reference_id) return null
-  return clusters.find((cluster) => cluster.reference?.ID === row.slot.creative_reference_id)?.reference ?? null
+  if (!row.slot.setting_id) return null
+  return clusters.find((cluster) => cluster.reference?.ID === row.slot.setting_id)?.reference ?? null
 }
 
 function isVideoResource(resource: { type?: string; mime_type?: string }) {
@@ -706,12 +706,12 @@ function slotKindIcon(kind?: string): LucideIcon {
   return Image
 }
 
-function referenceTitle(reference?: CreativeReferenceRecord | null) {
+function referenceTitle(reference?: SettingRecord | null) {
   if (!reference) return '未绑定设定'
   return reference.name || reference.alias || `设定资料 #${reference.ID}`
 }
 
-function referenceDescription(reference?: CreativeReferenceRecord | null) {
+function referenceDescription(reference?: SettingRecord | null) {
   if (!reference) return '这些素材还没有归属到具体设定资料，建议先绑定人物、地点、道具或风格，方便后续复用和一致性控制。'
   return reference.description || reference.content || '暂无设定说明。'
 }

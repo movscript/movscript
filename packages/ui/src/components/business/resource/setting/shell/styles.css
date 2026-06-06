@@ -1,0 +1,22 @@
+.setting-card {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-background);
+  text-align: left;
+  transition:
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.setting-card:hover {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 50%, var(--ms-color-border));
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.setting-card--selected {
+  border-color: var(--ms-color-primary);
+  box-shadow: 0 0 0 1px var(--ms-color-primary);
+}

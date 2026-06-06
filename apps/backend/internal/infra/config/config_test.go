@@ -10,6 +10,15 @@ func TestLoadDefaultCacheBackendIsMemory(t *testing.T) {
 	}
 }
 
+func TestLoadWorkspaceStorageBackendPrefersStorageEnv(t *testing.T) {
+	t.Setenv("MOVSCRIPT_WORKSPACE_BACKEND", "http")
+	t.Setenv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", "gitea")
+	cfg := Load()
+	if cfg.WorkspaceStorageBackend != "gitea" {
+		t.Fatalf("WorkspaceStorageBackend = %q, want gitea", cfg.WorkspaceStorageBackend)
+	}
+}
+
 func TestValidateStartupRequiresStrongSecrets(t *testing.T) {
 	cfg := &Config{
 		DBHost:            "localhost",

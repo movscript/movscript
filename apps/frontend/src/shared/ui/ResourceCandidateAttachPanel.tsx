@@ -16,8 +16,11 @@ import {
   pendingGeneratedCandidateAttachments,
 } from '@/features/agent/domain/agentGeneratedResourceBinding'
 import { invalidateAssetCandidateConsumers } from '@/shared/infrastructure/assetCandidateQueryInvalidation'
-import type { AssetSlotCandidate, ResourceBindingOwnerType } from '@/types'
-import { api } from '@/shared/infrastructure/api'
+import {
+  createWorkspaceAssetSlotCandidate,
+  createWorkspaceKeyframeCandidate,
+} from '@/shared/infrastructure/workspaceCandidateRepository'
+import type { ResourceBindingOwnerType } from '@/types'
 import {
   ResourceCandidateAttachBody,
   ResourceCandidateAttachControls,
@@ -254,11 +257,9 @@ async function attachResourceCandidate(
   resource: CandidateResourceRef,
 ) {
   if (targetType === 'keyframe') {
-    const { data } = await api.post<SemanticEntityRecord>(`/projects/${projectId}/entities/keyframes`, resourceKeyframeCandidatePayload(targetRecord, resource))
-    return data
+    return createWorkspaceKeyframeCandidate(projectId, resourceKeyframeCandidatePayload(targetRecord, resource))
   }
-  const { data } = await api.post<AssetSlotCandidate>(`/projects/${projectId}/entities/asset-slot-candidates`, resourceAssetCandidatePayload(targetId, resource))
-  return data
+  return createWorkspaceAssetSlotCandidate(projectId, resourceAssetCandidatePayload(targetId, resource), targetRecord)
 }
 
 function resourceAssetCandidatePayload(assetSlotId: number, resource: CandidateResourceRef) {

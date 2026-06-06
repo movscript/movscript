@@ -4,8 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Bot,
   Check,
+  CloudUpload,
   FolderOpen,
   LayoutDashboard,
+  Loader2,
   MessageSquare,
   Palette,
   PanelRightClose,
@@ -45,6 +47,7 @@ import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { toast } from '@/shared/ui/toastStore'
 import type { Project } from '@/types'
 
 interface AppTopControlsProps {
@@ -77,6 +80,7 @@ export function AppTopControls({
   const { t, i18n } = useTranslation()
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [gitPushing, setGitPushing] = useState(false)
   const routeSurface = getAppRouteSurface(pathname)
   const currentRouteWorkMode = routeSurface === 'canvas'
     ? canvasRouteSourceFromSearch(search)
@@ -137,6 +141,34 @@ export function AppTopControls({
     if (!isMovScriptThemeName(nextTheme)) return
     selectTheme(nextTheme)
     setThemeMenuOpen(false)
+  }
+
+  async function handleProjectPush() {
+    if (!current) {
+      toast.info(t('common.noProject', { defaultValue: 'No project' }))
+      return
+    }
+    const apiMethod = window.api?.pushProjectGitWorkspace
+    if (!apiMethod) {
+      toast.error('Git push is unavailable')
+      return
+    }
+    setGitPushing(true)
+    try {
+      const result = await apiMethod({
+        projectId: current.ID,
+        ...(currentOrgID ? { orgId: currentOrgID } : {}),
+      })
+      if (!result.ok) {
+        toast.error('Push failed', result.error || result.stderr)
+        return
+      }
+      toast.success('Pushed project workspace', result.path)
+    } catch (error) {
+      toast.error('Push failed', error instanceof Error ? error.message : undefined)
+    } finally {
+      setGitPushing(false)
+    }
   }
 
   return (
@@ -225,6 +257,16 @@ export function AppTopControls({
           </DropdownMenuItem>
         </AppTopProjectMenuContent>
       </DropdownMenu>
+      <AppTopControlButton
+        variant="ghost"
+        density={density}
+        onClick={() => void handleProjectPush()}
+        disabled={!current || gitPushing}
+        title="Push project workspace"
+        aria-label="Push project workspace"
+      >
+        {gitPushing ? <Loader2 size={iconSize} className="animate-spin" /> : <CloudUpload size={iconSize} />}
+      </AppTopControlButton>
       <AppTopLanguageLabel htmlFor="app-top-language-select">{t('header.language')}</AppTopLanguageLabel>
       <AppTopLanguageSelect
         id="app-top-language-select"

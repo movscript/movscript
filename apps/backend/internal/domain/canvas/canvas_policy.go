@@ -8,9 +8,7 @@ import (
 )
 
 var (
-	ErrInvalidCanvasType  = errors.New("invalid canvas type")
-	ErrRefIDRequired      = errors.New("ref_id is required when ref_type is set")
-	ErrUnsupportedRefType = errors.New("unsupported ref_type")
+	ErrInvalidCanvasType = errors.New("invalid canvas type")
 )
 
 type CanvasCreateInput struct {
@@ -21,29 +19,6 @@ type CanvasCreateInput struct {
 	ProjectID   *uint
 	CanvasType  string
 	Stage       string
-	RefType     string
-	RefID       *uint
-}
-
-type AssetSlotTargetNodeInput struct {
-	CanvasID      uint
-	AssetSlotID   uint
-	AssetKind     string
-	AssetName     string
-	FallbackLabel string
-}
-
-type EntityWriteAuditSpec struct {
-	CanvasID           uint
-	CanvasRunID        uint
-	CanvasNodeID       string
-	PortID             string
-	EntityKind         string
-	EntityID           uint
-	UserID             uint
-	OldValueJSON       string
-	NewValueJSON       string
-	ResourceBindingIDs string
 }
 
 type Canvas struct {
@@ -55,8 +30,6 @@ type Canvas struct {
 	CanvasType   string       `json:"canvas_type"`
 	ProjectID    *uint        `json:"project_id,omitempty"`
 	Stage        string       `json:"stage"`
-	RefType      string       `json:"ref_type"`
-	RefID        *uint        `json:"ref_id,omitempty"`
 	Visibility   string       `json:"visibility"`
 	WorkflowKey  string       `json:"workflow_key,omitempty"`
 	WorkflowTags string       `json:"workflow_tags,omitempty"`
@@ -95,36 +68,12 @@ type CanvasEdge struct {
 	DeletedAt    *time.Time `json:"DeletedAt"`
 }
 
-type EntityWriteAudit struct {
-	ID                 uint       `json:"ID"`
-	CanvasID           uint       `json:"canvas_id"`
-	CanvasRunID        uint       `json:"canvas_run_id"`
-	CanvasNodeID       string     `json:"canvas_node_id"`
-	PortID             string     `json:"port_id"`
-	EntityKind         string     `json:"entity_kind"`
-	EntityID           uint       `json:"entity_id"`
-	UserID             uint       `json:"user_id"`
-	OldValueJSON       string     `json:"old_value_json,omitempty"`
-	NewValueJSON       string     `json:"new_value_json,omitempty"`
-	ResourceBindingIDs string     `json:"resource_binding_ids,omitempty"`
-	CreatedAt          time.Time  `json:"CreatedAt"`
-	UpdatedAt          time.Time  `json:"UpdatedAt"`
-	DeletedAt          *time.Time `json:"DeletedAt"`
-}
-
 func NormalizeCreateInput(input *CanvasCreateInput) error {
 	if input.CanvasType == "" {
 		input.CanvasType = "inspiration"
 	}
 	if !ValidCanvasType(input.CanvasType) {
 		return ErrInvalidCanvasType
-	}
-	input.RefType = strings.TrimSpace(input.RefType)
-	if input.RefType != "" && input.RefID == nil {
-		return ErrRefIDRequired
-	}
-	if input.RefType != "" && !ValidRefType(input.RefType) {
-		return ErrUnsupportedRefType
 	}
 	input.Description = strings.TrimSpace(input.Description)
 	return nil
@@ -139,8 +88,6 @@ func NewCanvas(input CanvasCreateInput) Canvas {
 		ProjectID:   input.ProjectID,
 		CanvasType:  input.CanvasType,
 		Stage:       input.Stage,
-		RefType:     input.RefType,
-		RefID:       input.RefID,
 		Visibility:  "private",
 	}
 }
@@ -148,24 +95,6 @@ func NewCanvas(input CanvasCreateInput) Canvas {
 func ValidCanvasType(value string) bool {
 	switch value {
 	case "inspiration", "workflow":
-		return true
-	default:
-		return false
-	}
-}
-
-func ValidRefType(value string) bool {
-	switch value {
-	case "script", "asset_slot", "content_unit":
-		return true
-	default:
-		return false
-	}
-}
-
-func SingleCanvasRefType(refType string) bool {
-	switch strings.TrimSpace(refType) {
-	case "production", "content_unit", "asset_slot":
 		return true
 	default:
 		return false
@@ -192,66 +121,4 @@ func WorkflowBootstrapGraph(canvasID uint) ([]CanvasNode, CanvasEdge) {
 	}
 	edge := CanvasEdge{CanvasID: canvasID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
 	return nodes, edge
-}
-
-func NewAssetSlotTargetNode(input AssetSlotTargetNodeInput) CanvasNode {
-	title := strings.TrimSpace(input.AssetName)
-	if title == "" {
-		title = strings.TrimSpace(input.FallbackLabel)
-	}
-	if title == "" {
-		title = "素材位"
-	}
-	portType := AssetSlotCanvasPortType(input.AssetKind)
-	data, _ := json.Marshal(map[string]any{
-		"source":        "manual",
-		"label":         title,
-		"entityKind":    "asset_slot",
-		"entityId":      input.AssetSlotID,
-		"entityTitle":   title,
-		"assetSlotKind": input.AssetKind,
-		"textContent":   title,
-		"inputPorts": []map[string]any{
-			{"id": "candidates", "type": portType, "label": "候选集", "maxCount": 12},
-			{"id": "candidate_item", "type": portType, "label": "单个候选"},
-		},
-		"outputPorts": []map[string]any{
-			{"id": "reference", "type": "resource", "label": "参考图"},
-			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
-			{"id": "creative_reference_id", "type": "number", "label": "所属设定资料"},
-		},
-	})
-	return CanvasNode{
-		CanvasID: input.CanvasID,
-		NodeID:   "asset-slot-target",
-		Type:     "entity_card",
-		Label:    title,
-		PosX:     520,
-		PosY:     180,
-		Data:     string(data),
-	}
-}
-
-func AssetSlotCanvasPortType(kind string) string {
-	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "image", "video", "audio", "text":
-		return strings.ToLower(strings.TrimSpace(kind))
-	default:
-		return "resource"
-	}
-}
-
-func NewEntityWriteAudit(spec EntityWriteAuditSpec) EntityWriteAudit {
-	return EntityWriteAudit{
-		CanvasID:           spec.CanvasID,
-		CanvasRunID:        spec.CanvasRunID,
-		CanvasNodeID:       strings.TrimSpace(spec.CanvasNodeID),
-		PortID:             strings.TrimSpace(spec.PortID),
-		EntityKind:         strings.TrimSpace(spec.EntityKind),
-		EntityID:           spec.EntityID,
-		UserID:             spec.UserID,
-		OldValueJSON:       strings.TrimSpace(spec.OldValueJSON),
-		NewValueJSON:       strings.TrimSpace(spec.NewValueJSON),
-		ResourceBindingIDs: strings.TrimSpace(spec.ResourceBindingIDs),
-	}
 }

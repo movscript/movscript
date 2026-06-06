@@ -39,12 +39,12 @@ test('production orchestration lookup groups references and asset slots by owner
     segments: [{ ID: 1, title: '开场' }],
     sceneMoments: [{ ID: 2, segment_id: 1, title: '敲门' }],
     contentUnits: [{ ID: 3, scene_moment_id: 2, title: '门把手特写' }],
-    creativeReferences: [{ ID: 4, name: '主角' }],
-    creativeReferenceUsages: [
-      { ID: 5, owner_type: 'scene_moment', owner_id: 2, creative_reference_id: 4 },
+    settings: [{ ID: 4, name: '主角' }],
+    settingUsages: [
+      { ID: 5, owner_type: 'scene_moment', owner_id: 2, setting_id: 4 },
     ],
     assetSlots: [
-      { ID: 6, owner_type: 'scene_moment', owner_id: 2, creative_reference_id: 4, name: '手部参考' },
+      { ID: 6, owner_type: 'scene_moment', owner_id: 2, setting_id: 4, name: '手部参考' },
     ],
   })
 
@@ -53,7 +53,7 @@ test('production orchestration lookup groups references and asset slots by owner
   assert.equal(lookup.segmentById.get(1)?.title, '开场')
   assert.equal(lookup.sceneMomentById.get(2)?.title, '敲门')
   assert.equal(lookup.contentUnitById.get(3)?.title, '门把手特写')
-  assert.equal(lookup.creativeReferenceById.get(4)?.name, '主角')
+  assert.equal(lookup.settingById.get(4)?.name, '主角')
   assert.equal(lookup.usagesByOwnerKey.get('scene_moment:2')?.[0].ID, 5)
   assert.equal(lookup.usagesByReferenceId.get(4)?.[0].ID, 5)
   assert.equal(lookup.assetSlotsByOwnerKey.get('scene_moment:2')?.[0].ID, 6)

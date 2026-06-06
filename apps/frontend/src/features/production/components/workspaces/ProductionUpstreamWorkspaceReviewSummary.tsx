@@ -30,14 +30,14 @@ interface InlinePreProductionWorkspaceEntry {
   detail: string
   target: string
   changeType: 'added' | 'modified' | 'deleted'
-  kind: 'creative_references' | 'asset_slots'
+  kind: 'settings' | 'asset_slots'
   raw: Record<string, unknown>
 }
 
 interface InlinePreProductionWorkspaceView {
   mode: 'patch' | 'snapshot'
   summary: string
-  creativeReferences: InlinePreProductionWorkspaceEntry[]
+  settings: InlinePreProductionWorkspaceEntry[]
   assetSlots: InlinePreProductionWorkspaceEntry[]
   impactNotes: string[]
 }
@@ -47,19 +47,19 @@ export function ProductionUpstreamWorkspaceReviewSummary({
   assetWorkspaceArtifact,
   projectName,
   productionName,
-  creativeReferences,
+  settings,
   assetSlots,
 }: {
   settingWorkspace: WorkspaceArtifact | null | undefined
   assetWorkspaceArtifact: WorkspaceArtifact | null | undefined
   projectName: string
   productionName: string
-  creativeReferences: WorkspaceEntityRecord[]
+  settings: WorkspaceEntityRecord[]
   assetSlots: WorkspaceEntityRecord[]
 }) {
-  const settingView = useMemo(() => parseInlinePreProductionWorkspaceArtifact(settingWorkspace, creativeReferences, []), [creativeReferences, settingWorkspace])
+  const settingView = useMemo(() => parseInlinePreProductionWorkspaceArtifact(settingWorkspace, settings, []), [settings, settingWorkspace])
   const assetWorkspaceView = useMemo(() => parseInlinePreProductionWorkspaceArtifact(assetWorkspaceArtifact, [], assetSlots), [assetWorkspaceArtifact, assetSlots])
-  const deletedCount = (settingView?.creativeReferences ?? []).filter((entry) => entry.changeType === 'deleted').length
+  const deletedCount = (settingView?.settings ?? []).filter((entry) => entry.changeType === 'deleted').length
     + (assetWorkspaceView?.assetSlots ?? []).filter((entry) => entry.changeType === 'deleted').length
   const hasWorkspace = Boolean(settingWorkspace || assetWorkspaceArtifact)
 
@@ -93,7 +93,7 @@ export function ProductionUpstreamWorkspaceReviewSummary({
     >
       <ReviewWorkspaceUpstreamMetricGrid
         metrics={[
-          { label: '设定资料', value: `${settingView?.creativeReferences.length ?? 0} 项` },
+          { label: '设定资料', value: `${settingView?.settings.length ?? 0} 项` },
           { label: '素材需求', value: `${assetWorkspaceView?.assetSlots.length ?? 0} 项` },
           { label: '影响说明', value: `${(settingView?.impactNotes.length ?? 0) + (assetWorkspaceView?.impactNotes.length ?? 0)} 项` },
           { label: '删除候选', value: `${deletedCount} 项`, impact: 'destructive' },
@@ -103,7 +103,7 @@ export function ProductionUpstreamWorkspaceReviewSummary({
         {[settingView?.summary, assetWorkspaceView?.summary].filter(Boolean).join(' / ')}
       </ReviewWorkspaceUpstreamSummary>
       <ReviewWorkspaceUpstreamPreviewGrid>
-        <ReviewWorkspaceUpstreamEntryPreview title="设定资料" empty="没有设定草案。" entries={reviewWorkspaceUpstreamEntries(settingView?.creativeReferences ?? [])} />
+        <ReviewWorkspaceUpstreamEntryPreview title="设定资料" empty="没有设定草案。" entries={reviewWorkspaceUpstreamEntries(settingView?.settings ?? [])} />
         <ReviewWorkspaceUpstreamEntryPreview title="素材需求" empty="没有素材需求草案。" entries={reviewWorkspaceUpstreamEntries(assetWorkspaceView?.assetSlots ?? [])} />
       </ReviewWorkspaceUpstreamPreviewGrid>
     </ReviewWorkspaceUpstreamSection>
@@ -122,7 +122,7 @@ function reviewWorkspaceUpstreamEntries(entries: InlinePreProductionWorkspaceEnt
 
 function parseInlinePreProductionWorkspaceArtifact(
   workspace: WorkspaceArtifact | null | undefined,
-  creativeReferenceRecords: WorkspaceEntityRecord[] = [],
+  settingRecords: WorkspaceEntityRecord[] = [],
   assetSlotRecords: WorkspaceEntityRecord[] = [],
 ): InlinePreProductionWorkspaceView | null {
   if (!workspace) return null
@@ -130,12 +130,12 @@ function parseInlinePreProductionWorkspaceArtifact(
     const content = JSON.parse(workspace.content) as Record<string, unknown>
     const workspacePayload = isRecord(content.workspace) ? content.workspace : {}
     const mode = content.mode === 'snapshot' ? 'snapshot' as const : 'patch' as const
-    const creativeReferences = asRecordArray(workspacePayload.creative_references).map((item, index) => {
+    const settings = asRecordArray(workspacePayload.settings).map((item, index) => {
       const id = preProductionWorkspaceItemId(item)
       const changeType = inlinePreProductionWorkspaceChangeType(item)
       return {
-        key: `${workspace.id}:creative_references:${index}`,
-        kind: 'creative_references' as const,
+        key: `${workspace.id}:settings:${index}`,
+        kind: 'settings' as const,
         title: asString(workspaceField(item, ['name', 'title', 'label', 'kind']), `设定建议 #${index + 1}`),
         detail: asString(workspaceField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
         changeType,
@@ -157,8 +157,8 @@ function parseInlinePreProductionWorkspaceArtifact(
       }
     })
     const snapshotDeleted = mode === 'snapshot'
-      ? inferInlinePreProductionWorkspaceSnapshotDeletes(workspace, workspacePayload, creativeReferenceRecords, assetSlotRecords)
-      : { creativeReferences: [], assetSlots: [] }
+      ? inferInlinePreProductionWorkspaceSnapshotDeletes(workspace, workspacePayload, settingRecords, assetSlotRecords)
+      : { settings: [], assetSlots: [] }
     const impactNotes = [
       ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
       ...(Array.isArray(content.impact_notes) ? content.impact_notes.map((item) => asString(item)).filter(Boolean) : []),
@@ -166,7 +166,7 @@ function parseInlinePreProductionWorkspaceArtifact(
     return {
       mode,
       summary: asString(content.summary, '暂无摘要'),
-      creativeReferences: [...creativeReferences, ...snapshotDeleted.creativeReferences],
+      settings: [...settings, ...snapshotDeleted.settings],
       assetSlots: [...assetSlots, ...snapshotDeleted.assetSlots],
       impactNotes,
     }
@@ -178,18 +178,18 @@ function parseInlinePreProductionWorkspaceArtifact(
 function inferInlinePreProductionWorkspaceSnapshotDeletes(
   workspace: WorkspaceArtifact,
   workspacePayload: Record<string, unknown>,
-  creativeReferenceRecords: WorkspaceEntityRecord[],
+  settingRecords: WorkspaceEntityRecord[],
   assetSlotRecords: WorkspaceEntityRecord[],
 ) {
-  const proposedReferenceIds = new Set(asRecordArray(workspacePayload.creative_references).map(preProductionWorkspaceItemId).filter((id) => id > 0))
+  const proposedReferenceIds = new Set(asRecordArray(workspacePayload.settings).map(preProductionWorkspaceItemId).filter((id) => id > 0))
   const proposedAssetSlotIds = new Set(asRecordArray(workspacePayload.asset_slots).map(preProductionWorkspaceItemId).filter((id) => id > 0))
-  const creativeReferences = creativeReferenceRecords
+  const settings = settingRecords
     .filter((record) => !['ignored', 'merged'].includes(String(record.status ?? '')))
     .flatMap((record) => {
       if (proposedReferenceIds.has(record.ID)) return []
       return [{
-        key: `${workspace.id}:creative_references:delete:${record.ID}`,
-        kind: 'creative_references' as const,
+        key: `${workspace.id}:settings:delete:${record.ID}`,
+        kind: 'settings' as const,
         title: titleOfRecord(record),
         detail: String(record.description ?? '新工作区未包含此设定，按 snapshot 语义视为删除候选。'),
         target: `移出 #${record.ID}`,
@@ -211,7 +211,7 @@ function inferInlinePreProductionWorkspaceSnapshotDeletes(
         raw: { id: record.ID, fields: { name: titleOfRecord(record), status: 'waived', kind: String(record.kind ?? 'image') } },
       }]
     })
-  return { creativeReferences, assetSlots }
+  return { settings, assetSlots }
 }
 
 function inlinePreProductionWorkspaceChangeType(item: Record<string, unknown>): InlinePreProductionWorkspaceEntry['changeType'] {

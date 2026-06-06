@@ -1,13 +1,14 @@
 import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
 import { api } from '@/shared/infrastructure/api'
 import { invalidateAssetCandidateConsumers } from '@/shared/infrastructure/assetCandidateQueryInvalidation'
+import { preProductionWorkspaceDataQueryKey } from '@/features/pre-production/application/preProductionDataController'
+import { savePreProductionWorkspaceAssetSlot } from '@/features/pre-production/application/preProductionWorkspaceRepository'
 import {
   buildPreProductionLibraryCandidatePayload,
   buildPreProductionUploadCandidatePayload,
 } from '@/features/pre-production/domain/preProductionAssetCandidateWrite'
 import {
   assetSlotHasLoadedResource,
-  buildAssetCandidatePatchPayload,
   type AssetSlotCandidateRecord,
   type AssetSlotViewModel,
 } from '@/features/pre-production/domain/preProductionAssetRows'
@@ -36,6 +37,7 @@ export function invalidatePreProductionAssetCandidateState(
   queryClient: PreProductionCandidateQueryClient,
   projectId?: number,
 ) {
+  void queryClient.invalidateQueries({ queryKey: [...preProductionWorkspaceDataQueryKey(projectId)] })
   invalidateAssetCandidateConsumers(queryClient, projectId)
 }
 
@@ -51,27 +53,23 @@ export async function selectPreProductionAssetCandidate({
   const scopedProjectId = requirePreProductionProjectId(projectId)
   if (!candidate.candidate_asset_slot_id) throw new Error('候选缺少素材位')
   if (!assetSlotHasLoadedResource(candidate.candidate_asset_slot)) throw new Error('候选资源不存在或未加载')
-  await api.patch(
-    `/projects/${scopedProjectId}/entities/asset-slot-candidates/${candidate.ID}`,
-    buildAssetCandidatePatchPayload(row.slot.ID, candidate, 'selected'),
-  )
+  await savePreProductionWorkspaceAssetSlot(scopedProjectId, row.slot, {
+    locked_asset_slot_id: candidate.candidate_asset_slot_id,
+    status: 'locked',
+  })
 }
 
 export async function rejectPreProductionAssetCandidate({
   projectId,
-  row,
   candidate,
 }: {
   projectId?: number
-  row: AssetSlotViewModel
   candidate: AssetSlotCandidateRecord
 }) {
   const scopedProjectId = requirePreProductionProjectId(projectId)
   if (!candidate.candidate_asset_slot_id) throw new Error('候选缺少素材位')
-  await api.patch(
-    `/projects/${scopedProjectId}/entities/asset-slot-candidates/${candidate.ID}`,
-    buildAssetCandidatePatchPayload(row.slot.ID, candidate, 'rejected'),
-  )
+  if (!candidate.candidate_asset_slot) throw new Error('候选素材位不存在')
+  await savePreProductionWorkspaceAssetSlot(scopedProjectId, candidate.candidate_asset_slot, { status: 'rejected' })
 }
 
 export async function addPreProductionAssetCandidate({
@@ -82,7 +80,7 @@ export async function addPreProductionAssetCandidate({
   payload: SemanticEntityPayload
 }) {
   const scopedProjectId = requirePreProductionProjectId(projectId)
-  return api.post(`/projects/${scopedProjectId}/entities/asset-slot-candidates`, payload).then((response) => response.data)
+  return savePreProductionWorkspaceAssetSlot(scopedProjectId, null, localCandidateAssetSlotPayload(payload))
 }
 
 export async function attachPreProductionLibraryCandidate({
@@ -142,8 +140,8 @@ export function buildPreProductionRejectCandidateMutationOptions({
   queryClient,
 }: PreProductionCandidateMutationOptions) {
   return {
-    mutationFn: ({ row, candidate }: { row: AssetSlotViewModel; candidate: AssetSlotCandidateRecord }) =>
-      rejectPreProductionAssetCandidate({ projectId, row, candidate }),
+    mutationFn: ({ candidate }: { row: AssetSlotViewModel; candidate: AssetSlotCandidateRecord }) =>
+      rejectPreProductionAssetCandidate({ projectId, candidate }),
     onSuccess: () => {
       invalidatePreProductionAssetCandidateState(queryClient, projectId)
       toast.success('素材候选已拒绝')
@@ -207,5 +205,20 @@ export function buildPreProductionUploadCandidateMutationOptions({
     onSettled: () => {
       onSettled?.()
     },
+  }
+}
+
+function localCandidateAssetSlotPayload(payload: SemanticEntityPayload): SemanticEntityPayload {
+  const parentSlotId = typeof payload.asset_slot_id === 'number' ? payload.asset_slot_id : Number(payload.asset_slot_id) || 0
+  if (!parentSlotId) throw new Error('候选缺少父素材需求')
+  return {
+    kind: typeof payload.kind === 'string' ? payload.kind : 'image',
+    name: typeof payload.note === 'string' && payload.note.trim() ? payload.note : `候选素材 #${payload.resource_id ?? ''}`.trim(),
+    description: typeof payload.note === 'string' ? payload.note : null,
+    status: typeof payload.status === 'string' ? payload.status : 'candidate',
+    priority: 'normal',
+    owner_type: 'asset_slot',
+    owner_id: parentSlotId,
+    resource_id: typeof payload.resource_id === 'number' ? payload.resource_id : Number(payload.resource_id) || null,
   }
 }

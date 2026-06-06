@@ -17,7 +17,7 @@ export type WorkspaceRecord = SemanticEntityRecord & {
   total_episodes?: number
   priority?: string
   production_id?: number | null
-  creative_reference_id?: number | null
+  setting_id?: number | null
   owner_type?: string
   owner_id?: number | null
   source_type?: string
@@ -28,9 +28,9 @@ export type WorkspaceRecord = SemanticEntityRecord & {
 export interface WorkspaceData {
   project: WorkspaceRecord | null
   productions: WorkspaceRecord[]
-  creativeReferences: WorkspaceRecord[]
+  settings: WorkspaceRecord[]
   creativeRelationships: WorkspaceRecord[]
-  creativeReferenceUsages: WorkspaceRecord[]
+  settingUsages: WorkspaceRecord[]
   assetSlots: WorkspaceRecord[]
   assetSlotCandidates: WorkspaceRecord[]
   segments: WorkspaceRecord[]
@@ -148,9 +148,9 @@ export const STYLE_REFERENCE_RULE_KEY = 'style_reference_images'
 export const emptyData: WorkspaceData = {
   project: null,
   productions: [],
-  creativeReferences: [],
+  settings: [],
   creativeRelationships: [],
-  creativeReferenceUsages: [],
+  settingUsages: [],
   assetSlots: [],
   assetSlotCandidates: [],
   segments: [],
@@ -459,9 +459,9 @@ export async function loadProjectStandardsWorkspaceData(projectId: number): Prom
   const [
     project,
     productions,
-    creativeReferences,
+    settings,
     creativeRelationships,
-    creativeReferenceUsages,
+    settingUsages,
     assetSlots,
     assetSlotCandidates,
     segments,
@@ -473,9 +473,9 @@ export async function loadProjectStandardsWorkspaceData(projectId: number): Prom
       return null
     }),
     safeList(projectId, 'productions'),
-    safeList(projectId, 'creativeReferences'),
+    safeList(projectId, 'settings'),
     safeList(projectId, 'creativeRelationships'),
-    safeList(projectId, 'creativeReferenceUsages'),
+    safeList(projectId, 'settingUsages'),
     safeList(projectId, 'assetSlots'),
     safeList(projectId, 'assetSlotCandidates'),
     safeList(projectId, 'segments'),
@@ -486,9 +486,9 @@ export async function loadProjectStandardsWorkspaceData(projectId: number): Prom
   return {
     project: project as WorkspaceRecord | null,
     productions,
-    creativeReferences,
+    settings,
     creativeRelationships,
-    creativeReferenceUsages,
+    settingUsages,
     assetSlots,
     assetSlotCandidates,
     segments,

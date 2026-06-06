@@ -75,8 +75,8 @@ interface ProjectHomeData {
   productions: HomeRecord[]
   storyboardScripts: HomeRecord[]
   previewTimelines: HomeRecord[]
-  creativeReferences: HomeRecord[]
-  creativeReferenceUsages: HomeRecord[]
+  settings: HomeRecord[]
+  settingUsages: HomeRecord[]
   creativeRelationships: HomeRecord[]
   assetSlots: HomeRecord[]
   assetSlotCandidates: HomeRecord[]
@@ -116,8 +116,8 @@ const emptyHomeData: ProjectHomeData = {
   productions: [],
   storyboardScripts: [],
   previewTimelines: [],
-  creativeReferences: [],
-  creativeReferenceUsages: [],
+  settings: [],
+  settingUsages: [],
   creativeRelationships: [],
   assetSlots: [],
   assetSlotCandidates: [],
@@ -203,8 +203,8 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     productions,
     storyboardScripts,
     previewTimelines,
-    creativeReferences,
-    creativeReferenceUsages,
+    settings,
+    settingUsages,
     creativeRelationships,
     assetSlots,
     assetSlotCandidates,
@@ -219,8 +219,8 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     safeListSemanticEntities(projectId, 'productions'),
     safeListSemanticEntities(projectId, 'storyboardScripts'),
     safeListSemanticEntities(projectId, 'previewTimelines'),
-    safeListSemanticEntities(projectId, 'creativeReferences'),
-    safeListSemanticEntities(projectId, 'creativeReferenceUsages'),
+    safeListSemanticEntities(projectId, 'settings'),
+    safeListSemanticEntities(projectId, 'settingUsages'),
     safeListSemanticEntities(projectId, 'creativeRelationships'),
     safeListSemanticEntities(projectId, 'assetSlots'),
     safeListSemanticEntities(projectId, 'assetSlotCandidates'),
@@ -237,8 +237,8 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     productions,
     storyboardScripts,
     previewTimelines,
-    creativeReferences,
-    creativeReferenceUsages,
+    settings,
+    settingUsages,
     creativeRelationships,
     assetSlots,
     assetSlotCandidates,
@@ -374,7 +374,7 @@ export default function ProjectOverviewPage() {
     const productionProgress = data.productions.length
       ? Math.round(data.productions.reduce((sum, item) => sum + numberOf(item.progress), 0) / data.productions.length)
       : 0
-    const confirmedReferences = statusCount(data.creativeReferences, ['confirmed', 'locked', 'merged'])
+    const confirmedReferences = statusCount(data.settings, ['confirmed', 'locked', 'merged'])
     const confirmedRelationships = statusCount(data.creativeRelationships, ['confirmed', 'corrected'])
     const missingAssets = statusCount(data.assetSlots, ['missing'])
     const activeAssetSlotCandidates = data.assetSlotCandidates.filter(assetSlotCandidateIsActive)
@@ -418,11 +418,11 @@ export default function ProjectOverviewPage() {
       project?.visual_style,
       project?.project_style,
       data.scriptVersions.length > 0,
-      data.productions.length > 0 || data.creativeReferences.length > 0,
+      data.productions.length > 0 || data.settings.length > 0,
     ].filter(Boolean).length
     const standardsProgress = percentage(standardsDone, standardsTotal)
 
-    const preProductionTotal = data.creativeReferences.length + data.creativeRelationships.length + data.assetSlots.length
+    const preProductionTotal = data.settings.length + data.creativeRelationships.length + data.assetSlots.length
     const preProductionDone = counts.confirmedReferences + counts.confirmedRelationships + counts.lockedAssets
     const preProductionProgress = preProductionTotal > 0 ? percentage(preProductionDone, preProductionTotal) : standardsProgress > 0 ? 20 : 0
 
@@ -440,7 +440,7 @@ export default function ProjectOverviewPage() {
         description: standards.purpose,
         primaryLabel: '项目规范',
         primaryValue: standardsDone,
-        secondary: `${data.scriptVersions.length} 个剧本版本，${data.creativeReferences.length} 个设定资料可继承规范`,
+        secondary: `${data.scriptVersions.length} 个剧本版本，${data.settings.length} 个设定资料可继承规范`,
         progress: standardsProgress,
         state: standardsProgress >= 70 ? 'ready' : standardsProgress > 0 ? 'active' : 'empty',
         href: standards.route,

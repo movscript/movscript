@@ -143,8 +143,8 @@ export function ProductionWorkspaceContextPanel({
 }) {
   return (
     <ProductionWorkspaceContextStack>
-      <ProductionWorkspaceContextGroup icon={Sparkles} title="设定资料" count={context.creativeReferences.length} empty="本工作区没有设定资料引用">
-        {context.creativeReferences.map((item, index) => (
+      <ProductionWorkspaceContextGroup icon={Sparkles} title="设定资料" count={context.settings.length} empty="本工作区没有设定资料引用">
+        {context.settings.map((item, index) => (
           <ProductionWorkspaceContextItemRow
             key={`${item.nodeKey}-${index}`}
             action={item.action}

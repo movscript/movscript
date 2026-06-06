@@ -1,4 +1,4 @@
-import { setMCPAPIBaseURL } from '../mcp/server'
+import { setMovScriptBackendAPIBaseURL } from '@movscript/core/backend/node'
 import {
   getBackendLaunchPolicy,
   LOCAL_BACKEND_URL,
@@ -19,7 +19,7 @@ async function bootstrapBackendServices(): Promise<boolean> {
   }
 
   console.info(`[bootstrap] local backend ready at ${LOCAL_BACKEND_URL}; provider sessions will use this backend by default`)
-  setMCPAPIBaseURL(LOCAL_BACKEND_URL)
+  setMovScriptBackendAPIBaseURL(LOCAL_BACKEND_URL)
   return true
 }
 

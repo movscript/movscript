@@ -4,7 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceCandidateAttachPanel, type CandidateResourceRef } from '@/shared/ui/ResourceCandidateAttachPanel'
-import { api } from '@/shared/infrastructure/api'
+import {
+  createWorkspaceAssetSlotCandidate,
+  createWorkspaceKeyframeCandidate,
+} from '@/shared/infrastructure/workspaceCandidateRepository'
 import { attachmentToResource } from '@/features/agent/domain/agentAttachments'
 import { AgentAttachmentIcon, AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
@@ -26,7 +29,6 @@ import {
   pendingGeneratedCandidateAttachments,
 } from '@/features/agent/domain/agentGeneratedResourceBinding'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
-import type { AssetSlotCandidate } from '@/types'
 import {
   AgentGeneratedCandidateActionButton,
   AgentGeneratedCandidateBadge,
@@ -517,11 +519,9 @@ async function attachGeneratedCandidate(
   attachment: AgentAttachment,
 ) {
   if (targetType === 'keyframe') {
-    const { data } = await api.post<SemanticEntityRecord>(`/projects/${projectId}/entities/keyframes`, generatedKeyframeCandidatePayload(targetRecord, attachment))
-    return data
+    return createWorkspaceKeyframeCandidate(projectId, generatedKeyframeCandidatePayload(targetRecord, attachment))
   }
-  const { data } = await api.post<AssetSlotCandidate>(`/projects/${projectId}/entities/asset-slot-candidates`, generatedCandidateAttachPayload(targetId, attachment))
-  return data
+  return createWorkspaceAssetSlotCandidate(projectId, generatedCandidateAttachPayload(targetId, attachment), targetRecord)
 }
 
 function generatedResultBreadcrumb(attachment: AgentAttachment, resourceId: number | undefined) {

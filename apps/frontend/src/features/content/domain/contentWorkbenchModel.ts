@@ -54,8 +54,8 @@ export type ContentWorkbenchRecord = SemanticEntityRecord & {
   end_line?: number
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
-  creative_reference_state_id?: number
+  setting_id?: number
+  setting_state_id?: number
   kind?: string
   name?: string
   priority?: string
@@ -89,8 +89,8 @@ export interface ProductionWorkbenchData {
   productions: ContentWorkbenchRecord[]
   segments: ContentWorkbenchRecord[]
   sceneMoments: ContentWorkbenchRecord[]
-  creativeReferences: ContentWorkbenchRecord[]
-  creativeReferenceUsages: ContentWorkbenchRecord[]
+  settings: ContentWorkbenchRecord[]
+  settingUsages: ContentWorkbenchRecord[]
   contentUnits: ContentWorkbenchRecord[]
   assetSlots: ContentWorkbenchRecord[]
   keyframes: ContentWorkbenchRecord[]
@@ -122,12 +122,12 @@ export interface ContentGenerationMomentRow {
 }
 
 export async function loadContentWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
-  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, contentUnits, assetSlots, keyframes, scriptBlocks, previewTimelines, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+  const [productions, segments, sceneMoments, settings, settingUsages, contentUnits, assetSlots, keyframes, scriptBlocks, previewTimelines, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
-    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
-    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
+    listSemanticEntities(projectId, semanticEntityConfig('settings')),
+    listSemanticEntities(projectId, semanticEntityConfig('settingUsages')),
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
@@ -141,8 +141,8 @@ export async function loadContentWorkbenchData(projectId: number): Promise<Produ
     productions: productions as ContentWorkbenchRecord[],
     segments: segments as ContentWorkbenchRecord[],
     sceneMoments: sceneMoments as ContentWorkbenchRecord[],
-    creativeReferences: creativeReferences as ContentWorkbenchRecord[],
-    creativeReferenceUsages: creativeReferenceUsages as ContentWorkbenchRecord[],
+    settings: settings as ContentWorkbenchRecord[],
+    settingUsages: settingUsages as ContentWorkbenchRecord[],
     contentUnits: contentUnits as ContentWorkbenchRecord[],
     assetSlots: assetSlots as ContentWorkbenchRecord[],
     keyframes: keyframes as ContentWorkbenchRecord[],
@@ -177,8 +177,8 @@ export function buildContentGenerationMomentRows(data?: ProductionWorkbenchData)
   const assetSlotsData = data.assetSlots ?? []
   const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
   const scriptBlocksData = data.scriptBlocks ?? []
-  const creativeReferences = (data.creativeReferences ?? []).filter(isVisibleContentWorkbenchRecord)
-  const creativeReferenceUsages = (data.creativeReferenceUsages ?? []).filter(isVisibleContentWorkbenchRecord)
+  const settings = (data.settings ?? []).filter(isVisibleContentWorkbenchRecord)
+  const settingUsages = (data.settingUsages ?? []).filter(isVisibleContentWorkbenchRecord)
   const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot' && isVisibleContentWorkbenchRecord(slot))
   return sceneMoments
     .slice()
@@ -196,13 +196,13 @@ export function buildContentGenerationMomentRows(data?: ProductionWorkbenchData)
       units.forEach((unit) => {
         if (unit.production_id) productionIds.add(Number(unit.production_id))
       })
-      const referenceUsages = creativeReferenceUsages
+      const referenceUsages = settingUsages
         .filter((usage) => (
           (usage.owner_type === 'scene_moment' && Number(usage.owner_id) === moment.ID) ||
           (usage.owner_type === 'content_unit' && usage.owner_id ? unitIds.has(Number(usage.owner_id)) : false)
         ))
       const usageReferenceIds = referenceUsages
-        .map((usage) => Number(usage.creative_reference_id))
+        .map((usage) => Number(usage.setting_id))
         .filter((id) => Number.isFinite(id) && id > 0)
       const scriptBlockIds = new Set([
         Number(moment.script_block_id) || 0,
@@ -217,17 +217,17 @@ export function buildContentGenerationMomentRows(data?: ProductionWorkbenchData)
         (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
       ))
       const scopedReferenceIds = new Set(usageReferenceIds)
-      for (const slot of assetSlots) addRecordId(scopedReferenceIds, slot.creative_reference_id)
-      const scopedReferences = creativeReferences.filter((reference) => scopedReferenceIds.has(reference.ID))
-      const references = dedupeRecords(scopedReferences.length > 0 ? scopedReferences : creativeReferences)
+      for (const slot of assetSlots) addRecordId(scopedReferenceIds, slot.setting_id)
+      const scopedReferences = settings.filter((reference) => scopedReferenceIds.has(reference.ID))
+      const references = dedupeRecords(scopedReferences.length > 0 ? scopedReferences : settings)
       const referenceIds = new Set(references.map((reference) => reference.ID))
       const referenceAssetSlots = visibleAssetSlots.filter((slot) => (
-        (slot.creative_reference_id && referenceIds.has(Number(slot.creative_reference_id))) ||
-        (slot.owner_type === 'creative_reference' && slot.owner_id && referenceIds.has(Number(slot.owner_id)))
+        (slot.setting_id && referenceIds.has(Number(slot.setting_id))) ||
+        (slot.owner_type === 'setting' && slot.owner_id && referenceIds.has(Number(slot.owner_id)))
       ))
       const projectAssetSlots = assetSlots.length > 0 || referenceAssetSlots.length > 0
         ? []
-        : visibleAssetSlots.filter((slot) => !slot.owner_type || slot.owner_type === 'creative_reference')
+        : visibleAssetSlots.filter((slot) => !slot.owner_type || slot.owner_type === 'setting')
       const effectiveAssetSlots = dedupeRecords([...assetSlots, ...referenceAssetSlots, ...projectAssetSlots])
       const missingSlots = effectiveAssetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
       const previewTimelineIds = bestPreviewTimelineIdsForProductionIds(productionIds, data)
@@ -294,20 +294,20 @@ export function buildGenerationContextStandards(context?: GenerationContext): Wo
   }
   const assetSlots = Array.isArray(context.asset_slots) ? context.asset_slots : []
   const keyframes = Array.isArray(context.keyframes) ? context.keyframes : []
-  const creativeReferences = Array.isArray(context.creative_references) ? context.creative_references : []
+  const settings = Array.isArray(context.settings) ? context.settings : []
   const lockedAssets = assetSlots.filter((slot) => isGenerationAssetUsable(slot)).length
   const missingAssets = assetSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
   const hasTargetPrompt = Boolean(firstText(target.prompt, target.description))
   const hasScriptSource = Boolean(context.script_block)
   const hasStoryContext = Boolean(context.scene_moment || context.segment)
-  const hasContinuity = creativeReferences.length > 0
+  const hasContinuity = settings.length > 0
   const assetsReady = assetSlots.length > 0 && missingAssets === 0 && lockedAssets > 0
   const hasKeyframe = keyframes.length > 0
   return [
     { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, state: workbenchGateState(hasTargetPrompt) },
     { label: '剧本来源稳定', detail: hasScriptSource ? scriptBlockContextLabel(context.script_block) : '未绑定不可变剧本块，生成缺少可追溯的剧本行文', done: hasScriptSource, state: workbenchGateState(hasScriptSource) },
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, state: workbenchGateState(hasStoryContext) },
-    { label: '连续性资料可用', detail: hasContinuity ? `${creativeReferences.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, state: workbenchGateState(hasContinuity) },
+    { label: '连续性资料可用', detail: hasContinuity ? `${settings.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, state: workbenchGateState(hasContinuity) },
     { label: '素材输入可用', detail: assetSlots.length === 0 ? '未找到素材需求或参考素材' : `${assetSlots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, state: workbenchGateState(assetsReady) },
     { label: '首帧/画面锚点', detail: hasKeyframe ? `${keyframes.length} 个画面锚点可作为视频生成锚点` : '视频生成前建议先创建或采纳开头、结尾等画面锚点', done: hasKeyframe, state: workbenchGateState(hasKeyframe) },
   ]
@@ -317,11 +317,11 @@ export function buildGenerationContextRows(context?: GenerationContext): Workben
   if (!context) return []
   const target = context.target?.content_unit
   if (!target) return []
-  const creativeReferences = Array.isArray(context.creative_references) ? context.creative_references : []
+  const settings = Array.isArray(context.settings) ? context.settings : []
   const assetSlots = Array.isArray(context.asset_slots) ? context.asset_slots : []
   const keyframes = Array.isArray(context.keyframes) ? context.keyframes : []
   const writeTargets = Array.isArray(context.constraints?.write_targets) ? context.constraints.write_targets : []
-  const referenceNames = creativeReferences
+  const referenceNames = settings
     .map((item) => titleOfRecord(item.state ?? item.reference))
     .filter(Boolean)
   const assetSummary = summarizeGenerationAssets(assetSlots)

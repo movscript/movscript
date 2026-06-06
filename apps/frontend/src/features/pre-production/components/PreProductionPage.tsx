@@ -1,7 +1,7 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { PackageCheck, Pencil, Plus, Save, Sparkles, Trash2, X } from 'lucide-react'
+import { DownloadCloud, PackageCheck, Pencil, Plus, Save, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 
 import { SemanticEntityInlineEditor, type SemanticEntityInlineEditorControlState } from '@/shared/ui/SemanticEntityInlineEditor'
 import { EmptyPreview, SlotStatusBadge } from '@/features/pre-production/components/PreProductionAssetBoard'
@@ -9,7 +9,7 @@ import { AssetSlotDetail } from '@/features/pre-production/components/PreProduct
 import { PreProductionResourceLibraryDialog } from '@/features/pre-production/components/PreProductionResourceLibraryDialog'
 import { PreProductionReviewWorkspace } from '@/features/pre-production/components/PreProductionReviewWorkspace'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
-import { deleteSemanticEntity, type SemanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
+import { type SemanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { readStringParam, type ContentFilterKey } from '@/features/content/presentation/contentFilters'
 import { apiErrorMessage } from '@/features/content/domain/contentWorkbenchStatus'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
@@ -20,7 +20,7 @@ import {
   type AssetSlotRecord,
   type AssetSlotCandidateRecord,
   type AssetSlotViewModel,
-  type CreativeReferenceRecord,
+  type SettingRecord,
   type ReferenceAssetCluster,
 } from '@/features/pre-production/domain/preProductionAssetRows'
 import {
@@ -34,9 +34,16 @@ import {
   buildUpdatePreProductionAssetSlotMutationOptions,
   preProductionAssetSlotCandidatesQueryKey,
   preProductionAssetSlotsQueryKey,
-  preProductionCreativeReferencesQueryKey,
+  preProductionSettingsQueryKey,
+  preProductionWorkspaceDataQueryKey,
   usePreProductionWorkbenchData,
 } from '@/features/pre-production/application/preProductionDataController'
+import {
+  deletePreProductionWorkspaceAssetSlot,
+  deletePreProductionWorkspaceSetting,
+  savePreProductionWorkspaceAssetSlot,
+  savePreProductionWorkspaceSetting,
+} from '@/features/pre-production/application/preProductionWorkspaceRepository'
 import { usePreProductionPageController } from '@/features/pre-production/application/preProductionPageController'
 import { refreshPreProductionWorkbenchContext } from '@/features/pre-production/application/preProductionRefreshController'
 import { usePreProductionResourceLibrary } from '@/features/pre-production/application/preProductionResourceLibrary'
@@ -105,7 +112,7 @@ type PreProductionSettingDetailView = 'setting' | 'assets'
 type PreProductionCardContextTarget = { type: 'asset'; id: number } | { type: 'reference'; id: number }
 type PreProductionDeleteTarget =
   | { type: 'asset'; record: AssetSlotRecord }
-  | { type: 'reference'; record: CreativeReferenceRecord }
+  | { type: 'reference'; record: SettingRecord }
 
 export function PreProductionAssetWorkspace() {
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -125,6 +132,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const [referenceCreateKey, setReferenceCreateKey] = useState<string | number | null>(null)
   const [assetCreateOpen, setAssetCreateOpen] = useState(false)
   const [assetCreateReferenceId, setAssetCreateReferenceId] = useState<string>('')
+  const [workspaceSubmitPreview, setWorkspaceSubmitPreview] = useState<unknown>(null)
   const resourceLibrary = usePreProductionResourceLibrary()
   const reviewController = usePreProductionReviewController({ projectId, searchParams, setSearchParams })
   const { workspaceView, assetWorkspaceArtifactsQuery, settingWorkspaceArtifactsQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
@@ -132,13 +140,21 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const {
     slotConfig,
     referenceConfig,
-    creativeReferences,
+    settings,
     slots,
     visibleSlots,
     rows,
     referenceById,
     clusters,
   } = preProductionData
+  const workspaceActionNamespace = projectId ? `movscript.project:${projectId}` : ''
+  const referenceLookupOptions = useMemo(() => ({
+    setting_id: settings.map((reference) => ({
+      value: String(reference.ID),
+      label: reference.name || reference.alias || `设定 #${reference.ID}`,
+    })),
+    setting_state_id: [],
+  }), [settings])
   const pageController = usePreProductionPageController({
     projectId,
     route: ROUTES.project.preProduction,
@@ -176,24 +192,28 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const deletePrepEntityMutation = useMutation({
     mutationFn: ({ type, record }: PreProductionDeleteTarget) => {
       if (!projectId) throw new Error('请先选择项目')
-      return deleteSemanticEntity(projectId, type === 'asset' ? slotConfig : referenceConfig, record.ID)
+      return type === 'asset'
+        ? deletePreProductionWorkspaceAssetSlot(projectId, record)
+        : deletePreProductionWorkspaceSetting(projectId, record)
     },
     onSuccess: async (_result, target) => {
       if (target.type === 'asset') {
         await Promise.all([
+          queryClient.invalidateQueries({ queryKey: preProductionWorkspaceDataQueryKey(projectId) }),
           queryClient.invalidateQueries({ queryKey: preProductionAssetSlotsQueryKey(projectId) }),
           queryClient.invalidateQueries({ queryKey: preProductionAssetSlotCandidatesQueryKey(projectId) }),
         ])
         if (selected?.slot.ID === target.record.ID) handleSlotDeleted()
-        toast.success('素材需求已删除')
+        toast.success('素材需求已从当前工作区删除')
         return
       }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: preProductionCreativeReferencesQueryKey(projectId) }),
+        queryClient.invalidateQueries({ queryKey: preProductionWorkspaceDataQueryKey(projectId) }),
+        queryClient.invalidateQueries({ queryKey: preProductionSettingsQueryKey(projectId) }),
         queryClient.invalidateQueries({ queryKey: preProductionAssetSlotsQueryKey(projectId) }),
       ])
       if (selectedReference?.ID === target.record.ID) handleReferenceDeleted()
-      toast.success('设定资料已删除')
+      toast.success('设定资料已从当前工作区删除')
     },
     onError: (error, target) => {
       toast.error(apiErrorMessage(error, target.type === 'asset' ? '素材需求删除失败' : '设定资料删除失败'))
@@ -231,6 +251,31 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     getRow: () => selected,
     onSettled: uploadInput.resetUpload,
   }))
+  const pullWorkspaceMutation = useMutation({
+    mutationFn: () => requireWorkspaceCloudAPI().update({ namespace: workspaceActionNamespace }),
+    onSuccess: async () => {
+      await refreshPreProduction()
+      toast.success('已获取团队更新')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, '获取团队更新失败')),
+  })
+  const previewWorkspaceMutation = useMutation({
+    mutationFn: () => requireWorkspaceCloudAPI().preview({ namespace: workspaceActionNamespace }),
+    onSuccess: (preview) => setWorkspaceSubmitPreview(preview),
+    onError: (error) => toast.error(apiErrorMessage(error, '提交预览失败')),
+  })
+  const applyWorkspaceMutation = useMutation({
+    mutationFn: () => requireWorkspaceCloudAPI().apply({
+      namespace: workspaceActionNamespace,
+      reviewPath: workspaceReviewPath(workspaceSubmitPreview),
+    }),
+    onSuccess: async () => {
+      setWorkspaceSubmitPreview(null)
+      await refreshPreProduction()
+      toast.success('工作区已提交到团队')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, '提交工作区失败')),
+  })
 
   const missingCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'missing').length
   function openReferenceCreateDialog() {
@@ -239,7 +284,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   }
 
   function openAssetCreateDialog() {
-    const defaultReferenceId = selectedReference?.ID ?? creativeReferences[0]?.ID
+    const defaultReferenceId = selectedReference?.ID ?? settings[0]?.ID
     setAssetCreateReferenceId(defaultReferenceId ? String(defaultReferenceId) : '')
     setAssetCreateOpen(true)
   }
@@ -255,6 +300,21 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       return
     }
     startCreate(referenceId)
+  }
+
+  function pullWorkspaceFromCloud() {
+    if (!workspaceActionNamespace || pullWorkspaceMutation.isPending) return
+    pullWorkspaceMutation.mutate()
+  }
+
+  function openWorkspaceSubmitPreview() {
+    if (!workspaceActionNamespace || previewWorkspaceMutation.isPending) return
+    previewWorkspaceMutation.mutate()
+  }
+
+  function submitWorkspaceToCloud() {
+    if (!workspaceActionNamespace || !workspaceReviewPath(workspaceSubmitPreview) || applyWorkspaceMutation.isPending) return
+    applyWorkspaceMutation.mutate()
   }
 
   function lockCandidate(candidate: AssetSlotCandidateRecord) {
@@ -298,6 +358,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   }
 
   async function refreshPreProduction() {
+    await queryClient.invalidateQueries({ queryKey: preProductionWorkspaceDataQueryKey(projectId) })
     await refreshPreProductionWorkbenchContext({
       projectId,
       queryClient,
@@ -330,6 +391,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       selectedCluster={selectedCluster}
       selectedReference={selectedReference}
       referenceConfig={referenceConfig}
+      referenceLookupOptions={referenceLookupOptions}
       newReferenceEditKey={newReferenceEditKey}
       selected={selected}
       kindFilter={kindFilter}
@@ -395,7 +457,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       settingWorkspaceArtifactsLoading={settingWorkspaceArtifactsQuery.isLoading}
       assetWorkspaceArtifacts={assetWorkspaceArtifactsQuery.data ?? []}
       assetWorkspaceArtifactsLoading={assetWorkspaceArtifactsQuery.isLoading}
-      creativeReferences={creativeReferences}
+      settings={settings}
       assetSlots={visibleSlots}
       onApplied={refreshPreProduction}
       setWorkspaceView={setWorkspaceView}
@@ -410,6 +472,26 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       </ResourcePrepReviewDialogContent>
     </Dialog>
   )
+  const workspaceSubmitDialog = (
+    <Dialog open={Boolean(workspaceSubmitPreview)} onOpenChange={(open) => { if (!open) setWorkspaceSubmitPreview(null) }}>
+      <ResourcePrepCreateReferenceDialogContent>
+        <ResourcePrepDialogHeader title="提交工作区" description="提交前请确认当前工作区将写入团队云端的变更。" />
+        <ResourcePrepDialogBody>
+          <pre className="max-h-[420px] overflow-auto rounded border border-border bg-muted p-3 text-xs leading-5 text-muted-foreground">
+            {workspacePreviewText(workspaceSubmitPreview)}
+          </pre>
+        </ResourcePrepDialogBody>
+        <ResourcePrepDialogActions>
+          <ResourcePrepActionButton type="button" variant="outline" onClick={() => setWorkspaceSubmitPreview(null)} disabled={applyWorkspaceMutation.isPending}>
+            取消
+          </ResourcePrepActionButton>
+          <ResourcePrepActionButton type="button" onClick={submitWorkspaceToCloud} loading={applyWorkspaceMutation.isPending} disabled={!workspaceReviewPath(workspaceSubmitPreview)}>
+            提交到团队
+          </ResourcePrepActionButton>
+        </ResourcePrepDialogActions>
+      </ResourcePrepCreateReferenceDialogContent>
+    </Dialog>
+  )
 
   const createDialogs = (
     <>
@@ -421,7 +503,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
             config={referenceConfig}
             record={null}
             defaults={{ kind: 'person', importance: 'main', status: 'workspace', name: '未命名设定' }}
-            queryKey={preProductionCreativeReferencesQueryKey(projectId)}
+            queryKey={preProductionSettingsQueryKey(projectId)}
             editKey={referenceCreateKey}
             title="设定字段"
             primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance']}
@@ -429,6 +511,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
             hideDeleteAction
             hiddenFieldKeys={['status']}
             showAdvancedFields={false}
+            saveRecord={(payload, record) => savePreProductionWorkspaceSetting(projectId!, record as SettingRecord | null, payload)}
             onSaved={(record) => {
               setReferenceCreateOpen(false)
               handleReferenceSaved(record)
@@ -443,14 +526,14 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
           <ResourcePrepDialogBody>
             <ResourcePrepCreateAssetField
               label="归属设定"
-              help={creativeReferences.length === 0 ? '还没有设定。请先新建设定，再创建素材。' : undefined}
+              help={settings.length === 0 ? '还没有设定。请先新建设定，再创建素材。' : undefined}
             >
               <ResourcePrepSelect
                 triggerId="pre-production-create-asset-reference"
                 value={assetCreateReferenceId}
                 onValueChange={setAssetCreateReferenceId}
                 placeholder="选择人物、地点、道具或风格设定"
-                options={creativeReferences.map((reference) => ({
+                options={settings.map((reference) => ({
                   value: String(reference.ID),
                   label: reference.name || reference.alias || `设定 #${reference.ID}`,
                 }))}
@@ -475,19 +558,29 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     description: '沉淀设定资料、素材需求和候选素材，补齐创作编排和内容生成之前的可复用上下文。',
     badges: (
       <>
-        <ResourcePrepShellBadge>{referenceCountLabel(creativeReferences.length, visibleSlots.length)}</ResourcePrepShellBadge>
+        <ResourcePrepShellBadge>{referenceCountLabel(settings.length, visibleSlots.length)}</ResourcePrepShellBadge>
         {missingCount > 0 ? <ResourcePrepShellStatusBadge {...preProductionMissingCountRecipe(missingCount)}>缺口 {missingCount}</ResourcePrepShellStatusBadge> : null}
       </>
     ),
     actions: (
-      <ResourcePrepViewTabs>
-        <ResourcePrepViewButton active={workbenchView === 'setting'} count={filteredClusters.length} onClick={() => setWorkbenchView('setting')}>
-          设定
-        </ResourcePrepViewButton>
-        <ResourcePrepViewButton active={workbenchView === 'asset'} count={filtered.length} onClick={() => setWorkbenchView('asset')}>
-          素材
-        </ResourcePrepViewButton>
-      </ResourcePrepViewTabs>
+      <div className="flex flex-wrap items-center gap-2">
+        <ResourcePrepActionButton type="button" variant="outline" onClick={pullWorkspaceFromCloud} loading={pullWorkspaceMutation.isPending} disabled={!workspaceActionNamespace}>
+          <DownloadCloud size={14} />
+          获取团队更新
+        </ResourcePrepActionButton>
+        <ResourcePrepActionButton type="button" variant="outline" onClick={openWorkspaceSubmitPreview} loading={previewWorkspaceMutation.isPending} disabled={!workspaceActionNamespace}>
+          <UploadCloud size={14} />
+          提交工作区
+        </ResourcePrepActionButton>
+        <ResourcePrepViewTabs>
+          <ResourcePrepViewButton active={workbenchView === 'setting'} count={filteredClusters.length} onClick={() => setWorkbenchView('setting')}>
+            设定
+          </ResourcePrepViewButton>
+          <ResourcePrepViewButton active={workbenchView === 'asset'} count={filtered.length} onClick={() => setWorkbenchView('asset')}>
+            素材
+          </ResourcePrepViewButton>
+        </ResourcePrepViewTabs>
+      </div>
     ),
   })
 
@@ -499,6 +592,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
         </WorkbenchProjectBody>
         {resourceLibraryDialog}
         {reviewDialog}
+        {workspaceSubmitDialog}
         {createDialogs}
         <ResourcePrepHiddenFileInput ref={uploadInput.inputRef} type="file" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
       </>
@@ -512,6 +606,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       </WorkbenchProjectBody>
       {resourceLibraryDialog}
       {reviewDialog}
+      {workspaceSubmitDialog}
       {createDialogs}
       <ResourcePrepHiddenFileInput ref={uploadInput.inputRef} type="file" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
     </WorkbenchProjectShell>
@@ -525,6 +620,7 @@ function PreProductionWorkspace({
   selectedCluster,
   selectedReference,
   referenceConfig,
+  referenceLookupOptions,
   newReferenceEditKey,
   selected,
   kindFilter,
@@ -562,8 +658,9 @@ function PreProductionWorkspace({
   loading: boolean
   clusters: ReferenceAssetCluster[]
   selectedCluster: ReferenceAssetCluster | null
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   referenceConfig: SemanticEntityConfig
+  referenceLookupOptions: Record<string, Array<{ value: string; label: string }>>
   newReferenceEditKey: string | number | null
   selected: AssetSlotViewModel | null
   kindFilter: AssetKind
@@ -738,6 +835,7 @@ function PreProductionWorkspace({
                           key={`unbound-${row.slot.ID}`}
                           projectId={projectId}
                           slotConfig={slotConfig}
+                          referenceLookupOptions={referenceLookupOptions}
                           row={row}
                           reference={null}
                           active={selected?.slot.ID === row.slot.ID}
@@ -798,6 +896,7 @@ function PreProductionWorkspace({
                     key={row.slot.ID}
                     projectId={projectId}
                     slotConfig={slotConfig}
+                    referenceLookupOptions={referenceLookupOptions}
                     row={row}
                     reference={referenceForRow(clusters, row)}
                     active={selected?.slot.ID === row.slot.ID}
@@ -840,6 +939,7 @@ function PreProductionWorkspace({
                     projectId={projectId}
                     selectedReference={selectedReference}
                     slotConfig={slotConfig}
+                    referenceLookupOptions={referenceLookupOptions}
                     rows={selectedCluster?.rows ?? []}
                     selected={selected}
                     newSlotEditId={newSlotEditId}
@@ -1015,7 +1115,7 @@ function ReferenceInlineCard({
             config={referenceConfig}
             record={reference}
             defaults={isCreating ? { kind: 'person', importance: 'main', status: 'workspace', name: '未命名设定' } : undefined}
-            queryKey={preProductionCreativeReferencesQueryKey(projectId)}
+            queryKey={preProductionSettingsQueryKey(projectId)}
             editKey={effectiveEditKey}
             title="设定字段"
             primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance']}
@@ -1030,6 +1130,7 @@ function ReferenceInlineCard({
             onControlStateChange={setControl}
             resetToken={resetToken}
             idScope={`prep-reference-card-${reference?.ID ?? 'new'}`}
+            saveRecord={(payload, record) => savePreProductionWorkspaceSetting(projectId!, record as SettingRecord | null, payload)}
             onSaved={onSaved}
             onDeleted={onDeleted}
           />
@@ -1049,6 +1150,7 @@ function ReferenceInlineCard({
 function AssetSlotInlineCard({
   projectId,
   slotConfig,
+  referenceLookupOptions,
   row,
   reference,
   active,
@@ -1063,8 +1165,9 @@ function AssetSlotInlineCard({
 }: {
   projectId?: number
   slotConfig: SemanticEntityConfig
+  referenceLookupOptions: Record<string, Array<{ value: string; label: string }>>
   row: AssetSlotViewModel
-  reference: CreativeReferenceRecord | null
+  reference: SettingRecord | null
   active?: boolean
   editing: boolean
   editKey?: string | number | null
@@ -1132,7 +1235,7 @@ function AssetSlotInlineCard({
             queryKey={preProductionAssetSlotsQueryKey(projectId)}
             editKey={effectiveEditKey}
             title="素材字段"
-            primaryFieldKeys={['name', 'kind', 'priority', 'description', 'prompt_hint', 'creative_reference_id', 'creative_reference_state_id']}
+            primaryFieldKeys={['name', 'kind', 'priority', 'description', 'prompt_hint', 'setting_id', 'setting_state_id']}
             surface="embedded"
             hideHeaderCopy
             hideHeaderActions
@@ -1144,6 +1247,8 @@ function AssetSlotInlineCard({
             onControlStateChange={setControl}
             resetToken={resetToken}
             idScope={`prep-asset-card-${slot.ID}`}
+            lookupOptions={referenceLookupOptions}
+            saveRecord={(payload, record) => savePreProductionWorkspaceAssetSlot(projectId!, record as AssetSlotRecord | null, payload)}
             onSaved={onSaved}
             onDeleted={onDeleted}
           />
@@ -1201,6 +1306,7 @@ function PreProductionSettingDetail({
   projectId,
   selectedReference,
   slotConfig,
+  referenceLookupOptions,
   rows,
   selected,
   newSlotEditId,
@@ -1218,8 +1324,9 @@ function PreProductionSettingDetail({
   onCardContextMenu,
 }: {
   projectId?: number
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   slotConfig: SemanticEntityConfig
+  referenceLookupOptions: Record<string, Array<{ value: string; label: string }>>
   rows: AssetSlotViewModel[]
   selected: AssetSlotViewModel | null
   newSlotEditId: number | null
@@ -1271,6 +1378,7 @@ function PreProductionSettingDetail({
             <SettingAssetPane
               projectId={projectId}
               slotConfig={slotConfig}
+              referenceLookupOptions={referenceLookupOptions}
               rows={rows}
               selected={selected}
               selectedReference={selectedReference}
@@ -1298,6 +1406,7 @@ function PreProductionSettingDetail({
 function SettingAssetPane({
   projectId,
   slotConfig,
+  referenceLookupOptions,
   rows,
   selected,
   selectedReference,
@@ -1317,9 +1426,10 @@ function SettingAssetPane({
 }: {
   projectId?: number
   slotConfig: SemanticEntityConfig
+  referenceLookupOptions: Record<string, Array<{ value: string; label: string }>>
   rows: AssetSlotViewModel[]
   selected: AssetSlotViewModel | null
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   newSlotEditId: number | null
   onSaved: (record: SemanticEntityRecord) => void
   onLock: (candidate: AssetSlotCandidateRecord) => void
@@ -1370,6 +1480,7 @@ function SettingAssetPane({
         <SettingAssetList
           projectId={projectId}
           slotConfig={slotConfig}
+          referenceLookupOptions={referenceLookupOptions}
           rows={rows}
           selected={selectedInPane}
           selectedReference={selectedReference}
@@ -1436,7 +1547,7 @@ function PreProductionAssetDetailPanel({
   nestedPane = false,
 }: {
   selected: AssetSlotViewModel | null
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   onLock: (candidate: AssetSlotCandidateRecord) => void
   onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
@@ -1478,6 +1589,7 @@ function PreProductionAssetDetailPanel({
 function SettingAssetList({
   projectId,
   slotConfig,
+  referenceLookupOptions,
   rows,
   selected,
   selectedReference,
@@ -1491,9 +1603,10 @@ function SettingAssetList({
 }: {
   projectId?: number
   slotConfig: SemanticEntityConfig
+  referenceLookupOptions: Record<string, Array<{ value: string; label: string }>>
   rows: AssetSlotViewModel[]
   selected: AssetSlotViewModel | null
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   editingAssetSlotId: number | null
   newSlotEditId: number | null
   onEditingAssetSlotChange: (slotId: number | null) => void
@@ -1512,6 +1625,7 @@ function SettingAssetList({
           key={row.slot.ID}
           projectId={projectId}
           slotConfig={slotConfig}
+          referenceLookupOptions={referenceLookupOptions}
           row={row}
           reference={selectedReference}
           active={selected?.slot.ID === row.slot.ID}
@@ -1536,12 +1650,44 @@ function SettingAssetList({
   )
 }
 
-function referenceForRow(clusters: ReferenceAssetCluster[], row: AssetSlotViewModel) {
-  if (!row.slot.creative_reference_id) return null
-  return clusters.find((cluster) => cluster.reference?.ID === row.slot.creative_reference_id)?.reference ?? null
+function requireWorkspaceCloudAPI() {
+  const api = window.api
+  if (!api?.updateMovScriptWorkspaceProjection || !api.previewMovScriptWorkspaceApply || !api.applyMovScriptWorkspaceProjection) {
+    throw new Error('当前窗口没有 MovScript 工作区同步能力')
+  }
+  return {
+    update: api.updateMovScriptWorkspaceProjection,
+    preview: api.previewMovScriptWorkspaceApply,
+    apply: api.applyMovScriptWorkspaceProjection,
+  }
 }
 
-function referenceTitle(reference?: CreativeReferenceRecord | null) {
+function workspacePreviewText(value: unknown): string {
+  if (!value) return '暂无提交预览。'
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function workspaceReviewPath(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const reviewPath = record.reviewPath
+  if (typeof reviewPath === 'string' && reviewPath.trim()) return reviewPath
+  const reviewFile = record.reviewFile
+  if (!reviewFile || typeof reviewFile !== 'object') return undefined
+  const path = (reviewFile as Record<string, unknown>).path
+  return typeof path === 'string' && path.trim() ? path : undefined
+}
+
+function referenceForRow(clusters: ReferenceAssetCluster[], row: AssetSlotViewModel) {
+  if (!row.slot.setting_id) return null
+  return clusters.find((cluster) => cluster.reference?.ID === row.slot.setting_id)?.reference ?? null
+}
+
+function referenceTitle(reference?: SettingRecord | null) {
   if (!reference) return '未绑定设定'
   return reference.name || reference.alias || `设定 #${reference.ID}`
 }
@@ -1561,7 +1707,7 @@ function referenceKindLabel(kind?: string) {
   return labels[String(kind ?? '').toLowerCase()] ?? '设定资料'
 }
 
-function assetSlotRailMeta(row: AssetSlotViewModel, reference?: CreativeReferenceRecord | null) {
+function assetSlotRailMeta(row: AssetSlotViewModel, reference?: SettingRecord | null) {
   const candidateLabel = row.candidates.length > 0 ? `候选 ${row.candidates.length}` : '暂无候选'
   const resourceLabel = row.lockedSlot || row.hasResource ? '已关联资源' : '未关联资源'
   return `${assetKindLabel(row.kind)} · ${candidateLabel} · ${resourceLabel} · ${referenceTitle(reference)}`

@@ -13,8 +13,8 @@ movscript/
 ├── apps/backend/          Go API server, database models, AI adapters, job worker
 ├── apps/frontend/         Electron + Vite + React desktop application
 ├── apps/admin/            Admin console for credentials, models, routing, and users
-├── apps/cli/              CLI for plugin scaffolding and packaging
-├── packages/              Shared SDKs, UI, tokens, and domain packages
+├── apps/cli/              MovScript command-line tool
+├── packages/              Shared UI, tokens, and domain packages
 ├── plugins/               First-party plugin examples
 ├── contracts/             Machine-readable API and schema contracts
 └── docker-compose.yml     Optional local PostgreSQL and MinIO services
@@ -103,7 +103,7 @@ MovScript treats the selected launch directory as the workspace root. The `.movs
 └── .codex/                Managed Codex provider home for compatibility
 ```
 
-The MovScript workspace root is the local folder selected by the desktop client or provided through `MOVSCRIPT_WORKSPACE_DIR`; `.movscript/` is its control directory. Business projections such as `production_workspace`, `setting_workspace`, `project_standards_workspace`, `content_unit_workspace`, `asset_workspace`, `project.json`, script `script.md` files, and the read-only user `projects.index.json` live under `.movscript/data`. Production-scoped projections live under `users/{userId}/projects/{projectId}/productions/{productionId}`, with content unit projections separated by `scene_moments/{sceneMomentId}/content_units/{contentUnitId}` when a single unit is targeted. Each projection has a sidecar `.meta.json` file for dirty, preview, materialized, and conflict state, plus a mirrored `.movscript/sync` record with the projection hash and latest sync state. Workspace tools operate on projection file or folder paths: `workspace_update(path)` refreshes from the backend database and overwrites local changes, `workspace_apply_review(path)` previews backend effects, and `workspace_apply(path)` submits supported writable local projection changes to the backend database. Provider sessions use the selected `.movscript/data/...` projection folder as their real `cwd` so file editing tools modify the same files that workspace apply reads. When both `path` and `cwd` are omitted, tools use the current MCP focus project/production as the default projection folder. Preview and apply evidence may be written under `.movscript/reviews`. Provider configuration, cache/run directories, and provider session indexes live under `.movscript/providers/{profile}`; older `.movscript/{profile}/config.json` files are copied forward when a profile is initialized. Provider homes such as `.movscript/.mova` and `.movscript/.codex` are app-server compatibility homes only; they do not own MovScript business files or workspace-level session indexes.
+The MovScript workspace root is the local folder selected by the desktop client or provided through `MOVSCRIPT_WORKSPACE_DIR`; `.movscript/` is its control directory. Business files such as `production_workspace`, `setting_workspace`, `project_standards_workspace`, `content_unit_workspace`, `asset_workspace`, `project.json`, script `script.md` files, and the read-only user `projects.index.json` live under `.movscript/data`. Production-scoped files live under `users/{userId}/projects/{projectId}/productions/{productionId}`, with content unit files separated by `scene_moments/{sceneMomentId}/content_units/{contentUnitId}` when a single unit is targeted. Workspace tools operate on namespaces, not individual paths: `workspace_fetch(namespace)`, `workspace_status(namespace)`, `workspace_review(namespace)`, and `workspace_submit(namespace)` return Git-canonical handoffs for a namespace such as `movscript.project:123`; actual synchronization, inspection, review, commit, and submit use standard git fetch/status/diff/commit/push. A project namespace maps internally to `data/users/{userId}/projects/{projectId}` and contains project metadata, references, assets, scripts, productions, and future project-owned data groups. Provider sessions use the selected `.movscript/data/...` folder as their real `cwd` so file editing tools modify the same files that git review/submit flows inspect. When `namespace` is omitted, tools infer the current project namespace from MCP focus. Review evidence may be written under `.movscript/reviews`. Provider configuration, cache/run directories, and provider session indexes live under `.movscript/providers/{profile}`; older `.movscript/{profile}/config.json` files are copied forward when a profile is initialized. Provider homes such as `.movscript/.mova` and `.movscript/.codex` are app-server compatibility homes only; they do not own MovScript business files or workspace-level session indexes.
 
 See [docs/movscript-workspace-topology.md](docs/movscript-workspace-topology.md) for the current naming and directory invariants used by the codebase. The target design for path-first provider-session editing is documented in [docs/workdir-file-projection-design.zh-CN.md](docs/workdir-file-projection-design.zh-CN.md).
 
@@ -116,6 +116,7 @@ pnpm run test
 pnpm run build
 pnpm run typecheck
 pnpm --filter @movscript/backend test
+pnpm --filter @movscript/cli dev -- workspace status --namespace movscript.project:123
 pnpm --filter "./plugins/*" build
 ```
 

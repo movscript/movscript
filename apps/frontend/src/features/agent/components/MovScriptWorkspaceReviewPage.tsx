@@ -62,7 +62,7 @@ export default function MovScriptWorkspaceReviewPage() {
                 Workspace Review
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                {reviewPath || workspacePath || '等待 workspace_apply 提交工作区修改'}
+                {reviewPath || workspacePath || '等待 workspace_submit 提交工作区修改'}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">

@@ -34,6 +34,15 @@ type Config struct {
 	CORSAllowedOrigins []string
 	AdminStaticDir     string
 
+	// Server-side workspace storage. Clients always use the MovScript HTTP API.
+	WorkspaceStorageBackend string
+	GiteaBaseURL            string
+	GiteaToken              string
+	GiteaOwner              string
+	GiteaRepo               string
+	GiteaRepoPrefix         string
+	GiteaBranch             string
+
 	// Cache
 	CacheBackend   string
 	CacheKeyPrefix string
@@ -85,6 +94,14 @@ func Load() *Config {
 		HubAdminToken:      getEnv("HUB_ADMIN_TOKEN", ""),
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
 		AdminStaticDir:     getEnv("MOVSCRIPT_ADMIN_DIR", "admin"),
+
+		WorkspaceStorageBackend: getEnv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", getEnv("MOVSCRIPT_WORKSPACE_BACKEND", "http")),
+		GiteaBaseURL:            getEnv("MOVSCRIPT_GITEA_BASE_URL", ""),
+		GiteaToken:              getEnv("MOVSCRIPT_GITEA_TOKEN", ""),
+		GiteaOwner:              getEnv("MOVSCRIPT_GITEA_OWNER", ""),
+		GiteaRepo:               getEnv("MOVSCRIPT_GITEA_REPO", ""),
+		GiteaRepoPrefix:         getEnv("MOVSCRIPT_GITEA_REPO_PREFIX", "movscript-project-"),
+		GiteaBranch:             getEnv("MOVSCRIPT_GITEA_BRANCH", "main"),
 
 		CacheBackend:   getEnv("CACHE_BACKEND", "memory"),
 		CacheKeyPrefix: getEnv("CACHE_KEY_PREFIX", "movscript"),
@@ -153,6 +170,25 @@ func (c *Config) ValidateStartup() error {
 	if c.CacheBackend == "redis" && c.RedisURL == "" && c.RedisAddr == "" {
 		problems = append(problems, "REDIS_URL or REDIS_ADDR is required when CACHE_BACKEND=redis")
 	}
+	switch c.WorkspaceStorageBackend {
+	case "", "http", "gitea":
+	default:
+		problems = append(problems, "MOVSCRIPT_WORKSPACE_STORAGE_BACKEND must be one of: http, gitea")
+	}
+	if c.WorkspaceStorageBackend == "gitea" {
+		if c.GiteaBaseURL == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+		if c.GiteaOwner == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_OWNER is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+		if c.GiteaRepoPrefix == "" && c.GiteaRepo == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_REPO_PREFIX or MOVSCRIPT_GITEA_REPO is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+		if c.GiteaBranch == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_BRANCH is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+	}
 	if len(problems) > 0 {
 		return errors.New("invalid startup configuration: " + joinProblems(problems))
 	}
@@ -161,34 +197,41 @@ func (c *Config) ValidateStartup() error {
 
 func (c *Config) SafeSummary() map[string]any {
 	return map[string]any{
-		"app_mode":             c.AppMode,
-		"deployment_mode":      c.DeploymentMode,
-		"data_dir":             c.DataDir,
-		"db_driver":            c.DBDriver,
-		"db_host":              c.DBHost,
-		"db_port":              c.DBPort,
-		"db_name":              c.DBName,
-		"db_path":              c.DBPath,
-		"db_slow_threshold_ms": c.DBSlowThresholdMS,
-		"server_port":          c.ServerPort,
-		"max_upload_bytes":     c.MaxUploadBytes,
-		"auth_ttl_hours":       c.AuthTokenTTLHours,
-		"cors_allowed_origins": c.CORSAllowedOrigins,
-		"storage_backend":      c.StorageBackend,
-		"image_verify_set":     c.ImageVerifyBaseURL != "",
-		"filesystem_root":      c.FilesystemStorageRoot,
-		"minio_endpoint":       c.MinIOEndpoint,
-		"minio_bucket":         c.MinIOBucket,
-		"minio_use_ssl":        c.MinIOUseSSL,
-		"mcp_token_set":        c.MCPToken != "",
-		"auth_secret_set":      c.AuthTokenSecret != "",
-		"hub_admin_token_set":  c.HubAdminToken != "",
-		"admin_static_dir":     c.AdminStaticDir,
-		"cache_backend":        c.CacheBackend,
-		"cache_key_prefix":     c.CacheKeyPrefix,
-		"redis_addr":           c.RedisAddr,
-		"redis_url_set":        c.RedisURL != "",
-		"redis_db":             c.RedisDB,
+		"app_mode":                  c.AppMode,
+		"deployment_mode":           c.DeploymentMode,
+		"data_dir":                  c.DataDir,
+		"db_driver":                 c.DBDriver,
+		"db_host":                   c.DBHost,
+		"db_port":                   c.DBPort,
+		"db_name":                   c.DBName,
+		"db_path":                   c.DBPath,
+		"db_slow_threshold_ms":      c.DBSlowThresholdMS,
+		"server_port":               c.ServerPort,
+		"max_upload_bytes":          c.MaxUploadBytes,
+		"auth_ttl_hours":            c.AuthTokenTTLHours,
+		"cors_allowed_origins":      c.CORSAllowedOrigins,
+		"storage_backend":           c.StorageBackend,
+		"image_verify_set":          c.ImageVerifyBaseURL != "",
+		"filesystem_root":           c.FilesystemStorageRoot,
+		"minio_endpoint":            c.MinIOEndpoint,
+		"minio_bucket":              c.MinIOBucket,
+		"minio_use_ssl":             c.MinIOUseSSL,
+		"mcp_token_set":             c.MCPToken != "",
+		"auth_secret_set":           c.AuthTokenSecret != "",
+		"hub_admin_token_set":       c.HubAdminToken != "",
+		"admin_static_dir":          c.AdminStaticDir,
+		"cache_backend":             c.CacheBackend,
+		"cache_key_prefix":          c.CacheKeyPrefix,
+		"redis_addr":                c.RedisAddr,
+		"redis_url_set":             c.RedisURL != "",
+		"redis_db":                  c.RedisDB,
+		"workspace_storage_backend": c.WorkspaceStorageBackend,
+		"gitea_base_url":            c.GiteaBaseURL,
+		"gitea_token_set":           c.GiteaToken != "",
+		"gitea_owner":               c.GiteaOwner,
+		"gitea_repo_set":            c.GiteaRepo != "",
+		"gitea_repo_prefix":         c.GiteaRepoPrefix,
+		"gitea_branch":              c.GiteaBranch,
 	}
 }
 

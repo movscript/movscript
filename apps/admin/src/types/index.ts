@@ -68,8 +68,8 @@ export interface AssetSlot {
   production_id?: number | null
   owner_type?: string
   owner_id?: number | null
-  creative_reference_id?: number | null
-  creative_reference_state_id?: number | null
+  setting_id?: number | null
+  setting_state_id?: number | null
   kind?: 'image' | 'video' | 'audio' | 'text' | 'brand_pack' | 'reference' | string
   name: string
   slot_key?: string
@@ -656,7 +656,7 @@ export interface Job {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
-export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'asset_slot' | 'content_unit'
+export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'setting' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType

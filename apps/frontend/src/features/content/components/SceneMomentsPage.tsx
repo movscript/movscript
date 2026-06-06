@@ -60,7 +60,7 @@ type RelatedRecord = SemanticEntityRecord & {
   script_block_id?: number
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
+  setting_id?: number
   title?: string
   name?: string
   label?: string
@@ -155,13 +155,13 @@ export default function SceneMomentsPage() {
     enabled: !!projectId,
   })
   const referencesQuery = useQuery({
-    queryKey: ['semantic-scene-moment-page', projectId, 'creative-references'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'settings'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['semantic-scene-moment-page', projectId, 'creative-reference-usages'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'setting-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settingUsages')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
@@ -198,13 +198,13 @@ export default function SceneMomentsPage() {
       Boolean(item.owner_type === 'content_unit' && item.owner_id && contentUnitIds.has(item.owner_id))
     ))
     const momentReferences = dedupeRecords(momentUsages
-      .map((usage) => usage.creative_reference_id ? referencesById.get(usage.creative_reference_id) : undefined)
+      .map((usage) => usage.setting_id ? referencesById.get(usage.setting_id) : undefined)
       .filter(Boolean) as RelatedRecord[])
     const referenceIds = new Set(momentReferences.map((item) => item.ID))
     const momentAssetSlots = assetSlots.filter((item) => (
       (item.owner_type === 'scene_moment' && item.owner_id === moment.ID) ||
       Boolean(item.owner_type === 'content_unit' && item.owner_id && contentUnitIds.has(item.owner_id)) ||
-      Boolean(item.creative_reference_id && referenceIds.has(item.creative_reference_id))
+      Boolean(item.setting_id && referenceIds.has(item.setting_id))
     )).sort(compareByOrder)
     const totalDuration = momentContentUnits.reduce((sum, item) => sum + (item.duration_sec ?? 0), 0)
 

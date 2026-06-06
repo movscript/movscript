@@ -5,7 +5,6 @@ import (
 
 	appresource "github.com/movscript/movscript/internal/app/resource"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
-	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
 )
@@ -43,12 +42,6 @@ type ResourcePage struct {
 	PageSize int                          `json:"page_size"`
 }
 
-type ResourceDetail struct {
-	Resource     domainresource.RawResource `json:"resource"`
-	BindingCount int64                      `json:"binding_count"`
-	Bindings     []domainbinding.Binding    `json:"bindings"`
-}
-
 type BlobGCInput struct {
 	Limit  int
 	DryRun bool
@@ -77,10 +70,6 @@ func (s *Service) ListResources(ctx context.Context, filter ResourceListFilter) 
 		filter.PageSize = 200
 	}
 	return s.repo.ListResources(ctx, filter)
-}
-
-func (s *Service) ResourceDetail(ctx context.Context, id uint) (ResourceDetail, error) {
-	return s.repo.ResourceDetail(ctx, id)
 }
 
 func (s *Service) GetResource(ctx context.Context, id uint) (domainresource.RawResource, error) {

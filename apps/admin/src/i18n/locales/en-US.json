@@ -500,7 +500,7 @@
           "description": "Import, analyze, and calibrate scripts for later asset and shot breakdown."
         },
         "references": {
-          "title": "Creative References",
+          "title": "Settings",
           "description": "Collect characters, world rules, style references, and creative constraints."
         },
         "assets": {
@@ -540,12 +540,12 @@
       "pagination": "{{total}} assets · {{page}}/{{pageCount}}",
       "library": {
         "title": "Asset Library Overview",
-        "subtitle": "Review the project's saved assets, creative reference links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
+        "subtitle": "Review the project's saved assets, setting links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
         "openGeneration": "Asset Generation",
         "emptyHint": "Uploaded assets will appear here as the project asset overview.",
         "metrics": {
           "assets": "Total assets",
-          "creativeReferences": "Creative references",
+          "settings": "Settings",
           "media": "Previewable media",
           "linked": "Linked references"
         }
@@ -591,7 +591,7 @@
           "cue": "Asset cue",
           "candidates": "Candidates",
           "linkedReference": "Linked reference",
-          "creativeReferences": "Creative references",
+          "settings": "Settings",
           "assetCount": "Assets"
         },
         "sections": {
@@ -1113,7 +1113,7 @@
         },
         "kinds": {
           "script": "Script workspace",
-          "creative_reference": "Creative reference suggestion",
+          "setting": "Setting suggestion",
           "asset_slot": "Asset need",
           "content_unit": "Shot suggestion",
           "prompt": "Prompt",
@@ -1649,7 +1649,7 @@
     },
     "entityTypes": {
       "script": "Script",
-      "creative_reference": "Creative Reference",
+      "setting": "Setting",
       "assetSlot": "Asset Slot",
       "contentUnit": "Content Unit",
       "asset": "Asset",
@@ -3179,7 +3179,7 @@
       "sceneMoments": "Plot Beats",
       "contentUnits": "Content Units",
       "episodes": "Production Management",
-      "creativeReferences": "Reference Library",
+      "settings": "Reference Library",
       "referenceRelations": "Relation Overview",
       "production": "Content Production",
       "finalVideos": "Final Video Library",
@@ -3257,14 +3257,14 @@
       "script": "Script",
       "segments": "Orchestration Segments",
       "sceneMoments": "Plot Beats",
-      "references": "Creative References",
+      "references": "Settings",
       "relations": "Reference Relations",
       "content": "Content",
       "contentUnits": "Content Units",
       "projectPlan": "Prep Overview",
       "semanticEntities": "Semantic Entities",
       "entityManagement": "Entity Management",
-      "creativeReferences": "Reference Library",
+      "settings": "Reference Library",
       "referenceRelations": "Reference Relations",
       "relationOverview": "Relation Overview",
       "assetPreparation": "Assets",

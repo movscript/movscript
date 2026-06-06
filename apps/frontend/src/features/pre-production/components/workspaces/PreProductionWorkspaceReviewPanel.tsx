@@ -69,10 +69,10 @@ export function PreProductionWorkspaceReviewPanel({
 }: PreProductionWorkspaceReviewPanelProps) {
   const [decisions, setDecisions] = useState<EntryDecisions>({})
   const [applyingWorkspaceId, setApplyingWorkspaceId] = useState<string | null>(null)
-  const includeCreativeReferences = kind === 'setting_workspace'
+  const includeSettings = kind === 'setting_workspace'
   const includeAssetSlots = kind === 'asset_workspace'
   const reviewableWorkspaces = useMemo(() => workspaces.filter((workspace) => !isHelperWorkspace(workspace)), [workspaces])
-  const referenceLabels = useMemo(() => new Map(data.creativeReferences.map((reference) => [String(reference.ID), reference.name || reference.title || `设定 #${reference.ID}`])), [data.creativeReferences])
+  const referenceLabels = useMemo(() => new Map(data.settings.map((reference) => [String(reference.ID), reference.name || reference.title || `设定 #${reference.ID}`])), [data.settings])
 
   function markDecision(key: string, decision: EntryDecision) {
     setDecisions((current) => ({ ...current, [key]: decision }))
@@ -119,7 +119,7 @@ export function PreProductionWorkspaceReviewPanel({
           field: 'workspace',
         },
         currentValue: {
-          creativeReferences: data.creativeReferences.length,
+          settings: data.settings.length,
           assetSlots: data.assetSlots.length,
         },
         proposedValue,
@@ -178,7 +178,7 @@ export function PreProductionWorkspaceReviewPanel({
 
   async function applyWorkspace(workspace: WorkspaceArtifact, view: PreProductionWorkspaceView) {
     const entries = [
-      ...(includeCreativeReferences ? view.creativeReferences : []),
+      ...(includeSettings ? view.settings : []),
       ...(includeAssetSlots ? view.assetSlots : []),
     ]
     const pendingEntries = entries.filter((entry) => decisions[entry.key] !== 'rejected' && !entry.applied && entry.changeType !== 'unchanged')
@@ -201,8 +201,8 @@ export function PreProductionWorkspaceReviewPanel({
         {loading ? <ProjectWorkspaceReviewLoadingState text="读取审阅工作区..." /> : null}
         {!loading && reviewableWorkspaces.length === 0 ? <ProjectWorkspaceReviewEmptyText>{emptyMessage}</ProjectWorkspaceReviewEmptyText> : null}
         {reviewableWorkspaces.map((workspace) => {
-          const view = parsePreProductionWorkspaceArtifact(workspace, data, { includeCreativeReferences, includeAssetSlots })
-          const entries = view ? [...view.creativeReferences, ...view.assetSlots] : []
+          const view = parsePreProductionWorkspaceArtifact(workspace, data, { includeSettings, includeAssetSlots })
+          const entries = view ? [...view.settings, ...view.assetSlots] : []
           const diffEntries = entries.filter((entry) => entry.changeType !== 'unchanged')
           const pendingEntries = entries.filter((entry) => decisions[entry.key] !== 'rejected' && !entry.applied && entry.changeType !== 'unchanged')
           const submittedEntries = entries.filter((entry) => decisions[entry.key] === 'submitted' || entry.applied)

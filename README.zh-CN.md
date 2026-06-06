@@ -13,8 +13,8 @@ movscript/
 ├── apps/backend/          Go API server、数据库模型、AI adapters、任务 worker
 ├── apps/frontend/         Electron + Vite + React 桌面应用
 ├── apps/admin/            凭据、模型、路由和用户管理后台
-├── apps/cli/              插件脚手架与打包 CLI
-├── packages/              共享 SDK、UI、tokens 和领域包
+├── apps/cli/              MovScript 命令行工具
+├── packages/              共享 UI、tokens 和领域包
 ├── plugins/               第一方插件示例
 ├── contracts/             机器可读 API 与 schema 契约
 └── docker-compose.yml     可选的本地 PostgreSQL 与 MinIO 服务
@@ -103,7 +103,7 @@ MovScript 把启动时选择的目录视为 workspace root。该目录下的 `.m
 └── .codex/                兼容保留的 Codex managed provider home
 ```
 
-MovScript 工作区根目录就是桌面端选择的本地文件夹，或 `MOVSCRIPT_WORKSPACE_DIR` 指向的目录；`.movscript/` 是这个根目录下的控制目录。`production_workspace`、`setting_workspace`、`project_standards_workspace`、`content_unit_workspace`、`asset_workspace`、`project.json`、剧本 `script.md` 和只读的用户 `projects.index.json` 都是 `.movscript/data` 下的业务投影。Production 级投影进入 `users/{userId}/projects/{projectId}/productions/{productionId}`；单个 content unit 的投影会继续落到 `scene_moments/{sceneMomentId}/content_units/{contentUnitId}`，避免同一情节下的多个 unit 互相覆盖。每个投影都有对应的 `.meta.json` sidecar，用来记录 dirty、preview、materialized 和冲突状态；`.movscript/sync` 下会生成镜像 sync 记录，保存 projection hash 和最新同步状态。Workspace 工具按投影文件或文件夹路径工作：`workspace_update(path)` 从后端数据库刷新并覆盖本地变动，`workspace_apply_review(path)` 预览写回后端的影响，`workspace_apply(path)` 把支持写回的本地投影变更提交到后端数据库。Provider session 直接使用选中的 `.movscript/data/...` 投影目录作为真实 `cwd`，所以文件编辑工具改的就是 workspace apply 读取的同一批文件。当 `path` 和 `cwd` 都省略时，会用当前 MCP focus 的项目/制作作为默认投影文件夹。preview 与 apply 证据可以写入 `.movscript/reviews`。Provider 配置、cache/run 目录和 provider session 索引归属到 `.movscript/providers/{profile}`；旧的 `.movscript/{profile}/config.json` 会在 profile 初始化时复制到新位置。`.movscript/.mova` 和 `.movscript/.codex` 这类 provider home 只是 app-server 兼容 home，不拥有 MovScript 业务文件，也不拥有 workspace 层面的会话索引。
+MovScript 工作区根目录就是桌面端选择的本地文件夹，或 `MOVSCRIPT_WORKSPACE_DIR` 指向的目录；`.movscript/` 是这个根目录下的控制目录。`production_workspace`、`setting_workspace`、`project_standards_workspace`、`content_unit_workspace`、`asset_workspace`、`project.json`、剧本 `script.md` 和只读的用户 `projects.index.json` 都是 `.movscript/data` 下的业务文件。Production 级文件进入 `users/{userId}/projects/{projectId}/productions/{productionId}`；单个 content unit 的文件会继续落到 `scene_moments/{sceneMomentId}/content_units/{contentUnitId}`，避免同一情节下的多个 unit 互相覆盖。Workspace 工具按 namespace 工作，而不是按单个路径工作：`workspace_fetch(namespace)`、`workspace_status(namespace)`、`workspace_review(namespace)` 和 `workspace_submit(namespace)` 会为 `movscript.project:123` 这样的 namespace 返回 Git canonical handoff；实际同步、检查、审阅、提交和推送使用标准 git fetch/status/diff/commit/push。项目 namespace 内部映射到 `data/users/{userId}/projects/{projectId}`，包含项目元数据、references、assets、scripts、productions 和未来新增的项目级业务对象组。Provider session 直接使用选中的 `.movscript/data/...` 目录作为真实 `cwd`，所以文件编辑工具改的就是 git review/submit 流程检查的同一批文件。当 `namespace` 省略时，会用当前 MCP focus 推断当前项目 namespace。review 证据可以写入 `.movscript/reviews`。Provider 配置、cache/run 目录和 provider session 索引归属到 `.movscript/providers/{profile}`；旧的 `.movscript/{profile}/config.json` 会在 profile 初始化时复制到新位置。`.movscript/.mova` 和 `.movscript/.codex` 这类 provider home 只是 app-server 兼容 home，不拥有 MovScript 业务文件，也不拥有 workspace 层面的会话索引。
 
 当前命名与目录不变量见 [docs/movscript-workspace-topology.md](docs/movscript-workspace-topology.md)。面向 provider session 直接编辑文件的目标设计见 [docs/workdir-file-projection-design.zh-CN.md](docs/workdir-file-projection-design.zh-CN.md)。
 
@@ -116,6 +116,7 @@ pnpm run test
 pnpm run build
 pnpm run typecheck
 pnpm --filter @movscript/backend test
+pnpm --filter @movscript/cli dev -- workspace status --namespace movscript.project:123
 pnpm --filter "./plugins/*" build
 ```
 

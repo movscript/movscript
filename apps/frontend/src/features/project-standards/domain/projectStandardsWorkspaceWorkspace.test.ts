@@ -27,6 +27,6 @@ test('buildEmptyProjectStandardsWorkspaceArtifactShellContent can seed editable 
   assert.equal(content.workspace.project_style.aspect_ratio, '9:16')
   assert.equal(content.workspace.project_style.visual_style, '竖屏写实，肤色自然，道具轮廓清晰')
   assert.equal(content.workspace.project_style.custom_rules?.[0]?.key, 'character_consistency')
-  assert.equal('creative_references' in content.workspace, false)
+  assert.equal('settings' in content.workspace, false)
   assert.equal('asset_slots' in content.workspace, false)
 })

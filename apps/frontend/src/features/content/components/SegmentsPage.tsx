@@ -88,7 +88,7 @@ type RelatedRecord = SemanticEntityRecord & {
   script_block_id?: number
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
+  setting_id?: number
   title?: string
   name?: string
   label?: string
@@ -226,13 +226,13 @@ export default function SegmentsPage() {
     enabled: !!projectId,
   })
   const referencesQuery = useQuery({
-    queryKey: ['semantic-segment-workspace', projectId, 'creative-references'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'settings'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['semantic-segment-workspace', projectId, 'creative-reference-usages'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'setting-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settingUsages')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
@@ -286,7 +286,7 @@ export default function SegmentsPage() {
       Boolean(item.owner_type === 'content_unit' && item.owner_id && contentUnitIds.has(item.owner_id))
     ))
     const segmentReferences = dedupeRecords(segmentUsages
-      .map((usage) => usage.creative_reference_id ? referencesById.get(usage.creative_reference_id) : undefined)
+      .map((usage) => usage.setting_id ? referencesById.get(usage.setting_id) : undefined)
       .filter(Boolean) as RelatedRecord[])
     const totalDuration = segmentContentUnits.reduce((sum, item) => sum + (item.duration_sec ?? 0), 0)
 

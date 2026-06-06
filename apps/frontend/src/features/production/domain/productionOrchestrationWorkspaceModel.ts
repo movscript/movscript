@@ -4,7 +4,7 @@ import type { ProductionOrchestrationLookup } from '@/features/production/domain
 import type {
   AssetSlotRecord,
   ContentUnitRecord,
-  CreativeReferenceRecord,
+  SettingRecord,
   SceneMomentRecord,
   ScriptBlockRecord,
   SegmentRecord,
@@ -55,7 +55,7 @@ export interface ProductionSceneMomentOrderPatch {
 export type ProductionWorkspaceLookup = ProductionOrchestrationLookup<
   SegmentRecord,
   SceneMomentRecord,
-  CreativeReferenceRecord,
+  SettingRecord,
   SemanticEntityRecord,
   AssetSlotRecord,
   ContentUnitRecord

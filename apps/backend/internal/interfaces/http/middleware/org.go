@@ -10,7 +10,6 @@ import (
 	orgapp "github.com/movscript/movscript/internal/app/org"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
@@ -135,80 +134,6 @@ func RequireProjectRole(db *gorm.DB, roles ...string) gin.HandlerFunc {
 		}
 		c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("权限不足"))
 	}
-}
-
-// RequireScriptProjectRole resolves :scriptId or :id to its project and aborts
-// unless the script belongs to the current workspace and the user has an
-// allowed project role.
-func RequireScriptProjectRole(db *gorm.DB, roles ...string) gin.HandlerFunc {
-	projectService := projectapp.NewService(db)
-	allowed := make(map[string]struct{}, len(roles))
-	for _, role := range roles {
-		allowed[role] = struct{}{}
-	}
-	return func(c *gin.Context) {
-		user, ok := CurrentUserFromContext(c)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.AuthRequired())
-			return
-		}
-		member, ok := CurrentOrgMemberFromContext(c)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("无工作区信息"))
-			return
-		}
-		scriptID, err := scriptIDFromParams(c)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, api.InvalidInput("无效的剧本 ID"))
-			return
-		}
-
-		var script persistencemodel.Script
-		if err := db.WithContext(c.Request.Context()).Select("id, project_id").First(&script, scriptID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.AbortWithStatusJSON(http.StatusNotFound, api.NotFound("剧本不存在"))
-				return
-			}
-			c.AbortWithStatusJSON(http.StatusInternalServerError, api.Internal("剧本校验失败"))
-			return
-		}
-		belongs, err := projectService.BelongsToOrg(c.Request.Context(), script.ProjectID, member.OrgID)
-		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.AbortWithStatusJSON(http.StatusNotFound, api.NotFound("项目不存在"))
-			return
-		}
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, api.Internal("项目校验失败"))
-			return
-		}
-		if !belongs {
-			c.AbortWithStatusJSON(http.StatusForbidden, api.ForbiddenProject("项目不属于当前工作区"))
-			return
-		}
-
-		role, err := projectService.ResolveRole(c.Request.Context(), script.ProjectID, user.ID, user.SystemRole)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("权限不足"))
-			return
-		}
-		if _, ok := allowed[role.Role]; ok {
-			c.Next()
-			return
-		}
-		c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("权限不足"))
-	}
-}
-
-func scriptIDFromParams(c *gin.Context) (uint, error) {
-	raw := c.Param("scriptId")
-	if raw == "" {
-		raw = c.Param("id")
-	}
-	parsed, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil || parsed == 0 {
-		return 0, errors.New("invalid script id")
-	}
-	return uint(parsed), nil
 }
 
 // InjectOrgMember loads the OrganizationMember for the current user + :orgId path param.

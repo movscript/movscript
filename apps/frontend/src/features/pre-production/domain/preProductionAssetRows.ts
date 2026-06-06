@@ -8,8 +8,8 @@ export type AssetSlotRecord = SemanticEntityRecord & {
   owner_type?: string
   owner_id?: number
   production_id?: number
-  creative_reference_id?: number
-  creative_reference_state_id?: number
+  setting_id?: number
+  setting_state_id?: number
   kind?: string
   name?: string
   description?: string
@@ -34,7 +34,7 @@ export type AssetSlotCandidateRecord = SemanticEntityRecord & {
   note?: string
 }
 
-export type CreativeReferenceRecord = SemanticEntityRecord & {
+export type SettingRecord = SemanticEntityRecord & {
   kind?: string
   name?: string
   alias?: string
@@ -54,7 +54,7 @@ export interface AssetSlotViewModel {
 }
 
 export interface ReferenceAssetCluster {
-  reference: CreativeReferenceRecord | null
+  reference: SettingRecord | null
   rows: AssetSlotViewModel[]
   missing: number
   candidate: number
@@ -127,7 +127,7 @@ export function buildAssetCandidatePatchPayload(assetSlotId: number, candidate: 
   }
 }
 
-export function buildReferenceAssetClusters(references: CreativeReferenceRecord[], rows: AssetSlotViewModel[]): ReferenceAssetCluster[] {
+export function buildReferenceAssetClusters(references: SettingRecord[], rows: AssetSlotViewModel[]): ReferenceAssetCluster[] {
   const clusters = new Map<number, ReferenceAssetCluster>()
   for (const reference of references) {
     clusters.set(reference.ID, {
@@ -148,7 +148,7 @@ export function buildReferenceAssetClusters(references: CreativeReferenceRecord[
     searchText: '未绑定 项目素材需求 unbound project assets',
   }
   for (const row of rows) {
-    const cluster = row.slot.creative_reference_id ? clusters.get(row.slot.creative_reference_id) ?? unbound : unbound
+    const cluster = row.slot.setting_id ? clusters.get(row.slot.setting_id) ?? unbound : unbound
     cluster.rows.push(row)
     const status = normalizeSlotStatus(row.slot.status)
     if (status === 'missing') cluster.missing += 1
@@ -206,7 +206,7 @@ export function slotScopeLabel(slot: AssetSlotRecord) {
     const label = ownerTypeLabels[slot.owner_type] ?? slot.owner_type
     return `${label} #${slot.owner_id}`
   }
-  if (slot.creative_reference_id) return `设定资料 #${slot.creative_reference_id}`
+  if (slot.setting_id) return `设定资料 #${slot.setting_id}`
   if (slot.resource_id) return `资源 #${slot.resource_id}`
   return '项目素材需求'
 }

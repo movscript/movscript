@@ -2,7 +2,7 @@ import {
   ensureMovScriptWorkspaceRoot,
   resolveMovScriptWorkspaceRootPaths,
   type MovScriptWorkspaceRootManifest,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import type { ElectronMovScriptWorkspaceRootResult } from '../../src/shared/contracts/electronApi'
 

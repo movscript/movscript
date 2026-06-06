@@ -248,7 +248,7 @@ export function ContentWorkbenchPage() {
   const totalUnitCount = visibleRows.reduce((sum, row) => sum + row.units.length, 0)
   const totalKeyframeCount = visibleRows.reduce((sum, row) => sum + row.keyframes.length, 0)
   const totalMissingSlotCount = visibleRows.reduce((sum, row) => sum + row.missingSlots.length, 0)
-  const projectReferenceCount = (data?.creativeReferences ?? []).filter(isVisibleContentWorkbenchRecord).length
+  const projectReferenceCount = (data?.settings ?? []).filter(isVisibleContentWorkbenchRecord).length
   const projectAssetSlotCount = (data?.assetSlots ?? []).filter((slot) => slot.owner_type !== 'asset_slot' && isVisibleContentWorkbenchRecord(slot)).length
   const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   const selectedProductionIdSet = new Set(selected?.productionIds ?? [])

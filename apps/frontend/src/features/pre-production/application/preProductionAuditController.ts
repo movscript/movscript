@@ -61,7 +61,7 @@ export function runPreProductionAudit(options: PreProductionAuditControllerOptio
         toast.success('前期准备梳理完成，可在审阅区查看设定和素材草案')
       }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['pre-production-settings', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
         (refetchSettingWorkspaceArtifacts ?? refetchSettingWorkspaces)?.(),
         (refetchAssetWorkspaceArtifacts ?? refetchAssetWorkspaceWorkspaces)?.(),

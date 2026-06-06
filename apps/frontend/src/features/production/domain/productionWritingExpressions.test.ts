@@ -60,8 +60,8 @@ test('production writing expressions normalize write payloads and speaker choice
     [{ ID: 20, kind: 'person', name: '张三' }, { ID: 21, kind: 'person', name: '李四' }],
     {
       contentUnitById: new Map(),
-      creativeReferenceById: new Map([[20, { ID: 20, kind: 'person', name: '张三' }]]),
-      usagesByOwnerKey: new Map([['scene_moment:10', [{ ID: 100, creative_reference_id: 20 }]]]),
+      settingById: new Map([[20, { ID: 20, kind: 'person', name: '张三' }]]),
+      usagesByOwnerKey: new Map([['scene_moment:10', [{ ID: 100, setting_id: 20 }]]]),
     },
   )
 

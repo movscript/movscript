@@ -87,7 +87,7 @@ export function buildWorkspaceBusinessReviewPath(input: {
     return withRouteParams('/project/pre-production', {
       view: 'review',
       workspaceId: input.workspaceId,
-      reference_id: entityType === 'creative_reference' ? entityId : undefined,
+      reference_id: entityType === 'setting' ? entityId : undefined,
     })
   }
   if (input.workspaceKind === 'asset_workspace') {

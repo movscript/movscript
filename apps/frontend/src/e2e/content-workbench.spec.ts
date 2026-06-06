@@ -446,7 +446,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
       segment: { ID: 401, title: '秘密浮现' },
       scene_moment: { ID: 402, title: '旧伞纸条滑落', action_text: '林夏停住，纸条落到地上。' },
       script_block: { ID: 901, content: '纸条从伞骨夹缝里滑出，被雨水打湿。' },
-      creative_references: [{
+      settings: [{
         usage: { ID: 701, owner_type: 'scene_moment', owner_id: 402 },
         reference: { ID: 501, name: '破损旧伞' },
       }],
@@ -471,7 +471,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
         prompt: '纸条刚离开伞骨。',
       }],
       constraints: {
-        read_only_entities: ['script_block', 'creative_reference'],
+        read_only_entities: ['script_block', 'setting'],
         write_targets: ['generation_job', 'keyframe'],
       },
     })
@@ -621,7 +621,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
         status: 'confirmed',
         order: 3,
       }],
-      'creative-references': [{
+      'settings': [{
         ID: 501,
         project_id: PROJECT_ID,
         name: '破损旧伞',
@@ -629,12 +629,12 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
         status: 'confirmed',
         description: '伞骨内侧可以藏纸条。',
       }],
-      'creative-reference-usages': [{
+      'setting-usages': [{
         ID: 701,
         project_id: PROJECT_ID,
         owner_type: 'scene_moment',
         owner_id: 402,
-        creative_reference_id: 501,
+        setting_id: 501,
         role: 'key_prop',
         status: 'confirmed',
       }],

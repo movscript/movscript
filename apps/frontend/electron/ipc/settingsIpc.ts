@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { LOCAL_BACKEND_URL, startBackend, stopBackend, type BackendStatus } from '../services/backend'
-import { setMCPAPIBaseURL } from '../mcp/server'
-import { setDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
+import { resolveDesktopDefaultMovScriptWorkspaceDir, setDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
+import { setMovScriptBackendAPIBaseURL, writeMovScriptBackendConfig } from '@movscript/core/backend/node'
 
 export interface SettingsIpcDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -18,7 +18,8 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
       await stopBackend(deps.broadcastBackendStatus, { terminate: true })
     }
     if (!settings?.apiBaseURL) return
-    setMCPAPIBaseURL(settings.apiBaseURL)
+    setMovScriptBackendAPIBaseURL(settings.apiBaseURL)
+    writeMovScriptBackendConfig(resolveDesktopDefaultMovScriptWorkspaceDir(), { baseURL: settings.apiBaseURL })
     await deps.ensureMCPServerReady()
   })
 }

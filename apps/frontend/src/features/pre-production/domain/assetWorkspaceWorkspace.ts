@@ -1,4 +1,4 @@
-import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/workspaces'
+import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/core/workspace-contracts'
 
 export const ASSET_WORKSPACE_WORKSPACE_SCHEMA = WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace
 export const ASSET_WORKSPACE_SCOPE = WORKSPACE_SCOPES.assetWorkspace
@@ -45,7 +45,7 @@ export interface AssetWorkspaceArtifactShellContent {
     notes: string[]
   }
   workspace: {
-    creative_references: []
+    settings: []
     asset_slots: []
     candidate_plans: AssetWorkspaceCandidateTaskGraph[]
   }
@@ -90,7 +90,7 @@ export function buildEmptyAssetWorkspaceArtifactShellContent(input: {
       notes: [],
     },
     workspace: {
-      creative_references: [],
+      settings: [],
       asset_slots: [],
       candidate_plans: [],
     },

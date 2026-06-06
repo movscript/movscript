@@ -1,4 +1,4 @@
-import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/workspaces'
+import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/core/workspace-contracts'
 
 export const PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA = WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace
 export const PRODUCTION_WORKSPACE_SCOPE = WORKSPACE_SCOPES.productionWorkspace
@@ -30,7 +30,7 @@ export interface ProductionWorkspaceKeyframeSnapshot {
   before?: Record<string, unknown>
 }
 
-export interface ProductionWorkspaceCreativeReferenceUsageSnapshot {
+export interface ProductionWorkspaceSettingUsageSnapshot {
   id: number
   client_id?: string
   name?: string
@@ -64,7 +64,7 @@ export interface ProductionWorkspaceSceneMomentSnapshot {
   status?: string
   script_block_id?: number | null
   content_units?: ProductionWorkspaceContentUnitSnapshot[]
-  creative_references?: ProductionWorkspaceCreativeReferenceUsageSnapshot[]
+  settings?: ProductionWorkspaceSettingUsageSnapshot[]
   asset_slots?: ProductionWorkspaceAssetSlotSnapshot[]
   keyframes?: ProductionWorkspaceKeyframeSnapshot[]
   rationale?: string

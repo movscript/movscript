@@ -4,7 +4,7 @@ export interface ProductionWorkspaceApplyPreviewItem {
   key: string
   title: string
   detail: string
-  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot' | 'writing_expression'
+  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'setting' | 'asset_slot' | 'writing_expression'
   action?: ProductionWorkspaceSnapshotAction
   parent?: string
 }
@@ -35,7 +35,7 @@ export interface ProductionWorkspaceContextItem {
 }
 
 export interface ProductionWorkspaceContextResources {
-  creativeReferences: ProductionWorkspaceContextItem[]
+  settings: ProductionWorkspaceContextItem[]
   assetSlots: ProductionWorkspaceContextItem[]
 }
 

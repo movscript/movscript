@@ -19,7 +19,7 @@ import type { ContentWorkbenchDropPosition } from '@/features/content/domain/con
 import type { Job } from '@/types'
 import type {
   AssetSlotRecord,
-  CreativeReferenceRecord,
+  SettingRecord,
   SceneMomentRecord,
   ScriptBlockRecord,
   SegmentRecord,
@@ -49,7 +49,7 @@ const PRODUCTION_ORCHESTRATION_DETAIL_PANE_WIDTH_STORAGE_KEY = 'movscript.produc
 
 export function ProductionOrchestrationWorkspace({
   scriptSourceText,
-  creativeReferences,
+  settings,
   assetSlots,
   segments,
   sceneMoments,
@@ -98,7 +98,7 @@ export function ProductionOrchestrationWorkspace({
   allowCreateAndBindSceneMomentScriptBlock = true,
 }: {
   scriptSourceText: string
-  creativeReferences: CreativeReferenceRecord[]
+  settings: SettingRecord[]
   assetSlots: AssetSlotRecord[]
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
@@ -131,7 +131,7 @@ export function ProductionOrchestrationWorkspace({
   onSaveSceneMoment: (momentId: number, payload: SemanticEntityPayload) => void
   onDeleteSceneMoment: (momentId: number) => void
   onLinkReferenceToSceneMoment: (momentId: number, referenceId: number, role: string) => void
-  onUnlinkReferenceFromSceneMoment: (usageId: number) => void
+  onUnlinkReferenceFromSceneMoment: (momentId: number, referenceId: number) => void
   onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
@@ -212,7 +212,7 @@ export function ProductionOrchestrationWorkspace({
               <ProductionSceneEditorSection>
                 <SceneMomentSettingsEditor
                   moment={view.selectedMoment}
-                  creativeReferences={creativeReferences}
+                  settings={settings}
                   assetSlots={assetSlots}
                   lookup={lookup}
                   isSaving={isLinkingSceneMomentReference || isDeletingSceneMomentReference}
@@ -255,7 +255,7 @@ export function ProductionOrchestrationWorkspace({
                   selectedMoment={view.selectedMoment}
                   selectedMomentScriptBlock={view.selectedMomentScriptBlock}
                   expressionLines={view.expressionLines}
-                  creativeReferences={creativeReferences}
+                  settings={settings}
                   lookup={lookup}
                   isSavingExpressionLine={isSavingExpressionLine}
                   canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}

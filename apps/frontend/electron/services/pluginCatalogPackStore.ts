@@ -8,7 +8,7 @@ import {
   type PluginCatalogPackStoreDirs,
   type InstallPluginCatalogPackInput,
   type UninstallPluginCatalogPackInput,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/plugins/node'
 
 export function resolvePluginCatalogPackStoreDirs(): PluginCatalogPackStoreDirs {
   return resolveSharedPluginCatalogPackStoreDirs({

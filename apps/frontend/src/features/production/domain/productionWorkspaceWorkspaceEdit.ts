@@ -243,7 +243,7 @@ export function appendProductionWorkspaceArtifactWritingExpression(
   return true
 }
 
-export function appendProductionWorkspaceArtifactCreativeReference(
+export function appendProductionWorkspaceArtifactSetting(
   workspace: EditableProductionWorkspaceArtifactJson,
   segmentKey: string,
   momentKey: string,
@@ -251,7 +251,7 @@ export function appendProductionWorkspaceArtifactCreativeReference(
 ) {
   const moment = findSceneMoment(workspace, segmentKey, momentKey)
   if (!moment) return false
-  const references = moment.creative_references ?? []
+  const references = moment.settings ?? []
   const nextReferenceKey = productionWorkspaceArtifactNodeKey(reference, `reference:${references.length}`)
   const alreadyLinked = references.some((item, index) => (
     productionWorkspaceArtifactNodeKey(item, `reference:${index}`) === nextReferenceKey ||
@@ -259,11 +259,11 @@ export function appendProductionWorkspaceArtifactCreativeReference(
     (reference.client_id && item.client_id === reference.client_id)
   ))
   if (!alreadyLinked) references.push(reference)
-  moment.creative_references = references
+  moment.settings = references
   return !alreadyLinked
 }
 
-export function removeProductionWorkspaceArtifactCreativeReference(
+export function removeProductionWorkspaceArtifactSetting(
   workspace: EditableProductionWorkspaceArtifactJson,
   segmentKey: string,
   momentKey: string,
@@ -271,11 +271,11 @@ export function removeProductionWorkspaceArtifactCreativeReference(
 ) {
   const moment = findSceneMoment(workspace, segmentKey, momentKey)
   if (!moment) return false
-  const references = moment.creative_references ?? []
+  const references = moment.settings ?? []
   const nextReferences = references.filter((reference, referenceIndex) => (
     productionWorkspaceArtifactNodeKey(reference, `reference:${referenceIndex}`) !== referenceKey
   ))
-  moment.creative_references = nextReferences
+  moment.settings = nextReferences
   return nextReferences.length !== references.length
 }
 
@@ -311,10 +311,10 @@ export const replaceProductionWorkspaceWorkspaceWritingExpression = replaceProdu
 export const removeProductionWorkspaceWorkspaceWritingExpression = removeProductionWorkspaceArtifactWritingExpression
 /** @deprecated Use appendProductionWorkspaceArtifactWritingExpression. */
 export const appendProductionWorkspaceWorkspaceWritingExpression = appendProductionWorkspaceArtifactWritingExpression
-/** @deprecated Use appendProductionWorkspaceArtifactCreativeReference. */
-export const appendProductionWorkspaceWorkspaceCreativeReference = appendProductionWorkspaceArtifactCreativeReference
-/** @deprecated Use removeProductionWorkspaceArtifactCreativeReference. */
-export const removeProductionWorkspaceWorkspaceCreativeReference = removeProductionWorkspaceArtifactCreativeReference
+/** @deprecated Use appendProductionWorkspaceArtifactSetting. */
+export const appendProductionWorkspaceWorkspaceSetting = appendProductionWorkspaceArtifactSetting
+/** @deprecated Use removeProductionWorkspaceArtifactSetting. */
+export const removeProductionWorkspaceWorkspaceSetting = removeProductionWorkspaceArtifactSetting
 /** @deprecated Use buildProductionWorkspaceArtifactClientId. */
 export const buildProductionWorkspaceWorkspaceClientId = buildProductionWorkspaceArtifactClientId
 

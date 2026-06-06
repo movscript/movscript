@@ -3,10 +3,8 @@ package canvas
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
-	"github.com/movscript/movscript/internal/app/coregraph"
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
@@ -14,7 +12,6 @@ import (
 
 type repository interface {
 	ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasdomain.Canvas, error)
-	FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasdomain.Canvas, bool, error)
 	GetCanvas(ctx context.Context, id string) (canvasdomain.Canvas, error)
 	CreateCanvas(ctx context.Context, cv canvasdomain.Canvas) (canvasdomain.Canvas, error)
 	ReloadCanvas(ctx context.Context, cv canvasdomain.Canvas) (canvasdomain.Canvas, error)
@@ -25,7 +22,6 @@ type repository interface {
 	GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasdomain.CanvasNode, error)
 	IsInOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool
 	EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error
-	ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error)
 }
 
 type gormRepository struct {
@@ -46,12 +42,6 @@ func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilt
 	if stage := strings.TrimSpace(filter.Stage); stage != "" {
 		q = q.Where("stage = ?", stage)
 	}
-	if refType := strings.TrimSpace(filter.RefType); refType != "" {
-		q = q.Where("ref_type = ?", refType)
-	}
-	if refID := strings.TrimSpace(filter.RefID); refID != "" {
-		q = q.Where("ref_id = ?", refID)
-	}
 	if canvasType := strings.TrimSpace(filter.CanvasType); canvasType != "" {
 		q = q.Where("canvas_type = ?", canvasType)
 	}
@@ -59,25 +49,6 @@ func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilt
 		return nil, err
 	}
 	return canvasdomain.CanvasesFromModels(canvases), nil
-}
-
-func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasdomain.Canvas, bool, error) {
-	var existing persistencemodel.Canvas
-	q := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
-		Where("owner_id = ? AND canvas_type = ? AND ref_type = ? AND ref_id = ?", ownerID, canvasType, refType, refID)
-	q = r.applyOrgScope(ctx, q, orgID, ownerID)
-	if projectID != nil {
-		q = q.Where("project_id = ?", *projectID)
-	} else {
-		q = q.Where("project_id IS NULL")
-	}
-	if err := q.Order("id asc").First(&existing).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return canvasdomain.Canvas{}, false, nil
-		}
-		return canvasdomain.Canvas{}, false, err
-	}
-	return canvasdomain.CanvasFromModel(existing), true, nil
 }
 
 func (r *gormRepository) GetCanvas(ctx context.Context, id string) (canvasdomain.Canvas, error) {
@@ -93,9 +64,6 @@ func (r *gormRepository) CreateCanvas(ctx context.Context, cv canvasdomain.Canva
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&modelCV).Error; err != nil {
 			return err
-		}
-		if modelCV.CanvasType == "inspiration" && modelCV.RefType == "asset_slot" && modelCV.RefID != nil && *modelCV.RefID != 0 {
-			return createAssetSlotCanvasTargetNode(tx, &modelCV)
 		}
 		if modelCV.CanvasType != "workflow" {
 			return nil
@@ -128,29 +96,18 @@ func (r *gormRepository) ReloadCanvas(ctx context.Context, cv canvasdomain.Canva
 
 func (r *gormRepository) SaveCanvasMetadata(ctx context.Context, cv canvasdomain.Canvas) error {
 	modelCV := cv.ToModel()
-	return saveCanvasWithRelations(r.db.WithContext(ctx), &modelCV)
+	return r.db.WithContext(ctx).Save(&modelCV).Error
 }
 
 func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasdomain.Canvas) error {
 	modelCV := cv.ToModel()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		var runs []persistencemodel.CanvasRun
-		if err := tx.Select("id").Where("canvas_id = ?", modelCV.ID).Find(&runs).Error; err != nil {
-			return err
-		}
 		if err := tx.Where("canvas_run_id IN (?)", tx.Model(&persistencemodel.CanvasRun{}).Select("id").Where("canvas_id = ?", modelCV.ID)).Delete(&persistencemodel.CanvasTask{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("canvas_id = ?", modelCV.ID).Delete(&persistencemodel.CanvasRun{}).Error; err != nil {
 			return err
-		}
-		graph := coregraph.NewWriter(tx)
-		for i := range runs {
-			runs[i].CanvasID = modelCV.ID
-			if err := graph.Expire(ctx, &runs[i]); err != nil {
-				return err
-			}
 		}
 		if err := tx.Where("canvas_id = ?", modelCV.ID).Delete(&persistencemodel.CanvasNode{}).Error; err != nil {
 			return err
@@ -161,7 +118,7 @@ func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasdomain.Canva
 		if err := tx.Delete(&modelCV).Error; err != nil {
 			return err
 		}
-		return graph.Expire(ctx, &modelCV)
+		return nil
 	})
 }
 
@@ -195,7 +152,7 @@ func (r *gormRepository) ReplaceCanvasGraph(ctx context.Context, cv canvasdomain
 				return err
 			}
 		}
-		return saveCanvasWithRelations(tx, &modelCV)
+		return tx.Save(&modelCV).Error
 	})
 }
 
@@ -259,37 +216,6 @@ func (r *gormRepository) EnsureProjectInOrg(ctx context.Context, projectID *uint
 	return nil
 }
 
-func (r *gormRepository) ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error) {
-	canvasTable := r.db.NamingStrategy.TableName("Canvas")
-	q := r.db.WithContext(ctx).Model(&persistencemodel.CanvasEntityWriteAudit{}).
-		Joins("JOIN "+canvasTable+" ON "+canvasTable+".id = canvas_entity_write_audits.canvas_id").
-		Where(canvasTable+".owner_id = ?", filter.OwnerID)
-	if filter.CanvasID > 0 {
-		q = q.Where("canvas_entity_write_audits.canvas_id = ?", filter.CanvasID)
-	}
-	if filter.CanvasRunID > 0 {
-		q = q.Where("canvas_entity_write_audits.canvas_run_id = ?", filter.CanvasRunID)
-	}
-	if entityKind := strings.TrimSpace(filter.EntityKind); entityKind != "" {
-		q = q.Where("canvas_entity_write_audits.entity_kind = ?", entityKind)
-	}
-	if filter.EntityID > 0 {
-		q = q.Where("canvas_entity_write_audits.entity_id = ?", filter.EntityID)
-	}
-	if filter.UserID > 0 {
-		q = q.Where("canvas_entity_write_audits.user_id = ?", filter.UserID)
-	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return EntityWriteAuditPage{}, err
-	}
-	items := make([]persistencemodel.CanvasEntityWriteAudit, 0)
-	if err := q.Order("canvas_entity_write_audits.id desc").Limit(filter.PageSize).Offset((filter.Page - 1) * filter.PageSize).Find(&items).Error; err != nil {
-		return EntityWriteAuditPage{}, err
-	}
-	return EntityWriteAuditPage{Items: canvasdomain.EntityWriteAuditsFromModels(items), Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
-}
-
 func (r *gormRepository) applyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerID uint) *gorm.DB {
 	if orgID == nil {
 		return q.Where("org_id IS NULL")
@@ -309,27 +235,4 @@ func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint)
 		return false
 	}
 	return org.IsPersonal
-}
-
-func saveCanvasWithRelations(db *gorm.DB, cv *persistencemodel.Canvas) error {
-	db = db.Session(&gorm.Session{SkipHooks: true})
-	if err := db.Save(cv).Error; err != nil {
-		return err
-	}
-	return coregraph.NewWriter(db).Write(context.Background(), cv)
-}
-
-func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *persistencemodel.Canvas) error {
-	var slot persistencemodel.AssetSlot
-	if err := tx.First(&slot, *cv.RefID).Error; err != nil {
-		return err
-	}
-	node := canvasdomain.NewAssetSlotTargetNode(canvasdomain.AssetSlotTargetNodeInput{
-		CanvasID:      cv.ID,
-		AssetSlotID:   slot.ID,
-		AssetKind:     slot.Kind,
-		AssetName:     slot.Name,
-		FallbackLabel: fmt.Sprintf("素材位 #%d", slot.ID),
-	}).ToModel()
-	return tx.Create(&node).Error
 }

@@ -316,6 +316,9 @@ export class ProviderSessionClient {
   }
 
   getProviderSessionTelemetry(signal?: AbortSignal): Promise<ProviderSessionTelemetrySnapshot> {
+    if (isBackendAPIV1Endpoint(this.baseURL)) {
+      return Promise.resolve(emptyProviderSessionTelemetrySnapshot())
+    }
     return this.getJSON('/runtime/telemetry', { auth: false, signal })
   }
 
@@ -1287,6 +1290,42 @@ function providerPluginCatalogPathWireValue(path: string): string {
 }
 
 export const providerSessionClient = new ProviderSessionClient()
+
+function isBackendAPIV1Endpoint(endpoint: string): boolean {
+  return endpoint.replace(/\/+$/, '').endsWith('/api/v1')
+}
+
+function emptyProviderSessionTelemetrySnapshot(): ProviderSessionTelemetrySnapshot {
+  return {
+    schema: 'movscript.agent.runtime-telemetry.v1',
+    generatedAt: new Date().toISOString(),
+    service: {
+      name: 'mova',
+      storage: 'memory',
+      metricsEndpoint: '/metrics',
+      snapshotEndpoint: '/runtime/telemetry',
+    },
+    retention: {
+      operations: 0,
+      spans: 0,
+      metrics: 0,
+      logs: 0,
+    },
+    operations: [],
+    spans: [],
+    metrics: [],
+    logs: [],
+    summary: {
+      operationCount: 0,
+      runningOperationCount: 0,
+      slowOperationCount: 0,
+      errorOperationCount: 0,
+      spanCount: 0,
+      slowSpanCount: 0,
+      errorSpanCount: 0,
+    },
+  }
+}
 
 function statusClass(status: number): string {
   if (!Number.isFinite(status) || status <= 0) return 'unknown'

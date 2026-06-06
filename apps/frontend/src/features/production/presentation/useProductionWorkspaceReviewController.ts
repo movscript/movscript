@@ -251,7 +251,7 @@ export function useProductionWorkspaceReviewController({
           returned: {
             segments: result.would_apply.segments?.length ?? 0,
             sceneMoments: result.would_apply.scene_moments?.length ?? 0,
-            creativeReferences: result.would_apply.counts.creative_references_created,
+            settings: result.would_apply.counts.settings_created,
             assetSlots: result.would_apply.asset_slots?.length ?? 0,
             contentUnits: result.would_apply.content_units?.length ?? 0,
             keyframes: result.would_apply.keyframes?.length ?? 0,

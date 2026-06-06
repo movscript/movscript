@@ -6,7 +6,7 @@ import {
   normalizeMovScriptWorkspaceConfigDirName,
   resolveMovScriptWorkspacePaths,
   resolveMovScriptWorkspaceRootPaths,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 import type { ElectronProviderSessionSummary } from '../../src/shared/contracts/electronApi'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 

@@ -28,9 +28,9 @@ const semanticEntitiesSource = readFileSync(resolve('src/shared/infrastructure/a
 test('production workspace review applies accepted changes over the current snapshot', () => {
   assert.match(source, /loadProductionOrchestrationData\(projectId!\)/)
   assert.match(dataSource, /PRODUCTION_ORCHESTRATION_ENTITY_KINDS[\s\S]*'keyframes'/)
-  assert.match(dataSource, /PRODUCTION_ORCHESTRATION_ENTITY_KINDS[\s\S]*'creativeReferenceUsages'/)
-  assert.match(source, /creativeReferenceUsages: data\?\.creativeReferenceUsages \?\? \[\]/)
-  assert.match(modelSource, /creative_references: \(referencesBySceneMoment\.get\(moment\.ID\) \?\? \[\]\)\.slice\(\)/)
+  assert.match(dataSource, /PRODUCTION_ORCHESTRATION_ENTITY_KINDS[\s\S]*'settingUsages'/)
+  assert.match(source, /settingUsages: data\?\.settingUsages \?\? \[\]/)
+  assert.match(modelSource, /settings: \(referencesBySceneMoment\.get\(moment\.ID\) \?\? \[\]\)\.slice\(\)/)
   assert.match(workspaceSeedSource, /export function buildProductionWorkspaceSeedMetadata/)
   assert.equal(existsSync(resolve('src/features/production/application/productionWorkspaceAgentLaunch.ts')), false)
   assert.equal(existsSync(resolve('src/features/production/application/productionOrchestrationLaunchController.ts')), false)
@@ -122,8 +122,8 @@ test('production workspace snapshot model hydrates current project entities', ()
   const snapshot = buildCurrentProductionWorkspaceSnapshot({
     segments: [{ ID: 1, title: '段落', order: 1 }],
     sceneMoments: [{ ID: 10, segment_id: 1, title: '情节', order: 1 }],
-    creativeReferences: [{ ID: 20, name: '人物', kind: 'person' }],
-    creativeReferenceUsages: [{ ID: 200, owner_type: 'scene_moment', owner_id: 10, creative_reference_id: 20, role: '主视角' }],
+    settings: [{ ID: 20, name: '人物', kind: 'person' }],
+    settingUsages: [{ ID: 200, owner_type: 'scene_moment', owner_id: 10, setting_id: 20, role: '主视角' }],
     contentUnits: [{ ID: 30, scene_moment_id: 10, title: '内容', order: 1 }],
     keyframes: [
       { ID: 40, scene_moment_id: 10, title: '情节画面', order: 1 },
@@ -136,8 +136,8 @@ test('production workspace snapshot model hydrates current project entities', ()
   const moment = snapshot.segments[0]?.scene_moments?.[0]
   assert.equal(snapshot.segments[0]?.title, '段落')
   assert.equal(moment?.title, '情节')
-  assert.equal(moment?.creative_references?.[0]?.name, '人物')
-  assert.equal(moment?.creative_references?.[0]?.role, '主视角')
+  assert.equal(moment?.settings?.[0]?.name, '人物')
+  assert.equal(moment?.settings?.[0]?.role, '主视角')
   assert.equal(moment?.writing_expressions?.[0]?.text, '对白')
   assert.equal(moment?.content_units?.length ?? 0, 0)
   assert.equal(moment?.keyframes?.length ?? 0, 0)
@@ -159,7 +159,7 @@ test('production workspace review segments append deleted current snapshot child
         id: 10,
         title: '将被删除的情节',
         content_units: [{ id: 100, title: '旧内容', keyframes: [{ id: 1000, title: '旧画面' }] }],
-        creative_references: [{ id: 200, name: '旧设定' }],
+        settings: [{ id: 200, name: '旧设定' }],
         asset_slots: [{ id: 300, name: '旧素材' }],
         keyframes: [{ id: 400, title: '情节画面' }],
       }],
@@ -175,7 +175,7 @@ test('production workspace review segments append deleted current snapshot child
   assert.equal(deletedMoment?.content_units?.[0]?.keyframes?.[0]?.__delete, true)
   assert.equal(deletedMoment?.asset_slots?.[0]?.__delete, true)
   assert.equal(deletedMoment?.keyframes?.[0]?.__delete, true)
-  assert.deepEqual(deletedMoment?.creative_references, [])
+  assert.deepEqual(deletedMoment?.settings, [])
 })
 
 test('production workspace review segments omit unchanged seeded snapshot nodes', () => {
@@ -192,7 +192,7 @@ test('production workspace review segments omit unchanged seeded snapshot nodes'
         description: '说明',
         content_units: [{ id: 100, title: '当前内容', description: '内容说明' }],
         keyframes: [{ id: 200, title: '当前画面', prompt: '画面提示' }],
-        creative_references: [{ id: 300, name: '人物', role: '主角' }],
+        settings: [{ id: 300, name: '人物', role: '主角' }],
         asset_slots: [{ id: 400, name: '服装', priority: 'high' }],
       }],
     }],
@@ -232,7 +232,7 @@ test('production workspace review keeps only changed branches from a seeded snap
   assert.deepEqual(collectWorkspaceReviewNodes(reviewSegments).map((node) => node.key), ['segment:1', 'scene_moment:10'])
 })
 
-test('production workspace review treats removed scene creative references as deletions', () => {
+test('production workspace review treats removed scene settings as deletions', () => {
   const currentSnapshot = {
     segments: [{
       id: 1,
@@ -240,7 +240,7 @@ test('production workspace review treats removed scene creative references as de
       scene_moments: [{
         id: 10,
         title: '当前情节',
-        creative_references: [
+        settings: [
           { id: 20, name: '保留人物', role: '主角' },
           { id: 21, name: '移除人物', role: '配角' },
         ],
@@ -253,12 +253,12 @@ test('production workspace review treats removed scene creative references as de
     scene_moments: [{
       id: 10,
       title: '当前情节',
-      creative_references: [{ id: 20, name: '保留人物', role: '主角' }],
+      settings: [{ id: 20, name: '保留人物', role: '主角' }],
     }],
   }] satisfies WorkspaceSegmentNode[]
 
   const reviewSegments = buildWorkspaceReviewSegments(workspaceSegments, currentSnapshot)
-  const deletedReference = reviewSegments[0]?.scene_moments?.[0]?.creative_references?.[0]
+  const deletedReference = reviewSegments[0]?.scene_moments?.[0]?.settings?.[0]
   const decisions: WorkspaceNodeDecisions = Object.fromEntries(
     collectWorkspaceReviewNodes(reviewSegments).map((node) => [node.key, 'accepted']),
   )
@@ -266,7 +266,7 @@ test('production workspace review treats removed scene creative references as de
 
   assert.equal(deletedReference?.id, 21)
   assert.equal(deletedReference?.__delete, true)
-  assert.deepEqual(merged.segments[0]?.scene_moments?.[0]?.creative_references?.map((reference) => reference.id), [20])
+  assert.deepEqual(merged.segments[0]?.scene_moments?.[0]?.settings?.map((reference) => reference.id), [20])
 })
 
 test('production workspace review merge applies accepted updates and strips internal markers', () => {

@@ -195,22 +195,22 @@ export default function ProductionOrchestrationPage() {
     () => (data?.assetSlots ?? []).filter((slot) => !['ignored', 'merged'].includes(String(slot.status ?? ''))),
     [data?.assetSlots],
   )
-  const allCreativeReferences = useMemo(
-    () => (data?.creativeReferences ?? []).filter((reference) => !['ignored', 'merged'].includes(String(reference.status ?? ''))),
-    [data?.creativeReferences],
+  const allSettings = useMemo(
+    () => (data?.settings ?? []).filter((reference) => !['ignored', 'merged'].includes(String(reference.status ?? ''))),
+    [data?.settings],
   )
   const currentProductionSnapshot = useMemo(
     () => buildCurrentProductionWorkspaceSnapshot({
       segments: allSegments,
       sceneMoments: allSceneMoments,
-      creativeReferences: allCreativeReferences,
-      creativeReferenceUsages: data?.creativeReferenceUsages ?? [],
+      settings: allSettings,
+      settingUsages: data?.settingUsages ?? [],
       contentUnits: allContentUnits,
       keyframes: allKeyframes,
       assetSlots: allAssetSlots,
       writingExpressions: allWritingExpressions,
     }),
-    [allAssetSlots, allContentUnits, allCreativeReferences, allKeyframes, allSceneMoments, allSegments, allWritingExpressions, data?.creativeReferenceUsages],
+    [allAssetSlots, allContentUnits, allSettings, allKeyframes, allSceneMoments, allSegments, allWritingExpressions, data?.settingUsages],
   )
   const {
     openedWorkspaceId,
@@ -251,11 +251,11 @@ export default function ProductionOrchestrationPage() {
     scriptVersionTitle: selectedScriptVersion?.title ?? '',
     segments: allSegments,
     sceneMoments: allSceneMoments,
-    creativeReferences: allCreativeReferences,
-    creativeReferenceUsages: data?.creativeReferenceUsages ?? [],
+    settings: allSettings,
+    settingUsages: data?.settingUsages ?? [],
     assetSlots: allAssetSlots,
     contentUnits: allContentUnits,
-  }), [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, data?.creativeReferenceUsages, scriptText, selectedScriptVersion?.title])
+  }), [allAssetSlots, allContentUnits, allSettings, allSceneMoments, allSegments, data?.settingUsages, scriptText, selectedScriptVersion?.title])
   const shotPlanRows = useMemo(() => buildContentGenerationMomentRows(data), [data])
   const selectedShotPlanRow = useMemo(
     () => pageController.selectedWritingMomentId
@@ -513,7 +513,7 @@ export default function ProductionOrchestrationPage() {
             <WorkbenchProjectPane>
               <ProductionOrchestrationWorkspace
                 scriptSourceText={scriptSourceText}
-                creativeReferences={allCreativeReferences}
+                settings={allSettings}
                 assetSlots={allAssetSlots}
                 segments={allSegments}
                 sceneMoments={allSceneMoments}
@@ -534,11 +534,11 @@ export default function ProductionOrchestrationPage() {
                 onSelectSceneMoment={pageController.selectSceneMoment}
                 onReorderSegment={(draggedSegmentId, targetSegmentId, position) => {
                   if (reorderSegmentsMutation.isPending) return
-                  reorderSegmentsMutation.mutate({ segments: allSegments, draggedSegmentId, targetSegmentId, position })
+                  reorderSegmentsMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, segments: allSegments, draggedSegmentId, targetSegmentId, position })
                 }}
                 onReorderSceneMoment={(draggedMomentId, targetSegmentId, targetMomentId, position) => {
                   if (reorderSceneMomentsMutation.isPending) return
-                  reorderSceneMomentsMutation.mutate({ sceneMoments: allSceneMoments, draggedMomentId, targetSegmentId, targetMomentId, position })
+                  reorderSceneMomentsMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, sceneMoments: allSceneMoments, draggedMomentId, targetSegmentId, targetMomentId, position })
                 }}
                 onSelectContentUnit={(unitId) => selectContentUnitFromShotPlan(selectedShotPlanRow, unitId)}
                 onCreateContentUnit={createContentUnitForSelectedMoment}
@@ -552,19 +552,19 @@ export default function ProductionOrchestrationPage() {
                   if (!selectedShotPlanRow || moveContentUnitOnTimeline.isPending) return
                   moveContentUnitOnTimeline.mutate({ row: selectedShotPlanRow, unitId, startSec })
                 }}
-                onSaveSegment={(segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
-                onDeleteSegment={(segmentId) => deleteSegmentMutation.mutate(segmentId)}
+                onSaveSegment={(segmentId, payload) => updateSegmentMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, segmentId, payload })}
+                onDeleteSegment={(segmentId) => deleteSegmentMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, segmentId })}
                 onBindSceneMomentScriptBlock={(momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
                 onCreateAndBindSceneMomentScriptBlock={(momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
-                onSaveSceneMoment={(momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
-                onDeleteSceneMoment={(momentId) => deleteSceneMomentMutation.mutate(momentId)}
-                onLinkReferenceToSceneMoment={(momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ momentId, referenceId, role })}
-                onUnlinkReferenceFromSceneMoment={(usageId) => unlinkSceneMomentReferenceMutation.mutate(usageId)}
-                onSaveExpressionLine={(target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
+                onSaveSceneMoment={(momentId, payload) => updateSceneMomentMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, momentId, payload })}
+                onDeleteSceneMoment={(momentId) => deleteSceneMomentMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, momentId })}
+                onLinkReferenceToSceneMoment={(momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, momentId, referenceId, role, settings: allSettings })}
+                onUnlinkReferenceFromSceneMoment={(momentId, referenceId) => unlinkSceneMomentReferenceMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, momentId, referenceId })}
+                onSaveExpressionLine={(target, payload) => updateWritingExpressionMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, target, payload })}
                 onDeleteExpressionLine={(target) => {
-                  if (target.kind === 'writingExpressions') deleteWritingExpressionMutation.mutate(target.id)
+                  if (target.kind === 'writingExpressions') deleteWritingExpressionMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, expressionId: target.id })
                 }}
-                onAddExpressionLine={(momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
+                onAddExpressionLine={(momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ productionId: effectiveProductionId, currentSnapshot: currentProductionSnapshot, momentId, order, scriptBlockId })}
                 canDeleteFallbackContentUnits={false}
                 isSavingSegment={updateSegmentMutation.isPending}
                 isReorderingStructure={reorderSegmentsMutation.isPending || reorderSceneMomentsMutation.isPending}

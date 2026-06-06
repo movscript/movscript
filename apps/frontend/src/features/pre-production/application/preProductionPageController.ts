@@ -10,7 +10,7 @@ import {
   normalizeAssetKind,
   type AssetKind,
   type AssetSlotViewModel,
-  type CreativeReferenceRecord,
+  type SettingRecord,
   type ReferenceAssetCluster,
 } from '@/features/pre-production/domain/preProductionAssetRows'
 
@@ -20,7 +20,7 @@ export interface PreProductionPageSelectionInput {
   searchParams: URLSearchParams
   rows: AssetSlotViewModel[]
   clusters: ReferenceAssetCluster[]
-  referenceById: Map<number, CreativeReferenceRecord>
+  referenceById: Map<number, SettingRecord>
 }
 
 export interface PreProductionPageSelection {
@@ -31,7 +31,7 @@ export interface PreProductionPageSelection {
   filteredClusters: ReferenceAssetCluster[]
   selected: AssetSlotViewModel | null
   selectedReferenceId: number | null | undefined
-  selectedReference: CreativeReferenceRecord | null
+  selectedReference: SettingRecord | null
   selectedCluster: ReferenceAssetCluster | null
 }
 
@@ -64,7 +64,7 @@ export function buildPreProductionSlotSelectionParams(
   }
   const row = rows.find((item) => item.slot.ID === slotId)
   return buildPreProductionFilterParams(searchParams, {
-    reference_id: row?.slot.creative_reference_id ?? null,
+    reference_id: row?.slot.setting_id ?? null,
     asset_slot_id: slotId,
     selected: null,
   })
@@ -93,13 +93,13 @@ export function buildPreProductionSessionRestoreParams({
 }: {
   searchParams: URLSearchParams
   rows: AssetSlotViewModel[]
-  referenceById: Map<number, CreativeReferenceRecord>
+  referenceById: Map<number, SettingRecord>
   kind: AssetKind
   slotId: number
   referenceId: number
 }) {
   const restoredRow = slotId ? rows.find((row) => row.slot.ID === slotId) ?? null : null
-  const restoredReferenceId = restoredRow?.slot.creative_reference_id ?? (referenceId && referenceById.has(referenceId) ? referenceId : 0)
+  const restoredReferenceId = restoredRow?.slot.setting_id ?? (referenceId && referenceById.has(referenceId) ? referenceId : 0)
   const next = new URLSearchParams(searchParams)
   if (!next.get('kind') && kind !== 'all' && rows.some((row) => row.kind === kind)) next.set('kind', kind)
   if (restoredReferenceId) next.set('reference_id', String(restoredReferenceId))
@@ -129,7 +129,7 @@ export function resolvePreProductionPageSelection({
   }))
   const selected = selectedId ? rows.find((row) => row.slot.ID === selectedId) ?? null : null
   const selectedReferenceId = selected
-    ? selectedReferenceParam ?? selected.slot.creative_reference_id ?? null
+    ? selectedReferenceParam ?? selected.slot.setting_id ?? null
     : selectedReferenceParam ?? null
   const selectedReference = selectedReferenceId ? referenceById.get(selectedReferenceId) ?? null : null
   const selectedCluster = selectedReferenceId
@@ -183,7 +183,7 @@ export function usePreProductionPageController({
     const selectedId = readNumberParam(nextParams, 'asset_slot_id') ?? readNumberParam(nextParams, 'selected')
     const selectedReferenceParam = readNumberParam(nextParams, 'reference_id')
     const selectedRow = selectedId ? rows.find((row) => row.slot.ID === selectedId) ?? null : null
-    const selectedReferenceId = selectedReferenceParam ?? selectedRow?.slot.creative_reference_id ?? null
+    const selectedReferenceId = selectedReferenceParam ?? selectedRow?.slot.setting_id ?? null
     const kind = normalizePreProductionKindFilter(readStringParam(nextParams, 'kind'))
     upsertWorkbenchSessionSnapshot({
       projectId,
@@ -196,7 +196,7 @@ export function usePreProductionPageController({
         selectedReferenceId: selectedReferenceId ?? null,
       },
       selection: {
-        ...(selectedReferenceId ? { primary: { entityType: 'creative_reference', entityId: selectedReferenceId } } : {}),
+        ...(selectedReferenceId ? { primary: { entityType: 'setting', entityId: selectedReferenceId } } : {}),
         ...(selectedId ? { secondary: { entityType: 'asset_slot', entityId: selectedId } } : {}),
       },
     })
@@ -210,7 +210,7 @@ export function usePreProductionPageController({
     const snapshotSlotId = sessionSnapshot.selection?.secondary?.entityType === 'asset_slot'
       ? sessionSnapshot.selection.secondary.entityId
       : Number(sessionSnapshot.filters?.selectedId) || 0
-    const snapshotReferenceId = sessionSnapshot.selection?.primary?.entityType === 'creative_reference'
+    const snapshotReferenceId = sessionSnapshot.selection?.primary?.entityType === 'setting'
       ? sessionSnapshot.selection.primary.entityId
       : Number(sessionSnapshot.filters?.selectedReferenceId) || 0
     setSearchParams((current) => {

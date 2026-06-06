@@ -41,7 +41,6 @@ test('media artifacts fixture preserves voiceover, subtitle, timing, and render 
 
 test('media pipeline capability names are shared across contracts and runtime declarations', async () => {
   const files = {
-    pluginSdk: await readFile(path.join(repoRoot, 'packages', 'plugin-sdk', 'src', 'types.ts'), 'utf8'),
     backendAI: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'infra', 'ai', 'feature.go'), 'utf8'),
     backendJob: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'domain', 'job', 'helpers.go'), 'utf8'),
     workspaceRegistry: await readFile(path.join(repoRoot, 'packages', 'workspaces', 'src', 'registry.ts'), 'utf8'),

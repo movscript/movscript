@@ -63,7 +63,7 @@ func TestWorkflowMarketItemMatchSearchesTags(t *testing.T) {
 	if !MarketItemMatches(item, "starter") {
 		t.Fatal("expected query to match tags")
 	}
-	if MarketItemMatches(item, "storyboard") {
+	if MarketItemMatches(item, "timeline") {
 		t.Fatal("did not expect unrelated query to match")
 	}
 }

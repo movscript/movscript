@@ -7,7 +7,7 @@ import {
   MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
   resolveMovScriptWorkspacePaths,
   writeMovScriptWorkspaceConfig,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 import {
   appServerSpawnEnvironmentFromDistribution,
   distributeAppServerConfigFromMovScriptWorkspace,

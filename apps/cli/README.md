@@ -1,6 +1,6 @@
 # movcli
 
-`movcli` is the Movscript command-line tool for plugin scaffolding/building.
+`movcli` is the MovScript command-line tool.
 
 ## Development
 
@@ -20,33 +20,44 @@ pnpm --filter @movscript/cli build
 ## Global Options
 
 ```text
---server <url>        Movscript backend URL, default http://localhost:8080
+--server <url>        Movscript backend URL, default http://localhost:8765
 --token <token>       API token, or set MOVCLI_TOKEN
+--workspace <dir>     MovScript workspace root directory
 ```
 
-Note: the main backend default in this repository is `http://localhost:8765`; pass `--server http://localhost:8765` when using CLI commands against the local backend.
+## Auth Commands
 
-## Plugin Commands
+Backend connection and credentials are stored under the selected workspace root:
 
-Scaffold a plugin project:
+```text
+<workspace>/.movscript/backend/config.json
+<workspace>/.movscript/backend/auth.json
+```
+
+Login:
 
 ```bash
-pnpm --filter @movscript/cli exec tsx src/index.ts init my-plugin
-pnpm --filter @movscript/cli exec tsx src/index.ts init my-plugin --webview
+pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth login --server http://localhost:8765
 ```
 
-Build a plugin package:
+Show auth status:
 
 ```bash
-pnpm --filter @movscript/cli dev -- build --cwd ./my-plugin
+pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth status
 ```
 
-`--out` defaults to `dist` inside the plugin project directory.
+## Workspace Commands
 
-List a registry:
+Inspect a local workspace namespace:
 
 ```bash
-pnpm --filter @movscript/cli dev -- list --registry https://registry.movscript.com
+pnpm --filter @movscript/cli dev -- workspace status --workspace /path/to/workspace --namespace movscript.project:123
 ```
 
-Current limitation: `install` posts `.movpkg` files to `/api/v1/plugins/upload`, but the backend currently exposes `/api/v1/plugins` for JSON/path imports and does not register `/plugins/upload`.
+Preview local changes and persist a review artifact:
+
+```bash
+pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/workspace --namespace movscript.project:123 --write
+```
+
+Plugin scaffolding and packaging commands have been removed.

@@ -12,12 +12,10 @@ import (
 )
 
 var (
-	ErrInvalidCanvasType  = canvasdomain.ErrInvalidCanvasType
-	ErrRefIDRequired      = canvasdomain.ErrRefIDRequired
-	ErrUnsupportedRefType = canvasdomain.ErrUnsupportedRefType
-	ErrCanvasForbidden    = errors.New("canvas forbidden")
-	ErrProjectNotFound    = errors.New("project not found")
-	ErrProjectOutsideOrg  = errors.New("project is outside current org")
+	ErrInvalidCanvasType = canvasdomain.ErrInvalidCanvasType
+	ErrCanvasForbidden   = errors.New("canvas forbidden")
+	ErrProjectNotFound   = errors.New("project not found")
+	ErrProjectOutsideOrg = errors.New("project is outside current org")
 )
 
 type CanvasListFilter struct {
@@ -25,8 +23,6 @@ type CanvasListFilter struct {
 	OrgID      *uint
 	ProjectID  string
 	Stage      string
-	RefType    string
-	RefID      string
 	CanvasType string
 }
 
@@ -45,30 +41,8 @@ type CanvasSaveInput struct {
 	Edges      []canvasdomain.CanvasEdge
 }
 
-type EntityWriteAuditFilter struct {
-	OwnerID     uint
-	CanvasID    uint
-	CanvasRunID uint
-	EntityKind  string
-	EntityID    uint
-	UserID      uint
-	Page        int
-	PageSize    int
-}
-
-type EntityWriteAuditPage struct {
-	Items    []canvasdomain.EntityWriteAudit
-	Total    int64
-	Page     int
-	PageSize int
-}
-
 func (h *Service) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasdomain.Canvas, error) {
 	return h.canvasRepo().ListCanvases(ctx, filter)
-}
-
-func (h *Service) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasdomain.Canvas, bool, error) {
-	return h.canvasRepo().FindOwnedEntityCanvas(ctx, ownerID, orgID, projectID, canvasType, refType, refID)
 }
 
 func (h *Service) GetCanvas(ctx context.Context, id string) (canvasdomain.Canvas, error) {
@@ -91,18 +65,6 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (ca
 		return cv, err
 	}
 	return cv, nil
-}
-
-func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCreateInput) (canvasdomain.Canvas, bool, error) {
-	input.RefType = strings.TrimSpace(input.RefType)
-	if input.RefID == nil || !canvasdomain.SingleCanvasRefType(input.RefType) {
-		return canvasdomain.Canvas{}, false, nil
-	}
-	canvasType := input.CanvasType
-	if canvasType == "" {
-		canvasType = "inspiration"
-	}
-	return h.FindOwnedEntityCanvas(ctx, input.OwnerID, input.OrgID, input.ProjectID, canvasType, input.RefType, *input.RefID)
 }
 
 func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error) {
@@ -207,8 +169,4 @@ func sameOrg(a, b *uint) bool {
 
 func (h *Service) ensureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error {
 	return h.canvasRepo().EnsureProjectInOrg(ctx, projectID, orgID)
-}
-
-func (h *Service) ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error) {
-	return h.canvasRepo().ListEntityWriteAudits(ctx, filter)
 }

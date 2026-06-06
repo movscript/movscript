@@ -1,6 +1,107 @@
 import { expect, type Page } from '@playwright/test'
 
 export async function mockGenerationCandidateTargets(page: Page) {
+  await page.addInitScript(() => {
+    type WorkspaceStateWindow = Window & {
+      api?: Record<string, unknown>
+      __movscriptWorkspaceFiles?: Record<string, string>
+      __movscriptWorkspaceWriteError?: string
+      __recordCandidateWrite?: (resourceId: number) => void
+    }
+    const state = window as WorkspaceStateWindow
+    const globalState = state as unknown as Record<string, unknown>
+    state.__movscriptWorkspaceFiles = {
+      'data/users/local/projects/123/assets/asset_slot_77.json': JSON.stringify({
+        schema: 'movscript.asset_slot.v1',
+        id: 77,
+        ID: 77,
+        project_id: 123,
+        name: '主视觉素材位',
+        status: 'open',
+        description: '需要一张可审阅的生成图',
+      }),
+      'data/users/local/projects/123/productions/production_10/keyframes/keyframe_88.json': JSON.stringify({
+        schema: 'movscript.keyframe.v1',
+        id: 88,
+        ID: 88,
+        project_id: 123,
+        title: '开场画面锚点',
+        status: 'workspace',
+        description: '雨夜街口的首帧画面',
+        prompt: 'rainy neon street opening keyframe',
+        order: 1,
+        production_id: 10,
+        scene_moment_id: 20,
+        content_unit_id: 30,
+      }),
+    }
+    const files = state.__movscriptWorkspaceFiles
+    const normalizePath = (path = '') => path.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')
+    const fileEntry = (path: string, kind: 'file' | 'directory') => ({
+      name: path.split('/').pop() ?? path,
+      path,
+      kind,
+      size: kind === 'file' ? files[path]?.length ?? 0 : 0,
+      updatedAt: new Date(0).toISOString(),
+    })
+    const currentApi = globalState.api && typeof globalState.api === 'object' && !Array.isArray(globalState.api)
+      ? globalState.api as Record<string, unknown>
+      : {}
+    globalState.api = {
+      ...currentApi,
+      getMovScriptWorkspaceRoot: async () => ({
+        workspaceDir: '/tmp/movscript-e2e-workspace',
+        controlDir: '/tmp/movscript-e2e-workspace/.movscript',
+        manifestPath: '/tmp/movscript-e2e-workspace/.movscript/workspace.json',
+        projectionRootDir: '/tmp/movscript-e2e-workspace/data',
+        reviewsDir: '/tmp/movscript-e2e-workspace/reviews',
+        configDir: '/tmp/movscript-e2e-workspace/config',
+        logsDir: '/tmp/movscript-e2e-workspace/logs',
+        manifest: { schema: 'movscript.workspace_root.v1', activeUserId: 'local' },
+      }),
+      listMovScriptWorkspaceFiles: async ({ path }: { path?: string } = {}) => {
+        const directory = normalizePath(path)
+        const prefix = directory ? `${directory}/` : ''
+        const entries = new Map<string, 'file' | 'directory'>()
+        for (const filePath of Object.keys(files)) {
+          if (prefix && !filePath.startsWith(prefix)) continue
+          const rest = prefix ? filePath.slice(prefix.length) : filePath
+          if (!rest) continue
+          const [name, ...tail] = rest.split('/')
+          if (!name) continue
+          entries.set(prefix + name, tail.length > 0 ? 'directory' : 'file')
+        }
+        return {
+          path: directory,
+          rootPath: '/tmp/movscript-e2e-workspace',
+          entries: [...entries.entries()].map(([entryPath, kind]) => fileEntry(entryPath, kind)),
+        }
+      },
+      readMovScriptWorkspaceFile: async ({ path }: { path?: string }) => {
+        const filePath = normalizePath(path)
+        const content = files[filePath]
+        if (content === undefined) throw new Error(`workspace file not found: ${filePath}`)
+        return { path: filePath, content, size: content.length, updatedAt: new Date(0).toISOString() }
+      },
+      writeMovScriptWorkspaceFile: async ({ path, content }: { path?: string; content: string }) => {
+        if (state.__movscriptWorkspaceWriteError) throw new Error(state.__movscriptWorkspaceWriteError)
+        const filePath = normalizePath(path)
+        files[filePath] = content
+        try {
+          const record = JSON.parse(content) as Record<string, unknown>
+          const resourceId = Number(record.resource_id)
+          if (Number.isFinite(resourceId) && resourceId > 0) state.__recordCandidateWrite?.(resourceId)
+        } catch {
+          // Ignore non-JSON workspace writes in this test harness.
+        }
+        return { path: filePath, content, size: content.length, updatedAt: new Date(0).toISOString() }
+      },
+      deleteMovScriptWorkspaceFile: async ({ path }: { path?: string }) => {
+        delete files[normalizePath(path)]
+        return { ok: true }
+      },
+    }
+  })
   await page.route('**/api/v1/projects/123/entities/asset-slots**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -45,8 +146,10 @@ export async function mockGenerationCandidateAttachSuccess(page: Page, resourceI
 }
 
 export async function mockGenerationBulkCandidateAttachSuccess(page: Page, resourceIds = [9101, 9103]) {
-  let requestIndex = 0
   const attachedResourceIds: number[] = []
+  await page.exposeFunction('__recordCandidateWrite', (resourceId: number) => {
+    if (resourceIds.includes(resourceId)) attachedResourceIds.push(resourceId)
+  })
   await page.route('**/api/v1/projects/123/entities/asset-slot-candidates', async (route) => {
     const request = route.request()
     expect(request.method()).toBe('POST')
@@ -57,16 +160,15 @@ export async function mockGenerationBulkCandidateAttachSuccess(page: Page, resou
     expect(payload.source_type).toBe('job')
     expect(payload.source_id).toBe(2001)
     expect(resourceIds).toContain(resourceId)
-    requestIndex += 1
     attachedResourceIds.push(resourceId)
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
       body: JSON.stringify({
-        ID: 600 + requestIndex,
+        ID: 600 + attachedResourceIds.length,
         project_id: 123,
         asset_slot_id: 77,
-        candidate_asset_slot_id: 700 + requestIndex,
+        candidate_asset_slot_id: 700 + attachedResourceIds.length,
         resource_id: resourceId,
         source_type: 'job',
         source_id: 2001,
@@ -139,8 +241,10 @@ export async function mockGenerationKeyframeCandidateAttachSuccess(page: Page, r
 }
 
 export async function mockGenerationBulkKeyframeCandidateAttachSuccess(page: Page, resourceIds = [9101, 9103]) {
-  let requestIndex = 0
   const attachedResourceIds: number[] = []
+  await page.exposeFunction('__recordCandidateWrite', (resourceId: number) => {
+    if (resourceIds.includes(resourceId)) attachedResourceIds.push(resourceId)
+  })
   await page.route('**/api/v1/projects/123/entities/keyframes**', async (route) => {
     const request = route.request()
     if (request.method() === 'GET') {
@@ -175,13 +279,12 @@ export async function mockGenerationBulkKeyframeCandidateAttachSuccess(page: Pag
       resource_id: resourceId,
       source_job_id: 2001,
     })
-    requestIndex += 1
     attachedResourceIds.push(resourceId)
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
       body: JSON.stringify({
-        ID: 800 + requestIndex,
+        ID: 800 + attachedResourceIds.length,
         project_id: 123,
         resource_id: resourceId,
         status: 'candidate',
@@ -199,6 +302,9 @@ export async function mockGenerationBulkKeyframeCandidateAttachSuccess(page: Pag
 }
 
 export async function mockGenerationCandidateAttachValidationError(page: Page) {
+  await page.addInitScript(() => {
+    ;(window as Window & { __movscriptWorkspaceWriteError?: string }).__movscriptWorkspaceWriteError = '目标对象不存在'
+  })
   await page.route('**/api/v1/projects/123/entities/asset-slot-candidates', async (route) => {
     await route.fulfill({
       status: 422,

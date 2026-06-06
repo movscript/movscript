@@ -8,7 +8,7 @@ import {
   readProviderPluginManifestFromArchive,
   type ProviderPluginArchive,
   type ProviderPluginManifest,
-} from '@movscript/workspaces'
+} from '@movscript/core/plugins'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

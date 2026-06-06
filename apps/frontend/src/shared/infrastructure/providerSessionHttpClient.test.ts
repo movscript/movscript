@@ -49,6 +49,28 @@ test('provider session client delegates requests through the provider session tr
   resetAgentTelemetrySink()
 })
 
+test('provider session telemetry is empty when transport points at backend api v1', async () => {
+  const requests: string[] = []
+  const transport: ProviderSessionTransport = {
+    kind: 'http',
+    endpointLabel: 'http://localhost:8765/api/v1',
+    request: async (path) => {
+      requests.push(path)
+      return new Response('unexpected', { status: 500 })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+
+  const snapshot = await new ProviderSessionClient(transport).getProviderSessionTelemetry()
+
+  assert.equal(snapshot.schema, 'movscript.agent.runtime-telemetry.v1')
+  assert.equal(snapshot.metrics.length, 0)
+  assert.equal(snapshot.logs.length, 0)
+  assert.deepEqual(requests, [])
+})
+
 test('provider session client delegates plugin file management to provider endpoints', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
   const transport: ProviderSessionTransport = {

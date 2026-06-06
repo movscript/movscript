@@ -17,7 +17,7 @@ import {
   resolveMovScriptWorkspacePaths,
   resolveMovScriptWorkspaceRootPaths,
   writeMovScriptWorkspaceRootManifest,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 import {
   resolveDesktopDefaultMovScriptWorkspaceDir,
   setDesktopDefaultMovScriptWorkspaceDir,

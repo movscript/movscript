@@ -90,7 +90,7 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     purpose: '沉淀设定资料、素材需求和候选素材，补齐下游生成前的可复用上下文。',
     decision: '审阅设定和素材工作区，确认缺口、归属、候选、锁定和豁免状态。',
     output: '可进入创作编排和内容编辑的设定素材包。',
-    owns: ['creative_reference', 'asset_slot', 'asset_slot_candidate'],
+    owns: ['setting', 'asset_slot', 'asset_slot_candidate'],
     reads: ['project', 'script', 'production', 'scene_moment', 'content_unit', 'resource'],
     workspaceKinds: ['setting_workspace', 'asset_workspace'],
     reviewQuery: {
@@ -98,7 +98,7 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
       viewValue: 'review',
       workspaceIdParam: 'workspaceId',
       entityParams: {
-        creative_reference: 'reference_id',
+        setting: 'reference_id',
         asset_slot: 'asset_slot_id',
       },
     },
@@ -115,8 +115,8 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     purpose: '把剧本、设定、素材约束组织成 production 级创作蓝图，并继续拆解镜头方案、时间轴和镜头列表。',
     decision: '手动维护 segments、scene moments、引用关系和镜头方案。',
     output: '可进入内容编辑细化执行的创作方案。',
-    owns: ['production', 'segment', 'scene_moment', 'creative_reference_usage', 'asset_slot_usage', 'production_local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
-    reads: ['project_standards', 'creative_reference', 'asset_slot', 'script'],
+    owns: ['production', 'segment', 'scene_moment', 'setting_usage', 'asset_slot_usage', 'production_local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
+    reads: ['project_standards', 'setting', 'asset_slot', 'script'],
     workspaceKinds: [],
     primarySelection: { queryParam: 'productionId', entityType: 'production' },
     reviewQuery: {
@@ -144,7 +144,7 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     decision: '审阅内容单元草案，补齐关键帧、素材缺口和生成上下文。',
     output: '可驱动画面、视频和返工处理的创作输入。',
     owns: ['content_unit', 'keyframe', 'preview_timeline_item', 'generation_context'],
-    reads: ['production', 'segment', 'scene_moment', 'creative_reference', 'asset_slot', 'resource', 'job'],
+    reads: ['production', 'segment', 'scene_moment', 'setting', 'asset_slot', 'resource', 'job'],
     workspaceKinds: [],
     primarySelection: { queryParam: 'scene_moment_id', entityType: 'scene_moment' },
     reviewQuery: {

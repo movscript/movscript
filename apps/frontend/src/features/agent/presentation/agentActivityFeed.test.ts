@@ -34,7 +34,7 @@ test('buildAgentActivityFeed omits tool debug payloads from timeline-safe rows',
         id: 'step_query',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'movscript_creative_reference_query',
+        toolName: 'movscript_resource_library_query',
         args: { projectId: 2, query: '舅爷' },
         result: { count: 3 },
         createdAt: '2026-05-22T01:00:00.000Z',
@@ -401,8 +401,8 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
             eventType: 'model.tool_calls.requested',
             tool_calls: [
               { id: 'call_1', name: 'movscript_focus_get', args: {} },
-              { id: 'call_2', name: 'movscript_script_locate', args: { projectId: 2, contentLimit: 50000 } },
-              { id: 'call_3', name: 'movscript_creative_reference_query', args: { projectId: 2, query: '舅爷' } },
+              { id: 'call_2', name: 'workspace_fetch', args: { projectId: 2 } },
+              { id: 'call_3', name: 'movscript_resource_library_query', args: { projectId: 2, query: '舅爷' } },
             ],
           },
         },
@@ -417,8 +417,8 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
   assert.equal(item?.type === 'decision' ? item.title : '', '模型决定调用 3 个工具')
   assert.deepEqual(item?.type === 'decision' ? item.lines : [], [
     '读取当前焦点',
-    '读取项目剧本：项目：#2，内容上限：50000',
-    '查询创意参考：查询：舅爷，项目：#2',
+    '拉取工作区：项目：#2',
+    'Movscript Resource Library Query：查询：舅爷，项目：#2',
   ])
 })
 
@@ -771,9 +771,9 @@ test('agentActivityFeedMarkdown copies human-readable activity instead of raw js
         id: 'step_candidate',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'candidate_asset_slot_attach',
-        args: { asset_slot_id: 9, resource_id: 88 },
-        result: { message: 'candidate created' },
+        toolName: 'workspace_submit',
+        args: { namespace: 'movscript.project:9' },
+        result: { message: 'workspace submitted' },
         createdAt: '2026-05-22T01:00:00.000Z',
       }],
     }),
@@ -782,8 +782,8 @@ test('agentActivityFeedMarkdown copies human-readable activity instead of raw js
   assert.ok(feed)
   const markdown = agentActivityFeedMarkdown(feed!)
   assert.match(markdown, /Run run_1/)
-  assert.match(markdown, /写入素材候选/)
-  assert.doesNotMatch(markdown, /"asset_slot_id"/)
+  assert.match(markdown, /提交工作区/)
+  assert.doesNotMatch(markdown, /"namespace"/)
 })
 
 test('buildAgentActivityFeed renders user approvals at their activity position', () => {
@@ -813,14 +813,14 @@ test('buildAgentActivityFeed keeps approvals inline with tool results', () => {
         id: 'step_candidate',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         args: { asset_slot_id: 9, resource_id: 88 },
         result: { message: 'candidate created' },
         createdAt: '2026-05-22T01:00:00.000Z',
       }],
       approvals: [{
         id: 'approval_1',
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         reason: '需要确认写入素材候选',
         permission: 'asset_candidate.write',
         risk: 'write',
@@ -833,7 +833,7 @@ test('buildAgentActivityFeed keeps approvals inline with tool results', () => {
 
   assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
     'approval-approval_1',
-    '写入素材候选',
+    'step-step_candidate',
   ])
 })
 
@@ -845,14 +845,14 @@ test('buildAgentActivityFeed hides action items already rendered by standalone i
         id: 'step_candidate',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         args: { asset_slot_id: 9, resource_id: 88 },
         result: { message: 'candidate created' },
         createdAt: '2026-05-22T01:00:00.000Z',
       }],
       approvals: [{
         id: 'approval_1',
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         reason: '需要确认写入素材候选',
         permission: 'asset_candidate.write',
         risk: 'write',
@@ -864,7 +864,7 @@ test('buildAgentActivityFeed hides action items already rendered by standalone i
   })
 
   assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
-    '写入素材候选',
+    'step-step_candidate',
   ])
 })
 
@@ -878,7 +878,7 @@ test('buildAgentActivityFeed keeps model round telemetry when hidden action card
       ],
       approvals: [{
         id: 'approval_1',
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         reason: '需要确认写入素材候选',
         permission: 'asset_candidate.write',
         risk: 'write',
@@ -916,7 +916,7 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
         data: {
           tool_calls: [
             { id: 'call_focus', name: 'movscript_focus_get', args: {} },
-            { id: 'call_write', name: 'candidate_asset_slot_attach', args: { asset_slot_id: 9, resource_id: 88 } },
+            { id: 'call_write', name: 'asset_candidate_write', args: { asset_slot_id: 9, resource_id: 88 } },
           ],
         },
       }],
@@ -932,14 +932,14 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
         type: 'tool_call',
         status: 'completed',
         roundIndex: 1,
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         args: { asset_slot_id: 9, resource_id: 88 },
         result: { message: 'candidate created' },
         createdAt: '2026-05-22T01:00:02.000Z',
       }],
       approvals: [{
         id: 'approval_1',
-        toolName: 'candidate_asset_slot_attach',
+        toolName: 'asset_candidate_write',
         args: { asset_slot_id: 9, resource_id: 88 },
         reason: '需要确认写入素材候选',
         permission: 'asset_candidate.write',
@@ -955,7 +955,7 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
     '模型决定调用 2 个工具',
     'step-step_focus',
     'approval-approval_1',
-    '写入素材候选',
+    'step-step_candidate',
   ])
 })
 

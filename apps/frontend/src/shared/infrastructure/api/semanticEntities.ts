@@ -1,5 +1,17 @@
-import { api } from '@/shared/infrastructure/api'
-import type { Project } from '@/types'
+import {
+  queryMovScriptWorkspaceSettings,
+  queryMovScriptWorkspaceAssetSlots,
+  queryMovScriptWorkspaceEntities,
+  type MovScriptWorkspaceEntityQuery,
+  type MovScriptWorkspaceEntityType,
+  type MovScriptWorkspaceIndexedEntity,
+} from '@movscript/core/workspace'
+import {
+  createElectronMovScriptWorkspaceFileRepository,
+  loadMovScriptProjectWorkspaceDomainIndex,
+  resolveMovScriptWorkspaceProjectPath,
+} from '@/shared/infrastructure/workspaceDomainRepository'
+import type { ElectronAPI } from '@/shared/contracts/electronApi'
 
 export type SemanticEntityKind =
   | 'scriptVersions'
@@ -15,9 +27,9 @@ export type SemanticEntityKind =
   | 'keyframes'
   | 'previewTimelines'
   | 'previewTimelineItems'
-  | 'creativeReferences'
-  | 'creativeReferenceStates'
-  | 'creativeReferenceUsages'
+  | 'settings'
+  | 'settingStates'
+  | 'settingUsages'
   | 'creativeRelationships'
   | 'assetSlots'
   | 'assetSlotCandidates'
@@ -76,16 +88,22 @@ export interface SemanticEntityConfig {
 export type SemanticEntityPayload = Record<string, string | number | boolean | null>
 export type SemanticEntityListParams = Record<string, string | number | boolean | null | undefined>
 
-type SemanticEntityAccent = 'sky' | 'cyan' | 'blue' | 'teal' | 'emerald' | 'lime' | 'amber' | 'orange' | 'rose' | 'violet' | 'indigo'
-
-function entityIconTone(tone: SemanticEntityAccent): string {
-  return tone
+export interface Project {
+  ID: number
+  name: string
+  description: string
+  owner_id: number
+  owner?: { ID: number; username: string; system_role: 'super_admin' | 'user' }
+  status?: string
+  total_episodes?: number
+  aspect_ratio?: string
+  visual_style?: string
+  project_style?: string
+  CreatedAt: string
+  UpdatedAt: string
 }
 
-export interface EntityRelation {
-  ID: number
-  CreatedAt?: string
-  UpdatedAt?: string
+export interface EntityRelation extends SemanticEntityRecord {
   project_id: number
   source_type: string
   source_id: number
@@ -93,17 +111,9 @@ export interface EntityRelation {
   target_id: number
   category: string
   type: string
-  label?: string
-  scope_type?: string
-  scope_id?: number | null
   direction: string
-  order: number
   weight: number
-  status: string
   source: string
-  evidence?: string
-  metadata_json?: string
-  created_by_id?: number | null
 }
 
 export interface EntityRelationFilters {
@@ -116,39 +126,10 @@ export interface EntityRelationFilters {
   status?: string
 }
 
-export const semanticEntityConfigs: SemanticEntityConfig[] = semanticCoreEntityConfigs()
-
-export function semanticEntityConfig(kind: SemanticEntityKind) {
-  return semanticEntityConfigs.find((config) => config.kind === kind) ?? semanticEntityConfigs[0]
-}
-
-export function semanticEntityPath(projectId: number, config: SemanticEntityConfig) {
-  return `/projects/${projectId}/entities/${config.path}`
-}
-
-export async function listSemanticEntities(projectId: number, config: SemanticEntityConfig, params: SemanticEntityListParams = {}) {
-  const queryParams = Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))
-  const { data } = await api.get<SemanticEntityRecord[] | { items?: SemanticEntityRecord[] }>(semanticEntityPath(projectId, config), { params: queryParams })
-  return Array.isArray(data) ? data : data.items ?? []
-}
-
-export async function listEntityRelations(projectId: number, filters: EntityRelationFilters = {}) {
-  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ''))
-  const { data } = await api.get<EntityRelation[]>(`/projects/${projectId}/entities/relations`, { params })
-  return data
-}
-
 export interface ScriptBlockUsages {
   segments: SemanticEntityRecord[]
   scene_moments: SemanticEntityRecord[]
   content_units: SemanticEntityRecord[]
-}
-
-export interface SourceLockReason {
-  code: string
-  message: string
-  entity_kind: string
-  count: number
 }
 
 export interface SourceLockStatus {
@@ -156,30 +137,7 @@ export interface SourceLockStatus {
   entity_id: number
   locked: boolean
   locked_fields: string[]
-  reasons: SourceLockReason[]
-}
-
-export async function listScriptBlockUsages(projectId: number, scriptBlockId: number) {
-  const { data } = await api.get<ScriptBlockUsages>(`/projects/${projectId}/entities/script-blocks/${scriptBlockId}/usages`)
-  return data
-}
-
-export async function listScriptBlockUsageMap(projectId: number, scriptVersionId: number) {
-  const { data } = await api.get<Record<string, ScriptBlockUsages>>(`/projects/${projectId}/entities/script-block-usages`, {
-    params: { script_version_id: scriptVersionId },
-  })
-  return data
-}
-
-export async function getSourceLockStatus(projectId: number, config: SemanticEntityConfig, id: number) {
-  const { data } = await api.get<SourceLockStatus>(`/projects/${projectId}/entities/source-lock/${config.path}/${id}`)
-  return data
-}
-
-export interface GenerationContextReference {
-  usage: SemanticEntityRecord
-  reference?: SemanticEntityRecord
-  state?: SemanticEntityRecord
+  reasons: Array<{ code: string; message: string; entity_kind: string; count: number }>
 }
 
 export interface GenerationContext {
@@ -192,35 +150,13 @@ export interface GenerationContext {
   segment?: SemanticEntityRecord
   scene_moment?: SemanticEntityRecord
   script_block?: SemanticEntityRecord
-  creative_references: GenerationContextReference[]
+  settings: Array<{ usage: SemanticEntityRecord; reference?: SemanticEntityRecord; state?: SemanticEntityRecord }>
   asset_slots: SemanticEntityRecord[]
   keyframes: SemanticEntityRecord[]
   constraints: {
     read_only_entities: string[]
     write_targets: string[]
   }
-}
-
-export async function buildContentUnitGenerationContext(projectId: number, contentUnitId: number, intent: 'keyframe' | 'video' = 'video') {
-  const { data } = await api.post<GenerationContext>(
-    `/projects/${projectId}/entities/content-units/${contentUnitId}/generation-context`,
-    { target_type: 'content_unit', target_id: contentUnitId, intent },
-  )
-  return data
-}
-
-export async function createSemanticEntity(projectId: number, config: SemanticEntityConfig, payload: SemanticEntityPayload) {
-  const { data } = await api.post<SemanticEntityRecord>(semanticEntityPath(projectId, config), payload)
-  return data
-}
-
-export async function updateSemanticEntity(projectId: number, config: SemanticEntityConfig, id: number, payload: SemanticEntityPayload) {
-  const { data } = await api.patch<SemanticEntityRecord>(`${semanticEntityPath(projectId, config)}/${id}`, payload)
-  return data
-}
-
-export async function deleteSemanticEntity(projectId: number, config: SemanticEntityConfig, id: number) {
-  await api.delete(`${semanticEntityPath(projectId, config)}/${id}`)
 }
 
 export interface AbandonSegmentResult {
@@ -230,20 +166,10 @@ export interface AbandonSegmentResult {
   timeline_items_removed: number
 }
 
-export async function abandonSegment(projectId: number, id: number) {
-  const { data } = await api.post<AbandonSegmentResult>(`/projects/${projectId}/entities/segments/${id}/abandon`)
-  return data
-}
-
 export interface AbandonSceneMomentResult {
   scene_moment_id: number
   content_units_updated: number
   timeline_items_removed: number
-}
-
-export async function abandonSceneMoment(projectId: number, id: number) {
-  const { data } = await api.post<AbandonSceneMomentResult>(`/projects/${projectId}/entities/scene-moments/${id}/abandon`)
-  return data
 }
 
 export interface AbandonContentUnitResult {
@@ -251,78 +177,14 @@ export interface AbandonContentUnitResult {
   timeline_items_removed: number
 }
 
-export async function abandonContentUnit(projectId: number, id: number) {
-  const { data } = await api.post<AbandonContentUnitResult>(`/projects/${projectId}/entities/content-units/${id}/abandon`)
-  return data
-}
-
-export async function getProject(projectId: number) {
-  const { data } = await api.get<Project>(`/projects/${projectId}`)
-  return data
-}
-
 export interface ApplyWorkbenchWorkspaceResponse {
   project_id: number
-  counts: Partial<{
-    creative_references_created: number
-    creative_references_updated: number
-    creative_references_merged: number
-    creative_references_deleted: number
-    asset_slots_created: number
-    asset_slots_updated: number
-    asset_slots_deleted: number
-    asset_slots_reassigned: number
-    creative_reference_usages: number
-    creative_relationships: number
-    project_style_updated: number
-  }>
-}
-
-export async function applyProjectStandardsWorkspace(
-  projectId: number,
-  payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchWorkspaceResponse> {
-  const { data } = await api.post<ApplyWorkbenchWorkspaceResponse>(
-    `/projects/${projectId}/entities/project-standards-workspaces/apply`,
-    payload,
-  )
-  return data
-}
-
-export async function applySettingWorkspace(
-  projectId: number,
-  payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchWorkspaceResponse> {
-  const { data } = await api.post<ApplyWorkbenchWorkspaceResponse>(
-    `/projects/${projectId}/entities/setting-workspaces/apply`,
-    payload,
-  )
-  return data
-}
-
-export async function applyAssetWorkspace(
-  projectId: number,
-  payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchWorkspaceResponse> {
-  const { data } = await api.post<ApplyWorkbenchWorkspaceResponse>(
-    `/projects/${projectId}/entities/asset-workspaces/apply`,
-    payload,
-  )
-  return data
+  counts: Record<string, number | undefined>
 }
 
 export interface ApplyProductionWorkspaceResponse {
   production_id: number
-  counts: {
-    segments_created: number
-    scene_moments_created: number
-    content_units_created: number
-    asset_slots_created: number
-    keyframes_created: number
-    creative_references_created: number
-    creative_reference_usages: number
-    writing_expressions_created: number
-  }
+  counts: ApplyProductionWorkspaceCounts
   segments: SemanticEntityRecord[]
   scene_moments: SemanticEntityRecord[]
   content_units: SemanticEntityRecord[]
@@ -331,15 +193,28 @@ export interface ApplyProductionWorkspaceResponse {
   writing_expressions: SemanticEntityRecord[]
 }
 
-export async function applyProductionWorkspace(
-  projectId: number,
-  payload: Record<string, unknown>,
-): Promise<ApplyProductionWorkspaceResponse> {
-  const { data } = await api.post<ApplyProductionWorkspaceResponse>(
-    `/projects/${projectId}/entities/production-workspaces/apply`,
-    payload,
-  )
-  return data
+export interface ApplyProductionWorkspaceCounts {
+  segments_created: number
+  scene_moments_created: number
+  content_units_created: number
+  asset_slots_created: number
+  keyframes_created: number
+  settings_created: number
+  setting_usages: number
+  writing_expressions_created: number
+}
+
+export type ProductionWorkspacePreviewSemanticChange = Record<string, unknown> & {
+  kind: string
+  action?: 'create' | 'update' | 'delete'
+  title: string
+  id?: string | number
+  client_id?: string
+}
+
+export type ProductionWorkspacePreviewWarning = Record<string, unknown> & {
+  code: string
+  message: string
 }
 
 export interface PreviewProductionWorkspaceApplyResponse {
@@ -350,481 +225,588 @@ export interface PreviewProductionWorkspaceApplyResponse {
   warnings?: ProductionWorkspacePreviewWarning[]
 }
 
-export interface ProductionWorkspacePreviewSemanticChange {
-  kind: string
-  action: 'create' | 'update'
-  title: string
-  parent?: string
-  client_id?: string
-  id?: number
+export const semanticEntityConfigs: SemanticEntityConfig[] = semanticCoreEntityConfigs()
+
+export function semanticEntityConfig(kind: SemanticEntityKind): SemanticEntityConfig {
+  return semanticEntityConfigs.find((config) => config.kind === kind) ?? semanticEntityConfigs[0]!
 }
 
-export interface ProductionWorkspacePreviewWarning {
-  code: string
-  message: string
+export async function listSemanticEntities(
+  projectId: number,
+  config: SemanticEntityConfig,
+  params: SemanticEntityListParams = {},
+): Promise<SemanticEntityRecord[]> {
+  return await listWorkspaceSemanticEntities(projectId, config.kind, params)
+}
+
+export async function getProject(projectId: number): Promise<Project> {
+  const index = await loadMovScriptProjectWorkspaceDomainIndex(projectId)
+  const project = queryMovScriptWorkspaceEntities(index, { entityType: 'project', limit: 1 })[0]
+  if (project) return workspaceProjectRecord(project, projectId)
+  throw new Error(`MovScript workspace project ${projectId} not found`)
+}
+
+export async function createSemanticEntity(
+  projectId: number,
+  config: SemanticEntityConfig,
+  payload: SemanticEntityPayload,
+): Promise<SemanticEntityRecord> {
+  if (workspaceWritableEntityKind(config.kind)) {
+    return writeWorkspaceSemanticEntity(projectId, config.kind, undefined, payload)
+  }
+  throw unsupportedWorkspaceSemanticWrite(config.kind)
+}
+
+export async function updateSemanticEntity(
+  projectId: number,
+  config: SemanticEntityConfig,
+  id: number,
+  payload: SemanticEntityPayload,
+): Promise<SemanticEntityRecord> {
+  if (workspaceWritableEntityKind(config.kind)) {
+    const current = (await listWorkspaceSemanticEntities(projectId, config.kind, {})).find((record) => record.ID === id)
+    return writeWorkspaceSemanticEntity(projectId, config.kind, current ?? ({ ID: id } as SemanticEntityRecord), payload)
+  }
+  throw unsupportedWorkspaceSemanticWrite(config.kind)
+}
+
+export async function deleteSemanticEntity(
+  projectId: number,
+  config: SemanticEntityConfig,
+  id: number,
+): Promise<void> {
+  if (workspaceWritableEntityKind(config.kind)) {
+    const current = (await listWorkspaceSemanticEntities(projectId, config.kind, {})).find((record) => record.ID === id)
+    const workspacePath = stringParam(current?.__workspace_path)
+    if (workspacePath && workspaceEntityPathMatchesKind(config.kind, workspacePath)) {
+      await createElectronMovScriptWorkspaceFileRepository().delete({ path: workspacePath })
+      return
+    }
+  }
+  throw unsupportedWorkspaceSemanticWrite(config.kind)
+}
+
+export async function getSourceLockStatus(
+  _projectId: number,
+  config: SemanticEntityConfig,
+  id: number,
+): Promise<SourceLockStatus> {
+  return {
+    entity_kind: config.path,
+    entity_id: id,
+    locked: false,
+    locked_fields: [],
+    reasons: [],
+  }
+}
+
+export async function listEntityRelations(projectId: number, _filters: EntityRelationFilters = {}): Promise<EntityRelation[]> {
+  const index = await loadMovScriptProjectWorkspaceDomainIndex(projectId)
+  return queryMovScriptWorkspaceEntities(index, { entityType: 'creative_relationship' })
+    .map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId) as unknown as EntityRelation)
+}
+
+export async function listScriptBlockUsages(_projectId: number, _scriptBlockId: number): Promise<ScriptBlockUsages> {
+  throw unsupportedBackendSemanticOperation('listScriptBlockUsages')
+}
+
+export async function listScriptBlockUsageMap(_projectId: number, _scriptVersionId: number): Promise<Record<string, ScriptBlockUsages>> {
+  throw unsupportedBackendSemanticOperation('listScriptBlockUsageMap')
+}
+
+export async function buildContentUnitGenerationContext(
+  _projectId: number,
+  _contentUnitId: number,
+  _intent: 'keyframe' | 'video' = 'video',
+): Promise<GenerationContext> {
+  throw unsupportedBackendSemanticOperation('buildContentUnitGenerationContext')
+}
+
+export async function abandonSegment(_projectId: number, _id: number): Promise<AbandonSegmentResult> {
+  throw unsupportedBackendSemanticOperation('abandonSegment')
+}
+
+export async function abandonSceneMoment(_projectId: number, _id: number): Promise<AbandonSceneMomentResult> {
+  throw unsupportedBackendSemanticOperation('abandonSceneMoment')
+}
+
+export async function abandonContentUnit(_projectId: number, _id: number): Promise<AbandonContentUnitResult> {
+  throw unsupportedBackendSemanticOperation('abandonContentUnit')
+}
+
+export async function applyProjectStandardsWorkspace(
+  _projectId: number,
+  _payload: Record<string, unknown>,
+): Promise<ApplyWorkbenchWorkspaceResponse> {
+  throw unsupportedBackendSemanticOperation('applyProjectStandardsWorkspace')
+}
+
+export async function applySettingWorkspace(
+  _projectId: number,
+  _payload: Record<string, unknown>,
+): Promise<ApplyWorkbenchWorkspaceResponse> {
+  throw unsupportedBackendSemanticOperation('applySettingWorkspace')
+}
+
+export async function applyAssetWorkspace(
+  _projectId: number,
+  _payload: Record<string, unknown>,
+): Promise<ApplyWorkbenchWorkspaceResponse> {
+  throw unsupportedBackendSemanticOperation('applyAssetWorkspace')
 }
 
 export async function previewProductionWorkspaceApply(
-  projectId: number,
-  payload: Record<string, unknown>,
+  _projectId: number,
+  _payload: Record<string, unknown>,
 ): Promise<PreviewProductionWorkspaceApplyResponse> {
-  const { data } = await api.post<PreviewProductionWorkspaceApplyResponse>(
-    `/projects/${projectId}/entities/production-workspaces/apply-preview`,
-    payload,
-  )
-  return data
+  throw unsupportedBackendSemanticOperation('previewProductionWorkspaceApply')
+}
+
+export async function applyProductionWorkspace(
+  _projectId: number,
+  _payload: Record<string, unknown>,
+): Promise<ApplyProductionWorkspaceResponse> {
+  throw unsupportedBackendSemanticOperation('applyProductionWorkspace')
+}
+
+async function listWorkspaceSemanticEntities(
+  projectId: number,
+  kind: SemanticEntityKind,
+  params: SemanticEntityListParams,
+): Promise<SemanticEntityRecord[]> {
+  const index = await loadMovScriptProjectWorkspaceDomainIndex(projectId)
+  if (kind === 'settings') {
+    return queryMovScriptWorkspaceSettings(index, {
+      settingId: idParam(params.setting_id ?? params.settingId),
+      kind: stringParam(params.kind),
+      status: stringParam(params.status),
+      query: stringParam(params.query),
+      limit: numberParam(params.limit),
+    }).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+  }
+  if (kind === 'assetSlots') {
+    return queryMovScriptWorkspaceAssetSlots(index, {
+      assetSlotId: idParam(params.asset_slot_id ?? params.assetSlotId),
+      settingId: idParam(params.setting_id ?? params.settingId),
+      settingStateId: idParam(params.setting_state_id ?? params.settingStateId),
+      ownerType: stringParam(params.owner_type ?? params.ownerType),
+      ownerId: idParam(params.owner_id ?? params.ownerId),
+      productionId: idParam(params.production_id ?? params.productionId),
+      status: stringParam(params.status),
+      query: stringParam(params.query),
+      limit: numberParam(params.limit),
+    }).assetSlots.map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+  }
+
+  const entityType = semanticEntityType(kind)
+  if (!entityType) return []
+  return queryMovScriptWorkspaceEntities(index, {
+    entityType,
+    ...workspaceEntityQueryFromParams(params),
+  }).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+}
+
+function workspaceEntityQueryFromParams(params: SemanticEntityListParams): Omit<MovScriptWorkspaceEntityQuery, 'entityType'> {
+  return {
+    status: stringParam(params.status),
+    kind: stringParam(params.kind),
+    query: stringParam(params.query),
+    ownerType: stringParam(params.owner_type ?? params.ownerType),
+    ownerId: idParam(params.owner_id ?? params.ownerId),
+    productionId: idParam(params.production_id ?? params.productionId),
+    segmentId: idParam(params.segment_id ?? params.segmentId),
+    sceneMomentId: idParam(params.scene_moment_id ?? params.sceneMomentId),
+    contentUnitId: idParam(params.content_unit_id ?? params.contentUnitId),
+    settingId: idParam(params.setting_id ?? params.settingId),
+    settingStateId: idParam(params.setting_state_id ?? params.settingStateId),
+    limit: numberParam(params.limit),
+  }
+}
+
+function semanticRecordFromWorkspaceEntity(entity: MovScriptWorkspaceIndexedEntity, projectId: number): SemanticEntityRecord {
+  const record: Record<string, unknown> = { ...entity.record }
+  const numericId = numberParam(record.ID ?? record.id ?? entity.id)
+  if (numericId !== undefined) record.ID = numericId
+  else if (entity.id !== undefined) record.id = entity.id
+  if (record.project_id === undefined) record.project_id = projectId
+  record.__workspace_path = entity.path
+  record.__workspace_entity_type = entity.entityType
+  return record as SemanticEntityRecord
+}
+
+function workspaceProjectRecord(entity: MovScriptWorkspaceIndexedEntity, projectId: number): Project {
+  const record = semanticRecordFromWorkspaceEntity(entity, projectId)
+  return {
+    ID: numberParam(record.ID) ?? projectId,
+    name: stringParam(record.name) ?? `Project ${projectId}`,
+    description: stringParam(record.description) ?? '',
+    owner_id: numberParam(record.owner_id) ?? 0,
+    status: stringParam(record.status),
+    total_episodes: numberParam(record.total_episodes),
+    aspect_ratio: stringParam(record.aspect_ratio),
+    visual_style: stringParam(record.visual_style),
+    project_style: stringParam(record.project_style),
+    CreatedAt: stringParam(record.CreatedAt ?? record.created_at) ?? '',
+    UpdatedAt: stringParam(record.UpdatedAt ?? record.updated_at) ?? '',
+  }
+}
+
+function semanticEntityType(kind: SemanticEntityKind): MovScriptWorkspaceEntityType | undefined {
+  return semanticEntityTypeByKind[kind]
+}
+
+async function writeWorkspaceSemanticEntity(
+  projectId: number,
+  kind: WorkspaceWritableSemanticEntityKind,
+  record: SemanticEntityRecord | undefined,
+  payload: SemanticEntityPayload,
+): Promise<SemanticEntityRecord> {
+  const workspaceApi = requireWorkspaceAPI()
+  const projectPath = await resolveMovScriptWorkspaceProjectPath(workspaceApi, projectId)
+  const next = normalizeWritableWorkspaceEntity(projectId, kind, record, payload)
+  const path = writableWorkspaceEntityPath(projectPath, kind, record, next)
+  await createElectronMovScriptWorkspaceFileRepository(workspaceApi).write({
+    path,
+    content: `${JSON.stringify(next, null, 2)}\n`,
+  })
+  const output: Record<string, unknown> = {
+    ...next,
+    __workspace_path: path,
+    __workspace_entity_type: semanticEntityType(kind),
+  }
+  return output as SemanticEntityRecord
+}
+
+function normalizeWritableWorkspaceEntity(
+  projectId: number,
+  kind: WorkspaceWritableSemanticEntityKind,
+  record: SemanticEntityRecord | undefined,
+  payload: SemanticEntityPayload,
+): Record<string, unknown> {
+  const now = Date.now()
+  const current = stripWorkspacePrivateFields(record ?? {})
+  const currentId = numberParam(current.ID ?? current.id)
+  const id = currentId ?? -now
+  const clientId = stringParam(current.client_id ?? current.clientId) ?? (id > 0 ? undefined : `${workspaceWritableFilePrefix(kind)}_local_${now}`)
+  return pruneUndefined({
+    ...current,
+    ...payload,
+    schema: workspaceWritableSchema(kind),
+    ID: id,
+    id,
+    ...(clientId ? { client_id: clientId } : {}),
+    project_id: projectId,
+  })
+}
+
+function writableWorkspaceEntityPath(
+  projectPath: string,
+  kind: WorkspaceWritableSemanticEntityKind,
+  record: SemanticEntityRecord | undefined,
+  next: Record<string, unknown>,
+): string {
+  const existingPath = stringParam(record?.__workspace_path)
+  if (existingPath && workspaceEntityPathMatchesKind(kind, existingPath)) return existingPath
+  const id = numberParam(next.ID ?? next.id)
+  const clientId = stringParam(next.client_id ?? next.clientId)
+  const fileKey = id !== undefined && id > 0 ? String(id) : clientId ?? `local_${Date.now()}`
+  return `${projectPath}/${workspaceWritableDirectory(kind)}/${workspaceWritableFilePrefix(kind)}_${fileKey}.json`
+}
+
+function workspaceWritableEntityKind(kind: SemanticEntityKind): kind is WorkspaceWritableSemanticEntityKind {
+  return kind in workspaceWritableEntitySpecs
+}
+
+type WorkspaceWritableSemanticEntityKind =
+  | 'scriptVersions'
+  | 'settings'
+  | 'assetSlots'
+  | 'deliveryVersions'
+  | 'deliveryTimelineItems'
+  | 'exportRecords'
+  | 'workItems'
+  | 'workReviews'
+
+function workspaceWritableSchema(kind: WorkspaceWritableSemanticEntityKind): string {
+  return workspaceWritableEntitySpecs[kind].schema
+}
+
+function workspaceWritableDirectory(kind: WorkspaceWritableSemanticEntityKind): string {
+  return workspaceWritableEntitySpecs[kind].directory
+}
+
+function workspaceWritableFilePrefix(kind: WorkspaceWritableSemanticEntityKind): string {
+  return workspaceWritableEntitySpecs[kind].filePrefix
+}
+
+function workspaceEntityPathMatchesKind(kind: WorkspaceWritableSemanticEntityKind, path: string): boolean {
+  return path.includes(`/${workspaceWritableDirectory(kind)}/`)
+    && path.split('/').pop()?.startsWith(`${workspaceWritableFilePrefix(kind)}_`) === true
+}
+
+function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith('__workspace_')) continue
+    out[key] = value
+  }
+  return out
+}
+
+function pruneUndefined(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined))
+}
+
+function unsupportedWorkspaceSemanticWrite(kind: SemanticEntityKind): Error {
+  return new Error(`MovScript workspace write is not implemented for ${kind}; direct backend semantic writes have been removed`)
+}
+
+function unsupportedBackendSemanticOperation(operation: string): never {
+  throw new Error(`${operation} is no longer available through the frontend semantic API; use workspace files and Git canonical review/submit`)
+}
+
+function requireWorkspaceAPI(): ElectronAPI {
+  const workspaceApi = window.api
+  if (!workspaceApi) throw new Error('当前窗口没有 MovScript 工作区能力')
+  return workspaceApi
+}
+
+const semanticEntityTypeByKind: Record<SemanticEntityKind, MovScriptWorkspaceEntityType> = {
+  scriptVersions: 'script_version',
+  scriptBlocks: 'script_block',
+  segments: 'segment',
+  productionTextBlocks: 'production_text_block',
+  sceneMoments: 'scene_moment',
+  writingExpressions: 'writing_expression',
+  productions: 'production',
+  storyboardScripts: 'storyboard_script',
+  storyboardVersions: 'storyboard_version',
+  contentUnits: 'content_unit',
+  keyframes: 'keyframe',
+  previewTimelines: 'preview_timeline',
+  previewTimelineItems: 'preview_timeline_item',
+  settings: 'setting',
+  settingStates: 'setting_state',
+  settingUsages: 'setting_usage',
+  creativeRelationships: 'creative_relationship',
+  assetSlots: 'asset_slot',
+  assetSlotCandidates: 'asset_slot_candidate',
+  candidateDecisions: 'candidate_decision',
+  reviewEvents: 'review_event',
+  workItems: 'work_item',
+  workReviews: 'work_review',
+  workDependencies: 'work_dependency',
+  deliveryVersions: 'delivery_version',
+  deliveryTimelineItems: 'delivery_timeline_item',
+  exportRecords: 'export_record',
+  canvasOutputs: 'canvas_output',
+}
+
+const workspaceWritableEntitySpecs: Record<WorkspaceWritableSemanticEntityKind, {
+  schema: string
+  directory: string
+  filePrefix: string
+}> = {
+  scriptVersions: {
+    schema: 'movscript.script_version.v1',
+    directory: 'scripts/versions',
+    filePrefix: 'script_version',
+  },
+  settings: {
+    schema: 'movscript.setting.v1',
+    directory: 'setting',
+    filePrefix: 'setting',
+  },
+  assetSlots: {
+    schema: 'movscript.asset_slot.v1',
+    directory: 'assets',
+    filePrefix: 'asset_slot',
+  },
+  deliveryVersions: {
+    schema: 'movscript.delivery_version.v1',
+    directory: 'delivery',
+    filePrefix: 'delivery_version',
+  },
+  deliveryTimelineItems: {
+    schema: 'movscript.delivery_timeline_item.v1',
+    directory: 'delivery',
+    filePrefix: 'delivery_timeline_item',
+  },
+  exportRecords: {
+    schema: 'movscript.export_record.v1',
+    directory: 'delivery',
+    filePrefix: 'export_record',
+  },
+  workItems: {
+    schema: 'movscript.work_item.v1',
+    directory: 'work',
+    filePrefix: 'work_item',
+  },
+  workReviews: {
+    schema: 'movscript.work_review.v1',
+    directory: 'work',
+    filePrefix: 'work_review',
+  },
 }
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
-    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是编排段和预览的源头。', entityIconTone('sky'), ['title', 'source_type', 'status', 'summary'], [
-      num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
-      textCreateOnly('title', '标题', true, '创建后不可修改；如需调整请创建新版本'),
-      selectCreateOnly('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai'], false, '创建后不可修改；如需调整请创建新版本'),
-      areaCreateOnly('content', '正文', '创建后不可修改；后续对象应引用稳定版本或剧本块'),
-      areaCreateOnly('raw_source', '原文', '创建后不可修改；后续对象应引用稳定版本或剧本块'),
-      areaCreateOnly('summary', '摘要', '创建后不可修改；如需调整请创建新版本'),
-      selectCreateOnly('status', '状态', ['workspace', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
-    ], '需要先在旧版剧本页创建 Script，创建版本即形成稳定快照；后续修改请创建新版本。'),
-    cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到某个剧本版本的可引用文本块，用于让情节和制作项稳定引用具体行。', entityIconTone('sky'), ['kind', 'speaker', 'start_line', 'end_line', 'content'], [
-      num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
-      num('script_version_id', 'ScriptVersion ID', true, true, '绑定到稳定剧本版本'),
+    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本。', ['title', 'source_type', 'status'], [
+      num('script_id', 'Script ID', true, true),
+      textCreateOnly('title', '标题', true),
+      selectCreateOnly('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
+      areaCreateOnly('content', '正文'),
+      areaCreateOnly('raw_source', '原文'),
+      areaCreateOnly('summary', '摘要'),
+      selectCreateOnly('status', '状态', ['workspace', 'active', 'archived']),
+    ]),
+    cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到剧本版本的可引用文本块。', ['kind', 'speaker', 'content'], [
+      num('script_id', 'Script ID', true, true),
+      num('script_version_id', 'ScriptVersion ID', true, true),
       num('parent_block_id', '父剧本块 ID'),
       num('order', '顺序'),
-      selectOptions('kind', '类型', [
-        { value: 'scene_heading', label: '场景标题' },
-        { value: 'action', label: '动作' },
-        { value: 'dialogue', label: '对白' },
-        { value: 'parenthetical', label: '括注' },
-        { value: 'transition', label: '转场' },
-        { value: 'note', label: '备注' },
-      ]),
+      select('kind', '类型', ['scene_heading', 'action', 'dialogue', 'transition', 'note']),
       text('speaker', '说话人'),
-      areaCreateOnly('content', '文本内容', '由后端根据版本行/字符范围派生，创建后不可修改'),
-      num('start_line', '起始行', false, true, '创建后不可修改，保证引用到稳定剧本版本行号'),
-      num('end_line', '结束行', false, true, '创建后不可修改，保证引用到稳定剧本版本行号'),
-      num('start_char', '起始字符', false, true, '创建后不可修改，保证引用到稳定剧本版本字符范围'),
-      num('end_char', '结束字符', false, true, '创建后不可修改，保证引用到稳定剧本版本字符范围'),
-      select('status', '状态', ['active', 'workspace', 'archived']),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 script_id 和 script_version_id；建议从剧本版本正文中拉选文本自动创建。'),
-    cfg('segments', 'segments', '编排段', '本集内部的情绪、节奏和戏剧功能段，可选绑定制作文本块作为来源。', entityIconTone('cyan'), ['title', 'kind', 'status', 'summary'], [
-      num('production_id', 'Production ID', false, false, '已有情景或制作项后不可改'),
-      num('text_block_id', '文本块 ID', false, false, '已有情景或制作项后不可改'),
-      num('script_block_id', '剧本块 ID', false, false, '已有情景或制作项后不可改'),
-      text('title', '标题', true),
-      selectOptions('kind', '类型', [
-        { value: 'emotional_function', label: '情绪功能' },
-        { value: 'rhythm_shift', label: '节奏变化' },
-        { value: 'dramatic_function', label: '戏剧功能' },
-        { value: 'setup', label: '铺垫' },
-        { value: 'escalation', label: '升级' },
-        { value: 'release', label: '释放' },
-        { value: 'reversal', label: '反转' },
-        { value: 'transition', label: '转场' },
-      ]),
-      num('order', '顺序'),
-      area('summary', '情绪/节奏/戏剧功能'),
-      area('content', '来源文本或补充说明'),
-      select('status', '状态', ['workspace', 'confirmed', 'ignored']),
-      area('metadata_json', '元数据 JSON'),
-    ], '来源字段用于稳定追溯；已有下游情景或制作项后，后端会锁定来源引用。'),
-    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，编排段可以绑定到这里而不是直接绑定剧本。', entityIconTone('amber'), ['title', 'kind', 'status', 'summary'], [
-      num('production_id', 'Production ID', true, true),
-      num('parent_block_id', '父文本块 ID'),
-      selectOptions('kind', '类型', [
-        { value: 'section', label: '段落' },
-        { value: 'scene', label: '场次' },
-        { value: 'beat', label: '节拍' },
-        { value: 'dialogue', label: '对白' },
-        { value: 'narration', label: '旁白' },
-        { value: 'note', label: '备注' },
-      ]),
-      num('order', '顺序'),
-      text('title', '标题'),
-      area('content', '文本内容'),
-      area('summary', '摘要'),
-      select('source_type', '来源类型', ['manual', 'script', 'brief', 'ai', 'import']),
+      area('content', '内容'),
       select('status', '状态', ['workspace', 'active', 'archived']),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 production_id。'),
-    cfg('sceneMoments', 'scene-moments', '情景', 'AI 生成的核心上下文：何时、绑定哪些设定、承担什么情节任务。', entityIconTone('teal'), ['scene_code', 'title', 'time_text', 'status'], [
-      num('production_id', 'Production ID', false, false, '自动从所属编排段继承；已有制作项或关键帧后不可改'),
-      num('segment_id', 'Segment ID', false, false, '已有制作项或关键帧后不可改'),
-      num('script_block_id', '剧本块 ID', false, false, '已有制作项或关键帧后不可改'),
-      { key: 'scene_code', label: 'Scene 编号', type: 'text', helper: '留空时自动向后编号；删除不会补号' },
-      text('title', '标题'),
+    ]),
+    cfg('segments', 'segments', '段落', '制作结构中的叙事段落。', ['title', 'order', 'status'], [
+      num('production_id', 'Production ID'),
+      text('title', '标题', true),
+      area('summary', '摘要'),
       num('order', '顺序'),
-      area('description', '描述'),
+      select('status', '状态', ['workspace', 'active', 'abandoned', 'archived']),
+    ]),
+    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作阶段使用的文本片段。', ['kind', 'content', 'status'], [
+      num('production_id', 'Production ID'),
+      select('kind', '类型', ['brief', 'note', 'dialogue', 'action']),
+      area('content', '内容'),
+      select('status', '状态', ['workspace', 'active', 'archived']),
+    ]),
+    cfg('sceneMoments', 'scene-moments', '情节', '段落下的具体情节。', ['title', 'scene_code', 'status'], [
+      num('production_id', 'Production ID'),
+      num('segment_id', 'Segment ID'),
+      text('scene_code', '场景编号'),
+      text('title', '标题', true),
       text('time_text', '时间'),
-      area('condition_text', '条件'),
-      text('mood', '导演备注 / 节奏目标'),
-      selectOptions('status', '状态', [
-        { value: 'workspace', label: '工作区' },
-        { value: 'confirmed', label: '已确认' },
-        { value: 'ignored', label: '已忽略' },
-      ]),
-      area('metadata_json', '元数据 JSON'),
-    ], '情景可以继续修改标题、说明和节奏目标；已有下游生产结构后，父编排段和剧本块来源会被锁定。'),
-    cfg('writingExpressions', 'writing-expressions', '表达条目', '编剧在情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述。', entityIconTone('emerald'), ['kind', 'speaker', 'text', 'intent'], [
-      num('scene_moment_id', '情节 ID', true, false, '表达条目必须属于一个情节'),
-      num('script_block_id', '来源剧本块 ID', false, false, '可选，用于追溯原剧本块'),
+      text('location_text', '地点'),
+      area('action_text', '动作'),
+      area('description', '描述'),
       num('order', '顺序'),
+      select('status', '状态', ['workspace', 'active', 'abandoned', 'archived']),
+    ]),
+    cfg('writingExpressions', 'writing-expressions', '编剧表达', '编剧在情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述。', ['kind', 'speaker', 'text'], [
+      num('scene_moment_id', 'SceneMoment ID', true),
       selectOptions('kind', '类型', [
         { value: 'dialogue', label: '对白' },
         { value: 'action', label: '动作' },
         { value: 'narration', label: '旁白' },
         { value: 'subtitle', label: '屏幕文字' },
         { value: 'visual', label: '镜头描述' },
-      ]),
-      text('speaker', '人物 / 声源'),
-      area('text', '正文', true),
-      area('note', '潜台词 / 表演说明'),
-      area('intent', '表达目的'),
-      area('metadata_json', '元数据 JSON'),
-    ], '表达条目不承担稿件状态；它只表示当前情节里的具体表达。'),
-    cfg('productions', 'productions', '制作', '一次完整制作主体，可从剧本、brief、预览创建，也可以直接裸创建。', entityIconTone('orange'), ['name', 'source_type', 'status', 'description'], [
-      text('name', '制作名称', true),
-      area('description', '制作说明'),
-      select('source_type', '来源类型', ['direct', 'script', 'brief', 'preview', 'import'], false, '已有制作文本、编排段、制作项或关键帧后，后端会锁定来源'),
-      select('status', '状态', ['planning', 'previewing', 'materializing', 'producing', 'reviewing', 'delivered', 'archived']),
-      text('owner_label', '负责人'),
-      num('progress', '进度'),
-      num('script_version_id', 'ScriptVersion ID', false, false, '从稳定剧本版本创建制作时填写；已有下游生产结构后不可改'),
-      num('preview_timeline_id', 'PreviewTimeline ID', false, false, '从预览时间线创建制作时填写；已有下游生产结构后不可改'),
-      area('metadata_json', '元数据 JSON'),
-    ], '可以先创建空制作；一旦产生制作文本、编排段、制作项或关键帧，来源引用会被锁定。'),
-    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情景到制作项之间的正式语义对象。', entityIconTone('blue'), ['name', 'status', 'is_primary', 'description'], [
-      num('script_version_id', 'ScriptVersion ID', false, true, '创建后不建议修改；已有分镜版本后后端会锁定来源'),
+      ], true),
+      text('speaker', '说话人'),
+      area('text', '文本', true),
+      area('note', '备注'),
+      num('order', '顺序'),
+      select('status', '状态', ['workspace', 'active', 'archived']),
+    ]),
+    cfg('productions', 'productions', '制作', '项目中的制作单元。', ['name', 'status'], [
       text('name', '名称', true),
       area('description', '描述'),
-      bool('is_primary', '主分镜脚本'),
-      select('status', '状态', ['workspace', 'active', 'locked', 'archived']),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时绑定稳定剧本版本；分镜版本创建后，来源剧本版本会被锁定。'),
-    cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '结构化分镜脚本的稳定版本快照，用于比较 AI 候选和人工修改。', entityIconTone('blue'), ['title', 'version_number', 'source', 'status'], [
-      num('storyboard_script_id', 'StoryboardScript ID', true, true),
-      num('parent_version_id', 'ParentVersion ID', false, true, '创建后不可修改；如需调整请创建新版本'),
-      textCreateOnly('title', '标题', false, '创建后不可修改；如需调整请创建新版本'),
-      selectCreateOnly('source', '来源', ['manual', 'ai', 'import'], false, '创建后不可修改；版本保留为历史快照'),
-      selectCreateOnly('status', '状态', ['workspace', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
-      areaCreateOnly('snapshot_json', '快照 JSON', '创建后不可修改；内容生产应引用稳定版本'),
-      areaCreateOnly('metadata_json', '元数据 JSON', '创建后不可修改；如需调整请创建新版本'),
-    ], '创建时需要填写 storyboard_script_id；创建后不可修改或删除。'),
-    cfg('contentUnits', 'content-units', '制作项', '预览与生产的最小颗粒，镜头只是其中一种类型。', entityIconTone('indigo'), ['unit_code', 'title', 'kind', 'duration_sec', 'status'], [
-      num('production_id', 'Production ID', false, false, '已有关键帧或素材需求后不可改'),
-      num('segment_id', '所属编排段 ID', false, false, '已有关键帧或素材需求后不可改'),
-      num('scene_moment_id', '所属情景 ID', false, false, '已有关键帧或素材需求后不可改'),
-      num('script_block_id', '剧本块 ID', false, false, '已有关键帧或素材需求后不可改'),
-      { key: 'unit_code', label: '制作编号', type: 'text', helper: '留空时按所属情景和类型自动向后编号；删除不会补号' },
+      num('script_version_id', 'ScriptVersion ID'),
+      select('status', '状态', ['workspace', 'active', 'archived']),
+    ]),
+    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '分镜脚本。', ['title', 'status'], genericFields()),
+    cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '分镜版本。', ['title', 'status'], genericFields()),
+    cfg('contentUnits', 'content-units', '制作项', '可生产的内容单元。', ['title', 'kind', 'status'], [
+      num('production_id', 'Production ID'),
+      num('scene_moment_id', 'SceneMoment ID'),
+      text('unit_code', '制作项编号'),
       text('title', '标题', true),
-      selectOptions('kind', '类型', [
-        { value: 'shot', label: '镜头' },
-        { value: 'voiceover', label: '旁白/画外音' },
-        { value: 'dialogue_audio', label: '对白音频' },
-        { value: 'sound', label: '音效' },
-        { value: 'music_beat', label: '节拍' },
-        { value: 'subtitle', label: '字幕' },
-        { value: 'caption_card', label: '字幕卡' },
-        { value: 'transition', label: '转场' },
-      ]),
-      num('order', '顺序'),
-      num('duration_sec', '时长秒'),
-      area('description', '要做什么'),
-      area('prompt', '创作提示'),
-      selectOptions('shot_size', '景别', [
-        { value: '', label: '未指定' },
-        { value: 'extreme_wide', label: '大远景' },
-        { value: 'wide', label: '远景' },
-        { value: 'full', label: '全景' },
-        { value: 'medium', label: '中景' },
-        { value: 'medium_close', label: '中近景' },
-        { value: 'close_up', label: '近景' },
-        { value: 'extreme_close_up', label: '特写' },
-        { value: 'detail', label: '细节' },
-      ]),
-      selectOptions('camera_angle', '机位角度', [
-        { value: '', label: '未指定' },
-        { value: 'eye_level', label: '平视' },
-        { value: 'high_angle', label: '俯拍' },
-        { value: 'low_angle', label: '仰拍' },
-        { value: 'top_down', label: '顶拍' },
-        { value: 'dutch_angle', label: '倾斜角' },
-        { value: 'over_shoulder', label: '过肩' },
-        { value: 'pov', label: '主观视角' },
-      ]),
-      selectOptions('camera_height', '镜头高度', [
-        { value: '', label: '未指定' },
-        { value: 'ground', label: '贴地' },
-        { value: 'low', label: '低机位' },
-        { value: 'eye', label: '视平线' },
-        { value: 'high', label: '高机位' },
-        { value: 'overhead', label: '俯视高位' },
-      ]),
-      selectOptions('camera_motion', '运镜方式', [
-        { value: '', label: '未指定' },
-        { value: 'static', label: '固定镜头' },
-        { value: 'pan', label: '摇镜' },
-        { value: 'tilt', label: '俯仰' },
-        { value: 'dolly_in', label: '推进' },
-        { value: 'dolly_out', label: '拉远' },
-        { value: 'truck_left', label: '左移' },
-        { value: 'truck_right', label: '右移' },
-        { value: 'tracking', label: '跟拍' },
-        { value: 'orbit', label: '环绕' },
-        { value: 'crane', label: '升降' },
-        { value: 'handheld', label: '手持' },
-        { value: 'zoom', label: '变焦' },
-      ]),
-      selectOptions('motion_intensity', '运动强度', [
-        { value: '', label: '未指定' },
-        { value: 'subtle', label: '轻微' },
-        { value: 'moderate', label: '适中' },
-        { value: 'strong', label: '强烈' },
-        { value: 'dynamic', label: '高动态' },
-      ]),
-      selectOptions('camera_speed', '运动速度', [
-        { value: '', label: '未指定' },
-        { value: 'slow', label: '慢' },
-        { value: 'normal', label: '正常' },
-        { value: 'fast', label: '快' },
-        { value: 'ramp', label: '变速' },
-      ]),
-      text('lens', '镜头/镜片'),
-      text('focal_length', '焦段'),
-      text('focus_subject', '焦点主体'),
-      area('composition_start', '起始构图'),
-      area('composition_end', '结束构图'),
-      selectOptions('stabilization', '稳定方式', [
-        { value: '', label: '未指定' },
-        { value: 'locked', label: '锁定稳定' },
-        { value: 'smooth', label: '平滑稳定' },
-        { value: 'handheld', label: '手持抖动' },
-        { value: 'intentional_shake', label: '刻意晃动' },
-      ]),
-      area('camera_notes', '运镜备注'),
-      area('camera_params_json', '相机参数 JSON'),
-      selectOptions('status', '状态', [
-        { value: 'workspace', label: '工作区' },
-        { value: 'candidate', label: '候选' },
-        { value: 'confirmed', label: '已确认' },
-        { value: 'in_production', label: '生产中' },
-        { value: 'locked', label: '已锁定' },
-      ]),
-      area('metadata_json', '元数据 JSON'),
-    ], '制作项的镜头描述、prompt 和机位参数可持续迭代；一旦生成关键帧或素材需求，来源引用会被锁定。'),
-    cfg('keyframes', 'keyframes', '画面锚点', '情节预览画面或镜头关键帧，用于驱动预览时间线和生产画面约束。', entityIconTone('rose'), ['title', 'status', 'description', 'prompt'], [
+      select('kind', '类型', ['shot', 'voiceover', 'dialogue_audio', 'sound', 'music_beat', 'subtitle', 'caption_card', 'transition'], true),
+      area('description', '描述'),
+      area('prompt', '提示词'),
+      num('duration_sec', '时长'),
+      select('status', '状态', ['workspace', 'active', 'approved', 'archived']),
+    ]),
+    cfg('keyframes', 'keyframes', '关键帧', '制作项或情节下的关键画面。', ['title', 'status'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
-      num('canvas_id', 'Canvas ID'),
-      text('title', '标题'),
+      text('title', '标题', true),
+      area('description', '描述'),
+      area('prompt', '提示词'),
       num('order', '顺序'),
-      area('description', '描述'),
-      area('prompt', '创作提示'),
-      select('status', '状态', ['generated', 'candidate', 'attached', 'accepted', 'rejected']),
-      area('metadata_json', '元数据 JSON'),
+      select('status', '状态', ['workspace', 'candidate', 'approved', 'locked', 'archived']),
     ]),
-    cfg('previewTimelines', 'preview-timelines', '预览时间线', '按制作项排列的可播放预览版本。', entityIconTone('emerald'), ['name', 'status', 'duration_sec', 'is_primary'], [
-      num('production_id', 'Production ID'),
-      num('script_version_id', 'ScriptVersion ID'),
+    cfg('previewTimelines', 'preview-timelines', '预览时间线', '预览时间线。', ['title', 'status'], genericFields()),
+    cfg('previewTimelineItems', 'preview-timeline-items', '预览时间线项', '预览时间线项。', ['owner_type', 'owner_id', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID')),
+    cfg('settings', 'settings', '设定', '旧兼容名称；新 workspace ontology 中统一为 setting。', ['name', 'kind', 'status'], [
       text('name', '名称', true),
-      num('duration_sec', '总时长秒'),
-      bool('is_primary', '主时间线'),
-      select('status', '状态', ['workspace', 'playable', 'confirmed', 'archived']),
-      area('metadata_json', '元数据 JSON'),
-    ]),
-    cfg('previewTimelineItems', 'preview-timeline-items', '预览时间线项', '预览时间线上的预览画面、制作项、缺口或备注项。', entityIconTone('emerald'), ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
-    cfg('creativeReferences', 'creative-references', '设定资料', '人物、地点、道具、产品、风格和规则等项目设定资料。', entityIconTone('violet'), ['name', 'kind', 'importance', 'status'], [
-      selectOptions('kind', '类型', [
-        { value: 'person', label: '人物' },
-        { value: 'place', label: '地点' },
-        { value: 'prop', label: '道具' },
-        { value: 'product', label: '产品' },
-        { value: 'brand', label: '品牌' },
-        { value: 'style', label: '风格' },
-        { value: 'world_rule', label: '世界规则' },
-        { value: 'time_period', label: '时间段' },
-        { value: 'restriction', label: '限制' },
-      ], true),
-      text('name', '名称', true),
-      text('alias', '别名'),
+      select('kind', '类型', ['character', 'location', 'prop', 'world_rule', 'style_reference', 'organization']),
       area('description', '描述'),
-      area('content', '设定资料内容'),
-      selectOptions('importance', '重要性', [
-        { value: 'main', label: '主要' },
-        { value: 'supporting', label: '辅助' },
-        { value: 'background', label: '背景' },
-      ]),
+      area('content', '内容'),
       select('status', '状态', ['workspace', 'confirmed', 'merged', 'ignored', 'locked']),
-      area('profile_json', '档案 JSON'),
-      area('tags_json', '标签 JSON'),
     ]),
-    cfg('creativeReferenceStates', 'creative-reference-states', '设定资料状态', '设定资料在特定编排段、情景或制作项中的临时状态。', entityIconTone('violet'), ['name', 'scope_type', 'status', 'emotion'], [
-      num('creative_reference_id', 'CreativeReference ID', true),
-      select('scope_type', '作用范围', ['script', 'segment', 'scene_moment', 'content_unit', 'time_period'], true),
-      num('scope_id', 'Scope ID'),
-      text('name', '名称', true),
+    cfg('settingStates', 'setting-states', '设定状态', '旧兼容名称；新 workspace ontology 中统一为 setting_state。', ['name', 'status'], [
+      num('setting_id', 'Setting ID', true),
+      text('name', '名称'),
+      text('scope_type', '范围类型'),
+      num('scope_id', '范围 ID'),
       area('description', '描述'),
-      area('visual_notes', '视觉说明'),
-      text('emotion', '情绪'),
-      text('costume', '服装'),
-      area('props', '道具'),
       select('status', '状态', ['workspace', 'confirmed', 'locked', 'ignored']),
-      area('tags_json', '标签 JSON'),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 creative_reference_id。'),
-    cfg('creativeReferenceUsages', 'creative-reference-usages', '设定资料引用', '记录结构对象使用哪一个设定资料及其状态。', entityIconTone('violet'), ['owner_type', 'owner_id', 'role', 'status'], [
-      select('owner_type', '归属类型', ['segment', 'scene_moment', 'content_unit', 'keyframe'], true),
-      num('owner_id', 'Owner ID', true),
-      num('creative_reference_id', 'CreativeReference ID', true),
-      num('creative_reference_state_id', 'CreativeReferenceState ID'),
-      select('role', '角色', ['protagonist', 'supporting', 'location', 'prop', 'style', 'brand', 'rule']),
-      num('order', '顺序'),
-      area('evidence', '证据'),
-      select('source', '来源', ['manual', 'ai', 'import']),
+    ]),
+    cfg('settingUsages', 'setting-usages', '设定引用', '结构对象对设定的引用。', ['owner_type', 'owner_id', 'role'], [
+      text('owner_type', '归属类型', true),
+      num('owner_id', '归属 ID', true),
+      num('setting_id', '设定 ID', true),
+      num('setting_state_id', '设定状态 ID'),
+      text('role', '角色'),
       select('status', '状态', ['workspace', 'confirmed', 'corrected', 'ignored']),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 owner_type、owner_id 和 creative_reference_id。'),
-    cfg('creativeRelationships', 'creative-relationships', '设定资料关系', '设定资料之间的关系、约束、引用和冲突。', entityIconTone('violet'), ['label', 'category', 'type', 'status'], [
-      num('source_creative_reference_id', 'SourceCreativeReference ID', true),
-      num('target_creative_reference_id', 'TargetCreativeReference ID', true),
-      select('scope_type', '作用范围', ['project', 'script', 'segment', 'scene_moment', 'content_unit']),
-      num('scope_id', 'Scope ID'),
-      select('category', '分类', ['relationship', 'continuity', 'conflict', 'constraint']),
+    ]),
+    cfg('creativeRelationships', 'creative-relationships', '设定关系', '设定之间的关系。', ['type', 'status'], [
+      num('source_setting_id', 'SourceSetting ID', true),
+      num('target_setting_id', 'TargetSetting ID', true),
       text('type', '类型'),
       text('label', '标签'),
-      area('description', '描述'),
-      select('source', '来源', ['manual', 'ai', 'import']),
       select('status', '状态', ['workspace', 'confirmed', 'corrected', 'ignored']),
-      area('evidence', '证据'),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
-    cfg('assetSlots', 'asset-slots', '素材需求', '附着于设定资料、设定状态或制作节点的视图/素材需求缺口。', entityIconTone('amber'), ['name', 'kind', 'priority', 'status'], [
-      num('production_id', 'Production ID'),
-      select('owner_type', '归属类型', ['creative_reference', 'segment', 'scene_moment', 'content_unit', 'keyframe', 'creative_reference_state']),
-      num('owner_id', '归属对象 ID'),
-      num('creative_reference_id', '设定资料'),
-      num('creative_reference_state_id', '设定资料状态'),
-      selectOptions('kind', '素材类型', [
-        { value: 'image', label: '图片' },
-        { value: 'video', label: '视频' },
-        { value: 'audio', label: '音频' },
-        { value: 'text', label: '文本' },
-        { value: 'brand_pack', label: '品牌包' },
-        { value: 'reference', label: '参考资料' },
-      ]),
-      text('name', '需要什么素材', true),
-      text('slot_key', '素材需求键'),
-      area('description', '用途说明'),
-      area('prompt_hint', '创作提示'),
-      selectOptions('priority', '优先级', [
-        { value: 'low', label: '低' },
-        { value: 'normal', label: '普通' },
-        { value: 'high', label: '高' },
-        { value: 'critical', label: '紧急' },
-      ]),
-      select('status', '状态', ['missing', 'candidate', 'locked', 'waived']),
-      area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '某个素材需求下的候选素材及选择状态。', entityIconTone('amber'), ['asset_slot_id', 'candidate_asset_slot_id', 'score', 'status'], [
-      num('asset_slot_id', 'AssetSlot ID', true),
-      num('candidate_asset_slot_id', 'Candidate AssetSlot ID'),
-      num('resource_id', 'Resource ID', false, true, '创建时可直接填资源 ID，系统会自动创建候选素材位；保存已有候选时请编辑 candidate_asset_slot_id。'),
-      select('source_type', '来源类型', ['manual', 'upload', 'job', 'canvas', 'import']),
-      num('source_id', 'Source ID'),
-      num('score', '评分'),
-      select('status', '状态', ['candidate', 'selected', 'rejected']),
-      area('note', '备注'),
-    ], '创建时需要填写 asset_slot_id，并提供 candidate_asset_slot_id 或 resource_id；传入 resource_id 时会自动创建候选素材位。'),
-    cfg('candidateDecisions', 'candidate-decisions', '候选决策', '记录候选的采纳、拒绝、修改、延后或回滚决策。', entityIconTone('amber'), ['candidate_type', 'decision', 'status', 'source'], [
-      select('candidate_type', '候选类型', ['segment', 'scene_moment', 'content_unit', 'keyframe', 'asset_slot_candidate', 'preview_timeline'], true),
-      num('candidate_id', 'Candidate ID'),
-      text('candidate_client_id', 'Candidate Client ID'),
-      select('target_type', '目标类型', ['segment', 'scene_moment', 'content_unit', 'keyframe', 'asset_slot', 'preview_timeline', 'delivery_version']),
-      num('target_id', 'Target ID'),
-      select('decision', '决策', ['accept', 'reject', 'revise', 'defer', 'rollback'], true),
-      select('status', '状态', ['recorded', 'applied', 'superseded', 'failed']),
-      area('reason', '原因'),
-      area('note', '备注'),
-      select('source', '来源', ['manual', 'ai', 'runtime', 'import']),
-      num('decided_by_id', 'DecidedBy ID'),
-      text('applied_at', 'Applied At'),
-      area('metadata_json', '元数据 JSON'),
-    ], '可用 candidate_id 关联已落库候选，也可用 candidate_client_id 记录工作区或 runtime 候选。'),
-    cfg('reviewEvents', 'review-events', '评审事件', '记录语义对象、候选和输出的评审事件流。', entityIconTone('orange'), ['subject_type', 'event_type', 'from_status', 'to_status'], [
-      select('subject_type', '对象类型', ['segment', 'scene_moment', 'content_unit', 'keyframe', 'asset_slot', 'asset_slot_candidate', 'candidate_decision', 'work_item', 'delivery_version', 'canvas_output'], true),
-      num('subject_id', 'Subject ID'),
-      text('subject_client_id', 'Subject Client ID'),
-      select('event_type', '事件类型', ['submitted', 'commented', 'approved', 'changes_requested', 'rejected', 'resolved', 'reopened', 'applied', 'rolled_back'], true),
-      text('from_status', '原状态'),
-      text('to_status', '新状态'),
-      area('comment', '评论'),
-      area('reason', '原因'),
-      select('source', '来源', ['manual', 'ai', 'runtime', 'import']),
-      num('actor_id', 'Actor ID'),
-      area('metadata_json', '元数据 JSON'),
-    ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录工作区或 runtime 对象。'),
-    cfg('workItems', 'work-items', '制作任务', '执行、分配、审核和返工状态，不作为内容事实源。', entityIconTone('orange'), ['title', 'target_type', 'kind', 'status'], [
+    cfg('assetSlots', 'asset-slots', '素材需求', '需要生成或绑定的素材需求。', ['name', 'kind', 'status'], [
+      select('owner_type', '归属类型', ['setting', 'segment', 'scene_moment', 'content_unit', 'keyframe', 'setting_state']),
+      num('owner_id', '归属 ID'),
       num('production_id', 'Production ID'),
-      select('target_type', '目标类型', ['segment', 'scene_moment', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'keyframe', 'delivery_version'], true),
-      num('target_id', 'Target ID', true),
-      text('title', '标题', true),
-      select('kind', '任务类型', ['human', 'ai', 'hybrid', 'review', 'fix']),
-      area('description', '描述'),
-      select('priority', '优先级', ['low', 'normal', 'high', 'critical']),
-      select('status', '状态', ['todo', 'running', 'blocked', 'review', 'done', 'cancelled']),
-      num('assignee_id', 'Assignee ID'),
-      num('source_job_id', 'SourceJob ID'),
-      num('source_canvas_id', 'SourceCanvas ID'),
-      area('metadata_json', '元数据 JSON'),
-    ]),
-    cfg('workReviews', 'work-reviews', '任务审核', '制作任务的审核、修改意见和拒绝记录。', entityIconTone('orange'), ['work_item_id', 'status', 'comment'], [
-      num('work_item_id', 'WorkItem ID', true),
-      num('reviewer_id', 'Reviewer ID'),
-      select('status', '状态', ['pending', 'approved', 'changes_requested', 'rejected']),
-      area('comment', '意见'),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 work_item_id。'),
-    cfg('workDependencies', 'work-dependencies', '任务依赖', '制作任务之间的阻塞和顺序依赖。', entityIconTone('orange'), ['work_item_id', 'depends_on_work_item_id', 'dependency_type'], [
-      num('work_item_id', 'WorkItem ID', true),
-      num('depends_on_work_item_id', 'DependsOnWorkItem ID', true),
-      select('dependency_type', '依赖类型', ['blocks', 'requires', 'relates_to']),
-    ], '创建时需要填写 work_item_id 和 depends_on_work_item_id。'),
-    cfg('deliveryVersions', 'delivery-versions', '交付版本', '成片检查、审核和导出版本记录。', entityIconTone('lime'), ['name', 'status', 'duration_sec', 'is_primary'], [
-      num('production_id', 'Production ID'),
-      num('preview_timeline_id', 'PreviewTimeline ID'),
+      num('setting_id', '设定 ID'),
+      num('setting_state_id', '设定状态 ID'),
       text('name', '名称', true),
+      select('kind', '类型', ['image', 'video', 'audio', 'text'], true),
       area('description', '描述'),
-      num('duration_sec', '总时长秒'),
-      bool('is_primary', '主版本'),
-      select('status', '状态', ['workspace', 'checking', 'approved', 'exported', 'archived']),
-      area('metadata_json', '元数据 JSON'),
+      text('slot_key', 'Slot Key'),
+      area('prompt_hint', '提示词线索'),
+      select('status', '状态', ['workspace', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved']),
     ]),
-    cfg('deliveryTimelineItems', 'delivery-timeline-items', '交付时间线项', '交付版本中的视频、图片、音频、字幕或缺口项。', entityIconTone('lime'), ['label', 'kind', 'order', 'status'], timelineFields('delivery_version_id', 'DeliveryVersion ID'), '创建时需要填写 delivery_version_id。'),
-    cfg('exportRecords', 'export-records', '导出记录', '交付版本的导出任务、格式、预设和失败信息。', entityIconTone('lime'), ['delivery_version_id', 'format', 'preset', 'status'], [
-      num('delivery_version_id', 'DeliveryVersion ID', true),
-      num('resource_id', 'Resource ID'),
-      select('status', '状态', ['pending', 'running', 'succeeded', 'failed']),
-      text('format', '格式'),
-      text('preset', '预设'),
-      area('error', '错误'),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 delivery_version_id。'),
-    cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布运行结果写回语义实体或当前实体的明确落点。', entityIconTone('violet'), ['owner_type', 'owner_id', 'output_type', 'status'], [
-      num('canvas_id', 'Canvas ID', true),
-      num('canvas_run_id', 'CanvasRun ID'),
-      text('canvas_node_id', 'Canvas Node ID'),
-      text('port_id', 'Port ID', true),
-      select('owner_type', '归属类型', ['script_version', 'segment', 'scene_moment', 'storyboard_script', 'content_unit', 'keyframe', 'asset_slot', 'delivery_version'], true),
-      num('owner_id', 'Owner ID', true),
-      select('output_type', '输出类型', ['resource', 'field', 'candidate', 'note']),
-      num('resource_id', 'Resource ID'),
-      text('target_field', '目标字段'),
-      area('value_json', '值 JSON'),
-      select('status', '状态', ['pending', 'attached', 'applied', 'rejected']),
-      area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 canvas_id、port_id、owner_type 和 owner_id。'),
+    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '素材需求的候选结果。', ['name', 'resource_id', 'status'], [
+      num('asset_slot_id', 'AssetSlot ID', true),
+      num('candidate_asset_slot_id', 'CandidateAssetSlot ID'),
+      num('resource_id', 'Resource ID', false, true, '创建时可直接填资源 ID'),
+      text('name', '名称'),
+      area('description', '描述'),
+      select('status', '状态', ['workspace', 'candidate', 'accepted', 'rejected', 'locked']),
+    ], '创建时需要填写 asset_slot_id，并提供 candidate_asset_slot_id 或 resource_id；传入 resource_id 时会自动创建候选素材位。'),
+    cfg('candidateDecisions', 'candidate-decisions', '候选决策', '候选素材的决策记录。', ['status'], genericFields()),
+    cfg('reviewEvents', 'review-events', '审阅事件', '审阅事件。', ['status'], genericFields()),
+    cfg('workItems', 'work-items', '任务', '项目任务。', ['title', 'status'], [
+      text('title', '标题', true),
+      area('description', '描述'),
+      text('owner_type', '归属类型'),
+      num('owner_id', '归属 ID'),
+      select('status', '状态', ['workspace', 'todo', 'doing', 'done', 'blocked', 'archived']),
+    ]),
+    cfg('workReviews', 'work-reviews', '任务审阅', '任务审阅记录。', ['status'], genericFields()),
+    cfg('workDependencies', 'work-dependencies', '任务依赖', '任务依赖。', ['status'], genericFields()),
+    cfg('deliveryVersions', 'delivery-versions', '交付版本', '交付版本。', ['title', 'status'], genericFields()),
+    cfg('deliveryTimelineItems', 'delivery-timeline-items', '交付时间线项', '交付时间线项。', ['owner_type', 'owner_id', 'status'], timelineFields('delivery_version_id', 'DeliveryVersion ID')),
+    cfg('exportRecords', 'export-records', '导出记录', '导出记录。', ['status'], genericFields()),
+    cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布输出。', ['status'], genericFields()),
   ]
 }
 
@@ -833,12 +815,41 @@ function cfg(
   path: string,
   label: string,
   description: string,
-  iconTone: string,
   summaryKeys: string[],
   fields: SemanticEntityField[],
   requiredHint?: string,
 ): SemanticEntityConfig {
-  return { kind, path, label, pluralLabel: label, description, iconTone, summaryKeys, fields, requiredHint }
+  return {
+    kind,
+    path,
+    label,
+    pluralLabel: label,
+    description,
+    requiredHint,
+    iconTone: 'blue',
+    fields,
+    summaryKeys,
+  }
+}
+
+function genericFields(): SemanticEntityField[] {
+  return [
+    text('title', '标题'),
+    text('name', '名称'),
+    area('description', '描述'),
+    select('status', '状态', ['workspace', 'active', 'archived']),
+  ]
+}
+
+function timelineFields(ownerKey: string, ownerLabel: string): SemanticEntityField[] {
+  return [
+    num(ownerKey, ownerLabel),
+    text('owner_type', '归属类型'),
+    num('owner_id', '归属 ID'),
+    num('start_sec', '开始时间'),
+    num('duration_sec', '时长'),
+    select('status', '状态', ['workspace', 'active', 'archived']),
+  ]
 }
 
 function text(key: string, label: string, required = false): SemanticEntityField {
@@ -861,41 +872,28 @@ function num(key: string, label: string, required = false, createOnly = false, h
   return { key, label, type: 'number', required, createOnly, helper }
 }
 
-function bool(key: string, label: string): SemanticEntityField {
-  return { key, label, type: 'boolean' }
-}
-
 function select(key: string, label: string, values: string[], required = false, helper?: string): SemanticEntityField {
-  return { key, label, type: 'select', required, options: options(values), helper }
+  return { key, label, type: 'select', options: values.map((value) => ({ value, label: value })), required, helper }
 }
 
 function selectCreateOnly(key: string, label: string, values: string[], required = false, helper?: string): SemanticEntityField {
-  return { key, label, type: 'select', required, options: options(values), createOnly: true, helper }
+  return { key, label, type: 'select', options: values.map((value) => ({ value, label: value })), required, createOnly: true, helper }
 }
 
 function selectOptions(key: string, label: string, options: SemanticEntityOption[], required = false): SemanticEntityField {
-  return { key, label, type: 'select', required, options }
+  return { key, label, type: 'select', options, required }
 }
 
-function timelineFields(ownerKey: string, ownerLabel: string): SemanticEntityField[] {
-  return [
-    num(ownerKey, ownerLabel, true),
-    num('content_unit_id', 'ContentUnit ID'),
-    num('asset_slot_id', 'AssetSlot ID'),
-    num('resource_id', 'Resource ID'),
-    num('segment_id', 'Segment ID'),
-    num('scene_moment_id', 'SceneMoment ID'),
-    num('keyframe_id', 'Keyframe ID'),
-    select('kind', '类型', ['keyframe', 'content_unit', 'video', 'image', 'audio', 'caption', 'gap', 'note']),
-    num('order', '顺序'),
-    num('start_sec', '开始秒'),
-    num('duration_sec', '时长秒'),
-    text('label', '标签'),
-    select('status', '状态', ['workspace', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved']),
-    area('metadata_json', '元数据 JSON'),
-  ]
+function stringParam(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function options(values: string[]): SemanticEntityOption[] {
-  return values.map((value) => ({ value, label: value }))
+function numberParam(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value)
+  return undefined
+}
+
+function idParam(value: unknown): string | number | undefined {
+  return numberParam(value) ?? stringParam(value)
 }

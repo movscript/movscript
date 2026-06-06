@@ -5,7 +5,7 @@ import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semantic
 import { SceneMomentScriptBlockBinder } from '@/features/production/components/ProductionScriptBinding'
 import {
   buildSpeakerOptions,
-  creativeReferenceKindLabel,
+  settingKindLabel,
   firstText,
   isPersonReference,
   isPlaceReference,
@@ -18,7 +18,7 @@ import {
   speakerPlaceholderForWritingType,
   textPlaceholderForWritingType,
   type ProductionAssetSlotRecord,
-  type ProductionCreativeReferenceRecord,
+  type ProductionSettingRecord,
   type ProductionSceneMomentRecord,
   type ProductionScriptBlockRecord,
   type ProductionSpeakerOption,
@@ -88,7 +88,7 @@ const sceneMomentReferenceRoleOptions = [
 
 export function SceneMomentSettingsEditor({
   moment,
-  creativeReferences,
+  settings,
   assetSlots,
   lookup,
   isSaving,
@@ -96,12 +96,12 @@ export function SceneMomentSettingsEditor({
   onUnlinkReference,
 }: {
   moment: ProductionSceneMomentRecord | null
-  creativeReferences: ProductionCreativeReferenceRecord[]
+  settings: ProductionSettingRecord[]
   assetSlots: ProductionAssetSlotRecord[]
   lookup: ProductionWritingLookup
   isSaving: boolean
   onLinkReference: (momentId: number, referenceId: number, role: string) => void
-  onUnlinkReference: (usageId: number) => void
+  onUnlinkReference: (momentId: number, referenceId: number) => void
 }) {
   const [referenceValue, setReferenceValue] = useState('')
   const [roleValue, setRoleValue] = useState('supporting')
@@ -116,13 +116,13 @@ export function SceneMomentSettingsEditor({
   const linkedReferences = referencesForOwner('scene_moment', moment.ID, lookup)
   const linkedReferenceItems = (lookup.usagesByOwnerKey.get(`scene_moment:${moment.ID}`) ?? [])
     .map((usage) => {
-      const referenceId = Number(usage.creative_reference_id)
-      const reference = Number.isFinite(referenceId) ? lookup.creativeReferenceById.get(referenceId) : null
+      const referenceId = Number(usage.setting_id)
+      const reference = Number.isFinite(referenceId) ? lookup.settingById.get(referenceId) : null
       return reference ? { reference, usageId: usage.ID } : null
     })
-    .filter((item): item is { reference: ProductionCreativeReferenceRecord; usageId: number } => Boolean(item))
+    .filter((item): item is { reference: ProductionSettingRecord; usageId: number } => Boolean(item))
   const linkedIds = new Set(linkedReferences.map((reference) => reference.ID))
-  const visibleReferences = creativeReferences.filter(isVisibleOrchestrationRecord)
+  const visibleReferences = settings.filter(isVisibleOrchestrationRecord)
   const shownReferenceItems = linkedReferenceItems
   const shownReferences = shownReferenceItems.map((item) => item.reference)
   const availableReferences = visibleReferences.filter((reference) => !linkedIds.has(reference.ID))
@@ -132,8 +132,8 @@ export function SceneMomentSettingsEditor({
     slot.owner_type !== 'asset_slot' &&
     (
       (slot.owner_type === 'scene_moment' && Number(slot.owner_id) === moment.ID) ||
-      (slot.creative_reference_id && shownReferences.some((reference) => reference.ID === Number(slot.creative_reference_id))) ||
-      (slot.owner_type === 'creative_reference' && slot.owner_id && shownReferences.some((reference) => reference.ID === Number(slot.owner_id)))
+      (slot.setting_id && shownReferences.some((reference) => reference.ID === Number(slot.setting_id))) ||
+      (slot.owner_type === 'setting' && slot.owner_id && shownReferences.some((reference) => reference.ID === Number(slot.owner_id)))
     )
   ))
   const groups = [
@@ -179,12 +179,12 @@ export function SceneMomentSettingsEditor({
                 <ProductionSceneReferenceItem
                   key={`${item.reference.ID}-${item.usageId ?? 'preview'}`}
                   title={titleOfRecord(item.reference)}
-                  meta={creativeReferenceKindLabel(item.reference.kind)}
+                  meta={settingKindLabel(item.reference.kind)}
                   action={item.usageId ? (
                     <ProductionSceneReferenceRemoveButton
                       aria-label={`移除设定 ${titleOfRecord(item.reference)}`}
                       disabled={isSaving}
-                      onClick={() => onUnlinkReference(item.usageId)}
+                      onClick={() => onUnlinkReference(moment.ID, item.reference.ID)}
                     >
                       <X size={11} />
                     </ProductionSceneReferenceRemoveButton>
@@ -211,12 +211,12 @@ export function SceneMomentSettingsEditor({
                     <ProductionSceneReferenceItem
                       key={`${item.reference.ID}-${item.usageId ?? 'dialog'}`}
                       title={titleOfRecord(item.reference)}
-                      meta={creativeReferenceKindLabel(item.reference.kind)}
+                      meta={settingKindLabel(item.reference.kind)}
                       action={item.usageId ? (
                         <ProductionSceneReferenceRemoveButton
                           aria-label={`移除设定 ${titleOfRecord(item.reference)}`}
                           disabled={isSaving}
-                          onClick={() => onUnlinkReference(item.usageId)}
+                          onClick={() => onUnlinkReference(moment.ID, item.reference.ID)}
                         >
                           <X size={11} />
                         </ProductionSceneReferenceRemoveButton>
@@ -234,7 +234,7 @@ export function SceneMomentSettingsEditor({
                 <SelectContent>
                   {availableReferences.map((reference) => (
                     <SelectItem key={reference.ID} value={String(reference.ID)}>
-                      {titleOfRecord(reference)} · {creativeReferenceKindLabel(reference.kind)}
+                      {titleOfRecord(reference)} · {settingKindLabel(reference.kind)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -444,7 +444,7 @@ export function ProductionWritingExpressionsPanel({
   selectedMoment,
   selectedMomentScriptBlock,
   expressionLines,
-  creativeReferences,
+  settings,
   lookup,
   isSavingExpressionLine,
   canDeleteFallbackContentUnits = false,
@@ -455,7 +455,7 @@ export function ProductionWritingExpressionsPanel({
   selectedMoment: ProductionSceneMomentRecord | null
   selectedMomentScriptBlock: ProductionScriptBlockRecord | null
   expressionLines: ProductionWritingExpressionLine[]
-  creativeReferences: ProductionCreativeReferenceRecord[]
+  settings: ProductionSettingRecord[]
   lookup: ProductionWritingLookup
   isSavingExpressionLine: boolean
   canDeleteFallbackContentUnits?: boolean
@@ -463,7 +463,7 @@ export function ProductionWritingExpressionsPanel({
   onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
 }) {
-  const speakerOptions = buildSpeakerOptions(selectedMoment, creativeReferences, lookup)
+  const speakerOptions = buildSpeakerOptions(selectedMoment, settings, lookup)
   const [creating, setCreating] = useState(false)
   const nextOrder = expressionLines.length + 1
   const createLine: ProductionWritingExpressionLine | null = selectedMoment ? {

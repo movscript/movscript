@@ -7,7 +7,7 @@ import {
   readMovScriptWorkspaceConfig,
   resolveMovScriptWorkspacePaths,
   type MovScriptWorkspaceConfig,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 
 const APP_SERVER_CONFIG_FILE_NAME = 'config.toml'
 const APP_SERVER_AUTH_FILE_NAME = 'auth.json'

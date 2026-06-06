@@ -24,7 +24,7 @@ test('pre-production refresh covers references, asset slots, candidates, and ope
   })
 
   assert.deepEqual(invalidated, [
-    ['pre-production-creative-references', 42],
+    ['pre-production-settings', 42],
     ['semantic-asset-slots-page', 42],
     ['semantic-asset-slot-candidates-page', 42],
   ])

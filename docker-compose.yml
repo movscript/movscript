@@ -61,6 +61,22 @@ services:
       timeout: 5s
       retries: 5
 
+  gitea:
+    image: gitea/gitea:1.24-rootless
+    restart: unless-stopped
+    environment:
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__ROOT_URL: ${GITEA_ROOT_URL:-http://localhost:3003/}
+      GITEA__server__SSH_DOMAIN: ${GITEA_SSH_DOMAIN:-localhost}
+      GITEA__server__SSH_PORT: ${GITEA_SSH_PORT:-2222}
+      GITEA__service__DISABLE_REGISTRATION: "${GITEA_DISABLE_REGISTRATION:-true}"
+    ports:
+      - "${GITEA_HTTP_PORT:-3003}:3000"
+      - "${GITEA_SSH_PORT:-2222}:2222"
+    volumes:
+      - giteadata:/var/lib/gitea
+      - giteaconfig:/etc/gitea
+
   backend:
     build:
       context: .
@@ -87,6 +103,12 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-movscript}
       MINIO_USE_SSL: "${MINIO_USE_SSL:-false}"
+      MOVSCRIPT_WORKSPACE_STORAGE_BACKEND: "${MOVSCRIPT_WORKSPACE_STORAGE_BACKEND:-gitea}"
+      MOVSCRIPT_GITEA_BASE_URL: "${MOVSCRIPT_GITEA_BASE_URL:-http://gitea:3000}"
+      MOVSCRIPT_GITEA_TOKEN: "${MOVSCRIPT_GITEA_TOKEN:-}"
+      MOVSCRIPT_GITEA_OWNER: "${MOVSCRIPT_GITEA_OWNER:-movscript}"
+      MOVSCRIPT_GITEA_REPO_PREFIX: "${MOVSCRIPT_GITEA_REPO_PREFIX:-movscript-project-}"
+      MOVSCRIPT_GITEA_BRANCH: "${MOVSCRIPT_GITEA_BRANCH:-main}"
     depends_on:
       db:
         condition: service_healthy
@@ -94,6 +116,8 @@ services:
         condition: service_healthy
       createbuckets:
         condition: service_completed_successfully
+      gitea:
+        condition: service_started
 
   prometheus:
     profiles: ["observability"]
@@ -159,5 +183,7 @@ volumes:
   pgdata:
   miniodata:
   redisdata:
+  giteadata:
+  giteaconfig:
   prometheusdata:
   grafanadata:

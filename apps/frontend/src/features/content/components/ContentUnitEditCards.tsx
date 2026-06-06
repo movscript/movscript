@@ -3,9 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react'
 
 import {
-  deleteSemanticEntity,
   semanticEntityConfig,
-  updateSemanticEntity,
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
 import { api } from '@/shared/infrastructure/api'
@@ -38,6 +36,13 @@ import {
   contentUnitVisualPlanPromptText,
   hasStructuredText,
 } from '@/features/content/domain/contentUnitPlanningMetadata'
+import {
+  deleteContentUnitWorkspaceProjection,
+  deleteContentUnitKeyframeWorkspaceProjection,
+  reorderContentUnitKeyframesWorkspaceProjection,
+  saveContentUnitKeyframeWorkspaceProjection,
+  saveContentUnitWorkspaceProjection,
+} from '@/features/content/application/contentUnitWorkspaceRepository'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { toast } from '@/shared/ui/toastStore'
 import type { Job, PublicModel } from '@/types'
@@ -187,7 +192,7 @@ export function ContentUnitEditCards({
   const saveUnit = useMutation({
     mutationFn: async () => {
       if (!projectId || !unit) throw new Error('缺少制作项')
-      return updateSemanticEntity(projectId, contentUnitConfig, unit.ID, contentUnitEditPayload(workspace))
+      return saveContentUnitWorkspaceProjection(projectId, unit, contentUnitEditPayload(workspace), { keyframes })
     },
     onSuccess: async (saved) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -203,7 +208,7 @@ export function ContentUnitEditCards({
   const deleteUnit = useMutation({
     mutationFn: async () => {
       if (!projectId || !unit) throw new Error('缺少制作项')
-      return deleteSemanticEntity(projectId, contentUnitConfig, unit.ID)
+      return deleteContentUnitWorkspaceProjection(projectId, unit, keyframes)
     },
     onSuccess: async () => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -218,8 +223,8 @@ export function ContentUnitEditCards({
 
   const saveKeyframe = useMutation({
     mutationFn: async () => {
-      if (!projectId || !selectedKeyframe) throw new Error('缺少关键帧')
-      return updateSemanticEntity(projectId, keyframeConfig, selectedKeyframe.ID, keyframeEditPayload(keyframeWorkspace))
+      if (!projectId || !unit || !selectedKeyframe) throw new Error('缺少关键帧')
+      return saveContentUnitKeyframeWorkspaceProjection(projectId, unit, keyframes, selectedKeyframe, keyframeEditPayload(keyframeWorkspace))
     },
     onSuccess: async (saved) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -235,8 +240,8 @@ export function ContentUnitEditCards({
 
   const deleteKeyframe = useMutation({
     mutationFn: async (keyframe: ContentUnitEditRecord) => {
-      if (!projectId) throw new Error('缺少项目')
-      return deleteSemanticEntity(projectId, keyframeConfig, keyframe.ID)
+      if (!projectId || !unit) throw new Error('缺少项目')
+      return deleteContentUnitKeyframeWorkspaceProjection(projectId, unit, keyframes, keyframe)
     },
     onSuccess: async (_result, keyframe) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -260,9 +265,10 @@ export function ContentUnitEditCards({
       if (index < 0 || !swap) return []
       const currentOrder = numberOf(keyframe.order) || index + 1
       const swapOrder = numberOf(swap.order) || swapIndex + 1
-      return Promise.all([
-        updateSemanticEntity(projectId, keyframeConfig, keyframe.ID, { order: swapOrder }),
-        updateSemanticEntity(projectId, keyframeConfig, swap.ID, { order: currentOrder }),
+      if (!unit) throw new Error('缺少制作项')
+      return reorderContentUnitKeyframesWorkspaceProjection(projectId, unit, keyframes, [
+        { keyframeId: keyframe.ID, order: swapOrder },
+        { keyframeId: swap.ID, order: currentOrder },
       ])
     },
     onSuccess: async () => {

@@ -6,7 +6,7 @@ import {
   ensureMovScriptWorkspaceContext,
   resolveMovScriptWorkspaceContextPaths,
   type MovScriptWorkspaceContext,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 import {
   distributeAppServerConfigFromMovScriptWorkspace,
   type AppServerConfigDistribution,

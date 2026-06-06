@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
-	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
@@ -16,7 +15,6 @@ type repository interface {
 	Transaction(ctx context.Context, fn func(repository) error) error
 	StorageStats(ctx context.Context) ([]StorageStat, error)
 	ListResources(ctx context.Context, filter ResourceListFilter) (ResourcePage, error)
-	ResourceDetail(ctx context.Context, id uint) (ResourceDetail, error)
 	GetResource(ctx context.Context, id uint) (domainresource.RawResource, error)
 	ResourceReferenceCount(ctx context.Context, resourceID uint) (int64, error)
 	DeleteResourceRecord(ctx context.Context, resource *domainresource.RawResource) error
@@ -122,32 +120,6 @@ func (s *gormRepository) ListResources(ctx context.Context, filter ResourceListF
 	return ResourcePage{Items: items, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
 }
 
-func (s *gormRepository) ResourceDetail(ctx context.Context, id uint) (ResourceDetail, error) {
-	resource, err := s.GetResource(ctx, id)
-	if err != nil {
-		return ResourceDetail{}, err
-	}
-
-	var bindingCount int64
-	if err := s.db.WithContext(ctx).Model(&persistencemodel.ResourceBinding{}).Where("resource_id = ?", id).Count(&bindingCount).Error; err != nil {
-		return ResourceDetail{}, err
-	}
-
-	bindingRows := make([]persistencemodel.ResourceBinding, 0)
-	if err := s.db.WithContext(ctx).
-		Where("resource_id = ?", id).
-		Order("id desc").
-		Limit(100).
-		Find(&bindingRows).Error; err != nil {
-		return ResourceDetail{}, err
-	}
-	bindings := make([]domainbinding.Binding, 0, len(bindingRows))
-	for _, row := range bindingRows {
-		bindings = append(bindings, domainbinding.BindingFromModel(row))
-	}
-	return ResourceDetail{Resource: resource, BindingCount: bindingCount, Bindings: bindings}, nil
-}
-
 func (s *gormRepository) GetResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
 	var resource persistencemodel.RawResource
 	if err := s.db.WithContext(ctx).Preload("Owner").First(&resource, id).Error; err != nil {
@@ -165,13 +137,8 @@ func (s *gormRepository) ResourceReferenceCount(ctx context.Context, resourceID 
 		where string
 		args  []any
 	}{
-		{model: &persistencemodel.ResourceBinding{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.ShotReference{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.ShotReferenceGroup{}, where: "source_resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.AssetSlot{}, where: "resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.Keyframe{}, where: "resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.DeliveryTimelineItem{}, where: "resource_id = ?", args: []any{resourceID}},
-		{model: &persistencemodel.ExportRecord{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.CanvasTask{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.CanvasOutput{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.Job{}, where: "input_resource_id = ? OR output_resource_id = ? OR input_resource_ids = ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ?", args: jobResourceReferenceArgs(resourceID)},

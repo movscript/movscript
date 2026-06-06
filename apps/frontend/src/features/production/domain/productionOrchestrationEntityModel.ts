@@ -8,7 +8,7 @@ export type ProductionOrchestrationEntityFilter =
   | 'segments'
   | 'sceneMoments'
   | 'writingExpressions'
-  | 'creativeReferences'
+  | 'settings'
   | 'assetSlots'
   | 'contentUnits'
 
@@ -17,13 +17,13 @@ export type ProductionOrchestrationCreateDefaults = Record<string, string | numb
 export type ProductionOrchestrationOwnerRecord = ProductionEntityRecordLike & {
   owner_type?: unknown
   owner_id?: unknown
-  creative_reference_id?: unknown
+  setting_id?: unknown
 }
 
 export interface ProductionOrchestrationLookup<
   TSegment extends ProductionEntityRecordLike,
   TSceneMoment extends ProductionEntityRecordLike,
-  TCreativeReference extends ProductionEntityRecordLike,
+  TSetting extends ProductionEntityRecordLike,
   TUsage extends ProductionOrchestrationOwnerRecord,
   TAssetSlot extends ProductionOrchestrationOwnerRecord,
   TContentUnit extends ProductionEntityRecordLike,
@@ -33,7 +33,7 @@ export interface ProductionOrchestrationLookup<
   segmentById: Map<number, TSegment>
   sceneMomentById: Map<number, TSceneMoment>
   contentUnitById: Map<number, TContentUnit>
-  creativeReferenceById: Map<number, TCreativeReference>
+  settingById: Map<number, TSetting>
   usagesByOwnerKey: Map<string, TUsage[]>
   usagesByReferenceId: Map<number, TUsage[]>
   assetSlotsByOwnerKey: Map<string, TAssetSlot[]>
@@ -51,14 +51,14 @@ export function createProductionOrchestrationDefaultsForType(
   if (type === 'segments') return { status: 'workspace', kind: 'emotional_function', production_id: productionId || 0 }
   if (type === 'sceneMoments') return { status: 'workspace', segment_id: segmentId ?? null }
   if (type === 'writingExpressions') return { scene_moment_id: sceneMomentId ?? null, kind: 'dialogue', order: 1 }
-  if (type === 'creativeReferences') return { status: 'workspace', importance: 'main' }
+  if (type === 'settings') return { status: 'workspace', importance: 'main' }
   return {}
 }
 
 export function buildProductionOrchestrationLookup<
   TSegment extends ProductionEntityRecordLike,
   TSceneMoment extends ProductionEntityRecordLike,
-  TCreativeReference extends ProductionEntityRecordLike,
+  TSetting extends ProductionEntityRecordLike,
   TUsage extends ProductionOrchestrationOwnerRecord,
   TAssetSlot extends ProductionOrchestrationOwnerRecord,
   TContentUnit extends ProductionEntityRecordLike,
@@ -67,22 +67,22 @@ export function buildProductionOrchestrationLookup<
   scriptVersionTitle: string
   segments: TSegment[]
   sceneMoments: TSceneMoment[]
-  creativeReferences: TCreativeReference[]
-  creativeReferenceUsages: TUsage[]
+  settings: TSetting[]
+  settingUsages: TUsage[]
   assetSlots: TAssetSlot[]
   contentUnits: TContentUnit[]
-}): ProductionOrchestrationLookup<TSegment, TSceneMoment, TCreativeReference, TUsage, TAssetSlot, TContentUnit> {
+}): ProductionOrchestrationLookup<TSegment, TSceneMoment, TSetting, TUsage, TAssetSlot, TContentUnit> {
   const usagesByOwnerKey = new Map<string, TUsage[]>()
   const usagesByReferenceId = new Map<number, TUsage[]>()
   const assetSlotsByOwnerKey = new Map<string, TAssetSlot[]>()
   const assetSlotsByReferenceId = new Map<number, TAssetSlot[]>()
 
-  for (const usage of input.creativeReferenceUsages) {
+  for (const usage of input.settingUsages) {
     if (usage.owner_type && usage.owner_id) {
       pushGroupedRecord(usagesByOwnerKey, productionOrchestrationOwnerKey(String(usage.owner_type), Number(usage.owner_id)), usage)
     }
-    if (usage.creative_reference_id) {
-      pushGroupedRecord(usagesByReferenceId, Number(usage.creative_reference_id), usage)
+    if (usage.setting_id) {
+      pushGroupedRecord(usagesByReferenceId, Number(usage.setting_id), usage)
     }
   }
 
@@ -90,8 +90,8 @@ export function buildProductionOrchestrationLookup<
     if (slot.owner_type && slot.owner_id) {
       pushGroupedRecord(assetSlotsByOwnerKey, productionOrchestrationOwnerKey(String(slot.owner_type), Number(slot.owner_id)), slot)
     }
-    if (slot.creative_reference_id) {
-      pushGroupedRecord(assetSlotsByReferenceId, Number(slot.creative_reference_id), slot)
+    if (slot.setting_id) {
+      pushGroupedRecord(assetSlotsByReferenceId, Number(slot.setting_id), slot)
     }
   }
 
@@ -101,7 +101,7 @@ export function buildProductionOrchestrationLookup<
     segmentById: new Map(input.segments.map((item) => [item.ID, item])),
     sceneMomentById: new Map(input.sceneMoments.map((item) => [item.ID, item])),
     contentUnitById: new Map(input.contentUnits.map((item) => [item.ID, item])),
-    creativeReferenceById: new Map(input.creativeReferences.map((item) => [item.ID, item])),
+    settingById: new Map(input.settings.map((item) => [item.ID, item])),
     usagesByOwnerKey,
     usagesByReferenceId,
     assetSlotsByOwnerKey,

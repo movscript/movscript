@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	canvasservice "github.com/movscript/movscript/internal/app/canvas"
@@ -20,7 +19,7 @@ type CanvasHandler struct {
 
 func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
 	return &CanvasHandler{
-		CanvasExecService: canvasservice.NewService(db, registry, svc, nil, nil, store),
+		CanvasExecService: canvasservice.NewService(db, registry, svc, nil, store),
 		aiService:         svc,
 	}
 }
@@ -36,8 +35,6 @@ func (h *CanvasHandler) List(c *gin.Context) {
 		OrgID:      currentOrgID(c),
 		ProjectID:  c.Query("project_id"),
 		Stage:      c.Query("stage"),
-		RefType:    strings.TrimSpace(c.Query("ref_type")),
-		RefID:      strings.TrimSpace(c.Query("ref_id")),
 		CanvasType: c.Query("type"),
 	})
 	if err != nil {
@@ -59,8 +56,6 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		ProjectID   *uint  `json:"project_id"`
 		CanvasType  string `json:"canvas_type"`
 		Stage       string `json:"stage"`
-		RefType     string `json:"ref_type"`
-		RefID       *uint  `json:"ref_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,30 +69,11 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		ProjectID:   req.ProjectID,
 		CanvasType:  req.CanvasType,
 		Stage:       req.Stage,
-		RefType:     req.RefType,
-		RefID:       req.RefID,
-	}
-	existing, ok, err := h.CanvasExecService.FindExistingSingleCanvas(c.Request.Context(), input)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if ok {
-		c.JSON(http.StatusOK, existing)
-		return
 	}
 	cv, err := h.CanvasExecService.CreateCanvas(c.Request.Context(), input)
 	if err != nil {
 		if errors.Is(err, canvasservice.ErrInvalidCanvasType) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "canvas_type must be inspiration or workflow"})
-			return
-		}
-		if errors.Is(err, canvasservice.ErrRefIDRequired) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "ref_id is required when ref_type is set"})
-			return
-		}
-		if errors.Is(err, canvasservice.ErrUnsupportedRefType) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported ref_type"})
 			return
 		}
 		if errors.Is(err, canvasservice.ErrProjectNotFound) {

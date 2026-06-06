@@ -84,7 +84,7 @@ test('project workbench review params can be merged into existing search params'
   assert.deepEqual(
     buildProjectWorkbenchReviewParams(getProjectWorkbenchDefinition('pre_production'), {
       workspaceId: 'workspace-b',
-      entityType: 'creative_reference',
+      entityType: 'setting',
       entityId: 42,
     }),
     { view: 'review', workspaceId: 'workspace-b', reference_id: 42 },
@@ -95,7 +95,7 @@ test('project workbench review params can be merged into existing search params'
     getProjectWorkbenchDefinition('pre_production'),
     {
       workspaceId: 'workspace-b',
-      entityType: 'creative_reference',
+      entityType: 'setting',
       entityId: 42,
     },
   )

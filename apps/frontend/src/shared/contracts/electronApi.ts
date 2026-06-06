@@ -1,7 +1,7 @@
 import type { AppSettings } from './appSettings'
 import type { GenerationToolServer, GenerationToolsSettings } from './generationTools'
 import type { MCPContextUpdate } from './mcpContext'
-import type { MovScriptWorkspaceConfig } from '@movscript/workspaces/node'
+import type { MovScriptWorkspaceConfig } from '@movscript/core/workspace'
 
 export type ElectronBackendStatus = {
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
@@ -427,6 +427,35 @@ export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspac
   content: string
 }
 
+export type ElectronMovScriptWorkspaceCloudActionInput = {
+  namespace?: string
+  path?: string
+  cwd?: string
+  reviewPath?: string
+  mode?: 'safe' | 'merge' | 'overwrite' | 'review_required' | 'path_compat'
+  userId?: number | string
+}
+
+export type ElectronProjectGitActionInput = {
+  projectId: number | string
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+}
+
+export type ElectronProjectGitActionResult = {
+  ok: boolean
+  operation: 'push'
+  projectId: number
+  workspaceDir: string
+  path: string
+  remoteURL?: string
+  branch?: string
+  stdout?: string
+  stderr?: string
+  error?: string
+}
+
 export type ElectronPluginCatalogPackStoreDirs = {
   rootDir: string
   skillsDir: string
@@ -525,6 +554,10 @@ export type ElectronAPI = {
   readMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
   writeMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFileWriteInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
   deleteMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<{ ok: true }>
+  updateMovScriptWorkspaceProjection?: (input?: ElectronMovScriptWorkspaceCloudActionInput) => Promise<unknown>
+  previewMovScriptWorkspaceApply?: (input?: ElectronMovScriptWorkspaceCloudActionInput) => Promise<unknown>
+  applyMovScriptWorkspaceProjection?: (input?: ElectronMovScriptWorkspaceCloudActionInput) => Promise<unknown>
+  pushProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   listPluginCatalogPackPlugins?: () => Promise<{ dirs: ElectronPluginCatalogPackStoreDirs; plugins: ElectronPluginCatalogPackPlugin[] }>
   installPluginCatalogPack?: (input: ElectronPluginCatalogPackInstallInput) => Promise<ElectronPluginCatalogPackInstallResult>
   uninstallPluginCatalogPack?: (input: ElectronPluginCatalogPackUninstallInput) => Promise<ElectronPluginCatalogPackUninstallResult>

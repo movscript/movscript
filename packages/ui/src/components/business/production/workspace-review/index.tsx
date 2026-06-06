@@ -810,7 +810,7 @@ export function productionWorkspaceApplyPreviewKindLabel(kind: string) {
   if (kind === "writing_expression") return "表达";
   if (kind === "content_unit") return "内容";
   if (kind === "keyframe") return "画面锚点";
-  if (kind === "creative_reference") return "设定";
+  if (kind === "setting") return "设定";
   return "素材";
 }
 
@@ -820,7 +820,7 @@ export function productionWorkspaceChangeKindLabel(kind: string) {
   if (kind === "writing_expression") return "表达";
   if (kind === "content_unit") return "内容";
   if (kind === "keyframe") return "画面锚点";
-  if (kind === "creative_reference") return "设定";
+  if (kind === "setting") return "设定";
   if (kind === "asset_slot") return "素材";
   return kind;
 }

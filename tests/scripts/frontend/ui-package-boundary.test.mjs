@@ -933,22 +933,22 @@ function readScriptsLibraryCss() {
   ].map(readProjectFile).join('\n')
 }
 
-function readCreativeReferenceSource() {
+function readSettingSource() {
   return [
-    'packages/ui/src/components/business/resource/creative-reference/index.tsx',
-    'packages/ui/src/components/business/resource/creative-reference/types.ts',
-    'packages/ui/src/components/business/resource/creative-reference/meta.ts',
-    'packages/ui/src/components/business/resource/creative-reference/icons.tsx',
-    'packages/ui/src/components/business/resource/creative-reference/card/index.tsx',
+    'packages/ui/src/components/business/resource/setting/index.tsx',
+    'packages/ui/src/components/business/resource/setting/types.ts',
+    'packages/ui/src/components/business/resource/setting/meta.ts',
+    'packages/ui/src/components/business/resource/setting/icons.tsx',
+    'packages/ui/src/components/business/resource/setting/card/index.tsx',
   ].map(readProjectFile).join('\n')
 }
 
-function readCreativeReferenceCss() {
+function readSettingCss() {
   return [
-    'packages/ui/src/components/business/resource/creative-reference/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/shell/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/visual/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/body/styles.css',
+    'packages/ui/src/components/business/resource/setting/styles.css',
+    'packages/ui/src/components/business/resource/setting/shell/styles.css',
+    'packages/ui/src/components/business/resource/setting/visual/styles.css',
+    'packages/ui/src/components/business/resource/setting/body/styles.css',
   ].map(readProjectFile).join('\n')
 }
 
@@ -1558,15 +1558,15 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/resource/candidate-attach/controls/styles.css',
     'packages/ui/src/components/business/resource/candidate-attach/target/index.tsx',
     'packages/ui/src/components/business/resource/candidate-attach/target/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/index.tsx',
-    'packages/ui/src/components/business/resource/creative-reference/types.ts',
-    'packages/ui/src/components/business/resource/creative-reference/meta.ts',
-    'packages/ui/src/components/business/resource/creative-reference/icons.tsx',
-    'packages/ui/src/components/business/resource/creative-reference/card/index.tsx',
-    'packages/ui/src/components/business/resource/creative-reference/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/shell/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/visual/styles.css',
-    'packages/ui/src/components/business/resource/creative-reference/body/styles.css',
+    'packages/ui/src/components/business/resource/setting/index.tsx',
+    'packages/ui/src/components/business/resource/setting/types.ts',
+    'packages/ui/src/components/business/resource/setting/meta.ts',
+    'packages/ui/src/components/business/resource/setting/icons.tsx',
+    'packages/ui/src/components/business/resource/setting/card/index.tsx',
+    'packages/ui/src/components/business/resource/setting/styles.css',
+    'packages/ui/src/components/business/resource/setting/shell/styles.css',
+    'packages/ui/src/components/business/resource/setting/visual/styles.css',
+    'packages/ui/src/components/business/resource/setting/body/styles.css',
     'packages/ui/src/components/business/resource/library-picker/index.tsx',
     'packages/ui/src/components/business/resource/library-picker/types.ts',
     'packages/ui/src/components/business/resource/library-picker/styles.css',
@@ -1845,8 +1845,8 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const resourceCss = readResourceCss()
   const resourceAttachmentsPackageSource = readProjectFile('packages/ui/src/components/business/resource/attachments/index.tsx')
   const resourceAttachmentsPackageCss = readProjectFile('packages/ui/src/components/business/resource/attachments/styles.css')
-  const creativeReferenceCardSource = readCreativeReferenceSource()
-  const creativeReferenceCss = readCreativeReferenceCss()
+  const settingCardSource = readSettingSource()
+  const settingCss = readSettingCss()
   const resourceLibraryPickerSource = readResourceLibraryPickerSource()
   const resourceLibraryPickerCss = readResourceLibraryPickerCss()
   const resourceMediaViewerSource = readResourceMediaViewerSource()
@@ -2241,7 +2241,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(businessIndexSource, /JobsPageShell/)
   assert.match(businessIndexSource, /JobCardShell/)
   assert.match(resourceCss, /@import "\.\/asset-card\/styles\.css";/)
-  assert.match(resourceCss, /@import "\.\/creative-reference\/styles\.css";/)
+  assert.match(resourceCss, /@import "\.\/setting\/styles\.css";/)
   assert.match(resourceCss, /@import "\.\/attachments\/styles\.css";/)
   assert.match(resourceCss, /@import "\.\/library-picker\/styles\.css";/)
   assert.match(resourceCss, /@import "\.\/media-viewer\/styles\.css";/)
@@ -2259,10 +2259,10 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(resourceAttachmentsPackageCss, /\.resource-attachments\s*\{/)
   assert.match(resourceAttachmentsPackageCss, /\.resource-attachment-tile\s*\{/)
   assert.match(resourceAttachmentsPackageCss, /\.resource-attachment-action-tile\s*\{/)
-  assert.match(creativeReferenceCss, /\.creative-reference-card\s*\{/)
+  assert.match(settingCss, /\.setting-card\s*\{/)
   assert.match(resourceLibraryPickerCss, /\.resource-library-picker\s*\{/)
   assert.match(scriptReferenceCss, /\.resource-script-reference-panel\s*\{/)
-  assert.match(creativeReferenceCardSource, /export function CreativeReferenceCard/)
+  assert.match(settingCardSource, /export function SettingCard/)
   assert.match(resourceLibraryPickerSource, /export function ResourceLibraryPickerPanel/)
   assert.match(resourceMediaViewerSource, /export function ResourceMediaDialog/)
   assert.match(resourceMediaViewerSource, /export function ResourceMediaThumb/)
@@ -2279,7 +2279,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(resourcePreviewDrawerCss, /\.resource-preview-drawer\s*\{/)
   assert.match(resourcePreviewDrawerCss, /\.resource-preview-story-frame\s*\{/)
   assert.match(scriptReferenceSource, /export function ResourceScriptReferencePanel/)
-  assert.match(businessIndexSource, /CreativeReferenceCard/)
+  assert.match(businessIndexSource, /SettingCard/)
   assert.match(businessIndexSource, /ResourceAttachmentRoot/)
   assert.match(businessIndexSource, /ResourceLibraryPickerPanel/)
   assert.match(businessIndexSource, /ResourceMediaDialog/)
@@ -2494,7 +2494,7 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
     'apps/frontend/src/components/app/AppPage.tsx',
     'apps/frontend/src/components/app/SemanticStatusBadge.tsx',
     'apps/frontend/src/components/app/semantic.ts',
-    'apps/frontend/src/components/creative/CreativeReferenceCard.tsx',
+    'apps/frontend/src/components/creative/SettingCard.tsx',
     'apps/frontend/src/components/entity/SemanticEntityThumbCard.tsx',
     'apps/frontend/src/components/shared/CreateDialog.tsx',
     'apps/frontend/src/components/workbench/WorkbenchPrimitives.tsx',
@@ -2516,7 +2516,7 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
   assert.doesNotMatch(frontendSources, /@\/components\/app\/AppPage/)
   assert.doesNotMatch(frontendSources, /@\/components\/app\/SemanticStatusBadge/)
   assert.doesNotMatch(frontendSources, /@\/components\/app\/semantic/)
-  assert.doesNotMatch(frontendSources, /@\/components\/creative\/CreativeReferenceCard/)
+  assert.doesNotMatch(frontendSources, /@\/components\/creative\/SettingCard/)
   assert.doesNotMatch(frontendSources, /@\/components\/entity\/SemanticEntityThumbCard/)
   assert.doesNotMatch(frontendSources, /@\/components\/shared\/CreateDialog/)
   assert.doesNotMatch(frontendSources, /@\/components\/workbench\/WorkbenchPrimitives/)
@@ -3676,9 +3676,9 @@ test('migrated package primitives do not depend on desktop Tailwind utility gene
   assert.match(primitiveCss, /ms-field-control/)
 })
 
-test('desktop entity and creative reference tones use @movscript/ui contracts', () => {
+test('desktop entity and setting tones use @movscript/ui contracts', () => {
   const detailPackageSource = readDetailSource()
-  const creativeReferenceCardSource = readCreativeReferenceSource()
+  const settingCardSource = readSettingSource()
   const uiSemanticHelperSource = readProjectFile('packages/ui/src/semantic.ts')
   const uiSemanticCss = readProjectFile('packages/ui/src/semantic.css')
   const themeCss = readProjectFile('packages/theme/src/theme.css')
@@ -3686,18 +3686,18 @@ test('desktop entity and creative reference tones use @movscript/ui contracts', 
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple)-\d/
 
   assert.doesNotMatch(detailPackageSource, rawPaletteClassPattern)
-  assert.doesNotMatch(creativeReferenceCardSource, rawPaletteClassPattern)
+  assert.doesNotMatch(settingCardSource, rawPaletteClassPattern)
   assert.match(detailPackageSource, /DetailEntityHeader/)
   assert.match(detailPackageSource, /DetailPill/)
   assert.match(detailPackageSource, /DetailPreviewFieldList/)
-  assert.match(creativeReferenceCardSource, /accentTextClass|accentSoftClass|accentDotClass|accentGradientClass/)
-  assert.doesNotMatch(creativeReferenceCardSource, /accentToneClass/)
-  assert.match(creativeReferenceCardSource, /StatusBadge/)
-  assert.match(creativeReferenceCardSource, /creativeReferenceStatusMeta[\s\S]*?intent: StatusIntent/)
-  assert.match(creativeReferenceCardSource, /<StatusBadge intent=\{status\.intent\}/)
-  assert.doesNotMatch(creativeReferenceCardSource, /\bSemanticTone\b/)
-  assert.doesNotMatch(creativeReferenceCardSource, /<StatusBadge\b[^>]*\btone=/)
-  assert.doesNotMatch(creativeReferenceCardSource, /semanticToneClass/)
+  assert.match(settingCardSource, /accentTextClass|accentSoftClass|accentDotClass|accentGradientClass/)
+  assert.doesNotMatch(settingCardSource, /accentToneClass/)
+  assert.match(settingCardSource, /StatusBadge/)
+  assert.match(settingCardSource, /settingStatusMeta[\s\S]*?intent: StatusIntent/)
+  assert.match(settingCardSource, /<StatusBadge intent=\{status\.intent\}/)
+  assert.doesNotMatch(settingCardSource, /\bSemanticTone\b/)
+  assert.doesNotMatch(settingCardSource, /<StatusBadge\b[^>]*\btone=/)
+  assert.doesNotMatch(settingCardSource, /semanticToneClass/)
   assert.doesNotMatch(detailPackageSource, /rounded border border-border bg-background\/80 px-1\.5 py-0\.5/)
   assert.match(uiSemanticHelperSource, /export type AccentTone/)
   assert.doesNotMatch(themeCss, /\.ms-accent-/)

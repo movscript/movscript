@@ -3,12 +3,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Boxes, Image, Plus } from 'lucide-react'
 
 import {
-  createSemanticEntity,
   semanticEntityConfig,
   type SemanticEntityConfig,
   type SemanticEntityPayload,
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
+import {
+  createContentUnitKeyframeWorkspaceProjection,
+  createContentUnitWorkspaceProjection,
+} from '@/features/content/application/contentUnitWorkspaceRepository'
 import { contentUnitKindOptions, trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import {
   keyframeFrameRoleLabel,
@@ -81,7 +84,7 @@ export function CreateContentUnitQuickCard({
       if (!projectId) throw new Error('missing project id')
       const order = selected.units.length + 1
       const title = firstText(defaults?.title, `未命名${selectedKindLabel} ${order}`)
-      return createSemanticEntity(projectId, contentUnitConfig, {
+      const payload = {
         ...defaults,
         title,
         kind,
@@ -92,13 +95,21 @@ export function CreateContentUnitQuickCard({
         production_id: nullableNumber(selectedUnit?.production_id ?? selected.moment.production_id ?? selected.segment?.production_id ?? selected.productionIds[0]),
         script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.moment.script_block_id ?? selected.segment?.script_block_id),
         order,
+      }
+      return createContentUnitWorkspaceProjection(projectId, {
+        moment: selected.moment,
+        segment: selected.segment,
+        productionIds: selected.productionIds,
+        selectedUnit,
+        units: selected.units,
+        payload,
       })
     },
     onSuccess: async (record) => {
       await queryClient.invalidateQueries({ queryKey })
       if (projectId) queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
       toast.success('制作项工作区已创建')
-      onSaved(record)
+      onSaved(semanticRecordFromWorkspaceProjection(record))
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '创建制作项失败'))
@@ -176,7 +187,7 @@ export function CreateKeyframeQuickCard({
     mutationFn: () => {
       if (!projectId) throw new Error('missing project id')
       const order = keyframeOrderForRole(frameRole, existingKeyframes)
-      return createSemanticEntity(projectId, keyframeConfig, {
+      return createContentUnitKeyframeWorkspaceProjection(projectId, selectedUnit, existingKeyframes, {
         ...defaults,
         title: keyframeTitleForRole(frameRole, selectedUnit, title),
         order,
@@ -191,7 +202,7 @@ export function CreateKeyframeQuickCard({
       await queryClient.invalidateQueries({ queryKey })
       if (projectId) queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
       toast.success('关键帧已创建')
-      onSaved(record)
+      onSaved(semanticRecordFromWorkspaceProjection(record))
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '创建关键帧失败'))
@@ -241,4 +252,19 @@ export function CreateKeyframeQuickCard({
 function nullableNumber(value: unknown) {
   const num = Number(value)
   return Number.isFinite(num) && num > 0 ? num : null
+}
+
+function semanticRecordFromWorkspaceProjection(record: Record<string, unknown> & { ID: number }): SemanticEntityRecord {
+  return {
+    ...record,
+    ID: record.ID,
+    ...(typeof record.project_id === 'number' ? { project_id: record.project_id } : {}),
+    ...(typeof record.title === 'string' ? { title: record.title } : {}),
+    ...(typeof record.name === 'string' ? { name: record.name } : {}),
+    ...(typeof record.label === 'string' ? { label: record.label } : {}),
+    ...(typeof record.status === 'string' ? { status: record.status } : {}),
+    ...(typeof record.review_status === 'string' ? { review_status: record.review_status } : {}),
+    ...(typeof record.kind === 'string' ? { kind: record.kind } : {}),
+    ...(typeof record.order === 'number' ? { order: record.order } : {}),
+  }
 }

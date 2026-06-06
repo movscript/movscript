@@ -99,7 +99,7 @@ export interface WorkspaceSceneMomentNode {
   status?: string
   script_block_id?: number | null
   content_units?: WorkspaceContentUnitNode[]
-  creative_references?: WorkspaceCreativeRefNode[]
+  settings?: WorkspaceCreativeRefNode[]
   asset_slots?: WorkspaceAssetSlotNode[]
   keyframes?: WorkspaceKeyframeNode[]
   writing_expressions?: WorkspaceWritingExpressionNode[]
@@ -144,8 +144,8 @@ export interface ApplyProductionWorkspaceCounts {
   content_units_created: number
   asset_slots_created: number
   keyframes_created: number
-  creative_references_created: number
-  creative_reference_usages: number
+  settings_created: number
+  setting_usages: number
   writing_expressions_created: number
 }
 
@@ -162,7 +162,7 @@ export interface WorkspaceSimulationResult {
     returned: {
       segments: number
       sceneMoments: number
-      creativeReferences: number
+      settings: number
       assetSlots: number
       contentUnits: number
       keyframes: number
@@ -176,7 +176,7 @@ export interface WorkspaceSimulationResult {
 export interface WorkspaceReviewNode {
   key: string
   action: WorkspaceSnapshotAction
-  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot' | 'writing_expression'
+  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'setting' | 'asset_slot' | 'writing_expression'
 }
 
 export interface ProductionWorkspaceSnapshotRecord {
@@ -187,8 +187,8 @@ export interface ProductionWorkspaceSnapshotRecord {
 export interface BuildCurrentProductionWorkspaceSnapshotInput {
   segments: ProductionWorkspaceSnapshotRecord[]
   sceneMoments: ProductionWorkspaceSnapshotRecord[]
-  creativeReferences: ProductionWorkspaceSnapshotRecord[]
-  creativeReferenceUsages: ProductionWorkspaceSnapshotRecord[]
+  settings: ProductionWorkspaceSnapshotRecord[]
+  settingUsages: ProductionWorkspaceSnapshotRecord[]
   contentUnits: ProductionWorkspaceSnapshotRecord[]
   keyframes: ProductionWorkspaceSnapshotRecord[]
   assetSlots: ProductionWorkspaceSnapshotRecord[]
@@ -235,16 +235,16 @@ export function parseProductionWorkspaceArtifact(workspace: WorkspaceArtifact): 
 export const parseProductionWorkspaceWorkspace = parseProductionWorkspaceArtifact
 
 export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProductionWorkspaceSnapshotInput): { segments: WorkspaceSegmentNode[] } {
-  const creativeReferenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
+  const settingById = new Map(input.settings.map((reference) => [reference.ID, reference]))
   const referencesBySceneMoment = new Map<number, WorkspaceCreativeRefNode[]>()
   const expressionsBySceneMoment = new Map<number, ProductionWorkspaceSnapshotRecord[]>()
 
-  for (const usage of input.creativeReferenceUsages) {
+  for (const usage of input.settingUsages) {
     if (String(usage.owner_type ?? '') !== 'scene_moment') continue
     const ownerId = positiveRecordNumber(usage.owner_id)
-    const referenceId = positiveRecordNumber(usage.creative_reference_id)
+    const referenceId = positiveRecordNumber(usage.setting_id)
     if (!ownerId || !referenceId) continue
-    const reference = creativeReferenceById.get(referenceId)
+    const reference = settingById.get(referenceId)
     pushSnapshotGroupedRecord(referencesBySceneMoment, ownerId, {
       id: referenceId,
       name: reference ? stringRecordValue(reference.name) || workspaceSnapshotTitleOfRecord(reference) : undefined,
@@ -279,7 +279,7 @@ export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProdu
             order: positiveRecordNumber(moment.order),
             status: stringRecordValue(moment.status),
             script_block_id: positiveRecordNumber(moment.script_block_id),
-            creative_references: (referencesBySceneMoment.get(moment.ID) ?? []).slice(),
+            settings: (referencesBySceneMoment.get(moment.ID) ?? []).slice(),
             writing_expressions: (expressionsBySceneMoment.get(moment.ID) ?? []).slice().sort(workspaceSnapshotByOrder).map(workspaceWritingExpressionFromRecord),
           } satisfies WorkspaceSceneMomentNode
         })
@@ -325,7 +325,7 @@ export function collectWorkspaceReviewNodes(segments: WorkspaceSegmentNode[]): W
 
 export function collectWorkspaceContextResources(segments: WorkspaceSegmentNode[]): WorkspaceContextResources {
   const context: WorkspaceContextResources = {
-    creativeReferences: [],
+    settings: [],
     assetSlots: [],
   }
 
@@ -337,9 +337,9 @@ export function collectWorkspaceContextResources(segments: WorkspaceSegmentNode[
       const momentTitle = moment.title || `情节 ${momentIndex + 1}`
       const parent = `${segmentTitle} / ${momentTitle}`
 
-      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
-        context.creativeReferences.push({
-          nodeKey: workspaceNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`),
+      ;(moment.settings ?? []).forEach((reference, referenceIndex) => {
+        context.settings.push({
+          nodeKey: workspaceNodeDecisionKey('setting', reference, `${momentFallback}-reference-${referenceIndex}`),
           action: workspaceSnapshotAction(reference),
           title: reference.name || '未命名设定资料',
           detail: compactParts([reference.kind, reference.role, reference.source_label, stateSummary(reference.state)]),
@@ -435,8 +435,8 @@ export function buildWorkspaceSemanticDiff(segments: WorkspaceSegmentNode[]): Wo
           after: compactParts([keyframe.description, keyframe.prompt]),
         })
       })
-      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
-        const referenceKey = workspaceNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)
+      ;(moment.settings ?? []).forEach((reference, referenceIndex) => {
+        const referenceKey = workspaceNodeDecisionKey('setting', reference, `${momentFallback}-reference-${referenceIndex}`)
         children.push({
           key: referenceKey,
           acceptKeys: [segmentKey, momentKey, referenceKey],
@@ -584,15 +584,15 @@ export function buildWorkspaceApplyPreview(segments: WorkspaceSegmentNode[], dec
         }, keyframeDecision, keyframeBlocked)
       })
 
-      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
-        const referenceKey = workspaceNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)
+      ;(moment.settings ?? []).forEach((reference, referenceIndex) => {
+        const referenceKey = workspaceNodeDecisionKey('setting', reference, `${momentFallback}-reference-${referenceIndex}`)
         const referenceDecision = decisions[referenceKey]
         const referenceBlocked = referenceDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted' || !snapshotNodeHasID(reference))
         pushByDecision({
           key: referenceKey,
           title: reference.name || '设定资料',
           detail: compactParts([reference.kind, reference.role, reference.source_label, stateSummary(reference.state)]),
-          kind: 'creative_reference',
+          kind: 'setting',
           action: workspaceSnapshotAction(reference),
           parent: `${segmentTitle} / ${momentTitle}`,
         }, referenceDecision, referenceBlocked)
@@ -682,7 +682,7 @@ export function countWorkspaceActions(segments: WorkspaceSegmentNode[]) {
         for (const keyframe of unit.keyframes ?? []) add(keyframe)
       }
       for (const keyframe of moment.keyframes ?? []) add(keyframe)
-      for (const reference of moment.creative_references ?? []) add(reference)
+      for (const reference of moment.settings ?? []) add(reference)
       for (const slot of moment.asset_slots ?? []) add(slot)
     }
   }
@@ -705,8 +705,8 @@ export function buildWorkspaceSimulationResult({
     content_units_created: 0,
     asset_slots_created: 0,
     keyframes_created: 0,
-    creative_references_created: 0,
-    creative_reference_usages: 0,
+    settings_created: 0,
+    setting_usages: 0,
     writing_expressions_created: 0,
   }
   const actions = { create: 0, update: 0, delete: 0 }
@@ -739,9 +739,9 @@ export function buildWorkspaceSimulationResult({
         addAction(keyframe)
         if (!snapshotNodeHasID(keyframe)) counts.keyframes_created += 1
       }
-      for (const reference of moment.creative_references ?? []) {
+      for (const reference of moment.settings ?? []) {
         addAction(reference)
-        counts.creative_reference_usages += 1
+        counts.setting_usages += 1
       }
       for (const slot of moment.asset_slots ?? []) {
         addAction(slot)
@@ -842,14 +842,14 @@ export function buildMergedProductionWorkspace(
         }
         targetMoment.keyframes = upsertNode(targetMoment.keyframes ?? [], keyframe)
       })
-      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
-        const referenceKey = workspaceNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)
+      ;(moment.settings ?? []).forEach((reference, referenceIndex) => {
+        const referenceKey = workspaceNodeDecisionKey('setting', reference, `${momentFallback}-reference-${referenceIndex}`)
         if (decisions[referenceKey] !== 'accepted') return
         if (reference.__delete) {
-          targetMoment.creative_references = removeNodeById(targetMoment.creative_references ?? [], reference.id)
+          targetMoment.settings = removeNodeById(targetMoment.settings ?? [], reference.id)
           return
         }
-        targetMoment.creative_references = upsertNode(targetMoment.creative_references ?? [], reference)
+        targetMoment.settings = upsertNode(targetMoment.settings ?? [], reference)
       })
       ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
         const slotKey = workspaceNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)
@@ -874,7 +874,7 @@ export function workspaceDecisionSnapshotKey(nodes: WorkspaceReviewNode[], decis
 export function findProductionWorkspaceSnapshotIssue(workspace: { segments: WorkspaceSegmentNode[] }): { label: string } | null {
   for (const segment of workspace.segments) {
     for (const moment of segment.scene_moments ?? []) {
-      for (const reference of moment.creative_references ?? []) {
+      for (const reference of moment.settings ?? []) {
         if (!snapshotNodeHasID(reference)) {
           return { label: reference.name ?? reference.client_id ?? '设定资料' }
         }
@@ -980,10 +980,10 @@ function collectSceneWorkspaceReviewNodes(moment: WorkspaceSceneMomentNode, fall
       action: workspaceSnapshotAction(keyframe),
       kind: 'keyframe' as const,
     })),
-    ...(moment.creative_references ?? []).map((reference, index) => ({
-      key: workspaceNodeDecisionKey('creative_reference', reference, `${fallback}-reference-${index}`),
+    ...(moment.settings ?? []).map((reference, index) => ({
+      key: workspaceNodeDecisionKey('setting', reference, `${fallback}-reference-${index}`),
       action: workspaceSnapshotAction(reference),
-      kind: 'creative_reference' as const,
+      kind: 'setting' as const,
     })),
     ...(moment.asset_slots ?? []).map((slot, index) => ({
       key: workspaceNodeDecisionKey('asset_slot', slot, `${fallback}-asset-${index}`),
@@ -1033,17 +1033,17 @@ function pruneUnchangedWorkspaceMoment(proposed: WorkspaceSceneMomentNode, curre
     return pruned ? [pruned] : []
   })
   const prunedKeyframes = pruneUnchangedWorkspaceNodes(proposed.keyframes ?? [], current.keyframes ?? [], ['keyframes'])
-  const prunedCreativeReferences = pruneUnchangedWorkspaceNodes(proposed.creative_references ?? [], current.creative_references ?? [], ['creative_references'])
+  const prunedSettings = pruneUnchangedWorkspaceNodes(proposed.settings ?? [], current.settings ?? [], ['settings'])
   const prunedAssetSlots = pruneUnchangedWorkspaceNodes(proposed.asset_slots ?? [], current.asset_slots ?? [], ['asset_slots'])
   const prunedWritingExpressions = pruneUnchangedWorkspaceNodes(proposed.writing_expressions ?? [], current.writing_expressions ?? [], ['writing_expressions'])
-  const hasOwnChange = !workspaceOwnFieldsEqual(proposed, current, ['content_units', 'creative_references', 'asset_slots', 'keyframes', 'writing_expressions'])
-  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedCreativeReferences.length > 0 || prunedAssetSlots.length > 0 || prunedWritingExpressions.length > 0
+  const hasOwnChange = !workspaceOwnFieldsEqual(proposed, current, ['content_units', 'settings', 'asset_slots', 'keyframes', 'writing_expressions'])
+  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedSettings.length > 0 || prunedAssetSlots.length > 0 || prunedWritingExpressions.length > 0
   if (!hasOwnChange && !hasChildChanges) return null
   return {
     ...proposed,
     content_units: prunedContentUnits,
     keyframes: prunedKeyframes,
-    creative_references: prunedCreativeReferences,
+    settings: prunedSettings,
     asset_slots: prunedAssetSlots,
     writing_expressions: prunedWritingExpressions,
   }
@@ -1108,10 +1108,10 @@ function appendDeletedMomentChildren(proposed: WorkspaceSceneMomentNode, current
     current.asset_slots ?? [],
     markWorkspaceAssetSlotDeleted,
   )
-  proposed.creative_references = appendDeletedNodes(
-    proposed.creative_references ?? [],
-    current.creative_references ?? [],
-    markWorkspaceCreativeReferenceDeleted,
+  proposed.settings = appendDeletedNodes(
+    proposed.settings ?? [],
+    current.settings ?? [],
+    markWorkspaceSettingDeleted,
   )
   if (Object.prototype.hasOwnProperty.call(proposed, 'writing_expressions')) {
     proposed.writing_expressions = appendDeletedNodes(
@@ -1164,7 +1164,7 @@ function upsertMomentNode(segment: WorkspaceSegmentNode, moment: WorkspaceSceneM
     ...stripWorkspaceInternalFields(moment),
     content_units: existing?.content_units ?? [],
     keyframes: existing?.keyframes ?? [],
-    creative_references: existing?.creative_references ?? [],
+    settings: existing?.settings ?? [],
     asset_slots: existing?.asset_slots ?? [],
     writing_expressions: existing?.writing_expressions ?? [],
   }
@@ -1234,7 +1234,7 @@ function markWorkspaceMomentDeleted(moment: WorkspaceSceneMomentNode): Workspace
     __delete: true,
     content_units: (moment.content_units ?? []).map(markWorkspaceContentUnitDeleted),
     keyframes: (moment.keyframes ?? []).map(markWorkspaceKeyframeDeleted),
-    creative_references: [],
+    settings: [],
     asset_slots: (moment.asset_slots ?? []).map(markWorkspaceAssetSlotDeleted),
     writing_expressions: (moment.writing_expressions ?? []).map(markWorkspaceWritingExpressionDeleted),
   }
@@ -1252,7 +1252,7 @@ function markWorkspaceKeyframeDeleted(keyframe: WorkspaceKeyframeNode): Workspac
   return { ...cloneWorkspaceNode(keyframe), __delete: true }
 }
 
-function markWorkspaceCreativeReferenceDeleted(reference: WorkspaceCreativeRefNode): WorkspaceCreativeRefNode {
+function markWorkspaceSettingDeleted(reference: WorkspaceCreativeRefNode): WorkspaceCreativeRefNode {
   return { ...cloneWorkspaceNode(reference), __delete: true }
 }
 

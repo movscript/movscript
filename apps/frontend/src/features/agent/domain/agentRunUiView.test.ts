@@ -62,10 +62,10 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
   const view = agentTraceView(traceEvent({
     kind: 'tool_catalog',
     title: 'Provider catalog refreshed',
-    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_script_locate=available/granted.',
+    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; workspace_fetch=available/granted.',
     data: {
       skillIds: ['movscript.script_reading'],
-      availableToolNames: ['core_skill_update', 'movscript_script_locate'],
+      availableToolNames: ['core_skill_update', 'workspace_fetch'],
       manifest: {
         id: 'test.core-only',
         version: '0.1.0',
@@ -75,15 +75,15 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
         toolCount: 2,
         tools: [
           { name: 'core_skill_update', mode: 'allow', approval: 'never' },
-          { name: 'movscript_script_locate', mode: 'allow', approval: 'never' },
+          { name: 'workspace_fetch', mode: 'allow', approval: 'never' },
         ],
       },
       capabilitySnapshot: {
         keyTools: [
           { name: 'core_skill_update', available: true, granted: true, approval: 'never' },
-          { name: 'movscript_script_locate', available: true, granted: true, approval: 'never' },
+          { name: 'workspace_fetch', available: true, granted: true, approval: 'never' },
         ],
-        availableToolNames: ['core_skill_update', 'movscript_script_locate'],
+        availableToolNames: ['core_skill_update', 'workspace_fetch'],
         blockedTools: [],
       },
       warningCount: 0,
@@ -95,8 +95,8 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
   assert.ok(manifestGroup)
   assert.ok(keyToolsGroup)
   assert.equal(manifestGroup.items.find((item) => item.label === 'Manifest ID')?.value, 'test.core-only')
-  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /movscript_script_locate:allow\/never/)
-  assert.equal(keyToolsGroup.items.find((item) => item.label === 'movscript_script_locate')?.value, 'available / granted / approval=never')
+  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /workspace_fetch:allow\/never/)
+  assert.equal(keyToolsGroup.items.find((item) => item.label === 'workspace_fetch')?.value, 'available / granted / approval=never')
 })
 
 test('agentTraceView separates model HTTP request and impact', () => {

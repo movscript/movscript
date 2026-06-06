@@ -13,7 +13,7 @@ export type ProductionAnalysisScriptVersionLike = {
   [key: string]: unknown
 }
 
-export type ProductionAnalysisScope = 'production' | 'segments' | 'segmentAnalysis' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
+export type ProductionAnalysisScope = 'production' | 'segments' | 'segmentAnalysis' | 'sceneMoments' | 'settings' | 'assetSlots' | 'contentUnits'
 
 export interface ProductionAnalysisTarget {
   scope: ProductionAnalysisScope
@@ -31,7 +31,7 @@ type SceneMomentRecord = ProductionAnalysisEntityRecordLike & {
   description?: string
   mood?: string
 }
-type CreativeReferenceRecord = ProductionAnalysisEntityRecordLike & {
+type SettingRecord = ProductionAnalysisEntityRecordLike & {
   name?: string
   kind?: string
   importance?: string
@@ -47,7 +47,7 @@ type AssetSlotRecord = ProductionAnalysisEntityRecordLike & {
   prompt_hint?: string
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
+  setting_id?: number
 }
 type ContentUnitRecord = ProductionAnalysisEntityRecordLike & {
   segment_id?: number
@@ -68,7 +68,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
   production?: ProductionRecord | null
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
-  creativeReferences: CreativeReferenceRecord[]
+  settings: SettingRecord[]
   assetSlots: AssetSlotRecord[]
   contentUnits: ContentUnitRecord[]
 }) {
@@ -84,7 +84,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
     if (!segment) return baseText
     const moments = input.sceneMoments.filter((moment) => moment.segment_id === segment.ID)
     const units = input.contentUnits.filter((unit) => unit.segment_id === segment.ID)
-    const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moments, units)
+    const refs = collectReferencesFromUnitsAndMoments(input.settings, input.assetSlots, moments, units)
     const slots = collectAssetSlotsFromSegment(input.assetSlots, segment.ID, moments, units)
     return [
       `编排段：${titleOfRecord(segment)}`,
@@ -92,7 +92,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
       segment.content ? `剧本正文：\n${segment.content}` : '',
       moments.length > 0 ? `情节：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
       units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
-      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
+      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeSetting).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
@@ -102,7 +102,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
     if (!moment) return baseText
     const segmentRecord = input.segments.find((item) => item.ID === moment.segment_id) ?? null
     const units = input.contentUnits.filter((unit) => unit.scene_moment_id === moment.ID)
-    const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, [moment], units)
+    const refs = collectReferencesFromUnitsAndMoments(input.settings, input.assetSlots, [moment], units)
     const slots = input.assetSlots.filter((slot) => (
       (slot.owner_type === 'scene_moment' && slot.owner_id === moment.ID) ||
       units.some((unit) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
@@ -116,17 +116,17 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
       moment.mood ? `情绪：${moment.mood}` : '',
       segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
       units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
-      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
+      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeSetting).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
 
-  if (target.scope === 'creativeReferences') {
-    const reference = input.creativeReferences.find((item) => item.ID === target.entityId) ?? null
+  if (target.scope === 'settings') {
+    const reference = input.settings.find((item) => item.ID === target.entityId) ?? null
     if (!reference) return baseText
     const usageKeys = new Set<string>()
     input.assetSlots
-      .filter((slot) => slot.creative_reference_id === reference.ID)
+      .filter((slot) => slot.setting_id === reference.ID)
       .forEach((slot) => {
         if (slot.owner_type === 'segment' && slot.owner_id) usageKeys.add(ownerKey('segment', Number(slot.owner_id)))
         if (slot.owner_type === 'scene_moment' && slot.owner_id) usageKeys.add(ownerKey('scene_moment', Number(slot.owner_id)))
@@ -134,7 +134,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
       })
     const relatedMoments = input.sceneMoments.filter((moment) => usageKeys.has(ownerKey('scene_moment', moment.ID)))
     const relatedUnits = input.contentUnits.filter((unit) => usageKeys.has(ownerKey('content_unit', unit.ID)))
-    const slots = input.assetSlots.filter((slot) => slot.creative_reference_id === reference.ID)
+    const slots = input.assetSlots.filter((slot) => slot.setting_id === reference.ID)
     return [
       `设定资料：${titleOfRecord(reference)}`,
       reference.alias ? `别名：${reference.alias}` : '',
@@ -153,9 +153,9 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
       segmentById: new Map(input.segments.map((item) => [item.ID, item])),
       sceneMomentById: new Map(input.sceneMoments.map((item) => [item.ID, item])),
       contentUnitById: new Map(input.contentUnits.map((item) => [item.ID, item])),
-      creativeReferenceById: new Map(input.creativeReferences.map((item) => [item.ID, item])),
+      settingById: new Map(input.settings.map((item) => [item.ID, item])),
     })
-    const reference = slot.creative_reference_id ? input.creativeReferences.find((item) => item.ID === slot.creative_reference_id) ?? null : null
+    const reference = slot.setting_id ? input.settings.find((item) => item.ID === slot.setting_id) ?? null : null
     return [
       `素材需求：${titleOfRecord(slot)}`,
       slot.kind ? `类型：${slot.kind}` : '',
@@ -172,7 +172,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
     if (!unit) return baseText
     const segmentRecord = input.segments.find((item) => item.ID === unit.segment_id) ?? null
     const moment = input.sceneMoments.find((item) => item.ID === unit.scene_moment_id) ?? null
-    const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moment ? [moment] : [], [unit])
+    const refs = collectReferencesFromUnitsAndMoments(input.settings, input.assetSlots, moment ? [moment] : [], [unit])
     const slots = input.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     return [
       `制作项：${titleOfRecord(unit)}`,
@@ -184,7 +184,7 @@ export function getProductionAnalysisText(target: ProductionAnalysisTarget, inpu
       unit.camera_motion ? `运镜：${unit.camera_motion}` : '',
       segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
       moment ? `所属情节：${titleOfRecord(moment)}` : '',
-      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
+      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeSetting).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
@@ -288,7 +288,7 @@ function parseChineseEpisodeNumber(value: string) {
 }
 
 function collectReferencesFromUnitsAndMoments(
-  creativeReferences: CreativeReferenceRecord[],
+  settings: SettingRecord[],
   assetSlots: AssetSlotRecord[],
   moments: SceneMomentRecord[],
   units: ContentUnitRecord[],
@@ -297,15 +297,15 @@ function collectReferencesFromUnitsAndMoments(
   const unitIds = new Set(units.map((item) => item.ID))
   const momentIds = new Set(moments.map((item) => item.ID))
   for (const slot of assetSlots) {
-    if (slot.creative_reference_id && (
+    if (slot.setting_id && (
       (slot.owner_type === 'scene_moment' && slot.owner_id && momentIds.has(Number(slot.owner_id))) ||
       (slot.owner_type === 'content_unit' && slot.owner_id && unitIds.has(Number(slot.owner_id))) ||
       (slot.owner_type === 'segment' && slot.owner_id && moments.some((moment) => moment.segment_id === Number(slot.owner_id)))
     )) {
-      referenceIds.add(Number(slot.creative_reference_id))
+      referenceIds.add(Number(slot.setting_id))
     }
   }
-  return creativeReferences.filter((reference) => referenceIds.has(reference.ID))
+  return settings.filter((reference) => referenceIds.has(reference.ID))
 }
 
 function collectAssetSlotsFromSegment(assetSlots: AssetSlotRecord[], segmentId: number, moments: SceneMomentRecord[], units: ContentUnitRecord[]) {
@@ -322,13 +322,13 @@ function formatOwnerLabel(ownerType?: string, ownerId?: number, lookup?: {
   segmentById: Map<number, SegmentRecord>
   sceneMomentById: Map<number, SceneMomentRecord>
   contentUnitById: Map<number, ContentUnitRecord>
-  creativeReferenceById: Map<number, CreativeReferenceRecord>
+  settingById: Map<number, SettingRecord>
 }) {
   if (!ownerType || !ownerId || !lookup) return ''
   if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `编排段 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `编排段 #${ownerId}`
   if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情节 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情节 #${ownerId}`
   if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `制作项 #${ownerId}`
-  if (ownerType === 'creative_reference') return lookup.creativeReferenceById.get(ownerId) ? `设定资料 · ${titleOfRecord(lookup.creativeReferenceById.get(ownerId))}` : `设定资料 #${ownerId}`
+  if (ownerType === 'setting') return lookup.settingById.get(ownerId) ? `设定资料 · ${titleOfRecord(lookup.settingById.get(ownerId))}` : `设定资料 #${ownerId}`
   return `${ownerType} #${ownerId}`
 }
 
@@ -342,7 +342,7 @@ function serializeSceneMoment(moment: SceneMomentRecord) {
   ].filter(Boolean).join('，')
 }
 
-function serializeCreativeReference(reference: CreativeReferenceRecord) {
+function serializeSetting(reference: SettingRecord) {
   return [
     `- ${titleOfRecord(reference)}`,
     reference.kind ? `类型：${reference.kind}` : '',

@@ -39,14 +39,14 @@ test('pre-production write model builds asset slot create payload scoped to refe
     kindFilter: 'all',
     selectedId: 20,
     selectedReferenceId: null,
-    slots: [slot({ ID: 20, creative_reference_id: 7 })],
+    slots: [slot({ ID: 20, setting_id: 7 })],
   }), {
     kind: 'image',
     name: '未命名图片素材',
     status: 'missing',
     priority: 'normal',
-    creative_reference_id: 7,
-    owner_type: 'creative_reference',
+    setting_id: 7,
+    owner_type: 'setting',
     owner_id: 7,
   })
 
@@ -59,8 +59,8 @@ test('pre-production write model builds asset slot create payload scoped to refe
     name: '未命名视频素材',
     status: 'missing',
     priority: 'normal',
-    creative_reference_id: 9,
-    owner_type: 'creative_reference',
+    setting_id: 9,
+    owner_type: 'setting',
     owner_id: 9,
   })
 })
@@ -71,6 +71,7 @@ test('pre-production write model builds candidate payloads', () => {
 
   assert.deepEqual(buildPreProductionLibraryCandidatePayload(target, resource), {
     asset_slot_id: 60,
+    kind: 'image',
     resource_id: 90,
     source_type: 'manual',
     source_id: 90,
@@ -80,6 +81,7 @@ test('pre-production write model builds candidate payloads', () => {
   })
   assert.deepEqual(buildPreProductionUploadCandidatePayload(target, resource), {
     asset_slot_id: 60,
+    kind: 'image',
     resource_id: 90,
     source_type: 'upload',
     source_id: 90,
@@ -89,6 +91,7 @@ test('pre-production write model builds candidate payloads', () => {
   })
   assert.deepEqual(buildPreProductionGeneratedCandidatePayload(target, 91, 'video', 1001), {
     asset_slot_id: 60,
+    kind: 'image',
     resource_id: 91,
     source_type: 'ai_agent',
     source_id: 1001,

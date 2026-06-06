@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/shared/infrastructure/api'
 import { createScriptVersion, listScriptVersions, type ScriptVersion } from '@/shared/infrastructure/api/scriptVersions'
 import type { Script } from '@/types'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
@@ -48,6 +47,10 @@ import {
   usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { ScriptForm } from '@/features/scripts/components/ScriptForm'
+import {
+  listWorkspaceScripts,
+  saveWorkspaceScript,
+} from '@/features/scripts/application/scriptWorkspaceRepository'
 import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
 import { scriptLibraryStatusRecipe } from '@/features/scripts/presentation/scriptsSemanticUi'
@@ -96,7 +99,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
   const { data: rawScripts, isLoading } = useQuery<Script[]>({
     queryKey: ['scripts', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),
+    queryFn: () => listWorkspaceScripts(projectId),
     enabled: !!projectId,
   })
   const { data: scriptVersions = [] } = useQuery<ScriptVersion[]>({
@@ -186,8 +189,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   }, [selected?.ID])
 
   const updateScript = useMutation({
-    mutationFn: (data: Partial<Script>) =>
-      api.put(`/projects/${projectId}/scripts/${selected?.ID}`, data).then((r) => r.data),
+    mutationFn: (data: Partial<Script>) => {
+      if (!selected) throw new Error('请选择剧本')
+      return saveWorkspaceScript(projectId, selected.ID, data)
+    },
     onSuccess: (updated: Script) => {
       setWorkspace((current) => ({ ...current, ...updated }))
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
@@ -199,7 +204,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
   const updateScriptCategory = useMutation({
     mutationFn: ({ scriptId, scriptType }: { scriptId: number; scriptType: string }) => {
-      return api.patch<Script>(`/scripts/${scriptId}`, { script_type: scriptType }).then((r) => r.data)
+      const script = scripts.find((item) => item.ID === scriptId)
+      return saveWorkspaceScript(projectId, scriptId, { ...script, script_type: scriptType })
     },
     onSuccess: (updated: Script) => {
       if (updated.ID === selected?.ID) setWorkspace((current) => ({ ...current, script_type: updated.script_type }))
@@ -563,8 +569,7 @@ function categoryLabel(value?: string) {
 }
 
 async function saveScriptWorkspace(projectId: number, scriptId: number, workspace: Partial<Script>) {
-  const { data } = await api.put<Script>(`/projects/${projectId}/scripts/${scriptId}`, workspace)
-  return data
+  return saveWorkspaceScript(projectId, scriptId, workspace)
 }
 
 function scriptWorkspaceSourceText(workspace: Partial<Script>, script: Script) {

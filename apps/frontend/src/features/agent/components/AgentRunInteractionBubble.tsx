@@ -118,7 +118,7 @@ interface GenerationJobApprovalView {
   quality?: string
   referenceResourceIds: number[]
   candidateCount?: number
-  creativeReferenceName?: string
+  settingName?: string
   prompt?: string
 }
 
@@ -162,9 +162,9 @@ function GenerationJobApprovalDetails({ view }: { view: GenerationJobApprovalVie
               </AgentRunInteractionApprovalBadge>
             ))}
           </AgentRunInteractionApprovalBadgeRow>
-          {(view.creativeReferenceName || view.referenceResourceIds.length > 0 || view.featureKey || view.capability) && (
+          {(view.settingName || view.referenceResourceIds.length > 0 || view.featureKey || view.capability) && (
             <AgentRunInteractionApprovalMeta>
-              {view.creativeReferenceName && <span>参考角色：{view.creativeReferenceName}</span>}
+              {view.settingName && <span>参考角色：{view.settingName}</span>}
               {view.referenceResourceIds.length > 0 && <span>参考资源：{view.referenceResourceIds.map((id) => `#${id}`).join(', ')}</span>}
               {view.featureKey && <span>{view.featureKey}</span>}
               {view.capability && <span>{view.capability}</span>}
@@ -267,7 +267,7 @@ function generationJobApprovalView(approval: ProviderSessionApprovalRequest): Ge
     ...arrayNumbers(request.input_resource_ids),
   ]
   return {
-    targetLabel: stringValue(target?.name) ?? stringValue(request.targetName) ?? stringValue(metadata?.creative_reference_name),
+    targetLabel: stringValue(target?.name) ?? stringValue(request.targetName) ?? stringValue(metadata?.setting_name),
     targetType: stringValue(target?.type),
     targetId: numberValue(target?.id) ?? numberValue(request.asset_slot_id),
     featureKey: stringValue(request.feature_key),
@@ -278,7 +278,7 @@ function generationJobApprovalView(approval: ProviderSessionApprovalRequest): Ge
     quality: stringValue(params?.quality),
     referenceResourceIds,
     candidateCount: numberValue(metadata?.candidate_count),
-    creativeReferenceName: stringValue(metadata?.creative_reference_name),
+    settingName: stringValue(metadata?.setting_name),
     prompt: stringValue(request.prompt),
   }
 }
@@ -291,7 +291,7 @@ function isGenerationSubmitApproval(toolName: string | undefined, kind: string |
 }
 
 function assetSlotCandidateApprovalView(approval: ProviderSessionApprovalRequest): AssetSlotCandidateApprovalView | null {
-  if (approval.toolName !== 'candidate_asset_slot_attach' && approval.toolName !== 'asset_candidate_write') return null
+  if (approval.toolName !== 'asset_candidate_write') return null
   const args = asRecord(approvalArgs(approval))
   if (!args) return null
   const resourceIds = [

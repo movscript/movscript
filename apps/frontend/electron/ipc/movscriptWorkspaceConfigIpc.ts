@@ -5,7 +5,7 @@ import {
   resolveMovScriptWorkspacePaths,
   writeMovScriptWorkspaceConfig,
   type MovScriptWorkspaceConfig,
-} from '@movscript/workspaces/node'
+} from '@movscript/core/workspace/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
 import type { ElectronMovScriptWorkspaceConfigSaveInput } from '../../src/shared/contracts/electronApi'
 

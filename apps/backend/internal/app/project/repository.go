@@ -97,22 +97,6 @@ func (r *gormRepository) AdminDetail(ctx context.Context, id uint) (AdminDetail,
 	if err := r.db.WithContext(ctx).Model(&persistencemodel.ProjectMember{}).Where("project_id = ?", id).Count(&memberCount).Error; err != nil {
 		return AdminDetail{}, err
 	}
-	var scriptCount int64
-	if err := r.db.WithContext(ctx).Model(&persistencemodel.Script{}).Where("project_id = ?", id).Count(&scriptCount).Error; err != nil {
-		return AdminDetail{}, err
-	}
-	var contentUnitCount int64
-	if err := r.db.WithContext(ctx).Model(&persistencemodel.ContentUnit{}).Where("project_id = ?", id).Count(&contentUnitCount).Error; err != nil {
-		return AdminDetail{}, err
-	}
-	var assetSlotCount int64
-	if err := r.db.WithContext(ctx).Model(&persistencemodel.AssetSlot{}).Where("project_id = ?", id).Count(&assetSlotCount).Error; err != nil {
-		return AdminDetail{}, err
-	}
-	var resourceCount int64
-	if err := r.db.WithContext(ctx).Model(&persistencemodel.ResourceBinding{}).Where("project_id = ?", id).Distinct("resource_id").Count(&resourceCount).Error; err != nil {
-		return AdminDetail{}, err
-	}
 
 	var usage UsageSummary
 	if err := r.db.WithContext(ctx).
@@ -147,14 +131,10 @@ func (r *gormRepository) AdminDetail(ctx context.Context, id uint) (AdminDetail,
 	}
 
 	return AdminDetail{
-		Project:          domainproject.ProjectFromModel(project),
-		MemberCount:      memberCount,
-		ScriptCount:      scriptCount,
-		ContentUnitCount: contentUnitCount,
-		AssetSlotCount:   assetSlotCount,
-		ResourceCount:    resourceCount,
-		Usage:            usage,
-		Audit:            audit,
+		Project:     domainproject.ProjectFromModel(project),
+		MemberCount: memberCount,
+		Usage:       usage,
+		Audit:       audit,
 	}, nil
 }
 
@@ -550,41 +530,9 @@ func (r *gormRepository) Progress(ctx context.Context, projectID uint, orgID *ui
 		return progress, err
 	}
 	db := r.db.WithContext(ctx)
-	if err := db.Model(&persistencemodel.ScriptVersion{}).Where("project_id = ?", projectID).Count(&progress.Scripts).Error; err != nil {
-		return progress, err
-	}
-	if err := db.Model(&persistencemodel.Segment{}).Where("project_id = ?", projectID).Count(&progress.Segments).Error; err != nil {
-		return progress, err
-	}
 	if err := db.Model(&persistencemodel.ProjectMember{}).Where("project_id = ?", projectID).Count(&progress.Members).Error; err != nil {
 		return progress, err
 	}
-	if err := db.Model(&persistencemodel.AssetSlot{}).Where("project_id = ?", projectID).Count(&progress.AssetSlots).Error; err != nil {
-		return progress, err
-	}
-	type statusCount struct {
-		Status string
-		Count  int64
-	}
-	var contentUnitBreakdown []statusCount
-	if err := db.Model(&persistencemodel.ContentUnit{}).
-		Select("status, count(*) as count").
-		Where("project_id = ?", projectID).
-		Group("status").
-		Scan(&contentUnitBreakdown).Error; err != nil {
-		return progress, err
-	}
-	progress.ContentUnits = map[string]int64{}
-	for _, row := range contentUnitBreakdown {
-		progress.ContentUnits[row.Status] = row.Count
-		progress.ContentUnits["total"] += row.Count
-	}
-
-	var acceptedKeyframeCount int64
-	if err := db.Model(&persistencemodel.Keyframe{}).Where("project_id = ? AND status IN ?", projectID, []string{"attached", "accepted"}).Count(&acceptedKeyframeCount).Error; err != nil {
-		return progress, err
-	}
-	progress.Keyframes = map[string]int64{"accepted": acceptedKeyframeCount}
 	return progress, nil
 }
 

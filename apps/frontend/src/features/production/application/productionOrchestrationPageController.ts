@@ -33,7 +33,7 @@ const productionOrchestrationEntityLabels: Record<EntityFilter, string> = {
   segments: '编排段结构',
   sceneMoments: '情节结构',
   writingExpressions: '表达条目',
-  creativeReferences: '设定资料梳理',
+  settings: '设定资料梳理',
   assetSlots: '素材需求缺口',
   contentUnits: '内容单元',
 }
@@ -240,10 +240,10 @@ export function useProductionOrchestrationPageController({
     role = 'supporting',
   ) {
     if (!projectId || !ownerId || !referenceId) return
-    await createSemanticEntity(projectId, semanticEntityConfig('creativeReferenceUsages'), {
+    await createSemanticEntity(projectId, semanticEntityConfig('settingUsages'), {
       owner_type: ownerType,
       owner_id: ownerId,
-      creative_reference_id: referenceId,
+      setting_id: referenceId,
       role,
       source: 'ai',
       status: 'workspace',
@@ -258,7 +258,7 @@ export function useProductionOrchestrationPageController({
 
   function handleCreatedRecord(record: SemanticEntityRecord) {
     const ownerSegmentId = createSegmentId
-    if (createType === 'creativeReferences') {
+    if (createType === 'settings') {
       linkReferenceToOwner('segment', ownerSegmentId, record.ID, String(record.description ?? ''), 'supporting').finally(() => {
         queryClient.invalidateQueries({ queryKey })
         refetch()

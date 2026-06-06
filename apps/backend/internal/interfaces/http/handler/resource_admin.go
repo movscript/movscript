@@ -61,19 +61,6 @@ func (h *ResourceAdminHandler) ListResources(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *ResourceAdminHandler) ResourceDetail(c *gin.Context) {
-	detail, err := h.service.ResourceDetail(c.Request.Context(), parseID(c.Param("id")))
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, api.NotFound("资源不存在"))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, api.Internal("查询资源详情失败"))
-		return
-	}
-	c.JSON(http.StatusOK, detail)
-}
-
 func (h *ResourceAdminHandler) ServeFile(c *gin.Context) {
 	resource, err := h.service.GetResource(c.Request.Context(), parseID(c.Param("id")))
 	if err != nil {

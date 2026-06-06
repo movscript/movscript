@@ -27,8 +27,6 @@
       "src/store/agentStore.test.ts"
     ],
     "generation-contract": [
-      "electron/mcp/*.test.ts",
-      "electron/mcp/serverCandidateContract.test.ts",
       "src/features/agent/**/*eneration*.test.ts",
       "src/features/agent/**/*eneration*.test.tsx",
       "src/features/agent/domain/agentGeneratedResultAttachments.test.ts",
@@ -42,8 +40,7 @@
     ]
   },
   "dependencies": {
-    "@movscript/editable-projections": "workspace:*",
-    "@movscript/workspaces": "workspace:*",
+    "@movscript/core": "workspace:*",
     "@movscript/theme": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-avatar": "^1.1.11",

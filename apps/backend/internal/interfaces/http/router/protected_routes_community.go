@@ -62,8 +62,6 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/external-resource-sources", h.externalResources.CreateSource)
 	protected.PATCH("/external-resource-sources/:id", h.externalResources.UpdateSource)
 	protected.GET("/external-resources/search", h.externalResources.Search)
-	protected.PATCH("/resource-bindings/:id", h.resourceBindings.Patch)
-	protected.DELETE("/resource-bindings/:id", h.resourceBindings.Delete)
 
 	protected.GET("/shot-references", h.shotReferences.List)
 	protected.POST("/shot-references/upload", h.shotReferences.UploadAnalyze)
@@ -107,7 +105,6 @@ func registerRegistryRoutes(v1 *gin.RouterGroup, h handlers) {
 
 func registerCanvasRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/canvases", h.canvases.List)
-	protected.GET("/canvas-entity-write-audits", h.canvases.ListEntityWriteAudits)
 	protected.POST("/canvases", h.canvases.Create)
 	protected.GET("/canvases/:id", h.canvases.Get)
 	protected.PATCH("/canvases/:id", h.canvases.Patch)

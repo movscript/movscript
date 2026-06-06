@@ -1,4 +1,4 @@
-import { stopMCPServer } from '../mcp/server'
+import { stopMCPServer } from '@movscript/core/mcp/node'
 import { stopBackend } from '../services/backend'
 import { broadcastBackendStatus } from './backendStatus'
 

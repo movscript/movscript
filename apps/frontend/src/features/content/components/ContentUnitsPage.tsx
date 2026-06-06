@@ -135,7 +135,7 @@ type KeyframeRecord = SemanticEntityRecord & {
   status?: string
 }
 
-type CreativeReferenceRecord = SemanticEntityRecord & {
+type SettingRecord = SemanticEntityRecord & {
   name?: string
   kind?: string
   description?: string
@@ -143,10 +143,10 @@ type CreativeReferenceRecord = SemanticEntityRecord & {
   status?: string
 }
 
-type CreativeReferenceUsageRecord = SemanticEntityRecord & {
+type SettingUsageRecord = SemanticEntityRecord & {
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
+  setting_id?: number
   role?: string
   evidence?: string
   status?: string
@@ -155,7 +155,7 @@ type CreativeReferenceUsageRecord = SemanticEntityRecord & {
 type AssetSlotRecord = SemanticEntityRecord & {
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
+  setting_id?: number
   kind?: string
   name?: string
   description?: string
@@ -208,8 +208,8 @@ interface ContentUnitViewModel {
   sceneMoment?: SceneMomentRecord
   section?: SegmentRecord
   scriptBlock?: ScriptBlockRecord
-  usages: CreativeReferenceUsageRecord[]
-  references: CreativeReferenceRecord[]
+  usages: SettingUsageRecord[]
+  references: SettingRecord[]
   assetSlots: AssetSlotRecord[]
   keyframes: KeyframeRecord[]
   targets: ContentTargetViewModel[]
@@ -317,13 +317,13 @@ export default function ContentUnitsPage() {
     enabled: !!projectId,
   })
   const referencesQuery = useQuery({
-    queryKey: ['semantic-content-positioning', projectId, 'creative-references'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')) as Promise<CreativeReferenceRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'settings'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')) as Promise<SettingRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['semantic-content-positioning', projectId, 'creative-reference-usages'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'setting-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settingUsages')) as Promise<SettingUsageRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
@@ -376,8 +376,8 @@ export default function ContentUnitsPage() {
     const inheritedUsages = sceneMoment ? usages.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedUsages = dedupeUsages([...unitUsages, ...inheritedUsages])
     const relatedReferences = relatedUsages
-      .map((usage) => usage.creative_reference_id ? referencesById.get(usage.creative_reference_id) : undefined)
-      .filter(Boolean) as CreativeReferenceRecord[]
+      .map((usage) => usage.setting_id ? referencesById.get(usage.setting_id) : undefined)
+      .filter(Boolean) as SettingRecord[]
     const unitAssetSlots = assetSlots.filter((item) => item.owner_type === 'content_unit' && item.owner_id === unit.ID)
     const inheritedAssetSlots = sceneMoment ? assetSlots.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedAssetSlots = [...unitAssetSlots, ...inheritedAssetSlots]
@@ -923,7 +923,7 @@ function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: s
 function calculateReadiness(input: {
   unit: ContentUnitRecord
   sceneMoment?: SceneMomentRecord
-  references: CreativeReferenceRecord[]
+  references: SettingRecord[]
   assetSlots: AssetSlotRecord[]
   keyframes: KeyframeRecord[]
 }) {
@@ -1086,10 +1086,10 @@ function cameraSummary(unit: ContentUnitRecord) {
   ].filter((value) => value && value !== '-').join(' · ')
 }
 
-function dedupeUsages(usages: CreativeReferenceUsageRecord[]) {
+function dedupeUsages(usages: SettingUsageRecord[]) {
   const seen = new Set<string>()
   return usages.filter((usage) => {
-    const key = `${usage.owner_type}:${usage.owner_id}:${usage.creative_reference_id}:${usage.role ?? ''}`
+    const key = `${usage.owner_type}:${usage.owner_id}:${usage.setting_id}:${usage.role ?? ''}`
     if (seen.has(key)) return false
     seen.add(key)
     return true

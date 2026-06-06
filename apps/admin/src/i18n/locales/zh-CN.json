@@ -544,7 +544,7 @@
         "emptyHint": "上传素材后会在这里形成项目素材总览。",
         "metrics": {
           "assets": "素材总数",
-          "creativeReferences": "设定资料数量",
+          "settings": "设定资料数量",
           "media": "可预览媒体",
           "linked": "已绑定设定资料"
         }
@@ -590,7 +590,7 @@
           "cue": "素材提示",
           "candidates": "候选数量",
           "linkedReference": "关联设定资料",
-          "creativeReferences": "设定资料数量",
+          "settings": "设定资料数量",
           "assetCount": "素材数量"
         },
         "sections": {
@@ -1112,7 +1112,7 @@
         },
         "kinds": {
           "script": "剧本工作区",
-          "creative_reference": "设定资料建议",
+          "setting": "设定资料建议",
           "asset_slot": "素材需求",
           "content_unit": "镜头建议",
           "prompt": "提示词",
@@ -1532,7 +1532,7 @@
     },
     "entityTypes": {
       "script": "剧本",
-      "creative_reference": "设定资料",
+      "setting": "设定资料",
       "assetSlot": "素材需求",
       "contentUnit": "制作项",
       "asset": "素材",
@@ -3062,7 +3062,7 @@
       "sceneMoments": "情景",
       "contentUnits": "制作项",
       "episodes": "制作管理",
-      "creativeReferences": "设定资料库",
+      "settings": "设定资料库",
       "referenceRelations": "关系总览",
       "production": "内容制作",
       "finalVideos": "成片库",
@@ -3147,7 +3147,7 @@
       "projectPlan": "筹备总览",
       "semanticEntities": "语义实体",
       "entityManagement": "实体管理",
-      "creativeReferences": "设定资料库",
+      "settings": "设定资料库",
       "referenceRelations": "引用关系",
       "relationOverview": "关系总览",
       "assetPreparation": "素材",

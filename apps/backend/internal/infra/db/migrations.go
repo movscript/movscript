@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -71,25 +70,14 @@ func RegisteredMigrations() []Migration {
 			Version: "000003",
 			Name:    "decouple_segments_from_script_versions",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(&persistencemodel.ProductionTextBlock{}, &persistencemodel.Segment{}); err != nil {
-					return err
-				}
-				migrator := db.Migrator()
-				for _, column := range []string{"script_id", "script_version_id", "source_range"} {
-					if migrator.HasColumn(&persistencemodel.Segment{}, column) {
-						if err := migrator.DropColumn(&persistencemodel.Segment{}, column); err != nil {
-							return fmt.Errorf("drop segments.%s: %w", column, err)
-						}
-					}
-				}
 				return nil
 			},
 		},
 		{
 			Version: "000004",
-			Name:    "add_entity_relations",
+			Name:    "legacy_noop_000004",
 			Up: func(db *gorm.DB) error {
-				return backfillCoreEntityRelations(db)
+				return nil
 			},
 		},
 		{
@@ -179,43 +167,37 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000015",
-			Name:    "add_script_blocks",
+			Name:    "legacy_noop_000015",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.ScriptBlock{})
+				return nil
 			},
 		},
 		{
 			Version: "000016",
-			Name:    "link_story_and_content_to_script_blocks",
+			Name:    "legacy_noop_000016",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.Segment{}, &persistencemodel.ContentUnit{})
+				return nil
 			},
 		},
 		{
 			Version: "000017",
-			Name:    "link_scene_moments_to_script_blocks",
+			Name:    "legacy_noop_000017",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.SceneMoment{})
+				return nil
 			},
 		},
 		{
 			Version: "000020",
-			Name:    "enforce_unique_script_version_numbers",
+			Name:    "legacy_noop_000020",
 			Up: func(db *gorm.DB) error {
-				if err := resequenceScriptVersionNumbers(db); err != nil {
-					return err
-				}
-				return createScriptVersionNumberUniqueIndex(db)
+				return nil
 			},
 		},
 		{
 			Version: "000021",
-			Name:    "enforce_unique_storyboard_version_numbers",
+			Name:    "legacy_noop_000021",
 			Up: func(db *gorm.DB) error {
-				if err := resequenceStoryboardVersionNumbers(db); err != nil {
-					return err
-				}
-				return createStoryboardVersionNumberUniqueIndex(db)
+				return nil
 			},
 		},
 		{
@@ -227,12 +209,9 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000023",
-			Name:    "zipper_entity_relations",
+			Name:    "legacy_noop_000023",
 			Up: func(db *gorm.DB) error {
-				if err := dropLegacyEntityRelationUniqueIndex(db); err != nil {
-					return err
-				}
-				return db.AutoMigrate(&persistencemodel.EntityRelation{})
+				return nil
 			},
 		},
 		{
@@ -251,36 +230,30 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000026",
-			Name:    "add_creative_reference_workspace_client_id",
+			Name:    "legacy_noop_000026",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.CreativeReference{})
+				return nil
 			},
 		},
 		{
 			Version: "000027",
-			Name:    "add_writing_expressions",
+			Name:    "legacy_noop_000027",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.WritingExpression{})
+				return nil
 			},
 		},
 		{
 			Version: "000028",
-			Name:    "add_production_identifiers",
+			Name:    "legacy_noop_000028",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(&persistencemodel.SceneMoment{}, &persistencemodel.ContentUnit{}); err != nil {
-					return err
-				}
-				if err := backfillProductionIdentifiers(db); err != nil {
-					return err
-				}
-				return createProductionIdentifierIndexes(db)
+				return nil
 			},
 		},
 		{
 			Version: "000029",
-			Name:    "remove_production_orchestrate_feature",
+			Name:    "legacy_noop_000029",
 			Up: func(db *gorm.DB) error {
-				return removeProductionOrchestrateFeatureConfig(db)
+				return nil
 			},
 		},
 		{
@@ -354,9 +327,16 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000039",
-			Name:    "repair_creative_reference_workspace_client_id",
+			Name:    "legacy_noop_000039",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.CreativeReference{})
+				return nil
+			},
+		},
+		{
+			Version: "000040",
+			Name:    "add_project_repository_bindings",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ProjectRepository{})
 			},
 		},
 	}
@@ -422,307 +402,6 @@ func createJobRunnerIndexes(db *gorm.DB) error {
 		}
 	}
 	return nil
-}
-
-const scriptVersionNumberUniqueIndex = "uidx_script_versions_project_script_number"
-
-type scriptVersionNumberRow struct {
-	ID            uint
-	ProjectID     uint
-	ScriptID      uint
-	VersionNumber int
-}
-
-func resequenceScriptVersionNumbers(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.ScriptVersion{}) {
-		return nil
-	}
-	var rows []scriptVersionNumberRow
-	if err := db.
-		Model(&persistencemodel.ScriptVersion{}).
-		Select("id, project_id, script_id, version_number").
-		Where("deleted_at IS NULL").
-		Order("project_id, script_id, version_number, id").
-		Find(&rows).Error; err != nil {
-		return fmt.Errorf("list script versions for resequence: %w", err)
-	}
-	if len(rows) == 0 {
-		return nil
-	}
-
-	for _, row := range rows {
-		if err := db.
-			Session(&gorm.Session{SkipHooks: true}).
-			Model(&persistencemodel.ScriptVersion{}).
-			Where("id = ?", row.ID).
-			Update("version_number", -int(row.ID)).Error; err != nil {
-			return fmt.Errorf("temporarily resequence script version %d: %w", row.ID, err)
-		}
-	}
-
-	var currentProjectID uint
-	var currentScriptID uint
-	nextVersionNumber := 0
-	for _, row := range rows {
-		if row.ProjectID != currentProjectID || row.ScriptID != currentScriptID {
-			currentProjectID = row.ProjectID
-			currentScriptID = row.ScriptID
-			nextVersionNumber = 1
-		} else {
-			nextVersionNumber++
-		}
-		if err := db.
-			Session(&gorm.Session{SkipHooks: true}).
-			Model(&persistencemodel.ScriptVersion{}).
-			Where("id = ?", row.ID).
-			Update("version_number", nextVersionNumber).Error; err != nil {
-			return fmt.Errorf("resequence script version %d: %w", row.ID, err)
-		}
-	}
-	return nil
-}
-
-func createScriptVersionNumberUniqueIndex(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.ScriptVersion{}) {
-		return nil
-	}
-	if db.Migrator().HasIndex(&persistencemodel.ScriptVersion{}, scriptVersionNumberUniqueIndex) {
-		return nil
-	}
-	partial := ""
-	if db.Dialector.Name() == "postgres" || db.Dialector.Name() == "sqlite" {
-		partial = " WHERE deleted_at IS NULL"
-	}
-	stmt := fmt.Sprintf(
-		"CREATE UNIQUE INDEX %s ON script_versions (project_id, script_id, version_number)%s",
-		scriptVersionNumberUniqueIndex,
-		partial,
-	)
-	if err := db.Exec(stmt).Error; err != nil {
-		return fmt.Errorf("create script version number unique index: %w", err)
-	}
-	return nil
-}
-
-const storyboardVersionNumberUniqueIndex = "uidx_storyboard_versions_project_script_number"
-
-type storyboardVersionNumberRow struct {
-	ID                 uint
-	ProjectID          uint
-	StoryboardScriptID uint
-	VersionNumber      int
-}
-
-func resequenceStoryboardVersionNumbers(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.StoryboardVersion{}) {
-		return nil
-	}
-	var rows []storyboardVersionNumberRow
-	if err := db.
-		Model(&persistencemodel.StoryboardVersion{}).
-		Select("id, project_id, storyboard_script_id, version_number").
-		Where("deleted_at IS NULL").
-		Order("project_id, storyboard_script_id, version_number, id").
-		Find(&rows).Error; err != nil {
-		return fmt.Errorf("list storyboard versions for resequence: %w", err)
-	}
-	if len(rows) == 0 {
-		return nil
-	}
-
-	for _, row := range rows {
-		if err := db.
-			Model(&persistencemodel.StoryboardVersion{}).
-			Where("id = ?", row.ID).
-			Update("version_number", -int(row.ID)).Error; err != nil {
-			return fmt.Errorf("temporarily resequence storyboard version %d: %w", row.ID, err)
-		}
-	}
-
-	var currentProjectID uint
-	var currentStoryboardScriptID uint
-	nextVersionNumber := 0
-	for _, row := range rows {
-		if row.ProjectID != currentProjectID || row.StoryboardScriptID != currentStoryboardScriptID {
-			currentProjectID = row.ProjectID
-			currentStoryboardScriptID = row.StoryboardScriptID
-			nextVersionNumber = 1
-		} else {
-			nextVersionNumber++
-		}
-		if err := db.
-			Model(&persistencemodel.StoryboardVersion{}).
-			Where("id = ?", row.ID).
-			Update("version_number", nextVersionNumber).Error; err != nil {
-			return fmt.Errorf("resequence storyboard version %d: %w", row.ID, err)
-		}
-	}
-	return nil
-}
-
-func createStoryboardVersionNumberUniqueIndex(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.StoryboardVersion{}) {
-		return nil
-	}
-	if db.Migrator().HasIndex(&persistencemodel.StoryboardVersion{}, storyboardVersionNumberUniqueIndex) {
-		return nil
-	}
-	partial := ""
-	if db.Dialector.Name() == "postgres" || db.Dialector.Name() == "sqlite" {
-		partial = " WHERE deleted_at IS NULL"
-	}
-	stmt := fmt.Sprintf(
-		"CREATE UNIQUE INDEX %s ON storyboard_versions (project_id, storyboard_script_id, version_number)%s",
-		storyboardVersionNumberUniqueIndex,
-		partial,
-	)
-	if err := db.Exec(stmt).Error; err != nil {
-		return fmt.Errorf("create storyboard version number unique index: %w", err)
-	}
-	return nil
-}
-
-const sceneCodeUniqueIndex = "uidx_scene_moments_production_scene_code"
-const unitCodeUniqueIndex = "uidx_content_units_scene_kind_unit_code"
-
-type sceneProductionIdentifierRow struct {
-	ID           uint
-	ProjectID    uint
-	ProductionID *uint
-	SegmentID    *uint
-	SceneCode    string
-	Order        int
-}
-
-type contentUnitIdentifierRow struct {
-	ID            uint
-	ProjectID     uint
-	SceneMomentID *uint
-	Kind          string
-	UnitCode      string
-	Order         int
-}
-
-func backfillProductionIdentifiers(db *gorm.DB) error {
-	if err := backfillSceneProductionIdentifiers(db); err != nil {
-		return err
-	}
-	return backfillContentUnitIdentifiers(db)
-}
-
-func backfillSceneProductionIdentifiers(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.SceneMoment{}) {
-		return nil
-	}
-	segmentProductionIDs := map[uint]*uint{}
-	var segments []persistencemodel.Segment
-	if db.Migrator().HasTable(&persistencemodel.Segment{}) {
-		if err := db.Select("id, production_id").Find(&segments).Error; err != nil {
-			return fmt.Errorf("list segments for scene identifiers: %w", err)
-		}
-		for i := range segments {
-			segmentProductionIDs[segments[i].ID] = segments[i].ProductionID
-		}
-	}
-
-	var rows []sceneProductionIdentifierRow
-	if err := db.
-		Unscoped().
-		Model(&persistencemodel.SceneMoment{}).
-		Select("id, project_id, production_id, segment_id, scene_code, \"order\"").
-		Order("project_id, production_id, \"order\", id").
-		Find(&rows).Error; err != nil {
-		return fmt.Errorf("list scene moments for identifiers: %w", err)
-	}
-	nextByProduction := map[uint]int{}
-	for _, row := range rows {
-		productionID := row.ProductionID
-		if productionID == nil && row.SegmentID != nil {
-			productionID = segmentProductionIDs[*row.SegmentID]
-		}
-		if productionID == nil {
-			continue
-		}
-		if strings.TrimSpace(row.SceneCode) == "" {
-			nextByProduction[*productionID]++
-			if err := db.
-				Session(&gorm.Session{SkipHooks: true}).
-				Model(&persistencemodel.SceneMoment{}).
-				Where("id = ?", row.ID).
-				Updates(map[string]any{
-					"production_id": productionID,
-					"scene_code":    fmt.Sprint(nextByProduction[*productionID]),
-				}).Error; err != nil {
-				return fmt.Errorf("backfill scene identifier %d: %w", row.ID, err)
-			}
-			continue
-		}
-		if value := positiveIdentifierNumber(row.SceneCode); value > nextByProduction[*productionID] {
-			nextByProduction[*productionID] = value
-		}
-		if row.ProductionID == nil {
-			if err := db.
-				Session(&gorm.Session{SkipHooks: true}).
-				Model(&persistencemodel.SceneMoment{}).
-				Where("id = ?", row.ID).
-				Update("production_id", productionID).Error; err != nil {
-				return fmt.Errorf("backfill scene production %d: %w", row.ID, err)
-			}
-		}
-	}
-	return nil
-}
-
-func backfillContentUnitIdentifiers(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.ContentUnit{}) {
-		return nil
-	}
-	var rows []contentUnitIdentifierRow
-	if err := db.
-		Unscoped().
-		Model(&persistencemodel.ContentUnit{}).
-		Select("id, project_id, scene_moment_id, kind, unit_code, \"order\"").
-		Order("project_id, scene_moment_id, kind, \"order\", id").
-		Find(&rows).Error; err != nil {
-		return fmt.Errorf("list content units for identifiers: %w", err)
-	}
-	nextByScope := map[string]int{}
-	for _, row := range rows {
-		if row.SceneMomentID == nil {
-			continue
-		}
-		scope := fmt.Sprintf("%d:%d:%s", row.ProjectID, *row.SceneMomentID, strings.TrimSpace(row.Kind))
-		if strings.TrimSpace(row.UnitCode) != "" {
-			if value := positiveIdentifierNumber(row.UnitCode); value > nextByScope[scope] {
-				nextByScope[scope] = value
-			}
-			continue
-		}
-		nextByScope[scope]++
-		if err := db.
-			Session(&gorm.Session{SkipHooks: true}).
-			Model(&persistencemodel.ContentUnit{}).
-			Where("id = ?", row.ID).
-			Update("unit_code", fmt.Sprint(nextByScope[scope])).Error; err != nil {
-			return fmt.Errorf("backfill content unit identifier %d: %w", row.ID, err)
-		}
-	}
-	return nil
-}
-
-func positiveIdentifierNumber(code string) int {
-	value, err := strconv.Atoi(strings.TrimSpace(code))
-	if err != nil || value < 1 {
-		return 0
-	}
-	return value
-}
-
-func createProductionIdentifierIndexes(db *gorm.DB) error {
-	if err := createPartialUniqueIndex(db, &persistencemodel.SceneMoment{}, sceneCodeUniqueIndex, "scene_moments", "production_id, scene_code", "deleted_at IS NULL AND production_id IS NOT NULL AND scene_code <> ''"); err != nil {
-		return err
-	}
-	return createPartialUniqueIndex(db, &persistencemodel.ContentUnit{}, unitCodeUniqueIndex, "content_units", "scene_moment_id, kind, unit_code", "deleted_at IS NULL AND scene_moment_id IS NOT NULL AND unit_code <> ''")
 }
 
 const rawResourcePersonalNameUniqueIndex = "uidx_raw_resources_personal_name"
@@ -1044,16 +723,6 @@ func dropFeatureConfigsTable(db *gorm.DB) error {
 	return db.Migrator().DropTable("feature_configs")
 }
 
-func removeProductionOrchestrateFeatureConfig(db *gorm.DB) error {
-	if !db.Migrator().HasTable("feature_configs") {
-		return nil
-	}
-	if err := db.Exec("DELETE FROM feature_configs WHERE feature_key = ?", "production_orchestrate").Error; err != nil {
-		return fmt.Errorf("delete production_orchestrate feature config: %w", err)
-	}
-	return nil
-}
-
 func RunMigrations(db *gorm.DB) error {
 	if err := db.AutoMigrate(&AppliedMigration{}); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
@@ -1178,9 +847,11 @@ func acceptsLegacyMigrationChecksum(migration Migration, checksum string) bool {
 		},
 		"000026": {
 			"e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201": {},
+			"9ef89e5d9815ae4eeb9e5c49c78db4628107ed2b28858351476bb1ab08bea628": {},
 		},
 		"000029": {
 			"83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972": {},
+			"1d7580b5ac39d9da7960b0bf599dbc61e87a379b86e4ac83059ba3d2a28eeb9e": {},
 		},
 	}
 	versionChecksums, ok := legacyChecksums[migration.Version]
@@ -1197,35 +868,8 @@ func allModels() []any {
 		&persistencemodel.AuthSession{},
 		&persistencemodel.AuthChallenge{},
 		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
 		&persistencemodel.ProjectMember{},
-		&persistencemodel.Script{},
-		&persistencemodel.ScriptVersion{},
-		&persistencemodel.ScriptBlock{},
-		&persistencemodel.Production{},
-		&persistencemodel.ProductionTextBlock{},
-		&persistencemodel.Segment{},
-		&persistencemodel.SceneMoment{},
-		&persistencemodel.WritingExpression{},
-		&persistencemodel.ContentUnit{},
-		&persistencemodel.Keyframe{},
-		&persistencemodel.PreviewTimeline{},
-		&persistencemodel.PreviewTimelineItem{},
-		&persistencemodel.CreativeReference{},
-		&persistencemodel.CreativeReferenceState{},
-		&persistencemodel.CreativeReferenceUsage{},
-		&persistencemodel.CreativeRelationship{},
-		&persistencemodel.EntityRelation{},
-		&persistencemodel.AssetSlot{},
-		&persistencemodel.AssetSlotCandidate{},
-		&persistencemodel.CandidateDecision{},
-		&persistencemodel.ReviewEvent{},
-		&persistencemodel.WorkItem{},
-		&persistencemodel.WorkReview{},
-		&persistencemodel.WorkDependency{},
-		&persistencemodel.DeliveryVersion{},
-		&persistencemodel.DeliveryTimelineItem{},
-		&persistencemodel.ExportRecord{},
-		&persistencemodel.ScriptAnalysis{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
 		&persistencemodel.UsageReservation{},
@@ -1239,13 +883,11 @@ func allModels() []any {
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
 		&persistencemodel.ShotVectorDocument{},
-		&persistencemodel.ResourceBinding{},
 		&persistencemodel.Canvas{},
 		&persistencemodel.CanvasNode{},
 		&persistencemodel.CanvasEdge{},
 		&persistencemodel.CanvasRun{},
 		&persistencemodel.CanvasTask{},
-		&persistencemodel.CanvasEntityWriteAudit{},
 		&persistencemodel.CanvasOutput{},
 		&persistencemodel.Job{},
 		&persistencemodel.Plugin{},
@@ -1256,8 +898,6 @@ func allModels() []any {
 		&persistencemodel.AdminSetting{},
 		&persistencemodel.CloudFileConfig{},
 		&persistencemodel.AuditLog{},
-		&persistencemodel.StoryboardScript{},
-		&persistencemodel.StoryboardVersion{},
 		&persistencemodel.Organization{},
 		&persistencemodel.OrganizationMember{},
 		&persistencemodel.UserGroup{},
@@ -1273,35 +913,8 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.AuthSession{},
 		&persistencemodel.AuthChallenge{},
 		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
 		&persistencemodel.ProjectMember{},
-		&persistencemodel.Script{},
-		&persistencemodel.ScriptVersion{},
-		&persistencemodel.ScriptBlock{},
-		&persistencemodel.Production{},
-		&persistencemodel.ProductionTextBlock{},
-		&persistencemodel.Segment{},
-		&persistencemodel.SceneMoment{},
-		&persistencemodel.WritingExpression{},
-		&persistencemodel.ContentUnit{},
-		&persistencemodel.Keyframe{},
-		&persistencemodel.PreviewTimeline{},
-		&persistencemodel.PreviewTimelineItem{},
-		&persistencemodel.CreativeReference{},
-		&persistencemodel.CreativeReferenceState{},
-		&persistencemodel.CreativeReferenceUsage{},
-		&persistencemodel.CreativeRelationship{},
-		&persistencemodel.EntityRelation{},
-		&persistencemodel.AssetSlot{},
-		&persistencemodel.AssetSlotCandidate{},
-		&persistencemodel.CandidateDecision{},
-		&persistencemodel.ReviewEvent{},
-		&persistencemodel.WorkItem{},
-		&persistencemodel.WorkReview{},
-		&persistencemodel.WorkDependency{},
-		&persistencemodel.DeliveryVersion{},
-		&persistencemodel.DeliveryTimelineItem{},
-		&persistencemodel.ExportRecord{},
-		&persistencemodel.ScriptAnalysis{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
 		&persistencemodel.UsageReservation{},
@@ -1315,13 +928,11 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
 		&persistencemodel.ShotVectorDocument{},
-		&persistencemodel.ResourceBinding{},
 		&persistencemodel.Canvas{},
 		&persistencemodel.CanvasNode{},
 		&persistencemodel.CanvasEdge{},
 		&persistencemodel.CanvasRun{},
 		&persistencemodel.CanvasTask{},
-		&persistencemodel.CanvasEntityWriteAudit{},
 		&persistencemodel.CanvasOutput{},
 		&persistencemodel.Job{},
 		&persistencemodel.Plugin{},
@@ -1332,8 +943,6 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.AdminSetting{},
 		&persistencemodel.CloudFileConfig{},
 		&persistencemodel.AuditLog{},
-		&persistencemodel.StoryboardScript{},
-		&persistencemodel.StoryboardVersion{},
 		&persistencemodel.Organization{},
 		&persistencemodel.OrganizationMember{},
 		&persistencemodel.UserGroup{},

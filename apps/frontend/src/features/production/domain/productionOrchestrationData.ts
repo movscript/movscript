@@ -40,7 +40,7 @@ export type SceneMomentRecord = SemanticEntityRecord & {
   script_block_id?: number
 }
 
-export type CreativeReferenceRecord = SemanticEntityRecord & {
+export type SettingRecord = SemanticEntityRecord & {
   name?: string
   kind?: string
   importance?: string
@@ -59,8 +59,8 @@ export type AssetSlotRecord = SemanticEntityRecord & {
   description?: string
   owner_type?: string
   owner_id?: number
-  creative_reference_id?: number
-  creative_reference_state_id?: number
+  setting_id?: number
+  setting_state_id?: number
 }
 
 export type ContentUnitRecord = SemanticEntityRecord & {
@@ -122,8 +122,8 @@ export interface OrchestrationData {
   productions: ProductionRecord[]
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
-  creativeReferences: CreativeReferenceRecord[]
-  creativeReferenceUsages: SemanticEntityRecord[]
+  settings: SettingRecord[]
+  settingUsages: SemanticEntityRecord[]
   assetSlots: AssetSlotRecord[]
   contentUnits: ContentUnitRecord[]
   scriptBlocks: ScriptBlockRecord[]
@@ -143,8 +143,8 @@ export const PRODUCTION_ORCHESTRATION_ENTITY_KINDS = [
   'productions',
   'segments',
   'sceneMoments',
-  'creativeReferences',
-  'creativeReferenceUsages',
+  'settings',
+  'settingUsages',
   'assetSlots',
   'contentUnits',
   'scriptBlocks',
@@ -160,8 +160,8 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     productions,
     segments,
     sceneMoments,
-    creativeReferences,
-    creativeReferenceUsages,
+    settings,
+    settingUsages,
     assetSlots,
     contentUnits,
     scriptBlocks,
@@ -176,8 +176,8 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     productions: productions as ProductionRecord[],
     segments: (segments as SegmentRecord[]).filter(isActiveProductionOrchestrationRecord),
     sceneMoments: (sceneMoments as SceneMomentRecord[]).filter(isActiveProductionOrchestrationRecord),
-    creativeReferences: creativeReferences as CreativeReferenceRecord[],
-    creativeReferenceUsages,
+    settings: settings as SettingRecord[],
+    settingUsages,
     assetSlots: assetSlots as AssetSlotRecord[],
     contentUnits: (contentUnits as ContentUnitRecord[]).filter(isActiveProductionOrchestrationRecord),
     scriptBlocks: scriptBlocks as ScriptBlockRecord[],

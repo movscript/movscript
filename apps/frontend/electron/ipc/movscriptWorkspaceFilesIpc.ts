@@ -5,9 +5,16 @@ import {
   readMovScriptWorkspaceFile,
   writeMovScriptWorkspaceFile,
 } from '../services/movscriptWorkspaceFiles'
+import {
+  buildMovScriptWorkspace,
+  createNodeMovScriptWorkspaceFileRepository,
+  reviewMovScriptBuildWorkspace,
+} from '@movscript/core/workspace/node'
+import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
 import type {
-  ElectronMovScriptWorkspaceFilesInput,
+  ElectronMovScriptWorkspaceCloudActionInput,
   ElectronMovScriptWorkspaceFileWriteInput,
+  ElectronMovScriptWorkspaceFilesInput,
 } from '../../src/shared/contracts/electronApi'
 
 export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
@@ -24,4 +31,41 @@ export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
     await deleteMovScriptWorkspaceFile(input)
     return { ok: true as const }
   })
+  ipcMain.handle('movscript:workspace-projection-update', (_event, input?: ElectronMovScriptWorkspaceCloudActionInput) => {
+    const action = actionInput(input)
+    return {
+      status: 'noop' as const,
+      reason: 'Workspace fetch/update is removed; edit files are local and build controls effectiveness.',
+      workspaceDir: action.workspaceDir,
+    }
+  })
+  ipcMain.handle('movscript:workspace-projection-apply-preview', (_event, input?: ElectronMovScriptWorkspaceCloudActionInput) => {
+    const action = actionInput(input)
+    return reviewMovScriptBuildWorkspace({
+      fileRepository: createNodeMovScriptWorkspaceFileRepository(action.workspaceDir),
+    })
+  })
+  ipcMain.handle('movscript:workspace-projection-apply', (_event, input?: ElectronMovScriptWorkspaceCloudActionInput) => {
+    const action = actionInput(input)
+    return buildMovScriptWorkspace({
+      fileRepository: createNodeMovScriptWorkspaceFileRepository(action.workspaceDir),
+    })
+  })
+}
+
+function actionInput(input?: ElectronMovScriptWorkspaceCloudActionInput): {
+  namespace?: string
+  workspaceDir: string
+  reviewPath?: string
+  userId?: number | string
+  fetchMode: 'safe' | 'overwrite'
+} {
+  const mode = input?.mode === 'overwrite' ? 'overwrite' : 'safe'
+  return {
+    workspaceDir: resolveDesktopDefaultMovScriptWorkspaceDir(),
+    ...(input?.namespace ? { namespace: input.namespace } : {}),
+    ...(input?.reviewPath ? { reviewPath: input.reviewPath } : {}),
+    ...(input?.userId !== undefined ? { userId: input.userId } : {}),
+    fetchMode: mode,
+  }
 }

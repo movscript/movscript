@@ -83,14 +83,10 @@ type AdminUpdateInput struct {
 }
 
 type AdminDetail struct {
-	Project          domainproject.Project `json:"project"`
-	MemberCount      int64                 `json:"member_count"`
-	ScriptCount      int64                 `json:"script_count"`
-	ContentUnitCount int64                 `json:"content_unit_count"`
-	AssetSlotCount   int64                 `json:"asset_slot_count"`
-	ResourceCount    int64                 `json:"resource_count"`
-	Usage            UsageSummary          `json:"usage"`
-	Audit            AuditSummary          `json:"audit"`
+	Project     domainproject.Project `json:"project"`
+	MemberCount int64                 `json:"member_count"`
+	Usage       UsageSummary          `json:"usage"`
+	Audit       AuditSummary          `json:"audit"`
 }
 
 type UsageSummary struct {
@@ -119,12 +115,7 @@ type MemberInput struct {
 }
 
 type Progress struct {
-	Scripts      int64
-	Segments     int64
-	AssetSlots   int64
-	Members      int64
-	ContentUnits map[string]int64
-	Keyframes    map[string]int64
+	Members int64
 }
 
 type AdminListFilter struct {

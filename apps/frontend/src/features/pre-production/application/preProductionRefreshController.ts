@@ -22,7 +22,7 @@ export async function refreshPreProductionWorkbenchContext({
   refetchAssetWorkspaceWorkspaces,
 }: RefreshPreProductionWorkbenchContextInput) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] }),
+    queryClient.invalidateQueries({ queryKey: ['pre-production-settings', projectId] }),
     queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
     queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
     (refetchSettingWorkspaceArtifacts ?? refetchSettingWorkspaces)?.(),

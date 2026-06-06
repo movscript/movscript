@@ -23,7 +23,14 @@ import {
   Users,
 } from 'lucide-react'
 
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
+import {
+  createSemanticEntity,
+  listSemanticEntities,
+  semanticEntityConfig,
+  updateSemanticEntity,
+  type SemanticEntityPayload,
+  type SemanticEntityRecord,
+} from '@/shared/infrastructure/api/semanticEntities'
 import {
   ProjectTaskActionButton,
   ProjectTaskActionStack,
@@ -1330,13 +1337,13 @@ export default function TasksPage() {
 
   const { data: workItems = [], isLoading: loadingTasks } = useQuery<WorkItem[]>({
     queryKey: ['work-items', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/entities/work-items`).then((response) => response.data),
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('workItems')) as unknown as Promise<WorkItem[]>,
     enabled: !!projectId,
   })
 
   const { data: workReviews = [] } = useQuery<WorkReview[]>({
     queryKey: ['work-reviews', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/entities/work-reviews`).then((response) => response.data),
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('workReviews')) as unknown as Promise<WorkReview[]>,
     enabled: !!projectId,
   })
 
@@ -1402,7 +1409,7 @@ export default function TasksPage() {
 
   const createWorkItem = useMutation({
     mutationFn: (input: { payload: Record<string, unknown>; agentKey?: TaskAgentKey }) =>
-      api.post(`/projects/${projectId}/entities/work-items`, input.payload).then((response) => response.data as WorkItem),
+      createSemanticEntity(projectId!, semanticEntityConfig('workItems'), input.payload as SemanticEntityPayload) as unknown as Promise<WorkItem>,
     onSuccess: (item, variables) => {
       void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
       setSelectedTaskId(`TASK-${item.ID}`)
@@ -1426,18 +1433,20 @@ export default function TasksPage() {
       patch: Partial<ProjectTask>
       review?: { status: WorkReviewStatus; comment: string }
     }) => {
-      const updated = await api.patch(
-        `/projects/${projectId}/entities/work-items/${task.workItemID}`,
-        buildWorkItemPayload(task, patch)
-      ).then((response) => response.data)
+      const updated = await updateSemanticEntity(
+        projectId!,
+        semanticEntityConfig('workItems'),
+        task.workItemID,
+        buildWorkItemPayload(task, patch) as SemanticEntityPayload,
+      ) as unknown as WorkItem
       if (review) {
-        await api.post(`/projects/${projectId}/entities/work-reviews`, {
+        await createSemanticEntity(projectId!, semanticEntityConfig('workReviews'), {
           work_item_id: task.workItemID,
           reviewer_id: currentUser?.ID,
           status: review.status,
           comment: review.comment,
           metadata_json: JSON.stringify({ source: 'collaboration_page' }),
-        })
+        } as SemanticEntityPayload)
       }
       return updated
     },
@@ -1576,7 +1585,7 @@ export default function TasksPage() {
     setAgentPublishError(null)
 
     try {
-      await api.patch(`/projects/${projectId}/entities/work-items/${task.workItemID}`, buildWorkItemPayload(task, {
+      await updateSemanticEntity(projectId, semanticEntityConfig('workItems'), task.workItemID, buildWorkItemPayload(task, {
         metadata: {
           agent_key: agentOption.key,
           agent_name: agentOption.name,
@@ -1585,7 +1594,7 @@ export default function TasksPage() {
           agent_status: 'queued',
           agent_published_at: publishedAt,
         },
-      }))
+      }) as SemanticEntityPayload)
       void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
 
       agentPublishCleanupRef.current[requestId]?.()
@@ -1593,7 +1602,7 @@ export default function TasksPage() {
         const runStatus = payload.run?.status ?? payload.status
         const completedAt = new Date().toISOString()
         try {
-          await api.patch(`/projects/${projectId}/entities/work-items/${task.workItemID}`, buildWorkItemPayload(task, {
+          await updateSemanticEntity(projectId, semanticEntityConfig('workItems'), task.workItemID, buildWorkItemPayload(task, {
             metadata: {
               agent_key: agentOption.key,
               agent_name: agentOption.name,
@@ -1606,7 +1615,7 @@ export default function TasksPage() {
               agent_completed_at: completedAt,
               agent_error: payload.run?.error ?? payload.error ?? undefined,
             },
-          }))
+          }) as SemanticEntityPayload)
         } finally {
           agentPublishCleanupRef.current[requestId]?.()
           delete agentPublishCleanupRef.current[requestId]

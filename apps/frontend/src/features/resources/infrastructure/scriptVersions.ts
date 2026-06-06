@@ -1,4 +1,9 @@
-import { api } from '@/shared/infrastructure/api'
+import {
+  createSemanticEntity,
+  listSemanticEntities,
+  semanticEntityConfig,
+  type SemanticEntityPayload,
+} from '@/shared/infrastructure/api/semanticEntities'
 
 export type ScriptVersionStatus = 'workspace' | 'active' | 'archived'
 export type ScriptVersionSourceType = 'raw' | 'adapted' | 'revised' | 'ai'
@@ -39,21 +44,69 @@ export type CreateScriptVersionPayload = {
 }
 
 export async function listScriptVersions(projectId: number, params: { scriptId?: number; status?: string } = {}) {
-  const res = await api.get<ScriptVersion[]>(`/projects/${projectId}/entities/script-versions`, {
-    params: {
-      ...(params.scriptId ? { script_id: params.scriptId } : {}),
-      ...(params.status ? { status: params.status } : {}),
-    },
+  const versions = await listSemanticEntities(projectId, semanticEntityConfig('scriptVersions'), params.status ? { status: params.status } : {}) as unknown as ScriptVersion[]
+  return versions.filter((version) => {
+    if (params.scriptId && !sameId(version.script_id, params.scriptId)) return false
+    return true
   })
-  return res.data
 }
 
 export async function createScriptVersion(projectId: number, payload: CreateScriptVersionPayload) {
-  const res = await api.post<ScriptVersion>(`/projects/${projectId}/entities/script-versions`, payload)
-  return res.data
+  const existing = await listScriptVersions(projectId, { scriptId: payload.script_id })
+  const versionNumber = nextScriptVersionNumber(existing)
+  const now = new Date().toISOString()
+  return await createSemanticEntity(projectId, semanticEntityConfig('scriptVersions'), {
+    ...payload,
+    version_number: versionNumber,
+    title: payload.title ?? `剧本版本 ${versionNumber}`,
+    source_type: payload.source_type ?? 'raw',
+    content: payload.content ?? payload.raw_source ?? '',
+    raw_source: payload.raw_source ?? payload.content ?? '',
+    summary: payload.summary ?? '',
+    status: payload.status ?? 'active',
+    CreatedAt: now,
+    UpdatedAt: now,
+  } as SemanticEntityPayload) as unknown as ScriptVersion
 }
 
 export async function listScriptVersionLines(projectId: number, versionId: number) {
-  const res = await api.get<ScriptVersionLine[]>(`/projects/${projectId}/entities/script-versions/${versionId}/lines`)
-  return res.data
+  const versions = await listScriptVersions(projectId)
+  const version = versions.find((item) => sameId(item.ID, versionId) || sameId(recordIdAlias(item), versionId))
+  if (!version) return []
+  return scriptVersionLines(scriptVersionText(version))
+}
+
+function nextScriptVersionNumber(versions: ScriptVersion[]): number {
+  return versions.reduce((max, version) => Math.max(max, Number(version.version_number) || 0), 0) + 1
+}
+
+function scriptVersionText(version: ScriptVersion): string {
+  return String(version.content ?? version.raw_source ?? '')
+}
+
+function scriptVersionLines(content: string): ScriptVersionLine[] {
+  if (!content) return []
+  const lines = content.split(/\r?\n/)
+  let cursor = 0
+  return lines.map((line, index) => {
+    const start = cursor
+    const end = start + line.length
+    cursor = end + 1
+    return {
+      line_number: index + 1,
+      content: line,
+      start_char: start,
+      end_char: end,
+    }
+  })
+}
+
+function sameId(left: unknown, right: unknown) {
+  const leftNumber = Number(left)
+  const rightNumber = Number(right)
+  return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber === rightNumber
+}
+
+function recordIdAlias(value: ScriptVersion): unknown {
+  return (value as unknown as { id?: unknown }).id
 }

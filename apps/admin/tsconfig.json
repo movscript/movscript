@@ -17,8 +17,11 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@movscript/workspaces/node": ["../../packages/workspaces/src/node.ts"],
-      "@movscript/workspaces": ["../../packages/workspaces/src/index.ts"],
+      "@movscript/core": ["../../packages/core/src/index.ts"],
+      "@movscript/core/node": ["../../packages/core/src/node.ts"],
+      "@movscript/core/workspace-contracts": ["../../packages/core/src/workspace-contracts.ts"],
+      "@movscript/core/plugins": ["../../packages/core/src/plugins.ts"],
+      "@movscript/core/plugins/node": ["../../packages/core/src/plugins-node.ts"],
       "@movscript/theme": ["../../packages/theme/src/index.ts"],
       "@movscript/ui/style-system": ["../../packages/ui/src/style-system.ts"],
       "@movscript/ui": ["../../packages/ui/src/index.ts"],

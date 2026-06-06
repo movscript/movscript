@@ -14,7 +14,7 @@ import {
   WorkbenchKeyValue,
 } from '@movscript/ui'
 import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
-import type { AssetSlotRecord, CreativeReferenceRecord } from '@/features/pre-production/domain/preProductionAssetRows'
+import type { AssetSlotRecord, SettingRecord } from '@/features/pre-production/domain/preProductionAssetRows'
 
 export function PreProductionReviewWorkspace({
   projectId,
@@ -22,7 +22,7 @@ export function PreProductionReviewWorkspace({
   settingWorkspaceArtifactsLoading,
   assetWorkspaceArtifacts,
   assetWorkspaceArtifactsLoading,
-  creativeReferences,
+  settings,
   assetSlots,
   onApplied,
   setWorkspaceView,
@@ -32,7 +32,7 @@ export function PreProductionReviewWorkspace({
   settingWorkspaceArtifactsLoading: boolean
   assetWorkspaceArtifacts: WorkspaceArtifact[]
   assetWorkspaceArtifactsLoading: boolean
-  creativeReferences: CreativeReferenceRecord[]
+  settings: SettingRecord[]
   assetSlots: AssetSlotRecord[]
   onApplied: () => Promise<void>
   setWorkspaceView: (view: 'main' | 'review') => void
@@ -67,7 +67,7 @@ export function PreProductionReviewWorkspace({
             emptyMessage="暂无待审阅设定草案。"
             workspaces={settingWorkspaceArtifacts}
             loading={settingWorkspaceArtifactsLoading}
-            data={{ creativeReferences, assetSlots }}
+            data={{ settings, assetSlots }}
             onApplied={onApplied}
           />
           <PreProductionWorkspaceReviewPanel
@@ -78,7 +78,7 @@ export function PreProductionReviewWorkspace({
             emptyMessage="暂无待审阅素材需求草案。"
             workspaces={assetWorkspaceArtifacts}
             loading={assetWorkspaceArtifactsLoading}
-            data={{ creativeReferences, assetSlots }}
+            data={{ settings, assetSlots }}
             onApplied={onApplied}
           />
         </ResourcePrepReviewMain>
@@ -89,7 +89,7 @@ export function PreProductionReviewWorkspace({
             <AssetInfoRow label="候选图片" value="进入具体素材后生成" />
           </AssetInfoPanel>
           <AssetInfoPanel title="当前规模" icon={PackageCheck}>
-            <AssetInfoRow label="设定资料" value={`${creativeReferences.length}`} />
+            <AssetInfoRow label="设定资料" value={`${settings.length}`} />
             <AssetInfoRow label="素材需求" value={`${assetSlots.length}`} />
           </AssetInfoPanel>
         </ResourcePrepReviewSidebar>

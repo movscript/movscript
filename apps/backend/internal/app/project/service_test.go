@@ -188,32 +188,11 @@ func TestAdminDetailReturnsProjectOperationalSummary(t *testing.T) {
 		&persistencemodel.User{},
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectMember{},
-		&persistencemodel.Script{},
-		&persistencemodel.ContentUnit{},
-		&persistencemodel.AssetSlot{},
-		&persistencemodel.RawResource{},
-		&persistencemodel.ResourceBinding{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.AuditLog{},
 	)
 	owner := createProjectUser(t, db, "detail-owner")
 	project := createProjectRecord(t, db, "Detail Film", "desc", "planning", owner.ID, nil)
-	if err := db.Create(&persistencemodel.Script{ProjectID: project.ID, Title: "Script", AuthorID: owner.ID}).Error; err != nil {
-		t.Fatalf("create script: %v", err)
-	}
-	if err := db.Create(&persistencemodel.ContentUnit{ProjectID: project.ID, Kind: "shot", Title: "Shot"}).Error; err != nil {
-		t.Fatalf("create content unit: %v", err)
-	}
-	if err := db.Create(&persistencemodel.AssetSlot{ProjectID: project.ID, Kind: "image", Name: "Hero", Status: "missing"}).Error; err != nil {
-		t.Fatalf("create asset slot: %v", err)
-	}
-	resource := persistencemodel.RawResource{Name: "Asset", OwnerID: owner.ID, Type: "image", FilePath: "asset.png"}
-	if err := db.Create(&resource).Error; err != nil {
-		t.Fatalf("create resource: %v", err)
-	}
-	if err := db.Create(&persistencemodel.ResourceBinding{ProjectID: project.ID, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 1, Role: "reference"}).Error; err != nil {
-		t.Fatalf("create resource binding: %v", err)
-	}
 	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
 		t.Fatalf("create usage: %v", err)
 	}
@@ -228,7 +207,7 @@ func TestAdminDetailReturnsProjectOperationalSummary(t *testing.T) {
 	if detail.Project.ID != project.ID || detail.Project.Owner == nil || detail.Project.Owner.ID != owner.ID {
 		t.Fatalf("unexpected project detail: %+v", detail.Project)
 	}
-	if detail.MemberCount != 1 || detail.ScriptCount != 1 || detail.ContentUnitCount != 1 || detail.AssetSlotCount != 1 || detail.ResourceCount != 1 {
+	if detail.MemberCount != 1 {
 		t.Fatalf("unexpected counts: %+v", detail)
 	}
 	if detail.Usage.Calls != 1 || detail.Usage.Cost != 3.5 || detail.Usage.InputTokens != 5 || detail.Usage.OutputTokens != 7 || detail.Usage.Images != 2 {

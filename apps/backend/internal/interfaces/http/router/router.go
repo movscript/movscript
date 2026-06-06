@@ -50,15 +50,12 @@ func New(deps Dependencies) *gin.Engine {
 			registerResourceRoutes(protected, h)
 			registerJobRoutes(protected, h)
 			registerPluginRoutes(protected, h)
-			registerWorkflowRoutes(protected, h)
-			registerCanvasRoutes(protected, h)
-			registerProjectRoutes(protected, db, h)
-			registerRuntimeProtectedRoutes(protected, h)
-			registerAgentTelemetryRoutes(protected, h)
+				registerCanvasRoutes(protected, h)
+				registerProjectRoutes(protected, db, h)
+				registerRuntimeProtectedRoutes(protected, h)
+				registerAgentTelemetryRoutes(protected, h)
 
-			registerSemanticEntityRoutes(protected, h)
-
-			// admin routes — super_admin only
+				// admin routes — super_admin only
 			admin := protected.Group("/admin", middleware.RequireSystemRole("super_admin"))
 			registerAdminRoutes(admin, h)
 			registerRuntimeAdminRoutes(admin, h)

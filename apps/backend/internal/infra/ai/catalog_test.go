@@ -980,9 +980,9 @@ func TestValidateAndNormalizeGenerationParamsIgnoresJobMetadata(t *testing.T) {
 		]`,
 	)
 	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityImageEdit, `{
-		"source":"asset_slot_one_click",
-		"asset_slot_id":123,
-		"asset_kind":"image",
+		"source":"workspace_submit",
+		"resource_id":123,
+		"job_id":456,
 		"quality":"standard"
 	}`, "", 0)
 	if err != nil {

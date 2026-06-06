@@ -66,7 +66,7 @@ func CanonicalizeGenerationParams(params map[string]any) map[string]any {
 
 func isGenerationMetadataParam(key string) bool {
 	switch key {
-	case "source", "asset_slot_id", "asset_kind":
+	case "source", "resource_id", "job_id":
 		return true
 	default:
 		return false

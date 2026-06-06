@@ -628,7 +628,7 @@
         "emptyHint": "上传素材后会在这里形成项目素材总览。",
         "metrics": {
           "assets": "素材总数",
-          "creativeReferences": "设定资料数量",
+          "settings": "设定资料数量",
           "media": "可预览媒体",
           "linked": "已绑定设定资料"
         }
@@ -674,7 +674,7 @@
           "cue": "素材提示",
           "candidates": "候选数量",
           "linkedReference": "关联设定资料",
-          "creativeReferences": "设定资料数量",
+          "settings": "设定资料数量",
           "assetCount": "素材数量"
         },
         "sections": {
@@ -1168,11 +1168,13 @@
     "description": "管理 provider 配置文件、已安装能力、Skills、工具和运行记录。",
     "tools": {
       "names": {
+        "workspace_fetch": "拉取工作区",
+        "workspace_status": "检查工作区状态",
+        "workspace_review": "审阅工作区",
+        "workspace_submit": "提交工作区",
         "workspace_update": "刷新工作区投影",
         "workspace_apply": "提交工作区修改",
         "workspace_apply_review": "预览工作区提交",
-        "candidate_asset_slot_attach": "加入素材槽候选",
-        "candidate_keyframe_attach": "加入关键帧候选",
         "generation_job_cancel": "取消生成任务",
         "core_work_cancel": "取消 Provider 工作",
         "workspace_create": "创建工作区",
@@ -1194,10 +1196,6 @@
         "generation_model_list": "查看生成模型",
         "movscript_project_list": "列出项目",
         "core_work_list": "列出 Provider 工作",
-        "movscript_asset_slot_query": "查询素材槽",
-        "movscript_creative_reference_query": "查询创意参考",
-        "movscript_production_context_query": "查询制作上下文",
-        "movscript_script_locate": "读取项目剧本",
         "core_user_input_request": "请求用户补充",
         "reference_search": "搜索参考",
         "core_memory_search": "搜索记忆",
@@ -1409,7 +1407,7 @@
       },
       "toolConsole": {
         "warning": "这里仅列出 source=mcp 的外部 MCP 工具。Provider 会话调用不会显示本地 workspace / memory / taskGraph 工具。",
-        "runtimeBoundary": "Workspace 相关能力由 frontend MCP/文件管理边界提供。Provider 会话不拥有 workspace_open、workspace_validate、workspace_apply 这些本地工具。",
+        "runtimeBoundary": "Workspace 相关能力由 frontend MCP/文件管理边界提供。Provider 会话不拥有 workspace_open、workspace_validate、workspace_submit 这些本地工具。",
         "tool": "MCP 工具",
         "args": "JSON 参数",
         "run": "执行工具",
@@ -3083,7 +3081,7 @@
     },
     "entityTypes": {
       "script": "剧本",
-      "creative_reference": "设定资料",
+      "setting": "设定资料",
       "assetSlot": "素材需求",
       "contentUnit": "制作项",
       "asset": "素材",
@@ -4008,7 +4006,7 @@
       "sceneMoments": "情景",
       "contentUnits": "制作项",
       "episodes": "制作管理",
-      "creativeReferences": "设定资料库",
+      "settings": "设定资料库",
       "referenceRelations": "关系总览",
       "production": "制作",
       "finalVideos": "成片库",
@@ -4110,7 +4108,7 @@
       "projectTaskGraph": "筹备总览",
       "semanticEntities": "语义实体",
       "entityManagement": "实体管理",
-      "creativeReferences": "设定资料库",
+      "settings": "设定资料库",
       "referenceRelations": "引用关系",
       "relationOverview": "关系总览",
       "assetPreparation": "素材",

@@ -15,9 +15,7 @@ type Canvas struct {
 	Description  string       `gorm:"size:512" json:"description,omitempty"`
 	CanvasType   string       `gorm:"default:'inspiration'" json:"canvas_type"` // inspiration|workflow
 	ProjectID    *uint        `json:"project_id,omitempty"`
-	Stage        string       `json:"stage"`    // script_analysis|asset_prep|storyboard|generation|editing
-	RefType      string       `json:"ref_type"` // script|asset_slot|content_unit
-	RefID        *uint        `json:"ref_id,omitempty"`
+	Stage        string       `json:"stage"`
 	Visibility   string       `gorm:"default:'private';index" json:"visibility"` // private|public
 	WorkflowKey  string       `gorm:"size:160;index" json:"workflow_key,omitempty"`
 	WorkflowTags string       `gorm:"type:text" json:"workflow_tags,omitempty"` // JSON array for marketplace filtering
@@ -86,22 +84,6 @@ type CanvasTask struct {
 	Resource       *RawResource `gorm:"foreignKey:ResourceID" json:"resource,omitempty"`
 }
 
-type CanvasEntityWriteAudit struct {
-	gorm.Model
-	CanvasID           uint   `gorm:"index" json:"canvas_id"`
-	CanvasRunID        uint   `gorm:"index" json:"canvas_run_id"`
-	CanvasNodeID       string `gorm:"index" json:"canvas_node_id"`
-	PortID             string `gorm:"not null;index" json:"port_id"`
-	EntityKind         string `gorm:"not null;index:idx_canvas_entity_write_audit_entity" json:"entity_kind"`
-	EntityID           uint   `gorm:"not null;index:idx_canvas_entity_write_audit_entity" json:"entity_id"`
-	UserID             uint   `gorm:"index" json:"user_id"`
-	OldValueJSON       string `gorm:"type:text" json:"old_value_json,omitempty"`
-	NewValueJSON       string `gorm:"type:text" json:"new_value_json,omitempty"`
-	ResourceBindingIDs string `gorm:"type:text" json:"resource_binding_ids,omitempty"`
-}
-
-// CanvasOutput records an explicit output target from a canvas run to a semantic entity or
-// legacy entity. It complements the write audit with product-level intent.
 type CanvasOutput struct {
 	gorm.Model
 	ProjectID    uint   `gorm:"not null;index" json:"project_id"`
@@ -109,12 +91,9 @@ type CanvasOutput struct {
 	CanvasRunID  *uint  `gorm:"index" json:"canvas_run_id,omitempty"`
 	CanvasNodeID string `gorm:"index" json:"canvas_node_id"`
 	PortID       string `gorm:"not null;index" json:"port_id"`
-	OwnerType    string `gorm:"not null;index:idx_canvas_output_owner" json:"owner_type"`
-	OwnerID      uint   `gorm:"not null;index:idx_canvas_output_owner" json:"owner_id"`
-	OutputType   string `gorm:"not null;default:'resource';index" json:"output_type"` // resource|field|candidate|note
+	OutputType   string `gorm:"not null;default:'resource';index" json:"output_type"`
 	ResourceID   *uint  `gorm:"index" json:"resource_id,omitempty"`
-	TargetField  string `json:"target_field"`
 	ValueJSON    string `gorm:"type:text" json:"value_json"`
-	Status       string `gorm:"not null;default:'pending';index" json:"status"` // pending|attached|applied|rejected
+	Status       string `gorm:"not null;default:'pending';index" json:"status"`
 	MetadataJSON string `gorm:"type:text" json:"metadata_json"`
 }

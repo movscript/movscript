@@ -31,66 +31,6 @@ func (h *CanvasHandler) DiagnoseNodeModel(c *gin.Context) {
 	c.JSON(http.StatusOK, diag)
 }
 
-// ListEntityWriteAudits returns entity write audit records visible to the current canvas owner.
-func (h *CanvasHandler) ListEntityWriteAudits(c *gin.Context) {
-	user := currentUser(c)
-	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
-		return
-	}
-
-	filter := canvasservice.EntityWriteAuditFilter{OwnerID: user.ID}
-
-	if value, ok, err := optionalUintQuery(c, "canvas_id"); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	} else if ok {
-		filter.CanvasID = value
-	}
-	if value, ok, err := optionalUintQuery(c, "run_id"); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	} else if ok {
-		filter.CanvasRunID = value
-	}
-	if value, ok, err := optionalUintQuery(c, "canvas_run_id"); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	} else if ok {
-		filter.CanvasRunID = value
-	}
-	filter.EntityKind = strings.TrimSpace(c.Query("entity_kind"))
-	if value, ok, err := optionalUintQuery(c, "entity_id"); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	} else if ok {
-		filter.EntityID = value
-	}
-	if value, ok, err := optionalUintQuery(c, "user_id"); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	} else if ok {
-		filter.UserID = value
-	}
-
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
-	if page < 1 {
-		page = 1
-	}
-	if pageSize <= 0 || pageSize > 200 {
-		pageSize = 50
-	}
-	filter.Page = page
-	filter.PageSize = pageSize
-	result, err := h.CanvasExecService.ListEntityWriteAudits(c.Request.Context(), filter)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"total": result.Total, "items": result.Items, "page": result.Page, "page_size": result.PageSize})
-}
-
 func optionalUintQuery(c *gin.Context, key string) (uint, bool, error) {
 	raw := strings.TrimSpace(c.Query(key))
 	if raw == "" {

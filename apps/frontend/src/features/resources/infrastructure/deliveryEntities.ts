@@ -1,4 +1,11 @@
-import { api } from '@/shared/infrastructure/api'
+import {
+  createSemanticEntity,
+  deleteSemanticEntity,
+  listSemanticEntities,
+  semanticEntityConfig,
+  updateSemanticEntity,
+  type SemanticEntityPayload,
+} from '@/shared/infrastructure/api/semanticEntities'
 import type { RawResource } from '@/types'
 
 export type DeliveryStatus = 'workspace' | 'checking' | 'approved' | 'exported' | 'archived'
@@ -154,77 +161,87 @@ export interface Production {
 }
 
 export async function listProductions(projectId: number) {
-  const { data } = await api.get<Production[]>(`/projects/${projectId}/entities/productions`)
-  return data
+  return listTypedEntities<Production>(projectId, 'productions')
 }
 
 export async function listDeliveryVersions(projectId: number, productionId?: number | null) {
-  const { data } = await api.get<DeliveryVersion[]>(`/projects/${projectId}/entities/delivery-versions`, {
-    params: productionId ? { production_id: productionId } : undefined,
-  })
-  return data
+  return listTypedEntities<DeliveryVersion>(projectId, 'deliveryVersions', productionId ? { production_id: productionId } : {})
 }
 
 export async function createDeliveryVersion(projectId: number, payload: DeliveryVersionPayload) {
-  const { data } = await api.post<DeliveryVersion>(`/projects/${projectId}/entities/delivery-versions`, payload)
-  return data
+  return createTypedEntity<DeliveryVersion>(projectId, 'deliveryVersions', payload)
 }
 
 export async function updateDeliveryVersion(projectId: number, id: number, payload: DeliveryVersionPayload) {
-  const { data } = await api.patch<DeliveryVersion>(`/projects/${projectId}/entities/delivery-versions/${id}`, payload)
-  return data
+  return updateTypedEntity<DeliveryVersion>(projectId, 'deliveryVersions', id, payload)
 }
 
 export async function listDeliveryTimelineItems(projectId: number, deliveryVersionId?: number | null) {
-  const { data } = await api.get<DeliveryTimelineItem[]>(`/projects/${projectId}/entities/delivery-timeline-items`, {
-    params: deliveryVersionId ? { delivery_version_id: deliveryVersionId } : undefined,
-  })
-  return data
+  const items = await listTypedEntities<DeliveryTimelineItem>(projectId, 'deliveryTimelineItems')
+  return deliveryVersionId ? items.filter((item) => sameId(item.delivery_version_id, deliveryVersionId)) : items
 }
 
 export async function createDeliveryTimelineItem(projectId: number, payload: DeliveryTimelineItemPayload) {
-  const { data } = await api.post<DeliveryTimelineItem>(`/projects/${projectId}/entities/delivery-timeline-items`, payload)
-  return data
+  return createTypedEntity<DeliveryTimelineItem>(projectId, 'deliveryTimelineItems', payload)
 }
 
 export async function updateDeliveryTimelineItem(projectId: number, id: number, payload: DeliveryTimelineItemPayload) {
-  const { data } = await api.patch<DeliveryTimelineItem>(`/projects/${projectId}/entities/delivery-timeline-items/${id}`, payload)
-  return data
+  return updateTypedEntity<DeliveryTimelineItem>(projectId, 'deliveryTimelineItems', id, payload)
 }
 
 export async function deleteDeliveryTimelineItem(projectId: number, id: number) {
-  await api.delete(`/projects/${projectId}/entities/delivery-timeline-items/${id}`)
+  await deleteSemanticEntity(projectId, semanticEntityConfig('deliveryTimelineItems'), id)
 }
 
 export async function listExportRecords(projectId: number, deliveryVersionId?: number | null) {
-  const { data } = await api.get<ExportRecord[]>(`/projects/${projectId}/entities/export-records`, {
-    params: deliveryVersionId ? { delivery_version_id: deliveryVersionId } : undefined,
-  })
-  return data
+  const items = await listTypedEntities<ExportRecord>(projectId, 'exportRecords')
+  return deliveryVersionId ? items.filter((item) => sameId(item.delivery_version_id, deliveryVersionId)) : items
 }
 
 export async function createExportRecord(projectId: number, payload: ExportRecordPayload) {
-  const { data } = await api.post<ExportRecord>(`/projects/${projectId}/entities/export-records`, payload)
-  return data
+  return createTypedEntity<ExportRecord>(projectId, 'exportRecords', payload)
 }
 
 export async function listPreviewTimelines(projectId: number, productionId?: number | null) {
-  const { data } = await api.get<PreviewTimeline[]>(`/projects/${projectId}/entities/preview-timelines`, {
-    params: productionId ? { production_id: productionId } : undefined,
-  })
-  return data
+  return listTypedEntities<PreviewTimeline>(projectId, 'previewTimelines', productionId ? { production_id: productionId } : {})
 }
 
 export async function listPreviewTimelineItems(projectId: number, previewTimelineId?: number | null) {
-  const { data } = await api.get<PreviewTimelineItem[]>(`/projects/${projectId}/entities/preview-timeline-items`, {
-    params: previewTimelineId ? { preview_timeline_id: previewTimelineId } : undefined,
-  })
-  return data
+  const items = await listTypedEntities<PreviewTimelineItem>(projectId, 'previewTimelineItems')
+  return previewTimelineId ? items.filter((item) => sameId(item.preview_timeline_id, previewTimelineId)) : items
 }
 
 export async function listContentUnits(projectId: number, productionId?: number | null) {
-  const { data } = await api.get<ContentUnit[]>(`/projects/${projectId}/entities/content-units`, {
-    params: productionId ? { production_id: productionId } : undefined,
-  })
-  return data
+  return listTypedEntities<ContentUnit>(projectId, 'contentUnits', productionId ? { production_id: productionId } : {})
+}
+
+async function listTypedEntities<T>(
+  projectId: number,
+  kind: Parameters<typeof semanticEntityConfig>[0],
+  params: Record<string, string | number | boolean | null | undefined> = {},
+): Promise<T[]> {
+  return await listSemanticEntities(projectId, semanticEntityConfig(kind), params) as unknown as T[]
+}
+
+async function createTypedEntity<T>(
+  projectId: number,
+  kind: Parameters<typeof semanticEntityConfig>[0],
+  payload: Record<string, string | number | boolean | null | undefined>,
+): Promise<T> {
+  return await createSemanticEntity(projectId, semanticEntityConfig(kind), payload as SemanticEntityPayload) as unknown as T
+}
+
+async function updateTypedEntity<T>(
+  projectId: number,
+  kind: Parameters<typeof semanticEntityConfig>[0],
+  id: number,
+  payload: Record<string, string | number | boolean | null | undefined>,
+): Promise<T> {
+  return await updateSemanticEntity(projectId, semanticEntityConfig(kind), id, payload as SemanticEntityPayload) as unknown as T
+}
+
+function sameId(left: unknown, right: unknown) {
+  const leftNumber = Number(left)
+  const rightNumber = Number(right)
+  return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber === rightNumber
 }

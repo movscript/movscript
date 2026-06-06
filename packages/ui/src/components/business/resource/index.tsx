@@ -59,16 +59,16 @@ export {
   type ResourceCandidateTargetTypeOption,
 } from "./candidate-attach";
 export {
-  CreativeReferenceCard,
-  accentForCreativeReferenceKind,
-  creativeReferenceKindMeta,
-  creativeReferenceStatusMeta,
-  normalizeCreativeReferenceKind,
-  normalizeCreativeReferenceStatus,
-  type CreativeReferenceCardData,
-  type CreativeReferenceCardKind,
-  type CreativeReferenceCardStatus,
-} from "./creative-reference";
+  SettingCard,
+  accentForSettingKind,
+  settingKindMeta,
+  settingStatusMeta,
+  normalizeSettingKind,
+  normalizeSettingStatus,
+  type SettingCardData,
+  type SettingCardKind,
+  type SettingCardStatus,
+} from "./setting";
 export {
   ResourceScriptReferencePanel,
   type ResourceScriptReferenceItem,

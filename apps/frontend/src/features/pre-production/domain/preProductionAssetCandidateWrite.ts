@@ -41,19 +41,20 @@ export function buildPreProductionAssetSlotCreatePayload({
 }: PreProductionAssetSlotCreateInput): SemanticEntityPayload {
   const kind = kindFilter === 'all' ? 'image' : kindFilter
   const selectedSlotRecord = selectedId ? slots.find((slot) => slot.ID === selectedId) : undefined
-  const referenceId = selectedReferenceId ?? selectedSlotRecord?.creative_reference_id
+  const referenceId = selectedReferenceId ?? selectedSlotRecord?.setting_id
   return {
     kind,
     name: `未命名${assetKindLabel(kind)}素材`,
     status: 'missing',
     priority: 'normal',
-    ...(referenceId ? { creative_reference_id: referenceId, owner_type: 'creative_reference', owner_id: referenceId } : {}),
+    ...(referenceId ? { setting_id: referenceId, owner_type: 'setting', owner_id: referenceId } : {}),
   }
 }
 
 export function buildPreProductionLibraryCandidatePayload(row: AssetSlotViewModel, resource: RawResource): SemanticEntityPayload {
   return {
     asset_slot_id: row.slot.ID,
+    kind: row.kind,
     resource_id: resource.ID,
     source_type: 'manual',
     source_id: resource.ID,
@@ -66,6 +67,7 @@ export function buildPreProductionLibraryCandidatePayload(row: AssetSlotViewMode
 export function buildPreProductionUploadCandidatePayload(row: AssetSlotViewModel, resource: RawResource): SemanticEntityPayload {
   return {
     asset_slot_id: row.slot.ID,
+    kind: row.kind,
     resource_id: resource.ID,
     source_type: 'upload',
     source_id: resource.ID,
@@ -83,6 +85,7 @@ export function buildPreProductionGeneratedCandidatePayload(
 ): SemanticEntityPayload {
   return {
     asset_slot_id: row.slot.ID,
+    kind: row.kind,
     resource_id: resourceId,
     source_type: 'ai_agent',
     source_id: jobId ?? resourceId,

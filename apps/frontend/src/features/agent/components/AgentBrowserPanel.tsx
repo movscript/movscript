@@ -766,8 +766,8 @@ function ProjectHomeBrowserPage({
     enabled: !!projectId,
   })
   const referencesQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'creativeReferences'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')),
+    queryKey: ['embedded-browser-navigation', projectId, 'settings'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')),
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery<SemanticEntityRecord[]>({
@@ -869,7 +869,7 @@ function ProjectHomeBrowserPage({
         status: stringField(record.status ?? record.kind),
         to: withRouteParams(ROUTES.project.preProduction, {
           asset_slot_id: record.ID,
-          reference_id: numberField(record.creative_reference_id),
+          reference_id: numberField(record.setting_id),
         }),
       })),
     },

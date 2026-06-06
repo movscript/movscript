@@ -5,7 +5,7 @@ import { buildProjectWorkbenchReviewPath, getProjectWorkbenchDefinitionForWorksp
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 export { WORKSPACE_DOMAIN_MODELS, getWorkspaceDomainModel } from '@/shared/domain/workspaceDomainModel'
-export type { WorkspaceDomainModel, WorkspaceSeedMode } from '@/shared/domain/workspaceDomainModel'
+export type { WorkspaceDomainModel } from '@/shared/domain/workspaceDomainModel'
 
 const productionRelatedKinds: MovScriptWorkspaceKind[] = [
   'production_workspace',

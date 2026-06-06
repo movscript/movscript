@@ -342,7 +342,7 @@ const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
   sceneMoments: ['segment_id', 'script_block_id'],
   contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
-  assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
+  assetSlots: ['production_id', 'owner_type', 'owner_id', 'setting_id', 'setting_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 
 function dialogDescription(kind: SemanticEntityConfig['kind'], fallback: string) {

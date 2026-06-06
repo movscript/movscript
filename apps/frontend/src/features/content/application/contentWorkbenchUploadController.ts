@@ -2,6 +2,7 @@ import { useRef, useState, type RefObject } from 'react'
 
 import { api } from '@/shared/infrastructure/api'
 import { invalidateAssetCandidateConsumers } from '@/shared/infrastructure/assetCandidateQueryInvalidation'
+import { createWorkspaceAssetSlotCandidate } from '@/shared/infrastructure/workspaceCandidateRepository'
 import { buildContentCandidateAttachmentPayload } from '@/features/content/domain/contentWorkbenchWriteModel'
 import { apiErrorMessage } from '@/features/content/domain/contentWorkbenchStatus'
 import type { ContentWorkbenchRecord } from '@/features/content/domain/contentWorkbenchModel'
@@ -90,7 +91,7 @@ export function buildContentWorkbenchUploadCandidateMutationOptions({
       const formData = new FormData()
       formData.append('file', file)
       const resource = await api.post('/resources/upload', formData).then((response) => response.data as RawResource)
-      await api.post(`/projects/${projectId}/entities/asset-slot-candidates`, buildContentCandidateAttachmentPayload(slot, resource))
+      await createWorkspaceAssetSlotCandidate(projectId, buildContentCandidateAttachmentPayload(slot, resource), slot)
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['resources'] })

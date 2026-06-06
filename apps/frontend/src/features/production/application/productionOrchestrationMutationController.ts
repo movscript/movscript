@@ -1,8 +1,5 @@
 import {
-  abandonSegment,
-  abandonSceneMoment,
   createSemanticEntity,
-  deleteSemanticEntity,
   semanticEntityConfig,
   updateSemanticEntity,
   type SemanticEntityPayload,
@@ -12,16 +9,29 @@ import { translateApiError, type APIErrorBody } from '@/shared/infrastructure/ap
 import { isRecord } from '@/shared/domain/jsonValue'
 import { inferScriptBlockKind, scriptBlockContentFromLines } from '@/features/production/domain/productionScriptBlocks'
 import {
-  writingExpressionPayload,
   type ProductionWritingExpressionEditTarget,
   type ProductionWritingExpressionSavePayload,
 } from '@/features/production/domain/productionWritingExpressions'
-import type { SceneMomentRecord, ScriptBlockRecord, SegmentRecord } from '@/features/production/domain/productionOrchestrationData'
+import type { SettingRecord, SceneMomentRecord, ScriptBlockRecord, SegmentRecord } from '@/features/production/domain/productionOrchestrationData'
 import {
   buildProductionSceneMomentReorderPatches,
   buildProductionSegmentReorderPatches,
   type ProductionOrchestrationDropPosition,
 } from '@/features/production/domain/productionOrchestrationWorkspaceModel'
+import {
+  createProductionWritingExpressionWorkspaceProjection,
+  deleteProductionSceneMomentWorkspaceProjection,
+  deleteProductionSegmentWorkspaceProjection,
+  deleteProductionWritingExpressionWorkspaceProjection,
+  linkProductionSceneMomentReferenceWorkspaceProjection,
+  saveProductionSceneMomentOrderWorkspaceProjection,
+  saveProductionSceneMomentWorkspaceProjection,
+  saveProductionSegmentOrderWorkspaceProjection,
+  saveProductionSegmentWorkspaceProjection,
+  saveProductionWritingExpressionWorkspaceProjection,
+  unlinkProductionSceneMomentReferenceWorkspaceProjection,
+  type ProductionWorkspaceSnapshot,
+} from '@/features/production/application/productionWorkspaceRepository'
 import { toast } from '@/shared/ui/toastStore'
 
 export interface ProductionOrchestrationMutationQueryClient {
@@ -130,9 +140,14 @@ export function buildCreateAndBindSceneMomentScriptBlockMutationOptions(input: P
 
 export function buildUpdateSegmentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ segmentId, payload }: { segmentId: number; payload: SemanticEntityPayload }) => {
+    mutationFn: async ({ productionId, currentSnapshot, segmentId, payload }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      segmentId: number
+      payload: SemanticEntityPayload
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return updateSemanticEntity(input.projectId, semanticEntityConfig('segments'), segmentId, payload)
+      return saveProductionSegmentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, segmentId, payload })
     },
     onSuccess: () => {
       toast.success('编排段已更新')
@@ -146,9 +161,13 @@ export function buildUpdateSegmentMutationOptions(input: ProductionOrchestration
 
 export function buildDeleteSegmentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async (segmentId: number) => {
+    mutationFn: async ({ productionId, currentSnapshot, segmentId }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      segmentId: number
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return abandonSegment(input.projectId, segmentId)
+      return deleteProductionSegmentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, segmentId })
     },
     onSuccess: () => {
       toast.success('编排段已删除')
@@ -162,7 +181,9 @@ export function buildDeleteSegmentMutationOptions(input: ProductionOrchestration
 
 export function buildReorderProductionSegmentsMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ segments, draggedSegmentId, targetSegmentId, position }: {
+    mutationFn: async ({ productionId, currentSnapshot, segments, draggedSegmentId, targetSegmentId, position }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
       segments: SegmentRecord[]
       draggedSegmentId: number
       targetSegmentId: number
@@ -170,9 +191,7 @@ export function buildReorderProductionSegmentsMutationOptions(input: ProductionO
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
       const patches = buildProductionSegmentReorderPatches(segments, draggedSegmentId, targetSegmentId, position)
-      await Promise.all(patches.map((patch) => (
-        updateSemanticEntity(input.projectId!, semanticEntityConfig('segments'), patch.segmentId, patch.payload)
-      )))
+      await saveProductionSegmentOrderWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, patches })
       return { draggedSegmentId }
     },
     onSuccess: () => {
@@ -187,9 +206,14 @@ export function buildReorderProductionSegmentsMutationOptions(input: ProductionO
 
 export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ momentId, payload }: { momentId: number; payload: SemanticEntityPayload }) => {
+    mutationFn: async ({ productionId, currentSnapshot, momentId, payload }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      momentId: number
+      payload: SemanticEntityPayload
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return updateSemanticEntity(input.projectId, semanticEntityConfig('sceneMoments'), momentId, payload)
+      return saveProductionSceneMomentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, payload })
     },
     onSuccess: () => {
       toast.success('情节已更新')
@@ -203,7 +227,9 @@ export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestra
 
 export function buildReorderProductionSceneMomentsMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ sceneMoments, draggedMomentId, targetSegmentId, targetMomentId, position }: {
+    mutationFn: async ({ productionId, currentSnapshot, sceneMoments, draggedMomentId, targetSegmentId, targetMomentId, position }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
       sceneMoments: SceneMomentRecord[]
       draggedMomentId: number
       targetSegmentId: number
@@ -218,9 +244,7 @@ export function buildReorderProductionSceneMomentsMutationOptions(input: Product
         targetMomentId,
         position,
       })
-      await Promise.all(patches.map((patch) => (
-        updateSemanticEntity(input.projectId!, semanticEntityConfig('sceneMoments'), patch.momentId, patch.payload)
-      )))
+      await saveProductionSceneMomentOrderWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, patches })
       return { draggedMomentId }
     },
     onSuccess: () => {
@@ -235,9 +259,13 @@ export function buildReorderProductionSceneMomentsMutationOptions(input: Product
 
 export function buildDeleteSceneMomentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async (momentId: number) => {
+    mutationFn: async ({ productionId, currentSnapshot, momentId }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      momentId: number
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return abandonSceneMoment(input.projectId, momentId)
+      return deleteProductionSceneMomentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId })
     },
     onSuccess: () => {
       toast.success('情节已删除')
@@ -251,16 +279,18 @@ export function buildDeleteSceneMomentMutationOptions(input: ProductionOrchestra
 
 export function buildLinkSceneMomentReferenceMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ momentId, referenceId, role }: { momentId: number; referenceId: number; role: string }) => {
+    mutationFn: async ({ productionId, currentSnapshot, momentId, referenceId, role, settings }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      momentId: number
+      referenceId: number
+      role: string
+      settings: SettingRecord[]
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return createSemanticEntity(input.projectId, semanticEntityConfig('creativeReferenceUsages'), {
-        owner_type: 'scene_moment',
-        owner_id: momentId,
-        creative_reference_id: referenceId,
-        role,
-        source: 'manual',
-        status: 'confirmed',
-      })
+      const reference = settings.find((item) => item.ID === referenceId)
+      if (!reference) throw new Error('未找到设定')
+      return linkProductionSceneMomentReferenceWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, reference, role })
     },
     onSuccess: () => {
       toast.success('情节设定已绑定')
@@ -274,9 +304,14 @@ export function buildLinkSceneMomentReferenceMutationOptions(input: ProductionOr
 
 export function buildUnlinkSceneMomentReferenceMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async (usageId: number) => {
+    mutationFn: async ({ productionId, currentSnapshot, momentId, referenceId }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      momentId: number
+      referenceId: number
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return deleteSemanticEntity(input.projectId, semanticEntityConfig('creativeReferenceUsages'), usageId)
+      return unlinkProductionSceneMomentReferenceWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, referenceId })
     },
     onSuccess: () => {
       toast.success('情节设定已移除')
@@ -290,24 +325,14 @@ export function buildUnlinkSceneMomentReferenceMutationOptions(input: Production
 
 export function buildUpdateWritingExpressionMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ target, payload }: { target: ProductionWritingExpressionEditTarget; payload: ProductionWritingExpressionSavePayload }) => {
+    mutationFn: async ({ productionId, currentSnapshot, target, payload }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      target: ProductionWritingExpressionEditTarget
+      payload: ProductionWritingExpressionSavePayload
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      if (target.kind === 'writingExpressions') {
-        const entityPayload = writingExpressionPayload(payload)
-        return updateSemanticEntity(input.projectId, semanticEntityConfig('writingExpressions'), target.id, {
-          kind: entityPayload.kind,
-          speaker: entityPayload.speaker,
-          text: entityPayload.text,
-          note: entityPayload.note,
-          intent: entityPayload.intent,
-        })
-      }
-      return createSemanticEntity(input.projectId, semanticEntityConfig('writingExpressions'), writingExpressionPayload({
-        ...payload,
-        scene_moment_id: target.sceneMomentId,
-        script_block_id: target.scriptBlockId ?? payload.script_block_id ?? null,
-        order: target.order,
-      }))
+      return saveProductionWritingExpressionWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, target, payload })
     },
     onSuccess: () => {
       toast.success('表达条目已更新')
@@ -321,9 +346,13 @@ export function buildUpdateWritingExpressionMutationOptions(input: ProductionOrc
 
 export function buildDeleteWritingExpressionMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async (expressionId: number) => {
+    mutationFn: async ({ productionId, currentSnapshot, expressionId }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      expressionId: number
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return deleteSemanticEntity(input.projectId, semanticEntityConfig('writingExpressions'), expressionId)
+      return deleteProductionWritingExpressionWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, expressionId })
     },
     onSuccess: () => {
       toast.success('表达条目已删除')
@@ -337,18 +366,15 @@ export function buildDeleteWritingExpressionMutationOptions(input: ProductionOrc
 
 export function buildCreateWritingExpressionMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
-    mutationFn: async ({ momentId, order, scriptBlockId }: { momentId: number; order: number; scriptBlockId?: number | null }) => {
+    mutationFn: async ({ productionId, currentSnapshot, momentId, order, scriptBlockId }: {
+      productionId: number
+      currentSnapshot: ProductionWorkspaceSnapshot
+      momentId: number
+      order: number
+      scriptBlockId?: number | null
+    }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return createSemanticEntity(input.projectId, semanticEntityConfig('writingExpressions'), {
-        scene_moment_id: momentId,
-        script_block_id: scriptBlockId ?? null,
-        order,
-        kind: 'dialogue',
-        speaker: '',
-        text: '',
-        note: '',
-        intent: '',
-      })
+      return createProductionWritingExpressionWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, order, scriptBlockId })
     },
     onSuccess: () => {
       toast.success('已新增表达条目')

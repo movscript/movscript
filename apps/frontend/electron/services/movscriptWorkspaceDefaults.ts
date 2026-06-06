@@ -1,10 +1,12 @@
 import * as electron from 'electron'
-import { fallbackUserMovScriptWorkspaceDir, resolveDefaultMovScriptWorkspaceDir } from '@movscript/workspaces/node'
+import { setMCPDefaultWorkspaceDir } from '@movscript/core/mcp/node'
+import { fallbackUserMovScriptWorkspaceDir, resolveDefaultMovScriptWorkspaceDir } from '@movscript/core/workspace/node'
 
 let configuredDesktopMovScriptWorkspaceDir: string | undefined
 
 export function setDesktopDefaultMovScriptWorkspaceDir(workspaceDir: string | undefined): void {
   configuredDesktopMovScriptWorkspaceDir = workspaceDir?.trim() || undefined
+  setMCPDefaultWorkspaceDir(configuredDesktopMovScriptWorkspaceDir)
 }
 
 export function resolveDesktopDefaultMovScriptWorkspaceDir(): string {

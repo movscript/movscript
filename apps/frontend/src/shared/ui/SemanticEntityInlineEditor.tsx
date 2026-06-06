@@ -70,6 +70,8 @@ interface SemanticEntityInlineEditorProps {
   idScope?: string
   editKey?: string | number | null
   deleteRecord?: (record: SemanticEntityRecord) => Promise<unknown>
+  saveRecord?: (payload: SemanticEntityPayload, record: SemanticEntityRecord | null | undefined) => Promise<SemanticEntityRecord>
+  lookupOptions?: Record<string, Array<{ value: string; label: string }>>
   onSaved?: (record: SemanticEntityRecord) => void
   onDeleted?: (record: SemanticEntityRecord) => void
 }
@@ -116,6 +118,8 @@ export function SemanticEntityInlineEditor({
   idScope,
   editKey,
   deleteRecord,
+  saveRecord,
+  lookupOptions: externalLookupOptions,
   onSaved,
   onDeleted,
 }: SemanticEntityInlineEditorProps) {
@@ -129,11 +133,14 @@ export function SemanticEntityInlineEditor({
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(Boolean(!record))
   const isEditing = editing ?? uncontrolledIsEditing
-  const enableCreativeReferenceLookups = config.kind === 'assetSlots' && Boolean(projectId)
+  const enableSettingLookups = config.kind === 'assetSlots' && Boolean(projectId)
   const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments') && Boolean(projectId)
+  const hasExternalSettingOptions = Object.hasOwn(externalLookupOptions ?? {}, 'setting_id')
+  const hasExternalSettingStateOptions = Object.hasOwn(externalLookupOptions ?? {}, 'setting_state_id')
+  const hasExternalScriptBlockOptions = Object.hasOwn(externalLookupOptions ?? {}, 'script_block_id')
   const canDeleteRecord = !hideDeleteAction && !isDeleteProtectedKind(config.kind)
   const isImmutableRecord = Boolean(record && isImmutableKind(config.kind))
-  const sourceLockEnabled = Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
+  const sourceLockEnabled = Boolean(projectId && record?.ID && !saveRecord && sourceLockSupportedKind(config.kind))
   const editorDomScope = idScope ?? `${config.kind}-${record?.ID ?? 'new'}`
   const formId = `inline-${editorDomScope}`
   const shellClassName = className ?? (surface === 'embedded' ? 'rounded-none border-0 bg-transparent' : undefined)
@@ -143,22 +150,22 @@ export function SemanticEntityInlineEditor({
     onEditingChange?.(nextEditing)
   }
 
-  const { data: creativeReferences = [] } = useQuery({
-    queryKey: ['semantic-inline-editor', projectId, 'creative-references'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')),
-    enabled: enableCreativeReferenceLookups,
+  const { data: settings = [] } = useQuery({
+    queryKey: ['semantic-inline-editor', projectId, 'settings'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')),
+    enabled: enableSettingLookups && !hasExternalSettingOptions,
   })
 
-  const { data: creativeReferenceStates = [] } = useQuery({
-    queryKey: ['semantic-inline-editor', projectId, 'creative-reference-states'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceStates')),
-    enabled: enableCreativeReferenceLookups,
+  const { data: settingStates = [] } = useQuery({
+    queryKey: ['semantic-inline-editor', projectId, 'setting-states'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settingStates')),
+    enabled: enableSettingLookups && !hasExternalSettingStateOptions,
   })
 
   const { data: scriptBlocks = [] } = useQuery({
     queryKey: ['semantic-inline-editor', projectId, 'script-blocks'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')),
-    enabled: enableScriptBlockLookups,
+    enabled: enableScriptBlockLookups && !hasExternalScriptBlockOptions,
   })
 
   const { data: sourceLock } = useQuery<SourceLockStatus>({
@@ -170,21 +177,21 @@ export function SemanticEntityInlineEditor({
   const lockedFields = useMemo(() => new Set(sourceLock?.locked_fields ?? []), [sourceLock])
   const sourceLockReason = sourceLockReasonText(sourceLock)
 
-  const referenceById = useMemo(() => new Map(creativeReferences.map((item) => [item.ID, item])), [creativeReferences])
+  const referenceById = useMemo(() => new Map(settings.map((item) => [item.ID, item])), [settings])
   const lookupOptions = useMemo(() => {
     const options: Record<string, Array<{ value: string; label: string }>> = {}
-    if (enableCreativeReferenceLookups) {
-      const selectedReferenceId = Number(String(form.creative_reference_id ?? '').trim()) || 0
+    if (enableSettingLookups) {
+      const selectedReferenceId = Number(String(form.setting_id ?? '').trim()) || 0
       const states = selectedReferenceId
-        ? creativeReferenceStates.filter((item) => Number(item.creative_reference_id) === selectedReferenceId)
-        : creativeReferenceStates
-      options.creative_reference_id = creativeReferences.map((item) => ({
+        ? settingStates.filter((item) => Number(item.setting_id) === selectedReferenceId)
+        : settingStates
+      options.setting_id = settings.map((item) => ({
         value: String(item.ID),
-        label: formatCreativeReferenceOption(item),
+        label: formatSettingOption(item),
       }))
-      options.creative_reference_state_id = states.map((item) => ({
+      options.setting_state_id = states.map((item) => ({
         value: String(item.ID),
-        label: formatCreativeReferenceStateOption(item, referenceById.get(Number(item.creative_reference_id))),
+        label: formatSettingStateOption(item, referenceById.get(Number(item.setting_id))),
       }))
     }
     if (enableScriptBlockLookups) {
@@ -193,8 +200,11 @@ export function SemanticEntityInlineEditor({
         label: formatScriptBlockOption(item),
       }))
     }
+    for (const [key, value] of Object.entries(externalLookupOptions ?? {})) {
+      options[key] = value
+    }
     return options
-  }, [creativeReferenceStates, creativeReferences, enableCreativeReferenceLookups, enableScriptBlockLookups, form.creative_reference_id, referenceById, scriptBlocks])
+  }, [settingStates, settings, enableSettingLookups, enableScriptBlockLookups, externalLookupOptions, form.setting_id, referenceById, scriptBlocks])
 
   useEffect(() => {
     setForm(buildInitialForm(fields, record, defaults))
@@ -207,6 +217,7 @@ export function SemanticEntityInlineEditor({
   const saveMutation = useMutation({
     mutationFn: (payload: SemanticEntityPayload) => {
       if (!projectId) throw new Error('missing project id')
+      if (saveRecord) return saveRecord(payload, record)
       return record
         ? updateSemanticEntity(projectId, config, record.ID, payload)
         : createSemanticEntity(projectId, config, payload)
@@ -260,8 +271,8 @@ export function SemanticEntityInlineEditor({
     setForm((prev) => ({
       ...prev,
       [key]: value,
-      ...(config.kind === 'assetSlots' && key === 'creative_reference_id' && value !== prev.creative_reference_id
-        ? { creative_reference_state_id: '' }
+      ...(config.kind === 'assetSlots' && key === 'setting_id' && value !== prev.setting_id
+        ? { setting_state_id: '' }
         : null),
     }))
   }
@@ -511,11 +522,11 @@ function sourceLockSupportedKind(kind: SemanticEntityConfig['kind']) {
     kind === 'contentUnits'
 }
 
-function formatCreativeReferenceOption(record: SemanticEntityRecord) {
+function formatSettingOption(record: SemanticEntityRecord) {
   return [record.name || record.title || `设定资料 #${record.ID}`, kindLabel(record.kind), `#${record.ID}`].filter(Boolean).join(' · ')
 }
 
-function formatCreativeReferenceStateOption(record: SemanticEntityRecord, reference?: SemanticEntityRecord) {
+function formatSettingStateOption(record: SemanticEntityRecord, reference?: SemanticEntityRecord) {
   const scope = [record.scope_type, record.scope_id ? `#${record.scope_id}` : null].filter(Boolean).join(' ')
   const referenceName = reference?.name || reference?.title
   return [record.name || `状态 #${record.ID}`, referenceName, scope, `#${record.ID}`].filter(Boolean).join(' · ')
@@ -566,7 +577,7 @@ const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
   sceneMoments: ['segment_id', 'script_block_id'],
   contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
-  assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
+  assetSlots: ['production_id', 'owner_type', 'owner_id', 'setting_id', 'setting_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 
 function buildInitialForm(fields: SemanticEntityConfig['fields'], record?: SemanticEntityRecord | null, defaults?: Partial<SemanticEntityPayload>): FormState {

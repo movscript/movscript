@@ -26,7 +26,7 @@ test('project layer workspace review can isolate setting workspace entries', () 
         summary: '整理角色设定',
         mode: 'snapshot',
         workspace: {
-          creative_references: [
+          settings: [
             { id: 7, name: '主角', description: '新的角色说明' },
           ],
           asset_slots: [
@@ -36,16 +36,16 @@ test('project layer workspace review can isolate setting workspace entries', () 
       }),
     }),
     {
-      creativeReferences: [{ ID: 7, name: '主角', description: '旧的角色说明' }],
+      settings: [{ ID: 7, name: '主角', description: '旧的角色说明' }],
       assetSlots: [],
     },
     { includeAssetSlots: false },
   )
 
   assert.equal(view?.summary, '整理角色设定')
-  assert.equal(view?.creativeReferences.length, 1)
+  assert.equal(view?.settings.length, 1)
   assert.equal(view?.assetSlots.length, 0)
-  assert.equal(view?.creativeReferences[0]?.changeType, 'modified')
+  assert.equal(view?.settings[0]?.changeType, 'modified')
 })
 
 test('project layer workspace review matches backend-shaped setting workspace rows by uppercase ID', () => {
@@ -58,7 +58,7 @@ test('project layer workspace review matches backend-shaped setting workspace ro
         scope: 'setting_workspace',
         mode: 'snapshot',
         workspace: {
-          creative_references: [
+          settings: [
             {
               ID: 7,
               project_id: 2,
@@ -86,7 +86,7 @@ test('project layer workspace review matches backend-shaped setting workspace ro
       }),
     }),
     {
-      creativeReferences: [
+      settings: [
         { ID: 7, name: '主角', kind: 'character', description: '旧的角色说明', content: '关系：家人', importance: 'core', status: 'needs_review' },
         { ID: 8, name: '配角', kind: 'character', description: '保留不动', content: '', importance: 'supporting', status: 'needs_review' },
       ],
@@ -95,10 +95,10 @@ test('project layer workspace review matches backend-shaped setting workspace ro
     { includeAssetSlots: false },
   )
 
-  assert.equal(view?.creativeReferences.length, 2)
-  assert.deepEqual(view?.creativeReferences.map((entry) => entry.changeType), ['unchanged', 'unchanged'])
-  assert.deepEqual(view?.creativeReferences.map((entry) => entry.target), ['合并到 #7', '合并到 #8'])
-  assert.equal(view?.creativeReferences.some((entry) => entry.inferred && entry.changeType === 'deleted'), false)
+  assert.equal(view?.settings.length, 2)
+  assert.deepEqual(view?.settings.map((entry) => entry.changeType), ['unchanged', 'unchanged'])
+  assert.deepEqual(view?.settings.map((entry) => entry.target), ['合并到 #7', '合并到 #8'])
+  assert.equal(view?.settings.some((entry) => entry.inferred && entry.changeType === 'deleted'), false)
 })
 
 test('project layer workspace review can isolate asset slot workspace entries and diff owner', () => {
@@ -109,13 +109,13 @@ test('project layer workspace review can isolate asset slot workspace entries an
       content: JSON.stringify({
         mode: 'snapshot',
         workspace: {
-          creative_references: [
+          settings: [
             { name: '角色设定' },
           ],
           asset_slots: [
             {
               id: 12,
-              owner: { type: 'creative_reference', id: 9 },
+              owner: { type: 'setting', id: 9 },
               name: '角色半身照',
               kind: 'image',
               prompt_hint: '正面站姿',
@@ -125,21 +125,21 @@ test('project layer workspace review can isolate asset slot workspace entries an
       }),
     }),
     {
-      creativeReferences: [],
-      assetSlots: [{ ID: 12, name: '角色半身照', prompt_hint: '侧面站姿', creative_reference_id: 8 }],
+      settings: [],
+      assetSlots: [{ ID: 12, name: '角色半身照', prompt_hint: '侧面站姿', setting_id: 8 }],
     },
-    { includeCreativeReferences: false },
+    { includeSettings: false },
   )
 
-  assert.equal(view?.creativeReferences.length, 0)
+  assert.equal(view?.settings.length, 0)
   assert.equal(view?.assetSlots.length, 1)
   assert.equal(view?.assetSlots[0]?.changeType, 'modified')
 
   const rows = buildPreProductionWorkspaceEntryDiffRows(
     view!.assetSlots[0]!,
     {
-      creativeReferences: [],
-      assetSlots: [{ ID: 12, name: '角色半身照', prompt_hint: '侧面站姿', creative_reference_id: 8 }],
+      settings: [],
+      assetSlots: [{ ID: 12, name: '角色半身照', prompt_hint: '侧面站姿', setting_id: 8 }],
     },
     new Map([
       ['8', '旧角色'],
@@ -170,7 +170,7 @@ test('project layer workspace review matches backend-shaped asset slot workspace
               prompt_hint: '干净背景',
               priority: 'high',
               status: 'needs_review',
-              creative_reference_id: 7,
+              setting_id: 7,
             },
             {
               ID: 13,
@@ -180,23 +180,23 @@ test('project layer workspace review matches backend-shaped asset slot workspace
               prompt_hint: '俯视调度图',
               priority: 'normal',
               status: 'needs_review',
-              creative_reference_id: 8,
+              setting_id: 8,
             },
           ],
         },
       }),
     }),
     {
-      creativeReferences: [
+      settings: [
         { ID: 7, name: '主角' },
         { ID: 8, name: '街区' },
       ],
       assetSlots: [
-        { ID: 12, name: '角色半身照', kind: 'image', description: '正面站姿', prompt_hint: '干净背景', priority: 'high', status: 'needs_review', creative_reference_id: 7 },
-        { ID: 13, name: '场景俯视图', kind: 'image', description: '街区空间关系', prompt_hint: '俯视调度图', priority: 'normal', status: 'needs_review', creative_reference_id: 8 },
+        { ID: 12, name: '角色半身照', kind: 'image', description: '正面站姿', prompt_hint: '干净背景', priority: 'high', status: 'needs_review', setting_id: 7 },
+        { ID: 13, name: '场景俯视图', kind: 'image', description: '街区空间关系', prompt_hint: '俯视调度图', priority: 'normal', status: 'needs_review', setting_id: 8 },
       ],
     },
-    { includeCreativeReferences: false },
+    { includeSettings: false },
   )
 
   assert.equal(view?.assetSlots.length, 2)
@@ -212,27 +212,27 @@ test('buildPreProductionWorkspaceContentForEntries keeps unselected backend rows
     content: JSON.stringify({
       mode: 'snapshot',
       workspace: {
-        creative_references: [
+        settings: [
           { id: 7, name: '主角', description: '新的角色说明' },
         ],
       },
     }),
   })
   const data = {
-    creativeReferences: [
+    settings: [
       { ID: 7, name: '主角', description: '旧的角色说明' },
       { ID: 8, name: '配角', description: '保留不动' },
     ],
     assetSlots: [],
   }
   const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeAssetSlots: false })
-  const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.creativeReferences[0]!], data)) as Record<string, any>
+  const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.settings[0]!], data)) as Record<string, any>
 
   assert.equal(payload.mode, 'snapshot')
   assert.equal(payload.snapshot_base, undefined)
-  assert.deepEqual(payload.workspace.creative_references.map((item: any) => item.id).sort(), [7, 8])
-  assert.equal(payload.workspace.creative_references.find((item: any) => item.id === 7)?.description, '新的角色说明')
-  assert.equal(payload.workspace.creative_references.find((item: any) => item.id === 8)?.description, '保留不动')
+  assert.deepEqual(payload.workspace.settings.map((item: any) => item.id).sort(), [7, 8])
+  assert.equal(payload.workspace.settings.find((item: any) => item.id === 7)?.description, '新的角色说明')
+  assert.equal(payload.workspace.settings.find((item: any) => item.id === 8)?.description, '保留不动')
   assert.equal(payload.workspace.asset_slots, undefined)
 })
 
@@ -245,27 +245,27 @@ test('buildPreProductionWorkspaceContentForEntries scopes asset workspace payloa
       scope: 'asset_workspace',
       mode: 'snapshot',
       workspace: {
-        creative_references: [{ id: 7, name: '工作区内设定' }],
+        settings: [{ id: 7, name: '工作区内设定' }],
         asset_slots: [
-          { name: '角色头像', kind: 'image', owner: { type: 'creative_reference', client_id: 'hero_ref' } },
+          { name: '角色头像', kind: 'image', owner: { type: 'setting', client_id: 'hero_ref' } },
         ],
       },
     }),
   })
   const data = {
-    creativeReferences: [
+    settings: [
       { ID: 7, name: '已入库角色', description: '当前设定' },
     ],
     assetSlots: [
-      { ID: 12, name: '旧头像', kind: 'image', creative_reference_id: 7 },
+      { ID: 12, name: '旧头像', kind: 'image', setting_id: 7 },
     ],
   }
-  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeCreativeReferences: false })
+  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeSettings: false })
   const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.assetSlots[0]!], data)) as Record<string, any>
 
   assert.equal(payload.mode, 'snapshot')
   assert.equal(payload.snapshot_base, undefined)
-  assert.equal(payload.workspace.creative_references, undefined)
+  assert.equal(payload.workspace.settings, undefined)
   assert.deepEqual(payload.workspace.asset_slots.map((item: any) => item.name).sort(), ['旧头像', '角色头像'])
 })
 
@@ -278,24 +278,24 @@ test('buildPreProductionWorkspaceContentForEntries rebases stale asset owner ids
       scope: 'asset_workspace',
       mode: 'snapshot',
       workspace: {
-        creative_references: [],
+        settings: [],
         asset_slots: [
-          { name: '女主形象图', kind: 'image', owner: { type: 'creative_reference', id: 999 }, description: '女主官方人设图' },
+          { name: '女主形象图', kind: 'image', owner: { type: 'setting', id: 999 }, description: '女主官方人设图' },
         ],
       },
     }),
   })
   const data = {
-    creativeReferences: [
+    settings: [
       { ID: 41, name: '苏晚', description: '女主，单亲妈妈' },
       { ID: 42, name: '陆景深', description: '男主，集团总裁' },
     ],
     assetSlots: [],
   }
-  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeCreativeReferences: false })
+  const view = parsePreProductionWorkspaceArtifact(sourceWorkspace, data, { includeSettings: false })
   const payload = JSON.parse(buildPreProductionWorkspaceContentForEntries(sourceWorkspace, [view!.assetSlots[0]!], data)) as Record<string, any>
   const slot = payload.workspace.asset_slots[0]
 
   assert.equal(slot.owner.id, 41)
-  assert.equal(slot.creative_reference_id, 41)
+  assert.equal(slot.setting_id, 41)
 })

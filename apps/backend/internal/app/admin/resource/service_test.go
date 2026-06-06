@@ -78,17 +78,8 @@ func TestDeleteResourceRejectsReferencedResource(t *testing.T) {
 	db := newTestDB(t)
 	user := createUser(t, db, "alice")
 	resource := createResource(t, db, user.ID, "poster.png", "image", "local", 120)
-	if err := db.Create(&persistencemodel.ResourceBinding{
-		ProjectID:  resource.ID + 10,
-		ResourceID: resource.ID,
-		OwnerType:  "asset_slot",
-		OwnerID:    7,
-		Role:       "output",
-		Slot:       "poster",
-		Status:     "selected",
-		SourceType: "job",
-	}).Error; err != nil {
-		t.Fatalf("create binding: %v", err)
+	if err := db.Create(&persistencemodel.CanvasTask{CanvasNodeID: 1, ResourceID: &resource.ID, Status: "done"}).Error; err != nil {
+		t.Fatalf("create canvas task: %v", err)
 	}
 
 	service := NewService(db)
@@ -185,43 +176,9 @@ func TestCollectUnusedBlobsDryRunDoesNotDelete(t *testing.T) {
 	}
 }
 
-func TestResourceDetailReturnsBindings(t *testing.T) {
-	db := newTestDB(t)
-	user := createUser(t, db, "alice")
-	resource := createResource(t, db, user.ID, "poster.png", "image", "local", 120)
-	if err := db.Create(&persistencemodel.ResourceBinding{
-		ProjectID:  resource.ID + 10,
-		ResourceID: resource.ID,
-		OwnerType:  "asset_slot",
-		OwnerID:    7,
-		Role:       "output",
-		Slot:       "poster",
-		Status:     "selected",
-		SourceType: "job",
-	}).Error; err != nil {
-		t.Fatalf("create binding: %v", err)
-	}
-
-	service := NewService(db)
-	detail, err := service.ResourceDetail(context.Background(), resource.ID)
-	if err != nil {
-		t.Fatalf("ResourceDetail returned error: %v", err)
-	}
-	if detail.Resource.ID != resource.ID || detail.Resource.Owner == nil || detail.Resource.Owner.Username != "alice" {
-		t.Fatalf("unexpected detail resource: %+v", detail.Resource)
-	}
-	if detail.BindingCount != 1 || len(detail.Bindings) != 1 {
-		t.Fatalf("unexpected binding summary: count=%d bindings=%+v", detail.BindingCount, detail.Bindings)
-	}
-	binding := detail.Bindings[0]
-	if binding.ResourceID != resource.ID || binding.OwnerType != "asset_slot" || binding.Role != "output" || binding.Slot != "poster" {
-		t.Fatalf("unexpected binding detail: %+v", binding)
-	}
-}
-
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	return testutil.OpenSQLite(t, "adminresource.db", &persistencemodel.User{}, &persistencemodel.ResourceBlob{}, &persistencemodel.RawResource{}, &persistencemodel.ResourceBinding{})
+	return testutil.OpenSQLite(t, "adminresource.db", &persistencemodel.User{}, &persistencemodel.ResourceBlob{}, &persistencemodel.RawResource{}, &persistencemodel.CanvasTask{})
 }
 
 func createUser(t *testing.T, db *gorm.DB, username string) persistencemodel.User {

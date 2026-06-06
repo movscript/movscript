@@ -24,7 +24,7 @@ test('agent generation lifecycle renders live progress, final media, and candida
 
   await assertGenerationLifecycle(page)
   const candidateControl = await attachGeneratedResourceCandidate(page, '77')
-  await expect(candidateControl).toContainText('已加入候选 #601')
+  await expect(candidateControl).toContainText('已累计加入 1 个候选')
 })
 
 test('agent generation candidate attach surfaces backend validation errors', async ({ page }) => {
@@ -43,7 +43,7 @@ test('agent generation can add output resources to keyframe candidate lists', as
 
   await assertGenerationLifecycle(page)
   const candidateControl = await attachGeneratedKeyframeCandidate(page, '88')
-  await expect(candidateControl).toContainText('已加入候选 #801')
+  await expect(candidateControl).toContainText('已累计加入 1 个候选')
 })
 
 test('agent generation can add multiple output resources to one candidate list', async ({ page }) => {
@@ -54,7 +54,7 @@ test('agent generation can add multiple output resources to one candidate list',
   await assertGenerationLifecycle(page)
   await expect(page.getByTestId('agent-generated-result-card')).toContainText('2 个结果')
   const candidateControl = await attachAllGeneratedResourceCandidates(page, '77')
-  await expect(candidateControl).toContainText('已加入 2 个候选')
+  await expect(candidateControl).toContainText('已累计加入 2 个候选')
   expect(attachedResourceIds.sort()).toEqual([9101, 9103])
 })
 
@@ -66,6 +66,6 @@ test('agent generation can add multiple output resources to one keyframe candida
   await assertGenerationLifecycle(page)
   await expect(page.getByTestId('agent-generated-result-card')).toContainText('2 个结果')
   const candidateControl = await attachAllGeneratedKeyframeCandidates(page, '88')
-  await expect(candidateControl).toContainText('已加入 2 个候选')
+  await expect(candidateControl).toContainText('已累计加入 2 个候选')
   expect(attachedResourceIds.sort()).toEqual([9101, 9103])
 })

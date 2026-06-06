@@ -1,4 +1,4 @@
-import { startMCPServer } from '../mcp/server'
+import { startMCPServer } from '@movscript/core/mcp/node'
 
 let mcpReadyPromise: Promise<number> | null = null
 let loggedReadyEndpoint: string | null = null

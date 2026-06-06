@@ -57,8 +57,8 @@ export function ResourceAttachments({
   const { data: bindings = [] } = useQuery<ResourceBinding[]>({
     queryKey,
     queryFn: () =>
-      api.get(`/projects/${projectId}/entities/${ownerType}/${ownerId}/resources`, {
-        params: { role, ...(slot ? { slot } : {}) },
+      api.get(`/projects/${projectId}/resource-bindings`, {
+        params: { owner_type: ownerType, owner_id: ownerId, role, ...(slot ? { slot } : {}) },
       }).then((r) => r.data),
     enabled: !!projectId && !!ownerId,
   })

@@ -1,32 +1,26 @@
 ---
 name: project
-description: Use MovScript MCP tools for current project focus, project listing/creation, and locating screenplay passages across script-version files.
+description: Use MovScript MCP tools and workspace files for current project focus, project creation, and local project/script context.
 toolGrants:
-  - mcp__movscript_workspace__get_focus_context
   - mcp__movscript_workspace__movscript_focus_get
-  - mcp__movscript_workspace__movscript_project_list
   - mcp__movscript_workspace__movscript_project_create
-  - mcp__movscript_workspace__movscript_script_list
-  - mcp__movscript_workspace__movscript_script_locate
+  - mcp__movscript_workspace__workspace_fetch
 ---
 
 # Project And Script Context
 
-Use this skill when a user asks the provider to inspect MovScript projects, create a project, find the current project focus, list scripts, or locate screenplay/script passages.
+Use this skill when a user asks the provider to inspect the current MovScript project, create a project, or work with project/script context.
 
 ## Workflow
 
 1. Call `mcp__movscript_workspace__movscript_focus_get` when the request depends on the currently selected project, route, production, user, or entity.
-2. Call `mcp__movscript_workspace__movscript_project_list` before assuming a project exists or when the user asks what projects are visible.
-3. Call `mcp__movscript_workspace__movscript_project_create` only when the user explicitly asks to create a new project or confirms the project name.
-4. Call `mcp__movscript_workspace__movscript_script_list` when you need available script titles, script IDs, scriptVersion IDs, statuses, or readonly refs before choosing a script.
-5. Call `mcp__movscript_workspace__movscript_script_locate` for fuzzy screenplay lookup. Prefer `projectId`, `scriptVersionId`, `scriptId`, or `scriptTitle` when the user provides them; otherwise rely on current focus.
-6. Use returned readonly file refs and line ranges for follow-up reads or edits. Do not read whole scripts unless the user explicitly needs full text.
+2. Use `mcp__movscript_workspace__workspace_fetch` for the current project namespace, such as `movscript.project:123`, to obtain the synchronization handoff; use standard git fetch/pull before relying on local project files when they may be stale or missing.
+3. Read project and script context from local workspace files under `.movscript/data/users/{userId}/projects/{projectId}`. Use local file search for screenplay passages.
+4. Call `mcp__movscript_workspace__movscript_project_create` only when the user explicitly asks to create a new project or confirms the project name.
 
 ## Rules
 
 - Treat project creation as a durable backend write.
 - Do not create projects from vague brainstorming prompts.
-- Treat `movscript_script_list` as a directory/listing tool; keep `include_content` false unless the user explicitly needs previews.
-- For script searches, pass precise `must`, `should`, `exclude`, and `aliasGroups` terms when the user mentions characters, props, places, or alternate names.
-- Preserve script version identity in follow-up work; do not mix passages from different versions unless the user asks for comparison.
+- Prefer local workspace files over backend list/locate tools for project data, scripts, references, assets, and future project-owned data groups.
+- Preserve script file identity in follow-up work; do not mix passages from different files unless the user asks for comparison.

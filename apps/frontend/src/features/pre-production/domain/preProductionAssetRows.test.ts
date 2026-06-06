@@ -13,7 +13,7 @@ import {
   slotScopeLabel,
   type AssetSlotCandidateRecord,
   type AssetSlotRecord,
-  type CreativeReferenceRecord,
+  type SettingRecord,
 } from './preProductionAssetRows'
 
 function slot(input: Partial<AssetSlotRecord> & Pick<AssetSlotRecord, 'ID'>): AssetSlotRecord {
@@ -32,10 +32,10 @@ function candidate(input: Partial<AssetSlotCandidateRecord> & Pick<AssetSlotCand
   }
 }
 
-function reference(input: Partial<CreativeReferenceRecord> & Pick<CreativeReferenceRecord, 'ID'>): CreativeReferenceRecord {
+function reference(input: Partial<SettingRecord> & Pick<SettingRecord, 'ID'>): SettingRecord {
   return {
     project_id: 1,
-    entity_type: 'creative_reference',
+    entity_type: 'setting',
     ...input,
   }
 }
@@ -85,7 +85,7 @@ test('pre-production asset rows build candidate patch payloads without page stat
 test('pre-production asset clusters summarize reference groups and active candidates', () => {
   const refs = [reference({ ID: 7, name: '主角', kind: 'person' })]
   const rows = buildPreProductionAssetRows([
-    slot({ ID: 10, creative_reference_id: 7, status: 'candidate', kind: 'image' }),
+    slot({ ID: 10, setting_id: 7, status: 'candidate', kind: 'image' }),
     slot({ ID: 11, status: 'locked', kind: 'video' }),
   ], [
     candidate({ ID: 100, asset_slot_id: 10, candidate_asset_slot_id: 30 }),

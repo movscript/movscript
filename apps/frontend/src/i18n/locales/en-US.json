@@ -583,7 +583,7 @@
           "description": "Import, analyze, and calibrate scripts for later asset and shot breakdown."
         },
         "references": {
-          "title": "Creative References",
+          "title": "Settings",
           "description": "Collect characters, world rules, style references, and creative constraints."
         },
         "assets": {
@@ -623,12 +623,12 @@
       "pagination": "{{total}} assets · {{page}}/{{pageCount}}",
       "library": {
         "title": "Asset Library Overview",
-        "subtitle": "Review the project's saved assets, creative reference links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
+        "subtitle": "Review the project's saved assets, setting links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
         "openGeneration": "Asset Generation",
         "emptyHint": "Uploaded assets will appear here as the project asset overview.",
         "metrics": {
           "assets": "Total assets",
-          "creativeReferences": "Creative references",
+          "settings": "Settings",
           "media": "Previewable media",
           "linked": "Linked references"
         }
@@ -674,7 +674,7 @@
           "cue": "Asset cue",
           "candidates": "Candidates",
           "linkedReference": "Linked reference",
-          "creativeReferences": "Creative references",
+          "settings": "Settings",
           "assetCount": "Assets"
         },
         "sections": {
@@ -1168,11 +1168,13 @@
     "description": "Manage provider config files, installed capabilities, Skills, tools, and run history.",
     "tools": {
       "names": {
+        "workspace_fetch": "Fetch workspace",
+        "workspace_status": "Check workspace status",
+        "workspace_review": "Review workspace",
+        "workspace_submit": "Submit workspace",
         "workspace_update": "Refresh workspace projection",
         "workspace_apply": "Submit workspace changes",
         "workspace_apply_review": "Preview workspace submit",
-        "candidate_asset_slot_attach": "Add asset-slot candidate",
-        "candidate_keyframe_attach": "Add keyframe candidate",
         "generation_job_cancel": "Cancel generation job",
         "core_work_cancel": "Cancel provider work",
         "workspace_create": "Create workspace",
@@ -1194,10 +1196,6 @@
         "generation_model_list": "List generation models",
         "movscript_project_list": "List projects",
         "core_work_list": "List provider works",
-        "movscript_asset_slot_query": "Query asset slots",
-        "movscript_creative_reference_query": "Query creative references",
-        "movscript_production_context_query": "Query production context",
-        "movscript_script_locate": "Read project scripts",
         "core_user_input_request": "Request user input",
         "reference_search": "Search reference",
         "core_memory_search": "Search memories",
@@ -1409,7 +1407,7 @@
       },
       "toolConsole": {
         "warning": "Only external MCP tools with source=mcp are listed here. Provider session calls hide local workspace / memory / taskGraph tools.",
-        "runtimeBoundary": "Workspace capabilities are served by the frontend MCP/file manager boundary. Provider sessions do not own workspace_open, workspace_validate, or workspace_apply local tools.",
+        "runtimeBoundary": "Workspace capabilities are served by the frontend MCP/file manager boundary. Provider sessions do not own workspace_open, workspace_validate, or workspace_submit local tools.",
         "tool": "MCP tool",
         "args": "JSON args",
         "run": "Run Tool",
@@ -3194,7 +3192,7 @@
     },
     "entityTypes": {
       "script": "Script",
-      "creative_reference": "Creative Reference",
+      "setting": "Setting",
       "assetSlot": "Asset Slot",
       "contentUnit": "Production Item",
       "asset": "Asset",
@@ -4119,7 +4117,7 @@
       "sceneMoments": "Plot Beats",
       "contentUnits": "Production Items",
       "episodes": "Production Management",
-      "creativeReferences": "Reference Library",
+      "settings": "Reference Library",
       "referenceRelations": "Relation Overview",
       "production": "Production",
       "finalVideos": "Final Video Library",
@@ -4214,14 +4212,14 @@
       "script": "Script Editing",
       "segments": "Orchestration Segments",
       "sceneMoments": "Plot Beats",
-      "references": "Creative References",
+      "references": "Settings",
       "relations": "Reference Relations",
       "content": "Objects",
       "contentUnits": "Production Items",
       "projectTaskGraph": "Prep Overview",
       "semanticEntities": "Semantic Entities",
       "entityManagement": "Entity Management",
-      "creativeReferences": "Reference Library",
+      "settings": "Reference Library",
       "referenceRelations": "Reference Relations",
       "relationOverview": "Relation Overview",
       "assetPreparation": "Assets",

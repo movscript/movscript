@@ -2,13 +2,17 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
+	projectrepoapp "github.com/movscript/movscript/internal/app/projectrepo"
 	"github.com/movscript/movscript/internal/infra/cache"
+	"github.com/movscript/movscript/internal/infra/config"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
@@ -16,12 +20,39 @@ import (
 )
 
 type ProjectHandler struct {
-	db       *gorm.DB
-	projects *projectapp.Service
+	db           *gorm.DB
+	projects     *projectapp.Service
+	repositories *projectrepoapp.Service
+	giteaBaseURL string
+	giteaToken   string
+	httpClient   *http.Client
 }
 
 func NewProjectHandler(db *gorm.DB, cacheStore ...cache.Cache) *ProjectHandler {
-	return &ProjectHandler{db: db, projects: projectapp.NewService(db, cacheStore...)}
+	return NewProjectHandlerWithConfig(db, &config.Config{}, cacheStore...)
+}
+
+func NewProjectHandlerWithConfig(db *gorm.DB, cfg *config.Config, cacheStore ...cache.Cache) *ProjectHandler {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	repositoryConfig := projectrepoapp.Config{
+		Provider:      "gitea",
+		Owner:         cfg.GiteaOwner,
+		Repo:          cfg.GiteaRepo,
+		RepoPrefix:    cfg.GiteaRepoPrefix,
+		DefaultBranch: cfg.GiteaBranch,
+	}
+	return &ProjectHandler{
+		db:           db,
+		projects:     projectapp.NewService(db, cacheStore...),
+		repositories: projectrepoapp.NewService(db, repositoryConfig, projectrepoapp.NewGiteaAdapter(cfg.GiteaBaseURL, cfg.GiteaToken)),
+		giteaBaseURL: strings.TrimRight(strings.TrimSpace(cfg.GiteaBaseURL), "/"),
+		giteaToken:   strings.TrimSpace(cfg.GiteaToken),
+		httpClient: &http.Client{
+			Timeout: 0,
+		},
+	}
 }
 
 func currentOrgID(c *gin.Context) *uint {
@@ -294,6 +325,130 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, project)
+}
+
+func (h *ProjectHandler) Workspace(c *gin.Context) {
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	metadata, err := h.repositories.WorkspaceMetadata(c.Request.Context(), parseID(c.Param("id")), orgID)
+	if err != nil {
+		switch {
+		case errors.Is(err, projectrepoapp.ErrProjectNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
+		case errors.Is(err, projectrepoapp.ErrInvalidRepositoryConfig):
+			c.JSON(http.StatusInternalServerError, api.Internal("项目仓库配置无效"))
+		default:
+			c.JSON(http.StatusInternalServerError, api.Internal("获取项目工作区仓库失败"))
+		}
+		return
+	}
+	c.JSON(http.StatusOK, metadata)
+}
+
+func (h *ProjectHandler) GitProxy(c *gin.Context) {
+	if h.giteaBaseURL == "" || h.giteaToken == "" {
+		c.JSON(http.StatusInternalServerError, api.Internal("项目仓库代理未配置"))
+		return
+	}
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	target, err := h.repositories.GitProxyTarget(c.Request.Context(), parseID(c.Param("id")), orgID)
+	if err != nil {
+		switch {
+		case errors.Is(err, projectrepoapp.ErrProjectNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
+		case errors.Is(err, projectrepoapp.ErrRepositoryNotReady):
+			c.JSON(http.StatusConflict, api.Conflict("项目仓库尚未就绪"))
+		case errors.Is(err, projectrepoapp.ErrInvalidRepositoryConfig):
+			c.JSON(http.StatusInternalServerError, api.Internal("项目仓库配置无效"))
+		default:
+			c.JSON(http.StatusInternalServerError, api.Internal("定位项目仓库失败"))
+		}
+		return
+	}
+	upstreamURL, err := h.gitProxyUpstreamURL(target, c.Param("gitPath"), c.Request.URL.RawQuery)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("Git proxy path invalid"))
+		return
+	}
+	if !gitProxyAllowsPushOnly(c.Request.Method, c.Param("gitPath"), c.Query("service")) {
+		c.JSON(http.StatusForbidden, api.Forbidden("Git proxy currently allows push only"))
+		return
+	}
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, upstreamURL, c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("创建 Git proxy 请求失败"))
+		return
+	}
+	copyGitProxyRequestHeaders(req.Header, c.Request.Header)
+	req.Header.Set("Authorization", "token "+h.giteaToken)
+	req.Host = ""
+
+	client := h.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: 0}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, api.Internal("Git upstream request failed"))
+		return
+	}
+	defer resp.Body.Close()
+
+	copyGitProxyResponseHeaders(c.Writer.Header(), resp.Header)
+	c.Status(resp.StatusCode)
+	_, _ = io.Copy(c.Writer, resp.Body)
+}
+
+func (h *ProjectHandler) gitProxyUpstreamURL(target projectrepoapp.GitProxyTarget, gitPath string, rawQuery string) (string, error) {
+	parsedBase, err := url.Parse(h.giteaBaseURL)
+	if err != nil || parsedBase.Scheme == "" || parsedBase.Host == "" {
+		return "", err
+	}
+	path := strings.TrimSpace(gitPath)
+	if path == "" || !strings.HasPrefix(path, "/") || strings.Contains(path, "..") || strings.Contains(path, "\\") {
+		return "", errors.New("invalid git path")
+	}
+	repoRoot := "/" + target.Repo + ".git"
+	if path != repoRoot && !strings.HasPrefix(path, repoRoot+"/") {
+		return "", errors.New("git path does not match project repository")
+	}
+	suffix := strings.TrimPrefix(path, repoRoot)
+	parsedBase.Path = strings.TrimRight(parsedBase.Path, "/") + "/" + url.PathEscape(target.Owner) + "/" + url.PathEscape(target.Repo) + ".git" + suffix
+	parsedBase.RawQuery = rawQuery
+	return parsedBase.String(), nil
+}
+
+func copyGitProxyRequestHeaders(dst http.Header, src http.Header) {
+	for _, key := range []string{"Accept", "Accept-Encoding", "Content-Type", "Git-Protocol", "User-Agent"} {
+		for _, value := range src.Values(key) {
+			dst.Add(key, value)
+		}
+	}
+}
+
+func gitProxyAllowsPushOnly(method string, gitPath string, service string) bool {
+	path := strings.TrimSpace(gitPath)
+	switch {
+	case method == http.MethodGet && strings.HasSuffix(path, "/info/refs"):
+		return service == "git-receive-pack"
+	case method == http.MethodPost && strings.HasSuffix(path, "/git-receive-pack"):
+		return true
+	default:
+		return false
+	}
+}
+
+func copyGitProxyResponseHeaders(dst http.Header, src http.Header) {
+	for _, key := range []string{"Cache-Control", "Content-Type", "Expires", "Pragma", "Git-Protocol"} {
+		for _, value := range src.Values(key) {
+			dst.Add(key, value)
+		}
+	}
 }
 
 func (h *ProjectHandler) Update(c *gin.Context) {
@@ -601,21 +756,7 @@ func (h *ProjectHandler) Progress(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"scripts":     progress.Scripts,
-		"segments":    progress.Segments,
-		"asset_slots": progress.AssetSlots,
-		"members":     progress.Members,
-		"content_units": gin.H{
-			"total":        progress.ContentUnits["total"],
-			"workspace":        progress.ContentUnits["workspace"],
-			"prompt_ready": progress.ContentUnits["confirmed"],
-			"generating":   progress.ContentUnits["in_production"],
-			"approved":     progress.ContentUnits["locked"],
-			"is_approved":  progress.ContentUnits["locked"],
-		},
-		"keyframes": gin.H{
-			"accepted": progress.Keyframes["accepted"],
-		},
+		"members": progress.Members,
 	})
 }
 

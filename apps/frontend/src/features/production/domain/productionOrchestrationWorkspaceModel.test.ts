@@ -120,8 +120,8 @@ test('production orchestration workspace model builds selected writing view', ()
     scriptVersionTitle: 'v1',
     segments,
     sceneMoments,
-    creativeReferences: [],
-    creativeReferenceUsages: [],
+    settings: [],
+    settingUsages: [],
     assetSlots: [],
     contentUnits,
   })
@@ -184,8 +184,8 @@ test('production orchestration workspace model preserves empty selection', () =>
     scriptVersionTitle: '',
     segments,
     sceneMoments,
-    creativeReferences: [],
-    creativeReferenceUsages: [],
+    settings: [],
+    settingUsages: [],
     assetSlots: [],
     contentUnits: [],
   })

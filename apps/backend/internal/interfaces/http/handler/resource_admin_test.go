@@ -82,8 +82,8 @@ func TestResourceAdminDeleteReferencedResourceReturnsConflict(t *testing.T) {
 	if err := db.Create(&resource).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
 	}
-	if err := db.Create(&persistencemodel.ResourceBinding{ProjectID: 11, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 2, Role: "output", Slot: "main", Status: "selected", SourceType: "job"}).Error; err != nil {
-		t.Fatalf("create binding: %v", err)
+	if err := db.Create(&persistencemodel.CanvasTask{CanvasNodeID: 1, ResourceID: &resource.ID, Status: "done"}).Error; err != nil {
+		t.Fatalf("create canvas task: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodDelete, "/admin/resource-storage/resources/1", nil)
@@ -119,43 +119,6 @@ func TestResourceAdminDeleteMissingDoesNotAudit(t *testing.T) {
 	}
 	if countAuditAction(t, db, "resource.admin_deleted") != 0 {
 		t.Fatalf("expected missing resource delete not to write audit")
-	}
-}
-
-func TestResourceAdminDetailReturnsResourceBindings(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router, db, _ := newTestResourceAdminRouter(t)
-	user := persistencemodel.User{Username: "detail-owner", SystemRole: "user", Status: "active"}
-	if err := db.Create(&user).Error; err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-	resource := persistencemodel.RawResource{
-		OwnerID:        user.ID,
-		Type:           "image",
-		Name:           "frame.png",
-		FilePath:       "resources/frame.png",
-		StorageKey:     "resources/frame.png",
-		StorageBackend: "local",
-		MimeType:       "image/png",
-		Size:           256,
-	}
-	if err := db.Create(&resource).Error; err != nil {
-		t.Fatalf("create resource: %v", err)
-	}
-	if err := db.Create(&persistencemodel.ResourceBinding{ProjectID: 11, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 2, Role: "output", Slot: "main", Status: "selected", SourceType: "job"}).Error; err != nil {
-		t.Fatalf("create binding: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/admin/resource-storage/resources/1/detail", nil)
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected detail to return 200, got %d: %s", res.Code, res.Body.String())
-	}
-	body := res.Body.String()
-	if !strings.Contains(body, `"binding_count":1`) || !strings.Contains(body, `"owner_type":"asset_slot"`) {
-		t.Fatalf("expected binding detail in response, got %s", body)
 	}
 }
 
@@ -198,7 +161,7 @@ func TestResourceAdminServeFileReadsAnyResource(t *testing.T) {
 
 func TestResourceServeFileReturnsImmutableCacheHeadersAndNotModified(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db := testutil.OpenSQLite(t, "handler-resource-serve-file.db", &persistencemodel.User{}, &persistencemodel.RawResource{}, &persistencemodel.ResourceBinding{})
+	db := testutil.OpenSQLite(t, "handler-resource-serve-file.db", &persistencemodel.User{}, &persistencemodel.RawResource{})
 	store := &handlerFakeStorage{objects: map[string]string{"resources/poster.png": "resource-bytes"}}
 	handler := NewResourceHandler(db.Session(&gorm.Session{SkipHooks: true}), store, nil, 0)
 	user := persistencemodel.User{Username: "alice", SystemRole: "user", Status: "active"}
@@ -296,12 +259,11 @@ func TestResourceAdminCollectUnusedBlobs(t *testing.T) {
 
 func newTestResourceAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB, *handlerFakeStorage) {
 	t.Helper()
-	db := testutil.OpenSQLite(t, "handler-resource-admin.db", &persistencemodel.User{}, &persistencemodel.ResourceBlob{}, &persistencemodel.RawResource{}, &persistencemodel.ResourceBinding{}, &persistencemodel.AuditLog{})
+	db := testutil.OpenSQLite(t, "handler-resource-admin.db", &persistencemodel.User{}, &persistencemodel.ResourceBlob{}, &persistencemodel.RawResource{}, &persistencemodel.CanvasTask{}, &persistencemodel.AuditLog{})
 	store := &handlerFakeStorage{}
 	h := NewResourceAdminHandler(db.Session(&gorm.Session{SkipHooks: true}), store)
 
 	router := gin.New()
-	router.GET("/admin/resource-storage/resources/:id/detail", h.ResourceDetail)
 	router.GET("/admin/resource-storage/resources/:id/file", h.ServeFile)
 	router.DELETE("/admin/resource-storage/resources/:id", h.DeleteResource)
 	router.POST("/admin/resource-storage/blobs/gc", h.CollectUnusedBlobs)

@@ -24,9 +24,9 @@ test('production analysis text serializes selected segment context', () => {
     production: { ID: 99, name: '制作' },
     segments: [{ ID: 1, title: '发现段', summary: '人物发现问题', content: '段落正文' }],
     sceneMoments: [{ ID: 10, segment_id: 1, title: '推门', action_text: '推门进入' }],
-    creativeReferences: [{ ID: 20, name: '张三', kind: 'person', description: '主角' }],
+    settings: [{ ID: 20, name: '张三', kind: 'person', description: '主角' }],
     assetSlots: [
-      { ID: 30, owner_type: 'scene_moment', owner_id: 10, creative_reference_id: 20, name: '门把手', kind: 'prop', description: '需要特写' },
+      { ID: 30, owner_type: 'scene_moment', owner_id: 10, setting_id: 20, name: '门把手', kind: 'prop', description: '需要特写' },
     ],
     contentUnits: [{ ID: 40, segment_id: 1, scene_moment_id: 10, title: '门把手特写', kind: 'shot', description: '镜头贴近门把手' }],
   })

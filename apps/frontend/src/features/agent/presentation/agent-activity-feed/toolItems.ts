@@ -22,6 +22,10 @@ interface ToolActivityRecord {
 const CORE_TOOL_NAMES = new Set([
   'workspace_create',
   'core_file_edit',
+  'workspace_fetch',
+  'workspace_status',
+  'workspace_review',
+  'workspace_submit',
   'workspace_update',
   'workspace_apply_review',
   'workspace_apply',
@@ -33,8 +37,6 @@ const CORE_TOOL_NAMES = new Set([
   'generation_image_generate',
   'generation_video_generate',
   'generation_job_create',
-  'candidate_asset_slot_attach',
-  'candidate_keyframe_attach',
 ])
 
 const WORK_STATUS_TOOL_NAMES = new Set([
@@ -156,25 +158,32 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
     ]))
   }
 
-  if (record.toolName === 'workspace_update') {
-    return block(record, 'workspace', '刷新工作区投影', compactLines([
-      '本地投影已从后端刷新。',
+  if (record.toolName === 'workspace_fetch' || record.toolName === 'workspace_update') {
+    return block(record, 'workspace', record.toolName === 'workspace_fetch' ? '拉取工作区' : '刷新工作区投影', compactLines([
+      record.toolName === 'workspace_fetch' ? '本地工作区已从后端拉取。' : '本地投影已从后端刷新。',
       record.summary,
       statusLine,
     ]))
   }
 
-  if (record.toolName === 'workspace_apply_review') {
-    return block(record, 'write', '预览工作区提交', compactLines([
-      '这里只是预览，还没有写入数据库。',
+  if (record.toolName === 'workspace_status') {
+    return block(record, 'workspace', '检查工作区状态', compactLines([
       record.summary,
       statusLine,
     ]))
   }
 
-  if (record.toolName === 'workspace_apply') {
-    return block(record, 'write', '提交工作区修改', compactLines([
-      '工作区修改已提交，等待前端审阅视图接收。',
+  if (record.toolName === 'workspace_review' || record.toolName === 'workspace_apply_review') {
+    return block(record, 'write', record.toolName === 'workspace_review' ? '审阅工作区' : '预览工作区提交', compactLines([
+      '这里只是审阅，还没有写入数据库。',
+      record.summary,
+      statusLine,
+    ]))
+  }
+
+  if (record.toolName === 'workspace_submit' || record.toolName === 'workspace_apply') {
+    return block(record, 'write', record.toolName === 'workspace_submit' ? '提交工作区' : '提交工作区修改', compactLines([
+      '工作区修改已提交到后端边界。',
       record.summary,
       statusLine,
     ]))
@@ -204,20 +213,6 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
 
   if (isGenerationSubmitTool(record.toolName)) {
     return block(record, 'task', '创建生成任务', compactLines([
-      record.summary,
-      statusLine,
-    ]))
-  }
-
-  if (record.toolName === 'candidate_asset_slot_attach') {
-    return block(record, 'write', '写入素材候选', compactLines([
-      record.summary,
-      statusLine,
-    ]))
-  }
-
-  if (record.toolName === 'candidate_keyframe_attach') {
-    return block(record, 'write', '写入关键帧候选', compactLines([
       record.summary,
       statusLine,
     ]))

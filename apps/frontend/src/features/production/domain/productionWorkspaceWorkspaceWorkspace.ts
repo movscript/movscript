@@ -2,7 +2,7 @@ import type { SemanticEntityRecord } from '@/shared/infrastructure/api/semanticE
 import type {
   AssetSlotRecord,
   ContentUnitRecord,
-  CreativeReferenceRecord,
+  SettingRecord,
   KeyframeRecord,
   SceneMomentRecord,
   SegmentRecord,
@@ -22,7 +22,7 @@ export interface ProductionWorkspaceArtifactData {
   sceneMoments: SceneMomentRecord[]
   writingExpressions: WritingExpressionRecord[]
   contentUnits: ContentUnitRecord[]
-  creativeReferenceUsages: SemanticEntityRecord[]
+  settingUsages: SemanticEntityRecord[]
   assetSlots: AssetSlotRecord[]
   keyframes: KeyframeRecord[]
   segmentKeyByWorkspaceId: Map<number, string>
@@ -39,14 +39,14 @@ export function buildProductionWorkspaceArtifactData(
   workspace: ProductionWorkspaceArtifactContent,
   input: {
     productionId: number
-    creativeReferences: CreativeReferenceRecord[]
+    settings: SettingRecord[]
   },
 ): ProductionWorkspaceArtifactData {
   const segments: SegmentRecord[] = []
   const sceneMoments: SceneMomentRecord[] = []
   const writingExpressions: WritingExpressionRecord[] = []
   const contentUnits: ContentUnitRecord[] = []
-  const creativeReferenceUsages: SemanticEntityRecord[] = []
+  const settingUsages: SemanticEntityRecord[] = []
   const assetSlots: AssetSlotRecord[] = []
   const keyframes: KeyframeRecord[] = []
   const segmentKeyByWorkspaceId = new Map<number, string>()
@@ -54,7 +54,7 @@ export function buildProductionWorkspaceArtifactData(
   const contentUnitKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; unitKey: string }>()
   const writingExpressionKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>()
   const referenceUsageByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; referenceKey: string }>()
-  const referenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
+  const referenceById = new Map(input.settings.map((reference) => [reference.ID, reference]))
 
   workspace.workspace.segments.forEach((segment, segmentIndex) => {
     const segmentKey = productionWorkspaceArtifactNodeKey(segment, `segment:${segmentIndex}`)
@@ -130,16 +130,16 @@ export function buildProductionWorkspaceArtifactData(
         })
       })
 
-      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
+      ;(moment.settings ?? []).forEach((reference, referenceIndex) => {
         const referenceKey = productionWorkspaceArtifactNodeKey(reference, `reference:${referenceIndex}`)
         const referenceId = workspaceReferenceId(reference, referenceKey, referenceById)
         const usageId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}/${referenceKey}/usage`)
         referenceUsageByWorkspaceId.set(usageId, { segmentKey, momentKey, referenceKey })
-        creativeReferenceUsages.push({
+        settingUsages.push({
           ID: usageId,
           owner_type: 'scene_moment',
           owner_id: momentId,
-          creative_reference_id: referenceId,
+          setting_id: referenceId,
           role: reference.role ?? 'supporting',
           status: 'workspace',
         })
@@ -168,7 +168,7 @@ export function buildProductionWorkspaceArtifactData(
     sceneMoments,
     writingExpressions,
     contentUnits,
-    creativeReferenceUsages,
+    settingUsages,
     assetSlots,
     keyframes,
     segmentKeyByWorkspaceId,
@@ -190,7 +190,7 @@ export function workspaceIdForWorkspaceNode(key: string, persistedId?: number) {
 function workspaceReferenceId(
   reference: WorkspaceCreativeRefNode,
   referenceKey: string,
-  referenceById: Map<number, CreativeReferenceRecord>,
+  referenceById: Map<number, SettingRecord>,
 ) {
   if (reference.id && referenceById.has(reference.id)) return reference.id
   return workspaceIdForWorkspaceNode(referenceKey, reference.id)
@@ -205,7 +205,7 @@ function stableHash(value: string) {
   return (hash >>> 0) || 1
 }
 
-export function workspaceCreativeReferenceFromRecord(reference: CreativeReferenceRecord): WorkspaceCreativeRefNode {
+export function workspaceSettingFromRecord(reference: SettingRecord): WorkspaceCreativeRefNode {
   return {
     id: reference.ID,
     name: String(reference.name ?? reference.title ?? reference.label ?? `设定 #${reference.ID}`),

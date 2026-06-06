@@ -1,6 +1,6 @@
 import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { ensureMovScriptWorkspaceRoot, resolveMovScriptWorkspaceRootPaths } from '@movscript/workspaces/node'
+import { ensureMovScriptWorkspaceRoot, resolveMovScriptWorkspaceRootPaths } from '@movscript/core/workspace/node'
 import type {
   ElectronMovScriptWorkspaceFileReadResult,
   ElectronMovScriptWorkspaceFilesInput,
@@ -13,7 +13,14 @@ const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 export async function listMovScriptWorkspaceFiles(input?: ElectronMovScriptWorkspaceFilesInput): Promise<ElectronMovScriptWorkspaceFilesListResult> {
   const target = await resolveMovScriptWorkspaceFilePath(input)
   await mkdir(target.rootPath, { recursive: true })
-  const targetStat = await stat(target.absolutePath)
+  const targetStat = await statSafe(target.absolutePath)
+  if (!targetStat) {
+    return {
+      rootPath: target.rootPath,
+      path: target.relativePath,
+      entries: [],
+    }
+  }
   const directoryPath = targetStat.isDirectory() ? target.absolutePath : dirname(target.absolutePath)
   const entries = await readdir(directoryPath, { withFileTypes: true })
   const rows = await Promise.all(entries
@@ -111,6 +118,15 @@ function toWorkspaceRelativePath(rootPath: string, absolutePath: string): string
 async function lstatSafe(absolutePath: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {
   try {
     return await lstat(absolutePath)
+  } catch (error) {
+    if (isNotFoundError(error)) return undefined
+    throw error
+  }
+}
+
+async function statSafe(absolutePath: string): Promise<Awaited<ReturnType<typeof stat>> | undefined> {
+  try {
+    return await stat(absolutePath)
   } catch (error) {
     if (isNotFoundError(error)) return undefined
     throw error

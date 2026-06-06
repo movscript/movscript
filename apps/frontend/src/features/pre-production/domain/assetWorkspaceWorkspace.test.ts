@@ -22,7 +22,7 @@ test('buildEmptyAssetWorkspaceArtifactShellContent creates canonical snapshot sh
   assert.equal(content.assetSlotId, 12)
   assert.equal(content.slot.id, 12)
   assert.equal(content.slot.name, '角色半身照')
-  assert.deepEqual(content.workspace.creative_references, [])
+  assert.deepEqual(content.workspace.settings, [])
   assert.deepEqual(content.workspace.asset_slots, [])
   assert.deepEqual(content.workspace.candidate_plans, [])
   assert.deepEqual(content.context.reference_resources, [

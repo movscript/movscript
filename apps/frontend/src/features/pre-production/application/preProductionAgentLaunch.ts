@@ -165,10 +165,10 @@ export function buildPreProductionAuditAgentPanelWorkspacePayload(input: PreProd
       message: [
         `请梳理当前项目「${input.projectLabel}」的前期准备。`,
         '读取当前 workspace model / 已有 workspace 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅工作区变更：',
-        '1. 如果设定资料缺漏、重复、下一步不清晰，打开或更新 setting_workspace 草案；只修改 workspace.creative_references，不写 asset_slots。',
-        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，打开或更新 asset_workspace 草案；只修改 workspace.asset_slots，workspace.creative_references 必须为空。',
+        '1. 如果设定资料缺漏、重复、下一步不清晰，打开或更新 setting_workspace 草案；只修改 workspace.settings，不写 asset_slots。',
+        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，打开或更新 asset_workspace 草案；只修改 workspace.asset_slots，workspace.settings 必须为空。',
         '3. 本轮只做设定与素材需求草案；不处理图片/视频输出、媒体任务或候选 prompt。',
-        '4. 已有 setting_workspace 草案时，直接读取并局部编辑 workspace.creative_references；不要用 live creative reference 查询重写整份快照。',
+        '4. 已有 setting_workspace 草案时，直接读取并局部编辑 workspace.settings；不要用 live setting 查询重写整份快照。',
         '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 workspace seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
         '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
       ].join('\n'),

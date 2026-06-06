@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -310,22 +311,6 @@ func TestProjectAdminDetailReturnsOperationalSummary(t *testing.T) {
 	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: "owner"}).Error; err != nil {
 		t.Fatalf("create owner member: %v", err)
 	}
-	if err := db.Create(&persistencemodel.Script{ProjectID: project.ID, Title: "Script", AuthorID: owner.ID}).Error; err != nil {
-		t.Fatalf("create script: %v", err)
-	}
-	if err := db.Create(&persistencemodel.ContentUnit{ProjectID: project.ID, Kind: "shot", Title: "Shot"}).Error; err != nil {
-		t.Fatalf("create content unit: %v", err)
-	}
-	if err := db.Create(&persistencemodel.AssetSlot{ProjectID: project.ID, Kind: "image", Name: "Hero"}).Error; err != nil {
-		t.Fatalf("create asset slot: %v", err)
-	}
-	resource := persistencemodel.RawResource{Name: "Asset", OwnerID: owner.ID, Type: "image", FilePath: "asset.png"}
-	if err := db.Create(&resource).Error; err != nil {
-		t.Fatalf("create resource: %v", err)
-	}
-	if err := db.Create(&persistencemodel.ResourceBinding{ProjectID: project.ID, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 1, Role: "reference"}).Error; err != nil {
-		t.Fatalf("create resource binding: %v", err)
-	}
 	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
 		t.Fatalf("create usage: %v", err)
 	}
@@ -344,12 +329,8 @@ func TestProjectAdminDetailReturnsOperationalSummary(t *testing.T) {
 		Project struct {
 			ID uint `json:"ID"`
 		} `json:"project"`
-		MemberCount      int64 `json:"member_count"`
-		ScriptCount      int64 `json:"script_count"`
-		ContentUnitCount int64 `json:"content_unit_count"`
-		AssetSlotCount   int64 `json:"asset_slot_count"`
-		ResourceCount    int64 `json:"resource_count"`
-		Usage            struct {
+		MemberCount int64 `json:"member_count"`
+		Usage       struct {
 			Calls        int64   `json:"calls"`
 			Cost         float64 `json:"cost"`
 			InputTokens  int64   `json:"input_tokens"`
@@ -364,7 +345,7 @@ func TestProjectAdminDetailReturnsOperationalSummary(t *testing.T) {
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode project detail: %v", err)
 	}
-	if body.Project.ID != project.ID || body.MemberCount != 1 || body.ScriptCount != 1 || body.ContentUnitCount != 1 || body.AssetSlotCount != 1 || body.ResourceCount != 1 {
+	if body.Project.ID != project.ID || body.MemberCount != 1 {
 		t.Fatalf("unexpected detail counts: %+v", body)
 	}
 	if body.Usage.Calls != 1 || body.Usage.Cost != 3.5 || body.Usage.InputTokens != 5 || body.Usage.OutputTokens != 7 || body.Usage.Images != 2 {
@@ -685,6 +666,128 @@ func TestProjectMemberActionsWriteOrgAudit(t *testing.T) {
 	}
 }
 
+func TestProjectGitProxyAllowsPushOnlyAndInjectsServerToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-project-git-proxy.db",
+		&persistencemodel.User{},
+		&persistencemodel.Organization{},
+		&persistencemodel.OrganizationMember{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectMember{},
+		&persistencemodel.ProjectRepository{},
+	)
+
+	owner := persistencemodel.User{Username: "git-proxy-owner", Status: "active"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	org := persistencemodel.Organization{Name: "Git Proxy Org", Slug: "git-proxy-org", Plan: "team", Status: "active", CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	orgMember := persistencemodel.OrganizationMember{OrgID: org.ID, UserID: owner.ID, Role: "owner"}
+	if err := db.Create(&orgMember).Error; err != nil {
+		t.Fatalf("create org member: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Git Proxy Project", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: "owner"}).Error; err != nil {
+		t.Fatalf("create project owner member: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectRepository{
+		ProjectID:     project.ID,
+		Provider:      "gitea",
+		Owner:         "movscript",
+		Repo:          "project-1",
+		DefaultBranch: "main",
+		Status:        "active",
+	}).Error; err != nil {
+		t.Fatalf("create project repository: %v", err)
+	}
+
+	upstream := &captureRoundTripper{}
+
+	h := NewProjectHandler(db.Session(&gorm.Session{SkipHooks: true}))
+	h.giteaBaseURL = "http://gitea.local"
+	h.giteaToken = "server-gitea-token"
+	h.httpClient = &http.Client{Transport: upstream}
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.ContextUserKey, domainauth.UserProfile{
+			ID:         owner.ID,
+			Username:   owner.Username,
+			SystemRole: domainauth.SystemRoleUser,
+			Status:     domainauth.UserStatusActive,
+		})
+		c.Set(middleware.ContextOrgMemberKey, domainorg.OrganizationMember{
+			ID:     orgMember.ID,
+			OrgID:  org.ID,
+			UserID: owner.ID,
+			Role:   orgMember.Role,
+		})
+		c.Next()
+	})
+	router.Any("/projects/:id/git/*gitPath", h.GitProxy)
+
+	fetchReq := httptest.NewRequest(
+		http.MethodGet,
+		"/projects/"+strconv.FormatUint(uint64(project.ID), 10)+"/git/project-1.git/info/refs?service=git-upload-pack",
+		nil,
+	)
+	fetchReq.Header.Set("Authorization", "Bearer client-token")
+	fetchRes := httptest.NewRecorder()
+	router.ServeHTTP(fetchRes, fetchReq)
+	if fetchRes.Code != http.StatusForbidden {
+		t.Fatalf("expected upload-pack rejected, got %d: %s", fetchRes.Code, fetchRes.Body.String())
+	}
+	if upstream.calls != 0 {
+		t.Fatalf("upload-pack should not reach upstream, calls=%d", upstream.calls)
+	}
+
+	pushReq := httptest.NewRequest(
+		http.MethodPost,
+		"/projects/"+strconv.FormatUint(uint64(project.ID), 10)+"/git/project-1.git/git-receive-pack",
+		strings.NewReader("git-pack-body"),
+	)
+	pushReq.Header.Set("Authorization", "Bearer client-token")
+	pushReq.Header.Set("Content-Type", "application/x-git-receive-pack-request")
+	pushRes := httptest.NewRecorder()
+	router.ServeHTTP(pushRes, pushReq)
+	if pushRes.Code != http.StatusOK {
+		t.Fatalf("expected receive-pack forwarded, got %d: %s", pushRes.Code, pushRes.Body.String())
+	}
+	if upstream.calls != 1 {
+		t.Fatalf("receive-pack upstream calls = %d, want 1", upstream.calls)
+	}
+	if upstream.auth != "token server-gitea-token" {
+		t.Fatalf("upstream auth = %q, want server token", upstream.auth)
+	}
+	if upstream.path != "/movscript/project-1.git/git-receive-pack" {
+		t.Fatalf("upstream path = %q", upstream.path)
+	}
+}
+
+type captureRoundTripper struct {
+	calls int
+	auth  string
+	path  string
+}
+
+func (t *captureRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.calls++
+	t.auth = req.Header.Get("Authorization")
+	t.path = req.URL.Path
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/x-git-receive-pack-result"}},
+		Body:       io.NopCloser(strings.NewReader("ok")),
+		Request:    req,
+	}, nil
+}
+
 func assertProjectAuditOrgID(t *testing.T, db *gorm.DB, action string, orgID uint) {
 	t.Helper()
 	var auditRow persistencemodel.AuditLog
@@ -703,11 +806,6 @@ func newTestProjectAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		&persistencemodel.Organization{},
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectMember{},
-		&persistencemodel.Script{},
-		&persistencemodel.ContentUnit{},
-		&persistencemodel.AssetSlot{},
-		&persistencemodel.RawResource{},
-		&persistencemodel.ResourceBinding{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.AuditLog{},
 	)

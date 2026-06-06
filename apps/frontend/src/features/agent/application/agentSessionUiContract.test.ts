@@ -1493,7 +1493,7 @@ test('agent session UI renders asset slot candidate approvals as summary cards',
 
   assert.match(runInteractionBubbleSource, /AssetSlotCandidateApprovalDetails/)
   assert.match(runInteractionBubbleSource, /assetSlotCandidateApprovalView\(approval\)/)
-  assert.match(runInteractionBubbleSource, /approval\.toolName !== 'candidate_asset_slot_attach'/)
+  assert.match(runInteractionBubbleSource, /approval\.toolName !== 'asset_candidate_write'/)
   assert.match(runInteractionBubbleSource, /素材槽 #/)
   assert.match(runInteractionBubbleSource, /只加入候选集，不会锁定、采纳或替换当前素材。/)
   assert.match(runInteractionBubbleSource, /output_resource_id/)

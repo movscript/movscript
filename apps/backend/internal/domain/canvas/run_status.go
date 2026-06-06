@@ -72,12 +72,17 @@ type CanvasTaskPatch struct {
 }
 
 type CanvasOutput struct {
-	ID          uint
-	CanvasID    uint
-	CanvasRunID *uint
-	ResourceID  *uint
-	ValueJSON   string
-	Status      string
+	ID           uint
+	ProjectID    uint
+	CanvasID     uint
+	CanvasRunID  *uint
+	CanvasNodeID string
+	PortID       string
+	OutputType   string
+	ResourceID   *uint
+	ValueJSON    string
+	Status       string
+	MetadataJSON string
 }
 
 func NewRun(cv CanvasGraph, inputValues any, startedAt time.Time) CanvasRun {

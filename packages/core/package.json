@@ -1,0 +1,82 @@
+{
+  "name": "@movscript/core",
+  "version": "0.1.0",
+  "description": "MovScript domain core shared by CLI, frontend, and provider adapters.",
+  "license": "MIT",
+  "type": "module",
+  "files": ["dist"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "require": "./dist/node.cjs"
+    },
+    "./workspace": {
+      "types": "./dist/workspace/index.d.ts",
+      "import": "./dist/workspace/index.js",
+      "require": "./dist/workspace/index.cjs"
+    },
+    "./workspace/node": {
+      "types": "./dist/workspace/node/index.d.ts",
+      "import": "./dist/workspace/node/index.js",
+      "require": "./dist/workspace/node/index.cjs"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js",
+      "require": "./dist/mcp/index.cjs"
+    },
+    "./mcp/node": {
+      "types": "./dist/mcp/node/index.d.ts",
+      "import": "./dist/mcp/node/index.js",
+      "require": "./dist/mcp/node/index.cjs"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "import": "./dist/backend/index.js",
+      "require": "./dist/backend/index.cjs"
+    },
+    "./backend/node": {
+      "types": "./dist/backend/node/index.d.ts",
+      "import": "./dist/backend/node/index.js",
+      "require": "./dist/backend/node/index.cjs"
+    },
+    "./workspace-contracts": {
+      "types": "./dist/workspace-contracts.d.ts",
+      "import": "./dist/workspace-contracts.js",
+      "require": "./dist/workspace-contracts.cjs"
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.js",
+      "require": "./dist/plugins/index.cjs"
+    },
+    "./plugins/node": {
+      "types": "./dist/plugins/node/index.d.ts",
+      "import": "./dist/plugins/node/index.js",
+      "require": "./dist/plugins/node/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
-import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/core/workspace-contracts'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
@@ -106,7 +106,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         status: 'workspace',
         order: 1,
       }],
-      'creative-references': [{
+      'settings': [{
         ID: 501,
         project_id: PROJECT_ID,
         name: '空间设定',
@@ -121,12 +121,12 @@ async function mockProductionOrchestrationEntities(page: Page) {
         status: 'workspace',
         description: '即使暂时没有被当前制作引用，也应在资源池中可见。',
       }],
-      'creative-reference-usages': [{
+      'setting-usages': [{
         ID: 601,
         project_id: PROJECT_ID,
         owner_type: 'scene_moment',
         owner_id: 402,
-        creative_reference_id: 501,
+        setting_id: 501,
         role: 'supporting',
         status: 'workspace',
       }],
@@ -158,7 +158,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         name: '入口空间示意',
         kind: 'image',
         status: 'missing',
-        creative_reference_id: 501,
+        setting_id: 501,
         owner_type: 'scene_moment',
         owner_id: 402,
         description: '用于统一入口空间气质的素材需求。',
@@ -192,10 +192,10 @@ async function mockProductionOrchestrationEntities(page: Page) {
     })
   })
 
-  await page.route(/\/workspaces(?:[/?#]|$)/, async (route) => {
+  await page.route(/\/core\/workspace-contracts(?:[\/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
-    if (pathname === '/workspaces' || pathname === '/workspaces/') {
+    if (pathname === '/core/workspace-contracts' || pathname === '/core/workspace-contracts/') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -215,7 +215,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
           content: JSON.stringify({
             summary: '项目级设定与素材工作区',
             workspace: {
-              creative_references: [{
+              settings: [{
                 title: '风格统一',
                 description: '确保视觉与叙事风格保持一致。',
               }],

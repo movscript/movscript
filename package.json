@@ -16,7 +16,6 @@
   "testSuites": {
     "scripts": [
       "tests/scripts/app-server-entrypoints.test.mjs",
-      "tests/scripts/editable-projections-package-gate.test.mjs",
       "tests/scripts/run-node-tests.test.mjs",
       "tests/scripts/run-with-env.test.mjs",
       "tests/scripts/verifier-utils.test.mjs",

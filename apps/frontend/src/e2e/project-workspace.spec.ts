@@ -70,7 +70,7 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
     const entityPath = url.pathname.split('/').at(-1)
     const data: Record<string, unknown[]> = {
       productions: [{ ID: 301, name: 'E2E 制作', status: 'planning', project_id: PROJECT_ID }],
-      'creative-references': [{
+      'settings': [{
         ID: 501,
         project_id: PROJECT_ID,
         name: '角色设定',
@@ -78,7 +78,7 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
         status: 'confirmed',
         description: '角色作为本项目的主要视觉基准。',
       }],
-      'creative-reference-usages': [],
+      'setting-usages': [],
       'creative-relationships': [],
       'asset-slots': [{
         ID: 701,
@@ -86,7 +86,7 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
         name: '角色主视图',
         kind: 'image',
         status: 'missing',
-        creative_reference_id: 501,
+        setting_id: 501,
         description: '用于统一角色正面造型的可复用素材。',
       }],
       'asset-slot-candidates': [],

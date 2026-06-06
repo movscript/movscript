@@ -26,7 +26,7 @@ test('listing the MovScript workspace root initializes core control directories'
   }
 })
 
-test('manages frontend-owned MovScript workspace files under .movscript', async () => {
+test('manages MovScript workspace files under .movscript', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-'))
   try {
     const written = await writeMovScriptWorkspaceFile({
@@ -47,6 +47,21 @@ test('manages frontend-owned MovScript workspace files under .movscript', async 
     await deleteMovScriptWorkspaceFile({ workspaceDir, path: 'drafts/project.workspace.json' })
     const afterDelete = await listMovScriptWorkspaceFiles({ workspaceDir, path: 'drafts' })
     assert.deepEqual(afterDelete.entries, [])
+  } finally {
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('listing a missing MovScript workspace folder returns an empty directory view', async () => {
+  const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-missing-'))
+  try {
+    const listed = await listMovScriptWorkspaceFiles({
+      workspaceDir,
+      path: 'data/users/local/projects/1/references',
+    })
+
+    assert.equal(listed.path, 'data/users/local/projects/1/references')
+    assert.deepEqual(listed.entries, [])
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
