@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Blocks, Bot, Cable, ClipboardList, MessageSquare, Network, Play, PlugZap, Power, RefreshCw, RotateCw, Settings, Square, Terminal, Trash2 } from 'lucide-react'
@@ -72,6 +72,12 @@ import {
   agentSeverityStatusRecipe,
 } from '@/features/agent/presentation/agentSemanticUi'
 import { type ProviderSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
+import type {
+  ElectronAppServerConfigStatus,
+  ElectronAppServerLogEvent,
+  ElectronAppServerStatus,
+  ElectronMovScriptWorkspaceContext,
+} from '@/shared/contracts/electronApi'
 import { type ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import {
   errorMessage,
@@ -91,6 +97,21 @@ import {
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 type ConsoleIssue = AgentControlIssue
+const APP_SERVER_LOG_LINE_LIMIT = 500
+
+type AppServerLogLine = ElectronAppServerLogEvent & {
+  id: string
+  text: string
+  providerLabel?: string
+}
+
+type AppServerLogProfile = {
+  profileId: string
+  providerLabel: string
+}
+
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g
+const ANSI_SGR_FRAGMENT_PATTERN = /\[(?:\d{1,3}(?:;\d{1,3})*)m/g
 
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
@@ -139,7 +160,22 @@ export default function AgentConsolePage() {
     () => providerSettings.providers.filter(usesAppServerProtocol),
     [providerSettings],
   )
+  const appServerLogProfiles = useMemo(
+    () => appServerProvidersForManagement.flatMap((provider) => {
+      try {
+        const profile = resolveAppServerProfile(provider)
+        return [{
+          profileId: profile.id,
+          providerLabel: provider.label,
+        }]
+      } catch {
+        return []
+      }
+    }),
+    [appServerProvidersForManagement],
+  )
   const agentsConfigRoute = appServerProvider ? providerRoute(appServerProvider) : ROUTES.agents
+  const appServerLogs = useAppServerRealtimeLogs(appServerLogProfiles)
 
   return (
     <AgentPageShell data-testid="agent-console-page">
@@ -223,8 +259,8 @@ export default function AgentConsolePage() {
           />
         </AgentConsoleMetricGrid>
 
-        <AgentConsoleMainGrid>
-          <AgentConsoleMainColumn>
+        <AgentConsoleMainGrid className="agent-console-main-grid--control-logs">
+          <AgentConsoleMainColumn className="agent-console-main-column--config">
             <AgentControlMatrixPanel
               appServerLabel={appServerProvider?.label ?? 'App Server Agent'}
               appServerConfigRoute={agentsConfigRoute}
@@ -259,7 +295,15 @@ export default function AgentConsolePage() {
 
           </AgentConsoleMainColumn>
 
-          <AgentConsoleSidebar>
+          <AgentConsoleSidebar className="agent-console-sidebar--logs">
+            <AppServerRealtimeLogPanel
+              logs={appServerLogs}
+              status={appServerStatusQuery.data}
+              profiles={appServerLogProfiles}
+              primaryProfileId={appServerProfile?.id ?? 'none'}
+              primaryProviderLabel={appServerProvider?.label ?? 'App Server Agent'}
+            />
+
             <ConsolePanel title="当前边界" icon={<ClipboardList size={14} />}>
               <AgentConsoleGrid>
                 <BoundaryCard title="业务前台" detail="Agent 面板发起任务，业务页面负责对比、审阅和应用建议。" />
@@ -314,6 +358,153 @@ export default function AgentConsolePage() {
       </AgentPageShellBody>
     </AgentPageShell>
   )
+}
+
+function useAppServerRealtimeLogs(profiles: AppServerLogProfile[]): AppServerLogLine[] {
+  const [logs, setLogs] = useState<AppServerLogLine[]>([])
+  const sequenceRef = useRef(0)
+  const profileKey = useMemo(
+    () => profiles.map((profile) => `${profile.profileId}:${profile.providerLabel}`).sort().join('|'),
+    [profiles],
+  )
+
+  useEffect(() => {
+    setLogs([])
+    sequenceRef.current = 0
+    const profileLabelsById = new Map(profiles.map((profile) => [profile.profileId, profile.providerLabel]))
+    if (profileLabelsById.size === 0) return undefined
+    const unsubscribe = window.api?.onAppServerLog?.((event) => {
+      const providerLabel = profileLabelsById.get(event.profileId)
+      if (!providerLabel) return
+      const rawLines = sanitizeAppServerLogText(event.chunk).replace(/\r\n/g, '\n').split('\n')
+      const lines = rawLines.filter((line, index) => line.length > 0 || index === 0)
+      if (lines.length === 0) return
+      setLogs((current) => {
+        const next = [
+          ...current,
+          ...lines.map((line) => ({
+            ...event,
+            id: `${event.at}:${event.stream}:${sequenceRef.current++}`,
+            text: line,
+            providerLabel,
+          })),
+        ]
+        return next.length > APP_SERVER_LOG_LINE_LIMIT ? next.slice(next.length - APP_SERVER_LOG_LINE_LIMIT) : next
+      })
+    })
+    return unsubscribe
+  }, [profileKey])
+
+  return logs
+}
+
+export function sanitizeAppServerLogText(text: string): string {
+  return text
+    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
+    .replace(ANSI_SGR_FRAGMENT_PATTERN, '')
+}
+
+function AppServerRealtimeLogPanel({
+  logs,
+  status,
+  profiles,
+  primaryProfileId,
+  primaryProviderLabel,
+}: {
+  logs: AppServerLogLine[]
+  status?: ElectronAppServerStatus
+  profiles: AppServerLogProfile[]
+  primaryProfileId: string
+  primaryProviderLabel: string
+}) {
+  const streamRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const element = streamRef.current
+    if (!element) return
+    element.scrollTop = element.scrollHeight
+  }, [logs])
+
+  const config = status?.config
+  return (
+    <ConsolePanel
+      title="app-server 实时日志"
+      icon={<Terminal size={14} />}
+      action={
+        <AgentConsolePanelActions>
+          <AgentConsoleStatusBadge intent={status?.running ? 'success' : 'neutral'} emphasis="soft">
+            {status?.running ? '运行中' : '未启动'}
+          </AgentConsoleStatusBadge>
+          <AgentConsoleStatusBadge intent={logs.length > 0 ? 'success' : 'neutral'} emphasis="soft">
+            {logs.length} 行
+          </AgentConsoleStatusBadge>
+      </AgentConsolePanelActions>
+      }
+    >
+      <div className="agent-console-log-summary">
+        <LogSummaryItem label="Primary" value={primaryProviderLabel} />
+        <LogSummaryItem label="Primary Profile" value={primaryProfileId} />
+        <LogSummaryItem label="Listening" value={formatAppServerLogProfiles(profiles)} />
+        <LogSummaryItem label="PID" value={status?.pid ? String(status.pid) : '-'} />
+        <LogSummaryItem label="Endpoint" value={status?.endpoint ?? '-'} />
+        <LogSummaryItem label="Home" value={status?.home ?? '-'} />
+        <LogSummaryItem label="CWD" value={status?.providerSessionCwd ?? '-'} />
+        <LogSummaryItem label="Workspace" value={formatWorkspaceContext(status?.workspaceContext)} />
+        <LogSummaryItem label="Base URL" value={config?.baseURL ?? '-'} />
+        <LogSummaryItem label="Account" value={formatAppServerAccount(config)} />
+        <LogSummaryItem label="RUST_LOG" value={status?.rustLog ?? 'info'} />
+      </div>
+      {status?.error ? <AgentConsoleInlineError>{status.error}</AgentConsoleInlineError> : null}
+      <div ref={streamRef} className="agent-console-log-stream" data-testid="agent-console-app-server-log-stream">
+        {logs.length === 0 ? (
+          <p className="agent-console-log-empty">等待 app-server 输出。</p>
+        ) : (
+          logs.map((line) => (
+            <div key={line.id} className="agent-console-log-line" data-stream={line.stream}>
+              <span className="agent-console-log-line__time">{formatLogTime(line.at)}</span>
+              <span className="agent-console-log-line__stream">{line.stream}</span>
+              <span className="agent-console-log-line__stream" title={line.profileId}>{line.providerLabel ?? line.profileId}</span>
+              <span className="agent-console-log-line__text">{line.text}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </ConsolePanel>
+  )
+}
+
+function LogSummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="agent-console-log-summary__item">
+      <span className="agent-console-log-summary__label">{label}</span>
+      <span className="agent-console-log-summary__value" title={value}>{value}</span>
+    </div>
+  )
+}
+
+function formatWorkspaceContext(context?: ElectronMovScriptWorkspaceContext): string {
+  if (!context) return '-'
+  return [
+    context.scope ?? 'global',
+    context.userId ? `user=${context.userId}` : undefined,
+    context.projectId ? `project=${context.projectId}` : undefined,
+    context.productionId ? `production=${context.productionId}` : undefined,
+  ].filter(Boolean).join(' / ')
+}
+
+function formatAppServerAccount(config?: ElectronAppServerConfigStatus): string {
+  if (!config) return '-'
+  return `${config.accountSource}${config.apiKeyConfigured ? ' / api key' : ''}`
+}
+
+function formatAppServerLogProfiles(profiles: AppServerLogProfile[]): string {
+  if (profiles.length === 0) return '-'
+  return profiles.map((profile) => `${profile.providerLabel} (${profile.profileId})`).join(', ')
+}
+
+function formatLogTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function AgentCapabilityProbePanel() {
@@ -556,7 +747,7 @@ function AgentSessionIntegrationPanel({
 
       <AgentConsoleGrid columns="three">
         <BoundaryCard title="Conversation Record" detail="面板、项目页和历史列表共用一个会话对象；不再按 provider 分散保存 activeThreadId。" />
-        <BoundaryCard title="Provider ThreadRef" detail="ThreadRef 携带 providerId、providerInstanceId、threadId、sessionId、workspaceDir，避免跨 provider 冲突。" />
+        <BoundaryCard title="Provider ThreadRef" detail="ThreadRef 携带 providerId、providerInstanceId、threadId、runtime session 或 session tree、workspaceDir，避免跨 provider 冲突。" />
         <BoundaryCard title="Participants" detail="主会话可以挂多个 worker/subagent thread，Pinned Status 和 Trace 从 participant refs 聚合。" />
       </AgentConsoleGrid>
 
@@ -659,7 +850,7 @@ function ConversationThreadRefRow({
         <AgentConsoleLocalToolCopy>
           <AgentConsoleLocalToolTitle>{thread.title || thread.id}</AgentConsoleLocalToolTitle>
           <AgentConsoleLocalToolDetail>
-            provider={providerKey} / session={thread.sessionId ?? '-'} / thread={thread.id}
+            provider={providerKey} / runtime session={thread.sessionId ?? '-'} / thread={thread.id}
           </AgentConsoleLocalToolDetail>
         </AgentConsoleLocalToolCopy>
         <AgentConsoleLocalToolControls>
@@ -670,7 +861,7 @@ function ConversationThreadRefRow({
       </AgentConsoleLocalToolHeader>
       <AgentConsoleLocalToolFields>
         <AgentConsoleTestResult tone="neutral">
-          conversation key：{providerKey}:{thread.sessionId ?? 'session'}:{thread.id}
+          conversation key：{providerKey}:{thread.sessionId ?? 'runtime-session'}:{thread.id}
         </AgentConsoleTestResult>
         <AgentConsoleTestResult tone={session?.state?.status === 'running' || session?.state?.status === 'requires_action' ? 'success' : 'neutral'}>
           provider session：{session?.state?.status ?? 'indexed'} / messages={thread.messageCount ?? 0}

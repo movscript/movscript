@@ -716,12 +716,12 @@ test('agent chat notification dispatcher classifies recent capability events sep
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent({ type: 'serverRequestResolved', requestId: 'request_1' }), false)
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent({ type: 'threadLifecycle', action: 'archived', threadId: 'thread_1' }), false)
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent(account), true)
-  assert.equal(agentChatNotificationEventShouldDisplayAsRecent({ type: 'mcpStatus', server: 'fs', status: 'running', error: null }), true)
+  assert.equal(agentChatNotificationEventShouldDisplayAsRecent({ type: 'mcpStatus', server: 'fs', status: 'running', error: null }), false)
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent(globalNotice), true)
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent(turnNotice), false)
 })
 
-test('agent chat notification dispatcher preserves turn-scoped system notice anchors', () => {
+test('agent chat notification dispatcher routes status notices out of turn items', () => {
   const harness = new NotificationHarness()
   dispatchAgentChatNotification({
     method: 'thread/tokenUsage/updated',
@@ -737,19 +737,12 @@ test('agent chat notification dispatcher preserves turn-scoped system notice anc
     },
   }, harness.target())
 
-  const item = harness.threads[0]?.turns[0]?.items[0]
-  assert.equal(item?.type, 'systemNotice')
-  if (item?.type === 'systemNotice') {
-    assert.equal(item.threadId, 'thread_1')
-    assert.equal(item.turnId, 'turn_1')
-    assert.equal(item.code, 'thread/tokenUsage/updated')
-    assert.equal(item.detail, 'total: total 111')
-  }
+  assert.equal(harness.threads[0]?.turns[0]?.items.length, 0)
 })
 
 test('agent chat notification dispatcher recent-event classifier matches dispatch coverage', () => {
   const recentEventTypes = Object.entries(AGENT_CHAT_NOTIFICATION_EVENT_DISPATCH_COVERAGE)
-    .filter(([, coverage]) => coverage.handling.length === 0)
+    .filter(([type, coverage]) => type !== 'mcpStatus' && coverage.handling.length === 0)
     .map(([type]) => type)
     .sort()
   const mutationEventTypes = Object.entries(AGENT_CHAT_NOTIFICATION_EVENT_DISPATCH_COVERAGE)
@@ -757,7 +750,7 @@ test('agent chat notification dispatcher recent-event classifier matches dispatc
     .map(([type]) => type)
     .sort()
 
-  assert.deepEqual(recentEventTypes, ['account', 'fsChanged', 'mcpStatus'])
+  assert.deepEqual(recentEventTypes, ['account', 'fsChanged'])
   assert.deepEqual(mutationEventTypes, ['commandOutput', 'processExited', 'processOutput', 'realtime', 'serverRequestResolved', 'threadLifecycle'])
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent({ type: 'fsChanged', watchId: 'watch_1', changedPaths: [] }), true)
   assert.equal(agentChatNotificationEventShouldDisplayAsRecent({ type: 'realtime', event: 'started', threadId: 'thread_1', realtimeSessionId: null }), true)
@@ -777,8 +770,9 @@ test('agent chat notification dispatcher method branches are covered explicitly'
 test('agent chat notification dispatcher event mutations are covered explicitly', () => {
   const dispatcher = readFileSync(resolve('src/features/agent/domain/agentChatNotificationDispatcher.ts'), 'utf8')
   const implemented = uniqueMatches(dispatcher, /event\.type === '([^']+)'/g)
+    .filter((type) => type !== 'mcpStatus')
   const coveredMutations = Object.entries(AGENT_CHAT_NOTIFICATION_EVENT_DISPATCH_COVERAGE)
-    .filter(([, coverage]) => coverage.handling.length > 0)
+    .filter(([type, coverage]) => type !== 'mcpStatus' && coverage.handling.length > 0)
     .map(([type]) => type)
     .sort()
 

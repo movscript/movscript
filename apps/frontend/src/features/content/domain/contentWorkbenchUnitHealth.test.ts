@@ -48,7 +48,7 @@ test('content workbench unit health identifies hard generation blockers', () => 
   ])
 })
 
-test('content workbench unit health separates core readiness from preview delivery', () => {
+test('content workbench unit health separates core readiness from preview mount', () => {
   const health = buildContentWorkbenchUnitHealth({
     hasSelectedUnit: true,
     hasPrompt: true,
@@ -62,13 +62,12 @@ test('content workbench unit health separates core readiness from preview delive
     runningJobCount: 0,
     completedJobCount: 1,
     previewItemCount: 0,
-    deliveryVersionCount: 0,
   })
 
   assert.equal(health.state, 'ready')
   assert.equal(health.title, '制作项可进入生产')
   assert.equal(health.score, 95)
-  assert.equal(health.checks.find((check) => check.key === 'delivery')?.done, false)
+  assert.equal(health.checks.find((check) => check.key === 'preview')?.done, false)
 })
 
 test('content workbench unit health treats non-visual units as not requiring keyframes', () => {
@@ -93,7 +92,7 @@ test('content workbench unit health treats non-visual units as not requiring key
   assert.equal(health.checks.filter((check) => check.state === 'blocked').length, 0)
 })
 
-test('content workbench unit health reports closed loop after delivery', () => {
+test('content workbench unit health reports closed loop after preview', () => {
   const health = buildContentWorkbenchUnitHealth({
     hasSelectedUnit: true,
     hasPrompt: true,
@@ -107,7 +106,6 @@ test('content workbench unit health reports closed loop after delivery', () => {
     runningJobCount: 0,
     completedJobCount: 1,
     previewItemCount: 1,
-    deliveryVersionCount: 1,
   })
 
   assert.equal(health.state, 'done')

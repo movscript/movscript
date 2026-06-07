@@ -141,46 +141,46 @@
   text-align: center;
 }
 
-.production-workspace-backend-issue {
+.production-workspace-review-preview-issue {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
 
-.production-workspace-backend-issue__icon {
+.production-workspace-review-preview-issue__icon {
   margin-top: 2px;
   flex: 0 0 auto;
 }
 
-.production-workspace-backend-issue__body {
+.production-workspace-review-preview-issue__body {
   min-width: 0;
   flex: 1;
 }
 
-.production-workspace-backend-issue__header {
+.production-workspace-review-preview-issue__header {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.production-workspace-backend-issue__title {
+.production-workspace-review-preview-issue__title {
   margin: 0;
   font-size: var(--ms-text-label);
   font-weight: 600;
   line-height: 18px;
 }
 
-.production-workspace-backend-issue__code {
+.production-workspace-review-preview-issue__code {
   background: color-mix(in srgb, var(--ms-color-background) 70%, transparent);
 }
 
-.production-workspace-backend-issue__message {
+.production-workspace-review-preview-issue__message {
   margin: 4px 0 0;
   font-size: var(--ms-text-caption);
   line-height: 16px;
 }
 
-.production-workspace-backend-issue__detail {
+.production-workspace-review-preview-issue__detail {
   max-height: 112px;
   overflow: auto;
   margin-top: 8px;
@@ -189,14 +189,14 @@
   line-height: 16px;
 }
 
-.production-workspace-backend-issue__hint {
+.production-workspace-review-preview-issue__hint {
   margin: 8px 0 0;
   font-size: var(--ms-text-tiny);
   line-height: 16px;
   opacity: 0.8;
 }
 
-.production-workspace-backend-summary {
+.production-workspace-review-preview-summary {
   display: grid;
   gap: 8px;
   margin-top: 12px;
@@ -204,53 +204,53 @@
   padding-top: 8px;
 }
 
-.production-workspace-backend-summary__warning-header {
+.production-workspace-review-preview-summary__warning-header {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.production-workspace-backend-summary__warning-title {
+.production-workspace-review-preview-summary__warning-title {
   margin: 0;
   font-size: var(--ms-text-caption);
   font-weight: 600;
   line-height: 16px;
 }
 
-.production-workspace-backend-summary__warning-count {
+.production-workspace-review-preview-summary__warning-count {
   margin-left: auto;
   background: color-mix(in srgb, var(--ms-color-background) 60%, transparent);
 }
 
-.production-workspace-backend-summary__warning-list,
-.production-workspace-backend-summary__change-list {
+.production-workspace-review-preview-summary__warning-list,
+.production-workspace-review-preview-summary__change-list {
   display: grid;
   gap: 4px;
   margin-top: 6px;
 }
 
-.production-workspace-backend-summary__warning {
+.production-workspace-review-preview-summary__warning {
   margin: 0;
   font-size: var(--ms-text-tiny);
   line-height: 16px;
 }
 
-.production-workspace-backend-summary__warning-code {
+.production-workspace-review-preview-summary__warning-code {
   font-weight: 500;
 }
 
-.production-workspace-backend-summary__warning-message {
+.production-workspace-review-preview-summary__warning-message {
   opacity: 0.8;
 }
 
-.production-workspace-backend-summary__change {
+.production-workspace-review-preview-summary__change {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
 }
 
-.production-workspace-backend-summary__change-title {
+.production-workspace-review-preview-summary__change-title {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -262,18 +262,18 @@
   white-space: nowrap;
 }
 
-.production-workspace-backend-summary__change-kind,
-.production-workspace-backend-summary__more {
+.production-workspace-review-preview-summary__change-kind,
+.production-workspace-review-preview-summary__more {
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: 14px;
 }
 
-.production-workspace-backend-summary__change-kind {
+.production-workspace-review-preview-summary__change-kind {
   flex: 0 0 auto;
 }
 
-.production-workspace-backend-summary__more {
+.production-workspace-review-preview-summary__more {
   margin: 0;
 }
 
@@ -293,7 +293,7 @@
   line-height: var(--ms-leading-label);
 }
 
-.production-workspace-backend-preview-badge {
+.production-workspace-review-preview-badge {
   height: 20px;
   border-radius: var(--ms-radius-full);
   padding: 0 8px;

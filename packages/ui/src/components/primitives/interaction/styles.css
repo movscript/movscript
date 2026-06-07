@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-control);
   cursor: pointer;
   transition:
     transform var(--ms-duration-fast) var(--ms-easing-standard),

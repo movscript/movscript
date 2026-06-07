@@ -3,14 +3,12 @@ import type { Dispatch, SetStateAction } from 'react'
 import { upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
 import { providerSessionClient, type AgentRun, type ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
 import { providerSessionAssistantProgressFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
-import type { AgentConversationProviderSessionState } from '@/features/agent/state/agentSessionStore'
-
-type ConversationRunPatch = Partial<Omit<AgentConversationProviderSessionState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>
+import type { AgentConversationRuntimePatch } from '@/features/agent/state/agentSessionStore'
 
 export interface UseAgentRunResultActionsInput {
   conversationId: string
   sessionId?: string
-  setConversationRun: (conversationId: string, run: AgentRun, patch?: ConversationRunPatch) => void
+  setConversationRun: (conversationId: string, run: AgentRun, patch?: AgentConversationRuntimePatch) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
   recordLiveTraceEvent: (event: ProviderSessionEventV2) => void
   updateStreamingAssistantText: (runId: string, text: string, roundIndex?: number) => void

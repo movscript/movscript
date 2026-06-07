@@ -1265,7 +1265,7 @@
   min-width: 0;
   gap: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--ms-radius-control);
   background: transparent;
   padding: 0;
   color: inherit;
@@ -1317,7 +1317,7 @@
   align-items: center;
   gap: 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--ms-radius-control);
   background: transparent;
   color: inherit;
   font: inherit;

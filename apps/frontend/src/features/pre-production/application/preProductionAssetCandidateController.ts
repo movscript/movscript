@@ -80,7 +80,7 @@ export async function rejectPreProductionAssetCandidate({
   candidate: AssetSlotCandidateRecord
 }) {
   const scopedProjectId = requirePreProductionProjectId(projectId)
-  if (candidate.__workspace_path) {
+  if (candidate.client_id || candidate.id) {
     await savePreProductionWorkspaceAssetCandidate(scopedProjectId, candidate, { status: 'rejected' })
     return
   }

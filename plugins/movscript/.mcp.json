@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "movscript_workspace": {
+    "movscript": {
       "command": "node",
       "args": [
         "./bin/mcp-stdio-bridge.mjs"

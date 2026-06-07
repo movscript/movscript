@@ -16,4 +16,11 @@ export interface FrontendRouteItem {
   requireOrgAdmin?: boolean
 }
 
+export interface FrontendAppTopControls {
+  modeButtonVariant?: 'ghost' | 'outline'
+  projectMenuVariant?: 'community' | 'enterprise'
+  languageControl?: 'select' | 'menu'
+  settingsAction?: 'accountDialog' | 'appSettingsRoute'
+}
+
 export type FrontendRuntimeEdition = 'community' | 'enterprise'

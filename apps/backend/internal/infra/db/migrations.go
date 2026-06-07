@@ -339,6 +339,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.ProjectRepository{})
 			},
 		},
+		{
+			Version: "000041",
+			Name:    "add_user_git_credentials",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.UserGitCredential{})
+			},
+		},
 	}
 	return core
 }
@@ -865,6 +872,7 @@ func acceptsLegacyMigrationChecksum(migration Migration, checksum string) bool {
 func allModels() []any {
 	entities := []any{
 		&persistencemodel.User{},
+		&persistencemodel.UserGitCredential{},
 		&persistencemodel.AuthSession{},
 		&persistencemodel.AuthChallenge{},
 		&persistencemodel.Project{},
@@ -910,6 +918,7 @@ func allModels() []any {
 func currentSchemaBackfillModels() []any {
 	entities := []any{
 		&persistencemodel.User{},
+		&persistencemodel.UserGitCredential{},
 		&persistencemodel.AuthSession{},
 		&persistencemodel.AuthChallenge{},
 		&persistencemodel.Project{},

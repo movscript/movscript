@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../lib/cn";

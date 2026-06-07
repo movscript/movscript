@@ -574,7 +574,6 @@ export type ResourceBindingOwnerType =
   | 'storyboard_script'
   | 'content_unit'
   | 'keyframe'
-  | 'delivery_version'
   | 'canvas'
 
 export type ResourceBindingRole =

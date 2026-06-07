@@ -49,17 +49,12 @@ export function buildAgentChatSendPipelineInput({
       cancelRequestedRunIdsRef: providerSessionState.cancelRequestedRunIdsRef,
       liveTraceEventsRef: providerSessionState.liveTraceEventsRef,
       clearConversationWorkspace: store.clearConversationWorkspace,
-      setConversationSessionId: store.setConversationSessionId,
-      setConversationProviderThreadId: store.setConversationProviderThreadId,
-      setConversationProviderSessionId: (targetUserId, conversationId, sessionId) => {
-        store.setConversationProviderSessionId(targetUserId, conversationId, sessionId)
-        store.setConversationSessionId(conversationId, sessionId)
-      },
+      setConversationProviderSessionTreeId: store.setConversationProviderSessionTreeId,
       updateConversationTitle: store.updateConversationTitle,
-      setProviderThreadId: store.setProviderThreadId,
+      setConversationProviderThreadBindingId: store.setConversationProviderThreadBindingId,
       setPageTaskRunning: store.setPageTaskRunning,
       setConversationRun: store.setConversationRun,
-      setConversationProviderSessionState: store.setConversationProviderSessionState,
+      updateConversationRuntimeState: store.updateConversationRuntimeState,
       setLiveTraceEvents: providerSessionState.setLiveTraceEvents,
       setPendingHttpEvents: providerSessionState.setPendingHttpEvents,
       setPendingAssistantState: providerSessionState.setPendingAssistantState,
@@ -81,10 +76,21 @@ export function buildAgentChatSendPipelineInput({
       activePendingInputRequest: presentation.activePendingInputRequest,
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
       canSendActiveRunInput: canSendActiveRunInput({
-        run: activeRun ?? store.conversationProviderSessionState?.run ?? null,
+        run: activeRun ?? store.conversationRuntimeState?.run ?? null,
         sessionId: store.providerSessionId,
       }),
       modelId: composer.modelId,
+      threadControl: {
+        ...(composer.collaborationMode === 'plan' ? { collaborationMode: 'plan' as const } : {}),
+        ...(composer.goalModeEnabled
+          ? {
+              goal: {
+                objective: composer.input.trim() || 'MovScript agent goal',
+                status: 'active' as const,
+              },
+            }
+          : {}),
+      },
       debugBeforeSend: providerSessionState.debugBeforeSend,
       pendingSendWorkspace: providerSessionState.pendingSendWorkspace,
       externalTask,
@@ -93,9 +99,9 @@ export function buildAgentChatSendPipelineInput({
       onExternalWorkspaceConsumed,
       updateWorkspace: composer.updateWorkspace,
       setMentionRange: composer.setMentionRange,
-      setConversationBuilding: (patch) => store.setConversationProviderSessionState(conv.id, patch),
+      setConversationBuilding: (patch) => store.updateConversationRuntimeState(conv.id, patch),
       sendActiveRunInput: async ({ content, attachments }) => {
-        const run = activeRun ?? store.conversationProviderSessionState?.run
+        const run = activeRun ?? store.conversationRuntimeState?.run
         if (!run || !store.providerSessionId) throw new Error('active provider session run is not available')
         await sendActiveRunInput({
           content,
@@ -105,7 +111,7 @@ export function buildAgentChatSendPipelineInput({
             sessionId: store.providerSessionId,
             run,
             setConversationRun: store.setConversationRun,
-            setConversationProviderSessionState: store.setConversationProviderSessionState,
+            updateConversationRuntimeState: store.updateConversationRuntimeState,
           },
         })
       },

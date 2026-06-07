@@ -12,6 +12,7 @@ import {
 import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
 import type { AgentAttachment, AgentSettings } from '@/features/agent/state/agentStore'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
+import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel } from '@/types'
 
@@ -27,6 +28,7 @@ export interface BuildAgentSendWorkspaceOptions {
   /** Legacy provider wire key. New client code should use providerSessionLimits. */
   runtimeLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
+  threadControl?: Partial<AgentThreadControlState>
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean

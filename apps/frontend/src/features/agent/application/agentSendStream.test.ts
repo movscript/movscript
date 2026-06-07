@@ -119,7 +119,7 @@ test('handleSendRunUpdate cancels a stoppable run when stop was requested', asyn
   assert.equal(calls.includes('cancelGeneration'), true)
   assert.equal(calls.includes('cancel:run_1:用户停止了当前会话。'), true)
   assert.equal(calls.includes('setRun:run_1:cancelled:true:true:false'), true)
-  assert.equal(calls.includes('providerSession:false:false:false'), true)
+  assert.equal(calls.includes('runtime:false:false:false'), true)
 })
 
 test('handleSendRunUpdate only sends one cancel request per run id', () => {
@@ -204,7 +204,7 @@ function depsFixture(calls: string[], options: {
     requestId: 'request_1',
     liveEvents: () => [] satisfies ChatRunActivityEvent[],
     cancelledRunIds: options.cancelledRunIds ?? new Set<string>(),
-    getConversationProviderSessionState: () => ({ stopRequested: options.stopRequested, run: options.currentRun }),
+    getConversationRuntimeState: () => ({ stopRequested: options.stopRequested, run: options.currentRun }),
     setPendingAssistantState: (value) => {
       const resolved = typeof value === 'function' ? value(options.currentPending ?? null) : value
       calls.push(`pending:${resolved?.status ?? 'null'}`)
@@ -220,8 +220,8 @@ function depsFixture(calls: string[], options: {
     setConversationRun: (run, patch) => {
       calls.push(`setRun:${run.id}:${run.status}:${patch.loading === true}:${patch.stopping === true}:${patch.approving}`)
     },
-    setConversationProviderSessionState: (patch) => {
-      calls.push(`providerSession:${patch.loading === true}:${patch.stopping === true}:${patch.stopRequested}`)
+    updateConversationRuntimeState: (patch) => {
+      calls.push(`runtime:${patch.loading === true}:${patch.stopping === true}:${patch.stopRequested}`)
     },
     cancelGenerationJobIfActive: () => {
       calls.push('cancelGeneration')

@@ -6,7 +6,7 @@ import type {
   MovScriptWorkspaceRepositoryReadResult,
   MovScriptWorkspaceRepositoryWriteInput,
 } from '../repository/types.js'
-import { normalizeWorkspacePath } from '../ontology.js'
+import { normalizeWorkspacePath } from '../layout/index.js'
 
 export function createNodeMovScriptWorkspaceFileRepository(rootDir = process.cwd()): MovScriptWorkspaceFileRepository {
   const root = resolve(rootDir)

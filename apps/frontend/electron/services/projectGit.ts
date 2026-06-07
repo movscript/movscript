@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
@@ -13,10 +13,13 @@ type ProjectGitOperation = 'commit' | 'init' | 'pull' | 'push'
 
 type WorkspaceMetadata = {
   projectId?: number
+  provider?: string
+  owner?: string
   repo?: string
   defaultBranch?: string
   gitRemoteUrl?: string
   status?: string
+  lastSyncError?: string
 }
 
 export async function pushProjectGitWorkspace(input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
@@ -51,14 +54,55 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     }
   }
   const metadata = await fetchWorkspaceMetadata(session, projectId, orgId)
+  logProjectGit('metadata', {
+    operation,
+    projectId,
+    provider: metadata.provider,
+    owner: metadata.owner,
+    repo: metadata.repo,
+    defaultBranch: metadata.defaultBranch,
+    status: metadata.status,
+    lastSyncError: metadata.lastSyncError,
+    gitRemoteUrl: metadata.gitRemoteUrl,
+  })
+  if (metadata.status && metadata.status !== 'active') {
+    return {
+      ok: false,
+      operation,
+      projectId,
+      workspaceDir,
+      path: '',
+      branch: metadata.defaultBranch || 'main',
+      error: `Project repository is not ready: ${metadata.status}${metadata.lastSyncError ? ` (${metadata.lastSyncError})` : ''}`,
+    }
+  }
   const userId = input?.userId ?? session.userId ?? 'local'
   const projectPaths = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId, projectId })
   const branch = metadata.defaultBranch || 'main'
   const remoteURL = absoluteRemoteURL(session.baseURL, metadata.gitRemoteUrl || `/api/v1/projects/${projectId}/git/${metadata.repo || `movscript-project-${projectId}`}.git`)
 
   mkdirSync(projectPaths.projectDir, { recursive: true })
+  if (operation !== 'pull') {
+    ensureProjectReadme(projectPaths.projectDir, projectId)
+  }
+  logProjectGit('start', {
+    operation,
+    projectId,
+    workspaceDir,
+    projectDir: projectPaths.projectDir,
+    remoteURL,
+    branch,
+  })
   const setupOutput = await ensureGitRepository(projectPaths.projectDir, remoteURL)
   if (setupOutput.code !== 0) {
+    logProjectGit('setup failed', {
+      operation,
+      projectId,
+      projectDir: projectPaths.projectDir,
+      code: setupOutput.code,
+      stdout: setupOutput.stdout,
+      stderr: setupOutput.stderr,
+    })
     return {
       ok: false,
       operation,
@@ -73,6 +117,13 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     }
   }
   if (operation === 'init') {
+    logProjectGit('init completed', {
+      operation,
+      projectId,
+      projectDir: projectPaths.projectDir,
+      stdout: setupOutput.stdout,
+      stderr: setupOutput.stderr,
+    })
     return {
       ok: true,
       operation,
@@ -86,11 +137,22 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     }
   }
   const result = operation === 'pull'
-    ? await gitPull(projectPaths.projectDir, remoteURL, branch, session.token, orgId)
+    ? await gitPull(projectPaths.projectDir, remoteURL, branch, session.token, projectId, orgId)
     : operation === 'commit'
       ? await gitCommit(projectPaths.projectDir)
       : await gitPush(projectPaths.projectDir, remoteURL, branch, session.token, orgId)
+  if (operation === 'pull' && result.code === 0) {
+    ensureProjectReadme(projectPaths.projectDir, projectId)
+  }
 
+  logProjectGit('finished', {
+    operation,
+    projectId,
+    projectDir: projectPaths.projectDir,
+    code: result.code,
+    stdout: [setupOutput.stdout, result.stdout].filter(Boolean).join('\n'),
+    stderr: [setupOutput.stderr, result.stderr].filter(Boolean).join('\n'),
+  })
   return {
     ok: result.code === 0,
     operation,
@@ -103,6 +165,28 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     stderr: [setupOutput.stderr, result.stderr].filter(Boolean).join('\n'),
     ...(result.code === 0 ? {} : { error: result.stderr || result.stdout || `git ${operation} failed with exit code ${result.code}` }),
   }
+}
+
+function ensureProjectReadme(projectDir: string, projectId: number): void {
+  const readmePath = join(projectDir, 'project.md')
+  if (existsSync(readmePath)) return
+  writeFileSync(readmePath, projectReadmeContent(projectId), 'utf8')
+  logProjectGit('created project.md', { projectId, projectDir, path: readmePath })
+}
+
+function removeGeneratedProjectReadme(projectDir: string, projectId: number): boolean {
+  const readmePath = join(projectDir, 'project.md')
+  if (!existsSync(readmePath)) return false
+  if (!statSync(readmePath).isFile()) return false
+  const content = readFileSync(readmePath, 'utf8')
+  if (content !== projectReadmeContent(projectId)) return false
+  unlinkSync(readmePath)
+  logProjectGit('removed generated project.md before initial checkout', { projectId, projectDir, path: readmePath })
+  return true
+}
+
+function projectReadmeContent(projectId: number): string {
+  return `# MovScript Project ${projectId}\n\nThis file anchors the project workspace Git repository.\n`
 }
 
 async function fetchWorkspaceMetadata(session: ReturnType<typeof resolveMovScriptBackendSession>, projectId: number, orgId?: string): Promise<WorkspaceMetadata> {
@@ -154,18 +238,64 @@ async function ensureGitIdentity(cwd: string): Promise<void> {
 }
 
 async function gitPush(cwd: string, remoteURL: string, branch: string, token: string, orgId?: string): Promise<GitResult> {
-  const commit = await gitCommit(cwd)
+  const commit = await gitCommit(cwd, { noChangesMessage: null })
   if (commit.code !== 0) return commit
-  return gitWithAuth(cwd, remoteURL, token, orgId, ['push', 'movscript', `HEAD:${branch}`])
+  const push = await gitWithAuth(cwd, remoteURL, token, orgId, ['push', 'movscript', `HEAD:${branch}`])
+  if (push.code === 0 || !isPushRejectedBecauseRemoteHasWork(push)) {
+    return {
+      code: push.code,
+      stdout: [commit.stdout, push.stdout].filter(Boolean).join('\n'),
+      stderr: [commit.stderr, push.stderr].filter(Boolean).join('\n'),
+    }
+  }
+  const sync = await syncRemoteBranchBeforePush(cwd, remoteURL, branch, token, orgId)
+  if (sync.code !== 0) {
+    return {
+      code: sync.code,
+      stdout: [commit.stdout, push.stdout, sync.stdout].filter(Boolean).join('\n'),
+      stderr: [commit.stderr, push.stderr, sync.stderr].filter(Boolean).join('\n'),
+    }
+  }
+  const retryPush = await gitWithAuth(cwd, remoteURL, token, orgId, ['push', 'movscript', `HEAD:${branch}`])
+  return {
+    code: retryPush.code,
+    stdout: [commit.stdout, push.stdout, sync.stdout, retryPush.stdout].filter(Boolean).join('\n'),
+    stderr: [commit.stderr, push.stderr, sync.stderr, retryPush.stderr].filter(Boolean).join('\n'),
+  }
 }
 
-async function gitCommit(cwd: string): Promise<GitResult> {
+function isPushRejectedBecauseRemoteHasWork(result: GitResult): boolean {
+  return /non-fast-forward|fetch first|failed to push some refs|rejected/i.test(`${result.stdout}\n${result.stderr}`)
+}
+
+async function syncRemoteBranchBeforePush(cwd: string, remoteURL: string, branch: string, token: string, orgId?: string): Promise<GitResult> {
+  const fetch = await gitWithAuth(cwd, remoteURL, token, orgId, ['fetch', 'movscript', branch])
+  if (fetch.code !== 0) {
+    if (/couldn't find remote ref|could not find remote ref/i.test(fetch.stderr)) {
+      return { code: 0, stdout: '', stderr: '' }
+    }
+    return fetch
+  }
+  const mergeBase = await git(cwd, ['merge-base', 'HEAD', 'FETCH_HEAD'])
+  const merge = mergeBase.code === 0
+    ? await git(cwd, ['merge', '--ff-only', 'FETCH_HEAD'])
+    : await git(cwd, ['merge', '--allow-unrelated-histories', '--no-edit', 'FETCH_HEAD'])
+  return {
+    code: merge.code,
+    stdout: [fetch.stdout, merge.stdout].filter(Boolean).join('\n'),
+    stderr: [fetch.stderr, merge.stderr].filter(Boolean).join('\n'),
+  }
+}
+
+async function gitCommit(cwd: string, options: { noChangesMessage?: string | null } = {}): Promise<GitResult> {
   const status = await git(cwd, ['status', '--porcelain'])
   if (status.code !== 0) return status
   if (!status.stdout.trim()) {
     const hasHead = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
     if (hasHead.code === 0) {
-      return { code: 0, stdout: 'No local changes to commit.', stderr: '' }
+      const noChangesMessage = options.noChangesMessage === undefined ? 'No local changes to commit.' : options.noChangesMessage
+      logProjectGit('skip commit: no local changes', { cwd, hasHead: true })
+      return { code: 0, stdout: noChangesMessage || '', stderr: '' }
     }
   }
   const add = await git(cwd, ['add', '-A'])
@@ -183,11 +313,12 @@ async function gitCommit(cwd: string): Promise<GitResult> {
   return commit
 }
 
-async function gitPull(cwd: string, remoteURL: string, branch: string, token: string, orgId?: string): Promise<GitResult> {
+async function gitPull(cwd: string, remoteURL: string, branch: string, token: string, projectId: number, orgId?: string): Promise<GitResult> {
   const hasHead = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
   if (hasHead.code !== 0) {
     const fetch = await gitWithAuth(cwd, remoteURL, token, orgId, ['fetch', 'movscript', branch])
     if (fetch.code !== 0) return fetch
+    removeGeneratedProjectReadme(cwd, projectId)
     const checkout = await git(cwd, ['checkout', '-B', branch, 'FETCH_HEAD'])
     return {
       code: checkout.code,
@@ -221,6 +352,7 @@ type GitResult = {
 
 function git(cwd: string, args: string[], env?: Record<string, string>): Promise<GitResult> {
   return new Promise((resolve) => {
+    logProjectGit('git command', { cwd, args })
     const child = spawn('git', args, {
       cwd,
       env: env ? { ...process.env, ...env } : process.env,
@@ -237,12 +369,19 @@ function git(cwd: string, args: string[], env?: Record<string, string>): Promise
       stderr += chunk
     })
     child.on('error', (error) => {
+      logProjectGit('git error', { cwd, args, error: error.message })
       resolve({ code: 1, stdout, stderr: error.message })
     })
     child.on('close', (code) => {
-      resolve({ code: code ?? 1, stdout: stdout.trim(), stderr: stderr.trim() })
+      const result = { code: code ?? 1, stdout: stdout.trim(), stderr: stderr.trim() }
+      logProjectGit('git result', { cwd, args, ...result })
+      resolve(result)
     })
   })
+}
+
+function logProjectGit(message: string, details: Record<string, unknown>): void {
+  console.log(`[movscript:project-git] ${message}`, details)
 }
 
 function normalizeProjectId(value: string | number | undefined): number {

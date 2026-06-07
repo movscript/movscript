@@ -1,7 +1,7 @@
 {
   "name": "movscript",
   "version": "0.1.2",
-  "description": "MovScript project, script, path-based workspace projection, media query, and generation tools backed by the frontend MCP server.",
+  "description": "MovScript project domain editing, source workspace build/review, media query, and generation tools backed by the frontend MCP server.",
   "keywords": [
     "workspace",
     "project",
@@ -21,18 +21,21 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "MovScript",
-    "shortDescription": "Use MovScript projects, scripts, projection paths, media queries, and generation.",
-    "longDescription": "Installs MovScript project/script/workspace guidance and connects to the MovScript frontend MCP server. The MCP bridge exposes current focus, project listing and creation, script listing, script passage location, path-based workspace projection refresh/review/apply, project queries, MovScript resource-library search, shot-library search, external media search, model discovery, image generation, video generation, job polling, and candidate attachment.",
+    "shortDescription": "Use MovScript projects, domain objects, source workspace review/build, media queries, and generation.",
+    "longDescription": "Installs MovScript project/domain/generation guidance and connects to the MovScript frontend MCP server. The MCP bridge exposes system tools for focus, project creation, resources, external media, model discovery, image/video generation, and job polling, plus domain tools for object query/read/upsert/update, candidate management, review, and build.",
     "developerName": "MovScript",
     "category": "Productivity",
     "capabilities": [
       "current focus",
-      "project list",
       "project creation",
-      "script list",
-      "script passage location",
-      "workspace projection paths",
-      "workspace apply review",
+      "project domain context",
+      "script source read and write",
+      "script version snapshots",
+      "domain object query",
+      "domain object API",
+      "domain source file editing",
+      "domain review",
+      "domain build",
       "resource library query",
       "shot library query",
       "external media search",
@@ -40,9 +43,9 @@
       "image generation",
       "video generation",
       "generation job polling",
-      "candidate attachment",
+      "domain candidate management",
       "review handoff"
     ],
-    "defaultPrompt": "Use MovScript's MCP tools for current focus, project/script context, resource-library lookup, shot-library search, external media search, model discovery, image/video generation, and path-based workspace projection edits. Treat generation input_resource_ids/reference_resource_ids as MovScript RawResource IDs only. For workspace changes, edit the local projection path, run workspace_apply_review(path), then workspace_apply(path); if path is omitted, MovScript maps cwd/current focus to the projection folder. Use workspace_update(path) only to refresh from backend and overwrite local changes. Projection paths include workspace JSON files, project.json, script.md, and the read-only global projects.index.json."
+    "defaultPrompt": "Use MovScript's system_* tools for current focus, resource-library lookup, shot-library search, external media search, model discovery, and image/video generation. Use domain_* tools for MovScript project domain objects: query/read/upsert/update source entities, manage candidates, review changes, and build. Treat generation input_resource_ids/reference_resource_ids as MovScript RawResource IDs only. For domain changes, prefer structured domain APIs; when an API does not cover the requested field or structure, call domain_get_model and edit source files under project.json, project_standards.json, settings/**, scripts/**, content_units/**, or productions/**. Always run domain_review and domain_build after source changes so users can see the effective state in .build/current."
   }
 }

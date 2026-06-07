@@ -106,6 +106,9 @@ export function SemanticEntityCrudDialog({
       onSaved?.(saved)
       onOpenChange(false)
     },
+    onError: (error) => {
+      toast.error(`${config.label}创建失败`, semanticEntityErrorMessage(error))
+    },
   })
 
   const updateMutation = useMutation({
@@ -116,6 +119,9 @@ export function SemanticEntityCrudDialog({
       onSaved?.(saved)
       onOpenChange(false)
     },
+    onError: (error) => {
+      toast.error(`${config.label}保存失败`, semanticEntityErrorMessage(error))
+    },
   })
 
   const deleteMutation = useMutation({
@@ -125,6 +131,9 @@ export function SemanticEntityCrudDialog({
       toast.success(`${config.label}已删除`)
       onDeleted?.()
       onOpenChange(false)
+    },
+    onError: (error) => {
+      toast.error(`${config.label}删除失败`, semanticEntityErrorMessage(error))
     },
   })
 
@@ -279,6 +288,10 @@ function sourceLockReasonText(status?: SourceLockStatus) {
   if (!first) return '来源已锁定，已有下游对象引用当前记录'
   const more = status.reasons.length > 1 ? ` 等 ${status.reasons.length} 类下游对象` : ''
   return `${first.message}${more}`
+}
+
+function semanticEntityErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : undefined
 }
 
 function sourceLockSupportedKind(kind: SemanticEntityConfig['kind']) {

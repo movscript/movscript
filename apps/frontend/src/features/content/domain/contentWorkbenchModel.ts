@@ -97,7 +97,6 @@ export interface ProductionWorkbenchData {
   scriptBlocks: ContentWorkbenchRecord[]
   previewTimelines: ContentWorkbenchRecord[]
   previewTimelineItems: ContentWorkbenchRecord[]
-  deliveryVersions: ContentWorkbenchRecord[]
   jobs: Job[]
 }
 
@@ -122,7 +121,7 @@ export interface ContentGenerationMomentRow {
 }
 
 export async function loadContentWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
-  const [productions, segments, sceneMoments, settings, settingUsages, contentUnits, assetSlots, keyframes, scriptBlocks, previewTimelines, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+  const [productions, segments, sceneMoments, settings, settingUsages, contentUnits, assetSlots, keyframes, scriptBlocks, previewTimelines, previewTimelineItems, jobs] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
@@ -134,7 +133,6 @@ export async function loadContentWorkbenchData(projectId: number): Promise<Produ
     listSemanticEntities(projectId, semanticEntityConfig('scriptBlocks')),
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
-    listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
     loadContentWorkbenchJobs(projectId, ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v']),
   ])
   return {
@@ -149,7 +147,6 @@ export async function loadContentWorkbenchData(projectId: number): Promise<Produ
     scriptBlocks: scriptBlocks as ContentWorkbenchRecord[],
     previewTimelines: previewTimelines as ContentWorkbenchRecord[],
     previewTimelineItems: previewTimelineItems as ContentWorkbenchRecord[],
-    deliveryVersions: deliveryVersions as ContentWorkbenchRecord[],
     jobs,
   }
 }

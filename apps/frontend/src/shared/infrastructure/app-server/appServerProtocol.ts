@@ -11,6 +11,8 @@ export type { Thread as AppServerThread } from '@/shared/infrastructure/app-serv
 export type { ThreadItem as AppServerThreadItem } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadItem'
 export type { ThreadListResponse as AppServerThreadListResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadListResponse'
 export type { ThreadReadResponse as AppServerThreadReadResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadReadResponse'
+export type { ThreadResumeParams as AppServerThreadResumeParams } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadResumeParams'
+export type { ThreadResumeResponse as AppServerThreadResumeResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadResumeResponse'
 export type { ThreadStartParams as AppServerThreadStartParams } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadStartParams'
 export type { ThreadStartResponse as AppServerThreadStartResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadStartResponse'
 export type { Turn as AppServerTurn } from '@/shared/infrastructure/app-server/app-server-protocol/v2/Turn'

@@ -43,6 +43,7 @@ export function registerAuthCommands(program: Command): void {
         token: login.token,
         expiresAt: login.expiresAt,
         user: login.user,
+        gitCredential: login.gitCredential,
       })
       const userId = typeof login.user?.id === 'string' || typeof login.user?.id === 'number' ? login.user.id : undefined
       const config = writeMovScriptBackendConfig(workspaceDir, {
@@ -56,6 +57,12 @@ export function registerAuthCommands(program: Command): void {
         authPath: resolveMovScriptBackendSession({ workspaceDir }).authPath,
         baseURL: config.baseURL,
         user: authRecord.user,
+        gitCredential: authRecord.gitCredential ? {
+          provider: authRecord.gitCredential.provider,
+          username: authRecord.gitCredential.username,
+          maskedToken: authRecord.gitCredential.maskedToken,
+          status: authRecord.gitCredential.status,
+        } : undefined,
         expiresAt: authRecord.expiresAt,
       })
     })
@@ -88,6 +95,12 @@ export function registerAuthCommands(program: Command): void {
         baseURL: session.baseURL,
         userId: session.userId,
         user: me?.user ?? auth?.user,
+        gitCredential: auth?.gitCredential ? {
+          provider: auth.gitCredential.provider,
+          username: auth.gitCredential.username,
+          maskedToken: auth.gitCredential.maskedToken,
+          status: auth.gitCredential.status,
+        } : undefined,
         expiresAt: auth?.expiresAt,
         authPath: session.authPath,
         configPath: session.configPath,

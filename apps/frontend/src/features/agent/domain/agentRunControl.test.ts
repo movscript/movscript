@@ -37,10 +37,10 @@ test('stopProviderSessionRunAction aborts active send and applies optimistic can
     'pending:null',
     'resetStreaming',
     'setRun:run_1:cancelled:false:false',
-    'providerSession:false:false:undefined',
+    'runtime:false:false:undefined',
     'cancelGeneration',
     'cancel:run_1:用户停止了当前会话。',
-    'providerSession:false:false:false',
+    'runtime:false:false:false',
     'setRun:run_1:cancelled:false:false',
   ])
 })
@@ -60,7 +60,7 @@ test('stopProviderSessionRunAction clears transient loading when no cancellable 
     'abort',
     'pending:null',
     'resetStreaming',
-    'providerSession:false:false:false',
+    'runtime:false:false:false',
   ])
 })
 
@@ -103,8 +103,8 @@ function depsFixture(calls: string[]): StopProviderSessionRunActionDeps {
     setConversationRun: (run, patch) => {
       calls.push(`setRun:${run.id}:${run.status}:${patch.loading === true}:${patch.stopping === true}`)
     },
-    setConversationProviderSessionState: (patch) => {
-      calls.push(`providerSession:${patch.loading === true}:${patch.stopping === true}:${patch.building}`)
+    updateConversationRuntimeState: (patch) => {
+      calls.push(`runtime:${patch.loading === true}:${patch.stopping === true}:${patch.building}`)
     },
     cancelGenerationJobIfActive: () => {
       calls.push('cancelGeneration')

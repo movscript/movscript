@@ -16,6 +16,7 @@ import {
   agentChatReasoningItemView,
 } from '@/features/agent/domain/agentChatProcessItemViews'
 import {
+  AgentChatInspectBlock,
   AgentChatPreviewBlock,
   AgentChatSectionTitle,
   AgentChatTextBlock,
@@ -29,10 +30,12 @@ export function AgentChatReasoningItem({ item }: { item: Extract<AgentChatThread
       <AgentMessageSection title={<AgentChatSectionTitle title={view.title} meta={view.meta} />} tone={view.tone}>
         <AgentChatContentStack>
           {view.summary ? <AgentChatTextBlock label="Summary" value={view.summary} tone="process" /> : null}
-          {view.trace ? <AgentChatTextBlock label="Trace" value={view.trace} tone="diagnostic" contentKind="trace" /> : null}
-          {view.resultDetails !== undefined ? <AgentChatPreviewBlock label="Result details" value={view.resultDetails} tone="result" contentKind="rawDetails" /> : null}
-          {view.errorDetails !== undefined ? <AgentChatPreviewBlock label="Error details" value={view.errorDetails} tone="diagnostic" contentKind="error" /> : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="Reasoning details" value={view.rawDetails} contentKind="rawDetails" /> : null}
+          {view.trace ? <AgentChatTextBlock label="Trace summary" value={view.trace} tone="diagnostic" contentKind="trace" /> : null}
+          {view.errorDetails !== undefined ? <AgentChatPreviewBlock label="Error" value={view.errorDetails} tone="diagnostic" contentKind="error" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.resultDetails !== undefined ? { label: 'result', value: view.resultDetails, tone: 'result' } : null,
+            view.rawDetails !== undefined ? { label: 'reasoning', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -65,7 +68,9 @@ export function AgentChatPlanItem({ item }: { item: Extract<AgentChatThreadItem,
           ) : (
             <AgentChatTextBlock label="Text" value={view.text} tone="process" />
           )}
-          {view.details !== undefined ? <AgentChatPreviewBlock label="Plan details" value={view.details} contentKind="rawDetails" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.details !== undefined ? { label: 'plan', value: view.details } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>

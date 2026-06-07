@@ -2,7 +2,7 @@
   --ui-surface-tone-color: var(--ms-color-muted-foreground);
   --ui-surface-border: var(--ms-surface-border, var(--ms-color-border));
   --ui-surface-background: var(--ms-surface-background, var(--ms-color-surface));
-  --ui-surface-radius: var(--ms-radius-md);
+  --ui-surface-radius: var(--ms-radius-card);
   --ui-surface-shadow: none;
   --ui-surface-backdrop-filter: var(--ms-surface-backdrop-filter, none);
 
@@ -29,16 +29,16 @@
 
 .ms-surface-root[data-kind="item"] {
   --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 80%, transparent);
-  --ui-surface-radius: var(--ms-radius-sm);
+  --ui-surface-radius: var(--ms-radius-card);
 }
 
 .ms-surface-root[data-kind="metric"] {
-  --ui-surface-radius: var(--ms-radius-md);
+  --ui-surface-radius: var(--ms-radius-card);
   --ui-surface-background: transparent;
 }
 
 .ms-surface-root[data-kind="media"] {
-  --ui-surface-radius: var(--ms-radius-sm);
+  --ui-surface-radius: var(--ms-radius-card);
   --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 42%, transparent);
 }
 
@@ -223,7 +223,7 @@
   flex-shrink: 0;
   height: 30px;
   width: 30px;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-icon);
   background: color-mix(in srgb, var(--ms-color-muted) 62%, transparent);
 }
 
@@ -244,7 +244,7 @@
 .ms-empty-state__icon {
   height: 34px;
   width: 34px;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-icon);
   background: var(--ms-color-background);
 }
 

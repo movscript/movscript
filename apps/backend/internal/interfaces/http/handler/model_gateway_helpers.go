@@ -130,9 +130,6 @@ func responsesInputMessages(raw json.RawMessage) ([]ai.Message, error) {
 		if role == "" {
 			role = "user"
 		}
-		if role != "system" && role != "user" && role != "assistant" {
-			return nil, fmt.Errorf("items[%d].role must be system, user, or assistant", i)
-		}
 		content, contentParts, err := gatewayMessageContentAndParts(item["content"])
 		if err != nil {
 			return nil, fmt.Errorf("items[%d].content: %w", i, err)
@@ -217,10 +214,6 @@ func normalizeAnthropicGatewayMessages(c *gin.Context, req anthropicMessagesRequ
 	}
 	for i, msg := range req.Messages {
 		role := strings.TrimSpace(msg.Role)
-		if role != "user" && role != "assistant" {
-			writeOpenAIError(c, http.StatusBadRequest, fmt.Sprintf("messages[%d].role must be user or assistant", i), "invalid_request_error", "messages", "invalid_message_role")
-			return nil, false
-		}
 		text, toolCalls, toolResults, err := anthropicMessageParts(msg.Content)
 		if err != nil {
 			writeOpenAIError(c, http.StatusBadRequest, fmt.Sprintf("messages[%d].content: %s", i, err.Error()), "invalid_request_error", "messages", "invalid_message_content")

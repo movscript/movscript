@@ -65,6 +65,8 @@ const EXTERNAL_RESOURCE_PROVIDERS: Array<{
   },
 ]
 
+const EMPTY_EXTERNAL_RESOURCE_SOURCES: ExternalResourceSource[] = []
+
 interface ResourceBlobGCResult {
   backend: string
   dry_run: boolean
@@ -513,19 +515,25 @@ function ExternalResourceSourceSettingsSection() {
     pixabay: '',
   })
   const [savedProvider, setSavedProvider] = useState<ExternalResourceProviderKey | null>(null)
-  const { data: sources = [], isLoading } = useQuery<ExternalResourceSource[]>({
+  const { data: queriedSources, isLoading } = useQuery<ExternalResourceSource[]>({
     queryKey: ['external-resource-sources'],
     queryFn: () => api.get('/external-resource-sources').then(r => r.data),
   })
+  const sources = queriedSources ?? EMPTY_EXTERNAL_RESOURCE_SOURCES
 
   useEffect(() => {
     setSourceNames(current => {
       const next = { ...current }
+      let changed = false
       for (const provider of EXTERNAL_RESOURCE_PROVIDERS) {
         const source = sourceForProvider(sources, provider.key)
-        if (source) next[provider.key] = source.name || provider.name
+        if (!source) continue
+        const name = source.name || provider.name
+        if (next[provider.key] === name) continue
+        next[provider.key] = name
+        changed = true
       }
-      return next
+      return changed ? next : current
     })
   }, [sources])
 

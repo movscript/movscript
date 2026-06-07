@@ -1,10 +1,7 @@
 export const MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA = 'movscript.workspace-config.v2'
-export const MOVSCRIPT_LEGACY_WORKSPACE_CONFIG_SCHEMA = 'movscript.workspace-config.v1'
 
 export interface MovScriptWorkspaceConfig {
-  schema:
-    | typeof MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA
-    | typeof MOVSCRIPT_LEGACY_WORKSPACE_CONFIG_SCHEMA
+  schema: typeof MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA
   updatedAt: string
   modelConfig?: Record<string, unknown>
   catalog?: {

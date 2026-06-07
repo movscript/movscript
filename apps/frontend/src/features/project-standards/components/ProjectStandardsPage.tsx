@@ -67,9 +67,10 @@ import {
   WorkbenchProjectShell,
 } from '@movscript/ui'
 
-import { applyProjectStandardsWorkspace, getProject } from '@/shared/infrastructure/api/semanticEntities'
+import { getProject } from '@/shared/infrastructure/api/semanticEntities'
 import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import { ProjectStandardsWorkspaceReviewPanel } from '@/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel'
+import { saveProjectStandardsWorkspaceEdit } from '@/features/project-standards/application/projectStandardsWorkspaceRepository'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
 import { buildPageKey } from '@/features/agent/domain/agentCommandInput'
 import {
@@ -269,43 +270,31 @@ export function ProjectStandardsContent() {
             reviewedAt: new Date().toISOString(),
           },
         })
-        try {
-          await providerSessionClient.applyWorkspaceArtifact(workspace.id, {
-            target: {
-              projectId,
-              entityType: 'project',
-              entityId: projectId,
-              field: 'workspace',
-            },
-            currentValue: {
-              aspect_ratio: data.project?.aspect_ratio ?? '',
-              visual_style: data.project?.visual_style ?? '',
-              project_style: data.project?.project_style ?? '',
-            },
-            proposedValue,
-          })
-        } catch (error) {
-          await applyProjectStandardsWorkspace(projectId, JSON.parse(proposedValue) as Record<string, unknown>)
-          await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
-            status: 'applied',
-            target: {
-              projectId,
-              entityType: 'project',
-              entityId: projectId,
-              field: 'workspace',
-            },
-            metadata: {
-              ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
-              reviewedFrom: 'project-standards-workbench',
-              reviewedAt: new Date().toISOString(),
-              backendWritePerformed: true,
-              backendApplyFallback: error instanceof Error ? error.message : String(error),
-            },
-          })
-        }
+        const parsedWorkspace = JSON.parse(proposedValue) as Record<string, unknown>
+        const workspacePayload = isRecord(parsedWorkspace.workspace) ? parsedWorkspace.workspace : {}
+        await saveProjectStandardsWorkspaceEdit({
+          projectId,
+          currentProject: data.project,
+          projectStyle: isRecord(workspacePayload.project_style) ? workspacePayload.project_style : {},
+        })
+        await providerSessionClient.updateWorkspaceArtifact(workspace.id, {
+          status: 'applied',
+          target: {
+            projectId,
+            entityType: 'project',
+            entityId: projectId,
+            field: 'workspace',
+          },
+          metadata: {
+            ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
+            reviewedFrom: 'project-standards-workbench',
+            reviewedAt: new Date().toISOString(),
+            workspaceWritePerformed: true,
+          },
+        })
         const nextProject = await getProject(projectId)
         useProjectStore.getState().setCurrent(nextProject)
-        toast.success('项目规范已写入后端')
+        toast.success('项目规范已写入工作区')
         await refetch()
         await workspaceArtifactsQuery.refetch()
       } catch (error) {
@@ -360,12 +349,10 @@ export function ProjectStandardsContent() {
 
   async function saveProjectStylePatch(projectStyle: Record<string, unknown>, successMessage: string) {
     if (!projectId) return
-    await applyProjectStandardsWorkspace(projectId, {
-      scope: 'project_standards_workspace',
-      mode: 'patch',
-      workspace: {
-        project_style: projectStyle,
-      },
+    await saveProjectStandardsWorkspaceEdit({
+      projectId,
+      currentProject: data.project,
+      projectStyle,
     })
     const nextProject = await getProject(projectId)
     useProjectStore.getState().setCurrent(nextProject)
@@ -566,7 +553,7 @@ export function ProjectStandardsContent() {
                             </ProjectStandardsField>
                             <ProjectStandardsField>
                               分类
-                              <ProjectStandardsInput value={ruleForm.category} onChange={(event) => setRuleForm({ ...ruleForm, category: event.target.value })} className="h-8 type-label" placeholder="人物 / 审核 / 平台 / 交付" />
+                              <ProjectStandardsInput value={ruleForm.category} onChange={(event) => setRuleForm({ ...ruleForm, category: event.target.value })} className="h-8 type-label" placeholder="人物 / 审核 / 平台 / 制作" />
                             </ProjectStandardsField>
                             <ProjectStandardsField>
                               提示词角色

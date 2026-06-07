@@ -27,6 +27,7 @@ export function useAgentChatComposerState({
     activeModel,
     modelId,
     recentResources,
+    textModels,
   } = useAgentChatDataSources({
     settings,
     updateSettings,
@@ -50,6 +51,10 @@ export function useAgentChatComposerState({
   return {
     activeModel,
     modelId,
+    textModels,
+    collaborationMode: settings.collaborationMode,
+    goalModeEnabled: settings.goalModeEnabled,
+    updateSettings,
     ...composer,
   }
 }

@@ -124,7 +124,6 @@ export function usePreProductionWorkbenchData(projectId?: number) {
     candidateConfig,
     referenceConfig,
     workspaceDataQuery,
-    workspaceProjectPath: workspaceDataQuery.data?.projectPath,
     settingsQuery: workspaceDataQuery,
     slotsQuery: workspaceDataQuery,
     candidatesQuery: workspaceDataQuery,

@@ -21,24 +21,20 @@ test('workspace domain model separates project standards, settings, and asset sl
   const production = getWorkspaceDomainModel('production_workspace')
 
   assert.equal(project?.targetEntityType, 'project_standards')
-  assert.equal(project?.contentSchemaId, 'movscript.project_standards_workspace.v1')
-  assert.ok(project?.editablePathPatterns.includes('edit/standards/project_standards.json'))
+  assert.equal(project?.contentSchemaId, 'movscript.project_standards.v1')
   assert.equal(project?.applyBoundary.backendApply, 'workspace_build')
 
   assert.equal(setting?.contentSchemaId, 'movscript.setting.v1')
   assert.ok(setting?.entityTypes.includes('setting'))
-  assert.ok(setting?.editablePathPatterns.includes('edit/setting/setting_{id}.json'))
   assert.equal(setting?.applyBoundary.backendApply, 'workspace_build')
 
-  assert.equal(assetWorkspace?.contentSchemaId, 'movscript.asset_slot.v1')
-  assert.ok(assetWorkspace?.fieldGuide.owns.includes('asset_slots'))
-  assert.ok(assetWorkspace?.contextPathPatterns.includes('edit/setting/**'))
+  assert.equal(assetWorkspace?.contentSchemaId, 'movscript.asset.v1')
+  assert.ok(assetWorkspace?.fieldGuide.owns.includes('asset'))
   assert.equal(assetWorkspace?.applyBoundary.backendApply, 'workspace_build')
 
   assert.equal(production?.targetEntityType, 'production')
   assert.equal(production?.contentSchemaId, 'movscript.production.v1')
-  assert.ok(production?.entityTypes.includes('setting_usage'))
-  assert.ok(production?.contextPathPatterns.includes('edit/setting/**'))
+  assert.ok(production?.entityTypes.includes('production'))
   assert.equal(production?.applyBoundary.backendApply, 'workspace_build')
 })
 
@@ -47,8 +43,7 @@ test('workspace domain model defines content unit workspace contracts', () => {
 
   assert.equal(contentUnit?.targetEntityType, 'content_unit')
   assert.equal(contentUnit?.contentSchemaId, 'movscript.content_unit.v1')
-  assert.ok(contentUnit?.fieldGuide.owns.includes('content_units'))
-  assert.ok(contentUnit?.editablePathPatterns.includes('edit/productions/production_{productionId}/content_units/content_unit_{id}.json'))
+  assert.ok(contentUnit?.fieldGuide.owns.includes('content_unit'))
   assert.equal(contentUnit?.applyBoundary.backendApply, 'workspace_build')
 })
 

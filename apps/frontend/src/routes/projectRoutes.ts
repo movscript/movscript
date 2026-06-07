@@ -36,8 +36,6 @@ export const ROUTES = {
     production: '/project/production',
     productionOrchestration: '/project/production/orchestration',
     tasks: '/project/tasks',
-    delivery: '/project/delivery',
-    deliveryWorkbench: '/project/delivery/workbench',
   },
   tools: {
     refImageGen: '/tools/ref-image-gen',

@@ -62,6 +62,7 @@ export function AgentConversationTabs({
           historyOpen={historyOpen}
           onNewConversation={onNewConversation}
           onToggleHistory={onToggleHistory}
+          showNewConversation
         />
       )}
       onCloseConversation={onCloseConversation}

@@ -1,13 +1,16 @@
 import type { IpcRenderer } from 'electron'
 import type {
   ElectronAPI,
+  ElectronAppServerLogEvent,
   ElectronAppServerMessage,
 } from '../../../src/shared/contracts/electronApi'
 
 type AppServerMessageHandler = (message: ElectronAppServerMessage) => void
+type AppServerLogHandler = (event: ElectronAppServerLogEvent) => void
 
-export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'distributeAppServerConfig' | 'ensureAppServer' | 'getAppServerStatus' | 'stopAppServer' | 'appServerConnect' | 'appServerSend' | 'appServerClose' | 'onAppServerMessage'> {
+export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'distributeAppServerConfig' | 'ensureAppServer' | 'getAppServerStatus' | 'stopAppServer' | 'appServerConnect' | 'appServerSend' | 'appServerClose' | 'onAppServerMessage' | 'onAppServerLog'> {
   const appServerMessages = createMessageSubscription<ElectronAppServerMessage, AppServerMessageHandler>(ipcRenderer, 'app-server:message')
+  const appServerLogs = createMessageSubscription<ElectronAppServerLogEvent, AppServerLogHandler>(ipcRenderer, 'app-server:log')
 
   return {
     distributeAppServerConfig: (input) => ipcRenderer.invoke('app-server:distribute', input),
@@ -18,6 +21,7 @@ export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 
     appServerSend: (input) => ipcRenderer.invoke('app-server:send', input),
     appServerClose: (input) => ipcRenderer.invoke('app-server:close', input),
     onAppServerMessage: appServerMessages.subscribe,
+    onAppServerLog: appServerLogs.subscribe,
   }
 }
 

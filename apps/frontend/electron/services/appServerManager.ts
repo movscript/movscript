@@ -29,6 +29,7 @@ import { upsertProviderSessionInWorkspace } from './providerSessionWorkspace'
 import type {
   ElectronAppServerExecutableDiagnostic,
   ElectronAppServerEnsureInput,
+  ElectronAppServerLogEvent,
   ElectronAppServerProfile,
   ElectronAppServerStatus,
 } from '../../src/shared/contracts/electronApi'
@@ -67,6 +68,7 @@ type ManagedAppServer = {
   transport: AppServerLaunchTransport
   executablePath: string
   home: string
+  rustLog?: string
   workspaceDir?: string
   workspaceContext?: MovScriptWorkspaceContext
   providerSessionCwd?: string
@@ -80,6 +82,8 @@ type ManagedAppServer = {
   lastError?: string
 }
 
+type AppServerLogListener = (event: ElectronAppServerLogEvent) => void
+
 type RecentAppServerExit = {
   profileId: string
   providerKey: AppServerProviderKey
@@ -88,6 +92,7 @@ type RecentAppServerExit = {
   transport: AppServerLaunchTransport
   executablePath: string
   home: string
+  rustLog?: string
   workspaceDir?: string
   workspaceContext?: MovScriptWorkspaceContext
   providerSessionCwd?: string
@@ -151,16 +156,27 @@ export class AppServerManager {
   private readonly pendingEnsures = new Map<string, PendingAppServerEnsure>()
   private readonly recentExits = new Map<string, RecentAppServerExit>()
   private readonly stoppingProfiles = new Set<string>()
+  private readonly logListeners = new Set<AppServerLogListener>()
 
   constructor(private readonly dependencies: AppServerManagerDependencies = defaultAppServerManagerDependencies) {}
 
   async ensure(input: ElectronAppServerEnsureInput | undefined): Promise<ElectronAppServerStatus> {
+    const requestedProfileId = input?.profile?.id?.trim() || 'app-server'
+    console.info(`[app-server:${requestedProfileId}] ensure requested`)
     const launch = this.resolveLaunch(input)
-    if ('status' in launch) return launch.status
+    if ('status' in launch) {
+      logAppServerStatusDecision('ensure preflight failed', launch.status)
+      return launch.status
+    }
+    console.info(`[app-server:${launch.profileId}] ensure resolved ${formatLaunchDiagnostic(launch)}`)
 
     const pending = this.pendingEnsures.get(launch.profileId)
     if (pending) {
-      if (appServerLaunchIdentityCanReuse(pending.identity, launch.identity)) return pending.promise
+      if (appServerLaunchIdentityCanReuse(pending.identity, launch.identity)) {
+        console.info(`[app-server:${launch.profileId}] ensure reusing pending launch`)
+        return pending.promise
+      }
+      console.info(`[app-server:${launch.profileId}] ensure waiting for stale pending launch before retry`)
       await pending.promise.catch(() => undefined)
       return this.ensure(input)
     }
@@ -169,8 +185,10 @@ export class AppServerManager {
     if (existing && existing.child.exitCode === null && !existing.child.killed) {
       if (appServerLaunchCanReuse(existing, launch.identity)) {
         existing.configDistribution = launch.configDistribution
+        console.info(`[app-server:${launch.profileId}] ensure reusing running app-server endpoint=${existing.endpoint}`)
         return this.status(launch.profileId)
       }
+      console.info(`[app-server:${launch.profileId}] ensure replacing running app-server because launch identity changed`)
       existing.child.kill()
       this.managedServers.delete(launch.profileId)
     }
@@ -178,15 +196,22 @@ export class AppServerManager {
     const recentExit = this.recentExits.get(launch.profileId)
     if (recentExit && appServerLaunchIdentityCanReuse(recentExit.identity, launch.identity)) {
       const elapsed = this.now() - recentExit.exitedAt
-      if (elapsed < QUICK_EXIT_RESTART_COOLDOWN_MS) return appServerRecentExitStatus(recentExit, QUICK_EXIT_RESTART_COOLDOWN_MS - elapsed)
+      if (elapsed < QUICK_EXIT_RESTART_COOLDOWN_MS) {
+        const status = appServerRecentExitStatus(recentExit, QUICK_EXIT_RESTART_COOLDOWN_MS - elapsed)
+        logAppServerStatusDecision('ensure blocked by quick-exit cooldown', status)
+        return status
+      }
+      console.info(`[app-server:${launch.profileId}] ensure quick-exit cooldown expired; retrying launch`)
       this.recentExits.delete(launch.profileId)
     }
 
     if (!launch.configDistribution.accountConfigured) {
-      return appServerAccountMissingStatus({
+      const status = appServerAccountMissingStatus({
         profileId: launch.profileId,
         distribution: launch.configDistribution,
       })
+      logAppServerStatusDecision('ensure blocked by missing account', status)
+      return status
     }
 
     const promise = this.start(launch).finally(() => {
@@ -238,8 +263,14 @@ export class AppServerManager {
       : Array.from(this.managedServers.values()).find((item) => item.child.exitCode === null && !item.child.killed)
     if (!server) {
       const recentExit = normalized ? this.recentExits.get(normalized) : Array.from(this.recentExits.values())[0]
-      if (recentExit) return appServerRecentExitStatus(recentExit, Math.max(0, QUICK_EXIT_RESTART_COOLDOWN_MS - (this.now() - recentExit.exitedAt)))
-      return appServerError(normalized || 'app-server', 'app-server is not running')
+      if (recentExit) {
+        const status = appServerRecentExitStatus(recentExit, Math.max(0, QUICK_EXIT_RESTART_COOLDOWN_MS - (this.now() - recentExit.exitedAt)))
+        logAppServerStatusDecision('status returning recent exit', status)
+        return status
+      }
+      const status = appServerError(normalized || 'app-server', 'app-server is not running')
+      logAppServerStatusDecision('status returning not running', status)
+      return status
     }
     const running = server.child.exitCode === null && !server.child.killed
     const config = appServerConfigStatusFromDistribution(server.configDistribution)
@@ -253,6 +284,7 @@ export class AppServerManager {
       ...(server.child.pid ? { pid: server.child.pid } : {}),
       executablePath: server.executablePath,
       home: server.home,
+      ...(server.rustLog ? { rustLog: server.rustLog } : {}),
       ...(server.workspaceDir ? { workspaceDir: server.workspaceDir } : {}),
       ...(server.workspaceContext ? { workspaceContext: server.workspaceContext } : {}),
       ...(server.providerSessionCwd ? { providerSessionCwd: server.providerSessionCwd } : {}),
@@ -266,13 +298,21 @@ export class AppServerManager {
 
   stop(profileId?: string): ElectronAppServerStatus {
     const normalized = profileId?.trim()
+    console.info(`[app-server:${normalized || 'app-server'}] stop requested`)
     if (normalized) this.recentExits.delete(normalized)
     const server = normalized
       ? this.managedServers.get(normalized)
       : Array.from(this.managedServers.values()).find((item) => item.child.exitCode === null && !item.child.killed)
-    if (!server) return appServerError(normalized || 'app-server', 'app-server is not running')
+    if (!server) {
+      const status = appServerError(normalized || 'app-server', 'app-server is not running')
+      logAppServerStatusDecision('stop ignored because not running', status)
+      return status
+    }
     this.stoppingProfiles.add(server.profileId)
-    if (server.child.exitCode === null && !server.child.killed) server.child.kill()
+    if (server.child.exitCode === null && !server.child.killed) {
+      console.info(`[app-server:${server.profileId}] sending stop signal pid=${server.child.pid ?? 'unknown'} endpoint=${server.endpoint}`)
+      server.child.kill()
+    }
     this.managedServers.delete(server.profileId)
     this.recordProviderSession(server, 'stopped')
     const config = appServerConfigStatusFromDistribution(server.configDistribution)
@@ -285,6 +325,7 @@ export class AppServerManager {
       endpoint: server.endpoint,
       executablePath: server.executablePath,
       home: server.home,
+      ...(server.rustLog ? { rustLog: server.rustLog } : {}),
       ...(server.workspaceDir ? { workspaceDir: server.workspaceDir } : {}),
       ...(server.workspaceContext ? { workspaceContext: server.workspaceContext } : {}),
       ...(server.providerSessionCwd ? { providerSessionCwd: server.providerSessionCwd } : {}),
@@ -292,6 +333,13 @@ export class AppServerManager {
       preflight: appServerPreflightFromDistribution(server.configDistribution),
       plugin: server.pluginBootstrap,
       ...(server.executableDiagnostic ? { executableDiagnostic: server.executableDiagnostic } : {}),
+    }
+  }
+
+  onLog(listener: AppServerLogListener): () => void {
+    this.logListeners.add(listener)
+    return () => {
+      this.logListeners.delete(listener)
     }
   }
 
@@ -321,13 +369,16 @@ export class AppServerManager {
     if (launch.executableDiagnostic && !launch.executableDiagnostic.ok) {
       console.warn(`[app-server:${launch.profileId}] ${formatExecutableDiagnostic(launch.executableDiagnostic)}`)
     }
+    const args = appServerLaunchArgs(launch.executablePath, appServerProcessListenEndpoint(transport, endpoint))
+    console.info(`[app-server:${launch.profileId}] launch command=${launch.executablePath} args=${JSON.stringify(args)} transport=${transport} endpoint=${endpoint} cwd=${launch.providerSessionCwd}`)
     console.info(`[app-server:${launch.profileId}] launch provider home=${launchEnv.MOVSCRIPT_APP_SERVER_HOME ?? ''}`)
-    const child = this.dependencies.spawnProcess(launch.executablePath, appServerLaunchArgs(launch.executablePath, appServerProcessListenEndpoint(transport, endpoint)), {
+    const child = this.dependencies.spawnProcess(launch.executablePath, args, {
       cwd: launch.providerSessionCwd,
       env: launchEnv,
       shell: process.platform === 'win32',
       stdio: transport === 'stdio' ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
     })
+    console.info(`[app-server:${launch.profileId}] spawned pid=${child.pid ?? 'unknown'}`)
     const server: ManagedAppServer = {
       profileId: launch.profileId,
       providerKey: launch.providerKey,
@@ -336,6 +387,7 @@ export class AppServerManager {
       transport,
       executablePath: launch.executablePath,
       home: launch.home,
+      rustLog: launchEnv.RUST_LOG,
       workspaceDir: launch.workspaceDir,
       workspaceContext: launch.workspaceContext,
       providerSessionCwd: launch.providerSessionCwd,
@@ -350,12 +402,14 @@ export class AppServerManager {
       child.stdout?.on('data', (chunk) => {
         const text = String(chunk)
         server.stdoutExcerpt = appendProcessOutputExcerpt(server.stdoutExcerpt, text)
+        this.emitLog(server, 'stdout', text)
         console.info(`[app-server:${launch.profileId}] ${text.trimEnd()}`)
       })
     }
     child.stderr?.on('data', (chunk) => {
       const text = String(chunk)
       server.stderrExcerpt = appendProcessOutputExcerpt(server.stderrExcerpt, text)
+      this.emitLog(server, 'stderr', text)
       console.info(`[app-server:${launch.profileId}] ${text.trimEnd()}`)
     })
     child.on('error', (error) => {
@@ -365,7 +419,7 @@ export class AppServerManager {
     child.on('exit', (code, signal) => {
       const requestedStop = this.stoppingProfiles.delete(launch.profileId)
       server.lastError = code === 0 || requestedStop ? undefined : `app-server exited code=${code ?? 'null'} signal=${signal ?? 'null'}`
-      console.info(`[app-server:${launch.profileId}] app-server exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
+      console.info(`[app-server:${launch.profileId}] app-server exited code=${code ?? 'null'} signal=${signal ?? 'null'} requestedStop=${requestedStop} runtimeMs=${Math.max(0, this.now() - server.startedAt)}`)
       const current = this.managedServers.get(launch.profileId)
       if (current?.child === child) this.managedServers.delete(launch.profileId)
       if (!requestedStop) {
@@ -377,6 +431,7 @@ export class AppServerManager {
           transport,
           executablePath: launch.executablePath,
           home: launch.home,
+          rustLog: launchEnv.RUST_LOG,
           workspaceDir: launch.workspaceDir,
           workspaceContext: launch.workspaceContext,
           providerSessionCwd: launch.providerSessionCwd,
@@ -398,12 +453,17 @@ export class AppServerManager {
     try {
       if (transport === 'websocket') await this.dependencies.waitReady(endpoint)
       this.recordProviderSession(server, 'running')
-      return this.status(launch.profileId)
+      const status = this.status(launch.profileId)
+      logAppServerStatusDecision('start ready', status)
+      return status
     } catch (error) {
       const waitError = errorMessage(error)
       server.lastError = server.lastError ? `${server.lastError}; readiness: ${waitError}` : waitError
+      console.warn(`[app-server:${launch.profileId}] readiness failed: ${waitError}`)
       if (child.exitCode === null && !child.killed) child.kill()
-      return this.status(launch.profileId)
+      const status = this.status(launch.profileId)
+      logAppServerStatusDecision('start failed', status)
+      return status
     }
   }
 
@@ -426,7 +486,12 @@ export class AppServerManager {
     const workspaceContext = workspaceContextPaths.context
     const providerSessionCwd = workspaceContextPaths.providerSessionCwd
     const home = resolveAppServerHome(profile?.home?.trim(), workspaceDir, providerKey)
-    const configDistribution = this.dependencies.distributeConfig({ workspaceDir, home, providerKey })
+    const configDistribution = this.dependencies.distributeConfig({
+      workspaceDir,
+      home,
+      providerKey,
+      compatibilityHomeEnvNames: profile?.compatibilityHomeEnvNames,
+    })
     if (!configDistribution.accountConfigured) {
       return {
         status: appServerAccountMissingStatus({
@@ -491,6 +556,25 @@ export class AppServerManager {
     return this.dependencies.now?.() ?? Date.now()
   }
 
+  private emitLog(
+    server: Pick<ManagedAppServer, 'profileId' | 'providerKey' | 'label' | 'transport' | 'endpoint'>,
+    stream: ElectronAppServerLogEvent['stream'],
+    chunk: string,
+  ): void {
+    if (!chunk) return
+    const event: ElectronAppServerLogEvent = {
+      profileId: server.profileId,
+      providerKey: server.providerKey,
+      ...(server.label ? { label: server.label } : {}),
+      stream,
+      chunk,
+      at: new Date(this.now()).toISOString(),
+      transport: server.transport,
+      endpoint: server.endpoint,
+    }
+    for (const listener of Array.from(this.logListeners)) listener(event)
+  }
+
   private recordProviderSession(server: Pick<ManagedAppServer, 'workspaceDir' | 'workspaceContext' | 'providerSessionCwd' | 'profileId' | 'providerKey' | 'label' | 'endpoint' | 'executablePath' | 'home'>, status: string): void {
     try {
       this.dependencies.recordProviderSession?.({
@@ -551,6 +635,7 @@ function appServerRecentExitStatus(exit: RecentAppServerExit, cooldownMs: number
     ...(exit.label ? { label: exit.label } : {}),
     executablePath: exit.executablePath,
     home: exit.home,
+    ...(exit.rustLog ? { rustLog: exit.rustLog } : {}),
     ...(exit.workspaceDir ? { workspaceDir: exit.workspaceDir } : {}),
     ...(exit.workspaceContext ? { workspaceContext: exit.workspaceContext } : {}),
     ...(exit.providerSessionCwd ? { providerSessionCwd: exit.providerSessionCwd } : {}),
@@ -837,6 +922,36 @@ function formatExecutableDiagnostic(diagnostic: ElectronAppServerExecutableDiagn
   if (diagnostic.sourceDir) parts.push(`sourceDir=${diagnostic.sourceDir}`)
   if (diagnostic.candidatePaths?.length) parts.push(`checked=${diagnostic.candidatePaths.join(', ')}`)
   return parts.join(' ')
+}
+
+function formatLaunchDiagnostic(launch: ResolvedAppServerLaunch): string {
+  return [
+    `provider=${launch.providerKey}`,
+    `command=${launch.executablePath}`,
+    `home=${launch.home}`,
+    `workspaceDir=${launch.workspaceDir}`,
+    `cwd=${launch.providerSessionCwd}`,
+    `baseURL=${launch.configDistribution.baseURL}`,
+    `accountSource=${launch.configDistribution.accountSource}`,
+    `configHash=${launch.identity.configHash}`,
+    `accountConfigured=${launch.configDistribution.accountConfigured}`,
+    `pluginKey=${launch.pluginBootstrap.pluginKey}`,
+    `pluginVersion=${launch.pluginBootstrap.version}`,
+  ].join(' ')
+}
+
+function logAppServerStatusDecision(reason: string, status: ElectronAppServerStatus): void {
+  const parts = [
+    reason,
+    `ok=${status.ok}`,
+    `running=${status.running}`,
+    `managed=${status.managed}`,
+    `endpoint=${status.endpoint ?? 'none'}`,
+    `home=${status.home ?? 'none'}`,
+  ]
+  if (status.preflight) parts.push(`preflight=${status.preflight.ok}:${status.preflight.detail}`)
+  if (status.error) parts.push(`error=${status.error}`)
+  console.info(`[app-server:${status.profileId}] ${parts.join(' ')}`)
 }
 
 function defaultAppServerLaunchTransport(): AppServerLaunchTransport {

@@ -7,7 +7,6 @@ import type { AgentChatNotificationEvent } from '@/features/agent/domain/agentCh
 import { agentChatContentDefaultOpen } from '@/features/agent/domain/agentChatDisplayPolicy'
 import { agentChatRecentCapabilityEventView } from '@/features/agent/domain/agentChatRecentCapabilityEvents'
 import {
-  AgentChatPreviewBlock,
   AgentChatSectionTitle,
   AgentChatTextBlock,
 } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks'
@@ -23,7 +22,6 @@ export function AgentChatRecentCapabilityEventCard({ event }: { event: AgentChat
       >
         <AgentChatContentStack>
           {view.detail ? <AgentChatTextBlock label="Details" value={view.detail} tone={view.tone} /> : null}
-          {event.raw !== undefined ? <AgentChatPreviewBlock label="Event details" value={event.raw} contentKind="rawDetails" /> : null}
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>

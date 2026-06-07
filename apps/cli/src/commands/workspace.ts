@@ -3,12 +3,15 @@ import {
   buildMovScriptWorkspace,
   createNodeMovScriptWorkspaceFileRepository,
   getMovScriptWorkspaceModel,
+  resolveMovScriptProjectWorkspacePaths,
   reviewMovScriptBuildWorkspace,
 } from '@movscript/core/workspace/node'
 
 interface WorkspaceCommandOptions {
   workspace?: string
   user?: string
+  project?: string
+  projectId?: string
   json?: boolean
 }
 
@@ -40,12 +43,14 @@ export function registerWorkspaceCommands(program: Command): void {
   workspace
     .command('review')
     .description('Review edit/ changes against .build/current without making them effective')
-    .option('--workspace <dir>', 'Project workspace Git repository root')
+    .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
+    .option('--project <id>', 'Project id')
+    .option('--project-id <id>', 'Project id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
       const result = await reviewMovScriptBuildWorkspace({
-        fileRepository: createNodeMovScriptWorkspaceFileRepository(workspaceDir(options, command)),
+        fileRepository: createNodeMovScriptWorkspaceFileRepository(projectWorkspaceDir(options, command)),
       })
       printResult(result, options)
       if (!result.readyToBuild) process.exitCode = 2
@@ -54,12 +59,14 @@ export function registerWorkspaceCommands(program: Command): void {
   workspace
     .command('build')
     .description('Build current edit/ files into .build/current and .build/indexes')
-    .option('--workspace <dir>', 'Project workspace Git repository root')
+    .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
+    .option('--project <id>', 'Project id')
+    .option('--project-id <id>', 'Project id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
       const result = await buildMovScriptWorkspace({
-        fileRepository: createNodeMovScriptWorkspaceFileRepository(workspaceDir(options, command)),
+        fileRepository: createNodeMovScriptWorkspaceFileRepository(projectWorkspaceDir(options, command)),
       })
       printResult(result, options)
       if (result.status === 'failed') process.exitCode = 2
@@ -69,6 +76,18 @@ export function registerWorkspaceCommands(program: Command): void {
 function workspaceDir(options: WorkspaceCommandOptions, command: Command): string | undefined {
   const global = commandGlobalOptions(command)
   return options.workspace ?? global.workspace
+}
+
+function projectWorkspaceDir(options: WorkspaceCommandOptions, command: Command): string {
+  return resolveMovScriptProjectWorkspacePaths({
+    workspaceDir: workspaceDir(options, command),
+    ...(options.user !== undefined ? { userId: options.user } : {}),
+    ...(projectId(options) !== undefined ? { projectId: projectId(options) } : {}),
+  }).projectDir
+}
+
+function projectId(options: WorkspaceCommandOptions): string | undefined {
+  return options.projectId ?? options.project
 }
 
 function commandGlobalOptions(command: Command): { workspace?: string } {

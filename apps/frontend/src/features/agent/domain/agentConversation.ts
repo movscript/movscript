@@ -536,15 +536,15 @@ export function resolveCurrentProviderSessionRun<Run extends AgentRun = AgentRun
 }
 
 export interface ProviderThreadConversationSessionState {
-  providerThreadIdsByConversation: Record<string, string>
-  sessionIdsByConversation?: Record<string, string>
+  conversationThreadBindings?: Record<string, { providerSessionTreeId?: string; providerThreadId?: string; updatedAt?: number }>
   conversationProviderSessionStates: Record<string, { sessionId?: string; threadId?: string; updatedAt?: number }>
 }
 
 export function conversationIdForProviderThread(input: ProviderThreadConversationSessionState & { threadId: string }): string | undefined {
-  const directEntry = Object.entries(input.providerThreadIdsByConversation)
-    .find(([, mappedThreadId]) => mappedThreadId === input.threadId)
-  if (directEntry) return directEntry[0]
+  const bindingEntry = Object.entries(input.conversationThreadBindings ?? {})
+    .filter(([, binding]) => binding.providerThreadId === input.threadId)
+    .sort(([, left], [, right]) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]
+  if (bindingEntry) return bindingEntry[0]
 
   return Object.entries(input.conversationProviderSessionStates)
     .filter(([, providerSessionState]) => providerSessionState.threadId === input.threadId)
@@ -552,9 +552,10 @@ export function conversationIdForProviderThread(input: ProviderThreadConversatio
 }
 
 export function conversationIdForProviderSession(input: ProviderThreadConversationSessionState & { sessionId: string }): string | undefined {
-  const directEntry = Object.entries(input.sessionIdsByConversation ?? {})
-    .find(([, mappedSessionId]) => mappedSessionId === input.sessionId)
-  if (directEntry) return directEntry[0]
+  const bindingEntry = Object.entries(input.conversationThreadBindings ?? {})
+    .filter(([, binding]) => binding.providerSessionTreeId === input.sessionId)
+    .sort(([, left], [, right]) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]
+  if (bindingEntry) return bindingEntry[0]
 
   return Object.entries(input.conversationProviderSessionStates)
     .filter(([, providerSessionState]) => providerSessionState.sessionId === input.sessionId)
@@ -569,7 +570,7 @@ export function existingConversationIdForProviderThread<Conversation extends Pic
   const persistedConversationId = conversations.find((conversation) => conversation.providerThreadId === threadId)?.id
   const mappedConversationId = persistedConversationId ?? conversationIdForProviderThread({
     threadId,
-    providerThreadIdsByConversation: sessionState.providerThreadIdsByConversation,
+    conversationThreadBindings: sessionState.conversationThreadBindings,
     conversationProviderSessionStates: sessionState.conversationProviderSessionStates,
   })
   if (!mappedConversationId) return undefined
@@ -584,8 +585,7 @@ export function existingConversationIdForProviderSession<Conversation extends Pi
   const persistedConversationId = conversations.find((conversation) => conversation.providerSessionId === sessionId)?.id
   const mappedConversationId = persistedConversationId ?? conversationIdForProviderSession({
     sessionId,
-    providerThreadIdsByConversation: sessionState.providerThreadIdsByConversation,
-    sessionIdsByConversation: sessionState.sessionIdsByConversation,
+    conversationThreadBindings: sessionState.conversationThreadBindings,
     conversationProviderSessionStates: sessionState.conversationProviderSessionStates,
   })
   if (!mappedConversationId) return undefined

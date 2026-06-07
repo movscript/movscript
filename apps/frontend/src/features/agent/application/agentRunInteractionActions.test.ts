@@ -28,7 +28,7 @@ test('approveRunInteractionAction applies optimistic approval and streams follow
     deps,
   })
 
-  assert.deepEqual(calls, ['providerSession:true:none', 'approve', 'setRun:in_progress', 'stream', 'providerSession:false:none'])
+  assert.deepEqual(calls, ['runtime:true:none', 'approve', 'setRun:in_progress', 'stream', 'runtime:false:none'])
 })
 
 test('approveRunInteractionAction resolves multiple approval interactions serially before streaming', async () => {
@@ -90,13 +90,13 @@ test('approveRunInteractionAction resolves multiple approval interactions serial
   await action
 
   assert.deepEqual(calls, [
-    'providerSession:true:none',
+    'runtime:true:none',
     'approve:interaction_approval_1',
     'approve:interaction_approval_2',
     'secondAfterFirst:true',
     'setRun:in_progress',
     'stream:run_requires_action',
-    'providerSession:false:none',
+    'runtime:false:none',
   ])
 })
 
@@ -164,9 +164,9 @@ test('answerRunInteractionInputAction reports failures through runtime error and
   })
 
   assert.deepEqual(calls, [
-    'providerSession:true:none',
-    'providerSession:false:补充信息提交失败：backend offline',
-    'providerSession:false:none',
+    'runtime:true:none',
+    'runtime:false:补充信息提交失败：backend offline',
+    'runtime:false:none',
   ])
 })
 
@@ -188,11 +188,11 @@ test('answerRunInteractionInputAction streams follow-up after provider session a
   })
 
   assert.deepEqual(calls, [
-    'providerSession:true:none',
+    'runtime:true:none',
     'answer:none',
     'setRun:in_progress',
     'stream',
-    'providerSession:false:none',
+    'runtime:false:none',
   ])
 })
 
@@ -202,8 +202,8 @@ function depsFixture(calls: string[]): AgentRunInteractionActionDeps {
     setSubmittedInteractionRuns: (updater) => {
       updater([])
     },
-    setConversationProviderSessionState: (patch) => {
-      calls.push(`providerSession:${patch.approving === true}:${patch.error ?? 'none'}`)
+    updateConversationRuntimeState: (patch) => {
+      calls.push(`runtime:${patch.approving === true}:${patch.error ?? 'none'}`)
     },
     setConversationRun: (run) => {
       calls.push(`setRun:${run.status}`)

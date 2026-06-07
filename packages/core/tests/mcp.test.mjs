@@ -73,6 +73,25 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
     method: 'tools/list',
   })
   const tools = (toolsResponse?.result?.tools ?? []).map((tool) => tool.name)
+  assert.ok(tools.includes('system_focus_get'))
+  assert.ok(tools.includes('system_project_create'))
+  assert.ok(tools.includes('system_model_list'))
+  assert.ok(tools.includes('system_generate_image'))
+  assert.ok(tools.includes('system_generate_video'))
+  assert.ok(tools.includes('system_resource_library_query'))
+  assert.ok(tools.includes('system_resource_video_extract_frames'))
+  assert.ok(tools.includes('system_shot_library_query'))
+  assert.ok(tools.includes('system_external_resource_search'))
+  assert.ok(tools.includes('domain_get_model'))
+  assert.ok(tools.includes('domain_query_entities'))
+  assert.ok(tools.includes('domain_query_settings'))
+  assert.ok(tools.includes('domain_query_assets'))
+  assert.ok(tools.includes('domain_query_production_context'))
+  assert.ok(tools.includes('domain_upsert_setting'))
+  assert.ok(tools.includes('domain_update_scene_moment_timing'))
+  assert.ok(tools.includes('domain_append_candidate'))
+  assert.ok(tools.includes('domain_review'))
+  assert.ok(tools.includes('domain_build'))
   assert.ok(tools.includes('movscript_workspace_get_model'))
   assert.ok(tools.includes('movscript_workspace_review'))
   assert.ok(tools.includes('movscript_workspace_build'))
@@ -90,9 +109,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('movscript_external_resource_source_list'))
   assert.ok(tools.includes('movscript_external_resource_search'))
   assert.equal(tools.includes('movscript_setting_query'), false)
-  assert.equal(tools.includes('movscript_asset_slot_query'), false)
   assert.equal(tools.includes('movscript_production_context_query'), false)
-  assert.equal(tools.includes('candidate_asset_slot_attach'), false)
   assert.equal(tools.includes('candidate_keyframe_attach'), false)
   assert.ok(tools.includes('generation_image_generate'))
   assert.ok(tools.includes('generation_video_generate'))
@@ -109,11 +126,45 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(resources.includes('movscript://external-resources'))
 })
 
+test('MCP domain tool aliases route through the domain workspace model', async () => {
+  const response = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'domain-model',
+    method: 'tools/call',
+    params: {
+      name: 'domain_get_model',
+      arguments: {
+        entityKind: 'scene_moment',
+        entityId: 'scene_moment_r72k',
+      },
+    },
+  })
+
+  assert.equal(response?.result?.data?.workspaceKind, 'scene_moment_workspace')
+  assert.equal(response?.result?.data?.entityKind, 'scene_moment')
+  assert.ok(response?.result?.data?.editablePaths?.[0].includes('scene_moment_r72k'))
+
+  const legacyResponse = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'legacy-workspace-model',
+    method: 'tools/call',
+    params: {
+      name: 'movscript_workspace_get_model',
+      arguments: {
+        entityKind: 'scene_moment',
+        entityId: 'scene_moment_r72k',
+      },
+    },
+  })
+
+  assert.equal(legacyResponse?.result?.data?.workspaceKind, 'scene_moment_workspace')
+})
+
 test('MCP focus omits workspaceId from route search while preserving page focus params', () => {
   updateMCPContextSnapshot({
     route: {
       pathname: '/project/pre-production',
-      search: '?view=review&workspaceId=workspace_mpfwa1ow_tx4g65&asset_slot_id=88',
+      search: '?view=review&workspaceId=workspace_mpfwa1ow_tx4g65&asset_id=88',
       hash: '',
     },
     project: {
@@ -130,7 +181,7 @@ test('MCP focus omits workspaceId from route search while preserving page focus 
   const snapshot = getMCPFocusSnapshot()
 
   assert.equal(snapshot.route.pathname, '/project/pre-production')
-  assert.equal(snapshot.route.search, '?view=review&asset_slot_id=88')
+  assert.equal(snapshot.route.search, '?view=review&asset_id=88')
   assert.equal(snapshot.project?.id, 2)
 })
 
@@ -262,22 +313,26 @@ test('MCP resource upload posts agent image artifacts as multipart RawResources'
   }
 })
 
-test('MCP workspace tools expose get_model review and build over edit/.build', async () => {
+test('MCP workspace tools expose get_model review and build over source/.build', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-tools-'))
+  const projectDir = join(workspaceDir, '.movscript', 'user', '1', 'projects', 'project_6')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
-    await mkdir(join(workspaceDir, '.build', 'current', 'setting'), { recursive: true })
-    await mkdir(join(workspaceDir, 'edit', 'setting'), { recursive: true })
-    await writeFile(join(workspaceDir, '.build', 'current', 'setting', 'setting_hero.json'), JSON.stringify({
+    await mkdir(join(projectDir, '.build', 'current', 'settings', 'setting_hero'), { recursive: true })
+    await mkdir(join(projectDir, 'settings', 'setting_hero'), { recursive: true })
+    await writeFile(join(projectDir, '.build', 'current', 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
       schema: 'movscript.setting.v1',
+      kind: 'setting',
       id: 'setting_hero',
-      name: 'Old Hero',
+      title: 'Old Hero',
     }), 'utf8')
-    await writeFile(join(workspaceDir, 'edit', 'setting', 'setting_hero.json'), JSON.stringify({
+    await writeFile(join(projectDir, 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
       schema: 'movscript.setting.v1',
+      kind: 'setting',
       id: 'setting_hero',
-      name: 'New Hero',
+      title: 'New Hero',
+      setting_kind: 'character',
     }), 'utf8')
 
     const modelResponse = await handleJSONRPC({
@@ -286,12 +341,12 @@ test('MCP workspace tools expose get_model review and build over edit/.build', a
       method: 'tools/call',
       params: {
         name: 'movscript_workspace_get_model',
-        arguments: { entityType: 'setting', entityId: 'hero' },
+        arguments: { entityKind: 'setting', entityId: 'hero' },
       },
     })
     const model = record(modelResponse?.result?.data)
     assert.equal(model.workspaceKind, 'setting_workspace')
-    assert.ok(model.editablePaths.includes('edit/setting/setting_hero.json'))
+    assert.ok(model.editablePaths.includes('settings/setting_hero/setting.json'))
 
     const reviewResponse = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -299,12 +354,12 @@ test('MCP workspace tools expose get_model review and build over edit/.build', a
       method: 'tools/call',
       params: {
         name: 'movscript_workspace_review',
-        arguments: {},
+        arguments: { userId: 1, projectId: 6 },
       },
     })
     const review = record(reviewResponse?.result?.data)
     assert.equal(review.basePath, '.build/current')
-    assert.equal(review.editPath, 'edit')
+    assert.equal(review.sourcePath, '')
     assert.equal(review.summary.modified, 1)
     assert.equal(review.readyToBuild, true)
 
@@ -314,13 +369,13 @@ test('MCP workspace tools expose get_model review and build over edit/.build', a
       method: 'tools/call',
       params: {
         name: 'movscript_workspace_build',
-        arguments: {},
+        arguments: { userId: 1, projectId: 6 },
       },
     })
     const build = record(buildResponse?.result?.data)
     assert.equal(build.status, 'built')
-    assert.equal(existsSync(join(workspaceDir, '.build', 'indexes', 'domain-index.json')), true)
-    assert.equal(JSON.parse(readFileSync(join(workspaceDir, '.build', 'current', 'setting', 'setting_hero.json'), 'utf8')).name, 'New Hero')
+    assert.equal(existsSync(join(projectDir, '.build', 'indexes', 'domain-index.json')), true)
+    assert.equal(JSON.parse(readFileSync(join(projectDir, '.build', 'current', 'settings', 'setting_hero', 'setting.json'), 'utf8')).title, 'New Hero')
   } finally {
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir

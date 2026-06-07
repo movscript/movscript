@@ -1,7 +1,7 @@
 .ms-frame {
   overflow: hidden;
   border: 1px solid var(--ui-surface-border, var(--ms-surface-border, var(--ms-color-border)));
-  border-radius: var(--ui-surface-radius, var(--ms-radius-md));
+  border-radius: var(--ui-surface-radius, var(--ms-radius-card));
   background: var(--ui-surface-background, var(--ms-surface-background, var(--ms-color-surface)));
   color: var(--ms-color-foreground);
   box-shadow: var(--ui-surface-shadow, none);
@@ -102,7 +102,7 @@
   min-width: 0;
   flex-shrink: 0;
   align-items: center;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
   white-space: nowrap;
 }
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
+import { resolveMovScriptBackendSession, type MovScriptBackendSession } from '@movscript/core/backend/node'
 import {
   ensureMovScriptWorkspace,
   readMovScriptWorkspaceConfig,
@@ -28,7 +28,7 @@ export type AppServerConfigDistribution = {
   apiKind: string
   apiKeyConfigured: boolean
   accountConfigured: boolean
-  accountSource: 'movscript-account' | 'movscript-environment' | 'movscript-model-config' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
+  accountSource: 'movscript-account' | 'movscript-environment' | 'movscript-model-config' | 'movscript-backend-session' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
   distributedAt: string
   hash: string
   warning?: string
@@ -50,39 +50,52 @@ export function distributeAppServerConfigFromMovScriptWorkspace(input: {
   workspaceDir: string
   home: string
   providerKey?: string
+  compatibilityHomeEnvNames?: string[]
   now?: Date
 }): AppServerConfigDistribution {
   const providerKey = resolveDistributionProviderKey(input.providerKey, input.home)
   const home = input.home
   const workspaceConfigSource = readAppServerWorkspaceConfigSource(input.workspaceDir, providerKey)
   const workspaceConfig = workspaceConfigSource.config
-  const homeEnvNames = providerHomeEnvironmentVariables(providerKey, workspaceConfig)
+  const homeEnvNames = providerHomeEnvironmentVariables(providerKey, workspaceConfig, input.compatibilityHomeEnvNames)
   const modelConfig = normalizeAppServerModelConfig(workspaceConfig)
   const existingAuthJsonPath = join(home, APP_SERVER_AUTH_FILE_NAME)
   const distributionMode = resolveAppServerDistributionMode(workspaceConfig, providerKey)
   const localHome = resolveLocalAppServerHome(workspaceConfig, providerKey)
-  const account = resolveAppServerMaterializedAccount(workspaceConfig, {
+  const backendProviderSelected = usesBackendProvider(workspaceConfig, providerKey)
+  const backendSession = backendProviderSelected
+    ? resolveMovScriptBackendSession({ workspaceDir: input.workspaceDir })
+    : undefined
+  const resolvedAccount = resolveAppServerMaterializedAccount(workspaceConfig, {
     providerKey,
     managedAuthJsonPath: existingAuthJsonPath,
     localHome,
     distributionMode,
   })
+  const account = backendProviderSelected
+    ? resolveMovScriptBackendAppServerAccount(resolvedAccount, backendSession)
+    : resolvedAccount
   const baseURL = resolveAppServerBaseURL(workspaceConfig, {
     account,
     modelConfig,
     providerKey,
     workspaceDir: input.workspaceDir,
   })
-  const backendProviderSelected = usesBackendProvider(workspaceConfig, providerKey)
   const apiKind = modelConfig.apiKind || 'openai_responses'
   const distributedAt = (input.now ?? new Date()).toISOString()
-  const warning = apiKind === 'openai_responses'
-    ? undefined
-    : `app-server distribution uses Responses API; MovScript modelConfig.apiKind is ${apiKind}.`
+  const warning = [
+    apiKind === 'openai_responses'
+      ? undefined
+      : `app-server distribution uses Responses API; MovScript modelConfig.apiKind is ${apiKind}.`,
+    backendProviderSelected && resolvedAccount.kind !== 'none' && account.kind === 'none'
+      ? 'MovScript backend provider requires a backend session token or model gateway API key (mgw_...). Upstream provider API keys cannot authenticate app-server gateway calls.'
+      : undefined,
+  ].filter(Boolean).join(' ') || undefined
 
   const configToml = renderAppServerConfigToml({
     baseURL,
     accountKind: account.kind === 'none' && backendProviderSelected ? 'apiKey' : account.kind,
+    supportsWebsockets: !backendProviderSelected,
     generatedAt: distributedAt,
     sourceConfigPath: workspaceConfigSource.sourceConfigPath,
   })
@@ -178,11 +191,13 @@ export function appServerSpawnEnvironmentFromDistribution(
   return env
 }
 
-function providerHomeEnvironmentVariables(providerKey: string, config: MovScriptWorkspaceConfig): string[] {
+function providerHomeEnvironmentVariables(providerKey: string, config: MovScriptWorkspaceConfig, profileCompatibilityNames: string[] | undefined): string[] {
   const providerHomeEnvName = providerHomeEnvironmentVariable(providerKey)
   const compatibilityNames = providerCompatibilityHomeEnvironmentVariables(config, providerKey)
     .filter((name) => name !== providerHomeEnvName)
-  return [providerHomeEnvName, ...compatibilityNames]
+  const profileCompatibility = uniqueEnvironmentVariableNames(profileCompatibilityNames ?? [])
+    .filter((name) => name !== providerHomeEnvName)
+  return [providerHomeEnvName, ...uniqueEnvironmentVariableNames([...compatibilityNames, ...profileCompatibility])]
 }
 
 function providerHomeEnvironmentVariable(providerKey: string): string {
@@ -217,14 +232,16 @@ function resolveAppServerBaseURL(
 ): string {
   const accountBaseURL = input.account.kind === 'apiKey' ? input.account.baseURL : undefined
   const providerBaseURL = providerRecordBaseURL(config, input.providerKey)
-  const backendBaseURL = usesBackendProvider(config, input.providerKey)
+  const backendProviderSelected = usesBackendProvider(config, input.providerKey)
+  const backendBaseURL = backendProviderSelected
     ? `${resolveMovScriptBackendSession({ workspaceDir: input.workspaceDir }).baseURL}/v1`
     : undefined
-  return normalizeProviderBaseURL(accountBaseURL)
+  const baseURL = normalizeProviderBaseURL(accountBaseURL)
     ?? normalizeProviderBaseURL(providerBaseURL)
     ?? normalizeProviderBaseURL(backendBaseURL)
     ?? input.modelConfig.baseURL
     ?? DEFAULT_OPENAI_BASE_URL
+  return backendProviderSelected ? normalizeLocalBackendLoopbackBaseURL(baseURL) : baseURL
 }
 
 function providerRecordBaseURL(config: MovScriptWorkspaceConfig, providerKey: string): string | undefined {
@@ -256,9 +273,21 @@ function normalizeProviderBaseURL(value: string | undefined): string | undefined
   return normalized
 }
 
+function normalizeLocalBackendLoopbackBaseURL(value: string): string {
+  try {
+    const url = new URL(value)
+    if (url.hostname !== 'localhost') return value
+    url.hostname = '127.0.0.1'
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return value
+  }
+}
+
 function renderAppServerConfigToml(input: {
   baseURL: string
   accountKind: AppServerMaterializedAccount['kind']
+  supportsWebsockets: boolean
   generatedAt: string
   sourceConfigPath: string
 }): string {
@@ -273,7 +302,7 @@ function renderAppServerConfigToml(input: {
         'env_key = "OPENAI_API_KEY"',
         'wire_api = "responses"',
         'requires_openai_auth = false',
-        'supports_websockets = true',
+        `supports_websockets = ${input.supportsWebsockets ? 'true' : 'false'}`,
       ]
     : [
         'model_provider = "openai"',
@@ -347,6 +376,15 @@ function resolveAppServerMaterializedAccount(
   const localAccount = resolveExistingAppServerAccount(join(input.localHome, APP_SERVER_AUTH_FILE_NAME), 'local-home')
   if (localAccount.kind !== 'none') return localAccount
 
+  return { kind: 'none', source: 'none' }
+}
+
+function resolveMovScriptBackendAppServerAccount(
+  account: AppServerMaterializedAccount,
+  backendSession: MovScriptBackendSession | undefined,
+): AppServerMaterializedAccount {
+  if (account.kind === 'apiKey' && (account.apiKey.startsWith('mgw_') || account.apiKey.startsWith('mv1.'))) return account
+  if (backendSession?.token) return { kind: 'apiKey', apiKey: backendSession.token, source: 'movscript-backend-session' }
   return { kind: 'none', source: 'none' }
 }
 

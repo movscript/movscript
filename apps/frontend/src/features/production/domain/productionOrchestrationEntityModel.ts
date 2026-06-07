@@ -49,7 +49,7 @@ export function createProductionOrchestrationDefaultsForType(
   if (type === 'assetSlots') return { status: 'missing', production_id: productionId || 0, owner_type: segmentId ? 'segment' : '', owner_id: segmentId ?? null }
   if (type === 'contentUnits') return { status: 'workspace', production_id: productionId || 0, segment_id: segmentId ?? null, scene_moment_id: sceneMomentId ?? null }
   if (type === 'segments') return { status: 'workspace', kind: 'emotional_function', production_id: productionId || 0 }
-  if (type === 'sceneMoments') return { status: 'workspace', segment_id: segmentId ?? null }
+  if (type === 'sceneMoments') return { status: 'workspace', production_id: productionId || 0, segment_id: segmentId ?? null }
   if (type === 'writingExpressions') return { scene_moment_id: sceneMomentId ?? null, kind: 'dialogue', order: 1 }
   if (type === 'settings') return { status: 'workspace', importance: 'main' }
   return {}

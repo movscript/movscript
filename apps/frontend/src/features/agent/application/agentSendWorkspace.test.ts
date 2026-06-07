@@ -56,6 +56,67 @@ test('buildProviderSessionSendWorkspace binds composer input, attachments, and p
   assert.equal(workspace.httpRequests.some((request) => request.id === 'provider-create-thread'), false)
 })
 
+test('buildProviderSessionSendWorkspace carries thread controls to preview and debug run bodies', async () => {
+  const previewCalls: Array<{ threadControl?: unknown }> = []
+  const workspace = await buildProviderSessionSendWorkspace({
+    options: {
+      providerSessionId: 'session_1',
+      includeProviderSessionPreview: true,
+      threadControl: {
+        collaborationMode: 'plan',
+        goal: {
+          objective: 'Unify composer controls',
+          status: 'active',
+        },
+      },
+    },
+    workspaceInput: 'Ship it',
+    attachments: [],
+    composerAttachments: [],
+    resourceAttachmentIndex: new Map(),
+    settings: settings(),
+    currentProject: null,
+    systemPrompt: '',
+    contextLabels: [],
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+    previewDeps: {
+      providerSessionOnline: true,
+      ensureRunning: async () => undefined,
+      refetchProviderSessionHealth: async () => undefined,
+      syncProviderSessionModelConfig: async () => undefined,
+      isProviderSessionNotFoundError: () => false,
+      previewRun: async (input) => {
+        previewCalls.push({ threadControl: input.threadControl })
+        return preview()
+      },
+    },
+  })
+
+  assert.deepEqual(previewCalls, [{
+    threadControl: {
+      collaborationMode: 'plan',
+      goal: {
+        objective: 'Unify composer controls',
+        status: 'active',
+      },
+    },
+  }])
+  assert.deepEqual(workspace.providerSession?.threadControl, {
+    collaborationMode: 'plan',
+    goal: {
+      objective: 'Unify composer controls',
+      status: 'active',
+    },
+  })
+  const sessionRun = workspace.httpRequests.find((request) => request.id === 'provider-session-message-run')
+  const body = sessionRun?.body as { threadControl?: unknown } | undefined
+  assert.deepEqual(body?.threadControl, workspace.providerSession?.threadControl)
+})
+
 test('buildProviderSessionSendWorkspace resolves image attachments to active run input data URLs', async () => {
   const workspace = await buildProviderSessionSendWorkspace({
     workspaceInput: 'Describe this image',
@@ -298,6 +359,8 @@ function settings(overrides: Partial<AgentSettings> = {}): AgentSettings {
   return {
     activeProviderProfileConfigId: 'mova',
     modelId: 7,
+    collaborationMode: 'default',
+    goalModeEnabled: false,
     includeProjectContext: true,
     includeRecentResources: false,
     planMaxWorkers: 2,

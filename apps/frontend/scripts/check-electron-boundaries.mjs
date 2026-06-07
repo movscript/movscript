@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { checkCoreSharedEntrypoints } from '../../../scripts/core-runtime-boundary-utils.mjs'
+
 const allowedTopLevelElectronTS = new Set([
   'appMenu.ts',
   'appWindow.ts',
@@ -78,14 +80,6 @@ const staleImportPatterns = [
   },
 ]
 
-const coreSharedEntrypoints = [
-  'packages/core/src/index.ts',
-  'packages/core/src/workspace/index.ts',
-  'packages/core/src/mcp/index.ts',
-  'packages/core/src/plugins/index.ts',
-  'packages/core/src/backend/index.ts',
-]
-
 export function checkElectronBoundaries(frontendRoot) {
   const failures = []
 
@@ -130,6 +124,10 @@ export function checkElectronBoundaries(frontendRoot) {
   }
 
   for (const failure of checkCoreSharedEntrypoints(resolve(frontendRoot, '../..'))) {
+    failures.push(failure)
+  }
+
+  for (const failure of checkFrontendCoreAliasConfig(frontendRoot)) {
     failures.push(failure)
   }
 
@@ -180,50 +178,74 @@ function isRendererTestOrE2EPath(path) {
     || /\.(test|spec)\.(ts|tsx|mts|cts)$/.test(path)
 }
 
-function checkCoreSharedEntrypoints(repoRoot) {
+function checkFrontendCoreAliasConfig(frontendRoot) {
   const failures = []
-  const sourceRoot = resolve(repoRoot, 'packages/core/src')
-  const seen = new Set()
 
-  for (const entry of coreSharedEntrypoints) {
-    walkCoreSharedFile(resolve(repoRoot, entry), sourceRoot, seen, failures)
+  const tsconfigPath = resolve(frontendRoot, 'tsconfig.json')
+  const tsconfig = JSON.parse(readFileSync(tsconfigPath, 'utf8'))
+  if (tsconfig.compilerOptions?.paths?.['@movscript/core']) {
+    failures.push('frontend renderer tsconfig exposes deprecated broad @movscript/core root alias')
+  }
+  if (hasCoreNodePathAlias(tsconfig)) {
+    failures.push('frontend renderer tsconfig exposes Node-only @movscript/core/*/node path alias')
+  }
+  if (hasIncludeEntry(tsconfig, 'electron')) {
+    failures.push('frontend renderer tsconfig includes Electron source')
+  }
+
+  const electronTsconfigPath = resolve(frontendRoot, 'tsconfig.electron.json')
+  if (!existsSync(electronTsconfigPath)) {
+    failures.push('frontend must define tsconfig.electron.json for Electron source')
+  } else {
+    const electronTsconfig = JSON.parse(readFileSync(electronTsconfigPath, 'utf8'))
+    if (electronTsconfig.compilerOptions?.paths?.['@movscript/core']) {
+      failures.push('frontend Electron tsconfig exposes deprecated broad @movscript/core root alias')
+    }
+    if (!hasCoreNodePathAlias(electronTsconfig)) {
+      failures.push('frontend Electron tsconfig must own Node-only @movscript/core/*/node path aliases')
+    }
+    if (!hasIncludeEntry(electronTsconfig, 'electron')) {
+      failures.push('frontend Electron tsconfig must include Electron source')
+    }
+  }
+
+  const e2eConfigPath = resolve(frontendRoot, 'vite.e2e.config.ts')
+  const e2eConfig = readFileSync(e2eConfigPath, 'utf8')
+  if (hasCoreRootAlias(e2eConfig)) {
+    failures.push('frontend e2e renderer Vite config exposes deprecated broad @movscript/core root alias')
+  }
+  if (hasCoreNodeAlias(e2eConfig)) {
+    failures.push('frontend e2e renderer Vite config exposes Node-only @movscript/core/*/node alias')
+  }
+
+  const electronViteConfigPath = resolve(frontendRoot, 'electron.vite.config.ts')
+  const electronViteConfig = readFileSync(electronViteConfigPath, 'utf8')
+  if (hasCoreRootAlias(electronViteConfig)) {
+    failures.push('Electron Vite config exposes deprecated broad @movscript/core root alias')
+  }
+  const rendererAliasBlock = electronViteConfig.match(/const\s+rendererAlias\s*=\s*\{([\s\S]*?)\n\}/)?.[1]
+  if (!rendererAliasBlock) {
+    failures.push('Electron Vite config must define a rendererAlias block')
+  } else if (rendererAliasBlock.includes('coreNodeAlias') || hasCoreNodeAlias(rendererAliasBlock)) {
+    failures.push('Electron renderer Vite config exposes Node-only @movscript/core/*/node alias')
   }
 
   return failures
 }
 
-function walkCoreSharedFile(file, sourceRoot, seen, failures) {
-  if (seen.has(file) || !existsSync(file)) return
-  seen.add(file)
-  const source = readFileSync(file, 'utf8')
-  const rel = toPosix(relative(resolve(sourceRoot, '../..'), file))
-  const nodeImport = source.match(/(?:from|import)\s*['"](?:node:[^'"]+|fs|path|crypto|child_process|http|os)['"]|process\.|NodeJS\./)
-  if (nodeImport) {
-    failures.push(`shared @movscript/core entry reaches Node-only code: ${rel}`)
-    return
-  }
-  if (toPosix(relative(sourceRoot, file)).split('/').includes('node')) {
-    failures.push(`shared @movscript/core entry reaches /node adapter: ${rel}`)
-    return
-  }
-
-  const importPattern = /(?:import|export)\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g
-  for (const match of source.matchAll(importPattern)) {
-    const next = resolveRelativeSourceFile(file, match[1])
-    if (next && next.startsWith(sourceRoot)) {
-      walkCoreSharedFile(next, sourceRoot, seen, failures)
-    }
-  }
+function hasCoreRootAlias(source) {
+  return /['"]@movscript\/core['"]\s*:/.test(source)
 }
 
-function resolveRelativeSourceFile(from, specifier) {
-  if (!specifier.startsWith('.')) return null
-  const base = resolve(dirname(from), specifier)
-  const candidates = [
-    base,
-    `${base}.ts`,
-    `${base}.tsx`,
-    resolve(base, 'index.ts'),
-  ]
-  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null
+function hasCoreNodeAlias(source) {
+  return /['"]@movscript\/core\/(?:workspace|mcp|backend|plugins)\/node['"]\s*:/.test(source)
+}
+
+function hasCoreNodePathAlias(tsconfig) {
+  const paths = tsconfig.compilerOptions?.paths ?? {}
+  return Object.keys(paths).some((key) => /^@movscript\/core\/(?:workspace|mcp|backend|plugins)\/node$/.test(key))
+}
+
+function hasIncludeEntry(tsconfig, entry) {
+  return Array.isArray(tsconfig.include) && tsconfig.include.includes(entry)
 }

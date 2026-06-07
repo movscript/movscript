@@ -14,7 +14,6 @@ export type ProductionActionKey =
   | 'review_result'
   | 'rework'
   | 'lock_version'
-  | 'prepare_delivery'
   | 'done'
 
 export type ProductionCoverageKey = 'empty' | 'gap' | 'partial' | 'covered' | 'locked'
@@ -41,7 +40,6 @@ const ACTION_TERMS: Record<ProductionActionKey, ProductionTerm> = {
   review_result: { key: 'review_result', label: '审阅结果', state: 'pending', detail: '已有生成或制作结果，需要判断是否采用。' },
   rework: { key: 'rework', label: '处理返工', state: 'blocked', detail: '结果未达到要求，需要修改意见或重新生成。' },
   lock_version: { key: 'lock_version', label: '锁定版本', state: 'complete', detail: '内容可作为正式制作依据，确认后锁定主版本。' },
-  prepare_delivery: { key: 'prepare_delivery', label: '准备交付', state: 'ready', detail: '制作结果已具备交付基础，进入预览、审片或导出检查。' },
   done: { key: 'done', label: '已完成', state: 'complete', detail: '当前对象已经完成闭环。' },
 }
 

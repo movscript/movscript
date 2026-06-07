@@ -4,7 +4,6 @@ export interface Project {
   description: string
   owner_id: number
   owner?: User
-  status?: string
   total_episodes?: number
   aspect_ratio?: string
   visual_style?: string
@@ -494,7 +493,6 @@ export type ResourceBindingOwnerType =
   | 'storyboard_script'
   | 'content_unit'
   | 'keyframe'
-  | 'delivery_version'
   | 'canvas'
 
 export type ResourceBindingRole =

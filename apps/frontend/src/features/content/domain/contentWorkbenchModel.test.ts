@@ -29,7 +29,6 @@ function data(input: Partial<ProductionWorkbenchData>): ProductionWorkbenchData 
     scriptBlocks: [],
     previewTimelines: [],
     previewTimelineItems: [],
-    deliveryVersions: [],
     jobs: [],
     ...input,
   }

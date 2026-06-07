@@ -27,6 +27,7 @@ export interface MovScriptBackendAuth {
   schema: typeof MOVSCRIPT_BACKEND_AUTH_SCHEMA
   tokenType: 'Bearer'
   token: string
+  gitCredential?: MovScriptBackendGitCredential
   user?: {
     id?: string | number
     username?: string
@@ -34,6 +35,15 @@ export interface MovScriptBackendAuth {
   }
   expiresAt?: string
   updatedAt: string
+}
+
+export interface MovScriptBackendGitCredential {
+  provider: 'gitea'
+  username: string
+  token?: string
+  maskedToken?: string
+  status?: string
+  lastError?: string
 }
 
 export interface MovScriptBackendSession {
@@ -110,10 +120,12 @@ export function readMovScriptBackendAuth(workspaceDir = process.cwd()): MovScrip
   const tokenType = parsed.tokenType === 'Bearer' ? 'Bearer' : undefined
   if (!tokenType) return undefined
   const user = normalizeAuthUser(parsed.user)
+  const gitCredential = normalizeGitCredential(parsed.gitCredential ?? parsed.git_credential)
   return {
     schema: MOVSCRIPT_BACKEND_AUTH_SCHEMA,
     tokenType,
     token,
+    ...(gitCredential ? { gitCredential } : {}),
     ...(user ? { user } : {}),
     ...(stringField(parsed.expiresAt) ? { expiresAt: stringField(parsed.expiresAt) } : {}),
     updatedAt: stringField(parsed.updatedAt) ?? new Date().toISOString(),
@@ -127,6 +139,7 @@ export function writeMovScriptBackendAuth(workspaceDir: string | undefined, auth
     schema: MOVSCRIPT_BACKEND_AUTH_SCHEMA,
     tokenType: 'Bearer',
     token: auth.token,
+    ...(normalizeGitCredential(auth.gitCredential) ? { gitCredential: normalizeGitCredential(auth.gitCredential) } : {}),
     ...(normalizeAuthUser(auth.user) ? { user: normalizeAuthUser(auth.user) } : {}),
     ...(auth.expiresAt ? { expiresAt: auth.expiresAt } : {}),
     updatedAt: new Date().toISOString(),
@@ -183,6 +196,7 @@ export async function loginMovScriptBackend(input: {
   tokenType: 'Bearer'
   expiresAt?: string
   user?: Record<string, unknown>
+  gitCredential?: MovScriptBackendGitCredential
 }> {
   const session = resolveMovScriptBackendSession({ workspaceDir: input.workspaceDir, server: input.server })
   const response = await backendPost(session, '/auth/login', {
@@ -197,6 +211,7 @@ export async function loginMovScriptBackend(input: {
     tokenType: 'Bearer',
     ...(stringField(response.expires_at) ? { expiresAt: stringField(response.expires_at) } : {}),
     ...(isRecord(response.user) ? { user: response.user } : {}),
+    ...(normalizeGitCredential(response.git_credential) ? { gitCredential: normalizeGitCredential(response.git_credential) } : {}),
   }
 }
 
@@ -260,6 +275,25 @@ function normalizeAuthUser(value: unknown): MovScriptBackendAuth['user'] | undef
     ...(displayName ? { displayName } : {}),
   }
   return Object.keys(user).length > 0 ? user : undefined
+}
+
+function normalizeGitCredential(value: unknown): MovScriptBackendGitCredential | undefined {
+  if (!isRecord(value)) return undefined
+  const provider = stringField(value.provider)
+  const username = stringField(value.username)
+  if (provider !== 'gitea' || !username) return undefined
+  const token = stringField(value.token)
+  const maskedToken = stringField(value.maskedToken) ?? stringField(value.masked_token)
+  const status = stringField(value.status)
+  const lastError = stringField(value.lastError) ?? stringField(value.last_error)
+  return {
+    provider,
+    username,
+    ...(token ? { token } : {}),
+    ...(maskedToken ? { maskedToken } : {}),
+    ...(status ? { status } : {}),
+    ...(lastError ? { lastError } : {}),
+  }
 }
 
 function stringField(value: unknown): string | undefined {

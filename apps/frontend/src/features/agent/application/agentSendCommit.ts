@@ -11,7 +11,7 @@ import { createProviderSessionStopAbortError } from '@/features/agent/domain/age
 import { providerSessionClient, type AgentMessage, type AgentRun, type ProviderSessionEventV2, type AgentThread } from '@/shared/infrastructure/providerSessionClient'
 import { syncProviderSessionModelConfig } from '@/shared/infrastructure/providerSessionChat'
 import type { AgentAttachment, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import { useAgentSessionStore, type AgentConversationProviderSessionState, type AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
+import { useAgentSessionStore, type AgentConversationRuntimePatch, type AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import {
   finishAgentPerformanceOperation,
   markAgentPerformancePhase,
@@ -24,8 +24,6 @@ import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingSt
 import { providerSessionAssistantProgressFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
 
 type ActivityEventsAction = SetStateAction<ChatRunActivityEvent[]>
-type ConversationProviderSessionPatch = Partial<Omit<AgentConversationProviderSessionState, 'conversationId' | 'updatedAt'>>
-type ConversationRunPatch = Partial<Omit<AgentConversationProviderSessionState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>
 
 export interface CommitAgentSendWorkspaceDeps {
   userId: string
@@ -37,13 +35,15 @@ export interface CommitAgentSendWorkspaceDeps {
   liveTraceEventsRef: MutableRefObject<ChatRunActivityEvent[]>
   clearConversationWorkspace: (userId: string, conversationId: string) => void
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationProviderSessionTreeId?: (conversationId: string, providerSessionTreeId: string) => void
   setConversationProviderSessionId?: (userId: string, conversationId: string, sessionId: string) => void
-  setConversationProviderThreadId: (userId: string, conversationId: string, threadId: string) => void
+  setConversationProviderThreadBindingId?: (conversationId: string, providerThreadId: string) => void
+  setConversationProviderThreadId?: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  setProviderThreadId: (conversationId: string, threadId: string) => void
+  setProviderThreadId?: (conversationId: string, threadId: string) => void
   setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
-  setConversationRun: (conversationId: string, run: AgentRun, patch?: ConversationRunPatch) => void
-  setConversationProviderSessionState: (conversationId: string, patch: ConversationProviderSessionPatch) => void
+  setConversationRun: (conversationId: string, run: AgentRun, patch?: AgentConversationRuntimePatch) => void
+  updateConversationRuntimeState: (conversationId: string, patch: AgentConversationRuntimePatch) => void
   setLiveTraceEvents: (action: ActivityEventsAction) => void
   setPendingHttpEvents: (action: ActivityEventsAction) => void
   setPendingAssistantState: (state: AgentThinkingState | null | ((current: AgentThinkingState | null) => AgentThinkingState | null)) => void
@@ -96,7 +96,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
     sessionId: workspace.providerSession?.sessionId,
   })
   if (!workspace.model.id) {
-    deps.setConversationProviderSessionState(deps.conversationId, { error: deps.labels.selectModelFirst, loading: false, building: false })
+    deps.updateConversationRuntimeState(deps.conversationId, { error: deps.labels.selectModelFirst, loading: false, building: false })
     notifyAgentPanelRunSettled({
       requestId: workspace.providerSession?.requestId,
       status: 'error',
@@ -110,7 +110,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
   deps.clearConversationWorkspace(deps.userId, deps.conversationId)
   markSendPhase('clear_workspace_done')
   deps.setMentionRange(null)
-  deps.setConversationProviderSessionState(deps.conversationId, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
+  deps.updateConversationRuntimeState(deps.conversationId, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
   markSendPhase('provider_session_loading_set')
   deps.cancelRequestedRunIds.clear()
   const httpEvents = debugHttpRequestEvents(workspace.httpRequests)
@@ -189,6 +189,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
       sourceMessageId,
       clientInput: workspace.providerSession?.clientInput,
       ...(workspace.providerSession?.runProfile ? { runProfile: workspace.providerSession.runProfile } : {}),
+      ...(workspace.providerSession?.threadControl ? { threadControl: workspace.providerSession.threadControl } : {}),
       ...(workspace.providerSession?.title ? { title: workspace.providerSession.title } : {}),
       projectId: workspace.providerSession?.projectId,
     }, {
@@ -209,14 +210,14 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
           requestId: workspace.providerSession?.requestId,
           liveEvents: () => deps.liveTraceEventsRef.current,
           cancelledRunIds: deps.cancelRequestedRunIds,
-          getConversationProviderSessionState: () => useAgentSessionStore.getState().conversationProviderSessionStates[deps.conversationId],
+          getConversationRuntimeState: () => useAgentSessionStore.getState().conversationRuntimeStates[deps.conversationId],
           setPendingAssistantState: deps.setPendingAssistantState,
           thinkingStateForRun: deps.thinkingStateForRun,
           runTouchesProviderCatalog: deps.runTouchesProviderCatalog,
           refreshProviderCatalogContext: deps.refreshProviderCatalogContext,
           setPageTaskRunning: (requestId, patch) => deps.setPageTaskRunning(requestId, patch),
           setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
-          setConversationProviderSessionState: (patch) => deps.setConversationProviderSessionState(deps.conversationId, patch),
+          updateConversationRuntimeState: (patch) => deps.updateConversationRuntimeState(deps.conversationId, patch),
           cancelGenerationJobIfActive: deps.cancelGenerationJobIfActive,
           cancelRun: (runId, input) => providerSessionRunClient.cancelRun(runId, input),
           getRun: (runId) => providerSessionRunClient.getRun(runId),
@@ -265,14 +266,14 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
               requestId: workspace.providerSession?.requestId,
               liveEvents: () => deps.liveTraceEventsRef.current,
               cancelledRunIds: deps.cancelRequestedRunIds,
-              getConversationProviderSessionState: () => useAgentSessionStore.getState().conversationProviderSessionStates[deps.conversationId],
+              getConversationRuntimeState: () => useAgentSessionStore.getState().conversationRuntimeStates[deps.conversationId],
               setPendingAssistantState: deps.setPendingAssistantState,
               thinkingStateForRun: deps.thinkingStateForRun,
               runTouchesProviderCatalog: deps.runTouchesProviderCatalog,
               refreshProviderCatalogContext: deps.refreshProviderCatalogContext,
               setPageTaskRunning: (requestId, patch) => deps.setPageTaskRunning(requestId, patch),
               setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
-              setConversationProviderSessionState: (patch) => deps.setConversationProviderSessionState(deps.conversationId, patch),
+              updateConversationRuntimeState: (patch) => deps.updateConversationRuntimeState(deps.conversationId, patch),
               cancelGenerationJobIfActive: deps.cancelGenerationJobIfActive,
               cancelRun: (runId, input) => providerSessionRunClient.cancelRun(runId, input),
               getRun: (runId) => providerSessionRunClient.getRun(runId),
@@ -297,7 +298,9 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
         getRun: (runId) => providerSessionRunClient.getRun(runId),
         setProviderThreadId: deps.setProviderThreadId,
         setConversationSessionId: deps.setConversationSessionId,
+        setConversationProviderSessionTreeId: deps.setConversationProviderSessionTreeId,
         setConversationProviderSessionId: deps.setConversationProviderSessionId,
+        setConversationProviderThreadBindingId: deps.setConversationProviderThreadBindingId,
         setConversationProviderThreadId: deps.setConversationProviderThreadId,
         updateConversationTitle: deps.updateConversationTitle,
         setPageTaskRunning: deps.setPageTaskRunning,
@@ -343,7 +346,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
         setPendingAssistantState: deps.setPendingAssistantState,
         setPendingHttpEvents: deps.setPendingHttpEvents,
         resetStreamingAssistant: deps.resetStreamingAssistant,
-        setConversationProviderSessionState: deps.setConversationProviderSessionState,
+        updateConversationRuntimeState: deps.updateConversationRuntimeState,
         notifyRunSettled: notifyAgentPanelRunSettled,
       })
       return
@@ -358,7 +361,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
         setPendingAssistantState: deps.setPendingAssistantState,
       setPendingHttpEvents: deps.setPendingHttpEvents,
       resetStreamingAssistant: deps.resetStreamingAssistant,
-      setConversationProviderSessionState: deps.setConversationProviderSessionState,
+      updateConversationRuntimeState: deps.updateConversationRuntimeState,
       notifyRunSettled: notifyAgentPanelRunSettled,
       toastError: deps.toastError,
       assistantErrorContent: (errorMessage) => `当前提供方暂不可用。\n\n请确认所选提供方的 app-server 已启动并可连接。\n\n错误：${errorMessage}`,
@@ -373,7 +376,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
     }
     deps.cancelRequestedRunIds.clear()
     deps.setPendingAssistantState(null)
-    deps.setConversationProviderSessionState(deps.conversationId, { stopRequested: false, stopping: false, loading: false, building: false })
+    deps.updateConversationRuntimeState(deps.conversationId, { stopRequested: false, stopping: false, loading: false, building: false })
     markSendPhase('final_state_cleared', {
       streamProgressUpdateCount,
       latestStreamProgressChars,
@@ -386,6 +389,8 @@ type AcceptedSourceProviderSessionScopeDeps = Pick<
   | 'conversationId'
   | 'setConversationProviderSessionId'
   | 'setConversationProviderThreadId'
+  | 'setConversationProviderSessionTreeId'
+  | 'setConversationProviderThreadBindingId'
   | 'setConversationSessionId'
   | 'setProviderThreadId'
   | 'userId'
@@ -400,11 +405,13 @@ export function bindAcceptedSourceProviderSessionScope(input: {
   if (!threadId) return
   const sessionId = input.run.sessionId?.trim()
   if (sessionId) {
-    input.deps.setConversationSessionId?.(input.deps.conversationId, sessionId)
+    if (input.deps.setConversationProviderSessionTreeId) input.deps.setConversationProviderSessionTreeId(input.deps.conversationId, sessionId)
+    else input.deps.setConversationSessionId?.(input.deps.conversationId, sessionId)
     input.deps.setConversationProviderSessionId?.(input.deps.userId, input.deps.conversationId, sessionId)
   }
-  input.deps.setProviderThreadId(input.deps.conversationId, threadId)
-  input.deps.setConversationProviderThreadId(input.deps.userId, input.deps.conversationId, threadId)
+  if (input.deps.setConversationProviderThreadBindingId) input.deps.setConversationProviderThreadBindingId(input.deps.conversationId, threadId)
+  else input.deps.setProviderThreadId?.(input.deps.conversationId, threadId)
+  input.deps.setConversationProviderThreadId?.(input.deps.userId, input.deps.conversationId, threadId)
 }
 
 function schedulePostCommitFrame(operationId: string | undefined): void {

@@ -430,6 +430,7 @@ function mergeAgentChatText(existing: string, next: string): string {
 }
 
 export function agentChatNotificationEventShouldDisplayAsRecent(event: AgentChatNotificationEvent): boolean {
+  if (agentChatNotificationEventIsStatusSummary(event)) return false
   if (event.type === 'systemNotice') return !event.threadId || !event.turnId
   if (event.type === 'realtime') {
     if (event.event === 'transcriptDelta' || event.event === 'transcriptDone') return false
@@ -489,7 +490,7 @@ function dispatchAgentChatNotificationEvent<
     target.updateThreads((current) => current.map((thread) => applyAgentChatNotificationEventToThread(thread, event)))
     return
   }
-  if (event.type === 'systemNotice' && event.threadId && event.turnId) {
+  if (event.type === 'systemNotice' && event.threadId && event.turnId && !agentChatNotificationEventIsStatusSummary(event)) {
     target.updateThreads((current) => current.map((thread) => thread.id === event.threadId ? upsertAgentChatSystemNotice(thread, event.turnId as string, {
       type: 'systemNotice',
       id: event.id ?? `system-notice:${event.code ?? 'notice'}:${event.turnId}`,
@@ -502,6 +503,14 @@ function dispatchAgentChatNotificationEvent<
       raw: event.raw,
     }) : thread))
   }
+}
+
+function agentChatNotificationEventIsStatusSummary(event: AgentChatNotificationEvent): boolean {
+  return event.type === 'mcpStatus'
+    || (event.type === 'systemNotice' && event.code === 'remoteControl/status/changed')
+    || (event.type === 'systemNotice' && event.code === 'thread/tokenUsage/updated')
+    || (event.type === 'systemNotice' && event.code === 'thread/goal/updated')
+    || (event.type === 'systemNotice' && event.code === 'thread/goal/cleared')
 }
 
 function clearAgentChatRealtimeItemsForThread<

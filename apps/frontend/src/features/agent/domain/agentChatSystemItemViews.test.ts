@@ -121,7 +121,7 @@ test('agent chat system item view summarizes compaction and unknown raw items', 
     tone: 'process',
     timeline: [],
     actionContext: [],
-    rawDetailsLabel: 'Compaction details',
+    rawDetailsLabel: 'contextCompaction',
     rawDetails: {
       threadId: 'thread_1',
       turnId: 'turn_1',
@@ -144,7 +144,7 @@ test('agent chat system item view summarizes compaction and unknown raw items', 
     tone: 'neutral',
     timeline: [],
     actionContext: [],
-    rawDetailsLabel: 'Raw item',
+    rawDetailsLabel: 'unknown',
     rawDetails: { id: 'future_1', type: 'futureItem', status: 'streaming' },
   })
 })

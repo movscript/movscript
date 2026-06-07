@@ -1,18 +1,19 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/shared/infrastructure/api'
 import { ScriptCreateFormShell } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { Upload } from 'lucide-react'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/features/resources/domain/scriptDocuments'
+import { createWorkspaceScript, type ScriptWorkspaceRepositoryContext } from '@/features/scripts/application/scriptWorkspaceRepository'
 
 export interface EntityFormProps {
   projectId: number
+  workspaceContext?: ScriptWorkspaceRepositoryContext
   onSuccess: () => void
   onCancel: () => void
 }
 
-export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormProps) {
+export function ScriptCreateForm({ projectId, workspaceContext, onSuccess, onCancel }: EntityFormProps) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -39,13 +40,13 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
 
   const create = useMutation({
     mutationFn: () =>
-      api.post(`/projects/${projectId}/scripts`, {
+      createWorkspaceScript(projectId, {
         title,
         description: desc || undefined,
         content: body,
         raw_source: body,
         script_type: category.trim() || 'uncategorized',
-      }).then((r) => r.data),
+      }, workspaceContext),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })

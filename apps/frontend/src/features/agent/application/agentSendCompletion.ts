@@ -11,10 +11,12 @@ export interface CompleteSendRunResultDeps {
   liveEvents: () => ChatRunActivityEvent[]
   setLiveEventsRef: (events: ChatRunActivityEvent[]) => void
   getRun: (runId: string) => Promise<AgentRun>
-  setProviderThreadId: (conversationId: string, threadId: string) => void
+  setProviderThreadId?: (conversationId: string, threadId: string) => void
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationProviderSessionTreeId?: (conversationId: string, providerSessionTreeId: string) => void
   setConversationProviderSessionId?: (userId: string, conversationId: string, sessionId: string) => void
-  setConversationProviderThreadId: (userId: string, conversationId: string, threadId: string) => void
+  setConversationProviderThreadBindingId?: (conversationId: string, providerThreadId: string) => void
+  setConversationProviderThreadId?: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
@@ -45,11 +47,13 @@ export async function completeSendRunResult(input: {
   const artifacts = extractAgentTaskArtifacts(run)
   const sessionId = thread.sessionId ?? run.sessionId
   if (sessionId) {
-    deps.setConversationSessionId?.(deps.conversationId, sessionId)
+    if (deps.setConversationProviderSessionTreeId) deps.setConversationProviderSessionTreeId(deps.conversationId, sessionId)
+    else deps.setConversationSessionId?.(deps.conversationId, sessionId)
     deps.setConversationProviderSessionId?.(deps.userId, deps.conversationId, sessionId)
   }
-  deps.setProviderThreadId(deps.conversationId, thread.id)
-  deps.setConversationProviderThreadId(deps.userId, deps.conversationId, thread.id)
+  if (deps.setConversationProviderThreadBindingId) deps.setConversationProviderThreadBindingId(deps.conversationId, thread.id)
+  else deps.setProviderThreadId?.(deps.conversationId, thread.id)
+  deps.setConversationProviderThreadId?.(deps.userId, deps.conversationId, thread.id)
   if (thread.title?.trim()) {
     deps.updateConversationTitle(deps.userId, deps.conversationId, thread.title.trim())
   }

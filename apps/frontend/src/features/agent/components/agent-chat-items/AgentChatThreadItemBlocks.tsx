@@ -2,6 +2,7 @@ import {
   AgentChatResultStack,
   AgentChatTinyBadge,
   AgentMessageSection,
+  Button,
 } from '@movscript/ui'
 import {
   agentChatContentDefaultOpen,
@@ -13,8 +14,8 @@ type AgentChatSectionTone = 'neutral' | 'result' | 'process' | 'diagnostic'
 
 export function AgentChatSectionTitle({ title, meta }: { title: string; meta?: Array<string | undefined | null | false> }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="min-w-0 break-words text-foreground">{title}</span>
+    <div className="ms-agent-chat-section-title">
+      <span className="ms-agent-chat-section-title__text">{title}</span>
       <AgentChatItemMeta values={meta ?? []} />
     </div>
   )
@@ -24,9 +25,9 @@ function AgentChatItemMeta({ values }: { values: Array<string | undefined | null
   const compactValues = values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
   if (compactValues.length === 0) return null
   return (
-    <span className="inline-flex min-w-0 flex-wrap gap-1">
-      {compactValues.map((value) => (
-        <AgentChatTinyBadge key={value} variant="outline" title={value}>{value}</AgentChatTinyBadge>
+    <span className="ms-agent-chat-meta-list">
+      {compactValues.map((value, index) => (
+        <AgentChatTinyBadge key={`${index}:${value}`} variant="outline" title={value}>{value}</AgentChatTinyBadge>
       ))}
     </span>
   )
@@ -37,9 +38,9 @@ export function AgentChatInlineList({ label, values }: { label: string; values: 
   if (compactValues.length === 0) return null
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen={agentChatListDefaultOpen(compactValues.length)}>
-      <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="ms-agent-chat-inline-list">
         {compactValues.map((value, index) => (
-          <div key={`${index}:${value}`} className="whitespace-pre-wrap break-words">{value}</div>
+          <div key={`${index}:${value}`} className="ms-agent-chat-inline-list__item">{value}</div>
         ))}
       </div>
     </AgentMessageSection>
@@ -57,20 +58,20 @@ export function AgentChatImagePreviewGrid({
   if (visibleImages.length === 0) return null
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-2">
+      <div className="ms-agent-chat-media-grid" data-kind="image">
         {visibleImages.map((image, index) => (
           <a
             key={`${index}:${image.url}`}
             href={image.url}
             target="_blank"
             rel="noreferrer"
-            className="block overflow-hidden rounded border border-border bg-muted/30"
+            className="ms-agent-chat-media-tile"
           >
             <img
               src={image.url}
               alt={image.alt}
               loading="lazy"
-              className="h-32 w-full object-cover"
+              className="ms-agent-chat-media-tile__image"
             />
           </a>
         ))}
@@ -90,9 +91,9 @@ export function AgentChatMediaPreviewGrid({
   if (visibleMedia.length === 0) return null
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+      <div className="ms-agent-chat-media-grid" data-kind="media">
         {visibleMedia.map((item, index) => (
-          <div key={`${index}:${item.url}`} className="overflow-hidden rounded border border-border bg-muted/30 p-2">
+          <div key={`${index}:${item.url}`} className="ms-agent-chat-media-tile">
             {item.kind === 'video' ? (
               <video
                 src={item.url}
@@ -100,7 +101,7 @@ export function AgentChatMediaPreviewGrid({
                 controls
                 playsInline
                 preload="metadata"
-                className="aspect-video w-full bg-black object-contain"
+                className="ms-agent-chat-media-tile__video"
               />
             ) : (
               <audio
@@ -108,10 +109,10 @@ export function AgentChatMediaPreviewGrid({
                 aria-label={item.label}
                 controls
                 preload="metadata"
-                className="w-full"
+                className="ms-agent-chat-media-tile__audio"
               />
             )}
-            <div className="mt-2 truncate text-xs text-muted-foreground" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
+            <div className="ms-agent-chat-media-tile__caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
               {item.mimeType ? `${item.label} ${item.mimeType}` : item.label}
             </div>
           </div>
@@ -135,8 +136,61 @@ export function AgentChatPreviewBlock({
   return (
     <AgentMessageSection title={label} tone={tone} defaultOpen={agentChatContentDefaultOpen(contentKind, value)}>
       <AgentChatResultStack>
-        <pre className="whitespace-pre-wrap break-words text-muted-foreground">{agentChatValuePreview(value)}</pre>
+        <pre className="ms-agent-chat-pre">{agentChatValuePreview(value)}</pre>
       </AgentChatResultStack>
+    </AgentMessageSection>
+  )
+}
+
+export type AgentChatInspectEntry = {
+  label: string
+  value: unknown
+  tone?: AgentChatSectionTone
+}
+
+export function AgentChatInspectBlock({
+  entries,
+  title = 'Inspect',
+}: {
+  entries: Array<AgentChatInspectEntry | undefined | null | false>
+  title?: string
+}) {
+  const visibleEntries = entries.filter((entry): entry is AgentChatInspectEntry => Boolean(entry))
+  if (visibleEntries.length === 0) return null
+  const inspectValue = visibleEntries.length === 1
+    ? visibleEntries[0]?.value
+    : Object.fromEntries(visibleEntries.map((entry) => [entry.label, entry.value]))
+  const inspectText = agentChatValuePreview(inspectValue, 8000)
+  return (
+    <AgentMessageSection
+      title={<AgentChatSectionTitle title={title} meta={[`${visibleEntries.length} item(s)`]} />}
+      tone="neutral"
+      defaultOpen={false}
+    >
+      <div className="ms-agent-chat-inspect" data-testid="agent-chat-inspect">
+        <div className="ms-agent-chat-inspect__toolbar">
+          <span>Protocol payload</span>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              if (typeof navigator === 'undefined') return
+              void navigator.clipboard?.writeText(inspectText)
+            }}
+          >
+            Copy JSON
+          </Button>
+        </div>
+        <AgentChatResultStack>
+          {visibleEntries.map((entry) => (
+            <div key={entry.label} className="ms-agent-chat-inspect__entry" data-tone={entry.tone ?? 'neutral'}>
+              <div className="ms-agent-chat-inspect__label">{entry.label}</div>
+              <pre className="ms-agent-chat-pre">{agentChatValuePreview(entry.value, 8000)}</pre>
+            </div>
+          ))}
+        </AgentChatResultStack>
+      </div>
     </AgentMessageSection>
   )
 }
@@ -155,16 +209,16 @@ export function AgentChatTextBlock({
   if (!value.trim()) return null
   return (
     <AgentMessageSection title={label} tone={tone} defaultOpen={agentChatContentDefaultOpen(contentKind, value)}>
-      <pre className="whitespace-pre-wrap break-words text-muted-foreground">{value}</pre>
+      <pre className="ms-agent-chat-pre">{value}</pre>
     </AgentMessageSection>
   )
 }
 
-export function agentChatValuePreview(value: unknown): string {
+export function agentChatValuePreview(value: unknown, maxLength = 1600): string {
   try {
     const preview = JSON.stringify(value, null, 2)
     if (!preview) return ''
-    return preview.length > 1600 ? `${preview.slice(0, 1600)}...` : preview
+    return preview.length > maxLength ? `${preview.slice(0, maxLength)}...` : preview
   } catch {
     return String(value)
   }

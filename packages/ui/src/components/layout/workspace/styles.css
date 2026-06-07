@@ -1,5 +1,5 @@
 .app-shell {
-  --app-shell-slot-radius: 12px;
+  --app-shell-slot-radius: var(--ms-radius-window);
   --app-content-frame-radius: var(--app-shell-slot-radius) 0 0 0;
   --app-shell-right-pane-radius: 0;
   --app-shell-slot-left-background: var(--ms-app-shell-slot-left-background, var(--ms-color-app-background));
@@ -405,7 +405,7 @@
 .overlap-pane {
   --overlap-pane-overlap: clamp(18px, 2vw, 28px);
   --overlap-pane-offset: var(--overlap-pane-overlap);
-  --overlap-pane-radius: var(--ms-radius-lg, 14px);
+  --overlap-pane-radius: var(--ms-radius-panel);
   --overlap-pane-shadow-left: -16px 0 30px -28px rgb(0 0 0 / 0.45);
   --overlap-pane-shadow-right: 16px 0 30px -28px rgb(0 0 0 / 0.45);
   --overlap-pane-border-color: color-mix(in srgb, var(--ms-color-border) 72%, transparent);

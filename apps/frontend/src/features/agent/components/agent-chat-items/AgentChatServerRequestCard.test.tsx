@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { AgentChatServerRequestCard } from '@/features/agent/components/agent-chat-items/AgentChatServerRequestCard'
 
-test('AgentChatServerRequestCard renders approval requests with summary and raw details', () => {
+test('AgentChatServerRequestCard renders approval requests with summary and inspect payload', () => {
   const html = renderToStaticMarkup(
     <AgentChatServerRequestCard
       request={{
@@ -51,7 +52,9 @@ test('AgentChatServerRequestCard renders approval requests with summary and raw 
   assert.match(html, />Allow similar command</)
   assert.match(html, />Allow network policy 1</)
   assert.match(html, />Allow once</)
-  assert.match(html, /Request details/)
+  assert.match(html, /Inspect/)
+  assert.match(html, /request/)
+  assert.doesNotMatch(html, /Request details/)
 })
 
 test('AgentChatServerRequestCard disables approve for credential refresh requests', () => {
@@ -111,7 +114,9 @@ test('AgentChatServerRequestCard does not enable approve for unknown request met
 
   assert.match(html, /Agent request/)
   assert.match(html, /future\/requestApproval/)
-  assert.match(html, /Request details/)
+  assert.match(html, /Inspect/)
+  assert.match(html, /request/)
+  assert.doesNotMatch(html, /Request details/)
   assert.match(html, /future protocol request/)
   assert.match(html, /<button[^>]*disabled[^>]*>[\s\S]*Approve[\s\S]*<\/button>/)
   assert.doesNotMatch(html, />Reject</)

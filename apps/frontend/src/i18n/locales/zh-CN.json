@@ -414,8 +414,8 @@
     "promptPlaceholder": "描述镜头视觉内容…",
     "finalShot": "成品镜头",
     "finalShotDescription": "成品镜头说明",
-    "finalShotDescriptionPlaceholder": "最终交付镜头的内容说明",
-    "finalPromptNotes": "成品提示词 / 交付备注",
+    "finalShotDescriptionPlaceholder": "成品镜头的内容说明",
+    "finalPromptNotes": "成品提示词 / 审核备注",
     "rawSource": "原始成片",
     "uploadShotHint": "在这里直接上传成品镜头视频。",
     "referenceAssets": "参考素材",
@@ -533,7 +533,7 @@
   "pages": {
     "projectHome": {
       "badge": "首页",
-      "noDescription": "暂无项目描述。这里会汇总剧本、素材、生产和交付的当前状态。",
+      "noDescription": "暂无项目描述。这里会汇总剧本、素材和生产的当前状态。",
       "actions": {
         "continue": "继续推进",
         "viewTasks": "查看任务"
@@ -572,7 +572,7 @@
       },
       "sections": {
         "pipeline": "制作链路",
-        "pipelineHint": "从制作管理到交付的五段式项目总览。",
+        "pipelineHint": "从制作管理到创作编排的项目总览。",
         "focus": "今日关注",
         "focusHint": "优先处理会阻塞后续生产的内容缺口。",
         "quickLinks": "快速入口"
@@ -593,10 +593,6 @@
         "production": {
           "title": "制作",
           "description": "承载一次从剧本、制作管理、资料、素材、内容到成片的完整制作。"
-        },
-        "delivery": {
-          "title": "交付",
-          "description": "汇总通过镜头，进入成片整理和交付检查。"
         }
       },
       "focus": {
@@ -3994,8 +3990,6 @@
       "workbenchAssets": "素材工作台",
       "workbenchContentGeneration": "内容编排",
       "shotEditWorkbench": "内容编辑",
-      "workbenchDelivery": "交付工作台",
-      "deliveryWorkbench": "交付工作台",
       "workbenchReferenceRelations": "关系校正",
       "assetProductionWorkbench": "素材制作工作台",
       "contentProductionWorkbench": "制作执行工作台",
@@ -4011,7 +4005,6 @@
       "production": "制作",
       "finalVideos": "成片库",
       "collaboration": "任务",
-      "delivery": "交付中心",
       "semanticEntities": "语义实体",
       "scenes": "情景库",
       "storyboards": "分镜管理",
@@ -4037,9 +4030,7 @@
       "dark": "切换到深色模式",
       "options": {
         "dark": "深色",
-        "light": "浅色",
-        "noir": "黑金",
-        "gray": "灰色"
+        "light": "浅色"
       }
     },
     "language": "语言"
@@ -4120,13 +4111,11 @@
       "workbench": "一键制作",
       "workbenchCreative": "设定准备",
       "workbenchAssets": "素材工作台",
-      "workbenchDelivery": "交付门禁",
       "workbenchReferenceRelations": "关系校正",
       "workbenchAssetPreparation": "素材工作台",
       "workbenchContentGeneration": "内容编排",
       "shotEditWorkbench": "内容编辑",
       "productionTasks": "任务",
-      "delivery": "交付",
       "user": "用户资料",
       "admin": "管理后台",
       "adminConsole": "管理后台",

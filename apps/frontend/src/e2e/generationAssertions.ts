@@ -1,7 +1,38 @@
 import { expect, type Page } from '@playwright/test'
+import {
+  MOVSCRIPT_BUILD_CURRENT_DIR,
+  MOVSCRIPT_BUILD_DIR,
+  MOVSCRIPT_BUILD_INDEXES_DIR,
+  MOVSCRIPT_BUILD_MANIFESTS_DIR,
+  MOVSCRIPT_BUILD_REVIEWS_DIR,
+  MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
+  MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
+  MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
+  movScriptContentUnitKeyframePath,
+  movScriptWorkspaceAssetPath,
+} from '@movscript/core/workspace'
 
 export async function mockGenerationCandidateTargets(page: Page) {
-  await page.addInitScript(() => {
+  const workspaceRoot = '/tmp/movscript-e2e-workspace'
+  const assetTargetPath = movScriptWorkspaceAssetPath({ id: 'asset_77', settingId: 'setting_1' })
+  const keyframeTargetPath = movScriptContentUnitKeyframePath({ contentUnitId: 30, keyframeId: 88 })
+  await page.addInitScript(({
+    assetTargetPath,
+    keyframeTargetPath,
+    workspaceRoot,
+    workspaceDirName,
+    manifestFileName,
+    manifestSchema,
+    buildDir,
+    buildCurrentDir,
+    buildIndexesDir,
+    buildReviewsDir,
+    buildManifestsDir,
+    providersDirName,
+    backendDirName,
+  }) => {
     type WorkspaceStateWindow = Window & {
       api?: Record<string, unknown>
       __movscriptWorkspaceFiles?: Record<string, string>
@@ -11,19 +42,20 @@ export async function mockGenerationCandidateTargets(page: Page) {
     const state = window as WorkspaceStateWindow
     const globalState = state as unknown as Record<string, unknown>
     state.__movscriptWorkspaceFiles = {
-      'edit/assets/asset_slot_77.json': JSON.stringify({
-        schema: 'movscript.asset_slot.v1',
-        id: 77,
-        ID: 77,
+      [assetTargetPath]: JSON.stringify({
+        schema: 'movscript.asset.v1',
+        kind: 'asset',
+        id: 'asset_77',
         project_id: 123,
-        name: '主视觉素材位',
+        title: '主视觉素材位',
+        asset_kind: 'image',
         status: 'open',
         description: '需要一张可审阅的生成图',
       }),
-      'edit/productions/production_10/keyframes/keyframe_88.json': JSON.stringify({
+      [keyframeTargetPath]: JSON.stringify({
         schema: 'movscript.keyframe.v1',
-        id: 88,
-        ID: 88,
+        kind: 'keyframe',
+        id: 'keyframe_88',
         project_id: 123,
         title: '开场画面锚点',
         status: 'workspace',
@@ -50,28 +82,28 @@ export async function mockGenerationCandidateTargets(page: Page) {
     globalState.api = {
       ...currentApi,
       getMovScriptWorkspaceRoot: async () => ({
-        workspaceDir: '/tmp/movscript-e2e-workspace',
-        rootDir: '/tmp/movscript-e2e-workspace',
-        controlDir: '/tmp/movscript-e2e-workspace/.movscript',
-        manifestPath: '/tmp/movscript-e2e-workspace/.movscript/manifest.json',
-        editDir: '/tmp/movscript-e2e-workspace/edit',
-        buildDir: '/tmp/movscript-e2e-workspace/.build',
-        buildCurrentDir: '/tmp/movscript-e2e-workspace/.build/current',
-        buildIndexesDir: '/tmp/movscript-e2e-workspace/.build/indexes',
-        buildReviewsDir: '/tmp/movscript-e2e-workspace/.build/reviews',
-        buildManifestsDir: '/tmp/movscript-e2e-workspace/.build/manifests',
-        providersDir: '/tmp/movscript-e2e-workspace/.movscript/providers',
-        backendDir: '/tmp/movscript-e2e-workspace/.movscript/backend',
+        workspaceDir: workspaceRoot,
+        rootDir: workspaceRoot,
+        controlDir: `${workspaceRoot}/${workspaceDirName}`,
+        manifestPath: `${workspaceRoot}/${workspaceDirName}/${manifestFileName}`,
+        editDir: workspaceRoot,
+        buildDir: `${workspaceRoot}/${buildDir}`,
+        buildCurrentDir: `${workspaceRoot}/${buildCurrentDir}`,
+        buildIndexesDir: `${workspaceRoot}/${buildIndexesDir}`,
+        buildReviewsDir: `${workspaceRoot}/${buildReviewsDir}`,
+        buildManifestsDir: `${workspaceRoot}/${buildManifestsDir}`,
+        providersDir: `${workspaceRoot}/${workspaceDirName}/${providersDirName}`,
+        backendDir: `${workspaceRoot}/${workspaceDirName}/${backendDirName}`,
         manifest: {
-          schema: 'movscript.project-workspace.v1',
+          schema: manifestSchema,
           workspaceId: 'e2e',
           activeUserId: 1,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
           layout: {
-            editableRoot: 'edit',
-            buildRoot: '.build',
-            providerConfigRoot: 'providers',
+            editableRoot: '.',
+            buildRoot: buildDir,
+            providerConfigRoot: providersDirName,
           },
         },
       }),
@@ -117,6 +149,20 @@ export async function mockGenerationCandidateTargets(page: Page) {
         return { ok: true }
       },
     }
+  }, {
+    assetTargetPath,
+    keyframeTargetPath,
+    workspaceRoot,
+    workspaceDirName: MOVSCRIPT_WORKSPACE_DIR_NAME,
+    manifestFileName: MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
+    manifestSchema: MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
+    buildDir: MOVSCRIPT_BUILD_DIR,
+    buildCurrentDir: MOVSCRIPT_BUILD_CURRENT_DIR,
+    buildIndexesDir: MOVSCRIPT_BUILD_INDEXES_DIR,
+    buildReviewsDir: MOVSCRIPT_BUILD_REVIEWS_DIR,
+    buildManifestsDir: MOVSCRIPT_BUILD_MANIFESTS_DIR,
+    providersDirName: MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
+    backendDirName: MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
   })
   await page.route('**/api/v1/projects/123/entities/asset-slots**', async (route) => {
     await route.fulfill({

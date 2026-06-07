@@ -1,7 +1,7 @@
 import { Check, CheckCircle2, Eye, GitBranch } from 'lucide-react'
 import {
-  ProductionWorkspaceBackendPreviewReadyPanel,
   ProductionWorkspaceContinueReviewPanel,
+  ProductionWorkspaceReviewPreviewReadyPanel,
   ProductionWorkspaceResultActionButton,
   ProductionWorkspaceResultActions,
   ProductionWorkspaceResultCallout,
@@ -12,12 +12,12 @@ import {
 import { ProductionWorkspaceApplyGatePanel } from '@/features/production/components/workspaces/ProductionWorkspaceApplyGatePanel'
 import { ProductionWorkspaceApplyPreviewPanel } from '@/features/production/components/workspaces/ProductionWorkspaceApplyPreviewPanel'
 import {
-  ProductionWorkspaceBackendPreviewIssuePanel,
-  ProductionWorkspaceBackendPreviewSemanticSummary,
-} from '@/features/production/components/workspaces/ProductionWorkspaceBackendPreviewPanel'
+  ProductionWorkspaceReviewPreviewIssuePanel,
+  ProductionWorkspaceReviewPreviewSemanticSummary,
+} from '@/features/production/components/workspaces/ProductionWorkspaceReviewPreviewPanel'
 import { ProductionWorkspaceSemanticDiffPanel } from '@/features/production/components/workspaces/ProductionWorkspaceSemanticDiffPanel'
 import type { WorkspaceSimulationResult } from '@/features/production/domain/productionWorkspaceReviewModel'
-import type { ProductionWorkspaceBackendPreviewIssue } from '@/features/production/presentation/productionWorkspaceReviewPresentationTypes'
+import type { ProductionWorkspaceReviewPreviewIssue } from '@/features/production/presentation/productionWorkspaceReviewPresentationTypes'
 import type {
   ProductionWorkspaceApplyGate,
   ProductionWorkspaceNodeDecision,
@@ -58,7 +58,7 @@ export function ProductionWorkspaceAppliedResultPanel({
 export function ProductionWorkspaceSimulationResultPanel({
   simulationResult,
   applyGate,
-  backendPreviewIssue,
+  reviewPreviewIssue,
   semanticDiff,
   nodeDecisions,
   previewOnly,
@@ -71,7 +71,7 @@ export function ProductionWorkspaceSimulationResultPanel({
 }: {
   simulationResult: WorkspaceSimulationResult
   applyGate: ProductionWorkspaceApplyGate
-  backendPreviewIssue: ProductionWorkspaceBackendPreviewIssue | null
+  reviewPreviewIssue: ProductionWorkspaceReviewPreviewIssue | null
   semanticDiff: ProductionWorkspaceSemanticDiffGroup[]
   nodeDecisions: ProductionWorkspaceNodeDecisions
   previewOnly: boolean
@@ -86,8 +86,8 @@ export function ProductionWorkspaceSimulationResultPanel({
     <ProductionWorkspaceResultStack>
       <ProductionWorkspaceResultCallout
         icon={Eye}
-        title={simulationResult.backendPreview ? '写入预检已生成' : '本地预览已生成'}
-        description={simulationResult.backendPreview ? '系统已校验本次写入影响，不会提交到项目。' : '本次预览仅基于当前接受/拒绝决策计算，不会提交到项目。'}
+        title={simulationResult.reviewPreview ? '写入预检已生成' : '本地预览已生成'}
+        description={simulationResult.reviewPreview ? '系统已校验本次 workspace 写入影响，不会提交到项目。' : '本次预览仅基于当前接受/拒绝决策计算，不会提交到项目。'}
         stats={[
           { outcome: 'accepted', label: '已接受', value: simulationResult.acceptedNodes, showZero: true },
           { outcome: 'rejected', label: '已拒绝', value: simulationResult.rejectedNodes, showZero: true },
@@ -108,29 +108,29 @@ export function ProductionWorkspaceSimulationResultPanel({
         />
       </ProductionWorkspaceResultCallout>
 
-      {simulationResult.backendPreview && (
-        <ProductionWorkspaceBackendPreviewReadyPanel
+      {simulationResult.reviewPreview && (
+        <ProductionWorkspaceReviewPreviewReadyPanel
           icon={CheckCircle2}
           title="写入预检结果"
           stats={[
-            { label: '返回编排段', value: simulationResult.backendPreview.returned.segments, showZero: true },
-            { label: '返回情节', value: simulationResult.backendPreview.returned.sceneMoments, showZero: true },
-            { label: '返回表达', value: simulationResult.backendPreview.returned.writingExpressions, showZero: true },
-            { label: '返回内容', value: simulationResult.backendPreview.returned.contentUnits, showZero: true },
-            { label: '返回画面锚点', value: simulationResult.backendPreview.returned.keyframes, showZero: true },
-            { label: '返回素材', value: simulationResult.backendPreview.returned.assetSlots, showZero: true },
-            { label: '新设定', value: simulationResult.backendPreview.returned.settings, showZero: true },
+            { label: '返回编排段', value: simulationResult.reviewPreview.returned.segments, showZero: true },
+            { label: '返回情节', value: simulationResult.reviewPreview.returned.sceneMoments, showZero: true },
+            { label: '返回表达', value: simulationResult.reviewPreview.returned.writingExpressions, showZero: true },
+            { label: '返回内容', value: simulationResult.reviewPreview.returned.contentUnits, showZero: true },
+            { label: '返回画面锚点', value: simulationResult.reviewPreview.returned.keyframes, showZero: true },
+            { label: '返回素材', value: simulationResult.reviewPreview.returned.assetSlots, showZero: true },
+            { label: '新设定', value: simulationResult.reviewPreview.returned.settings, showZero: true },
           ]}
         >
-          <ProductionWorkspaceBackendPreviewSemanticSummary
-            changes={simulationResult.backendPreview.semanticChanges}
-            warnings={simulationResult.backendPreview.warnings}
+          <ProductionWorkspaceReviewPreviewSemanticSummary
+            changes={simulationResult.reviewPreview.semanticChanges}
+            warnings={simulationResult.reviewPreview.warnings}
           />
-        </ProductionWorkspaceBackendPreviewReadyPanel>
+        </ProductionWorkspaceReviewPreviewReadyPanel>
       )}
 
       <ProductionWorkspaceApplyGatePanel gate={applyGate} />
-      {backendPreviewIssue && <ProductionWorkspaceBackendPreviewIssuePanel issue={backendPreviewIssue} />}
+      {reviewPreviewIssue && <ProductionWorkspaceReviewPreviewIssuePanel issue={reviewPreviewIssue} />}
       <ProductionWorkspaceApplyPreviewPanel preview={simulationResult.preview} />
       <ProductionWorkspaceContinueReviewPanel
         icon={GitBranch}

@@ -127,7 +127,7 @@ function CandidateRow({
   const slot = candidate.candidate_asset_slot
   const hasCandidateResource = Boolean(candidate.resource_id) || assetSlotHasLoadedResource(slot)
   const canLock = selected || hasCandidateResource
-  const canMutate = Boolean(candidate.candidate_asset_slot_id || candidate.__workspace_path)
+  const canMutate = Boolean(candidate.candidate_asset_slot_id || candidate.client_id || candidate.id)
   return (
     <ResourceAssetCandidateCard active={selected}>
       <ResourceAssetCandidateContent>

@@ -21,7 +21,7 @@ function workspaceRootResult(
     rootDir: paths.rootDir,
     controlDir: paths.controlDir,
     manifestPath: paths.manifestPath,
-    editDir: paths.editDir,
+    editDir: paths.rootDir,
     buildDir: paths.buildDir,
     buildCurrentDir: paths.buildCurrentDir,
     buildIndexesDir: paths.buildIndexesDir,

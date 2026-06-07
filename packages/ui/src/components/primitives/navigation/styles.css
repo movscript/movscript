@@ -1,6 +1,6 @@
 .ms-tabs__list {
   min-height: 36px;
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-control);
   background: var(--ms-color-muted);
   padding: var(--ms-space-1);
   color: var(--ms-color-muted-foreground);
@@ -8,7 +8,7 @@
 
 .ms-tabs__trigger {
   white-space: nowrap;
-  border-radius: var(--ms-radius-sm);
+  border-radius: calc(var(--ms-radius-control) - 2px);
   padding: 6px 12px;
   color: inherit;
   font-family: var(--ms-font-sans);

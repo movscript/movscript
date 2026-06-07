@@ -27,7 +27,7 @@ export interface AgentRunApprovalDecisionInput {
 export interface AgentRunInteractionActionDeps {
   conversationId: string
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
-  setConversationProviderSessionState: (patch: RunInteractionConversationProviderSessionPatch) => void
+  updateConversationRuntimeState: (patch: RunInteractionConversationProviderSessionPatch) => void
   setConversationRun: (run: AgentRun, patch: RunInteractionConversationProviderSessionPatch) => void
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
   runTouchesProviderCatalog: (run: AgentRun) => boolean
@@ -50,7 +50,7 @@ export async function approveRunInteractionAction(input: {
   })
   deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, optimisticApprovalRun(run, approvalIds, 'approved')))
   markAgentPerformancePhase(operationId, 'optimistic_update')
-  deps.setConversationProviderSessionState({ approving: true, loading: true, error: undefined })
+  deps.updateConversationRuntimeState({ approving: true, loading: true, error: undefined })
   try {
     markAgentPerformancePhase(operationId, 'approval_request_start')
     const approvedRun = await resolveApprovalRun({
@@ -74,9 +74,9 @@ export async function approveRunInteractionAction(input: {
     finishAgentPerformanceOperation(operationId, 'success', { runId: finalRun.id, status: finalRun.status })
   } catch (error) {
     finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
-    deps.setConversationProviderSessionState({ approving: false, loading: false, error: `工具确认失败：${error instanceof Error ? error.message : String(error)}` })
+    deps.updateConversationRuntimeState({ approving: false, loading: false, error: `工具确认失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {
-    deps.setConversationProviderSessionState({ approving: false, loading: false })
+    deps.updateConversationRuntimeState({ approving: false, loading: false })
   }
 }
 
@@ -95,7 +95,7 @@ export async function rejectRunInteractionAction(input: {
   })
   deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, optimisticApprovalRun(run, approvalIds, 'rejected')))
   markAgentPerformancePhase(operationId, 'optimistic_update')
-  deps.setConversationProviderSessionState({ approving: true, loading: true, error: undefined })
+  deps.updateConversationRuntimeState({ approving: true, loading: true, error: undefined })
   try {
     markAgentPerformancePhase(operationId, 'rejection_request_start')
     const rejectedRun = await resolveRejectionRun({
@@ -112,9 +112,9 @@ export async function rejectRunInteractionAction(input: {
     finishAgentPerformanceOperation(operationId, 'success', { runId: rejectedRun.id, status: rejectedRun.status })
   } catch (error) {
     finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
-    deps.setConversationProviderSessionState({ approving: false, loading: false, error: `工具拒绝失败：${error instanceof Error ? error.message : String(error)}` })
+    deps.updateConversationRuntimeState({ approving: false, loading: false, error: `工具拒绝失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {
-    deps.setConversationProviderSessionState({ approving: false, loading: false })
+    deps.updateConversationRuntimeState({ approving: false, loading: false })
   }
 }
 
@@ -169,7 +169,7 @@ export async function answerRunInteractionInputAction(input: {
 }): Promise<void> {
   const { run, requestId, answer, answerRunInput, deps } = input
   deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, optimisticInputAnswerRun(run, requestId, answer)))
-  deps.setConversationProviderSessionState({ approving: true, loading: true, error: undefined })
+  deps.updateConversationRuntimeState({ approving: true, loading: true, error: undefined })
   try {
     const answeredRun = await answerRunInput(run.id, {
       requestId,
@@ -181,8 +181,8 @@ export async function answerRunInteractionInputAction(input: {
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, finalRun))
     if (deps.runTouchesProviderCatalog(finalRun)) deps.refreshProviderCatalogContext()
   } catch (error) {
-    deps.setConversationProviderSessionState({ approving: false, loading: false, error: `补充信息提交失败：${error instanceof Error ? error.message : String(error)}` })
+    deps.updateConversationRuntimeState({ approving: false, loading: false, error: `补充信息提交失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {
-    deps.setConversationProviderSessionState({ approving: false, loading: false })
+    deps.updateConversationRuntimeState({ approving: false, loading: false })
   }
 }

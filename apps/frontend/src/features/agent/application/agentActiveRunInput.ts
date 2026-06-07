@@ -9,7 +9,7 @@ export interface SendActiveRunInputDeps {
   sessionId?: string
   run: AgentRun
   setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; error?: string }) => void
-  setConversationProviderSessionState: (conversationId: string, patch: { loading?: boolean; building?: boolean; error?: string }) => void
+  updateConversationRuntimeState: (conversationId: string, patch: { loading?: boolean; building?: boolean; error?: string }) => void
 }
 
 export async function sendActiveRunInput(input: {
@@ -46,7 +46,7 @@ export async function sendActiveRunInput(input: {
     input.deps.setConversationRun(input.deps.conversationId, result.run, { loading: true, building: false })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    input.deps.setConversationProviderSessionState(input.deps.conversationId, { loading: true, building: false, error: message })
+    input.deps.updateConversationRuntimeState(input.deps.conversationId, { loading: true, building: false, error: message })
     throw error
   }
 }

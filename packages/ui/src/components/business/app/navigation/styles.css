@@ -2,7 +2,7 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
   color: var(--ms-color-muted-foreground);
 }
 
@@ -45,11 +45,13 @@
 .app-top-control-button[data-density="compact"] {
   width: 20px;
   height: 20px;
+  border-radius: var(--ms-radius-control);
 }
 
 .app-top-control-button[data-density="default"] {
   width: 32px;
   height: 32px;
+  border-radius: var(--ms-radius-control);
 }
 
 .app-top-controls__sr-label {

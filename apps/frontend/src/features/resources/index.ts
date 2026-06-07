@@ -1,6 +1,5 @@
 export * from './domain/mediaTypes'
 export * from './domain/resourceMediaCache'
-export * from './infrastructure/deliveryEntities'
 export * from './infrastructure/preview'
 export * from './infrastructure/scriptVersions'
 export * from './domain/generationJobPayload'

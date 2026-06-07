@@ -1,46 +1,15 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
     "paths": {
-      "@movscript/core": [
-        "../../packages/core/src/index.ts"
-      ],
       "@movscript/core/workspace": [
         "../../packages/core/src/workspace/index.ts"
-      ],
-      "@movscript/core/workspace/node": [
-        "../../packages/core/src/workspace/node/index.ts"
       ],
       "@movscript/core/mcp": [
         "../../packages/core/src/mcp/index.ts"
       ],
-      "@movscript/core/mcp/node": [
-        "../../packages/core/src/mcp/node/index.ts"
-      ],
       "@movscript/core/backend": [
         "../../packages/core/src/backend/index.ts"
-      ],
-      "@movscript/core/backend/node": [
-        "../../packages/core/src/backend/node/index.ts"
       ],
       "@movscript/core/plugins": [
         "../../packages/core/src/plugins/index.ts"
@@ -66,7 +35,13 @@
     }
   },
   "include": [
-    "src",
-    "electron"
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/e2e"
   ]
 }

@@ -43,6 +43,32 @@ test('app-server rpc client sends thread and turn requests over the app-server w
     const thread = await threadPromise
     assert.equal(thread.thread.id, 'thread_1')
 
+    const resumePromise = client.resumeThread({ threadId: 'thread_1', cwd: '/tmp/project', model: 'gpt-5.4' })
+    const threadResume = await waitForSent(socket, 'thread/resume')
+    assert.deepEqual(threadResume.params, { threadId: 'thread_1', cwd: '/tmp/project', model: 'gpt-5.4' })
+    socket.respond(threadResume.id, {
+      thread: {
+        id: 'thread_1',
+        sessionId: 'session_1',
+        preview: '',
+        createdAt: 1,
+        updatedAt: 1,
+        status: { type: 'idle' },
+        name: null,
+        turns: [],
+      },
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      serviceTier: null,
+      cwd: '/tmp/project',
+      instructionSources: [],
+      approvalPolicy: 'on-request',
+      approvalsReviewer: 'user',
+      sandbox: { type: 'readOnly', networkAccess: false },
+      reasoningEffort: null,
+    })
+    assert.equal((await resumePromise).thread.id, 'thread_1')
+
     const turnPromise = client.startTextTurn({
       threadId: 'thread_1',
       clientUserMessageId: 'client_msg_1',

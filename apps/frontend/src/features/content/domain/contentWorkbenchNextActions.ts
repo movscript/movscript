@@ -1,6 +1,5 @@
 export type ContentWorkbenchNextActionKey =
   | 'select_scene_moment'
-  | 'ai_task_graph_units'
   | 'manual_add_unit'
   | 'select_unit'
   | 'complete_unit_prompt'
@@ -10,7 +9,6 @@ export type ContentWorkbenchNextActionKey =
   | 'review_ai_workspaces'
   | 'open_generation_canvas'
   | 'inspect_preview_mount'
-  | 'open_delivery_workspace'
 
 export type ContentWorkbenchNextActionState = 'required' | 'optional' | 'available'
 
@@ -33,7 +31,6 @@ export interface ContentWorkbenchNextActionInput {
   missingGenerationContext?: Array<{ label: string; detail: string }>
   completedJobCount?: number
   previewItemCount?: number
-  deliveryVersionCount?: number
 }
 
 export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActionInput): ContentWorkbenchNextActionView[] {
@@ -121,14 +118,6 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
       }]
     }
 
-    if (!input.deliveryVersionCount || input.deliveryVersionCount === 0) {
-      return [{
-        key: 'open_delivery_workspace',
-        title: '进入交付工作台',
-        detail: '预览时间线已有记录，下一步应整理交付版本。',
-        state: 'available',
-      }]
-    }
   }
 
   return [{

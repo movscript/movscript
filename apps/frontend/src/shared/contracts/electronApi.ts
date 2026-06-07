@@ -193,6 +193,7 @@ export type ElectronAppServerProfile = {
   candidateBinaryNames?: string[]
   pathFallbackReady?: boolean
   home?: string
+  compatibilityHomeEnvNames?: string[]
   workspaceDir?: string
   workspaceContext?: ElectronMovScriptWorkspaceContext
   lifecycle?: ElectronAppServerLifecycle
@@ -219,7 +220,7 @@ export type ElectronAppServerConfigStatus = {
   apiKind: string
   apiKeyConfigured: boolean
   accountConfigured: boolean
-  accountSource: 'movscript-account' | 'movscript-environment' | 'movscript-model-config' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
+  accountSource: 'movscript-account' | 'movscript-environment' | 'movscript-model-config' | 'movscript-backend-session' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
   distributedAt: string
   warning?: string
 }
@@ -256,6 +257,7 @@ export type ElectronAppServerStatus = {
   pid?: number
   executablePath?: string
   home?: string
+  rustLog?: string
   workspaceDir?: string
   config?: ElectronAppServerConfigStatus
   workspaceContext?: ElectronMovScriptWorkspaceContext
@@ -291,6 +293,17 @@ export type ElectronAppServerMessage = {
   kind: 'message' | 'error' | 'close'
   data?: string
   error?: string
+}
+
+export type ElectronAppServerLogEvent = {
+  profileId: string
+  providerKey: string
+  label?: string
+  stream: 'stdout' | 'stderr'
+  chunk: string
+  at: string
+  transport: 'stdio' | 'websocket'
+  endpoint?: string
 }
 
 export type ElectronProviderRunSummary = {
@@ -395,6 +408,9 @@ export type ElectronMovScriptWorkspaceFileEntry = {
 
 export type ElectronMovScriptWorkspaceFilesInput = {
   workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  projectId?: number | string
   path?: string
 }
 
@@ -419,6 +435,8 @@ export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspac
 export type ElectronMovScriptWorkspaceBuildActionInput = {
   workspaceDir?: string
   userId?: number | string
+  orgId?: number | string
+  projectId?: number | string
 }
 
 export type ElectronProjectGitActionInput = {
@@ -532,6 +550,7 @@ export type ElectronAPI = {
   appServerSend?: (input: ElectronAppServerSendInput) => Promise<void>
   appServerClose?: (input: ElectronAppServerCloseInput) => Promise<void>
   onAppServerMessage?: (handler: (message: ElectronAppServerMessage) => void) => () => void
+  onAppServerLog?: (handler: (event: ElectronAppServerLogEvent) => void) => () => void
   listProviderSessions?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
   getMovScriptWorkspaceRoot?: (input?: { workspaceDir?: string }) => Promise<ElectronMovScriptWorkspaceRootResult>
   getMovScriptWorkspaceConfig?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>

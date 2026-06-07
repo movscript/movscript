@@ -44,8 +44,8 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
+  border-top-left-radius: var(--ms-radius-card);
+  border-top-right-radius: var(--ms-radius-card);
 }
 
 .canvas-tool-output-tile__pending-icon,

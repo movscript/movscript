@@ -193,9 +193,12 @@ export function AgentModeChatSurfaceInner({ className, ...props }: HTMLAttribute
   return <div className={cn("agent-mode-chat-surface__inner", className)} {...props} />;
 }
 
-export function AgentModeProjectSelectButton({ className, ...props }: ButtonProps) {
-  return <Button type="button" variant="ghost" className={cn("agent-page-project-select-card", className)} {...props} />;
-}
+export const AgentModeProjectSelectButton = forwardRef<HTMLButtonElement, ButtonProps>(
+  function AgentModeProjectSelectButton({ className, ...props }, ref) {
+    return <Button ref={ref} type="button" variant="ghost" className={cn("agent-page-project-select-card", className)} {...props} />;
+  }
+);
+AgentModeProjectSelectButton.displayName = "AgentModeProjectSelectButton";
 
 export function AgentModeProjectMenuContent({ className, ...props }: ComponentProps<typeof DropdownMenuContent>) {
   return <DropdownMenuContent align="center" className={cn("agent-mode-project-menu", className)} {...props} />;

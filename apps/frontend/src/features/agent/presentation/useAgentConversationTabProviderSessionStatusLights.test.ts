@@ -16,19 +16,21 @@ test('buildAgentConversationTabProviderSessionTargets prefers session anchors an
         providerThreadId: 'thread_compat',
       }),
     ],
-    providerThreadIdsByConversation: {
-      conv_session: 'thread_local',
-    },
-    sessionIdsByConversation: {
-      conv_session: 'session_local',
+    conversationThreadBindings: {
+      conv_session: {
+        conversationId: 'conv_session',
+        providerThreadId: 'thread_binding',
+        providerSessionTreeId: 'session_tree_binding',
+        updatedAt: 1,
+      },
     },
   })
 
   assert.deepEqual(targets, [
     {
       conversationId: 'conv_session',
-      sessionId: 'session_local',
-      threadId: 'thread_local',
+      sessionId: 'session_tree_binding',
+      threadId: 'thread_binding',
     },
     {
       conversationId: 'conv_compat',
@@ -42,8 +44,6 @@ test('buildAgentConversationTabProviderSessionTargets leaves unanchored conversa
     conversations: [
       conversation({ id: 'conv_empty' }),
     ],
-    providerThreadIdsByConversation: {},
-    sessionIdsByConversation: {},
   })
 
   assert.deepEqual(targets, [

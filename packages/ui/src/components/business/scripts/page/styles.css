@@ -216,7 +216,7 @@
 
 .script-editor-form__side-panel {
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ms-radius-panel);
   background: color-mix(in srgb, var(--ms-color-muted) 46%, transparent);
   padding: var(--ms-space-3);
   box-shadow: none;

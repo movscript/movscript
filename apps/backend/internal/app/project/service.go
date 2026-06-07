@@ -24,7 +24,6 @@ var (
 	ErrProjectMemberNotFound    = errors.New("project member not found")
 	ErrInvalidProjectMemberRole = errors.New("invalid project member role")
 	ErrInvalidProjectName       = errors.New("invalid project name")
-	ErrInvalidProjectStatus     = errors.New("invalid project status")
 	ErrNoProjectFieldsToUpdate  = errors.New("no project fields to update")
 	ErrProjectOwnerMemberLocked = errors.New("project owner member is locked")
 )
@@ -61,7 +60,6 @@ type AdminCreateInput struct {
 	Description   string `json:"description"`
 	OwnerID       uint   `json:"owner_id"`
 	OrgID         *uint  `json:"org_id"`
-	Status        string `json:"status"`
 	TotalEpisodes int    `json:"total_episodes"`
 	AspectRatio   string `json:"aspect_ratio"`
 	VisualStyle   string `json:"visual_style"`
@@ -78,8 +76,7 @@ type UpdateInput struct {
 }
 
 type AdminUpdateInput struct {
-	Name   *string `json:"name"`
-	Status *string `json:"status"`
+	Name *string `json:"name"`
 }
 
 type AdminDetail struct {
@@ -105,8 +102,7 @@ type AuditSummary struct {
 }
 
 type adminUpdateSpec struct {
-	Name   *string
-	Status *string
+	Name *string
 }
 
 type MemberInput struct {
@@ -121,7 +117,6 @@ type Progress struct {
 type AdminListFilter struct {
 	Query     string
 	ProjectID *uint
-	Status    string
 	OwnerID   *uint
 	OrgID     *uint
 	Page      int
@@ -165,13 +160,6 @@ func (s *Service) AdminCreate(ctx context.Context, input AdminCreateInput) (doma
 	}
 	if input.OwnerID == 0 {
 		return domainproject.Project{}, ErrOwnerNotFound
-	}
-	input.Status = strings.ToLower(strings.TrimSpace(input.Status))
-	if input.Status == "" {
-		input.Status = domainproject.StatusPlanning
-	}
-	if !domainproject.ValidStatus(input.Status) {
-		return domainproject.Project{}, ErrInvalidProjectStatus
 	}
 	project, err := s.repo.AdminCreate(ctx, input)
 	if err == nil {
@@ -227,14 +215,7 @@ func (s *Service) AdminUpdate(ctx context.Context, id uint, input AdminUpdateInp
 		}
 		spec.Name = &name
 	}
-	if input.Status != nil {
-		status := strings.ToLower(strings.TrimSpace(*input.Status))
-		if !domainproject.ValidStatus(status) {
-			return domainproject.Project{}, ErrInvalidProjectStatus
-		}
-		spec.Status = &status
-	}
-	if spec.Name == nil && spec.Status == nil {
+	if spec.Name == nil {
 		return domainproject.Project{}, ErrNoProjectFieldsToUpdate
 	}
 	project, err := s.repo.AdminUpdate(ctx, id, spec)

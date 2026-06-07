@@ -23,7 +23,7 @@ func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("seed org: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Gateway Project", OwnerID: 7, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Gateway Project", OwnerID: 7, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestModelGatewayAPIKeyUpdateClearsProjectScope(t *testing.T) {
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("seed org: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Gateway Project", OwnerID: 7, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Gateway Project", OwnerID: 7, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}

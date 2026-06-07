@@ -2,7 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { checkCoreSharedEntrypoints } from '../../../scripts/core-runtime-boundary-utils.mjs'
+
 const adminRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const repoRoot = resolve(adminRoot, '../..')
 
 const forbiddenPatterns = [
   {
@@ -27,6 +30,14 @@ for (const entry of listFiles(resolve(adminRoot, 'src'), (file) => /\.(ts|tsx|mt
   for (const { label, pattern } of forbiddenPatterns) {
     if (pattern.test(source)) failures.push(`${label}: ${rel}`)
   }
+}
+
+for (const failure of checkCoreSharedEntrypoints(repoRoot)) {
+  failures.push(failure)
+}
+
+for (const failure of checkAdminCoreAliasConfig(adminRoot)) {
+  failures.push(failure)
 }
 
 if (failures.length > 0) {
@@ -62,4 +73,33 @@ function isTestPath(path) {
 
 function toPosix(path) {
   return path.split('\\').join('/')
+}
+
+function checkAdminCoreAliasConfig(adminRoot) {
+  const failures = []
+
+  const tsconfigPath = resolve(adminRoot, 'tsconfig.json')
+  const tsconfig = JSON.parse(readFileSync(tsconfigPath, 'utf8'))
+  if (tsconfig.compilerOptions?.paths?.['@movscript/core']) {
+    failures.push('admin tsconfig exposes deprecated broad @movscript/core root alias')
+  }
+
+  const viteConfigPath = resolve(adminRoot, 'vite.config.ts')
+  const viteConfig = readFileSync(viteConfigPath, 'utf8')
+  if (hasCoreRootAlias(viteConfig)) {
+    failures.push('admin Vite config exposes deprecated broad @movscript/core root alias')
+  }
+  if (hasCoreNodeAlias(viteConfig)) {
+    failures.push('admin Vite config exposes Node-only @movscript/core/*/node alias')
+  }
+
+  return failures
+}
+
+function hasCoreRootAlias(source) {
+  return /['"]@movscript\/core['"]\s*:/.test(source)
+}
+
+function hasCoreNodeAlias(source) {
+  return /['"]@movscript\/core\/(?:workspace|mcp|backend|plugins)\/node['"]\s*:/.test(source)
 }

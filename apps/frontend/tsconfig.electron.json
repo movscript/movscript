@@ -1,0 +1,40 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@movscript/core/workspace": [
+        "../../packages/core/src/workspace/index.ts"
+      ],
+      "@movscript/core/workspace/node": [
+        "../../packages/core/src/workspace/node/index.ts"
+      ],
+      "@movscript/core/mcp": [
+        "../../packages/core/src/mcp/index.ts"
+      ],
+      "@movscript/core/mcp/node": [
+        "../../packages/core/src/mcp/node/index.ts"
+      ],
+      "@movscript/core/backend": [
+        "../../packages/core/src/backend/index.ts"
+      ],
+      "@movscript/core/backend/node": [
+        "../../packages/core/src/backend/node/index.ts"
+      ],
+      "@movscript/core/plugins": [
+        "../../packages/core/src/plugins/index.ts"
+      ],
+      "@movscript/core/plugins/node": [
+        "../../packages/core/src/plugins/node/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "electron"
+  ],
+  "exclude": [
+    "electron/**/*.test.ts",
+    "electron/**/*.test.tsx",
+    "electron/**/*.spec.ts",
+    "electron/**/*.spec.tsx"
+  ]
+}

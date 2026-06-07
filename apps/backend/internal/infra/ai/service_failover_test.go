@@ -143,6 +143,41 @@ func TestCallTextWithUsageFailsOverToNextProviderVariant(t *testing.T) {
 	}
 }
 
+func TestCallResponsesWithUsageFallsBackToChatWhenProviderResponsesFails(t *testing.T) {
+	resetFailoverTestState()
+	db := testutil.OpenSQLite(t, "ai-responses-chat-fallback.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+	)
+	createTextProviderVariant(t, db, 1, "Chat fallback provider")
+
+	calls := map[string]int{}
+	registry := NewRegistry(db, nil)
+	registry.providerFactory = func(cred persistencemodel.AICredential, _ *ModelDef) (Provider, error) {
+		return responsesFallbackProvider{
+			name:  cred.DisplayName,
+			calls: calls,
+		}, nil
+	}
+	svc := NewAIService(db, registry)
+	resp, err := svc.CallResponsesWithUsage(context.Background(), 1, 1, ResponsesRequest{
+		Text: TextRequest{
+			Messages: []Message{{Role: "user", Content: "hello"}},
+		},
+	}, UsageContext{})
+	if err != nil {
+		t.Fatalf("CallResponsesWithUsage() error = %v", err)
+	}
+	if resp.Content != "chat fallback ok" {
+		t.Fatalf("content = %q, want chat fallback ok", resp.Content)
+	}
+	if calls["responses"] != 1 || calls["chat"] != 1 {
+		t.Fatalf("calls = %#v, want one responses attempt and one chat fallback", calls)
+	}
+}
+
 func TestCallTextStreamWithUsageFailsOverBeforeStreamStarts(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-stream-failover.db",
@@ -299,6 +334,37 @@ func (p failoverTextProvider) ImageGenerate(context.Context, ImageRequest) (Imag
 }
 
 func (p failoverTextProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
+	return VideoResponse{}, fmt.Errorf("not implemented")
+}
+
+type responsesFallbackProvider struct {
+	name  string
+	calls map[string]int
+}
+
+func (p responsesFallbackProvider) Ping(context.Context) error { return nil }
+
+func (p responsesFallbackProvider) TextGenerate(_ context.Context, req TextRequest) (TextResponse, error) {
+	p.calls["chat"]++
+	if req.Model != "gpt-5.2" {
+		return TextResponse{}, fmt.Errorf("model = %q, want gpt-5.2", req.Model)
+	}
+	return TextResponse{
+		Content: "chat fallback ok",
+		Usage:   TokenUsage{InputTokens: 3, OutputTokens: 2},
+	}, nil
+}
+
+func (p responsesFallbackProvider) ResponsesGenerate(context.Context, ResponsesRequest) (TextResponse, error) {
+	p.calls["responses"]++
+	return TextResponse{}, fmt.Errorf("responses endpoint unsupported")
+}
+
+func (p responsesFallbackProvider) ImageGenerate(context.Context, ImageRequest) (ImageResponse, error) {
+	return ImageResponse{}, fmt.Errorf("not implemented")
+}
+
+func (p responsesFallbackProvider) VideoGenerate(context.Context, VideoRequest) (VideoResponse, error) {
 	return VideoResponse{}, fmt.Errorf("not implemented")
 }
 

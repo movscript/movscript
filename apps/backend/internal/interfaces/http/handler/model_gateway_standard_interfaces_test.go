@@ -2,8 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
@@ -106,6 +109,44 @@ func TestGatewayUsageShapesIncludeTokenDetails(t *testing.T) {
 	}
 	if responsesUsage.InputTokensDetails.CachedTokens != 12000 || responsesUsage.OutputTokensDetails.ReasoningTokens != 19 {
 		t.Fatalf("responses usage details = %#v", responsesUsage)
+	}
+}
+
+func TestResponsesSSEWritesCodexCompatibleCompletedEvent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	endTurn := true
+	usage := responsesUsageFromTokenUsage(ai.TokenUsage{InputTokens: 3, OutputTokens: 2})
+
+	writeResponsesSSE(c, nil, "response.completed", responsesStreamEvent{
+		Type: "response.completed",
+		Response: &responsesStreamResponse{
+			ID:      "resp_test",
+			Status:  "completed",
+			Model:   "test-model",
+			Usage:   &usage,
+			EndTurn: &endTurn,
+		},
+	})
+
+	body := recorder.Body.String()
+	if !strings.HasPrefix(body, "event: response.completed\n") {
+		t.Fatalf("unexpected SSE prefix: %q", body)
+	}
+	var payload map[string]any
+	const marker = "data: "
+	dataStart := len("event: response.completed\n") + len(marker)
+	dataEnd := len(body) - len("\n\n")
+	if err := json.Unmarshal([]byte(body[dataStart:dataEnd]), &payload); err != nil {
+		t.Fatalf("decode SSE payload: %v\n%s", err, body)
+	}
+	response, ok := payload["response"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing response payload: %#v", payload)
+	}
+	if response["id"] != "resp_test" || response["end_turn"] != true {
+		t.Fatalf("unexpected completed response: %#v", response)
 	}
 }
 

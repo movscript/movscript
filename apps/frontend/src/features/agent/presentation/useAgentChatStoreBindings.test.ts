@@ -20,7 +20,32 @@ test('resolveAgentChatProviderSessionBindingIds falls back to live provider-sess
   })
 })
 
-test('resolveAgentChatProviderSessionBindingIds keeps persisted local bindings authoritative', () => {
+test('resolveAgentChatProviderSessionBindingIds keeps conversation thread bindings authoritative', () => {
+  const ids = resolveAgentChatProviderSessionBindingIds({
+    conversation: {
+      id: 'conv_1',
+      providerSessionId: 'session_conversation',
+      providerThreadId: 'thread_conversation',
+    },
+    conversationThreadBinding: {
+      providerSessionTreeId: ' session_tree_binding ',
+      providerThreadId: ' thread_binding ',
+    },
+    conversationProviderSessionState: {
+      sessionId: 'session_runtime',
+      threadId: 'thread_runtime',
+    },
+    providerSessionId: ' session_local ',
+    providerThreadId: ' thread_local ',
+  })
+
+  assert.deepEqual(ids, {
+    providerSessionId: 'session_tree_binding',
+    providerThreadId: 'thread_binding',
+  })
+})
+
+test('resolveAgentChatProviderSessionBindingIds falls back to explicit legacy input after bindings', () => {
   const ids = resolveAgentChatProviderSessionBindingIds({
     conversation: {
       id: 'conv_1',

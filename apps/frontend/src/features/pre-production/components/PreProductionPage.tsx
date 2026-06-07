@@ -458,7 +458,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const workspaceSubmitDialog = (
     <Dialog open={Boolean(workspaceBuildReview)} onOpenChange={(open) => { if (!open) setWorkspaceBuildReview(null) }}>
       <ResourcePrepCreateReferenceDialogContent>
-        <ResourcePrepDialogHeader title="构建工作区" description="构建前请确认当前 edit/ 修改可以成为新的有效业务状态。" />
+        <ResourcePrepDialogHeader title="构建工作区" description="构建前请确认当前工作区修改可以成为新的有效业务状态。" />
         <ResourcePrepDialogBody>
           <pre className="max-h-[420px] overflow-auto rounded border border-border bg-muted p-3 text-xs leading-5 text-muted-foreground">
             {workspacePreviewText(workspaceBuildReview)}

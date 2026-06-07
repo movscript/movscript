@@ -12,6 +12,7 @@ type repository interface {
 	GetProject(ctx context.Context, projectID uint, orgID *uint) (persistencemodel.Project, error)
 	GetBinding(ctx context.Context, projectID uint) (persistencemodel.ProjectRepository, error)
 	CreateBinding(ctx context.Context, binding persistencemodel.ProjectRepository) (persistencemodel.ProjectRepository, error)
+	UpdateBindingOwner(ctx context.Context, bindingID uint, owner string) (persistencemodel.ProjectRepository, error)
 	UpdateProvisioning(ctx context.Context, bindingID uint, status string, providerRepoID string, headCommit string, lastSyncError string) (persistencemodel.ProjectRepository, error)
 }
 
@@ -21,7 +22,7 @@ type gormRepository struct {
 
 func (r *gormRepository) GetProject(ctx context.Context, projectID uint, orgID *uint) (persistencemodel.Project, error) {
 	var project persistencemodel.Project
-	query := r.db.WithContext(ctx).Where("id = ?", projectID)
+	query := r.db.WithContext(ctx).Preload("Owner").Preload("Organization").Where("id = ?", projectID)
 	if orgID != nil {
 		query = query.Where("org_id = ?", *orgID)
 	}
@@ -57,6 +58,24 @@ func (r *gormRepository) CreateBinding(ctx context.Context, binding persistencem
 		return tx.Create(&binding).Error
 	})
 	if err != nil {
+		return persistencemodel.ProjectRepository{}, err
+	}
+	return binding, nil
+}
+
+func (r *gormRepository) UpdateBindingOwner(ctx context.Context, bindingID uint, owner string) (persistencemodel.ProjectRepository, error) {
+	updates := map[string]any{
+		"owner":            owner,
+		"status":           StatusProvisioning,
+		"provider_repo_id": "",
+		"head_commit":      "",
+		"last_sync_error":  "",
+	}
+	if err := r.db.WithContext(ctx).Model(&persistencemodel.ProjectRepository{}).Where("id = ?", bindingID).Updates(updates).Error; err != nil {
+		return persistencemodel.ProjectRepository{}, err
+	}
+	var binding persistencemodel.ProjectRepository
+	if err := r.db.WithContext(ctx).First(&binding, bindingID).Error; err != nil {
 		return persistencemodel.ProjectRepository{}, err
 	}
 	return binding, nil

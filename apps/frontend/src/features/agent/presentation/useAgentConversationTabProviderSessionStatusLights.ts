@@ -5,6 +5,7 @@ import {
 } from '@/features/agent/domain/providerSessionStatusLight'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { Conversation } from '@/features/agent/state/agentStore'
+import type { AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
 import {
   providerSessionStatusLightController,
   providerSessionStatusLightTargetKeys,
@@ -16,13 +17,11 @@ import {
 let nextProviderSessionStatusLightOwnerId = 0
 
 export function useAgentConversationTabProviderSessionStatusLights(conversations: Conversation[]): Record<string, ProviderSessionStatusLight> {
-  const providerThreadIdsByConversation = useAgentSessionStore((state) => state.providerThreadIdsByConversation)
-  const sessionIdsByConversation = useAgentSessionStore((state) => state.sessionIdsByConversation)
+  const conversationThreadBindings = useAgentSessionStore((state) => state.conversationThreadBindings)
   const tabProviderSessionTargets = useMemo(() => buildAgentConversationTabProviderSessionTargets({
     conversations,
-    providerThreadIdsByConversation,
-    sessionIdsByConversation,
-  }), [conversations, providerThreadIdsByConversation, sessionIdsByConversation])
+    conversationThreadBindings,
+  }), [conversationThreadBindings, conversations])
   const targetSignature = useMemo(() => providerSessionStatusLightTargetsSignature(tabProviderSessionTargets), [tabProviderSessionTargets])
   const targetsRef = useRef(tabProviderSessionTargets)
   targetsRef.current = tabProviderSessionTargets
@@ -71,12 +70,12 @@ export interface AgentConversationTabProviderSessionTarget extends ProviderSessi
 
 export function buildAgentConversationTabProviderSessionTargets(input: {
   conversations: Conversation[]
-  providerThreadIdsByConversation: Record<string, string>
-  sessionIdsByConversation: Record<string, string>
+  conversationThreadBindings?: Record<string, AgentConversationThreadBinding>
 }): AgentConversationTabProviderSessionTarget[] {
   return input.conversations.map((conversation) => {
-    const sessionId = (input.sessionIdsByConversation[conversation.id] ?? conversation.providerSessionId ?? '').trim()
-    const threadId = (input.providerThreadIdsByConversation[conversation.id] ?? conversation.providerThreadId ?? '').trim()
+    const binding = input.conversationThreadBindings?.[conversation.id]
+    const sessionId = (binding?.providerSessionTreeId ?? conversation.providerSessionId ?? '').trim()
+    const threadId = (binding?.providerThreadId ?? conversation.providerThreadId ?? '').trim()
     return {
       conversationId: conversation.id,
       ...(sessionId ? { sessionId } : {}),

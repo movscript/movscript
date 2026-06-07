@@ -21,9 +21,6 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@movscript/core": [
-        "../../packages/core/src/index.ts"
-      ],
       "@movscript/core/workspace": [
         "../../packages/core/src/workspace/index.ts"
       ],

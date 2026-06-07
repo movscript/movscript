@@ -20,7 +20,6 @@ const navigationGroups: NavigationMenuGroup[] = [
       { label: 'Script Workbench', route: '/project/scripts/workbench' },
       { label: 'Production Overview', route: '/project/production' },
       { label: 'Production Tasks', route: '/project/tasks' },
-      { label: 'Delivery', route: '/project/delivery' },
     ],
   },
   {
@@ -30,7 +29,6 @@ const navigationGroups: NavigationMenuGroup[] = [
       { label: 'Pre-production', route: '/project/pre-production' },
       { label: 'Orchestration', route: '/project/production/orchestration' },
       { label: 'Shot Editor', route: '/project/content-units/editor' },
-      { label: 'Delivery Workbench', route: '/project/delivery/workbench' },
     ],
   },
   {

@@ -1,3 +1,7 @@
+import {
+  appendMovScriptInlineCandidate,
+  type MovScriptInlineCandidateTargetKind,
+} from './inlineCandidates.js'
 import type { MovScriptWorkspaceFileRepository } from './types.js'
 
 const CANDIDATE_SCHEMA = 'movscript.candidate.v1'
@@ -15,11 +19,38 @@ export interface MovScriptWorkspaceCandidateWriteResult {
   path: string
   entityType: 'candidate'
   record: Record<string, unknown>
+  candidate?: Record<string, unknown>
+  targetRecord?: Record<string, unknown>
 }
 
 export async function createMovScriptWorkspaceAssetSlotCandidate(
   input: MovScriptWorkspaceCandidateWriteInput,
 ): Promise<MovScriptWorkspaceCandidateWriteResult> {
+  const targetPath = workspacePath(input.targetRecord)
+  if (targetPath) {
+    const result = await appendMovScriptInlineCandidate({
+      fileRepository: input.fileRepository,
+      targetPath,
+      targetKind: 'asset',
+      nonce: input.nonce,
+      payload: inlineCandidatePayload(input.payload),
+    })
+    return {
+      path: result.path,
+      entityType: 'candidate',
+      record: workspaceCandidateRecordFromInline({
+        projectId: input.projectId,
+        payload: input.payload,
+        targetKind: 'asset',
+        targetRecord: result.record,
+        candidate: result.candidate,
+        path: result.path,
+      }),
+      candidate: result.candidate,
+      targetRecord: result.record,
+    }
+  }
+
   const record = buildMovScriptWorkspaceAssetSlotCandidateRecord(input)
   const parentSlotId = positiveNumber(record.asset_slot_id)
   if (!parentSlotId) throw new Error('候选缺少父素材需求')
@@ -31,6 +62,31 @@ export async function createMovScriptWorkspaceAssetSlotCandidate(
 export async function createMovScriptWorkspaceKeyframeCandidate(
   input: MovScriptWorkspaceCandidateWriteInput,
 ): Promise<MovScriptWorkspaceCandidateWriteResult> {
+  const targetPath = workspacePath(input.targetRecord) ?? stringValue(input.payload.target_path ?? input.payload.targetPath)
+  if (targetPath) {
+    const result = await appendMovScriptInlineCandidate({
+      fileRepository: input.fileRepository,
+      targetPath,
+      targetKind: 'keyframe',
+      nonce: input.nonce,
+      payload: inlineCandidatePayload(input.payload),
+    })
+    return {
+      path: result.path,
+      entityType: 'candidate',
+      record: workspaceCandidateRecordFromInline({
+        projectId: input.projectId,
+        payload: input.payload,
+        targetKind: 'keyframe',
+        targetRecord: result.record,
+        candidate: result.candidate,
+        path: result.path,
+      }),
+      candidate: result.candidate,
+      targetRecord: result.record,
+    }
+  }
+
   const record = buildMovScriptWorkspaceKeyframeCandidateRecord(input)
   const productionId = positiveNumber(record.production_id)
   if (!productionId) throw new Error('候选缺少制作 ID')
@@ -48,13 +104,13 @@ export function buildMovScriptWorkspaceAssetSlotCandidateRecord(input: {
   targetRecord?: Record<string, unknown>
   nonce?: string
 }): Record<string, unknown> {
-  const parentSlotId = positiveNumber(input.payload.asset_slot_id ?? input.payload.assetSlotId)
+  const parentSlotId = positiveNumber(input.payload.asset_slot_id ?? input.payload.assetSlotId ?? input.targetRecord?.ID ?? input.targetRecord?.id)
   if (!parentSlotId) throw new Error('候选缺少父素材需求')
   const resourceId = positiveNumber(input.payload.resource_id ?? input.payload.resourceId)
   if (!resourceId) throw new Error('resource_id required')
   const clientId = localClientId('asset_slot_candidate', parentSlotId, resourceId, input.nonce)
-  const note = stringValue(input.payload.note)
-  const sourceType = stringValue(input.payload.source_type ?? input.payload.sourceType) ?? 'manual'
+  const note = stringValue(input.payload.note ?? input.payload.notes)
+  const sourceType = stringValue(input.payload.source_type ?? input.payload.sourceType ?? input.payload.source) ?? 'manual'
   const sourceId = positiveNumber(input.payload.source_id ?? input.payload.sourceId)
   return pruneUndefined({
     schema: CANDIDATE_SCHEMA,
@@ -64,7 +120,7 @@ export function buildMovScriptWorkspaceAssetSlotCandidateRecord(input: {
     project_id: numericOrString(input.projectId),
     target: { type: 'asset_slot', id: parentSlotId },
     asset_slot_id: parentSlotId,
-    kind: stringValue(input.payload.kind) ?? stringValue(input.targetRecord?.kind) ?? 'image',
+    kind: stringValue(input.payload.kind) ?? stringValue(input.targetRecord?.kind ?? input.targetRecord?.asset_kind) ?? 'image',
     name: note ?? `候选素材 #${resourceId}`,
     description: note,
     status: stringValue(input.payload.status) ?? 'candidate',
@@ -93,7 +149,7 @@ export function buildMovScriptWorkspaceKeyframeCandidateRecord(input: {
   if (!resourceId) throw new Error('resource_id required')
   const targetKeyframeId = keyframeCandidateTargetId(input.payload)
   if (!targetKeyframeId) throw new Error('候选缺少目标关键帧')
-  const clientId = localClientId('keyframe_candidate', targetKeyframeId ?? 'target', resourceId, input.nonce)
+  const clientId = localClientId('keyframe_candidate', targetKeyframeId, resourceId, input.nonce)
   return pruneUndefined({
     ...input.payload,
     schema: CANDIDATE_SCHEMA,
@@ -126,9 +182,70 @@ export function workspaceCandidateSemanticRecord(
   }
 }
 
+function inlineCandidatePayload(payload: Record<string, unknown>): {
+  id?: string
+  resource_id?: string | number
+  source?: string
+  status?: string
+  notes?: string
+  metadata?: Record<string, unknown>
+} {
+  const resourceId = payload.resource_id ?? payload.resourceId
+  return pruneUndefined({
+    id: stringValue(payload.id ?? payload.client_id ?? payload.clientId),
+    resource_id: typeof resourceId === 'string' || typeof resourceId === 'number' ? resourceId : undefined,
+    source: stringValue(payload.source ?? payload.source_type ?? payload.sourceType),
+    status: inlineStatus(stringValue(payload.status)),
+    notes: stringValue(payload.notes ?? payload.note ?? payload.description),
+    metadata: pruneUndefined({
+      source_id: payload.source_id ?? payload.sourceId,
+      score: payload.score,
+      raw: payload,
+    }),
+  })
+}
+
+function workspaceCandidateRecordFromInline(input: {
+  projectId: string | number
+  payload: Record<string, unknown>
+  targetKind: MovScriptInlineCandidateTargetKind
+  targetRecord: Record<string, unknown>
+  candidate: Record<string, unknown>
+  path: string
+}): Record<string, unknown> {
+  const targetId = input.targetRecord.ID ?? input.targetRecord.id
+  const candidateId = stringValue(input.candidate.id) ?? localClientId(`${input.targetKind}_candidate`, String(targetId ?? 'target'), Number(input.candidate.resource_id) || 0)
+  const numericCandidateId = -stablePositiveHash(candidateId)
+  return pruneUndefined({
+    schema: CANDIDATE_SCHEMA,
+    ID: numericCandidateId,
+    id: numericCandidateId,
+    client_id: candidateId,
+    project_id: numericOrString(input.projectId),
+    target: { type: input.targetKind, id: targetId },
+    asset_slot_id: input.targetKind === 'asset' ? numericId(targetId) : undefined,
+    keyframe_id: input.targetKind === 'keyframe' ? numericId(targetId) : undefined,
+    resource_id: numericOrStringCandidate(input.candidate.resource_id),
+    source_type: input.candidate.source,
+    status: input.candidate.status === 'accepted' ? 'selected' : input.candidate.status,
+    note: input.candidate.notes,
+    metadata_json: JSON.stringify(pruneUndefined({
+      source: 'workspace_inline_candidate',
+      target_path: input.path,
+      target_kind: input.targetKind,
+      candidate_id: input.candidate.id,
+      payload: input.payload,
+    })),
+  })
+}
+
 function keyframeCandidateTargetId(payload: Record<string, unknown>): number | undefined {
   const metadata = parseMetadata(payload.metadata_json)
-  return positiveNumber(metadata?.target_keyframe_id)
+  return positiveNumber(payload.keyframe_id ?? payload.keyframeId ?? metadata?.target_keyframe_id)
+}
+
+function workspacePath(record: Record<string, unknown> | undefined): string | undefined {
+  return stringValue(record?.__workspace_path ?? record?.workspace_path ?? record?.path)
 }
 
 function parseMetadata(value: unknown): Record<string, unknown> | undefined {
@@ -182,12 +299,27 @@ function numberValue(value: unknown): number | undefined {
   return undefined
 }
 
+function numericId(value: unknown): number | undefined {
+  return numberValue(value)
+}
+
 function numericOrString(value: string | number): string | number {
   return typeof value === 'number' ? value : numberValue(value) ?? value
 }
 
+function numericOrStringCandidate(value: unknown): string | number | undefined {
+  if (typeof value === 'number' || typeof value === 'string') return numberValue(value) ?? value
+  return undefined
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function inlineStatus(status: string | undefined): string | undefined {
+  if (status === 'candidate') return 'draft'
+  if (status === 'selected' || status === 'locked') return 'accepted'
+  return status
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

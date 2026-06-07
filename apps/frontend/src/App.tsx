@@ -21,7 +21,7 @@ import {
 } from './features/agent/presentation/agentModePanelSizing'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
-import { AlertTriangle, ArrowLeft, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, RefreshCw, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from './routes/projectRoutes'
@@ -78,8 +78,6 @@ const ProjectStandardsPage = React.lazy(() => import('./pages/project/standards/
 const AgentModePage = React.lazy(() => import('./pages/agent-mode/AgentModePage'))
 const AgentModeCanvasListPage = React.lazy(() => import('./pages/agent-mode/AgentModeCanvasListPage'))
 const ScriptsPage = React.lazy(() => import('./pages/scripts/ScriptsPage'))
-const DeliveryPage = React.lazy(() => import('./pages/project/delivery/DeliveryPage'))
-const DeliveryWorkbenchPage = React.lazy(() => import('./pages/project/delivery/DeliveryWorkbenchPage'))
 const AgentConsolePage = React.lazy(() => import('./pages/agent/AgentConsolePage'))
 const MovScriptWorkspaceFilesPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceFilesPage'))
 const MovScriptWorkspaceReviewPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceReviewPage'))
@@ -683,15 +681,43 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
     </div>
   )
   const agentSidebarHeaderControl = (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="agent-sidebar-window-controls flex shrink-0 items-center gap-1">
       <AppWindowIconButton
         type="button"
-        className="app-window-sidebar-toggle"
+        className="app-window-sidebar-toggle agent-sidebar-window-controls__sidebar"
         onClick={toggleAgentModeSidebarCollapsed}
         title={agentModeSidebarCollapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
         aria-label={agentModeSidebarCollapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
       >
-        {agentModeSidebarCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
+        {agentModeSidebarCollapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+      </AppWindowIconButton>
+      <AppWindowIconButton
+        type="button"
+        className="app-window-sidebar-toggle agent-sidebar-window-controls__nav"
+        onClick={() => window.history.back()}
+        title="后退"
+        aria-label="后退"
+      >
+        <ArrowLeft size={14} />
+      </AppWindowIconButton>
+      <AppWindowIconButton
+        type="button"
+        className="app-window-sidebar-toggle agent-sidebar-window-controls__nav"
+        onClick={() => window.history.forward()}
+        title="前进"
+        aria-label="前进"
+      >
+        <ArrowRight size={14} />
+      </AppWindowIconButton>
+      <AppWindowIconButton
+        type="button"
+        className="app-window-sidebar-toggle agent-sidebar-window-controls__update"
+        onClick={() => window.location.reload()}
+        title="更新"
+        aria-label="更新"
+      >
+        <RefreshCw size={12} />
+        <span>更新</span>
       </AppWindowIconButton>
     </div>
   )
@@ -979,8 +1005,6 @@ export default function App() {
 
               <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><ProductionOrchestrationPage /></ProjectGuard>} />
               <Route path={ROUTES.project.tasks} element={<ProjectGuard><TasksPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.delivery} element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.deliveryWorkbench} element={<ProjectGuard><DeliveryWorkbenchPage /></ProjectGuard>} />
               <Route path={ROUTES.project.overview} element={<Navigate to={ROUTES.project.productionOrchestration} replace />} />
               <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
               <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />

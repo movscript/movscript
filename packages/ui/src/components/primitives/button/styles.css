@@ -19,25 +19,28 @@
 .ms-button--xs {
   height: 22px;
   padding: 0 7px;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
   font-size: var(--ms-text-label);
 }
 
 .ms-button--sm {
   height: 28px;
   padding: 0 9px;
+  border-radius: var(--ms-radius-control);
   font-size: var(--ms-text-item);
 }
 
 .ms-button--md {
   height: 34px;
   padding: 0 13px;
+  border-radius: var(--ms-radius-control);
   font-size: var(--ms-text-body);
 }
 
 .ms-button--lg {
   height: 40px;
   padding: 0 16px;
+  border-radius: var(--ms-radius-control);
   font-size: var(--ms-text-body);
 }
 
@@ -51,7 +54,7 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
 }
 
 .ms-button--icon-sm {

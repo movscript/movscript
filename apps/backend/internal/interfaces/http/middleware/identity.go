@@ -1,13 +1,17 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	authapp "github.com/movscript/movscript/internal/app/auth"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
+	"github.com/movscript/movscript/internal/infra/crypto"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
@@ -15,10 +19,21 @@ import (
 const ContextUserKey = "currentUser"
 const SessionCookieName = "movscript_session"
 
-// Identity reads a self-hosted session cookie or signed Bearer token and loads the user into gin context.
-func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
+// Identity reads a self-hosted session cookie, signed Bearer token, or Git BasicAuth token and loads the user into gin context.
+func Identity(db *gorm.DB, tokens *auth.Manager, encryptionKey ...[]byte) gin.HandlerFunc {
 	authService := authapp.NewService(db)
+	var gitCredentialKey []byte
+	if len(encryptionKey) > 0 {
+		gitCredentialKey = encryptionKey[0]
+	}
 	return func(c *gin.Context) {
+		if isGitProxyRequest(c.Request) && len(gitCredentialKey) > 0 {
+			if profile, ok := gitBasicAuthUser(c.Request, db, authService, gitCredentialKey); ok {
+				c.Set(ContextUserKey, profile)
+				c.Next()
+				return
+			}
+		}
 		raw, ok := auth.BearerToken(c.GetHeader("Authorization"))
 		if !ok {
 			if session, err := c.Cookie(SessionCookieName); err == nil && session != "" {
@@ -50,6 +65,30 @@ func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func isGitProxyRequest(req *http.Request) bool {
+	return req != nil && strings.Contains(req.URL.Path, "/git/")
+}
+
+func gitBasicAuthUser(req *http.Request, db *gorm.DB, authService *authapp.Service, encryptionKey []byte) (domainauth.UserProfile, bool) {
+	username, secret, ok := req.BasicAuth()
+	if !ok || strings.TrimSpace(username) == "" || secret == "" {
+		return domainauth.UserProfile{}, false
+	}
+	var credential persistencemodel.UserGitCredential
+	if err := db.WithContext(req.Context()).Where("provider = ? AND username = ? AND status = ?", "gitea", strings.TrimSpace(username), "active").First(&credential).Error; err != nil {
+		return domainauth.UserProfile{}, false
+	}
+	token, err := crypto.Decrypt(credential.EncryptedToken, encryptionKey)
+	if err != nil || subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+		return domainauth.UserProfile{}, false
+	}
+	profile, err := authService.CurrentUser(req.Context(), credential.UserID)
+	if err != nil {
+		return domainauth.UserProfile{}, false
+	}
+	return profile, true
 }
 
 // RequireAuth aborts with 401 if the request has no authenticated principal.

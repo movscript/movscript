@@ -18,7 +18,6 @@ import {
   ProjectPageEmptyState,
   ProjectListPageLayout,
   ProjectPageLocalAdminPrompt,
-  StatusBadge,
   Textarea,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
@@ -30,18 +29,6 @@ import { projectListQueryKey, projectProgressQueryKey } from '@/features/project
 import { initializeProjectGitWorkspace } from '@/features/project/application/projectGitWorkspace'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
-import { projectStatusRecipe } from '@/features/project/presentation/projectSemanticUi'
-
-type ProjectStatus = 'planning' | 'script_analysis' | 'asset_prep' | 'production' | 'editing' | 'done'
-
-const STATUS_STEPS: { status: ProjectStatus; labelKey: string }[] = [
-  { status: 'planning', labelKey: 'pages.projects.status.planning' },
-  { status: 'script_analysis', labelKey: 'pages.projects.status.scriptAnalysis' },
-  { status: 'asset_prep', labelKey: 'pages.projects.status.assetPrep' },
-  { status: 'production', labelKey: 'pages.projects.status.production' },
-  { status: 'editing', labelKey: 'pages.projects.status.editing' },
-  { status: 'done', labelKey: 'pages.projects.status.done' },
-]
 
 const LOCAL_ADMIN_PROMPT_DISMISSED_KEY = 'movscript-local-admin-prompt-dismissed'
 
@@ -68,12 +55,10 @@ function ProjectListRow({
   project,
   onOpen,
   onDelete,
-  onStatusChange,
 }: {
   project: Project
   onOpen: (p: Project) => void
   onDelete: (id: number) => void
-  onStatusChange: (id: number, status: ProjectStatus) => void
 }) {
   const { t } = useTranslation()
   const currentOrgID = useUserStore((s) => s.currentOrgID)
@@ -81,10 +66,6 @@ function ProjectListRow({
     queryKey: projectProgressQueryKey(currentOrgID, project.ID),
     queryFn: () => api.get(`/projects/${project.ID}/progress`).then((r) => r.data),
   })
-
-  const status = (project.status ?? 'planning') as ProjectStatus
-  const statusLabelKey = STATUS_STEPS.find((s) => s.status === status)?.labelKey
-  const statusIdx = STATUS_STEPS.findIndex((s) => s.status === status)
 
   const contentUnits = progress?.content_units
   const approvedPct = contentUnits && contentUnits.total > 0 ? Math.round((contentUnits.approved / contentUnits.total) * 100) : 0
@@ -108,27 +89,10 @@ function ProjectListRow({
           >
             {project.name}
           </ProjectPageActionButton>
-          <StatusBadge {...projectStatusRecipe(status)}>{statusLabelKey ? t(statusLabelKey) : status}</StatusBadge>
         </div>
         {project.description ? (
           <p className="mt-1 truncate type-label text-muted-foreground">{project.description}</p>
         ) : null}
-        <div className="mt-3 flex gap-0.5">
-          {STATUS_STEPS.map((step, i) => (
-            <ProjectPageActionButton
-              key={step.status}
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => onStatusChange(project.ID, step.status)}
-              title={t(step.labelKey)}
-              aria-label={t(step.labelKey)}
-              className={`h-1.5 min-w-0 flex-1 rounded-full p-0 ${
-                i <= statusIdx ? 'bg-primary' : 'border border-border bg-transparent hover:border-muted-foreground/40'
-              }`}
-            />
-          ))}
-        </div>
       </div>
 
       <div className="projects-list-row__progress">
@@ -280,12 +244,6 @@ export default function ProjectsPage() {
     },
   })
 
-  const updateStatus = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: ProjectStatus }) =>
-      api.put(`/projects/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) }),
-  })
-
   function handleCreate(name: string, desc: string) {
     create.mutate({ name, description: desc })
   }
@@ -352,10 +310,9 @@ export default function ProjectsPage() {
               <ProjectListRow
                 key={p.ID}
                 project={p}
-                onOpen={handleOpen}
-                onDelete={(id) => remove.mutate(id)}
-                onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
-              />
+                    onOpen={handleOpen}
+                    onDelete={(id) => remove.mutate(id)}
+                  />
             ))}
           </div>
         )}

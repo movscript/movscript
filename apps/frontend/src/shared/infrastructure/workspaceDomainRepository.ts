@@ -1,9 +1,7 @@
 import {
-  createMovScriptWorkspaceDomainRepository,
-  type MovScriptWorkspaceDomainIndex,
-  type MovScriptWorkspaceDomainRepository,
+  createMovScriptWorkspaceService,
   type MovScriptWorkspaceFileRepository,
-  type MovScriptWorkspaceIndexedEntity,
+  type MovScriptWorkspaceService,
 } from '@movscript/core/workspace'
 import type {
   ElectronAPI,
@@ -17,14 +15,25 @@ type WorkspaceElectronAPI = Pick<
   | 'readMovScriptWorkspaceFile'
   | 'writeMovScriptWorkspaceFile'
   | 'deleteMovScriptWorkspaceFile'
+  | 'reviewMovScriptWorkspace'
+  | 'buildMovScriptWorkspace'
 >
 
 export function createElectronMovScriptWorkspaceFileRepository(
-  api: WorkspaceElectronAPI = requireElectronMovScriptWorkspaceAPI(),
+  api?: WorkspaceElectronAPI,
+): MovScriptWorkspaceFileRepository
+export function createElectronMovScriptWorkspaceFileRepository(
+  context?: ElectronMovScriptWorkspaceFileRepositoryContext,
+  api?: WorkspaceElectronAPI,
+): MovScriptWorkspaceFileRepository
+export function createElectronMovScriptWorkspaceFileRepository(
+  first?: WorkspaceElectronAPI | ElectronMovScriptWorkspaceFileRepositoryContext,
+  second?: WorkspaceElectronAPI,
 ): MovScriptWorkspaceFileRepository {
+  const { context, api } = repositoryArgs(first, second)
   return {
     async list(input = {}) {
-      const result = await api.listMovScriptWorkspaceFiles?.({ path: input.path })
+      const result = await api.listMovScriptWorkspaceFiles?.({ ...context, path: input.path })
       if (!result) throw new Error('MovScript workspace file listing is unavailable')
       return {
         path: result.path,
@@ -37,7 +46,7 @@ export function createElectronMovScriptWorkspaceFileRepository(
       }
     },
     async read(input) {
-      const result = await api.readMovScriptWorkspaceFile?.({ path: input.path })
+      const result = await api.readMovScriptWorkspaceFile?.({ ...context, path: input.path })
       if (!result) throw new Error('MovScript workspace file reading is unavailable')
       return {
         path: result.path,
@@ -47,7 +56,7 @@ export function createElectronMovScriptWorkspaceFileRepository(
       }
     },
     async write(input) {
-      const result = await api.writeMovScriptWorkspaceFile?.({ path: input.path, content: input.content })
+      const result = await api.writeMovScriptWorkspaceFile?.({ ...context, path: input.path, content: input.content })
       if (!result) throw new Error('MovScript workspace file writing is unavailable')
       return {
         path: result.path,
@@ -57,46 +66,69 @@ export function createElectronMovScriptWorkspaceFileRepository(
       }
     },
     async delete(input) {
-      await api.deleteMovScriptWorkspaceFile?.({ path: input.path })
+      await api.deleteMovScriptWorkspaceFile?.({ ...context, path: input.path })
     },
   }
 }
 
-export function createElectronMovScriptWorkspaceDomainRepository(
-  api: WorkspaceElectronAPI = requireElectronMovScriptWorkspaceAPI(),
-): MovScriptWorkspaceDomainRepository {
-  return createMovScriptWorkspaceDomainRepository({
-    fileRepository: createElectronMovScriptWorkspaceFileRepository(api),
+export function createElectronMovScriptWorkspaceService(
+  api?: WorkspaceElectronAPI,
+): MovScriptWorkspaceService
+export function createElectronMovScriptWorkspaceService(
+  context?: ElectronMovScriptWorkspaceFileRepositoryContext,
+  api?: WorkspaceElectronAPI,
+): MovScriptWorkspaceService
+export function createElectronMovScriptWorkspaceService(
+  first?: WorkspaceElectronAPI | ElectronMovScriptWorkspaceFileRepositoryContext,
+  second?: WorkspaceElectronAPI,
+): MovScriptWorkspaceService {
+  if (movScriptWorkspaceServiceFactoryForTest) {
+    const context = isWorkspaceElectronAPI(first) ? {} : first ?? {}
+    const api = isWorkspaceElectronAPI(first) ? first : second ?? ({} as WorkspaceElectronAPI)
+    return movScriptWorkspaceServiceFactoryForTest(context, api)
+  }
+  const { context, api } = repositoryArgs(first, second)
+  const reviewWorkspace = api.reviewMovScriptWorkspace
+    ? () => {
+        const review = api.reviewMovScriptWorkspace?.(context)
+        if (!review) throw new Error('MovScript workspace review is unavailable')
+        return review
+      }
+    : undefined
+  const buildWorkspace = api.buildMovScriptWorkspace
+    ? () => {
+        const build = api.buildMovScriptWorkspace?.(context)
+        if (!build) throw new Error('MovScript workspace build is unavailable')
+        return build
+      }
+    : undefined
+  return createMovScriptWorkspaceService({
+    fileRepository: createElectronMovScriptWorkspaceFileRepository(context, api),
+    ...(reviewWorkspace ? { reviewWorkspace } : {}),
+    ...(buildWorkspace ? { buildWorkspace } : {}),
   })
 }
 
-export async function loadMovScriptProjectWorkspaceDomainIndex(
-  projectId: number,
-  api: WorkspaceElectronAPI = requireElectronMovScriptWorkspaceAPI(),
-): Promise<MovScriptWorkspaceDomainIndex> {
-  const builtIndex = await readBuiltDomainIndex(api)
-  if (builtIndex) return builtIndex
-  const repository = createElectronMovScriptWorkspaceDomainRepository(api)
-  return repository.loadIndex({
-    path: await resolveMovScriptWorkspaceProjectPath(api, projectId),
-  })
+export function __setElectronMovScriptWorkspaceServiceFactoryForTest(
+  factory: ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceService) | undefined,
+): () => void {
+  const previous = movScriptWorkspaceServiceFactoryForTest
+  movScriptWorkspaceServiceFactoryForTest = factory
+  return () => {
+    movScriptWorkspaceServiceFactoryForTest = previous
+  }
 }
 
-export async function resolveMovScriptWorkspaceProjectPath(
-  api: Pick<WorkspaceElectronAPI, 'getMovScriptWorkspaceRoot' | 'listMovScriptWorkspaceFiles'>,
-  projectId: number,
-): Promise<string> {
-  await requireWorkspaceRoot(api)
-  return movScriptWorkspaceProjectPath('local', projectId)
+export type ElectronMovScriptWorkspaceFileRepositoryContext = {
+  workspaceDir?: string
+  userId?: string | number
+  orgId?: string | number
+  projectId?: string | number
 }
 
-export function movScriptWorkspaceProjectPath(_userId: string | number, _projectId: string | number): string {
-  return 'edit'
-}
-
-export function movScriptWorkspaceProjectEditPath(projectId: string | number): string {
-  return movScriptWorkspaceProjectPath('local', projectId)
-}
+let movScriptWorkspaceServiceFactoryForTest:
+  | ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceService)
+  | undefined
 
 function requireElectronMovScriptWorkspaceAPI(): WorkspaceElectronAPI {
   const api = window.api
@@ -120,28 +152,27 @@ async function requireWorkspaceRoot(
   return root
 }
 
-async function readBuiltDomainIndex(api: WorkspaceElectronAPI): Promise<MovScriptWorkspaceDomainIndex | null> {
-  try {
-    const indexList = await api.listMovScriptWorkspaceFiles?.({ path: '.build/indexes' })
-    if (!indexList?.entries.some((entry) => entry.kind === 'file' && entry.name === 'domain-index.json')) return null
-    const file = await api.readMovScriptWorkspaceFile?.({ path: '.build/indexes/domain-index.json' })
-    if (!file) return null
-    const parsed = JSON.parse(file.content) as unknown
-    return deserializeDomainIndex(parsed)
-  } catch {
-    return null
+function repositoryArgs(
+  first?: WorkspaceElectronAPI | ElectronMovScriptWorkspaceFileRepositoryContext,
+  second?: WorkspaceElectronAPI,
+): { context: ElectronMovScriptWorkspaceFileRepositoryContext; api: WorkspaceElectronAPI } {
+  if (isWorkspaceElectronAPI(first)) {
+    return { context: {}, api: first }
+  }
+  return {
+    context: first ?? {},
+    api: second ?? requireElectronMovScriptWorkspaceAPI(),
   }
 }
 
-function deserializeDomainIndex(value: unknown): MovScriptWorkspaceDomainIndex | null {
-  if (!isRecord(value) || value.schema !== 'movscript.domain-index.v1' || !Array.isArray(value.entities)) return null
-  const documents = Array.isArray(value.documents)
-    ? value.documents.filter(isRecord).map((document) => ({ path: String(document.path ?? ''), data: undefined }))
-    : []
-  const entities = value.entities.filter(isRecord).map((entity) => entity as unknown as MovScriptWorkspaceIndexedEntity)
-  const byType = new Map<MovScriptWorkspaceIndexedEntity['entityType'], MovScriptWorkspaceIndexedEntity[]>()
-  for (const entity of entities) byType.set(entity.entityType, [...(byType.get(entity.entityType) ?? []), entity])
-  return { documents, entities, byType }
+function isWorkspaceElectronAPI(value: unknown): value is WorkspaceElectronAPI {
+  return isRecord(value) && (
+    'getMovScriptWorkspaceRoot' in value
+    || 'listMovScriptWorkspaceFiles' in value
+    || 'readMovScriptWorkspaceFile' in value
+    || 'writeMovScriptWorkspaceFile' in value
+    || 'deleteMovScriptWorkspaceFile' in value
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

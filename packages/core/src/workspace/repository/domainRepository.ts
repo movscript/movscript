@@ -1,8 +1,12 @@
 import {
   buildMovScriptWorkspaceDomainIndex,
   type MovScriptWorkspaceDocument,
-} from '../domain/index.js'
-import { normalizeWorkspacePath } from '../ontology.js'
+} from '../indexer/index.js'
+import {
+  isMovScriptNonSourceRootDirectory,
+  isMovScriptSourcePath,
+  normalizeWorkspacePath,
+} from '../layout/index.js'
 import type {
   MovScriptWorkspaceDomainRepository,
   MovScriptWorkspaceFileRepository,
@@ -47,6 +51,7 @@ async function collectWorkspaceDocuments(
   const listed = await fileRepository.list({ path })
   for (const entry of listed.entries) {
     if (entry.kind === 'directory') {
+      if (!path && isMovScriptNonSourceRootDirectory(entry.path)) continue
       await collectWorkspaceDocuments(fileRepository, entry.path, includeFile, out)
       continue
     }
@@ -68,7 +73,5 @@ function parseWorkspaceDocument(path: string, content: string): unknown {
 }
 
 function defaultWorkspaceDomainFileFilter(path: string): boolean {
-  if (path.includes('/.base/') || path.includes('/.update/')) return false
-  if (path.endsWith('.meta.json') || path.endsWith('.metadata.json')) return false
-  return path.endsWith('.json') || path.endsWith('.md')
+  return isMovScriptSourcePath(path)
 }

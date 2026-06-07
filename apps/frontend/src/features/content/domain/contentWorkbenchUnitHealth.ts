@@ -16,7 +16,6 @@ export interface ContentWorkbenchUnitHealthInput {
   runningJobCount: number
   completedJobCount: number
   previewItemCount?: number
-  deliveryVersionCount?: number
 }
 
 export interface ContentWorkbenchUnitHealthCheck {
@@ -41,7 +40,7 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
     return {
       state: 'empty',
       title: '等待选择制作项',
-      detail: '选择制作项后，系统会评估提示、素材、画面锚点、上下文、审稿和交付进度。',
+      detail: '选择制作项后，系统会评估提示、素材、画面锚点、上下文、审稿和预览进度。',
       score: 0,
       checks: [],
     }
@@ -55,7 +54,6 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
   const runningJobCount = positiveInteger(input.runningJobCount)
   const completedJobCount = positiveInteger(input.completedJobCount)
   const previewItemCount = positiveInteger(input.previewItemCount)
-  const deliveryVersionCount = positiveInteger(input.deliveryVersionCount)
   const contextReady = input.generationContextReady && !input.generationContextLoading && !input.generationContextError
 
   const checks: ContentWorkbenchUnitHealthCheck[] = [
@@ -108,11 +106,11 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
       weight: 5,
     },
     {
-      key: 'delivery',
-      label: '预览交付',
-      value: deliveryVersionCount > 0 ? `${deliveryVersionCount} 版本` : previewItemCount > 0 ? `${previewItemCount} 预览` : '待挂载',
-      state: deliveryVersionCount > 0 ? 'done' : previewItemCount > 0 ? 'ready' : 'pending',
-      done: deliveryVersionCount > 0,
+      key: 'preview',
+      label: '预览挂载',
+      value: previewItemCount > 0 ? `${previewItemCount} 预览` : '待挂载',
+      state: previewItemCount > 0 ? 'done' : 'pending',
+      done: previewItemCount > 0,
       weight: 5,
     },
   ]
@@ -121,11 +119,11 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
   const hardBlockers = checks.filter((check) => check.state === 'blocked').length
   const pendingCount = checks.filter((check) => check.state === 'pending').length
 
-  if (deliveryVersionCount > 0 && score === 100) {
+  if (previewItemCount > 0 && score === 100) {
     return {
       state: 'done',
       title: '制作项已闭环',
-      detail: '核心输入、生成记录、预览和交付版本已经形成可追溯闭环。',
+      detail: '核心输入、生成记录和预览挂载已经形成可追溯闭环。',
       score,
       checks,
     }
@@ -145,7 +143,7 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
     return {
       state: score >= 90 ? 'ready' : 'pending',
       title: score >= 90 ? '制作项可进入生产' : '制作项接近可执行',
-      detail: score >= 90 ? '核心输入已经齐备，继续补齐预览或交付记录。' : `${pendingCount} 个生产后置环节仍需推进。`,
+      detail: score >= 90 ? '核心输入已经齐备，继续补齐预览记录。' : `${pendingCount} 个生产后置环节仍需推进。`,
       score,
       checks,
     }

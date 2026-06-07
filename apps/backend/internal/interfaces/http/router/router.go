@@ -16,14 +16,14 @@ func New(deps Dependencies) *gin.Engine {
 	r := gin.New()
 	r.Use(observability.RequestID())
 	r.Use(observability.RequestMetrics(observability.DefaultHTTPMetrics()))
-	r.Use(gin.Recovery())
 	r.Use(middleware.RequestLogger())
+	r.Use(gin.Recovery())
 	var corsOrigins []string
 	if deps.Config != nil {
 		corsOrigins = deps.Config.CORSAllowedOrigins
 	}
 	r.Use(middleware.CORS(corsOrigins))
-	r.Use(middleware.Identity(db, tokens))
+	r.Use(middleware.Identity(db, tokens, deps.EncryptionKey))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -50,12 +50,12 @@ func New(deps Dependencies) *gin.Engine {
 			registerResourceRoutes(protected, h)
 			registerJobRoutes(protected, h)
 			registerPluginRoutes(protected, h)
-				registerCanvasRoutes(protected, h)
-				registerProjectRoutes(protected, db, h)
-				registerRuntimeProtectedRoutes(protected, h)
-				registerAgentTelemetryRoutes(protected, h)
+			registerCanvasRoutes(protected, h)
+			registerProjectRoutes(protected, db, h)
+			registerRuntimeProtectedRoutes(protected, h)
+			registerAgentTelemetryRoutes(protected, h)
 
-				// admin routes — super_admin only
+			// admin routes — super_admin only
 			admin := protected.Group("/admin", middleware.RequireSystemRole("super_admin"))
 			registerAdminRoutes(admin, h)
 			registerRuntimeAdminRoutes(admin, h)

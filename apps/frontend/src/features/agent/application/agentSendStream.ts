@@ -13,14 +13,14 @@ export interface AgentSendRunUpdateDeps {
   requestId?: string
   liveEvents: () => ChatRunActivityEvent[]
   cancelledRunIds: Set<string>
-  getConversationProviderSessionState: () => { stopRequested?: boolean; run?: AgentRun } | undefined
+  getConversationRuntimeState: () => { stopRequested?: boolean; run?: AgentRun } | undefined
   setPendingAssistantState: (value: AgentThinkingState | null | ((current: AgentThinkingState | null) => AgentThinkingState | null)) => void
   thinkingStateForRun: (run: AgentRun) => AgentThinkingState
   runTouchesProviderCatalog: (run: AgentRun) => boolean
   refreshProviderCatalogContext: () => void
   setPageTaskRunning: (requestId: string, patch: AgentPageTaskRunningPatch) => void
   setConversationRun: (run: AgentRun, patch: RunControlProviderSessionPatch & { approving?: boolean }) => void
-  setConversationProviderSessionState: (patch: RunControlProviderSessionPatch) => void
+  updateConversationRuntimeState: (patch: RunControlProviderSessionPatch) => void
   cancelGenerationJobIfActive: (state: ReturnType<typeof generationProgressFromEvents>) => void
   cancelRun: (runId: string, input: { reason?: string }) => Promise<AgentRun>
   getRun: (runId: string) => Promise<AgentRun>
@@ -35,8 +35,8 @@ export interface AgentSendStreamEventDeps {
 }
 
 export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateDeps): void {
-  const currentProviderSessionState = deps.getConversationProviderSessionState()
-  const currentRun = currentProviderSessionState?.run
+  const currentRuntimeState = deps.getConversationRuntimeState()
+  const currentRun = currentRuntimeState?.run
   const keepCurrentInteractionRun = shouldKeepCurrentInteractionRun(currentRun, nextRun)
   const artifacts = extractAgentTaskArtifacts(nextRun)
   if (keepCurrentInteractionRun) {
@@ -65,8 +65,8 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
     })
   }
 
-  const nextProviderSessionState = currentProviderSessionState ?? deps.getConversationProviderSessionState()
-  if (!nextProviderSessionState?.stopRequested || !isStoppableAgentRun(nextRun) || deps.cancelledRunIds.has(nextRun.id)) return
+  const nextRuntimeState = currentRuntimeState ?? deps.getConversationRuntimeState()
+  if (!nextRuntimeState?.stopRequested || !isStoppableAgentRun(nextRun) || deps.cancelledRunIds.has(nextRun.id)) return
 
   deps.cancelledRunIds.add(nextRun.id)
   deps.cancelGenerationJobIfActive(generationProgressFromEvents(deps.liveEvents()))
@@ -91,7 +91,7 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
       }
     })
     .finally(() => {
-      deps.setConversationProviderSessionState({ stopRequested: false, stopping: false, loading: false })
+      deps.updateConversationRuntimeState({ stopRequested: false, stopping: false, loading: false })
     })
 }
 

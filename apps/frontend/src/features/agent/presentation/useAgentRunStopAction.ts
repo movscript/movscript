@@ -34,7 +34,7 @@ export interface UseAgentRunStopActionInput {
   setPendingAssistantState: (state: AgentThinkingState | null) => void
   resetStreamingAssistant: () => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<StopProviderSessionRunActionDeps['setConversationRun']>[1]) => void
-  setConversationProviderSessionState: (conversationId: string, patch: Parameters<StopProviderSessionRunActionDeps['setConversationProviderSessionState']>[0]) => void
+  updateConversationRuntimeState: (conversationId: string, patch: Parameters<StopProviderSessionRunActionDeps['updateConversationRuntimeState']>[0]) => void
 }
 
 export function useAgentRunStopAction({
@@ -51,7 +51,7 @@ export function useAgentRunStopAction({
   setPendingAssistantState,
   resetStreamingAssistant,
   setConversationRun,
-  setConversationProviderSessionState,
+  updateConversationRuntimeState,
 }: UseAgentRunStopActionInput) {
   const providerSessionRunClient = useMemo(() => sessionId?.trim()
     ? providerSessionClient.forSession({
@@ -69,7 +69,7 @@ export function useAgentRunStopAction({
     setPendingAssistantState,
     resetStreamingAssistant,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
-    setConversationProviderSessionState: (patch) => setConversationProviderSessionState(conversationId, patch),
+    updateConversationRuntimeState: (patch) => updateConversationRuntimeState(conversationId, patch),
     cancelGenerationJobIfActive: () => {
       void cancelGenerationJobIfActive(generationProgressState)
     },
@@ -82,7 +82,7 @@ export function useAgentRunStopAction({
     resetStreamingAssistant,
     providerSessionRunClient,
     setConversationRun,
-    setConversationProviderSessionState,
+    updateConversationRuntimeState,
     setPendingAssistantState,
   ])
 

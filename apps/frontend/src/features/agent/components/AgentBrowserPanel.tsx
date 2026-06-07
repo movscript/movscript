@@ -100,10 +100,12 @@ import { ProjectStandardsContent } from '@/features/project-standards/components
 import { ExternalResourceSearchPage, ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
-import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import type { Script } from '@/types'
+import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
 
 type BrowserBounds = {
   x: number
@@ -760,9 +762,16 @@ function ProjectHomeBrowserPage({
 }) {
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
+  const currentUser = useUserStore((state) => state.currentUser)
+  const currentOrgID = useUserStore((state) => state.currentOrgID)
+  const orgMemberships = useUserStore((state) => state.orgMemberships)
+  const workspaceContext = useMemo(
+    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+    [currentOrgID, currentUser?.ID, orgMemberships],
+  )
   const scriptsQuery = useQuery<Script[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'scripts'],
-    queryFn: () => api.get(`/projects/${projectId}/scripts`).then((response) => response.data as Script[]),
+    queryKey: ['embedded-browser-navigation', projectId, 'scripts', workspaceContext.userId ?? 'local', workspaceContext.orgId ?? 'personal'],
+    queryFn: () => listWorkspaceScripts(projectId!, workspaceContext),
     enabled: !!projectId,
   })
   const referencesQuery = useQuery<SemanticEntityRecord[]>({

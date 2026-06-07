@@ -8,7 +8,7 @@ import { ChangeActionBadge, ReviewCallout, ReviewDecisionBadge, ReviewWorkspaceS
 
 export type ProductionWorkspaceReviewState =
   | "applied"
-  | "backend_preview_ready"
+  | "review_preview_ready"
   | "local_preview_ready"
   | "applying"
   | "simulating"
@@ -60,18 +60,18 @@ export interface ProductionWorkspaceResultStat {
 
 export type ProductionWorkspaceApplyPreviewGroupState = "write" | "blocked" | "pending" | "rejected";
 
-export interface ProductionWorkspaceBackendPreviewIssue {
+export interface ProductionWorkspaceReviewPreviewIssue {
   code?: ReactNode;
   message: ReactNode;
   detail?: ReactNode;
 }
 
-export interface ProductionWorkspaceBackendPreviewWarning {
+export interface ProductionWorkspaceReviewPreviewWarning {
   code: ReactNode;
   message: ReactNode;
 }
 
-export interface ProductionWorkspaceBackendPreviewChange {
+export interface ProductionWorkspaceReviewPreviewChange {
   key?: string;
   kind: string;
   action?: ChangeAction;
@@ -256,7 +256,7 @@ export function ProductionWorkspaceResultCallout({
   );
 }
 
-export function ProductionWorkspaceBackendPreviewPanel({
+export function ProductionWorkspaceReviewPreviewPanel({
   icon,
   iconClassName,
   title,
@@ -290,7 +290,7 @@ export function ProductionWorkspaceResultActionButton({ className, ...props }: C
   return <Button className={cn("production-workspace-result-action-button", className)} {...props} />;
 }
 
-export function ProductionWorkspaceBackendPreviewReadyPanel({
+export function ProductionWorkspaceReviewPreviewReadyPanel({
   icon,
   title,
   stats,
@@ -304,15 +304,15 @@ export function ProductionWorkspaceBackendPreviewReadyPanel({
   badge?: ReactNode;
 }) {
   return (
-    <ProductionWorkspaceBackendPreviewPanel
+    <ProductionWorkspaceReviewPreviewPanel
       icon={icon}
       iconClassName={toneTextClass("success")}
       title={title}
-      badge={<Badge className="production-workspace-backend-preview-badge">{badge}</Badge>}
+      badge={<Badge className="production-workspace-review-preview-badge">{badge}</Badge>}
       stats={stats}
     >
       {children}
-    </ProductionWorkspaceBackendPreviewPanel>
+    </ProductionWorkspaceReviewPreviewPanel>
   );
 }
 
@@ -335,72 +335,72 @@ export function ProductionWorkspaceContinueReviewPanel({
   );
 }
 
-export function ProductionWorkspaceBackendPreviewIssueCallout({
+export function ProductionWorkspaceReviewPreviewIssueCallout({
   issue,
   icon: Icon,
 }: {
-  issue: ProductionWorkspaceBackendPreviewIssue;
+  issue: ProductionWorkspaceReviewPreviewIssue;
   icon?: IconComponent;
 }) {
   return (
-    <ReviewCallout tone="danger" className="production-workspace-backend-issue">
-      {Icon ? <Icon size={14} className="production-workspace-backend-issue__icon" /> : null}
-      <div className="production-workspace-backend-issue__body">
-        <div className="production-workspace-backend-issue__header">
-          <p className="production-workspace-backend-issue__title">后端预览未通过</p>
-          {issue.code ? <ReviewStat tone="neutral" className="production-workspace-backend-issue__code">{issue.code}</ReviewStat> : null}
+    <ReviewCallout tone="danger" className="production-workspace-review-preview-issue">
+      {Icon ? <Icon size={14} className="production-workspace-review-preview-issue__icon" /> : null}
+      <div className="production-workspace-review-preview-issue__body">
+        <div className="production-workspace-review-preview-issue__header">
+          <p className="production-workspace-review-preview-issue__title">写入预检未通过</p>
+          {issue.code ? <ReviewStat tone="neutral" className="production-workspace-review-preview-issue__code">{issue.code}</ReviewStat> : null}
         </div>
-        <p className="production-workspace-backend-issue__message">{issue.message}</p>
+        <p className="production-workspace-review-preview-issue__message">{issue.message}</p>
         {issue.detail ? (
-          <AppSurfaceItem density="compact" variant="overlay" className="production-workspace-backend-issue__detail">
+          <AppSurfaceItem density="compact" variant="overlay" className="production-workspace-review-preview-issue__detail">
             <AppCodeBlock>{issue.detail}</AppCodeBlock>
           </AppSurfaceItem>
         ) : null}
-        <p className="production-workspace-backend-issue__hint">请回到变更队列调整接受/拒绝决策，或重新生成缺少 ID 的复用/更新节点后再预览。</p>
+        <p className="production-workspace-review-preview-issue__hint">请回到变更队列调整接受/拒绝决策，或重新生成缺少 ID 的复用/更新节点后再预检。</p>
       </div>
     </ReviewCallout>
   );
 }
 
-export function ProductionWorkspaceBackendPreviewSemanticSummary({
+export function ProductionWorkspaceReviewPreviewSemanticSummary({
   changes,
   warnings,
   kindLabel = productionWorkspaceChangeKindLabel,
 }: {
-  changes: ProductionWorkspaceBackendPreviewChange[];
-  warnings: ProductionWorkspaceBackendPreviewWarning[];
+  changes: ProductionWorkspaceReviewPreviewChange[];
+  warnings: ProductionWorkspaceReviewPreviewWarning[];
   kindLabel?: (kind: string) => ReactNode;
 }) {
   if (changes.length === 0 && warnings.length === 0) return null;
   return (
-    <div className="production-workspace-backend-summary">
+    <div className="production-workspace-review-preview-summary">
       {warnings.length > 0 ? (
         <ReviewCallout tone="warning" compact>
-          <div className="production-workspace-backend-summary__warning-header">
-            <p className="production-workspace-backend-summary__warning-title">后端提示</p>
-            <ReviewStat tone="neutral" className="production-workspace-backend-summary__warning-count">{warnings.length}</ReviewStat>
+          <div className="production-workspace-review-preview-summary__warning-header">
+            <p className="production-workspace-review-preview-summary__warning-title">预检提示</p>
+            <ReviewStat tone="neutral" className="production-workspace-review-preview-summary__warning-count">{warnings.length}</ReviewStat>
           </div>
-          <div className="production-workspace-backend-summary__warning-list">
+          <div className="production-workspace-review-preview-summary__warning-list">
             {warnings.slice(0, 3).map((warning, index) => (
-              <p key={index} className="production-workspace-backend-summary__warning">
-                <span className="production-workspace-backend-summary__warning-code">{warning.code}</span>
-                <span className="production-workspace-backend-summary__warning-message"> · {warning.message}</span>
+              <p key={index} className="production-workspace-review-preview-summary__warning">
+                <span className="production-workspace-review-preview-summary__warning-code">{warning.code}</span>
+                <span className="production-workspace-review-preview-summary__warning-message"> · {warning.message}</span>
               </p>
             ))}
-            {warnings.length > 3 ? <p className="production-workspace-backend-summary__more">还有 {warnings.length - 3} 条提示未显示</p> : null}
+            {warnings.length > 3 ? <p className="production-workspace-review-preview-summary__more">还有 {warnings.length - 3} 条提示未显示</p> : null}
           </div>
         </ReviewCallout>
       ) : null}
       {changes.length > 0 ? (
-        <AppPanel title="后端 Diff" action={<ReviewStat tone="neutral">{changes.length}</ReviewStat>} bodyClassName="production-workspace-backend-summary__change-list">
+        <AppPanel title="预检 Diff" action={<ReviewStat tone="neutral">{changes.length}</ReviewStat>} bodyClassName="production-workspace-review-preview-summary__change-list">
           {changes.slice(0, 6).map((change, index) => (
-            <AppSurfaceItem key={change.key ?? `${change.kind}-${index}`} density="compact" variant="overlay" className="production-workspace-backend-summary__change">
+            <AppSurfaceItem key={change.key ?? `${change.kind}-${index}`} density="compact" variant="overlay" className="production-workspace-review-preview-summary__change">
               <ChangeActionBadge action={change.action} compact />
-              <span className="production-workspace-backend-summary__change-title">{change.title}</span>
-              <span className="production-workspace-backend-summary__change-kind">{kindLabel(change.kind)}</span>
+              <span className="production-workspace-review-preview-summary__change-title">{change.title}</span>
+              <span className="production-workspace-review-preview-summary__change-kind">{kindLabel(change.kind)}</span>
             </AppSurfaceItem>
           ))}
-          {changes.length > 6 ? <p className="production-workspace-backend-summary__more">还有 {changes.length - 6} 项未显示</p> : null}
+          {changes.length > 6 ? <p className="production-workspace-review-preview-summary__more">还有 {changes.length - 6} 项未显示</p> : null}
         </AppPanel>
       ) : null}
     </div>
@@ -785,7 +785,7 @@ export function ProductionWorkspaceApplyPreviewItemRow({
 }
 
 function productionWorkspaceReviewStateTone(state: ProductionWorkspaceReviewState): ReviewTone {
-  if (state === "applied" || state === "backend_preview_ready" || state === "local_preview_ready" || state === "ready_for_preview") return "success";
+  if (state === "applied" || state === "review_preview_ready" || state === "local_preview_ready" || state === "ready_for_preview") return "success";
   if (state === "applying" || state === "simulating" || state === "not_started" || state === "in_progress") return "warning";
   if (state === "blocked") return "danger";
   return "neutral";

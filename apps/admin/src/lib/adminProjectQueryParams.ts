@@ -1,7 +1,6 @@
 export type ProjectListFilters = {
   query: string
   projectId: string
-  status: string
   ownerId: string
   orgId: string
 }
@@ -15,7 +14,6 @@ export type ProjectListHrefFilters = {
 export const emptyProjectListFilters: ProjectListFilters = {
   query: '',
   projectId: '',
-  status: '',
   ownerId: '',
   orgId: '',
 }
@@ -29,7 +27,6 @@ export function projectFiltersFromSearchParams(params: URLSearchParams): Project
   return {
     query: params.get('q') ?? '',
     projectId: params.get('project_id') ?? '',
-    status: params.get('status') ?? '',
     ownerId: params.get('owner_id') ?? '',
     orgId: params.get('org_id') ?? '',
   }
@@ -40,7 +37,6 @@ export function projectSearchParams(filters: ProjectListFilters, page: number): 
   const pairs: Array<[string, string]> = [
     ['q', filters.query.trim()],
     ['project_id', filters.projectId.trim()],
-    ['status', filters.status.trim()],
     ['owner_id', filters.ownerId.trim()],
     ['org_id', filters.orgId.trim()],
   ]
@@ -55,7 +51,6 @@ export function projectListHref(filters: ProjectListHrefFilters = {}, page = 1):
   const params = projectSearchParams({
     query: hrefValue(filters.query),
     projectId: hrefValue(filters.projectId),
-    status: hrefValue(filters.status),
     ownerId: hrefValue(filters.ownerId),
     orgId: hrefValue(filters.orgId),
   }, page)

@@ -1,137 +1,68 @@
-import type {
-  ElectronMovScriptWorkspaceFileEntry,
-  ElectronMovScriptWorkspaceFileReadResult,
-  ElectronMovScriptWorkspaceFilesInput,
-  ElectronMovScriptWorkspaceFilesListResult,
-  ElectronMovScriptWorkspaceRootResult,
-} from '@/shared/contracts/electronApi'
+import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
+import type { MovScriptWorkspaceIndexedEntity } from '@movscript/core/workspace'
 import type { Script } from '@/types'
 
-export interface ScriptWorkspaceFilesAPI {
-  root(input?: { workspaceDir?: string }): Promise<ElectronMovScriptWorkspaceRootResult>
-  list(input?: ElectronMovScriptWorkspaceFilesInput): Promise<ElectronMovScriptWorkspaceFilesListResult>
-  read(input: ElectronMovScriptWorkspaceFilesInput): Promise<ElectronMovScriptWorkspaceFileReadResult>
-  write(input: ElectronMovScriptWorkspaceFilesInput & { content: string }): Promise<ElectronMovScriptWorkspaceFileReadResult>
+export interface ScriptWorkspaceRepositoryContext {
+  userId?: string | number
+  orgId?: string | number
 }
 
-export function requireScriptWorkspaceAPI(): ScriptWorkspaceFilesAPI {
-  const api = window.api
-  if (
-    !api?.getMovScriptWorkspaceRoot
-    || !api.listMovScriptWorkspaceFiles
-    || !api.readMovScriptWorkspaceFile
-    || !api.writeMovScriptWorkspaceFile
-  ) {
-    throw new Error('当前窗口没有 MovScript 工作区文件能力')
-  }
-  return {
-    root: api.getMovScriptWorkspaceRoot,
-    list: api.listMovScriptWorkspaceFiles,
-    read: api.readMovScriptWorkspaceFile,
-    write: api.writeMovScriptWorkspaceFile,
-  }
+export async function listWorkspaceScripts(projectId: number, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script[]> {
+  const service = createElectronMovScriptWorkspaceService({ ...context, projectId })
+  const scripts = await service.queryEntities({ entityKind: 'script' })
+  return Promise.all(scripts.map((entity) => scriptFromWorkspaceEntity(projectId, service, entity)))
 }
 
-export async function listWorkspaceScripts(projectId: number): Promise<Script[]> {
-  const api = requireScriptWorkspaceAPI()
-  const projectPath = await resolveScriptWorkspaceProjectPath(api, projectId)
-  let listed: ElectronMovScriptWorkspaceFilesListResult
-  try {
-    listed = await api.list({ path: `${projectPath}/scripts` })
-  } catch {
-    return []
-  }
-  const scriptDirs = listed.entries.filter((entry) => entry.kind === 'directory')
-  const scripts = await Promise.all(scriptDirs.map((entry) => readWorkspaceScript(api, projectId, entry)))
-  return scripts.filter((script): script is Script => Boolean(script))
-}
-
-export async function saveWorkspaceScript(projectId: number, scriptId: number, workspace: Partial<Script>): Promise<Script> {
-  const api = requireScriptWorkspaceAPI()
-  const projectPath = await resolveScriptWorkspaceProjectPath(api, projectId)
-  const scriptDir = `${projectPath}/scripts/script_${scriptId}`
-  const existing = await readWorkspaceScriptFromDir(api, projectId, scriptDir, scriptId)
-  const script = normalizeScript({
-    ...existing,
+export async function createWorkspaceScript(projectId: number, workspace: Partial<Script>, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script> {
+  const scripts = await listWorkspaceScripts(projectId, context)
+  const scriptId = nextWorkspaceScriptId(scripts)
+  return saveWorkspaceScript(projectId, scriptId, {
     ...workspace,
     ID: scriptId,
-    id: scriptId,
     project_id: projectId,
-    content: scriptWorkspaceSourceText(workspace, existing),
-    raw_source: scriptWorkspaceSourceText(workspace, existing),
+    CreatedAt: new Date().toISOString(),
     UpdatedAt: new Date().toISOString(),
-  }, projectId, scriptId)
-  await api.write({ path: `${scriptDir}/script.md`, content: script.raw_source ?? script.content ?? '' })
-  await api.write({ path: `${scriptDir}/script.meta.json`, content: `${JSON.stringify(scriptMetadata(script), null, 2)}\n` })
-  return script
+  }, context)
 }
 
-export function scriptWorkspaceProjectPath(_userId: string | number, _projectId: string | number): string {
-  return 'edit'
+export async function saveWorkspaceScript(projectId: number, scriptId: number, workspace: Partial<Script>, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script> {
+  const service = createElectronMovScriptWorkspaceService({ ...context, projectId })
+  const existing = (await service.queryEntities({ entityKind: 'script' }))
+    .find((entity) => workspaceScriptNumericId(entity) === scriptId)
+  const sourceText = scriptWorkspaceSourceText(workspace, existing?.record)
+  const result = await service.upsertScript({
+    projectId,
+    scriptId,
+    record: existing?.record,
+    sourceText,
+    metadata: workspace as Record<string, unknown>,
+  })
+  return scriptFromWorkspaceRecord(projectId, result.record, result.sourceText)
 }
 
-async function readWorkspaceScript(
-  api: ScriptWorkspaceFilesAPI,
+async function scriptFromWorkspaceEntity(
   projectId: number,
-  entry: ElectronMovScriptWorkspaceFileEntry,
-): Promise<Script | null> {
-  const scriptId = Number(entry.name.replace(/^script_/, ''))
-  if (!scriptId) return null
-  return readWorkspaceScriptFromDir(api, projectId, entry.path, scriptId)
-}
-
-async function readWorkspaceScriptFromDir(
-  api: ScriptWorkspaceFilesAPI,
-  projectId: number,
-  scriptDir: string,
-  scriptId: number,
+  service: ReturnType<typeof createElectronMovScriptWorkspaceService>,
+  entity: MovScriptWorkspaceIndexedEntity,
 ): Promise<Script> {
-  const [body, meta] = await Promise.all([
-    readTextFile(api, `${scriptDir}/script.md`),
-    readJsonRecord(api, `${scriptDir}/script.meta.json`),
-  ])
-  return normalizeScript({
-    ...meta,
-    ID: meta.ID ?? meta.id ?? meta.script_id ?? scriptId,
-    id: meta.id ?? meta.ID ?? meta.script_id ?? scriptId,
-    project_id: meta.project_id ?? projectId,
-    content: body,
-    raw_source: body,
-  }, projectId, scriptId)
+  const body = await service.readScriptSource({ record: entity.record, entity })
+  return scriptFromWorkspaceRecord(projectId, entity.record, body)
 }
 
-async function resolveScriptWorkspaceProjectPath(api: ScriptWorkspaceFilesAPI, projectId: number): Promise<string> {
-  await api.root()
-  return scriptWorkspaceProjectPath('local', projectId)
-}
-
-async function readTextFile(api: ScriptWorkspaceFilesAPI, path: string): Promise<string> {
-  try {
-    return (await api.read({ path })).content
-  } catch {
-    return ''
-  }
-}
-
-async function readJsonRecord(api: ScriptWorkspaceFilesAPI, path: string): Promise<Record<string, unknown>> {
-  try {
-    const value = JSON.parse((await api.read({ path })).content) as unknown
-    return isRecord(value) ? value : {}
-  } catch {
-    return {}
-  }
-}
-
-function normalizeScript(value: Record<string, unknown>, projectId: number, scriptId: number): Script {
-  const body = stringValue(value.content) ?? stringValue(value.raw_source) ?? ''
+function scriptFromWorkspaceRecord(
+  projectId: number,
+  value: Record<string, unknown>,
+  body: string,
+): Script {
+  const scriptId = workspaceScriptNumericId({ record: value } as MovScriptWorkspaceIndexedEntity)
   return {
-    ID: numberValue(value.ID) ?? numberValue(value.id) ?? numberValue(value.script_id) ?? scriptId,
+    ID: scriptId,
     project_id: numberValue(value.project_id) ?? projectId,
     title: stringValue(value.title) ?? `剧本 #${scriptId}`,
     description: stringValue(value.description) ?? '',
     content: body,
     raw_source: body,
-    script_type: stringValue(value.script_type) ?? 'uncategorized',
+    script_type: stringValue(value.script_type ?? value.script_kind) ?? 'uncategorized',
     source_type: scriptSourceType(value.source_type),
     version: numberValue(value.version),
     parent_script_id: numberValue(value.parent_script_id),
@@ -158,18 +89,20 @@ function normalizeScript(value: Record<string, unknown>, projectId: number, scri
     structure_json: stringValue(value.structure_json),
     entity_candidates: stringValue(value.entity_candidates),
     relationship_candidates: stringValue(value.relationship_candidates),
-    CreatedAt: stringValue(value.CreatedAt) ?? stringValue(value.created_at) ?? '',
-    UpdatedAt: stringValue(value.UpdatedAt) ?? stringValue(value.updated_at) ?? '',
+    CreatedAt: stringValue(value.CreatedAt ?? value.created_at) ?? '',
+    UpdatedAt: stringValue(value.UpdatedAt ?? value.updated_at) ?? '',
   }
 }
 
-function scriptMetadata(script: Script): Record<string, unknown> {
-  const { content, raw_source, ...metadata } = script
-  return metadata
+function workspaceScriptNumericId(entity: MovScriptWorkspaceIndexedEntity): number {
+  return numberValue(entity.record.ID ?? entity.record.id ?? entity.id)
+    ?? numericSuffix(entity.record.id ?? entity.id)
+    ?? numericSuffix(entity.record.client_id)
+    ?? -stablePositiveHash(String(entity.record.client_id ?? entity.record.title ?? entity.record.id ?? 'script'))
 }
 
-function scriptWorkspaceSourceText(workspace: Partial<Script>, fallback?: Script): string {
-  return String(workspace.content ?? workspace.raw_source ?? fallback?.content ?? fallback?.raw_source ?? '')
+function scriptWorkspaceSourceText(workspace: Partial<Script>, fallback?: Record<string, unknown>): string {
+  return String(workspace.content ?? workspace.raw_source ?? fallback?.content ?? '')
 }
 
 function stringValue(value: unknown): string | undefined {
@@ -182,10 +115,25 @@ function numberValue(value: unknown): number | undefined {
   return undefined
 }
 
+function numericSuffix(value: unknown): number | undefined {
+  const text = typeof value === 'string' ? value : undefined
+  const match = text?.match(/(\d+)(?!.*\d)/)
+  return match ? numberValue(match[1]) : undefined
+}
+
 function scriptSourceType(value: unknown): Script['source_type'] {
   return value === 'raw' || value === 'adapted' || value === 'revised' ? value : 'raw'
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+function nextWorkspaceScriptId(scripts: Script[]): number {
+  const maxId = scripts.reduce((max, script) => Math.max(max, script.ID), 0)
+  return maxId + 1
+}
+
+function stablePositiveHash(value: string): number {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash * 31) + value.charCodeAt(index)) >>> 0
+  }
+  return (hash % 2_000_000_000) + 1
 }

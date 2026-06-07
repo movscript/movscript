@@ -1,12 +1,6 @@
-import type {
-  ElectronMovScriptWorkspaceFileReadResult,
-  ElectronMovScriptWorkspaceFilesInput,
-  ElectronMovScriptWorkspaceRootResult,
-} from '@/shared/contracts/electronApi'
 import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
+import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
 import { mergeMetadataJSON, metadataObject, parseMetadataJSON } from '@/features/content/domain/contentUnitPlanningMetadata'
-
-const CONTENT_UNIT_WORKSPACE_SCHEMA = 'movscript.content_unit_workspace.v1'
 
 export type ContentUnitWorkspaceEditRecord = {
   ID: number
@@ -16,6 +10,7 @@ export type ContentUnitWorkspaceEditRecord = {
   segment_id?: unknown
   scene_moment_id?: unknown
   script_block_id?: unknown
+  storyboard_id?: unknown
   title?: unknown
   kind?: unknown
   description?: unknown
@@ -40,6 +35,7 @@ export type ContentUnitWorkspaceKeyframeRecord = {
   order?: unknown
   status?: unknown
   metadata_json?: unknown
+  __delete?: unknown
 }
 
 export type ContentUnitWorkspaceSceneMomentRecord = {
@@ -49,36 +45,14 @@ export type ContentUnitWorkspaceSceneMomentRecord = {
   script_block_id?: unknown
 }
 
-export interface ContentUnitWorkspaceFilesAPI {
-  root(input?: { workspaceDir?: string }): Promise<ElectronMovScriptWorkspaceRootResult>
-  write(input: ElectronMovScriptWorkspaceFilesInput & { content: string }): Promise<ElectronMovScriptWorkspaceFileReadResult>
-}
-
-export function requireContentUnitWorkspaceAPI(): ContentUnitWorkspaceFilesAPI {
-  const api = window.api
-  if (!api?.getMovScriptWorkspaceRoot || !api.writeMovScriptWorkspaceFile) {
-    throw new Error('当前窗口没有 MovScript 工作区文件能力')
-  }
-  return {
-    root: api.getMovScriptWorkspaceRoot,
-    write: api.writeMovScriptWorkspaceFile,
-  }
-}
-
 export async function saveContentUnitWorkspaceEdit(
   projectId: number,
   unit: ContentUnitWorkspaceEditRecord,
   payload: SemanticEntityPayload,
   options: { keyframes?: ContentUnitWorkspaceKeyframeRecord[] } = {},
 ): Promise<ContentUnitWorkspaceEditRecord> {
-  const api = requireContentUnitWorkspaceAPI()
-  const root = await api.root()
-  const path = contentUnitWorkspaceFilePath(root.manifest.activeUserId ?? 'local', projectId, unit)
   const next = contentUnitRecordFromPayload(unit, payload)
-  await api.write({
-    path,
-    content: `${JSON.stringify(contentUnitWorkspaceEnvelope(next, options), null, 2)}\n`,
-  })
+  await writeContentUnitWorkspaceEdit(projectId, next, options)
   return next
 }
 
@@ -93,8 +67,6 @@ export async function createContentUnitWorkspaceEdit(
     payload: SemanticEntityPayload
   },
 ): Promise<ContentUnitWorkspaceEditRecord> {
-  const api = requireContentUnitWorkspaceAPI()
-  const root = await api.root()
   const productionId = positiveNumber(input.selectedUnit?.production_id)
     ?? positiveNumber(input.moment.production_id)
     ?? positiveNumber(input.segment?.production_id)
@@ -112,16 +84,7 @@ export async function createContentUnitWorkspaceEdit(
     script_block_id: positiveNumber(input.selectedUnit?.script_block_id) ?? positiveNumber(input.moment.script_block_id) ?? positiveNumber(input.segment?.script_block_id) ?? null,
     status: 'candidate',
   } as ContentUnitWorkspaceEditRecord, input.payload)
-  const units = [...input.units, nextUnit].sort((left, right) => (positiveNumber(left.order) ?? left.ID) - (positiveNumber(right.order) ?? right.ID))
-  await api.write({
-    path: contentUnitsWorkspaceFilePath(root.manifest.activeUserId ?? 'local', projectId, { production_id: productionId, scene_moment_id: input.moment.ID }),
-    content: `${JSON.stringify(contentUnitsWorkspaceEnvelope({
-      productionId,
-      sceneMomentId: input.moment.ID,
-      segmentId: positiveNumber(input.segment?.ID),
-      units,
-    }), null, 2)}\n`,
-  })
+  await writeContentUnitWorkspaceEdit(projectId, nextUnit)
   return nextUnit
 }
 
@@ -236,49 +199,12 @@ async function writeContentUnitWorkspaceEdit(
   unit: ContentUnitWorkspaceEditRecord,
   options: { keyframes?: ContentUnitWorkspaceKeyframeRecord[] } = {},
 ): Promise<void> {
-  const api = requireContentUnitWorkspaceAPI()
-  const root = await api.root()
-  const path = contentUnitWorkspaceFilePath(root.manifest.activeUserId ?? 'local', projectId, unit)
-  await api.write({
-    path,
-    content: `${JSON.stringify(contentUnitWorkspaceEnvelope(unit, options), null, 2)}\n`,
+  const service = createElectronMovScriptWorkspaceService({ projectId })
+  await service.upsertContentUnit({
+    projectId,
+    unit: unit as Record<string, unknown>,
+    keyframes: options.keyframes?.map((keyframe) => keyframe as Record<string, unknown>),
   })
-}
-
-export function contentUnitWorkspaceFilePath(
-  _userId: string | number,
-  projectId: string | number,
-  unit: Pick<ContentUnitWorkspaceEditRecord, 'ID' | 'production_id' | 'scene_moment_id'>,
-): string {
-  const productionId = positiveNumber(unit.production_id)
-  const sceneMomentId = positiveNumber(unit.scene_moment_id)
-  if (!productionId) throw new Error('当前制作项未绑定制作，无法写入工作区')
-  if (!sceneMomentId) throw new Error('当前制作项未绑定情节，无法写入工作区')
-  return [
-    'edit',
-    'productions',
-    `production_${String(productionId)}`,
-    'content_units',
-    `content_unit_${String(unit.ID)}.json`,
-  ].join('/')
-}
-
-export function contentUnitsWorkspaceFilePath(
-  _userId: string | number,
-  projectId: string | number,
-  input: { production_id?: unknown; scene_moment_id?: unknown },
-): string {
-  const productionId = positiveNumber(input.production_id)
-  const sceneMomentId = positiveNumber(input.scene_moment_id)
-  if (!productionId) throw new Error('当前情节未绑定制作，无法写入工作区')
-  if (!sceneMomentId) throw new Error('当前情节缺少 ID，无法写入工作区')
-  return [
-    'edit',
-    'productions',
-    `production_${String(productionId)}`,
-    'content_units',
-    `content_units_${String(sceneMomentId)}.json`,
-  ].join('/')
 }
 
 function contentUnitRecordFromPayload(
@@ -296,87 +222,6 @@ function contentUnitRecordFromPayload(
   }
 }
 
-function contentUnitWorkspaceEnvelope(
-  unit: ContentUnitWorkspaceEditRecord,
-  options: { keyframes?: ContentUnitWorkspaceKeyframeRecord[] } = {},
-): Record<string, unknown> {
-  const metadata = parseMetadataJSON(unit.metadata_json)
-  return {
-    schema: CONTENT_UNIT_WORKSPACE_SCHEMA,
-    scope: 'content_unit_workspace',
-    productionId: positiveNumber(unit.production_id) ?? 0,
-    ...(positiveNumber(unit.segment_id) ? { segmentId: positiveNumber(unit.segment_id) } : {}),
-    ...(positiveNumber(unit.scene_moment_id) ? { sceneMomentId: positiveNumber(unit.scene_moment_id) } : {}),
-    contentUnitId: unit.ID,
-    workspace: {
-      units: [pruneUndefined({
-        id: unit.ID,
-        title: stringValue(unit.title) || '未命名制作项',
-        kind: stringValue(unit.kind) || 'shot',
-        order: positiveNumber(unit.order),
-        duration_sec: numberOrNull(unit.duration_sec),
-        description: stringValue(unit.description) || '',
-        prompt: stringValue(unit.prompt) || '',
-        shot: pruneUndefined({
-          shot_size: stringValue(unit.shot_size) || '',
-          camera_angle: stringValue(unit.camera_angle) || '',
-          camera_motion: stringValue(unit.camera_motion) || '',
-        }),
-        visual_taskGraph: metadataObject(metadata.visual_taskGraph),
-        storyboard_brief: metadataObject(metadata.storyboard_brief),
-        timing: metadataObject(metadata.timing),
-        ...(options.keyframes ? { keyframes: options.keyframes.map(contentUnitKeyframeNode) } : {}),
-        status: stringValue(unit.status) || 'workspace',
-        ...('__delete' in unit ? { __delete: unit.__delete === true } : {}),
-      })],
-    },
-    summary: '',
-  }
-}
-
-function contentUnitsWorkspaceEnvelope(input: {
-  productionId: number
-  sceneMomentId: number
-  segmentId?: number
-  units: ContentUnitWorkspaceEditRecord[]
-}): Record<string, unknown> {
-  return {
-    schema: CONTENT_UNIT_WORKSPACE_SCHEMA,
-    scope: 'content_unit_workspace',
-    productionId: input.productionId,
-    ...(input.segmentId ? { segmentId: input.segmentId } : {}),
-    sceneMomentId: input.sceneMomentId,
-    workspace: {
-      units: input.units.map((unit) => contentUnitNode(unit)),
-    },
-    summary: '',
-  }
-}
-
-function contentUnitNode(unit: ContentUnitWorkspaceEditRecord): Record<string, unknown> {
-  const metadata = parseMetadataJSON(unit.metadata_json)
-  return pruneUndefined({
-    ...(positiveNumber(unit.ID) ? { id: unit.ID } : {}),
-    ...(stringValue(unit.client_id) ? { client_id: stringValue(unit.client_id) } : {}),
-    title: stringValue(unit.title) || '未命名制作项',
-    kind: stringValue(unit.kind) || 'shot',
-    order: positiveNumber(unit.order),
-    duration_sec: numberOrNull(unit.duration_sec),
-    description: stringValue(unit.description) || '',
-    prompt: stringValue(unit.prompt) || '',
-    shot: pruneUndefined({
-      shot_size: stringValue(unit.shot_size) || '',
-      camera_angle: stringValue(unit.camera_angle) || '',
-      camera_motion: stringValue(unit.camera_motion) || '',
-    }),
-    visual_taskGraph: metadataObject(metadata.visual_taskGraph),
-    storyboard_brief: metadataObject(metadata.storyboard_brief),
-    timing: metadataObject(metadata.timing),
-    status: stringValue(unit.status) || 'workspace',
-    ...('__delete' in unit ? { __delete: unit.__delete === true } : {}),
-  })
-}
-
 function contentUnitKeyframeRecordFromPayload(
   keyframe: ContentUnitWorkspaceKeyframeRecord,
   payload: SemanticEntityPayload,
@@ -386,21 +231,6 @@ function contentUnitKeyframeRecordFromPayload(
     ...payload,
     ID: keyframe.ID,
   }
-}
-
-function contentUnitKeyframeNode(keyframe: ContentUnitWorkspaceKeyframeRecord): Record<string, unknown> {
-  const metadata = parseMetadataJSON(keyframe.metadata_json)
-  return pruneUndefined({
-    ...(positiveNumber(keyframe.ID) ? { id: keyframe.ID } : {}),
-    ...(stringValue(keyframe.client_id) ? { client_id: stringValue(keyframe.client_id) } : {}),
-    title: stringValue(keyframe.title) || '关键帧',
-    description: stringValue(keyframe.description) || '',
-    prompt: stringValue(keyframe.prompt) || '',
-    order: positiveNumber(keyframe.order),
-    status: stringValue(keyframe.status) || 'workspace',
-    ...(metadata.frame_role ? { frame_role: metadata.frame_role } : {}),
-    ...('__delete' in keyframe ? { __delete: (keyframe as { __delete?: boolean }).__delete } : {}),
-  })
 }
 
 function pruneUndefined<T extends Record<string, unknown>>(value: T): T {
@@ -414,11 +244,6 @@ function stringValue(value: unknown): string | undefined {
 function positiveNumber(value: unknown): number | undefined {
   const next = Number(value)
   return Number.isFinite(next) && next > 0 ? next : undefined
-}
-
-function numberOrNull(value: unknown): number | null {
-  const next = Number(value)
-  return Number.isFinite(next) && next > 0 ? next : null
 }
 
 function normalizedSeconds(value: unknown): number {

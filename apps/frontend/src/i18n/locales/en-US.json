@@ -414,8 +414,8 @@
     "promptPlaceholder": "Describe the shot visuals...",
     "finalShot": "Final Shot",
     "finalShotDescription": "Final Shot Description",
-    "finalShotDescriptionPlaceholder": "Describe the final delivered shot",
-    "finalPromptNotes": "Final Prompt / Delivery Notes",
+    "finalShotDescriptionPlaceholder": "Describe the final shot content",
+    "finalPromptNotes": "Final Prompt / Review Notes",
     "rawSource": "Raw Source",
     "uploadShotHint": "Upload a finished shot video here.",
     "referenceAssets": "Reference Assets",
@@ -533,7 +533,7 @@
   "pages": {
     "projectHome": {
       "badge": "Home",
-      "noDescription": "No project description yet. This dashboard summarizes script, asset, production, and delivery status.",
+      "noDescription": "No project description yet. This dashboard summarizes script, asset, and production status.",
       "actions": {
         "continue": "Continue",
         "viewTasks": "View Tasks"
@@ -572,7 +572,7 @@
       },
       "sections": {
         "pipeline": "Production Pipeline",
-        "pipelineHint": "A five-stage overview from production management to delivery.",
+        "pipelineHint": "A project overview from production management to creative orchestration.",
         "focus": "Today's Focus",
         "focusHint": "Prioritize gaps that block downstream production.",
         "quickLinks": "Quick Links"
@@ -593,10 +593,6 @@
         "production": {
           "title": "Production",
           "description": "Own one complete production from script, preview, references, assets, content, to final video."
-        },
-        "delivery": {
-          "title": "Delivery",
-          "description": "Collect approved shots for final assembly and delivery checks."
         }
       },
       "focus": {
@@ -4105,8 +4101,6 @@
       "workbenchAssets": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
       "shotEditWorkbench": "Shot Edit Workbench",
-      "workbenchDelivery": "Delivery Workbench",
-      "deliveryWorkbench": "Delivery Workbench",
       "workbenchReferenceRelations": "Relation Correction",
       "assetProductionWorkbench": "Asset Production Workbench",
       "contentProductionWorkbench": "Production Execution Workbench",
@@ -4122,7 +4116,6 @@
       "production": "Production",
       "finalVideos": "Final Video Library",
       "collaboration": "Tasks",
-      "delivery": "Delivery Center",
       "semanticEntities": "Semantic Entities",
       "scenes": "Plot Beat Library",
       "storyboards": "Storyboard Management",
@@ -4148,9 +4141,7 @@
       "dark": "Switch to dark mode",
       "options": {
         "dark": "Dark",
-        "light": "Light",
-        "noir": "Black Gold",
-        "gray": "Gray"
+        "light": "Light"
       }
     },
     "language": "Language"
@@ -4231,13 +4222,11 @@
       "workbench": "One-click Production",
       "workbenchCreative": "Setting Prep",
       "workbenchAssets": "Asset Workbench",
-      "workbenchDelivery": "Delivery Gate",
       "workbenchReferenceRelations": "Relation Correction",
       "workbenchAssetPreparation": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
       "shotEditWorkbench": "Shot Edit Workbench",
       "productionTasks": "Tasks",
-      "delivery": "Delivery",
       "user": "User Profile",
       "admin": "Admin",
       "adminConsole": "Admin Console",

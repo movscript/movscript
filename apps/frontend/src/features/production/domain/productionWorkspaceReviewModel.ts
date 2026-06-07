@@ -1,10 +1,6 @@
 import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA } from '@/features/production/domain/productionWorkspaceWorkspace'
 import type {
-  ProductionWorkspacePreviewSemanticChange,
-  ProductionWorkspacePreviewWarning,
-} from '@/shared/infrastructure/api/semanticEntities'
-import type {
   ProductionWorkspaceApplyGate as WorkspaceApplyGate,
   ProductionWorkspaceApplyPreview as WorkspaceApplyPreview,
   ProductionWorkspaceApplyPreviewItem as WorkspaceApplyPreviewItem,
@@ -149,6 +145,19 @@ export interface ApplyProductionWorkspaceCounts {
   writing_expressions_created: number
 }
 
+export type ProductionWorkspaceReviewChange = Record<string, unknown> & {
+  kind: string
+  action?: 'create' | 'update' | 'delete'
+  title: string
+  id?: string | number
+  client_id?: string
+}
+
+export type ProductionWorkspaceReviewWarning = Record<string, unknown> & {
+  code: string
+  message: string
+}
+
 export interface WorkspaceSimulationResult {
   acceptedNodes: number
   rejectedNodes: number
@@ -156,7 +165,7 @@ export interface WorkspaceSimulationResult {
   counts: ApplyProductionWorkspaceCounts
   actions: { create: number; update: number; delete: number }
   preview: WorkspaceApplyPreview
-  backendPreview?: {
+  reviewPreview?: {
     dryRun: boolean
     counts: ApplyProductionWorkspaceCounts
     returned: {
@@ -168,8 +177,8 @@ export interface WorkspaceSimulationResult {
       keyframes: number
       writingExpressions: number
     }
-    semanticChanges: ProductionWorkspacePreviewSemanticChange[]
-    warnings: ProductionWorkspacePreviewWarning[]
+    semanticChanges: ProductionWorkspaceReviewChange[]
+    warnings: ProductionWorkspaceReviewWarning[]
   }
 }
 
@@ -617,7 +626,7 @@ export function buildWorkspaceApplyPreview(segments: WorkspaceSegmentNode[], dec
   return preview
 }
 
-export function buildWorkspaceApplyGate(preview: WorkspaceApplyPreview, backendPreviewReady: boolean): WorkspaceApplyGate {
+export function buildWorkspaceApplyGate(preview: WorkspaceApplyPreview, reviewPreviewReady: boolean): WorkspaceApplyGate {
   if (preview.writeTaskGraph.length === 0) {
     return {
       status: 'empty',
@@ -632,7 +641,7 @@ export function buildWorkspaceApplyGate(preview: WorkspaceApplyPreview, backendP
       detail: '请处理依赖未接受的节点；如果变更是新增或更新设定/素材需求，需要先处理对应上游工作区。',
     }
   }
-  if (!backendPreviewReady) {
+  if (!reviewPreviewReady) {
     return {
       status: 'needs_preview',
       title: '需要写入预检',

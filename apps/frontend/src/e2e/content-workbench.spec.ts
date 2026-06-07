@@ -644,7 +644,6 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
       keyframes,
       'preview-timelines': previewTimelines,
       'preview-timeline-items': previewTimelineItems,
-      'delivery-versions': [],
     }
     await fulfillJSON(route, data[entityPath ?? ''] ?? [])
   })

@@ -57,8 +57,9 @@ test('production workspace review applies accepted changes over the current snap
   assert.match(panelSource, /useProductionWorkspaceReviewController\(/)
   assert.match(panelSource, /workspaceArtifact: ProductionWorkspaceArtifactContent/)
   assert.match(controllerSource, /return buildMergedProductionWorkspace\(currentSnapshot, segments, nodeDecisions\)/)
-  assert.match(controllerSource, /previewProductionWorkspaceApply\(projectId/)
-  assert.match(controllerSource, /applyProductionWorkspace\(projectId/)
+  assert.doesNotMatch(controllerSource, /previewProductionWorkspaceApply/)
+  assert.doesNotMatch(controllerSource, /applyProductionWorkspace/)
+  assert.match(controllerSource, /saveProductionWorkspaceSnapshot\(/)
 })
 
 test('production workspace artifact seed metadata records source versions and script brief', () => {

@@ -13,7 +13,7 @@ test('content workbench asks for a scene moment before showing production action
   }).map((action) => action.key), ['select_scene_moment'])
 })
 
-test('content workbench recommends AI and manual planning when a moment has no units', () => {
+test('content workbench recommends manual planning when a moment has no units', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 0,
@@ -21,7 +21,7 @@ test('content workbench recommends AI and manual planning when a moment has no u
     hasUnitPrompt: false,
     missingSlotCount: 0,
     keyframeCount: 0,
-  }).map((action) => action.key), ['ai_task_graph_units', 'manual_add_unit'])
+  }).map((action) => action.key), ['manual_add_unit'])
 })
 
 test('content workbench blocks generation on prompt, assets, keyframes, then context', () => {
@@ -137,7 +137,7 @@ test('content workbench does not block generation after AI drafts are reviewed',
   }).map((action) => action.key), ['open_generation_canvas'])
 })
 
-test('content workbench moves completed generation into preview before delivery', () => {
+test('content workbench moves completed generation into preview', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 1,
@@ -148,26 +148,10 @@ test('content workbench moves completed generation into preview before delivery'
     pendingReviewWorkspaceCount: 0,
     completedJobCount: 1,
     previewItemCount: 0,
-    deliveryVersionCount: 0,
   }), [{
     key: 'inspect_preview_mount',
     title: '检查预览挂载',
     detail: '已有生成记录，下一步在内容编排工作台核对预览挂载和连续性。',
     state: 'available',
   }])
-})
-
-test('content workbench moves previewed output into delivery workspace', () => {
-  assert.deepEqual(buildContentWorkbenchNextActions({
-    hasSelectedMoment: true,
-    unitCount: 1,
-    hasSelectedUnit: true,
-    hasUnitPrompt: true,
-    missingSlotCount: 0,
-    keyframeCount: 2,
-    pendingReviewWorkspaceCount: 0,
-    completedJobCount: 1,
-    previewItemCount: 2,
-    deliveryVersionCount: 0,
-  }).map((action) => action.key), ['open_delivery_workspace'])
 })

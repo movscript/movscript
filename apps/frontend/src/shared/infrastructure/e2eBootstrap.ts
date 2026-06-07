@@ -1,5 +1,5 @@
 import type { AppSettings } from '@/shared/infrastructure/config'
-import type { AgentConversationProviderSessionState } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationProviderSessionState, AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentSettings, Conversation, ConversationWorkspace } from '@/features/agent/state/agentStore'
 import { useAgentStore } from '@/features/agent/state/agentStore'
@@ -25,6 +25,7 @@ function normalizeConversationProviderSessionState(
     stopRequested: providerSessionState.stopRequested ?? false,
     updatedAt,
     requestId: providerSessionState.requestId,
+    sessionId: providerSessionState.sessionId,
     threadId: providerSessionState.threadId,
     runId: providerSessionState.runId,
     run: providerSessionState.run,
@@ -47,6 +48,8 @@ export interface E2EBootstrapSeed {
   }
   session?: {
     conversationProviderSessionStates?: Record<string, Partial<AgentConversationProviderSessionState> & { run?: AgentRun }>
+    conversationThreadBindings?: Record<string, Partial<AgentConversationThreadBinding>>
+    /** @deprecated Use conversationThreadBindings. */
     providerThreadIdsByConversation?: Record<string, string>
   }
 }
@@ -126,15 +129,45 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
       const conversationProviderSessionStates: Record<string, AgentConversationProviderSessionState> = {
         ...state.conversationProviderSessionStates,
       }
+      const conversationThreadBindings: Record<string, AgentConversationThreadBinding> = {
+        ...state.conversationThreadBindings,
+      }
       for (const [conversationId, providerSessionState] of Object.entries(seed.session?.conversationProviderSessionStates ?? {})) {
         conversationProviderSessionStates[conversationId] = normalizeConversationProviderSessionState(conversationId, providerSessionState)
+        if (providerSessionState.threadId?.trim()) {
+          conversationThreadBindings[conversationId] = {
+            ...(conversationThreadBindings[conversationId] ?? {}),
+            conversationId,
+            providerThreadId: providerSessionState.threadId.trim(),
+            ...(providerSessionState.sessionId?.trim() ? { providerSessionTreeId: providerSessionState.sessionId.trim() } : {}),
+            updatedAt: providerSessionState.updatedAt ?? Date.now(),
+          }
+        }
+      }
+      for (const [conversationId, binding] of Object.entries(seed.session?.conversationThreadBindings ?? {})) {
+        const providerThreadId = binding.providerThreadId?.trim()
+        if (!providerThreadId) continue
+        conversationThreadBindings[conversationId] = {
+          ...(conversationThreadBindings[conversationId] ?? {}),
+          conversationId,
+          providerThreadId,
+          ...(binding.providerSessionTreeId?.trim() ? { providerSessionTreeId: binding.providerSessionTreeId.trim() } : {}),
+          updatedAt: binding.updatedAt ?? Date.now(),
+        }
+      }
+      for (const [conversationId, providerThreadId] of Object.entries(seed.session?.providerThreadIdsByConversation ?? {})) {
+        const trimmedThreadId = providerThreadId.trim()
+        if (!trimmedThreadId) continue
+        conversationThreadBindings[conversationId] = {
+          ...(conversationThreadBindings[conversationId] ?? {}),
+          conversationId,
+          providerThreadId: trimmedThreadId,
+          updatedAt: conversationThreadBindings[conversationId]?.updatedAt ?? Date.now(),
+        }
       }
       return {
         conversationProviderSessionStates,
-        providerThreadIdsByConversation: {
-          ...state.providerThreadIdsByConversation,
-          ...(seed.session?.providerThreadIdsByConversation ?? {}),
-        },
+        conversationThreadBindings,
       }
     })
   }

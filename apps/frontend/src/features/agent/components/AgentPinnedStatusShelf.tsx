@@ -41,9 +41,21 @@ export interface AgentPinnedStatusShelfProps {
   plan?: AgentPlan
   generationProgressStates?: GenerationProgressState[]
   planSnapshot?: AgentTaskGraphSnapshot
+  statusItems?: AgentPinnedStatusSummaryItem[]
   expanded?: boolean
   defaultExpanded?: boolean
   onExpandedChange?: (expanded: boolean) => void
+}
+
+export type AgentPinnedStatusSummaryTone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand'
+
+export interface AgentPinnedStatusSummaryItem {
+  id: string
+  threadId?: string | null
+  title: string
+  detail?: string
+  badge?: string
+  tone?: AgentPinnedStatusSummaryTone
 }
 
 const ACTIVE_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
@@ -54,6 +66,7 @@ export function AgentPinnedStatusShelf({
   plan,
   generationProgressStates = [],
   planSnapshot,
+  statusItems = [],
   onExpandedChange,
 }: AgentPinnedStatusShelfProps) {
   const { t } = useTranslation()
@@ -72,15 +85,18 @@ export function AgentPinnedStatusShelf({
   const hasPlan = hasThreadPlan || !!planSnapshot
   const hasGeneration = generationProgressStates.length > 0
   const hasSubagents = workerViews.length > 0
+  const hasStatus = statusItems.length > 0
 
   const planStats = planSnapshot ? buildPlanOverviewStats(planSnapshot) : undefined
   const views = [
+    { id: 'status' as const, label: t('agents.chat.pinnedStatus.tabs.status', { defaultValue: 'Status' }), count: statusItems.length },
     { id: 'generation' as const, label: t('agents.chat.pinnedStatus.tabs.generation'), count: generationProgressStates.length },
     { id: 'subagent' as const, label: t('agents.chat.pinnedStatus.tabs.worker'), count: workerViews.length },
     { id: 'plan' as const, label: t('agents.chat.pinnedStatus.tabs.plan'), count: plan?.totalCount ?? planStats?.taskCount ?? 0 },
   ]
   const [selectedView, setSelectedView] = useState<AgentPinnedStatusView | undefined>(undefined)
   const activeView = resolveAgentPinnedStatusView(selectedView, {
+    hasStatus,
     hasGeneration,
     hasSubagents,
     hasPlan,
@@ -92,11 +108,12 @@ export function AgentPinnedStatusShelf({
     onExpandedChange?.(nextExpanded)
   }
   const activeCount = [
+    statusItems.filter((item) => item.tone === 'warning' || item.tone === 'danger').length,
     liveGenerationStates.length > 0 ? liveGenerationStates.length : 0,
     activeWorkerViews.length,
     planStats?.activeWorkerCount ?? 0,
   ].reduce((total, count) => Math.max(total, count), 0)
-  if (!hasThreadPlan && !hasPlan && !hasGeneration && !hasSubagents) return null
+  if (!hasStatus && !hasThreadPlan && !hasPlan && !hasGeneration && !hasSubagents) return null
 
   return (
     <AgentPinnedStatusRoot
@@ -124,8 +141,9 @@ export function AgentPinnedStatusShelf({
                 <span>{t('agents.chat.pinnedStatus.title')}</span>
                 {activeCount > 0 && <AgentPinnedStatusActiveCount>{t('agents.chat.pinnedStatus.activeRunsCount', { count: activeCount })}</AgentPinnedStatusActiveCount>}
               </AgentPinnedStatusTitleRow>
-              {(hasGeneration || planStats || workerViews.length > 0 || hasThreadPlan) && (
+              {(hasStatus || hasGeneration || planStats || workerViews.length > 0 || hasThreadPlan) && (
                 <AgentPinnedStatusSummaryRow>
+                  {hasStatus && <span>{statusItems.slice(0, 3).map((item) => item.badge ?? item.title).join(' · ')}</span>}
                   {hasGeneration && <span>{t('agents.chat.pinnedStatus.generationTasksCount', { count: liveGenerationStates.length || generationProgressStates.length })}</span>}
                   {planStats && <span>{t('agents.chat.pinnedStatus.planProgress', { completed: planStats.completedTaskCount, total: planStats.taskCount })}</span>}
                   {workerViews.length > 0 && <span>{t('agents.chat.pinnedStatus.workersCount', { count: workerViews.length })}</span>}
@@ -160,6 +178,15 @@ export function AgentPinnedStatusShelf({
           </AgentPinnedStatusHeader>
         {isExpanded && (
           <AgentPinnedStatusBody id="agent-pinned-status-shelf-body">
+            {activeView === 'status' && (
+              hasStatus ? (
+                <AgentPinnedStatusList>
+                  {statusItems.map((item) => (
+                    <AgentPinnedStatusStatusLine key={item.id} item={item} />
+                  ))}
+                </AgentPinnedStatusList>
+              ) : <AgentPinnedStatusEmpty>{t('agents.chat.pinnedStatus.empty.status', { defaultValue: 'No thread status yet.' })}</AgentPinnedStatusEmpty>
+            )}
             {activeView === 'generation' && (
               hasGeneration ? (
                 <AgentPinnedStatusList>
@@ -203,8 +230,21 @@ export function hasAgentPinnedStatus({
   plan,
   generationProgressStates = [],
   planSnapshot,
-}: Pick<AgentPinnedStatusShelfProps, 'plan' | 'generationProgressStates' | 'planSnapshot'>) {
-  return Boolean((plan && plan.items.length > 0) || planSnapshot || generationProgressStates.length > 0)
+  statusItems = [],
+}: Pick<AgentPinnedStatusShelfProps, 'plan' | 'generationProgressStates' | 'planSnapshot' | 'statusItems'>) {
+  return Boolean(statusItems.length > 0 || (plan && plan.items.length > 0) || planSnapshot || generationProgressStates.length > 0)
+}
+
+function AgentPinnedStatusStatusLine({ item }: { item: AgentPinnedStatusSummaryItem }) {
+  return (
+    <div className="agent-pinned-status-status-line" data-tone={item.tone ?? 'neutral'}>
+      <div className="agent-pinned-status-status-line__copy">
+        <div className="agent-pinned-status-status-line__title">{item.title}</div>
+        {item.detail ? <div className="agent-pinned-status-status-line__detail">{item.detail}</div> : null}
+      </div>
+      {item.badge ? <AgentPinnedStatusBadge>{item.badge}</AgentPinnedStatusBadge> : null}
+    </div>
+  )
 }
 
 function pinnedGenerationProgressIntent(state: ReturnType<typeof generationJobBadge>['state'], terminal: boolean) {

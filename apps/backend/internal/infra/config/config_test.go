@@ -118,6 +118,54 @@ func TestValidateStartupAcceptsCacheBackends(t *testing.T) {
 	}
 }
 
+func TestValidateStartupRequiresGiteaManagementCredentialForGiteaWorkspaceStorage(t *testing.T) {
+	cfg := &Config{
+		DBDriver:                "sqlite",
+		DBPath:                  t.TempDir() + "/movscript.db",
+		ServerPort:              "8765",
+		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		AuthTokenSecret:         "test-auth-secret",
+		AuthTokenTTLHours:       24,
+		StorageBackend:          "filesystem",
+		FilesystemStorageRoot:   t.TempDir(),
+		WorkspaceStorageBackend: "gitea",
+		GiteaBaseURL:            "http://localhost:3003",
+		GiteaOrgPrefix:          "movscript-org-",
+		GiteaRepoPrefix:         "movscript-project-",
+		GiteaBranch:             "main",
+		GiteaUserEmailDomain:    "users.movscript.local",
+		GiteaUserTokenName:      "movscript-desktop",
+	}
+	if err := cfg.ValidateStartup(); err == nil {
+		t.Fatal("ValidateStartup returned nil for missing Gitea management credential")
+	}
+}
+
+func TestValidateStartupAcceptsGiteaAdminBasicCredential(t *testing.T) {
+	cfg := &Config{
+		DBDriver:                "sqlite",
+		DBPath:                  t.TempDir() + "/movscript.db",
+		ServerPort:              "8765",
+		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		AuthTokenSecret:         "test-auth-secret",
+		AuthTokenTTLHours:       24,
+		StorageBackend:          "filesystem",
+		FilesystemStorageRoot:   t.TempDir(),
+		WorkspaceStorageBackend: "gitea",
+		GiteaBaseURL:            "http://localhost:3003",
+		GiteaAdminUsername:      "movscript",
+		GiteaAdminPassword:      "movscript12345",
+		GiteaOrgPrefix:          "movscript-org-",
+		GiteaRepoPrefix:         "movscript-project-",
+		GiteaBranch:             "main",
+		GiteaUserEmailDomain:    "users.movscript.local",
+		GiteaUserTokenName:      "movscript-desktop",
+	}
+	if err := cfg.ValidateStartup(); err != nil {
+		t.Fatalf("ValidateStartup returned error for Gitea admin BasicAuth credential: %v", err)
+	}
+}
+
 func TestValidateStartupRejectsInvalidCacheBackend(t *testing.T) {
 	cfg := &Config{
 		DBDriver:              "sqlite",

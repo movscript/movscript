@@ -34,21 +34,13 @@ function readProjectFile(relativePath) {
   if (relativePath === 'apps/frontend/src/features/project/domain/projectLayerWorkspaceReview.ts') {
     return readFileSync(path.join(root, 'apps/frontend/src/features/pre-production/domain/preProductionWorkspaceReview.ts'), 'utf8')
   }
-  if (relativePath.startsWith('apps/frontend/src/features/production/components/Delivery')) {
-    return readFileSync(path.join(root, relativePath.replace(
-      'apps/frontend/src/features/production/components/',
-      'apps/frontend/src/features/delivery/components/',
-    )), 'utf8')
-  }
   if (relativePath.startsWith('apps/frontend/src/components/workbench/')) {
     const fileName = path.basename(relativePath)
     const featureArea = fileName.startsWith('Content')
       ? 'content'
       : fileName.startsWith('PreProduction')
         ? 'pre-production'
-        : fileName.startsWith('Delivery')
-          ? 'delivery'
-          : fileName.startsWith('Production')
+        : fileName.startsWith('Production')
             ? 'production'
             : fileName.startsWith('Scenario') || fileName.startsWith('WorkbenchChrome')
               ? 'workbench'
@@ -3739,7 +3731,6 @@ test('production workspace review surfaces use @movscript/ui review contracts', 
   const semanticDiffSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceSemanticDiffPanel.tsx')
   const productionWorkspaceReviewPresentationTypesSource = readProjectFile('apps/frontend/src/features/production/presentation/productionWorkspaceReviewPresentationTypes.ts')
   const productionSemanticUiSource = readProjectFile('apps/frontend/src/features/production/presentation/productionSemanticUi.ts')
-  const deliverySemanticUiSource = readProjectFile('apps/frontend/src/features/delivery/presentation/deliverySemanticUi.ts')
   const projectSemanticUiSource = readProjectFile('apps/frontend/src/features/project/presentation/projectSemanticUi.ts')
   const preProductionSemanticUiSource = readProjectFile('apps/frontend/src/features/pre-production/presentation/preProductionSemanticUi.ts')
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
@@ -5067,7 +5058,6 @@ test('canvas workflow surfaces use package tone contracts', () => {
     'apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx',
     'apps/frontend/src/features/canvas/components/CanvasListView.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-    + '\n'
     + canvasNodesSource
     + '\n'
     + canvasWorkflowPanelsSource
@@ -5913,42 +5903,29 @@ test('production workspace pages use package semantic and accent contracts', () 
   const contentWorkbenchDialogPackageCss = readProjectFile('packages/ui/src/components/business/content/workbench/dialog/styles.css')
   const businessIndexSource = readProjectFile('packages/ui/src/components/business/index.ts')
   const contentUnitsSource = readProjectFile('apps/frontend/src/features/content/components/ContentUnitsPage.tsx')
-  const deliveryPageSource = readProjectFile('apps/frontend/src/features/delivery/components/DeliveryPage.tsx')
-  const deliveryWorkbenchSource = readProjectFile('apps/frontend/src/features/delivery/components/DeliveryWorkbenchPage.tsx')
-  const deliveryWorkbenchPanelsSource = readProjectFile('apps/frontend/src/features/delivery/components/DeliveryWorkbenchPanels.tsx')
-  const deliveryWorkbenchModelSource = readProjectFile('apps/frontend/src/features/delivery/domain/deliveryWorkbenchModel.ts')
-  const deliveryWorkbenchOverviewModelSource = readProjectFile('apps/frontend/src/features/delivery/domain/deliveryWorkbenchOverviewModel.ts')
   const productionOrchestrationSource = readProjectFile('apps/frontend/src/features/production/components/ProductionOrchestrationPage.tsx')
   const productionPagePackageSource = readProjectFile('packages/ui/src/components/business/production/page/index.tsx')
   const productionPagePackageCss = readProjectFile('packages/ui/src/components/business/production/page/styles.css')
   const productionOrchestrationPackageSource = readProjectFile('packages/ui/src/components/business/production/orchestration/index.tsx')
   const productionOrchestrationPackageCss = readProjectFile('packages/ui/src/components/business/production/orchestration/styles.css')
-  const productionDeliveryCenterPackageSource = readProjectFile('packages/ui/src/components/business/delivery/center/index.tsx')
-  const productionDeliveryCenterPackageCss = readProjectFile('packages/ui/src/components/business/delivery/center/styles.css')
   const sceneMomentsSource = readProjectFile('apps/frontend/src/features/content/components/SceneMomentsPage.tsx')
   const segmentsSource = readProjectFile('apps/frontend/src/features/content/components/SegmentsPage.tsx')
   const contentSemanticUiSource = readProjectFile('apps/frontend/src/features/content/presentation/contentSemanticUi.ts')
   const productionSemanticUiSource = readProjectFile('apps/frontend/src/features/production/presentation/productionSemanticUi.ts')
-  const deliverySemanticUiSource = readProjectFile('apps/frontend/src/features/delivery/presentation/deliverySemanticUi.ts')
-  const deliveryTimelineTrackSource = readProjectFile('apps/frontend/src/features/delivery/components/DeliveryTimelineTrack.tsx')
   const productionOrchestrationModelSource = readProjectFile('apps/frontend/src/features/production/domain/productionOrchestrationWorkspaceModel.ts')
   const workbenchStatusBadgeSource = readProjectFile('packages/ui/src/components/business/workbench/card/status/index.tsx')
   const uiSemanticHelperSource = readProjectFile('packages/ui/src/semantic.ts')
   const uiSemanticCss = readProjectFile('packages/ui/src/semantic.css')
   const directPrimitiveSources = [
-    'apps/frontend/src/features/delivery/components/DeliveryPage.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-    + '\n'
     + contentFilterSource
     + '\n'
     + contentUnitsSource
     + '\n'
     + sceneMomentsSource
   const sources = [
-    'apps/frontend/src/features/delivery/components/DeliveryPage.tsx',
     'apps/frontend/src/features/content/components/SceneMomentsPage.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-    + '\n'
     + contentUnitsSource
     + '\n'
     + productionOrchestrationModelSource
@@ -5960,7 +5937,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.match(`${sources}\n${contentPagePackageSource}`, /StatusBadge/)
   assert.match(segmentsSource, /ContentPageMetricCard/)
   assert.match(contentPagePackageSource, /function ContentPageMetricCard[\s\S]*?<AppMetricCard/)
-  assert.match(`${sources}\n${productionDeliveryCenterPackageSource}`, /AppPanel/)
   assert.match(`${sources}\n${contentPagePackageSource}`, /AppKeyValue/)
   assert.match(sources, /ContentPageInfoBlock/)
   assert.match(`${sources}\n${contentPagePackageSource}`, /AppEmptyState/)
@@ -6102,88 +6078,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   ]) {
     assert.match(contentWorkbenchDialogPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
-  for (const exportName of [
-    'ProductionDeliveryScopeSelect',
-    'ProductionDeliveryVersionCard',
-    'ProductionDeliveryVersionCardMeta',
-    'ProductionDeliveryVersionListSection',
-    'ProductionDeliveryVersionListStack',
-    'ProductionDeliveryVersionListSummaryGrid',
-    'ProductionDeliveryVersionListViewport',
-    'ProductionDeliveryWorkbenchActionButton',
-    'ProductionDeliveryWorkbenchBadge',
-    'ProductionDeliveryWorkbenchEmptyState',
-    'ProductionDeliveryWorkbenchLayout',
-    'ProductionDeliveryWorkbenchMetric',
-    'ProductionDeliveryWorkbenchSection',
-    'ProductionDeliveryWorkbenchStatusBadge',
-  ]) {
-    assert.match(deliveryWorkbenchSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by DeliveryWorkbenchPage`)
-    assert.match(
-      productionDeliveryCenterPackageSource,
-      new RegExp(`export (?:function|const) ${exportName}\\b`),
-      `${exportName} must be package-owned`,
-    )
-    assert.match(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from @movscript/ui`)
-  }
-  for (const className of [
-    'production-delivery-scope-select',
-    'production-delivery-version-card-meta',
-    'production-delivery-version-list-section__body',
-    'production-delivery-version-list-stack',
-    'production-delivery-version-list-summary-grid',
-    'production-delivery-version-list-viewport',
-    'production-delivery-workbench-layout',
-  ]) {
-    assert.match(productionDeliveryCenterPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
-  }
-  assert.match(deliveryWorkbenchSource, /function ProductionScopeSelect[\s\S]*?ProductionDeliveryScopeSelect/)
-  assert.match(productionDeliveryCenterPackageSource, /function ProductionDeliveryScopeSelect[\s\S]*?NativeSelect/)
-  assert.doesNotMatch(contentFilterSource, /rounded-lg border border-border bg-card/)
-  assert.doesNotMatch(contentFilterSource, /rounded-md border border-border bg-background/)
-  assert.doesNotMatch(contentFilterSource, /<select\b/)
-  assert.doesNotMatch(contentFilterSource, /<button\b/)
-  assert.doesNotMatch(contentFilterSource, /className=/)
-  assert.doesNotMatch(contentFilterSource, /<(?:div|span|label|option)\b/)
-  assert.doesNotMatch(contentFilterSource, /flex flex-wrap items-center gap-3 px-4 py-3/)
-  assert.doesNotMatch(contentFilterSource, /pointer-events-none absolute left-2\.5 top-1\/2/)
-  assert.doesNotMatch(contentWorkbenchDialogsSource, /<DialogContent\b/)
-  assert.doesNotMatch(contentWorkbenchDialogsSource, /<DialogHeader\b/)
-  assert.doesNotMatch(contentWorkbenchDialogsSource, /className="max-h-\[88vh\]/)
-  assert.doesNotMatch(contentWorkbenchDialogsSource, /className="border-b border-border px-5 py-4"/)
-  assert.doesNotMatch(contentWorkbenchDialogsSource, /className="p-5"/)
-  assert.doesNotMatch(deliveryWorkbenchSource, /function ProductionScopeSelect[\s\S]*?<select\b/)
-  assert.match(productionDeliveryCenterPackageSource, /function ProductionDeliveryWorkbenchSection[\s\S]*?<WorkbenchSection/)
-  assert.doesNotMatch(
-    deliveryWorkbenchSource,
-    /\b(?:Badge|Button|ContentWorkspaceLayout|NativeSelect|StatusBadge|WorkbenchEmptyState|WorkbenchEntityCard|WorkbenchMetric|WorkbenchSection|WorkbenchStatusBadge)\b/,
-    'DeliveryWorkbenchPage must not consume raw ui primitives',
-  )
-  assert.doesNotMatch(deliveryWorkbenchSource, /bodyClassName=|className=|<(?:div|label|p|section|span)\b/)
-  assert.doesNotMatch(deliveryWorkbenchSource, /rounded-lg border border-border bg-card/)
-  for (const exportName of [
-    'ProductionOrchestrationGenerationNotice',
-    'ProductionOrchestrationHeaderAction',
-    'ProductionOrchestrationHeaderMetaBadge',
-    'ProductionOrchestrationProductionCard',
-    'ProductionOrchestrationProductionCardBreadcrumbs',
-    'ProductionOrchestrationProductionCardScriptBinding',
-    'ProductionOrchestrationProductionCardScriptSelectTrigger',
-    'ProductionOrchestrationProductionDeck',
-    'ProductionOrchestrationProductionDeckGrid',
-    'ProductionOrchestrationProductionDeckHeader',
-    'ProductionOrchestrationProductionEmptyState',
-    'ProductionOrchestrationProductionPager',
-    'ProductionOrchestrationReviewDialogContent',
-    'ProductionOrchestrationReviewDialogTitle',
-    'ProductionOrchestrationReviewEmptyNotice',
-    'ProductionOrchestrationRevisionDialogContent',
-    'ProductionOrchestrationSkeleton',
-  ]) {
-    assert.match(productionOrchestrationSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by ProductionOrchestrationPage`)
-    assert.match(productionOrchestrationPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
-    assert.match(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from @movscript/ui`)
-  }
   for (const exportName of ['WorkbenchSection', 'WorkbenchSurfaceItem', 'AppSkeleton', 'AppInlineMeta', 'AppSurfaceItem', 'Button', 'DialogContent', 'DialogTitle', 'Label', 'SelectTrigger', 'Textarea']) {
     assert.match(productionOrchestrationPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be hidden inside production orchestration package`)
     assert.doesNotMatch(productionOrchestrationSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not leak into ProductionOrchestrationPage`)
@@ -6220,33 +6114,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.match(productionSemanticUiSource, /productionStatusRecipe/)
   assert.match(productionSemanticUiSource, /productionUnitStatusRecipe/)
   assert.match(productionSemanticUiSource, /productionWorkspaceModeRecipe/)
-  assert.match(deliverySemanticUiSource, /deliveryWorkbenchStatusRecipe/)
-  assert.match(deliverySemanticUiSource, /deliveryGateStatusRecipe/)
-  assert.match(deliverySemanticUiSource, /deliveryOverviewMetricRecipe/)
-  assert.match(deliverySemanticUiSource, /deliveryTimelineItemRecipe/)
-  assert.match(deliveryPageSource, /deliveryWorkbenchStatusRecipe/)
-  assert.match(deliveryWorkbenchSource, /deliveryWorkbenchStatusRecipe/)
-  assert.match(deliveryWorkbenchPanelsSource, /deliveryWorkbenchStatusRecipe/)
-  assert.match(deliveryWorkbenchPanelsSource, /deliveryGateStatusRecipe/)
-  assert.match(deliveryWorkbenchPanelsSource, /deliveryOverviewMetricRecipe\(metric\.state\)\.intent/)
-  assert.match(deliveryTimelineTrackSource, /deliveryTimelineItemRecipe/)
-  assert.match(deliveryWorkbenchPanelsSource, /ProductionDeliveryGateCheckItem/)
-  assert.match(deliveryWorkbenchPanelsSource, /ProductionDeliveryExportRecordItem/)
-  assert.match(productionDeliveryCenterPackageSource, /export function ProductionDeliveryGateCheckItem[\s\S]*?<ProductionDeliveryGateIconFrame/)
-  assert.match(productionDeliveryCenterPackageSource, /export function ProductionDeliveryExportRecordItem[\s\S]*?<ProductionDeliveryErrorText/)
-  assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\bProductionDeliveryGateIconFrame\b/)
-  assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\bProductionDeliveryErrorText\b/)
-  assert.match(productionDeliveryCenterPackageSource, /export function ProductionDeliveryGateIconFrame/)
-  assert.match(productionDeliveryCenterPackageSource, /export function ProductionDeliveryErrorText/)
-  assert.match(productionDeliveryCenterPackageCss, cssClassSelectorPattern('production-delivery-gate-icon-frame'))
-  assert.match(productionDeliveryCenterPackageCss, cssClassSelectorPattern('production-delivery-error-text'))
-  assert.match(deliveryWorkbenchOverviewModelSource, /export type DeliveryOverviewMetricState =/)
-  assert.match(deliveryWorkbenchOverviewModelSource, /DeliveryOverviewMetric[\s\S]*?state: DeliveryOverviewMetricState/)
-  assert.doesNotMatch(deliveryWorkbenchOverviewModelSource, /\bDeliveryOverviewMetricTone\b/)
-  assert.doesNotMatch(deliveryWorkbenchOverviewModelSource, /\btone:\s*['"](?:success|danger|warning|neutral|info)['"]/)
-  assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\bmetric\.tone\b/)
-  assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\bSemanticTone\b/)
-  assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\b(?:toneTextClass|toneSurfaceClass)\b/)
   assert.match(workbenchStatusBadgeSource, /StatusBadgeProps/)
   assert.match(workbenchStatusBadgeSource, /\.\.\.statusProps/)
   assert.match(productionPagePackageSource, /\bAppIconFrame\b/, 'production page package components own icon frame styling')
@@ -6354,64 +6221,8 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.doesNotMatch(productionOrchestrationSource, /border-b border-border bg-muted\/40 px-4 py-2/)
   assert.doesNotMatch(productionOrchestrationSource, /rounded-md border border-border bg-muted\/30/)
   assert.doesNotMatch(productionOrchestrationSource, /rounded bg-muted\/70/)
-  for (const exportName of [
-    'ProductionDeliveryCenterBadge',
-    'ProductionDeliveryCenterEmptyState',
-    'ProductionDeliveryCenterHeaderAction',
-    'ProductionDeliveryCenterLayout',
-    'ProductionDeliveryCenterMetric',
-    'ProductionDeliveryCenterMetricGrid',
-    'ProductionDeliveryCenterModeCard',
-    'ProductionDeliveryCenterModeStack',
-    'ProductionDeliveryCenterPageLayout',
-    'ProductionDeliveryCenterPanel',
-    'ProductionDeliveryCenterRow',
-    'ProductionDeliveryCenterSection',
-    'ProductionDeliveryCenterSideRail',
-    'ProductionDeliveryCenterStatusBadge',
-    'ProductionDeliveryCenterTextBlock',
-    'ProductionDeliveryCenterTextStack',
-  ]) {
-    assert.match(deliveryPageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by delivery page`)
-    assert.match(productionDeliveryCenterPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
-    assert.match(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from @movscript/ui`)
-  }
   for (const exportName of ['AppPanel', 'AppSection', 'AppSurfaceItem', 'Button', 'Progress', 'accentBadgeClass', 'accentTextClass', 'toneTextClass']) {
-    assert.match(productionDeliveryCenterPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be hidden inside production delivery center package`)
-    assert.doesNotMatch(deliveryPageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not leak into DeliveryPage`)
   }
-  for (const className of [
-    'production-delivery-center-header-action',
-    'production-delivery-center-page',
-    'production-delivery-center-badge',
-    'production-delivery-center-status-badge',
-    'production-delivery-center-metric-grid',
-    'production-delivery-center-layout',
-    'production-delivery-center-side-rail',
-    'production-delivery-center-section__body',
-    'production-delivery-center-panel__body',
-    'production-delivery-center-mode-stack',
-    'production-delivery-center-mode-card',
-    'production-delivery-center-text-block',
-    'production-delivery-center-text-stack',
-    'production-delivery-center-row',
-    'production-delivery-center-row__mode',
-    'production-delivery-center-row__readiness-action',
-  ]) {
-    assert.match(productionDeliveryCenterPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
-  }
-  assert.match(deliveryPageSource, /<ProductionDeliveryCenterRow[\s\S]*?mode=\{row\.mode\}[\s\S]*?ProductionDeliveryCenterStatusBadge/)
-  assert.match(productionDeliveryCenterPackageSource, /ProductionDeliveryCenterRow[\s\S]*?<Badge[\s\S]*?accentBadgeClass/)
-  assert.match(productionDeliveryCenterPackageSource, /ProductionDeliveryCenterRow[\s\S]*?<Progress/)
-  assert.match(productionDeliveryCenterPackageSource, /ProductionDeliveryCenterRow[\s\S]*?<Button[\s\S]*?asChild/)
-  assert.doesNotMatch(deliveryPageSource, /\b(?:cn\(|accentBadgeClass|Progress|Button|Badge|StatusBadge|AppContentLayout|AppEmptyState|AppMetricCard|AppPanel|AppSection|AppSurfaceItem)\b/)
-  assert.doesNotMatch(deliveryPageSource, /className=|<(?:div|p|section|span)\b/)
-  assert.doesNotMatch(deliveryPageSource, /grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5/)
-  assert.doesNotMatch(deliveryPageSource, /grid gap-4 xl:grid-cols-\[minmax\(0,1fr\)_360px\]/)
-  assert.doesNotMatch(deliveryPageSource, /function ModeCard\b/)
-  assert.doesNotMatch(deliveryPageSource, /function DeliveryProductionRow[\s\S]*?<article/)
-  assert.doesNotMatch(deliveryPageSource, /rounded-lg border border-border bg-card/)
-  assert.doesNotMatch(deliveryPageSource, /rounded-md border border-border bg-background p-3/)
   for (const exportName of [
     'ContentPageDisclosure',
     'ContentPageIconFrame',
@@ -6531,11 +6342,7 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.doesNotMatch(sceneMomentsSource, /inline-flex max-w-full items-center gap-1\.5 rounded-md border border-border bg-muted\/40/)
   assert.doesNotMatch(sceneMomentsSource, /rounded-md border border-dashed border-border px-3 py-3/)
   assert.match(sources, /StatusBadge/)
-  assert.match(`${contentPagePackageSource}\n${productionDeliveryCenterPackageSource}\n${productionPagePackageSource}`, /accent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class/)
   assert.doesNotMatch(sources, /\baccent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class\b/)
-  assert.doesNotMatch(`${deliveryPageSource}\n${productionOrchestrationSource}`, /<StatusBadge\b[^>]*\btone=|<StatusDot\b[^>]*\btone=|function (?:deliveryStatusTone|productionStatusTone|unitStatusTone)\b/)
-  assert.doesNotMatch(`${deliveryWorkbenchSource}\n${deliveryWorkbenchPanelsSource}`, /<WorkbenchStatusBadge\b[^>]*\btone=\{deliveryWorkbenchStatusTone/)
-  assert.doesNotMatch(`${deliveryWorkbenchSource}\n${deliveryWorkbenchPanelsSource}\n${deliveryWorkbenchModelSource}`, /deliveryWorkbenchStatusTone|DeliveryWorkbenchStatusTone/)
   assert.doesNotMatch(productionOrchestrationModelSource, /\bstatusTone\b|ProductionSegmentStatusTone/)
   assert.doesNotMatch(directPrimitiveSources, /function (MetricCard|MiniStat|StatusBadge|EmptyState|InfoBlock)\b/)
   assert.match(uiSemanticHelperSource, /"lime"/)
@@ -6549,8 +6356,6 @@ test('workbench workflow panels use package tone contracts', () => {
     'apps/frontend/src/features/content/components/ContentWorkbenchUnitTrack.tsx',
     'packages/ui/src/components/business/content/workbench/review/index.tsx',
     'apps/frontend/src/features/content/components/ContentUnitQuickCreateCards.tsx',
-    'apps/frontend/src/features/delivery/components/DeliveryWorkbenchPanels.tsx',
-    'apps/frontend/src/features/delivery/components/DeliveryTimelineTrack.tsx',
     'apps/frontend/src/components/workbench/PreProductionAssetDetail.tsx',
     'apps/frontend/src/features/content/components/ContentWorkbenchSearch.ts',
     'apps/frontend/src/components/workbench/ProductionSceneWriting.tsx',
@@ -6568,7 +6373,6 @@ test('workbench workflow panels use package tone contracts', () => {
   const contentWorkbenchNextActionsSource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchNextActions.ts')
   const contentWorkbenchReadinessSource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchReadiness.ts')
   const contentWorkbenchUnitHealthSource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchUnitHealth.ts')
-  const contentWorkbenchDeliveryBriefSource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchDeliveryBrief.ts')
   const contentWorkbenchActivitySource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchActivity.ts')
   const contentWorkbenchPipelineSource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchPipeline.ts')
   const contentWorkbenchUnitTrackDomainSource = readProjectFile('apps/frontend/src/features/content/domain/contentWorkbenchUnitTrack.ts')
@@ -6589,8 +6393,6 @@ test('workbench workflow panels use package tone contracts', () => {
   const contentReviewSource = readProjectFile('packages/ui/src/components/business/content/workbench/review/index.tsx')
   const contentReviewPackageCss = readProjectFile('packages/ui/src/components/business/content/workbench/review/styles.css')
   const quickCreateCardsSource = readProjectFile('apps/frontend/src/features/content/components/ContentUnitQuickCreateCards.tsx')
-  const deliveryPanelsSource = readProjectFile('apps/frontend/src/features/delivery/components/DeliveryWorkbenchPanels.tsx')
-  const deliveryTimelineSource = readProjectFile('apps/frontend/src/features/delivery/components/DeliveryTimelineTrack.tsx')
   const scenePreviewSource = readProjectFile('apps/frontend/src/features/content/components/ContentWorkbenchScenePreview.tsx')
   const scenePreviewPackageSource = readProjectFile('packages/ui/src/components/business/workbench/scene-preview/index.tsx')
   const contentFilterSidebarSource = readProjectFile('packages/ui/src/components/business/content/workbench/index.tsx')
@@ -6602,10 +6404,6 @@ test('workbench workflow panels use package tone contracts', () => {
   const productionSceneWritingSource = readProjectFile('apps/frontend/src/components/workbench/ProductionSceneWriting.tsx')
   const productionPackageSource = readProjectFile('packages/ui/src/components/business/production/index.tsx')
   const productionPackageCss = readProjectFile('packages/ui/src/components/business/production/styles.css')
-  const productionDeliveryCenterPackageSource = readProjectFile('packages/ui/src/components/business/delivery/center/index.tsx')
-  const productionDeliveryCenterPackageCss = readProjectFile('packages/ui/src/components/business/delivery/center/styles.css')
-  const productionDeliveryTimelinePackageSource = readProjectFile('packages/ui/src/components/business/delivery/timeline/index.tsx')
-  const productionDeliveryTimelinePackageCss = readProjectFile('packages/ui/src/components/business/delivery/timeline/styles.css')
   const productionScriptBindingPackageSource = readProjectFile('packages/ui/src/components/business/production/script-binding/index.tsx')
   const productionScriptBindingPackageCss = readProjectFile('packages/ui/src/components/business/production/script-binding/styles.css')
   const productionSceneWritingPackageSource = readProjectFile('packages/ui/src/components/business/production/scene-writing/index.tsx')
@@ -6809,9 +6607,6 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.match(productionStructureSource, /productionPresenceRecipe/)
   assert.match(productionStructureSource, /productionEntityStatusRecipe/)
   assert.match(productionSceneWritingSource, /productionReferencePresenceRecipe/)
-  assert.match(deliveryTimelineSource, /deliveryTimelineItemRecipe/)
-  assert.match(deliveryTimelineSource, /deliveryTimelineItemRecipe\(item\.state\)/)
-  assert.doesNotMatch(deliveryTimelineSource, /\bitem\.tone\b/)
   assert.match(productionOrchestrationPackageSource, /\bAppMarkerDot\b/)
   assert.doesNotMatch(productionStructureSource, /\bAppMarkerDot\b/)
   assert.doesNotMatch(productionStructureSource, /absolute -left-\[5px\] top-2 h-2\.5 w-2\.5 rounded-full border bg-background/)
@@ -7015,10 +6810,6 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(contentWorkbenchUnitHealthSource, /\bContentWorkbenchUnitHealthTone\b/)
   assert.doesNotMatch(contentWorkbenchUnitHealthSource, /\bContentWorkbenchUnitHealthCheckTone\b/)
   assert.doesNotMatch(contentWorkbenchUnitHealthSource, /\btone:\s*['"](?:empty|blocked|warning|ready|done)['"]/)
-  assert.match(contentWorkbenchDeliveryBriefSource, /export type ContentWorkbenchDeliveryBriefState = 'empty' \| 'blocked' \| 'checking' \| 'ready' \| 'closed'/)
-  assert.match(contentWorkbenchDeliveryBriefSource, /ContentWorkbenchDeliveryBrief[\s\S]*?state: ContentWorkbenchDeliveryBriefState/)
-  assert.doesNotMatch(contentWorkbenchDeliveryBriefSource, /\bContentWorkbenchDeliveryBriefTone\b/)
-  assert.doesNotMatch(contentWorkbenchDeliveryBriefSource, /\btone:\s*['"](?:empty|blocked|warning|ready|closed)['"]/)
   assert.match(contentWorkbenchActivitySource, /export type ContentWorkbenchActivityState = 'done' \| 'running' \| 'blocked' \| 'pending'/)
   assert.match(contentWorkbenchActivitySource, /ContentWorkbenchActivityItem[\s\S]*?state: ContentWorkbenchActivityState/)
   assert.doesNotMatch(contentWorkbenchActivitySource, /\bContentWorkbenchActivityTone\b/)
@@ -7233,7 +7024,6 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(productionSceneWritingSource, /\bAppSurfaceItem\b/)
   assert.doesNotMatch(productionSceneWritingSource, /className=/)
   assert.doesNotMatch(productionSceneWritingSource, /\b(?:Badge|StatusBadge|Button|SelectTrigger|Textarea|WorkbenchEmptyState)\b/)
-  assert.doesNotMatch(`${productionScriptBindingSource}\n${productionStructureSource}\n${productionSceneWritingSource}\n${deliveryTimelineSource}`, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(productionSceneWritingSource, /flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted/)
   assert.doesNotMatch(productionSceneWritingSource, /group\/reference flex items-center gap-1 rounded bg-muted\/40/)
   assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/setting-preparation')), false, 'unused setting-preparation feature must not remain as a separate abstraction')
@@ -7272,55 +7062,8 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(contentReviewSource, /\bcn\(/)
   for (const exportName of ['AppInlineMeta', 'WorkbenchSurfaceItem']) {
     assert.match(contentWorkbenchUnitTrackPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by content unit track package`)
-    assert.match(productionDeliveryTimelinePackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by production delivery timeline package`)
   }
   for (const exportName of ['Button', 'WorkbenchListItem', 'WorkbenchSection']) {
-    assert.match(productionDeliveryTimelinePackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by production delivery timeline package`)
-  }
-  assert.doesNotMatch(deliveryTimelineSource, /\b(?:AppInlineMeta|Badge|Button|StatusBadge|WorkbenchListItem|WorkbenchSection|WorkbenchSurfaceItem|toneSurfaceClass|toneTextClass|cn)\b/)
-  for (const exportName of [
-    'ProductionDeliveryTimelineBadge',
-    'ProductionDeliveryTimelineBlock',
-    'ProductionDeliveryTimelineCanvas',
-    'ProductionDeliveryTimelineCard',
-    'ProductionDeliveryTimelineCardRail',
-    'ProductionDeliveryTimelineFrame',
-    'ProductionDeliveryTimelineLane',
-    'ProductionDeliveryTimelineLaneStack',
-    'ProductionDeliveryTimelineMeta',
-    'ProductionDeliveryTimelinePlayhead',
-    'ProductionDeliveryTimelineResizeHandle',
-    'ProductionDeliveryTimelineRow',
-    'ProductionDeliveryTimelineRuler',
-    'ProductionDeliveryTimelineSchedule',
-    'ProductionDeliveryTimelineScheduleMetaText',
-    'ProductionDeliveryTimelineScheduleRow',
-    'ProductionDeliveryTimelineSection',
-    'ProductionDeliveryTimelineStatusBadge',
-    'ProductionDeliveryTimelineTick',
-    'ProductionDeliveryTimelineToolbar',
-    'ProductionDeliveryTimelineTrack',
-    'ProductionDeliveryTimelineViewport',
-    'ProductionDeliveryTimelineZoomControl',
-  ]) {
-    assert.match(deliveryTimelineSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by delivery timeline`)
-    assert.match(productionPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from production package`)
-  }
-  for (const className of [
-    'production-delivery-timeline-track',
-    'production-delivery-timeline-card',
-    'production-delivery-timeline-frame',
-    'production-delivery-timeline-toolbar',
-    'production-delivery-timeline-zoom',
-    'production-delivery-timeline-viewport',
-    'production-delivery-timeline-canvas',
-    'production-delivery-timeline-row',
-    'production-delivery-timeline-ruler',
-    'production-delivery-timeline-lane-row',
-    'production-delivery-timeline-block',
-    'production-delivery-timeline-schedule-row',
-  ]) {
-    assert.match(productionDeliveryTimelinePackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
   for (const exportName of [
     'ContentWorkbenchShotList',
@@ -7475,22 +7218,6 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(contentUnitTrackSource, /<button type="button" className="(?:min-w-0 )?text-left" onClick=\{\(\) => selectOrClearUnit\(Number\(item\.id\)\)\}/)
   assert.doesNotMatch(contentUnitTrackSource, /content-workbench-timeline-block[\s\S]{0,900}border-border bg-card/)
   assert.doesNotMatch(contentUnitTrackSource, /inline-flex h-6 w-6 items-center justify-center rounded border border-transparent/)
-  assert.doesNotMatch(`${contentUnitTrackSource}\n${deliveryTimelineSource}`, /rounded bg-muted px-1\.5 py-0\.5/)
-  assert.doesNotMatch(`${contentUnitTrackSource}\n${deliveryTimelineSource}`, /relative h-8 rounded bg-muted\/40/)
-  assert.doesNotMatch(`${contentUnitTrackSource}\n${deliveryTimelineSource}`, /min-w-0 rounded bg-muted\/30 px-2 py-1\.5/)
-  assert.match(deliveryTimelineSource, /<ProductionDeliveryTimelineBlock[\s\S]*?title=/)
-  assert.match(deliveryTimelineSource, /<ProductionDeliveryTimelineScheduleRow[\s\S]*?status=/)
-  assert.match(deliveryTimelineSource, /<ProductionDeliveryTimelineLane[\s\S]*?laneKind=\{lane\.key\}/)
-  assert.match(deliveryTimelineSource, /<ProductionDeliveryTimelineStatusBadge[\s\S]*?label=/)
-  assert.match(deliveryTimelineSource, /<ProductionDeliveryTimelineScheduleMetaText[\s\S]*?intent=/)
-  assert.match(productionDeliveryTimelinePackageSource, /<WorkbenchListItem[\s\S]*?data-testid="delivery-timeline-block"/)
-  assert.match(productionDeliveryTimelinePackageSource, /<WorkbenchListItem[\s\S]*?data-testid="delivery-schedule-row"/)
-  assert.match(productionDeliveryTimelinePackageSource, /<WorkbenchSurfaceItem[\s\S]*?data-testid="delivery-timeline-lane"/)
-  assert.doesNotMatch(deliveryTimelineSource, /\b(?:Badge|Button|StatusBadge|WorkbenchListItem|WorkbenchSection|WorkbenchSurfaceItem|toneTextClass)\b/)
-  assert.doesNotMatch(deliveryTimelineSource, /className=|<(?:div|p|section|span)\b/)
-  assert.doesNotMatch(deliveryTimelineSource, /<button\b/)
-  assert.doesNotMatch(deliveryTimelineSource, /<div className="relative h-\[46px\] rounded border border-border bg-muted\/20" data-testid="delivery-timeline-lane"/)
-  assert.doesNotMatch(deliveryTimelineSource, /border-border bg-card/)
   assert.doesNotMatch(contentUnitTrackSource, /rounded bg-background\/95 px-1/)
   for (const exportName of [
     'ContentWorkbenchQuickCreateActionButton',
@@ -7514,71 +7241,6 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(quickCreateCardsSource, /\b(?:WorkbenchSection|Label|Select|SelectContent|SelectItem|SelectTrigger|SelectValue|Button|Badge|Input)\b/)
   assert.doesNotMatch(quickCreateCardsSource, /className=/)
   assert.doesNotMatch(quickCreateCardsSource, /overflow-hidden rounded-lg border border-border bg-card/)
-  for (const exportName of [
-    'ProductionDeliveryWorkbenchStack',
-    'ProductionDeliveryWorkbenchMetricGrid',
-    'ProductionDeliveryWorkbenchSplit',
-    'ProductionDeliveryVersionDetailSection',
-    'ProductionDeliveryWorkbenchSection',
-    'ProductionDeliveryWorkbenchMetric',
-    'ProductionDeliveryWorkbenchKeyValue',
-    'ProductionDeliveryWorkbenchEmptyState',
-    'ProductionDeliveryWorkbenchStatusBadge',
-    'ProductionDeliveryWorkbenchBadge',
-    'ProductionDeliveryWorkbenchActionButton',
-    'ProductionDeliveryWorkbenchActionGroup',
-    'ProductionDeliveryGateCheckItem',
-    'ProductionDeliveryItemEditorStack',
-    'ProductionDeliveryItemEditorGrid',
-    'ProductionDeliveryField',
-    'ProductionDeliveryInput',
-    'ProductionDeliveryNativeSelect',
-    'ProductionDeliveryExportRecordStack',
-    'ProductionDeliveryExportRecordItem',
-    'ProductionDeliveryResourceAdoptionShell',
-    'ProductionDeliveryResourceAdoptionField',
-    'ProductionDeliveryResourcePreviewFrame',
-    'ProductionDeliveryResourcePlaceholder',
-  ]) {
-    assert.match(deliveryPanelsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by delivery panels`)
-    assert.match(productionDeliveryCenterPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
-    assert.match(productionPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from production package`)
-  }
-  for (const className of [
-    'production-delivery-workbench-stack',
-    'production-delivery-workbench-metric-grid',
-    'production-delivery-workbench-split',
-    'production-delivery-workbench-action-group',
-    'production-delivery-version-detail-section__body',
-    'production-delivery-gate-check-item',
-    'production-delivery-item-editor-stack',
-    'production-delivery-field',
-    'production-delivery-export-record-item',
-    'production-delivery-resource-adoption-shell',
-    'production-delivery-resource-preview-frame',
-  ]) {
-    assert.match(productionDeliveryCenterPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
-  }
-  assert.match(deliveryPanelsSource, /ProductionDeliveryExportRecordItem/)
-  assert.match(deliveryPanelsSource, /ProductionDeliveryResourcePreviewFrame[\s\S]*?<ProductionDeliveryResourcePlaceholder>/)
-  assert.match(deliveryPanelsSource, /ProductionDeliveryNativeSelect/)
-  assert.match(deliveryPanelsSource, /function DeliveryVersionSummaryCard[\s\S]*?ProductionDeliveryWorkbenchSection/)
-  assert.match(deliveryPanelsSource, /function DeliveryGateCheckPanel[\s\S]*?ProductionDeliveryWorkbenchSection/)
-  assert.match(deliveryPanelsSource, /deliveryGateStatusRecipe/)
-  assert.doesNotMatch(deliveryPanelsSource, /\b(?:ProductionDeliveryGateIconFrame|ProductionDeliveryErrorText)\b/)
-  assert.match(deliveryPanelsSource, /function DeliveryExportPanel[\s\S]*?ProductionDeliveryWorkbenchSection/)
-  assert.match(deliveryPanelsSource, /exportRecords\.map[\s\S]*?<ProductionDeliveryExportRecordItem[\s\S]*?key=\{record\.ID\}/)
-  assert.match(deliveryPanelsSource, /function EmptyDeliveryTimeline[\s\S]*?ProductionDeliveryWorkbenchEmptyState/)
-  assert.doesNotMatch(deliveryPanelsSource, /\b(?:WorkbenchSection|WorkbenchEmptyState|WorkbenchSurfaceItem|WorkbenchMetric|WorkbenchKeyValue|WorkbenchStatusBadge|Badge|Button|Input|Label|NativeSelect|StatusBadge|AppMediaFrame)\b/)
-  assert.doesNotMatch(deliveryPanelsSource, /className=|<div\b|<section\b|<p\b|<span\b/)
-  assert.doesNotMatch(deliveryPanelsSource, /rounded-lg border border-border bg-card/)
-  assert.doesNotMatch(deliveryPanelsSource, /rounded-lg border border-border p-3/)
-  assert.doesNotMatch(deliveryPanelsSource, /flex items-start gap-3 rounded-md border border-border bg-background p-3/)
-  assert.doesNotMatch(deliveryPanelsSource, /rounded-md bg-muted\/50 p-2/)
-  assert.doesNotMatch(deliveryPanelsSource, /flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-muted-foreground/)
-  assert.doesNotMatch(deliveryPanelsSource, /\b(?:toneTextClass|toneSurfaceClass)\b|cn\(/)
-  assert.doesNotMatch(deliveryPanelsSource, /<select\b/)
-  assert.doesNotMatch(deliveryPanelsSource, /flex flex-col items-center justify-center gap-3 p-10/)
 })
 
 test('project standards page uses package form controls', () => {
@@ -7831,7 +7493,6 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
     'apps/frontend/src/features/agent/components/AgentPlanCard.tsx',
     'apps/frontend/src/features/agent/components/AgentRunInteractionBubble.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-    + '\n'
     + previewDrawerSource
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|via|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|lime|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
 
@@ -9023,7 +8684,6 @@ test('agent debug console and shared editor surfaces use package tone contracts'
     'apps/frontend/src/features/agent/components/AgentRunsPage.tsx',
     'apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-    + '\n'
     + toolNodeFullCardSource
     + '\n'
     + agentDebugPreviewSource

@@ -5,6 +5,7 @@ import { processExternalAgentTask } from '@/features/agent/application/agentExte
 import type { BuildAgentSendWorkspaceOptions } from '@/features/agent/presentation/useAgentSendWorkspaceBuilder'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
+import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import {
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
@@ -35,6 +36,7 @@ export interface UseAgentSendActionsInput {
   canAnswerPendingInputWithText: boolean
   canSendActiveRunInput: boolean
   modelId: number | null
+  threadControl?: Partial<AgentThreadControlState>
   debugBeforeSend: boolean
   pendingSendWorkspace: AgentSendWorkspace | null
   externalTask?: AgentPageTaskState | null
@@ -67,6 +69,7 @@ export function useAgentSendActions({
   canAnswerPendingInputWithText,
   canSendActiveRunInput,
   modelId,
+  threadControl,
   debugBeforeSend,
   pendingSendWorkspace,
   externalTask,
@@ -178,6 +181,7 @@ export function useAgentSendActions({
         includeProviderSessionPreview: debugBeforeSend,
         performanceOperationId: operationId,
         runProfile: agentRunProfilePresetById(profilePresetId),
+        ...(threadControl ? { threadControl } : {}),
       })
       markAgentPerformancePhase(operationId, 'build_workspace_done', {
         details: { warningCount: workspace.warnings.length, messageCount: workspace.outbound.messages.length },
@@ -211,6 +215,7 @@ export function useAgentSendActions({
     answerActiveRunInput,
     sendActiveRunInput,
     modelId,
+    threadControl,
     labels,
     setConversationBuilding,
     buildSendWorkspace,

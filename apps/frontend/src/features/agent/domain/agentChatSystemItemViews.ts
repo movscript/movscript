@@ -26,7 +26,7 @@ export function agentChatSystemItemView(item: AgentChatSystemRenderableItem): Ag
       tone,
       timeline: [],
       actionContext: [],
-      ...(item.raw !== undefined ? { rawDetailsLabel: 'Review mode details', rawDetails: item.raw } : {}),
+      ...(item.raw !== undefined ? { rawDetailsLabel: 'reviewMode', rawDetails: item.raw } : {}),
     }
   }
   if (item.type === 'systemNotice') {
@@ -37,7 +37,7 @@ export function agentChatSystemItemView(item: AgentChatSystemRenderableItem): Ag
       tone,
       timeline: [],
       actionContext: [],
-      ...(item.raw !== undefined ? { rawDetailsLabel: 'Notice details', rawDetails: item.raw } : {}),
+      ...(item.raw !== undefined ? { rawDetailsLabel: 'notice', rawDetails: item.raw } : {}),
     }
   }
   if (item.type === 'approvalReview') {
@@ -49,7 +49,7 @@ export function agentChatSystemItemView(item: AgentChatSystemRenderableItem): Ag
       timeline: agentChatApprovalReviewTimeline(item),
       actionContext: agentChatApprovalReviewActionContext(item.action),
       ...(item.review ? { reviewDetails: item.review } : {}),
-      ...(item.raw !== undefined ? { rawDetailsLabel: 'Review details', rawDetails: item.raw } : {}),
+      ...(item.raw !== undefined ? { rawDetailsLabel: 'approvalReview', rawDetails: item.raw } : {}),
     }
   }
   if (item.type === 'contextCompaction') {
@@ -60,7 +60,7 @@ export function agentChatSystemItemView(item: AgentChatSystemRenderableItem): Ag
       tone,
       timeline: [],
       actionContext: [],
-      rawDetailsLabel: 'Compaction details',
+      rawDetailsLabel: 'contextCompaction',
       rawDetails: item.raw,
     }
   }
@@ -71,7 +71,7 @@ export function agentChatSystemItemView(item: AgentChatSystemRenderableItem): Ag
     tone,
     timeline: [],
     actionContext: [],
-    rawDetailsLabel: 'Raw item',
+    rawDetailsLabel: 'unknown',
     rawDetails: item.raw,
   }
 }

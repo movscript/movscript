@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bot, Cable, Play, Power, RefreshCw, RotateCw, Save, Square } from 'lucide-react'
+import { Cable, Play, Power, RefreshCw, RotateCw, Save, Square } from 'lucide-react'
 import {
   AgentConsoleActionButton,
   AgentConsoleCallout,
   AgentConsoleDescription,
   AgentConsoleDivider,
-  AgentConsoleFormField,
-  AgentConsoleGrid,
   AgentConsoleHeader,
   AgentConsoleHeaderActions,
   AgentConsoleHeaderCopy,
@@ -34,10 +32,13 @@ import {
   AgentPageShell,
   AgentPageShellBody,
   AgentPageShellHeader,
+  IdentityBadge,
+  IdentityMark,
   Button,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
 import {
   providerRouteForKey,
   providerTitle,
@@ -85,8 +86,6 @@ type ProviderOption = {
 type ProviderConfigDraft = {
   providerRef: string
   authSource: AppServerAuthSource
-  home: string
-  workspaceDir: string
 }
 
 export default function AgentsPage() {
@@ -145,7 +144,7 @@ export default function AgentsPage() {
         <AgentConsoleHeader>
           <AgentConsoleHeaderCopy>
             <AgentConsoleHeaderTitleRow>
-              <Bot size={18} />
+              <IdentityMark kind="agent" id="mova" />
               <AgentConsoleHeaderTitle>Agents</AgentConsoleHeaderTitle>
               <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
                 {enabledCount} 个启用
@@ -153,7 +152,7 @@ export default function AgentsPage() {
               {(defaultWorkspaceConfigQuery.isLoading || workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理 app-server providers 的启用状态、provider 引用、home、workspaceDir 和运行生命周期；运行中配置会锁定。
+              管理 app-server providers 的启用状态、账号来源和运行生命周期；运行中配置会锁定。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -180,7 +179,7 @@ export default function AgentsPage() {
               const key = providerRouteKey(provider)
               return (
                 <AgentTabButton key={provider.id} to={providerRoute(key)} active={providerMatchesRouteKey(provider, activeProviderKey)} icon={<Cable size={14} />}>
-                  {provider.label}
+                  <IdentityBadge kind="agent" id={key} label={provider.label} size="xs" />
                 </AgentTabButton>
               )
             })}
@@ -194,6 +193,7 @@ export default function AgentsPage() {
             providerKey={activeAppServerKey}
             provider={activeProvider}
             providerOptions={providerOptions}
+            backendModels={backendModelsQuery.data ?? []}
             workspaceConfig={workspaceConfigQuery.data}
             onConfigSaved={() => void workspaceConfigQuery.refetch()}
             providerSessionClient={activeProfileSessionClient}
@@ -248,13 +248,10 @@ function providerDisplayTitle(providerKey: string): string {
   return providerTitle(providerKey)
 }
 
-function defaultProviderConfigDraft(providerKey: string): ProviderConfigDraft {
-  const key = normalizedProviderKey(providerKey)
+function defaultProviderConfigDraft(): ProviderConfigDraft {
   return {
     providerRef: '',
     authSource: 'local-home',
-    home: `.movscript/.${key}`,
-    workspaceDir: '.',
   }
 }
 
@@ -282,6 +279,7 @@ function AppServerPanel({
   providerKey,
   provider,
   providerOptions,
+  backendModels,
   workspaceConfig,
   onConfigSaved,
   providerSessionClient,
@@ -290,13 +288,14 @@ function AppServerPanel({
   providerKey: string
   provider?: ProviderConfig
   providerOptions: ProviderOption[]
+  backendModels: PublicModel[]
   workspaceConfig?: MovScriptWorkspaceConfig
   onConfigSaved: () => void
   providerSessionClient: ProviderSessionClient
   onPatch: (id: string, patch: Partial<ProviderConfig>) => void
 }) {
   const title = provider?.label || providerDisplayTitle(providerKey)
-  const defaultConfig = useMemo(() => defaultProviderConfigDraft(providerKey), [providerKey])
+  const defaultConfig = useMemo(() => defaultProviderConfigDraft(), [])
   const resolved = provider
     ?? DEFAULT_PROVIDER_SETTINGS.providers.find((item) => appServerKey(item) === normalizedProviderKey(providerKey) || item.kind === normalizedProviderKey(providerKey))
     ?? fallbackAppServerProvider(providerKey)
@@ -334,13 +333,11 @@ function AppServerPanel({
   async function ensureAppServer() {
     setError(null)
     try {
-      await ensureAppServerService({
-        profile: {
-          ...profile,
-          workspaceDir: draft.workspaceDir || profile.workspaceDir,
-          home: draft.home || profile.home,
-        },
+      await ensureDefaultAgentProviderFromBackend({ provider: resolved, client: providerSessionClient, ...(backendModels.length > 0 ? { models: backendModels } : {}) })
+      const status = await ensureAppServerService({
+        profile,
       })
+      if (!status?.ok) throw new Error(status?.error || `${title} app-server 启动失败。`)
       await statusQuery.refetch()
     } catch (appServerError) {
       setError(errorMessage(appServerError))
@@ -362,13 +359,11 @@ function AppServerPanel({
     setError(null)
     try {
       if (running) await stopAppServerService({ profileId: profile.id })
-      await ensureAppServerService({
-        profile: {
-          ...profile,
-          workspaceDir: draft.workspaceDir || profile.workspaceDir,
-          home: draft.home || profile.home,
-        },
+      await ensureDefaultAgentProviderFromBackend({ provider: resolved, client: providerSessionClient, ...(backendModels.length > 0 ? { models: backendModels } : {}) })
+      const status = await ensureAppServerService({
+        profile,
       })
+      if (!status?.ok) throw new Error(status?.error || `${title} app-server 重启失败。`)
       await statusQuery.refetch()
     } catch (appServerError) {
       setError(errorMessage(appServerError))
@@ -386,11 +381,7 @@ function AppServerPanel({
       await saveProviderConfig(providerSessionClient, providerKey, buildAppServerRecord(draft, providerOption, resolved.enabled, resolved.appServerProfile), workspaceConfig)
       onConfigSaved()
       await distributeAppServerConfig({
-        profile: {
-          ...profile,
-          workspaceDir: draft.workspaceDir || profile.workspaceDir,
-          home: draft.home || profile.home,
-        },
+        profile,
       })
       await statusQuery.refetch()
       setSaved(true)
@@ -402,14 +393,10 @@ function AppServerPanel({
     }
   }
 
-  function patchProfile(patch: Partial<NonNullable<ProviderConfig['appServerProfile']>>) {
-    onPatch(resolved.id, { appServerProfile: { ...profile, ...patch } })
-  }
-
   return (
     <AgentConsolePanel
       title={title}
-      icon={<Cable size={14} />}
+      icon={<IdentityMark kind="agent" id={providerKey} />}
       action={(
         <AgentConsolePanelActions>
           {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
@@ -427,7 +414,7 @@ function AppServerPanel({
       <div className="space-y-4">
         {configLocked ? (
           <AgentConsoleCallout compact tone="warning">
-            {title} 运行中：停止 app-server 后才能修改 provider、auth、home 和 workspaceDir。
+            {title} 运行中：停止 app-server 后才能修改 provider 和账号来源。
           </AgentConsoleCallout>
         ) : null}
         {draft.authSource === 'model-provider' && providerOptions.find((option) => option.id === draft.providerRef)?.source === 'backend' ? (
@@ -440,7 +427,9 @@ function AppServerPanel({
           <AgentConsoleLocalToolHeader>
             <AgentConsoleLocalToolCopy>
               <AgentConsoleLocalToolTitle>{resolved.label}</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>MovScript 托管 {title} app-server / home={profile.home}</AgentConsoleLocalToolDetail>
+              <AgentConsoleLocalToolDetail>
+                <IdentityBadge kind="agent" id={providerKey} label={title} size="xs" /> app-server
+              </AgentConsoleLocalToolDetail>
             </AgentConsoleLocalToolCopy>
             <AgentConsoleLocalToolControls>
               <AgentConsoleStatusBadge intent={resolved.enabled ? 'success' : 'neutral'} emphasis="soft">
@@ -456,18 +445,7 @@ function AppServerPanel({
             </AgentConsoleLocalToolControls>
           </AgentConsoleLocalToolHeader>
           <AgentConsoleLocalToolFields disabled={!resolved.enabled || configLocked}>
-            <AgentConsoleFormField label="显示名称" value={resolved.label} disabled={configLocked} onChange={(event) => onPatch(resolved.id, { label: event.target.value })} />
-            <ProviderSelect value={draft.providerRef} options={providerOptions} disabled={!resolved.enabled || configLocked} onChange={(providerRef) => setDraft((current) => ({ ...current, providerRef }))} />
-            <AgentConsoleSelectField label="Auth Source" value={draft.authSource} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, authSource: event.target.value as AppServerAuthSource }))}>
-              <option value="local-home">复用本机 app-server 账号文件</option>
-              <option value="managed-home">复用托管 home 账号文件</option>
-              <option value="model-provider">使用选中的 Model Provider</option>
-              <option value="custom-config">手动维护 config.toml / auth.json</option>
-              <option value="none">不配置账号</option>
-            </AgentConsoleSelectField>
-            <AgentConsoleFormField label={`${title} 可执行文件`} value={profile.executablePath ?? ''} disabled={configLocked} onChange={(event) => patchProfile({ executablePath: event.target.value })} placeholder={`留空时使用 PATH 中的 ${providerKey}`} />
-            <AgentConsoleFormField label="Home" value={draft.home} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, home: event.target.value }))} />
-            <AgentConsoleFormField label="Workspace Dir" value={draft.workspaceDir} disabled={!resolved.enabled || configLocked} onChange={(event) => setDraft((current) => ({ ...current, workspaceDir: event.target.value }))} />
+            <ProviderSelect value={providerSelectionValue(draft)} options={providerOptions} disabled={!resolved.enabled || configLocked} onChange={(nextDraft) => setDraft((current) => ({ ...current, ...nextDraft }))} />
             <AgentConsoleCallout compact tone={running ? 'success' : status?.error ? 'warning' : 'neutral'}>
               {running ? `运行中：${status?.endpoint ?? '-'}` : status?.error ?? `${title} app-server 尚未启动。`}
             </AgentConsoleCallout>
@@ -528,18 +506,45 @@ function ProviderSelect({
   value: string
   options: ProviderOption[]
   disabled: boolean
-  onChange: (value: string) => void
+  onChange: (value: Pick<ProviderConfigDraft, 'authSource' | 'providerRef'>) => void
 }) {
+  const selectedProviderRef = value.startsWith('provider:') ? value.slice('provider:'.length) : ''
+  const selectedProviderMissing = Boolean(selectedProviderRef) && !options.some((option) => option.id === selectedProviderRef)
   return (
-    <AgentConsoleSelectField label="Provider" value={value} disabled={disabled || options.length === 0} onChange={(event) => onChange(event.target.value)}>
-      {options.length === 0 ? <option value="">未配置 provider</option> : null}
+    <AgentConsoleSelectField label="Provider" value={value} disabled={disabled} onChange={(event) => onChange(providerSelectionDraft(event.target.value, options))}>
+      <option value="auth:local-home">复用本机 app-server 账号文件</option>
+      <option value="auth:managed-home">复用 MovScript 托管账号文件</option>
+      {selectedProviderMissing ? <option value={value}>已保存的 Model Provider：{selectedProviderRef}</option> : null}
       {options.map((option) => (
-        <option key={option.id} value={option.id}>
+        <option key={option.id} value={`provider:${option.id}`}>
           {option.label} - {option.detail}
         </option>
       ))}
+      <option value="auth:custom-config">手动维护 config.toml / auth.json</option>
+      <option value="auth:none">不配置账号</option>
     </AgentConsoleSelectField>
   )
+}
+
+function providerSelectionValue(draft: ProviderConfigDraft): string {
+  return draft.authSource === 'model-provider' && draft.providerRef
+    ? `provider:${draft.providerRef}`
+    : `auth:${draft.authSource}`
+}
+
+function providerSelectionDraft(value: string, options: ProviderOption[]): Pick<ProviderConfigDraft, 'authSource' | 'providerRef'> {
+  if (value.startsWith('provider:')) {
+    const providerRef = value.slice('provider:'.length)
+    return {
+      authSource: 'model-provider',
+      providerRef: options.some((option) => option.id === providerRef) ? providerRef : options[0]?.id ?? '',
+    }
+  }
+  const authSource = value.slice('auth:'.length)
+  if (authSource === 'local-home' || authSource === 'managed-home' || authSource === 'custom-config' || authSource === 'none') {
+    return { authSource, providerRef: options[0]?.id ?? '' }
+  }
+  return { authSource: 'local-home', providerRef: options[0]?.id ?? '' }
 }
 
 function buildProviderOptions(config: MovScriptWorkspaceConfig | undefined, backendModels: PublicModel[]): ProviderOption[] {
@@ -593,11 +598,17 @@ function groupBackendProviders(models: PublicModel[]): ProviderOption[] {
 
 async function saveProviderConfig(client: ProviderSessionClient, key: string, record: Record<string, unknown>, currentConfig: MovScriptWorkspaceConfig | undefined): Promise<void> {
   const config = currentConfig ?? await client.getWorkspaceConfig()
+  const currentProvider = isRecord(config.providers?.[key]) ? { ...config.providers[key] } : {}
+  delete currentProvider.providerRef
+  delete currentProvider.baseURL
+  delete currentProvider.baseUrl
+  delete currentProvider.home
+  delete currentProvider.workspaceDir
   await client.saveWorkspaceConfig({
     providers: {
       ...(isRecord(config.providers) ? config.providers : {}),
       [key]: {
-        ...(isRecord(config.providers?.[key]) ? config.providers[key] : {}),
+        ...currentProvider,
         ...record,
       },
     },
@@ -614,18 +625,14 @@ function providerConfigDraftFromWorkspaceConfig(
   return {
     providerRef: stringField(record.providerRef) ?? providerOptions[0]?.id ?? fallback.providerRef,
     authSource: appServerAuthSourceFromRecord(record),
-    home: stringField(record.home) ?? fallback.home,
-    workspaceDir: stringField(record.workspaceDir) ?? fallback.workspaceDir,
   }
 }
 
 function buildAppServerRecord(draft: ProviderConfigDraft, provider: ProviderOption | undefined, enabled: boolean, profile?: ProviderConfig['appServerProfile']): Record<string, unknown> {
   const base = {
     enabled,
-    providerRef: draft.providerRef,
     authSource: draft.authSource,
-    home: draft.home,
-    workspaceDir: draft.workspaceDir,
+    ...(draft.authSource === 'model-provider' && draft.providerRef ? { providerRef: draft.providerRef } : {}),
     ...(profile?.compatibilityHomeEnvNames?.length ? { appServer: { compatibilityHomeEnvNames: profile.compatibilityHomeEnvNames } } : {}),
   }
   switch (draft.authSource) {

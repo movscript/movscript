@@ -26,6 +26,7 @@ import { parseProviderSessionEvent } from '@/shared/infrastructure/provider-sess
 import { AGENT_TRACE_EVENT_KINDS, PROVIDER_MODEL_API_KINDS, isAgentRunStreamSettledStatus, isAgentRunTerminalStatus } from '@/features/agent/domain/agentProtocol'
 import { providerSessionRunFromEvent, providerSessionRunIdFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
+import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
 import type {
   AgentApprovalRequest,
   ProviderSessionCapabilitiesResponse,
@@ -413,6 +414,7 @@ export class ProviderSessionClient {
     /** Legacy provider wire key. New client code should use providerSessionLimits. */
     runtimeLimits?: ProviderSessionLimitsOverride
     runProfile?: AgentRunProfileSelection
+    threadControl?: Partial<AgentThreadControlState>
     activeRunMode?: 'runtime_input' | 'new_run'
     providerSessionInputMode?: 'soft' | 'hard'
     /** Legacy provider wire key. New client code should use providerSessionInputMode. */
@@ -458,7 +460,7 @@ export class ProviderSessionClient {
     return normalizeTimelinePage(page)
   }
 
-  async previewRun(input: { threadId?: string; message?: string; providerManifest?: ProviderManifest; agentManifest?: ProviderManifest; approvedToolNames?: string[]; clientInput?: ProviderSessionClientInput; providerSessionLimits?: ProviderSessionLimitsOverride; runtimeLimits?: ProviderSessionLimitsOverride; runProfile?: AgentRunProfileSelection }, signal?: AbortSignal): Promise<AgentRunPreview> {
+  async previewRun(input: { threadId?: string; message?: string; providerManifest?: ProviderManifest; agentManifest?: ProviderManifest; approvedToolNames?: string[]; clientInput?: ProviderSessionClientInput; providerSessionLimits?: ProviderSessionLimitsOverride; runtimeLimits?: ProviderSessionLimitsOverride; runProfile?: AgentRunProfileSelection; threadControl?: Partial<AgentThreadControlState> }, signal?: AbortSignal): Promise<AgentRunPreview> {
     return normalizeAgentRunPreview(await this.postJSON<AgentRunPreview>('/runs/preview', providerManifestRequestBody(input), signal))
   }
 
@@ -1051,6 +1053,7 @@ export class ProviderSessionClient {
     approvedToolNames?: string[]
     activeRunMode?: 'runtime_input' | 'new_run'
     runProfile?: AgentRunProfileSelection
+    threadControl?: Partial<AgentThreadControlState>
   }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     if (input.threadId?.trim()) {
       throw new Error('message send no longer accepts a client-selected thread')
@@ -1072,6 +1075,7 @@ export class ProviderSessionClient {
     approvedToolNames?: string[]
     activeRunMode?: 'runtime_input' | 'new_run'
     runProfile?: AgentRunProfileSelection
+    threadControl?: Partial<AgentThreadControlState>
   }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     options.onPhase?.('resolve_session_start', { sessionId })
     const session = await this.getSession(sessionId, options.signal)
@@ -1099,6 +1103,7 @@ export class ProviderSessionClient {
       activeRunMode: input.activeRunMode ?? 'runtime_input',
       ...((options.providerSessionLimits ?? options.runtimeLimits) ? { providerSessionLimits: options.providerSessionLimits ?? options.runtimeLimits } : {}),
       ...(input.runProfile ? { runProfile: input.runProfile } : {}),
+      ...(input.threadControl ? { threadControl: input.threadControl } : {}),
       ...(input.title ? { title: input.title } : {}),
       ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
     }, options.signal)

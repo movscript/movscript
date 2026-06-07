@@ -6,7 +6,7 @@ import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { toast } from '@/shared/ui/toastStore'
 import type { ElectronProjectGitActionInput } from '@/shared/contracts/electronApi'
 
-type GitAction = 'commit' | 'pull'
+type GitAction = 'push' | 'pull'
 
 interface ProjectGitHeaderActionsProps {
   compact?: boolean
@@ -24,11 +24,12 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
 
   async function runGitAction(action: GitAction) {
     if (!current) return
-    const apiMethod = action === 'commit'
-      ? window.api?.commitProjectGitWorkspace
+    const apiMethod = action === 'push'
+      ? window.api?.pushProjectGitWorkspace
       : window.api?.pullProjectGitWorkspace
+    console.info('[movscript:project-git-header] action start', { action, projectId: current.ID, orgId: currentOrgID })
     if (!apiMethod) {
-      toast.error(action === 'commit' ? '项目提交不可用' : '项目下载不可用')
+      toast.error(action === 'push' ? '项目上传不可用' : '项目下载不可用')
       return
     }
     const input: ElectronProjectGitActionInput = {
@@ -38,13 +39,15 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
     setRunningAction(action)
     try {
       const result = await apiMethod(input)
+      console.info('[movscript:project-git-header] action result', result)
       if (!result.ok) {
-        toast.error(action === 'commit' ? '提交失败' : '下载失败', result.error || result.stderr)
+        toast.error(action === 'push' ? '上传失败' : '下载失败', result.error || result.stderr)
         return
       }
-      toast.success(action === 'commit' ? '项目已提交' : '项目已下载', result.path)
+      toast.success(action === 'push' ? '项目已上传' : '项目已下载', result.path)
     } catch (error) {
-      toast.error(action === 'commit' ? '提交失败' : '下载失败', error instanceof Error ? error.message : undefined)
+      console.info('[movscript:project-git-header] action error', { action, error })
+      toast.error(action === 'push' ? '上传失败' : '下载失败', error instanceof Error ? error.message : undefined)
     } finally {
       setRunningAction(null)
     }
@@ -65,12 +68,12 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
       <AppTopControlButton
         variant="ghost"
         density={density}
-        onClick={() => void runGitAction('commit')}
+        onClick={() => void runGitAction('push')}
         disabled={runningAction !== null}
-        title="提交项目变更"
-        aria-label="提交项目变更"
+        title="上传项目变更"
+        aria-label="上传项目变更"
       >
-        {runningAction === 'commit' ? <Loader2 size={iconSize} className="animate-spin" /> : <ArrowUp size={iconSize} />}
+        {runningAction === 'push' ? <Loader2 size={iconSize} className="animate-spin" /> : <ArrowUp size={iconSize} />}
       </AppTopControlButton>
     </>
   )

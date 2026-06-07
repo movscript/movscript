@@ -2,7 +2,7 @@
   width: 100%;
   min-width: 0;
   border: 1px solid var(--ms-color-border);
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-field);
   background: var(--ms-color-surface);
   color: var(--ms-color-foreground);
   font-family: var(--ms-font-sans);

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/hex"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -11,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	authapp "github.com/movscript/movscript/internal/app/auth"
+	gitidentityapp "github.com/movscript/movscript/internal/app/gitidentity"
+	projectrepoapp "github.com/movscript/movscript/internal/app/projectrepo"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/config"
@@ -25,6 +29,7 @@ type AuthHandler struct {
 	service         *authapp.Service
 	settingsService *adminsettings.Service
 	mailSender      mail.Sender
+	gitIdentities   *gitidentityapp.Service
 	localAppMode    bool
 }
 
@@ -33,14 +38,43 @@ func NewAuthHandler(db *gorm.DB, tokens *auth.Manager) *AuthHandler {
 }
 
 func NewAuthHandlerWithConfig(db *gorm.DB, tokens *auth.Manager, cfg *config.Config) *AuthHandler {
+	return NewAuthHandlerWithConfigAndEncryption(db, tokens, cfg, nil)
+}
+
+func NewAuthHandlerWithConfigAndEncryption(db *gorm.DB, tokens *auth.Manager, cfg *config.Config, encryptionKey []byte) *AuthHandler {
 	if cfg != nil && strings.TrimSpace(cfg.AppMode) == "local" {
-		return &AuthHandler{db: db, service: authapp.NewLocalService(db, tokens), settingsService: adminsettings.NewService(db, cfg.EncryptionKey), mailSender: mail.SMTPSender{}, localAppMode: true}
+		return &AuthHandler{
+			db:              db,
+			service:         authapp.NewLocalService(db, tokens),
+			settingsService: adminsettings.NewService(db, cfg.EncryptionKey),
+			mailSender:      mail.SMTPSender{},
+			gitIdentities:   newGitIdentityService(db, cfg, encryptionKey),
+			localAppMode:    true,
+		}
 	}
 	handler := NewAuthHandler(db, tokens)
 	if cfg != nil {
 		handler.settingsService = adminsettings.NewService(db, cfg.EncryptionKey)
+		handler.gitIdentities = newGitIdentityService(db, cfg, encryptionKey)
 	}
 	return handler
+}
+
+func newGitIdentityService(db *gorm.DB, cfg *config.Config, encryptionKey []byte) *gitidentityapp.Service {
+	if cfg == nil {
+		return nil
+	}
+	if len(encryptionKey) == 0 && strings.TrimSpace(cfg.EncryptionKey) != "" {
+		encryptionKey, _ = hex.DecodeString(cfg.EncryptionKey)
+	}
+	adapter := projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
+	if adapter == nil || len(encryptionKey) == 0 {
+		return nil
+	}
+	return gitidentityapp.NewService(db, adapter, gitidentityapp.Config{
+		UserEmailDomain: cfg.GiteaUserEmailDomain,
+		UserTokenName:   cfg.GiteaUserTokenName,
+	}, encryptionKey)
 }
 
 type authResponse struct {
@@ -49,6 +83,7 @@ type authResponse struct {
 	TokenType      string                         `json:"token_type"`
 	ExpiresAt      time.Time                      `json:"expires_at"`
 	OrgMemberships []authapp.OrgMembershipSummary `json:"org_memberships"`
+	GitCredential  *authGitCredential             `json:"git_credential,omitempty"`
 }
 
 type authUser struct {
@@ -61,6 +96,15 @@ type authUser struct {
 	Locale          string `json:"locale"`
 	SystemRole      string `json:"systemRole"`
 	EmailVerifiedAt *int64 `json:"emailVerifiedAt,omitempty"`
+}
+
+type authGitCredential struct {
+	Provider    string `json:"provider"`
+	Username    string `json:"username"`
+	Token       string `json:"token,omitempty"`
+	MaskedToken string `json:"masked_token,omitempty"`
+	Status      string `json:"status"`
+	LastError   string `json:"last_error,omitempty"`
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -381,6 +425,7 @@ func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user dom
 	if credential.SessionToken != "" {
 		setSessionCookie(c, credential.SessionToken, credential.SessionExpiresAt)
 	}
+	gitCredential := h.authGitCredential(c, user)
 
 	c.JSON(status, authResponse{
 		User:           toAuthUser(user),
@@ -388,7 +433,27 @@ func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user dom
 		TokenType:      credential.TokenType,
 		ExpiresAt:      credential.ExpiresAt,
 		OrgMemberships: credential.OrgMemberships,
+		GitCredential:  gitCredential,
 	})
+}
+
+func (h *AuthHandler) authGitCredential(c *gin.Context, user domainauth.UserProfile) *authGitCredential {
+	if h.gitIdentities == nil {
+		return nil
+	}
+	credential, err := h.gitIdentities.EnsureForUser(c.Request.Context(), user)
+	if err != nil {
+		log.Printf("[movscript:git-identity] ensure user credential failed userId=%d error=%s", user.ID, err)
+		return &authGitCredential{Provider: gitidentityapp.ProviderGitea, Status: "error", LastError: err.Error()}
+	}
+	return &authGitCredential{
+		Provider:    credential.Provider,
+		Username:    credential.Username,
+		Token:       credential.Token,
+		MaskedToken: credential.MaskedToken,
+		Status:      credential.Status,
+		LastError:   credential.LastError,
+	}
 }
 
 func (h *AuthHandler) verifyChallengeRequest(c *gin.Context, challengeID, code string) (domainauth.AuthChallenge, error) {

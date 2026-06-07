@@ -6,6 +6,7 @@ interface UserStore {
   currentUser: User | null
   token: string | null
   tokenExpiresAt: string | null
+  gitCredential: AuthGitCredential | null
   orgMemberships: OrgMembership[]
   currentOrgID: number | null
   hydrated: boolean
@@ -19,7 +20,19 @@ export interface AuthSession {
   user: User | AuthUserPayload
   token?: string
   expires_at?: string
+  git_credential?: AuthGitCredential
   org_memberships?: OrgMembership[]
+}
+
+export interface AuthGitCredential {
+  provider: 'gitea'
+  username: string
+  token?: string
+  masked_token?: string
+  maskedToken?: string
+  status?: string
+  last_error?: string
+  lastError?: string
 }
 
 interface AuthUserPayload {
@@ -51,12 +64,13 @@ export const useUserStore = create<UserStore>()(
       currentUser: null,
       token: null,
       tokenExpiresAt: null,
+      gitCredential: null,
       orgMemberships: [],
       currentOrgID: null,
       hydrated: false,
       setSession: (session: AuthSession | null) => {
         if (!session) {
-          set({ currentUser: null, token: null, tokenExpiresAt: null, orgMemberships: [], currentOrgID: null })
+          set({ currentUser: null, token: null, tokenExpiresAt: null, gitCredential: null, orgMemberships: [], currentOrgID: null })
           return
         }
         const memberships = session.org_memberships ?? []
@@ -64,6 +78,7 @@ export const useUserStore = create<UserStore>()(
           currentUser: normalizeUser(session.user),
           token: session.token ?? null,
           tokenExpiresAt: session.expires_at ?? null,
+          gitCredential: session.git_credential ?? null,
           orgMemberships: memberships,
           currentOrgID: resolveInitialOrg(memberships),
         })
@@ -72,6 +87,7 @@ export const useUserStore = create<UserStore>()(
         currentUser: u,
         token: u ? state.token : null,
         tokenExpiresAt: u ? state.tokenExpiresAt : null,
+        gitCredential: u ? state.gitCredential : null,
         orgMemberships: u ? state.orgMemberships : [],
         currentOrgID: u ? state.currentOrgID : null,
       })),

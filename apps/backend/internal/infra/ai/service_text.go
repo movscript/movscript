@@ -3,9 +3,12 @@ package ai
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/infra/observability"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
@@ -111,8 +114,46 @@ func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelCon
 		responder, ok := provider.(ResponsesProvider)
 		var resp TextResponse
 		start := time.Now()
+		observability.WithRequest(ctx).Info("ai_responses_provider_attempt",
+			slog.Uint64("model_config_id", uint64(attempt.cfg.ID)),
+			slog.String("adapter_type", attempt.adapterType),
+			slog.String("request_model", attemptReq.Text.Model),
+			slog.String("provider_base_url", providerBaseURLForLog(provider)),
+			slog.Bool("responses_provider", ok),
+			slog.Int("message_count", len(attemptReq.Text.Messages)),
+			slog.Bool("has_tools", len(attemptReq.Tools) > 0 || len(attemptReq.Text.Tools) > 0),
+		)
 		if ok {
 			resp, err = responder.ResponsesGenerate(ctx, attemptReq)
+			if err != nil {
+				responsesErr := err
+				observability.WithRequest(ctx).Warn("ai_responses_provider_failed",
+					slog.Uint64("model_config_id", uint64(attempt.cfg.ID)),
+					slog.String("adapter_type", attempt.adapterType),
+					slog.String("request_model", attemptReq.Text.Model),
+					slog.String("provider_base_url", providerBaseURLForLog(provider)),
+					slog.String("error", responsesErr.Error()),
+					slog.String("fallback", "chat_completions"),
+				)
+				fallbackResp, fallbackErr := provider.TextGenerate(ctx, attemptReq.Text)
+				if fallbackErr == nil {
+					resp = fallbackResp
+					err = nil
+					observability.WithRequest(ctx).Info("ai_responses_chat_fallback_succeeded",
+						slog.Uint64("model_config_id", uint64(attempt.cfg.ID)),
+						slog.String("adapter_type", attempt.adapterType),
+						slog.String("request_model", attemptReq.Text.Model),
+					)
+				} else {
+					err = fmt.Errorf("%w; chat fallback: %w", responsesErr, fallbackErr)
+					observability.WithRequest(ctx).Warn("ai_responses_chat_fallback_failed",
+						slog.Uint64("model_config_id", uint64(attempt.cfg.ID)),
+						slog.String("adapter_type", attempt.adapterType),
+						slog.String("request_model", attemptReq.Text.Model),
+						slog.String("error", fallbackErr.Error()),
+					)
+				}
+			}
 		} else {
 			resp, err = provider.TextGenerate(ctx, attemptReq.Text)
 		}
@@ -146,6 +187,29 @@ func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelCon
 		return TextResponse{}, lastErr
 	}
 	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
+}
+
+func providerBaseURLForLog(provider Provider) string {
+	switch p := provider.(type) {
+	case *OpenAIAdapter:
+		return redactProviderBaseURL(p.BaseURL)
+	default:
+		return ""
+	}
+}
+
+func redactProviderBaseURL(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	parsed.User = nil
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
 
 // CallTextStream calls a text model through a provider streaming API.

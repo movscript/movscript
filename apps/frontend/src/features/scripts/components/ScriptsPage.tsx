@@ -50,10 +50,13 @@ import { ScriptForm } from '@/features/scripts/components/ScriptForm'
 import {
   listWorkspaceScripts,
   saveWorkspaceScript,
+  type ScriptWorkspaceRepositoryContext,
 } from '@/features/scripts/application/scriptWorkspaceRepository'
 import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
 import { scriptLibraryStatusRecipe } from '@/features/scripts/presentation/scriptsSemanticUi'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 
 type ScriptDetailTab = 'edit' | 'versions'
 
@@ -96,10 +99,17 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     ariaLabel: '调整剧本正文宽度',
   })
   const [workspace, setWorkspace] = useState<Partial<Script>>({})
+  const currentUser = useUserStore((state) => state.currentUser)
+  const currentOrgID = useUserStore((state) => state.currentOrgID)
+  const orgMemberships = useUserStore((state) => state.orgMemberships)
+  const workspaceContext = useMemo(
+    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+    [currentOrgID, currentUser?.ID, orgMemberships],
+  )
 
   const { data: rawScripts, isLoading } = useQuery<Script[]>({
-    queryKey: ['scripts', projectId],
-    queryFn: () => listWorkspaceScripts(projectId),
+    queryKey: ['scripts', projectId, workspaceContext.userId ?? 'local', workspaceContext.orgId ?? 'personal'],
+    queryFn: () => listWorkspaceScripts(projectId, workspaceContext),
     enabled: !!projectId,
   })
   const { data: scriptVersions = [] } = useQuery<ScriptVersion[]>({
@@ -191,7 +201,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const updateScript = useMutation({
     mutationFn: (data: Partial<Script>) => {
       if (!selected) throw new Error('请选择剧本')
-      return saveWorkspaceScript(projectId, selected.ID, data)
+      return saveWorkspaceScript(projectId, selected.ID, data, workspaceContext)
     },
     onSuccess: (updated: Script) => {
       setWorkspace((current) => ({ ...current, ...updated }))
@@ -205,7 +215,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const updateScriptCategory = useMutation({
     mutationFn: ({ scriptId, scriptType }: { scriptId: number; scriptType: string }) => {
       const script = scripts.find((item) => item.ID === scriptId)
-      return saveWorkspaceScript(projectId, scriptId, { ...script, script_type: scriptType })
+      return saveWorkspaceScript(projectId, scriptId, { ...script, script_type: scriptType }, workspaceContext)
     },
     onSuccess: (updated: Script) => {
       if (updated.ID === selected?.ID) setWorkspace((current) => ({ ...current, script_type: updated.script_type }))
@@ -219,7 +229,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const createVersion = useMutation({
     mutationFn: async () => {
       if (!selected) throw new Error('请选择剧本')
-      const saved = await saveScriptWorkspace(projectId, selected.ID, workspace)
+      const saved = await saveScriptWorkspace(projectId, selected.ID, workspace, workspaceContext)
       return createScriptVersion(projectId, {
         script_id: saved.ID,
         parent_version_id: latestVersion?.ID ?? null,
@@ -531,7 +541,12 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       </WorkbenchProjectBody>
 
       <ScriptCreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.scripts.createTitle')}>
-        <ScriptCreateForm projectId={projectId} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
+        <ScriptCreateForm
+          projectId={projectId}
+          workspaceContext={workspaceContext}
+          onSuccess={() => setShowCreate(false)}
+          onCancel={() => setShowCreate(false)}
+        />
       </ScriptCreateDialog>
     </WorkbenchProjectShell>
   )
@@ -568,8 +583,13 @@ function categoryLabel(value?: string) {
   return normalized
 }
 
-async function saveScriptWorkspace(projectId: number, scriptId: number, workspace: Partial<Script>) {
-  return saveWorkspaceScript(projectId, scriptId, workspace)
+async function saveScriptWorkspace(
+  projectId: number,
+  scriptId: number,
+  workspace: Partial<Script>,
+  context: ScriptWorkspaceRepositoryContext,
+) {
+  return saveWorkspaceScript(projectId, scriptId, workspace, context)
 }
 
 function scriptWorkspaceSourceText(workspace: Partial<Script>, script: Script) {

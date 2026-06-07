@@ -8,7 +8,7 @@ export type ContentWorkbenchPipelineStepKey =
   | 'generation_context'
   | 'ai_review'
   | 'generation_taskGraph'
-  | 'preview_delivery'
+  | 'preview'
 
 export type ContentWorkbenchPipelineState = 'done' | 'current' | 'blocked' | 'pending'
 
@@ -25,7 +25,6 @@ export interface ContentWorkbenchPipelineInput {
   runningJobCount: number
   completedJobCount: number
   previewItemCount?: number
-  deliveryVersionCount?: number
 }
 
 export interface ContentWorkbenchPipelineStep {
@@ -58,7 +57,6 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
     runningJobCount: positiveInteger(input.runningJobCount),
     completedJobCount: positiveInteger(input.completedJobCount),
     previewItemCount: positiveInteger(input.previewItemCount),
-    deliveryVersionCount: positiveInteger(input.deliveryVersionCount),
   }
 
   const baseSteps: Array<Omit<ContentWorkbenchPipelineStep, 'state'> & { blocked: boolean; pending?: boolean }> = [
@@ -127,12 +125,12 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
       pending: normalized.runningJobCount === 0 && normalized.completedJobCount === 0,
     },
     {
-      key: 'preview_delivery',
-      label: '预览交付',
-      value: normalized.deliveryVersionCount > 0 ? `${normalized.deliveryVersionCount} 版本` : normalized.previewItemCount > 0 ? `${normalized.previewItemCount} 预览` : '待编排',
-      detail: normalized.deliveryVersionCount > 0 ? '已有交付版本记录' : normalized.previewItemCount > 0 ? '已有预览时间线挂载' : '生成结果需要进入预览和交付',
+      key: 'preview',
+      label: '预览检查',
+      value: normalized.previewItemCount > 0 ? `${normalized.previewItemCount} 预览` : '待编排',
+      detail: normalized.previewItemCount > 0 ? '已有预览时间线挂载' : '生成结果需要进入预览检查',
       blocked: false,
-      pending: normalized.previewItemCount === 0 && normalized.deliveryVersionCount === 0,
+      pending: normalized.previewItemCount === 0,
     },
   ]
 
@@ -158,8 +156,8 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
   const blockedCount = baseSteps.filter((step) => step.blocked).length
 
   return {
-    title: blockedCount > 0 ? `下一步：${current.label}` : current.key === 'preview_delivery' && current.state === 'done' ? '生产链路已交付' : current.key === 'preview_delivery' ? '下一步：预览交付' : '下一步：启动生成',
-    detail: blockedCount > 0 ? current.detail : current.key === 'preview_delivery' && current.state === 'done' ? '制作、生成、预览和交付记录已经闭环。' : current.key === 'preview_delivery' ? '生成结果还需要进入预览或交付版本。' : '制作项、锚点、素材、上下文和审稿状态都已打通。',
+    title: blockedCount > 0 ? `下一步：${current.label}` : current.key === 'preview' && current.state === 'done' ? '生产链路已预览' : current.key === 'preview' ? '下一步：预览检查' : '下一步：启动生成',
+    detail: blockedCount > 0 ? current.detail : current.key === 'preview' && current.state === 'done' ? '制作、生成和预览记录已经闭环。' : current.key === 'preview' ? '生成结果还需要进入预览检查。' : '制作项、锚点、素材、上下文和审稿状态都已打通。',
     currentKey: current.key,
     blockedCount,
     steps,

@@ -92,6 +92,38 @@ type responsesUsage struct {
 	OutputTokensDetails tokenUsageOutputDetails `json:"output_tokens_details"`
 }
 
+type responsesStreamEvent struct {
+	Type     string                     `json:"type"`
+	Response *responsesStreamResponse   `json:"response,omitempty"`
+	Delta    string                     `json:"delta,omitempty"`
+	Item     *responsesStreamOutputItem `json:"item,omitempty"`
+}
+
+type responsesStreamResponse struct {
+	ID        string          `json:"id"`
+	Object    string          `json:"object,omitempty"`
+	CreatedAt int64           `json:"created_at,omitempty"`
+	Status    string          `json:"status,omitempty"`
+	Model     string          `json:"model,omitempty"`
+	Usage     *responsesUsage `json:"usage,omitempty"`
+	EndTurn   *bool           `json:"end_turn,omitempty"`
+}
+
+type responsesStreamOutputItem struct {
+	ID        string                         `json:"id,omitempty"`
+	Type      string                         `json:"type"`
+	Role      string                         `json:"role,omitempty"`
+	Content   []responsesStreamOutputContent `json:"content,omitempty"`
+	Name      string                         `json:"name,omitempty"`
+	Arguments string                         `json:"arguments,omitempty"`
+	CallID    string                         `json:"call_id,omitempty"`
+}
+
+type responsesStreamOutputContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
 type anthropicMessagesRequest struct {
 	Model       string           `json:"model"`
 	Messages    []gatewayMessage `json:"messages" binding:"required,min=1"`

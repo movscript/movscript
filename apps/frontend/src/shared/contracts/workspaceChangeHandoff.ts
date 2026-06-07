@@ -11,7 +11,6 @@ export interface WorkspaceChangeHandoffIntent {
   createdAt: string
   workspaceKind?: MovScriptWorkspaceKind | string
   workspaceId?: string
-  workspacePath?: string
   target?: Record<string, unknown>
   entityFile?: Record<string, unknown>
   businessReviewPath?: string
@@ -24,16 +23,13 @@ export interface WorkspaceChangeHandoffNavigation {
 
 export function buildWorkspaceChangeHandoffNavigation(input: {
   reviewPath?: string
-  workspacePath?: string
   workspaceKind?: string
   workspaceId?: string
   target?: Record<string, unknown>
   entityFile?: Record<string, unknown>
 }): WorkspaceChangeHandoffNavigation {
   const params = new URLSearchParams()
-  const workspacePath = input.workspacePath ?? stringValue(input.entityFile?.workspacePath)
   if (input.reviewPath) params.set('path', input.reviewPath)
-  if (workspacePath) params.set('workspacePath', workspacePath)
   if (input.workspaceKind) params.set('kind', input.workspaceKind)
   if (input.workspaceId) params.set('workspaceId', input.workspaceId)
 
@@ -58,7 +54,6 @@ export function workspaceChangeHandoffPathFromEventDetail(detail: unknown): stri
   if (directPath) return directPath
   return buildWorkspaceChangeHandoffNavigation({
     reviewPath: stringValue(detail.reviewPath),
-    workspacePath: stringValue(detail.workspacePath),
     workspaceKind: stringValue(detail.workspaceKind) ?? stringValue(detail.kind),
     workspaceId: stringValue(detail.workspaceId),
     target: isRecord(detail.target) ? detail.target : undefined,

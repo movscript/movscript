@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -115,7 +116,7 @@ func TestProjectAdminCreateWritesAudit(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/admin/projects",
-		strings.NewReader(`{"name":"Admin Project","owner_id":`+strconv.FormatUint(uint64(owner.ID), 10)+`,"org_id":`+strconv.FormatUint(uint64(org.ID), 10)+`,"status":"planning"}`),
+		strings.NewReader(`{"name":"Admin Project","owner_id":`+strconv.FormatUint(uint64(owner.ID), 10)+`,"org_id":`+strconv.FormatUint(uint64(org.ID), 10)+`}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -131,7 +132,7 @@ func TestProjectAdminCreateWritesAudit(t *testing.T) {
 	if err := db.Where("name = ?", "Admin Project").First(&created).Error; err != nil {
 		t.Fatalf("load created project: %v", err)
 	}
-	if created.OwnerID != owner.ID || created.Status != "planning" {
+	if created.OwnerID != owner.ID {
 		t.Fatalf("unexpected created project: %+v", created)
 	}
 	if created.OrgID == nil || *created.OrgID != org.ID {
@@ -210,8 +211,8 @@ func TestProjectAdminListFiltersByProjectID(t *testing.T) {
 	if err := db.Create(&owner).Error; err != nil {
 		t.Fatalf("create owner: %v", err)
 	}
-	target := persistencemodel.Project{Name: "Target Project", OwnerID: owner.ID, Status: "planning"}
-	other := persistencemodel.Project{Name: "Other Project", OwnerID: owner.ID, Status: "planning"}
+	target := persistencemodel.Project{Name: "Target Project", OwnerID: owner.ID}
+	other := persistencemodel.Project{Name: "Other Project", OwnerID: owner.ID}
 	if err := db.Create(&target).Error; err != nil {
 		t.Fatalf("create target project: %v", err)
 	}
@@ -238,7 +239,7 @@ func TestProjectAdminListFiltersByProjectID(t *testing.T) {
 	}
 }
 
-func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
+func TestProjectAdminUpdateWritesAuditAndValidatesName(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, db := newTestProjectAdminRouter(t)
 
@@ -250,7 +251,7 @@ func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Workspace", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Workspace", OwnerID: owner.ID, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -258,7 +259,7 @@ func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPatch,
 		"/admin/projects/"+strconv.FormatUint(uint64(project.ID), 10),
-		strings.NewReader(`{"name":"Final","status":"editing"}`),
+		strings.NewReader(`{"name":"Final"}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -274,7 +275,7 @@ func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
 	if err := db.First(&updated, project.ID).Error; err != nil {
 		t.Fatalf("load updated project: %v", err)
 	}
-	if updated.Name != "Final" || updated.Status != "editing" {
+	if updated.Name != "Final" {
 		t.Fatalf("unexpected updated project: %+v", updated)
 	}
 	assertProjectAuditOrgID(t, db, "project.admin_updated", org.ID)
@@ -282,17 +283,17 @@ func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
 	invalidReq := httptest.NewRequest(
 		http.MethodPatch,
 		"/admin/projects/"+strconv.FormatUint(uint64(project.ID), 10),
-		strings.NewReader(`{"status":"archived"}`),
+		strings.NewReader(`{}`),
 	)
 	invalidReq.Header.Set("Content-Type", "application/json")
 	invalidRes := httptest.NewRecorder()
 	router.ServeHTTP(invalidRes, invalidReq)
 
 	if invalidRes.Code != http.StatusBadRequest {
-		t.Fatalf("expected invalid status rejected, got %d: %s", invalidRes.Code, invalidRes.Body.String())
+		t.Fatalf("expected empty update rejected, got %d: %s", invalidRes.Code, invalidRes.Body.String())
 	}
 	if countAuditAction(t, db, "project.admin_updated") != 1 {
-		t.Fatalf("invalid update should not add audit log")
+		t.Fatalf("empty update should not add audit log")
 	}
 }
 
@@ -304,7 +305,7 @@ func TestProjectAdminDetailReturnsOperationalSummary(t *testing.T) {
 	if err := db.Create(&owner).Error; err != nil {
 		t.Fatalf("create owner: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Detail Project", OwnerID: owner.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Detail Project", OwnerID: owner.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -371,7 +372,7 @@ func TestProjectAdminDeleteWritesAuditAndRejectsMissing(t *testing.T) {
 	if err := db.Create(&owner).Error; err != nil {
 		t.Fatalf("create owner: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Delete Me", OwnerID: owner.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Delete Me", OwnerID: owner.ID}
 	org := persistencemodel.Organization{Name: "Delete Org", Slug: "delete-org", Plan: "team", Status: "active", CreatedBy: owner.ID}
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("create org: %v", err)
@@ -430,7 +431,7 @@ func TestProjectAdminMemberActionsWriteAuditAndRejectFailures(t *testing.T) {
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Member Project", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Member Project", OwnerID: owner.ID, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -594,7 +595,7 @@ func TestProjectMemberActionsWriteOrgAudit(t *testing.T) {
 	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: memberUser.ID, Role: "member"}).Error; err != nil {
 		t.Fatalf("create target org member: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Workspace Project", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Workspace Project", OwnerID: owner.ID, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -666,7 +667,7 @@ func TestProjectMemberActionsWriteOrgAudit(t *testing.T) {
 	}
 }
 
-func TestProjectGitProxyAllowsPushOnlyAndInjectsServerToken(t *testing.T) {
+func TestProjectGitProxyAllowsSmartHTTPAndInjectsServerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.OpenSQLite(t, "handler-project-git-proxy.db",
 		&persistencemodel.User{},
@@ -689,7 +690,7 @@ func TestProjectGitProxyAllowsPushOnlyAndInjectsServerToken(t *testing.T) {
 	if err := db.Create(&orgMember).Error; err != nil {
 		t.Fatalf("create org member: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Git Proxy Project", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Git Proxy Project", OwnerID: owner.ID, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -740,11 +741,14 @@ func TestProjectGitProxyAllowsPushOnlyAndInjectsServerToken(t *testing.T) {
 	fetchReq.Header.Set("Authorization", "Bearer client-token")
 	fetchRes := httptest.NewRecorder()
 	router.ServeHTTP(fetchRes, fetchReq)
-	if fetchRes.Code != http.StatusForbidden {
-		t.Fatalf("expected upload-pack rejected, got %d: %s", fetchRes.Code, fetchRes.Body.String())
+	if fetchRes.Code != http.StatusOK {
+		t.Fatalf("expected upload-pack info refs forwarded, got %d: %s", fetchRes.Code, fetchRes.Body.String())
 	}
-	if upstream.calls != 0 {
-		t.Fatalf("upload-pack should not reach upstream, calls=%d", upstream.calls)
+	if upstream.calls != 1 {
+		t.Fatalf("upload-pack upstream calls = %d, want 1", upstream.calls)
+	}
+	if upstream.path != "/movscript-org-git-proxy-org/project-1.git/info/refs" {
+		t.Fatalf("upload-pack upstream path = %q", upstream.path)
 	}
 
 	pushReq := httptest.NewRequest(
@@ -759,13 +763,14 @@ func TestProjectGitProxyAllowsPushOnlyAndInjectsServerToken(t *testing.T) {
 	if pushRes.Code != http.StatusOK {
 		t.Fatalf("expected receive-pack forwarded, got %d: %s", pushRes.Code, pushRes.Body.String())
 	}
-	if upstream.calls != 1 {
-		t.Fatalf("receive-pack upstream calls = %d, want 1", upstream.calls)
+	if upstream.calls != 2 {
+		t.Fatalf("receive-pack upstream calls = %d, want 2", upstream.calls)
 	}
-	if upstream.auth != "token server-gitea-token" {
-		t.Fatalf("upstream auth = %q, want server token", upstream.auth)
+	wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte("movscript-org-git-proxy-org:server-gitea-token"))
+	if upstream.auth != wantAuth {
+		t.Fatalf("upstream auth = %q, want basic server token", upstream.auth)
 	}
-	if upstream.path != "/movscript/project-1.git/git-receive-pack" {
+	if upstream.path != "/movscript-org-git-proxy-org/project-1.git/git-receive-pack" {
 		t.Fatalf("upstream path = %q", upstream.path)
 	}
 }

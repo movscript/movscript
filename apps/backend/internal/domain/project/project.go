@@ -12,23 +12,7 @@ const (
 	RoleDirector   = "director"
 	RoleSuperAdmin = "super_admin"
 	RoleViewer     = "viewer"
-
-	StatusPlanning       = "planning"
-	StatusScriptAnalysis = "script_analysis"
-	StatusAssetPrep      = "asset_prep"
-	StatusProduction     = "production"
-	StatusEditing        = "editing"
-	StatusDone           = "done"
 )
-
-func ValidStatus(status string) bool {
-	switch status {
-	case StatusPlanning, StatusScriptAnalysis, StatusAssetPrep, StatusProduction, StatusEditing, StatusDone:
-		return true
-	default:
-		return false
-	}
-}
 
 type Project struct {
 	ID            uint      `json:"ID"`
@@ -37,7 +21,6 @@ type Project struct {
 	OwnerID       uint      `json:"owner_id"`
 	Owner         *UserRef  `json:"owner,omitempty"`
 	OrgID         *uint     `json:"org_id,omitempty"`
-	Status        string    `json:"status"`
 	TotalEpisodes int       `json:"total_episodes"`
 	AspectRatio   string    `json:"aspect_ratio"`
 	VisualStyle   string    `json:"visual_style"`

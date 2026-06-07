@@ -62,7 +62,7 @@ test('content workbench pipeline reports generation readiness when all gates are
   assert.equal(summary.steps.every((step) => step.state === 'done' || step.state === 'pending'), true)
 })
 
-test('content workbench pipeline continues from generation into preview delivery', () => {
+test('content workbench pipeline continues from generation into preview', () => {
   const summary = buildContentWorkbenchPipeline({
     productionTitle: '雨夜重逢制作',
     segmentTitle: '重逢前奏',
@@ -76,16 +76,15 @@ test('content workbench pipeline continues from generation into preview delivery
     runningJobCount: 0,
     completedJobCount: 1,
     previewItemCount: 0,
-    deliveryVersionCount: 0,
   })
 
-  assert.equal(summary.title, '下一步：预览交付')
-  assert.equal(summary.currentKey, 'preview_delivery')
-  assert.equal(summary.steps.at(-1)?.label, '预览交付')
+  assert.equal(summary.title, '下一步：预览检查')
+  assert.equal(summary.currentKey, 'preview')
+  assert.equal(summary.steps.at(-1)?.label, '预览检查')
   assert.equal(summary.steps.at(-1)?.state, 'pending')
 })
 
-test('content workbench pipeline marks delivery records as complete', () => {
+test('content workbench pipeline marks preview records as complete', () => {
   const summary = buildContentWorkbenchPipeline({
     productionTitle: '雨夜重逢制作',
     segmentTitle: '重逢前奏',
@@ -99,11 +98,10 @@ test('content workbench pipeline marks delivery records as complete', () => {
     runningJobCount: 0,
     completedJobCount: 1,
     previewItemCount: 3,
-    deliveryVersionCount: 1,
   })
 
-  assert.equal(summary.title, '生产链路已交付')
-  assert.equal(summary.currentKey, 'preview_delivery')
-  assert.equal(summary.steps.at(-1)?.value, '1 版本')
+  assert.equal(summary.title, '生产链路已预览')
+  assert.equal(summary.currentKey, 'preview')
+  assert.equal(summary.steps.at(-1)?.value, '3 预览')
   assert.equal(summary.steps.every((step) => step.state === 'done'), true)
 })

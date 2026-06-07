@@ -16,7 +16,7 @@ export interface StopProviderSessionRunActionDeps {
   setPendingAssistantState: (state: null) => void
   resetStreamingAssistant: () => void
   setConversationRun: (run: AgentRun, patch: RunControlProviderSessionPatch) => void
-  setConversationProviderSessionState: (patch: RunControlProviderSessionPatch) => void
+  updateConversationRuntimeState: (patch: RunControlProviderSessionPatch) => void
   cancelGenerationJobIfActive: () => void
   cancelRun: (runId: string, input: { reason?: string }) => Promise<AgentRun>
   getRun: (runId: string) => Promise<AgentRun>
@@ -65,7 +65,7 @@ export function stopProviderSessionRunAction(input: {
 
   if (!isStoppableAgentRun(run)) {
     if ((loading || building) && !stopping) {
-      deps.setConversationProviderSessionState({ stopRequested: false, stopping: false, loading: false, building: false })
+      deps.updateConversationRuntimeState({ stopRequested: false, stopping: false, loading: false, building: false })
     }
     return
   }
@@ -85,7 +85,7 @@ export function stopProviderSessionRunAction(input: {
     loading: false,
     stopRequested: false,
   })
-  deps.setConversationProviderSessionState({ stopping: false, loading: false, stopRequested: false })
+  deps.updateConversationRuntimeState({ stopping: false, loading: false, stopRequested: false })
 
   try {
     deps.cancelGenerationJobIfActive()
@@ -106,7 +106,7 @@ export function stopProviderSessionRunAction(input: {
           }
           return
         }
-        deps.setConversationProviderSessionState({ stopping: false, loading: false, stopRequested: false, error: message })
+        deps.updateConversationRuntimeState({ stopping: false, loading: false, stopRequested: false, error: message })
       })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -115,9 +115,9 @@ export function stopProviderSessionRunAction(input: {
         deps.setConversationRun(latestRun, { stopRequested: false, stopping: false, loading: false })
       }).catch(() => undefined)
     } else {
-      deps.setConversationProviderSessionState({ stopping: false, loading: false, stopRequested: false, error: message })
+      deps.updateConversationRuntimeState({ stopping: false, loading: false, stopRequested: false, error: message })
     }
   } finally {
-    deps.setConversationProviderSessionState({ stopRequested: false, stopping: false, loading: false, building: false })
+    deps.updateConversationRuntimeState({ stopRequested: false, stopping: false, loading: false, building: false })
   }
 }

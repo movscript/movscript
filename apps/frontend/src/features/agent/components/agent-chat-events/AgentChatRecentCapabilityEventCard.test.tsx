@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { AgentChatRecentCapabilityEventCard } from '@/features/agent/components/agent-chat-events/AgentChatRecentCapabilityEventCard'
@@ -56,8 +57,8 @@ test('AgentChatRecentCapabilityEventCard renders recent capability events with s
   assert.match(html, /2 path\(s\)/)
   assert.match(html, /Details/)
   assert.match(html, /src\/a\.ts/)
-  assert.match(html, /Event details/)
-  assert.match(html, /fs\/changed/)
+  assert.doesNotMatch(html, /Event details/)
+  assert.doesNotMatch(html, /fs\/changed/)
 })
 
 test('AgentChatRecentCapabilityEventCard renders realtime and MCP diagnostics distinctly', () => {
@@ -197,8 +198,7 @@ test('AgentChatRecentCapabilityEventCard renders realtime and MCP diagnostics di
   assert.match(noticeHtml, /thread thread_guardian/)
   assert.match(noticeHtml, /turn turn_guardian/)
   assert.match(noticeHtml, /Sensitive action detected/)
-  assert.match(noticeHtml, /Event details/)
-  assert.match(noticeHtml, /null/)
+  assert.doesNotMatch(noticeHtml, /Event details/)
 })
 
 test('AgentChatRecentCapabilityEventCard renders account events as readable summaries', () => {

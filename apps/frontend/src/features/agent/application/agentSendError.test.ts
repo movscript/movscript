@@ -11,7 +11,7 @@ test('handleSendAbort removes streaming assistant state and reports cancellation
     'pending:null',
     'http:0',
     'resetStreaming',
-    'providerSession:loading=false:building=false:stopping=false:stop=false:error=',
+    'runtime:loading=false:building=false:stopping=false:stop=false:error=',
     'settled:req_1:cancelled:stopped',
   ])
 })
@@ -25,7 +25,7 @@ test('handleSendFailure clears streaming state, shows error content, and reports
     'pending:null',
     'http:0',
     'resetStreaming',
-    'providerSession:loading=false:building=false:stopping=undefined:stop=undefined:error=当前提供方暂不可用。offline',
+    'runtime:loading=false:building=false:stopping=undefined:stop=undefined:error=当前提供方暂不可用。offline',
     'settled:undefined:error:offline',
   ])
 })
@@ -47,8 +47,8 @@ function cleanupDeps(
     resetStreamingAssistant: () => {
       calls.push('resetStreaming')
     },
-    setConversationProviderSessionState: (_conversationId, patch) => {
-      calls.push(`providerSession:loading=${patch.loading}:building=${patch.building}:stopping=${patch.stopping}:stop=${patch.stopRequested}:error=${patch.error ?? ''}`)
+    updateConversationRuntimeState: (_conversationId, patch) => {
+      calls.push(`runtime:loading=${patch.loading}:building=${patch.building}:stopping=${patch.stopping}:stop=${patch.stopRequested}:error=${patch.error ?? ''}`)
     },
     notifyRunSettled: (payload) => {
       calls.push(`settled:${payload.requestId}:${payload.status}:${payload.error}`)

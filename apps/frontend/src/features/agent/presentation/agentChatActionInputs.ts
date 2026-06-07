@@ -30,7 +30,7 @@ export function buildAgentChatActionBindingsInput({
       interactionRuns: presentation.interactionRuns,
       approving: presentation.approvingActiveRun,
       setSubmittedInteractionRuns: providerSessionState.setSubmittedInteractionRuns,
-      setConversationProviderSessionState: store.setConversationProviderSessionState,
+      updateConversationRuntimeState: store.updateConversationRuntimeState,
       setConversationRun: store.setConversationRun,
       refreshProviderCatalogContext: context.refreshProviderCatalogContext,
     },
@@ -43,7 +43,7 @@ export function buildAgentChatActionBindingsInput({
       dispatchSettings: taskGraph.planDispatchSettings,
       setBusy: providerSessionState.setPlanActionBusy,
       setConversationRun: store.setConversationRun,
-      setConversationProviderSessionState: store.setConversationProviderSessionState,
+      updateConversationRuntimeState: store.updateConversationRuntimeState,
       refetchPlanSnapshot: () => presentation.refetchActivePlanSnapshot(),
     },
     stopAction: {
@@ -59,7 +59,7 @@ export function buildAgentChatActionBindingsInput({
       setPendingAssistantState: providerSessionState.setPendingAssistantState,
       resetStreamingAssistant: providerSessionState.resetStreamingAssistant,
       setConversationRun: store.setConversationRun,
-      setConversationProviderSessionState: store.setConversationProviderSessionState,
+      updateConversationRuntimeState: store.updateConversationRuntimeState,
     },
   }
 }

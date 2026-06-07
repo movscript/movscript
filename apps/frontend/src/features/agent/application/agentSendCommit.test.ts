@@ -9,6 +9,23 @@ test('bindAcceptedSourceProviderSessionScope binds thread and session as soon as
   bindAcceptedSourceProviderSessionScope({
     message: { threadId: 'thread_1' },
     run: { sessionId: 'session_1' },
+    deps: scopeDeps(calls, { newBindingApi: true }),
+  })
+
+  assert.deepEqual(calls, [
+    'providerSessionTree:session_1',
+    'providerSession:session_1',
+    'providerThreadBinding:thread_1',
+    'providerThread:thread_1',
+  ])
+})
+
+test('bindAcceptedSourceProviderSessionScope falls back to legacy binding setters', () => {
+  const calls: string[] = []
+
+  bindAcceptedSourceProviderSessionScope({
+    message: { threadId: 'thread_1' },
+    run: { sessionId: 'session_1' },
     deps: scopeDeps(calls),
   })
 
@@ -26,16 +43,16 @@ test('bindAcceptedSourceProviderSessionScope binds thread without writing an emp
   bindAcceptedSourceProviderSessionScope({
     message: { threadId: 'thread_1' },
     run: {},
-    deps: scopeDeps(calls),
+    deps: scopeDeps(calls, { newBindingApi: true }),
   })
 
   assert.deepEqual(calls, [
-    'providerThread:thread_1',
+    'providerThreadBinding:thread_1',
     'providerThread:thread_1',
   ])
 })
 
-function scopeDeps(calls: string[]) {
+function scopeDeps(calls: string[], options: { newBindingApi?: boolean } = {}) {
   return {
     userId: 'user_1',
     conversationId: 'conv_1',
@@ -48,6 +65,14 @@ function scopeDeps(calls: string[]) {
     setProviderThreadId: (_conversationId: string, threadId: string) => {
       calls.push(`providerThread:${threadId}`)
     },
+    ...(options.newBindingApi ? {
+      setConversationProviderSessionTreeId: (_conversationId: string, providerSessionTreeId: string) => {
+        calls.push(`providerSessionTree:${providerSessionTreeId}`)
+      },
+      setConversationProviderThreadBindingId: (_conversationId: string, providerThreadId: string) => {
+        calls.push(`providerThreadBinding:${providerThreadId}`)
+      },
+    } : {}),
     setConversationProviderThreadId: (_userId: string, _conversationId: string, threadId: string) => {
       calls.push(`providerThread:${threadId}`)
     },

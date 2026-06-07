@@ -1,0 +1,103 @@
+.ms-identity-badge,
+.ms-identity-badge__copy,
+.ms-identity-mark {
+  min-width: 0;
+}
+
+.ms-identity-badge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--ms-space-1);
+  border: 1px solid var(--ms-identity-border, var(--ms-color-border));
+  border-radius: var(--ms-radius-full);
+  background: color-mix(in srgb, var(--ms-identity-background, var(--ms-color-muted)) 86%, var(--ms-color-surface) 14%);
+  color: var(--ms-identity-color, var(--ms-color-foreground));
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 18px;
+  padding: 2px 8px 2px 3px;
+  white-space: nowrap;
+}
+
+.ms-identity-badge--compact {
+  gap: 0;
+  padding: 2px;
+}
+
+.ms-identity-badge--stack {
+  align-items: flex-start;
+  border-radius: var(--ms-radius-md);
+  padding: 4px 8px 4px 4px;
+}
+
+.ms-identity-badge--xs .ms-identity-mark {
+  width: 16px;
+  height: 16px;
+}
+
+.ms-identity-badge--sm .ms-identity-mark {
+  width: 20px;
+  height: 20px;
+}
+
+.ms-identity-badge--md .ms-identity-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.ms-identity-badge__copy {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.ms-identity-badge__label,
+.ms-identity-badge__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ms-identity-badge__detail {
+  max-width: 16rem;
+  color: var(--ms-color-muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+}
+
+.ms-identity-mark {
+  position: relative;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--ms-identity-border, var(--ms-color-border));
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-identity-background, var(--ms-color-muted));
+  color: var(--ms-identity-color, var(--ms-color-foreground));
+}
+
+.ms-identity-mark__image {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ms-identity-mark__fallback {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ms-identity-color, var(--ms-color-foreground));
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0;
+}

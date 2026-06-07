@@ -125,10 +125,10 @@ type TaskView = 'all' | 'mine' | 'review'
 type WorkItemStatus = 'todo' | 'running' | 'blocked' | 'review' | 'done' | 'cancelled'
 type WorkItemKind = 'human' | 'ai' | 'hybrid' | 'review' | 'fix'
 type UserTaskType = 'execution' | 'generation' | 'hybrid' | 'review' | 'fix' | 'decision' | 'coordination'
-type WorkTargetType = 'project' | 'production' | 'segment' | 'scene_moment' | 'content_unit' | 'asset_slot' | 'keyframe' | 'delivery_version'
-type WorkItemResultType = 'none' | 'status_change' | 'lock_asset_candidate' | 'accept_keyframe' | 'approve_delivery_version'
-type TaskPurpose = 'general' | 'review_output' | 'choose_asset_candidate' | 'confirm_content_unit' | 'accept_keyframe' | 'approve_delivery'
-type TaskAgentKey = 'project_assistant' | 'asset_agent' | 'storyboard_agent' | 'delivery_agent'
+type WorkTargetType = 'project' | 'production' | 'segment' | 'scene_moment' | 'content_unit' | 'asset_slot' | 'keyframe'
+type WorkItemResultType = 'none' | 'status_change' | 'lock_asset_candidate' | 'accept_keyframe'
+type TaskPurpose = 'general' | 'review_output' | 'choose_asset_candidate' | 'confirm_content_unit' | 'accept_keyframe'
+type TaskAgentKey = 'project_assistant' | 'asset_agent' | 'storyboard_agent'
 
 interface TaskAgentOption {
   key: TaskAgentKey
@@ -280,11 +280,6 @@ const taskAgentOptions: TaskAgentOption[] = [
     name: '分镜 Agent',
     description: '适合画面锚点、镜头描述和内容结构相关任务。',
   },
-  {
-    key: 'delivery_agent',
-    name: '交付检查 Agent',
-    description: '适合交付版本检查、审核意见整理和收口任务。',
-  },
 ]
 
 const defaultTaskAgentKey: TaskAgentKey = 'project_assistant'
@@ -301,7 +296,6 @@ const targetTypeLabels: Record<WorkTargetType, string> = {
   content_unit: '制作项',
   asset_slot: '素材需求',
   keyframe: '画面锚点',
-  delivery_version: '交付版本',
 }
 
 const statusMeta: Record<TaskStatus, { label: string; icon: typeof ClipboardList }> = {
@@ -363,7 +357,6 @@ const resultTypeMeta: Record<WorkItemResultType, { label: string; description: s
   status_change: { label: '更新目标状态', description: '通过审核后更新目标对象状态' },
   lock_asset_candidate: { label: '锁定素材候选', description: '把素材需求锁定到指定候选' },
   accept_keyframe: { label: '采纳画面锚点', description: '采纳候选或将当前画面锚点标记为 accepted' },
-  approve_delivery_version: { label: '批准交付版本', description: '将交付版本标记为 approved' },
 }
 
 const taskPurposeMeta: Record<TaskPurpose, {
@@ -413,14 +406,6 @@ const taskPurposeMeta: Record<TaskPurpose, {
     resultType: 'accept_keyframe',
     targetTypes: ['keyframe'],
     defaultTitle: '采纳画面锚点',
-  },
-  approve_delivery: {
-    label: '批准交付版本',
-    description: '通过后将交付版本状态变为 approved',
-    taskType: 'review',
-    resultType: 'approve_delivery_version',
-    targetTypes: ['delivery_version'],
-    defaultTitle: '批准交付版本',
   },
 }
 
@@ -778,7 +763,6 @@ function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
     }
     return '通过后当前画面锚点状态会变为 accepted。'
   }
-  if (resultType === 'approve_delivery_version') return '通过后交付版本状态会变为 approved。'
   return '通过后应用任务结果。'
 }
 
@@ -1383,12 +1367,6 @@ export default function TasksPage() {
     enabled: !!projectId,
   })
 
-  const { data: deliveryVersions = [] } = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['work-targets', projectId, 'delivery-versions'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('deliveryVersions')) as Promise<SemanticEntityRecord[]>,
-    enabled: !!projectId,
-  })
-
   const workTargetOptions = useMemo<WorkTargetOption[]>(() => {
     if (!projectId) return []
     return [
@@ -1398,9 +1376,8 @@ export default function TasksPage() {
       ...contentUnits.map((record) => targetOption('content_unit', record, '制作项')),
       ...assetSlots.map((record) => targetOption('asset_slot', record, '素材需求')),
       ...keyframes.filter((record) => !isGeneratedKeyframeCandidateRecord(record)).map((record) => targetOption('keyframe', record, '画面锚点')),
-      ...deliveryVersions.map((record) => targetOption('delivery_version', record, '交付版本')),
     ]
-  }, [assetSlots, contentUnits, deliveryVersions, keyframes, productions, project?.name, projectId, segments])
+  }, [assetSlots, contentUnits, keyframes, productions, project?.name, projectId, segments])
 
   const tasks = useMemo(
     () => workItems.map((item) => workItemToProjectTask(item, reviewerName)),

@@ -2,7 +2,7 @@
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-icon);
   background: color-mix(in srgb, var(--ms-color-background) 80%, transparent);
   color: var(--ms-color-foreground);
 }
@@ -10,13 +10,13 @@
 .app-icon-frame[data-size="sm"] {
   width: 24px;
   height: 24px;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-icon);
 }
 
 .app-icon-frame[data-size="lg"] {
   width: 36px;
   height: 36px;
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-icon);
 }
 
 .app-icon-frame[data-tone="info"] {

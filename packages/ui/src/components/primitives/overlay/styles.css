@@ -1,7 +1,7 @@
 .ms-tooltip__content {
   z-index: 50;
   overflow: hidden;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
   background: var(--ms-color-foreground);
   color: var(--ms-color-background);
   padding: 6px 10px;
@@ -30,7 +30,7 @@
   transform: translate(-50%, -50%);
   gap: var(--ms-space-4);
   border: 1px solid var(--ms-surface-border, var(--ms-color-border));
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-overlay);
   background: var(--ms-surface-raised-background, var(--ms-color-surface));
   color: var(--ms-color-foreground);
   padding: 24px;
@@ -45,7 +45,7 @@
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
   background: transparent;
   color: var(--ms-color-muted-foreground);
   cursor: pointer;
@@ -87,7 +87,7 @@
   min-width: 128px;
   overflow: auto;
   border: 1px solid var(--ms-surface-border, var(--ms-color-border));
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-overlay);
   background: var(--ms-surface-raised-background, var(--ms-color-surface-raised));
   color: var(--ms-color-foreground);
   padding: var(--ms-space-1);
@@ -104,7 +104,7 @@
   user-select: none;
   align-items: center;
   gap: var(--ms-space-2);
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-control);
   color: var(--ms-color-foreground);
   font-family: var(--ms-font-sans);
   font-size: var(--ms-text-body);

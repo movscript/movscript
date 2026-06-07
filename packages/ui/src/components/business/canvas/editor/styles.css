@@ -187,7 +187,7 @@
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  border-radius: var(--ms-radius-lg, 14px);
+  border-radius: var(--ms-radius-panel);
   background: var(--ms-color-page-background);
 }
 
@@ -260,7 +260,7 @@
   flex-shrink: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 76%, transparent);
-  border-radius: var(--ms-radius-lg, 14px);
+  border-radius: var(--ms-radius-panel);
   background: var(--ms-color-surface-raised);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--ms-color-foreground) 5%, transparent);
   transition: width 260ms var(--ms-easing-standard);

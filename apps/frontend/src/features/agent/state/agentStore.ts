@@ -38,6 +38,8 @@ export type ConversationWorkspace = AgentConversationWorkspace
 export interface AgentSettings {
   activeProviderProfileConfigId: AgentSettingsProviderProfileConfigId
   modelId: number | null
+  collaborationMode: 'default' | 'plan'
+  goalModeEnabled: boolean
   includeProjectContext: boolean
   includeRecentResources: boolean
   planMaxWorkers: number
@@ -115,6 +117,8 @@ function genId() {
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   activeProviderProfileConfigId: MOVA_PROVIDER_ID,
   modelId: null,
+  collaborationMode: 'default',
+  goalModeEnabled: false,
   includeProjectContext: true,
   includeRecentResources: true,
   planMaxWorkers: 2,
@@ -262,6 +266,8 @@ export function normalizeAgentSettings(settings?: PersistedAgentSettings | null)
     ...merged,
     activeProviderProfileConfigId: normalizeAgentSettingsProviderProfileConfigId(merged.activeProviderProfileConfigId),
     modelId: normalizePersistedModelId(merged.modelId),
+    collaborationMode: merged.collaborationMode === 'plan' ? 'plan' : DEFAULT_AGENT_SETTINGS.collaborationMode,
+    goalModeEnabled: typeof merged.goalModeEnabled === 'boolean' ? merged.goalModeEnabled : DEFAULT_AGENT_SETTINGS.goalModeEnabled,
     includeProjectContext: typeof merged.includeProjectContext === 'boolean' ? merged.includeProjectContext : DEFAULT_AGENT_SETTINGS.includeProjectContext,
     includeRecentResources: typeof merged.includeRecentResources === 'boolean' ? merged.includeRecentResources : DEFAULT_AGENT_SETTINGS.includeRecentResources,
     toolPermissionsFilterPresets: normalizeToolPermissionsFilterPresets(merged.toolPermissionsFilterPresets),

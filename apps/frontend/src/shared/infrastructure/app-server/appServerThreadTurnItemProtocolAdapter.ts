@@ -107,7 +107,9 @@ export function agentChatThreadFromAppServerThreadTurnItem(thread: AppServerThre
   return {
     provider,
     id: thread.id,
-    sessionId: thread.sessionId || thread.id,
+    providerThreadId: thread.id,
+    providerSessionTreeId: thread.sessionId || undefined,
+    sessionId: thread.sessionId || undefined,
     preview: thread.preview || '',
     name: thread.name,
     createdAt: thread.createdAt,

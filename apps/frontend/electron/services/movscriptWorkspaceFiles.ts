@@ -1,6 +1,10 @@
 import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { ensureMovScriptWorkspaceRoot, resolveMovScriptWorkspaceRootPaths } from '@movscript/core/workspace/node'
+import {
+  ensureMovScriptWorkspaceRoot,
+  resolveMovScriptProjectWorkspacePaths,
+  resolveMovScriptWorkspaceRootPaths,
+} from '@movscript/core/workspace/node'
 import type {
   ElectronMovScriptWorkspaceFileReadResult,
   ElectronMovScriptWorkspaceFilesInput,
@@ -71,7 +75,13 @@ export async function writeMovScriptWorkspaceFile(input: ElectronMovScriptWorksp
   if (existingStat?.isSymbolicLink()) throw new Error('workspace file symlinks are not supported')
   await mkdir(dirname(target.absolutePath), { recursive: true })
   await writeFile(target.absolutePath, input.content, 'utf8')
-  return readMovScriptWorkspaceFile({ workspaceDir: input.workspaceDir, path: target.relativePath })
+  return readMovScriptWorkspaceFile({
+    workspaceDir: input.workspaceDir,
+    ...(input.userId !== undefined ? { userId: input.userId } : {}),
+    ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
+    ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+    path: target.relativePath,
+  })
 }
 
 export async function deleteMovScriptWorkspaceFile(input: ElectronMovScriptWorkspaceFilesInput): Promise<void> {
@@ -86,7 +96,14 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   const workspaceDir = input?.workspaceDir?.trim() || await resolveDefaultMovScriptWorkspaceDir()
   const workspaceRoot = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(workspaceRoot)
-  const rootPath = workspaceRoot.rootDir
+  const rootPath = input?.projectId !== undefined
+    ? resolveMovScriptProjectWorkspacePaths({
+        workspaceDir,
+        ...(input.userId !== undefined ? { userId: input.userId } : {}),
+        ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
+        projectId: input.projectId,
+      }).projectDir
+    : workspaceRoot.rootDir
   const rawRelativePath = typeof input?.path === 'string' ? input.path : ''
   const normalizedRelativePath = rawRelativePath.replace(/^[/\\]+/, '')
   const absolutePath = resolve(rootPath, normalizedRelativePath)

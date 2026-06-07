@@ -22,7 +22,6 @@ import {
   Shapes,
   Telescope,
   ToyBrick,
-  Truck,
   Video,
   Wrench,
 } from 'lucide-react'
@@ -190,7 +189,6 @@ export function Sidebar({
                 </AppSidebarProjectRow>
               )}
               <NavItem to={ROUTES.project.tasks} icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
-              <NavItem to={ROUTES.project.delivery} icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} end />
             </AppSidebarSection>
 
             <AppSidebarDivider collapsed={collapsed} />

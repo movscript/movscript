@@ -1,17 +1,9 @@
-import type {
-  ElectronMovScriptWorkspaceFileReadResult,
-  ElectronMovScriptWorkspaceFilesInput,
-  ElectronMovScriptWorkspaceRootResult,
-} from '@/shared/contracts/electronApi'
 import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
+import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
 import type {
   ProductionSceneMomentOrderPatch,
   ProductionSegmentOrderPatch,
 } from '@/features/production/domain/productionOrchestrationWorkspaceModel'
-import {
-  PRODUCTION_WORKSPACE_SCOPE,
-  PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA,
-} from '@/features/production/domain/productionWorkspaceWorkspace'
 import type {
   WorkspaceCreativeRefNode,
   WorkspaceSceneMomentNode,
@@ -25,36 +17,18 @@ import type {
 } from '@/features/production/domain/productionWritingExpressions'
 import { writingExpressionPayload } from '@/features/production/domain/productionWritingExpressions'
 
-export interface ProductionWorkspaceFilesAPI {
-  root(input?: { workspaceDir?: string }): Promise<ElectronMovScriptWorkspaceRootResult>
-  write(input: ElectronMovScriptWorkspaceFilesInput & { content: string }): Promise<ElectronMovScriptWorkspaceFileReadResult>
-}
-
 export type ProductionWorkspaceSnapshot = { segments: WorkspaceSegmentNode[] }
-
-export function requireProductionWorkspaceAPI(): ProductionWorkspaceFilesAPI {
-  const api = window.api
-  if (!api?.getMovScriptWorkspaceRoot || !api.writeMovScriptWorkspaceFile) {
-    throw new Error('当前窗口没有 MovScript 工作区文件能力')
-  }
-  return {
-    root: api.getMovScriptWorkspaceRoot,
-    write: api.writeMovScriptWorkspaceFile,
-  }
-}
 
 export async function saveProductionWorkspaceSnapshot(input: {
   projectId: number
   productionId: number
   snapshot: ProductionWorkspaceSnapshot
 }): Promise<ProductionWorkspaceSnapshot> {
-  const api = requireProductionWorkspaceAPI()
-  const root = await api.root()
-  const userId = root.manifest.activeUserId ?? 'local'
-  const path = productionWorkspaceFilePath(userId, input.projectId, input.productionId)
-  await api.write({
-    path,
-    content: `${JSON.stringify(productionWorkspaceEnvelope(input), null, 2)}\n`,
+  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+  await service.saveProductionSnapshot({
+    projectId: input.projectId,
+    productionId: input.productionId,
+    snapshot: input.snapshot,
   })
   return input.snapshot
 }
@@ -278,33 +252,6 @@ export async function unlinkProductionSceneMomentReferenceWorkspaceEdit(input: {
   if (!reference) throw new Error('未找到情节设定')
   reference.__delete = true
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
-}
-
-export function productionWorkspaceFilePath(
-  _userId: string | number,
-  projectId: string | number,
-  productionId: string | number,
-): string {
-  return `edit/productions/production_${String(productionId)}/production.json`
-}
-
-function productionWorkspaceEnvelope(input: {
-  projectId: number
-  productionId: number
-  snapshot: ProductionWorkspaceSnapshot
-}): Record<string, unknown> {
-  return {
-    schema: PRODUCTION_WORKSPACE_WORKSPACE_SCHEMA,
-    scope: PRODUCTION_WORKSPACE_SCOPE,
-    mode: 'snapshot',
-    projectId: input.projectId,
-    productionId: input.productionId,
-    workspaceScope: 'production',
-    summary: '',
-    workspace: input.snapshot,
-    impact_notes: [],
-    proposedAt: new Date().toISOString(),
-  }
 }
 
 function cloneProductionWorkspaceSnapshot(snapshot: ProductionWorkspaceSnapshot): ProductionWorkspaceSnapshot {

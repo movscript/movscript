@@ -13,6 +13,7 @@ export function persistWorkspaceBackendAuth(next: MCPContextUpdate): void {
   try {
     writeMovScriptBackendAuth(resolveMCPDefaultWorkspaceDir(), {
       token,
+      gitCredential: next.auth?.gitCredential,
       user: next.user ? {
         id: next.user.id,
         username: next.user.username,

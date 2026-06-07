@@ -75,7 +75,7 @@ export function useAgentChatViewController({
     settings: store.settings,
     updateSettings: store.updateSettings,
   })
-  const activeRun = store.conversationProviderSessionState?.run ?? null
+  const activeRun = store.conversationRuntimeState?.run ?? null
   const providerSessionState = useAgentChatProviderSessionState({
     activeRunId: activeRun?.id,
     conversationId: conv.id,
@@ -90,8 +90,8 @@ export function useAgentChatViewController({
     inputRef: providerSessionState.inputRef,
   })
 
-  const loading = store.conversationProviderSessionState?.loading ?? false
-  const buildingSendWorkspace = store.conversationProviderSessionState?.building ?? false
+  const loading = store.conversationRuntimeState?.loading ?? false
+  const buildingSendWorkspace = store.conversationRuntimeState?.building ?? false
 
   const context = useAgentChatContextState({
     agentContextConfig: store.agentContextConfig,
@@ -114,10 +114,10 @@ export function useAgentChatViewController({
     messages: effectiveConversation.transcriptMessages,
     pendingAssistantState: providerSessionState.pendingAssistantState,
     pendingSendWorkspace: providerSessionState.pendingSendWorkspace,
-    providerSessionApproving: store.conversationProviderSessionState?.approving,
+    providerSessionApproving: store.conversationRuntimeState?.approving,
     providerSessionBuilding: buildingSendWorkspace,
-    providerSessionStopping: store.conversationProviderSessionState?.stopping,
-    providerSessionStopRequested: store.conversationProviderSessionState?.stopRequested,
+    providerSessionStopping: store.conversationRuntimeState?.stopping,
+    providerSessionStopRequested: store.conversationRuntimeState?.stopRequested,
     streamingAssistantMessageId: providerSessionState.streamingAssistantMessageId,
     streamingAssistantText: providerSessionState.streamingAssistantText,
     submittedInteractionRuns: providerSessionState.submittedInteractionRuns,

@@ -7,9 +7,9 @@
 @import "./components/business/agent/styles.css";
 @import "./components/business/canvas/styles.css";
 @import "./components/business/content/styles.css";
-@import "./components/business/delivery/styles.css";
 @import "./components/business/detail/styles.css";
 @import "./components/business/generation/styles.css";
+@import "./components/business/identity/styles.css";
 @import "./components/business/jobs/styles.css";
 @import "./components/business/organization/styles.css";
 @import "./components/business/plugins/styles.css";

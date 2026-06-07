@@ -12,7 +12,7 @@ import {
 test('workbench session keys are scoped by project and workbench', () => {
   assert.equal(workbenchSessionKey(12, 'content_orchestration'), '12:content_orchestration')
   assert.equal(workbenchSessionKey(12, 'scripts'), '12:scripts')
-  assert.equal(workbenchSessionKey(null, 'delivery'), '0:delivery')
+  assert.equal(workbenchSessionKey(null, 'orchestration_production'), '0:orchestration_production')
 })
 
 test('workbench session explicit search detection ignores empty params', () => {
@@ -25,8 +25,8 @@ test('workbench session snapshot normalization drops invalid entries and preserv
   const snapshots = normalizeWorkbenchSessionSnapshots({
     valid: {
       projectId: '18',
-      workbenchId: 'delivery',
-      route: '/project/delivery/workbench',
+      workbenchId: 'orchestration_production',
+      route: '/project/production/orchestration',
       search: 'productionId=4',
       updatedAt: '2026-05-29T00:00:00.000Z',
       filters: {
@@ -36,13 +36,13 @@ test('workbench session snapshot normalization drops invalid entries and preserv
       },
       selection: {
         primary: { entityType: 'production', entityId: '4' },
-        secondary: { entityType: 'delivery_version', entityId: 9 },
+        secondary: { entityType: 'scene_moment', entityId: 9 },
         scopeLevel: 'production',
       },
     },
     invalid: {
       projectId: 0,
-      workbenchId: 'delivery',
+      workbenchId: 'orchestration_production',
     },
   })
 
@@ -58,21 +58,21 @@ test('workbench session store merges partial filter updates for the same workben
 
   useWorkbenchSessionStore.getState().upsertSnapshot({
     projectId: 9,
-    workbenchId: 'delivery',
-    filters: { versionFilter: 'all', versionSearch: '' },
+    workbenchId: 'orchestration_production',
+    filters: { productionFilter: 'all', productionSearch: '' },
     selection: { primary: { entityType: 'production', entityId: 3 } },
   })
   useWorkbenchSessionStore.getState().upsertSnapshot({
     projectId: 9,
-    workbenchId: 'delivery',
+    workbenchId: 'orchestration_production',
     filters: { selectedItemId: 44 },
     selection: {
       primary: { entityType: 'production', entityId: 3 },
-      secondary: { entityType: 'delivery_version', entityId: 12 },
+      secondary: { entityType: 'scene_moment', entityId: 12 },
     },
   })
 
-  const snapshot = useWorkbenchSessionStore.getState().snapshotFor(9, 'delivery')
-  assert.deepEqual(snapshot?.filters, { versionFilter: 'all', versionSearch: '', selectedItemId: 44 })
-  assert.deepEqual(snapshot?.selection?.secondary, { entityType: 'delivery_version', entityId: 12 })
+  const snapshot = useWorkbenchSessionStore.getState().snapshotFor(9, 'orchestration_production')
+  assert.deepEqual(snapshot?.filters, { productionFilter: 'all', productionSearch: '', selectedItemId: 44 })
+  assert.deepEqual(snapshot?.selection?.secondary, { entityType: 'scene_moment', entityId: 12 })
 })

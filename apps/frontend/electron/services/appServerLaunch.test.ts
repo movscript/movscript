@@ -72,9 +72,22 @@ test('app-server launch env uses MovScript distributed auth and provider home', 
   assert.equal(env.CODEX_HOME, movaHome)
   assert.equal(env.OPENAI_API_KEY, 'distributed-key')
   assert.equal(env.OTHER_ENV, 'kept')
+  assert.equal(env.RUST_LOG, 'info')
   assert.equal(env.MOVSCRIPT_APP_SERVER_PROFILE_ID, 'mova-movscript-home')
   assert.equal(env.MOVSCRIPT_APP_SERVER_CONFIG_SOURCE, distribution.sourceConfigPath)
   assert.equal('MOVSCRIPT_CODEX_CONFIG_SOURCE' in env, false)
+})
+
+test('app-server launch env preserves explicit RUST_LOG override', () => {
+  const env = appServerLaunchEnv({
+    profileId: 'mova-movscript-home',
+    configDistribution: appServerDistributionFixture(),
+    inheritedEnv: {
+      RUST_LOG: 'warn,codex_app_server=trace',
+    },
+  })
+
+  assert.equal(env.RUST_LOG, 'warn,codex_app_server=trace')
 })
 
 test('app-server launch returns a managed config status when account is missing', () => {

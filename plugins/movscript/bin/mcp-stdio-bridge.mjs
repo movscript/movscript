@@ -26,20 +26,22 @@ const workspaceTools = [
     name: 'movscript_workspace_get_model',
     description: 'Return the domain workspace model for editing one MovScript entity: workspace kind, editable paths, context paths, schema ids, and agent instructions. This does not write files.',
     inputSchema: objectSchema({
-      entityType: { type: 'string', description: 'Domain entity type, for example setting, asset_slot, production, content_unit, or keyframe.' },
+      entityKind: { type: 'string', description: 'Domain entity kind, for example setting, asset, production, content_unit, or keyframe.' },
+      entity_kind: { type: 'string', description: 'Alias for entityKind.' },
       entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
-    }, ['entityType']),
+      entity_id: { type: ['string', 'number'], description: 'Alias for entityId.' },
+    }, ['entityKind']),
   },
   {
     name: 'movscript_workspace_review',
-    description: 'Review current workspace edits by comparing .build/current with edit/. Reports changed files, changed entities, schema/domain issues, and whether build is ready. This does not make edits effective.',
+    description: 'Review current source edits by comparing .build/current with source files. Reports changed files, changed entities, schema/domain issues, and whether build is ready. This does not make edits effective.',
     inputSchema: objectSchema({
       workspaceDir: { type: 'string', description: 'Optional project workspace root. Defaults to the current MovScript workspace dir.' },
     }),
   },
   {
     name: 'movscript_workspace_build',
-    description: 'Build current edit/ files into .build/current and .build/indexes. Build must succeed before edits become the current effective workspace state.',
+    description: 'Build current source files into .build/current and .build/indexes. Build must succeed before edits become the current effective workspace state.',
     inputSchema: objectSchema({
       workspaceDir: { type: 'string', description: 'Optional project workspace root. Defaults to the current MovScript workspace dir.' },
     }),
@@ -284,7 +286,108 @@ const queryTools = [
   },
 ]
 
+const systemTools = [
+  ...renameTools(workspaceTools, {
+    movscript_focus_get: 'system_focus_get',
+    movscript_project_create: 'system_project_create',
+  }),
+  ...renameTools(generationTools, {
+    generation_model_list: 'system_model_list',
+    generation_image_generate: 'system_generate_image',
+    generation_image_job_get: 'system_generate_image_job_get',
+    generation_video_generate: 'system_generate_video',
+    generation_video_job_get: 'system_generate_video_job_get',
+  }),
+  ...renameTools(queryTools, {
+    movscript_resource_library_query: 'system_resource_library_query',
+    movscript_resource_image_read: 'system_resource_image_read',
+    movscript_resource_video_extract_frames: 'system_resource_video_extract_frames',
+    movscript_resource_image_annotate: 'system_resource_image_annotate',
+    movscript_resource_upload: 'system_resource_upload',
+    movscript_shot_library_query: 'system_shot_library_query',
+    movscript_external_resource_source_list: 'system_external_resource_source_list',
+    movscript_external_resource_search: 'system_external_resource_search',
+  }),
+]
+
+const domainTools = [
+  ...renameTools(workspaceTools, {
+    movscript_workspace_get_model: 'domain_get_model',
+    movscript_workspace_review: 'domain_review',
+    movscript_workspace_build: 'domain_build',
+  }),
+  {
+    name: 'domain_query_entities',
+    description: 'Query indexed MovScript domain source entities by entity kind, ids, status, path context, or free text.',
+    inputSchema: objectSchema(domainQueryProperties()),
+  },
+  {
+    name: 'domain_query_settings',
+    description: 'Query MovScript setting domain entities such as characters, locations, props, world rules, and styles.',
+    inputSchema: objectSchema(domainQueryProperties()),
+  },
+  {
+    name: 'domain_query_assets',
+    description: 'Query MovScript setting-owned and setting-state-owned asset slots, optionally including inline candidates.',
+    inputSchema: objectSchema({ ...domainQueryProperties(), includeCandidates: { type: 'boolean' }, include_candidates: { type: 'boolean' } }),
+  },
+  {
+    name: 'domain_query_production_context',
+    description: 'Query production planning context: productions, segments, scene moments, storyboards, writing expressions, content units, and keyframes.',
+    inputSchema: objectSchema({ ...domainQueryProperties(), include: { type: 'array', items: { type: 'string' } } }),
+  },
+  {
+    name: 'domain_compile_content_generation_prompt',
+    description: 'Compile generation prompt context for a content unit from domain source indexes.',
+    inputSchema: objectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+  },
+  {
+    name: 'domain_read_preview_timeline',
+    description: 'Read a built production preview timeline from .build/current. This is read-only build output.',
+    inputSchema: objectSchema({ ...workspaceLocatorProperties(), productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] } }),
+  },
+  {
+    name: 'domain_read_content_generation_prompt',
+    description: 'Read a built content unit generation prompt from .build/current. This is read-only build output.',
+    inputSchema: objectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+  },
+  ...[
+    ['domain_upsert_project_standards', 'Create or update project-wide creative standards in project_standards.json.'],
+    ['domain_upsert_setting', 'Create or update a MovScript setting source entity.'],
+    ['domain_upsert_asset', 'Create or update a MovScript asset slot source entity under a setting or setting state.'],
+    ['domain_upsert_script', 'Create or update a script source record and script.md text.'],
+    ['domain_read_script_source', 'Read script.md source text for a script domain entity.'],
+    ['domain_snapshot_script_version', 'Create a script version and script blocks from a script Markdown source.'],
+    ['domain_upsert_content_unit', 'Create or update a project-level content unit and optional content-unit keyframes.'],
+    ['domain_update_content_unit_prompt', 'Update a content unit editable prompt.'],
+    ['domain_update_scene_moment_timing', 'Update scene_moment storyboard_timing, audio, transition, and active storyboard id.'],
+    ['domain_update_storyboard_shot_plans', 'Update storyboard shot_plans.'],
+    ['domain_append_candidate', 'Append an inline candidate to an asset, keyframe, or content unit source entity.'],
+    ['domain_select_candidate', 'Select and lock an inline candidate on an asset, keyframe, or content unit source entity.'],
+    ['domain_update_candidate', 'Update an inline candidate on an asset, keyframe, or content unit source entity.'],
+    ['domain_unlock_candidate', 'Remove an inline candidate lock from an asset, keyframe, or content unit source entity.'],
+    ['domain_delete_entity', 'Delete a MovScript domain source entity file.'],
+  ].map(([name, description]) => ({
+    name,
+    description,
+    inputSchema: objectSchema({
+      ...workspaceLocatorProperties(),
+      payload: { type: 'object', additionalProperties: true },
+      record: { type: 'object', additionalProperties: true },
+      entity: { type: 'object', additionalProperties: true },
+      targetPath: { type: 'string' },
+      target_path: { type: 'string' },
+      targetKind: { type: 'string', enum: ['asset', 'keyframe', 'content_unit'] },
+      target_kind: { type: 'string', enum: ['asset', 'keyframe', 'content_unit'] },
+      candidateId: { type: 'string' },
+      candidate_id: { type: 'string' },
+    }),
+  })),
+]
+
 const fallbackTools = [
+  ...systemTools,
+  ...domainTools,
   ...generationTools,
   ...queryTools,
   ...workspaceTools,
@@ -450,6 +553,56 @@ function mergeTools(primary, fallback) {
     result.push(tool)
   }
   return result
+}
+
+function renameTools(tools, names) {
+  return tools
+    .filter((tool) => names[tool.name])
+    .map((tool) => ({
+      ...tool,
+      name: names[tool.name],
+      description: `${tool.description} Alias for ${tool.name}.`,
+    }))
+}
+
+function workspaceLocatorProperties() {
+  return {
+    workspaceDir: { type: 'string' },
+    workspace_dir: { type: 'string' },
+    userId: { type: ['string', 'number'] },
+    user_id: { type: ['string', 'number'] },
+    orgId: { type: ['string', 'number'] },
+    org_id: { type: ['string', 'number'] },
+    projectId: { type: ['string', 'number'] },
+    project_id: { type: ['string', 'number'] },
+  }
+}
+
+function domainQueryProperties() {
+  return {
+    ...workspaceLocatorProperties(),
+    entityKind: { type: 'string' },
+    entity_kind: { type: 'string' },
+    status: { type: 'string' },
+    kind: { type: 'string' },
+    query: { type: 'string' },
+    q: { type: 'string' },
+    productionId: { type: ['string', 'number'] },
+    production_id: { type: ['string', 'number'] },
+    segmentId: { type: ['string', 'number'] },
+    segment_id: { type: ['string', 'number'] },
+    sceneMomentId: { type: ['string', 'number'] },
+    scene_moment_id: { type: ['string', 'number'] },
+    storyboardId: { type: ['string', 'number'] },
+    storyboard_id: { type: ['string', 'number'] },
+    contentUnitId: { type: ['string', 'number'] },
+    content_unit_id: { type: ['string', 'number'] },
+    settingId: { type: ['string', 'number'] },
+    setting_id: { type: ['string', 'number'] },
+    settingStateId: { type: ['string', 'number'] },
+    setting_state_id: { type: ['string', 'number'] },
+    limit: { type: 'number' },
+  }
 }
 
 function objectSchema(properties, required = []) {

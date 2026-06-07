@@ -20,7 +20,7 @@ export interface UseAgentPlanActionBindingsInput {
   dispatchSettings: PlanDispatchSettings
   setBusy: (busy: boolean) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentPlanActionDeps['setConversationRun']>[1]) => void
-  setConversationProviderSessionState: (conversationId: string, patch: { error?: string; loading?: boolean }) => void
+  updateConversationRuntimeState: (conversationId: string, patch: { error?: string; loading?: boolean }) => void
   refetchPlanSnapshot: () => Promise<unknown>
 }
 
@@ -33,7 +33,7 @@ export function useAgentPlanActionBindings({
   dispatchSettings,
   setBusy,
   setConversationRun,
-  setConversationProviderSessionState,
+  updateConversationRuntimeState,
   refetchPlanSnapshot,
 }: UseAgentPlanActionBindingsInput) {
   const providerSessionPlanClient = useMemo(() => sessionId?.trim()
@@ -42,14 +42,14 @@ export function useAgentPlanActionBindings({
   const deps = useMemo<AgentPlanActionDeps>(() => ({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
-    reportError: (message) => setConversationProviderSessionState(conversationId, { error: message, loading: false }),
+    reportError: (message) => updateConversationRuntimeState(conversationId, { error: message, loading: false }),
     dispatchTaskGraph: (taskGraphId, input) => providerSessionPlanClient.dispatchTaskGraph(taskGraphId, input),
     replanRun: (runId, input) => providerSessionPlanClient.replanRun(runId, input),
     updateTask: (taskId, input) => providerSessionPlanClient.updateTask(taskId, input),
     cancelRunTree: (runId, input) => providerSessionPlanClient.cancelRunTree(runId, input),
     getRun: (runId) => providerSessionPlanClient.getRun(runId),
     refetchPlanSnapshot,
-  }), [conversationId, providerSessionPlanClient, refetchPlanSnapshot, setBusy, setConversationRun, setConversationProviderSessionState])
+  }), [conversationId, providerSessionPlanClient, refetchPlanSnapshot, setBusy, setConversationRun, updateConversationRuntimeState])
 
   const dispatchActiveTaskGraph = useCallback(async () => {
     if (busy) return

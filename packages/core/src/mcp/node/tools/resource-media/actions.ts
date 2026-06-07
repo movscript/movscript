@@ -102,7 +102,7 @@ export async function extractResourceVideoFramesForVision(args: Record<string, u
       centerSec: numberParam(args.center_sec) ?? numberParam(args.centerSec),
       windowSec: numberParam(args.window_sec) ?? numberParam(args.windowSec),
       fps: numberParam(args.fps),
-      intervalSec: numberParam(args.interval_sec) ?? numberParam(args.intervalSec) ?? legacyIntervalFallback(args),
+      intervalSec: numberParam(args.interval_sec) ?? numberParam(args.intervalSec),
     }, video)
     const frames: Array<{ index: number; timestamp_sec: number; mime_type: string; size_bytes: number; image_payload: string }> = []
     const images: Array<{ label: string; data: string; mimeType: string }> = []
@@ -853,14 +853,6 @@ function shapeType(value: unknown): AnnotationShapeType | undefined {
   return value === 'rect' || value === 'circle' || value === 'line' || value === 'arrow' || value === 'text' || value === 'highlight'
     ? value
     : undefined
-}
-
-function legacyIntervalFallback(args: Record<string, unknown>): number | undefined {
-  if (modeParam(args.mode) || args.start_sec !== undefined || args.startSec !== undefined || args.end_sec !== undefined || args.endSec !== undefined || args.center_sec !== undefined || args.centerSec !== undefined) {
-    return undefined
-  }
-  if (args.timestamps_sec !== undefined || args.timestampsSec !== undefined) return undefined
-  return DEFAULT_VIDEO_FRAME_INTERVAL_SEC
 }
 
 function normalizeImageMimeType(value: string | undefined): string {

@@ -4,13 +4,12 @@ import "gorm.io/gorm"
 
 type Project struct {
 	gorm.Model
-	Name        string `gorm:"not null" json:"name"`
-	Description string `json:"description"`
-	OwnerID     uint   `json:"owner_id"`
-	Owner       User   `json:"owner,omitempty"`
-	OrgID       *uint  `gorm:"index" json:"org_id,omitempty"`
-	// planning|script_analysis|asset_prep|production|editing|done
-	Status        string          `gorm:"default:'planning'" json:"status"`
+	Name          string          `gorm:"not null" json:"name"`
+	Description   string          `json:"description"`
+	OwnerID       uint            `json:"owner_id"`
+	Owner         User            `json:"owner,omitempty"`
+	OrgID         *uint           `gorm:"index" json:"org_id,omitempty"`
+	Organization  Organization    `gorm:"foreignKey:OrgID" json:"organization,omitempty"`
 	TotalEpisodes int             `json:"total_episodes"`
 	AspectRatio   string          `gorm:"default:''" json:"aspect_ratio"`
 	VisualStyle   string          `gorm:"type:text" json:"visual_style"`

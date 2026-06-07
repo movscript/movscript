@@ -21,6 +21,7 @@ export function ElectronMCPContextBridge() {
   }, [location.pathname, location.search])
   const user = useUserStore((s) => s.currentUser)
   const token = useUserStore((s) => s.token)
+  const gitCredential = useUserStore((s) => s.gitCredential)
   const lastSentSnapshotRef = useRef('')
 
   const snapshot = useMemo<Omit<MCPContextUpdate, 'updatedAt'>>(() => ({
@@ -42,7 +43,19 @@ export function ElectronMCPContextBridge() {
       username: user.username,
       systemRole: user.system_role,
     } : null,
-    auth: token ? { token } : null,
+    auth: token ? {
+      token,
+      ...(gitCredential ? {
+        gitCredential: {
+          provider: gitCredential.provider,
+          username: gitCredential.username,
+          ...(gitCredential.token ? { token: gitCredential.token } : {}),
+          ...(gitCredential.maskedToken ?? gitCredential.masked_token ? { maskedToken: gitCredential.maskedToken ?? gitCredential.masked_token } : {}),
+          ...(gitCredential.status ? { status: gitCredential.status } : {}),
+          ...(gitCredential.lastError ?? gitCredential.last_error ? { lastError: gitCredential.lastError ?? gitCredential.last_error } : {}),
+        },
+      } : {}),
+    } : null,
     selection: null,
   }), [
     location.hash,
@@ -54,6 +67,7 @@ export function ElectronMCPContextBridge() {
     project?.name,
     project?.status,
     project?.total_episodes,
+    gitCredential,
     token,
     user?.ID,
     user?.system_role,

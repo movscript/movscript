@@ -11,9 +11,9 @@ import {
 } from '@/features/agent/domain/agentChatMessageViews'
 import {
   AgentChatImagePreviewGrid,
+  AgentChatInspectBlock,
   AgentChatInlineList,
   AgentChatMediaPreviewGrid,
-  AgentChatPreviewBlock,
   AgentChatSectionTitle,
   AgentChatTextBlock,
 } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks'
@@ -23,12 +23,9 @@ export function AgentChatUserMessageItem({ item }: { item: Extract<AgentChatThre
   return (
     <AgentChatMessage role="user" avatar="U" data-testid="agent-chat-user-message">
       <AgentChatContentStack>
-        {view.text ? <div className="whitespace-pre-wrap break-words">{view.text}</div> : null}
+        {view.text ? <div className="ms-agent-chat-message-text">{view.text}</div> : null}
         {view.textElementSummary.length > 0 ? (
           <AgentChatInlineList label="Text spans" values={view.textElementSummary} />
-        ) : null}
-        {view.textElementDetails.length > 0 ? (
-          <AgentChatPreviewBlock label="Text elements" value={view.textElementDetails} contentKind="rawDetails" />
         ) : null}
         {view.imageAttachments.length > 0 ? (
           <AgentChatImagePreviewGrid
@@ -42,13 +39,12 @@ export function AgentChatUserMessageItem({ item }: { item: Extract<AgentChatThre
         {view.attachments.length > 0 ? (
           <AgentChatInlineList label="Attachments" values={view.attachmentLabels} />
         ) : null}
-        {view.attachments.length > 0 ? (
-          <AgentChatPreviewBlock label="Attachment details" value={view.attachments} contentKind="rawDetails" />
-        ) : null}
-        {view.rawDetails !== undefined ? (
-          <AgentChatPreviewBlock label="User message details" value={view.rawDetails} contentKind="rawDetails" />
-        ) : null}
-        {!view.text && view.attachments.length === 0 ? <div className="text-muted-foreground">Empty user message</div> : null}
+        <AgentChatInspectBlock entries={[
+          view.textElementDetails.length > 0 ? { label: 'textElements', value: view.textElementDetails } : null,
+          view.attachments.length > 0 ? { label: 'attachments', value: view.attachments } : null,
+          view.rawDetails !== undefined ? { label: 'message', value: view.rawDetails } : null,
+        ]} />
+        {!view.text && view.attachments.length === 0 ? <div className="ms-agent-chat-empty-text">Empty user message</div> : null}
       </AgentChatContentStack>
     </AgentChatMessage>
   )
@@ -62,7 +58,6 @@ export function AgentChatHookPromptItem({ item }: { item: Extract<AgentChatThrea
         <AgentChatContentStack>
           {view.hookRunIds.length ? <AgentChatInlineList label="Hook runs" values={view.hookRunIds} /> : null}
           {view.text ? <AgentChatTextBlock label="Prompt" value={view.text} tone="process" contentKind="prompt" /> : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="Hook details" value={view.rawDetails} contentKind="rawDetails" /> : null}
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -74,22 +69,20 @@ export function AgentChatAgentMessageItem({ item, streaming }: { item: Extract<A
   return (
     <AgentChatMessage role="assistant" avatar="AI" data-testid="agent-chat-agent-message">
       <AgentChatContentStack>
-        <div className="whitespace-pre-wrap break-words">{view.text || (streaming ? '...' : '')}</div>
+        <div className="ms-agent-chat-message-text">{view.text || (streaming ? '...' : '')}</div>
         {(view.phaseLabel || view.hasMemoryCitation) ? (
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            {view.phaseLabel ? <span className="rounded border border-border px-2 py-1">{view.phaseLabel}</span> : null}
-            {view.hasMemoryCitation ? <span className="rounded border border-border px-2 py-1">memory citation</span> : null}
+          <div className="ms-agent-chat-chip-row">
+            {view.phaseLabel ? <span className="ms-agent-chat-chip">{view.phaseLabel}</span> : null}
+            {view.hasMemoryCitation ? <span className="ms-agent-chat-chip">memory citation</span> : null}
           </div>
         ) : null}
         {view.memoryCitationSummary.length > 0 ? (
           <AgentChatInlineList label="Memory citations" values={view.memoryCitationSummary} />
         ) : null}
-        {view.memoryCitationDetails ? (
-          <AgentChatPreviewBlock label="Memory citation details" value={view.memoryCitationDetails} contentKind="rawDetails" />
-        ) : null}
-        {view.rawDetails !== undefined ? (
-          <AgentChatPreviewBlock label="Message details" value={view.rawDetails} contentKind="rawDetails" />
-        ) : null}
+        <AgentChatInspectBlock entries={[
+          view.memoryCitationDetails ? { label: 'memoryCitations', value: view.memoryCitationDetails } : null,
+          view.rawDetails !== undefined ? { label: 'message', value: view.rawDetails } : null,
+        ]} />
       </AgentChatContentStack>
     </AgentChatMessage>
   )

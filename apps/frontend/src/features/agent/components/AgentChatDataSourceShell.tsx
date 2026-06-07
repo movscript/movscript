@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AgentBody,
-  AgentConversationListPanel,
+  Button,
+  AgentConversationItem,
   AgentConversationTabsPanel,
   AgentEmpty,
   AgentHeader,
@@ -14,6 +15,7 @@ import {
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { ProviderControls } from '@/features/agent/components/ProviderControls'
 import { AgentChatRecentCapabilityEventCard } from '@/features/agent/components/agent-chat-events/AgentChatRecentCapabilityEventCard'
+import { AgentPinnedStatusShelf, type AgentPinnedStatusSummaryItem } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { AgentChatServerRequestCard } from '@/features/agent/components/agent-chat-items/AgentChatServerRequestCard'
 import { AgentChatThreadItemView } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemView'
 import { agentChatRecentCapabilityEventEntryId } from '@/features/agent/domain/agentChatRecentCapabilityEvents'
@@ -47,7 +49,9 @@ import {
 } from '@/features/agent/presentation/agentConversationOpenOrder'
 import {
   agentChatInputsFromTextAndAttachments,
+  legacySessionIdFromAgentChatThread,
   type AgentChatDataSource,
+  type AgentChatCollaborationMode,
   type AgentChatModelSelection,
   type AgentChatNotification,
   type AgentChatNotificationEvent,
@@ -80,13 +84,17 @@ import {
   type AgentRunProfileSelection,
 } from '@/features/agent/domain/agentRunProfilePreset'
 import { api } from '@/shared/infrastructure/api'
-import type { RawResource } from '@/types'
+import type { PublicModel, RawResource } from '@/types'
 
 type PendingServerRequest = AgentChatPendingServerRequestEntry & AgentChatPendingServerRequestQueueEntry
 
 type RecentCapabilityEvent = {
   id: string
   event: AgentChatNotificationEvent
+}
+
+type AgentChatStatusSummaryEntry = AgentPinnedStatusSummaryItem & {
+  updatedAt: number
 }
 
 export interface AgentChatDataSourceShellLoadResult {
@@ -108,9 +116,17 @@ export interface AgentChatDataSourceShellProps {
   composerPlaceholder: string
   newThreadLabel: string
   resolveModelForRequest?: () => AgentChatModelSelection
+  modelOptions?: PublicModel[]
+  selectedModelId?: number | null
+  onSelectedModelChange?: (modelId: number | null) => void
+  collaborationMode?: AgentChatCollaborationMode
+  goalModeEnabled?: boolean
+  onCollaborationModeChange?: (mode: AgentChatCollaborationMode) => void
+  onGoalModeEnabledChange?: (enabled: boolean) => void
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
   showThreadList?: boolean
+  autoLoadThreads?: boolean
   showCollapse?: boolean
   onCollapse?: () => void
 }
@@ -127,13 +143,18 @@ export function AgentChatDataSourceShell({
   emptyThreadLabel,
   unavailableLabel,
   composerPlaceholder,
-  newThreadLabel,
   resolveModelForRequest = () => ({}),
+  modelOptions = [],
+  selectedModelId,
+  onSelectedModelChange,
+  collaborationMode = 'default',
+  goalModeEnabled = false,
+  onCollaborationModeChange,
+  onGoalModeEnabledChange,
   host,
   surface = 'panel',
   showThreadList = surface !== 'page',
-  showCollapse = false,
-  onCollapse = () => undefined,
+  autoLoadThreads = true,
 }: AgentChatDataSourceShellProps) {
   const [dataSource, setDataSource] = useState<AgentChatDataSource | undefined>()
   const [endpoint, setEndpoint] = useState<string | undefined>()
@@ -142,17 +163,22 @@ export function AgentChatDataSourceShell({
   const [pendingUserItems, setPendingUserItems] = useState<AgentChatPendingUserItem[]>([])
   const [pendingServerRequests, setPendingServerRequests] = useState<PendingServerRequest[]>([])
   const [recentCapabilityEvents, setRecentCapabilityEvents] = useState<RecentCapabilityEvent[]>([])
+  const [statusSummaryEntries, setStatusSummaryEntries] = useState<AgentChatStatusSummaryEntry[]>([])
   const [streamingAgentItems, setStreamingAgentItems] = useState<Record<string, AgentChatStreamingAgentItem>>({})
   const [realtimeTranscriptItems, setRealtimeTranscriptItems] = useState<Record<string, AgentChatRealtimeTranscriptItem>>({})
   const [realtimeAudioItems, setRealtimeAudioItems] = useState<Record<string, AgentChatRealtimeAudioItem>>({})
   const streamingAgentItemsRef = useRef<Record<string, AgentChatStreamingAgentItem>>({})
   const recentCapabilityEventSequenceRef = useRef(0)
   const activeThreadIdRef = useRef(activeThreadId)
+  const loadDataSourceRef = useRef(loadDataSource)
+  const loadThreadsRef = useRef<() => Promise<void>>(async () => undefined)
+  const restoreStoredThreadRef = useRef<() => Promise<void>>(async () => undefined)
   const composerInputRef = useRef<HTMLDivElement | null>(null)
   const composerFileRef = useRef<HTMLInputElement | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [stoppingTurn, setStoppingTurn] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const composerConversationId = agentChatComposerConversationId(activeThreadStorageKey, activeThreadId)
@@ -182,6 +208,10 @@ export function AgentChatDataSourceShell({
     setStreamingAgentItems(next)
   }, [])
 
+  useEffect(() => {
+    loadDataSourceRef.current = loadDataSource
+  }, [loadDataSource])
+
   useAgentMentionEditorSync({
     conversationId: composerConversationId,
     input: composer.input,
@@ -199,6 +229,7 @@ export function AgentChatDataSourceShell({
     setPendingUserItems([])
     setPendingServerRequests((current) => removeAgentChatPendingServerRequests(current, () => true))
     setRecentCapabilityEvents([])
+    setStatusSummaryEntries([])
     updateStreamingAgentItems(() => ({}))
     setRealtimeTranscriptItems({})
     setRealtimeAudioItems({})
@@ -206,7 +237,7 @@ export function AgentChatDataSourceShell({
     setSending(false)
     setStoppingTurn(false)
     setActiveThreadIdValue(readStoredActiveThreadId(activeThreadStorageKey))
-    void loadDataSource()
+    void loadDataSourceRef.current()
       .then((result) => {
         if (cancelled) return
         setDataSource(result.dataSource)
@@ -221,7 +252,7 @@ export function AgentChatDataSourceShell({
     return () => {
       cancelled = true
     }
-  }, [activeThreadStorageKey, loadDataSource, setActiveThreadIdValue, updateStreamingAgentItems])
+  }, [activeThreadStorageKey, setActiveThreadIdValue, updateStreamingAgentItems])
 
   const upsertThread = useCallback((thread: AgentChatThread) => {
     setThreads((current) => {
@@ -242,6 +273,11 @@ export function AgentChatDataSourceShell({
     if (clearActive) writeAgentActiveConversationId(userId, null)
   }, [userId])
 
+  const readHistoryThread = useCallback(async (threadId: string) => {
+    if (!dataSource) throw new Error('Agent data source is not available')
+    return dataSource.readThread(threadId, { includeTurns: true })
+  }, [dataSource])
+
   const loadThreads = useCallback(async () => {
     if (!dataSource) return
     setLoading(true)
@@ -257,7 +293,7 @@ export function AgentChatDataSourceShell({
       setActiveThreadIdValue(nextActive)
       writeStoredActiveThreadId(activeThreadStorageKey, nextActive)
       if (nextActive) {
-        const thread = await dataSource.readThread(nextActive, { includeTurns: true })
+        const thread = await readHistoryThread(nextActive)
         upsertThread(thread)
       }
     } catch (nextError) {
@@ -265,7 +301,35 @@ export function AgentChatDataSourceShell({
     } finally {
       setLoading(false)
     }
-  }, [activeThreadStorageKey, dataSource, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
+
+  const restoreStoredThread = useCallback(async () => {
+    if (!dataSource) return
+    const stored = readStoredActiveThreadId(activeThreadStorageKey)
+    if (!stored) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    setActiveThreadIdValue(stored)
+    try {
+      const thread = await readHistoryThread(stored)
+      upsertThread(thread)
+    } catch (nextError) {
+      setError(errorMessage(nextError))
+    } finally {
+      setLoading(false)
+    }
+  }, [activeThreadStorageKey, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
+
+  useEffect(() => {
+    loadThreadsRef.current = loadThreads
+  }, [loadThreads])
+
+  useEffect(() => {
+    restoreStoredThreadRef.current = restoreStoredThread
+  }, [restoreStoredThread])
 
   const openThread = useCallback(async (threadId: string) => {
     if (!dataSource) return
@@ -274,12 +338,13 @@ export function AgentChatDataSourceShell({
     markThreadOpen(threadId)
     setError(null)
     try {
-      const response = await dataSource.readThread(threadId, { includeTurns: true })
+      const response = await readHistoryThread(threadId)
       upsertThread(response)
+      setHistoryOpen(false)
     } catch (nextError) {
       setError(errorMessage(nextError))
     }
-  }, [activeThreadStorageKey, dataSource, markThreadOpen, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, dataSource, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThread])
 
   useEffect(() => {
     function handleOpenThread(event: Event) {
@@ -329,18 +394,21 @@ export function AgentChatDataSourceShell({
       const { workspaceContext: _workspaceContext, ...threadInput } = input
       const thread = await nextDataSource.startThread({
         ...threadInput,
+        ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+        ...(goalModeEnabled ? { goalModeEnabled } : {}),
         ...resolveModelForRequest(),
       })
       upsertThread(thread)
       setActiveThreadIdValue(thread.id)
       writeStoredActiveThreadId(activeThreadStorageKey, thread.id)
       markThreadOpen(thread.id)
+      setHistoryOpen(false)
       return thread
     } catch (nextError) {
       setError(errorMessage(nextError))
       return null
     }
-  }, [activeThreadStorageKey, dataSource, loadDataSourceForNewThread, markThreadOpen, resolveModelForRequest, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, collaborationMode, dataSource, goalModeEnabled, loadDataSourceForNewThread, markThreadOpen, resolveModelForRequest, setActiveThreadIdValue, upsertThread])
 
   const startWorkspaceTask = useCallback(async (payload: AgentPanelWorkspacePayload) => {
     if (!dataSource) return
@@ -350,6 +418,7 @@ export function AgentChatDataSourceShell({
       ...(typeof payload.projectId === 'number' ? { projectId: payload.projectId } : {}),
     })
     if (!thread) return
+    const threadSessionId = legacySessionIdFromAgentChatThread(thread)
     try {
       const turn = payload.autoSend && payload.message.trim()
         ? await dataSource.startTextTurn({
@@ -364,13 +433,13 @@ export function AgentChatDataSourceShell({
           status: 'completed',
           thread: {
             id: thread.id,
-            sessionId: thread.sessionId,
+            sessionId: threadSessionId,
           },
           ...(turn ? {
             run: {
               id: turn.id,
               threadId: thread.id,
-              sessionId: thread.sessionId,
+              sessionId: threadSessionId,
               status: turn.status,
               error: turn.error?.message ?? null,
             },
@@ -384,7 +453,7 @@ export function AgentChatDataSourceShell({
           status: 'error',
           thread: {
             id: thread.id,
-            sessionId: thread.sessionId,
+            sessionId: threadSessionId,
           },
           error: errorMessage(nextError),
         })
@@ -409,7 +478,15 @@ export function AgentChatDataSourceShell({
   }, [activeThreadStorageKey, markThreadOpen, setActiveThreadIdValue])
 
   const handleNotification = useCallback((notification: AgentChatNotification) => {
-    if (notification.event && agentChatNotificationEventShouldDisplayAsRecent(notification.event)) {
+    const statusSummary = agentChatStatusSummaryEntryFromNotification(notification)
+    if (statusSummary) {
+      setStatusSummaryEntries((current) => upsertAgentChatStatusSummaryEntry(current, statusSummary))
+    }
+    if (
+      notification.event
+      && !agentChatNotificationEventIsStatusSummary(notification.event)
+      && agentChatNotificationEventShouldDisplayAsRecent(notification.event)
+    ) {
       const recentEventId = agentChatRecentCapabilityEventEntryId({
         method: notification.method,
         nowMs: Date.now(),
@@ -505,8 +582,19 @@ export function AgentChatDataSourceShell({
   }, [dataSource, startWorkspaceTask])
 
   useEffect(() => {
-    void loadThreads()
-  }, [loadThreads])
+    debugAgentChatShellLoad('thread-load-effect', {
+      autoLoadThreads,
+      hasDataSource: Boolean(dataSource),
+      activeThreadStorageKey,
+      surface,
+      showThreadList,
+    })
+    if (autoLoadThreads) {
+      void loadThreadsRef.current()
+      return
+    }
+    void restoreStoredThreadRef.current()
+  }, [autoLoadThreads, dataSource])
 
   useEffect(() => {
     if (!dataSource || !activeThreadId || !dataSource.subscribeThread) return undefined
@@ -533,6 +621,10 @@ export function AgentChatDataSourceShell({
   }, [threads, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems, activeThreadId])
 
   const activeThread = threads.find((thread) => thread.id === activeThreadId) ?? null
+  const visibleStatusItems = useMemo(() => statusSummaryEntries
+    .filter((item) => !item.threadId || item.threadId === activeThreadId)
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, 8), [activeThreadId, statusSummaryEntries])
   const activeTurn = useMemo(() => activeThread?.turns.find(agentChatTurnIsActive) ?? null, [activeThread])
   const visibleItems = useMemo(() => {
     if (!activeThread) return []
@@ -593,6 +685,13 @@ export function AgentChatDataSourceShell({
         ...(selectedWorkspaceProjectId !== undefined ? { projectId: selectedWorkspaceProjectId } : {}),
       })
       if (!thread) return
+      if (goalModeEnabled && dataSource.setThreadGoal && !activeTurn) {
+        await dataSource.setThreadGoal({
+          threadId: thread.id,
+          objective: text || composer.composerAttachments.map((attachment) => attachment.name).filter(Boolean).join(', ') || composerPlaceholder,
+          status: 'active',
+        })
+      }
       restoreConversationId = agentChatComposerConversationId(activeThreadStorageKey, thread.id)
       useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, { input: '', attachments: [] })
       if (restoreConversationId !== composerConversationId) composer.updateWorkspace({ input: '', attachments: [] })
@@ -623,6 +722,8 @@ export function AgentChatDataSourceShell({
           clientUserMessageId,
           inputs,
           runProfile,
+          ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+          ...(goalModeEnabled ? { goalModeEnabled } : {}),
           ...resolveModelForRequest(),
         })
       } else {
@@ -631,6 +732,8 @@ export function AgentChatDataSourceShell({
           clientUserMessageId,
           text,
           runProfile,
+          ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+          ...(goalModeEnabled ? { goalModeEnabled } : {}),
           ...resolveModelForRequest(),
         })
       }
@@ -640,7 +743,7 @@ export function AgentChatDataSourceShell({
     } finally {
       setSending(false)
     }
-  }, [activeThread, activeThreadStorageKey, activeTurn, composer, composerConversationId, dataSource, resolveModelForRequest, sending, startThread, userId])
+  }, [activeThread, activeThreadStorageKey, activeTurn, collaborationMode, composer, composerConversationId, composerPlaceholder, dataSource, goalModeEnabled, resolveModelForRequest, sending, startThread, userId])
 
   const stopActiveTurn = useCallback(async () => {
     if (!dataSource?.interruptTurn || !activeThread || !activeTurn || stoppingTurn) return
@@ -660,11 +763,6 @@ export function AgentChatDataSourceShell({
       setStoppingTurn(false)
     }
   }, [activeThread, activeTurn, dataSource, providerLabel, stoppingTurn, upsertThread])
-
-  const showThreadHistory = useCallback(() => {
-    setActiveThreadIdValue(null)
-    writeStoredActiveThreadId(activeThreadStorageKey, null)
-  }, [activeThreadStorageKey, setActiveThreadIdValue])
 
   const resolveServerRequest = useCallback((request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => {
     setPendingServerRequests((current) => resolveAgentChatPendingServerRequest(current, request, response))
@@ -714,6 +812,10 @@ export function AgentChatDataSourceShell({
     sessionState: agentChatThreadProviderSessionState(thread),
     ...(dataSource?.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
   })), [dataSource?.renameThread, renameThread, threads])
+  const historyThreads = useMemo(
+    () => activeThreadId ? threads.filter((thread) => thread.id !== activeThreadId) : threads,
+    [activeThreadId, threads],
+  )
 
   if (!dataSource) {
     return (
@@ -727,68 +829,42 @@ export function AgentChatDataSourceShell({
     )
   }
 
-  const listPanel = showThreadList && !activeThread && !hasChatContent ? (
-    <AgentConversationListPanel
-      conversations={threads.map((thread) => ({
-        id: thread.id,
-        title: thread.name || thread.preview || 'Untitled thread',
-        description: thread.preview || endpoint || dataSource.label,
-        meta: formatAgentChatTime(thread.updatedAt),
-        onClick: () => void openThread(thread.id),
-        ...(dataSource.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
-        ...(dataSource.archiveThread ? { onArchive: () => void archiveThread(thread.id) } : {}),
-      }))}
-      providerSessionThreads={[]}
-      onNew={() => void startThread()}
-      onCollapse={onCollapse}
-      onRefreshProviderSessionThreads={() => void loadThreads()}
-      showCollapse={showCollapse}
-      emptyLabel={loading ? 'Loading' : emptyThreadListLabel}
-      providerSessionThreadsLabel={threadListLabel}
-      providerSessionThreadsEmptyLabel={emptyThreadListLabel}
-      newConversationLabel={newThreadLabel}
-      collapseAssistantLabel="Collapse assistant"
-      archiveConversationLabel="Archive conversation"
-      deleteConversationLabel="Delete conversation"
-      renameConversationLabel="Rename conversation"
-      refreshLabel="Refresh"
-    />
-  ) : null
-
   return (
     <AgentShell density="compact" data-agent-chat-host={resolvedHost} className={shellClassName}>
-      {listPanel ?? (
-        <AgentMain className={surface === 'page' ? 'agent-page-chat-main' : 'ai-agent-panel-main'} data-agent-chat-host={resolvedHost}>
+      <AgentMain className={surface === 'page' ? 'agent-page-chat-main' : 'ai-agent-panel-main'} data-agent-chat-host={resolvedHost}>
           {surface === 'panel' ? (
-            <section className="ai-agent-panel-content-card" data-empty-conversation={!hasChatContent ? 'true' : undefined}>
+            <section
+              className="ai-agent-panel-content-card"
+              data-empty-conversation={!hasChatContent ? 'true' : undefined}
+              data-history-open={historyOpen ? 'true' : undefined}
+            >
               <AgentHeader className="ai-agent-panel-chat-header">
                 <div className="ai-agent-panel-chat-toolbar">
                   <div className="ai-agent-panel-chat-toolbar-tabs">
-                    {activeThreadId ? (
-                      <AgentConversationTabsPanel
-                        activeConversationId={activeThreadId}
-                        conversations={threadTabs}
-                        endAccessory={(
-                          <ProviderControls
-                            historyOpen={false}
-                            onNewConversation={() => void startThread()}
-                            onToggleHistory={showThreadHistory}
-                          />
-                        )}
-                        onCloseConversation={(threadId) => {
-                          void archiveThread(threadId)
-                        }}
-                        onCloseTabContextMenu={() => undefined}
-                        onOpenKeyboardMenu={() => undefined}
-                        onOpenMenu={() => undefined}
-                        onReorderConversation={() => undefined}
-                        onSelectConversation={(threadId) => void openThread(threadId)}
-                        conversationTabsLabel={threadListLabel}
-                        closeConversationLabel="Close conversation"
-                        archiveConversationLabel="Archive conversation"
-                        renameConversationLabel="Rename conversation"
-                      />
-                    ) : null}
+                    <AgentConversationTabsPanel
+                      activeConversationId={activeThreadId ?? '__draft__'}
+                      conversations={threadTabs}
+                      endAccessory={(
+                        <ProviderControls
+                          historyOpen={historyOpen}
+                          onNewConversation={() => void startThread()}
+                          onToggleHistory={() => setHistoryOpen((open) => !open)}
+                          showNewConversation
+                        />
+                      )}
+                      onCloseConversation={(threadId) => {
+                        void archiveThread(threadId)
+                      }}
+                      onCloseTabContextMenu={() => undefined}
+                      onOpenKeyboardMenu={() => undefined}
+                      onOpenMenu={() => undefined}
+                      onReorderConversation={() => undefined}
+                      onSelectConversation={(threadId) => void openThread(threadId)}
+                      conversationTabsLabel={threadListLabel}
+                      closeConversationLabel="Close conversation"
+                      archiveConversationLabel="Archive conversation"
+                      renameConversationLabel="Rename conversation"
+                    />
                   </div>
                 </div>
               </AgentHeader>
@@ -797,6 +873,7 @@ export function AgentChatDataSourceShell({
                 error={error}
                 recentCapabilityEvents={recentCapabilityEvents}
                 scrollRef={scrollRef}
+                statusItems={visibleStatusItems}
                 visibleItems={visibleItems}
               />
             </section>
@@ -813,6 +890,7 @@ export function AgentChatDataSourceShell({
                     error={error}
                     recentCapabilityEvents={recentCapabilityEvents}
                     scrollRef={scrollRef}
+                    statusItems={visibleStatusItems}
                     visibleItems={visibleItems}
                   />
                 </div>
@@ -842,6 +920,10 @@ export function AgentChatDataSourceShell({
               loading={sending}
               mentionRangeActive={!!composer.mentionRange}
               mentionResults={composer.mentionResults}
+              modelOptions={modelOptions}
+              modelValue={selectedModelId}
+              collaborationMode={collaborationMode}
+              goalModeEnabled={goalModeEnabled}
               pendingActiveRunInputQueue={[]}
               stoppingActiveRun={stoppingTurn}
               uploadedFileCount={composer.uploadedFileCount}
@@ -870,6 +952,9 @@ export function AgentChatDataSourceShell({
               onMentionEscape={() => composer.setMentionRange(null)}
               onMentionSelect={composer.insertResourceMention}
               onMentionState={composer.updateMentionState}
+              onCollaborationModeChange={onCollaborationModeChange}
+              onGoalModeEnabledChange={onGoalModeEnabledChange}
+              onModelChange={onSelectedModelChange}
               onRemoveAttachment={composer.removeAttachment}
               onSend={(profilePresetId) => void sendMessage(profilePresetId)}
               onStopActiveRun={() => void stopActiveTurn()}
@@ -882,8 +967,19 @@ export function AgentChatDataSourceShell({
               showMentionTools
             />
           </div>
+          {surface === 'panel' && historyOpen && showThreadList ? (
+            <AgentChatDataSourceHistoryPanel
+              dataSourceLabel={dataSource.label}
+              emptyThreadListLabel={emptyThreadListLabel}
+              endpoint={endpoint}
+              historyThreads={historyThreads}
+              loading={loading}
+              threadListLabel={threadListLabel}
+              onLoadThreads={loadThreads}
+              onOpenThread={openThread}
+            />
+          ) : null}
         </AgentMain>
-      )}
     </AgentShell>
   )
 }
@@ -892,6 +988,128 @@ function clearAgentChatComposerEditor(editor: HTMLDivElement | null): void {
   if (!editor) return
   editor.textContent = ''
   editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }))
+}
+
+function agentChatStatusSummaryEntryFromNotification(notification: AgentChatNotification): AgentChatStatusSummaryEntry | null {
+  const now = Date.now()
+  const params = isAgentChatRecord(notification.params) ? notification.params : {}
+  const threadId = stringValue(params.threadId)
+  if (notification.event?.type === 'mcpStatus') {
+    return {
+      id: `mcp:${notification.event.server}`,
+      title: `MCP ${notification.event.server}`,
+      detail: notification.event.error ?? undefined,
+      badge: notification.event.status,
+      tone: agentChatStatusTone(notification.event.status, notification.event.error),
+      updatedAt: now,
+    }
+  }
+  if (notification.method === 'remoteControl/status/changed') {
+    const status = stringValue(params.status) ?? 'updated'
+    return {
+      id: 'remote-control',
+      title: 'Remote control',
+      detail: [stringValue(params.server), stringValue(params.installation)].filter(Boolean).join(' · ') || undefined,
+      badge: status,
+      tone: agentChatStatusTone(status),
+      updatedAt: now,
+    }
+  }
+  if (notification.method === 'thread/tokenUsage/updated') {
+    return {
+      id: `token-usage:${threadId ?? 'global'}`,
+      threadId,
+      title: 'Token usage',
+      detail: tokenUsageSummary(params.tokenUsage),
+      badge: 'tokens',
+      tone: 'neutral',
+      updatedAt: now,
+    }
+  }
+  if (notification.method === 'thread/goal/updated') {
+    const goal = isAgentChatRecord(params.goal) ? params.goal : {}
+    const status = stringValue(goal.status) ?? 'updated'
+    const eventDetail = notification.event?.type === 'systemNotice' ? notification.event.detail ?? undefined : undefined
+    return {
+      id: `goal:${threadId ?? 'global'}`,
+      threadId,
+      title: 'Goal',
+      detail: stringValue(goal.objective) ?? eventDetail,
+      badge: status,
+      tone: agentChatStatusTone(status),
+      updatedAt: now,
+    }
+  }
+  if (notification.method === 'thread/goal/cleared') {
+    return {
+      id: `goal:${threadId ?? 'global'}`,
+      threadId,
+      title: 'Goal',
+      detail: 'Cleared',
+      badge: 'cleared',
+      tone: 'neutral',
+      updatedAt: now,
+    }
+  }
+  return null
+}
+
+function upsertAgentChatStatusSummaryEntry(
+  current: AgentChatStatusSummaryEntry[],
+  entry: AgentChatStatusSummaryEntry,
+): AgentChatStatusSummaryEntry[] {
+  return [
+    entry,
+    ...current.filter((item) => item.id !== entry.id),
+  ].slice(0, 24)
+}
+
+function agentChatNotificationEventIsStatusSummary(event: AgentChatNotificationEvent): boolean {
+  return event.type === 'mcpStatus'
+    || (event.type === 'systemNotice' && event.code === 'remoteControl/status/changed')
+    || (event.type === 'systemNotice' && event.code === 'thread/tokenUsage/updated')
+    || (event.type === 'systemNotice' && event.code === 'thread/goal/updated')
+    || (event.type === 'systemNotice' && event.code === 'thread/goal/cleared')
+}
+
+function tokenUsageSummary(value: unknown): string | undefined {
+  if (!isAgentChatRecord(value)) return undefined
+  const totalRecord = isAgentChatRecord(value.total) ? value.total : value
+  const lastRecord = isAgentChatRecord(value.last) ? value.last : null
+  const total = numberValue(totalRecord.total)
+  const input = numberValue(totalRecord.input)
+  const output = numberValue(totalRecord.output)
+  const cached = numberValue(totalRecord.cached)
+  const reasoning = numberValue(totalRecord.reasoning)
+  const lastTotal = lastRecord ? numberValue(lastRecord.total) : undefined
+  return [
+    total !== undefined ? `total ${total}` : null,
+    input !== undefined ? `input ${input}` : null,
+    output !== undefined ? `output ${output}` : null,
+    cached !== undefined ? `cached ${cached}` : null,
+    reasoning !== undefined ? `reasoning ${reasoning}` : null,
+    lastTotal !== undefined ? `last ${lastTotal}` : null,
+  ].filter(Boolean).join(' · ') || undefined
+}
+
+function agentChatStatusTone(status: string | undefined | null, error?: string | null): AgentPinnedStatusSummaryItem['tone'] {
+  if (error) return 'danger'
+  if (!status) return 'neutral'
+  if (/error|fail|failed|stopped|unavailable|denied|rejected|disabled/i.test(status)) return 'warning'
+  if (/ready|running|complete|completed|ok|enabled/i.test(status)) return 'success'
+  return 'neutral'
+}
+
+function isAgentChatRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function agentChatComposerConversationId(activeThreadStorageKey: string, threadId: string | null): string {
@@ -912,28 +1130,31 @@ function AgentChatDataSourceThreadBody({
   error,
   recentCapabilityEvents,
   scrollRef,
+  statusItems,
   visibleItems,
 }: {
   emptyThreadLabel: string
   error: string | null
   recentCapabilityEvents: RecentCapabilityEvent[]
   scrollRef: { current: HTMLDivElement | null }
+  statusItems: AgentPinnedStatusSummaryItem[]
   visibleItems: Array<{ viewId: string; item: AgentChatThreadItem; streaming: boolean }>
 }) {
   return (
     <AgentBody className="ai-agent-panel-thread-body">
-      <AgentThreadFill ref={(node) => { scrollRef.current = node }} className="px-4 py-5">
+      <AgentPinnedStatusShelf statusItems={statusItems} defaultExpanded={false} />
+      <AgentThreadFill ref={(node) => { scrollRef.current = node }} className="ms-agent-chat-thread-fill">
         {error ? (
-          <div className="mb-3 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+          <div className="ms-agent-chat-thread-error">{error}</div>
         ) : null}
         {recentCapabilityEvents.length > 0 ? (
-          <div className="mb-3 space-y-2" data-testid="agent-chat-capability-events">
+          <div className="ms-agent-chat-capability-events" data-testid="agent-chat-capability-events">
             {recentCapabilityEvents.map((item) => (
               <AgentChatRecentCapabilityEventCard key={item.id} event={item.event} />
             ))}
           </div>
         ) : null}
-        <div className="flex w-full flex-col gap-3">
+        <div className="ms-agent-chat-thread-items">
           {visibleItems.map((item) => (
             <AgentChatThreadItemView key={item.viewId} item={item.item} streaming={item.streaming} />
           ))}
@@ -945,6 +1166,64 @@ function AgentChatDataSourceThreadBody({
         </div>
       </AgentThreadFill>
     </AgentBody>
+  )
+}
+
+function AgentChatDataSourceHistoryPanel({
+  dataSourceLabel,
+  emptyThreadListLabel,
+  endpoint,
+  historyThreads,
+  loading,
+  threadListLabel,
+  onLoadThreads,
+  onOpenThread,
+}: {
+  dataSourceLabel: string
+  emptyThreadListLabel: string
+  endpoint?: string
+  historyThreads: AgentChatThread[]
+  loading: boolean
+  threadListLabel: string
+  onLoadThreads: () => Promise<void>
+  onOpenThread: (threadId: string) => Promise<void>
+}) {
+  return (
+    <section className="ai-agent-panel-empty-history" aria-label={threadListLabel}>
+      <div className="ai-agent-panel-empty-history-header">
+        <span>{threadListLabel}</span>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          className="ai-agent-panel-empty-history-more"
+          onClick={() => void onLoadThreads()}
+        >
+          Refresh
+        </Button>
+      </div>
+      <div className="ai-agent-panel-empty-history-list">
+        {loading && historyThreads.length === 0 ? (
+          <div className="ai-agent-panel-empty-history-empty">
+            <Loader2 size={14} className="animate-spin" />
+            <span className="ml-2">Loading</span>
+          </div>
+        ) : historyThreads.length === 0 ? (
+          <div className="ai-agent-panel-empty-history-empty">
+            {emptyThreadListLabel}
+          </div>
+        ) : historyThreads.map((thread) => (
+          <AgentConversationItem
+            key={thread.id}
+            title={thread.name || thread.preview || 'Untitled thread'}
+            description={thread.preview || endpoint || dataSourceLabel}
+            meta={formatAgentChatTime(thread.updatedAt)}
+            className="ai-agent-panel-empty-history-item"
+            onClick={() => void onOpenThread(thread.id)}
+          />
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -969,13 +1248,13 @@ function AgentComposerActionLayer({
   const nextPage = Math.min(pageCount - 1, safePage + 1)
   return (
     <div
-      className="absolute bottom-full left-0 right-0 z-40 mb-2 max-h-[min(56vh,520px)] overflow-y-auto overscroll-contain px-2"
+      className="ms-agent-chat-action-layer"
       data-testid="agent-composer-action-layer"
       aria-live="polite"
     >
-      <div className="rounded-md border border-border bg-background/95 p-2 shadow-xl backdrop-blur">
+      <div className="ms-agent-chat-action-layer__surface">
         {pageCount > 1 ? (
-          <div className="mb-2 flex items-center justify-end gap-1 px-1">
+          <div className="ms-agent-chat-action-layer__pager">
             <button
               type="button"
               className="ms-agent-run-interaction-pager__button"
@@ -1060,4 +1339,13 @@ function agentChatThreadProviderSessionState(thread: AgentChatThread): 'stopped'
 
 function agentChatTurnIsActive(turn: AgentChatTurn): boolean {
   return turn.status === 'inProgress'
+}
+
+function debugAgentChatShellLoad(label: string, payload: Record<string, unknown>): void {
+  try {
+    if (typeof window === 'undefined' || window.localStorage?.getItem('movscript.debugAgentChatShell') !== '1') return
+  } catch {
+    return
+  }
+  console.debug(`[agent-chat-shell ${label}]`, payload)
 }

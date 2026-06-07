@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import {
@@ -9,12 +9,10 @@ import {
   resolveMovScriptWorkspaceRootPaths,
 } from './paths.js'
 export {
-  MOVSCRIPT_LEGACY_WORKSPACE_CONFIG_SCHEMA,
   MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
   type MovScriptWorkspaceConfig,
 } from '../config.js'
 import {
-  MOVSCRIPT_LEGACY_WORKSPACE_CONFIG_SCHEMA,
   MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
   type MovScriptWorkspaceConfig,
 } from '../config.js'
@@ -34,8 +32,6 @@ export interface MovScriptWorkspacePaths {
   cacheDir: string
   runDir: string
   sessionsDir: string
-  legacyConfigDir: string
-  legacyConfigPath: string
 }
 
 export function resolveMovScriptWorkspacePaths(
@@ -46,7 +42,6 @@ export function resolveMovScriptWorkspacePaths(
   const configDirName = normalizeMovScriptWorkspaceConfigDirName(input.configDirName) ?? MOVSCRIPT_WORKSPACE_CONFIG_DIR_NAME
   const providerConfigsDir = join(rootDir, MOVSCRIPT_WORKSPACE_DIR_NAME, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME)
   const configDir = join(providerConfigsDir, configDirName)
-  const legacyConfigDir = join(rootDir, MOVSCRIPT_WORKSPACE_DIR_NAME, configDirName)
   return {
     workspaceDir: rootDir,
     rootDir,
@@ -57,8 +52,6 @@ export function resolveMovScriptWorkspacePaths(
     cacheDir: join(configDir, MOVSCRIPT_WORKSPACE_CACHE_DIR_NAME),
     runDir: join(configDir, MOVSCRIPT_WORKSPACE_RUN_DIR_NAME),
     sessionsDir: join(configDir, MOVSCRIPT_WORKSPACE_SESSIONS_DIR_NAME),
-    legacyConfigDir,
-    legacyConfigPath: join(legacyConfigDir, MOVSCRIPT_WORKSPACE_CONFIG_FILE_NAME),
   }
 }
 
@@ -68,9 +61,6 @@ export function ensureMovScriptWorkspace(paths: MovScriptWorkspacePaths): void {
   mkdirSync(paths.cacheDir, { recursive: true })
   mkdirSync(paths.runDir, { recursive: true })
   mkdirSync(paths.sessionsDir, { recursive: true })
-  if (!existsSync(paths.configPath) && existsSync(paths.legacyConfigPath) && paths.legacyConfigPath !== paths.configPath) {
-    copyFileSync(paths.legacyConfigPath, paths.configPath)
-  }
   if (!existsSync(paths.configPath)) writeMovScriptWorkspaceConfig(paths.configPath, defaultMovScriptWorkspaceConfig())
   normalizeMovScriptWorkspaceConfigFile(paths.configPath)
 }
@@ -165,7 +155,6 @@ function isRecordOfRecords(value: unknown): value is Record<string, Record<strin
 
 function isSupportedWorkspaceConfigSchema(value: unknown): value is MovScriptWorkspaceConfig['schema'] {
   return value === MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA
-    || value === MOVSCRIPT_LEGACY_WORKSPACE_CONFIG_SCHEMA
 }
 
 function providerConfigRecords(value: Record<string, unknown>): Record<string, Record<string, unknown>> | undefined {

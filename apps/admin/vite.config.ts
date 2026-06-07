@@ -16,7 +16,6 @@ export default defineConfig({
       '@movscript/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
       '@movscript/core/backend': resolve(__dirname, '../../packages/core/src/backend/index.ts'),
       '@movscript/core/plugins': resolve(__dirname, '../../packages/core/src/plugins/index.ts'),
-      '@movscript/core': resolve(__dirname, '../../packages/core/src/index.ts'),
       '@movscript/theme/theme.css': resolve(__dirname, '../../packages/theme/src/theme.css'),
       '@movscript/ui/styles.css': resolve(__dirname, '../../packages/ui/src/styles.css'),
       '@movscript/theme': resolve(__dirname, '../../packages/theme/src/index.ts'),

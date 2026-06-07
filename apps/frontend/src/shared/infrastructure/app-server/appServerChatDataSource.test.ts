@@ -55,6 +55,53 @@ test('app-server protocol data source preserves injected provider identity', asy
   assert.equal(started.provider, 'mova')
 })
 
+test('app-server protocol data source exposes provider thread and session tree ids explicitly', async () => {
+  const client = {
+    readThread: async () => ({ thread: appServerThread({ id: 'thread_read', sessionId: 'session_tree_1' }) }),
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('thread_read')
+
+  assert.equal(thread.id, 'thread_read')
+  assert.equal(thread.providerThreadId, 'thread_read')
+  assert.equal(thread.providerSessionTreeId, 'session_tree_1')
+  assert.equal(thread.sessionId, 'session_tree_1')
+})
+
+test('app-server protocol data source does not fabricate session tree ids from thread ids', async () => {
+  const client = {
+    readThread: async () => ({ thread: appServerThread({ id: 'thread_without_tree', sessionId: '' }) }),
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('thread_without_tree')
+
+  assert.equal(thread.providerThreadId, 'thread_without_tree')
+  assert.equal(thread.providerSessionTreeId, undefined)
+  assert.equal(thread.sessionId, undefined)
+})
+
+test('app-server protocol data source resumes threads through app-server resume rpc', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const client = {
+    resumeThread: async (params: Record<string, unknown>) => {
+      calls.push(params)
+      return { thread: appServerThread({ id: params.threadId }) }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client, { defaultThreadCwd: '/workspace/project' })
+  const thread = await dataSource.resumeThread?.({ threadId: 'thread_1', model: 'gpt-5.4' })
+
+  assert.equal(thread?.id, 'thread_1')
+  assert.deepEqual(calls, [{
+    threadId: 'thread_1',
+    model: 'gpt-5.4',
+    cwd: '/workspace/project',
+  }])
+})
+
 test('app-server protocol data source builds default labels from provider keys', () => {
   const client = {} as unknown as AppServerRpcClient
   const dataSource = createAppServerChatDataSource(client, { provider: 'studio-agent' })
@@ -184,6 +231,69 @@ test('app-server thread-turn-item data source forwards run profiles to thread an
         approvalPolicy: 'on-request',
         approvalsReviewer: 'user',
         permissions: ':read-only',
+      },
+    },
+  ])
+})
+
+test('app-server thread-turn-item data source forwards thread controls and goals', async () => {
+  const calls: Array<{ method: string; params: Record<string, unknown> }> = []
+  const client = {
+    startThread: async (params: Record<string, unknown>) => {
+      calls.push({ method: 'thread/start', params })
+      return { thread: appServerThread() }
+    },
+    startTurn: async (params: Record<string, unknown>) => {
+      calls.push({ method: 'turn/start', params })
+      return {
+        turn: {
+          id: 'turn_1',
+          status: 'inProgress',
+          error: null,
+          startedAt: 3,
+          completedAt: null,
+          items: [],
+        },
+      }
+    },
+    requestProtocol: async (method: string, params: Record<string, unknown>) => {
+      calls.push({ method, params })
+      return { goal: { objective: params.objective, status: params.status } }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  await dataSource.startThread({ collaborationMode: 'plan' })
+  await dataSource.setThreadGoal?.({ threadId: 'thread_1', objective: 'Ship the UI', status: 'active' })
+  await dataSource.startTurn?.({
+    threadId: 'thread_1',
+    inputs: [{ type: 'text', text: 'hello', textElements: [] }],
+    collaborationMode: 'plan',
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/start',
+      params: {
+        collaborationMode: { mode: 'plan', settings: {} },
+        threadSource: 'user',
+      },
+    },
+    {
+      method: 'thread/goal/set',
+      params: {
+        threadId: 'thread_1',
+        objective: 'Ship the UI',
+        status: 'active',
+      },
+    },
+    {
+      method: 'turn/start',
+      params: {
+        threadId: 'thread_1',
+        clientUserMessageId: undefined,
+        input: [{ type: 'text', text: 'hello', text_elements: [] }],
+        collaborationMode: { mode: 'plan', settings: {} },
       },
     },
   ])

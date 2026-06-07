@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, ClipboardCheck, FileJson, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowRight, ClipboardCheck, Loader2, RefreshCw } from 'lucide-react'
 import {
   AgentPageShell,
   AgentPageShellBody,
@@ -10,13 +10,11 @@ import {
   Button,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import type { ElectronMovScriptWorkspaceFileReadResult } from '@/shared/contracts/electronApi'
 
 export default function MovScriptWorkspaceReviewPage() {
   const [searchParams] = useSearchParams()
   const reviewPath = searchParams.get('path')?.trim() || searchParams.get('reviewPath')?.trim() || ''
-  const workspacePath = searchParams.get('workspacePath')?.trim() || ''
   const businessReviewPath = searchParams.get('businessReviewPath')?.trim() || ''
   const reviewQuery = useQuery<ElectronMovScriptWorkspaceFileReadResult>({
     queryKey: ['movscript-workspace-review-file', reviewPath],
@@ -24,16 +22,10 @@ export default function MovScriptWorkspaceReviewPage() {
     enabled: Boolean(reviewPath),
     retry: false,
   })
-  const projectionQuery = useQuery<ElectronMovScriptWorkspaceFileReadResult>({
-    queryKey: ['movscript-workspace-review-projection-file', workspacePath],
-    queryFn: () => requireWorkspaceFilesAPI().read({ path: workspacePath }),
-    enabled: Boolean(workspacePath) && !reviewPath,
-    retry: false,
-  })
-  const activeFile = reviewQuery.data ?? projectionQuery.data
-  const activeError = reviewQuery.error ?? projectionQuery.error
-  const activeLoading = reviewQuery.isLoading || projectionQuery.isLoading
-  const activeFetching = reviewQuery.isFetching || projectionQuery.isFetching
+  const activeFile = reviewQuery.data
+  const activeError = reviewQuery.error
+  const activeLoading = reviewQuery.isLoading
+  const activeFetching = reviewQuery.isFetching
   const parsedRecord = useMemo(() => parseJSONRecord(activeFile?.content), [activeFile?.content])
   const record = parsedRecord.record
   const recordHandoff = isRecord(record?.handoff) ? record.handoff : undefined
@@ -49,7 +41,6 @@ export default function MovScriptWorkspaceReviewPage() {
     : Array.isArray(validation?.effects)
       ? validation.effects
       : []
-  const effectiveWorkspacePath = workspacePath || stringValue(projection?.workspacePath) || ''
 
   return (
     <AgentPageShell data-testid="movscript-workspace-review-page">
@@ -62,18 +53,10 @@ export default function MovScriptWorkspaceReviewPage() {
                 Workspace Review
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                {reviewPath || workspacePath || '等待 workspace_submit 提交工作区修改'}
+                {reviewPath || '等待 workspace_submit 提交工作区修改'}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {effectiveWorkspacePath && (
-                <Link to={withRouteParams(ROUTES.workspaceConfig, { path: effectiveWorkspacePath })}>
-                  <Button type="button" variant="outline" size="sm">
-                    <FileJson size={14} />
-                    打开 Projection
-                  </Button>
-                </Link>
-              )}
               {openBusinessReviewPath && (
                 <Link to={openBusinessReviewPath}>
                   <Button type="button" size="sm">
@@ -84,8 +67,7 @@ export default function MovScriptWorkspaceReviewPage() {
               )}
               <Button type="button" variant="outline" size="sm" onClick={() => {
                 if (reviewPath) void reviewQuery.refetch()
-                else if (workspacePath) void projectionQuery.refetch()
-              }} disabled={(!reviewPath && !workspacePath) || activeFetching}>
+              }} disabled={!reviewPath || activeFetching}>
                 <RefreshCw size={14} />
                 刷新
               </Button>
@@ -95,8 +77,8 @@ export default function MovScriptWorkspaceReviewPage() {
         </div>
       </AgentPageShellHeader>
       <AgentPageShellBody>
-        {!reviewPath && !workspacePath ? (
-          <StateRow text="未来 MCP hook 可导航到 /workspace/review?workspacePath=data/... 来打开此审阅视图。" />
+        {!reviewPath ? (
+          <StateRow text="等待审阅记录" />
         ) : activeLoading ? (
           <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="读取工作区修改" />
         ) : activeError ? (
@@ -106,10 +88,9 @@ export default function MovScriptWorkspaceReviewPage() {
         ) : (
           <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
             <section className="flex min-h-[420px] flex-col gap-3 overflow-auto rounded-md border border-border bg-card p-4">
-              <ReviewSummaryRow label="状态" value={stringValue(record?.status) ?? (workspacePath ? 'change_submitted' : 'submitted')} />
+              <ReviewSummaryRow label="状态" value={stringValue(record?.status) ?? 'submitted'} />
               <ReviewSummaryRow label="类型" value={stringValue(record?.workspaceKind) ?? stringValue(recordHandoff?.workspaceKind) ?? '-'} />
               <ReviewSummaryRow label="创建时间" value={stringValue(record?.createdAt) ?? '-'} />
-              <ReviewSummaryRow label="Projection" value={effectiveWorkspacePath || '-'} />
               <ReviewJSONBlock title="Target" value={target} />
               <ReviewJSONBlock title="Validation" value={validation} />
               <div>

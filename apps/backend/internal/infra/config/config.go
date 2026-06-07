@@ -38,10 +38,14 @@ type Config struct {
 	WorkspaceStorageBackend string
 	GiteaBaseURL            string
 	GiteaToken              string
-	GiteaOwner              string
+	GiteaAdminUsername      string
+	GiteaAdminPassword      string
+	GiteaOrgPrefix          string
 	GiteaRepo               string
 	GiteaRepoPrefix         string
 	GiteaBranch             string
+	GiteaUserEmailDomain    string
+	GiteaUserTokenName      string
 
 	// Cache
 	CacheBackend   string
@@ -98,10 +102,14 @@ func Load() *Config {
 		WorkspaceStorageBackend: getEnv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", getEnv("MOVSCRIPT_WORKSPACE_BACKEND", "http")),
 		GiteaBaseURL:            getEnv("MOVSCRIPT_GITEA_BASE_URL", ""),
 		GiteaToken:              getEnv("MOVSCRIPT_GITEA_TOKEN", ""),
-		GiteaOwner:              getEnv("MOVSCRIPT_GITEA_OWNER", ""),
+		GiteaAdminUsername:      getEnv("MOVSCRIPT_GITEA_ADMIN_USERNAME", getEnv("GITEA_ADMIN_USERNAME", "")),
+		GiteaAdminPassword:      getEnv("MOVSCRIPT_GITEA_ADMIN_PASSWORD", getEnv("GITEA_ADMIN_PASSWORD", "")),
+		GiteaOrgPrefix:          getEnv("MOVSCRIPT_GITEA_ORG_PREFIX", "movscript-org-"),
 		GiteaRepo:               getEnv("MOVSCRIPT_GITEA_REPO", ""),
 		GiteaRepoPrefix:         getEnv("MOVSCRIPT_GITEA_REPO_PREFIX", "movscript-project-"),
 		GiteaBranch:             getEnv("MOVSCRIPT_GITEA_BRANCH", "main"),
+		GiteaUserEmailDomain:    getEnv("MOVSCRIPT_GITEA_USER_EMAIL_DOMAIN", "users.movscript.local"),
+		GiteaUserTokenName:      getEnv("MOVSCRIPT_GITEA_USER_TOKEN_NAME", "movscript-desktop"),
 
 		CacheBackend:   getEnv("CACHE_BACKEND", "memory"),
 		CacheKeyPrefix: getEnv("CACHE_KEY_PREFIX", "movscript"),
@@ -179,14 +187,23 @@ func (c *Config) ValidateStartup() error {
 		if c.GiteaBaseURL == "" {
 			problems = append(problems, "MOVSCRIPT_GITEA_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
 		}
-		if c.GiteaOwner == "" {
-			problems = append(problems, "MOVSCRIPT_GITEA_OWNER is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		if c.GiteaToken == "" && (strings.TrimSpace(c.GiteaAdminUsername) == "" || strings.TrimSpace(c.GiteaAdminPassword) == "") {
+			problems = append(problems, "MOVSCRIPT_GITEA_TOKEN or MOVSCRIPT_GITEA_ADMIN_USERNAME/MOVSCRIPT_GITEA_ADMIN_PASSWORD is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
 		}
 		if c.GiteaRepoPrefix == "" && c.GiteaRepo == "" {
 			problems = append(problems, "MOVSCRIPT_GITEA_REPO_PREFIX or MOVSCRIPT_GITEA_REPO is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
 		}
 		if c.GiteaBranch == "" {
 			problems = append(problems, "MOVSCRIPT_GITEA_BRANCH is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+		if c.GiteaOrgPrefix == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_ORG_PREFIX is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+		if c.GiteaUserEmailDomain == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_USER_EMAIL_DOMAIN is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
+		}
+		if c.GiteaUserTokenName == "" {
+			problems = append(problems, "MOVSCRIPT_GITEA_USER_TOKEN_NAME is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
 		}
 	}
 	if len(problems) > 0 {
@@ -228,10 +245,14 @@ func (c *Config) SafeSummary() map[string]any {
 		"workspace_storage_backend": c.WorkspaceStorageBackend,
 		"gitea_base_url":            c.GiteaBaseURL,
 		"gitea_token_set":           c.GiteaToken != "",
-		"gitea_owner":               c.GiteaOwner,
+		"gitea_admin_username":      c.GiteaAdminUsername,
+		"gitea_admin_password_set":  strings.TrimSpace(c.GiteaAdminPassword) != "",
+		"gitea_org_prefix":          c.GiteaOrgPrefix,
 		"gitea_repo_set":            c.GiteaRepo != "",
 		"gitea_repo_prefix":         c.GiteaRepoPrefix,
 		"gitea_branch":              c.GiteaBranch,
+		"gitea_user_email_domain":   c.GiteaUserEmailDomain,
+		"gitea_user_token_name":     c.GiteaUserTokenName,
 	}
 }
 

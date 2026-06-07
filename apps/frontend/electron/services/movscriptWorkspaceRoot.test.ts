@@ -68,22 +68,24 @@ test('workspace root initialization preserves an existing manifest identity', ()
   assert.equal(second.activeUserId, 7)
 })
 
-test('project workspace paths keep business files in edit and build at the repo root', () => {
+test('project workspace paths keep business files inside a project git repo', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-paths-'))
   const project = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId: 7, projectId: 42 })
   const script = resolveMovScriptScriptWorkspacePaths(project, 11)
   const production = resolveMovScriptProductionWorkspacePaths(project, 99)
   const contentUnits = resolveMovScriptContentUnitWorkspacePaths(production, {})
   const scopedContentUnit = resolveMovScriptContentUnitWorkspacePaths(production, { contentUnitId: 34 })
+  const projectDir = join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42')
 
-  assert.equal(project.projectFile, join(workspaceDir, 'project.json'))
-  assert.equal(project.projectStandardsFile, join(workspaceDir, 'edit', 'standards', 'project_standards.json'))
-  assert.equal(project.settingDir, join(workspaceDir, 'edit', 'setting'))
-  assert.equal(project.assetsDir, join(workspaceDir, 'edit', 'assets'))
-  assert.equal(script.scriptFile, join(workspaceDir, 'edit', 'scripts', 'script_11', 'script.md'))
-  assert.equal(production.productionFile, join(workspaceDir, 'edit', 'productions', 'production_99', 'production.json'))
-  assert.equal(contentUnits.contentUnitsDir, join(workspaceDir, 'edit', 'productions', 'production_99', 'content_units'))
-  assert.equal(scopedContentUnit.contentUnitFile, join(workspaceDir, 'edit', 'productions', 'production_99', 'content_units', 'content_unit_34.json'))
+  assert.equal(project.projectDir, projectDir)
+  assert.equal(project.projectFile, join(projectDir, 'project.json'))
+  assert.equal(project.projectStandardsFile, join(projectDir, 'edit', 'standards', 'project_standards.json'))
+  assert.equal(project.settingDir, join(projectDir, 'edit', 'setting'))
+  assert.equal(project.assetsDir, join(projectDir, 'edit', 'assets'))
+  assert.equal(script.scriptFile, join(projectDir, 'edit', 'scripts', 'script_11', 'script.md'))
+  assert.equal(production.productionFile, join(projectDir, 'edit', 'productions', 'production_99', 'production.json'))
+  assert.equal(contentUnits.contentUnitsDir, join(projectDir, 'edit', 'productions', 'production_99', 'content_units'))
+  assert.equal(scopedContentUnit.contentUnitFile, join(projectDir, 'edit', 'productions', 'production_99', 'content_units', 'content_unit_34.json'))
   assert.doesNotMatch(project.projectFile, /\/\.movscript\/(?:\.codex|\.mova|agent)\//)
 })
 
@@ -95,10 +97,10 @@ test('workspace context paths use the project repo as provider session cwd', () 
 
   assert.equal(global.providerSessionCwd, workspaceDir)
   assert.equal(global.editableBaseDir, join(workspaceDir, 'edit'))
-  assert.equal(project.providerSessionCwd, workspaceDir)
-  assert.equal(project.editableBaseDir, join(workspaceDir, 'edit'))
-  assert.equal(production.providerSessionCwd, workspaceDir)
-  assert.equal(production.editableBaseDir, join(workspaceDir, 'edit', 'productions', 'production_99'))
+  assert.equal(project.providerSessionCwd, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'))
+  assert.equal(project.editableBaseDir, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42', 'edit'))
+  assert.equal(production.providerSessionCwd, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'))
+  assert.equal(production.editableBaseDir, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42', 'edit', 'productions', 'production_99'))
   assert.throws(
     () => resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42 }),
     /requires productionId/,

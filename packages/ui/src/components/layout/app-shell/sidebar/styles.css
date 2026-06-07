@@ -91,7 +91,7 @@
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-control);
   padding: 6px 12px;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-item);
@@ -203,7 +203,7 @@
 
 .app-sidebar-user-button {
   justify-content: center;
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-control);
 }
 
 .app-sidebar-user-button__content {

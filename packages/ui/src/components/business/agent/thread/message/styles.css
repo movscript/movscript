@@ -117,7 +117,7 @@
 }
 
 .ms-agent-message__content {
-  border-top-left-radius: 3px;
+  border-top-left-radius: var(--ms-radius-xs);
   padding: 10px 12px;
   font-size: var(--ms-text-body);
   line-height: 21px;
@@ -130,8 +130,8 @@
 
 .ms-agent-message--user .ms-agent-message__content {
   border-color: transparent;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 3px;
+  border-top-left-radius: var(--ms-radius-control);
+  border-top-right-radius: var(--ms-radius-xs);
   background: var(--ms-color-primary);
   color: var(--ms-color-primary-foreground);
 }

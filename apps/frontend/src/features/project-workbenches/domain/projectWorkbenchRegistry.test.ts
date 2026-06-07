@@ -11,13 +11,12 @@ import {
   type ProjectWorkbenchId,
 } from './projectWorkbenchRegistry'
 
-test('project workbench definitions cover the five canonical workbenches', () => {
+test('project workbench definitions cover the canonical workbenches', () => {
   const expectedIds: ProjectWorkbenchId[] = [
     'project_standards',
     'pre_production',
     'orchestration_production',
     'content_orchestration',
-    'delivery',
   ]
 
   assert.deepEqual(projectWorkbenchDefinitions.map((item) => item.id), expectedIds)
@@ -25,7 +24,6 @@ test('project workbench definitions cover the five canonical workbenches', () =>
   assert.equal(getProjectWorkbenchDefinition('pre_production').route, '/project/pre-production')
   assert.equal(getProjectWorkbenchDefinition('orchestration_production').route, '/project/production/orchestration')
   assert.equal(getProjectWorkbenchDefinition('content_orchestration').route, '/project/content-units/workbench')
-  assert.equal(getProjectWorkbenchDefinition('delivery').route, '/project/delivery/workbench')
   for (const definition of projectWorkbenchDefinitions) {
     assert.ok(definition.purpose.length > 0, `${definition.id} must document its purpose`)
     assert.ok(definition.decision.length > 0, `${definition.id} must document its decision surface`)

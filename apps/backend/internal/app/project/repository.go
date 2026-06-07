@@ -59,9 +59,6 @@ func (r *gormRepository) AdminList(ctx context.Context, filter AdminListFilter) 
 	if filter.ProjectID != nil {
 		query = query.Where("id = ?", *filter.ProjectID)
 	}
-	if filter.Status != "" {
-		query = query.Where("status = ?", filter.Status)
-	}
 	if filter.OwnerID != nil {
 		query = query.Where("owner_id = ?", *filter.OwnerID)
 	}
@@ -220,7 +217,6 @@ func (r *gormRepository) AdminCreate(ctx context.Context, input AdminCreateInput
 			}
 		}
 		project = domainproject.NewProject(input.Name, input.Description, input.TotalEpisodes, input.OwnerID, input.OrgID).ToModel()
-		project.Status = input.Status
 		project.AspectRatio = input.AspectRatio
 		project.VisualStyle = input.VisualStyle
 		project.ProjectStyle = input.ProjectStyle
@@ -358,9 +354,6 @@ func (r *gormRepository) AdminUpdate(ctx context.Context, id uint, spec adminUpd
 		updates := map[string]any{}
 		if spec.Name != nil {
 			updates["name"] = *spec.Name
-		}
-		if spec.Status != nil {
-			updates["status"] = *spec.Status
 		}
 		if err := tx.Model(&persistencemodel.Project{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err

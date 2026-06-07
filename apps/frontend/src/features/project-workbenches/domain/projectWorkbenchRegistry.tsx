@@ -1,7 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
-  ClipboardCheck,
   LayoutDashboard,
   Sparkles,
   Wand2,
@@ -13,14 +12,12 @@ export type ProjectWorkbenchId =
   | 'pre_production'
   | 'orchestration_production'
   | 'content_orchestration'
-  | 'delivery'
 
 export type ProjectWorkbenchStage =
   | 'standards'
   | 'pre_production'
   | 'orchestration_production'
   | 'content_orchestration'
-  | 'delivery'
 
 export type ProjectWorkbenchWorkspaceKind =
   | 'setting_workspace'
@@ -155,30 +152,6 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
         production: 'productionId',
         scene_moment: 'scene_moment_id',
         content_unit: 'content_unit_id',
-      },
-    },
-  },
-  {
-    id: 'delivery',
-    title: '交付工作台',
-    shortTitle: '交付',
-    route: ROUTES.project.deliveryWorkbench,
-    sidebarTitleKey: 'sidebar.items.workbenchDelivery',
-    headerTitleKey: 'header.titles.deliveryWorkbench',
-    stage: 'delivery',
-    icon: ClipboardCheck,
-    purpose: '围绕制作总览交付版本、成片时间线、资源覆盖和导出记录。',
-    decision: '检查覆盖、预览片段、微调顺序和时长、替换采用资源、标记阻塞或导出检查版。',
-    output: '交付包、内部评审版、正式成片和归档记录。',
-    owns: ['delivery_version', 'delivery_timeline_item', 'export_record'],
-    reads: ['production', 'preview_timeline', 'content_unit', 'resource'],
-    workspaceKinds: [],
-    primarySelection: { queryParam: 'productionId', entityType: 'production' },
-    reviewQuery: {
-      workspaceIdParam: 'workspaceId',
-      entityParams: {
-        production: 'productionId',
-        delivery_version: 'deliveryVersionId',
       },
     },
   },

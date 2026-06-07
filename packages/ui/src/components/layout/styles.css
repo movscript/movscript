@@ -211,7 +211,7 @@
 
 .app-page-header__icon {
   border: 1px solid var(--ms-color-border);
-  border-radius: var(--ms-radius-md);
+  border-radius: var(--ms-radius-icon);
   background: var(--ms-color-surface-raised);
   color: var(--ms-color-foreground);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--ms-color-foreground) 4%, transparent);

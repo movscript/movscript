@@ -22,7 +22,7 @@
 .app-metric-card__icon {
   height: 36px;
   width: 36px;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-icon);
   background: color-mix(in srgb, var(--ms-color-muted) 72%, transparent);
 }
 

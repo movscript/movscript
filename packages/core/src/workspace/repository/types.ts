@@ -1,7 +1,7 @@
 import type {
   MovScriptWorkspaceDomainIndex,
   MovScriptWorkspaceDocument,
-} from '../domain/index.js'
+} from '../indexer/index.js'
 
 export interface MovScriptWorkspaceRepositoryFileEntry {
   path: string

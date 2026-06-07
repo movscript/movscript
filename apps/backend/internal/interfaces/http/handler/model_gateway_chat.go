@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
 	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/observability"
 )
 
 // ListModels exposes text-capable MovScript models in the OpenAI-compatible
@@ -139,21 +141,39 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 // Responses implements the OpenAI Responses API surface backed by the same
 // MovScript model gateway policy, usage, and provider routing as chat completions.
 func (h *ModelGatewayHandler) Responses(c *gin.Context) {
+	observability.WithRequest(c.Request.Context()).Info("model_gateway_responses_entered",
+		slog.String("method", c.Request.Method),
+		slog.String("path", c.Request.URL.Path),
+		slog.Bool("has_authorization", strings.TrimSpace(c.GetHeader("Authorization")) != ""),
+		slog.String("content_type", c.ContentType()),
+	)
+
 	principal, ok := h.gatewayPrincipal(c)
 	if !ok {
+		observability.WithRequest(c.Request.Context()).Warn("model_gateway_responses_auth_failed",
+			slog.String("path", c.Request.URL.Path),
+			slog.Bool("has_authorization", strings.TrimSpace(c.GetHeader("Authorization")) != ""),
+		)
 		writeOpenAIError(c, http.StatusUnauthorized, "authentication required", "authentication_error", "", "authentication_required")
 		return
 	}
 
 	var req responsesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		observability.WithRequest(c.Request.Context()).Warn("model_gateway_responses_parse_failed",
+			slog.Uint64("user_id", uint64(principal.UserID)),
+			slog.Bool("gateway_key", principal.Key != nil),
+			slog.String("error", err.Error()),
+		)
 		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "", "invalid_request")
 		return
 	}
-	if req.Stream {
-		writeOpenAIError(c, http.StatusBadRequest, "responses streaming is not implemented by the MovScript gateway yet", "invalid_request_error", "stream", "unsupported_parameter")
-		return
-	}
+	observability.WithRequest(c.Request.Context()).Info("model_gateway_responses_request",
+		slog.String("model", strings.TrimSpace(req.Model)),
+		slog.Uint64("user_id", uint64(principal.UserID)),
+		slog.Bool("gateway_key", principal.Key != nil),
+		slog.Bool("stream", req.Stream),
+	)
 
 	messages, ok := normalizeResponsesMessages(c, req)
 	if !ok {
@@ -184,8 +204,19 @@ func (h *ModelGatewayHandler) Responses(c *gin.Context) {
 		},
 		ProjectID: req.ProjectID,
 	}
+	if req.Stream {
+		h.streamResponses(c, input)
+		return
+	}
+
 	result, err := h.service.CallResponses(c.Request.Context(), input)
 	if err != nil {
+		observability.WithRequest(c.Request.Context()).Warn("model_gateway_responses_failed",
+			slog.String("model", strings.TrimSpace(req.Model)),
+			slog.Uint64("user_id", uint64(principal.UserID)),
+			slog.Bool("gateway_key", principal.Key != nil),
+			slog.String("error", err.Error()),
+		)
 		writeGatewayChatError(c, err, "")
 		return
 	}
@@ -201,6 +232,143 @@ func (h *ModelGatewayHandler) Responses(c *gin.Context) {
 		OutputText: resp.Content,
 		Usage:      responsesUsageFromTokenUsage(resp.Usage),
 	})
+}
+
+func (h *ModelGatewayHandler) streamResponses(c *gin.Context, input modelgatewayapp.ResponsesInput) {
+	result, err := h.service.CallChatStream(c.Request.Context(), modelgatewayapp.ChatInput{
+		Principal: input.Principal,
+		Model:     input.Model,
+		Text:      input.Text,
+		ProjectID: input.ProjectID,
+	})
+	if err != nil {
+		writeGatewayChatError(c, err, "stream")
+		return
+	}
+
+	id := "resp_" + randomHex(12)
+	messageID := "msg_" + randomHex(8)
+	created := time.Now().Unix()
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Status(http.StatusOK)
+	flusher, _ := c.Writer.(http.Flusher)
+
+	writeResponsesSSE(c, flusher, "response.created", responsesStreamEvent{
+		Type: "response.created",
+		Response: &responsesStreamResponse{
+			ID:        id,
+			Object:    "response",
+			CreatedAt: created,
+			Status:    "in_progress",
+			Model:     result.ResponseModel,
+		},
+	})
+
+	var content strings.Builder
+	toolCalls := map[int]ai.ToolCall{}
+	var usage ai.TokenUsage
+	for event := range result.Events {
+		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 || event.Usage.CachedInputTokens > 0 || event.Usage.ReasoningTokens > 0 {
+			usage = event.Usage
+		}
+		if event.Error != "" {
+			writeResponsesSSE(c, flusher, "response.failed", responsesStreamEvent{
+				Type: "response.failed",
+				Response: &responsesStreamResponse{
+					ID:        id,
+					Object:    "response",
+					CreatedAt: created,
+					Status:    "failed",
+					Model:     result.ResponseModel,
+				},
+			})
+			return
+		}
+		if event.ContentDelta != "" {
+			content.WriteString(event.ContentDelta)
+			writeResponsesSSE(c, flusher, "response.output_text.delta", responsesStreamEvent{
+				Type:  "response.output_text.delta",
+				Delta: event.ContentDelta,
+			})
+		}
+		for _, delta := range event.ToolCallDeltas {
+			call := toolCalls[delta.Index]
+			if call.ID == "" {
+				call.ID = delta.ID
+			}
+			if call.ID == "" {
+				call.ID = "call_" + randomHex(8)
+			}
+			call.Type = firstNonEmpty(call.Type, delta.Type, "function")
+			call.Function.Name += delta.Function.Name
+			call.Function.Arguments += delta.Function.Arguments
+			toolCalls[delta.Index] = call
+		}
+		if event.Done {
+			break
+		}
+	}
+
+	if content.String() != "" {
+		writeResponsesSSE(c, flusher, "response.output_item.done", responsesStreamEvent{
+			Type: "response.output_item.done",
+			Item: &responsesStreamOutputItem{
+				ID:   messageID,
+				Type: "message",
+				Role: "assistant",
+				Content: []responsesStreamOutputContent{{
+					Type: "output_text",
+					Text: content.String(),
+				}},
+			},
+		})
+	}
+	for _, call := range toolCalls {
+		writeResponsesSSE(c, flusher, "response.output_item.done", responsesStreamEvent{
+			Type: "response.output_item.done",
+			Item: &responsesStreamOutputItem{
+				ID:        call.ID,
+				Type:      "function_call",
+				Name:      call.Function.Name,
+				Arguments: call.Function.Arguments,
+				CallID:    call.ID,
+			},
+		})
+	}
+	responsesUsage := responsesUsageFromTokenUsage(usage)
+	endTurn := len(toolCalls) == 0
+	writeResponsesSSE(c, flusher, "response.completed", responsesStreamEvent{
+		Type: "response.completed",
+		Response: &responsesStreamResponse{
+			ID:        id,
+			Object:    "response",
+			CreatedAt: created,
+			Status:    "completed",
+			Model:     result.ResponseModel,
+			Usage:     &responsesUsage,
+			EndTurn:   &endTurn,
+		},
+	})
+}
+
+func writeResponsesSSE(c *gin.Context, flusher http.Flusher, eventName string, event responsesStreamEvent) {
+	payload, _ := json.Marshal(event)
+	fmt.Fprintf(c.Writer, "event: %s\n", eventName)
+	fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+	if flusher != nil {
+		flusher.Flush()
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // AnthropicMessages implements Claude's Messages API surface backed by
@@ -376,10 +544,6 @@ func normalizeGatewayMessages(c *gin.Context, input []gatewayMessage) ([]ai.Mess
 			return nil, false
 		}
 		role := strings.TrimSpace(msg.Role)
-		if role != "system" && role != "user" && role != "assistant" && role != "tool" {
-			writeOpenAIError(c, http.StatusBadRequest, fmt.Sprintf("messages[%d].role must be system, user, assistant, or tool", i), "invalid_request_error", "messages", "invalid_message_role")
-			return nil, false
-		}
 		if role == "tool" && strings.TrimSpace(msg.ToolCallID) == "" {
 			writeOpenAIError(c, http.StatusBadRequest, fmt.Sprintf("messages[%d].tool_call_id is required for tool messages", i), "invalid_request_error", "messages", "missing_tool_call_id")
 			return nil, false

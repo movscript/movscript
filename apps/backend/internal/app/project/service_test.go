@@ -39,14 +39,13 @@ func TestAdminListFiltersAndPaginatesProjects(t *testing.T) {
 	owner := createProjectUser(t, db, "owner")
 	otherOwner := createProjectUser(t, db, "other")
 	orgID := uint(10)
-	alpha := createProjectRecord(t, db, "Alpha Film", "pilot", "planning", owner.ID, &orgID)
-	createProjectRecord(t, db, "Beta Cut", "editorial", "editing", otherOwner.ID, nil)
-	createProjectRecord(t, db, "Alpha Second", "follow-up", "planning", owner.ID, &orgID)
+	alpha := createProjectRecord(t, db, "Alpha Film", "pilot", owner.ID, &orgID)
+	createProjectRecord(t, db, "Beta Cut", "editorial", otherOwner.ID, nil)
+	createProjectRecord(t, db, "Alpha Second", "follow-up", owner.ID, &orgID)
 
 	service := NewService(db)
 	page, err := service.AdminList(context.Background(), AdminListFilter{
 		Query:    "alpha",
-		Status:   "planning",
 		OwnerID:  &owner.ID,
 		OrgID:    &orgID,
 		Page:     1,
@@ -94,7 +93,7 @@ func TestAdminCreateCreatesProjectWithOwnerMemberAndValidatesInputs(t *testing.T
 	if err != nil {
 		t.Fatalf("AdminCreate returned error: %v", err)
 	}
-	if created.Name != "Admin Film" || created.OwnerID != owner.ID || created.Status != "planning" || created.OrgID == nil || *created.OrgID != org.ID {
+	if created.Name != "Admin Film" || created.OwnerID != owner.ID || created.OrgID == nil || *created.OrgID != org.ID {
 		t.Fatalf("unexpected created project: %+v", created)
 	}
 	var member persistencemodel.ProjectMember
@@ -123,10 +122,6 @@ func TestAdminCreateCreatesProjectWithOwnerMemberAndValidatesInputs(t *testing.T
 	if _, err := service.AdminCreate(context.Background(), AdminCreateInput{Name: "Suspended Org", OwnerID: owner.ID, OrgID: &suspendedOrg.ID}); !errors.Is(err, ErrProjectOrgInactive) {
 		t.Fatalf("suspended org err = %v, want ErrProjectOrgInactive", err)
 	}
-	badStatus := "archived"
-	if _, err := service.AdminCreate(context.Background(), AdminCreateInput{Name: "Bad", OwnerID: owner.ID, Status: badStatus}); !errors.Is(err, ErrInvalidProjectStatus) {
-		t.Fatalf("invalid status err = %v, want ErrInvalidProjectStatus", err)
-	}
 	if _, err := service.AdminCreate(context.Background(), AdminCreateInput{Name: "  ", OwnerID: owner.ID}); !errors.Is(err, ErrInvalidProjectName) {
 		t.Fatalf("blank name err = %v, want ErrInvalidProjectName", err)
 	}
@@ -136,7 +131,7 @@ func TestForceSetOwnerRejectsInactiveOwner(t *testing.T) {
 	db := newProjectTestDB(t)
 	owner := createProjectUser(t, db, "owner")
 	disabledOwner := createProjectUserWithStatus(t, db, "disabled-owner", "disabled")
-	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, nil)
+	project := createProjectRecord(t, db, "Film", "desc", owner.ID, nil)
 
 	service := NewService(db)
 	if _, err := service.ForceSetOwner(context.Background(), project.ID, disabledOwner.ID); !errors.Is(err, ErrOwnerInactive) {
@@ -151,29 +146,24 @@ func TestForceSetOwnerRejectsInactiveOwner(t *testing.T) {
 	}
 }
 
-func TestAdminUpdateValidatesAndUpdatesProjectNameAndStatus(t *testing.T) {
+func TestAdminUpdateValidatesAndUpdatesProjectName(t *testing.T) {
 	db := newProjectTestDB(t)
 	owner := createProjectUser(t, db, "owner")
-	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, nil)
+	project := createProjectRecord(t, db, "Film", "desc", owner.ID, nil)
 
 	service := NewService(db)
 	name := "  Final Cut  "
-	status := " EDITING "
-	updated, err := service.AdminUpdate(context.Background(), project.ID, AdminUpdateInput{Name: &name, Status: &status})
+	updated, err := service.AdminUpdate(context.Background(), project.ID, AdminUpdateInput{Name: &name})
 	if err != nil {
 		t.Fatalf("AdminUpdate returned error: %v", err)
 	}
-	if updated.Name != "Final Cut" || updated.Status != "editing" {
+	if updated.Name != "Final Cut" {
 		t.Fatalf("unexpected updated project: %+v", updated)
 	}
 	if updated.Owner == nil || updated.Owner.ID != owner.ID {
 		t.Fatalf("owner not preloaded after update: %+v", updated)
 	}
 
-	badStatus := "archived"
-	if _, err := service.AdminUpdate(context.Background(), project.ID, AdminUpdateInput{Status: &badStatus}); !errors.Is(err, ErrInvalidProjectStatus) {
-		t.Fatalf("invalid status err = %v, want ErrInvalidProjectStatus", err)
-	}
 	blankName := " "
 	if _, err := service.AdminUpdate(context.Background(), project.ID, AdminUpdateInput{Name: &blankName}); !errors.Is(err, ErrInvalidProjectName) {
 		t.Fatalf("blank name err = %v, want ErrInvalidProjectName", err)
@@ -192,7 +182,7 @@ func TestAdminDetailReturnsProjectOperationalSummary(t *testing.T) {
 		&persistencemodel.AuditLog{},
 	)
 	owner := createProjectUser(t, db, "detail-owner")
-	project := createProjectRecord(t, db, "Detail Film", "desc", "planning", owner.ID, nil)
+	project := createProjectRecord(t, db, "Detail Film", "desc", owner.ID, nil)
 	if err := db.Create(&persistencemodel.UsageLog{UserID: owner.ID, ProjectID: &project.ID, AIModelConfigID: 1, OperationType: "image", InputTokens: 5, OutputTokens: 7, ImageCount: 2, Cost: 3.5}).Error; err != nil {
 		t.Fatalf("create usage: %v", err)
 	}
@@ -234,7 +224,7 @@ func TestListMembersIncludesUserProfile(t *testing.T) {
 	db := newProjectTestDB(t)
 	owner := createProjectUser(t, db, "owner")
 	memberUser := createProjectUser(t, db, "member")
-	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, nil)
+	project := createProjectRecord(t, db, "Film", "desc", owner.ID, nil)
 	member := persistencemodel.ProjectMember{ProjectID: project.ID, UserID: memberUser.ID, Role: "director"}
 	if err := db.Create(&member).Error; err != nil {
 		t.Fatalf("create project member: %v", err)
@@ -263,7 +253,7 @@ func TestUpdateAndRemoveMemberProtectsProjectOwner(t *testing.T) {
 	db := newProjectTestDB(t)
 	owner := createProjectUser(t, db, "owner")
 	memberUser := createProjectUser(t, db, "member")
-	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, nil)
+	project := createProjectRecord(t, db, "Film", "desc", owner.ID, nil)
 	member := persistencemodel.ProjectMember{ProjectID: project.ID, UserID: memberUser.ID, Role: "director"}
 	if err := db.Create(&member).Error; err != nil {
 		t.Fatalf("create project member: %v", err)
@@ -300,7 +290,7 @@ func TestAddMemberValidatesUserRoleAndUpdatesExisting(t *testing.T) {
 	db := newProjectTestDB(t)
 	owner := createProjectUser(t, db, "owner")
 	memberUser := createProjectUser(t, db, "member")
-	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, nil)
+	project := createProjectRecord(t, db, "Film", "desc", owner.ID, nil)
 
 	service := NewService(db)
 	member, err := service.AddMember(context.Background(), project.ID, MemberInput{UserID: memberUser.ID, Role: "writer"}, nil)
@@ -347,7 +337,7 @@ func TestAddMemberRequiresOrgMembershipWhenScoped(t *testing.T) {
 	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: memberUser.ID, Role: "member"}).Error; err != nil {
 		t.Fatalf("create project member org member: %v", err)
 	}
-	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, &org.ID)
+	project := createProjectRecord(t, db, "Film", "desc", owner.ID, &org.ID)
 
 	service := NewService(db)
 	if _, err := service.AddMember(context.Background(), project.ID, MemberInput{UserID: outsider.ID, Role: "writer"}, &org.ID); !errors.Is(err, ErrMemberUserNotInOrg) {
@@ -377,9 +367,9 @@ func createProjectUserWithStatus(t *testing.T, db *gorm.DB, username string, sta
 	return user
 }
 
-func createProjectRecord(t *testing.T, db *gorm.DB, name string, description string, status string, ownerID uint, orgID *uint) persistencemodel.Project {
+func createProjectRecord(t *testing.T, db *gorm.DB, name string, description string, ownerID uint, orgID *uint) persistencemodel.Project {
 	t.Helper()
-	project := persistencemodel.Project{Name: name, Description: description, Status: status, OwnerID: ownerID, OrgID: orgID}
+	project := persistencemodel.Project{Name: name, Description: description, OwnerID: ownerID, OrgID: orgID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project %q: %v", name, err)
 	}

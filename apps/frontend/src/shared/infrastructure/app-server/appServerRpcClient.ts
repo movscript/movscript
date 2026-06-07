@@ -8,6 +8,8 @@ import {
   type AppServerServerRequestHandler,
   type AppServerThreadListResponse,
   type AppServerThreadReadResponse,
+  type AppServerThreadResumeParams,
+  type AppServerThreadResumeResponse,
   type AppServerThreadStartParams,
   type AppServerThreadStartResponse,
   type AppServerTurnInterruptParams,
@@ -57,6 +59,21 @@ let configuredClient: AppServerRpcClient | undefined
 const APP_SERVER_WS_URL_STORAGE_KEY = 'movscript.appServerWsUrl'
 const APP_SERVER_WS_URL_STORAGE_KEY_PREFIX = 'movscript.appServerWsUrl'
 const SERVER_REQUEST_HANDLER_GRACE_MS = 30_000
+const APP_SERVER_RPC_DEBUG_STORAGE_KEY = 'movscript.debugAppServerRpc'
+const APP_SERVER_RPC_DEBUG_METHODS = new Set([
+  'thread/list',
+  'thread/read',
+  'thread/resume',
+  'thread/goal/clear',
+  'thread/goal/get',
+  'thread/goal/set',
+])
+const APP_SERVER_RPC_DEBUG_NOTIFICATIONS = new Set([
+  'thread/goal/cleared',
+  'thread/goal/updated',
+  'thread/started',
+  'thread/status/changed',
+])
 
 export function appServerURL(provider?: ProviderConfig): string | undefined {
   const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
@@ -167,6 +184,11 @@ export class AppServerRpcClient {
     })
   }
 
+  async resumeThread(params: AppServerThreadResumeParams) {
+    await this.initialize()
+    return this.request<AppServerThreadResumeResponse>('thread/resume', compactRecord(params))
+  }
+
   async startTurn(params: AppServerTurnStartParams) {
     await this.initialize()
     return this.request<AppServerTurnStartResponse>('turn/start', compactRecord(params))
@@ -255,11 +277,16 @@ export class AppServerRpcClient {
     const onMessage = electronApi.onAppServerMessage
     const { connectionId } = await connect?.({ url: this.url }) ?? {}
     if (!connectionId) throw new Error(`Failed to open app-server relay: ${this.url}`)
+    debugAppServerRpc('relay:connected', { url: this.url, connectionId }, { trace: false })
     const unsubscribe = onMessage?.((message) => {
       if (message.connectionId !== connectionId) return
       if (message.kind === 'message') this.handleMessage(message.data)
-      if (message.kind === 'error') this.failPending(new Error(message.error || `app-server relay failed: ${this.url}`))
+      if (message.kind === 'error') {
+        debugAppServerRpc('relay:error', { url: this.url, connectionId, error: message.error }, { trace: false })
+        this.failPending(new Error(message.error || `app-server relay failed: ${this.url}`))
+      }
       if (message.kind === 'close') {
+        debugAppServerRpc('relay:closed', { url: this.url, connectionId }, { trace: false })
         this.initialized = false
         this.transport = undefined
         this.failPending(new Error(`app-server relay closed: ${this.url}`))
@@ -269,6 +296,7 @@ export class AppServerRpcClient {
       send: (payload) => send?.({ connectionId, payload }),
       close: async () => {
         unsubscribe?.()
+        debugAppServerRpc('relay:close-request', { url: this.url, connectionId }, { trace: false })
         await close?.({ connectionId })
       },
     }
@@ -297,6 +325,7 @@ export class AppServerRpcClient {
     await this.connect()
     const id = this.nextRequestId++
     const payload = JSON.stringify(compactRecord({ id, method, params }))
+    debugAppServerRpc('request', { url: this.url, id, method, params }, { trace: shouldDebugAppServerRpcMethod(method) })
     const promise = new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject })
     })
@@ -322,15 +351,24 @@ export class AppServerRpcClient {
       const pending = this.pending.get(response.id)
       if (!pending) return
       this.pending.delete(response.id)
-      if (response.error) pending.reject(new Error(response.error.message || `app-server request ${response.id} failed`))
-      else pending.resolve(response.result)
+      if (response.error) {
+        debugAppServerRpc('response:error', { url: this.url, id: response.id, error: response.error }, { trace: false })
+        pending.reject(new Error(response.error.message || `app-server request ${response.id} failed`))
+      } else {
+        debugAppServerRpc('response', { url: this.url, id: response.id }, { trace: false })
+        pending.resolve(response.result)
+      }
       return
     }
     if (typeof message.method === 'string') {
       const notification = message as AppServerJsonRpcNotification
       if (isJsonRpcId(message.id)) {
+        debugAppServerRpc('server-request', { url: this.url, id: message.id, method: notification.method, params: notification.params }, { trace: false })
         this.handleServerRequest(message as AppServerJsonRpcServerRequest)
         return
+      }
+      if (shouldDebugAppServerRpcNotification(notification.method)) {
+        debugAppServerRpc('notification', { url: this.url, method: notification.method, params: notification.params }, { trace: false })
       }
       for (const listener of Array.from(this.listeners)) listener(notification)
     }
@@ -496,6 +534,34 @@ function fallbackServerRequestResult(method: string): unknown {
     return { action: 'decline', reason: 'No Agent Chat request handler is available.' }
   }
   return null
+}
+
+function shouldDebugAppServerRpcMethod(method: string): boolean {
+  return appServerRpcDebugEnabled() || APP_SERVER_RPC_DEBUG_METHODS.has(method)
+}
+
+function shouldDebugAppServerRpcNotification(method: string): boolean {
+  return appServerRpcDebugEnabled() || APP_SERVER_RPC_DEBUG_NOTIFICATIONS.has(method)
+}
+
+function appServerRpcDebugEnabled(): boolean {
+  try {
+    return typeof window !== 'undefined'
+      && window.localStorage?.getItem(APP_SERVER_RPC_DEBUG_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function debugAppServerRpc(label: string, payload: Record<string, unknown>, options: { trace?: boolean } = {}): void {
+  const method = typeof payload.method === 'string' ? payload.method : undefined
+  const shouldLog = appServerRpcDebugEnabled()
+    || (label === 'request' && method ? APP_SERVER_RPC_DEBUG_METHODS.has(method) : false)
+    || (label === 'notification' && method ? APP_SERVER_RPC_DEBUG_NOTIFICATIONS.has(method) : false)
+    || label.startsWith('relay:')
+  if (!shouldLog) return
+  const logger = options.trace && typeof console.trace === 'function' ? console.trace : console.debug
+  logger(`[app-server rpc ${label}]`, payload)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

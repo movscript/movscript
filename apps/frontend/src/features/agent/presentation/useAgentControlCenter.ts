@@ -20,6 +20,7 @@ import {
 } from '@/shared/infrastructure/providerConfigStore'
 import { agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
 import {
   ensureAppServer as ensureAppServerService,
   getAppServerStatus,
@@ -152,8 +153,10 @@ export function useAgentControlCenter() {
 
   async function ensureAppServer() {
     if (!appServerProvider || !appServerProfile) throw new Error('当前没有启用的 app-server provider。')
+    await ensureDefaultAgentProviderFromBackend({ provider: appServerProvider })
     const status = await ensureAppServerService({ profile: appServerProfile })
     if (!status) throw new Error(`当前运行环境不支持启动 ${appServerProvider.label} app-server。`)
+    if (!status.ok) throw new Error(status.error || `${appServerProvider.label} app-server 启动失败。`)
     await appServerStatusQuery.refetch()
   }
 
@@ -170,8 +173,10 @@ export function useAgentControlCenter() {
       const stopStatus = await stopAppServerService({ profileId: appServerProfile.id })
       if (!stopStatus) throw new Error(`当前运行环境不支持重启 ${appServerProvider.label} app-server。`)
     }
+    await ensureDefaultAgentProviderFromBackend({ provider: appServerProvider })
     const startStatus = await ensureAppServerService({ profile: appServerProfile })
     if (!startStatus) throw new Error(`当前运行环境不支持重启 ${appServerProvider.label} app-server。`)
+    if (!startStatus.ok) throw new Error(startStatus.error || `${appServerProvider.label} app-server 重启失败。`)
     await appServerStatusQuery.refetch()
   }
 

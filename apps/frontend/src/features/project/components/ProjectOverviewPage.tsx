@@ -82,7 +82,6 @@ interface ProjectHomeData {
   assetSlotCandidates: HomeRecord[]
   contentUnits: HomeRecord[]
   keyframes: HomeRecord[]
-  deliveryVersions: HomeRecord[]
   workItems: HomeRecord[]
 }
 
@@ -123,7 +122,6 @@ const emptyHomeData: ProjectHomeData = {
   assetSlotCandidates: [],
   contentUnits: [],
   keyframes: [],
-  deliveryVersions: [],
   workItems: [],
 }
 
@@ -172,7 +170,6 @@ function nextLaneActionLabel(lane?: WorkLane) {
   if (lane.key === 'pre_production') return '进入前期准备'
   if (lane.key === 'orchestration_production') return '进入创作编排'
   if (lane.key === 'content_orchestration') return '进入创作编排'
-  if (lane.key === 'delivery') return '进入交付工作台'
   return `进入${lane.title}`
 }
 
@@ -210,7 +207,6 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     assetSlotCandidates,
     contentUnits,
     keyframes,
-    deliveryVersions,
     workItems,
   ] = await Promise.all([
     safeListSemanticEntities(projectId, 'scriptVersions'),
@@ -226,7 +222,6 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     safeListSemanticEntities(projectId, 'assetSlotCandidates'),
     safeListSemanticEntities(projectId, 'contentUnits'),
     safeListSemanticEntities(projectId, 'keyframes'),
-    safeListSemanticEntities(projectId, 'deliveryVersions'),
     safeListSemanticEntities(projectId, 'workItems'),
   ])
 
@@ -244,7 +239,6 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     assetSlotCandidates,
     contentUnits,
     keyframes: keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe)),
-    deliveryVersions,
     workItems,
   } as ProjectHomeData
 }
@@ -383,7 +377,6 @@ export default function ProjectOverviewPage() {
     const confirmedContents = statusCount(data.contentUnits, ['confirmed', 'in_production', 'locked'])
     const lockedContents = statusCount(data.contentUnits, ['locked'])
     const acceptedKeyframes = statusCount(data.keyframes, ['accepted', 'attached'])
-    const approvedDeliveries = statusCount(data.deliveryVersions, ['approved', 'exported'])
     const blockedTasks = data.workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).length
 
     return {
@@ -401,7 +394,6 @@ export default function ProjectOverviewPage() {
       confirmedContents,
       lockedContents,
       acceptedKeyframes,
-      approvedDeliveries,
       blockedTasks,
     }
   }, [data])
@@ -410,7 +402,6 @@ export default function ProjectOverviewPage() {
     const standards = getProjectWorkbenchDefinition('project_standards')
     const preProduction = getProjectWorkbenchDefinition('pre_production')
     const creative = getProjectWorkbenchDefinition('orchestration_production')
-    const delivery = getProjectWorkbenchDefinition('delivery')
 
     const standardsTotal = 5
     const standardsDone = [
@@ -431,7 +422,6 @@ export default function ProjectOverviewPage() {
     const planTotal = data.productions.length + data.segments.length + data.sceneMoments.length + data.storyboardScripts.length + data.previewTimelines.length + contentTotal
     const planDone = counts.deliveredProductions + statusCount(data.storyboardScripts, ['active', 'locked']) + statusCount(data.previewTimelines, ['playable', 'confirmed']) + contentDone
     const planProgress = planTotal > 0 ? Math.max(counts.productionProgress, percentage(planDone, planTotal)) : 0
-    const deliveryProgress = data.deliveryVersions.length > 0 ? percentage(counts.approvedDeliveries, data.deliveryVersions.length) : 0
 
     return [
       {
@@ -472,19 +462,6 @@ export default function ProjectOverviewPage() {
         href: creative.route,
         workbenchHref: creative.route,
         icon: creative.icon,
-      },
-      {
-        key: 'delivery',
-        title: delivery.title,
-        description: delivery.purpose,
-        primaryLabel: '交付版本',
-        primaryValue: data.deliveryVersions.length,
-        secondary: `${counts.approvedDeliveries} 个版本已放行，${counts.lockedContents} 个内容已锁定`,
-        progress: deliveryProgress,
-        state: data.deliveryVersions.length === 0 ? (counts.lockedContents > 0 ? 'active' : 'empty') : deliveryProgress >= 70 ? 'ready' : 'active',
-        href: delivery.route,
-        workbenchHref: delivery.route,
-        icon: delivery.icon,
       },
     ]
   }, [counts, data, project?.aspect_ratio, project?.project_style, project?.visual_style])
@@ -557,14 +534,6 @@ export default function ProjectOverviewPage() {
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },
-      {
-        key: 'delivery',
-        title: '查看交付工作台',
-        area: '交付工作台',
-        href: ROUTES.project.deliveryWorkbench,
-        priority: 'low',
-        detail: '提前检查声音、字幕、版权和导出完整性',
-      },
     ]
   }, [data])
 
@@ -578,7 +547,7 @@ export default function ProjectOverviewPage() {
         <ProjectSurfaceHeader
           icon={LayoutDashboard}
           title={project?.name ?? '项目总览'}
-          description={project?.description || '项目总览按工作台组织当前进度：项目规范、前期准备、创作编排和交付。镜头方案、时间轴和镜头列表在创作编排中推进。'}
+          description={project?.description || '项目总览按工作台组织当前进度：项目规范、前期准备和创作编排。镜头方案、时间轴和镜头列表在创作编排中推进。'}
           meta={(
             <>
               <StatusBadge {...projectBlockedSummaryRecipe(blockedCount)}>
@@ -622,7 +591,6 @@ export default function ProjectOverviewPage() {
               <AppDashboardMetric label="创作方案" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
               <AppDashboardMetric label="镜头" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
               <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={<WorkbenchMetricIcon workbenchId="pre_production" />} />
-              <AppDashboardMetric label="交付版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={<WorkbenchMetricIcon workbenchId="delivery" />} />
             </ProjectOverviewMetricGrid>
 
             <ProjectOverviewPipelineGrid>

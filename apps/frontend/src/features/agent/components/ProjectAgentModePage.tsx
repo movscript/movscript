@@ -5,10 +5,16 @@ import {
   Archive,
   ChevronDown,
   ChevronRight,
+  Clock3,
+  Folder,
   History,
   MessageSquare,
   PanelTopOpen,
   Plus,
+  Puzzle,
+  Search,
+  Smartphone,
+  SquarePen,
   Trash2,
 } from 'lucide-react'
 import {
@@ -92,7 +98,7 @@ import {
 import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
 import type { AgentChatThread } from '@/features/agent/domain/agentChatProtocol'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { useAgentSessionStore, type AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
 import {
   enabledProviders,
   providerInstanceId,
@@ -112,6 +118,9 @@ const AGENT_SIDEBAR_DEFAULT_WIDTH = 288
 const AGENT_SIDEBAR_MIN_WIDTH = 180
 const AGENT_SIDEBAR_MAX_WIDTH = 420
 const AGENT_SIDEBAR_COLLAPSED_WIDTH = 0
+const APP_SERVER_THREAD_LIST_STALE_MS = 15_000
+const APP_SERVER_THREAD_LIST_REFRESH_MS = 30_000
+const APP_SERVER_THREAD_LIST_GC_MS = 5 * 60_000
 type AgentWorkspaceScopeSelection = 'global' | 'project' | 'production'
 
 interface PaintDiagnosticRow {
@@ -310,11 +319,10 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const removeProviderSessionConversation = useAgentSessionStore((s) => s.removeProviderSessionConversation)
   const setActiveConversation = useAgentSessionStore((s) => s.setActiveConversation)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
-  const providerThreadIdsByConversation = useAgentSessionStore((s) => s.providerThreadIdsByConversation)
-  const sessionIdsByConversation = useAgentSessionStore((s) => s.sessionIdsByConversation)
-  const setProviderThreadId = useAgentSessionStore((s) => s.setProviderThreadId)
-  const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
-  const setConversationProviderSessionState = useAgentSessionStore((s) => s.setConversationProviderSessionState)
+  const conversationThreadBindings = useAgentSessionStore((s) => s.conversationThreadBindings)
+  const setConversationProviderThreadBindingId = useAgentSessionStore((s) => s.setConversationProviderThreadBindingId)
+  const setConversationProviderSessionTreeId = useAgentSessionStore((s) => s.setConversationProviderSessionTreeId)
+  const updateConversationRuntimeState = useAgentSessionStore((s) => s.updateConversationRuntimeState)
   const clearConversationProviderSessionState = useAgentSessionStore((s) => s.clearConversationProviderSessionState)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [showAllProjectGroups, setShowAllProjectGroups] = useState(false)
@@ -325,7 +333,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const [showAllHistoryConversations, setShowAllHistoryConversations] = useState(false)
   const [appServerActiveThreadId, setAppServerActiveThreadId] = useState(() => readAppServerActiveThreadId())
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
-  const [newConversationWorkspaceScope, setNewConversationWorkspaceScope] = useState<AgentWorkspaceScopeSelection>('project')
+  const [newConversationWorkspaceScope] = useState<AgentWorkspaceScopeSelection>('project')
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return AGENT_SIDEBAR_DEFAULT_WIDTH
     const saved = Number(window.localStorage.getItem(AGENT_SIDEBAR_WIDTH_STORAGE_KEY))
@@ -393,6 +401,11 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     },
     enabled: appServerMode,
     retry: false,
+    staleTime: APP_SERVER_THREAD_LIST_STALE_MS,
+    gcTime: APP_SERVER_THREAD_LIST_GC_MS,
+    refetchInterval: APP_SERVER_THREAD_LIST_REFRESH_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   })
 
   useEffect(() => {
@@ -477,9 +490,8 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     for (const conversation of openConversations) {
       const projectId = conversationProjectId(conversation, {
         providerSessionThreadsById,
-        providerThreadIdsByConversation,
+        conversationThreadBindings,
         providerSessionsById,
-        sessionIdsByConversation,
         pageTasks,
       })
       if (projectId === undefined) {
@@ -497,7 +509,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     const projectGroups = Array.from(projectGroupsById.values())
       .sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage))
     return { projectGroups, chatConversations }
-  }, [i18n.resolvedLanguage, providerSessionsById, providerSessionThreadsById, providerThreadIdsByConversation, openConversations, pageTasks, projectNamesById, sessionIdsByConversation, t])
+  }, [conversationThreadBindings, i18n.resolvedLanguage, providerSessionsById, providerSessionThreadsById, openConversations, pageTasks, projectNamesById, t])
   const { projectGroups, chatConversations } = conversationsByScope
   const visibleProjectGroups = showAllProjectGroups ? projectGroups : projectGroups.slice(0, DEFAULT_VISIBLE_PROJECT_GROUPS)
   const hiddenProjectGroupCount = Math.max(0, projectGroups.length - visibleProjectGroups.length)
@@ -528,23 +540,6 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenHistoryItemCount = Math.max(0, historyItems.length - visibleHistoryItems.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const primaryConversationId = useMemo(() => {
-    if (appServerMode) {
-      return appServerActiveThreadId && appServerThreads.some((thread) => thread.id === appServerActiveThreadId)
-        ? appServerActiveThreadId
-        : appServerThreads[0]?.id
-    }
-    return activeConversationId && openConversationIds.includes(activeConversationId)
-      ? activeConversationId
-      : openConversations[0]?.id ?? openConversationIds[0]
-  }, [activeConversationId, appServerMode, appServerActiveThreadId, appServerThreads, openConversationIds, openConversations])
-  const hasWorkspaceSessionHistory = providerSessions.length > 0 || providerSessionThreads.length > 0
-  const primaryShowsConversations = Boolean(primaryConversationId) || hasWorkspaceSessionHistory || (appServerMode && appServerThreadsLoading)
-
-  function openConversationHome() {
-    navigate(ROUTES.project.agent)
-  }
-
   function selectAppServerThread(threadId: string) {
     setAppServerActiveThreadId(threadId)
     openAppServerThread({ threadId, provider: newConversationProvider })
@@ -552,7 +547,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   }
 
   function threadIdForConversation(conversation: Conversation) {
-    return providerThreadIdsByConversation[conversation.id]
+    return conversationThreadBindings[conversation.id]?.providerThreadId
       ?? conversation.providerThreadId
       ?? (conversation.id.startsWith('thread_') ? conversation.id : undefined)
   }
@@ -563,7 +558,8 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   }
 
   function providerSessionClientForConversation(conversation: Conversation) {
-    const sessionId = sessionIdsByConversation[conversation.id] ?? conversation.providerSessionId
+    const sessionId = conversationThreadBindings[conversation.id]?.providerSessionTreeId
+      ?? conversation.providerSessionId
     return sessionId?.trim() ? providerSessionClient.forSession({ sessionId: sessionId.trim() }) : providerSessionClientForThread(threadIdForConversation(conversation))
   }
 
@@ -599,16 +595,14 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
         updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
       })
       upsertCachedProviderSessionThread(queryClient, threadSummary)
-      setProviderThreadId(conversationId, thread.id)
-      if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
+      setConversationProviderThreadBindingId(conversationId, thread.id)
+      if (thread.sessionId) setConversationProviderSessionTreeId(conversationId, thread.sessionId)
       setConversationOpenState((current) => {
         const next = setAgentConversationOpen(current, [conversationId], true)
         writeAgentConversationOpenState(userId, next)
         return next
       })
-      setConversationProviderSessionState(conversationId, {
-        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-        threadId: thread.id,
+      updateConversationRuntimeState(conversationId, {
         loading: false,
         building: false,
         error: undefined,
@@ -663,8 +657,12 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     const sessionState = useAgentSessionStore.getState()
     const idsToRemove = new Set<string>([conversationId])
     const lastActiveThreadId = readLastAgentModeActiveThreadId(userId)
-    for (const id of Object.keys(sessionState.conversationProviderSessionStates)) {
-      const providerThreadId = sessionState.providerThreadIdsByConversation[id]
+    const mappedConversationIds = new Set([
+      ...Object.keys(sessionState.conversationThreadBindings),
+      ...Object.keys(sessionState.conversationProviderSessionStates),
+    ])
+    for (const id of mappedConversationIds) {
+      const providerThreadId = sessionState.conversationThreadBindings[id]?.providerThreadId
         ?? sessionState.conversationProviderSessionStates[id]?.threadId
         ?? (id.startsWith('thread_') ? id : undefined)
       if (providerThreadId && deletedThreadIdSet.has(providerThreadId)) idsToRemove.add(id)
@@ -741,13 +739,62 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
             {headerActions}
           </div>
         ) : null}
+        <AgentModePrimaryNavItem
+          onClick={startNewConversation}
+          title={t('agents.chat.agentModeSidebar.startConversation')}
+        >
+          <AgentModeIconSlot><SquarePen size={18} /></AgentModeIconSlot>
+          <AgentModeLabel>新对话</AgentModeLabel>
+        </AgentModePrimaryNavItem>
+        {!sidebarCollapsed ? (
+          <>
+            <AgentModePrimaryNavItem
+              className="agent-mode-nav-item--search"
+              onClick={() => navigate(ROUTES.project.agent)}
+              title="搜索"
+            >
+              <AgentModeIconSlot><Search size={19} /></AgentModeIconSlot>
+              <AgentModeLabel>搜索</AgentModeLabel>
+              <AgentModeMeta>⌘G</AgentModeMeta>
+            </AgentModePrimaryNavItem>
+            <AgentModePrimaryNavItem onClick={() => navigate(ROUTES.tools.refImageGen)} title="插件">
+              <AgentModeIconSlot><Puzzle size={18} /></AgentModeIconSlot>
+              <AgentModeLabel>插件</AgentModeLabel>
+            </AgentModePrimaryNavItem>
+            <AgentModePrimaryNavItem onClick={() => navigate(ROUTES.jobs)} title="自动化">
+              <AgentModeIconSlot><Clock3 size={18} /></AgentModeIconSlot>
+              <AgentModeLabel>自动化</AgentModeLabel>
+            </AgentModePrimaryNavItem>
+            <div className="agent-mode-provider-row">
+              <AgentModeIconSlot><Smartphone size={18} /></AgentModeIconSlot>
+              <select
+                value={newConversationProvider.id}
+                onChange={(event) => setNewConversationProviderId(event.currentTarget.value)}
+                aria-label="选择新建会话使用的 Agent"
+              >
+                {availableProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.label} · {provider.kind}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : null}
+      </AgentModeSidebarTop>
+
+      <AgentModeSidebarScroll>
+        {!sidebarCollapsed ? (
+          <div className="agent-mode-sidebar-project-heading">
+            <span>项目</span>
+          </div>
+        ) : null}
         {!sidebarCollapsed ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <AgentModeProjectSelectButton>
-                <AgentModeLabel>{project?.name ?? t('agents.chat.agentModeSidebar.currentProjectFallback')}</AgentModeLabel>
-                <AgentModeMeta>{projects.length}</AgentModeMeta>
-                <AgentModeIconSlot><ChevronDown size={12} /></AgentModeIconSlot>
+                <AgentModeIconSlot><Folder size={18} /></AgentModeIconSlot>
+                <AgentModeLabel>{project?.name ?? 'movscript'}</AgentModeLabel>
               </AgentModeProjectSelectButton>
             </DropdownMenuTrigger>
             <AgentModeProjectMenuContent>
@@ -763,70 +810,6 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
             </AgentModeProjectMenuContent>
           </DropdownMenu>
         ) : null}
-        {!sidebarCollapsed ? (
-          <div className="px-2 pb-2">
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">新建会话 Agent</label>
-            <select
-              value={newConversationProvider.id}
-              onChange={(event) => setNewConversationProviderId(event.currentTarget.value)}
-              className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground"
-              aria-label="选择新建会话使用的 Agent"
-            >
-              {availableProviders.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.label} · {provider.kind}
-                </option>
-              ))}
-            </select>
-            {appServerMode ? (
-              <div className="mt-2 grid grid-cols-3 gap-1 rounded border border-border bg-muted/30 p-1" role="group" aria-label="选择 Agent 工作区范围">
-                {(['global', 'project', 'production'] as AgentWorkspaceScopeSelection[]).map((scope) => {
-                  const disabled = scope === 'project'
-                    ? !project?.ID
-                    : scope === 'production'
-                      ? !project?.ID || currentProductionId === undefined
-                      : false
-                  const active = effectiveNewConversationWorkspaceScope === scope
-                  return (
-                    <button
-                      key={scope}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setNewConversationWorkspaceScope(scope)}
-                      className={[
-                        'h-7 rounded px-1 text-[11px] font-medium transition',
-                        active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                        disabled ? 'cursor-not-allowed opacity-45 hover:text-muted-foreground' : '',
-                      ].filter(Boolean).join(' ')}
-                    >
-                      {workspaceScopeLabel(scope)}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <AgentModeCompactNavItem onClick={startNewConversation}>
-          <AgentModeIconSlot><Plus size={12} /></AgentModeIconSlot>
-          新建 {newConversationProvider.label} 会话
-        </AgentModeCompactNavItem>
-        <AgentModePrimaryNavItem
-          onClick={primaryConversationId
-            ? appServerMode ? () => selectAppServerThread(primaryConversationId) : () => selectConversation(primaryConversationId)
-            : primaryShowsConversations ? openConversationHome : startNewConversation}
-          title={primaryShowsConversations
-            ? t('agents.chat.agentModeSidebar.conversations')
-            : t('agents.chat.agentModeSidebar.newConversation')}
-        >
-          <AgentModeIconSlot>{primaryShowsConversations ? <MessageSquare size={14} /> : <Plus size={14} />}</AgentModeIconSlot>
-          <AgentModeLabel>{primaryShowsConversations
-            ? t('agents.chat.agentModeSidebar.conversations')
-            : t('agents.chat.agentModeSidebar.newConversation')}</AgentModeLabel>
-        </AgentModePrimaryNavItem>
-      </AgentModeSidebarTop>
-
-      <AgentModeSidebarScroll>
         <AgentSidebarGroup
           title={t('agents.chat.agentModeSidebar.project')}
           icon={<PanelTopOpen size={13} />}
@@ -1067,9 +1050,8 @@ function conversationProjectId(
   conversation: Conversation,
   context: {
     providerSessionThreadsById: Map<string, AgentThreadSummary>
-    providerThreadIdsByConversation: Record<string, string>
+    conversationThreadBindings: Record<string, AgentConversationThreadBinding>
     providerSessionsById: Map<string, AgentSessionSummary>
-    sessionIdsByConversation: Record<string, string>
     pageTasks: ReturnType<typeof useAgentSessionStore.getState>['pageTasks']
   },
 ) {
@@ -1079,11 +1061,12 @@ function conversationProjectId(
     .find((projectId): projectId is number => typeof projectId === 'number')
   if (taskProjectId !== undefined) return taskProjectId
 
-  const sessionId = context.sessionIdsByConversation[conversation.id] ?? conversation.providerSessionId
+  const binding = context.conversationThreadBindings[conversation.id]
+  const sessionId = binding?.providerSessionTreeId ?? conversation.providerSessionId
   const sessionProjectId = sessionId ? context.providerSessionsById.get(sessionId)?.projectId : undefined
   if (typeof sessionProjectId === 'number') return sessionProjectId
 
-  const threadId = context.providerThreadIdsByConversation[conversation.id] ?? conversation.providerThreadId
+  const threadId = binding?.providerThreadId ?? conversation.providerThreadId
   const threadProjectId = threadId ? context.providerSessionThreadsById.get(threadId)?.projectId : undefined
   return typeof threadProjectId === 'number' ? threadProjectId : undefined
 }
@@ -1300,12 +1283,6 @@ function positiveInteger(value: string | null | undefined): number | undefined {
   if (!value) return undefined
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
-}
-
-function workspaceScopeLabel(scope: AgentWorkspaceScopeSelection): string {
-  if (scope === 'global') return '用户根'
-  if (scope === 'production') return '制作'
-  return '项目'
 }
 
 export function ProjectAgentContentPanel({

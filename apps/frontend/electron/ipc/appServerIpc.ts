@@ -1,4 +1,4 @@
-import { ipcMain, type WebContents } from 'electron'
+import { BrowserWindow, ipcMain, type WebContents } from 'electron'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { Socket } from 'node:net'
 import { appServerManager } from '../services/appServerManager'
@@ -6,6 +6,7 @@ import type {
   ElectronAppServerCloseInput,
   ElectronAppServerConnectInput,
   ElectronAppServerEnsureInput,
+  ElectronAppServerLogEvent,
   ElectronAppServerMessage,
   ElectronAppServerSendInput,
   ElectronAppServerStatusInput,
@@ -39,6 +40,7 @@ type AppServerIpcChannels = {
   send: string
   close: string
   message: string
+  log: string
 }
 
 const APP_SERVER_IPC_CHANNELS: AppServerIpcChannels = {
@@ -50,13 +52,18 @@ const APP_SERVER_IPC_CHANNELS: AppServerIpcChannels = {
   send: 'app-server:send',
   close: 'app-server:close',
   message: 'app-server:message',
+  log: 'app-server:log',
 }
+
+let logForwarderRegistered = false
 
 export function registerAppServerIpcHandlers(): void {
   registerAppServerIpcChannelHandlers(APP_SERVER_IPC_CHANNELS)
 }
 
 function registerAppServerIpcChannelHandlers(channels: AppServerIpcChannels): void {
+  registerAppServerLogForwarder(channels.log)
+
   ipcMain.handle(channels.distribute, (_event, input?: ElectronAppServerEnsureInput) => {
     return appServerManager.distribute(input)
   })
@@ -79,6 +86,7 @@ function registerAppServerIpcChannelHandlers(channels: AppServerIpcChannels): vo
     const socket = await openAppServerRelaySocket(url)
     const connection: AppServerConnection = { id, url, socket, sender: event.sender, messageChannel: channels.message }
     connections.set(id, connection)
+    console.info('[app-server relay] connect', { connectionId: id, url, activeConnections: connections.size })
 
     event.sender.once('destroyed', () => closeConnection(id))
     socket.onMessage((data) => {
@@ -89,6 +97,7 @@ function registerAppServerIpcChannelHandlers(channels: AppServerIpcChannels): vo
       })
     })
     socket.onError((error) => {
+      console.warn('[app-server relay] socket error', { connectionId: id, url, error: error.message })
       sendToRenderer(connection, {
         connectionId: id,
         kind: 'error',
@@ -97,6 +106,7 @@ function registerAppServerIpcChannelHandlers(channels: AppServerIpcChannels): vo
     })
     socket.onClose(() => {
       connections.delete(id)
+      console.info('[app-server relay] socket close', { connectionId: id, url, activeConnections: connections.size })
       sendToRenderer(connection, {
         connectionId: id,
         kind: 'close',
@@ -112,12 +122,32 @@ function registerAppServerIpcChannelHandlers(channels: AppServerIpcChannels): vo
     const connection = connections.get(connectionId)
     if (!connection) throw new Error(`app-server connection not found: ${connectionId}`)
     if (typeof input?.payload !== 'string') throw new Error('app-server send requires a string payload')
+    const method = appServerRelayPayloadMethod(input.payload)
+    if (method && appServerRelayShouldLogMethod(method)) {
+      console.info('[app-server relay] send', { connectionId, url: connection.url, method })
+    }
     connection.socket.send(input.payload)
   })
 
   ipcMain.handle(channels.close, (_event, input?: ElectronAppServerCloseInput) => {
     closeConnection(input?.connectionId)
   })
+}
+
+function registerAppServerLogForwarder(channel: string): void {
+  if (logForwarderRegistered) return
+  logForwarderRegistered = true
+  appServerManager.onLog((event: ElectronAppServerLogEvent) => {
+    for (const contents of webContentsForAppServerLogs()) {
+      if (!contents.isDestroyed()) contents.send(channel, event)
+    }
+  })
+}
+
+function webContentsForAppServerLogs(): WebContents[] {
+  const connected = Array.from(connections.values()).map((connection) => connection.sender)
+  const windows = BrowserWindow.getAllWindows().map((window) => window.webContents)
+  return Array.from(new Set([...connected, ...windows]))
 }
 
 function validateAppServerURL(value: string | undefined): string {
@@ -246,7 +276,26 @@ function closeConnection(connectionId: string | null | undefined): void {
   const connection = connections.get(normalized)
   if (!connection) return
   connections.delete(normalized)
+  console.info('[app-server relay] close', { connectionId: normalized, url: connection.url, activeConnections: connections.size })
   connection.socket.close()
+}
+
+function appServerRelayPayloadMethod(payload: string): string | undefined {
+  try {
+    const parsed = JSON.parse(payload) as { method?: unknown }
+    return typeof parsed.method === 'string' ? parsed.method : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function appServerRelayShouldLogMethod(method: string): boolean {
+  return method === 'thread/list'
+    || method === 'thread/read'
+    || method === 'thread/resume'
+    || method === 'thread/goal/clear'
+    || method === 'thread/goal/get'
+    || method === 'thread/goal/set'
 }
 
 function sendToRenderer(connection: AppServerConnection, message: ElectronAppServerMessage): void {

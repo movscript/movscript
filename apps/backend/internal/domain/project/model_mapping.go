@@ -14,7 +14,6 @@ func ProjectFromModel(project persistencemodel.Project) Project {
 		OwnerID:       project.OwnerID,
 		Owner:         UserRefFromModel(project.Owner),
 		OrgID:         project.OrgID,
-		Status:        project.Status,
 		TotalEpisodes: project.TotalEpisodes,
 		AspectRatio:   project.AspectRatio,
 		VisualStyle:   project.VisualStyle,
@@ -39,7 +38,6 @@ func (project Project) ApplyToModel(target *persistencemodel.Project) {
 	target.Description = project.Description
 	target.OwnerID = project.OwnerID
 	target.OrgID = project.OrgID
-	target.Status = project.Status
 	target.TotalEpisodes = project.TotalEpisodes
 	target.AspectRatio = project.AspectRatio
 	target.VisualStyle = project.VisualStyle

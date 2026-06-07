@@ -5,8 +5,8 @@ import {
 } from '@movscript/ui'
 import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
 import {
+  AgentChatInspectBlock,
   AgentChatInlineList,
-  AgentChatPreviewBlock,
   AgentChatSectionTitle,
   AgentChatTextBlock,
 } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks'
@@ -21,10 +21,10 @@ export function AgentChatSystemItem({ item }: { item: Extract<AgentChatThreadIte
           {view.detail ? <AgentChatTextBlock label="Details" value={view.detail} tone={view.tone} /> : null}
           <AgentChatInlineList label="Timeline" values={view.timeline} />
           <AgentChatInlineList label="Action context" values={view.actionContext} />
-          {view.reviewDetails ? <AgentChatPreviewBlock label="Review" value={view.reviewDetails} contentKind="rawDetails" /> : null}
-          {view.rawDetailsLabel && view.rawDetails !== undefined ? (
-            <AgentChatPreviewBlock label={view.rawDetailsLabel} value={view.rawDetails} contentKind="rawDetails" />
-          ) : null}
+          <AgentChatInspectBlock entries={[
+            view.reviewDetails ? { label: 'review', value: view.reviewDetails } : null,
+            view.rawDetails !== undefined ? { label: view.rawDetailsLabel ?? 'system', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>

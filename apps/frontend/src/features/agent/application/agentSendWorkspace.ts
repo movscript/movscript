@@ -6,6 +6,7 @@ import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStor
 import type { Project, PublicModel, RawResource } from '@/types'
 import type { ProviderSessionClientInput, ProviderManifest, ProviderSessionLimitsOverride, AgentRunPreview } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
+import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
 
 export type AgentSendRoute = 'provider-session'
 
@@ -55,6 +56,7 @@ export interface AgentSendProviderSessionScope {
   providerManifest?: ProviderManifest
   providerSessionLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
+  threadControl?: Partial<AgentThreadControlState>
   requestId?: string
   timeoutMs?: number
   diagnosticCommand?: boolean
@@ -85,6 +87,7 @@ export interface AgentSendWorkspaceOptions {
   /** Legacy provider wire key. New client code should use providerSessionLimits. */
   runtimeLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
+  threadControl?: Partial<AgentThreadControlState>
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
@@ -116,6 +119,7 @@ export interface AgentSendWorkspacePreviewDeps {
     providerManifest?: ProviderManifest
     providerSessionLimits?: ProviderSessionLimitsOverride
     runProfile?: AgentRunProfileSelection
+    threadControl?: Partial<AgentThreadControlState>
   }) => Promise<AgentRunPreview>
   isProviderSessionNotFoundError: (error: unknown) => boolean
   onPreviewError?: (error: unknown) => void
@@ -154,6 +158,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
   const taskPayload = canUseExternalTask && !options.clientInput && options.message === undefined ? input.externalTask?.payload : undefined
   const providerSessionLimits = options.providerSessionLimits ?? options.runtimeLimits
   const runProfile = options.runProfile
+  const threadControl = normalizeSendThreadControl(options.threadControl)
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined
   const text = (options.message ?? input.workspaceInput).trim()
   const warnings: string[] = []
@@ -210,6 +215,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
     ...(requestedManifest ? { providerManifest: requestedManifest } : {}),
     ...(providerSessionLimits ? { providerSessionLimits } : {}),
     ...(runProfile ? { runProfile } : {}),
+    ...(threadControl ? { threadControl } : {}),
     ...((options.requestId ?? taskRequestId) ? { requestId: options.requestId ?? taskRequestId } : {}),
     ...((options.timeoutMs ?? taskPayload?.timeoutMs) ? { timeoutMs: options.timeoutMs ?? taskPayload?.timeoutMs } : {}),
     diagnosticCommand,
@@ -229,6 +235,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
           ...(requestedManifest ? { providerManifest: requestedManifest } : {}),
           ...(providerSessionLimits ? { providerSessionLimits } : {}),
           ...(runProfile ? { runProfile } : {}),
+          ...(threadControl ? { threadControl } : {}),
         })
       } catch (error) {
         if (!threadId || !input.previewDeps.isProviderSessionNotFoundError(error)) throw error
@@ -238,6 +245,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
           ...(requestedManifest ? { providerManifest: requestedManifest } : {}),
           ...(providerSessionLimits ? { providerSessionLimits } : {}),
           ...(runProfile ? { runProfile } : {}),
+          ...(threadControl ? { threadControl } : {}),
         })
       }
     } catch (error) {
@@ -395,6 +403,7 @@ export function buildDebugHttpRequests(options: {
           message: options.providerSession?.clientInput?.message ?? options.messages.at(-1)?.content ?? '',
           ...(options.providerSession?.clientInput ? { clientInput: options.providerSession.clientInput } : {}),
           ...(options.providerSession?.runProfile ? { runProfile: options.providerSession.runProfile } : {}),
+          ...(options.providerSession?.threadControl ? { threadControl: options.providerSession.threadControl } : {}),
         },
       },
       {
@@ -415,6 +424,15 @@ export function buildDebugHttpRequests(options: {
     ...request,
     ...(request.body !== undefined ? { body: compactDebugValue(request.body) } : {}),
   }))
+}
+
+function normalizeSendThreadControl(threadControl: Partial<AgentThreadControlState> | undefined): Partial<AgentThreadControlState> | undefined {
+  if (!threadControl) return undefined
+  const next: Partial<AgentThreadControlState> = {
+    ...(threadControl.collaborationMode === 'plan' ? { collaborationMode: 'plan' as const } : {}),
+    ...(threadControl.goal ? { goal: threadControl.goal } : {}),
+  }
+  return Object.keys(next).length > 0 ? next : undefined
 }
 
 function buildAgentContext(options: {

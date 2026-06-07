@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	domainorg "github.com/movscript/movscript/internal/domain/org"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 )
@@ -24,13 +25,13 @@ func TestEnsureProjectRepositoryCreatesStableBinding(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "42", HeadCommit: "abc123"}}
-	service := NewService(db, Config{Owner: "movscript", RepoPrefix: "project-", DefaultBranch: "main"}, adapter)
+	service := NewService(db, Config{RepoPrefix: "project-", DefaultBranch: "main"}, adapter)
 
 	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, nil)
 	if err != nil {
 		t.Fatalf("EnsureProjectRepository returned error: %v", err)
 	}
-	if binding.ProjectID != project.ID || binding.Owner != "movscript" || binding.Repo != "project-1" || binding.Status != StatusActive {
+	if binding.ProjectID != project.ID || binding.Owner != "owner" || binding.Repo != "project-1" || binding.Status != StatusActive {
 		t.Fatalf("unexpected binding: %+v", binding)
 	}
 	if binding.ProviderRepoID != "42" || binding.HeadCommit != "abc123" {
@@ -50,21 +51,147 @@ func TestEnsureProjectRepositoryCreatesStableBinding(t *testing.T) {
 	if again.Repo != binding.Repo || again.ProviderRepoID != binding.ProviderRepoID {
 		t.Fatalf("binding changed after project rename: before=%+v after=%+v", binding, again)
 	}
+	if adapter.calls != 2 {
+		t.Fatalf("adapter calls = %d, want 2", adapter.calls)
+	}
+}
+
+func TestEnsureProjectRepositoryRepairsExistingBindingWhenRemoteRepoMissing(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-existing-binding-repair.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "owner"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectRepository{
+		ProjectID:     project.ID,
+		Provider:      ProviderGitea,
+		Owner:         "movscript",
+		Repo:          "project-1",
+		DefaultBranch: "main",
+		Status:        StatusActive,
+	}).Error; err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "remote-1", HeadCommit: "head-1"}}
+	service := NewService(db, Config{RepoPrefix: "project-", DefaultBranch: "main"}, adapter)
+
+	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, nil)
+	if err != nil {
+		t.Fatalf("EnsureProjectRepository returned error: %v", err)
+	}
 	if adapter.calls != 1 {
-		t.Fatalf("adapter called for existing binding: %d", adapter.calls)
+		t.Fatalf("adapter calls = %d, want 1", adapter.calls)
+	}
+	if binding.Status != StatusActive || binding.ProviderRepoID != "remote-1" || binding.HeadCommit != "head-1" {
+		t.Fatalf("binding was not repaired: %+v", binding)
+	}
+}
+
+func TestEnsureProjectRepositoryReconcilesExistingBindingOwner(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-owner-reconcile.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "alice"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectRepository{
+		ProjectID:      project.ID,
+		Provider:       ProviderGitea,
+		Owner:          "movscript",
+		Repo:           "project-1",
+		DefaultBranch:  "main",
+		Status:         StatusActive,
+		ProviderRepoID: "old-remote",
+		HeadCommit:     "old-head",
+	}).Error; err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "alice-remote", HeadCommit: "alice-head"}}
+	service := NewService(db, Config{RepoPrefix: "project-", DefaultBranch: "main"}, adapter)
+
+	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, nil)
+	if err != nil {
+		t.Fatalf("EnsureProjectRepository returned error: %v", err)
+	}
+	if binding.Owner != "alice" {
+		t.Fatalf("owner = %q, want alice", binding.Owner)
+	}
+	if binding.Status != StatusActive || binding.ProviderRepoID != "alice-remote" || binding.HeadCommit != "alice-head" {
+		t.Fatalf("binding was not reprovisioned under reconciled owner: %+v", binding)
+	}
+	if adapter.input.Owner != "alice" {
+		t.Fatalf("adapter owner = %q, want alice", adapter.input.Owner)
+	}
+}
+
+func TestEnsureProjectRepositoryRetriesErrorBinding(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-error-binding-retry.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "owner"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectRepository{
+		ProjectID:      project.ID,
+		Provider:       ProviderGitea,
+		Owner:          "movscript",
+		Repo:           "project-1",
+		DefaultBranch:  "main",
+		Status:         StatusError,
+		LastSyncError:  "previous failure",
+		ProviderRepoID: "",
+	}).Error; err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "remote-1", HeadCommit: "head-1"}}
+	service := NewService(db, Config{RepoPrefix: "project-", DefaultBranch: "main"}, adapter)
+
+	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, nil)
+	if err != nil {
+		t.Fatalf("EnsureProjectRepository returned error: %v", err)
+	}
+	if binding.Status != StatusActive || binding.LastSyncError != "" {
+		t.Fatalf("error binding was not recovered: %+v", binding)
 	}
 }
 
 func TestEnsureProjectRepositoryKeepsProvisioningWithoutAdapter(t *testing.T) {
 	db := testutil.OpenSQLite(t, "project-repository-no-adapter.db",
+		&persistencemodel.User{},
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectRepository{},
 	)
-	project := persistencemodel.Project{Name: "Pilot"}
+	owner := persistencemodel.User{Username: "owner"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	service := NewService(db, Config{Owner: "movscript", RepoPrefix: "project-"}, nil)
+	service := NewService(db, Config{RepoPrefix: "project-"}, nil)
 
 	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, nil)
 	if err != nil {
@@ -80,14 +207,19 @@ func TestEnsureProjectRepositoryKeepsProvisioningWithoutAdapter(t *testing.T) {
 
 func TestEnsureProjectRepositoryRecordsAdapterFailure(t *testing.T) {
 	db := testutil.OpenSQLite(t, "project-repository-error.db",
+		&persistencemodel.User{},
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectRepository{},
 	)
-	project := persistencemodel.Project{Name: "Pilot"}
+	owner := persistencemodel.User{Username: "owner"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	service := NewService(db, Config{Owner: "movscript", RepoPrefix: "project-"}, &fakeGitRepositoryAdapter{err: errors.New("boom")})
+	service := NewService(db, Config{RepoPrefix: "project-"}, &fakeGitRepositoryAdapter{err: errors.New("boom")})
 
 	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, nil)
 	if err != nil {
@@ -100,16 +232,21 @@ func TestEnsureProjectRepositoryRecordsAdapterFailure(t *testing.T) {
 
 func TestEnsureProjectRepositoryHonorsOrgBoundary(t *testing.T) {
 	db := testutil.OpenSQLite(t, "project-repository-org.db",
+		&persistencemodel.User{},
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectRepository{},
 	)
 	orgID := uint(7)
 	otherOrgID := uint(8)
-	project := persistencemodel.Project{Name: "Pilot", OrgID: &orgID}
+	owner := persistencemodel.User{Username: "owner"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID, OrgID: &orgID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	service := NewService(db, Config{Owner: "movscript", RepoPrefix: "project-"}, nil)
+	service := NewService(db, Config{RepoPrefix: "project-"}, nil)
 
 	if _, err := service.EnsureProjectRepository(context.Background(), project.ID, &otherOrgID); !errors.Is(err, ErrProjectNotFound) {
 		t.Fatalf("err = %v, want ErrProjectNotFound", err)
@@ -119,13 +256,83 @@ func TestEnsureProjectRepositoryHonorsOrgBoundary(t *testing.T) {
 	}
 }
 
+func TestEnsureProjectRepositoryUsesPersonalGiteaOwner(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-personal-owner.db",
+		&persistencemodel.User{},
+		&persistencemodel.Organization{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "alice"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	org := persistencemodel.Organization{Name: "alice", Slug: "alice", IsPersonal: true, Plan: domainorg.PlanPersonal, Status: domainorg.StatusActive, CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Personal Pilot", OwnerID: owner.ID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "personal-remote"}}
+	service := NewService(db, Config{RepoPrefix: "project-"}, adapter)
+
+	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, &org.ID)
+	if err != nil {
+		t.Fatalf("EnsureProjectRepository returned error: %v", err)
+	}
+	if binding.Owner != "alice" {
+		t.Fatalf("owner = %q, want alice", binding.Owner)
+	}
+	if adapter.input.OwnerType != OwnerTypeUser || adapter.input.OwnerName != "alice" {
+		t.Fatalf("adapter owner metadata = type %q name %q", adapter.input.OwnerType, adapter.input.OwnerName)
+	}
+}
+
+func TestEnsureProjectRepositoryUsesOrganizationGiteaOwner(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-team-owner.db",
+		&persistencemodel.User{},
+		&persistencemodel.Organization{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "owner"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	org := persistencemodel.Organization{Name: "Acme Studio", Slug: "acme", IsPersonal: false, Plan: domainorg.PlanTeam, Status: domainorg.StatusActive, CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Team Pilot", OwnerID: owner.ID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "team-remote"}}
+	service := NewService(db, Config{RepoPrefix: "project-", OrgPrefix: "ms-org-"}, adapter)
+
+	binding, err := service.EnsureProjectRepository(context.Background(), project.ID, &org.ID)
+	if err != nil {
+		t.Fatalf("EnsureProjectRepository returned error: %v", err)
+	}
+	if binding.Owner != "ms-org-acme" {
+		t.Fatalf("owner = %q, want ms-org-acme", binding.Owner)
+	}
+	if adapter.input.OwnerType != OwnerTypeOrganization || adapter.input.OwnerName != "Acme Studio" {
+		t.Fatalf("adapter owner metadata = type %q name %q", adapter.input.OwnerType, adapter.input.OwnerName)
+	}
+}
+
 type fakeGitRepositoryAdapter struct {
 	calls  int
 	result EnsureRepositoryResult
 	err    error
+	input  EnsureRepositoryInput
 }
 
-func (a *fakeGitRepositoryAdapter) EnsureRepository(context.Context, EnsureRepositoryInput) (EnsureRepositoryResult, error) {
+func (a *fakeGitRepositoryAdapter) EnsureRepository(_ context.Context, input EnsureRepositoryInput) (EnsureRepositoryResult, error) {
 	a.calls++
+	a.input = input
 	return a.result, a.err
 }

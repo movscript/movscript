@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 
-export interface ProductionWorkspaceBackendPreviewIssue {
+export interface ProductionWorkspaceReviewPreviewIssue {
   message: string
   detail?: string
   code?: string
@@ -9,7 +9,7 @@ export interface ProductionWorkspaceBackendPreviewIssue {
 export interface ProductionWorkspaceReviewStatus {
   state:
     | 'applied'
-    | 'backend_preview_ready'
+    | 'review_preview_ready'
     | 'local_preview_ready'
     | 'applying'
     | 'simulating'

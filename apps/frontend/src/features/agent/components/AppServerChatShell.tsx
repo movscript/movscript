@@ -13,6 +13,7 @@ import {
   ensureAppServerRpcClient,
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import {
   providerInstanceId,
@@ -48,6 +49,7 @@ export function AppServerChatShell({
   const location = useLocation()
   const project = useProjectStore((state) => state.current)
   const settings = useAgentStore((state) => state.settings)
+  const updateSettings = useAgentStore((state) => state.updateSettings)
   const { data: textModels = [] } = useQuery({
     queryKey: ['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY],
     queryFn: () => fetchAgentBackendModels(),
@@ -67,6 +69,7 @@ export function AppServerChatShell({
     search: location.search,
   }), [location.pathname, location.search, project?.ID, userId])
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
+    if (provider) await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
     if (provider && routeWorkspaceContext) return loadScopedAppServerDataSource({
       provider,
       providerLabel,
@@ -80,16 +83,17 @@ export function AppServerChatShell({
       providerLabel,
       resolveModelForRequest,
     })
-  }, [provider, providerLabel, resolveModelForRequest, routeWorkspaceContext])
+  }, [provider, providerLabel, resolveModelForRequest, routeWorkspaceContext, textModels])
   const loadDataSourceForNewThread = useCallback(async (input: AgentPanelNewConversationPayload): Promise<AgentChatDataSourceShellLoadResult> => {
     if (!provider || !input.workspaceContext) return loadDataSource()
+    await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
     return loadScopedAppServerDataSource({
       provider,
       providerLabel,
       resolveModelForRequest,
       workspaceContext: input.workspaceContext,
     })
-  }, [loadDataSource, provider, providerLabel, resolveModelForRequest])
+  }, [loadDataSource, provider, providerLabel, resolveModelForRequest, textModels])
 
   const activeThreadStorageKey = appServerActiveThreadStorageKey(provider)
   const openThreadEventName = appServerThreadOpenEvent(provider)
@@ -108,9 +112,17 @@ export function AppServerChatShell({
       unavailableLabel={`${providerLabel} app-server URL is not configured.`}
       composerPlaceholder={`Message ${providerLabel}`}
       newThreadLabel={`New ${providerLabel} thread`}
+      modelOptions={textModels}
+      selectedModelId={settings.modelId}
+      onSelectedModelChange={(modelId) => updateSettings({ modelId })}
+      collaborationMode={settings.collaborationMode}
+      goalModeEnabled={settings.goalModeEnabled}
+      onCollaborationModeChange={(collaborationMode) => updateSettings({ collaborationMode })}
+      onGoalModeEnabledChange={(goalModeEnabled) => updateSettings({ goalModeEnabled })}
       host={host}
       surface={surface}
       showThreadList={surface !== 'page'}
+      autoLoadThreads={surface !== 'page'}
       showCollapse={showCollapse}
       onCollapse={onCollapse}
     />

@@ -25,6 +25,11 @@ test('production orchestration entity defaults stay scoped to the selected produ
     segment_id: 34,
     scene_moment_id: 56,
   })
+  assert.deepEqual(createProductionOrchestrationDefaultsForType('sceneMoments', 12, 34), {
+    status: 'workspace',
+    production_id: 12,
+    segment_id: 34,
+  })
   assert.deepEqual(createProductionOrchestrationDefaultsForType('writingExpressions', 12, 34, 56), {
     scene_moment_id: 56,
     kind: 'dialogue',

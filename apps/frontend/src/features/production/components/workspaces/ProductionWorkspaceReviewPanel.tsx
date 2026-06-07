@@ -11,7 +11,7 @@ import {
 
 import { ProductionWorkspaceApplyGatePanel } from '@/features/production/components/workspaces/ProductionWorkspaceApplyGatePanel'
 import { ProductionWorkspaceApplyPreviewPanel } from '@/features/production/components/workspaces/ProductionWorkspaceApplyPreviewPanel'
-import { ProductionWorkspaceBackendPreviewIssuePanel } from '@/features/production/components/workspaces/ProductionWorkspaceBackendPreviewPanel'
+import { ProductionWorkspaceReviewPreviewIssuePanel } from '@/features/production/components/workspaces/ProductionWorkspaceReviewPreviewPanel'
 import { ProductionWorkspaceReviewFooterActions, ProductionWorkspaceWriteImpactPanel } from '@/features/production/components/workspaces/ProductionWorkspaceReviewControls'
 import { ProductionWorkspaceReviewHeader } from '@/features/production/components/workspaces/ProductionWorkspaceReviewHeader'
 import {
@@ -66,7 +66,7 @@ export function ProductionWorkspaceReviewPanel({
     appliedCounts,
     applying,
     applyError,
-    backendPreviewIssue,
+    reviewPreviewIssue,
     canApplyCurrentReview,
     canApplySimulation,
     currentApplyPreview,
@@ -98,7 +98,7 @@ export function ProductionWorkspaceReviewPanel({
       <ProductionWorkspaceSimulationResultPanel
         simulationResult={simulationResult}
         applyGate={simulationApplyGate!}
-        backendPreviewIssue={backendPreviewIssue}
+        reviewPreviewIssue={reviewPreviewIssue}
         semanticDiff={semanticDiff}
         nodeDecisions={nodeDecisions}
         previewOnly={previewOnly}
@@ -147,7 +147,7 @@ export function ProductionWorkspaceReviewPanel({
       <ProductionWorkspaceReviewScrollArea>
         <ProductionWorkspaceReviewContentStack>
           {applyError ? <ProductionWorkspaceReviewErrorCallout icon={AlertCircle} message={applyError} /> : null}
-          {backendPreviewIssue && <ProductionWorkspaceBackendPreviewIssuePanel issue={backendPreviewIssue} />}
+          {reviewPreviewIssue && <ProductionWorkspaceReviewPreviewIssuePanel issue={reviewPreviewIssue} />}
           <ProductionWorkspaceSemanticDiffPanel
             groups={semanticDiff}
             decisions={nodeDecisions}

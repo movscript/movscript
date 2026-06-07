@@ -1,6 +1,7 @@
 .agent-browser-root {
   --agent-browser-background: var(--agent-content-panel-background, var(--app-shell-slot-right-background, var(--ms-app-shell-slot-right-background, var(--ms-color-app-background))));
-  --agent-browser-card-radius: var(--ms-radius-sm);
+  --agent-browser-card-radius: var(--ms-radius-card);
+  --agent-browser-control-radius: var(--ms-radius-control);
   --agent-browser-card-border: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
   --agent-browser-card-background: color-mix(in srgb, var(--ms-color-background) 76%, var(--agent-browser-background));
   display: flex;
@@ -15,7 +16,7 @@
 
 .agent-browser-header {
   flex-shrink: 0;
-  border-top-left-radius: var(--ms-radius-md);
+  border-top-left-radius: var(--ms-radius-window);
   border-bottom: 1px solid var(--ms-color-border);
   background: var(--agent-browser-background);
   overflow: hidden;
@@ -43,6 +44,7 @@
   --agent-browser-tab-hover-background: color-mix(in srgb, var(--ms-color-muted) 34%, var(--agent-browser-background));
   --agent-browser-tab-hover-border: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
   --ms-button-subtle-hover-background: transparent;
+  --ui-surface-radius: var(--agent-browser-control-radius);
   position: relative;
   display: flex;
   height: 32px;
@@ -211,7 +213,7 @@
   height: 32px;
   min-width: 0;
   flex: 1 1 auto;
-  border-radius: var(--ms-radius-sm);
+  border-radius: var(--ms-radius-field);
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
@@ -502,7 +504,7 @@
   align-items: center;
   gap: 6px;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 86%, var(--ms-color-foreground) 14%);
-  border-radius: var(--agent-browser-card-radius);
+  border-radius: var(--agent-browser-control-radius);
   background: color-mix(in srgb, var(--ms-color-background) 82%, transparent);
   color: var(--ms-color-muted-foreground);
   padding: 0 8px;
@@ -652,7 +654,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--agent-browser-content-accent) 36%, var(--ms-color-border));
-  border-radius: var(--agent-browser-card-radius);
+  border-radius: var(--ms-radius-icon);
   background: color-mix(in srgb, var(--agent-browser-content-accent) 11%, var(--ms-color-background));
   color: color-mix(in srgb, var(--agent-browser-content-accent) 84%, var(--ms-color-foreground));
 }

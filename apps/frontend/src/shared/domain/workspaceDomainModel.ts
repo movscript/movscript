@@ -11,8 +11,6 @@ export interface WorkspaceDomainModel {
   contentSchemaId: string
   entityTypes: string[]
   schemaIds: string[]
-  editablePathPatterns: string[]
-  contextPathPatterns: string[]
   instructions: string[]
   fieldGuide: {
     owns: string[]
@@ -35,16 +33,14 @@ function workspaceDomainModelFromCore(model: MovScriptDomainWorkspaceModel): Wor
   return {
     kind: model.kind,
     title: model.title,
-    targetEntityType: model.entityTypes[0] ?? model.kind,
+    targetEntityType: model.entityKinds[0] ?? model.kind,
     contentSchemaId: model.schemaIds[0] ?? `movscript.${model.kind}.v1`,
-    entityTypes: model.entityTypes,
+    entityTypes: model.entityKinds,
     schemaIds: model.schemaIds,
-    editablePathPatterns: model.editablePathPatterns,
-    contextPathPatterns: model.contextPathPatterns,
     instructions: model.instructions,
     fieldGuide: {
-      owns: model.entityTypes,
-      references: model.contextPathPatterns,
+      owns: model.entityKinds,
+      references: [],
       forbids: [],
     },
     applyBoundary: {

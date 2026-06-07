@@ -3,16 +3,21 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import type { Plugin } from 'vite'
 
-const alias = {
+const coreSharedAlias = {
   '@movscript/core/workspace': resolve('../../packages/core/src/workspace/index.ts'),
-  '@movscript/core/workspace/node': resolve('../../packages/core/src/workspace/node/index.ts'),
   '@movscript/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
-  '@movscript/core/mcp/node': resolve('../../packages/core/src/mcp/node/index.ts'),
   '@movscript/core/backend': resolve('../../packages/core/src/backend/index.ts'),
-  '@movscript/core/backend/node': resolve('../../packages/core/src/backend/node/index.ts'),
   '@movscript/core/plugins': resolve('../../packages/core/src/plugins/index.ts'),
+}
+
+const coreNodeAlias = {
+  '@movscript/core/workspace/node': resolve('../../packages/core/src/workspace/node/index.ts'),
+  '@movscript/core/mcp/node': resolve('../../packages/core/src/mcp/node/index.ts'),
+  '@movscript/core/backend/node': resolve('../../packages/core/src/backend/node/index.ts'),
   '@movscript/core/plugins/node': resolve('../../packages/core/src/plugins/node/index.ts'),
-  '@movscript/core': resolve('../../packages/core/src/index.ts'),
+}
+
+const appAlias = {
   '@movscript/theme/theme.css': resolve('../../packages/theme/src/theme.css'),
   '@movscript/ui/styles.css': resolve('../../packages/ui/src/styles.css'),
   '@movscript/ui/style-system': resolve('../../packages/ui/src/style-system.ts'),
@@ -24,6 +29,21 @@ const alias = {
   '@': resolve('src')
 }
 
+const mainAlias = {
+  ...coreSharedAlias,
+  ...coreNodeAlias,
+  ...appAlias,
+}
+
+const rendererAlias = {
+  ...coreSharedAlias,
+  ...appAlias,
+}
+
+const allAlias = {
+  ...mainAlias,
+}
+
 const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
 const disableRendererHmr = process.env.MOVSCRIPT_FRONTEND_NO_HMR === '1'
 const ignoredMovScriptRuntimeWatchPaths = [
@@ -32,7 +52,7 @@ const ignoredMovScriptRuntimeWatchPaths = [
 ]
 
 function isAliasSource(source: string) {
-  return Object.keys(alias).some((key) => source === key || source.startsWith(`${key}/`))
+  return Object.keys(allAlias).some((key) => source === key || source.startsWith(`${key}/`))
 }
 
 function enterpriseOverlayResolver(): Plugin {
@@ -63,7 +83,7 @@ export default defineConfig(() => {
         }
       },
       resolve: {
-        alias
+        alias: mainAlias
       }
     },
     preload: {
@@ -95,7 +115,7 @@ export default defineConfig(() => {
         }
       },
       resolve: {
-        alias
+        alias: rendererAlias
       }
     }
   }

@@ -32,6 +32,8 @@ import {
   AgentPageShell,
   AgentPageShellBody,
   AgentPageShellHeader,
+  IdentityBadge,
+  IdentityMark,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
@@ -157,7 +159,7 @@ export default function ModelProvidersPage() {
         <AgentConsoleHeader>
           <AgentConsoleHeaderCopy>
             <AgentConsoleHeaderTitleRow>
-              <Database size={18} />
+              <IdentityMark kind="model" id="gpt" />
               <AgentConsoleHeaderTitle>Model Providers</AgentConsoleHeaderTitle>
               <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
               {enabledCount} 个可用
@@ -223,7 +225,9 @@ export default function ModelProvidersPage() {
                 <AgentConsoleLocalToolCard key={provider.id}>
                   <AgentConsoleLocalToolHeader>
                     <AgentConsoleLocalToolCopy>
-                      <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
+                      <AgentConsoleLocalToolTitle>
+                        <IdentityBadge kind="model" id={provider.defaultModel ?? provider.models[0]} label={provider.label} detail={provider.defaultModel} size="sm" variant="stack" />
+                      </AgentConsoleLocalToolTitle>
                       <AgentConsoleLocalToolDetail>
                         {provider.modelCount} 个模型{provider.credentialId ? ` / credential #${provider.credentialId}` : ''}
                       </AgentConsoleLocalToolDetail>
@@ -288,7 +292,9 @@ export default function ModelProvidersPage() {
                 <AgentConsoleLocalToolCard key={provider.id} invalid={provider.enabled && !modelProviderIsValid(provider)}>
                   <AgentConsoleLocalToolHeader>
                     <AgentConsoleLocalToolCopy>
-                      <AgentConsoleLocalToolTitle>{provider.label || provider.id}</AgentConsoleLocalToolTitle>
+                      <AgentConsoleLocalToolTitle>
+                        <IdentityBadge kind="model" id={provider.defaultModel} label={provider.label || provider.id} detail={provider.defaultModel} size="sm" variant="stack" />
+                      </AgentConsoleLocalToolTitle>
                       <AgentConsoleLocalToolDetail>{provider.apiKind} / {provider.baseURL || '未设置 Base URL'}</AgentConsoleLocalToolDetail>
                     </AgentConsoleLocalToolCopy>
                     <AgentConsoleLocalToolControls>

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
   Check,
   FolderOpen,
+  Languages,
   LayoutDashboard,
   MessageSquare,
   Palette,
@@ -18,13 +19,25 @@ import { getMovScriptThemeMeta, isMovScriptThemeName, movScriptThemeNames, type 
 import {
   AppTopControlButton,
   AppTopControlsRoot,
+  AppTopCreateProjectActionButton,
+  AppTopCreateProjectActions,
+  AppTopCreateProjectDialogContent,
+  AppTopCreateProjectField,
+  AppTopCreateProjectForm,
+  AppTopCreateProjectInput,
+  AppTopCreateProjectLabel,
+  AppTopCreateProjectTextarea,
   AppTopLanguageLabel,
   AppTopLanguageSelect,
-  AppTopProjectMenuContent,
   AppTopMenuItemText,
   AppTopMenuLabelPrimary,
   AppTopMenuLabelSecondary,
+  AppTopMenuLeadingIcon,
   AppTopMenuSelectedIcon,
+  AppTopProjectMenuContent,
+  Dialog,
+  DialogHeader,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -41,10 +54,12 @@ import { canvasRouteSourceFromSearch, getAppRouteSurface, routeForWorkMode, work
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
+import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { runtimeAppTopControls } from '@runtime'
 import type { Project } from '@/types'
 
 interface AppTopControlsProps {
@@ -62,6 +77,7 @@ export function AppTopControls({
 }: AppTopControlsProps) {
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
+  const queryClient = useQueryClient()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
@@ -70,13 +86,17 @@ export function AppTopControls({
   const openAccountSettings = useAppShellDialogStore((s) => s.openAccountSettings)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
   const agentPanelOpen = useAgentPanelUiStore((s) => s.open)
-  const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
+  const toggleAgentPanelOpen = useAgentPanelUiStore((s) => s.toggleOpen)
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
+  const [createOpen, setCreateOpen] = useState(false)
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const [projectDescription, setProjectDescription] = useState('')
   const routeSurface = getAppRouteSurface(pathname)
   const currentRouteWorkMode = routeSurface === 'canvas'
     ? canvasRouteSourceFromSearch(search)
@@ -87,6 +107,16 @@ export function AppTopControls({
     queryKey: projectListQueryKey(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
     enabled: projectMenuOpen,
+  })
+  const createProject = useMutation({
+    mutationFn: (input: { name: string; description: string }) => api.post('/projects', input).then((response) => response.data as Project),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
+      selectProject(project)
+      setProjectName('')
+      setProjectDescription('')
+      setCreateOpen(false)
+    },
   })
 
   function switchMode() {
@@ -108,19 +138,31 @@ export function AppTopControls({
 
   function startCreateProject() {
     setProjectMenuOpen(false)
+    if (runtimeAppTopControls.projectMenuVariant === 'enterprise') {
+      setCreateOpen(true)
+      return
+    }
     openProjectDialog()
   }
 
-  function handleAssistantShortcut() {
-    setAgentPanelOpen(!agentPanelOpen)
+  function submitProject() {
+    const name = projectName.trim()
+    if (!name || createProject.isPending) return
+    createProject.mutate({ name, description: projectDescription.trim() })
   }
 
   const density = compact ? 'compact' : 'default'
   const iconSize = compact ? 11 : 16
+  const modeButtonVariant = runtimeAppTopControls.modeButtonVariant ?? 'ghost'
+  const projectMenuVariant = runtimeAppTopControls.projectMenuVariant ?? 'community'
+  const languageControl = runtimeAppTopControls.languageControl ?? 'select'
+  const settingsAction = runtimeAppTopControls.settingsAction ?? 'accountDialog'
   const showAssistantShortcut = routeSurface === 'detail' && showAssistantShortcutProp
   const showAgentContentPanelShortcut = routeSurface === 'agent' && showAgentContentPanelShortcutProp
   const AssistantShortcutIcon = MessageSquare
-  const assistantShortcutTitle = agentPanelOpen ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')
+  const assistantShortcutTitle = agentPanelOpen
+    ? t('agents.chat.collapseAssistant')
+    : t('agents.chat.aiAssistant')
   const AgentContentPanelIcon = agentModeContentPanelCollapsed ? PanelRightOpen : PanelRightClose
   const agentContentPanelTitle = agentModeContentPanelCollapsed
     ? t('agents.chat.expandAgentContentPanel')
@@ -131,6 +173,7 @@ export function AppTopControls({
   function handleLanguageSelect(language: string) {
     if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) return
     i18n.changeLanguage(language as SupportedLanguage)
+    setLanguageMenuOpen(false)
   }
 
   function handleThemeSelect(nextTheme: string) {
@@ -142,7 +185,7 @@ export function AppTopControls({
   return (
     <AppTopControlsRoot density={density} extraClassName={className}>
       <AppTopControlButton
-        variant="ghost"
+        variant={modeButtonVariant}
         density={density}
         className="app-top-control-button--mode-switch"
         onClick={switchMode}
@@ -155,7 +198,7 @@ export function AppTopControls({
         <AppTopControlButton
           variant="ghost"
           density={density}
-          onClick={handleAssistantShortcut}
+          onClick={toggleAgentPanelOpen}
           active={agentPanelOpen}
           title={assistantShortcutTitle}
           aria-label={assistantShortcutTitle}
@@ -178,6 +221,7 @@ export function AppTopControls({
       <DropdownMenu open={projectMenuOpen} onOpenChange={(open) => {
         setProjectMenuOpen(open)
         if (open) {
+          setLanguageMenuOpen(false)
           setThemeMenuOpen(false)
         }
       }}>
@@ -192,56 +236,86 @@ export function AppTopControls({
             <FolderOpen size={iconSize} />
           </AppTopControlButton>
         </DropdownMenuTrigger>
-        <AppTopProjectMenuContent>
-          <DropdownMenuLabel>
-            <div className="ms-dropdown__label">
-              <AppTopMenuLabelPrimary>{t('header.titles.projects')}</AppTopMenuLabelPrimary>
-              <AppTopMenuLabelSecondary>{current?.name ?? t('common.noProject', { defaultValue: 'No project' })}</AppTopMenuLabelSecondary>
-            </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={clearProject}>
-            <AppTopMenuItemText>{t('common.noProject', { defaultValue: 'No project' })}</AppTopMenuItemText>
-            {!current ? <AppTopMenuSelectedIcon icon={Check} /> : null}
-          </DropdownMenuItem>
-          {projectsLoading ? (
-            <DropdownMenuItem disabled>
-              <AppTopMenuItemText>{t('common.loadingShort')}</AppTopMenuItemText>
-            </DropdownMenuItem>
-          ) : projects.length === 0 ? (
-            <DropdownMenuItem disabled>
-              <AppTopMenuItemText>{t('pages.projects.empty')}</AppTopMenuItemText>
-            </DropdownMenuItem>
-          ) : projects.map((project) => (
-            <DropdownMenuItem key={project.ID} onSelect={() => selectProject(project)}>
-                <AppTopMenuItemText>{project.name}</AppTopMenuItemText>
-                {current?.ID === project.ID ? <AppTopMenuSelectedIcon icon={Check} /> : null}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={startCreateProject}>
-            <AppTopMenuItemText>{t('pages.projects.newProject')}</AppTopMenuItemText>
-            <Plus size={14} className="app-top-menu-item__selected-icon" />
-          </DropdownMenuItem>
-        </AppTopProjectMenuContent>
+        {projectMenuVariant === 'enterprise' ? (
+          <EnterpriseProjectMenuContent
+            current={current}
+            projects={projects}
+            projectsLoading={projectsLoading}
+            onProjectSelect={selectProject}
+            onManageProjects={() => navigate(ROUTES.projects)}
+            onCreateProject={startCreateProject}
+            t={t}
+          />
+        ) : (
+          <CommunityProjectMenuContent
+            current={current}
+            projects={projects}
+            projectsLoading={projectsLoading}
+            onProjectSelect={selectProject}
+            onClearProject={clearProject}
+            onCreateProject={startCreateProject}
+            t={t}
+          />
+        )}
       </DropdownMenu>
-      <AppTopLanguageLabel htmlFor="app-top-language-select">{t('header.language')}</AppTopLanguageLabel>
-      <AppTopLanguageSelect
-        id="app-top-language-select"
-        density={density}
-        value={i18n.language}
-        onChange={(event) => handleLanguageSelect(event.target.value)}
-        title={`${t('header.language')}: ${currentLanguageLabel}`}
-        aria-label={`${t('header.language')}: ${currentLanguageLabel}`}
-      >
-        {SUPPORTED_LANGUAGES.map((language) => (
-          <option key={language} value={language}>{language}</option>
-        ))}
-      </AppTopLanguageSelect>
+      {languageControl === 'menu' ? (
+        <DropdownMenu open={languageMenuOpen} onOpenChange={(open) => {
+          setLanguageMenuOpen(open)
+          if (open) {
+            setProjectMenuOpen(false)
+            setThemeMenuOpen(false)
+          }
+        }}>
+          <DropdownMenuTrigger asChild>
+            <AppTopControlButton
+              type="button"
+              variant="ghost"
+              density={density}
+              title={`${t('header.language')}: ${currentLanguageLabel}`}
+              aria-label={`${t('header.language')}: ${currentLanguageLabel}`}
+            >
+              <Languages size={iconSize} />
+            </AppTopControlButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="app-top-selection-menu">
+            <DropdownMenuLabel>
+              <div className="ms-dropdown__label">
+                <AppTopMenuLabelPrimary>{t('header.language')}</AppTopMenuLabelPrimary>
+                <AppTopMenuLabelSecondary>{currentLanguageLabel}</AppTopMenuLabelSecondary>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={i18n.language} onValueChange={handleLanguageSelect}>
+              {SUPPORTED_LANGUAGES.map((language) => (
+                <DropdownMenuRadioItem key={language} value={language}>
+                  <AppTopMenuItemText>{language}</AppTopMenuItemText>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <>
+          <AppTopLanguageLabel htmlFor="app-top-language-select">{t('header.language')}</AppTopLanguageLabel>
+          <AppTopLanguageSelect
+            id="app-top-language-select"
+            density={density}
+            value={i18n.language}
+            onChange={(event) => handleLanguageSelect(event.target.value)}
+            title={`${t('header.language')}: ${currentLanguageLabel}`}
+            aria-label={`${t('header.language')}: ${currentLanguageLabel}`}
+          >
+            {SUPPORTED_LANGUAGES.map((language) => (
+              <option key={language} value={language}>{language}</option>
+            ))}
+          </AppTopLanguageSelect>
+        </>
+      )}
       <DropdownMenu open={themeMenuOpen} onOpenChange={(open) => {
         setThemeMenuOpen(open)
         if (open) {
           setProjectMenuOpen(false)
+          setLanguageMenuOpen(false)
         }
       }}>
         <DropdownMenuTrigger asChild>
@@ -275,13 +349,160 @@ export function AppTopControls({
       <AppTopControlButton
         variant="ghost"
         density={density}
-        onClick={() => openAccountSettings('settings')}
+        onClick={() => {
+          if (settingsAction === 'appSettingsRoute') {
+            navigate(ROUTES.appSettings)
+            return
+          }
+          openAccountSettings('settings')
+        }}
         title={t('appSettings.title')}
         aria-label={t('appSettings.title')}
       >
         <Settings size={iconSize} />
       </AppTopControlButton>
+      {projectMenuVariant === 'enterprise' ? (
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <AppTopCreateProjectDialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('pages.projects.newProject')}</DialogTitle>
+            </DialogHeader>
+            <AppTopCreateProjectForm>
+              <AppTopCreateProjectField>
+                <AppTopCreateProjectLabel htmlFor="top-project-name">{t('pages.projects.nameRequired')}</AppTopCreateProjectLabel>
+                <AppTopCreateProjectInput
+                  id="top-project-name"
+                  autoFocus
+                  value={projectName}
+                  onChange={(event) => setProjectName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') submitProject()
+                  }}
+                  placeholder={t('pages.projects.namePlaceholder')}
+                />
+              </AppTopCreateProjectField>
+              <AppTopCreateProjectField>
+                <AppTopCreateProjectLabel htmlFor="top-project-description">{t('pages.projects.descriptionOptional')}</AppTopCreateProjectLabel>
+                <AppTopCreateProjectTextarea
+                  id="top-project-description"
+                  value={projectDescription}
+                  onChange={(event) => setProjectDescription(event.target.value)}
+                  rows={3}
+                  placeholder={t('pages.projects.descriptionPlaceholder')}
+                />
+              </AppTopCreateProjectField>
+              <AppTopCreateProjectActions>
+                <AppTopCreateProjectActionButton type="button" variant="ghost" onClick={() => setCreateOpen(false)}>{t('common.cancel')}</AppTopCreateProjectActionButton>
+                <AppTopCreateProjectActionButton type="button" onClick={submitProject} disabled={!projectName.trim() || createProject.isPending}>
+                  <Plus size={14} />
+                  {t('pages.projects.createProject')}
+                </AppTopCreateProjectActionButton>
+              </AppTopCreateProjectActions>
+            </AppTopCreateProjectForm>
+          </AppTopCreateProjectDialogContent>
+        </Dialog>
+      ) : null}
     </AppTopControlsRoot>
+  )
+}
+
+type AppTopControlsT = ReturnType<typeof useTranslation>['t']
+
+interface ProjectMenuContentProps {
+  current: Project | null
+  projects: Project[]
+  projectsLoading: boolean
+  onProjectSelect: (project: Project) => void
+  onCreateProject: () => void
+  t: AppTopControlsT
+}
+
+function CommunityProjectMenuContent({
+  current,
+  projects,
+  projectsLoading,
+  onProjectSelect,
+  onClearProject,
+  onCreateProject,
+  t,
+}: ProjectMenuContentProps & { onClearProject: () => void }) {
+  return (
+    <AppTopProjectMenuContent>
+      <DropdownMenuLabel>
+        <div className="ms-dropdown__label">
+          <AppTopMenuLabelPrimary>{t('header.titles.projects')}</AppTopMenuLabelPrimary>
+          <AppTopMenuLabelSecondary>{current?.name ?? t('common.noProject', { defaultValue: 'No project' })}</AppTopMenuLabelSecondary>
+        </div>
+      </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onClearProject}>
+        <AppTopMenuItemText>{t('common.noProject', { defaultValue: 'No project' })}</AppTopMenuItemText>
+        {!current ? <AppTopMenuSelectedIcon icon={Check} /> : null}
+      </DropdownMenuItem>
+      {projectsLoading ? (
+        <DropdownMenuItem disabled>
+          <AppTopMenuItemText>{t('common.loadingShort')}</AppTopMenuItemText>
+        </DropdownMenuItem>
+      ) : projects.length === 0 ? (
+        <DropdownMenuItem disabled>
+          <AppTopMenuItemText>{t('pages.projects.empty')}</AppTopMenuItemText>
+        </DropdownMenuItem>
+      ) : projects.map((project) => (
+        <DropdownMenuItem key={project.ID} onSelect={() => onProjectSelect(project)}>
+          <AppTopMenuItemText>{project.name}</AppTopMenuItemText>
+          {current?.ID === project.ID ? <AppTopMenuSelectedIcon icon={Check} /> : null}
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onCreateProject}>
+        <AppTopMenuItemText>{t('pages.projects.newProject')}</AppTopMenuItemText>
+        <Plus size={14} className="app-top-menu-item__selected-icon" />
+      </DropdownMenuItem>
+    </AppTopProjectMenuContent>
+  )
+}
+
+function EnterpriseProjectMenuContent({
+  current,
+  projects,
+  projectsLoading,
+  onProjectSelect,
+  onManageProjects,
+  onCreateProject,
+  t,
+}: ProjectMenuContentProps & { onManageProjects: () => void }) {
+  return (
+    <AppTopProjectMenuContent>
+      <DropdownMenuLabel>
+        <div className="ms-dropdown__label">
+          <AppTopMenuLabelPrimary>{current?.name ?? t('header.titles.projects')}</AppTopMenuLabelPrimary>
+        </div>
+      </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      {projectsLoading ? (
+        <DropdownMenuItem disabled>
+          <AppTopMenuItemText>{t('common.loadingShort')}</AppTopMenuItemText>
+        </DropdownMenuItem>
+      ) : projects.length === 0 ? (
+        <DropdownMenuItem disabled>
+          <AppTopMenuItemText>{t('pages.projects.empty')}</AppTopMenuItemText>
+        </DropdownMenuItem>
+      ) : projects.map((project) => (
+        <DropdownMenuItem key={project.ID} onSelect={() => onProjectSelect(project)}>
+          <AppTopMenuItemText>{project.name}</AppTopMenuItemText>
+          {current?.ID === project.ID ? <AppTopMenuSelectedIcon icon={Check} /> : null}
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onManageProjects}>
+        <AppTopMenuLeadingIcon icon={FolderOpen} />
+        <AppTopMenuItemText>{t('header.titles.projects')}</AppTopMenuItemText>
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onCreateProject}>
+        <AppTopMenuLeadingIcon icon={Plus} />
+        <AppTopMenuItemText>{t('pages.projects.newProject')}</AppTopMenuItemText>
+      </DropdownMenuItem>
+    </AppTopProjectMenuContent>
   )
 }
 

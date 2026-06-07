@@ -1,17 +1,14 @@
 import {
-  queryMovScriptWorkspaceSettings,
-  queryMovScriptWorkspaceAssetSlots,
-  queryMovScriptWorkspaceEntities,
   type MovScriptWorkspaceEntityQuery,
-  type MovScriptWorkspaceEntityType,
   type MovScriptWorkspaceIndexedEntity,
+  type SemanticEntityKind as MovScriptCoreSemanticEntityKind,
 } from '@movscript/core/workspace'
 import {
   createElectronMovScriptWorkspaceFileRepository,
-  loadMovScriptProjectWorkspaceDomainIndex,
-  resolveMovScriptWorkspaceProjectPath,
+  createElectronMovScriptWorkspaceService,
 } from '@/shared/infrastructure/workspaceDomainRepository'
-import type { ElectronAPI } from '@/shared/contracts/electronApi'
+
+const workspaceEntityBySemanticRecord = new WeakMap<Record<string, unknown>, MovScriptWorkspaceIndexedEntity>()
 
 export type SemanticEntityKind =
   | 'scriptVersions'
@@ -38,9 +35,6 @@ export type SemanticEntityKind =
   | 'workItems'
   | 'workReviews'
   | 'workDependencies'
-  | 'deliveryVersions'
-  | 'deliveryTimelineItems'
-  | 'exportRecords'
   | 'canvasOutputs'
 
 export type SemanticEntityRecord = Record<string, unknown> & {
@@ -94,7 +88,6 @@ export interface Project {
   description: string
   owner_id: number
   owner?: { ID: number; username: string; system_role: 'super_admin' | 'user' }
-  status?: string
   total_episodes?: number
   aspect_ratio?: string
   visual_style?: string
@@ -177,54 +170,6 @@ export interface AbandonContentUnitResult {
   timeline_items_removed: number
 }
 
-export interface ApplyWorkbenchWorkspaceResponse {
-  project_id: number
-  counts: Record<string, number | undefined>
-}
-
-export interface ApplyProductionWorkspaceResponse {
-  production_id: number
-  counts: ApplyProductionWorkspaceCounts
-  segments: SemanticEntityRecord[]
-  scene_moments: SemanticEntityRecord[]
-  content_units: SemanticEntityRecord[]
-  asset_slots: SemanticEntityRecord[]
-  keyframes: SemanticEntityRecord[]
-  writing_expressions: SemanticEntityRecord[]
-}
-
-export interface ApplyProductionWorkspaceCounts {
-  segments_created: number
-  scene_moments_created: number
-  content_units_created: number
-  asset_slots_created: number
-  keyframes_created: number
-  settings_created: number
-  setting_usages: number
-  writing_expressions_created: number
-}
-
-export type ProductionWorkspacePreviewSemanticChange = Record<string, unknown> & {
-  kind: string
-  action?: 'create' | 'update' | 'delete'
-  title: string
-  id?: string | number
-  client_id?: string
-}
-
-export type ProductionWorkspacePreviewWarning = Record<string, unknown> & {
-  code: string
-  message: string
-}
-
-export interface PreviewProductionWorkspaceApplyResponse {
-  status: string
-  dry_run: boolean
-  would_apply: ApplyProductionWorkspaceResponse
-  semantic_changes?: ProductionWorkspacePreviewSemanticChange[]
-  warnings?: ProductionWorkspacePreviewWarning[]
-}
-
 export const semanticEntityConfigs: SemanticEntityConfig[] = semanticCoreEntityConfigs()
 
 export function semanticEntityConfig(kind: SemanticEntityKind): SemanticEntityConfig {
@@ -240,8 +185,7 @@ export async function listSemanticEntities(
 }
 
 export async function getProject(projectId: number): Promise<Project> {
-  const index = await loadMovScriptProjectWorkspaceDomainIndex(projectId)
-  const project = queryMovScriptWorkspaceEntities(index, { entityType: 'project', limit: 1 })[0]
+  const project = (await createElectronMovScriptWorkspaceService({ projectId }).queryEntities({ entityKind: 'project', limit: 1 }))[0]
   if (project) return workspaceProjectRecord(project, projectId)
   throw new Error(`MovScript workspace project ${projectId} not found`)
 }
@@ -277,9 +221,11 @@ export async function deleteSemanticEntity(
 ): Promise<void> {
   if (workspaceWritableEntityKind(config.kind)) {
     const current = (await listWorkspaceSemanticEntities(projectId, config.kind, {})).find((record) => record.ID === id)
-    const workspacePath = stringParam(current?.__workspace_path)
-    if (workspacePath && workspaceEntityPathMatchesKind(config.kind, workspacePath)) {
-      await createElectronMovScriptWorkspaceFileRepository().delete({ path: workspacePath })
+    if (current) {
+      await createElectronMovScriptWorkspaceService({ projectId }).deleteEntity({
+        entity: workspaceEntityBySemanticRecord.get(current as Record<string, unknown>),
+        record: current,
+      })
       return
     }
   }
@@ -301,17 +247,18 @@ export async function getSourceLockStatus(
 }
 
 export async function listEntityRelations(projectId: number, _filters: EntityRelationFilters = {}): Promise<EntityRelation[]> {
-  const index = await loadMovScriptProjectWorkspaceDomainIndex(projectId)
-  return queryMovScriptWorkspaceEntities(index, { entityType: 'creative_relationship' })
+  return (await createElectronMovScriptWorkspaceService({ projectId }).queryEntities({
+    entityKind: 'creative_relationship' as MovScriptCoreSemanticEntityKind,
+  }))
     .map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId) as unknown as EntityRelation)
 }
 
 export async function listScriptBlockUsages(_projectId: number, _scriptBlockId: number): Promise<ScriptBlockUsages> {
-  throw unsupportedBackendSemanticOperation('listScriptBlockUsages')
+  throw unsupportedWorkspaceSemanticRead('listScriptBlockUsages')
 }
 
 export async function listScriptBlockUsageMap(_projectId: number, _scriptVersionId: number): Promise<Record<string, ScriptBlockUsages>> {
-  throw unsupportedBackendSemanticOperation('listScriptBlockUsageMap')
+  throw unsupportedWorkspaceSemanticRead('listScriptBlockUsageMap')
 }
 
 export async function buildContentUnitGenerationContext(
@@ -319,54 +266,19 @@ export async function buildContentUnitGenerationContext(
   _contentUnitId: number,
   _intent: 'keyframe' | 'video' = 'video',
 ): Promise<GenerationContext> {
-  throw unsupportedBackendSemanticOperation('buildContentUnitGenerationContext')
+  throw unsupportedWorkspaceSemanticRead('buildContentUnitGenerationContext')
 }
 
 export async function abandonSegment(_projectId: number, _id: number): Promise<AbandonSegmentResult> {
-  throw unsupportedBackendSemanticOperation('abandonSegment')
+  throw unsupportedWorkspaceSemanticRead('abandonSegment')
 }
 
 export async function abandonSceneMoment(_projectId: number, _id: number): Promise<AbandonSceneMomentResult> {
-  throw unsupportedBackendSemanticOperation('abandonSceneMoment')
+  throw unsupportedWorkspaceSemanticRead('abandonSceneMoment')
 }
 
 export async function abandonContentUnit(_projectId: number, _id: number): Promise<AbandonContentUnitResult> {
-  throw unsupportedBackendSemanticOperation('abandonContentUnit')
-}
-
-export async function applyProjectStandardsWorkspace(
-  _projectId: number,
-  _payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchWorkspaceResponse> {
-  throw unsupportedBackendSemanticOperation('applyProjectStandardsWorkspace')
-}
-
-export async function applySettingWorkspace(
-  _projectId: number,
-  _payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchWorkspaceResponse> {
-  throw unsupportedBackendSemanticOperation('applySettingWorkspace')
-}
-
-export async function applyAssetWorkspace(
-  _projectId: number,
-  _payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchWorkspaceResponse> {
-  throw unsupportedBackendSemanticOperation('applyAssetWorkspace')
-}
-
-export async function previewProductionWorkspaceApply(
-  _projectId: number,
-  _payload: Record<string, unknown>,
-): Promise<PreviewProductionWorkspaceApplyResponse> {
-  throw unsupportedBackendSemanticOperation('previewProductionWorkspaceApply')
-}
-
-export async function applyProductionWorkspace(
-  _projectId: number,
-  _payload: Record<string, unknown>,
-): Promise<ApplyProductionWorkspaceResponse> {
-  throw unsupportedBackendSemanticOperation('applyProductionWorkspace')
+  throw unsupportedWorkspaceSemanticRead('abandonContentUnit')
 }
 
 async function listWorkspaceSemanticEntities(
@@ -374,48 +286,41 @@ async function listWorkspaceSemanticEntities(
   kind: SemanticEntityKind,
   params: SemanticEntityListParams,
 ): Promise<SemanticEntityRecord[]> {
-  const index = await loadMovScriptProjectWorkspaceDomainIndex(projectId)
+  const service = createElectronMovScriptWorkspaceService({ projectId })
   if (kind === 'settings') {
-    return queryMovScriptWorkspaceSettings(index, {
+    return (await service.querySettings({
       settingId: idParam(params.setting_id ?? params.settingId),
       kind: stringParam(params.kind),
-      status: stringParam(params.status),
       query: stringParam(params.query),
       limit: numberParam(params.limit),
-    }).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+    })).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
   }
   if (kind === 'assetSlots') {
-    return queryMovScriptWorkspaceAssetSlots(index, {
-      assetSlotId: idParam(params.asset_slot_id ?? params.assetSlotId),
+    return (await service.queryAssets({
+      assetId: idParam(params.asset_slot_id ?? params.assetSlotId),
       settingId: idParam(params.setting_id ?? params.settingId),
       settingStateId: idParam(params.setting_state_id ?? params.settingStateId),
-      ownerType: stringParam(params.owner_type ?? params.ownerType),
-      ownerId: idParam(params.owner_id ?? params.ownerId),
-      productionId: idParam(params.production_id ?? params.productionId),
-      status: stringParam(params.status),
       query: stringParam(params.query),
       limit: numberParam(params.limit),
-    }).assetSlots.map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+    })).assets.map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
   }
 
-  const entityType = semanticEntityType(kind)
-  if (!entityType) return []
-  return queryMovScriptWorkspaceEntities(index, {
-    entityType,
+  const entityKind = semanticEntityType(kind)
+  if (!entityKind) return []
+  return (await service.queryEntities({
+    entityKind,
     ...workspaceEntityQueryFromParams(params),
-  }).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+  })).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
 }
 
-function workspaceEntityQueryFromParams(params: SemanticEntityListParams): Omit<MovScriptWorkspaceEntityQuery, 'entityType'> {
+function workspaceEntityQueryFromParams(params: SemanticEntityListParams): Omit<MovScriptWorkspaceEntityQuery, 'entityKind'> {
   return {
-    status: stringParam(params.status),
     kind: stringParam(params.kind),
     query: stringParam(params.query),
-    ownerType: stringParam(params.owner_type ?? params.ownerType),
-    ownerId: idParam(params.owner_id ?? params.ownerId),
     productionId: idParam(params.production_id ?? params.productionId),
     segmentId: idParam(params.segment_id ?? params.segmentId),
     sceneMomentId: idParam(params.scene_moment_id ?? params.sceneMomentId),
+    storyboardId: idParam(params.storyboard_id ?? params.storyboardId),
     contentUnitId: idParam(params.content_unit_id ?? params.contentUnitId),
     settingId: idParam(params.setting_id ?? params.settingId),
     settingStateId: idParam(params.setting_state_id ?? params.settingStateId),
@@ -429,9 +334,26 @@ function semanticRecordFromWorkspaceEntity(entity: MovScriptWorkspaceIndexedEnti
   if (numericId !== undefined) record.ID = numericId
   else if (entity.id !== undefined) record.id = entity.id
   if (record.project_id === undefined) record.project_id = projectId
-  record.__workspace_path = entity.path
-  record.__workspace_entity_type = entity.entityType
-  return record as SemanticEntityRecord
+  record.__workspace_entity_type = entity.entityKind
+  const semanticRecord = record as SemanticEntityRecord
+  workspaceEntityBySemanticRecord.set(semanticRecord, entity)
+  return semanticRecord
+}
+
+function semanticRecordFromWorkspaceWrite(
+  projectId: number,
+  entityKind: MovScriptCoreSemanticEntityKind,
+  path: string,
+  value: Record<string, unknown>,
+): SemanticEntityRecord {
+  return semanticRecordFromWorkspaceEntity({
+    entityKind,
+    record: value,
+    path,
+    index: 0,
+    id: value.id as string | number | undefined,
+    schema: stringParam(value.schema),
+  }, projectId)
 }
 
 function workspaceProjectRecord(entity: MovScriptWorkspaceIndexedEntity, projectId: number): Project {
@@ -441,7 +363,6 @@ function workspaceProjectRecord(entity: MovScriptWorkspaceIndexedEntity, project
     name: stringParam(record.name) ?? `Project ${projectId}`,
     description: stringParam(record.description) ?? '',
     owner_id: numberParam(record.owner_id) ?? 0,
-    status: stringParam(record.status),
     total_episodes: numberParam(record.total_episodes),
     aspect_ratio: stringParam(record.aspect_ratio),
     visual_style: stringParam(record.visual_style),
@@ -451,7 +372,7 @@ function workspaceProjectRecord(entity: MovScriptWorkspaceIndexedEntity, project
   }
 }
 
-function semanticEntityType(kind: SemanticEntityKind): MovScriptWorkspaceEntityType | undefined {
+function semanticEntityType(kind: SemanticEntityKind): MovScriptCoreSemanticEntityKind | undefined {
   return semanticEntityTypeByKind[kind]
 }
 
@@ -461,192 +382,263 @@ async function writeWorkspaceSemanticEntity(
   record: SemanticEntityRecord | undefined,
   payload: SemanticEntityPayload,
 ): Promise<SemanticEntityRecord> {
-  const workspaceApi = requireWorkspaceAPI()
-  const projectPath = await resolveMovScriptWorkspaceProjectPath(workspaceApi, projectId)
-  const next = normalizeWritableWorkspaceEntity(projectId, kind, record, payload)
-  const path = writableWorkspaceEntityPath(projectPath, kind, record, next)
-  await createElectronMovScriptWorkspaceFileRepository(workspaceApi).write({
-    path,
-    content: `${JSON.stringify(next, null, 2)}\n`,
-  })
-  const output: Record<string, unknown> = {
-    ...next,
-    __workspace_path: path,
-    __workspace_entity_type: semanticEntityType(kind),
+  const service = createElectronMovScriptWorkspaceService({ projectId })
+  if (kind === 'settings') {
+    const result = await service.upsertSetting({
+      projectId,
+      entity: record ? workspaceEntityBySemanticRecord.get(record) : undefined,
+      record,
+      payload,
+    })
+    return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
   }
-  return output as SemanticEntityRecord
-}
-
-function normalizeWritableWorkspaceEntity(
-  projectId: number,
-  kind: WorkspaceWritableSemanticEntityKind,
-  record: SemanticEntityRecord | undefined,
-  payload: SemanticEntityPayload,
-): Record<string, unknown> {
-  const now = Date.now()
-  const current = stripWorkspacePrivateFields(record ?? {})
-  const currentId = numberParam(current.ID ?? current.id)
-  const id = currentId ?? -now
-  const clientId = stringParam(current.client_id ?? current.clientId) ?? (id > 0 ? undefined : `${workspaceWritableFilePrefix(kind)}_local_${now}`)
-  return pruneUndefined({
-    ...current,
-    ...payload,
-    schema: workspaceWritableSchema(kind),
-    ID: id,
-    id,
-    ...(clientId ? { client_id: clientId } : {}),
-    project_id: projectId,
-  })
-}
-
-function writableWorkspaceEntityPath(
-  projectPath: string,
-  kind: WorkspaceWritableSemanticEntityKind,
-  record: SemanticEntityRecord | undefined,
-  next: Record<string, unknown>,
-): string {
-  const existingPath = stringParam(record?.__workspace_path)
-  if (existingPath && workspaceEntityPathMatchesKind(kind, existingPath)) return existingPath
-  const id = numberParam(next.ID ?? next.id)
-  const clientId = stringParam(next.client_id ?? next.clientId)
-  const fileKey = id !== undefined && id > 0 ? String(id) : clientId ?? `local_${Date.now()}`
-  return `${projectPath}/${workspaceWritableDirectory(kind)}/${workspaceWritableFilePrefix(kind)}_${fileKey}.json`
+  if (kind === 'assetSlots') {
+    const result = await service.upsertAsset({
+      projectId,
+      entity: record ? workspaceEntityBySemanticRecord.get(record) : undefined,
+      record,
+      payload,
+    })
+    return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
+  }
+  if (kind === 'productions') {
+    const result = await upsertWorkspaceProduction(projectId, record, payload)
+    return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
+  }
+  if (kind === 'segments') {
+    const result = await upsertWorkspaceSegment(projectId, record, payload)
+    return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
+  }
+  if (kind === 'sceneMoments') {
+    const result = await upsertWorkspaceSceneMoment(projectId, record, payload)
+    return semanticRecordFromWorkspaceWrite(projectId, result.entityKind, result.path, result.record)
+  }
+  throw unsupportedWorkspaceSemanticWrite(kind)
 }
 
 function workspaceWritableEntityKind(kind: SemanticEntityKind): kind is WorkspaceWritableSemanticEntityKind {
-  return kind in workspaceWritableEntitySpecs
+  return kind === 'settings' || kind === 'assetSlots' || kind === 'productions' || kind === 'segments' || kind === 'sceneMoments'
 }
 
 type WorkspaceWritableSemanticEntityKind =
-  | 'scriptVersions'
   | 'settings'
   | 'assetSlots'
-  | 'deliveryVersions'
-  | 'deliveryTimelineItems'
-  | 'exportRecords'
-  | 'workItems'
-  | 'workReviews'
+  | 'productions'
+  | 'segments'
+  | 'sceneMoments'
 
-function workspaceWritableSchema(kind: WorkspaceWritableSemanticEntityKind): string {
-  return workspaceWritableEntitySpecs[kind].schema
+async function upsertWorkspaceProduction(
+  projectId: number,
+  record: SemanticEntityRecord | undefined,
+  payload: SemanticEntityPayload,
+): Promise<{ path: string; entityKind: 'production'; record: Record<string, unknown> }> {
+  const current = stripWorkspacePrivateFields(record ?? {})
+  const id = stableNumericEntityId(current, payload)
+  const path = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record) ?? `productions/production_${id}/production.json`
+  const now = new Date().toISOString()
+  const title = stringParam(payload.title ?? payload.name ?? current.title ?? current.name) ?? `制作 ${id}`
+  const nextRecord = pruneUndefinedRecord({
+    ...current,
+    ...payload,
+    schema: 'movscript.production.v1',
+    kind: 'production',
+    ID: id,
+    id: stringParam(payload.id ?? current.id) ?? `production_${id}`,
+    project_id: projectId,
+    title,
+    name: title,
+    description: stringParam(payload.description ?? current.description) ?? '',
+    script_version_id: numberParam(payload.script_version_id ?? current.script_version_id) ?? null,
+    CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
+    UpdatedAt: now,
+  })
+  await createElectronMovScriptWorkspaceFileRepository({ projectId }).write({
+    path,
+    content: `${JSON.stringify(nextRecord, null, 2)}\n`,
+  })
+  return { path, entityKind: 'production', record: nextRecord }
 }
 
-function workspaceWritableDirectory(kind: WorkspaceWritableSemanticEntityKind): string {
-  return workspaceWritableEntitySpecs[kind].directory
+async function upsertWorkspaceSegment(
+  projectId: number,
+  record: SemanticEntityRecord | undefined,
+  payload: SemanticEntityPayload,
+): Promise<{ path: string; entityKind: 'segment'; record: Record<string, unknown> }> {
+  const current = stripWorkspacePrivateFields(record ?? {})
+  const productionId = requiredNumericRef(payload.production_id ?? current.production_id, 'production_id')
+  const id = stableNumericEntityId(current, payload)
+  const path = workspaceRecordPath(current)
+    ?? workspaceEntityRecordPath(record)
+    ?? `productions/production_${productionId}/segments/segment_${id}/segment.json`
+  const now = new Date().toISOString()
+  const title = stringParam(payload.title ?? current.title) ?? `段落 ${id}`
+  const segmentKind = stringParam(payload.segment_kind ?? payload.kind ?? current.segment_kind ?? current.kind)
+  const nextRecord = pruneUndefinedRecord({
+    ...current,
+    ...payload,
+    schema: 'movscript.segment.v1',
+    kind: segmentKind ?? 'segment',
+    entity_kind: 'segment',
+    ID: id,
+    id: stringParam(payload.id ?? current.id) ?? `segment_${id}`,
+    project_id: projectId,
+    production_id: productionId,
+    title,
+    summary: stringParam(payload.summary ?? current.summary) ?? '',
+    order: numberParam(payload.order ?? current.order) ?? null,
+    segment_kind: segmentKind ?? 'emotional_function',
+    script_block_id: numberParam(payload.script_block_id ?? current.script_block_id) ?? null,
+    CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
+    UpdatedAt: now,
+  })
+  await createElectronMovScriptWorkspaceFileRepository({ projectId }).write({
+    path,
+    content: `${JSON.stringify(nextRecord, null, 2)}\n`,
+  })
+  return { path, entityKind: 'segment', record: nextRecord }
 }
 
-function workspaceWritableFilePrefix(kind: WorkspaceWritableSemanticEntityKind): string {
-  return workspaceWritableEntitySpecs[kind].filePrefix
-}
-
-function workspaceEntityPathMatchesKind(kind: WorkspaceWritableSemanticEntityKind, path: string): boolean {
-  return path.includes(`/${workspaceWritableDirectory(kind)}/`)
-    && path.split('/').pop()?.startsWith(`${workspaceWritableFilePrefix(kind)}_`) === true
-}
-
-function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(record)) {
-    if (key.startsWith('__workspace_')) continue
-    out[key] = value
+async function upsertWorkspaceSceneMoment(
+  projectId: number,
+  record: SemanticEntityRecord | undefined,
+  payload: SemanticEntityPayload,
+): Promise<{ path: string; entityKind: 'scene_moment'; record: Record<string, unknown> }> {
+  const current = stripWorkspacePrivateFields(record ?? {})
+  const productionId = requiredNumericRef(payload.production_id ?? current.production_id, 'production_id')
+  const segmentId = requiredNumericRef(payload.segment_id ?? current.segment_id, 'segment_id')
+  const id = stableNumericEntityId(current, payload)
+  const momentDir = `productions/production_${productionId}/segments/segment_${segmentId}/scene_moments/scene_moment_${id}`
+  const existingPath = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record)
+  const path = existingPath
+    ?? `${momentDir}/scene_moment.json`
+  const now = new Date().toISOString()
+  const title = stringParam(payload.title ?? current.title) ?? `情节 ${id}`
+  const timeText = stringParam(payload.time_text ?? payload.when ?? current.time_text ?? current.when)
+  const locationText = stringParam(payload.location_text ?? payload.where ?? current.location_text ?? current.where)
+  const actionText = stringParam(payload.action_text ?? payload.action ?? current.action_text ?? current.action)
+  const mood = stringParam(payload.mood ?? payload.emotion ?? current.mood ?? current.emotion)
+  const storyboardId = stringParam(current.active_storyboard_id) ?? 'storyboard_main'
+  const nextRecord = pruneUndefinedRecord({
+    ...current,
+    ...payload,
+    schema: 'movscript.scene_moment.v1',
+    kind: 'scene_moment',
+    ID: id,
+    id: stringParam(payload.id ?? current.id) ?? `scene_moment_${id}`,
+    project_id: projectId,
+    production_id: productionId,
+    segment_id: segmentId,
+    scene_code: stringParam(payload.scene_code ?? current.scene_code),
+    title,
+    time_text: timeText,
+    location_text: locationText,
+    condition_text: stringParam(payload.condition_text ?? current.condition_text),
+    action_text: actionText,
+    mood,
+    when: timeText,
+    where: locationText,
+    action: actionText,
+    emotion: mood,
+    description: stringParam(payload.description ?? current.description) ?? '',
+    order: numberParam(payload.order ?? current.order) ?? null,
+    script_block_id: numberParam(payload.script_block_id ?? current.script_block_id) ?? null,
+    active_storyboard_id: storyboardId,
+    storyboard_timing: isRecord(current.storyboard_timing)
+      ? current.storyboard_timing
+      : { items: [{ storyboard_id: storyboardId, order: 1 }] },
+    CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
+    UpdatedAt: now,
+  })
+  const repository = createElectronMovScriptWorkspaceFileRepository({ projectId })
+  await repository.write({ path, content: `${JSON.stringify(nextRecord, null, 2)}\n` })
+  if (!existingPath) {
+    await repository.write({
+      path: `${momentDir}/storyboards/${storyboardId}/storyboard.json`,
+      content: `${JSON.stringify({
+        schema: 'movscript.storyboard.v1',
+        kind: 'storyboard',
+        ID: numericSuffix(storyboardId) ?? storyboardId,
+        id: storyboardId,
+        title: `${title} storyboard`,
+        setting_refs: [],
+      }, null, 2)}\n`,
+    })
   }
-  return out
-}
-
-function pruneUndefined(record: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined))
+  return { path, entityKind: 'scene_moment', record: nextRecord }
 }
 
 function unsupportedWorkspaceSemanticWrite(kind: SemanticEntityKind): Error {
   return new Error(`MovScript workspace write is not implemented for ${kind}; direct backend semantic writes have been removed`)
 }
 
-function unsupportedBackendSemanticOperation(operation: string): never {
-  throw new Error(`${operation} is no longer available through the frontend semantic API; use workspace files and Git canonical review/submit`)
+function unsupportedWorkspaceSemanticRead(operation: string): never {
+  throw new Error(`${operation} is not implemented by the Git canonical workspace reader`)
 }
 
-function requireWorkspaceAPI(): ElectronAPI {
-  const workspaceApi = window.api
-  if (!workspaceApi) throw new Error('当前窗口没有 MovScript 工作区能力')
-  return workspaceApi
+function stableNumericEntityId(current: Record<string, unknown>, payload: Record<string, unknown>): number {
+  const existing = numberParam(payload.ID ?? payload.id ?? current.ID ?? current.id)
+    ?? numericSuffix(payload.id)
+    ?? numericSuffix(current.id)
+  if (existing && existing > 0) return existing
+  return Date.now()
 }
 
-const semanticEntityTypeByKind: Record<SemanticEntityKind, MovScriptWorkspaceEntityType> = {
+function numericSuffix(value: unknown): number | undefined {
+  const text = stringParam(value)
+  if (!text) return undefined
+  const match = text.match(/(\d+)$/)
+  return match ? numberParam(match[1]) : undefined
+}
+
+function requiredNumericRef(value: unknown, label: string): number {
+  const id = numberParam(value) ?? numericSuffix(value)
+  if (id === undefined || id <= 0) throw new Error(`${label} is required`)
+  return id
+}
+
+function workspaceRecordPath(record: Record<string, unknown>): string | undefined {
+  return stringParam(record.__workspace_path ?? record.workspace_path ?? record.path)
+}
+
+function workspaceEntityRecordPath(record: SemanticEntityRecord | undefined): string | undefined {
+  return record ? workspaceEntityBySemanticRecord.get(record as Record<string, unknown>)?.path : undefined
+}
+
+function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith('__workspace_')) continue
+    output[key] = value
+  }
+  return output
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function pruneUndefinedRecord<T extends Record<string, unknown>>(record: T): T {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== undefined && value !== '') output[key] = value
+  }
+  return output as T
+}
+
+const semanticEntityTypeByKind: Partial<Record<SemanticEntityKind, MovScriptCoreSemanticEntityKind>> = {
   scriptVersions: 'script_version',
   scriptBlocks: 'script_block',
   segments: 'segment',
-  productionTextBlocks: 'production_text_block',
   sceneMoments: 'scene_moment',
   writingExpressions: 'writing_expression',
   productions: 'production',
-  storyboardScripts: 'storyboard_script',
-  storyboardVersions: 'storyboard_version',
+  storyboardScripts: 'storyboard',
+  storyboardVersions: 'storyboard',
   contentUnits: 'content_unit',
   keyframes: 'keyframe',
-  previewTimelines: 'preview_timeline',
-  previewTimelineItems: 'preview_timeline_item',
   settings: 'setting',
   settingStates: 'setting_state',
-  settingUsages: 'setting_usage',
-  creativeRelationships: 'creative_relationship',
-  assetSlots: 'asset_slot',
-  assetSlotCandidates: 'candidate',
-  candidateDecisions: 'candidate_decision',
-  reviewEvents: 'review_event',
-  workItems: 'work_item',
-  workReviews: 'work_review',
-  workDependencies: 'work_dependency',
-  deliveryVersions: 'delivery_version',
-  deliveryTimelineItems: 'delivery_timeline_item',
-  exportRecords: 'export_record',
-  canvasOutputs: 'canvas_output',
-}
-
-const workspaceWritableEntitySpecs: Record<WorkspaceWritableSemanticEntityKind, {
-  schema: string
-  directory: string
-  filePrefix: string
-}> = {
-  scriptVersions: {
-    schema: 'movscript.script_version.v1',
-    directory: 'scripts/versions',
-    filePrefix: 'script_version',
-  },
-  settings: {
-    schema: 'movscript.setting.v1',
-    directory: 'setting',
-    filePrefix: 'setting',
-  },
-  assetSlots: {
-    schema: 'movscript.asset_slot.v1',
-    directory: 'assets',
-    filePrefix: 'asset_slot',
-  },
-  deliveryVersions: {
-    schema: 'movscript.delivery_version.v1',
-    directory: 'delivery',
-    filePrefix: 'delivery_version',
-  },
-  deliveryTimelineItems: {
-    schema: 'movscript.delivery_timeline_item.v1',
-    directory: 'delivery',
-    filePrefix: 'delivery_timeline_item',
-  },
-  exportRecords: {
-    schema: 'movscript.export_record.v1',
-    directory: 'delivery',
-    filePrefix: 'export_record',
-  },
-  workItems: {
-    schema: 'movscript.work_item.v1',
-    directory: 'work',
-    filePrefix: 'work_item',
-  },
-  workReviews: {
-    schema: 'movscript.work_review.v1',
-    directory: 'work',
-    filePrefix: 'work_review',
-  },
+  assetSlots: 'asset',
 }
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
@@ -803,9 +795,6 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
     ]),
     cfg('workReviews', 'work-reviews', '任务审阅', '任务审阅记录。', ['status'], genericFields()),
     cfg('workDependencies', 'work-dependencies', '任务依赖', '任务依赖。', ['status'], genericFields()),
-    cfg('deliveryVersions', 'delivery-versions', '交付版本', '交付版本。', ['title', 'status'], genericFields()),
-    cfg('deliveryTimelineItems', 'delivery-timeline-items', '交付时间线项', '交付时间线项。', ['owner_type', 'owner_id', 'status'], timelineFields('delivery_version_id', 'DeliveryVersion ID')),
-    cfg('exportRecords', 'export-records', '导出记录', '导出记录。', ['status'], genericFields()),
     cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布输出。', ['status'], genericFields()),
   ]
 }

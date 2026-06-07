@@ -131,7 +131,6 @@ export interface OrchestrationData {
   keyframes: KeyframeRecord[]
   previewTimelines: SemanticEntityRecord[]
   previewTimelineItems: SemanticEntityRecord[]
-  deliveryVersions: SemanticEntityRecord[]
   jobs: Job[]
 }
 
@@ -152,7 +151,6 @@ export const PRODUCTION_ORCHESTRATION_ENTITY_KINDS = [
   'keyframes',
   'previewTimelines',
   'previewTimelineItems',
-  'deliveryVersions',
 ] as const satisfies readonly SemanticEntityKind[]
 
 export async function loadProductionOrchestrationData(projectId: number): Promise<OrchestrationData> {
@@ -169,7 +167,6 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     keyframes,
     previewTimelines,
     previewTimelineItems,
-    deliveryVersions,
   ] = await Promise.all(PRODUCTION_ORCHESTRATION_ENTITY_KINDS.map((kind) => listSemanticEntities(projectId, semanticEntityConfig(kind))))
 
   return {
@@ -185,7 +182,6 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     keyframes: keyframes as KeyframeRecord[],
     previewTimelines,
     previewTimelineItems,
-    deliveryVersions,
     jobs: await loadProductionOrchestrationJobs(projectId, ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v']),
   }
 }

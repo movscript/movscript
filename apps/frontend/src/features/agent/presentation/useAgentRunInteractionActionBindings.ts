@@ -16,7 +16,7 @@ export interface UseAgentRunInteractionActionBindingsInput {
   interactionRuns?: AgentRun[]
   approving: boolean
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
-  setConversationProviderSessionState: (conversationId: string, patch: Parameters<AgentRunInteractionActionDeps['setConversationProviderSessionState']>[0]) => void
+  updateConversationRuntimeState: (conversationId: string, patch: Parameters<AgentRunInteractionActionDeps['updateConversationRuntimeState']>[0]) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentRunInteractionActionDeps['setConversationRun']>[1]) => void
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
   runTouchesProviderCatalog: (run: AgentRun) => boolean
@@ -30,7 +30,7 @@ export function useAgentRunInteractionActionBindings({
   interactionRuns,
   approving,
   setSubmittedInteractionRuns,
-  setConversationProviderSessionState,
+  updateConversationRuntimeState,
   setConversationRun,
   streamFollowUpRun,
   runTouchesProviderCatalog,
@@ -43,7 +43,7 @@ export function useAgentRunInteractionActionBindings({
   const deps = useMemo<AgentRunInteractionActionDeps>(() => ({
     conversationId,
     setSubmittedInteractionRuns,
-    setConversationProviderSessionState: (patch) => setConversationProviderSessionState(conversationId, patch),
+    updateConversationRuntimeState: (patch) => updateConversationRuntimeState(conversationId, patch),
     setConversationRun: (run, patch) => setConversationRun(conversationId, run, patch),
     streamFollowUpRun,
     runTouchesProviderCatalog,
@@ -53,7 +53,7 @@ export function useAgentRunInteractionActionBindings({
     refreshProviderCatalogContext,
     runTouchesProviderCatalog,
     setConversationRun,
-    setConversationProviderSessionState,
+    updateConversationRuntimeState,
     setSubmittedInteractionRuns,
     streamFollowUpRun,
   ])

@@ -23,7 +23,7 @@
   max-height: 176px;
   overflow: auto;
   border: 1px solid var(--ui-surface-border, var(--ms-color-border));
-  border-radius: var(--ui-surface-radius, 6px);
+  border-radius: var(--ui-surface-radius, var(--ms-radius-card));
   background: var(--ui-surface-background, var(--ms-color-background));
   padding: var(--ms-space-2);
   font-family: var(--ms-font-mono);

@@ -23,11 +23,59 @@ export type AgentChatProviderKind = 'codex' | 'mova' | 'claude' | (string & {})
 export type AgentChatThreadStatus = 'notLoaded' | 'idle' | 'running' | 'failed' | 'completed' | 'cancelled' | 'unknown'
 export type AgentChatTurnStatus = 'completed' | 'interrupted' | 'failed' | 'inProgress' | (string & {})
 export type AgentChatTurnItemsView = 'notLoaded' | 'summary' | 'full'
+export type AgentChatCollaborationMode = 'default' | 'plan'
+export type AgentChatGoalStatus = 'active' | 'paused' | 'blocked' | 'usageLimited' | 'budgetLimited' | 'complete' | (string & {})
+
+export interface AgentThreadControlState {
+  providerThreadId: string
+  providerSessionTreeId?: string
+  activeTurnId?: string
+  turnStatus?: AgentChatTurnStatus
+  collaborationMode?: AgentChatCollaborationMode
+  goal?: AgentThreadGoalState
+  executionSettings?: AgentThreadExecutionSettings
+  contextState?: AgentThreadContextState
+}
+
+export interface AgentThreadGoalState {
+  objective: string
+  status: AgentChatGoalStatus
+  tokenBudget?: number | null
+  tokensUsed?: number
+  timeUsedSeconds?: number
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface AgentThreadExecutionSettings {
+  model?: string | null
+  modelProvider?: string | null
+  cwd?: string | null
+  approvalPolicy?: string | null
+  approvalsReviewer?: string | null
+  sandbox?: unknown
+  sandboxPolicy?: unknown
+  permissions?: string | null
+}
+
+export interface AgentThreadContextState {
+  tokenUsage?: number
+  tokenLimit?: number
+  compactedAt?: number
+  summary?: string | null
+}
 
 export interface AgentChatThread {
   provider: AgentChatProviderKind
   id: string
-  sessionId: string
+  providerThreadId?: string
+  providerSessionTreeId?: string
+  /**
+   * @deprecated Provider-neutral code should use providerSessionTreeId when it
+   * means a related-thread tree, or provider-specific runtime session fields
+   * when it means a runtime session.
+   */
+  sessionId?: string
   preview: string
   name: string | null
   createdAt: number
@@ -193,6 +241,11 @@ export interface AgentChatRunProfileOptions {
   runProfile?: AgentRunProfileSelection
 }
 
+export interface AgentChatThreadControlOptions {
+  collaborationMode?: AgentChatCollaborationMode
+  goalModeEnabled?: boolean
+}
+
 export interface AgentChatDataSource {
   provider: AgentChatProviderKind
   providerId?: string
@@ -202,15 +255,17 @@ export interface AgentChatDataSource {
   capabilities?: AgentChatCapabilities
   listThreads(input?: { limit?: number; cursor?: string | null }): Promise<{ threads: AgentChatThread[]; nextCursor?: string | null }>
   readThread(threadId: string, input?: { includeTurns?: boolean }): Promise<AgentChatThread>
-  startThread(input?: { title?: string; projectId?: number; cwd?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions): Promise<AgentChatThread>
+  resumeThread?(input: { threadId: string; cwd?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions & AgentChatThreadControlOptions): Promise<AgentChatThread>
+  startThread(input?: { title?: string; projectId?: number; cwd?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions & AgentChatThreadControlOptions): Promise<AgentChatThread>
   renameThread?(input: { threadId: string; name: string }): Promise<AgentChatThread | unknown>
   archiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   unarchiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   deleteThread?(input: { threadId: string }): Promise<unknown>
-  startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions): Promise<AgentChatTurn>
+  setThreadGoal?(input: { threadId: string; objective?: string | null; status?: AgentChatGoalStatus | null; tokenBudget?: number | null }): Promise<AgentThreadGoalState | unknown>
+  startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions & AgentChatThreadControlOptions): Promise<AgentChatTurn>
   steerTurn?(input: { threadId: string; turnId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null }): Promise<unknown>
   interruptTurn?(input: { threadId: string; turnId: string; reason?: string | null }): Promise<unknown>
-  startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions): Promise<AgentChatTurn>
+  startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions & AgentChatThreadControlOptions): Promise<AgentChatTurn>
   subscribeThread?(input: {
     threadId: string
     onNotification?: (notification: AgentChatNotification) => void
@@ -222,6 +277,18 @@ export interface AgentChatDataSource {
     onNotification?: (notification: AgentChatNotification) => void
     signal?: AbortSignal
   }): Promise<void | (() => void)> | void | (() => void)
+}
+
+export function providerThreadIdFromAgentChatThread(thread: Pick<AgentChatThread, 'id' | 'providerThreadId'>): string {
+  return thread.providerThreadId?.trim() || thread.id
+}
+
+export function providerSessionTreeIdFromAgentChatThread(thread: Pick<AgentChatThread, 'providerSessionTreeId' | 'sessionId'>): string | undefined {
+  return thread.providerSessionTreeId?.trim() || thread.sessionId?.trim() || undefined
+}
+
+export function legacySessionIdFromAgentChatThread(thread: Pick<AgentChatThread, 'providerSessionTreeId' | 'sessionId'>): string | undefined {
+  return providerSessionTreeIdFromAgentChatThread(thread)
 }
 
 export interface AgentChatCapabilities {

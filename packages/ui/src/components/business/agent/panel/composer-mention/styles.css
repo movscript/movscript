@@ -109,12 +109,13 @@
   font-size: var(--ms-text-label);
   line-height: 18px;
   resize: vertical;
+  padding: 18px 22px 16px;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__toolbar {
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__toolbar > * {
@@ -122,8 +123,8 @@
 }
 
 .ai-agent-panel-shell .ms-agent-composer__action {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__action svg,
@@ -133,7 +134,7 @@
 }
 
 .ai-agent-panel-shell .ms-agent-composer__submit {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   margin-left: auto;
 }

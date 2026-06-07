@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 test('stacked app shell reserves overlap without shrinking pane content', () => {
@@ -30,4 +30,16 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
   assert.match(workspaceSource, /resizablePanelCursor\(edge: ResizablePanelEdge\)[\s\S]*row-resize[\s\S]*col-resize/)
   assert.match(workspaceSource, /resizablePanelAriaOrientation\(edge: ResizablePanelEdge\): "horizontal" \| "vertical"/)
   assert.match(workspaceSource, /resizablePanelKeyboardKeys\(edge: ResizablePanelEdge\)[\s\S]*ArrowUp[\s\S]*ArrowDown[\s\S]*ArrowLeft[\s\S]*ArrowRight/)
+})
+
+test('enterprise app top controls extend the shared component instead of shadowing it', () => {
+  const contractSource = readFileSync(resolve('src/runtime/contract.ts'), 'utf8')
+  const communityRuntimeSource = readFileSync(resolve('src/runtime/community.tsx'), 'utf8')
+  const enterpriseRuntimeSource = readFileSync(resolve('../../../enterprise/overlays/movscript/apps/frontend/src/edition/enterprise.tsx'), 'utf8')
+  const enterpriseTopControlsOverlay = resolve('../../../enterprise/overlays/movscript/apps/frontend/src/features/app-shell/components/AppTopControls.tsx')
+
+  assert.match(contractSource, /export interface FrontendAppTopControls/)
+  assert.match(communityRuntimeSource, /export const runtimeAppTopControls: FrontendAppTopControls = \{\}/)
+  assert.match(enterpriseRuntimeSource, /export const runtimeAppTopControls: FrontendAppTopControls = \{[\s\S]*projectMenuVariant: 'enterprise'/)
+  assert.equal(existsSync(enterpriseTopControlsOverlay), false)
 })

@@ -3,12 +3,14 @@ package handler
 import (
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	gitidentityapp "github.com/movscript/movscript/internal/app/gitidentity"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	projectrepoapp "github.com/movscript/movscript/internal/app/projectrepo"
 	"github.com/movscript/movscript/internal/infra/cache"
@@ -20,12 +22,15 @@ import (
 )
 
 type ProjectHandler struct {
-	db           *gorm.DB
-	projects     *projectapp.Service
-	repositories *projectrepoapp.Service
-	giteaBaseURL string
-	giteaToken   string
-	httpClient   *http.Client
+	db                 *gorm.DB
+	projects           *projectapp.Service
+	repositories       *projectrepoapp.Service
+	gitIdentities      *gitidentityapp.Service
+	giteaBaseURL       string
+	giteaToken         string
+	giteaAdminUsername string
+	giteaAdminPassword string
+	httpClient         *http.Client
 }
 
 func NewProjectHandler(db *gorm.DB, cacheStore ...cache.Cache) *ProjectHandler {
@@ -33,22 +38,37 @@ func NewProjectHandler(db *gorm.DB, cacheStore ...cache.Cache) *ProjectHandler {
 }
 
 func NewProjectHandlerWithConfig(db *gorm.DB, cfg *config.Config, cacheStore ...cache.Cache) *ProjectHandler {
+	return NewProjectHandlerWithConfigAndEncryption(db, cfg, nil, cacheStore...)
+}
+
+func NewProjectHandlerWithConfigAndEncryption(db *gorm.DB, cfg *config.Config, encryptionKey []byte, cacheStore ...cache.Cache) *ProjectHandler {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
+	giteaAdapter := projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
+	var gitIdentities *gitidentityapp.Service
+	if giteaAdapter != nil && len(encryptionKey) > 0 {
+		gitIdentities = gitidentityapp.NewService(db, giteaAdapter, gitidentityapp.Config{
+			UserEmailDomain: cfg.GiteaUserEmailDomain,
+			UserTokenName:   cfg.GiteaUserTokenName,
+		}, encryptionKey)
+	}
 	repositoryConfig := projectrepoapp.Config{
 		Provider:      "gitea",
-		Owner:         cfg.GiteaOwner,
 		Repo:          cfg.GiteaRepo,
 		RepoPrefix:    cfg.GiteaRepoPrefix,
 		DefaultBranch: cfg.GiteaBranch,
+		OrgPrefix:     cfg.GiteaOrgPrefix,
 	}
 	return &ProjectHandler{
-		db:           db,
-		projects:     projectapp.NewService(db, cacheStore...),
-		repositories: projectrepoapp.NewService(db, repositoryConfig, projectrepoapp.NewGiteaAdapter(cfg.GiteaBaseURL, cfg.GiteaToken)),
-		giteaBaseURL: strings.TrimRight(strings.TrimSpace(cfg.GiteaBaseURL), "/"),
-		giteaToken:   strings.TrimSpace(cfg.GiteaToken),
+		db:                 db,
+		projects:           projectapp.NewService(db, cacheStore...),
+		repositories:       projectrepoapp.NewService(db, repositoryConfig, giteaAdapter),
+		gitIdentities:      gitIdentities,
+		giteaBaseURL:       strings.TrimRight(strings.TrimSpace(cfg.GiteaBaseURL), "/"),
+		giteaToken:         strings.TrimSpace(cfg.GiteaToken),
+		giteaAdminUsername: strings.TrimSpace(cfg.GiteaAdminUsername),
+		giteaAdminPassword: strings.TrimSpace(cfg.GiteaAdminPassword),
 		httpClient: &http.Client{
 			Timeout: 0,
 		},
@@ -95,7 +115,6 @@ func (h *ProjectHandler) List(c *gin.Context) {
 func (h *ProjectHandler) AdminList(c *gin.Context) {
 	filter := projectapp.AdminListFilter{
 		Query:    c.Query("q"),
-		Status:   c.Query("status"),
 		Page:     intQuery(c, "page", 1),
 		PageSize: intQuery(c, "page_size", 50),
 	}
@@ -216,8 +235,6 @@ func (h *ProjectHandler) AdminCreate(c *gin.Context) {
 		switch {
 		case errors.Is(err, projectapp.ErrInvalidProjectName):
 			c.JSON(http.StatusBadRequest, api.InvalidInput("项目名称不能为空"))
-		case errors.Is(err, projectapp.ErrInvalidProjectStatus):
-			c.JSON(http.StatusBadRequest, api.InvalidInput("status 必须是 planning、script_analysis、asset_prep、production、editing 或 done"))
 		case errors.Is(err, projectapp.ErrOwnerNotFound):
 			c.JSON(http.StatusBadRequest, api.InvalidInput("owner 用户不存在"))
 		case errors.Is(err, projectapp.ErrOwnerInactive):
@@ -241,7 +258,6 @@ func (h *ProjectHandler) AdminCreate(c *gin.Context) {
 			"name":     created.Name,
 			"owner_id": created.OwnerID,
 			"org_id":   created.OrgID,
-			"status":   created.Status,
 		},
 	})
 	c.JSON(http.StatusCreated, created)
@@ -255,10 +271,8 @@ func (h *ProjectHandler) AdminUpdate(c *gin.Context) {
 		return
 	}
 	var previousName string
-	var previousStatus string
 	if existing, err := h.projects.Get(c.Request.Context(), projectID, nil); err == nil {
 		previousName = existing.Name
-		previousStatus = existing.Status
 	}
 	updated, err := h.projects.AdminUpdate(c.Request.Context(), projectID, req)
 	if err != nil {
@@ -267,8 +281,6 @@ func (h *ProjectHandler) AdminUpdate(c *gin.Context) {
 			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		case errors.Is(err, projectapp.ErrInvalidProjectName):
 			c.JSON(http.StatusBadRequest, api.InvalidInput("项目名称不能为空"))
-		case errors.Is(err, projectapp.ErrInvalidProjectStatus):
-			c.JSON(http.StatusBadRequest, api.InvalidInput("status 必须是 planning、script_analysis、asset_prep、production、editing 或 done"))
 		case errors.Is(err, projectapp.ErrNoProjectFieldsToUpdate):
 			c.JSON(http.StatusBadRequest, api.InvalidInput("没有可更新字段"))
 		default:
@@ -283,10 +295,8 @@ func (h *ProjectHandler) AdminUpdate(c *gin.Context) {
 		OrgID:      updated.OrgID,
 		ProjectID:  &updated.ID,
 		Metadata: map[string]any{
-			"previous_name":   previousName,
-			"name":            updated.Name,
-			"previous_status": previousStatus,
-			"status":          updated.Status,
+			"previous_name": previousName,
+			"name":          updated.Name,
 		},
 	})
 	c.JSON(http.StatusOK, updated)
@@ -348,8 +358,11 @@ func (h *ProjectHandler) Workspace(c *gin.Context) {
 }
 
 func (h *ProjectHandler) GitProxy(c *gin.Context) {
-	if h.giteaBaseURL == "" || h.giteaToken == "" {
-		c.JSON(http.StatusInternalServerError, api.Internal("项目仓库代理未配置"))
+	hasToken := h.giteaToken != ""
+	hasAdminBasic := h.giteaAdminUsername != "" && h.giteaAdminPassword != ""
+	if h.giteaBaseURL == "" || (!hasToken && !hasAdminBasic) {
+		log.Printf("[movscript:project-git-proxy] proxy not configured baseURLSet=%t tokenSet=%t adminBasicSet=%t", h.giteaBaseURL != "", hasToken, hasAdminBasic)
+		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库代理未配置：缺少 Gitea base URL 或管理凭据"))
 		return
 	}
 	orgID, ok := requireCurrentOrgID(c)
@@ -375,9 +388,36 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.InvalidInput("Git proxy path invalid"))
 		return
 	}
-	if !gitProxyAllowsPushOnly(c.Request.Method, c.Param("gitPath"), c.Query("service")) {
-		c.JSON(http.StatusForbidden, api.Forbidden("Git proxy currently allows push only"))
+	if !gitProxyAllowsSmartHTTP(c.Request.Method, c.Param("gitPath"), c.Query("service")) {
+		c.JSON(http.StatusForbidden, api.Forbidden("Git proxy path is not allowed"))
 		return
+	}
+	user, ok := middleware.CurrentUserProfileFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.AuthRequired())
+		return
+	}
+	upstreamUsername := target.Owner
+	upstreamSecret := h.giteaToken
+	if upstreamSecret == "" && hasAdminBasic {
+		upstreamUsername = h.giteaAdminUsername
+		upstreamSecret = h.giteaAdminPassword
+	}
+	if h.gitIdentities != nil {
+		credential, err := h.gitIdentities.EnsureForUser(c.Request.Context(), user)
+		if err != nil {
+			log.Printf("[movscript:project-git-proxy] user git credential failed userId=%d error=%s", user.ID, err)
+			c.JSON(http.StatusServiceUnavailable, api.Internal("用户 Gitea 凭据不可用"))
+			return
+		}
+		credential, err = h.gitIdentities.EnsureRepoAccess(c.Request.Context(), user.ID, target.Owner, target.Repo)
+		if err != nil {
+			log.Printf("[movscript:project-git-proxy] repo collaborator failed userId=%d owner=%s repo=%s error=%s", user.ID, target.Owner, target.Repo, err)
+			c.JSON(http.StatusBadGateway, api.Internal("项目仓库授权失败"))
+			return
+		}
+		upstreamUsername = credential.Username
+		upstreamSecret = credential.Token
 	}
 	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, upstreamURL, c.Request.Body)
 	if err != nil {
@@ -385,7 +425,7 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 		return
 	}
 	copyGitProxyRequestHeaders(req.Header, c.Request.Header)
-	req.Header.Set("Authorization", "token "+h.giteaToken)
+	req.SetBasicAuth(upstreamUsername, upstreamSecret)
 	req.Host = ""
 
 	client := h.httpClient
@@ -401,6 +441,12 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 
 	copyGitProxyResponseHeaders(c.Writer.Header(), resp.Header)
 	c.Status(resp.StatusCode)
+	if resp.StatusCode >= http.StatusBadRequest {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		log.Printf("[movscript:project-git-proxy] upstream failed status=%d owner=%s repo=%s path=%s body=%s", resp.StatusCode, target.Owner, target.Repo, c.Param("gitPath"), strings.TrimSpace(string(body)))
+		_, _ = c.Writer.Write(body)
+		return
+	}
 	_, _ = io.Copy(c.Writer, resp.Body)
 }
 
@@ -431,13 +477,13 @@ func copyGitProxyRequestHeaders(dst http.Header, src http.Header) {
 	}
 }
 
-func gitProxyAllowsPushOnly(method string, gitPath string, service string) bool {
+func gitProxyAllowsSmartHTTP(method string, gitPath string, service string) bool {
 	path := strings.TrimSpace(gitPath)
 	switch {
 	case method == http.MethodGet && strings.HasSuffix(path, "/info/refs"):
-		return service == "git-receive-pack"
-	case method == http.MethodPost && strings.HasSuffix(path, "/git-receive-pack"):
-		return true
+		return service == "git-receive-pack" || service == "git-upload-pack"
+	case method == http.MethodPost:
+		return strings.HasSuffix(path, "/git-receive-pack") || strings.HasSuffix(path, "/git-upload-pack")
 	default:
 		return false
 	}

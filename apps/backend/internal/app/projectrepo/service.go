@@ -35,11 +35,11 @@ type Service struct {
 
 type Config struct {
 	Provider      string
-	Owner         string
 	Repo          string
 	RepoPrefix    string
 	DefaultBranch string
 	CreatedBy     *uint
+	OrgPrefix     string
 }
 
 type GitRepositoryAdapter interface {
@@ -52,6 +52,8 @@ type EnsureRepositoryInput struct {
 	DefaultBranch string
 	Description   string
 	Private       bool
+	OwnerType     OwnerType
+	OwnerName     string
 }
 
 type EnsureRepositoryResult struct {
@@ -85,6 +87,13 @@ type WorkspaceMetadata struct {
 	LastSyncError string `json:"lastSyncError,omitempty"`
 }
 
+type OwnerType string
+
+const (
+	OwnerTypeUser         OwnerType = "user"
+	OwnerTypeOrganization OwnerType = "organization"
+)
+
 func NewService(db *gorm.DB, cfg Config, adapter GitRepositoryAdapter) *Service {
 	return NewServiceWithRepository(&gormRepository{db: db}, cfg, adapter)
 }
@@ -103,6 +112,15 @@ func (s *Service) EnsureProjectRepository(ctx context.Context, projectID uint, o
 	}
 	existing, err := s.repo.GetBinding(ctx, projectID)
 	if err == nil {
+		if existing.Status != StatusArchived {
+			existing, err = s.reconcileBindingOwner(ctx, project, existing)
+			if err != nil {
+				return Binding{}, err
+			}
+		}
+		if s.adapter != nil && existing.Status != StatusArchived {
+			existing = s.provisionRepository(ctx, project, existing)
+		}
 		return bindingFromModel(existing), nil
 	}
 	if !errors.Is(err, ErrRepositoryBindingMissing) {
@@ -169,6 +187,17 @@ func (s *Service) GitProxyTarget(ctx context.Context, projectID uint, orgID *uin
 	return target, nil
 }
 
+func (s *Service) reconcileBindingOwner(ctx context.Context, project persistencemodel.Project, binding persistencemodel.ProjectRepository) (persistencemodel.ProjectRepository, error) {
+	spec, err := s.bindingSpec(project)
+	if err != nil {
+		return persistencemodel.ProjectRepository{}, err
+	}
+	if binding.Owner == spec.Owner {
+		return binding, nil
+	}
+	return s.repo.UpdateBindingOwner(ctx, binding.ID, spec.Owner)
+}
+
 func (s *Service) provisionRepository(ctx context.Context, project persistencemodel.Project, binding persistencemodel.ProjectRepository) persistencemodel.ProjectRepository {
 	if s.adapter == nil {
 		return binding
@@ -179,6 +208,8 @@ func (s *Service) provisionRepository(ctx context.Context, project persistencemo
 		DefaultBranch: binding.DefaultBranch,
 		Description:   project.Description,
 		Private:       true,
+		OwnerType:     ownerType(project),
+		OwnerName:     ownerName(project),
 	})
 	if err != nil {
 		updated, updateErr := s.repo.UpdateProvisioning(ctx, binding.ID, StatusError, result.ProviderRepoID, result.HeadCommit, err.Error())
@@ -200,7 +231,7 @@ func (s *Service) provisionRepository(ctx context.Context, project persistencemo
 }
 
 func (s *Service) bindingSpec(project persistencemodel.Project) (persistencemodel.ProjectRepository, error) {
-	owner := strings.TrimSpace(s.config.Owner)
+	owner := s.projectOwner(project)
 	if owner == "" {
 		return persistencemodel.ProjectRepository{}, fmt.Errorf("%w: repository owner is required", ErrInvalidRepositoryConfig)
 	}
@@ -223,14 +254,31 @@ func (s *Service) bindingSpec(project persistencemodel.Project) (persistencemode
 	}, nil
 }
 
+func (s *Service) projectOwner(project persistencemodel.Project) string {
+	if project.OrgID == nil || project.Organization.IsPersonal {
+		return project.Owner.Username
+	}
+	return strings.TrimSpace(s.config.OrgPrefix) + project.Organization.Slug
+}
+
+func ownerType(project persistencemodel.Project) OwnerType {
+	if project.OrgID == nil || project.Organization.IsPersonal {
+		return OwnerTypeUser
+	}
+	return OwnerTypeOrganization
+}
+
+func ownerName(project persistencemodel.Project) string {
+	if project.OrgID == nil || project.Organization.IsPersonal {
+		return project.Owner.Username
+	}
+	return project.Organization.Name
+}
+
 func normalizeConfig(cfg Config) Config {
 	cfg.Provider = strings.TrimSpace(cfg.Provider)
 	if cfg.Provider == "" {
 		cfg.Provider = ProviderGitea
-	}
-	cfg.Owner = strings.TrimSpace(cfg.Owner)
-	if cfg.Owner == "" {
-		cfg.Owner = "movscript"
 	}
 	cfg.Repo = strings.TrimSpace(cfg.Repo)
 	cfg.RepoPrefix = strings.TrimSpace(cfg.RepoPrefix)
@@ -240,6 +288,10 @@ func normalizeConfig(cfg Config) Config {
 	cfg.DefaultBranch = strings.TrimSpace(cfg.DefaultBranch)
 	if cfg.DefaultBranch == "" {
 		cfg.DefaultBranch = "main"
+	}
+	cfg.OrgPrefix = strings.TrimSpace(cfg.OrgPrefix)
+	if cfg.OrgPrefix == "" {
+		cfg.OrgPrefix = "movscript-org-"
 	}
 	return cfg
 }

@@ -2,7 +2,7 @@
   position: relative;
   width: 100%;
   min-width: 0;
-  border-radius: 6px;
+  border-radius: var(--ms-radius-control);
   color: var(--ms-color-foreground);
 }
 
@@ -39,7 +39,7 @@
   min-width: 0;
   justify-content: flex-start;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--ms-radius-control);
   background: transparent;
   padding: 7px 7px 7px 12px;
   text-align: left;

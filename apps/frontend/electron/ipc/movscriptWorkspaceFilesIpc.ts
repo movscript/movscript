@@ -8,6 +8,7 @@ import {
 import {
   buildMovScriptWorkspace,
   createNodeMovScriptWorkspaceFileRepository,
+  resolveMovScriptProjectWorkspacePaths,
   reviewMovScriptBuildWorkspace,
 } from '@movscript/core/workspace/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
@@ -34,13 +35,13 @@ export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
   ipcMain.handle('movscript:workspace-review', (_event, input?: ElectronMovScriptWorkspaceBuildActionInput) => {
     const action = actionInput(input)
     return reviewMovScriptBuildWorkspace({
-      fileRepository: createNodeMovScriptWorkspaceFileRepository(action.workspaceDir),
+      fileRepository: createNodeMovScriptWorkspaceFileRepository(projectWorkspaceDir(action)),
     })
   })
   ipcMain.handle('movscript:workspace-build', (_event, input?: ElectronMovScriptWorkspaceBuildActionInput) => {
     const action = actionInput(input)
     return buildMovScriptWorkspace({
-      fileRepository: createNodeMovScriptWorkspaceFileRepository(action.workspaceDir),
+      fileRepository: createNodeMovScriptWorkspaceFileRepository(projectWorkspaceDir(action)),
     })
   })
 }
@@ -48,9 +49,17 @@ export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
 function actionInput(input?: ElectronMovScriptWorkspaceBuildActionInput): {
   workspaceDir: string
   userId?: number | string
+  orgId?: number | string
+  projectId?: number | string
 } {
   return {
     workspaceDir: input?.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir(),
     ...(input?.userId !== undefined ? { userId: input.userId } : {}),
+    ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
+    ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
   }
+}
+
+function projectWorkspaceDir(action: ReturnType<typeof actionInput>): string {
+  return resolveMovScriptProjectWorkspacePaths(action).projectDir
 }

@@ -15,9 +15,21 @@
   --ms-text-section: 16px;
   --ms-leading-section: 22px;
 
-  --ms-radius-sm: 5px;
-  --ms-radius-md: 8px;
+  --ms-radius-xs: 3px;
+  --ms-radius-sm: 4px;
+  --ms-radius-md: 6px;
+  --ms-radius-lg: 8px;
+  --ms-radius-xl: 10px;
+  --ms-radius-2xl: 12px;
   --ms-radius-full: 999px;
+  --ms-radius-control: var(--ms-radius-md);
+  --ms-radius-field: var(--ms-radius-md);
+  --ms-radius-card: var(--ms-radius-lg);
+  --ms-radius-panel: var(--ms-radius-xl);
+  --ms-radius-overlay: var(--ms-radius-xl);
+  --ms-radius-window: var(--ms-radius-2xl);
+  --ms-radius-icon: var(--ms-radius-md);
+  --ms-radius-composer: 18px;
 
   --ms-blur-frosted-sm: 16px;
   --ms-blur-frosted-md: 24px;

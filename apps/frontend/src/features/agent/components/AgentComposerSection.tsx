@@ -2,7 +2,7 @@ import type { ClipboardEventHandler, ComponentProps, CSSProperties, DragEventHan
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { AtSign, Check, ChevronDown, CircleStop, Eye, FolderTree, Loader2, Send, Upload } from 'lucide-react'
+import { AtSign, Check, ChevronDown, CircleDot, CircleStop, Eye, FolderTree, Loader2, Paperclip, Plus, Send, Sparkles } from 'lucide-react'
 import {
   AgentComposer,
   AgentComposerAction,
@@ -29,6 +29,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  IdentityMark,
 } from '@movscript/ui'
 import { attachmentKey } from '@/features/agent/domain/agentAttachments'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
@@ -47,6 +48,7 @@ import {
   type AgentRunProfilePresetId,
 } from '@/features/agent/domain/agentRunProfilePreset'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
+import type { PublicModel } from '@/types'
 
 type MentionStateHandler = ComponentProps<typeof AgentMentionEditor>['onMentionState']
 
@@ -82,6 +84,10 @@ export interface AgentComposerSectionProps {
   loading: boolean
   mentionResults: AgentAttachment[]
   mentionRangeActive: boolean
+  collaborationMode?: 'default' | 'plan'
+  goalModeEnabled?: boolean
+  modelOptions?: PublicModel[]
+  modelValue?: number | null
   pendingActiveRunInputQueue: AgentPendingActiveRunInputQueueItem[]
   stoppingActiveRun: boolean
   uploading: boolean
@@ -104,6 +110,9 @@ export interface AgentComposerSectionProps {
   onMentionEscape: () => void
   onMentionSelect: (attachment: AgentAttachment) => void
   onMentionState: MentionStateHandler
+  onCollaborationModeChange?: (mode: 'default' | 'plan') => void
+  onGoalModeEnabledChange?: (enabled: boolean) => void
+  onModelChange?: (modelId: number | null) => void
   onRemoveAttachment: (attachmentId: string) => void
   onSend: (profilePresetId?: AgentRunProfilePresetId) => void
   onStopActiveRun: () => void
@@ -134,6 +143,10 @@ export function AgentComposerSection({
   loading,
   mentionResults,
   mentionRangeActive,
+  collaborationMode = 'default',
+  goalModeEnabled = false,
+  modelOptions = [],
+  modelValue,
   pendingActiveRunInputQueue,
   stoppingActiveRun,
   uploading,
@@ -156,6 +169,9 @@ export function AgentComposerSection({
   onMentionEscape,
   onMentionSelect,
   onMentionState,
+  onCollaborationModeChange,
+  onGoalModeEnabledChange,
+  onModelChange,
   onRemoveAttachment,
   onSend,
   onStopActiveRun,
@@ -173,6 +189,7 @@ export function AgentComposerSection({
   const [profilePresetId, setProfilePresetId] = useState<AgentRunProfilePresetId>(DEFAULT_AGENT_RUN_PROFILE_PRESET_ID)
   const runProfile = agentRunProfilePresetById(profilePresetId)
   const mentionMenuOpen = mentionRangeActive && mentionResults.length > 0
+  const actionMenuDisabled = answeringPendingInput || uploading || loading || buildingSendWorkspace
 
   useEffect(() => {
     if (!mentionMenuOpen) {
@@ -226,6 +243,11 @@ export function AgentComposerSection({
   const showProductionSelector = workspaceProductionOptions.length > 0
     && workspaceProductionValue !== undefined
     && !!onWorkspaceProductionChange
+  const showModelSelector = modelOptions.length > 0 && modelValue !== undefined && !!onModelChange
+  const selectedModel = showModelSelector
+    ? modelOptions.find((model) => model.id === modelValue) ?? modelOptions[0]
+    : undefined
+  const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
     <div
       className="ai-agent-resource-mention-menu overflow-hidden border border-border bg-background shadow-lg"
@@ -365,8 +387,8 @@ export function AgentComposerSection({
           {mentionMenu}
         </div>
         {showWorkspaceSelector ? (
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 type-tiny text-muted-foreground">
-            <span className="inline-flex items-center gap-1 pr-1">
+          <div className="ms-agent-composer__workspace-row">
+            <span className="ms-agent-composer__workspace-label">
               <FolderTree size={12} />
               工作目录
             </span>
@@ -375,7 +397,7 @@ export function AgentComposerSection({
               onValueChange={onWorkspaceProjectChange}
               disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
             >
-              <SelectTrigger size="sm" className="h-7 w-[min(210px,100%)] min-w-0 type-tiny">
+              <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(210px,100%)] min-w-0 type-tiny">
                 <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择项目'} />
               </SelectTrigger>
               <SelectContent>
@@ -395,7 +417,7 @@ export function AgentComposerSection({
                 onValueChange={onWorkspaceProductionChange}
                 disabled={workspaceSelectorDisabled || workspaceProductionsLoading}
               >
-                <SelectTrigger size="sm" className="h-7 w-[min(210px,100%)] min-w-0 type-tiny">
+                <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(210px,100%)] min-w-0 type-tiny">
                   <SelectValue placeholder={workspaceProductionsLoading ? '读取制作...' : '选择制作'} />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,25 +437,104 @@ export function AgentComposerSection({
         <AgentComposerToolbar>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <ProviderMark />
-            {showAttachmentTools ? (
-              <AgentComposerAction
-                onClick={() => fileRef.current?.click()}
-                disabled={answeringPendingInput || uploading || loading || buildingSendWorkspace}
-                aria-label={t('agents.chat.uploadAttachment')}
-                title={t('agents.chat.uploadAttachment')}
+            {showModelSelector ? (
+              <Select
+                value={modelValue === null ? 'auto' : String(modelValue)}
+                onValueChange={(value) => onModelChange(value === 'auto' ? null : Number(value))}
+                disabled={loading || buildingSendWorkspace || answeringPendingInput}
               >
-                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              </AgentComposerAction>
+                <SelectTrigger size="sm" className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny">
+                  <span className="ai-agent-model-select__value">
+                    {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
+                    <span className="ai-agent-model-select__id">{selectedModelId ?? 'Auto model'}</span>
+                  </span>
+                </SelectTrigger>
+                <SelectContent align="start" className="min-w-64">
+                  <SelectItem value="auto">
+                    <span className="ai-agent-model-select__option">
+                      {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
+                      <span className="ai-agent-model-select__option-copy">
+                        <span className="ai-agent-model-select__id">Auto model</span>
+                        <span className="ai-agent-model-select__meta">{selectedModelId ?? 'backend default'}</span>
+                      </span>
+                    </span>
+                  </SelectItem>
+                  {modelOptions.map((model) => (
+                    <SelectItem key={model.id} value={String(model.id)}>
+                      <span className="ai-agent-model-select__option">
+                        <IdentityMark kind="model" id={agentComposerModelId(model)} />
+                        <span className="ai-agent-model-select__option-copy">
+                          <span className="ai-agent-model-select__id">{agentComposerModelId(model)}</span>
+                          {model.provider_name ? <span className="ai-agent-model-select__meta">{model.provider_name}</span> : null}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : null}
-            {showMentionTools ? (
-              <AgentComposerAction
-                onClick={addMentionTrigger}
-                disabled={answeringPendingInput || buildingSendWorkspace}
-                aria-label={t('shared.genInput.mention')}
-                title={t('shared.genInput.mention')}
-              >
-                <AtSign size={14} />
-              </AgentComposerAction>
+            {showAttachmentTools || showMentionTools || onCollaborationModeChange || onGoalModeEnabledChange ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <AgentComposerAction
+                    disabled={actionMenuDisabled}
+                    aria-label="Composer actions"
+                    title="Composer actions"
+                  >
+                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={16} />}
+                  </AgentComposerAction>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="min-w-72">
+                  <DropdownMenuLabel>Input Controls</DropdownMenuLabel>
+                  {showAttachmentTools ? (
+                    <DropdownMenuItem
+                      onSelect={() => fileRef.current?.click()}
+                      disabled={uploading || loading || buildingSendWorkspace}
+                      className="gap-2"
+                    >
+                      <Paperclip size={14} />
+                      <span>{t('agents.chat.uploadAttachment')}</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {showMentionTools ? (
+                    <DropdownMenuItem
+                      onSelect={addMentionTrigger}
+                      disabled={buildingSendWorkspace}
+                      className="gap-2"
+                    >
+                      <AtSign size={14} />
+                      <span>{t('shared.genInput.mention')}</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {(showAttachmentTools || showMentionTools) && (onCollaborationModeChange || onGoalModeEnabledChange) ? <DropdownMenuSeparator /> : null}
+                  {onCollaborationModeChange ? (
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        onCollaborationModeChange(collaborationMode === 'plan' ? 'default' : 'plan')
+                      }}
+                      className="gap-2"
+                    >
+                      <span className="flex w-4 justify-center">{collaborationMode === 'plan' ? <Check size={14} /> : null}</span>
+                      <Sparkles size={14} />
+                      <span>计划模式</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {onGoalModeEnabledChange ? (
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        onGoalModeEnabledChange(!goalModeEnabled)
+                      }}
+                      className="gap-2"
+                    >
+                      <span className="flex w-4 justify-center">{goalModeEnabled ? <Check size={14} /> : null}</span>
+                      <CircleDot size={14} />
+                      <span>追求目标</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
             {composerAttachmentsCount > 0 && (
               <Badge className="max-w-24 truncate type-tiny">
@@ -519,4 +620,8 @@ export function AgentComposerSection({
       </section>
     </AgentSurfaceBlock>
   )
+}
+
+function agentComposerModelId(model: PublicModel): string {
+  return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `model_config:${model.id}`
 }

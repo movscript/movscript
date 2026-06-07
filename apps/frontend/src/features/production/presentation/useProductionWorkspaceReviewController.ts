@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { AlertCircle, CheckCircle2, Eye, GitBranch, Loader2 } from 'lucide-react'
 
-import {
-  applyProductionWorkspace,
-  previewProductionWorkspaceApply,
-} from '@/shared/infrastructure/api/semanticEntities'
-import { translateApiError, type APIErrorBody } from '@/shared/infrastructure/apiError'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
-import type { ProductionWorkspaceBackendPreviewIssue, ProductionWorkspaceReviewStatus } from '@/features/production/presentation/productionWorkspaceReviewPresentationTypes'
+import type { ProductionWorkspaceReviewPreviewIssue, ProductionWorkspaceReviewStatus } from '@/features/production/presentation/productionWorkspaceReviewPresentationTypes'
 import type { ProductionWorkspaceNodeDecision } from '@/features/production/domain/productionWorkspaceReviewTypes'
+import { saveProductionWorkspaceSnapshot } from '@/features/production/application/productionWorkspaceRepository'
 import {
   buildMergedProductionWorkspace,
   buildWorkspaceApplyGate,
@@ -47,10 +43,10 @@ export function useProductionWorkspaceReviewController({
   const [applying, setApplying] = useState(false)
   const [simulating, setSimulating] = useState(false)
   const [applyError, setApplyError] = useState('')
-  const [backendPreviewIssue, setBackendPreviewIssue] = useState<ProductionWorkspaceBackendPreviewIssue | null>(null)
+  const [reviewPreviewIssue, setReviewPreviewIssue] = useState<ProductionWorkspaceReviewPreviewIssue | null>(null)
   const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
   const [simulationResult, setSimulationResult] = useState<WorkspaceSimulationResult | null>(null)
-  const [backendPreviewDecisionKey, setBackendPreviewDecisionKey] = useState('')
+  const [reviewPreviewDecisionKey, setReviewPreviewDecisionKey] = useState('')
   const workspaceSegments = workspaceArtifact.workspace?.segments ?? []
   const segments = useMemo(() => buildWorkspaceReviewSegments(workspaceSegments, currentSnapshot), [currentSnapshot, workspaceSegments])
   const workspaceContext = useMemo(() => collectWorkspaceContextResources(segments), [segments])
@@ -67,7 +63,7 @@ export function useProductionWorkspaceReviewController({
   const unresolvedCount = Math.max(0, reviewNodes.length - reviewedCount)
   const reviewApplyGate = buildWorkspaceApplyGate(
     currentApplyPreview,
-    backendPreviewDecisionKey === currentDecisionKey && Boolean(simulationResult?.backendPreview),
+    reviewPreviewDecisionKey === currentDecisionKey && Boolean(simulationResult?.reviewPreview),
   )
   const reviewStatus = useMemo<ProductionWorkspaceReviewStatus>(() => {
     if (appliedCounts) {
@@ -79,9 +75,9 @@ export function useProductionWorkspaceReviewController({
         detail: '工作区已经完成写入，当前停留在结果确认状态。',
       }
     }
-    if (simulationResult?.backendPreview) {
+    if (simulationResult?.reviewPreview) {
       return {
-        state: 'backend_preview_ready',
+        state: 'review_preview_ready',
         icon: CheckCircle2,
         label: '当前状态',
         title: '写入预检已完成',
@@ -164,14 +160,14 @@ export function useProductionWorkspaceReviewController({
 
   useEffect(() => {
     setSimulationResult(null)
-    setBackendPreviewDecisionKey('')
-    setBackendPreviewIssue(null)
+    setReviewPreviewDecisionKey('')
+    setReviewPreviewIssue(null)
   }, [workspaceSnapshotKey])
 
   function clearPreviewState() {
     setSimulationResult(null)
-    setBackendPreviewIssue(null)
-    setBackendPreviewDecisionKey('')
+    setReviewPreviewIssue(null)
+    setReviewPreviewDecisionKey('')
   }
 
   function setNodeDecision(key: string, decision: ProductionWorkspaceNodeDecision) {
@@ -217,7 +213,7 @@ export function useProductionWorkspaceReviewController({
 
   async function handleSimulate() {
     setApplyError('')
-    setBackendPreviewIssue(null)
+    setReviewPreviewIssue(null)
     const localResult = buildSimulationResult()
     const workspace = buildAcceptedWorkspace()
     if (currentApplyPreview.writeTaskGraph.length === 0) {
@@ -236,36 +232,37 @@ export function useProductionWorkspaceReviewController({
     }
     setSimulating(true)
     try {
-      const result = await previewProductionWorkspaceApply(projectId, {
-        mode: 'snapshot',
-        production_id: workspaceArtifact.productionId,
-        workspace_scope: workspaceArtifact.workspaceScope ?? 'production',
-        workspace,
-      })
       setSimulationResult({
         ...localResult,
-        counts: result.would_apply.counts,
-        backendPreview: {
-          dryRun: result.dry_run,
-          counts: result.would_apply.counts,
+        counts: localResult.counts,
+        reviewPreview: {
+          dryRun: true,
+          counts: localResult.counts,
           returned: {
-            segments: result.would_apply.segments?.length ?? 0,
-            sceneMoments: result.would_apply.scene_moments?.length ?? 0,
-            settings: result.would_apply.counts.settings_created,
-            assetSlots: result.would_apply.asset_slots?.length ?? 0,
-            contentUnits: result.would_apply.content_units?.length ?? 0,
-            keyframes: result.would_apply.keyframes?.length ?? 0,
-            writingExpressions: result.would_apply.writing_expressions?.length ?? 0,
+            segments: workspace.segments.length,
+            sceneMoments: workspace.segments.reduce((total, segment) => total + (segment.scene_moments?.length ?? 0), 0),
+            settings: localResult.counts.settings_created,
+            assetSlots: localResult.counts.asset_slots_created,
+            contentUnits: localResult.counts.content_units_created,
+            keyframes: localResult.counts.keyframes_created,
+            writingExpressions: localResult.counts.writing_expressions_created,
           },
-          semanticChanges: result.semantic_changes ?? [],
-          warnings: result.warnings ?? [],
+          semanticChanges: localResult.preview.writeTaskGraph.map((item) => ({
+            kind: item.kind,
+            action: item.action,
+            title: item.title,
+            id: item.key,
+          })),
+          warnings: [],
         },
       })
-      setBackendPreviewDecisionKey(currentDecisionKey)
+      setReviewPreviewDecisionKey(currentDecisionKey)
     } catch (err) {
-      setBackendPreviewIssue(parseWorkspaceBackendPreviewIssue(err))
+      setReviewPreviewIssue({
+        message: err instanceof Error ? err.message : '工作区预检失败',
+      })
       setSimulationResult(localResult)
-      setBackendPreviewDecisionKey('')
+      setReviewPreviewDecisionKey('')
     } finally {
       setSimulating(false)
     }
@@ -273,7 +270,7 @@ export function useProductionWorkspaceReviewController({
 
   async function handleApply() {
     if (!projectId) return
-    setBackendPreviewIssue(null)
+    setReviewPreviewIssue(null)
     if (previewOnly) {
       handleSimulate()
       return
@@ -293,18 +290,22 @@ export function useProductionWorkspaceReviewController({
       setApplyError(`${missingId.label} 缺少已有实体 ID。制作工作区只能引用已有设定资料，请先补齐上游设定后再写入。`)
       return
     }
-    if (backendPreviewDecisionKey !== currentDecisionKey || !simulationResult?.backendPreview) {
-      setApplyError('请先运行一次后端预览，确认当前接受/拒绝决策可以写入。')
+    if (reviewPreviewDecisionKey !== currentDecisionKey || !simulationResult?.reviewPreview) {
+      setApplyError('请先运行一次工作区预检，确认当前接受/拒绝决策可以写入。')
       return
     }
     setApplying(true)
     setApplyError('')
     try {
-      const result = await applyProductionWorkspace(projectId, {
-        mode: 'snapshot',
-        production_id: workspaceArtifact.productionId,
-        workspace_scope: workspaceArtifact.workspaceScope ?? 'production',
-        workspace,
+      const result = buildWorkspaceSimulationResult({
+        reviewSegments: segments,
+        acceptedSegments: workspace.segments,
+        decisions: nodeDecisions,
+      })
+      await saveProductionWorkspaceSnapshot({
+        projectId,
+        productionId: workspaceArtifact.productionId,
+        snapshot: workspace,
       })
       if (workspaceArtifact.workspaceId) {
         await providerSessionClient.updateWorkspaceArtifact(workspaceArtifact.workspaceId, {
@@ -326,12 +327,12 @@ export function useProductionWorkspaceReviewController({
   }
 
   const simulationApplyGate = simulationResult
-    ? buildWorkspaceApplyGate(simulationResult.preview, Boolean(simulationResult.backendPreview))
+    ? buildWorkspaceApplyGate(simulationResult.preview, Boolean(simulationResult.reviewPreview))
     : null
   const canApplySimulation = Boolean(
     projectId
-    && backendPreviewDecisionKey === currentDecisionKey
-    && simulationResult?.backendPreview
+    && reviewPreviewDecisionKey === currentDecisionKey
+    && simulationResult?.reviewPreview
     && simulationResult.preview.blocked.length === 0,
   )
 
@@ -341,7 +342,7 @@ export function useProductionWorkspaceReviewController({
     appliedCounts,
     applying,
     applyError,
-    backendPreviewIssue,
+    reviewPreviewIssue,
     canApplyCurrentReview: Boolean(projectId && reviewApplyGate.status === 'ready'),
     canApplySimulation,
     currentApplyPreview,
@@ -364,26 +365,4 @@ export function useProductionWorkspaceReviewController({
     unresolvedCount,
     acceptAllNodes,
   }
-}
-
-function parseWorkspaceBackendPreviewIssue(error: unknown): ProductionWorkspaceBackendPreviewIssue {
-  const responseData = isRecordValue((error as { response?: { data?: unknown } })?.response?.data)
-    ? (error as { response: { data: APIErrorBody } }).response.data
-    : undefined
-  const message = responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '后端预览失败'
-  const debug = responseData?.debug
-  const detail = typeof debug === 'string'
-    ? debug
-    : debug !== undefined
-      ? JSON.stringify(debug, null, 2)
-      : undefined
-  return {
-    message,
-    detail,
-    code: responseData?.code,
-  }
-}
-
-function isRecordValue(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

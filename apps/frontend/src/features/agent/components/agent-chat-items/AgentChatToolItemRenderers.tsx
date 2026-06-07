@@ -14,6 +14,7 @@ import {
 } from '@/features/agent/domain/agentChatToolResultViews'
 import {
   AgentChatImagePreviewGrid,
+  AgentChatInspectBlock,
   AgentChatInlineList,
   AgentChatMediaPreviewGrid,
   AgentChatPreviewBlock,
@@ -39,19 +40,13 @@ export function AgentChatCommandExecutionItem({ item }: { item: Extract<AgentCha
               values={view.terminalInput}
             />
           ) : null}
-          {view.terminalInputDetails.length ? (
-            <AgentChatPreviewBlock
-              label="Terminal input details"
-              value={view.terminalInputDetails}
-              contentKind="rawDetails"
-            />
-          ) : null}
           {view.output ? (
             <AgentChatTextBlock label="Output" value={view.output} tone="process" />
           ) : null}
-          {view.rawDetails !== undefined ? (
-            <AgentChatPreviewBlock label="Command details" value={view.rawDetails} contentKind="rawDetails" />
-          ) : null}
+          <AgentChatInspectBlock entries={[
+            view.terminalInputDetails.length ? { label: 'terminalInput', value: view.terminalInputDetails } : null,
+            view.rawDetails !== undefined ? { label: 'command', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -72,7 +67,6 @@ export function AgentChatToolCallItem({ item }: { item: Extract<AgentChatThreadI
           {view.dynamicOutput && view.dynamicOutput.images.length > 0 ? <AgentChatImagePreviewGrid label="Output images" images={view.dynamicOutput.images} /> : null}
           {view.dynamicOutput && view.dynamicOutput.mediaPreviews.length > 0 ? <AgentChatMediaPreviewGrid label="Output media previews" media={view.dynamicOutput.mediaPreviews} /> : null}
           {view.dynamicOutput && view.dynamicOutput.media.length > 0 ? <AgentChatInlineList label="Output media" values={view.dynamicOutput.media} /> : null}
-          {view.dynamicOutputDetails !== undefined ? <AgentChatPreviewBlock label="Output details" value={view.dynamicOutputDetails} contentKind="rawDetails" /> : null}
           {view.dynamicResult !== undefined ? <AgentChatPreviewBlock label="Result" value={view.dynamicResult} tone="result" contentKind="result" /> : null}
           {view.dynamicError !== undefined ? <AgentChatPreviewBlock label="Error" value={view.dynamicError} tone="diagnostic" contentKind="error" /> : null}
           {view.mcpProgress.length ? <AgentChatInlineList label="Progress" values={view.mcpProgress} /> : null}
@@ -85,9 +79,12 @@ export function AgentChatToolCallItem({ item }: { item: Extract<AgentChatThreadI
           {view.mcpResult && view.mcpResult.mediaPreviews.length > 0 ? <AgentChatMediaPreviewGrid label="Content media previews" media={view.mcpResult.mediaPreviews} /> : null}
           {view.mcpResult && view.mcpResult.media.length > 0 ? <AgentChatInlineList label="Content media" values={view.mcpResult.media} /> : null}
           {view.mcpResult?.structuredContent !== undefined ? <AgentChatPreviewBlock label="Structured content" value={view.mcpResult.structuredContent} tone="result" contentKind="result" /> : null}
-          {view.mcpResultDetails !== undefined ? <AgentChatPreviewBlock label="Result details" value={view.mcpResultDetails} tone="result" contentKind="rawDetails" /> : null}
           {view.mcpError !== undefined ? <AgentChatPreviewBlock label="Error" value={view.mcpError} tone="diagnostic" contentKind="error" /> : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="Tool details" value={view.rawDetails} contentKind="rawDetails" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.dynamicOutputDetails !== undefined ? { label: 'dynamicOutput', value: view.dynamicOutputDetails } : null,
+            view.mcpResultDetails !== undefined ? { label: 'mcpResult', value: view.mcpResultDetails, tone: 'result' } : null,
+            view.rawDetails !== undefined ? { label: 'tool', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -105,7 +102,9 @@ export function AgentChatFileChangeItem({ item }: { item: Extract<AgentChatThrea
             <AgentChatTextBlock key={patch.key} label={patch.label} value={patch.value} tone={view.tone} contentKind="rawDetails" />
           ))}
           {view.details ? <AgentChatTextBlock label="Details" value={view.details} tone={view.tone} contentKind="rawDetails" /> : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="File change details" value={view.rawDetails} contentKind="rawDetails" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.rawDetails !== undefined ? { label: 'fileChange', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -128,7 +127,9 @@ export function AgentChatCollabAgentToolCallItem({ item }: { item: Extract<Agent
               values={view.agentStates}
             />
           ) : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="Collab details" value={view.rawDetails} contentKind="rawDetails" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.rawDetails !== undefined ? { label: 'collabAgentToolCall', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -143,8 +144,10 @@ export function AgentChatWebSearchItem({ item }: { item: Extract<AgentChatThread
         <AgentChatContentStack>
           <AgentChatTextBlock label="Query" value={view.query} tone="process" />
           {view.actionSummary.length ? <AgentChatInlineList label="Action" values={view.actionSummary} /> : null}
-          {view.actionDetails ? <AgentChatPreviewBlock label="Action details" value={view.actionDetails} contentKind="rawDetails" /> : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="Search details" value={view.rawDetails} contentKind="rawDetails" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.actionDetails ? { label: 'action', value: view.actionDetails } : null,
+            view.rawDetails !== undefined ? { label: 'webSearch', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
@@ -175,7 +178,9 @@ export function AgentChatImageItem({ item }: { item: Extract<AgentChatThreadItem
           {view.savedPath ? (
             <AgentChatTextBlock label="Saved path" value={view.savedPath} tone="result" />
           ) : null}
-          {view.rawDetails !== undefined ? <AgentChatPreviewBlock label="Image details" value={view.rawDetails} contentKind="rawDetails" /> : null}
+          <AgentChatInspectBlock entries={[
+            view.rawDetails !== undefined ? { label: 'image', value: view.rawDetails } : null,
+          ]} />
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>

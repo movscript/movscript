@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ClipboardList, FileText, Folder, HardDrive, Loader2, Plus, RefreshCw, Save, Settings2, Trash2 } from 'lucide-react'
+import { ChevronLeft, FileText, Folder, HardDrive, Loader2, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 import {
   AgentPageShell,
   AgentPageShellBody,
@@ -74,8 +74,6 @@ export default function MovScriptWorkspaceFilesPage() {
   const selectedName = selectedPath?.split('/').at(-1) || '未选择文件'
   const dirty = selectedFile ? draft !== selectedFile.content : false
   const parentPath = useMemo(() => parentRelativePath(currentPath), [currentPath])
-  const rootLinks = useMemo(() => workspaceRootLinks(rootQuery.data), [rootQuery.data])
-
   useEffect(() => {
     if (readQuery.data) setDraft(readQuery.data.content)
   }, [readQuery.data])
@@ -133,19 +131,6 @@ export default function MovScriptWorkspaceFilesPage() {
     if (selectedPath) void queryClient.invalidateQueries({ queryKey: ['movscript-workspace-file', selectedPath] })
   }
 
-  function openWorkspaceRootLink(path: string) {
-    setActionError(null)
-    setDeleteConfirmPath(null)
-    if (path.endsWith('.json')) {
-      setCurrentPath(parentRelativePath(path))
-      setSelectedPath(path)
-      return
-    }
-    setCurrentPath(path)
-    setSelectedPath(null)
-    setDraft('')
-  }
-
   return (
     <AgentPageShell data-testid="movscript-workspace-files-page">
       <AgentPageShellHeader>
@@ -170,23 +155,6 @@ export default function MovScriptWorkspaceFilesPage() {
                 新建文件
               </Button>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {rootLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <Button
-                  key={link.path}
-                  type="button"
-                  variant={isWorkspaceRootLinkActive(link.path, currentPath, selectedPath) ? 'solid' : 'outline'}
-                  size="sm"
-                  onClick={() => openWorkspaceRootLink(link.path)}
-                >
-                  <Icon size={14} />
-                  {link.label}
-                </Button>
-              )
-            })}
           </div>
           <AgentConsoleNav compact />
         </div>
@@ -310,17 +278,6 @@ function requireWorkspaceRootAPI() {
   }
 }
 
-function workspaceRootLinks(root?: ElectronMovScriptWorkspaceRootResult) {
-  const layout = root?.manifest.layout
-  return [
-    { label: 'Manifest', path: 'manifest.json', icon: Settings2 },
-    { label: 'Edit', path: layout?.editableRoot ?? 'edit', icon: FileText },
-    { label: 'Build', path: layout?.buildRoot ?? '.build', icon: HardDrive },
-    { label: 'Reviews', path: `${layout?.buildRoot ?? '.build'}/reviews`, icon: ClipboardList },
-    { label: 'Providers', path: layout?.providerConfigRoot ?? 'providers', icon: Folder },
-  ] as const
-}
-
 function workspacePathSummary(root?: ElectronMovScriptWorkspaceRootResult, error?: unknown): string {
   if (root) return `${root.workspaceDir} / .movscript`
   return error ? errorMessage(error) : '加载 MovScript Workspace Root'
@@ -330,11 +287,6 @@ function parentRelativePath(path: string): string {
   const parts = path.split('/').filter(Boolean)
   parts.pop()
   return parts.join('/')
-}
-
-function isWorkspaceRootLinkActive(path: string, currentPath: string, selectedPath: string | null): boolean {
-  if (path.endsWith('.json')) return selectedPath === path
-  return currentPath === path || currentPath.startsWith(`${path}/`) || selectedPath?.startsWith(`${path}/`) === true
 }
 
 function normalizeRelativeSegment(value: string | null): string {

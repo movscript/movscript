@@ -18,7 +18,7 @@ export interface MCPContextSnapshot {
     systemRole: string
   } | null
   selection: {
-    entityType?: string
+    entityKind?: string
     entityId?: number
     label?: string
   } | null
@@ -28,5 +28,13 @@ export interface MCPContextSnapshot {
 export type MCPContextUpdate = MCPContextSnapshot & {
   auth?: {
     token: string
+    gitCredential?: {
+      provider: 'gitea'
+      username: string
+      token?: string
+      maskedToken?: string
+      status?: string
+      lastError?: string
+    }
   } | null
 }

@@ -6,31 +6,32 @@ MovScript keeps a provider-neutral manifest and also ships the upstream compatib
 
 - `.provider-plugin/plugin.json`
 - upstream compatibility manifest at `.codex-plugin/plugin.json`
-- `skills/workspace/SKILL.md`
+- `skills/domain/SKILL.md`
+- `skills/project/SKILL.md`
+- `skills/generation/SKILL.md`
+- compatibility guidance at `skills/workspace/SKILL.md`
 - `.mcp.json`
 
-The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business files in the project Git workspace under `edit/`; successful builds write `.build/current`, indexes, reviews, and manifests.
+The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_build`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business source files in the project Git workspace; successful builds write `.build/current`, indexes, reviews, and manifests.
 
-Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target `edit/setting`, `edit/standards`, `edit/scripts`, `edit/productions`, and `edit/assets`. The current effective state is read from `.build/current` and `.build/indexes` after `movscript_workspace_build` succeeds. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
+Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target source paths such as `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. The current effective state is read from `.build/current` and `.build/indexes` after `domain_build` succeeds. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
 
 The bridge now exposes these MCP surfaces to app-server providers:
 
 - MCP resources: `resources/list` and `resources/read` are forwarded to MovScript Desktop when it is running. These are read-only context/catalog entries, not generation input resources.
-- Project tools: current focus and project creation. Project/script data should be read from local workspace files under `edit/` and `.build/`.
-- Workspace tools: `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_build`. Review checks `.build/current -> edit/`; build validates `edit/` and updates `.build/`.
-- Query tools: MovScript resource-library search, shot-library search, and external media search.
-- Vision and guidance tools: `movscript_resource_image_read` returns image RawResources as MCP image content, `movscript_resource_video_extract_frames` extracts video frames with fine-grained sampling, `movscript_resource_image_annotate` creates simple SVG guidance images with structured marks, and `movscript_resource_upload` stores provider-created image artifacts as RawResources for generation.
-- Generation tools: `generation_model_list`, `generation_image_generate`, `generation_image_job_get`, `generation_video_generate`, and `generation_video_job_get`.
+- System tools: `system_focus_get`, `system_project_create`, `system_model_list`, `system_generate_image`, `system_generate_video`, generation job polling, resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
+- Domain tools: `domain_get_model`, `domain_query_*`, `domain_read_*`, `domain_upsert_*`, `domain_update_*`, candidate tools, `domain_review`, and `domain_build`. Review checks `.build/current -> source`; build validates source and updates `.build/`.
+- Legacy aliases: older names such as `movscript_workspace_get_model`, `movscript_workspace_review`, `movscript_workspace_build`, `generation_image_generate`, and `movscript_resource_library_query` remain routable as compatibility aliases.
 
 MovScript uses three separate media concepts in the plugin contract:
 
-- MovScript resource library: persisted internal `RawResource` records for images, videos, text, audio, and files. Use `movscript_resource_library_query`; pass returned `RawResource.ID` values to generation `input_resource_ids` or `reference_resource_ids`.
-- Provider vision media: use `movscript_resource_image_read` to inspect image pixels and `movscript_resource_video_extract_frames` to inspect video frames. Do not send original video blobs to the provider for vision; extract frames instead.
-- Provider guidance media: use `movscript_resource_image_annotate` for simple marks such as rectangles, arrows, highlights, and text. Upload the returned `artifact_path` with `movscript_resource_upload`; generation tools can then use the returned `resource_id` in `input_resource_ids` or `reference_resource_ids`.
-- Shot reference library: searchable shot-reference records for camera, composition, movement, narrative, emotion, and production patterns. Use `movscript_shot_library_query`; these records are prompt/reference guidance, not generic resource-library files.
-- External media search: configured providers such as Pexels or Pixabay. Use `movscript_external_resource_source_list` and `movscript_external_resource_search`; results must be imported into MovScript before they become generation-ready `RawResource` IDs.
+- MovScript resource library: persisted internal `RawResource` records for images, videos, text, audio, and files. Use `system_resource_library_query`; pass returned `RawResource.ID` values to generation `input_resource_ids` or `reference_resource_ids`.
+- Provider vision media: use `system_resource_image_read` to inspect image pixels and `system_resource_video_extract_frames` to inspect video frames. Do not send original video blobs to the provider for vision; extract frames instead.
+- Provider guidance media: use `system_resource_image_annotate` for simple marks such as rectangles, arrows, highlights, and text. Upload the returned `artifact_path` with `system_resource_upload`; generation tools can then use the returned `resource_id` in `input_resource_ids` or `reference_resource_ids`.
+- Shot reference library: searchable shot-reference records for camera, composition, movement, narrative, emotion, and production patterns. Use `system_shot_library_query`; these records are prompt/reference guidance, not generic resource-library files.
+- External media search: configured providers such as Pexels or Pixabay. Use `system_external_resource_source_list` and `system_external_resource_search`; results must be imported into MovScript before they become generation-ready `RawResource` IDs.
 
-For `tools/list`, the bridge asks MovScript Desktop for the full dynamic tool list. If Desktop is not reachable during provider startup, the bridge still advertises a static fallback set for project, workspace, resource/query, and image/video generation tools so the provider can discover the intended interface. Actual tool calls still require MovScript Desktop MCP to be reachable.
+For `tools/list`, the bridge asks MovScript Desktop for the full dynamic tool list. If Desktop is not reachable during provider startup, the bridge still advertises a static fallback set for system, domain, resource/query, and image/video generation tools so the provider can discover the intended interface. Actual tool calls still require MovScript Desktop MCP to be reachable.
 
 The app-server provider starts the bridge by itself, but it does not start MovScript Desktop. Start MovScript Desktop first, or otherwise run the core MCP server, before using workspace, project/script, or generation tools.
 

@@ -126,12 +126,11 @@ test('task detail can publish work items into the agent panel and reopen the lin
 test('task creation dialog keeps publish controls visible and can publish to a named agent', () => {
   const source = readFileSync(resolve('src/features/project/components/TasksPage.tsx'), 'utf8')
 
-  assert.match(source, /type TaskAgentKey = 'project_assistant' \| 'asset_agent' \| 'storyboard_agent' \| 'delivery_agent'/)
+  assert.match(source, /type TaskAgentKey = 'project_assistant' \| 'asset_agent' \| 'storyboard_agent'/)
   assert.match(source, /const taskAgentOptions: TaskAgentOption\[\] = \[/)
   assert.match(source, /项目助理 Agent/)
   assert.match(source, /素材 Agent/)
   assert.match(source, /分镜 Agent/)
-  assert.match(source, /交付检查 Agent/)
   assert.match(source, /agentKey\?: TaskAgentKey/)
   assert.match(source, /const \[agentKey, setAgentKey\] = useState<TaskAgentKey \| ''>\(''\)/)
   assert.match(source, /<ProjectTaskDialogContent>/)

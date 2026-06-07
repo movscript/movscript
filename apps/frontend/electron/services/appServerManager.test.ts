@@ -99,6 +99,57 @@ test('app-server manager exposes managed stdio endpoints without reserving a loc
   assert.deepEqual(child.stdinWrites, ['{"id":3,"method":"ping"}\n'])
 })
 
+test('app-server manager emits realtime process logs', async () => {
+  const workspaceDir = fakeWorkspaceDir()
+  const child = fakeChildProcess()
+  const logs: Array<{ profileId: string; providerKey: string; stream: string; chunk: string }> = []
+  const manager = new AppServerManager({
+    distributeConfig: () => movaDistributionFixture(),
+    ensurePlugin: () => appServerPluginFixture(),
+    reservePort: async () => 41234,
+    waitReady: async () => undefined,
+    spawnProcess: (() => child) as never,
+    defaultWorkspaceDir: () => workspaceDir,
+    now: () => 1_000,
+  })
+  const unsubscribe = manager.onLog((event) => {
+    logs.push({
+      profileId: event.profileId,
+      providerKey: event.providerKey,
+      stream: event.stream,
+      chunk: event.chunk,
+    })
+  })
+
+  await manager.ensure({
+    profile: {
+      id: 'mova-movscript-home',
+      providerKey: 'mova',
+      executablePath: 'mova',
+      home: '.movscript/.mova',
+    },
+  })
+  ;(child.stdout as EventEmitter).emit('data', 'listening on ws://127.0.0.1:41234\n')
+  ;(child.stderr as EventEmitter).emit('data', 'warning from app-server\n')
+  unsubscribe()
+  ;(child.stderr as EventEmitter).emit('data', 'ignored\n')
+
+  assert.deepEqual(logs, [
+    {
+      profileId: 'mova-movscript-home',
+      providerKey: 'mova',
+      stream: 'stdout',
+      chunk: 'listening on ws://127.0.0.1:41234\n',
+    },
+    {
+      profileId: 'mova-movscript-home',
+      providerKey: 'mova',
+      stream: 'stderr',
+      chunk: 'warning from app-server\n',
+    },
+  ])
+})
+
 test('app-server manager includes plugin bootstrap in launch reuse identity', async () => {
   const workspaceDir = fakeWorkspaceDir()
   let pluginHash = 'plugin-a'
@@ -170,7 +221,7 @@ test('app-server manager distributes config without launching app-server', () =>
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
     updatedAt: '2026-06-06T00:00:00.000Z',
     environment: {
-      MOVSCRIPT_APP_SERVER_API_KEY: 'sk-backend-managed-key',
+      MOVSCRIPT_APP_SERVER_API_KEY: 'mgw_backend_managed_key',
     },
     providers: {
       codex: {
@@ -210,7 +261,7 @@ test('app-server manager distributes config without launching app-server', () =>
 
   assert.equal(status.ok, true)
   assert.equal(status.running, false)
-  assert.equal(status.config?.baseURL, 'http://localhost:8765/v1')
+  assert.equal(status.config?.baseURL, 'http://127.0.0.1:8765/v1')
   assert.equal(status.config?.sourceConfigPath, paths.configPath)
   assert.equal(spawnCount, 0)
   assert.equal(pluginBootstrapCount, 0)
@@ -261,9 +312,9 @@ test('app-server manager resolves dot workspaceDir against the managed workspace
 
   assert.equal(status.ok, false)
   assert.equal(status.home, join(workspaceDir, '.movscript', '.codex'))
-  assert.equal(status.config?.baseURL, 'http://localhost:8765/v1')
+  assert.equal(status.config?.baseURL, 'http://127.0.0.1:8765/v1')
   assert.equal(status.config?.sourceConfigPath, providerPaths.configPath)
-  assert.match(readFileSync(join(workspaceDir, '.movscript', '.codex', 'config.toml'), 'utf8'), /base_url = "http:\/\/localhost:8765\/v1"/)
+  assert.match(readFileSync(join(workspaceDir, '.movscript', '.codex', 'config.toml'), 'utf8'), /base_url = "http:\/\/127\.0\.0\.1:8765\/v1"/)
 })
 
 test('app-server manager records running provider sessions under the provider profile key', async () => {
@@ -541,7 +592,7 @@ test('app-server manager launches with the project workspace cwd', async () => {
     },
   })
 
-  const expected = workspaceDir
+  const expected = join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42')
   assert.equal(spawnCwd, expected)
   assert.equal(status.providerSessionCwd, expected)
   assert.deepEqual(status.workspaceContext, { scope: 'project', userId: '7', projectId: '42' })
@@ -590,9 +641,6 @@ test('app-server protocol manager launches Mova with an isolated provider home',
       updatedAt: '2026-06-04T00:00:00.000Z',
       providers: {
         mova: {
-          appServer: {
-            compatibilityHomeEnvNames: ['CODEX_HOME'],
-          },
           auth: {
             mode: 'apiKey',
             apiKey: 'sk-mova-key',
@@ -623,6 +671,7 @@ test('app-server protocol manager launches Mova with an isolated provider home',
       profile: {
         id: 'mova-movscript-home',
         providerKey: 'mova',
+        compatibilityHomeEnvNames: ['CODEX_HOME'],
       },
     })
 

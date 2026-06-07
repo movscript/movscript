@@ -15,6 +15,7 @@ import {
   getAppServerStatus,
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { publicModelId } from '@/shared/domain/modelDisplay'
+import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
 export interface AgentChatDataSourceFactoryOptions {
@@ -27,6 +28,10 @@ export async function createAgentChatDataSourceForProvider(
   options: AgentChatDataSourceFactoryOptions = {},
 ): Promise<AgentChatDataSource> {
   if (!usesAppServerProtocol(provider)) throw new Error(`${provider.label} does not expose a supported app-server protocol`)
+  const textModels = await fetchAgentBackendModels().catch(() => [])
+  if (options.appServerPolicy !== 'status-only') {
+    await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
+  }
   const ensured = options.workspaceContext && options.appServerPolicy !== 'status-only'
     ? await ensureScopedAppServer(provider, options.workspaceContext)
     : undefined
@@ -34,7 +39,6 @@ export async function createAgentChatDataSourceForProvider(
     ? await currentAppServerRpcClient(provider)
     : await ensureAppServerRpcClient(provider))
   if (!client) throw new Error(`${provider.label} app-server is not available`)
-  const textModels = await fetchAgentBackendModels().catch(() => [])
   return createAppServerChatDataSource(client, {
     provider: provider.kind,
     providerId: provider.id,
