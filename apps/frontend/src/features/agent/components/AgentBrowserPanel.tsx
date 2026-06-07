@@ -175,7 +175,7 @@ interface ProjectNavigationGroup {
 }
 
 interface ProjectNavigationLink {
-  id: number
+  id: string
   title: string
   description: string
   to?: string
@@ -819,7 +819,7 @@ function ProjectHomeBrowserPage({
       tone: 'plan',
       loading: false,
       items: [{
-        id: project.ID,
+        id: String(project.ID),
         title: '项目规范',
         description: firstText(
           recordField(project, 'visual_style'),
@@ -842,7 +842,7 @@ function ProjectHomeBrowserPage({
         .slice()
         .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
         .map((script) => ({
-          id: script.ID,
+          id: String(script.ID),
           title: script.title || `剧本 #${script.ID}`,
           description: firstText(script.summary, script.description, script.script_type, '暂无摘要'),
           status: script.script_type,
@@ -856,12 +856,12 @@ function ProjectHomeBrowserPage({
       icon: PenLine,
       tone: 'plan',
       loading: referencesQuery.isLoading,
-      items: visibleRecords(referencesQuery.data).map((record) => ({
-        id: record.ID,
+      items: visibleRecords(referencesQuery.data).map((record, recordIndex) => ({
+        id: recordStableId(record, 'reference', recordIndex),
         title: titleOfRecord(record, '设定'),
         description: firstText(record.description, record.content, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.preProduction, { reference_id: record.ID }),
+        to: withRouteParams(ROUTES.project.preProduction, { reference_id: recordRouteId(record) }),
       })),
     },
     {
@@ -871,13 +871,13 @@ function ProjectHomeBrowserPage({
       icon: PackageSearch,
       tone: 'asset',
       loading: assetSlotsQuery.isLoading,
-      items: visibleRecords(assetSlotsQuery.data).map((record) => ({
-        id: record.ID,
+      items: visibleRecords(assetSlotsQuery.data).map((record, recordIndex) => ({
+        id: recordStableId(record, 'asset', recordIndex),
         title: titleOfRecord(record, '素材'),
         description: firstText(record.description, record.prompt_hint, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
         to: withRouteParams(ROUTES.project.preProduction, {
-          asset_slot_id: record.ID,
+          asset_slot_id: recordRouteId(record),
           reference_id: numberField(record.setting_id),
         }),
       })),
@@ -889,12 +889,12 @@ function ProjectHomeBrowserPage({
       icon: Clapperboard,
       tone: 'production',
       loading: productionsQuery.isLoading,
-      items: visibleRecords(productionsQuery.data).map((record) => ({
-        id: record.ID,
+      items: visibleRecords(productionsQuery.data).map((record, recordIndex) => ({
+        id: recordStableId(record, 'production', recordIndex),
         title: titleOfRecord(record, '制作'),
         description: firstText(record.description, record.summary, record.kind, '暂无描述'),
         status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.productionOrchestration, { productionId: record.ID }),
+        to: withRouteParams(ROUTES.project.productionOrchestration, { productionId: recordRouteId(record) }),
       })),
     },
     {
@@ -904,14 +904,14 @@ function ProjectHomeBrowserPage({
       icon: Boxes,
       tone: 'production',
       loading: sceneMomentsQuery.isLoading,
-      items: visibleRecords(sceneMomentsQuery.data).map((record) => ({
-        id: record.ID,
+      items: visibleRecords(sceneMomentsQuery.data).map((record, recordIndex) => ({
+        id: recordStableId(record, 'moment', recordIndex),
         title: titleOfRecord(record, '情节'),
         description: firstText(record.description, record.action_text, record.location_text, record.mood, '暂无描述'),
         status: stringField(record.status),
         to: withRouteParams(ROUTES.project.productionOrchestration, {
           productionId: numberField(record.production_id),
-          scene_moment_id: record.ID,
+          scene_moment_id: recordRouteId(record),
         }),
       })),
     },
@@ -922,15 +922,15 @@ function ProjectHomeBrowserPage({
       icon: LayoutTemplate,
       tone: 'content',
       loading: contentUnitsQuery.isLoading,
-      items: visibleRecords(contentUnitsQuery.data).map((record) => ({
-        id: record.ID,
+      items: visibleRecords(contentUnitsQuery.data).map((record, recordIndex) => ({
+        id: recordStableId(record, 'content', recordIndex),
         title: titleOfRecord(record, '内容'),
         description: firstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
         to: withRouteParams(ROUTES.project.productionOrchestration, {
           productionId: numberField(record.production_id),
           scene_moment_id: numberField(record.scene_moment_id),
-          content_unit_id: record.ID,
+          content_unit_id: recordRouteId(record),
         }),
       })),
     },
@@ -1083,11 +1083,33 @@ function visibleRecords(records?: SemanticEntityRecord[]) {
 }
 
 function compareRecordOrder(a: SemanticEntityRecord, b: SemanticEntityRecord) {
-  return (numberField(a.order) ?? a.ID) - (numberField(b.order) ?? b.ID) || a.ID - b.ID
+  const orderDelta = (numberField(a.order) ?? recordNumericId(a) ?? 0) - (numberField(b.order) ?? recordNumericId(b) ?? 0)
+  if (orderDelta !== 0) return orderDelta
+  return recordSortKey(a).localeCompare(recordSortKey(b))
 }
 
 function titleOfRecord(record: SemanticEntityRecord, fallback: string) {
-  return firstText(record.title, record.name, record.label, `${fallback} #${record.ID}`)
+  return firstText(record.title, record.name, record.label, `${fallback} #${recordDisplayId(record)}`)
+}
+
+function recordRouteId(record: SemanticEntityRecord) {
+  return numberField(record.ID) ?? numberField(record.id) ?? stringField(record.id)
+}
+
+function recordNumericId(record: SemanticEntityRecord) {
+  return numberField(record.ID) ?? numberField(record.id)
+}
+
+function recordDisplayId(record: SemanticEntityRecord) {
+  return firstText(record.ID, record.id, record.title, record.name, record.label, '未编号')
+}
+
+function recordStableId(record: SemanticEntityRecord, fallback: string, index: number) {
+  return firstText(record.ID, record.id, record.uuid, record.key, record.path, `${fallback}-${index}`)
+}
+
+function recordSortKey(record: SemanticEntityRecord) {
+  return firstText(record.ID, record.id, record.title, record.name, record.label)
 }
 
 function firstText(...values: unknown[]) {

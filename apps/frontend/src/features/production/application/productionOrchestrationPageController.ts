@@ -246,7 +246,6 @@ export function useProductionOrchestrationPageController({
       setting_id: referenceId,
       role,
       source: 'ai',
-      status: 'workspace',
       evidence: evidence ?? '',
     })
   }

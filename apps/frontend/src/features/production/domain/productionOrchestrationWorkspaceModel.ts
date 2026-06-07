@@ -29,8 +29,6 @@ export interface ProductionSegmentNavigatorItem {
   indexLabel: string
   title: string
   summary: string
-  status: string
-  statusLabel: string
   kindLabel: string
   active: boolean
   moments: ProductionSegmentNavigatorMoment[]
@@ -72,26 +70,6 @@ export interface ProductionOrchestrationWorkspaceView {
   selectedSegmentLineCount: number
   writingProgressLabel: string
   segmentNavigatorItems: ProductionSegmentNavigatorItem[]
-}
-
-const statusLabel: Record<string, string> = {
-  confirmed: '已确认',
-  locked: '已锁定',
-  accepted: '已采纳',
-  active: '进行中',
-  workspace: '工作区',
-  candidate: '候选',
-  missing: '缺素材需求',
-  ignored: '已忽略',
-  removed: '已移除',
-  abandoned: '已废弃',
-  rejected: '已拒绝',
-  blocked: '阻塞',
-  in_production: '生产中',
-  low: '低',
-  normal: '普通',
-  high: '高',
-  critical: '紧急',
 }
 
 const segmentKindLabel: Record<string, string> = {
@@ -301,8 +279,6 @@ function buildProductionSegmentNavigatorItems({
       indexLabel: String(index + 1).padStart(2, '0'),
       title: productionOrchestrationRecordTitle(segment),
       summary: String(segment.summary ?? segment.content ?? '这一段还没有说明情绪功能。'),
-      status: String(segment.status ?? 'workspace'),
-      statusLabel: statusLabel[String(segment.status ?? '')] ?? String(segment.status ?? '工作区'),
       kindLabel: segmentKindLabel[String(segment.kind ?? '')] ?? '编排段',
       active: selectedSegment?.ID === segment.ID,
       rawRecord: segment,

@@ -149,12 +149,21 @@ function numberOf(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function isStatus(record: HomeRecord, statuses: string[]) {
-  return statuses.includes(String(record.status ?? ''))
+function hasLockedResource(record: HomeRecord) {
+  const lock = record.lock
+  return Boolean(
+    (lock && typeof lock === 'object')
+    || record.locked_asset_slot_id
+    || record.locked_resource_id
+    || record.resource_id,
+  )
 }
 
-function statusCount(records: HomeRecord[], statuses: string[]) {
-  return records.filter((record) => isStatus(record, statuses)).length
+function hasMeaningfulText(record: HomeRecord, keys: string[]) {
+  return keys.some((key) => {
+    const value = record[key]
+    return typeof value === 'string' && value.trim().length > 0
+  })
 }
 
 function stateLabel(state: LaneState) {
@@ -360,40 +369,37 @@ export default function ProjectOverviewPage() {
   })
 
   const counts = useMemo(() => {
-    const confirmedScripts = statusCount(data.scriptVersions, ['active'])
-    const confirmedSegments = statusCount(data.segments, ['confirmed'])
-    const confirmedMoments = statusCount(data.sceneMoments, ['confirmed'])
-    const activeProductions = data.productions.filter((item) => !['delivered', 'archived'].includes(String(item.status ?? ''))).length
-    const deliveredProductions = statusCount(data.productions, ['delivered'])
+    const readyScripts = data.scriptVersions.length
+    const readySegments = data.segments.length
+    const readyMoments = data.sceneMoments.length
+    const activeProductions = data.productions.length
     const productionProgress = data.productions.length
       ? Math.round(data.productions.reduce((sum, item) => sum + numberOf(item.progress), 0) / data.productions.length)
       : 0
-    const confirmedReferences = statusCount(data.settings, ['confirmed', 'locked', 'merged'])
-    const confirmedRelationships = statusCount(data.creativeRelationships, ['confirmed', 'corrected'])
-    const missingAssets = statusCount(data.assetSlots, ['missing'])
-    const activeAssetSlotCandidates = data.assetSlotCandidates.filter(assetSlotCandidateIsActive)
-    const candidateAssets = statusCount(data.assetSlots, ['candidate']) + activeAssetSlotCandidates.length
-    const lockedAssets = statusCount(data.assetSlots, ['locked', 'waived'])
-    const confirmedContents = statusCount(data.contentUnits, ['confirmed', 'in_production', 'locked'])
-    const lockedContents = statusCount(data.contentUnits, ['locked'])
-    const acceptedKeyframes = statusCount(data.keyframes, ['accepted', 'attached'])
+    const readyReferences = data.settings.filter((item) => hasMeaningfulText(item, ['description', 'content', 'summary'])).length
+    const readyRelationships = data.creativeRelationships.length
+    const missingAssets = data.assetSlots.filter((item) => !hasLockedResource(item)).length
+    const candidateAssets = data.assetSlotCandidates.length
+    const lockedAssets = data.assetSlots.filter(hasLockedResource).length
+    const readyContents = data.contentUnits.filter((item) => hasMeaningfulText(item, ['description', 'prompt', 'title'])).length
+    const lockedContents = data.contentUnits.filter(hasLockedResource).length
+    const readyKeyframes = data.keyframes.filter((item) => hasMeaningfulText(item, ['description', 'prompt', 'title'])).length
     const blockedTasks = data.workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).length
 
     return {
-      confirmedScripts,
-      confirmedSegments,
-      confirmedMoments,
+      readyScripts,
+      readySegments,
+      readyMoments,
       activeProductions,
-      deliveredProductions,
       productionProgress,
-      confirmedReferences,
-      confirmedRelationships,
+      readyReferences,
+      readyRelationships,
       missingAssets,
       candidateAssets,
       lockedAssets,
-      confirmedContents,
+      readyContents,
       lockedContents,
-      acceptedKeyframes,
+      readyKeyframes,
       blockedTasks,
     }
   }, [data])
@@ -414,13 +420,13 @@ export default function ProjectOverviewPage() {
     const standardsProgress = percentage(standardsDone, standardsTotal)
 
     const preProductionTotal = data.settings.length + data.creativeRelationships.length + data.assetSlots.length
-    const preProductionDone = counts.confirmedReferences + counts.confirmedRelationships + counts.lockedAssets
+    const preProductionDone = counts.readyReferences + counts.readyRelationships + counts.lockedAssets
     const preProductionProgress = preProductionTotal > 0 ? percentage(preProductionDone, preProductionTotal) : standardsProgress > 0 ? 20 : 0
 
     const contentTotal = data.contentUnits.length + data.keyframes.length
-    const contentDone = counts.confirmedContents + counts.acceptedKeyframes
+    const contentDone = counts.readyContents + counts.readyKeyframes
     const planTotal = data.productions.length + data.segments.length + data.sceneMoments.length + data.storyboardScripts.length + data.previewTimelines.length + contentTotal
-    const planDone = counts.deliveredProductions + statusCount(data.storyboardScripts, ['active', 'locked']) + statusCount(data.previewTimelines, ['playable', 'confirmed']) + contentDone
+    const planDone = data.productions.length + data.storyboardScripts.length + data.previewTimelines.length + contentDone
     const planProgress = planTotal > 0 ? Math.max(counts.productionProgress, percentage(planDone, planTotal)) : 0
 
     return [
@@ -443,7 +449,7 @@ export default function ProjectOverviewPage() {
         description: preProduction.purpose,
         primaryLabel: '设定/素材',
         primaryValue: preProductionTotal,
-        secondary: `${counts.confirmedReferences} 个设定资料已确认，${counts.missingAssets} 个素材缺口`,
+        secondary: `${counts.readyReferences} 个设定资料有内容，${counts.missingAssets} 个素材未锁定`,
         progress: preProductionProgress,
         state: counts.missingAssets > 0 ? 'blocked' : preProductionTotal === 0 ? (standardsProgress > 0 ? 'active' : 'empty') : preProductionProgress >= 70 ? 'ready' : 'active',
         href: preProduction.route,
@@ -456,7 +462,7 @@ export default function ProjectOverviewPage() {
         description: creative.purpose,
         primaryLabel: '制作/情景/镜头',
         primaryValue: planTotal,
-        secondary: `${counts.activeProductions} 个制作进行中，${counts.confirmedMoments} 个情景，${counts.confirmedContents} 个镜头可推进`,
+        secondary: `${counts.activeProductions} 个创作方案，${counts.readyMoments} 个情景，${counts.readyContents} 个镜头可推进`,
         progress: planProgress,
         state: data.productions.length === 0 ? (data.scriptVersions.length > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: creative.route,
@@ -502,7 +508,7 @@ export default function ProjectOverviewPage() {
       })
     }
 
-    for (const slot of data.assetSlots.filter((item) => String(item.status ?? '') === 'missing').slice(0, 3)) {
+    for (const slot of data.assetSlots.filter((item) => !hasLockedResource(item)).slice(0, 3)) {
       items.push({
         key: `asset:${slot.ID}`,
         title: titleOf(slot, `素材需求 #${slot.ID}`),
@@ -588,9 +594,9 @@ export default function ProjectOverviewPage() {
             </ProjectOverviewStatusHeader>
 
             <ProjectOverviewMetricGrid>
-              <AppDashboardMetric label="创作方案" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
-              <AppDashboardMetric label="镜头" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
-              <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={<WorkbenchMetricIcon workbenchId="pre_production" />} />
+              <AppDashboardMetric label="创作方案" value={data.productions.length} detail={`${counts.readySegments} 个编排段`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
+              <AppDashboardMetric label="镜头" value={data.contentUnits.length} detail={`${counts.readyContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
+              <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个未锁定`} icon={<WorkbenchMetricIcon workbenchId="pre_production" />} />
             </ProjectOverviewMetricGrid>
 
             <ProjectOverviewPipelineGrid>
@@ -625,10 +631,6 @@ export default function ProjectOverviewPage() {
               <AppDashboardMetaCell>
                 <p className="text-muted-foreground">更新时间</p>
                 <p className="mt-1 font-medium text-foreground">{formatDate(updatedAt)}</p>
-              </AppDashboardMetaCell>
-              <AppDashboardMetaCell>
-                <p className="text-muted-foreground">项目状态</p>
-                <p className="mt-1 font-medium text-foreground">{project?.status || '未设置'}</p>
               </AppDashboardMetaCell>
             </ProjectOverviewMetaGrid>
           </AppDashboardRegion>
@@ -686,11 +688,6 @@ export default function ProjectOverviewPage() {
         </AppDashboardSplit>
     </ProjectOverviewPageLayout>
   )
-}
-
-function assetSlotCandidateIsActive(candidate: HomeRecord) {
-  const status = String(candidate.status ?? 'candidate')
-  return status !== 'rejected' && status !== 'selected'
 }
 
 function itemStatusText(status: unknown) {

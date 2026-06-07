@@ -5,7 +5,6 @@ export interface Project {
   owner_id: number
   owner?: User
   org_id?: number
-  status?: string
   total_episodes?: number
   CreatedAt: string
   UpdatedAt: string

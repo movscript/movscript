@@ -2,10 +2,6 @@ import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/pr
 
 export type ProjectStatusRecipe = UiStatusRecipe
 
-export function projectStatusRecipe(status?: string): ProjectStatusRecipe {
-  return projectWorkflowStatus.recipe(status)
-}
-
 export function projectLaneStateRecipe(state?: string): ProjectStatusRecipe {
   return projectLaneStatus.recipe(state)
 }
@@ -37,14 +33,6 @@ export function projectAiAssignmentRecipe(): ProjectStatusRecipe {
 export function projectErrorRecipe(): ProjectStatusRecipe {
   return projectSystemStatus.recipe('error')
 }
-
-const projectWorkflowStatus = defineFeatureStatusRecipeGroup('project.workflow.status', {
-  done: 'success',
-  production: 'info',
-  editing: 'info',
-  asset_prep: 'warning',
-  default: 'neutral',
-})
 
 const projectLaneStatus = defineFeatureStatusRecipeGroup('project.lane.status', {
   ready: 'success',

@@ -277,8 +277,8 @@ export function settingKindLabel(kind?: string) {
   return firstText(kind, '设定')
 }
 
-export function isVisibleOrchestrationRecord(record: SemanticEntityRecord & { status?: string }) {
-  return !['ignored', 'merged'].includes(String(record.status ?? '').toLowerCase())
+export function isVisibleOrchestrationRecord(record: SemanticEntityRecord) {
+  return !Boolean(record.__delete ?? record.deleted)
 }
 
 export function writingTypeLabel(type: ProductionWritingExpressionType) {

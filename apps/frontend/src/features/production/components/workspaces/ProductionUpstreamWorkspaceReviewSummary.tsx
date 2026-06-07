@@ -19,7 +19,6 @@ interface WorkspaceEntityRecord {
   title?: string
   name?: string
   label?: string
-  status?: string
   description?: string
   kind?: string
 }
@@ -184,7 +183,7 @@ function inferInlinePreProductionWorkspaceSnapshotDeletes(
   const proposedReferenceIds = new Set(asRecordArray(workspacePayload.settings).map(preProductionWorkspaceItemId).filter((id) => id > 0))
   const proposedAssetSlotIds = new Set(asRecordArray(workspacePayload.asset_slots).map(preProductionWorkspaceItemId).filter((id) => id > 0))
   const settings = settingRecords
-    .filter((record) => !['ignored', 'merged'].includes(String(record.status ?? '')))
+    .filter(isVisibleWorkspaceRecord)
     .flatMap((record) => {
       if (proposedReferenceIds.has(record.ID)) return []
       return [{
@@ -194,11 +193,11 @@ function inferInlinePreProductionWorkspaceSnapshotDeletes(
         detail: String(record.description ?? '新工作区未包含此设定，按 snapshot 语义视为删除候选。'),
         target: `移出 #${record.ID}`,
         changeType: 'deleted' as const,
-        raw: { id: record.ID, fields: { name: titleOfRecord(record), status: 'ignored' } },
+        raw: { id: record.ID, fields: { name: titleOfRecord(record), __delete: true } },
       }]
     })
   const assetSlots = assetSlotRecords
-    .filter((record) => !['ignored', 'waived', 'merged'].includes(String(record.status ?? '')))
+    .filter(isVisibleWorkspaceRecord)
     .flatMap((record) => {
       if (proposedAssetSlotIds.has(record.ID)) return []
       return [{
@@ -208,16 +207,19 @@ function inferInlinePreProductionWorkspaceSnapshotDeletes(
         detail: String(record.description ?? '新工作区未包含此素材需求，按 snapshot 语义视为删除候选。'),
         target: `移出 #${record.ID}`,
         changeType: 'deleted' as const,
-        raw: { id: record.ID, fields: { name: titleOfRecord(record), status: 'waived', kind: String(record.kind ?? 'image') } },
+        raw: { id: record.ID, fields: { name: titleOfRecord(record), __delete: true, kind: String(record.kind ?? 'image') } },
       }]
     })
   return { settings, assetSlots }
 }
 
 function inlinePreProductionWorkspaceChangeType(item: Record<string, unknown>): InlinePreProductionWorkspaceEntry['changeType'] {
-  const status = asString(workspaceField(item, ['status']))
-  if (['ignored', 'waived'].includes(status)) return 'deleted'
+  if (Boolean(workspaceField(item, ['__delete', 'deleted']))) return 'deleted'
   return preProductionWorkspaceItemId(item) > 0 ? 'modified' : 'added'
+}
+
+function isVisibleWorkspaceRecord(record: WorkspaceEntityRecord) {
+  return !Boolean((record as Record<string, unknown>).__delete ?? (record as Record<string, unknown>).deleted)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

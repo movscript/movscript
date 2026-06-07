@@ -108,7 +108,7 @@ import {
   projectStandardsReadyRecipe,
   projectStandardsRequiredRuleRecipe,
 } from '@/features/project-standards/presentation/projectStandardsSemanticUi'
-import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
+import { isProviderSessionNotFoundError, providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -225,14 +225,20 @@ export function ProjectStandardsContent() {
     queryFn: async () => {
       if (!projectId || !pageKey) return []
       const scopedWorkspaceId = openedWorkspaceId || activeWorkspaceId
-      if (scopedWorkspaceId) {
-        const workspace = await providerSessionClient.getWorkspaceArtifact(scopedWorkspaceId)
-        return workspace.kind === 'project_standards_workspace' ? [workspace] : []
+      try {
+        if (scopedWorkspaceId) {
+          const workspace = await providerSessionClient.getWorkspaceArtifact(scopedWorkspaceId)
+          return workspace.kind === 'project_standards_workspace' ? [workspace] : []
+        }
+        const { workspaces } = await providerSessionClient.listWorkspaceArtifacts({ projectId, kind: 'project_standards_workspace', pageKey, limit: 20 })
+        return workspaces
+      } catch (error) {
+        if (isProviderSessionNotFoundError(error)) return []
+        throw error
       }
-      const { workspaces } = await providerSessionClient.listWorkspaceArtifacts({ projectId, kind: 'project_standards_workspace', pageKey, limit: 20 })
-      return workspaces
     },
     enabled: !!projectId && !!pageKey,
+    retry: false,
     refetchInterval: (openedWorkspaceId || activeWorkspaceId) ? 1500 : false,
     refetchIntervalInBackground: false,
   })

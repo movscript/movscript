@@ -9,16 +9,10 @@ import {
   projectPriorityRecipe,
   projectReadinessRecipe,
   projectReviewStatusRecipe,
-  projectStatusRecipe,
   projectTaskStatusRecipe,
 } from './projectSemanticUi'
 
 test('project workspace states map to UI semantic recipes', () => {
-  assert.deepEqual(projectStatusRecipe('done'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(projectStatusRecipe('production'), { intent: 'info', emphasis: 'soft' })
-  assert.deepEqual(projectStatusRecipe('asset_prep'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(projectStatusRecipe('planning'), { intent: 'neutral', emphasis: 'soft' })
-
   assert.deepEqual(projectLaneStateRecipe('ready'), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(projectLaneStateRecipe('active'), { intent: 'info', emphasis: 'soft' })
   assert.deepEqual(projectLaneStateRecipe('blocked'), { intent: 'warning', emphasis: 'soft' })

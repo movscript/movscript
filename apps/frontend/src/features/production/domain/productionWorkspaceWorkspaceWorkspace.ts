@@ -67,7 +67,6 @@ export function buildProductionWorkspaceArtifactData(
       kind: segment.kind,
       summary: segment.summary ?? segment.rationale,
       order: segment.order ?? segmentIndex + 1,
-      status: segment.status ?? (segment.id ? 'workspace' : 'candidate'),
       script_block_id: segment.script_block_id ?? undefined,
     })
 
@@ -87,7 +86,6 @@ export function buildProductionWorkspaceArtifactData(
         mood: moment.mood,
         description: moment.description ?? moment.rationale,
         order: moment.order ?? momentIndex + 1,
-        status: moment.status ?? (moment.id ? 'workspace' : 'candidate'),
         script_block_id: moment.script_block_id ?? undefined,
       })
 
@@ -108,7 +106,6 @@ export function buildProductionWorkspaceArtifactData(
           description: unit.description,
           shot_size: unit.shot_size,
           camera_angle: unit.camera_angle,
-          status: unit.status ?? (unit.id ? 'workspace' : 'candidate'),
           script_block_id: unit.script_block_id ?? moment.script_block_id ?? undefined,
         })
       })
@@ -141,7 +138,6 @@ export function buildProductionWorkspaceArtifactData(
           owner_id: momentId,
           setting_id: referenceId,
           role: reference.role ?? 'supporting',
-          status: 'workspace',
         })
       })
 
@@ -154,7 +150,6 @@ export function buildProductionWorkspaceArtifactData(
           name: slot.name,
           kind: slot.kind,
           priority: slot.priority,
-          status: slot.id ? 'workspace' : 'missing',
           description: slot.description,
           owner_type: 'scene_moment',
           owner_id: momentId,

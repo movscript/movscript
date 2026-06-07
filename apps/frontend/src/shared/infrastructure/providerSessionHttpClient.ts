@@ -990,6 +990,7 @@ export class ProviderSessionClient {
   }
 
   listWorkspaceArtifacts(query: { projectId?: number; kind?: MovScriptWorkspaceKind; status?: WorkspaceArtifactStatus | WorkspaceArtifactStatus[]; threadId?: string; runId?: string; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; current?: boolean; limit?: number } = {}): Promise<{ workspaces: WorkspaceArtifact[] }> {
+    if (isBackendAPIV1Endpoint(this.baseURL)) return Promise.resolve({ workspaces: [] })
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     if (query.kind) params.set('kind', query.kind)
@@ -1011,6 +1012,9 @@ export class ProviderSessionClient {
   }
 
   getWorkspaceArtifact(workspaceId: string): Promise<WorkspaceArtifact> {
+    if (isBackendAPIV1Endpoint(this.baseURL)) {
+      return Promise.reject(new ProviderSessionHTTPError(404, '', `workspace artifact ${workspaceId} is not available on the backend API endpoint`))
+    }
     return this.getJSON(`/workspaces/${encodeURIComponent(workspaceId)}`)
   }
 

@@ -34,6 +34,7 @@ export async function createMovScriptWorkspaceAssetSlotCandidate(
       targetKind: 'asset',
       nonce: input.nonce,
       payload: inlineCandidatePayload(input.payload),
+      ...(candidateShouldLock(input.payload) ? { lock: { reason: 'selected' } } : {}),
     })
     return {
       path: result.path,
@@ -70,6 +71,7 @@ export async function createMovScriptWorkspaceKeyframeCandidate(
       targetKind: 'keyframe',
       nonce: input.nonce,
       payload: inlineCandidatePayload(input.payload),
+      ...(candidateShouldLock(input.payload) ? { lock: { reason: 'selected' } } : {}),
     })
     return {
       path: result.path,
@@ -123,7 +125,6 @@ export function buildMovScriptWorkspaceAssetSlotCandidateRecord(input: {
     kind: stringValue(input.payload.kind) ?? stringValue(input.targetRecord?.kind ?? input.targetRecord?.asset_kind) ?? 'image',
     name: note ?? `候选素材 #${resourceId}`,
     description: note,
-    status: stringValue(input.payload.status) ?? 'candidate',
     priority: 'normal',
     resource_id: resourceId,
     source_type: sourceType,
@@ -168,7 +169,6 @@ export function buildMovScriptWorkspaceKeyframeCandidateRecord(input: {
     description: stringValue(input.payload.description) ?? '',
     prompt: stringValue(input.payload.prompt) ?? '',
     order: numberValue(input.payload.order ?? input.payload.sort_order ?? input.payload.sortOrder) ?? 0,
-    status: stringValue(input.payload.status) ?? 'candidate',
   })
 }
 
@@ -186,7 +186,6 @@ function inlineCandidatePayload(payload: Record<string, unknown>): {
   id?: string
   resource_id?: string | number
   source?: string
-  status?: string
   notes?: string
   metadata?: Record<string, unknown>
 } {
@@ -195,7 +194,6 @@ function inlineCandidatePayload(payload: Record<string, unknown>): {
     id: stringValue(payload.id ?? payload.client_id ?? payload.clientId),
     resource_id: typeof resourceId === 'string' || typeof resourceId === 'number' ? resourceId : undefined,
     source: stringValue(payload.source ?? payload.source_type ?? payload.sourceType),
-    status: inlineStatus(stringValue(payload.status)),
     notes: stringValue(payload.notes ?? payload.note ?? payload.description),
     metadata: pruneUndefined({
       source_id: payload.source_id ?? payload.sourceId,
@@ -227,7 +225,6 @@ function workspaceCandidateRecordFromInline(input: {
     keyframe_id: input.targetKind === 'keyframe' ? numericId(targetId) : undefined,
     resource_id: numericOrStringCandidate(input.candidate.resource_id),
     source_type: input.candidate.source,
-    status: input.candidate.status === 'accepted' ? 'selected' : input.candidate.status,
     note: input.candidate.notes,
     metadata_json: JSON.stringify(pruneUndefined({
       source: 'workspace_inline_candidate',
@@ -316,10 +313,9 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function inlineStatus(status: string | undefined): string | undefined {
-  if (status === 'candidate') return 'draft'
-  if (status === 'selected' || status === 'locked') return 'accepted'
-  return status
+function candidateShouldLock(payload: Record<string, unknown>): boolean {
+  const status = stringValue(payload.status)?.toLowerCase()
+  return status === 'selected' || status === 'locked' || status === 'accepted'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

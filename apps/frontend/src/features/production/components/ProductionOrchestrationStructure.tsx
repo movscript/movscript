@@ -6,7 +6,7 @@ import type {
   ProductionSegmentNavigatorItem,
   ProductionOrchestrationDropPosition,
 } from '@/features/production/domain/productionOrchestrationWorkspaceModel'
-import { productionEntityStatusRecipe, productionPresenceRecipe } from '@/features/production/presentation/productionSemanticUi'
+import { productionPresenceRecipe } from '@/features/production/presentation/productionSemanticUi'
 import {
   ProductionSegmentEmptyMomentItem,
   ProductionSegmentMomentItem,
@@ -51,12 +51,6 @@ const segmentKindOptions = [
   { value: 'release', label: '释放' },
   { value: 'reversal', label: '反转' },
   { value: 'transition', label: '转场' },
-]
-
-const segmentStatusOptions = [
-  { value: 'workspace', label: '工作区' },
-  { value: 'confirmed', label: '已确认' },
-  { value: 'ignored', label: '已忽略' },
 ]
 
 const segmentDragDataKey = 'application/x-movscript-production-segment-id'
@@ -275,11 +269,6 @@ export function ProductionSegmentNavigator({
                   header={(
                     <ProductionSegmentNavigatorCardHeader
                       index={segment.indexLabel}
-                      status={(
-                        <ProductionStructureStatusBadge statusProps={productionEntityStatusRecipe(segment.status)}>
-                          {segment.statusLabel}
-                        </ProductionStructureStatusBadge>
-                      )}
                       title={segment.title}
                       summary={segment.summary}
                       action={editing ? null : (
@@ -431,7 +420,6 @@ function ProductionSegmentCardEditor({
     title: '',
     kind: 'emotional_function',
     summary: '',
-    status: 'workspace',
   })
 
   useEffect(() => {
@@ -452,7 +440,6 @@ function ProductionSegmentCardEditor({
       title: workspace.title.trim(),
       kind: workspace.kind.trim(),
       summary: workspace.summary.trim(),
-      status: workspace.status.trim(),
     })
   }
 
@@ -481,18 +468,6 @@ function ProductionSegmentCardEditor({
               </ProductionSelectedSegmentSelectTrigger>
               <SelectContent>
                 {segmentKindOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </ProductionSelectedSegmentField>
-          <ProductionSelectedSegmentField label="状态">
-            <Select value={workspace.status} onValueChange={(value) => setWorkspace((prev) => ({ ...prev, status: value }))}>
-              <ProductionSelectedSegmentSelectTrigger>
-                <SelectValue />
-              </ProductionSelectedSegmentSelectTrigger>
-              <SelectContent>
-                {segmentStatusOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -538,7 +513,6 @@ function segmentWorkspaceFromRecord(segment: SemanticEntityRecord | null | undef
     title: stringField(segment?.title) || stringField(segment?.name) || '',
     kind: stringField(segment?.kind) || 'emotional_function',
     summary: stringField(segment?.summary) || stringField(segment?.content) || '',
-    status: stringField(segment?.status) || 'workspace',
   }
 }
 

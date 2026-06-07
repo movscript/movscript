@@ -17,10 +17,8 @@ export async function createProject(args: Record<string, unknown>): Promise<unkn
   if (!name) throw new Error('name is required')
   const payload: Record<string, unknown> = { name }
   const description = getOptionalString(args, 'description') ?? ''
-  const status = getOptionalString(args, 'status') ?? ''
   const totalEpisodes = getOptionalNumeric(args, 'total_episodes')
   if (description) payload.description = description
-  if (status) payload.status = status
   if (totalEpisodes !== undefined) payload.total_episodes = totalEpisodes
 
   const project = await backendPost('/projects', payload)

@@ -192,11 +192,11 @@ export default function ProductionOrchestrationPage() {
     [currentContentUnitIds, currentSceneMomentIds, data?.keyframes, effectiveProductionId],
   )
   const allAssetSlots = useMemo(
-    () => (data?.assetSlots ?? []).filter((slot) => !['ignored', 'merged'].includes(String(slot.status ?? ''))),
+    () => (data?.assetSlots ?? []).filter(isVisibleWorkspaceRecord),
     [data?.assetSlots],
   )
   const allSettings = useMemo(
-    () => (data?.settings ?? []).filter((reference) => !['ignored', 'merged'].includes(String(reference.status ?? ''))),
+    () => (data?.settings ?? []).filter(isVisibleWorkspaceRecord),
     [data?.settings],
   )
   const currentProductionSnapshot = useMemo(
@@ -615,7 +615,7 @@ export default function ProductionOrchestrationPage() {
         mode="create"
         projectId={projectId}
         config={semanticEntityConfig('productions')}
-        defaults={{ source_type: 'direct', status: 'planning', owner_label: '导演组', progress: 0 }}
+        defaults={{ source_type: 'direct', owner_label: '导演组', progress: 0 }}
         queryKey={queryKey}
         title="新建制作"
         onOpenChange={setCreateProductionOpen}
@@ -666,6 +666,10 @@ export default function ProductionOrchestrationPage() {
       />
     </WorkbenchProjectShell>
   )
+}
+
+function isVisibleWorkspaceRecord(record: SemanticEntityRecord) {
+  return !Boolean(record.__delete ?? record.deleted)
 }
 
 interface ProductionHeaderCard {

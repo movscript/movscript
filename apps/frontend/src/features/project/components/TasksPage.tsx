@@ -126,8 +126,8 @@ type WorkItemStatus = 'todo' | 'running' | 'blocked' | 'review' | 'done' | 'canc
 type WorkItemKind = 'human' | 'ai' | 'hybrid' | 'review' | 'fix'
 type UserTaskType = 'execution' | 'generation' | 'hybrid' | 'review' | 'fix' | 'decision' | 'coordination'
 type WorkTargetType = 'project' | 'production' | 'segment' | 'scene_moment' | 'content_unit' | 'asset_slot' | 'keyframe'
-type WorkItemResultType = 'none' | 'status_change' | 'lock_asset_candidate' | 'accept_keyframe'
-type TaskPurpose = 'general' | 'review_output' | 'choose_asset_candidate' | 'confirm_content_unit' | 'accept_keyframe'
+type WorkItemResultType = 'none' | 'lock_asset_candidate' | 'accept_keyframe'
+type TaskPurpose = 'general' | 'review_output' | 'choose_asset_candidate' | 'accept_keyframe'
 type TaskAgentKey = 'project_assistant' | 'asset_agent' | 'storyboard_agent'
 
 interface TaskAgentOption {
@@ -354,9 +354,8 @@ const reviewStatusMeta: Record<WorkReviewStatus, { label: string }> = {
 
 const resultTypeMeta: Record<WorkItemResultType, { label: string; description: string }> = {
   none: { label: '只完成任务', description: '不改变生产实体' },
-  status_change: { label: '更新目标状态', description: '通过审核后更新目标对象状态' },
   lock_asset_candidate: { label: '锁定素材候选', description: '把素材需求锁定到指定候选' },
-  accept_keyframe: { label: '采纳画面锚点', description: '采纳候选或将当前画面锚点标记为 accepted' },
+  accept_keyframe: { label: '采纳画面锚点', description: '采纳候选画面锚点' },
 }
 
 const taskPurposeMeta: Record<TaskPurpose, {
@@ -365,7 +364,6 @@ const taskPurposeMeta: Record<TaskPurpose, {
   taskType: UserTaskType
   resultType: WorkItemResultType
   targetTypes?: WorkTargetType[]
-  defaultStatus?: string
   defaultTitle: string
 }> = {
   general: {
@@ -390,18 +388,9 @@ const taskPurposeMeta: Record<TaskPurpose, {
     targetTypes: ['asset_slot'],
     defaultTitle: '选择素材候选',
   },
-  confirm_content_unit: {
-    label: '确认制作项',
-    description: '通过后将制作项标记为 confirmed',
-    taskType: 'review',
-    resultType: 'status_change',
-    targetTypes: ['content_unit'],
-    defaultStatus: 'confirmed',
-    defaultTitle: '确认制作项',
-  },
   accept_keyframe: {
     label: '采纳画面锚点',
-    description: '通过后采纳候选画面锚点，或直接将当前画面锚点状态变为 accepted',
+    description: '通过后采纳候选画面锚点',
     taskType: 'review',
     resultType: 'accept_keyframe',
     targetTypes: ['keyframe'],
@@ -736,23 +725,11 @@ function keyframeCandidateOptionLabel(candidate: SemanticEntityRecord) {
 }
 
 function defaultResultJSON(purpose: TaskPurpose) {
-  const meta = taskPurposeMeta[purpose]
-  if (meta.resultType === 'status_change') {
-    return JSON.stringify({ status: meta.defaultStatus ?? 'confirmed' })
-  }
   return ''
 }
 
 function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
   if (resultType === 'none') return '通过后只完成任务，不自动改变实体。'
-  if (resultType === 'status_change') {
-    try {
-      const parsed = JSON.parse(resultJSON) as { status?: string }
-      return `通过后目标状态会变为 ${parsed.status || '指定状态'}。`
-    } catch {
-      return '通过后目标状态会按所选状态更新。'
-    }
-  }
   if (resultType === 'lock_asset_candidate') return '通过后系统会锁定素材需求到指定候选。'
   if (resultType === 'accept_keyframe') {
     try {
@@ -761,7 +738,7 @@ function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
     } catch {
       // Fall through to the direct-accept copy below.
     }
-    return '通过后当前画面锚点状态会变为 accepted。'
+    return '通过后系统会采纳候选画面锚点。'
   }
   return '通过后应用任务结果。'
 }
@@ -816,7 +793,6 @@ function TaskCreateDialog({
   const [assigneeId, setAssigneeId] = useState(memberOptions[0]?.id ? String(memberOptions[0].id) : '')
   const [due, setDue] = useState('明天 18:00')
   const [priority, setPriority] = useState<TaskPriority>('medium')
-  const [targetStatus, setTargetStatus] = useState('confirmed')
   const [candidateID, setCandidateID] = useState('')
   const [agentKey, setAgentKey] = useState<TaskAgentKey | ''>('')
   const initialTargetKey = initialWorkspace?.targetType && initialWorkspace.targetId ? `${initialWorkspace.targetType}:${initialWorkspace.targetId}` : ''
@@ -855,9 +831,7 @@ function TaskCreateDialog({
   const selectedKeyframeCandidate = requestedKeyframeCandidateUnavailable
     ? undefined
     : matchedKeyframeCandidate ?? keyframeCandidateOptions[0]
-  const resultJSON = resultType === 'status_change'
-    ? JSON.stringify({ status: targetStatus.trim() || purposeMeta.defaultStatus || 'confirmed' })
-    : resultType === 'lock_asset_candidate' && selectedCandidate
+  const resultJSON = resultType === 'lock_asset_candidate' && selectedCandidate
       ? JSON.stringify({ asset_slot_candidate_id: selectedCandidate.ID })
       : resultType === 'accept_keyframe' && selectedKeyframeCandidate
         ? JSON.stringify({ keyframe_candidate_id: selectedKeyframeCandidate.ID })
@@ -879,7 +853,6 @@ function TaskCreateDialog({
     setAssigneeId(memberOptions[0]?.id ? String(memberOptions[0].id) : '')
     setDue('明天 18:00')
     setPriority('medium')
-    setTargetStatus(taskPurposeMeta[nextPurpose].defaultStatus ?? 'confirmed')
     setCandidateID(initialWorkspace?.candidateId ? String(initialWorkspace.candidateId) : '')
     setAgentKey('')
   }, [initialWorkspace?.candidateId, initialWorkspace?.purpose, initialTargetKey, memberOptions, open, targetOptions])
@@ -891,7 +864,6 @@ function TaskCreateDialog({
     }
     const meta = taskPurposeMeta[purpose]
     setTitle((current) => current.trim() ? current : meta.defaultTitle)
-    setTargetStatus(meta.defaultStatus ?? 'confirmed')
     if (meta.resultType !== 'lock_asset_candidate' && meta.resultType !== 'accept_keyframe') setCandidateID('')
   }, [purpose, targetKey, targetOptions])
 
@@ -1054,21 +1026,6 @@ function TaskCreateDialog({
                     placeholder="可补充交付要求、审核重点或上下文"
                   />
                 </ProjectTaskField>
-
-                {resultType === 'status_change' && (
-                  <ProjectTaskField>
-                    <ProjectTaskFieldLabel>通过后目标状态</ProjectTaskFieldLabel>
-                    <ProjectTaskSelect
-                      value={targetStatus}
-                      onChange={(event) => setTargetStatus(event.target.value)}
-                    >
-                      <option value="confirmed">confirmed</option>
-                      <option value="locked">locked</option>
-                      <option value="accepted">accepted</option>
-                      <option value="approved">approved</option>
-                    </ProjectTaskSelect>
-                  </ProjectTaskField>
-                )}
 
                 {resultType === 'lock_asset_candidate' && (
                   <ProjectTaskField>

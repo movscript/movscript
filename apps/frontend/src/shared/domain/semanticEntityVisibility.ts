@@ -1,5 +1,3 @@
-export const inactiveSemanticEntityStatuses = ['ignored', 'merged', 'removed', 'abandoned']
-
-export function isActiveSemanticEntityRecord(record: { status?: unknown }) {
-  return !inactiveSemanticEntityStatuses.includes(String(record.status ?? '').toLowerCase())
+export function isActiveSemanticEntityRecord(record: { __delete?: unknown; deleted?: unknown }) {
+  return !Boolean(record.__delete ?? record.deleted)
 }

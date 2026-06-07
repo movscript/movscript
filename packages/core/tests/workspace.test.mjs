@@ -245,8 +245,8 @@ test('workspace inline candidate writer selects and unlocks content unit candida
         storyboard_ref: 'productions/production_p8f3/segments/segment_a19d/scene_moments/scene_moment_r72k/storyboards/storyboard_main',
       },
       candidates: [
-        { id: 'candidate_video_1', resource_id: 'resource_video_1', status: 'draft' },
-        { id: 'candidate_video_2', resource_id: 'resource_video_2', status: 'accepted' },
+        { id: 'candidate_video_1', resource_id: 'resource_video_1' },
+        { id: 'candidate_video_2', resource_id: 'resource_video_2' },
       ],
       lock: { candidate_id: 'candidate_video_1', resource_id: 'resource_video_1' },
     })],
@@ -893,14 +893,13 @@ test('workspace source review validates semantic entity schemas', async () => {
       schema: 'movscript.setting.v1',
       kind: 'setting',
       id: '',
-      setting_kind: 'character',
+      setting_kind: 'not_a_kind',
     })],
     ['productions/production_p8f3/production.json', JSON.stringify({
       schema: 'movscript.production.v1',
       kind: 'production',
       id: 'production_p8f3',
       title: 'Episode',
-      status: 'not_a_status',
     })],
   ])
   const repository = memoryWorkspaceFileRepository(files)
@@ -913,7 +912,7 @@ test('workspace source review validates semantic entity schemas', async () => {
   assert.equal(review.readyToBuild, false)
   assert.ok(review.issues.some((issue) => issue.message.includes('$.title is required')))
   assert.ok(review.issues.some((issue) => issue.message.includes('$.id must contain at least 1 character')))
-  assert.ok(review.issues.some((issue) => issue.message.includes('$.status must be one of')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('$.setting_kind must be one of')))
 })
 
 test('workspace source review validates min length in source references', async () => {
@@ -1103,7 +1102,7 @@ function sourceFileEntries() {
       kind: 'asset',
       id: 'asset_wet_hair',
       slot: 'character_state_reference',
-      candidates: [{ id: 'candidate_a', resource_id: 'resource_1', status: 'accepted' }],
+      candidates: [{ id: 'candidate_a', resource_id: 'resource_1' }],
       lock: { candidate_id: 'candidate_a', resource_id: 'resource_1' },
     })],
     ['productions/production_p8f3/production.json', JSON.stringify({ schema: 'movscript.production.v1', kind: 'production', id: 'production_p8f3', title: 'Episode 1' })],
@@ -1127,7 +1126,7 @@ function sourceFileEntries() {
       title: 'Scene anchor',
       visual_intent: 'Rainy apartment scene anchor.',
       reference_asset_refs: ['asset_wet_hair'],
-      candidates: [{ id: 'candidate_scene_anchor', resource_id: 'resource_scene_anchor', status: 'accepted' }],
+      candidates: [{ id: 'candidate_scene_anchor', resource_id: 'resource_scene_anchor' }],
       lock: { candidate_id: 'candidate_scene_anchor', resource_id: 'resource_scene_anchor' },
     })],
     ['productions/production_p8f3/segments/segment_a19d/scene_moments/scene_moment_r72k/storyboards/storyboard_main/storyboard.json', JSON.stringify({
@@ -1158,7 +1157,7 @@ function sourceFileEntries() {
         prompt: 'Cold phone light on frightened face.',
         negative_prompt: 'cartoon',
       },
-      candidates: [{ id: 'candidate_video_1', resource_id: 'resource_video_1', status: 'accepted' }],
+      candidates: [{ id: 'candidate_video_1', resource_id: 'resource_video_1' }],
       lock: { candidate_id: 'candidate_video_1', resource_id: 'resource_video_1' },
     })],
     ['content_units/content_unit_k41m/keyframes/keyframe_c83x/keyframe.json', JSON.stringify({
@@ -1168,7 +1167,7 @@ function sourceFileEntries() {
       title: 'Phone light close-up',
       visual_intent: 'Phone blue light illuminates the hero face.',
       reference_asset_refs: ['asset_wet_hair'],
-      candidates: [{ id: 'candidate_keyframe_1', resource_id: 'resource_keyframe_1', status: 'accepted' }],
+      candidates: [{ id: 'candidate_keyframe_1', resource_id: 'resource_keyframe_1' }],
       lock: { candidate_id: 'candidate_keyframe_1', resource_id: 'resource_keyframe_1' },
     })],
   ]

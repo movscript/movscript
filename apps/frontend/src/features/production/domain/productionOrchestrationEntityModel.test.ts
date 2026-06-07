@@ -9,24 +9,20 @@ import {
 
 test('production orchestration entity defaults stay scoped to the selected production and segment', () => {
   assert.deepEqual(createProductionOrchestrationDefaultsForType('segments', 12), {
-    status: 'workspace',
     kind: 'emotional_function',
     production_id: 12,
   })
   assert.deepEqual(createProductionOrchestrationDefaultsForType('assetSlots', 12, 34), {
-    status: 'missing',
     production_id: 12,
     owner_type: 'segment',
     owner_id: 34,
   })
   assert.deepEqual(createProductionOrchestrationDefaultsForType('contentUnits', 12, 34, 56), {
-    status: 'workspace',
     production_id: 12,
     segment_id: 34,
     scene_moment_id: 56,
   })
   assert.deepEqual(createProductionOrchestrationDefaultsForType('sceneMoments', 12, 34), {
-    status: 'workspace',
     production_id: 12,
     segment_id: 34,
   })

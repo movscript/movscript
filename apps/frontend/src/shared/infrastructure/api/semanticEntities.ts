@@ -643,14 +643,13 @@ const semanticEntityTypeByKind: Partial<Record<SemanticEntityKind, MovScriptCore
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
-    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本。', ['title', 'source_type', 'status'], [
+    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本。', ['title', 'source_type'], [
       num('script_id', 'Script ID', true, true),
       textCreateOnly('title', '标题', true),
       selectCreateOnly('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
       areaCreateOnly('content', '正文'),
       areaCreateOnly('raw_source', '原文'),
       areaCreateOnly('summary', '摘要'),
-      selectCreateOnly('status', '状态', ['workspace', 'active', 'archived']),
     ]),
     cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到剧本版本的可引用文本块。', ['kind', 'speaker', 'content'], [
       num('script_id', 'Script ID', true, true),
@@ -660,22 +659,19 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('kind', '类型', ['scene_heading', 'action', 'dialogue', 'transition', 'note']),
       text('speaker', '说话人'),
       area('content', '内容'),
-      select('status', '状态', ['workspace', 'active', 'archived']),
     ]),
-    cfg('segments', 'segments', '段落', '制作结构中的叙事段落。', ['title', 'order', 'status'], [
+    cfg('segments', 'segments', '段落', '制作结构中的叙事段落。', ['title', 'order'], [
       num('production_id', 'Production ID'),
       text('title', '标题', true),
       area('summary', '摘要'),
       num('order', '顺序'),
-      select('status', '状态', ['workspace', 'active', 'abandoned', 'archived']),
     ]),
-    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作阶段使用的文本片段。', ['kind', 'content', 'status'], [
+    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作阶段使用的文本片段。', ['kind', 'content'], [
       num('production_id', 'Production ID'),
       select('kind', '类型', ['brief', 'note', 'dialogue', 'action']),
       area('content', '内容'),
-      select('status', '状态', ['workspace', 'active', 'archived']),
     ]),
-    cfg('sceneMoments', 'scene-moments', '情节', '段落下的具体情节。', ['title', 'scene_code', 'status'], [
+    cfg('sceneMoments', 'scene-moments', '情节', '段落下的具体情节。', ['title', 'scene_code'], [
       num('production_id', 'Production ID'),
       num('segment_id', 'Segment ID'),
       text('scene_code', '场景编号'),
@@ -685,7 +681,6 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('action_text', '动作'),
       area('description', '描述'),
       num('order', '顺序'),
-      select('status', '状态', ['workspace', 'active', 'abandoned', 'archived']),
     ]),
     cfg('writingExpressions', 'writing-expressions', '编剧表达', '编剧在情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述。', ['kind', 'speaker', 'text'], [
       num('scene_moment_id', 'SceneMoment ID', true),
@@ -700,17 +695,15 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('text', '文本', true),
       area('note', '备注'),
       num('order', '顺序'),
-      select('status', '状态', ['workspace', 'active', 'archived']),
     ]),
-    cfg('productions', 'productions', '制作', '项目中的制作单元。', ['name', 'status'], [
+    cfg('productions', 'productions', '制作', '项目中的制作单元。', ['name'], [
       text('name', '名称', true),
       area('description', '描述'),
       num('script_version_id', 'ScriptVersion ID'),
-      select('status', '状态', ['workspace', 'active', 'archived']),
     ]),
-    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '分镜脚本。', ['title', 'status'], genericFields()),
-    cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '分镜版本。', ['title', 'status'], genericFields()),
-    cfg('contentUnits', 'content-units', '制作项', '可生产的内容单元。', ['title', 'kind', 'status'], [
+    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '分镜脚本。', ['title'], genericFields()),
+    cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '分镜版本。', ['title'], genericFields()),
+    cfg('contentUnits', 'content-units', '制作项', '可生产的内容单元。', ['title', 'kind'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       text('unit_code', '制作项编号'),
@@ -719,9 +712,8 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('description', '描述'),
       area('prompt', '提示词'),
       num('duration_sec', '时长'),
-      select('status', '状态', ['workspace', 'active', 'approved', 'archived']),
     ]),
-    cfg('keyframes', 'keyframes', '关键帧', '制作项或情节下的关键画面。', ['title', 'status'], [
+    cfg('keyframes', 'keyframes', '关键帧', '制作项或情节下的关键画面。', ['title'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
@@ -729,24 +721,21 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('description', '描述'),
       area('prompt', '提示词'),
       num('order', '顺序'),
-      select('status', '状态', ['workspace', 'candidate', 'approved', 'locked', 'archived']),
     ]),
-    cfg('previewTimelines', 'preview-timelines', '预览时间线', '预览时间线。', ['title', 'status'], genericFields()),
-    cfg('previewTimelineItems', 'preview-timeline-items', '预览时间线项', '预览时间线项。', ['owner_type', 'owner_id', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID')),
-    cfg('settings', 'settings', '设定', '旧兼容名称；新 workspace ontology 中统一为 setting。', ['name', 'kind', 'status'], [
+    cfg('previewTimelines', 'preview-timelines', '预览时间线', '预览时间线。', ['title'], genericFields()),
+    cfg('previewTimelineItems', 'preview-timeline-items', '预览时间线项', '预览时间线项。', ['owner_type', 'owner_id'], timelineFields('preview_timeline_id', 'PreviewTimeline ID')),
+    cfg('settings', 'settings', '设定', '旧兼容名称；新 workspace ontology 中统一为 setting。', ['name', 'kind'], [
       text('name', '名称', true),
       select('kind', '类型', ['character', 'location', 'prop', 'world_rule', 'style_reference', 'organization']),
       area('description', '描述'),
       area('content', '内容'),
-      select('status', '状态', ['workspace', 'confirmed', 'merged', 'ignored', 'locked']),
     ]),
-    cfg('settingStates', 'setting-states', '设定状态', '旧兼容名称；新 workspace ontology 中统一为 setting_state。', ['name', 'status'], [
+    cfg('settingStates', 'setting-states', '设定状态', '旧兼容名称；新 workspace ontology 中统一为 setting_state。', ['name'], [
       num('setting_id', 'Setting ID', true),
       text('name', '名称'),
       text('scope_type', '范围类型'),
       num('scope_id', '范围 ID'),
       area('description', '描述'),
-      select('status', '状态', ['workspace', 'confirmed', 'locked', 'ignored']),
     ]),
     cfg('settingUsages', 'setting-usages', '设定引用', '结构对象对设定的引用。', ['owner_type', 'owner_id', 'role'], [
       text('owner_type', '归属类型', true),
@@ -754,16 +743,14 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('setting_id', '设定 ID', true),
       num('setting_state_id', '设定状态 ID'),
       text('role', '角色'),
-      select('status', '状态', ['workspace', 'confirmed', 'corrected', 'ignored']),
     ]),
-    cfg('creativeRelationships', 'creative-relationships', '设定关系', '设定之间的关系。', ['type', 'status'], [
+    cfg('creativeRelationships', 'creative-relationships', '设定关系', '设定之间的关系。', ['type'], [
       num('source_setting_id', 'SourceSetting ID', true),
       num('target_setting_id', 'TargetSetting ID', true),
       text('type', '类型'),
       text('label', '标签'),
-      select('status', '状态', ['workspace', 'confirmed', 'corrected', 'ignored']),
     ]),
-    cfg('assetSlots', 'asset-slots', '素材需求', '需要生成或绑定的素材需求。', ['name', 'kind', 'status'], [
+    cfg('assetSlots', 'asset-slots', '素材需求', '需要生成或绑定的素材需求。', ['name', 'kind'], [
       select('owner_type', '归属类型', ['setting', 'segment', 'scene_moment', 'content_unit', 'keyframe', 'setting_state']),
       num('owner_id', '归属 ID'),
       num('production_id', 'Production ID'),
@@ -774,15 +761,13 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('description', '描述'),
       text('slot_key', 'Slot Key'),
       area('prompt_hint', '提示词线索'),
-      select('status', '状态', ['workspace', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved']),
     ]),
-    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '素材需求的候选结果。', ['name', 'resource_id', 'status'], [
+    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '素材需求的候选结果。', ['name', 'resource_id'], [
       num('asset_slot_id', 'AssetSlot ID', true),
       num('candidate_asset_slot_id', 'CandidateAssetSlot ID'),
       num('resource_id', 'Resource ID', false, true, '创建时可直接填资源 ID'),
       text('name', '名称'),
       area('description', '描述'),
-      select('status', '状态', ['workspace', 'candidate', 'accepted', 'rejected', 'locked']),
     ], '创建时需要填写 asset_slot_id，并提供 candidate_asset_slot_id 或 resource_id；传入 resource_id 时会自动创建候选素材位。'),
     cfg('candidateDecisions', 'candidate-decisions', '候选决策', '候选素材的决策记录。', ['status'], genericFields()),
     cfg('reviewEvents', 'review-events', '审阅事件', '审阅事件。', ['status'], genericFields()),
@@ -826,7 +811,6 @@ function genericFields(): SemanticEntityField[] {
     text('title', '标题'),
     text('name', '名称'),
     area('description', '描述'),
-    select('status', '状态', ['workspace', 'active', 'archived']),
   ]
 }
 
@@ -837,7 +821,6 @@ function timelineFields(ownerKey: string, ownerLabel: string): SemanticEntityFie
     num('owner_id', '归属 ID'),
     num('start_sec', '开始时间'),
     num('duration_sec', '时长'),
-    select('status', '状态', ['workspace', 'active', 'archived']),
   ]
 }
 

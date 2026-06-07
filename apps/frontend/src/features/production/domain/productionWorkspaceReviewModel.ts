@@ -26,7 +26,6 @@ export interface WorkspaceContentUnitNode {
   camera_angle?: string
   duration_sec?: number
   order?: number
-  status?: string
   script_block_id?: number | null
   before?: Record<string, unknown>
   keyframes?: WorkspaceKeyframeNode[]
@@ -40,7 +39,6 @@ export interface WorkspaceKeyframeNode {
   description?: string
   prompt?: string
   order?: number
-  status?: string
   before?: Record<string, unknown>
   __delete?: boolean
 }
@@ -92,7 +90,6 @@ export interface WorkspaceSceneMomentNode {
   mood?: string
   description?: string
   order?: number
-  status?: string
   script_block_id?: number | null
   content_units?: WorkspaceContentUnitNode[]
   settings?: WorkspaceCreativeRefNode[]
@@ -111,7 +108,6 @@ export interface WorkspaceSegmentNode {
   kind?: string
   summary?: string
   order?: number
-  status?: string
   script_block_id?: number | null
   scene_moments?: WorkspaceSceneMomentNode[]
   rationale?: string
@@ -286,7 +282,6 @@ export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProdu
             mood: stringRecordValue(moment.mood),
             description: stringRecordValue(moment.description),
             order: positiveRecordNumber(moment.order),
-            status: stringRecordValue(moment.status),
             script_block_id: positiveRecordNumber(moment.script_block_id),
             settings: (referencesBySceneMoment.get(moment.ID) ?? []).slice(),
             writing_expressions: (expressionsBySceneMoment.get(moment.ID) ?? []).slice().sort(workspaceSnapshotByOrder).map(workspaceWritingExpressionFromRecord),
@@ -299,7 +294,6 @@ export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProdu
         kind: stringRecordValue(segment.kind),
         summary: stringRecordValue(segment.summary ?? segment.content),
         order: positiveRecordNumber(segment.order),
-        status: stringRecordValue(segment.status),
         script_block_id: positiveRecordNumber(segment.script_block_id),
         scene_moments: moments,
       } satisfies WorkspaceSegmentNode

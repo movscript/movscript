@@ -2691,20 +2691,18 @@ export function ProjectOwnerManagementPage() {
   const [createProjectDescription, setCreateProjectDescription] = useState('')
   const [createProjectOwnerId, setCreateProjectOwnerId] = useState('')
   const [createProjectOrgId, setCreateProjectOrgId] = useState('')
-  const [createProjectStatus, setCreateProjectStatus] = useState('planning')
   const [selectedOwnerId, setSelectedOwnerId] = useState('')
   const [editProjectName, setEditProjectName] = useState('')
-  const [editProjectStatus, setEditProjectStatus] = useState('planning')
   const [projectFilters, setProjectFilters] = useState<ProjectListFilters>(() => projectFiltersFromSearchParams(searchParams))
   const [page, setPage] = useState(() => projectPageFromSearchParams(searchParams))
   const [memberDialog, setMemberDialog] = useState<AdminProject | null>(null)
   const [newMemberUserId, setNewMemberUserId] = useState('')
   const [newMemberRole, setNewMemberRole] = useState('viewer')
   const [projectError, setProjectError] = useState('')
-  const { query, projectId: projectIdFilter, status: statusFilter, ownerId: ownerFilter, orgId: orgFilter } = projectFilters
+  const { query, projectId: projectIdFilter, ownerId: ownerFilter, orgId: orgFilter } = projectFilters
 
   const { data, isFetching, refetch, error: projectsQueryError } = useQuery<{ projects: AdminProject[]; total: number }>({
-    queryKey: ['admin', 'projects', query, projectIdFilter, statusFilter, ownerFilter, orgFilter, page],
+    queryKey: ['admin', 'projects', query, projectIdFilter, ownerFilter, orgFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
@@ -2712,7 +2710,6 @@ export function ProjectOwnerManagementPage() {
       })
       if (query.trim()) params.set('q', query.trim())
       if (projectIdFilter) params.set('project_id', projectIdFilter)
-      if (statusFilter) params.set('status', statusFilter)
       if (ownerFilter) params.set('owner_id', ownerFilter)
       if (orgFilter) params.set('org_id', orgFilter)
       const res = await api.get<AdminProject[]>(`/admin/projects?${params.toString()}`)
@@ -2725,7 +2722,6 @@ export function ProjectOwnerManagementPage() {
   const projects = data?.projects ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / 25))
-  const projectStatuses = ['planning', 'script_analysis', 'asset_prep', 'production', 'editing', 'done']
   const projectMembersQuery = useQuery<AdminProjectMember[]>({
     queryKey: ['admin', 'projects', memberDialog?.ID, 'members'],
     queryFn: () => api.get(`/admin/projects/${memberDialog?.ID}/members`).then((r) => r.data),
@@ -2759,8 +2755,8 @@ export function ProjectOwnerManagementPage() {
     onError: (err: any) => setProjectError(translateAPIRequestError(err)),
   })
   const createProject = useMutation({
-    mutationFn: ({ name, description, ownerId, orgId, status }: { name: string; description: string; ownerId: number; orgId?: number; status: string }) =>
-      api.post('/admin/projects', { name, description, owner_id: ownerId, org_id: orgId, status }).then((r) => r.data),
+    mutationFn: ({ name, description, ownerId, orgId }: { name: string; description: string; ownerId: number; orgId?: number }) =>
+      api.post('/admin/projects', { name, description, owner_id: ownerId, org_id: orgId }).then((r) => r.data),
     onSuccess: () => {
       setProjectError('')
       qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
@@ -2769,20 +2765,18 @@ export function ProjectOwnerManagementPage() {
       setCreateProjectDescription('')
       setCreateProjectOwnerId('')
       setCreateProjectOrgId('')
-      setCreateProjectStatus('planning')
     },
     onError: (err: any) => setProjectError(translateAPIRequestError(err)),
   })
   const updateProject = useMutation({
-    mutationFn: ({ projectId, name, status }: { projectId: number; name: string; status: string }) =>
-      api.patch(`/admin/projects/${projectId}`, { name, status }).then((r) => r.data),
+    mutationFn: ({ projectId, name }: { projectId: number; name: string }) =>
+      api.patch(`/admin/projects/${projectId}`, { name }).then((r) => r.data),
     onSuccess: (_result, variables) => {
       setProjectError('')
       qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
       qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'detail'] })
       setEditDialog(null)
       setEditProjectName('')
-      setEditProjectStatus('planning')
     },
     onError: (err: any) => setProjectError(translateAPIRequestError(err)),
   })
@@ -2830,7 +2824,6 @@ export function ProjectOwnerManagementPage() {
   const openEditDialog = (project: AdminProject) => {
     setEditDialog(project)
     setEditProjectName(project.name || '')
-    setEditProjectStatus(project.status || 'planning')
   }
 
   function updateProjectFilter(key: keyof ProjectListFilters, value: string) {
@@ -2868,13 +2861,12 @@ export function ProjectOwnerManagementPage() {
       description: createProjectDescription,
       ownerId,
       orgId,
-      status: createProjectStatus,
     })
   }
 
   const submitProjectUpdate = () => {
     if (!editDialog || !editProjectName.trim()) return
-    updateProject.mutate({ projectId: editDialog.ID, name: editProjectName, status: editProjectStatus })
+    updateProject.mutate({ projectId: editDialog.ID, name: editProjectName })
   }
 
   useEffect(() => {
@@ -2905,7 +2897,7 @@ export function ProjectOwnerManagementPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-lg border border-border bg-card p-3 md:grid-cols-[minmax(180px,1fr)_110px_150px_130px_130px_auto]">
+      <div className="grid gap-3 rounded-lg border border-border bg-card p-3 md:grid-cols-[minmax(180px,1fr)_110px_130px_130px_auto]">
         <Input
           value={query}
           onChange={(event) => updateProjectFilter('query', event.target.value)}
@@ -2918,16 +2910,6 @@ export function ProjectOwnerManagementPage() {
           placeholder={t('admin.projects.projectId')}
           className="h-9"
         />
-        <select
-          value={statusFilter}
-          onChange={(event) => updateProjectFilter('status', event.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="">{t('admin.projects.allStatuses')}</option>
-          {projectStatuses.map((status) => (
-            <option key={status} value={status}>{t(`admin.projects.statuses.${status}`, { defaultValue: status })}</option>
-          ))}
-        </select>
         <Input
           value={ownerFilter}
           onChange={(event) => updateProjectFilter('ownerId', event.target.value.replace(/[^\d]/g, ''))}
@@ -2964,7 +2946,6 @@ export function ProjectOwnerManagementPage() {
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.id')}</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.name')}</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.owner')}</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.status')}</th>
               <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.orgId')}</th>
               <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.members')}</th>
               <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.updatedAt')}</th>
@@ -2983,7 +2964,6 @@ export function ProjectOwnerManagementPage() {
                       {ownerName}
                     </AppFeedbackText>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{project.status ? t(`admin.projects.statuses.${project.status}`, { defaultValue: project.status }) : '-'}</td>
                   <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">{project.org_id ? `#${project.org_id}` : '-'}</td>
                   <td className="px-4 py-3 text-right">
                     <button
@@ -3032,7 +3012,7 @@ export function ProjectOwnerManagementPage() {
               )
             })}
             {!projectsQueryError && projects.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.projects.empty')}</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.projects.empty')}</td></tr>
             )}
           </tbody>
         </table>
@@ -3274,18 +3254,6 @@ export function ProjectOwnerManagementPage() {
                   />
                 </div>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.status')}</Label>
-                <select
-                  value={createProjectStatus}
-                  onChange={(event) => setCreateProjectStatus(event.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {projectStatuses.map((status) => (
-                    <option key={status} value={status}>{t(`admin.projects.statuses.${status}`, { defaultValue: status })}</option>
-                  ))}
-                </select>
-              </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
               <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(false)}>
@@ -3325,18 +3293,6 @@ export function ProjectOwnerManagementPage() {
                   className="h-9"
                   autoFocus
                 />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.status')}</Label>
-                <select
-                  value={editProjectStatus}
-                  onChange={(event) => setEditProjectStatus(event.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {projectStatuses.map((status) => (
-                    <option key={status} value={status}>{t(`admin.projects.statuses.${status}`, { defaultValue: status })}</option>
-                  ))}
-                </select>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">

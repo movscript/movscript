@@ -121,7 +121,6 @@ export function buildCreateAndBindSceneMomentScriptBlockMutationOptions(input: P
         end_line: endLine,
         start_char: 0,
         end_char: 0,
-        status: 'active',
       }) as ScriptBlockRecord
       await updateSemanticEntity(input.projectId, semanticEntityConfig('sceneMoments'), momentId, {
         script_block_id: block.ID,

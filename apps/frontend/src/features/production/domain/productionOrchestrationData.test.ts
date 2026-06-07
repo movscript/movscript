@@ -20,9 +20,8 @@ test('production orchestration data loader covers the creative planning graph', 
   ])
 })
 
-test('production orchestration active record filter hides abandoned graph records', () => {
-  assert.equal(isActiveProductionOrchestrationRecord({ ID: 1, status: 'confirmed' }), true)
-  assert.equal(isActiveProductionOrchestrationRecord({ ID: 2, status: 'ignored' }), false)
-  assert.equal(isActiveProductionOrchestrationRecord({ ID: 3, status: 'removed' }), false)
-  assert.equal(isActiveProductionOrchestrationRecord({ ID: 4, status: 'abandoned' }), false)
+test('production orchestration active record filter hides deleted graph records', () => {
+  assert.equal(isActiveProductionOrchestrationRecord({ ID: 1 }), true)
+  assert.equal(isActiveProductionOrchestrationRecord({ ID: 2, __delete: true }), false)
+  assert.equal(isActiveProductionOrchestrationRecord({ ID: 3, deleted: true }), false)
 })

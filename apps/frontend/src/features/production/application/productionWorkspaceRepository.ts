@@ -282,7 +282,6 @@ function productionSegmentPayloadNode(payload: SemanticEntityPayload): Partial<W
     kind: stringValue(payload.kind),
     summary: stringValue(payload.summary ?? payload.content),
     order: positiveNumber(payload.order),
-    status: stringValue(payload.status),
     script_block_id: nullablePositiveNumber(payload.script_block_id),
   })
 }
@@ -298,7 +297,6 @@ function productionSceneMomentPayloadNode(payload: SemanticEntityPayload): Parti
     mood: stringValue(payload.mood),
     description: stringValue(payload.description),
     order: positiveNumber(payload.order),
-    status: stringValue(payload.status),
     script_block_id: nullablePositiveNumber(payload.script_block_id),
   })
 }

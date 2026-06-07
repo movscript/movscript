@@ -71,6 +71,28 @@ test('provider session telemetry is empty when transport points at backend api v
   assert.deepEqual(requests, [])
 })
 
+test('provider session workspace artifacts are skipped on backend api v1 transport', async () => {
+  const requests: string[] = []
+  const transport: ProviderSessionTransport = {
+    kind: 'http',
+    endpointLabel: 'http://localhost:8765/api/v1',
+    request: async (path) => {
+      requests.push(path)
+      return new Response('unexpected', { status: 500 })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  const client = new ProviderSessionClient(transport)
+
+  const result = await client.listWorkspaceArtifacts({ projectId: 10, kind: 'project_standards_workspace' })
+
+  assert.deepEqual(result.workspaces, [])
+  await assert.rejects(() => client.getWorkspaceArtifact('workspace-1'), (error) => isProviderSessionNotFoundError(error))
+  assert.deepEqual(requests, [])
+})
+
 test('provider session client delegates plugin file management to provider endpoints', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
   const transport: ProviderSessionTransport = {

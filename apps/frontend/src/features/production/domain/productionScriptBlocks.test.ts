@@ -19,7 +19,6 @@ test('production script block helpers normalize version text and line ranges', (
     title: '剧本版本',
     source_type: 'manual',
     summary: '',
-    status: 'active',
     content: '第一行\r\n第二行\r第三行',
     raw_source: '',
     CreatedAt: '2026-01-01T00:00:00.000Z',

@@ -26,7 +26,6 @@ test('production workspace repository saves segment edits through core service',
         title: '新段落',
         kind: 'reversal',
         summary: '新的结构摘要',
-        status: 'workspace',
       },
     })
 

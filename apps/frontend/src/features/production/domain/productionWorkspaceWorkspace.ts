@@ -13,7 +13,6 @@ export interface ProductionWorkspaceContentUnitSnapshot {
   camera_angle?: string
   duration_sec?: number
   order?: number
-  status?: string
   script_block_id?: number | null
   before?: Record<string, unknown>
   keyframes?: ProductionWorkspaceKeyframeSnapshot[]
@@ -26,7 +25,6 @@ export interface ProductionWorkspaceKeyframeSnapshot {
   description?: string
   prompt?: string
   order?: number
-  status?: string
   before?: Record<string, unknown>
 }
 
@@ -61,7 +59,6 @@ export interface ProductionWorkspaceSceneMomentSnapshot {
   mood?: string
   description?: string
   order?: number
-  status?: string
   script_block_id?: number | null
   content_units?: ProductionWorkspaceContentUnitSnapshot[]
   settings?: ProductionWorkspaceSettingUsageSnapshot[]
@@ -78,7 +75,6 @@ export interface ProductionWorkspaceSegmentSnapshot {
   kind?: string
   summary?: string
   order?: number
-  status?: string
   script_block_id?: number | null
   scene_moments: ProductionWorkspaceSceneMomentSnapshot[]
   rationale?: string

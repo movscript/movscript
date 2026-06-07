@@ -40,7 +40,6 @@ export function buildProductionWorkspaceSeedMetadata(input: {
         title: script.title,
         source_type: script.source_type,
         summary: script.summary,
-        status: script.status,
         UpdatedAt: script.UpdatedAt,
       })),
     },
@@ -63,7 +62,7 @@ export function buildProductionWorkspaceSeedMetadata(input: {
 
 function summarizeWorkspaceSeedEntity(record: ProductionWorkspaceSeedEntity): Record<string, unknown> {
   const out: Record<string, unknown> = {}
-  for (const key of ['ID', 'project_id', 'script_version_id', 'name', 'title', 'description', 'status', 'source_type', 'UpdatedAt']) {
+  for (const key of ['ID', 'project_id', 'script_version_id', 'name', 'title', 'description', 'source_type', 'UpdatedAt']) {
     if (record[key] !== undefined) out[key] = record[key]
   }
   return out

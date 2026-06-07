@@ -469,7 +469,9 @@ export async function loadProjectStandardsWorkspaceData(projectId: number): Prom
     contentUnits,
   ] = await Promise.all([
     getProject(projectId).catch((error) => {
-      console.warn('Failed to load project globals', error)
+      if (!isWorkspaceProjectNotFoundError(projectId, error)) {
+        console.warn('Failed to load project globals', error)
+      }
       return null
     }),
     safeList(projectId, 'productions'),
@@ -495,4 +497,8 @@ export async function loadProjectStandardsWorkspaceData(projectId: number): Prom
     sceneMoments,
     contentUnits,
   }
+}
+
+function isWorkspaceProjectNotFoundError(projectId: number, error: unknown): boolean {
+  return error instanceof Error && error.message === `MovScript workspace project ${projectId} not found`
 }

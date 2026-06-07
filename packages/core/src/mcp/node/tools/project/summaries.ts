@@ -5,7 +5,6 @@ export function summarizeProject(item: any): unknown {
     ...(id !== undefined ? { id } : {}),
     ...(typeof item.name === 'string' ? { name: truncateLongText(item.name) } : {}),
     ...(typeof item.description === 'string' ? { description: truncateLongText(item.description) } : {}),
-    ...(typeof item.status === 'string' ? { status: item.status } : {}),
     ...(typeof item.total_episodes === 'number' ? { totalEpisodes: item.total_episodes } : typeof item.totalEpisodes === 'number' ? { totalEpisodes: item.totalEpisodes } : {}),
     ...(typeof item.CreatedAt === 'string' ? { CreatedAt: item.CreatedAt } : {}),
     ...(typeof item.UpdatedAt === 'string' ? { UpdatedAt: item.UpdatedAt } : {}),
