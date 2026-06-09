@@ -7,7 +7,10 @@ import type {
   AppServerUserInput,
 } from '@/shared/infrastructure/app-server/appServerProtocol'
 
-export function agentChatThreadItemFromAppServerThreadTurnItem(item: AppServerThreadItem): AgentChatThreadItem {
+export function agentChatThreadItemFromAppServerThreadTurnItem(
+  item: AppServerThreadItem,
+  options: { lifecycle?: 'started' | 'completed' } = {},
+): AgentChatThreadItem {
   switch (item.type) {
     case 'userMessage':
       return {
@@ -80,7 +83,7 @@ export function agentChatThreadItemFromAppServerThreadTurnItem(item: AppServerTh
         tool: item.tool,
         status: String(item.status),
         arguments: item.arguments,
-        contentItems: item.contentItems,
+        contentItems: agentChatDynamicToolContentItemsFromAppServerThreadTurnItem(item.contentItems),
         success: item.success,
         durationMs: item.durationMs,
         raw: item,
@@ -113,14 +116,20 @@ export function agentChatThreadItemFromAppServerThreadTurnItem(item: AppServerTh
         return { type: 'imageView', id: item.id, path, url: agentChatLocalPathPreviewUrl(path), raw: item }
       }
     case 'imageGeneration':
-      return {
-        type: 'imageGeneration',
-        id: item.id,
-        status: item.status,
-        revisedPrompt: item.revisedPrompt,
-        result: item.result,
-        savedPath: item.savedPath ? String(item.savedPath) : undefined,
-        raw: item,
+      {
+        const savedPath = item.savedPath ? String(item.savedPath) : undefined
+        const resultUrl = agentChatImageGenerationResultUrl(item.result)
+        const savedPathUrl = savedPath ? agentChatLocalPathPreviewUrl(savedPath) : undefined
+        return {
+          type: 'imageGeneration',
+          id: item.id,
+          status: agentChatImageGenerationStatus(item.status, item, options.lifecycle),
+          revisedPrompt: item.revisedPrompt,
+          result: item.result,
+          url: resultUrl ?? savedPathUrl,
+          savedPath,
+          raw: item,
+        }
       }
     case 'enteredReviewMode':
       return { type: 'reviewMode', id: item.id, action: 'entered', review: item.review, raw: item }
@@ -180,8 +189,112 @@ function agentChatInputFromAppServerThreadTurnItem(input: AppServerUserInput): A
   return agentChatMentionInputFromAppServerThreadTurnItem(input)
 }
 
+function agentChatDynamicToolContentItemsFromAppServerThreadTurnItem(contentItems: unknown[] | null | undefined): unknown[] | null | undefined {
+  if (!Array.isArray(contentItems)) return contentItems
+  return contentItems.map(agentChatDynamicToolContentItemFromAppServerThreadTurnItem)
+}
+
+function agentChatDynamicToolContentItemFromAppServerThreadTurnItem(contentItem: unknown): unknown {
+  if (!isRecord(contentItem)) return contentItem
+  const explicitResource = agentChatDynamicToolResourceContentItem(contentItem)
+  if (explicitResource) return explicitResource
+  const resourceId = agentChatDynamicToolContentResourceId(contentItem)
+  if (resourceId === undefined) return contentItem
+  const mimeType = stringField(contentItem.mimeType) ?? stringField(contentItem.mime_type) ?? agentChatDynamicToolResourceMimeType(contentItem)
+  return {
+    type: 'resource',
+    resource: {
+      uri: `resource:${resourceId}`,
+      url: `/api/v1/resources/${resourceId}/file`,
+      ...(stringField(contentItem.name) ? { name: stringField(contentItem.name) } : {}),
+      ...(mimeType ? { mimeType } : {}),
+    },
+  }
+}
+
+function agentChatDynamicToolResourceContentItem(contentItem: Record<string, unknown>): unknown | null {
+  const type = stringField(contentItem.type)
+  if (type !== 'resource' && type !== 'inputResource' && type !== 'input_resource') return null
+  const resource = isRecord(contentItem.resource) ? contentItem.resource : contentItem
+  const resourceId = agentChatDynamicToolContentResourceId(resource) ?? agentChatDynamicToolContentResourceId(contentItem)
+  const uri = stringField(resource.uri) ?? stringField(contentItem.uri) ?? (resourceId !== undefined ? `resource:${resourceId}` : undefined)
+  const url = stringField(resource.url)
+    ?? stringField(resource.directUrl)
+    ?? stringField(resource.direct_url)
+    ?? stringField(contentItem.url)
+    ?? stringField(contentItem.directUrl)
+    ?? stringField(contentItem.direct_url)
+    ?? (resourceId !== undefined ? `/api/v1/resources/${resourceId}/file` : undefined)
+  const mimeType = stringField(resource.mimeType)
+    ?? stringField(resource.mime_type)
+    ?? stringField(contentItem.mimeType)
+    ?? stringField(contentItem.mime_type)
+    ?? agentChatDynamicToolResourceMimeType(resource)
+    ?? agentChatDynamicToolResourceMimeType(contentItem)
+  return {
+    type: 'resource',
+    resource: {
+      ...(uri ? { uri } : {}),
+      ...(url ? { url } : {}),
+      ...(stringField(resource.name) ?? stringField(contentItem.name) ? { name: stringField(resource.name) ?? stringField(contentItem.name) } : {}),
+      ...(mimeType ? { mimeType } : {}),
+      ...(stringField(resource.text) ?? stringField(contentItem.text) ? { text: stringField(resource.text) ?? stringField(contentItem.text) } : {}),
+    },
+  }
+}
+
+function agentChatDynamicToolContentResourceId(contentItem: Record<string, unknown>): number | undefined {
+  const numeric = numberField(contentItem.resourceId)
+    ?? numberField(contentItem.resource_id)
+    ?? numberField(contentItem.outputResourceId)
+    ?? numberField(contentItem.output_resource_id)
+  if (numeric !== undefined) return numeric
+  return agentChatResourceMentionId(
+    stringField(contentItem.uri)
+      ?? stringField(contentItem.imageUrl)
+      ?? stringField(contentItem.image_url)
+      ?? stringField(contentItem.url)
+      ?? '',
+  )
+}
+
+function agentChatDynamicToolResourceMimeType(contentItem: Record<string, unknown>): string | undefined {
+  const type = stringField(contentItem.type)
+  if (type === 'inputImage' || type === 'input_image' || type === 'image') return 'image/png'
+  return undefined
+}
+
+function numberField(value: unknown): number | undefined {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value.trim()) : NaN
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
+}
+
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function agentChatImageGenerationStatus(status: string, item: Extract<AppServerThreadItem, { type: 'imageGeneration' }>, lifecycle: 'started' | 'completed' | undefined): string {
+  if (lifecycle !== 'completed') return String(status)
+  const normalized = String(status)
+  if (!agentChatImageGenerationActiveStatus(normalized)) return normalized
+  return item.result.trim() || item.savedPath ? 'completed' : normalized
+}
+
+function agentChatImageGenerationActiveStatus(status: string): boolean {
+  const normalized = status.trim().toLowerCase()
+  return normalized === 'generating' || normalized === 'inprogress' || normalized === 'in_progress'
+}
+
+function agentChatImageGenerationResultUrl(result: string): string | undefined {
+  const trimmed = result.trim()
+  if (!trimmed) return undefined
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(trimmed)) return trimmed
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed
+  return `data:image/png;base64,${trimmed}`
 }
 
 function agentChatLocalPathPreviewUrl(path: string): string | undefined {
@@ -268,7 +381,8 @@ function agentChatRenderableMediaUrlFromAppServerThreadTurnItemPath(path: string
 }
 
 function agentChatResourceMentionId(path: string): number | undefined {
-  const match = /^resource:(\d+)$/.exec(path.trim())
+  const trimmed = path.trim()
+  const match = /^resource:(\d+)$/.exec(trimmed) ?? /\/api\/v1\/resources\/(\d+)(?:\/file)?(?:[?#].*)?$/.exec(trimmed)
   if (!match?.[1]) return undefined
   const id = Number(match[1])
   return Number.isInteger(id) && id > 0 ? id : undefined

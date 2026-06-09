@@ -206,12 +206,23 @@ export function agentChatImageItemView(item: Extract<AgentChatThreadItem, { type
     tone: agentChatImageTone(item),
     ...(item.type === 'imageGeneration' && item.revisedPrompt ? { revisedPrompt: item.revisedPrompt } : {}),
     ...(item.type === 'imageView' ? { path: item.path } : {}),
-    ...(item.type === 'imageGeneration' && item.result ? { result: item.result } : {}),
+    ...(item.type === 'imageGeneration' && item.result ? { result: agentChatImageGenerationResultLabel(item.result) } : {}),
     ...(item.type === 'imageGeneration' && item.savedPath ? { savedPath: item.savedPath } : {}),
     generatedImages: item.type === 'imageGeneration' ? agentChatGeneratedImagePreview(item) : [],
     viewedImages: item.type === 'imageView' && item.url ? [{ url: item.url, alt: 'Viewed image' }] : [],
     ...(item.raw !== undefined ? { rawDetails: item.raw } : {}),
   }
+}
+
+function agentChatImageGenerationResultLabel(result: string): string {
+  const trimmed = result.trim()
+  if (!trimmed) return ''
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(trimmed)) {
+    const [, data = ''] = trimmed.split(',', 2)
+    return `inline image data (base64, ${data.length} chars)`
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed
+  return `inline image data (base64, ${trimmed.length} chars)`
 }
 
 function agentChatDynamicOutputSummary(contentItems: unknown[] | null | undefined): string[] {
@@ -377,7 +388,7 @@ function agentChatMediaUrl(record: Record<string, unknown>, mimeType: string, ur
       if (direct) return direct
     }
     const value = stringValue(record[field])
-    if (value) return value
+    if (value) return agentChatResourceFileUrl(value) ?? value
   }
   return stringValue(record.directUrl) ?? stringValue(record.direct_url)
 }
@@ -401,6 +412,11 @@ function agentChatResourceUrl(resource: Record<string, unknown>, record: Record<
     ?? stringValue(record.url)
     ?? stringValue(record.directUrl)
     ?? stringValue(record.direct_url)
+}
+
+function agentChatResourceFileUrl(value: string): string | undefined {
+  const match = /^resource:(\d+)$/.exec(value.trim())
+  return match?.[1] ? `/api/v1/resources/${match[1]}/file` : undefined
 }
 
 function agentChatRecordHasInlineData(record: Record<string, unknown>): boolean {
@@ -776,8 +792,8 @@ function agentChatImageTone(item: Extract<AgentChatThreadItem, { type: 'imageVie
 }
 
 function agentChatGeneratedImagePreview(item: Extract<AgentChatThreadItem, { type: 'imageGeneration' }>): AgentChatToolImageView[] {
-  const result = item.result.trim()
-  return result ? [{ url: result, alt: 'Generated image result' }] : []
+  const url = item.url?.trim()
+  return url ? [{ url, alt: 'Generated image result' }] : []
 }
 
 function compactPreview(value: string): string {

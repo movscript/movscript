@@ -34,6 +34,7 @@ import {
   TOOL_WORKBENCH_RESOURCE_PANE_MIN_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_WIDTH_STORAGE_KEY,
 } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
+import { PLUGIN_TOOL_NATIVE_MAIN_PANE_ID } from '@/features/plugins/presentation/pluginToolLayoutSpec'
 
 import {
   AGENT_CONNECTION_EVENTS_PANE_ID,
@@ -96,6 +97,7 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/resources').surface, 'detail')
   assert.equal(routeLayoutSpecForPathname('/resources').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
+  assert.match(routeLayoutSpecForPathname('/resources').notes ?? '', /shared resource drag contract/)
   assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'detail')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/agents/mova').scrollMode), 'auto')
@@ -155,7 +157,7 @@ test('registered route layout specs expose pane ownership for app shell surfaces
   assert.equal(agentSidebar?.stateStorageKey, AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
   const agentContentPane = agentRoute.panes.find((pane) => pane.id === APP_SHELL_AGENT_CONTENT_PANE_ID)
   assert.equal(agentContentPane?.owner, 'app-shell')
-  assert.equal(agentContentPane?.defaultState, 'collapsed')
+  assert.equal(agentContentPane?.defaultState, 'default')
   assert.equal(agentContentPane?.defaultSize, AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   assert.equal(agentContentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
   assert.equal(agentContentPane?.stateStorageKey, AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
@@ -187,6 +189,16 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.expandMode, 'after-max')
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
+})
+
+test('route layout registry declares plugin tool native host pane', () => {
+  const route = routeLayoutSpecForPathname('/tools/plugin/example')
+  assert.equal(route.scrollMode, 'workspace')
+  assert.match(route.notes ?? '', /native disabled host layout/)
+  const nativeMainPane = route.panes.find((pane) => pane.id === PLUGIN_TOOL_NATIVE_MAIN_PANE_ID)
+  assert.equal(nativeMainPane?.owner, 'workbench')
+  assert.equal(nativeMainPane?.side, 'left')
+  assert.equal(nativeMainPane?.overlapMode, 'none')
 })
 
 test('route layout registry declares agent and workspace split panes', () => {

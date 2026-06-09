@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { basename } from 'node:path'
 import { registerAuthCommands } from './commands/auth.js'
 import { registerLangCommands } from './commands/lang.js'
 import { registerWorkspaceCommands } from './commands/workspace.js'
@@ -23,9 +24,16 @@ main().catch((error) => {
 })
 
 async function main(): Promise<void> {
-  if (process.argv.length <= 2) {
+  const argv = normalizeMovcliArgv(process.argv)
+  if (argv.length <= 2) {
     program.outputHelp()
     return
   }
-  await program.parseAsync()
+  await program.parseAsync(argv)
+}
+
+function normalizeMovcliArgv(argv: string[]): string[] {
+  const maybeShimPath = argv[2]
+  if (!maybeShimPath || basename(maybeShimPath) !== 'movcli.mjs') return argv
+  return [argv[0]!, argv[1]!, ...argv.slice(3)]
 }

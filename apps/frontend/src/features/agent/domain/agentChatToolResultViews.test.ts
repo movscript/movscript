@@ -143,6 +143,19 @@ test('agent chat MCP pending summary only appears for unresolved in-progress cal
   }), [])
 })
 
+test('agent chat dynamic tool output renders image resources through the resource file endpoint', () => {
+  const view = agentChatDynamicToolOutputView([
+    { type: 'resource', resource: { uri: 'resource:202', mimeType: 'image/png' } },
+  ])
+
+  assert.deepEqual(view.images, [
+    { url: '/api/v1/resources/202/file', alt: 'Tool output image 1' },
+  ])
+  assert.deepEqual(view.media, [
+    '1. Resource: resource:202 image/png',
+  ])
+})
+
 test('agent chat command execution view builds title meta tone and terminal summaries', () => {
   const view = agentChatCommandExecutionView({
     type: 'commandExecution',
@@ -353,6 +366,7 @@ test('agent chat collab web search and image item views keep summaries out of re
     id: 'img_1',
     revisedPrompt: 'clear diagram',
     result: 'https://cdn.example.com/generated.png',
+    url: 'https://cdn.example.com/generated.png',
     status: 'completed',
     savedPath: '/tmp/generated.png',
     raw: { provider: 'codex', type: 'imageGeneration' },
@@ -365,6 +379,17 @@ test('agent chat collab web search and image item views keep summaries out of re
   assert.equal(imageView.savedPath, '/tmp/generated.png')
   assert.deepEqual(imageView.generatedImages, [{ url: 'https://cdn.example.com/generated.png', alt: 'Generated image result' }])
   assert.deepEqual(imageView.rawDetails, { provider: 'codex', type: 'imageGeneration' })
+
+  const inlineImageView = agentChatImageItemView({
+    type: 'imageGeneration',
+    id: 'img_inline',
+    revisedPrompt: 'clear diagram',
+    result: 'iVBORw0KGgo=',
+    url: 'data:image/png;base64,iVBORw0KGgo=',
+    status: 'completed',
+  })
+  assert.equal(inlineImageView.result, 'inline image data (base64, 12 chars)')
+  assert.deepEqual(inlineImageView.generatedImages, [{ url: 'data:image/png;base64,iVBORw0KGgo=', alt: 'Generated image result' }])
 
   const viewedImage = agentChatImageItemView({
     type: 'imageView',

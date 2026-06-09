@@ -10,6 +10,7 @@ import { createMovScriptWorkspaceAPI } from './api/movscriptWorkspace'
 import { createSettingsAPI } from './api/settings'
 import { createVideoAPI } from './api/video'
 import { createWindowAPI } from './api/window'
+import { createLocalTerminalAPI } from './api/localTerminal'
 
 export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Platform): ElectronAPI {
   return {
@@ -23,6 +24,7 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createPluginCatalogPackStoreAPI(ipcRenderer),
     ...createMovScriptWorkspaceAPI(ipcRenderer),
     ...createAppServerAPI(ipcRenderer),
+    ...createLocalTerminalAPI(ipcRenderer),
     ...createVideoAPI(ipcRenderer),
   }
 }

@@ -39,6 +39,10 @@ import {
   toolWorkbenchResourcePaneMaxWidth,
 } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
 import {
+  PLUGIN_TOOL_NATIVE_LAYOUT_NOTE,
+  PLUGIN_TOOL_NATIVE_MAIN_PANE_ID,
+} from '@/features/plugins/presentation/pluginToolLayoutSpec'
+import {
   APP_SIDEBAR_DEFAULT_WIDTH,
   APP_SIDEBAR_MAX_WIDTH,
   APP_SIDEBAR_MIN_WIDTH,
@@ -122,7 +126,7 @@ const APP_SHELL_DETAIL_PANES: RouteLayoutPaneSpec[] = [
     defaultSize: APP_SIDEBAR_DEFAULT_WIDTH,
     minSize: APP_SIDEBAR_MIN_WIDTH,
     maxSize: APP_SIDEBAR_MAX_WIDTH,
-    collapsedSize: 44,
+    collapsedSize: 0,
     defaultState: 'default',
     allowedStates: ['default', 'collapsed', 'hidden'],
     storageKey: APP_SIDEBAR_WIDTH_STORAGE_KEY,
@@ -163,7 +167,7 @@ const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec[] = [
     maxSize: AGENT_MODE_SIDEBAR_MAX_WIDTH,
     collapsedSize: 44,
     defaultState: 'default',
-    allowedStates: ['default', 'collapsed', 'hidden'],
+    allowedStates: ['default', 'collapsed'],
     storageKey: AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
     stateStorageKey: AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
     persistState: true,
@@ -177,8 +181,8 @@ const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec[] = [
     defaultSize: AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
     minSize: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
     maxSize: AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
-    defaultState: 'collapsed',
-    allowedStates: ['default', 'collapsed', 'hidden'],
+    defaultState: 'default',
+    allowedStates: ['default', 'collapsed'],
     collapsedSize: 0,
     storageKey: AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
     stateStorageKey: AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
@@ -298,6 +302,17 @@ const TOOL_WORKBENCH_PANES: RouteLayoutPaneSpec[] = [
     collapseMode: 'after-min',
     expandMode: 'after-max',
     overlapMode: 'pane-surface',
+  },
+]
+
+const PLUGIN_TOOL_WORKBENCH_PANES: RouteLayoutPaneSpec[] = [
+  {
+    id: PLUGIN_TOOL_NATIVE_MAIN_PANE_ID,
+    side: 'left',
+    owner: 'workbench',
+    defaultState: 'default',
+    allowedStates: ['default'],
+    overlapMode: 'none',
   },
 ]
 
@@ -538,7 +553,8 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     routeId: 'tools.plugin',
     pathnamePattern: ROUTES.tools.plugin,
     ...DETAIL_WORKSPACE_ROUTE,
-    notes: 'Plugin route must provide or inherit a plugin layout spec before adding local layout escape hatches.',
+    panes: [...DETAIL_WORKSPACE_ROUTE.panes, ...PLUGIN_TOOL_WORKBENCH_PANES],
+    notes: PLUGIN_TOOL_NATIVE_LAYOUT_NOTE,
   }, (pathname) => /^\/tools\/plugin\/[^/]+\/?$/.test(pathname)),
   route({
     routeId: 'project.contentUnitWorkbench.redirect',
@@ -633,7 +649,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     routeId: 'resources',
     pathnamePattern: ROUTES.resources,
     ...DETAIL_DOCUMENT_ROUTE,
-    notes: 'Resource page still needs a dedicated inventory pass before choosing document vs workspace scroll.',
+    notes: 'Resource page is a document route; the resource page primitive owns collection scroll and drag payloads use the shared resource drag contract.',
   }, exact(ROUTES.resources)),
   route({
     routeId: 'resources.external',

@@ -14,8 +14,8 @@ import { useUserStore } from './shared/infrastructure/session/userStore'
 import { useAppSettingsStore } from './shared/infrastructure/appSettingsStore'
 import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from '@/shared/infrastructure/backendBoot'
 import {
-  AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   clampAgentModeContentPanelWidth,
+  clampAgentModeSidebarWidth,
 } from './features/agent/presentation/agentModePanelSizing'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
@@ -687,24 +687,23 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const agentSidebarPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID,
+    clampSize: clampAgentModeSidebarWidth,
     controlledState: agentModeSidebarCollapsed ? 'collapsed' : 'default',
     onStateChange: (state) => setAgentModeSidebarCollapsed(state !== 'default'),
   })
   const agentContentPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: APP_SHELL_AGENT_CONTENT_PANE_ID,
+    clampSize: clampAgentModeContentPanelWidth,
     controlledState: agentModeContentPanelCollapsed ? 'collapsed' : 'default',
-    fallbackState: 'collapsed',
+    fallbackState: 'default',
     onStateChange: (state) => setAgentModeContentPanelCollapsed(state !== 'default'),
   })
   const agentModeContentPanelOpen = !agentContentPane.collapsed && !agentContentPane.hidden
+  const agentSidebarVisible = !agentSidebarPane.collapsed && !agentSidebarPane.hidden
   const detailAgentPanelOpen = useAgentPanelUiStore((s) => s.open)
   const detailAgentPanelWidth = useAgentPanelUiStore((s) => s.detailAgentPanelWidth)
   const detailHeaderActions = useAgentPanelUiStore((s) => s.detailHeaderActions)
-  const [agentModeContentPanelWidth, setAgentModeContentPanelWidth] = React.useState(AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
-  const handleAgentModeContentPanelWidthChange = React.useCallback((width: number) => {
-    setAgentModeContentPanelWidth(clampAgentModeContentPanelWidth(width))
-  }, [])
   const detailRightPaneOpen = detailAgentPanelOpen
   const detailCenterContent = detailRouteHeaderTitle(pathname)
   const terminalWorkspaceContext = React.useMemo(() => {
@@ -731,6 +730,19 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       aria-label={terminalOpen ? '收起 Terminal' : '展开 Terminal'}
     >
       <Terminal size={13} />
+    </AppWindowIconButton>
+  )
+  const agentContentPanelClosed = agentContentPane.collapsed || agentContentPane.hidden
+  const agentContentPanelHeaderControl = (
+    <AppWindowIconButton
+      type="button"
+      className="app-window-agent-content-toggle"
+      data-active={!agentContentPanelClosed ? 'true' : undefined}
+      onClick={agentContentPanelClosed ? agentContentPane.show : agentContentPane.collapse}
+      title={agentContentPanelClosed ? i18n.t('agents.chat.expandAgentContentPanel') : i18n.t('agents.chat.collapseAgentContentPanel')}
+      aria-label={agentContentPanelClosed ? i18n.t('agents.chat.expandAgentContentPanel') : i18n.t('agents.chat.collapseAgentContentPanel')}
+    >
+      {agentContentPanelClosed ? <PanelRightOpen size={13} /> : <PanelRightClose size={13} />}
     </AppWindowIconButton>
   )
   const terminalPanel = (
@@ -834,7 +846,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showAssistantShortcut
     />
   ) : undefined
-  const agentLeftHeader = !agentSidebarPane.collapsed ? (
+  const agentLeftHeader = agentSidebarVisible ? (
     <Header
       showAppControls={false}
       showFallbackBrand={false}
@@ -847,9 +859,9 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={!agentLeftHeader}
       showAppControls={!agentModeContentPanelOpen}
       showFallbackBrand={false}
-      leftControls={agentSidebarPane.collapsed ? agentSidebarHeaderControl : undefined}
-      appControls={terminalHeaderControl}
-      showAgentContentPanelShortcut
+      leftControls={!agentSidebarVisible ? agentSidebarHeaderControl : undefined}
+      appControls={<>{agentContentPanelClosed ? agentContentPanelHeaderControl : null}{terminalHeaderControl}</>}
+      showAgentContentPanelShortcut={false}
     />
   )
   const agentRightHeader = agentModeContentPanelOpen ? (
@@ -857,14 +869,23 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
-      appControls={terminalHeaderControl}
-      showAgentContentPanelShortcut
+      appControls={<>{agentContentPanelHeaderControl}{terminalHeaderControl}</>}
+      showAgentContentPanelShortcut={false}
     />
   ) : undefined
+  const agentRightCollapsedWidth = agentContentPane.pane?.collapsedSize ?? 0
   const agentRightSlotStyle = {
-    width: agentContentPane.collapsed ? 0 : agentModeContentPanelWidth,
-    minWidth: agentContentPane.collapsed ? 0 : agentModeContentPanelWidth,
-    flexBasis: agentContentPane.collapsed ? 0 : agentModeContentPanelWidth,
+    width: agentContentPane.collapsed ? agentRightCollapsedWidth : agentContentPane.size,
+    minWidth: agentContentPane.collapsed ? agentRightCollapsedWidth : agentContentPane.size,
+    flexBasis: agentContentPane.collapsed ? agentRightCollapsedWidth : agentContentPane.size,
+  }
+  const agentLeftSlotWidth = !agentSidebarVisible
+    ? 0
+    : agentSidebarPane.size
+  const agentLeftSlotStyle = {
+    width: agentLeftSlotWidth,
+    minWidth: agentLeftSlotWidth,
+    flexBasis: agentLeftSlotWidth,
   }
   const detailLeftSlotStyle = {
     width: detailSidebarHidden ? 0 : detailSidebarPane.size,
@@ -886,13 +907,18 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           surface={shellSurface}
           sidebar={(
             <React.Suspense fallback={null}>
-              <ProjectAgentModeSidebar />
+              <ProjectAgentModeSidebar
+                width={agentSidebarPane.size}
+                onWidthChange={agentSidebarPane.setSize}
+              />
             </React.Suspense>
           )}
           leftHeader={agentLeftHeader}
           centerHeader={agentCenterHeader}
           rightHeader={agentRightHeader}
-          leftPaneHidden={agentSidebarPane.collapsed}
+          leftSlotStyle={agentLeftSlotStyle}
+          sidebarCollapsed={agentSidebarPane.collapsed}
+          leftPaneHidden={!agentSidebarVisible}
           rightSlotStyle={agentRightSlotStyle}
           rightPaneCollapsed={agentContentPane.collapsed}
           terminalPanel={terminalPanel}
@@ -902,7 +928,8 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
             <React.Suspense fallback={null}>
               <ProjectAgentContentPanel
                 collapsed={agentContentPane.collapsed}
-                onWidthChange={handleAgentModeContentPanelWidthChange}
+                width={agentContentPane.size}
+                onWidthChange={agentContentPane.setSize}
               />
             </React.Suspense>
           )}

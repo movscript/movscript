@@ -14,6 +14,7 @@ import {
   PluginToolSurface,
 } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
+import { PLUGIN_TOOL_NATIVE_MAIN_PANE_ID } from '@/features/plugins/presentation/pluginToolLayoutSpec'
 
 export default function PluginToolPage() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function PluginToolPage() {
     <PluginToolRoot>
       <PluginToolLoadingState>
         <PluginToolNativeLayout>
-          <PluginToolMain>
+          <PluginToolMain data-layout-pane-id={PLUGIN_TOOL_NATIVE_MAIN_PANE_ID}>
             <PluginToolSurface>
               <PluginToolInfoHeader>
                 <PluginToolInfoCopy>

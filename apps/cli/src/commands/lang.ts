@@ -5,6 +5,11 @@ import {
   createNodeMovScriptEngine,
 } from '@movscript/engine/node'
 import {
+  inspectMovScriptWorkspace,
+  overviewMovScriptWorkspace,
+  planMovScriptWorkspaceRegeneration,
+} from '@movscript/compiler/node'
+import {
   createNodeMovScriptWorkspaceFileRepository,
 } from '@movscript/workspace/node'
 import type {
@@ -1252,6 +1257,14 @@ function createCliEngine(options: WorkspaceOptions) {
 
 type CliEngine = ReturnType<typeof createCliEngine>
 
+function createCliFileRepository(options: WorkspaceOptions): MovScriptWorkspaceFileRepository {
+  return createCliFileRepositoryFromEngine(createCliEngine(options))
+}
+
+function createCliFileRepositoryFromEngine(engine: CliEngine): MovScriptWorkspaceFileRepository {
+  return createNodeMovScriptWorkspaceFileRepository(engine.projectDir)
+}
+
 async function addCandidateFromCliOptions(
   engine: CliEngine,
   target: string,
@@ -1599,13 +1612,17 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
 
 async function overviewWorkspaceFromCliOptions(options: WorkspaceOptions, command: Command): Promise<void> {
   const merged = mergeGlobalOptions(options, command)
-  const result = await createCliEngine(merged).overview()
+  const result = await overviewMovScriptWorkspace({
+    fileRepository: createCliFileRepository(merged),
+  })
   printResult(result, merged)
 }
 
 async function inspectWorkspaceFromCliOptions(options: WorkspaceOptions, command: Command): Promise<void> {
   const merged = mergeGlobalOptions(options, command)
-  const result = await createCliEngine(merged).inspect()
+  const result = await inspectMovScriptWorkspace({
+    fileRepository: createCliFileRepository(merged),
+  })
   printResult(result, merged)
   if (isRecord(result) && result.readyToBuild === false) process.exitCode = 2
 }
@@ -1623,7 +1640,9 @@ async function compileWorkspaceFromCliOptions(options: WorkspaceOptions, command
 
 async function regenerationPlanFromCliOptions(options: WorkspaceOptions, command: Command): Promise<void> {
   const merged = mergeGlobalOptions(options, command)
-  const result = await createCliEngine(merged).regenerationPlan()
+  const result = await planMovScriptWorkspaceRegeneration({
+    fileRepository: createCliFileRepository(merged),
+  })
   printResult(result, merged)
 }
 
@@ -1769,17 +1788,23 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
     return false
   }
   if (command === 'overview' || command === 'status') {
-    const result = await engine.overview()
+    const result = await overviewMovScriptWorkspace({
+      fileRepository: createCliFileRepositoryFromEngine(engine),
+    })
     printResult(result, options)
     return false
   }
   if (command === 'inspect') {
-    const result = await engine.inspect()
+    const result = await inspectMovScriptWorkspace({
+      fileRepository: createCliFileRepositoryFromEngine(engine),
+    })
     printResult(result, options)
     return false
   }
   if (command === 'review') {
-    const result = await engine.inspect()
+    const result = await inspectMovScriptWorkspace({
+      fileRepository: createCliFileRepositoryFromEngine(engine),
+    })
     printResult(result, options)
     return false
   }
@@ -1800,12 +1825,16 @@ async function dispatchInteractiveCompilerCommand(args: string[], options: Works
   const action = args.shift()
   const parsed = parseSlashOptions(args)
   if (action === 'overview') {
-    const result = await engine.overview()
+    const result = await overviewMovScriptWorkspace({
+      fileRepository: createCliFileRepositoryFromEngine(engine),
+    })
     printResult(result, options)
     return
   }
   if (action === 'inspect' || action === 'review' || action === undefined) {
-    const result = await engine.inspect()
+    const result = await inspectMovScriptWorkspace({
+      fileRepository: createCliFileRepositoryFromEngine(engine),
+    })
     printResult(result, options)
     return
   }
@@ -1841,7 +1870,9 @@ async function dispatchInteractiveCompilerCommand(args: string[], options: Works
 async function dispatchInteractiveRegenerationCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
   const action = args.shift()
   if (action === 'plan' || action === undefined) {
-    const result = await engine.regenerationPlan()
+    const result = await planMovScriptWorkspaceRegeneration({
+      fileRepository: createCliFileRepositoryFromEngine(engine),
+    })
     printResult(result, options)
     return
   }

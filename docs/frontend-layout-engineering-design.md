@@ -739,7 +739,7 @@ typed registry。`目标 scroll owner` 是迁移目标；`待确认` 表示需�
 | `/project/scripts` | redirect | detail shell | hidden | 无 | 删除旧 route 布局，只保留 redirect contract。 |
 | `/project/production/orchestration` | redirect to scripts workbench | detail shell | hidden | 无 | 旧 production orchestration route 已下线；文档里的 production 迁移指 scripts workbench。 |
 | `/project/content-units/workbench` | redirect to editor | detail shell | hidden | 无 | 保留兼容 redirect；真实布局在 editor route。 |
-| `/project/content-units/editor` | `ContentUnitWorkbenchPage` | detail shell + content workbench | workspace | filter/sidebar/detail overlap + timeline | 优先迁移 timeline coordinate adapter、drag payload 和 pane registry。 |
+| `/project/content-units/editor` | `ContentUnitWorkbenchPage` | detail shell + content workbench | workspace | filter/sidebar/detail overlap + timeline | timeline coordinate adapter、drag payload helper 和 pane registry 必须保持在 domain/layout contract 内。 |
 | `/project/tasks` | `TasksPage` | detail shell | document | dialogs + agent panel bridge | 普通 project document page；task dialog 是 overlay，不拥有 route shell。 |
 | `/project/overview` | redirect to scripts workbench | detail shell | hidden | 无 | 只保留 redirect contract。 |
 
@@ -750,7 +750,7 @@ typed registry。`目标 scroll owner` 是迁移目标；`待确认` 表示需�
 | `/project/agent` | `AgentModePage` | agent shell | workspace | agent sidebar、content pane、terminal center-right | app layout runtime 应拥有 sidebar/content pane size、collapsed state 和 terminal placement。 |
 | `/project/agent/canvases` | `AgentModeCanvasListPage` | agent shell | document inside agent shell | agent sidebar/content pane | 继承 agent shell spec；页面内容按 document/list 处理。 |
 | `/canvases` | `CanvasListPage` | detail shell + contained layout | document | 无 local pane | 普通 list document；打开 editor 时进入 canvas shell。 |
-| `/canvases/:id` | `CanvasEditorPage` | dedicated canvas `WorkspaceShell` | canvas | palette pane、flow viewport、workflow pane、runtime dialogs | canvas route 独立 registry spec；drop 坐标必须走 React Flow adapter。 |
+| `/canvases/:id` | `CanvasEditorPage` | dedicated canvas `WorkspaceShell` | canvas | palette pane、flow viewport、workflow pane、runtime dialogs | canvas route 独立 registry spec；drop 坐标走 React Flow adapter，node/workflow drag payload 走 canvas domain helper。 |
 
 #### Tools And Resource Routes
 
@@ -761,9 +761,9 @@ typed registry。`目标 scroll owner` 是迁移目标；`待确认` 表示需�
 | `/tools/motion-imitation` | `MotionImitationPage` | detail shell + tool workspace/dialog | workspace | resource pane + main/output pane | 同 ref-image；参数区滚动由 main pane 拥有。 |
 | `/tools/style-transfer` | `StyleTransferPage` | detail shell + tool workspace/dialog | workspace | resource pane + main/output pane | 同 ref-image。 |
 | `/tools/multi-angle` | `MultiAnglePage` | detail shell + tool workspace/dialog | workspace | resource pane + main/output pane | 同 ref-image。 |
-| `/tools/plugin/:pluginId` | `PluginToolPage` | detail shell | workspace by plugin spec | plugin-defined panes | plugin 页面必须声明 layout spec；默认不能直接写 shell/layout escape hatch。 |
+| `/tools/plugin/:pluginId` | `PluginToolPage` | detail shell | workspace via native plugin host spec | native plugin main pane；future plugin-defined panes | 当前禁用态 host 继承 native layout spec；未来 plugin 页面必须扩展 registry，不能直接写 shell/layout escape hatch。 |
 | `/resources` | `ResourcesPage` | detail shell | document route；resource primitive owns collection scroll | resource grid/list、drag source、context menu | 当前是主要 resource drag source；payload helper 和 context menu overlay 要进入 interaction model。 |
-| `/resources/external` | `ExternalResourceSearchPage` | detail shell | document | search/results panels | 普通 document，外部资源选择或导入 overlay 需要登记。 |
+| `/resources/external` | `ExternalResourcesPage` | detail shell | document | search/results panels | 普通 document，外部资源选择或导入 overlay 需要登记。 |
 | `/shot-library` | `ShotLibraryPage` | detail shell | document | import/review dialog、video workspace editor | dialog 内部是封闭工具；需要独立 dialog scroll owner 和 resize/measurement adapter。 |
 | `/jobs` | `JobsPage` | detail shell | document | job cards/list/detail actions | 普通 document；job result preview dialog 走 overlay。 |
 | `/plugins` | `ClientPluginsPage` | detail shell | document | plugin list/detail | 普通 document；安装/配置 dialog 走 overlay。 |
@@ -818,17 +818,17 @@ typed registry。`目标 scroll owner` 是迁移目标；`待确认` 表示需�
 | `/project/overview` | redirect to scripts workbench | detail shell | hidden | 无页面 body | 无 | `ProjectOverviewPage` 不作为当前可达页面布局迁移。 |
 | `/project/tasks` | `TasksPage` | detail shell | document | task board/list document，详情和操作通过 dialog/bridge 打开 | task dialogs；agent panel bridge；app shell panes | route 自身是 document；task dialog 单独登记 overlay。 |
 | `/project/content-units/workbench` | redirect to editor | detail shell | hidden | 无页面 body | 无 | 保留兼容入口；真实布局在 editor route。 |
-| `/project/content-units/editor` | `ContentUnitWorkbenchPage` | detail shell + content workbench | workspace | filter/sidebar + candidate/detail overlap + timeline/editor 区 | workbench right detail pane；timeline coordinate adapter；dialogs | 绑定 `content_orchestration` workbench id。 |
+| `/project/content-units/editor` | `ContentUnitWorkbenchPage` | detail shell + content workbench | workspace | filter/sidebar + candidate/detail overlap + timeline/editor 区 | workbench right detail pane；timeline coordinate adapter；timeline drag payload；dialogs | 绑定 `content_orchestration` workbench id；timeline drag payload 归 domain helper。 |
 | `/project/agent` | `AgentModePage` | agent shell | workspace | agent mode：左 agent sidebar + route content + 右 assistant/content pane + terminal | app shell agent sidebar/content/terminal panes | shell runtime 拥有 agent pane size、collapse 和 terminal placement。 |
 | `/project/agent/canvases` | `AgentModeCanvasListPage` | agent shell | document inside agent shell | canvas list document，运行在 agent shell 内容区 | app shell agent panes | 继承 agent shell spec；页面只管列表内容。 |
 | `/canvases` | `CanvasListPage` | detail shell + `RouteContentShell(width=normal)` | document | contained canvas list document | app shell panes | 普通 list document；编辑器单独 route。 |
-| `/canvases/:id` | `CanvasEditorPage` | dedicated canvas `WorkspaceShell` | canvas | canvas viewport + left palette + right workflow pane + header controls | canvas palette/workflow panes；runtime dialogs | React Flow pan/zoom/drop 坐标归 canvas adapter。 |
+| `/canvases/:id` | `CanvasEditorPage` | dedicated canvas `WorkspaceShell` | canvas | canvas viewport + left palette + right workflow pane + header controls | canvas palette/workflow panes；node/workflow drag payload；runtime dialogs | React Flow pan/zoom/drop 坐标归 canvas adapter；canvas node/workflow drag payload 归 domain helper。 |
 | `/tools/ref-image-gen` | `RefImageGenPage` -> `ToolDialog` | detail shell + tool reference workbench | workspace | tool frame：main prompt/output pane + history + resource pane | tool resource pane；app shell panes | 使用 shared tool layout spec；resource pane width 进 registry。 |
 | `/tools/ref-video-gen` | `RefVideoGenPage` -> `ToolDialog` | detail shell + tool reference workbench | workspace | 同 ref-image：main/output/history + resource pane | tool resource pane；app shell panes | 与 ref-image 共用 pane spec。 |
 | `/tools/motion-imitation` | `MotionImitationPage` -> `ToolDialog` | detail shell + tool reference workbench | workspace | 同 ref-image；参数区滚动由 main pane 拥有 | tool resource pane；app shell panes | 与 ref-image 共用 pane spec。 |
 | `/tools/style-transfer` | `StyleTransferPage` -> `ToolDialog` | detail shell + tool reference workbench | workspace | 同 ref-image；风格资源由 resource pane 管理 | tool resource pane；app shell panes | 与 ref-image 共用 pane spec。 |
 | `/tools/multi-angle` | `MultiAnglePage` -> `ToolDialog` | detail shell + tool reference workbench | workspace | 同 ref-image；多角度输入在 main pane 内组织 | tool resource pane；app shell panes | 与 ref-image 共用 pane spec。 |
-| `/tools/plugin/:pluginId` | `PluginToolPage` | detail shell + plugin workbench | workspace by plugin spec | plugin host 根据 plugin spec 渲染 panes/content | plugin-defined panes；app shell panes | plugin 必须声明 layout spec，不能直接写 shell escape hatch。 |
+| `/tools/plugin/:pluginId` | `PluginToolPage` | detail shell + native plugin host workbench | workspace target | native main pane；未来 plugin spec 可增加 form/resource/webview panes | native plugin main pane；app shell panes | 当前禁用态 host 已登记 native pane；未来 plugin-defined panes 必须扩展 registry。 |
 | `/resources` | `ResourcesPage` | detail shell | document route；resource primitive owns collection scroll | toolbar/filter + grid/list collection + preview/import dialogs | context menu/import dialogs；drag source payload | 主要资源 drag source；先收敛 interaction payload；除非增加固定 detail pane，否则不升级 workspace。 |
 | `/resources/external` | `ExternalResourcesPage` | detail shell | document | external search form + results document | import/select overlays | 普通 document route。 |
 | `/shot-library` | `ShotLibraryPage` | detail shell | document | shot list/grid document；导入/编辑在 dialog 内完成 | import/review/video workspace dialogs | dialog 内部需要独立 scroll owner 和 measurement adapter。 |
@@ -849,6 +849,30 @@ typed registry。`目标 scroll owner` 是迁移目标；`待确认` 表示需�
 | `/admin/*` | redirect to `/` | detail shell | hidden | 无页面 body | 无 | community app 不维护 admin shell。 |
 | `/user` | `AccountSettingsRoute(tab=profile)` | detail shell action | hidden | 不渲染页面 body；打开 account settings dialog 后 redirect | account settings dialog | registry 标记 `overlay-action`。 |
 | `/org/settings` | `AccountSettingsRoute(tab=workspace)` | detail shell action | hidden | 不渲染页面 body；打开 account settings dialog 后 redirect | account settings dialog | registry 标记 `overlay-action`。 |
+
+#### 逐级布局责任矩阵
+
+逐页表回答“当前 route 是什么页面”。这张矩阵回答“改这个页面时要从哪一层开始梳理”。
+迁移时按层级从上到下核对：先确定 shell 和 route viewport，再确定页面内部 primitive，
+最后处理 pane 展开缩略、overlay 和拖拽坐标。任何页面如果需要新增第 3 层或第 4 层布局能力，
+都应该先补到 registry / primitive contract，再落到业务组件。
+
+| 页面范围 | 第 1 层：route / shell owner | 第 2 层：viewport owner | 第 3 层：页面内部布局 | 第 4 层：pane / overlay / interaction | 展开缩略要求 |
+| --- | --- | --- | --- | --- | --- |
+| unauth `*`、`/onboarding`、未登录 `/app/settings`、`/invite/:token` | standalone recovery shell | page document scroll | recovery form/document flow | 无 app shell pane；只有页面内表单状态 | 不提供 pane collapse；需要全屏恢复入口时由页面内容自己处理，不写 shell storage。 |
+| `/org/select`、`/`、`/projects`、`/canvases`、`/project/tasks`、`/model-providers`、`/agents/:providerRouteKey`、`/agent/settings`、`/agent/runs` | detail `WorkspaceShell` + global app chrome | `AppRouteViewport(scroll=auto)` | contained document 或普通 document list/form | app shell sidebar、assistant dock、terminal dock；页面 dialog 进入 overlay | global sidebar/assistant/terminal 展开缩略只由 app shell pane controller 处理；document 页面不能自管 shell width。 |
+| `/resources`、`/resources/external`、`/shot-library`、`/jobs`、`/plugins` | detail `WorkspaceShell` + global app chrome | document route；collection/dialog 内部可拥有局部 scroll | toolbar/filter + collection/list/grid document | import/preview/config dialog；resource drag source/context menu | route 不升级 workspace；如果后续增加固定 detail pane，必须先新增 pane spec，再允许 collapsed/reveal 行为。 |
+| `/project/standards` | detail shell + project workbench route | `AppRouteViewport(scroll=owned)` | `WorkbenchProjectShell`：标准内容、review summary、workbench actions | workbench overlay layer；app shell panes | workbench overlay 展开由 workbench controller 处理；不允许页面绕过 shell controller 调整 global pane。 |
+| `/project/pre-production` | detail shell + `pre_production` workbench | workspace viewport | asset/resource main area + right detail/resource `OverlapPane` | `PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_ID`；review/resource dialogs；drag targets | right pane 支持 `default/collapsed/expanded`；size/state/storage 归 route layout overlap controller。 |
+| `/project/scripts/workbench` | detail shell + `orchestration_production` workbench | workspace viewport | script list/main authoring area + right detail `OverlapPane` | `SCRIPT_WORKBENCH_DETAIL_PANE_ID`；script/resource dialogs；production review overlays | right pane 支持 `default/collapsed/expanded`；drag below/above bounds 由 overlap controller 决定 collapse/expand。 |
+| `/project/content-units/editor` | detail shell + `content_orchestration` workbench | workspace viewport | filter/sidebar + candidate/detail `OverlapPane` + timeline/editor viewport | `CONTENT_WORKBENCH_DETAIL_PANE_ID`；timeline coordinate adapter；timeline drag payload helper | detail pane 支持 `default/collapsed/expanded`；timeline 自身只管理时间坐标和局部滚动，不管理 route pane state。 |
+| `/tools/ref-image-gen`、`/tools/ref-video-gen`、`/tools/motion-imitation`、`/tools/style-transfer`、`/tools/multi-angle` | detail shell + tool workbench route | workspace viewport | `ToolDialogFrame`：main prompt/output/history + resource pane | `TOOL_WORKBENCH_RESOURCE_PANE_ID`；resource drop target；tool debug/output overlays | resource pane 支持 `default/collapsed/expanded`；工具页不能直接读写资源 pane width storage。 |
+| `/tools/plugin/:pluginId` | detail shell + native plugin host spec | workspace target | native plugin main pane；未来 plugin-defined panes | `PLUGIN_TOOL_NATIVE_MAIN_PANE_ID`；plugin config/permission overlays | 当前 native main pane 固定 `default`；未来 plugin pane 也必须声明 allowed states 后才能展开缩略。 |
+| `/project/agent`、`/project/agent/canvases` | agent `WorkspaceShell` | project agent route 为 workspace；agent canvas list 为 document inside agent shell | left agent sidebar + center route content + right content pane + terminal center-right | `APP_SHELL_AGENT_SIDEBAR_PANE_ID`、`APP_SHELL_AGENT_CONTENT_PANE_ID`、terminal pane | agent sidebar/content pane size、collapse、restore、terminal open 全部归 app layout runtime；fullscreen fallback 才允许组件自管宽度。 |
+| `/canvases/:id` | dedicated canvas `WorkspaceShell` | canvas viewport；React Flow owns pan/zoom | left palette + flow viewport + right workflow pane + header controls | canvas palette/workflow panes；node/workflow drag payload；runtime dialogs | workflow pane 支持 collapsed/expanded；drop coordinate 必须先转成 React Flow 坐标，不能用 visual overlap box。 |
+| `/agent`、`/agent/connections`、`/workspace/config`、`/workspace/review`、`/agent/runs/:runId` | detail shell + agent workspace page shell | workspace viewport | `AgentPageShell` / `AgentThreePanePageBody` / `AgentWorkspacesPageBody` | registered workspace panes：console logs、connections threads/events/raw、file tree/editor、review summary/raw、run sidebar/trace | 当前 pane 多为 fixed/default；如果要 resize/collapse，先补 pane constraints 和 reveal 入口，不能在页面 CSS 里临时隐藏列。 |
+| `/project/scripts`、`/project/production/orchestration`、`/project/content-units/workbench`、`/project/overview`、`/agents`、`/agent/files`、`/agent/model-providers`、`/admin/*` | redirect route | hidden viewport | 无页面 body | 无 pane / overlay | redirect route 不拥有布局状态；只保留 registry redirect contract。 |
+| 登录态 `/app/settings`、`/user`、`/org/settings` | detail shell action | hidden viewport | 不渲染页面 body；触发 account settings dialog 后 redirect | account settings dialog owner | dialog 自己拥有 body scroll；route 不持久化 pane 或 document scroll。 |
 
 ### Phase 0: Freeze And Inventory
 

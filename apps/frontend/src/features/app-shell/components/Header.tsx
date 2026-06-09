@@ -8,6 +8,7 @@ import {
   AppWindowHeader,
   AppWindowMacTrafficLights,
 } from '@movscript/ui'
+import { Clapperboard } from 'lucide-react'
 
 export function Header({
   titleKey: _titleKey,
@@ -83,6 +84,7 @@ export function Header({
       centerContent={centerContent}
       fallbackBrand={showFallbackBrand ? (
         <AppWindowBrandButton>
+          <Clapperboard className="app-window-brand-button__icon" size={13} />
           <span>Movscript</span>
         </AppWindowBrandButton>
       ) : undefined}

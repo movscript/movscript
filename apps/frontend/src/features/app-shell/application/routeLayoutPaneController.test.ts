@@ -5,6 +5,15 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui'
 import {
+  AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
+  AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
+  AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH,
+  AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
+  AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
+  LEGACY_AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
+  LEGACY_AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
+} from '@/features/agent/presentation/agentModePanelSizing'
+import {
   CONTENT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
   CONTENT_WORKBENCH_DETAIL_PANE_ID,
   CONTENT_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
@@ -29,6 +38,8 @@ import {
   TOOL_WORKBENCH_RESOURCE_PANE_WIDTH_STORAGE_KEY,
 } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
 import {
+  APP_SHELL_AGENT_CONTENT_PANE_ID,
+  APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
@@ -63,20 +74,62 @@ test('route layout pane controller derives terminal dock state contract from rou
   assert.equal(allowedRouteLayoutPaneState(pane, 'collapsed'), 'default')
 })
 
+test('route layout pane controller derives agent shell pane state contract from route spec', () => {
+  const routeLayout = routeLayoutSpecForPathname('/project/agent')
+  const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
+  const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
+
+  assert.equal(sidebarPane?.storageKey, AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY)
+  assert.equal(sidebarPane?.stateStorageKey, AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
+  assert.equal(sidebarPane?.collapsedSize, AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH)
+  assert.equal(sidebarPane?.defaultState, 'default')
+  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'collapsed'), 'collapsed')
+  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'hidden'), 'default')
+  assert.notEqual(sidebarPane?.stateStorageKey, LEGACY_AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
+
+  assert.equal(contentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
+  assert.equal(contentPane?.stateStorageKey, AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
+  assert.equal(contentPane?.defaultState, 'default')
+  assert.equal(contentPane?.collapsedSize, 0)
+  assert.equal(allowedRouteLayoutPaneState(contentPane, 'hidden'), 'default')
+  assert.notEqual(contentPane?.stateStorageKey, LEGACY_AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
+})
+
 test('shell layout consumes detail sidebar state through the route pane controller', () => {
   const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
+  const projectAgentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
 
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_DETAIL_SIDEBAR_PANE_ID/)
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackState: 'hidden'/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*controlledState: agentModeSidebarCollapsed \? 'collapsed' : 'default'/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*controlledState: agentModeContentPanelCollapsed \? 'collapsed' : 'default'/)
+  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*clampSize: clampAgentModeSidebarWidth[\s\S]*controlledState: agentModeSidebarCollapsed \? 'collapsed' : 'default'/)
+  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*clampSize: clampAgentModeContentPanelWidth[\s\S]*controlledState: agentModeContentPanelCollapsed \? 'collapsed' : 'default'/)
   assert.match(appSource, /detailSidebarPane\.hidden/)
   assert.match(appSource, /detailSidebarPane\.setSize/)
   assert.match(appSource, /const terminalOpen = !terminalPane\.hidden/)
   assert.match(appSource, /agentSidebarPane\.collapse/)
   assert.match(appSource, /agentContentPane\.collapsed/)
+  assert.match(appSource, /fallbackState: 'default'/)
+  assert.match(appSource, /const agentSidebarVisible = !agentSidebarPane\.collapsed && !agentSidebarPane\.hidden/)
+  assert.match(appSource, /const agentLeftSlotWidth = !agentSidebarVisible[\s\S]*agentSidebarPane\.size/)
+  assert.match(appSource, /const agentLeftSlotStyle = \{[\s\S]*agentLeftSlotWidth/)
+  assert.match(appSource, /const agentRightCollapsedWidth = agentContentPane\.pane\?\.collapsedSize \?\? 0/)
+  assert.match(appSource, /const agentRightSlotStyle = \{[\s\S]*agentRightCollapsedWidth[\s\S]*agentContentPane\.size/)
+  assert.match(appSource, /onClick=\{agentContentPanelClosed \? agentContentPane\.show : agentContentPane\.collapse\}/)
+  assert.match(appSource, /showAgentContentPanelShortcut=\{false\}/)
+  assert.match(appSource, /sidebarCollapsed=\{agentSidebarPane\.collapsed\}/)
+  assert.match(appSource, /leftPaneHidden=\{!agentSidebarVisible\}/)
+  assert.match(appSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
+  assert.match(appSource, /<ProjectAgentContentPanel[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
+  assert.match(projectAgentModePageSource, /const controlledByRouteLayout = typeof width === 'number' && onWidthChange !== undefined/)
+  assert.match(projectAgentModePageSource, /const renderedSidebarWidth = sidebarCollapsed \? AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth/)
+  assert.match(projectAgentModePageSource, /useState\(\(\) => \{\s*if \(controlledByRouteLayout\) return clampAgentModeSidebarWidth\(width\)[\s\S]*window\.localStorage\.getItem\(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY\)/)
+  assert.match(projectAgentModePageSource, /useState\(\(\) => \{\s*if \(controlledByRouteLayout\) return clampAgentModeContentPanelWidth\(width\)[\s\S]*window\.localStorage\.getItem\(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY\)/)
+  assert.match(projectAgentModePageSource, /if \(controlledByRouteLayout\) return[\s\S]*window\.localStorage\.setItem\(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY/)
+  assert.match(projectAgentModePageSource, /if \(controlledByRouteLayout\) return[\s\S]*window\.localStorage\.setItem\(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY/)
   assert.doesNotMatch(appSource, /const \[detailSidebarState/)
   assert.doesNotMatch(appSource, /const \[terminalOpen/)
+  assert.doesNotMatch(appSource, /const \[agentModeContentPanelWidth/)
+  assert.doesNotMatch(appSource, /handleAgentModeContentPanelWidthChange/)
   assert.doesNotMatch(appSource, /APP_TERMINAL_OPEN_STORAGE_KEY/)
   assert.doesNotMatch(appSource, /toggleAgentModeSidebarCollapsed/)
   assert.doesNotMatch(appSource, /window\.localStorage\.getItem\(SIDEBAR_WIDTH_STORAGE_KEY\)/)

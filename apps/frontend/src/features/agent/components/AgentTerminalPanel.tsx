@@ -1,24 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ChevronDown, Play, Plus, Terminal as TerminalIcon, X } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 
-import {
-  appServerRpcClientForURL,
-  ensureAppServer,
-  type AppServerRpcClient,
-} from '@/shared/infrastructure/app-server/appServerRpcClient'
-import {
-  providerInstanceId,
-  resolveAppServerProfile,
-  resolveNewConversationProvider,
-  usesAppServerProtocol,
-  useProviderConfigStore,
-  type MovScriptWorkspaceContext,
-} from '@/shared/infrastructure/providerConfigStore'
-import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
 const AGENT_TERMINAL_PANEL_OPEN_KEY = 'movscript.agentMode.terminal.open'
 const AGENT_TERMINAL_DEFAULT_ROWS = 12
@@ -47,8 +34,7 @@ type ShellSession = {
 type ShellRuntime = {
   terminal: Terminal | null
   fitAddon: FitAddon | null
-  client: AppServerRpcClient | null
-  processId: string | null
+  terminalSessionId: string | null
   status: TerminalStatus
   outputBuffer: string
   writeChain: Promise<unknown>
@@ -100,10 +86,6 @@ function createInitialAgentTerminalStore(): AgentTerminalStoreState {
 }
 
 export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onOpenChange, shellPlacement = 'center' }: AgentTerminalPanelProps) {
-  const providerSettings = useProviderConfigStore((state) => state.settings)
-  const currentUser = useUserStore((state) => state.currentUser)
-  const provider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
-  const appServerMode = usesAppServerProtocol(provider)
   const [internalOpen, setInternalOpen] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(AGENT_TERMINAL_PANEL_OPEN_KEY) === '1'
@@ -114,12 +96,9 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
   const activeShellId = terminalStore.activeShellId
   const shellResetNonce = terminalStore.shellResetNonce
 
-  const providerKey = `${provider.kind}:${provider.id}:${providerInstanceId(provider)}`
   const workspaceContextKey = JSON.stringify(workspaceContext)
-  const contextKey = `${providerKey}:${workspaceContextKey}`
   const controlled = controlledOpen !== undefined
-  const disabled = !appServerMode
-  const terminalUser = terminalPromptUser(currentUser?.username)
+  const disabled = typeof window === 'undefined' || !window.api?.createLocalTerminal
   const activeSession = sessions.find((session) => session.id === activeShellId) ?? sessions[0]
   const statusLabel = terminalStatusLabel(activeSession?.status ?? 'idle', disabled)
   const shortCwd = activeSession?.cwd
@@ -153,8 +132,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
       runtime = {
         terminal: null,
         fitAddon: null,
-        client: null,
-        processId: null,
+        terminalSessionId: null,
         status: 'idle',
         outputBuffer: '',
         writeChain: Promise.resolve(),
@@ -177,15 +155,16 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     const terminal = runtime?.terminal
     const fitAddon = runtime?.fitAddon
     if (!runtime || !terminal || !fitAddon) return
+    if (!canFitTerminal(terminal)) return
     try {
       fitAddon.fit()
     } catch (fitError) {
       console.warn('[agent-terminal] failed to fit terminal', fitError)
       return
     }
-    if (!runtime.client || !runtime.processId) return
-    void runtime.client.requestProtocol('command/exec/resize', {
-      processId: runtime.processId,
+    if (!runtime.terminalSessionId) return
+    void window.api?.resizeLocalTerminal?.({
+      sessionId: runtime.terminalSessionId,
       size: {
         rows: terminal.rows,
         cols: terminal.cols,
@@ -197,12 +176,12 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
 
   const sendShellData = useCallback((id: string, data: string) => {
     const runtime = agentTerminalRuntimes.get(id)
-    if (!runtime || runtime.status !== 'running' || !runtime.client || !runtime.processId) return
+    if (!runtime || runtime.status !== 'running' || !runtime.terminalSessionId) return
     runtime.writeChain = runtime.writeChain
       .catch(() => undefined)
-      .then(() => runtime.client?.requestProtocol('command/exec/write', {
-        processId: runtime.processId,
-        deltaBase64: encodeUtf8Base64(data),
+      .then(() => window.api?.writeLocalTerminal?.({
+        sessionId: runtime.terminalSessionId ?? id,
+        data,
       }))
       .catch((writeError) => {
         setShellStatus(id, 'error', {
@@ -217,14 +196,14 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     runtime.runToken += 1
     runtime.unsubscribe?.()
     runtime.unsubscribe = null
-    stopTerminalProcess(runtime.client, runtime.processId)
-    runtime.processId = null
+    if (runtime.terminalSessionId) void window.api?.killLocalTerminal?.({ sessionId: runtime.terminalSessionId })
+    runtime.terminalSessionId = null
     setShellStatus(id, 'exited')
   }, [setShellStatus])
 
   const startShell = useCallback(async (id: string) => {
-    if (!appServerMode) {
-      setShellStatus(id, 'error', { error: `${provider.label} does not expose an app-server terminal.` })
+    if (!window.api?.createLocalTerminal) {
+      setShellStatus(id, 'error', { error: 'Local terminal is not available in this runtime.' })
       return
     }
 
@@ -238,73 +217,33 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     runtime.unsubscribe?.()
     runtime.unsubscribe = null
     runtime.outputBuffer = ''
-    const processId = `agent_terminal_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    runtime.processId = processId
+    runtime.terminalSessionId = id
     setShellStatus(id, 'starting', { error: '', cwd: '' })
     terminal.reset()
-    appendShellOutput(runtime, `Starting shell: ${shellLabel(shellCommand())}\r\n`)
+    appendShellOutput(runtime, 'Starting host shell...\r\n')
 
     try {
-      const profile = resolveAppServerProfile(provider)
-      const statusResult = await ensureAppServer({
-        profile,
+      const result = await window.api.createLocalTerminal({
+        sessionId: id,
         workspaceContext,
-      })
-      if (!statusResult?.ok || !statusResult.endpoint) {
-        throw new Error(statusResult?.error || `${provider.label} app-server failed to start: ${profile.id}`)
-      }
-      if (runtime.runToken !== token) return
-
-      const client = appServerRpcClientForURL(statusResult.endpoint)
-      runtime.client = client
-      const resolvedCwd = statusResult.providerSessionCwd || ''
-      updateSession(id, { cwd: resolvedCwd })
-
-      runtime.unsubscribe = client.onNotification((notification) => {
-        if (notification.method !== 'command/exec/outputDelta') return
-        const params = notification.params
-        if (!isRecord(params) || params.processId !== processId || typeof params.deltaBase64 !== 'string') return
-        appendShellOutput(runtime, decodeBase64Utf8(params.deltaBase64))
-      })
-
-      setShellStatus(id, 'running')
-      terminal.focus()
-
-      client.requestProtocol<{ exitCode: number }>('command/exec', {
-        command: shellCommand(),
-        processId,
-        tty: true,
-        streamStdin: true,
-        streamStdoutStderr: true,
-        disableTimeout: true,
-        cwd: resolvedCwd || undefined,
-        env: shellEnvironment(statusResult.cliBinDir, statusResult.cliEnv, terminalUser),
         size: {
           rows: terminal.rows || AGENT_TERMINAL_DEFAULT_ROWS,
           cols: terminal.cols || AGENT_TERMINAL_DEFAULT_COLS,
         },
-      }).then((result) => {
-        if (runtime.runToken !== token) return
-        appendShellOutput(runtime, `\r\nShell exited with code ${result.exitCode}.\r\n`)
-        setShellStatus(id, 'exited')
-      }).catch((requestError) => {
-        if (runtime.runToken !== token) return
-        setShellStatus(id, 'error', {
-          error: requestError instanceof Error ? requestError.message : String(requestError),
-        })
-      }).finally(() => {
-        runtime.unsubscribe?.()
-        runtime.unsubscribe = null
-        if (runtime.runToken === token) runtime.processId = null
       })
+      if (runtime.runToken !== token) return
+      runtime.terminalSessionId = result.sessionId
+      updateSession(id, { cwd: result.cwd })
+      setShellStatus(id, 'running')
+      terminal.focus()
     } catch (startError) {
       if (runtime.runToken !== token) return
-      runtime.processId = null
+      runtime.terminalSessionId = null
       setShellStatus(id, 'error', {
         error: startError instanceof Error ? startError.message : String(startError),
       })
     }
-  }, [appServerMode, provider, runtimeFor, setShellStatus, terminalUser, updateSession, workspaceContext])
+  }, [runtimeFor, setShellStatus, updateSession, workspaceContext])
 
   const addShell = useCallback(() => {
     updateAgentTerminalStore((current) => {
@@ -358,13 +297,32 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
 
   useEffect(() => {
     if (!agentTerminalContextKey) {
-      agentTerminalContextKey = contextKey
+      agentTerminalContextKey = workspaceContextKey
       return
     }
-    if (agentTerminalContextKey === contextKey) return
-    agentTerminalContextKey = contextKey
+    if (agentTerminalContextKey === workspaceContextKey) return
+    agentTerminalContextKey = workspaceContextKey
     resetShells()
-  }, [contextKey, resetShells])
+  }, [resetShells, workspaceContextKey])
+
+  useEffect(() => {
+    return window.api?.onLocalTerminalEvent?.((event) => {
+      const runtime = agentTerminalRuntimes.get(event.sessionId)
+      if (!runtime) return
+      if (event.kind === 'output') {
+        appendShellOutput(runtime, event.data)
+        return
+      }
+      if (event.kind === 'exit') {
+        runtime.terminalSessionId = null
+        appendShellOutput(runtime, `\r\nShell exited with code ${event.exitCode}.\r\n`)
+        setShellStatus(event.sessionId, 'exited')
+        return
+      }
+      runtime.terminalSessionId = null
+      setShellStatus(event.sessionId, 'error', { error: event.error })
+    })
+  }, [setShellStatus])
 
   useEffect(() => {
     if (!open || !activeSession) return
@@ -386,7 +344,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
           className="agent-terminal-dock__toggle"
           onClick={() => setOpen(true)}
           disabled={disabled}
-          title={disabled ? '当前 Agent 不支持 app-server terminal' : '打开 Terminal'}
+          title={disabled ? '当前运行环境不支持本地 Terminal' : '打开 Terminal'}
         >
           <TerminalIcon size={15} />
           <span>Terminal</span>
@@ -544,15 +502,18 @@ function ShellTerminalViewport({
     const inputDisposable = terminal.onData((data) => sendShellData(sessionId, data))
     const resizeObserver = new ResizeObserver(() => resizeShell(sessionId))
     resizeObserver.observe(host)
-    resizeShell(sessionId)
-    if (active) void startShell(sessionId)
+    const frame = window.requestAnimationFrame(() => {
+      resizeShell(sessionId)
+      if (active) void startShell(sessionId)
+    })
 
     return () => {
+      window.cancelAnimationFrame(frame)
       inputDisposable.dispose()
       resizeObserver.disconnect()
-      terminal.dispose()
       if (runtime.terminal === terminal) runtime.terminal = null
       if (runtime.fitAddon === fitAddon) runtime.fitAddon = null
+      terminal.dispose()
     }
   }, [disabled, resizeShell, runtimeFor, sendShellData, sessionId])
 
@@ -591,72 +552,11 @@ function appendShellOutput(runtime: ShellRuntime, data: string): void {
   runtime.terminal?.write(data)
 }
 
-function shellCommand(): string[] {
-  if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform)) return ['cmd.exe']
-  if (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)) return ['/bin/zsh', '-f']
-  return ['/bin/bash', '--noprofile', '--norc']
-}
-
-function shellLabel(command: string[]): string {
-  return command.join(' ')
-}
-
-function shellEnvironment(cliBinDir?: string, cliEnv?: Record<string, string>, promptUser = 'movscript'): Record<string, string> {
-  const prompt = shellPrompt(promptUser)
-  const env: Record<string, string> = {
-    ...(cliEnv ?? {}),
-    MOVSCRIPT_TERMINAL_USER: promptUser,
-    PROMPT: prompt,
-    PS1: prompt,
-    PROMPT2: '',
-    PS2: '',
-    RPROMPT: '',
-    RPS1: '',
-    TERM: 'xterm-256color',
-    COLORTERM: 'truecolor',
-  }
-  if (cliBinDir) {
-    env.MOVSCRIPT_CLI_BIN_DIR = cliBinDir
-    env[pathEnvironmentKey()] = prependPathSegment(cliBinDir, defaultShellPath())
-  }
-  return env
-}
-
-function shellPrompt(promptUser: string): string {
-  if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform)) {
-    return `$T ${promptUser} $P$G `
-  }
-  if (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)) {
-    return `%F{cyan}[%D{%H:%M:%S} ${promptUser}]%f %F{blue}%1~%f %# `
-  }
-  return `\\[\\e[36m\\][\\t ${promptUser}]\\[\\e[0m\\] \\[\\e[34m\\]\\W\\[\\e[0m\\] \\$ `
-}
-
-function terminalPromptUser(username: string | undefined): string {
-  const sanitized = username
-    ?.replace(/[\x00-\x1F\x7F]/g, '')
-    .trim()
-    .replace(/[^A-Za-z0-9._@-]/g, '_')
-  return sanitized || 'movscript'
-}
-
-function pathEnvironmentKey(): 'PATH' | 'Path' {
-  if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform)) return 'Path'
-  return 'PATH'
-}
-
-function defaultShellPath(): string {
-  if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform)) {
-    return 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem'
-  }
-  return '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'
-}
-
-function prependPathSegment(segment: string, currentPath: string): string {
-  const separator = pathEnvironmentKey() === 'Path' ? ';' : ':'
-  const entries = currentPath.split(separator).filter(Boolean)
-  const withoutDuplicate = entries.filter((entry) => entry !== segment)
-  return [segment, ...withoutDuplicate].join(separator)
+function canFitTerminal(terminal: Terminal): boolean {
+  const element = terminal.element
+  const host = element?.parentElement
+  if (!element || !host || !element.isConnected || !host.isConnected) return false
+  return host.clientWidth > 0 && host.clientHeight > 0
 }
 
 function terminalStatusLabel(status: TerminalStatus, disabled: boolean): string {
@@ -672,20 +572,6 @@ function compactPath(path: string): string {
   const parts = path.replace(/\\/g, '/').split('/').filter(Boolean)
   if (parts.length <= 3) return path
   return `.../${parts.slice(-3).join('/')}`
-}
-
-function encodeUtf8Base64(value: string): string {
-  const bytes = new TextEncoder().encode(value)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-}
-
-function decodeBase64Utf8(value: string): string {
-  const binary = atob(value)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return new TextDecoder().decode(bytes)
 }
 
 function terminalTheme(host: HTMLElement) {
@@ -720,15 +606,4 @@ function terminalTheme(host: HTMLElement) {
 function cssColorValue(value: string, fallback: string): string {
   const trimmed = value.trim()
   return trimmed || fallback
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function stopTerminalProcess(client: AppServerRpcClient | null, processId: string | null): void {
-  if (!client || !processId) return
-  void client.requestProtocol('command/exec/terminate', { processId }).catch((terminateError) => {
-    console.warn('[agent-terminal] failed to terminate shell', terminateError)
-  })
 }

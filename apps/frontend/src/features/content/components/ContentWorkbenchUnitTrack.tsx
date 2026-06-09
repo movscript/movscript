@@ -35,6 +35,10 @@ import {
   trackTimelineWidthPx,
   type ContentWorkbenchDropPosition,
 } from '@/features/content/domain/contentWorkbenchTimeline'
+import {
+  readContentWorkbenchTimelineDragPayload,
+  writeContentWorkbenchTimelineDragPayload,
+} from '@/features/content/domain/contentWorkbenchTimelineDragPayload'
 import { buildContentWorkbenchUnitTrack, contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import { unitIdentifier } from '@/features/content/domain/productionIdentifiers'
@@ -268,21 +272,19 @@ export function UnitProductionTrack({
   function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
     if (!canDragTimelineItems || source !== 'timeline') return
     setDraggedUnitId(unitId)
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('application/x-movscript-content-unit-id', String(unitId))
     const item = visibleSummary.items.find((entry) => Number(entry.id) === unitId)
     const box = event.currentTarget.getBoundingClientRect()
     const pointerRatio = box.width > 0 ? Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) : 0
     const offsetSec = source === 'timeline' && item ? pointerRatio * item.durationSec : 0
-    event.dataTransfer.setData('application/x-movscript-timeline-drag-offset-sec', String(offsetSec))
+    writeContentWorkbenchTimelineDragPayload(event.dataTransfer, { unitId, dragOffsetSec: offsetSec })
   }
   function handleTimelineLaneDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault()
-    const rawUnitId = event.dataTransfer.getData('application/x-movscript-content-unit-id')
-    const sourceUnitId = Number(rawUnitId || draggedUnitId || 0)
-    const dragOffsetSec = Number(event.dataTransfer.getData('application/x-movscript-timeline-drag-offset-sec')) || 0
+    const dragPayload = readContentWorkbenchTimelineDragPayload(event.dataTransfer, { fallbackUnitId: draggedUnitId })
     setDraggedUnitId(null)
-    if (!sourceUnitId) return
+    if (!dragPayload) return
+    const sourceUnitId = dragPayload.unitId
+    const dragOffsetSec = dragPayload.dragOffsetSec
     const box = event.currentTarget.getBoundingClientRect()
     const unit = visibleSummary.items.find((item) => Number(item.id) === sourceUnitId)
     if (!unit) return

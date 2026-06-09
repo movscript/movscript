@@ -451,7 +451,7 @@ function AppServerRealtimeLogPanel({
         <LogSummaryItem label="Workspace" value={formatWorkspaceContext(status?.workspaceContext)} />
         <LogSummaryItem label="Base URL" value={config?.baseURL ?? '-'} />
         <LogSummaryItem label="Account" value={formatAppServerAccount(config)} />
-        <LogSummaryItem label="RUST_LOG" value={status?.rustLog ?? 'info'} />
+        <LogSummaryItem label="RUST_LOG" value={status?.rustLog ?? '-'} />
       </div>
       {status?.error ? <AgentConsoleInlineError>{status.error}</AgentConsoleInlineError> : null}
       <div ref={streamRef} className="agent-console-log-stream" data-testid="agent-console-app-server-log-stream">

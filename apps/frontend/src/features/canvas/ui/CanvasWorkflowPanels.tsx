@@ -57,6 +57,7 @@ import type { Canvas, CanvasRunStatus, ResourceBinding } from '@/types'
 import type { CanvasRuntimeRun } from '@/features/canvas/runtime/runHistoryStore'
 import { canvasPortValuePreviewText, workflowRunOutputItems } from '@/features/canvas/runtime/runtimeValues'
 import { deriveCanvasReferencePorts } from '@/features/canvas/integrations/workflowReferences'
+import { writeCanvasWorkflowDragPayload } from '@/features/canvas/domain/canvasDragPayload'
 import { CanvasResourceShelf } from './CanvasResourceShelf'
 
 type WorkflowPanelTab = 'resources' | 'workflows' | 'history'
@@ -230,8 +231,7 @@ function WorkflowReferencePicker({
     .filter((canvas) => !term || canvas.name.toLowerCase().includes(term) || String(canvas.ID).includes(term))
 
   function dragWorkflow(event: React.DragEvent<HTMLDivElement>, canvas: Canvas) {
-    event.dataTransfer.setData('application/canvas-workflow', JSON.stringify(canvas))
-    event.dataTransfer.effectAllowed = 'copy'
+    writeCanvasWorkflowDragPayload(event.dataTransfer, canvas)
   }
 
   return (

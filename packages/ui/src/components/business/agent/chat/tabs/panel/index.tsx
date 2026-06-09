@@ -3,12 +3,18 @@
 import * as React from "react";
 import type { AgentConversationTabsPanelProps } from "../../types";
 import { AgentConversationTab } from "../item";
+import {
+  agentConversationTabDropPositionFromClientX,
+  readAgentConversationTabDragPayload,
+  writeAgentConversationTabDragPayload,
+  type AgentConversationTabDropPosition,
+} from "./dragPayload";
 
-type DropTarget = { conversationId: string; position: "before" | "after" };
+type DropTarget = { conversationId: string; position: AgentConversationTabDropPosition };
 
-function dropPositionForEvent(event: React.DragEvent<HTMLElement>): "before" | "after" {
+function dropPositionForEvent(event: React.DragEvent<HTMLElement>): AgentConversationTabDropPosition {
   const rect = event.currentTarget.getBoundingClientRect();
-  return event.clientX >= rect.left + rect.width / 2 ? "after" : "before";
+  return agentConversationTabDropPositionFromClientX(event.clientX, rect);
 }
 
 export function AgentConversationTabsPanel({
@@ -67,11 +73,11 @@ export function AgentConversationTabsPanel({
               }
               onCloseTabContextMenu();
               event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", item.id);
+              writeAgentConversationTabDragPayload(event.dataTransfer, item.id);
               setDraggingConversationId(item.id);
             }}
             onDragOver={(event) => {
-              const draggedId = draggingConversationId ?? event.dataTransfer.getData("text/plain");
+              const draggedId = draggingConversationId ?? readAgentConversationTabDragPayload(event.dataTransfer)?.conversationId;
               if (!draggedId || draggedId === item.id) {
                 setDropTarget(null);
                 return;
@@ -86,7 +92,7 @@ export function AgentConversationTabsPanel({
               if (dropTarget?.conversationId === item.id) setDropTarget(null);
             }}
             onDrop={(event) => {
-              const draggedId = draggingConversationId ?? event.dataTransfer.getData("text/plain");
+              const draggedId = draggingConversationId ?? readAgentConversationTabDragPayload(event.dataTransfer)?.conversationId;
               const position = dropPositionForEvent(event);
               event.preventDefault();
               clearDragState();

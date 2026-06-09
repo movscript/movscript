@@ -108,6 +108,7 @@
   height: 28px;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   transform: translate(-50%, -50%);
   padding-inline: var(--ms-space-2);
   color: var(--ms-color-foreground);
@@ -118,6 +119,11 @@
   line-height: 1;
   text-transform: uppercase;
   user-select: none;
+}
+
+.app-window-brand-button__icon {
+  flex: 0 0 auto;
+  color: var(--ms-color-muted-foreground);
 }
 
 .app-window-brand-button:hover,

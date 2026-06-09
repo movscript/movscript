@@ -59,6 +59,12 @@ import {
   shouldUseCanvasMediaLightweightMode,
   topLevelSelectedCanvasNodes,
 } from '@/features/canvas/domain/layout'
+import {
+  hasCanvasDragPayload,
+  readCanvasNodeTypeDragPayload,
+  readCanvasWorkflowDragPayload,
+  writeCanvasNodeTypeDragPayload,
+} from '@/features/canvas/domain/canvasDragPayload'
 import { compareWorkflowIoNodes, isFinalOutputNode } from '@/features/canvas/domain/graph'
 import {
   arePortTypesCompatible,
@@ -986,24 +992,19 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       }
       return
     }
-    const workflowCanvasPayload = e.dataTransfer.getData('application/canvas-workflow')
-    if (workflowCanvasPayload) {
+    const workflowCanvas = readCanvasWorkflowDragPayload(e.dataTransfer)
+    if (workflowCanvas) {
       const clientPosition = { x: e.clientX, y: e.clientY }
-      try {
-        const workflowCanvas = JSON.parse(workflowCanvasPayload) as Canvas
-        void addWorkflowReferenceNodeAt(workflowCanvas, clientPosition)
-      } catch {
-        // Ignore malformed drag data from outside the app.
-      }
+      void addWorkflowReferenceNodeAt(workflowCanvas, clientPosition)
       return
     }
-    const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
+    const type = readCanvasNodeTypeDragPayload(e.dataTransfer)
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
   }, [addNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, uploadDroppedFilesToCanvas])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/canvas-node-type') || hasResourceDragPayload(e.dataTransfer.types) || e.dataTransfer.types.includes('application/canvas-workflow')) {
+    if (e.dataTransfer.types.includes('Files') || hasCanvasDragPayload(e.dataTransfer.types) || hasResourceDragPayload(e.dataTransfer.types)) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -1478,8 +1479,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                               type="button"
                               draggable
                               onDragStart={(e) => {
-                                e.dataTransfer.setData('application/canvas-node-type', item.type)
-                                e.dataTransfer.effectAllowed = 'copy'
+                                writeCanvasNodeTypeDragPayload(e.dataTransfer, item.type)
                               }}
                               onClick={() => addNodeAt(item.type)}
                               title={t(item.labelKey)}
@@ -1516,8 +1516,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                                 type="button"
                                 draggable
                                 onDragStart={(e) => {
-                                  e.dataTransfer.setData('application/canvas-node-type', item.type)
-                                  e.dataTransfer.effectAllowed = 'copy'
+                                  writeCanvasNodeTypeDragPayload(e.dataTransfer, item.type)
                                 }}
                                 onClick={() => addNodeAt(item.type)}
                                 icon={<Icon size={14} />}

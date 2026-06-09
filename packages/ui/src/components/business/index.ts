@@ -24,6 +24,7 @@ export {
 } from "./content/workbench/editor";
 
 export {
+  AGENT_CONVERSATION_TAB_DRAG_TYPE,
   AgentConversationListPanel,
   AgentConversationTabsPanel,
   AgentConsoleCallout,
@@ -947,12 +948,14 @@ export {
   agentRunInteractionApprovalInputChoiceClass,
   agentRunInteractionApprovalInputItemClass,
   agentRunInteractionApprovalInputRailClass,
+  agentConversationTabDropPositionFromClientX,
   agentSettingsApiModeBadgeRecipe,
   agentSettingsApprovalStatusRecipe,
   agentSettingsAvailabilityStatusRecipe,
   agentSettingsBooleanStatusRecipe,
   agentSettingsRecipe,
   agentSettingsStatusRecipe,
+  readAgentConversationTabDragPayload,
   type AgentComposerActionProps,
   type AgentActivityCodePanelProps,
   type AgentRunInteractionApprovalSectionState,
@@ -963,6 +966,8 @@ export {
   type AgentChatMessageProps,
   type AgentConversationListItem,
   type AgentConversationListPanelProps,
+  type AgentConversationTabDragPayload,
+  type AgentConversationTabDropPosition,
   type AgentConversationTabItem,
   type AgentConversationTabsPanelProps,
   type AgentComposerFieldProps,
@@ -1019,7 +1024,8 @@ export {
   type AgentToolCallProps,
   type AgentToolStepProps,
   type AgentInstructionCardProps,
-  type AgentRailSectionProps
+  type AgentRailSectionProps,
+  writeAgentConversationTabDragPayload
 } from "./agent";
 export {
   AppAvatar,

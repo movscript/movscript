@@ -126,9 +126,10 @@ export function agentChatThreadFromAppServerThreadTurnItem(thread: AppServerThre
 }
 
 export function agentChatTurnFromAppServerThreadTurnItem(turn: Partial<AppServerTurn> & Pick<AppServerTurn, 'id'>): AgentChatTurn {
+  const itemLifecycle = turn.status === 'completed' ? 'completed' : undefined
   return {
     id: turn.id,
-    items: (turn.items ?? []).map(agentChatThreadItemFromAppServerThreadTurnItem),
+    items: (turn.items ?? []).map((item) => agentChatThreadItemFromAppServerThreadTurnItem(item, { lifecycle: itemLifecycle })),
     itemsView: agentChatTurnItemsViewFromAppServerThreadTurnItem(turn.itemsView),
     status: agentChatTurnStatusFromAppServerThreadTurnItem(turn.status),
     error: turn.error ?? null,
@@ -359,7 +360,10 @@ function normalizeAppServerThreadTurnItemNotificationParams(notification: AppSer
   if ((notification.method === 'item/started' || notification.method === 'item/completed') && isRecord(notification.params.item)) {
     return {
       ...notification.params,
-      item: agentChatThreadItemFromAppServerThreadTurnItem(notification.params.item as never),
+      item: agentChatThreadItemFromAppServerThreadTurnItem(
+        notification.params.item as never,
+        { lifecycle: notification.method === 'item/completed' ? 'completed' : 'started' },
+      ),
     }
   }
   return notification.params

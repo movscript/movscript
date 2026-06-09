@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -85,7 +85,6 @@ import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-  AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
   AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
   AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH,
   AGENT_MODE_SIDEBAR_DEFAULT_WIDTH,
@@ -294,7 +293,15 @@ export default function ProjectAgentModePage({
   )
 }
 
-export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: ReactNode } = {}) {
+export function ProjectAgentModeSidebar({
+  headerActions,
+  width,
+  onWidthChange,
+}: {
+  headerActions?: ReactNode
+  width?: number
+  onWidthChange?: (width: number) => void
+} = {}) {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
@@ -323,11 +330,22 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const [appServerActiveThreadId, setAppServerActiveThreadId] = useState(() => readAppServerActiveThreadId())
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
   const [newConversationWorkspaceScope] = useState<AgentWorkspaceScopeSelection>('project')
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
+  const controlledByRouteLayout = typeof width === 'number' && onWidthChange !== undefined
+  const [ownSidebarWidth, setOwnSidebarWidth] = useState(() => {
+    if (controlledByRouteLayout) return clampAgentModeSidebarWidth(width)
     if (typeof window === 'undefined') return AGENT_MODE_SIDEBAR_DEFAULT_WIDTH
     const saved = Number(window.localStorage.getItem(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY))
     return Number.isFinite(saved) ? clampAgentModeSidebarWidth(saved) : AGENT_MODE_SIDEBAR_DEFAULT_WIDTH
   })
+  const sidebarWidth = controlledByRouteLayout ? clampAgentModeSidebarWidth(width) : ownSidebarWidth
+  const setSidebarWidth = useCallback((nextWidth: number) => {
+    const clampedWidth = clampAgentModeSidebarWidth(nextWidth)
+    if (controlledByRouteLayout) {
+      onWidthChange?.(clampedWidth)
+      return
+    }
+    setOwnSidebarWidth(clampedWidth)
+  }, [controlledByRouteLayout, onWidthChange])
   const sidebarCollapsed = useAgentPanelUiStore((s) => s.agentModeSidebarCollapsed)
   const setSidebarCollapsed = useAgentPanelUiStore((s) => s.setAgentModeSidebarCollapsed)
   const sidebarResize = useResizablePanel({
@@ -354,8 +372,9 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const effectiveNewConversationWorkspaceScope = newConversationWorkspaceContext.scope ?? 'global'
 
   useEffect(() => {
-    window.localStorage.setItem(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
-  }, [sidebarWidth])
+    if (controlledByRouteLayout) return
+    window.localStorage.setItem(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, String(ownSidebarWidth))
+  }, [controlledByRouteLayout, ownSidebarWidth])
 
   useEffect(() => {
     const interval = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000)
@@ -1347,18 +1366,31 @@ function positiveInteger(value: string | null | undefined): number | undefined {
 export function ProjectAgentContentPanel({
   manageOwnWidth = false,
   collapsed = false,
+  width,
   onWidthChange,
 }: {
   manageOwnWidth?: boolean
   collapsed?: boolean
+  width?: number
   onWidthChange?: (width: number) => void
 } = {}) {
   const setCollapsed = useAgentPanelUiStore((s) => s.setAgentModeContentPanelCollapsed)
-  const [panelWidth, setPanelWidth] = useState(() => {
+  const controlledByRouteLayout = typeof width === 'number' && onWidthChange !== undefined
+  const [ownPanelWidth, setOwnPanelWidth] = useState(() => {
+    if (controlledByRouteLayout) return clampAgentModeContentPanelWidth(width)
     if (typeof window === 'undefined') return AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
     const saved = Number(window.localStorage.getItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY))
     return Number.isFinite(saved) ? clampAgentModeContentPanelWidth(saved) : AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
   })
+  const panelWidth = controlledByRouteLayout ? clampAgentModeContentPanelWidth(width) : ownPanelWidth
+  const setPanelWidth = useCallback((nextWidth: number) => {
+    const clampedWidth = clampAgentModeContentPanelWidth(nextWidth)
+    if (controlledByRouteLayout) {
+      onWidthChange?.(clampedWidth)
+      return
+    }
+    setOwnPanelWidth(clampedWidth)
+  }, [controlledByRouteLayout, onWidthChange])
   const panelResize = useResizablePanel({
     size: panelWidth,
     onSizeChange: setPanelWidth,
@@ -1372,12 +1404,9 @@ export function ProjectAgentContentPanel({
   })
 
   useEffect(() => {
-    onWidthChange?.(panelWidth)
-  }, [onWidthChange, panelWidth])
-
-  useEffect(() => {
-    window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, String(panelWidth))
-  }, [panelWidth])
+    if (controlledByRouteLayout) return
+    window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, String(ownPanelWidth))
+  }, [controlledByRouteLayout, ownPanelWidth])
 
   return (
     <AgentModeContentPanel

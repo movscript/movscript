@@ -985,6 +985,7 @@ test('AgentChatThreadItemView renders image generation prompt, result, and saved
         status: 'completed',
         revisedPrompt: 'A clearer product diagram',
         result: 'https://cdn.example.com/generated-diagram.png',
+        url: 'https://cdn.example.com/generated-diagram.png',
         savedPath: '/repo/assets/diagram.png',
         raw: { type: 'imageGeneration', result: 'https://cdn.example.com/generated-diagram.png', metadata: { size: '1024x1024' } },
       }}
@@ -1005,6 +1006,27 @@ test('AgentChatThreadItemView renders image generation prompt, result, and saved
   assert.match(html, /Inspect/)
   assert.match(html, /image/)
   assert.match(html, /1024x1024/)
+})
+
+test('AgentChatThreadItemView renders image generation previews from normalized base64 data URLs', () => {
+  const html = renderToStaticMarkup(
+    <AgentChatThreadItemView
+      item={{
+        type: 'imageGeneration',
+        id: 'image_inline',
+        status: 'completed',
+        revisedPrompt: 'A clearer product diagram',
+        result: 'iVBORw0KGgo=',
+        url: 'data:image/png;base64,iVBORw0KGgo=',
+        savedPath: '/tmp/generated_images/image_inline.png',
+      }}
+    />,
+  )
+
+  assert.match(html, /Generated image/)
+  assert.match(html, /src="data:image\/png;base64,iVBORw0KGgo="/)
+  assert.match(html, /inline image data \(base64, 12 chars\)/)
+  assert.doesNotMatch(html, /src="iVBORw0KGgo="/)
 })
 
 test('AgentChatThreadItemView renders image view previews from display URLs', () => {

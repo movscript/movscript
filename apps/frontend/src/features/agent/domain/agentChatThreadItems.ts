@@ -143,7 +143,7 @@ export type AgentChatThreadItem =
   }
   | { type: 'webSearch'; id: string; query: string; action?: unknown; raw?: unknown }
   | { type: 'imageView'; id: string; path: string; url?: string; raw?: unknown }
-  | { type: 'imageGeneration'; id: string; status: string; revisedPrompt?: string | null; result: string; savedPath?: string; raw?: unknown }
+  | { type: 'imageGeneration'; id: string; status: string; revisedPrompt?: string | null; result: string; url?: string; savedPath?: string; raw?: unknown }
   | { type: 'reviewMode'; id: string; action: 'entered' | 'exited'; review: string; raw?: unknown }
   | {
     type: 'systemNotice'

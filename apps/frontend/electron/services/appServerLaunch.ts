@@ -53,10 +53,11 @@ export function appServerLaunchEnv(input: {
   configDistribution: AppServerConfigDistribution
   inheritedEnv?: NodeJS.ProcessEnv
 }): NodeJS.ProcessEnv {
-  const env = appServerSpawnEnvironmentFromDistribution(input.configDistribution, input.inheritedEnv)
+  const { RUST_LOG, ...env } = appServerSpawnEnvironmentFromDistribution(input.configDistribution, input.inheritedEnv)
+  const rustLog = RUST_LOG?.trim()
   return {
     ...env,
-    RUST_LOG: env.RUST_LOG?.trim() || 'info',
+    ...(rustLog ? { RUST_LOG: rustLog } : {}),
     MOVSCRIPT_APP_SERVER_PROFILE_ID: input.profileId,
   }
 }

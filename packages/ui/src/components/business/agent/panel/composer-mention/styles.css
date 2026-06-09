@@ -1,10 +1,16 @@
 .ai-agent-panel-shell .ai-agent-panel-composer {
   background: var(--ms-color-background);
+  gap: 8px;
+  padding: 10px;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-input-card[data-chrome="flush"] .ai-agent-panel-composer {
+  padding: 10px;
 }
 
 .ai-agent-panel-shell .ai-agent-panel-composer > :not(.hidden) {
-  width: 90%;
-  justify-self: center;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .ai-agent-panel-shell .ai-agent-panel-composer--dragging {
@@ -23,22 +29,29 @@
 }
 
 .ai-agent-panel-shell .ai-agent-panel-mention-editor {
-  min-height: 48px;
+  min-height: 64px;
   max-height: 260px;
   overflow-y: auto;
-  border-radius: var(--ms-radius-sm);
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 46%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-muted) 22%, transparent);
   color: var(--ms-color-foreground);
-  padding: 7px 8px;
-  font-size: var(--ms-text-label);
-  line-height: 18px;
+  padding: 11px 13px 12px;
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
   outline: none;
   white-space: pre-wrap;
   word-break: break-word;
+  transition:
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
 .ai-agent-panel-shell .ai-agent-panel-mention-editor:focus {
-  background: transparent;
+  border-color: color-mix(in srgb, var(--ms-color-focus) 40%, var(--ms-color-border));
+  background: var(--ms-color-background);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ms-color-focus) 9%, transparent);
 }
 
 .ai-agent-panel-shell .ai-agent-panel-mention-editor:empty::before {
@@ -115,11 +128,17 @@
 .ai-agent-panel-shell .ms-agent-composer__toolbar {
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 8px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 42%, transparent);
+  padding: 8px 2px 0;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__toolbar > * {
   min-width: 0;
+}
+
+.ai-agent-panel-shell .ms-agent-composer__toolstrip {
+  gap: 6px;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__action {
@@ -137,4 +156,49 @@
   width: 34px;
   height: 34px;
   margin-left: auto;
+}
+
+.ai-agent-panel-shell .ms-agent-composer__workspace-row {
+  border-top: 0;
+  padding: 0 2px;
+}
+
+.ai-agent-panel-shell .ms-agent-composer__debug-action {
+  min-width: 0;
+  max-width: 112px;
+}
+
+.ai-agent-panel-shell .ms-agent-composer__debug-action span,
+.ai-agent-panel-shell .ms-agent-composer__debug-action {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .ai-agent-panel-shell .ai-agent-panel-composer {
+    padding: 8px;
+  }
+
+  .ai-agent-panel-shell .ai-agent-panel-mention-editor {
+    min-height: 72px;
+    max-height: 180px;
+    padding: 10px 11px;
+  }
+
+  .ai-agent-panel-shell .ms-agent-composer__toolbar {
+    align-items: flex-end;
+  }
+
+  .ai-agent-panel-shell .ms-agent-composer__toolstrip {
+    flex-basis: calc(100% - 92px);
+  }
+
+  .ai-agent-panel-shell .ai-agent-model-select {
+    max-width: min(148px, 52vw);
+  }
+
+  .ai-agent-panel-shell .ms-agent-composer__debug-action {
+    max-width: 78px;
+  }
 }

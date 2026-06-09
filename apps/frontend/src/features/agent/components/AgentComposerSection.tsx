@@ -403,7 +403,7 @@ export function AgentComposerSection({
           </div>
         ) : null}
         <AgentComposerToolbar>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+          <div className="ms-agent-composer__toolstrip flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <ProviderMark />
             {showModelSelector ? (
               <Select
@@ -516,7 +516,7 @@ export function AgentComposerSection({
                 variant={debugBeforeSend ? 'soft' : 'ghost'}
                 onClick={() => onDebugBeforeSendChange(!debugBeforeSend)}
                 disabled={answeringPendingInput}
-                className="px-2 type-tiny"
+                className="ms-agent-composer__debug-action px-2 type-tiny"
                 title={t('agents.chat.previewPayload')}
               >
                 <Eye size={12} />

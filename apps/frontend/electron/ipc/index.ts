@@ -13,6 +13,7 @@ import { registerVideoIpcHandlers } from './videoIpc'
 import { registerWindowIpcHandlers } from './windowIpc'
 import { registerProviderSessionsIpcHandlers } from './providerSessionsIpc'
 import { registerProjectGitIpcHandlers } from './projectGitIpc'
+import { registerLocalTerminalIpcHandlers } from './localTerminalIpc'
 
 export interface IpcHandlerDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -33,5 +34,6 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerProjectGitIpcHandlers()
   registerProviderSessionsIpcHandlers()
   registerAppServerIpcHandlers()
+  registerLocalTerminalIpcHandlers()
   registerVideoIpcHandlers()
 }
