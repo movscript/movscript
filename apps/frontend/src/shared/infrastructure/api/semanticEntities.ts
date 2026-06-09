@@ -1,8 +1,8 @@
 import {
   type MovScriptWorkspaceEntityQuery,
   type MovScriptWorkspaceIndexedEntity,
-  type SemanticEntityKind as MovScriptCoreSemanticEntityKind,
-} from '@movscript/core/workspace'
+} from '@movscript/workspace'
+import type { SemanticEntityKind as MovScriptCoreSemanticEntityKind } from '@movscript/language/domain'
 import {
   createElectronMovScriptWorkspaceFileRepository,
   createElectronMovScriptWorkspaceService,
@@ -16,7 +16,7 @@ export type SemanticEntityKind =
   | 'segments'
   | 'productionTextBlocks'
   | 'sceneMoments'
-  | 'writingExpressions'
+  | 'expressionUnits'
   | 'productions'
   | 'storyboardScripts'
   | 'storyboardVersions'
@@ -250,7 +250,7 @@ export async function listEntityRelations(projectId: number, _filters: EntityRel
   return (await createElectronMovScriptWorkspaceService({ projectId }).queryEntities({
     entityKind: 'creative_relationship' as MovScriptCoreSemanticEntityKind,
   }))
-    .map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId) as unknown as EntityRelation)
+    .map((entity: MovScriptWorkspaceIndexedEntity) => semanticRecordFromWorkspaceEntity(entity, projectId) as unknown as EntityRelation)
 }
 
 export async function listScriptBlockUsages(_projectId: number, _scriptBlockId: number): Promise<ScriptBlockUsages> {
@@ -293,7 +293,7 @@ async function listWorkspaceSemanticEntities(
       kind: stringParam(params.kind),
       query: stringParam(params.query),
       limit: numberParam(params.limit),
-    })).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+    })).map((entity: MovScriptWorkspaceIndexedEntity) => semanticRecordFromWorkspaceEntity(entity, projectId))
   }
   if (kind === 'assetSlots') {
     return (await service.queryAssets({
@@ -302,7 +302,7 @@ async function listWorkspaceSemanticEntities(
       settingStateId: idParam(params.setting_state_id ?? params.settingStateId),
       query: stringParam(params.query),
       limit: numberParam(params.limit),
-    })).assets.map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+    })).assets.map((entity: MovScriptWorkspaceIndexedEntity) => semanticRecordFromWorkspaceEntity(entity, projectId))
   }
 
   const entityKind = semanticEntityType(kind)
@@ -310,7 +310,7 @@ async function listWorkspaceSemanticEntities(
   return (await service.queryEntities({
     entityKind,
     ...workspaceEntityQueryFromParams(params),
-  })).map((entity) => semanticRecordFromWorkspaceEntity(entity, projectId))
+  })).map((entity: MovScriptWorkspaceIndexedEntity) => semanticRecordFromWorkspaceEntity(entity, projectId))
 }
 
 function workspaceEntityQueryFromParams(params: SemanticEntityListParams): Omit<MovScriptWorkspaceEntityQuery, 'entityKind'> {
@@ -385,7 +385,6 @@ async function writeWorkspaceSemanticEntity(
   const service = createElectronMovScriptWorkspaceService({ projectId })
   if (kind === 'settings') {
     const result = await service.upsertSetting({
-      projectId,
       entity: record ? workspaceEntityBySemanticRecord.get(record) : undefined,
       record,
       payload,
@@ -394,7 +393,6 @@ async function writeWorkspaceSemanticEntity(
   }
   if (kind === 'assetSlots') {
     const result = await service.upsertAsset({
-      projectId,
       entity: record ? workspaceEntityBySemanticRecord.get(record) : undefined,
       record,
       payload,
@@ -434,7 +432,7 @@ async function upsertWorkspaceProduction(
 ): Promise<{ path: string; entityKind: 'production'; record: Record<string, unknown> }> {
   const current = stripWorkspacePrivateFields(record ?? {})
   const id = stableNumericEntityId(current, payload)
-  const path = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record) ?? `productions/production_${id}/production.json`
+  const path = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record) ?? `productions/${id}/production.json`
   const now = new Date().toISOString()
   const title = stringParam(payload.title ?? payload.name ?? current.title ?? current.name) ?? `制作 ${id}`
   const nextRecord = pruneUndefinedRecord({
@@ -443,7 +441,7 @@ async function upsertWorkspaceProduction(
     schema: 'movscript.production.v1',
     kind: 'production',
     ID: id,
-    id: stringParam(payload.id ?? current.id) ?? `production_${id}`,
+    id: stringParam(payload.id ?? current.id) ?? String(id),
     project_id: projectId,
     title,
     name: title,
@@ -469,7 +467,7 @@ async function upsertWorkspaceSegment(
   const id = stableNumericEntityId(current, payload)
   const path = workspaceRecordPath(current)
     ?? workspaceEntityRecordPath(record)
-    ?? `productions/production_${productionId}/segments/segment_${id}/segment.json`
+    ?? `productions/${productionId}/segments/${id}/segment.json`
   const now = new Date().toISOString()
   const title = stringParam(payload.title ?? current.title) ?? `段落 ${id}`
   const segmentKind = stringParam(payload.segment_kind ?? payload.kind ?? current.segment_kind ?? current.kind)
@@ -480,7 +478,7 @@ async function upsertWorkspaceSegment(
     kind: segmentKind ?? 'segment',
     entity_kind: 'segment',
     ID: id,
-    id: stringParam(payload.id ?? current.id) ?? `segment_${id}`,
+    id: stringParam(payload.id ?? current.id) ?? String(id),
     project_id: projectId,
     production_id: productionId,
     title,
@@ -507,7 +505,7 @@ async function upsertWorkspaceSceneMoment(
   const productionId = requiredNumericRef(payload.production_id ?? current.production_id, 'production_id')
   const segmentId = requiredNumericRef(payload.segment_id ?? current.segment_id, 'segment_id')
   const id = stableNumericEntityId(current, payload)
-  const momentDir = `productions/production_${productionId}/segments/segment_${segmentId}/scene_moments/scene_moment_${id}`
+  const momentDir = `productions/${productionId}/segments/${segmentId}/scene_moments/${id}`
   const existingPath = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record)
   const path = existingPath
     ?? `${momentDir}/scene_moment.json`
@@ -517,14 +515,14 @@ async function upsertWorkspaceSceneMoment(
   const locationText = stringParam(payload.location_text ?? payload.where ?? current.location_text ?? current.where)
   const actionText = stringParam(payload.action_text ?? payload.action ?? current.action_text ?? current.action)
   const mood = stringParam(payload.mood ?? payload.emotion ?? current.mood ?? current.emotion)
-  const storyboardId = stringParam(current.active_storyboard_id) ?? 'storyboard_main'
+  const storyboardId = stringParam(current.storyboard_id) ?? 'main'
   const nextRecord = pruneUndefinedRecord({
     ...current,
     ...payload,
     schema: 'movscript.scene_moment.v1',
     kind: 'scene_moment',
     ID: id,
-    id: stringParam(payload.id ?? current.id) ?? `scene_moment_${id}`,
+    id: stringParam(payload.id ?? current.id) ?? String(id),
     project_id: projectId,
     production_id: productionId,
     segment_id: segmentId,
@@ -542,10 +540,6 @@ async function upsertWorkspaceSceneMoment(
     description: stringParam(payload.description ?? current.description) ?? '',
     order: numberParam(payload.order ?? current.order) ?? null,
     script_block_id: numberParam(payload.script_block_id ?? current.script_block_id) ?? null,
-    active_storyboard_id: storyboardId,
-    storyboard_timing: isRecord(current.storyboard_timing)
-      ? current.storyboard_timing
-      : { items: [{ storyboard_id: storyboardId, order: 1 }] },
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
@@ -560,6 +554,7 @@ async function upsertWorkspaceSceneMoment(
         ID: numericSuffix(storyboardId) ?? storyboardId,
         id: storyboardId,
         title: `${title} storyboard`,
+        order: 1,
         setting_refs: [],
       }, null, 2)}\n`,
     })
@@ -630,7 +625,7 @@ const semanticEntityTypeByKind: Partial<Record<SemanticEntityKind, MovScriptCore
   scriptBlocks: 'script_block',
   segments: 'segment',
   sceneMoments: 'scene_moment',
-  writingExpressions: 'writing_expression',
+  expressionUnits: 'expression_unit',
   productions: 'production',
   storyboardScripts: 'storyboard',
   storyboardVersions: 'storyboard',
@@ -682,7 +677,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('description', '描述'),
       num('order', '顺序'),
     ]),
-    cfg('writingExpressions', 'writing-expressions', '编剧表达', '编剧在情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述。', ['kind', 'speaker', 'text'], [
+    cfg('expressionUnits', 'expression-units', '表达单元', '情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述。', ['kind', 'speaker', 'text'], [
       num('scene_moment_id', 'SceneMoment ID', true),
       selectOptions('kind', '类型', [
         { value: 'dialogue', label: '对白' },

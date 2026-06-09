@@ -163,9 +163,6 @@ export function buildAgentChatViewLayoutProps({
       workspaceProjectOptions: composer.workspaceProjectOptions,
       workspaceProjectValue: composer.workspaceProjectValue,
       workspaceProjectsLoading: composer.workspaceProjectsLoading,
-      workspaceProductionOptions: composer.workspaceProductionOptions,
-      workspaceProductionValue: composer.workspaceProductionValue,
-      workspaceProductionsLoading: composer.workspaceProductionsLoading,
       onAcceptMention: () => {
         if (composer.mentionRange && composer.mentionResults.length > 0) {
           composer.insertResourceMention(composer.mentionResults[0])
@@ -191,7 +188,6 @@ export function buildAgentChatViewLayoutProps({
       onStopActiveRun: interaction.stopActiveRun,
       onUploadFiles: composer.uploadFiles,
       onWorkspaceProjectChange: composer.changeWorkspaceProject,
-      onWorkspaceProductionChange: composer.changeWorkspaceProduction,
     },
   }
 }

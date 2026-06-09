@@ -14,7 +14,6 @@ export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
 
 export interface MovScriptWorkspaceContext {
   scope?: MovScriptWorkspaceScope
-  userId?: string | number
   projectId?: string | number
   productionId?: string | number
 }
@@ -33,7 +32,6 @@ export interface AppServerProfile {
   home: string
   compatibilityHomeEnvNames?: string[]
   workspaceDir?: string
-  workspaceContext?: MovScriptWorkspaceContext
   lifecycle: AppServerLifecycle
 }
 
@@ -96,6 +94,20 @@ export const DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE: AppServerProfile = {
   id: CODEX_MOVSCRIPT_HOME_PROFILE_ID,
   label: 'MovScript Codex',
   providerKey: 'codex',
+  executableCommand: 'codex',
+  executableEnvVar: 'MOVSCRIPT_CODEX_APP_SERVER_BIN',
+  compatibilityBinEnvNames: ['MOVSCRIPT_CODEX_BIN'],
+  candidateRootRelativePaths: [
+    '../codex/codex-rs/target/debug',
+    '../../codex/codex-rs/target/debug',
+    '../../../codex/codex-rs/target/debug',
+  ],
+  candidateBinaryNames: [
+    'app-server',
+    'codex-app-server',
+    'codex',
+  ],
+  pathFallbackReady: false,
   home: MOVSCRIPT_MANAGED_CODEX_HOME,
   lifecycle: 'movscript-owned',
 }
@@ -368,7 +380,6 @@ export function normalizeAppServerProfile(
     home,
     ...normalizedCompatibilityHomeEnvNamesField(profile?.compatibilityHomeEnvNames ?? fallback.compatibilityHomeEnvNames),
     ...(profile?.workspaceDir?.trim() ? { workspaceDir: profile.workspaceDir.trim() } : fallback.workspaceDir ? { workspaceDir: fallback.workspaceDir } : {}),
-    ...normalizedWorkspaceContextField(profile?.workspaceContext ?? fallback.workspaceContext),
     lifecycle: 'movscript-owned',
   }
 }
@@ -394,24 +405,6 @@ function normalizedStringListField<K extends string>(
 function normalizeEnvironmentVariableName(value: string): string | undefined {
   const normalized = value.trim().toUpperCase()
   return /^[A-Z_][A-Z0-9_]*$/.test(normalized) ? normalized : undefined
-}
-
-function normalizedWorkspaceContextField(value: MovScriptWorkspaceContext | undefined): { workspaceContext?: MovScriptWorkspaceContext } {
-  const context = normalizeWorkspaceContext(value)
-  return context ? { workspaceContext: context } : {}
-}
-
-function normalizeWorkspaceContext(value: MovScriptWorkspaceContext | undefined): MovScriptWorkspaceContext | undefined {
-  if (!value) return undefined
-  const scope = value.scope === 'project' || value.scope === 'production' || value.scope === 'global'
-    ? value.scope
-    : value.productionId !== undefined ? 'production' : value.projectId !== undefined ? 'project' : 'global'
-  return {
-    scope,
-    ...(value.userId !== undefined && String(value.userId).trim() ? { userId: value.userId } : {}),
-    ...(value.projectId !== undefined && String(value.projectId).trim() ? { projectId: value.projectId } : {}),
-    ...(value.productionId !== undefined && String(value.productionId).trim() ? { productionId: value.productionId } : {}),
-  }
 }
 
 function persistedAppServerProfileForKind(

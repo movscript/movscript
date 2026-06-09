@@ -827,7 +827,7 @@ function ProjectHomeBrowserPage({
           project.description,
           '查看和维护当前项目规范',
         ),
-        status: firstText(recordField(project, 'aspect_ratio'), project.status, '规范'),
+        status: firstText(recordField(project, 'aspect_ratio'), '规范'),
         onClick: onOpenProjectStandards,
       }],
     },
@@ -894,7 +894,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '制作'),
         description: firstText(record.description, record.summary, record.kind, '暂无描述'),
         status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.productionOrchestration, { productionId: recordRouteId(record) }),
+        to: withRouteParams(ROUTES.project.scripts, { productionId: recordRouteId(record) }),
       })),
     },
     {
@@ -909,8 +909,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '情节'),
         description: firstText(record.description, record.action_text, record.location_text, record.mood, '暂无描述'),
         status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.productionOrchestration, {
-          productionId: numberField(record.production_id),
+        to: withRouteParams(ROUTES.project.contentUnitEditor, {
           scene_moment_id: recordRouteId(record),
         }),
       })),
@@ -927,8 +926,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '内容'),
         description: firstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.productionOrchestration, {
-          productionId: numberField(record.production_id),
+        to: withRouteParams(ROUTES.project.contentUnitEditor, {
           scene_moment_id: numberField(record.scene_moment_id),
           content_unit_id: recordRouteId(record),
         }),

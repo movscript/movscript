@@ -26,7 +26,7 @@ test('production orchestration entity defaults stay scoped to the selected produ
     production_id: 12,
     segment_id: 34,
   })
-  assert.deepEqual(createProductionOrchestrationDefaultsForType('writingExpressions', 12, 34, 56), {
+  assert.deepEqual(createProductionOrchestrationDefaultsForType('expressionUnits', 12, 34, 56), {
     scene_moment_id: 56,
     kind: 'dialogue',
     order: 1,
@@ -61,6 +61,6 @@ test('production orchestration lookup groups references and asset slots by owner
   assert.equal(lookup.assetSlotsByReferenceId.get(4)?.[0].ID, 6)
 })
 
-test('production orchestration owner key matches writing lookup conventions', () => {
+test('production orchestration owner key matches expression unit lookup conventions', () => {
   assert.equal(productionOrchestrationOwnerKey('scene_moment', 2), 'scene_moment:2')
 })

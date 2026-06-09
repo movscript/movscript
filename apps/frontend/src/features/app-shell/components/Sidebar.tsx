@@ -193,7 +193,9 @@ export function Sidebar({
 
             <AppSidebarDivider collapsed={collapsed} />
             <AppSidebarSection title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              {projectWorkbenchDefinitions.filter((item) => item.id !== 'content_orchestration').map((item, index) => (
+              {projectWorkbenchDefinitions
+                .filter((item) => !['content_orchestration', 'orchestration_production'].includes(item.id))
+                .map((item, index) => (
                 <Fragment key={item.id}>
                   <NavItem to={item.route} icon={item.icon} label={t(item.sidebarTitleKey)} collapsed={collapsed} />
                   {index === 0 ? (

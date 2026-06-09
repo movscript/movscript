@@ -1,5 +1,5 @@
 import { firstText, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
-import { summarizeText } from '@/features/production/domain/productionWritingExpressions'
+import { summarizeText } from '@/features/production/domain/productionExpressionUnits'
 
 export type ContentWorkbenchScriptCueRecord = {
   ID: number

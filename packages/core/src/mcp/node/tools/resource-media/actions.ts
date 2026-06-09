@@ -211,7 +211,7 @@ export async function uploadAgentImageResource(args: Record<string, unknown>): P
   form.append('file', blob, filename)
   const folderId = stringParam(args.folder_id) ?? stringParam(args.folderId)
   if (folderId) form.append('folder_id', folderId)
-  const resource = await backendPostMultipart('/resources/upload', form, args.userId)
+  const resource = await backendPostMultipart('/resources/upload', form)
   const resourceId = numericResourceId(resource)
   if (resourceId === undefined) throw new Error('resource upload response did not include a valid resource ID')
   return {

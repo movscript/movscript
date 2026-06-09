@@ -5,8 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, FileText, Folder, HardDrive, Loader2, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 import {
   AgentPageShell,
-  AgentPageShellBody,
   AgentPageShellHeader,
+  AgentWorkspacesPageBody,
+  AgentWorkspacesPageList,
+  AgentWorkspacesPageMain,
+  AgentWorkspacesPageSidebar,
+  AgentWorkspacesPageSidebarControls,
   AppFeedbackText,
   Button,
 } from '@movscript/ui'
@@ -159,10 +163,10 @@ export default function MovScriptWorkspaceFilesPage() {
           <AgentConsoleNav compact />
         </div>
       </AgentPageShellHeader>
-      <AgentPageShellBody>
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)]">
-          <section className="flex min-h-[420px] flex-col overflow-hidden rounded-md border border-border bg-card">
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+      <AgentWorkspacesPageBody>
+        <AgentWorkspacesPageSidebar data-testid="movscript-workspace-files-sidebar">
+          <AgentWorkspacesPageSidebarControls>
+            <div className="flex items-center gap-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setCurrentPath(parentPath)} disabled={!currentPath}>
                 <ChevronLeft size={14} />
               </Button>
@@ -170,34 +174,35 @@ export default function MovScriptWorkspaceFilesPage() {
                 /{filesQuery.data?.path || ''}
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-2">
-              {filesQuery.isLoading ? (
-                <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="加载中" />
-              ) : filesQuery.error ? (
-                <StateRow text={errorMessage(filesQuery.error)} tone="danger" />
-              ) : entries.length === 0 ? (
-                <StateRow text="空目录" />
-              ) : (
-                <div className="space-y-1">
-                  {entries.map((entry) => (
-                    <button
-                      key={entry.path}
-                      type="button"
-                      className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-muted ${selectedPath === entry.path ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
-                      onClick={() => openEntry(entry)}
-                    >
-                      {entry.kind === 'directory' ? <Folder size={14} /> : <FileText size={14} />}
-                      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{entry.kind === 'file' ? formatBytes(entry.size) : ''}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+          </AgentWorkspacesPageSidebarControls>
+          <AgentWorkspacesPageList>
+            {filesQuery.isLoading ? (
+              <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="加载中" />
+            ) : filesQuery.error ? (
+              <StateRow text={errorMessage(filesQuery.error)} tone="danger" />
+            ) : entries.length === 0 ? (
+              <StateRow text="空目录" />
+            ) : (
+              <div className="space-y-1">
+                {entries.map((entry) => (
+                  <button
+                    key={entry.path}
+                    type="button"
+                    className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-muted ${selectedPath === entry.path ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}
+                    onClick={() => openEntry(entry)}
+                  >
+                    {entry.kind === 'directory' ? <Folder size={14} /> : <FileText size={14} />}
+                    <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{entry.kind === 'file' ? formatBytes(entry.size) : ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </AgentWorkspacesPageList>
+        </AgentWorkspacesPageSidebar>
 
-          <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <AgentWorkspacesPageMain className="flex flex-col gap-3" data-testid="movscript-workspace-files-editor">
+          <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{selectedName}</div>
                 <div className="truncate text-xs text-muted-foreground">{selectedPath || '选择一个文件'}</div>
@@ -213,7 +218,7 @@ export default function MovScriptWorkspaceFilesPage() {
                 </Button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 p-3">
+            <div className="min-h-0 flex-1">
               {readQuery.isLoading ? (
                 <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="读取中" />
               ) : readQuery.error ? (
@@ -230,7 +235,7 @@ export default function MovScriptWorkspaceFilesPage() {
               )}
             </div>
             {(actionError || dirty || selectedFile) && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
                 {actionError ? (
                   <AppFeedbackText as="span">{actionError}</AppFeedbackText>
                 ) : (
@@ -239,9 +244,8 @@ export default function MovScriptWorkspaceFilesPage() {
                 {writeMutation.isPending && <span>保存中</span>}
               </div>
             )}
-          </section>
-        </div>
-      </AgentPageShellBody>
+        </AgentWorkspacesPageMain>
+      </AgentWorkspacesPageBody>
     </AgentPageShell>
   )
 }

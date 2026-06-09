@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { MovScriptWorkspaceIndexedEntity, MovScriptWorkspaceService } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceIndexedEntity, MovScriptWorkspaceService } from '@movscript/workspace'
 import { __setElectronMovScriptWorkspaceServiceFactoryForTest } from '@/shared/infrastructure/workspaceDomainRepository'
 import {
   deletePreProductionWorkspaceAssetSlot,
@@ -245,7 +245,7 @@ function withPreProductionService(input: {
       payload: Record<string, unknown>
     }>,
   }
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => ({
+  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => ({
     querySettings: async () => {
       calls.querySettings += 1
       return input.settings ?? []
@@ -256,7 +256,7 @@ function withPreProductionService(input: {
     },
     upsertSetting: async (upsertInput) => {
       calls.upsertSettings.push({
-        projectId: upsertInput.projectId,
+        projectId: context.projectId,
         entity: upsertInput.entity,
         record: upsertInput.record,
         payload: upsertInput.payload,
@@ -268,7 +268,7 @@ function withPreProductionService(input: {
           schema: 'movscript.setting.v1',
           kind: 'setting',
           id: 'setting_local',
-          project_id: upsertInput.projectId,
+          project_id: context.projectId,
           title: upsertInput.payload.name ?? upsertInput.payload.title,
           setting_kind: upsertInput.payload.kind === 'place' ? 'location' : upsertInput.payload.kind,
           ...upsertInput.payload,
@@ -277,7 +277,7 @@ function withPreProductionService(input: {
     },
     upsertAsset: async (upsertInput) => {
       calls.upsertAssets.push({
-        projectId: upsertInput.projectId,
+        projectId: context.projectId,
         entity: upsertInput.entity,
         record: upsertInput.record,
         payload: upsertInput.payload,
@@ -289,7 +289,7 @@ function withPreProductionService(input: {
           schema: 'movscript.asset.v1',
           kind: 'asset',
           id: String(upsertInput.entity?.id ?? upsertInput.payload.id ?? 'asset_local'),
-          project_id: upsertInput.projectId,
+          project_id: context.projectId,
           title: upsertInput.payload.name ?? upsertInput.payload.title,
           asset_kind: upsertInput.payload.kind,
           ...upsertInput.payload,

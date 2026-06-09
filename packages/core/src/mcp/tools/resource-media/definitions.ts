@@ -158,7 +158,6 @@ export function resourceMediaTools(): MCPTool[] {
         folderId: { type: 'string', description: 'Camel-case alias for folder_id.' },
         max_bytes: { type: 'number', description: 'Maximum upload input size. Defaults to 20 MiB, hard-capped at 100 MiB.' },
         maxBytes: { type: 'number', description: 'Camel-case alias for max_bytes.' },
-        userId: { type: 'number', description: 'Optional user ID override for backend requests.' },
       }),
       outputSchema: objectSchema(
         {

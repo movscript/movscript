@@ -177,8 +177,8 @@ function nextLaneActionLabel(lane?: WorkLane) {
   if (!lane) return '进入工作台'
   if (lane.key === 'project_standards') return '进入项目规范'
   if (lane.key === 'pre_production') return '进入前期准备'
-  if (lane.key === 'orchestration_production') return '进入创作编排'
-  if (lane.key === 'content_orchestration') return '进入创作编排'
+  if (lane.key === 'orchestration_production') return '进入剧本工作台'
+  if (lane.key === 'content_orchestration') return '进入内容编辑'
   return `进入${lane.title}`
 }
 
@@ -479,8 +479,8 @@ export default function ProjectOverviewPage() {
       items.push({
         key: 'script',
         title: '补齐创作来源',
-        area: '创作编排工作台',
-        href: ROUTES.project.productionOrchestration,
+        area: '剧本工作台',
+        href: ROUTES.project.scripts,
         priority: 'high',
         detail: '没有剧本来源时，制作、情景拆解和素材约束都缺少依据',
       })
@@ -490,8 +490,8 @@ export default function ProjectOverviewPage() {
       items.push({
         key: 'production',
         title: '创建第一个创作方案',
-        area: '创作编排工作台',
-        href: ROUTES.project.productionOrchestration,
+        area: '剧本工作台',
+        href: ROUTES.project.scripts,
         priority: 'high',
         detail: '当前流程以制作方案为主轴，需要先建立生产单元',
       })
@@ -523,10 +523,10 @@ export default function ProjectOverviewPage() {
       items.push({
         key: 'content',
         title: '拆解或确认制作项',
-        area: '创作编排工作台',
-        href: ROUTES.project.productionOrchestration,
+        area: '内容编辑',
+        href: ROUTES.project.contentUnitEditor,
         priority: 'medium',
-        detail: '制作创建后，需要先在创作编排工作台拆出可执行镜头',
+        detail: '制作创建后，需要先在内容编辑中拆出可执行镜头',
       })
     }
 
@@ -535,8 +535,8 @@ export default function ProjectOverviewPage() {
       {
         key: 'preview',
         title: '检查预览挂载',
-        area: '创作编排工作台',
-        href: ROUTES.project.productionOrchestration,
+        area: '内容编辑',
+        href: ROUTES.project.contentUnitEditor,
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },
@@ -553,7 +553,7 @@ export default function ProjectOverviewPage() {
         <ProjectSurfaceHeader
           icon={LayoutDashboard}
           title={project?.name ?? '项目总览'}
-          description={project?.description || '项目总览按工作台组织当前进度：项目规范、前期准备和创作编排。镜头方案、时间轴和镜头列表在创作编排中推进。'}
+          description={project?.description || '项目总览按工作台组织当前进度：项目规范、前期准备、剧本工作台和内容编辑。镜头方案、时间轴和镜头列表在内容编辑中推进。'}
           meta={(
             <>
               <StatusBadge {...projectBlockedSummaryRecipe(blockedCount)}>
@@ -571,9 +571,9 @@ export default function ProjectOverviewPage() {
               </Link>
             </Button>
             <Button asChild variant="outline" className="gap-2">
-              <Link to={ROUTES.project.productionOrchestration}>
+              <Link to={ROUTES.project.scripts}>
                 <LayoutDashboard size={14} />
-                创作编排
+                剧本工作台
               </Link>
             </Button>
             </>
@@ -621,7 +621,7 @@ export default function ProjectOverviewPage() {
               <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{nextLane?.description ?? '项目对象准备完成后会显示下一步入口。'}</p>
               <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
               <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
-                <Link to={nextLane?.workbenchHref ?? ROUTES.project.productionOrchestration}>
+                <Link to={nextLane?.workbenchHref ?? ROUTES.project.scripts}>
                   {nextLaneActionLabel(nextLane)} <ArrowRight size={14} />
                 </Link>
               </Button>

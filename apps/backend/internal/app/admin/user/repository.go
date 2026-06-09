@@ -118,7 +118,7 @@ func (r *gormRepository) Detail(ctx context.Context, id uint) (Detail, error) {
 	projects := make([]ProjectMembership, 0)
 	if err := r.db.WithContext(ctx).
 		Table("project_members pm").
-		Select("p.id, p.name, p.status, p.org_id, p.owner_id, pm.role, pm.created_at AS joined_at").
+		Select("p.id, p.name, p.org_id, p.owner_id, pm.role, pm.created_at AS joined_at").
 		Joins("JOIN projects p ON p.id = pm.project_id AND p.deleted_at IS NULL").
 		Where("pm.user_id = ? AND pm.deleted_at IS NULL", id).
 		Order("p.updated_at DESC, p.id DESC").

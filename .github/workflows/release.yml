@@ -92,8 +92,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Use latest movscript-lang packages
+        run: node scripts/movscript-lang-deps.mjs latest
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Download ffmpeg-static release binary
         run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
@@ -136,8 +139,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Use latest movscript-lang packages
+        run: node scripts/movscript-lang-deps.mjs latest
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build plugin packages
         run: pnpm --filter "./packages/*" build && pnpm --filter @movscript/cli build && pnpm --filter "./plugins/*" build

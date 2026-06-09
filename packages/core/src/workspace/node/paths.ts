@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { MOVSCRIPT_BUILD_DIR } from '../layout/index.js'
 export {
   MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
@@ -33,47 +32,18 @@ import {
 export interface MovScriptProjectWorkspacePaths {
   workspaceDir: string
   controlDir: string
+  projectCwd: string
   projectDir: string
-  projectFile: string
-  sourceDir: string
-  buildDir: string
-  standardsDir: string
-  projectStandardsFile: string
-  settingDir: string
-  scriptsDir: string
-  productionsDir: string
-  contentUnitsDir: string
-}
-
-export interface MovScriptScriptWorkspacePaths {
-  scriptDir: string
-  scriptFile: string
-}
-
-export interface MovScriptProductionWorkspacePaths {
-  productionDir: string
-  productionFile: string
-}
-
-export interface MovScriptContentUnitWorkspacePaths {
-  contentUnitsDir: string
-  contentUnitFile?: string
 }
 
 export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd()): MovScriptWorkspaceRootPaths {
   const rootDir = resolve(workspaceDir)
   const controlDir = join(rootDir, MOVSCRIPT_WORKSPACE_DIR_NAME)
-  const buildDir = join(rootDir, MOVSCRIPT_BUILD_DIR)
   return {
     workspaceDir: rootDir,
     rootDir,
     controlDir,
     manifestPath: join(controlDir, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME),
-    buildDir,
-    buildCurrentDir: join(buildDir, 'current'),
-    buildIndexesDir: join(buildDir, 'indexes'),
-    buildReviewsDir: join(buildDir, 'reviews'),
-    buildManifestsDir: join(buildDir, 'manifests'),
     providersDir: join(controlDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME),
     backendDir: join(controlDir, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME),
   }
@@ -82,10 +52,6 @@ export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd())
 export function ensureMovScriptWorkspaceRoot(paths: MovScriptWorkspaceRootPaths): MovScriptWorkspaceRootManifest {
   mkdirSync(paths.controlDir, { recursive: true })
   mkdirSync(paths.rootDir, { recursive: true })
-  mkdirSync(paths.buildCurrentDir, { recursive: true })
-  mkdirSync(paths.buildIndexesDir, { recursive: true })
-  mkdirSync(paths.buildReviewsDir, { recursive: true })
-  mkdirSync(paths.buildManifestsDir, { recursive: true })
   mkdirSync(paths.providersDir, { recursive: true })
   mkdirSync(paths.backendDir, { recursive: true })
   const current = readMovScriptWorkspaceRootManifest(paths.manifestPath)
@@ -103,8 +69,6 @@ export function defaultMovScriptWorkspaceRootManifest(now = new Date()): MovScri
     createdAt: timestamp,
     updatedAt: timestamp,
     layout: {
-      editableRoot: '.',
-      buildRoot: MOVSCRIPT_BUILD_DIR,
       providerConfigRoot: MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
     },
   }
@@ -149,23 +113,22 @@ export function resolveMovScriptProjectWorkspacePaths(input: {
   const root = resolveMovScriptWorkspaceRootPaths(input.workspaceDir)
   const ownerPath = projectWorkspaceOwnerPath(input)
   const projectSegment = input.projectId === undefined ? 'project' : `project_${safeIdSegment(input.projectId)}`
-  const projectDir = join(root.controlDir, ...ownerPath, 'projects', projectSegment)
-  const sourceDir = projectDir
-  const buildDir = join(projectDir, MOVSCRIPT_BUILD_DIR)
+  const projectCwd = join(root.controlDir, ...ownerPath, 'projects', projectSegment)
   return {
     workspaceDir: root.workspaceDir,
     controlDir: root.controlDir,
-    projectDir,
-    projectFile: join(projectDir, 'project.json'),
-    sourceDir,
-    buildDir,
-    standardsDir: join(sourceDir, 'project_standards'),
-    projectStandardsFile: join(sourceDir, 'project_standards.json'),
-    settingDir: join(sourceDir, 'settings'),
-    scriptsDir: join(sourceDir, 'scripts'),
-    productionsDir: join(sourceDir, 'productions'),
-    contentUnitsDir: join(sourceDir, 'content_units'),
+    projectCwd,
+    projectDir: projectCwd,
   }
+}
+
+export function resolveMovScriptProjectCwd(input: {
+  workspaceDir?: string
+  userId?: string | number
+  orgId?: string | number
+  projectId?: string | number
+} = {}): string {
+  return resolveMovScriptProjectWorkspacePaths(input).projectCwd
 }
 
 export function normalizeMovScriptWorkspaceContext(input: MovScriptWorkspaceContextInput = {}): MovScriptWorkspaceContext {
@@ -173,17 +136,16 @@ export function normalizeMovScriptWorkspaceContext(input: MovScriptWorkspaceCont
   const userId = input.userId === undefined ? undefined : safeIdSegment(input.userId)
   const orgId = input.orgId === undefined ? undefined : safeIdSegment(input.orgId)
   const projectId = input.projectId === undefined ? undefined : safeIdSegment(input.projectId)
-  const productionId = input.productionId === undefined ? undefined : safeIdSegment(input.productionId)
   if (scope === 'global') return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}) }
   if (scope === 'project') return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}), ...(projectId ? { projectId } : {}) }
-  if (!productionId) throw new Error('MovScript production workspace context requires productionId')
-  return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}), ...(projectId ? { projectId } : {}), productionId }
+  return { scope, ...(userId ? { userId } : {}), ...(orgId ? { orgId } : {}), ...(projectId ? { projectId } : {}) }
 }
 
 export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceContextInput = {}): MovScriptWorkspaceContextPaths {
   const root = resolveMovScriptWorkspaceRootPaths(input.workspaceDir)
   const context = normalizeMovScriptWorkspaceContext(input)
-  const contextKey = context.productionId ? `production/${context.productionId}` : context.projectId ? `project/${context.projectId}` : 'project'
+  const contextKey = context.projectId ? `project/${context.projectId}` : 'project'
+  const ownerCwd = join(root.controlDir, ...workspaceOwnerPath(context))
   const projectPaths = context.scope === 'global'
     ? undefined
     : resolveMovScriptProjectWorkspacePaths({
@@ -192,85 +154,41 @@ export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceC
         orgId: context.orgId,
         projectId: context.projectId,
       })
-  const editableRoot = projectPaths?.sourceDir ?? root.rootDir
-  const buildCurrentRoot = projectPaths ? join(projectPaths.buildDir, 'current') : root.buildCurrentDir
-  const editableBaseDir = context.productionId
-    ? join(editableRoot, 'productions', `production_${context.productionId}`)
-    : editableRoot
-  const buildBaseDir = context.productionId
-    ? join(buildCurrentRoot, 'productions', `production_${context.productionId}`)
-    : buildCurrentRoot
+  const projectCwd = projectPaths?.projectCwd ?? ownerCwd
   return {
     workspaceDir: root.workspaceDir,
     controlDir: root.controlDir,
     scope: context.scope,
     context,
     contextKey,
-    editableBaseDir,
-    buildBaseDir,
-    providerSessionCwd: projectPaths?.projectDir ?? root.rootDir,
+    projectCwd,
+    providerSessionCwd: projectCwd,
   }
 }
 
 export function ensureMovScriptWorkspaceContext(paths: MovScriptWorkspaceContextPaths): MovScriptWorkspaceContextPaths {
   ensureMovScriptWorkspaceRoot(resolveMovScriptWorkspaceRootPaths(paths.workspaceDir))
-  mkdirSync(paths.editableBaseDir, { recursive: true })
-  mkdirSync(paths.buildBaseDir, { recursive: true })
+  mkdirSync(paths.projectCwd, { recursive: true })
   return paths
-}
-
-export function resolveMovScriptScriptWorkspacePaths(
-  projectPaths: Pick<MovScriptProjectWorkspacePaths, 'scriptsDir'>,
-  scriptId: string | number,
-): MovScriptScriptWorkspacePaths {
-  const scriptDir = join(projectPaths.scriptsDir, `script_${safeIdSegment(scriptId)}`)
-  return {
-    scriptDir,
-    scriptFile: join(scriptDir, 'script.md'),
-  }
-}
-
-export function resolveMovScriptProductionWorkspacePaths(
-  projectPaths: Pick<MovScriptProjectWorkspacePaths, 'productionsDir'>,
-  productionId: string | number,
-): MovScriptProductionWorkspacePaths {
-  const productionDir = join(projectPaths.productionsDir, `production_${safeIdSegment(productionId)}`)
-  return {
-    productionDir,
-    productionFile: join(productionDir, 'production.json'),
-  }
-}
-
-export function resolveMovScriptContentUnitWorkspacePaths(
-  projectPaths: Pick<MovScriptProjectWorkspacePaths, 'contentUnitsDir'>,
-  input: {
-    contentUnitId?: string | number
-  },
-): MovScriptContentUnitWorkspacePaths {
-  const contentUnitsDir = projectPaths.contentUnitsDir
-  return {
-    contentUnitsDir,
-    ...(input.contentUnitId !== undefined
-      ? { contentUnitFile: join(contentUnitsDir, `content_unit_${safeIdSegment(input.contentUnitId)}`, 'content_unit.json') }
-      : {}),
-  }
 }
 
 function normalizeWorkspaceLayout(_value: unknown): MovScriptWorkspaceRootManifest['layout'] {
   return {
-    editableRoot: '.',
-    buildRoot: MOVSCRIPT_BUILD_DIR,
     providerConfigRoot: MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
   }
 }
 
 function inferredWorkspaceScope(input: MovScriptWorkspaceContextInput): MovScriptWorkspaceScope {
-  if (input.productionId !== undefined) return 'production'
+  if (input.scope === 'production') return 'production'
   if (input.projectId !== undefined) return 'project'
   return 'global'
 }
 
 function projectWorkspaceOwnerPath(input: Pick<MovScriptWorkspaceContextInput, 'userId' | 'orgId'>): string[] {
+  return workspaceOwnerPath(input)
+}
+
+function workspaceOwnerPath(input: Pick<MovScriptWorkspaceContextInput, 'userId' | 'orgId'>): string[] {
   if (input.orgId !== undefined) return ['org', safeIdSegment(input.orgId)]
   if (input.userId !== undefined) return ['user', safeIdSegment(input.userId)]
   return ['local']

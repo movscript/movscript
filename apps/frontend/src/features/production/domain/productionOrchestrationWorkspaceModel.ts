@@ -8,12 +8,12 @@ import type {
   SceneMomentRecord,
   ScriptBlockRecord,
   SegmentRecord,
-  WritingExpressionRecord,
+  ExpressionUnitRecord,
 } from '@/features/production/domain/productionOrchestrationData'
 import {
-  buildWritingExpressionLines,
-  type ProductionWritingExpressionLine,
-} from '@/features/production/domain/productionWritingExpressions'
+  buildExpressionUnitLines,
+  type ProductionExpressionUnitLine,
+} from '@/features/production/domain/productionExpressionUnits'
 
 export interface ProductionSegmentNavigatorMoment {
   id: number
@@ -64,11 +64,11 @@ export interface ProductionOrchestrationWorkspaceView {
   selectedSegment: SegmentRecord | null
   selectedMomentScriptBlock: ScriptBlockRecord | null
   selectedMomentContentUnits: ContentUnitRecord[]
-  selectedMomentExpressions: WritingExpressionRecord[]
-  expressionLines: ProductionWritingExpressionLine[]
+  selectedMomentExpressions: ExpressionUnitRecord[]
+  expressionLines: ProductionExpressionUnitLine[]
   selectedSegmentMoments: SceneMomentRecord[]
   selectedSegmentLineCount: number
-  writingProgressLabel: string
+  expressionProgressLabel: string
   segmentNavigatorItems: ProductionSegmentNavigatorItem[]
 }
 
@@ -201,14 +201,14 @@ export function filterProductionContentUnitsForProduction(
 export function buildProductionOrchestrationWorkspaceView({
   segments,
   sceneMoments,
-  writingExpressions,
+  expressionUnits,
   scriptBlocks,
   selectedMomentId,
   lookup,
 }: {
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
-  writingExpressions: WritingExpressionRecord[]
+  expressionUnits: ExpressionUnitRecord[]
   scriptBlocks: ScriptBlockRecord[]
   selectedMomentId: number | null
   lookup: ProductionWorkspaceLookup
@@ -220,21 +220,21 @@ export function buildProductionOrchestrationWorkspaceView({
     ? Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === selectedMoment.ID)
     : []
   const selectedMomentExpressions = selectedMoment
-    ? writingExpressions.filter((item) => Number(item.scene_moment_id) === selectedMoment.ID)
+    ? expressionUnits.filter((item) => Number(item.scene_moment_id) === selectedMoment.ID)
     : []
-  const expressionLines = buildWritingExpressionLines(selectedMoment, selectedMomentScriptBlock, selectedMomentContentUnits, selectedMomentExpressions)
+  const expressionLines = buildExpressionUnitLines(selectedMoment, selectedMomentScriptBlock, selectedMomentContentUnits, selectedMomentExpressions)
   const selectedSegmentMoments = selectedSegment ? sceneMoments.filter((moment) => Number(moment.segment_id) === selectedSegment.ID) : []
   const selectedSegmentLineCount = selectedSegmentMoments.reduce((sum, moment) => {
     const block = moment.script_block_id ? scriptBlocks.find((item) => item.ID === Number(moment.script_block_id)) ?? null : null
     const units = Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === moment.ID)
-    const expressions = writingExpressions.filter((item) => Number(item.scene_moment_id) === moment.ID)
-    return sum + buildWritingExpressionLines(moment, block, units, expressions).length
+    const expressions = expressionUnits.filter((item) => Number(item.scene_moment_id) === moment.ID)
+    return sum + buildExpressionUnitLines(moment, block, units, expressions).length
   }, 0)
-  const writingProgressLabel = expressionLines.length === 0 ? '待补表达' : `${expressionLines.length} 条表达`
+  const expressionProgressLabel = expressionLines.length === 0 ? '待补表达' : `${expressionLines.length} 条表达`
   const segmentNavigatorItems = buildProductionSegmentNavigatorItems({
     segments,
     sceneMoments,
-    writingExpressions,
+    expressionUnits,
     scriptBlocks,
     selectedSegment,
     selectedMoment,
@@ -250,7 +250,7 @@ export function buildProductionOrchestrationWorkspaceView({
     expressionLines,
     selectedSegmentMoments,
     selectedSegmentLineCount,
-    writingProgressLabel,
+    expressionProgressLabel,
     segmentNavigatorItems,
   }
 }
@@ -258,7 +258,7 @@ export function buildProductionOrchestrationWorkspaceView({
 function buildProductionSegmentNavigatorItems({
   segments,
   sceneMoments,
-  writingExpressions,
+  expressionUnits,
   scriptBlocks,
   selectedSegment,
   selectedMoment,
@@ -266,7 +266,7 @@ function buildProductionSegmentNavigatorItems({
 }: {
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
-  writingExpressions: WritingExpressionRecord[]
+  expressionUnits: ExpressionUnitRecord[]
   scriptBlocks: ScriptBlockRecord[]
   selectedSegment: SegmentRecord | null
   selectedMoment: SceneMomentRecord | null
@@ -285,13 +285,13 @@ function buildProductionSegmentNavigatorItems({
       moments: moments.map((moment) => {
         const block = moment.script_block_id ? scriptBlocks.find((item) => item.ID === Number(moment.script_block_id)) ?? null : null
         const units = Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === moment.ID)
-        const expressions = writingExpressions.filter((item) => Number(item.scene_moment_id) === moment.ID)
+        const expressions = expressionUnits.filter((item) => Number(item.scene_moment_id) === moment.ID)
         return {
           id: moment.ID,
           identifier: sceneIdentifier(moment) || `#${moment.ID}`,
           title: productionOrchestrationRecordTitle(moment),
           description: moment.action_text || moment.description || '还没有写具体发生什么。',
-          lineCount: buildWritingExpressionLines(moment, block, units, expressions).length,
+          lineCount: buildExpressionUnitLines(moment, block, units, expressions).length,
           active: selectedMoment?.ID === moment.ID,
         }
       }),

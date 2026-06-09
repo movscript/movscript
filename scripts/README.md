@@ -10,6 +10,8 @@ Only cross-workspace runners, shared verifier helpers, and provider-neutral app-
 - `verifier-utils.mjs`
 - `install-app-server-plugin.mjs`
 - `sync-app-server-protocol.mjs`
+- `movscript-lang-deps.mjs`
+- `movscript-lang-cwd.mjs`
 
 Tests for scripts live under `tests/scripts/`, not in this directory. Keep `scripts/` limited to callable entrypoints and shared helpers.
 

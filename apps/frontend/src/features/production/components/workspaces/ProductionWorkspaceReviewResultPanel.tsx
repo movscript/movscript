@@ -42,7 +42,7 @@ export function ProductionWorkspaceAppliedResultPanel({
           stats={[
             { outcome: 'created', label: '编排段', value: appliedCounts.segments_created > 0 ? `+${appliedCounts.segments_created}` : 0 },
             { outcome: 'created', label: '情节', value: appliedCounts.scene_moments_created > 0 ? `+${appliedCounts.scene_moments_created}` : 0 },
-            { outcome: 'created', label: '表达', value: appliedCounts.writing_expressions_created > 0 ? `+${appliedCounts.writing_expressions_created}` : 0 },
+            { outcome: 'created', label: '表达', value: appliedCounts.expression_units_created > 0 ? `+${appliedCounts.expression_units_created}` : 0 },
             { outcome: 'created', label: '设定资料', value: appliedCounts.settings_created > 0 ? `+${appliedCounts.settings_created}` : 0 },
             { outcome: 'created', label: '素材需求', value: appliedCounts.asset_slots_created > 0 ? `+${appliedCounts.asset_slots_created}` : 0 },
           ]}
@@ -99,7 +99,7 @@ export function ProductionWorkspaceSimulationResultPanel({
           stats={[
             { outcome: 'created', label: '编排段', value: `+${simulationResult.counts.segments_created}` },
             { outcome: 'created', label: '情节', value: `+${simulationResult.counts.scene_moments_created}` },
-            { outcome: 'created', label: '表达', value: `+${simulationResult.counts.writing_expressions_created}` },
+            { outcome: 'created', label: '表达', value: `+${simulationResult.counts.expression_units_created}` },
             { outcome: 'created', label: '内容', value: `+${simulationResult.counts.content_units_created}` },
             { outcome: 'created', label: '设定资料', value: `+${simulationResult.counts.settings_created}` },
             { outcome: 'created', label: '素材需求', value: `+${simulationResult.counts.asset_slots_created}` },
@@ -115,7 +115,7 @@ export function ProductionWorkspaceSimulationResultPanel({
           stats={[
             { label: '返回编排段', value: simulationResult.reviewPreview.returned.segments, showZero: true },
             { label: '返回情节', value: simulationResult.reviewPreview.returned.sceneMoments, showZero: true },
-            { label: '返回表达', value: simulationResult.reviewPreview.returned.writingExpressions, showZero: true },
+            { label: '返回表达', value: simulationResult.reviewPreview.returned.expressionUnits, showZero: true },
             { label: '返回内容', value: simulationResult.reviewPreview.returned.contentUnits, showZero: true },
             { label: '返回画面锚点', value: simulationResult.reviewPreview.returned.keyframes, showZero: true },
             { label: '返回素材', value: simulationResult.reviewPreview.returned.assetSlots, showZero: true },

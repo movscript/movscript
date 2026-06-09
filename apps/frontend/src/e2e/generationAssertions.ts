@@ -1,17 +1,14 @@
 import { expect, type Page } from '@playwright/test'
 import {
-  MOVSCRIPT_BUILD_CURRENT_DIR,
-  MOVSCRIPT_BUILD_DIR,
-  MOVSCRIPT_BUILD_INDEXES_DIR,
-  MOVSCRIPT_BUILD_MANIFESTS_DIR,
-  MOVSCRIPT_BUILD_REVIEWS_DIR,
+  movScriptContentUnitKeyframePath,
+  movScriptWorkspaceAssetPath,
+} from '@movscript/workspace'
+import {
   MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
   MOVSCRIPT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
-  movScriptContentUnitKeyframePath,
-  movScriptWorkspaceAssetPath,
 } from '@movscript/core/workspace'
 
 export async function mockGenerationCandidateTargets(page: Page) {
@@ -25,11 +22,6 @@ export async function mockGenerationCandidateTargets(page: Page) {
     workspaceDirName,
     manifestFileName,
     manifestSchema,
-    buildDir,
-    buildCurrentDir,
-    buildIndexesDir,
-    buildReviewsDir,
-    buildManifestsDir,
     providersDirName,
     backendDirName,
   }) => {
@@ -86,12 +78,6 @@ export async function mockGenerationCandidateTargets(page: Page) {
         rootDir: workspaceRoot,
         controlDir: `${workspaceRoot}/${workspaceDirName}`,
         manifestPath: `${workspaceRoot}/${workspaceDirName}/${manifestFileName}`,
-        editDir: workspaceRoot,
-        buildDir: `${workspaceRoot}/${buildDir}`,
-        buildCurrentDir: `${workspaceRoot}/${buildCurrentDir}`,
-        buildIndexesDir: `${workspaceRoot}/${buildIndexesDir}`,
-        buildReviewsDir: `${workspaceRoot}/${buildReviewsDir}`,
-        buildManifestsDir: `${workspaceRoot}/${buildManifestsDir}`,
         providersDir: `${workspaceRoot}/${workspaceDirName}/${providersDirName}`,
         backendDir: `${workspaceRoot}/${workspaceDirName}/${backendDirName}`,
         manifest: {
@@ -101,8 +87,6 @@ export async function mockGenerationCandidateTargets(page: Page) {
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
           layout: {
-            editableRoot: '.',
-            buildRoot: buildDir,
             providerConfigRoot: providersDirName,
           },
         },
@@ -156,11 +140,6 @@ export async function mockGenerationCandidateTargets(page: Page) {
     workspaceDirName: MOVSCRIPT_WORKSPACE_DIR_NAME,
     manifestFileName: MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
     manifestSchema: MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
-    buildDir: MOVSCRIPT_BUILD_DIR,
-    buildCurrentDir: MOVSCRIPT_BUILD_CURRENT_DIR,
-    buildIndexesDir: MOVSCRIPT_BUILD_INDEXES_DIR,
-    buildReviewsDir: MOVSCRIPT_BUILD_REVIEWS_DIR,
-    buildManifestsDir: MOVSCRIPT_BUILD_MANIFESTS_DIR,
     providersDirName: MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
     backendDirName: MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
   })

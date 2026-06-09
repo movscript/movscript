@@ -53,21 +53,25 @@ import {
   WorkbenchEmptyState,
   WorkbenchProjectBody,
   WorkbenchProjectShell,
-  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { ContentWorkbenchDialogs } from './ContentWorkbenchDialogs'
 import { contentWorkbenchRowMatchesSearch } from './ContentWorkbenchSearch'
 import { ContentWorkbenchScenePreview } from './ContentWorkbenchScenePreview'
 import { UnitProductionTrack } from './ContentWorkbenchUnitTrack'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
+import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
 import {
   abandonSceneMoment,
   semanticEntityConfig,
   type SemanticEntityPayload,
 } from '@/shared/infrastructure/api/semanticEntities'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
+import { routeLayoutSpecForPathname } from '@/routes/routeLayoutRegistry'
+import {
+  CONTENT_WORKBENCH_DETAIL_PANE_ID,
+} from '@/features/content/presentation/contentWorkbenchLayoutSpec'
 
-const CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY = 'movscript.contentWorkbench.detailPaneWidth'
+const CONTENT_WORKBENCH_ROUTE_LAYOUT = routeLayoutSpecForPathname(ROUTES.project.contentUnitEditor)
 function ContentWorkbenchSceneInfoCard({
   row,
 }: {
@@ -150,14 +154,10 @@ export function ContentWorkbenchPage() {
   const rows = useMemo(() => buildContentGenerationMomentRows(data), [data])
   const [creatingUnit, setCreatingUnit] = useState(false)
   const [unitWorkspaceDefaults, setUnitWorkspaceDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
-  const detailPane = usePersistentOverlapPaneController({
-    storageKey: CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-    defaultSize: 880,
-    minSize: 560,
-    maxSize: (containerRect) => Math.max(600, Math.min(containerRect.width - 300, 1160)),
+  const detailPane = useRouteLayoutOverlapPaneController({
+    routeLayout: CONTENT_WORKBENCH_ROUTE_LAYOUT,
+    paneId: CONTENT_WORKBENCH_DETAIL_PANE_ID,
     resizeEdge: 'left',
-    collapseMode: 'after-min',
-    expandMode: 'after-max',
     ariaLabel: '调整内容编排详情面板宽度',
   })
   const pageController = useContentWorkbenchPageController({
@@ -438,12 +438,12 @@ export function ContentWorkbenchPage() {
                           </ContentWorkbenchReviewButton>
                         )}
                         emptyMessage={visibleRows.length === 0 ? (
-                          filteredRows.length === 0 ? '当前项目还没有情节入口，先完成制作编排后再进入内容编排。' : '没有匹配当前搜索条件的情节。'
+                          filteredRows.length === 0 ? '当前项目还没有情节入口，先完成剧本结构后再进入内容编排。' : '没有匹配当前搜索条件的情节。'
                         ) : undefined}
                         emptyAction={visibleRows.length === 0 && filteredRows.length === 0 ? (
-                          <ContentWorkbenchEmptyActionButton onClick={() => navigate(ROUTES.project.productionOrchestration)}>
+                          <ContentWorkbenchEmptyActionButton onClick={() => navigate(ROUTES.project.scripts)}>
                             <Route size={14} />
-                            进入制作编排
+                            进入剧本工作台
                           </ContentWorkbenchEmptyActionButton>
                         ) : undefined}
                       />

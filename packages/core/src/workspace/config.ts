@@ -15,4 +15,7 @@ export interface MovScriptWorkspaceConfig {
   permissions?: Record<string, unknown>
   environment?: Record<string, string>
   providers?: Record<string, Record<string, unknown>>
+  movscriptLang?: {
+    cwd?: string
+  }
 }

@@ -15,6 +15,8 @@
       "prompt": { "type": "string", "minLength": 1 },
       "title": { "type": "string" },
       "model_id": { "type": "string" },
+      "project_id": { "type": ["string", "number"], "description": "Required project id. MCP never infers project from session, cwd, route, or focus." },
+      "projectId": { "type": ["string", "number"], "description": "Alias for project_id." },
       "input_resource_ids": { "type": "array", "items": { "type": "number" } },
       "reference_resource_ids": { "type": "array", "items": { "type": "number" } },
       "aspect_ratio": { "type": "string", "enum": ["16:9", "9:16", "1:1", "4:3", "3:4"] },

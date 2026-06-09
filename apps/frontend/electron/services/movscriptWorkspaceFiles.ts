@@ -2,7 +2,7 @@ import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   ensureMovScriptWorkspaceRoot,
-  resolveMovScriptProjectWorkspacePaths,
+  resolveMovScriptProjectCwd,
   resolveMovScriptWorkspaceRootPaths,
 } from '@movscript/core/workspace/node'
 import type {
@@ -97,12 +97,12 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   const workspaceRoot = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(workspaceRoot)
   const rootPath = input?.projectId !== undefined
-    ? resolveMovScriptProjectWorkspacePaths({
+    ? resolveMovScriptProjectCwd({
         workspaceDir,
         ...(input.userId !== undefined ? { userId: input.userId } : {}),
         ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
         projectId: input.projectId,
-      }).projectDir
+      })
     : workspaceRoot.rootDir
   const rawRelativePath = typeof input?.path === 'string' ? input.path : ''
   const normalizedRelativePath = rawRelativePath.replace(/^[/\\]+/, '')

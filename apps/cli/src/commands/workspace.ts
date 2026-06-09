@@ -1,15 +1,16 @@
 import type { Command } from 'commander'
-import {
-  buildMovScriptWorkspace,
-  createNodeMovScriptWorkspaceFileRepository,
-  getMovScriptWorkspaceModel,
-  resolveMovScriptProjectWorkspacePaths,
-  reviewMovScriptBuildWorkspace,
-} from '@movscript/core/workspace/node'
+import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
+import { createNodeMovScriptEngine } from '@movscript/engine/node'
+import { getMovScriptWorkspaceModel } from '@movscript/workspace'
+import type {
+  MovScriptWorkspaceBuildResult,
+  MovScriptWorkspaceReviewResult,
+} from '@movscript/compiler/node'
 
 interface WorkspaceCommandOptions {
   workspace?: string
   user?: string
+  org?: string
   project?: string
   projectId?: string
   json?: boolean
@@ -34,7 +35,7 @@ export function registerWorkspaceCommands(program: Command): void {
     .option('--json', 'Print JSON output')
     .action(async (entityType: string, options: WorkspaceGetModelOptions) => {
       const result = getMovScriptWorkspaceModel({
-        entityType,
+        entityKind: entityType,
         ...(options.entityId !== undefined ? { entityId: options.entityId } : {}),
       })
       printResult(result, options)
@@ -42,32 +43,30 @@ export function registerWorkspaceCommands(program: Command): void {
 
   workspace
     .command('review')
-    .description('Review edit/ changes against .build/current without making them effective')
+    .description('Review current MovScript source files against .build/current without making them effective')
     .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
+    .option('--org <id>', 'Workspace organization id')
     .option('--project <id>', 'Project id')
     .option('--project-id <id>', 'Project id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
-      const result = await reviewMovScriptBuildWorkspace({
-        fileRepository: createNodeMovScriptWorkspaceFileRepository(projectWorkspaceDir(options, command)),
-      })
+      const result = await workspaceEngine(options, command).review() as MovScriptWorkspaceReviewResult
       printResult(result, options)
       if (!result.readyToBuild) process.exitCode = 2
     })
 
   workspace
     .command('build')
-    .description('Build current edit/ files into .build/current and .build/indexes')
+    .description('Build current MovScript source files into .build/current and .build/indexes')
     .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
+    .option('--org <id>', 'Workspace organization id')
     .option('--project <id>', 'Project id')
     .option('--project-id <id>', 'Project id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
-      const result = await buildMovScriptWorkspace({
-        fileRepository: createNodeMovScriptWorkspaceFileRepository(projectWorkspaceDir(options, command)),
-      })
+      const result = await workspaceEngine(options, command).compile() as MovScriptWorkspaceBuildResult
       printResult(result, options)
       if (result.status === 'failed') process.exitCode = 2
     })
@@ -78,12 +77,14 @@ function workspaceDir(options: WorkspaceCommandOptions, command: Command): strin
   return options.workspace ?? global.workspace
 }
 
-function projectWorkspaceDir(options: WorkspaceCommandOptions, command: Command): string {
-  return resolveMovScriptProjectWorkspacePaths({
+function workspaceEngine(options: WorkspaceCommandOptions, command: Command) {
+  const projectDir = resolveMovScriptProjectCwd({
     workspaceDir: workspaceDir(options, command),
     ...(options.user !== undefined ? { userId: options.user } : {}),
+    ...(options.org !== undefined ? { orgId: options.org } : {}),
     ...(projectId(options) !== undefined ? { projectId: projectId(options) } : {}),
-  }).projectDir
+  })
+  return createNodeMovScriptEngine({ projectDir })
 }
 
 function projectId(options: WorkspaceCommandOptions): string | undefined {

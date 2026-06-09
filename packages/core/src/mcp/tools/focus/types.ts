@@ -8,7 +8,6 @@ export interface MCPContextSnapshot {
     id: number
     name: string
     description?: string
-    status?: string
     totalEpisodes?: number
   } | null
   productionId?: number | null

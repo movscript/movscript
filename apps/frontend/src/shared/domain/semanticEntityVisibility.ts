@@ -1,3 +1,3 @@
-export function isActiveSemanticEntityRecord(record: { __delete?: unknown; deleted?: unknown }) {
+export function isActiveSemanticEntityRecord(record: Record<string, unknown>) {
   return !Boolean(record.__delete ?? record.deleted)
 }

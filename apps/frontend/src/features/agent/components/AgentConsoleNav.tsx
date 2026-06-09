@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { BarChart3, Blocks, Bot, ClipboardList, Database, FileCog } from 'lucide-react'
+import { BarChart3, Blocks, Bot, Cable, ClipboardList, Database, FileCog } from 'lucide-react'
 import {
   AgentConsoleNavItem,
   AgentConsoleNavLinkWrapper,
@@ -37,6 +37,12 @@ const agentConsoleSections = [
     description: 'Provider 启用与生命周期',
     icon: Bot,
     match: ['/agents', ROUTES.agentSettings, ROUTES.agentRuns],
+  },
+  {
+    to: ROUTES.agentConnections,
+    label: 'Connections',
+    description: '裸请求、裸返回和 thread 流状态',
+    icon: Cable,
   },
   {
     to: ROUTES.plugins,

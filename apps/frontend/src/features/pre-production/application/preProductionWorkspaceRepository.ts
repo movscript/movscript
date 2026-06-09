@@ -2,7 +2,7 @@ import type { SemanticEntityPayload, SemanticEntityRecord } from '@/shared/infra
 import {
   createElectronMovScriptWorkspaceService,
 } from '@/shared/infrastructure/workspaceDomainRepository'
-import type { MovScriptWorkspaceIndexedEntity } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type {
   AssetSlotRecord,
   AssetSlotCandidateRecord,
@@ -30,12 +30,12 @@ export async function loadPreProductionWorkspaceData(projectId: number): Promise
     service.querySettings(),
     service.queryAssets({ includeCandidates: true }),
   ])
-  const assetSlots = assetResult.assets.map((entity) => assetSlotRecordFromWorkspaceEntity(entity, projectId))
+  const assetSlots = assetResult.assets.map((entity: MovScriptWorkspaceIndexedEntity) => assetSlotRecordFromWorkspaceEntity(entity, projectId))
   return {
     source: 'workspace',
-    settings: settingEntities.map((entity) => settingRecordFromWorkspaceEntity(entity, projectId)),
+    settings: settingEntities.map((entity: MovScriptWorkspaceIndexedEntity) => settingRecordFromWorkspaceEntity(entity, projectId)),
     assetSlots,
-    candidates: assetResult.assets.flatMap((entity) => candidateRecordsFromAssetEntity(entity, projectId)),
+    candidates: assetResult.assets.flatMap((entity: MovScriptWorkspaceIndexedEntity) => candidateRecordsFromAssetEntity(entity, projectId)),
   }
 }
 
@@ -46,7 +46,6 @@ export async function savePreProductionWorkspaceSetting(
 ): Promise<SettingRecord> {
   const service = createElectronMovScriptWorkspaceService({ projectId })
   const result = await service.upsertSetting({
-    projectId,
     entity: record ? entityByRecord.get(record as Record<string, unknown>) : undefined,
     payload,
   })
@@ -60,7 +59,6 @@ export async function savePreProductionWorkspaceAssetSlot(
 ): Promise<AssetSlotRecord> {
   const service = createElectronMovScriptWorkspaceService({ projectId })
   const result = await service.upsertAsset({
-    projectId,
     entity: record ? entityByRecord.get(record as Record<string, unknown>) : undefined,
     payload,
   })
@@ -89,7 +87,6 @@ export async function savePreProductionWorkspaceAssetCandidate(
     targetKind: 'asset',
     candidateId,
     payload: {
-      status: coreCandidateStatus(payload.status ?? record.status),
       notes: stringValue(payload.note ?? payload.notes ?? record.note),
     },
   })
@@ -153,7 +150,7 @@ function assetSlotRecordFromWorkspaceEntity(entity: MovScriptWorkspaceIndexedEnt
 function candidateRecordsFromAssetEntity(entity: MovScriptWorkspaceIndexedEntity, projectId: number): AssetSlotCandidateRecord[] {
   const candidates = Array.isArray(entity.record.candidates) ? entity.record.candidates.filter(isRecord) : []
   const assetSlotId = workspaceRecordId(entity.record)
-  return candidates.map((candidate) => candidateRecordFromInlineCandidate(candidate, entity, projectId, assetSlotId))
+  return candidates.map((candidate: Record<string, unknown>) => candidateRecordFromInlineCandidate(candidate, entity, projectId, assetSlotId))
 }
 
 function candidateRecordFromInlineCandidate(
@@ -267,13 +264,6 @@ function normalizeUiCandidateStatus(value: unknown): string {
   if (status === 'draft') return 'candidate'
   if (status === 'accepted') return 'selected'
   return status ?? 'candidate'
-}
-
-function coreCandidateStatus(value: unknown): string | undefined {
-  const status = stringValue(value)
-  if (status === 'candidate') return 'draft'
-  if (status === 'selected' || status === 'locked') return 'accepted'
-  return status
 }
 
 function stablePositiveHash(value: string): number {

@@ -15,6 +15,6 @@ test('project tasks use workspace semantic repository for work items and reviews
   assert.match(tasksPageSource, /createSemanticEntity\(projectId!, semanticEntityConfig\('workReviews'\)/)
   assert.match(tasksPageSource, /updateSemanticEntity\(projectId, semanticEntityConfig\('workItems'\)/)
 
-  assert.match(semanticEntitiesSource, /workItems:[\s\S]*schema: 'movscript\.work_item\.v1'/)
-  assert.match(semanticEntitiesSource, /workReviews:[\s\S]*schema: 'movscript\.work_review\.v1'/)
+  assert.match(semanticEntitiesSource, /cfg\('workItems', 'work-items'/)
+  assert.match(semanticEntitiesSource, /cfg\('workReviews', 'work-reviews'/)
 })

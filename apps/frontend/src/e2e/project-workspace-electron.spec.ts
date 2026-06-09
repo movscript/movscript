@@ -74,7 +74,7 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
     const url = new URL(route.request().url())
     const entityPath = url.pathname.split('/').at(-1)
     const data: Record<string, unknown[]> = {
-      productions: [{ ID: 301, name: 'Electron 制作', status: 'planning', project_id: PROJECT_ID }],
+      productions: [{ ID: 301, name: 'Electron 制作', project_id: PROJECT_ID }],
       'settings': [{
         ID: 501,
         project_id: PROJECT_ID,

@@ -81,6 +81,8 @@ export interface AgentChatThread {
   createdAt: number
   updatedAt: number
   status: AgentChatThreadStatus
+  cwd?: string | null
+  executionSettings?: AgentThreadExecutionSettings
   turns: AgentChatTurn[]
   raw?: unknown
 }

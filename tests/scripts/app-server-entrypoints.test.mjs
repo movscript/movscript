@@ -166,7 +166,7 @@ test('app-server helper scripts default to Mova-capable provider inputs', () => 
 
   assert.match(appServerManager, /type AppServerExecutableProfile/)
   assert.match(appServerManager, /profile\?: ElectronAppServerProfile/)
-  assert.match(appServerManager, /resolveAppServerExecutableResolution\(\{ provider: providerKey, profile \}\)/)
+  assert.match(appServerManager, /resolveAppServerExecutableResolution\(\{ provider: providerKey, profile, managedBinDir \}\)/)
   assert.match(appServerManager, /function appServerExecutableProfile\(provider: AppServerProviderKey, profile\?: ElectronAppServerProfile\)/)
   assert.match(appServerManager, /function genericAppServerExecutableProfile/)
   assert.match(appServerManager, /function appServerProviderExecutableEnvVar/)

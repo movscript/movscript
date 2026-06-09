@@ -44,7 +44,6 @@ import {
   WorkbenchProjectBody,
   WorkbenchProjectShell,
   OverlapPaneRevealButton,
-  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { ScriptForm } from '@/features/scripts/components/ScriptForm'
 import {
@@ -54,17 +53,18 @@ import {
 } from '@/features/scripts/application/scriptWorkspaceRepository'
 import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
+import { routeLayoutSpecForPathname } from '@/routes/routeLayoutRegistry'
+import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
 import { scriptLibraryStatusRecipe } from '@/features/scripts/presentation/scriptsSemanticUi'
+import {
+  SCRIPT_WORKBENCH_DETAIL_PANE_ID,
+} from '@/features/scripts/presentation/scriptsWorkbenchLayoutSpec'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 
 type ScriptDetailTab = 'edit' | 'versions'
 
-const SCRIPT_LIST_MIN_WIDTH = 240
-const SCRIPT_DETAIL_PANE_MIN_WIDTH = 360
-const SCRIPT_DETAIL_PANE_MAX_WIDTH = 2400
-const SCRIPT_DETAIL_PANE_DEFAULT_WIDTH = 810
-const SCRIPT_DETAIL_PANE_WIDTH_STORAGE_KEY = 'movscript.scriptWorkbench.detailPaneWidth'
+const SCRIPTS_ROUTE_LAYOUT = routeLayoutSpecForPathname(ROUTES.project.scripts)
 
 // ─── Scripts Section ────────────────────────────────────────────────────────
 
@@ -85,17 +85,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     () => hasExplicitWorkbenchSearchParam(searchParams, ['script_id']),
     [searchParams],
   )
-  const detailPane = usePersistentOverlapPaneController({
-    storageKey: SCRIPT_DETAIL_PANE_WIDTH_STORAGE_KEY,
-    defaultSize: SCRIPT_DETAIL_PANE_DEFAULT_WIDTH,
-    minSize: SCRIPT_DETAIL_PANE_MIN_WIDTH,
-    maxSize: (rect) => Math.max(
-      SCRIPT_DETAIL_PANE_MIN_WIDTH,
-      Math.min(SCRIPT_DETAIL_PANE_MAX_WIDTH, rect.width - SCRIPT_LIST_MIN_WIDTH),
-    ),
+  const detailPane = useRouteLayoutOverlapPaneController({
+    routeLayout: SCRIPTS_ROUTE_LAYOUT,
+    paneId: SCRIPT_WORKBENCH_DETAIL_PANE_ID,
     resizeEdge: 'left',
-    collapseMode: 'after-min',
-    expandMode: 'after-max',
     ariaLabel: '调整剧本正文宽度',
   })
   const [workspace, setWorkspace] = useState<Partial<Script>>({})
@@ -238,7 +231,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
         content: saved.content ?? saved.raw_source ?? '',
         raw_source: saved.raw_source ?? saved.content ?? '',
         summary: saved.summary ?? '',
-        status: 'active',
       })
     },
     onSuccess: (version) => {
@@ -498,7 +490,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                     <ScriptVersionCard
                                       key={version.ID}
                                       versionLabel={`v${version.version_number || version.ID}`}
-                                      status={<Badge variant="outline">{scriptVersionStatusLabel(version.status)}</Badge>}
                                       title={version.title}
                                       meta={`${contentLength} 字 · ${formatDate(version.UpdatedAt)}`}
                                       toggleLabel={contentLength > 0 ? (isExpanded ? '收起' : '查看') : undefined}
@@ -602,12 +593,6 @@ function scriptVersionSourceText(version: ScriptVersion) {
 
 function normalizeComparableScriptText(value: string) {
   return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
-}
-
-function scriptVersionStatusLabel(status?: string) {
-  if (status === 'active') return '当前'
-  if (status === 'archived') return '已归档'
-  return '工作区'
 }
 
 function formatDate(value?: string) {

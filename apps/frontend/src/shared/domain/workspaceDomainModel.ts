@@ -2,7 +2,7 @@ import {
   listMovScriptDomainWorkspaceModels,
   type MovScriptDomainWorkspaceKind,
   type MovScriptDomainWorkspaceModel,
-} from '@movscript/core/workspace'
+} from '@movscript/workspace'
 
 export interface WorkspaceDomainModel {
   kind: MovScriptDomainWorkspaceKind

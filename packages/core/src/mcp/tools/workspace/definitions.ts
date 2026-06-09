@@ -1,15 +1,25 @@
-import type { MCPTool } from '../../protocol/types'
+import type { MCPJSONValue, MCPTool } from '../../protocol/types'
 import { objectSchema } from '../schema'
+
+const workspaceLocator = {
+  workspaceDir: { type: 'string', description: 'Optional MovScript workspace container directory. Defaults to the current MovScript workspace dir.' },
+  workspace_dir: { type: 'string', description: 'Alias for workspaceDir.' },
+  projectId: { type: ['string', 'number'], description: 'Required project id for project-scoped workspace tools. MCP never infers project from session, cwd, route, or focus.' },
+  project_id: { type: ['string', 'number'], description: 'Alias for projectId.' },
+}
 
 export function workspaceTools(): MCPTool[] {
   return [
     {
       name: 'movscript_workspace_get_model',
-      description: 'Return the domain workspace model for editing one MovScript entity: workspace kind, editable paths, context paths, schema ids, and agent instructions. This does not write files.',
-      inputSchema: objectSchema(
+      description: 'Compatibility alias for domain_get_model. Return the movscript-lang workspace model for one editable domain entity: editable source paths, context paths, schema ids, supported write APIs, and agent instructions. This is project-scoped and does not write files.',
+      inputSchema: projectSchema(
         {
+          ...workspaceLocator,
           entityKind: { type: 'string', description: 'Domain entity kind, for example setting, asset, production, storyboard, content_unit, or keyframe.' },
+          entity_kind: { type: 'string', description: 'Alias for entityKind.' },
           entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
+          entity_id: { type: ['string', 'number'], description: 'Alias for entityId.' },
         },
         ['entityKind']
       ),
@@ -21,7 +31,6 @@ export function workspaceTools(): MCPTool[] {
         {
           name: { type: 'string' },
           description: { type: 'string' },
-          status: { type: 'string' },
           total_episodes: { type: 'number' },
         },
         ['name']
@@ -29,25 +38,17 @@ export function workspaceTools(): MCPTool[] {
     },
     {
       name: 'movscript_workspace_review',
-      description: 'Review current source files by comparing them with .build/current. Reports changed files, changed entities, schema/domain issues, and whether build is ready. This does not make edits effective.',
-      inputSchema: objectSchema(
-        {
-          workspaceDir: { type: 'string', description: 'Optional MovScript workspace container directory. Defaults to the current MovScript workspace dir.' },
-          userId: { type: ['string', 'number'], description: 'Optional workspace user id used to resolve the project repository root.' },
-          projectId: { type: ['string', 'number'], description: 'Optional project id used to resolve the project repository root.' },
-        }
-      ),
+      description: 'Compatibility alias for domain_review. Inspect current source files by comparing them with .build/current. Reports changed files, changed entities, schema/domain issues, and compile readiness. This does not make edits effective.',
+      inputSchema: projectSchema(workspaceLocator),
     },
     {
       name: 'movscript_workspace_build',
-      description: 'Build current source files into .build/current and .build/indexes. Build must succeed before edits become the current effective workspace state.',
-      inputSchema: objectSchema(
-        {
-          workspaceDir: { type: 'string', description: 'Optional MovScript workspace container directory. Defaults to the current MovScript workspace dir.' },
-          userId: { type: ['string', 'number'], description: 'Optional workspace user id used to resolve the project repository root.' },
-          projectId: { type: ['string', 'number'], description: 'Optional project id used to resolve the project repository root.' },
-        }
-      ),
+      description: 'Compatibility alias for domain_compile/domain_build. Compile current source files into .build/current and .build/indexes. Compile must succeed before edits become current effective workspace state.',
+      inputSchema: projectSchema(workspaceLocator),
     },
   ]
+}
+
+function projectSchema(properties: Record<string, MCPJSONValue>, required?: string[]): MCPTool['inputSchema'] {
+  return objectSchema(properties, required)
 }

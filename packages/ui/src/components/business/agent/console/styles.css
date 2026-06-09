@@ -102,7 +102,14 @@
   animation: ms-spin 1s linear infinite;
 }
 
+.agent-console-page-body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
 .agent-console-metric-grid {
+  flex: 0 0 auto;
   display: grid;
   gap: var(--ms-space-3);
 }
@@ -129,14 +136,26 @@
   margin-top: var(--ms-space-4);
 }
 
+.agent-console-main-grid--control-logs {
+  min-height: 0;
+}
+
 @media (min-width: 1280px) {
   .agent-console-main-grid {
     grid-template-columns: minmax(0, 1fr) 360px;
   }
 
   .agent-console-main-grid--control-logs {
+    flex: 1 1 auto;
     grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
     align-items: start;
+    overflow: hidden;
+  }
+
+  .agent-console-main-grid--control-logs > .agent-console-main-column,
+  .agent-console-main-grid--control-logs > .agent-console-sidebar {
+    min-height: 0;
+    overflow-y: auto;
   }
 }
 

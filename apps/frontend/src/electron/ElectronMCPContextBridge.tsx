@@ -6,6 +6,7 @@ import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 
 const productionOrchestrationPaths: readonly string[] = [
+  ROUTES.project.scripts,
   ROUTES.project.productionOrchestration,
 ]
 
@@ -34,7 +35,6 @@ export function ElectronMCPContextBridge() {
       id: project.ID,
       name: project.name,
       description: project.description,
-      status: project.status,
       totalEpisodes: project.total_episodes,
     } : null,
     productionId,
@@ -65,7 +65,6 @@ export function ElectronMCPContextBridge() {
     project?.ID,
     project?.description,
     project?.name,
-    project?.status,
     project?.total_episodes,
     gitCredential,
     token,

@@ -1,28 +1,30 @@
 import { create } from 'zustand'
 import type { ReactNode } from 'react'
 
-const AGENT_MODE_CONTENT_PANEL_COLLAPSED_STORAGE_KEY = 'movscript-ai-ui-content-panel-collapsed'
-const AGENT_MODE_SIDEBAR_COLLAPSED_STORAGE_KEY = 'movscript-ai-ui-sidebar-collapsed'
+import {
+  AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
+  AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
+} from './agentModePanelSizing'
 
 function readAgentModeContentPanelCollapsed() {
   if (typeof window === 'undefined') return true
-  const saved = window.localStorage.getItem(AGENT_MODE_CONTENT_PANEL_COLLAPSED_STORAGE_KEY)
+  const saved = window.localStorage.getItem(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
   return saved === null ? true : saved === 'true'
 }
 
 function persistAgentModeContentPanelCollapsed(collapsed: boolean) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_COLLAPSED_STORAGE_KEY, String(collapsed))
+  window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY, String(collapsed))
 }
 
 function readAgentModeSidebarCollapsed() {
   if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(AGENT_MODE_SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+  return window.localStorage.getItem(AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY) === 'true'
 }
 
 function persistAgentModeSidebarCollapsed(collapsed: boolean) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(AGENT_MODE_SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed))
+  window.localStorage.setItem(AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY, String(collapsed))
 }
 
 interface AgentPanelUiStore {

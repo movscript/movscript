@@ -9,6 +9,7 @@ export type { SandboxMode } from '@/shared/infrastructure/app-server/app-server-
 export type { SandboxPolicy } from '@/shared/infrastructure/app-server/app-server-protocol/v2/SandboxPolicy'
 export type { Thread as AppServerThread } from '@/shared/infrastructure/app-server/app-server-protocol/v2/Thread'
 export type { ThreadItem as AppServerThreadItem } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadItem'
+export type { ThreadSourceKind as AppServerThreadSourceKind } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadSourceKind'
 export type { ThreadListResponse as AppServerThreadListResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadListResponse'
 export type { ThreadReadResponse as AppServerThreadReadResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadReadResponse'
 export type { ThreadResumeParams as AppServerThreadResumeParams } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadResumeParams'

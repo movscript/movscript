@@ -63,11 +63,10 @@ export function AppServerChatShell({
   }), [selectedModel])
   const providerLabel = provider?.label?.trim() || 'App-server Provider'
   const routeWorkspaceContext = useMemo(() => appServerWorkspaceContextFromRoute({
-    userId,
     projectId: project?.ID,
     pathname: location.pathname,
     search: location.search,
-  }), [location.pathname, location.search, project?.ID, userId])
+  }), [location.pathname, location.search, project?.ID])
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
     if (provider) await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
     if (provider && routeWorkspaceContext) return loadScopedAppServerDataSource({
@@ -137,10 +136,8 @@ async function loadScopedAppServerDataSource(input: {
 }): Promise<AgentChatDataSourceShellLoadResult> {
   const profile = resolveAppServerProfile(input.provider)
   const status = await ensureAppServer({
-    profile: {
-      ...profile,
-      workspaceContext: input.workspaceContext,
-    },
+    profile,
+    workspaceContext: input.workspaceContext,
   })
   if (!status?.ok || !status.endpoint) throw new Error(status?.error || `${input.providerLabel} app-server failed to start: ${profile.id}`)
   return appServerDataSourceLoadResult({
@@ -174,7 +171,6 @@ function appServerDataSourceLoadResult(input: {
 }
 
 export function appServerWorkspaceContextFromRoute(input: {
-  userId: string
   projectId?: number
   pathname: string
   search: string
@@ -184,24 +180,22 @@ export function appServerWorkspaceContextFromRoute(input: {
   if (productionId !== undefined) {
     return {
       scope: 'production',
-      userId: input.userId || undefined,
       projectId: input.projectId,
       productionId,
     }
   }
   return {
     scope: 'project',
-    userId: input.userId || undefined,
     projectId: input.projectId,
   }
 }
 
 function productionIdFromLocation(pathname: string, search: string): number | undefined {
-  const queryValue = new URLSearchParams(search).get('productionId')
+  const queryValue = new URLSearchParams(search).get('productionId') ?? new URLSearchParams(search).get('production_id')
   const queryId = positiveInteger(queryValue)
   if (queryId !== undefined) return queryId
-  const match = pathname.match(/(?:^|\/)production(?:s|Orchestration)?\/(\d+)(?:\/|$)/i)
-  return positiveInteger(match?.[1])
+  const pathMatch = /(?:^|\/)production(?:s)?\/(\d+)(?:\/|$)/.exec(pathname)
+  return positiveInteger(pathMatch?.[1])
 }
 
 function positiveInteger(value: string | null | undefined): number | undefined {

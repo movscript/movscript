@@ -13,7 +13,6 @@ export interface MovScriptWorkspaceContextInput {
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
-  productionId?: string | number
 }
 
 export interface MovScriptWorkspaceContext {
@@ -21,7 +20,6 @@ export interface MovScriptWorkspaceContext {
   userId?: string
   orgId?: string
   projectId?: string
-  productionId?: string
 }
 
 export interface MovScriptWorkspaceRootPaths {
@@ -29,11 +27,6 @@ export interface MovScriptWorkspaceRootPaths {
   rootDir: string
   controlDir: string
   manifestPath: string
-  buildDir: string
-  buildCurrentDir: string
-  buildIndexesDir: string
-  buildReviewsDir: string
-  buildManifestsDir: string
   providersDir: string
   backendDir: string
 }
@@ -49,8 +42,6 @@ export interface MovScriptWorkspaceRootManifest {
   }
   activeUserId?: number
   layout: {
-    editableRoot: '.'
-    buildRoot: '.build'
     providerConfigRoot: typeof MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME
   }
 }
@@ -61,7 +52,6 @@ export interface MovScriptWorkspaceContextPaths {
   scope: MovScriptWorkspaceScope
   context: MovScriptWorkspaceContext
   contextKey: string
-  editableBaseDir: string
-  buildBaseDir: string
+  projectCwd: string
   providerSessionCwd: string
 }

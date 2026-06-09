@@ -43,7 +43,7 @@ export interface WorkspaceKeyframeNode {
   __delete?: boolean
 }
 
-export interface WorkspaceWritingExpressionNode {
+export interface WorkspaceExpressionUnitNode {
   id?: number
   client_id?: string
   kind?: 'dialogue' | 'action' | 'narration' | 'subtitle' | 'visual' | string
@@ -95,7 +95,7 @@ export interface WorkspaceSceneMomentNode {
   settings?: WorkspaceCreativeRefNode[]
   asset_slots?: WorkspaceAssetSlotNode[]
   keyframes?: WorkspaceKeyframeNode[]
-  writing_expressions?: WorkspaceWritingExpressionNode[]
+  expression_units?: WorkspaceExpressionUnitNode[]
   rationale?: string
   before?: Record<string, unknown>
   __delete?: boolean
@@ -138,7 +138,7 @@ export interface ApplyProductionWorkspaceCounts {
   keyframes_created: number
   settings_created: number
   setting_usages: number
-  writing_expressions_created: number
+  expression_units_created: number
 }
 
 export type ProductionWorkspaceReviewChange = Record<string, unknown> & {
@@ -171,7 +171,7 @@ export interface WorkspaceSimulationResult {
       assetSlots: number
       contentUnits: number
       keyframes: number
-      writingExpressions: number
+      expressionUnits: number
     }
     semanticChanges: ProductionWorkspaceReviewChange[]
     warnings: ProductionWorkspaceReviewWarning[]
@@ -181,7 +181,7 @@ export interface WorkspaceSimulationResult {
 export interface WorkspaceReviewNode {
   key: string
   action: WorkspaceSnapshotAction
-  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'setting' | 'asset_slot' | 'writing_expression'
+  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'setting' | 'asset_slot' | 'expression_unit'
 }
 
 export interface ProductionWorkspaceSnapshotRecord {
@@ -197,7 +197,7 @@ export interface BuildCurrentProductionWorkspaceSnapshotInput {
   contentUnits: ProductionWorkspaceSnapshotRecord[]
   keyframes: ProductionWorkspaceSnapshotRecord[]
   assetSlots: ProductionWorkspaceSnapshotRecord[]
-  writingExpressions: ProductionWorkspaceSnapshotRecord[]
+  expressionUnits: ProductionWorkspaceSnapshotRecord[]
 }
 
 export function parseProductionWorkspaceArtifact(workspace: WorkspaceArtifact): ProductionWorkspaceArtifactContent | null {
@@ -259,7 +259,7 @@ export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProdu
     })
   }
 
-  for (const expression of input.writingExpressions) {
+  for (const expression of input.expressionUnits) {
     const sceneMomentId = positiveRecordNumber(expression.scene_moment_id)
     if (!sceneMomentId) continue
     pushSnapshotGroupedRecord(expressionsBySceneMoment, sceneMomentId, expression)
@@ -284,7 +284,7 @@ export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProdu
             order: positiveRecordNumber(moment.order),
             script_block_id: positiveRecordNumber(moment.script_block_id),
             settings: (referencesBySceneMoment.get(moment.ID) ?? []).slice(),
-            writing_expressions: (expressionsBySceneMoment.get(moment.ID) ?? []).slice().sort(workspaceSnapshotByOrder).map(workspaceWritingExpressionFromRecord),
+            expression_units: (expressionsBySceneMoment.get(moment.ID) ?? []).slice().sort(workspaceSnapshotByOrder).map(workspaceExpressionUnitFromRecord),
           } satisfies WorkspaceSceneMomentNode
         })
       return {
@@ -299,7 +299,7 @@ export function buildCurrentProductionWorkspaceSnapshot(input: BuildCurrentProdu
       } satisfies WorkspaceSegmentNode
     }),
   }
-  function workspaceWritingExpressionFromRecord(expression: ProductionWorkspaceSnapshotRecord): WorkspaceWritingExpressionNode {
+  function workspaceExpressionUnitFromRecord(expression: ProductionWorkspaceSnapshotRecord): WorkspaceExpressionUnitNode {
     return {
       id: expression.ID,
       client_id: stringRecordValue(expression.client_id),
@@ -385,8 +385,8 @@ export function buildWorkspaceSemanticDiff(segments: WorkspaceSegmentNode[]): Wo
         before: workspaceBeforeText(moment.before, ['action_text', 'description', 'title']),
         after: compactParts([moment.action_text, moment.description]),
       })
-      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
-        const expressionKey = workspaceNodeDecisionKey('writing_expression', expression, `${momentFallback}-expression-${expressionIndex}`)
+      ;(moment.expression_units ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = workspaceNodeDecisionKey('expression_unit', expression, `${momentFallback}-expression-${expressionIndex}`)
         children.push({
           key: expressionKey,
           acceptKeys: [segmentKey, momentKey, expressionKey],
@@ -529,15 +529,15 @@ export function buildWorkspaceApplyPreview(segments: WorkspaceSegmentNode[], dec
         parent: segmentTitle,
       }, momentDecision, momentBlocked)
 
-      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
-        const expressionKey = workspaceNodeDecisionKey('writing_expression', expression, `${momentFallback}-expression-${expressionIndex}`)
+      ;(moment.expression_units ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = workspaceNodeDecisionKey('expression_unit', expression, `${momentFallback}-expression-${expressionIndex}`)
         const expressionDecision = decisions[expressionKey]
         const expressionBlocked = expressionDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted')
         pushByDecision({
           key: expressionKey,
           title: expression.text || `表达条目 ${expressionIndex + 1}`,
           detail: compactParts([expression.kind, expression.speaker, expression.intent, expression.note]),
-          kind: 'writing_expression',
+          kind: 'expression_unit',
           action: workspaceSnapshotAction(expression),
           parent: `${segmentTitle} / ${momentTitle}`,
         }, expressionDecision, expressionBlocked)
@@ -679,7 +679,7 @@ export function countWorkspaceActions(segments: WorkspaceSegmentNode[]) {
     add(segment)
     for (const moment of segment.scene_moments ?? []) {
       add(moment)
-      for (const expression of moment.writing_expressions ?? []) add(expression)
+      for (const expression of moment.expression_units ?? []) add(expression)
       for (const unit of moment.content_units ?? []) {
         add(unit)
         for (const keyframe of unit.keyframes ?? []) add(keyframe)
@@ -710,7 +710,7 @@ export function buildWorkspaceSimulationResult({
     keyframes_created: 0,
     settings_created: 0,
     setting_usages: 0,
-    writing_expressions_created: 0,
+    expression_units_created: 0,
   }
   const actions = { create: 0, update: 0, delete: 0 }
   const addAction = (node: { id?: number | null; __delete?: boolean }) => {
@@ -726,9 +726,9 @@ export function buildWorkspaceSimulationResult({
     for (const moment of segment.scene_moments ?? []) {
       addAction(moment)
       if (!snapshotNodeHasID(moment)) counts.scene_moments_created += 1
-      for (const expression of moment.writing_expressions ?? []) {
+      for (const expression of moment.expression_units ?? []) {
         addAction(expression)
-        if (!snapshotNodeHasID(expression)) counts.writing_expressions_created += 1
+        if (!snapshotNodeHasID(expression)) counts.expression_units_created += 1
       }
       for (const unit of moment.content_units ?? []) {
         addAction(unit)
@@ -808,14 +808,14 @@ export function buildMergedProductionWorkspace(
         return
       }
       const targetMoment = upsertMomentNode(targetSegment, moment)
-      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
-        const expressionKey = workspaceNodeDecisionKey('writing_expression', expression, `${momentFallback}-expression-${expressionIndex}`)
+      ;(moment.expression_units ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = workspaceNodeDecisionKey('expression_unit', expression, `${momentFallback}-expression-${expressionIndex}`)
         if (decisions[expressionKey] !== 'accepted') return
         if (expression.__delete) {
-          targetMoment.writing_expressions = removeNodeById(targetMoment.writing_expressions ?? [], expression.id)
+          targetMoment.expression_units = removeNodeById(targetMoment.expression_units ?? [], expression.id)
           return
         }
-        targetMoment.writing_expressions = upsertNode(targetMoment.writing_expressions ?? [], expression)
+        targetMoment.expression_units = upsertNode(targetMoment.expression_units ?? [], expression)
       })
       ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
         const unitFallback = `${momentFallback}-content-${unitIndex}`
@@ -958,10 +958,10 @@ function collectSegmentWorkspaceReviewNodes(segment: WorkspaceSegmentNode, index
 function collectSceneWorkspaceReviewNodes(moment: WorkspaceSceneMomentNode, fallback: string): WorkspaceReviewNode[] {
   return [
     { key: workspaceNodeDecisionKey('scene_moment', moment, fallback), action: workspaceSnapshotAction(moment), kind: 'scene_moment' },
-    ...(moment.writing_expressions ?? []).map((expression, index) => ({
-      key: workspaceNodeDecisionKey('writing_expression', expression, `${fallback}-expression-${index}`),
+    ...(moment.expression_units ?? []).map((expression, index) => ({
+      key: workspaceNodeDecisionKey('expression_unit', expression, `${fallback}-expression-${index}`),
       action: workspaceSnapshotAction(expression),
-      kind: 'writing_expression' as const,
+      kind: 'expression_unit' as const,
     })),
     ...(moment.content_units ?? []).flatMap((unit, index) => {
       const unitFallback = `${fallback}-content-${index}`
@@ -1038,9 +1038,9 @@ function pruneUnchangedWorkspaceMoment(proposed: WorkspaceSceneMomentNode, curre
   const prunedKeyframes = pruneUnchangedWorkspaceNodes(proposed.keyframes ?? [], current.keyframes ?? [], ['keyframes'])
   const prunedSettings = pruneUnchangedWorkspaceNodes(proposed.settings ?? [], current.settings ?? [], ['settings'])
   const prunedAssetSlots = pruneUnchangedWorkspaceNodes(proposed.asset_slots ?? [], current.asset_slots ?? [], ['asset_slots'])
-  const prunedWritingExpressions = pruneUnchangedWorkspaceNodes(proposed.writing_expressions ?? [], current.writing_expressions ?? [], ['writing_expressions'])
-  const hasOwnChange = !workspaceOwnFieldsEqual(proposed, current, ['content_units', 'settings', 'asset_slots', 'keyframes', 'writing_expressions'])
-  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedSettings.length > 0 || prunedAssetSlots.length > 0 || prunedWritingExpressions.length > 0
+  const prunedExpressionUnits = pruneUnchangedWorkspaceNodes(proposed.expression_units ?? [], current.expression_units ?? [], ['expression_units'])
+  const hasOwnChange = !workspaceOwnFieldsEqual(proposed, current, ['content_units', 'settings', 'asset_slots', 'keyframes', 'expression_units'])
+  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedSettings.length > 0 || prunedAssetSlots.length > 0 || prunedExpressionUnits.length > 0
   if (!hasOwnChange && !hasChildChanges) return null
   return {
     ...proposed,
@@ -1048,7 +1048,7 @@ function pruneUnchangedWorkspaceMoment(proposed: WorkspaceSceneMomentNode, curre
     keyframes: prunedKeyframes,
     settings: prunedSettings,
     asset_slots: prunedAssetSlots,
-    writing_expressions: prunedWritingExpressions,
+    expression_units: prunedExpressionUnits,
   }
 }
 
@@ -1116,11 +1116,11 @@ function appendDeletedMomentChildren(proposed: WorkspaceSceneMomentNode, current
     current.settings ?? [],
     markWorkspaceSettingDeleted,
   )
-  if (Object.prototype.hasOwnProperty.call(proposed, 'writing_expressions')) {
-    proposed.writing_expressions = appendDeletedNodes(
-      proposed.writing_expressions ?? [],
-      current.writing_expressions ?? [],
-      markWorkspaceWritingExpressionDeleted,
+  if (Object.prototype.hasOwnProperty.call(proposed, 'expression_units')) {
+    proposed.expression_units = appendDeletedNodes(
+      proposed.expression_units ?? [],
+      current.expression_units ?? [],
+      markWorkspaceExpressionUnitDeleted,
     )
   }
   for (const unit of proposed.content_units ?? []) {
@@ -1169,7 +1169,7 @@ function upsertMomentNode(segment: WorkspaceSegmentNode, moment: WorkspaceSceneM
     keyframes: existing?.keyframes ?? [],
     settings: existing?.settings ?? [],
     asset_slots: existing?.asset_slots ?? [],
-    writing_expressions: existing?.writing_expressions ?? [],
+    expression_units: existing?.expression_units ?? [],
   }
   if (snapshotNodeHasID(nextMoment)) {
     const index = moments.findIndex((item) => item.id === nextMoment.id)
@@ -1239,7 +1239,7 @@ function markWorkspaceMomentDeleted(moment: WorkspaceSceneMomentNode): Workspace
     keyframes: (moment.keyframes ?? []).map(markWorkspaceKeyframeDeleted),
     settings: [],
     asset_slots: (moment.asset_slots ?? []).map(markWorkspaceAssetSlotDeleted),
-    writing_expressions: (moment.writing_expressions ?? []).map(markWorkspaceWritingExpressionDeleted),
+    expression_units: (moment.expression_units ?? []).map(markWorkspaceExpressionUnitDeleted),
   }
 }
 
@@ -1263,7 +1263,7 @@ function markWorkspaceAssetSlotDeleted(slot: WorkspaceAssetSlotNode): WorkspaceA
   return { ...cloneWorkspaceNode(slot), __delete: true }
 }
 
-function markWorkspaceWritingExpressionDeleted(expression: WorkspaceWritingExpressionNode): WorkspaceWritingExpressionNode {
+function markWorkspaceExpressionUnitDeleted(expression: WorkspaceExpressionUnitNode): WorkspaceExpressionUnitNode {
   return { ...cloneWorkspaceNode(expression), __delete: true }
 }
 

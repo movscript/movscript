@@ -18,6 +18,7 @@ import { AgentChatRecentCapabilityEventCard } from '@/features/agent/components/
 import { AgentPinnedStatusShelf, type AgentPinnedStatusSummaryItem } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { AgentChatServerRequestCard } from '@/features/agent/components/agent-chat-items/AgentChatServerRequestCard'
 import { AgentChatThreadItemView } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemView'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 import { agentChatRecentCapabilityEventEntryId } from '@/features/agent/domain/agentChatRecentCapabilityEvents'
 import {
   type AgentChatPendingServerRequestQueueEntry,
@@ -167,6 +168,7 @@ export function AgentChatDataSourceShell({
   const [streamingAgentItems, setStreamingAgentItems] = useState<Record<string, AgentChatStreamingAgentItem>>({})
   const [realtimeTranscriptItems, setRealtimeTranscriptItems] = useState<Record<string, AgentChatRealtimeTranscriptItem>>({})
   const [realtimeAudioItems, setRealtimeAudioItems] = useState<Record<string, AgentChatRealtimeAudioItem>>({})
+  const [threadModelOverrides, setThreadModelOverrides] = useState<Record<string, string>>({})
   const streamingAgentItemsRef = useRef<Record<string, AgentChatStreamingAgentItem>>({})
   const recentCapabilityEventSequenceRef = useRef(0)
   const activeThreadIdRef = useRef(activeThreadId)
@@ -175,6 +177,19 @@ export function AgentChatDataSourceShell({
   const restoreStoredThreadRef = useRef<() => Promise<void>>(async () => undefined)
   const composerInputRef = useRef<HTMLDivElement | null>(null)
   const composerFileRef = useRef<HTMLInputElement | null>(null)
+  const selectedModelSelectionForRequest = useCallback((thread?: AgentChatThread | null): AgentChatModelSelection => {
+    const threadModel = (thread?.id ? threadModelOverrides[thread.id] : undefined)
+      || thread?.executionSettings?.model?.trim()
+      || undefined
+    const selectedModel = selectedModelId === undefined || selectedModelId === null
+      ? modelOptions[0]
+      : modelOptions.find((model) => model.id === selectedModelId) ?? modelOptions[0]
+    const model = selectedModel ? publicModelId(selectedModel) : undefined
+    return {
+      ...resolveModelForRequest(),
+      ...(threadModel || model ? { model: threadModel ?? model } : {}),
+    }
+  }, [modelOptions, resolveModelForRequest, selectedModelId, threadModelOverrides])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [stoppingTurn, setStoppingTurn] = useState(false)
@@ -273,6 +288,14 @@ export function AgentChatDataSourceShell({
     if (clearActive) writeAgentActiveConversationId(userId, null)
   }, [userId])
 
+  const clearUnavailableActiveThread = useCallback((threadId: string) => {
+    if (activeThreadIdRef.current === threadId) setActiveThreadIdValue(null)
+    if (readStoredActiveThreadId(activeThreadStorageKey) === threadId) {
+      writeStoredActiveThreadId(activeThreadStorageKey, null)
+    }
+    markThreadClosed(threadId, true)
+  }, [activeThreadStorageKey, markThreadClosed, setActiveThreadIdValue])
+
   const readHistoryThread = useCallback(async (threadId: string) => {
     if (!dataSource) throw new Error('Agent data source is not available')
     return dataSource.readThread(threadId, { includeTurns: true })
@@ -287,21 +310,33 @@ export function AgentChatDataSourceShell({
       const nextThreads = response.threads
       setThreads(nextThreads)
       const stored = readStoredActiveThreadId(activeThreadStorageKey)
-      const nextActive = nextThreads.find((thread) => thread.id === stored)?.id
-        ?? nextThreads[0]?.id
-        ?? null
-      setActiveThreadIdValue(nextActive)
-      writeStoredActiveThreadId(activeThreadStorageKey, nextActive)
-      if (nextActive) {
-        const thread = await readHistoryThread(nextActive)
-        upsertThread(thread)
+      const candidateIds = uniqueAgentChatThreadIds([
+        nextThreads.find((thread) => thread.id === stored)?.id,
+        ...nextThreads.map((thread) => thread.id),
+      ])
+      let lastMissingThreadError: unknown
+      for (const candidateId of candidateIds) {
+        setActiveThreadIdValue(candidateId)
+        writeStoredActiveThreadId(activeThreadStorageKey, candidateId)
+        try {
+          const thread = await readHistoryThread(candidateId)
+          upsertThread(thread)
+          return
+        } catch (readError) {
+          if (!isUnavailableThreadReadError(readError)) throw readError
+          lastMissingThreadError = readError
+          clearUnavailableActiveThread(candidateId)
+        }
       }
+      setActiveThreadIdValue(null)
+      writeStoredActiveThreadId(activeThreadStorageKey, null)
+      if (lastMissingThreadError) setError(errorMessage(lastMissingThreadError))
     } catch (nextError) {
       setError(errorMessage(nextError))
     } finally {
       setLoading(false)
     }
-  }, [activeThreadStorageKey, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
 
   const restoreStoredThread = useCallback(async () => {
     if (!dataSource) return
@@ -317,11 +352,15 @@ export function AgentChatDataSourceShell({
       const thread = await readHistoryThread(stored)
       upsertThread(thread)
     } catch (nextError) {
+      if (isUnavailableThreadReadError(nextError)) {
+        clearUnavailableActiveThread(stored)
+        setThreads((current) => current.filter((thread) => thread.id !== stored))
+      }
       setError(errorMessage(nextError))
     } finally {
       setLoading(false)
     }
-  }, [activeThreadStorageKey, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
 
   useEffect(() => {
     loadThreadsRef.current = loadThreads
@@ -342,9 +381,13 @@ export function AgentChatDataSourceShell({
       upsertThread(response)
       setHistoryOpen(false)
     } catch (nextError) {
+      if (isUnavailableThreadReadError(nextError)) {
+        clearUnavailableActiveThread(threadId)
+        setThreads((current) => current.filter((thread) => thread.id !== threadId))
+      }
       setError(errorMessage(nextError))
     }
-  }, [activeThreadStorageKey, dataSource, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThread])
 
   useEffect(() => {
     function handleOpenThread(event: Event) {
@@ -396,7 +439,7 @@ export function AgentChatDataSourceShell({
         ...threadInput,
         ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
         ...(goalModeEnabled ? { goalModeEnabled } : {}),
-        ...resolveModelForRequest(),
+        ...selectedModelSelectionForRequest(),
       })
       upsertThread(thread)
       setActiveThreadIdValue(thread.id)
@@ -408,7 +451,7 @@ export function AgentChatDataSourceShell({
       setError(errorMessage(nextError))
       return null
     }
-  }, [activeThreadStorageKey, collaborationMode, dataSource, goalModeEnabled, loadDataSourceForNewThread, markThreadOpen, resolveModelForRequest, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, collaborationMode, dataSource, goalModeEnabled, loadDataSourceForNewThread, markThreadOpen, selectedModelSelectionForRequest, setActiveThreadIdValue, upsertThread])
 
   const startWorkspaceTask = useCallback(async (payload: AgentPanelWorkspacePayload) => {
     if (!dataSource) return
@@ -424,7 +467,7 @@ export function AgentChatDataSourceShell({
         ? await dataSource.startTextTurn({
             threadId: thread.id,
             text: payload.message,
-            ...resolveModelForRequest(),
+            ...selectedModelSelectionForRequest(thread),
           })
         : undefined
       if (payload.requestId) {
@@ -460,7 +503,7 @@ export function AgentChatDataSourceShell({
       }
       throw nextError
     }
-  }, [dataSource, resolveModelForRequest, startThread])
+  }, [dataSource, selectedModelSelectionForRequest, startThread])
 
   const handleServerRequest = useCallback((request: AgentChatServerRequest) => {
     if (request.method === 'attestation/generate') {
@@ -621,6 +664,27 @@ export function AgentChatDataSourceShell({
   }, [threads, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems, activeThreadId])
 
   const activeThread = threads.find((thread) => thread.id === activeThreadId) ?? null
+  const activeThreadModelValue = useMemo(() => {
+    const model = (activeThreadId ? threadModelOverrides[activeThreadId] : undefined)
+      || activeThread?.executionSettings?.model
+      || undefined
+    if (!model) return selectedModelId
+    return modelOptions.find((option) => publicModelId(option) === model)?.id ?? selectedModelId
+  }, [activeThread?.executionSettings?.model, activeThreadId, modelOptions, selectedModelId, threadModelOverrides])
+  const handleModelChange = useCallback((modelId: number | null) => {
+    onSelectedModelChange?.(modelId)
+    if (!activeThreadId) return
+    const model = modelId === null ? undefined : modelOptions.find((option) => option.id === modelId)
+    setThreadModelOverrides((current) => {
+      const next = { ...current }
+      if (!model) {
+        delete next[activeThreadId]
+      } else {
+        next[activeThreadId] = publicModelId(model)
+      }
+      return next
+    })
+  }, [activeThreadId, modelOptions, onSelectedModelChange])
   const visibleStatusItems = useMemo(() => statusSummaryEntries
     .filter((item) => !item.threadId || item.threadId === activeThreadId)
     .sort((left, right) => right.updatedAt - left.updatedAt)
@@ -679,7 +743,21 @@ export function AgentChatDataSourceShell({
       const selectedWorkspaceProjectId = typeof composer.selectedWorkspaceContext.projectId === 'number'
         ? composer.selectedWorkspaceContext.projectId
         : undefined
-      const thread = activeThread ?? await startThread({
+      let thread = activeThread
+      if (thread?.status === 'notLoaded') {
+        if (!dataSource.resumeThread) {
+          throw new Error(`Thread ${thread.id} is not loaded and cannot be resumed by ${dataSource.label}.`)
+        }
+        thread = await dataSource.resumeThread({
+          threadId: thread.id,
+          cwd: thread.cwd,
+          runProfile,
+          ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+          ...selectedModelSelectionForRequest(thread),
+        })
+        upsertThread(thread)
+      }
+      thread ??= await startThread({
         runProfile,
         workspaceContext: composer.selectedWorkspaceContext,
         ...(selectedWorkspaceProjectId !== undefined ? { projectId: selectedWorkspaceProjectId } : {}),
@@ -724,7 +802,7 @@ export function AgentChatDataSourceShell({
           runProfile,
           ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
           ...(goalModeEnabled ? { goalModeEnabled } : {}),
-          ...resolveModelForRequest(),
+          ...selectedModelSelectionForRequest(thread),
         })
       } else {
         await dataSource.startTextTurn({
@@ -734,7 +812,7 @@ export function AgentChatDataSourceShell({
           runProfile,
           ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
           ...(goalModeEnabled ? { goalModeEnabled } : {}),
-          ...resolveModelForRequest(),
+          ...selectedModelSelectionForRequest(thread),
         })
       }
     } catch (nextError) {
@@ -743,7 +821,7 @@ export function AgentChatDataSourceShell({
     } finally {
       setSending(false)
     }
-  }, [activeThread, activeThreadStorageKey, activeTurn, collaborationMode, composer, composerConversationId, composerPlaceholder, dataSource, goalModeEnabled, resolveModelForRequest, sending, startThread, userId])
+  }, [activeThread, activeThreadStorageKey, activeTurn, collaborationMode, composer, composerConversationId, composerPlaceholder, dataSource, goalModeEnabled, selectedModelSelectionForRequest, sending, startThread, userId])
 
   const stopActiveTurn = useCallback(async () => {
     if (!dataSource?.interruptTurn || !activeThread || !activeTurn || stoppingTurn) return
@@ -921,7 +999,7 @@ export function AgentChatDataSourceShell({
               mentionRangeActive={!!composer.mentionRange}
               mentionResults={composer.mentionResults}
               modelOptions={modelOptions}
-              modelValue={selectedModelId}
+              modelValue={activeThreadModelValue}
               collaborationMode={collaborationMode}
               goalModeEnabled={goalModeEnabled}
               pendingActiveRunInputQueue={[]}
@@ -932,9 +1010,6 @@ export function AgentChatDataSourceShell({
               workspaceProjectOptions={composer.workspaceProjectOptions}
               workspaceProjectValue={composer.workspaceProjectValue}
               workspaceProjectsLoading={composer.workspaceProjectsLoading}
-              workspaceProductionOptions={composer.workspaceProductionOptions}
-              workspaceProductionValue={composer.workspaceProductionValue}
-              workspaceProductionsLoading={composer.workspaceProductionsLoading}
               onAcceptMention={() => {
                 if (composer.mentionRange && composer.mentionResults.length > 0) {
                   composer.insertResourceMention(composer.mentionResults[0])
@@ -954,13 +1029,12 @@ export function AgentChatDataSourceShell({
               onMentionState={composer.updateMentionState}
               onCollaborationModeChange={onCollaborationModeChange}
               onGoalModeEnabledChange={onGoalModeEnabledChange}
-              onModelChange={onSelectedModelChange}
+              onModelChange={handleModelChange}
               onRemoveAttachment={composer.removeAttachment}
               onSend={(profilePresetId) => void sendMessage(profilePresetId)}
               onStopActiveRun={() => void stopActiveTurn()}
               onUploadFiles={(files) => void composer.uploadFiles(files)}
               onWorkspaceProjectChange={composer.changeWorkspaceProject}
-              onWorkspaceProductionChange={composer.changeWorkspaceProduction}
               showApprovalPresetSelector={!activeTurn}
               showAttachmentTools
               showDebugPreview={false}
@@ -1324,6 +1398,25 @@ function writeStoredActiveThreadId(storageKey: string, threadId: string | null):
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isUnavailableThreadReadError(error: unknown): boolean {
+  const message = errorMessage(error)
+  return /\bthread not found:/i.test(message)
+    || /\bthread not loaded:/i.test(message)
+    || /\bno rollout found for thread id\b/i.test(message)
+}
+
+function uniqueAgentChatThreadIds(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const value of values) {
+    const id = value?.trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
 }
 
 function formatAgentChatTime(value: number | undefined): string {

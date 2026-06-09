@@ -46,7 +46,6 @@ interface AdminUserDetail {
   projects: Array<{
     ID: number
     name: string
-    status: string
     org_id?: number
     owner_id: number
     role: string
@@ -701,7 +700,6 @@ export function UserManagementPage() {
                             </div>
                             <div className="text-right text-xs text-muted-foreground">
                               <div>{t(`admin.projects.memberRoles.${project.role}`, { defaultValue: project.role })}</div>
-                              <div>{t(`admin.projects.statuses.${project.status}`, { defaultValue: project.status || '-' })}</div>
                             </div>
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground">{t('admin.users.joinedAt')}: {formatDate(project.joined_at, i18n.language)}</div>

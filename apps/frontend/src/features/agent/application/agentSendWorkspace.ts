@@ -31,7 +31,7 @@ export interface AgentSendWorkspace {
   settings: Pick<AgentSettings, 'includeProjectContext' | 'includeRecentResources'>
   contextLabels: string[]
   context: {
-    project?: Pick<Project, 'ID' | 'name' | 'status' | 'description' | 'aspect_ratio' | 'visual_style' | 'project_style'>
+    project?: Pick<Project, 'ID' | 'name' | 'description' | 'aspect_ratio' | 'visual_style' | 'project_style'>
     recentResources: Array<Pick<RawResource, 'ID' | 'name' | 'type' | 'mime_type' | 'size'>>
   }
   outbound: {
@@ -441,7 +441,7 @@ function buildAgentContext(options: {
 }) {
   const lines: string[] = []
   if (options.includeProjectContext && options.project) {
-    lines.push(`[Current project] ${options.project.name}${options.project.status ? ` (${options.project.status})` : ''}.`)
+    lines.push(`[Current project] ${options.project.name}.`)
   }
   return lines.join('\n')
 }
@@ -451,7 +451,6 @@ function compactProject(project: Project | null): AgentSendWorkspace['context'][
   return {
     ID: project.ID,
     name: project.name,
-    status: project.status,
     description: project.description,
     aspect_ratio: project.aspect_ratio,
     visual_style: project.visual_style,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { MovScriptWorkspaceIndexedEntity, MovScriptWorkspaceService } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceIndexedEntity, MovScriptWorkspaceService } from '@movscript/workspace'
 import { __setElectronMovScriptWorkspaceServiceFactoryForTest } from '@/shared/infrastructure/workspaceDomainRepository'
 import {
   listWorkspaceScripts,
@@ -74,7 +74,6 @@ test('script workspace repository saves script body and metadata through core se
     assert.equal(saved.content, 'New local text')
     assert.deepEqual(calls.contexts[0], { orgId: 22, projectId: 9 })
     assert.equal(calls.upserts.length, 1)
-    assert.equal(calls.upserts[0]?.projectId, 9)
     assert.equal(calls.upserts[0]?.scriptId, 12)
     assert.equal(calls.upserts[0]?.sourceText, 'New local text')
     assert.equal(calls.upserts[0]?.metadata.title, 'New Title')
@@ -91,7 +90,6 @@ function withScriptService(input: {
   readSources: Array<{ record: Record<string, unknown>; entity?: MovScriptWorkspaceIndexedEntity }>
   contexts: Array<Record<string, unknown>>
   upserts: Array<{
-    projectId?: string | number
     scriptId: string | number
     record?: Record<string, unknown> | null
     sourceText: string
@@ -102,7 +100,6 @@ function withScriptService(input: {
   const readSources: Array<{ record: Record<string, unknown>; entity?: MovScriptWorkspaceIndexedEntity }> = []
   const contexts: Array<Record<string, unknown>> = []
   const upserts: Array<{
-    projectId?: string | number
     scriptId: string | number
     record?: Record<string, unknown> | null
     sourceText: string
@@ -121,7 +118,6 @@ function withScriptService(input: {
       },
       upsertScript: async (upsertInput) => {
         upserts.push({
-          projectId: upsertInput.projectId,
           scriptId: upsertInput.scriptId,
           record: upsertInput.record,
           sourceText: upsertInput.sourceText,
@@ -135,7 +131,7 @@ function withScriptService(input: {
             ...upsertInput.record,
             ...upsertInput.metadata,
             id: `script_${upsertInput.scriptId}`,
-            project_id: upsertInput.projectId,
+            project_id: context.projectId,
             content: upsertInput.sourceText,
           },
           sourceText: upsertInput.sourceText,

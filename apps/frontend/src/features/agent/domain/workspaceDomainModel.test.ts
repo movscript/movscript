@@ -70,7 +70,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'production_workspace',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/production/orchestration?view=review&workspaceId=workspace-production&productionId=301',
+    '/project/scripts/workbench?workspaceId=workspace-production&productionId=301',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -86,7 +86,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'scene_moment', entityId: 77 },
     })),
-    '/project/production/orchestration?view=review&workspaceId=workspace-content-unit&scene_moment_id=77',
+    '/project/content-units/editor?workspaceId=workspace-content-unit&scene_moment_id=77',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -94,7 +94,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/production/orchestration?view=review&workspaceId=workspace-content-unit-production&productionId=301',
+    '/project/scripts/workbench?workspaceId=workspace-content-unit-production&productionId=301',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({
@@ -102,7 +102,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'content_unit_workspace',
       target: { entityType: 'content_unit', entityId: 801 },
     })),
-    '/project/production/orchestration?view=review&workspaceId=workspace-content-unit-existing&content_unit_id=801',
+    '/project/content-units/editor?workspaceId=workspace-content-unit-existing&content_unit_id=801',
   )
 })
 
@@ -123,7 +123,7 @@ test('workspace artifact review path does not require loading the full workspace
       workspaceKind: 'production_workspace',
       target: { entityType: 'production', entityId: 301 },
     }),
-    '/project/production/orchestration?view=review&workspaceId=workspace-production&productionId=301',
+    '/project/scripts/workbench?workspaceId=workspace-production&productionId=301',
   )
   assert.equal(
     buildWorkspaceArtifactReviewPath({

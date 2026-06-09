@@ -8,14 +8,14 @@ import type {
   WorkspaceCreativeRefNode,
   WorkspaceSceneMomentNode,
   WorkspaceSegmentNode,
-  WorkspaceWritingExpressionNode,
+  WorkspaceExpressionUnitNode,
 } from '@/features/production/domain/productionWorkspaceReviewModel'
 import type { SettingRecord } from '@/features/production/domain/productionOrchestrationData'
 import type {
-  ProductionWritingExpressionEditTarget,
-  ProductionWritingExpressionSavePayload,
-} from '@/features/production/domain/productionWritingExpressions'
-import { writingExpressionPayload } from '@/features/production/domain/productionWritingExpressions'
+  ProductionExpressionUnitEditTarget,
+  ProductionExpressionUnitSavePayload,
+} from '@/features/production/domain/productionExpressionUnits'
+import { expressionUnitPayload } from '@/features/production/domain/productionExpressionUnits'
 
 export type ProductionWorkspaceSnapshot = { segments: WorkspaceSegmentNode[] }
 
@@ -26,7 +26,6 @@ export async function saveProductionWorkspaceSnapshot(input: {
 }): Promise<ProductionWorkspaceSnapshot> {
   const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
   await service.saveProductionSnapshot({
-    projectId: input.projectId,
     productionId: input.productionId,
     snapshot: input.snapshot,
   })
@@ -141,15 +140,15 @@ export async function saveProductionSceneMomentOrderWorkspaceEdit(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function saveProductionWritingExpressionWorkspaceEdit(input: {
+export async function saveProductionExpressionUnitWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
-  target: ProductionWritingExpressionEditTarget
-  payload: ProductionWritingExpressionSavePayload
+  target: ProductionExpressionUnitEditTarget
+  payload: ProductionExpressionUnitSavePayload
 }): Promise<ProductionWorkspaceSnapshot> {
   const snapshot = cloneProductionWorkspaceSnapshot(input.currentSnapshot)
-  const entityPayload = writingExpressionPayload(input.target.kind === 'fallback'
+  const entityPayload = expressionUnitPayload(input.target.kind === 'fallback'
     ? {
       ...input.payload,
       scene_moment_id: input.target.sceneMomentId,
@@ -157,26 +156,26 @@ export async function saveProductionWritingExpressionWorkspaceEdit(input: {
       order: input.target.order,
     }
     : input.payload)
-  const nextExpression = productionWritingExpressionPayloadNode(entityPayload)
-  if (input.target.kind === 'writingExpressions') {
-    const existing = findWritingExpressionNode(snapshot, input.target.id)
+  const nextExpression = productionExpressionUnitPayloadNode(entityPayload)
+  if (input.target.kind === 'expressionUnits') {
+    const existing = findExpressionUnitNode(snapshot, input.target.id)
     if (!existing) throw new Error('未找到表达条目')
     Object.assign(existing, nextExpression)
   } else {
     const moment = findSceneMomentNode(snapshot, input.target.sceneMomentId)
     if (!moment) throw new Error('未找到情节')
-    const expressions = moment.writing_expressions ?? []
+    const expressions = moment.expression_units ?? []
     expressions.push({
       ...nextExpression,
-      client_id: `writing_expression_${input.target.id}`,
+      client_id: `expression_unit_${input.target.id}`,
       order: nextExpression.order ?? expressions.length + 1,
     })
-    moment.writing_expressions = expressions.sort(workspaceNodeOrder)
+    moment.expression_units = expressions.sort(workspaceNodeOrder)
   }
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function createProductionWritingExpressionWorkspaceEdit(input: {
+export async function createProductionExpressionUnitWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -187,9 +186,9 @@ export async function createProductionWritingExpressionWorkspaceEdit(input: {
   const snapshot = cloneProductionWorkspaceSnapshot(input.currentSnapshot)
   const moment = findSceneMomentNode(snapshot, input.momentId)
   if (!moment) throw new Error('未找到情节')
-  const expressions = moment.writing_expressions ?? []
+  const expressions = moment.expression_units ?? []
   expressions.push({
-    client_id: `writing_expression_local_${Date.now()}`,
+    client_id: `expression_unit_local_${Date.now()}`,
     kind: 'dialogue',
     speaker: '',
     text: '',
@@ -198,18 +197,18 @@ export async function createProductionWritingExpressionWorkspaceEdit(input: {
     order: input.order,
     script_block_id: input.scriptBlockId ?? null,
   })
-  moment.writing_expressions = expressions.sort(workspaceNodeOrder)
+  moment.expression_units = expressions.sort(workspaceNodeOrder)
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function deleteProductionWritingExpressionWorkspaceEdit(input: {
+export async function deleteProductionExpressionUnitWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
   expressionId: number
 }): Promise<ProductionWorkspaceSnapshot> {
   const snapshot = cloneProductionWorkspaceSnapshot(input.currentSnapshot)
-  const expression = findWritingExpressionNode(snapshot, input.expressionId)
+  const expression = findExpressionUnitNode(snapshot, input.expressionId)
   if (!expression) throw new Error('未找到表达条目')
   expression.__delete = true
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
@@ -266,10 +265,10 @@ function findSceneMomentNode(snapshot: ProductionWorkspaceSnapshot, momentId: nu
   return null
 }
 
-function findWritingExpressionNode(snapshot: ProductionWorkspaceSnapshot, expressionId: number): WorkspaceWritingExpressionNode | null {
+function findExpressionUnitNode(snapshot: ProductionWorkspaceSnapshot, expressionId: number): WorkspaceExpressionUnitNode | null {
   for (const segment of snapshot.segments) {
     for (const moment of segment.scene_moments ?? []) {
-      const expression = (moment.writing_expressions ?? []).find((item) => item.id === expressionId)
+      const expression = (moment.expression_units ?? []).find((item) => item.id === expressionId)
       if (expression) return expression
     }
   }
@@ -301,7 +300,7 @@ function productionSceneMomentPayloadNode(payload: SemanticEntityPayload): Parti
   })
 }
 
-function productionWritingExpressionPayloadNode(payload: SemanticEntityPayload): WorkspaceWritingExpressionNode {
+function productionExpressionUnitPayloadNode(payload: SemanticEntityPayload): WorkspaceExpressionUnitNode {
   return pruneUndefined({
     kind: stringValue(payload.kind) ?? 'dialogue',
     speaker: stringValue(payload.speaker) ?? '',

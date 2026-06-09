@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { MovScriptWorkspaceService } from '@movscript/core/workspace'
-import { __setElectronMovScriptWorkspaceServiceFactoryForTest } from '@/shared/infrastructure/workspaceDomainRepository'
+import type { MovScriptWorkspaceFileRepository, MovScriptWorkspaceService } from '@movscript/workspace'
+import {
+  __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest,
+  __setElectronMovScriptWorkspaceServiceFactoryForTest,
+} from '@/shared/infrastructure/workspaceDomainRepository'
 import {
   createContentUnitKeyframeWorkspaceEdit,
   createContentUnitWorkspaceEdit,
@@ -38,7 +41,7 @@ test('content unit workspace repository saves unit edits through core service', 
     assert.equal(calls.upserts[0]?.projectId, 9)
     assert.equal(calls.upserts[0]?.unit.title, '新的镜头')
     assert.equal(calls.upserts[0]?.unit.shot_size, 'close_up')
-    assert.equal(calls.upserts[0]?.keyframes, undefined)
+    assert.equal(calls.writes.length, 0)
   } finally {
     calls.restore()
   }
@@ -87,8 +90,11 @@ test('content unit workspace repository saves keyframe edits through core servic
     })
 
     assert.equal(saved.title, '新首帧')
-    assert.equal(calls.upserts[0]?.keyframes?.[0]?.title, '新首帧')
-    assert.equal(calls.upserts[0]?.keyframes?.[0]?.metadata_json, JSON.stringify({ frame_role: 'last' }))
+    assert.equal(calls.upserts[0]?.unit.ID, 33)
+    assert.equal(calls.writes.length, 2)
+    const written = parsedKeyframeWrite(calls.writes, 70)
+    assert.equal(written?.content.title, '新首帧')
+    assert.equal(written?.content.metadata_json, JSON.stringify({ frame_role: 'last' }))
   } finally {
     calls.restore()
   }
@@ -109,7 +115,8 @@ test('content unit workspace repository creates a keyframe through core service'
 
     assert.equal(saved.ID, -234567)
     assert.equal(saved.client_id, 'keyframe_local_234567')
-    assert.equal(calls.upserts[0]?.keyframes?.[2]?.client_id, 'keyframe_local_234567')
+    const written = calls.writes.map((write) => JSON.parse(write.content) as Record<string, unknown>)
+    assert.equal(written.some((content) => content.client_id === 'keyframe_local_234567'), true)
   } finally {
     Date.now = originalDateNow
     calls.restore()
@@ -120,16 +127,15 @@ test('content unit workspace repository deletes and reorders keyframes through c
   const calls = withContentUnitService()
   try {
     await deleteContentUnitKeyframeWorkspaceEdit(9, unitRecord(), keyframes(), keyframes()[0])
-    assert.equal(calls.upserts[0]?.keyframes?.[0]?.__delete, true)
+    assert.equal(parsedKeyframeWrite(calls.writes, 70)?.content.__delete, true)
 
     await reorderContentUnitKeyframesWorkspaceEdit(9, unitRecord(), keyframes(), [
       { keyframeId: 70, order: 2 },
       { keyframeId: 71, order: 1 },
     ])
-    assert.equal(calls.upserts[1]?.keyframes?.[0]?.ID, 71)
-    assert.equal(calls.upserts[1]?.keyframes?.[0]?.order, 1)
-    assert.equal(calls.upserts[1]?.keyframes?.[1]?.ID, 70)
-    assert.equal(calls.upserts[1]?.keyframes?.[1]?.order, 2)
+    const reorderWrites = calls.writes.slice(2)
+    assert.equal(parsedKeyframeWrite(reorderWrites, 71)?.content.order, 1)
+    assert.equal(parsedKeyframeWrite(reorderWrites, 70)?.content.order, 2)
   } finally {
     calls.restore()
   }
@@ -140,7 +146,7 @@ test('content unit workspace repository deletes a unit through core service', as
   try {
     await deleteContentUnitWorkspaceEdit(9, unitRecord(), keyframes())
     assert.equal(calls.upserts[0]?.unit.__delete, true)
-    assert.equal(calls.upserts[0]?.keyframes?.length, 2)
+    assert.equal(calls.writes.length, 2)
   } finally {
     calls.restore()
   }
@@ -216,29 +222,63 @@ function withContentUnitService(): {
   upserts: Array<{
     projectId?: string | number
     unit: Record<string, unknown>
-    keyframes?: Array<Record<string, unknown>>
   }>
+  writes: Array<{ projectId?: string | number; path: string; content: string }>
   restore: () => void
 } {
   const upserts: Array<{
     projectId?: string | number
     unit: Record<string, unknown>
-    keyframes?: Array<Record<string, unknown>>
   }> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => ({
+  const writes: Array<{ projectId?: string | number; path: string; content: string }> = []
+  const restoreService = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => ({
     upsertContentUnit: async (input) => {
       upserts.push({
-        projectId: input.projectId,
+        projectId: context.projectId,
         unit: input.unit,
-        keyframes: input.keyframes,
       })
       return {
         contentUnitPath: '',
         keyframePaths: [],
         record: input.unit,
-        keyframes: input.keyframes ?? [],
+        keyframes: [],
       }
     },
   } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService))
-  return { upserts, restore }
+  const restoreFileRepository = __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest((context) => ({
+    list: async () => ({ path: '', entries: [] }),
+    read: async () => {
+      throw new Error('not implemented')
+    },
+    write: async (input) => {
+      writes.push({ projectId: context.projectId, path: input.path, content: input.content })
+      return {
+        path: input.path,
+        content: input.content,
+        size: input.content.length,
+        updatedAt: '',
+      }
+    },
+    delete: async () => {},
+  } as MovScriptWorkspaceFileRepository))
+  return {
+    upserts,
+    writes,
+    restore: () => {
+      restoreFileRepository()
+      restoreService()
+    },
+  }
+}
+
+function parsedKeyframeWrite(
+  writes: Array<{ path: string; content: string }>,
+  keyframeId: number,
+): { path: string; content: Record<string, unknown> } | undefined {
+  const write = writes.find((item) => item.path.includes(`/keyframes/${keyframeId}/`))
+  if (!write) return undefined
+  return {
+    path: write.path,
+    content: JSON.parse(write.content) as Record<string, unknown>,
+  }
 }

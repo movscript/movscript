@@ -2,6 +2,7 @@ import { backendGet, backendPost } from '../../../../backend/node/client.js'
 import { listModels } from '../model/actions.js'
 import { getOptionalNumeric, getOptionalString, numericValues } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
+import { resolveMCPRequiredProjectId } from '../workspace/locator.js'
 
 type GenerationJobType = 'image' | 'image_edit' | 'video' | 'video_i2v'
 
@@ -119,8 +120,7 @@ async function submitGenerationJob(
   const title = getOptionalString(args, 'title')
   if (title) body.title = title
   if (built.duration !== undefined) body.duration = built.duration
-  const projectId = getOptionalNumeric(args, 'project_id') ?? getOptionalNumeric(args, 'projectId')
-  if (projectId !== undefined) body.project_id = projectId
+  body.project_id = resolveMCPRequiredProjectId(args)
 
   const job = await backendPost('/jobs', body)
   if (!isRecord(job)) throw new Error('Generation job create returned an invalid response')

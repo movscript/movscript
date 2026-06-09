@@ -29,7 +29,6 @@ interface AdminOrgDetail {
   projects: Array<{
     ID: number
     name: string
-    status: string
     owner_id: number
     UpdatedAt: string
   }>
@@ -757,17 +756,14 @@ export function OrgManagementPage() {
                 <div className="divide-y divide-border">
                   {(orgDetailQuery.data?.projects ?? []).map((project) => (
                     <div key={project.ID} className="px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-foreground">{project.name}</div>
-                          <div className="mt-0.5 font-mono text-xs text-muted-foreground">
-                            #{project.ID} · {t('admin.orgs.owner')}:{' '}
-                            <Link to={userListHref({ userId: project.owner_id })} className="underline-offset-2 hover:text-foreground hover:underline">
-                              #{project.owner_id}
-                            </Link>
-                          </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-foreground">{project.name}</div>
+                        <div className="mt-0.5 font-mono text-xs text-muted-foreground">
+                          #{project.ID} · {t('admin.orgs.owner')}:{' '}
+                          <Link to={userListHref({ userId: project.owner_id })} className="underline-offset-2 hover:text-foreground hover:underline">
+                            #{project.owner_id}
+                          </Link>
                         </div>
-                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{project.status || '-'}</span>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">{t('admin.orgs.updatedAt')}: {formatDate(project.UpdatedAt, i18n.language)}</div>
                     </div>

@@ -69,6 +69,17 @@ test('app-server protocol data source exposes provider thread and session tree i
   assert.equal(thread.sessionId, 'session_tree_1')
 })
 
+test('app-server protocol data source preserves thread cwd for project grouping', async () => {
+  const client = {
+    readThread: async () => ({ thread: appServerThread({ id: 'thread_project', cwd: '/workspace/.movscript/user/7/projects/project_42' }) }),
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('thread_project')
+
+  assert.equal(thread.cwd, '/workspace/.movscript/user/7/projects/project_42')
+})
+
 test('app-server protocol data source does not fabricate session tree ids from thread ids', async () => {
   const client = {
     readThread: async () => ({ thread: appServerThread({ id: 'thread_without_tree', sessionId: '' }) }),
@@ -91,15 +102,17 @@ test('app-server protocol data source resumes threads through app-server resume 
     },
   } as unknown as AppServerRpcClient
 
-  const dataSource = createAppServerChatDataSource(client, { defaultThreadCwd: '/workspace/project' })
+  const dataSource = createAppServerChatDataSource(client, {
+    defaultThreadCwd: '/workspace/project',
+    workspaceContext: { scope: 'project', projectId: 42 },
+  })
   const thread = await dataSource.resumeThread?.({ threadId: 'thread_1', model: 'gpt-5.4' })
 
   assert.equal(thread?.id, 'thread_1')
-  assert.deepEqual(calls, [{
-    threadId: 'thread_1',
-    model: 'gpt-5.4',
-    cwd: '/workspace/project',
-  }])
+  assert.equal(calls[0]?.threadId, 'thread_1')
+  assert.equal(calls[0]?.model, 'gpt-5.4')
+  assert.equal(calls[0]?.cwd, '/workspace/project')
+  assert.match(String(calls[0]?.developerInstructions ?? ''), /projectId\/project_id 42/)
 })
 
 test('app-server protocol data source builds default labels from provider keys', () => {
@@ -262,7 +275,9 @@ test('app-server thread-turn-item data source forwards thread controls and goals
     },
   } as unknown as AppServerRpcClient
 
-  const dataSource = createAppServerChatDataSource(client)
+  const dataSource = createAppServerChatDataSource(client, {
+    resolveModelForRequest: () => ({ model: 'gpt-5.5' }),
+  })
   await dataSource.startThread({ collaborationMode: 'plan' })
   await dataSource.setThreadGoal?.({ threadId: 'thread_1', objective: 'Ship the UI', status: 'active' })
   await dataSource.startTurn?.({
@@ -275,7 +290,7 @@ test('app-server thread-turn-item data source forwards thread controls and goals
     {
       method: 'thread/start',
       params: {
-        collaborationMode: { mode: 'plan', settings: {} },
+        model: 'gpt-5.5',
         threadSource: 'user',
       },
     },
@@ -293,7 +308,52 @@ test('app-server thread-turn-item data source forwards thread controls and goals
         threadId: 'thread_1',
         clientUserMessageId: undefined,
         input: [{ type: 'text', text: 'hello', text_elements: [] }],
-        collaborationMode: { mode: 'plan', settings: {} },
+        model: 'gpt-5.5',
+        collaborationMode: {
+          mode: 'plan',
+          settings: {
+            model: 'gpt-5.5',
+            reasoning_effort: null,
+            developer_instructions: null,
+          },
+        },
+      },
+    },
+  ])
+})
+
+test('app-server thread-turn-item data source omits collaboration mode when plan mode has no model', async () => {
+  const calls: Array<{ method: string; params: Record<string, unknown> }> = []
+  const client = {
+    startTurn: async (params: Record<string, unknown>) => {
+      calls.push({ method: 'turn/start', params })
+      return {
+        turn: {
+          id: 'turn_1',
+          status: 'inProgress',
+          error: null,
+          startedAt: 3,
+          completedAt: null,
+          items: [],
+        },
+      }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  await dataSource.startTurn?.({
+    threadId: 'thread_1',
+    inputs: [{ type: 'text', text: 'hello', textElements: [] }],
+    collaborationMode: 'plan',
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'turn/start',
+      params: {
+        threadId: 'thread_1',
+        clientUserMessageId: undefined,
+        input: [{ type: 'text', text: 'hello', text_elements: [] }],
       },
     },
   ])
@@ -318,6 +378,49 @@ test('app-server protocol data source forwards the scoped thread cwd', async () 
     { cwd: '/workspace/.movscript/workdirs/users/7/projects/42', threadSource: 'user' },
     { cwd: '/custom/cwd', threadSource: 'user' },
   ])
+})
+
+test('app-server protocol data source injects workspace boundary instructions for scoped threads', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const client = {
+    startThread: async (params: Record<string, unknown>) => {
+      calls.push(params)
+      return { thread: appServerThread() }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client, {
+    defaultThreadCwd: '/workspace/.movscript/local/projects/project_42',
+    workspaceContext: { scope: 'project', projectId: 42 },
+  })
+  await dataSource.startThread()
+
+  const developerInstructions = String(calls[0]?.developerInstructions ?? '')
+  assert.equal(calls[0]?.cwd, '/workspace/.movscript/local/projects/project_42')
+  assert.match(developerInstructions, /MovScript workspace boundary/)
+  assert.match(developerInstructions, /Only edit files and call project-scoped MovScript MCP tools for projectId\/project_id 42/)
+  assert.match(developerInstructions, /Do not pass userId\/user_id\/orgId\/org_id/)
+  assert.match(developerInstructions, /include projectId\/project_id on every project-scoped call/)
+})
+
+test('app-server protocol data source injects global workspace MCP project-id guidance', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const client = {
+    startThread: async (params: Record<string, unknown>) => {
+      calls.push(params)
+      return { thread: appServerThread() }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client, {
+    defaultThreadCwd: '/workspace/.movscript/local',
+    workspaceContext: { scope: 'global' },
+  })
+  await dataSource.startThread()
+
+  const developerInstructions = String(calls[0]?.developerInstructions ?? '')
+  assert.match(developerInstructions, /global MovScript workspace session/)
+  assert.match(developerInstructions, /every project-scoped MovScript MCP domain\/generation\/workspace tool call must include the intended projectId\/project_id explicitly/)
 })
 
 test('app-server thread-turn-item data source exposes global server request subscriptions', async () => {

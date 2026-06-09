@@ -4,6 +4,7 @@ import {
   AgentMessageSection,
 } from '@movscript/ui'
 import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
+import { agentInternalToolDisplay, type AgentInternalToolDisplay } from '@/features/agent/domain/agentInternalToolDisplay'
 import {
   agentChatCollabAgentToolCallView,
   agentChatCommandExecutionView,
@@ -54,6 +55,9 @@ export function AgentChatCommandExecutionItem({ item }: { item: Extract<AgentCha
 }
 
 export function AgentChatToolCallItem({ item }: { item: Extract<AgentChatThreadItem, { type: 'mcpToolCall' | 'dynamicToolCall' }> }) {
+  const internalView = agentInternalToolDisplay(item)
+  if (internalView) return <AgentChatInternalToolCallItem view={internalView} />
+
   const view = agentChatToolCallView(item)
   return (
     <AgentChatMessage role="tool" avatar="T">
@@ -83,6 +87,25 @@ export function AgentChatToolCallItem({ item }: { item: Extract<AgentChatThreadI
           <AgentChatInspectBlock entries={[
             view.dynamicOutputDetails !== undefined ? { label: 'dynamicOutput', value: view.dynamicOutputDetails } : null,
             view.mcpResultDetails !== undefined ? { label: 'mcpResult', value: view.mcpResultDetails, tone: 'result' } : null,
+            view.rawDetails !== undefined ? { label: 'tool', value: view.rawDetails } : null,
+          ]} />
+        </AgentChatContentStack>
+      </AgentMessageSection>
+    </AgentChatMessage>
+  )
+}
+
+function AgentChatInternalToolCallItem({ view }: { view: AgentInternalToolDisplay }) {
+  return (
+    <AgentChatMessage role="tool" avatar="M">
+      <AgentMessageSection title={<AgentChatSectionTitle title={view.title} meta={view.meta} />} tone={view.tone}>
+        <AgentChatContentStack>
+          {view.summary.length ? <AgentChatInlineList label="Summary" values={view.summary} /> : null}
+          {view.argumentsSummary.length ? <AgentChatInlineList label="Query" values={view.argumentsSummary} /> : null}
+          {view.resultSummary.length ? <AgentChatInlineList label="Results" values={view.resultSummary} /> : null}
+          {view.resultDetails !== undefined ? <AgentChatPreviewBlock label="Result details" value={view.resultDetails} tone="result" contentKind="result" /> : null}
+          {view.errorDetails !== undefined ? <AgentChatPreviewBlock label="Error" value={view.errorDetails} tone="diagnostic" contentKind="error" /> : null}
+          <AgentChatInspectBlock entries={[
             view.rawDetails !== undefined ? { label: 'tool', value: view.rawDetails } : null,
           ]} />
         </AgentChatContentStack>

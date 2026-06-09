@@ -21,15 +21,20 @@ installChromiumRenderDiagnostics()
 
 app.whenReady().then(async () => {
   installApplicationMenu()
-  await bootstrapManagedServicesBeforeWindow()
+  try {
+    await bootstrapManagedServicesBeforeWindow()
+  } catch (error) {
+    console.error('[bootstrap] failed to start desktop services', error)
+  }
+
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 }).catch((error) => {
-  console.error('[bootstrap] failed to start desktop services', error)
-  createWindow()
+  console.error('[bootstrap] failed to start desktop app', error)
+  app.quit()
 })
 
 app.on('window-all-closed', async () => {

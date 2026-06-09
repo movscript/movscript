@@ -4,7 +4,7 @@ export interface ProductionWorkspaceApplyPreviewItem {
   key: string
   title: string
   detail: string
-  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'setting' | 'asset_slot' | 'writing_expression'
+  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'setting' | 'asset_slot' | 'expression_unit'
   action?: ProductionWorkspaceSnapshotAction
   parent?: string
 }

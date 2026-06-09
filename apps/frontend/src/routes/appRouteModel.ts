@@ -1,4 +1,5 @@
 import { ROUTES } from './projectRoutes'
+import { routeLayoutSpecForPathname, type RouteLayoutSpec } from './routeLayoutRegistry'
 
 export type AppRouteSurface = 'agent' | 'detail' | 'canvas'
 export type AppWorkMode = 'agent' | 'detail'
@@ -15,9 +16,11 @@ export function isCanvasEditorRoute(pathname: string): boolean {
 }
 
 export function getAppRouteSurface(pathname: string): AppRouteSurface {
-  if (isCanvasEditorRoute(pathname)) return 'canvas'
-  if (isProjectAgentRoute(pathname)) return 'agent'
-  return 'detail'
+  return routeLayoutSpecForPathname(pathname).surface
+}
+
+export function getAppRouteLayoutSpec(pathname: string): RouteLayoutSpec {
+  return routeLayoutSpecForPathname(pathname)
 }
 
 export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWorkMode {
@@ -29,7 +32,7 @@ export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWo
 
 export function routeForWorkMode(workMode: AppWorkMode, hasProject: boolean): string {
   if (workMode === 'agent') return ROUTES.project.agent
-  return hasProject ? ROUTES.project.productionOrchestration : ROUTES.root
+  return hasProject ? ROUTES.project.scripts : ROUTES.root
 }
 
 export function canvasEditorPath(canvasId: string | number, options?: { source?: CanvasRouteSource }): string {

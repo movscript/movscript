@@ -115,6 +115,11 @@ export function agentChatThreadFromAppServerThreadTurnItem(thread: AppServerThre
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     status: agentChatThreadStatusFromAppServerThreadTurnItem(thread.status),
+    cwd: thread.cwd,
+    executionSettings: {
+      modelProvider: thread.modelProvider,
+      cwd: thread.cwd,
+    },
     turns: thread.turns.map(agentChatTurnFromAppServerThreadTurnItem),
     raw: thread,
   }

@@ -1,5 +1,6 @@
 # Third-party source and generated build outputs are not product source.
 apps/backend/vendor/** linguist-vendored -diff
+apps/frontend/vendor/app-server/** linguist-vendored -diff
 apps/frontend/vendor/ffmpeg/** linguist-vendored -diff
 
 apps/*/dist/** linguist-generated -diff

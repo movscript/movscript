@@ -41,6 +41,15 @@ test('workspace change handoff can include an existing business review path when
 
   assert.equal(navigation.businessReviewPath, '/project/pre-production?view=review&workspaceId=workspace-asset&asset_slot_id=88')
   assert.equal(new URLSearchParams(navigation.path.split('?')[1]).get('businessReviewPath'), navigation.businessReviewPath)
+
+  assert.equal(
+    buildWorkspaceBusinessReviewPath({
+      workspaceKind: 'production_workspace',
+      workspaceId: 'workspace-production',
+      target: { entityType: 'production', entityId: 301 },
+    }),
+    '/project/scripts/workbench?view=review&workspaceId=workspace-production&productionId=301',
+  )
 })
 
 test('workspace change handoff event details resolve to navigable paths', () => {

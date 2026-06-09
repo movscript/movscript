@@ -95,7 +95,7 @@ export function buildWorkspaceBusinessReviewPath(input: {
   if (input.workspaceKind === 'production_workspace') {
     const productionId = target.productionId ?? (entityType === 'production' ? entityId : undefined)
     if (productionId === undefined) return undefined
-    return withRouteParams('/project/production/orchestration', {
+    return withRouteParams('/project/scripts/workbench', {
       view: 'review',
       workspaceId: input.workspaceId,
       productionId,

@@ -5,8 +5,10 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, ClipboardCheck, Loader2, RefreshCw } from 'lucide-react'
 import {
   AgentPageShell,
-  AgentPageShellBody,
   AgentPageShellHeader,
+  AgentWorkspacesPageBody,
+  AgentWorkspacesPageMain,
+  AgentWorkspacesPageSidebar,
   Button,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
@@ -76,18 +78,26 @@ export default function MovScriptWorkspaceReviewPage() {
           <AgentConsoleNav compact />
         </div>
       </AgentPageShellHeader>
-      <AgentPageShellBody>
+      <AgentWorkspacesPageBody>
         {!reviewPath ? (
-          <StateRow text="等待审阅记录" />
+          <AgentWorkspacesPageMain className="lg:col-span-2">
+            <StateRow text="等待审阅记录" />
+          </AgentWorkspacesPageMain>
         ) : activeLoading ? (
-          <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="读取工作区修改" />
+          <AgentWorkspacesPageMain className="lg:col-span-2">
+            <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="读取工作区修改" />
+          </AgentWorkspacesPageMain>
         ) : activeError ? (
-          <StateRow text={errorMessage(activeError)} tone="danger" />
+          <AgentWorkspacesPageMain className="lg:col-span-2">
+            <StateRow text={errorMessage(activeError)} tone="danger" />
+          </AgentWorkspacesPageMain>
         ) : parsedRecord.error ? (
-          <StateRow text={parsedRecord.error} tone="danger" />
+          <AgentWorkspacesPageMain className="lg:col-span-2">
+            <StateRow text={parsedRecord.error} tone="danger" />
+          </AgentWorkspacesPageMain>
         ) : (
-          <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
-            <section className="flex min-h-[420px] flex-col gap-3 overflow-auto rounded-md border border-border bg-card p-4">
+          <>
+            <AgentWorkspacesPageSidebar className="gap-3 overflow-auto p-4" data-testid="movscript-workspace-review-summary">
               <ReviewSummaryRow label="状态" value={stringValue(record?.status) ?? 'submitted'} />
               <ReviewSummaryRow label="类型" value={stringValue(record?.workspaceKind) ?? stringValue(recordHandoff?.workspaceKind) ?? '-'} />
               <ReviewSummaryRow label="创建时间" value={stringValue(record?.createdAt) ?? '-'} />
@@ -107,9 +117,9 @@ export default function MovScriptWorkspaceReviewPage() {
                   </div>
                 )}
               </div>
-            </section>
-            <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card">
-              <div className="border-b border-border px-3 py-2 text-sm font-medium text-foreground">
+            </AgentWorkspacesPageSidebar>
+            <AgentWorkspacesPageMain className="flex flex-col gap-3" data-testid="movscript-workspace-review-raw">
+              <div className="text-sm font-medium text-foreground">
                 原始修改记录
               </div>
               <textarea
@@ -118,10 +128,10 @@ export default function MovScriptWorkspaceReviewPage() {
                 readOnly
                 spellCheck={false}
               />
-            </section>
-          </div>
+            </AgentWorkspacesPageMain>
+          </>
         )}
-      </AgentPageShellBody>
+      </AgentWorkspacesPageBody>
     </AgentPageShell>
   )
 }

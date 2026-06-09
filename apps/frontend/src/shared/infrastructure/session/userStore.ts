@@ -99,6 +99,17 @@ export const useUserStore = create<UserStore>()(
     }),
     {
       name: 'movscript-user',
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<UserStore> | undefined
+        return {
+          ...currentState,
+          ...persisted,
+          currentUser: persisted?.currentUser ? normalizeUser(persisted.currentUser) : null,
+          orgMemberships: persisted?.orgMemberships ?? [],
+          currentOrgID: persisted?.currentOrgID ?? null,
+          hydrated: true,
+        }
+      },
       onRehydrateStorage: () => (state?: UserStore) => {
         if (state) state.hydrated = true
       },

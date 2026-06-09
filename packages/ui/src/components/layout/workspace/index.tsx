@@ -118,6 +118,9 @@ export function WorkspaceShell({
   rightSlotStyle,
   children,
   assistantPanel,
+  terminalPanel,
+  terminalOpen = Boolean(terminalPanel),
+  terminalPlacement = "center",
   surface = "detail",
   chrome,
   layout,
@@ -134,6 +137,9 @@ export function WorkspaceShell({
   rightSlotStyle?: CSSProperties;
   children: ReactNode;
   assistantPanel?: ReactNode;
+  terminalPanel?: ReactNode;
+  terminalOpen?: boolean;
+  terminalPlacement?: "center" | "center-right";
   surface?: WorkspaceShellSurface;
   chrome?: WorkspaceShellChrome;
   layout?: "flush" | "stacked";
@@ -148,6 +154,52 @@ export function WorkspaceShell({
   const resolvedCenterHeader = centerHeader ?? header;
   const hasLeftSlot = Boolean(sidebar || leftHeader || leftPaneHidden);
   const hasRightSlot = Boolean(assistantPanel || rightHeader);
+  const centerSlot = (
+    <div
+      className={cn("app-shell__slot app-shell__slot--center min-w-0 flex-1 overflow-hidden", resolvedPaddingClassName)}
+      data-shell-slot="center"
+      data-terminal-host={terminalPanel && terminalOpen && terminalPlacement === "center" ? terminalPlacement : undefined}
+    >
+      <div className={cn("app-content-frame h-full min-h-0 min-w-0 overflow-hidden", frameChromeClassName)}>
+        <div className="app-content-frame__head-spacer">{resolvedCenterHeader}</div>
+        <div className="app-content-frame__body">
+          {children}
+        </div>
+        {terminalPanel && terminalPlacement === "center" ? (
+          <div className="app-shell-terminal-region" data-open={terminalOpen ? "true" : "false"} data-placement={terminalPlacement}>
+            {terminalPanel}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+  const rightSlot = hasRightSlot ? (
+    <div
+      className="app-shell__slot app-shell__slot--right app-shell-pane"
+      data-shell-slot="right"
+      data-collapsed={rightPaneCollapsed ? "true" : undefined}
+      style={rightSlotStyle}
+    >
+      <div className="app-shell-pane__header">{rightHeader}</div>
+      <div className="app-shell-pane__body">{assistantPanel}</div>
+    </div>
+  ) : null;
+  const centerRightSlots = terminalPanel && terminalPlacement === "center-right" ? (
+    <div className="app-shell__slot-group app-shell__slot-group--center-right" data-terminal-host={terminalOpen ? "center-right" : undefined}>
+      <div className="app-shell__slot-group-row">
+        {centerSlot}
+        {rightSlot}
+      </div>
+      <div className="app-shell-terminal-region" data-open={terminalOpen ? "true" : "false"} data-placement={terminalPlacement}>
+        {terminalPanel}
+      </div>
+    </div>
+  ) : (
+    <>
+      {centerSlot}
+      {rightSlot}
+    </>
+  );
 
   return (
     <div
@@ -170,25 +222,7 @@ export function WorkspaceShell({
               {sidebar ? <div className="app-shell-pane__body">{sidebar}</div> : null}
             </div>
           ) : null}
-          <div className={cn("app-shell__slot app-shell__slot--center min-w-0 flex-1 overflow-hidden", resolvedPaddingClassName)} data-shell-slot="center">
-            <div className={cn("app-content-frame h-full min-h-0 min-w-0 overflow-hidden", frameChromeClassName)}>
-              <div className="app-content-frame__head-spacer">{resolvedCenterHeader}</div>
-              <div className="app-content-frame__body">
-                {children}
-              </div>
-            </div>
-          </div>
-          {hasRightSlot ? (
-            <div
-              className="app-shell__slot app-shell__slot--right app-shell-pane"
-              data-shell-slot="right"
-              data-collapsed={rightPaneCollapsed ? "true" : undefined}
-              style={rightSlotStyle}
-            >
-              <div className="app-shell-pane__header">{rightHeader}</div>
-              <div className="app-shell-pane__body">{assistantPanel}</div>
-            </div>
-          ) : null}
+          {centerRightSlots}
         </div>
       </main>
     </div>

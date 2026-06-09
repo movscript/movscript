@@ -26,6 +26,17 @@ function record(value) {
   return value
 }
 
+function emptyMCPContextSnapshot() {
+  return {
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    productionId: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+  }
+}
+
 test('MCP initialize request returns the core JSON-RPC server identity', async () => {
   const response = await handleJSONRPC({
     jsonrpc: '2.0',
@@ -88,10 +99,17 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_query_assets'))
   assert.ok(tools.includes('domain_query_production_context'))
   assert.ok(tools.includes('domain_upsert_setting'))
-  assert.ok(tools.includes('domain_update_scene_moment_timing'))
+  assert.ok(tools.includes('domain_update_entity_transition'))
+  assert.ok(tools.includes('domain_update_storyboard_timeline'))
   assert.ok(tools.includes('domain_append_candidate'))
+  assert.ok(tools.includes('domain_create_asset_slot_candidate'))
+  assert.ok(tools.includes('domain_create_keyframe_candidate'))
+  assert.ok(tools.includes('domain_create_content_candidate'))
   assert.ok(tools.includes('domain_review'))
   assert.ok(tools.includes('domain_build'))
+  assert.equal(tools.includes('domain_update_scene_moment_timing'), false)
+  assert.equal(tools.includes('domain_update_storyboard_timing'), false)
+  assert.equal(tools.includes('domain_update_content_unit_generation_prompt'), false)
   assert.ok(tools.includes('movscript_workspace_get_model'))
   assert.ok(tools.includes('movscript_workspace_review'))
   assert.ok(tools.includes('movscript_workspace_build'))
@@ -126,39 +144,110 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(resources.includes('movscript://external-resources'))
 })
 
-test('MCP domain tool aliases route through the domain workspace model', async () => {
-  const response = await handleJSONRPC({
-    jsonrpc: '2.0',
-    id: 'domain-model',
-    method: 'tools/call',
-    params: {
-      name: 'domain_get_model',
-      arguments: {
-        entityKind: 'scene_moment',
-        entityId: 'scene_moment_r72k',
-      },
-    },
-  })
-
-  assert.equal(response?.result?.data?.workspaceKind, 'scene_moment_workspace')
-  assert.equal(response?.result?.data?.entityKind, 'scene_moment')
-  assert.ok(response?.result?.data?.editablePaths?.[0].includes('scene_moment_r72k'))
-
-  const legacyResponse = await handleJSONRPC({
-    jsonrpc: '2.0',
-    id: 'legacy-workspace-model',
-    method: 'tools/call',
-    params: {
-      name: 'movscript_workspace_get_model',
-      arguments: {
-        entityKind: 'scene_moment',
-        entityId: 'scene_moment_r72k',
-      },
-    },
-  })
-
-  assert.equal(legacyResponse?.result?.data?.workspaceKind, 'scene_moment_workspace')
+test('MCP tool schemas are compatible with OpenAI function parameters', () => {
+  const tools = listTools()
+  for (const tool of tools) {
+    assertOpenAIFunctionParametersSchema(tool.inputSchema, `${tool.name} inputSchema`)
+    if (tool.outputSchema) assertOpenAIFunctionParametersSchema(tool.outputSchema, `${tool.name} outputSchema`)
+  }
 })
+
+test('MCP upsert setting schema makes payload the unambiguous write body', () => {
+  const tools = listTools()
+  const schema = tools.find((tool) => tool.name === 'domain_upsert_setting')?.inputSchema
+  assert.ok(schema, 'domain_upsert_setting schema should be exposed')
+  assert.equal(schema.properties?.payload?.type, 'object')
+  assert.deepEqual(schema.required, ['payload'])
+  assert.match(
+    tools.find((tool) => tool.name === 'domain_upsert_setting')?.description ?? '',
+    /required payload/,
+  )
+})
+
+test('MCP project-scoped tool schemas expose explicit project id arguments', () => {
+  const tools = listTools()
+  for (const name of [
+    'domain_overview',
+    'domain_get_model',
+    'domain_query_entities',
+    'movscript_workspace_get_model',
+    'movscript_workspace_review',
+    'generation_image_generate',
+    'generation_video_generate',
+    'system_generate_image',
+    'system_generate_video',
+  ]) {
+    const schema = tools.find((tool) => tool.name === name)?.inputSchema
+    assert.ok(schema, `${name} schema should be exposed`)
+    assert.ok(schema.properties?.projectId, `${name} should expose projectId`)
+    assert.ok(schema.properties?.project_id, `${name} should expose project_id`)
+    assert.equal(schema.properties?.userId, undefined, `${name} must not expose userId`)
+    assert.equal(schema.properties?.user_id, undefined, `${name} must not expose user_id`)
+    assert.equal(schema.properties?.orgId, undefined, `${name} must not expose orgId`)
+    assert.equal(schema.properties?.org_id, undefined, `${name} must not expose org_id`)
+  }
+})
+
+test('MCP domain tool aliases route through the domain workspace model', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-domain-model-'))
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  try {
+    updateMCPContextSnapshot({
+      route: { pathname: '/project/agent', search: '', hash: '' },
+      project: { id: 6, name: 'Workspace Test' },
+      productionId: null,
+      user: { id: 1, username: 'alice', systemRole: 'user' },
+      selection: null,
+      updatedAt: new Date().toISOString(),
+    })
+
+    const response = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'domain-model',
+      method: 'tools/call',
+      params: {
+        name: 'domain_get_model',
+        arguments: {
+          projectId: 6,
+          entityKind: 'scene_moment',
+          entityId: 'scene_moment_r72k',
+        },
+      },
+    })
+
+    assert.equal(response?.result?.data?.workspaceKind, 'scene_moment_workspace')
+    assert.equal(response?.result?.data?.entityKind, 'scene_moment')
+    assert.ok(response?.result?.data?.editablePaths?.[0].includes('scene_moment_r72k'))
+
+    const legacyResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'legacy-workspace-model',
+      method: 'tools/call',
+      params: {
+        name: 'movscript_workspace_get_model',
+        arguments: {
+          projectId: 6,
+          entityKind: 'scene_moment',
+          entityId: 'scene_moment_r72k',
+        },
+      },
+    })
+
+    assert.equal(legacyResponse?.result?.data?.workspaceKind, 'scene_moment_workspace')
+  } finally {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+function assertOpenAIFunctionParametersSchema(schema, label) {
+  assert.equal(schema?.type, 'object', `${label} must have top-level type object`)
+  for (const key of ['oneOf', 'anyOf', 'allOf', 'enum', 'not']) {
+    assert.equal(schema?.[key], undefined, `${label} must not expose top-level ${key}`)
+  }
+}
 
 test('MCP focus omits workspaceId from route search while preserving page focus params', () => {
   updateMCPContextSnapshot({
@@ -319,6 +408,14 @@ test('MCP workspace tools expose get_model review and build over source/.build',
   const projectDir = join(workspaceDir, '.movscript', 'user', '1', 'projects', 'project_6')
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   try {
+    updateMCPContextSnapshot({
+      route: { pathname: '/project/agent', search: '', hash: '' },
+      project: { id: 6, name: 'Workspace Test' },
+      productionId: null,
+      user: { id: 1, username: 'alice', systemRole: 'user' },
+      selection: null,
+      updatedAt: new Date().toISOString(),
+    })
     await mkdir(join(projectDir, '.build', 'current', 'settings', 'setting_hero'), { recursive: true })
     await mkdir(join(projectDir, 'settings', 'setting_hero'), { recursive: true })
     await writeFile(join(projectDir, '.build', 'current', 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
@@ -341,7 +438,7 @@ test('MCP workspace tools expose get_model review and build over source/.build',
       method: 'tools/call',
       params: {
         name: 'movscript_workspace_get_model',
-        arguments: { entityKind: 'setting', entityId: 'hero' },
+        arguments: { projectId: 6, entityKind: 'setting', entityId: 'setting_hero' },
       },
     })
     const model = record(modelResponse?.result?.data)
@@ -354,7 +451,7 @@ test('MCP workspace tools expose get_model review and build over source/.build',
       method: 'tools/call',
       params: {
         name: 'movscript_workspace_review',
-        arguments: { userId: 1, projectId: 6 },
+        arguments: { projectId: 6 },
       },
     })
     const review = record(reviewResponse?.result?.data)
@@ -369,13 +466,79 @@ test('MCP workspace tools expose get_model review and build over source/.build',
       method: 'tools/call',
       params: {
         name: 'movscript_workspace_build',
-        arguments: { userId: 1, projectId: 6 },
+        arguments: { projectId: 6 },
       },
     })
     const build = record(buildResponse?.result?.data)
     assert.equal(build.status, 'built')
     assert.equal(existsSync(join(projectDir, '.build', 'indexes', 'domain-index.json')), true)
     assert.equal(JSON.parse(readFileSync(join(projectDir, '.build', 'current', 'settings', 'setting_hero', 'setting.json'), 'utf8')).title, 'New Hero')
+  } finally {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('MCP domain tools require explicit project id', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-required-'))
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  try {
+    const response = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'global-missing-project',
+      method: 'tools/call',
+      params: {
+        name: 'domain_overview',
+        arguments: {},
+      },
+    })
+
+    assert.equal(response?.error?.code, -32000)
+    assert.match(response?.error?.message ?? '', /projectId is required/)
+  } finally {
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+  }
+})
+
+test('MCP upsert setting accepts legacy record body without payload error', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-upsert-setting-record-'))
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  try {
+    const response = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'upsert-setting-record',
+      method: 'tools/call',
+      params: {
+        name: 'domain_upsert_setting',
+        arguments: {
+          projectId: 6,
+          record: {
+            id: 'setting_legacy',
+            title: 'Legacy Body',
+            setting_kind: 'character',
+          },
+        },
+      },
+    })
+
+    assert.equal(response?.error, undefined)
+    assert.equal(response?.result?.data?.path, 'settings/setting_legacy/setting.json')
+    const written = JSON.parse(readFileSync(join(
+      workspaceDir,
+      '.movscript',
+      'local',
+      'projects',
+      'project_6',
+      'settings',
+      'setting_legacy',
+      'setting.json',
+    ), 'utf8'))
+    assert.equal(written.title, 'Legacy Body')
+    assert.equal(written.setting_kind, 'character')
   } finally {
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir

@@ -6,7 +6,7 @@ import type {
   KeyframeRecord,
   SceneMomentRecord,
   SegmentRecord,
-  WritingExpressionRecord,
+  ExpressionUnitRecord,
 } from '@/features/production/domain/productionOrchestrationData'
 import {
   productionWorkspaceArtifactNodeKey,
@@ -20,7 +20,7 @@ import type {
 export interface ProductionWorkspaceArtifactData {
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
-  writingExpressions: WritingExpressionRecord[]
+  expressionUnits: ExpressionUnitRecord[]
   contentUnits: ContentUnitRecord[]
   settingUsages: SemanticEntityRecord[]
   assetSlots: AssetSlotRecord[]
@@ -28,7 +28,7 @@ export interface ProductionWorkspaceArtifactData {
   segmentKeyByWorkspaceId: Map<number, string>
   sceneMomentKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string }>
   contentUnitKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; unitKey: string }>
-  writingExpressionKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>
+  expressionUnitKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>
   referenceUsageByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; referenceKey: string }>
 }
 
@@ -44,7 +44,7 @@ export function buildProductionWorkspaceArtifactData(
 ): ProductionWorkspaceArtifactData {
   const segments: SegmentRecord[] = []
   const sceneMoments: SceneMomentRecord[] = []
-  const writingExpressions: WritingExpressionRecord[] = []
+  const expressionUnits: ExpressionUnitRecord[] = []
   const contentUnits: ContentUnitRecord[] = []
   const settingUsages: SemanticEntityRecord[] = []
   const assetSlots: AssetSlotRecord[] = []
@@ -52,7 +52,7 @@ export function buildProductionWorkspaceArtifactData(
   const segmentKeyByWorkspaceId = new Map<number, string>()
   const sceneMomentKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string }>()
   const contentUnitKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; unitKey: string }>()
-  const writingExpressionKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>()
+  const expressionUnitKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>()
   const referenceUsageByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; referenceKey: string }>()
   const referenceById = new Map(input.settings.map((reference) => [reference.ID, reference]))
 
@@ -110,15 +110,15 @@ export function buildProductionWorkspaceArtifactData(
         })
       })
 
-      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
+      ;(moment.expression_units ?? []).forEach((expression, expressionIndex) => {
         const expressionKey = productionWorkspaceArtifactNodeKey(expression, `expression:${expressionIndex}`)
         const expressionId = workspaceIdForWorkspaceNode(`${segmentKey}/${momentKey}/${expressionKey}`, expression.id)
-        writingExpressionKeyByWorkspaceId.set(expressionId, { segmentKey, momentKey, expressionKey })
-        writingExpressions.push({
+        expressionUnitKeyByWorkspaceId.set(expressionId, { segmentKey, momentKey, expressionKey })
+        expressionUnits.push({
           ID: expressionId,
           scene_moment_id: momentId,
           script_block_id: expression.script_block_id ?? moment.script_block_id ?? undefined,
-          kind: expression.kind as WritingExpressionRecord['kind'],
+          kind: expression.kind as ExpressionUnitRecord['kind'],
           speaker: expression.speaker,
           text: expression.text,
           note: expression.note,
@@ -161,7 +161,7 @@ export function buildProductionWorkspaceArtifactData(
   return {
     segments,
     sceneMoments,
-    writingExpressions,
+    expressionUnits,
     contentUnits,
     settingUsages,
     assetSlots,
@@ -169,7 +169,7 @@ export function buildProductionWorkspaceArtifactData(
     segmentKeyByWorkspaceId,
     sceneMomentKeyByWorkspaceId,
     contentUnitKeyByWorkspaceId,
-    writingExpressionKeyByWorkspaceId,
+    expressionUnitKeyByWorkspaceId,
     referenceUsageByWorkspaceId,
   }
 }

@@ -1,7 +1,7 @@
 import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind } from '@/features/agent/domain/agentChatProtocol'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
 import type { AppServerJsonValue, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
-import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
+import { MOVA_PROVIDER_ID, type MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import {
   appServerThreadTurnItemServerRequestResponseFromAgentChat,
   appServerThreadTurnItemUserInputFromAgentChat,
@@ -19,6 +19,7 @@ export interface AppServerChatDataSourceOptions {
   label?: string
   messageAdapter?: AppServerChatMessageAdapterKind
   defaultThreadCwd?: string
+  workspaceContext?: MovScriptWorkspaceContext
   resolveModelForRequest?: () => AgentChatModelSelection
 }
 
@@ -59,10 +60,10 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
         ...(modelSelection.model ? { model: modelSelection.model } : {}),
         ...(modelSelection.modelProvider ? { modelProvider: modelSelection.modelProvider } : {}),
         ...(input.cwd?.trim() ? { cwd: input.cwd.trim() } : options.defaultThreadCwd?.trim() ? { cwd: options.defaultThreadCwd.trim() } : {}),
+        ...workspaceDeveloperInstructionsParams(options.workspaceContext),
         ...runProfileParams,
-        ...appServerThreadControlParams(input),
       })
-      return adapter.thread(response.thread, provider)
+      return threadWithExecutionSettings(adapter.thread(response.thread, provider), response)
     },
     async startThread(input = {}) {
       const modelSelection = modelSelectionForRequest(options, input)
@@ -71,12 +72,12 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
         ...(modelSelection.model ? { model: modelSelection.model } : {}),
         ...(modelSelection.modelProvider ? { modelProvider: modelSelection.modelProvider } : {}),
         ...(input.cwd?.trim() ? { cwd: input.cwd.trim() } : options.defaultThreadCwd?.trim() ? { cwd: options.defaultThreadCwd.trim() } : {}),
+        ...workspaceDeveloperInstructionsParams(options.workspaceContext),
         ...runProfileParams,
-        ...appServerThreadControlParams(input),
         threadSource: 'user' as const,
       }
       const response = await client.startThread(threadParams)
-      return adapter.thread(response.thread, provider)
+      return threadWithExecutionSettings(adapter.thread(response.thread, provider), response)
     },
     async setThreadGoal(input) {
       const response = await client.requestProtocol<{ goal?: unknown }>('thread/goal/set', {
@@ -115,7 +116,7 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
         input: input.inputs.map(adapter.userInput),
         ...(modelSelection.model ? { model: modelSelection.model } : {}),
         ...runProfileParams,
-        ...appServerThreadControlParams(input),
+        ...appServerTurnControlParams(input, modelSelection),
       }
       const response = await client.startTurn(turnParams)
       return adapter.turn(response.turn)
@@ -143,7 +144,7 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
         clientUserMessageId: input.clientUserMessageId ?? undefined,
         ...(modelSelection.model ? { model: modelSelection.model } : {}),
         ...runProfileParams,
-        ...appServerThreadControlParams(input),
+        ...appServerTurnControlParams(input, modelSelection),
       }
       const response = await client.startTextTurn(turnParams)
       return adapter.turn(response.turn)
@@ -184,6 +185,38 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
   }
 }
 
+function workspaceDeveloperInstructionsParams(context: MovScriptWorkspaceContext | undefined): { developerInstructions?: string } {
+  const instructions = workspaceDeveloperInstructions(context)
+  return instructions ? { developerInstructions: instructions } : {}
+}
+
+export function workspaceDeveloperInstructions(context: MovScriptWorkspaceContext | undefined): string | undefined {
+  if (!context) return undefined
+  const scope = context.scope ?? (context.productionId !== undefined ? 'production' : context.projectId !== undefined ? 'project' : 'global')
+  const projectId = idText(context.projectId)
+  const productionId = idText(context.productionId)
+  const lines = [
+    'MovScript workspace boundary:',
+    scope === 'global'
+      ? '- This is a global MovScript workspace session. You may inspect multiple projects, but every project-scoped MovScript MCP domain/generation/workspace tool call must include the intended projectId/project_id explicitly.'
+      : projectId
+        ? `- This session is scoped to MovScript project ${projectId}. Only edit files and call project-scoped MovScript MCP tools for projectId/project_id ${projectId}.`
+        : '- This session is scoped to a MovScript project workspace. Only edit the current project workspace; project-scoped MovScript MCP tools still require an explicit projectId/project_id.',
+    '- Do not pass userId/user_id/orgId/org_id to MovScript MCP tools; MovScript app/frontend state and the MCP service own user and organization identity.',
+    '- Do not rely on cwd, route, focus, or session state as a project argument for MCP tools; include projectId/project_id on every project-scoped call.',
+  ]
+  if (scope === 'production' && productionId) {
+    lines.splice(2, 0, `- Active production scope: ${productionId}. Keep production edits inside project ${projectId ?? 'the current project'} unless the user explicitly changes scope.`)
+  }
+  return lines.join('\n')
+}
+
+function idText(value: string | number | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const text = String(value).trim()
+  return text || undefined
+}
+
 function appServerProviderTitle(provider: string): string {
   return provider
     .split(/[-_\s]+/g)
@@ -221,9 +254,22 @@ function appServerMessageAdapter(
   throw new Error(`Unsupported app-server message adapter: ${kind}`)
 }
 
-function appServerThreadControlParams(input: { collaborationMode?: 'default' | 'plan' }): { collaborationMode?: AppServerJsonValue } {
-  return input.collaborationMode === 'plan'
-    ? { collaborationMode: { mode: 'plan', settings: {} } }
+function appServerTurnControlParams(
+  input: { collaborationMode?: 'default' | 'plan' },
+  modelSelection: AgentChatModelSelection,
+): { collaborationMode?: AppServerJsonValue } {
+  const model = modelSelection.model?.trim()
+  return input.collaborationMode === 'plan' && model
+    ? {
+        collaborationMode: {
+          mode: 'plan',
+          settings: {
+            model,
+            reasoning_effort: null,
+            developer_instructions: null,
+          },
+        },
+      }
     : {}
 }
 
@@ -266,6 +312,33 @@ function modelSelectionForRequest(
 }
 
 type AppServerChatMessageAdapter = ReturnType<typeof appServerMessageAdapter>
+
+type AppServerThreadRuntimeSettingsResponse = {
+  model?: string
+  modelProvider?: string
+  cwd?: string | null
+  approvalPolicy?: unknown
+  approvalsReviewer?: unknown
+  sandbox?: unknown
+}
+
+function threadWithExecutionSettings(
+  thread: ReturnType<typeof agentChatThreadFromAppServerThreadTurnItem>,
+  response: AppServerThreadRuntimeSettingsResponse,
+): ReturnType<typeof agentChatThreadFromAppServerThreadTurnItem> {
+  return {
+    ...thread,
+    executionSettings: {
+      ...thread.executionSettings,
+      ...(response.model ? { model: response.model } : {}),
+      ...(response.modelProvider ? { modelProvider: response.modelProvider } : {}),
+      ...(response.cwd !== undefined ? { cwd: response.cwd } : {}),
+      ...(typeof response.approvalPolicy === 'string' ? { approvalPolicy: response.approvalPolicy } : {}),
+      ...(typeof response.approvalsReviewer === 'string' ? { approvalsReviewer: response.approvalsReviewer } : {}),
+      ...(response.sandbox !== undefined ? { sandbox: response.sandbox } : {}),
+    },
+  }
+}
 
 function threadFromLifecycleResponse(response: { thread?: unknown }, provider: AgentChatProviderKind, adapter: AppServerChatMessageAdapter): ReturnType<typeof agentChatThreadFromAppServerThreadTurnItem> | unknown {
   return response.thread && typeof response.thread === 'object'

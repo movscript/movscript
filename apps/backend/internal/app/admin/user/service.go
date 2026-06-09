@@ -70,7 +70,6 @@ type OrgMembership struct {
 type ProjectMembership struct {
 	ID       uint      `json:"ID"`
 	Name     string    `json:"name"`
-	Status   string    `json:"status"`
 	OrgID    *uint     `json:"org_id,omitempty"`
 	OwnerID  uint      `json:"owner_id"`
 	Role     string    `json:"role"`

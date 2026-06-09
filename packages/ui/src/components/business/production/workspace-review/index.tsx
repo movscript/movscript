@@ -807,7 +807,7 @@ function productionWorkspaceApplyPreviewGroupTone(state: ProductionWorkspaceAppl
 export function productionWorkspaceApplyPreviewKindLabel(kind: string) {
   if (kind === "segment") return "编排段";
   if (kind === "scene_moment") return "情节";
-  if (kind === "writing_expression") return "表达";
+  if (kind === "expression_unit") return "表达";
   if (kind === "content_unit") return "内容";
   if (kind === "keyframe") return "画面锚点";
   if (kind === "setting") return "设定";
@@ -817,7 +817,7 @@ export function productionWorkspaceApplyPreviewKindLabel(kind: string) {
 export function productionWorkspaceChangeKindLabel(kind: string) {
   if (kind === "segment") return "编排段";
   if (kind === "scene_moment") return "情节";
-  if (kind === "writing_expression") return "表达";
+  if (kind === "expression_unit") return "表达";
   if (kind === "content_unit") return "内容";
   if (kind === "keyframe") return "画面锚点";
   if (kind === "setting") return "设定";

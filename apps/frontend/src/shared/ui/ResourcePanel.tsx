@@ -33,6 +33,7 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/shared/ui/ResourceCandidateAttachPanel'
 import { FileAudio, FileText, Package, Search } from 'lucide-react'
+import { writeResourceDragPayload } from '@/features/resources/domain/resourceDragPayload'
 
 type AssetSlotPanelRecord = SemanticEntityRecord & AssetSlot
 
@@ -86,9 +87,7 @@ export function ResourceListItem({
   const [preview, setPreview] = useState(false)
 
   function handleDragStart(e: React.DragEvent) {
-    e.dataTransfer.setData('application/resource-id', String(r.ID))
-    e.dataTransfer.setData('application/canvas-resource', JSON.stringify(r))
-    e.dataTransfer.effectAllowed = 'copy'
+    writeResourceDragPayload(e.dataTransfer, r)
   }
 
   function handleClick() {
@@ -156,9 +155,7 @@ export function AssetSlotListItem({
   const resource = slot.resource
 
   function handleDragStart(e: React.DragEvent, res: RawResource) {
-    e.dataTransfer.setData('application/resource-id', String(res.ID))
-    e.dataTransfer.setData('application/canvas-resource', JSON.stringify(res))
-    e.dataTransfer.effectAllowed = 'copy'
+    writeResourceDragPayload(e.dataTransfer, res)
   }
 
   return (

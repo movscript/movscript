@@ -6,7 +6,7 @@ import {
   type WorkspaceCreativeRefNode,
   type WorkspaceSceneMomentNode,
   type WorkspaceSegmentNode,
-  type WorkspaceWritingExpressionNode,
+  type WorkspaceExpressionUnitNode,
 } from '@/features/production/domain/productionWorkspaceReviewModel'
 
 export interface EditableProductionWorkspaceArtifactJson extends Record<string, unknown> {
@@ -191,26 +191,26 @@ export function appendProductionWorkspaceArtifactContentUnit(
   return true
 }
 
-export function replaceProductionWorkspaceArtifactWritingExpression(
+export function replaceProductionWorkspaceArtifactExpressionUnit(
   workspace: EditableProductionWorkspaceArtifactJson,
   segmentKey: string,
   momentKey: string,
   expressionKey: string,
-  nextExpression: WorkspaceWritingExpressionNode,
+  nextExpression: WorkspaceExpressionUnitNode,
 ) {
   const moment = findSceneMoment(workspace, segmentKey, momentKey)
   if (!moment) return false
-  const expressions = moment.writing_expressions ?? []
+  const expressions = moment.expression_units ?? []
   const index = expressions.findIndex((expression, expressionIndex) => (
     productionWorkspaceArtifactNodeKey(expression, `expression:${expressionIndex}`) === expressionKey
   ))
   if (index < 0) return false
   expressions[index] = { ...expressions[index], ...withoutUndefined(nextExpression) }
-  moment.writing_expressions = expressions
+  moment.expression_units = expressions
   return true
 }
 
-export function removeProductionWorkspaceArtifactWritingExpression(
+export function removeProductionWorkspaceArtifactExpressionUnit(
   workspace: EditableProductionWorkspaceArtifactJson,
   segmentKey: string,
   momentKey: string,
@@ -218,28 +218,28 @@ export function removeProductionWorkspaceArtifactWritingExpression(
 ) {
   const moment = findSceneMoment(workspace, segmentKey, momentKey)
   if (!moment) return false
-  const expressions = moment.writing_expressions ?? []
+  const expressions = moment.expression_units ?? []
   const nextExpressions = expressions.filter((expression, expressionIndex) => (
     productionWorkspaceArtifactNodeKey(expression, `expression:${expressionIndex}`) !== expressionKey
   ))
-  moment.writing_expressions = nextExpressions
+  moment.expression_units = nextExpressions
   return nextExpressions.length !== expressions.length
 }
 
-export function appendProductionWorkspaceArtifactWritingExpression(
+export function appendProductionWorkspaceArtifactExpressionUnit(
   workspace: EditableProductionWorkspaceArtifactJson,
   segmentKey: string,
   momentKey: string,
-  expression: WorkspaceWritingExpressionNode,
+  expression: WorkspaceExpressionUnitNode,
 ) {
   const moment = findSceneMoment(workspace, segmentKey, momentKey)
   if (!moment) return false
-  const expressions = moment.writing_expressions ?? []
+  const expressions = moment.expression_units ?? []
   expressions.push({
     ...expression,
     order: expression.order ?? expressions.length + 1,
   })
-  moment.writing_expressions = expressions
+  moment.expression_units = expressions
   return true
 }
 
@@ -305,12 +305,12 @@ export const replaceProductionWorkspaceWorkspaceContentUnit = replaceProductionW
 export const removeProductionWorkspaceWorkspaceContentUnit = removeProductionWorkspaceArtifactContentUnit
 /** @deprecated Use appendProductionWorkspaceArtifactContentUnit. */
 export const appendProductionWorkspaceWorkspaceContentUnit = appendProductionWorkspaceArtifactContentUnit
-/** @deprecated Use replaceProductionWorkspaceArtifactWritingExpression. */
-export const replaceProductionWorkspaceWorkspaceWritingExpression = replaceProductionWorkspaceArtifactWritingExpression
-/** @deprecated Use removeProductionWorkspaceArtifactWritingExpression. */
-export const removeProductionWorkspaceWorkspaceWritingExpression = removeProductionWorkspaceArtifactWritingExpression
-/** @deprecated Use appendProductionWorkspaceArtifactWritingExpression. */
-export const appendProductionWorkspaceWorkspaceWritingExpression = appendProductionWorkspaceArtifactWritingExpression
+/** @deprecated Use replaceProductionWorkspaceArtifactExpressionUnit. */
+export const replaceProductionWorkspaceWorkspaceExpressionUnit = replaceProductionWorkspaceArtifactExpressionUnit
+/** @deprecated Use removeProductionWorkspaceArtifactExpressionUnit. */
+export const removeProductionWorkspaceWorkspaceExpressionUnit = removeProductionWorkspaceArtifactExpressionUnit
+/** @deprecated Use appendProductionWorkspaceArtifactExpressionUnit. */
+export const appendProductionWorkspaceWorkspaceExpressionUnit = appendProductionWorkspaceArtifactExpressionUnit
 /** @deprecated Use appendProductionWorkspaceArtifactSetting. */
 export const appendProductionWorkspaceWorkspaceSetting = appendProductionWorkspaceArtifactSetting
 /** @deprecated Use removeProductionWorkspaceArtifactSetting. */

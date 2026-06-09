@@ -18,17 +18,15 @@ type CompiledPrompt struct {
 }
 
 type PromptContext struct {
-	ProjectID        uint
-	ProjectName      string
-	ProjectStatus    string
-	ProjectDesc      string
-	ProductionID     uint
-	ProductionName   string
-	ProductionStatus string
-	ProductionDesc   string
-	ScriptVersionID  uint
-	ScriptTitle      string
-	SourceLabel      string
+	ProjectID       uint
+	ProjectName     string
+	ProjectDesc     string
+	ProductionID    uint
+	ProductionName  string
+	ProductionDesc  string
+	ScriptVersionID uint
+	ScriptTitle     string
+	SourceLabel     string
 }
 
 const MovScriptSystemPrompt = `你是 MovScript 的制作系统助手。MovScript 是一个围绕短剧和 AI 视频制作的本地优先工作台。创作类业务对象以项目 workspace 文件为准；后端只保留 project、workspace、raw_resource、job、provider runtime 和 audit 等运行态信息。
@@ -78,11 +76,9 @@ func formatPromptContext(ctx PromptContext) string {
 	lines := []string{
 		formatContextLine("project_id", ctx.ProjectID),
 		formatContextLine("project_name", ctx.ProjectName),
-		formatContextLine("project_status", ctx.ProjectStatus),
 		formatContextLine("project_description", ctx.ProjectDesc),
 		formatContextLine("production_id", ctx.ProductionID),
 		formatContextLine("production_name", ctx.ProductionName),
-		formatContextLine("production_status", ctx.ProductionStatus),
 		formatContextLine("production_description", ctx.ProductionDesc),
 		formatContextLine("script_version_id", ctx.ScriptVersionID),
 		formatContextLine("script_title", ctx.ScriptTitle),

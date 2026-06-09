@@ -1,12 +1,16 @@
 import {
   createMovScriptWorkspaceService,
   type MovScriptWorkspaceFileRepository,
+  type MovScriptWorkspaceRepositoryReadResult,
+  type MovScriptWorkspaceRepositoryListResult,
+  type MovScriptWorkspaceRepositoryWriteInput,
   type MovScriptWorkspaceService,
-} from '@movscript/core/workspace'
+} from '@movscript/workspace'
 import type {
   ElectronAPI,
   ElectronMovScriptWorkspaceRootResult,
 } from '@/shared/contracts/electronApi'
+import { currentWorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 
 type WorkspaceElectronAPI = Pick<
   ElectronAPI,
@@ -30,9 +34,14 @@ export function createElectronMovScriptWorkspaceFileRepository(
   first?: WorkspaceElectronAPI | ElectronMovScriptWorkspaceFileRepositoryContext,
   second?: WorkspaceElectronAPI,
 ): MovScriptWorkspaceFileRepository {
+  if (movScriptWorkspaceFileRepositoryFactoryForTest) {
+    const context = isWorkspaceElectronAPI(first) ? defaultWorkspaceOwnerContext({}) : defaultWorkspaceOwnerContext(first ?? {})
+    const api = isWorkspaceElectronAPI(first) ? first : second ?? ({} as WorkspaceElectronAPI)
+    return movScriptWorkspaceFileRepositoryFactoryForTest(context, api)
+  }
   const { context, api } = repositoryArgs(first, second)
   return {
-    async list(input = {}) {
+    async list(input: { path?: string } = {}): Promise<MovScriptWorkspaceRepositoryListResult> {
       const result = await api.listMovScriptWorkspaceFiles?.({ ...context, path: input.path })
       if (!result) throw new Error('MovScript workspace file listing is unavailable')
       return {
@@ -45,7 +54,7 @@ export function createElectronMovScriptWorkspaceFileRepository(
         })),
       }
     },
-    async read(input) {
+    async read(input: { path: string }): Promise<MovScriptWorkspaceRepositoryReadResult> {
       const result = await api.readMovScriptWorkspaceFile?.({ ...context, path: input.path })
       if (!result) throw new Error('MovScript workspace file reading is unavailable')
       return {
@@ -55,7 +64,7 @@ export function createElectronMovScriptWorkspaceFileRepository(
         updatedAt: result.updatedAt,
       }
     },
-    async write(input) {
+    async write(input: MovScriptWorkspaceRepositoryWriteInput): Promise<MovScriptWorkspaceRepositoryReadResult> {
       const result = await api.writeMovScriptWorkspaceFile?.({ ...context, path: input.path, content: input.content })
       if (!result) throw new Error('MovScript workspace file writing is unavailable')
       return {
@@ -65,7 +74,7 @@ export function createElectronMovScriptWorkspaceFileRepository(
         updatedAt: result.updatedAt,
       }
     },
-    async delete(input) {
+    async delete(input: { path: string }): Promise<void> {
       await api.deleteMovScriptWorkspaceFile?.({ ...context, path: input.path })
     },
   }
@@ -83,29 +92,13 @@ export function createElectronMovScriptWorkspaceService(
   second?: WorkspaceElectronAPI,
 ): MovScriptWorkspaceService {
   if (movScriptWorkspaceServiceFactoryForTest) {
-    const context = isWorkspaceElectronAPI(first) ? {} : first ?? {}
+    const context = isWorkspaceElectronAPI(first) ? defaultWorkspaceOwnerContext({}) : defaultWorkspaceOwnerContext(first ?? {})
     const api = isWorkspaceElectronAPI(first) ? first : second ?? ({} as WorkspaceElectronAPI)
     return movScriptWorkspaceServiceFactoryForTest(context, api)
   }
   const { context, api } = repositoryArgs(first, second)
-  const reviewWorkspace = api.reviewMovScriptWorkspace
-    ? () => {
-        const review = api.reviewMovScriptWorkspace?.(context)
-        if (!review) throw new Error('MovScript workspace review is unavailable')
-        return review
-      }
-    : undefined
-  const buildWorkspace = api.buildMovScriptWorkspace
-    ? () => {
-        const build = api.buildMovScriptWorkspace?.(context)
-        if (!build) throw new Error('MovScript workspace build is unavailable')
-        return build
-      }
-    : undefined
   return createMovScriptWorkspaceService({
     fileRepository: createElectronMovScriptWorkspaceFileRepository(context, api),
-    ...(reviewWorkspace ? { reviewWorkspace } : {}),
-    ...(buildWorkspace ? { buildWorkspace } : {}),
   })
 }
 
@@ -119,6 +112,16 @@ export function __setElectronMovScriptWorkspaceServiceFactoryForTest(
   }
 }
 
+export function __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest(
+  factory: ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceFileRepository) | undefined,
+): () => void {
+  const previous = movScriptWorkspaceFileRepositoryFactoryForTest
+  movScriptWorkspaceFileRepositoryFactoryForTest = factory
+  return () => {
+    movScriptWorkspaceFileRepositoryFactoryForTest = previous
+  }
+}
+
 export type ElectronMovScriptWorkspaceFileRepositoryContext = {
   workspaceDir?: string
   userId?: string | number
@@ -128,6 +131,10 @@ export type ElectronMovScriptWorkspaceFileRepositoryContext = {
 
 let movScriptWorkspaceServiceFactoryForTest:
   | ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceService)
+  | undefined
+
+let movScriptWorkspaceFileRepositoryFactoryForTest:
+  | ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceFileRepository)
   | undefined
 
 function requireElectronMovScriptWorkspaceAPI(): WorkspaceElectronAPI {
@@ -157,11 +164,21 @@ function repositoryArgs(
   second?: WorkspaceElectronAPI,
 ): { context: ElectronMovScriptWorkspaceFileRepositoryContext; api: WorkspaceElectronAPI } {
   if (isWorkspaceElectronAPI(first)) {
-    return { context: {}, api: first }
+    return { context: defaultWorkspaceOwnerContext({}), api: first }
   }
   return {
-    context: first ?? {},
+    context: defaultWorkspaceOwnerContext(first ?? {}),
     api: second ?? requireElectronMovScriptWorkspaceAPI(),
+  }
+}
+
+function defaultWorkspaceOwnerContext(
+  context: ElectronMovScriptWorkspaceFileRepositoryContext,
+): ElectronMovScriptWorkspaceFileRepositoryContext {
+  if (context.userId !== undefined || context.orgId !== undefined) return context
+  return {
+    ...context,
+    ...currentWorkspaceOwnerContext(),
   }
 }
 

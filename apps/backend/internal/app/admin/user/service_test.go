@@ -156,7 +156,7 @@ func TestDetailIncludesMembershipsUsageAndAudit(t *testing.T) {
 	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "admin"}).Error; err != nil {
 		t.Fatalf("create org member: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Film", Status: "production", OwnerID: user.ID, OrgID: &org.ID}
+	project := persistencemodel.Project{Name: "Film", OwnerID: user.ID, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}

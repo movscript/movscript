@@ -1,10 +1,9 @@
-import { getMCPContextSnapshot } from '../focus/store.js'
 import { getOptionalNumeric, numericValue } from '../../../tools/shared/params.js'
 import { isRecord } from '../../../tools/shared/record.js'
 
 export function resolveToolProjectId(args: Record<string, unknown>): number {
-  const projectId = getOptionalNumeric(args, 'projectId') ?? getOptionalNumeric(args, 'project_id') ?? getMCPContextSnapshot().project?.id
-  if (!projectId) throw new Error('projectId is required when no current project is selected')
+  const projectId = getOptionalNumeric(args, 'projectId') ?? getOptionalNumeric(args, 'project_id')
+  if (!projectId) throw new Error('projectId is required for MovScript project-scoped MCP tools')
   return projectId
 }
 

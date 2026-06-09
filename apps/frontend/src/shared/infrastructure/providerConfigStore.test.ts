@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   CODEX_PROVIDER_ID,
   CODEX_MOVSCRIPT_HOME_PROFILE_ID,
+  DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
   DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
@@ -25,13 +26,7 @@ test('built-in Codex provider is a MovScript-managed app-server profile using th
 
   assert.equal(provider?.id, CODEX_PROVIDER_ID)
   assert.equal(hasOwn(provider, 'endpoint'), false)
-  assert.deepEqual(resolveAppServerProfile(provider), {
-    id: CODEX_MOVSCRIPT_HOME_PROFILE_ID,
-    label: 'MovScript Codex',
-    providerKey: 'codex',
-    home: MOVSCRIPT_MANAGED_CODEX_HOME,
-    lifecycle: 'movscript-owned',
-  })
+  assert.deepEqual(resolveAppServerProfile(provider), DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE)
 })
 
 test('provider defaults expose Codex as one optional MovScript-managed app-server provider', () => {
@@ -45,13 +40,7 @@ test('provider defaults expose Codex as one optional MovScript-managed app-serve
   assert.ok(codexProvider?.appServerProfile)
   assert.equal(hasOwn(codexProvider, ['codex', 'Profile'].join('')), false)
   assert.equal(hasOwn(codexProvider, ['mova', 'Profile'].join('')), false)
-  assert.deepEqual(resolveAppServerProfile(codexProvider), {
-    id: CODEX_MOVSCRIPT_HOME_PROFILE_ID,
-    label: 'MovScript Codex',
-    providerKey: 'codex',
-    home: MOVSCRIPT_MANAGED_CODEX_HOME,
-    lifecycle: 'movscript-owned',
-  })
+  assert.deepEqual(resolveAppServerProfile(codexProvider), DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE)
 })
 
 test('default settings expose Mova as a separate app-server protocol provider', () => {
@@ -205,13 +194,9 @@ test('normalizes custom app-server profiles through the shared app-server profil
   const provider = resolveProviderByKind(settings, 'codex')
   assert.ok(provider)
   assert.deepEqual(resolveAppServerProfile(provider), {
-    id: CODEX_MOVSCRIPT_HOME_PROFILE_ID,
-    label: 'MovScript Codex',
-    providerKey: 'codex',
+    ...DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
     executablePath: '/opt/movscript/codex',
-    home: MOVSCRIPT_MANAGED_CODEX_HOME,
     workspaceDir: '/workspace/project',
-    lifecycle: 'movscript-owned',
   })
 })
 
@@ -262,6 +247,18 @@ test('thread refs include provider and profile identity to prevent cross-provide
   assert.equal(ref.providerKind, 'codex')
   assert.equal(ref.providerInstanceId, CODEX_MOVSCRIPT_HOME_PROFILE_ID)
   assert.equal(providerThreadRefKey(ref), 'codex:codex:codex-movscript-home:/workspace/project:thread_1')
+})
+
+test('default Codex profile can resolve a workspace debug app-server before PATH fallback', () => {
+  const provider = resolveProviderByKind(DEFAULT_PROVIDER_SETTINGS, 'codex')
+  assert.ok(provider)
+
+  assert.equal(provider.appServerProfile?.executableCommand, 'codex')
+  assert.equal(provider.appServerProfile?.executableEnvVar, 'MOVSCRIPT_CODEX_APP_SERVER_BIN')
+  assert.deepEqual(provider.appServerProfile?.compatibilityBinEnvNames, ['MOVSCRIPT_CODEX_BIN'])
+  assert.ok(provider.appServerProfile?.candidateRootRelativePaths?.some((path) => path.includes('../codex/codex-rs/target/debug')))
+  assert.ok(provider.appServerProfile?.candidateBinaryNames?.includes('codex-app-server'))
+  assert.equal(provider.appServerProfile?.pathFallbackReady, false)
 })
 
 test('Mova thread refs use a distinct provider identity while sharing the app-server protocol', () => {

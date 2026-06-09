@@ -11,5 +11,5 @@ test('script version API uses workspace semantic repository instead of backend e
   assert.match(scriptVersionsSource, /listSemanticEntities/)
   assert.match(scriptVersionsSource, /createSemanticEntity/)
   assert.match(scriptVersionsSource, /scriptVersionLines/)
-  assert.match(semanticEntitiesSource, /scriptVersions:[\s\S]*schema: 'movscript\.script_version\.v1'/)
+  assert.match(semanticEntitiesSource, /scriptVersions: 'script_version'/)
 })

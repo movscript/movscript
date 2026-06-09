@@ -6,24 +6,36 @@ import {
 } from './workspace/actions.js'
 import {
   domainAppendCandidate,
+  domainBuildContentUnitArtifact,
   domainBuild,
-  domainCompileContentGenerationPrompt,
+  domainCompile,
+  domainCreateAssetSlotCandidate,
+  domainCreateContentCandidate,
+  domainCreateKeyframeCandidate,
   domainDeleteEntity,
   domainGetModel,
+  domainInspect,
+  domainOverview,
   domainQueryAssets,
   domainQueryEntities,
   domainQueryProductionContext,
   domainQuerySettings,
-  domainReadContentGenerationPrompt,
+  domainReadContentUnitDependencyReport,
+  domainReadContentUnitInputVersion,
+  domainReadContentUnitRuntimePanel,
+  domainReadContentUnitSelectionValidity,
   domainReadPreviewTimeline,
   domainReadScriptSource,
+  domainRegenerationPlan,
   domainReview,
   domainSelectCandidate,
+  domainSelectContentUnitCandidate,
   domainSnapshotScriptVersion,
   domainUnlockCandidate,
   domainUpdateCandidate,
   domainUpdateContentUnitPrompt,
-  domainUpdateSceneMomentTiming,
+  domainUpdateEntityTransition,
+  domainUpdateStoryboardTimeline,
   domainUpdateStoryboardShotPlans,
   domainUpsertAsset,
   domainUpsertContentUnit,
@@ -113,12 +125,18 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainQueryAssets(args))
     case 'domain_query_production_context':
       return toolText(await domainQueryProductionContext(args))
-    case 'domain_compile_content_generation_prompt':
-      return toolText(await domainCompileContentGenerationPrompt(args))
+    case 'domain_build_content_unit_artifact':
+      return toolText(await domainBuildContentUnitArtifact(args))
     case 'domain_read_preview_timeline':
       return toolText(await domainReadPreviewTimeline(args))
-    case 'domain_read_content_generation_prompt':
-      return toolText(await domainReadContentGenerationPrompt(args))
+    case 'domain_read_content_unit_runtime_panel':
+      return toolText(await domainReadContentUnitRuntimePanel(args))
+    case 'domain_read_content_unit_input_version':
+      return toolText(await domainReadContentUnitInputVersion(args))
+    case 'domain_read_content_unit_dependency_report':
+      return toolText(await domainReadContentUnitDependencyReport(args))
+    case 'domain_read_content_unit_selection_validity':
+      return toolText(await domainReadContentUnitSelectionValidity(args))
     case 'domain_upsert_project_standards':
       return toolText(await domainUpsertProjectStandards(args))
     case 'domain_upsert_setting':
@@ -135,12 +153,22 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUpsertContentUnit(args))
     case 'domain_update_content_unit_prompt':
       return toolText(await domainUpdateContentUnitPrompt(args))
-    case 'domain_update_scene_moment_timing':
-      return toolText(await domainUpdateSceneMomentTiming(args))
+    case 'domain_update_entity_transition':
+      return toolText(await domainUpdateEntityTransition(args))
+    case 'domain_update_storyboard_timeline':
+      return toolText(await domainUpdateStoryboardTimeline(args))
     case 'domain_update_storyboard_shot_plans':
       return toolText(await domainUpdateStoryboardShotPlans(args))
     case 'domain_append_candidate':
       return toolText(await domainAppendCandidate(args))
+    case 'domain_create_content_candidate':
+      return toolText(await domainCreateContentCandidate(args))
+    case 'domain_create_asset_slot_candidate':
+      return toolText(await domainCreateAssetSlotCandidate(args))
+    case 'domain_create_keyframe_candidate':
+      return toolText(await domainCreateKeyframeCandidate(args))
+    case 'domain_select_content_unit_candidate':
+      return toolText(await domainSelectContentUnitCandidate(args))
     case 'domain_select_candidate':
       return toolText(await domainSelectCandidate(args))
     case 'domain_update_candidate':
@@ -149,10 +177,18 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainUnlockCandidate(args))
     case 'domain_delete_entity':
       return toolText(await domainDeleteEntity(args))
+    case 'domain_overview':
+      return toolText(await domainOverview(args))
+    case 'domain_inspect':
+      return toolText(await domainInspect(args))
     case 'domain_review':
       return toolText(await domainReview(args))
+    case 'domain_compile':
+      return toolText(await domainCompile(args))
     case 'domain_build':
       return toolText(await domainBuild(args))
+    case 'domain_regeneration_plan':
+      return toolText(await domainRegenerationPlan(args))
     case 'movscript_workspace_get_model':
       return toolText(await workspaceGetModel(args))
     case 'movscript_workspace_review':

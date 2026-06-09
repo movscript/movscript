@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -8,14 +8,15 @@ import {
   ensureMovScriptWorkspaceRoot,
   fallbackUserMovScriptWorkspaceDir,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
+  readMovScriptWorkspaceConfig,
   readMovScriptWorkspaceRootManifest,
-  resolveMovScriptContentUnitWorkspacePaths,
-  resolveMovScriptProductionWorkspacePaths,
+  resolveMovScriptLangCwd,
+  resolveMovScriptProjectCwd,
   resolveMovScriptProjectWorkspacePaths,
-  resolveMovScriptScriptWorkspacePaths,
   resolveMovScriptWorkspaceContextPaths,
   resolveMovScriptWorkspacePaths,
   resolveMovScriptWorkspaceRootPaths,
+  writeMovScriptWorkspaceConfig,
   writeMovScriptWorkspaceRootManifest,
 } from '@movscript/core/workspace/node'
 import {
@@ -31,20 +32,14 @@ test('workspace config initialization creates the MovScript workspace root manif
 
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   assert.equal(existsSync(root.manifestPath), true)
-  assert.equal(existsSync(root.editDir), true)
-  assert.equal(existsSync(root.buildCurrentDir), true)
-  assert.equal(existsSync(root.buildIndexesDir), true)
-  assert.equal(existsSync(root.buildReviewsDir), true)
-  assert.equal(existsSync(root.buildManifestsDir), true)
   assert.equal(existsSync(root.providersDir), true)
+  assert.equal(existsSync(root.backendDir), true)
   assert.equal(existsSync(paths.configPath), true)
   assert.equal(paths.providerConfigsDir, root.providersDir)
   assert.equal(paths.configPath, join(root.providersDir, 'default', 'config.json'))
 
   const manifest = readMovScriptWorkspaceRootManifest(root.manifestPath)
   assert.equal(manifest?.schema, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA)
-  assert.equal(manifest?.layout.editableRoot, 'edit')
-  assert.equal(manifest?.layout.buildRoot, '.build')
   assert.equal(manifest?.layout.providerConfigRoot, 'providers')
 })
 
@@ -68,53 +63,40 @@ test('workspace root initialization preserves an existing manifest identity', ()
   assert.equal(second.activeUserId, 7)
 })
 
-test('project workspace paths keep business files inside a project git repo', () => {
+test('project workspace paths resolve only the project cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-paths-'))
   const project = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId: 7, projectId: 42 })
-  const script = resolveMovScriptScriptWorkspacePaths(project, 11)
-  const production = resolveMovScriptProductionWorkspacePaths(project, 99)
-  const contentUnits = resolveMovScriptContentUnitWorkspacePaths(production, {})
-  const scopedContentUnit = resolveMovScriptContentUnitWorkspacePaths(production, { contentUnitId: 34 })
   const projectDir = join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42')
 
+  assert.equal(project.projectCwd, projectDir)
   assert.equal(project.projectDir, projectDir)
-  assert.equal(project.projectFile, join(projectDir, 'project.json'))
-  assert.equal(project.projectStandardsFile, join(projectDir, 'edit', 'standards', 'project_standards.json'))
-  assert.equal(project.settingDir, join(projectDir, 'edit', 'setting'))
-  assert.equal(project.assetsDir, join(projectDir, 'edit', 'assets'))
-  assert.equal(script.scriptFile, join(projectDir, 'edit', 'scripts', 'script_11', 'script.md'))
-  assert.equal(production.productionFile, join(projectDir, 'edit', 'productions', 'production_99', 'production.json'))
-  assert.equal(contentUnits.contentUnitsDir, join(projectDir, 'edit', 'productions', 'production_99', 'content_units'))
-  assert.equal(scopedContentUnit.contentUnitFile, join(projectDir, 'edit', 'productions', 'production_99', 'content_units', 'content_unit_34.json'))
-  assert.doesNotMatch(project.projectFile, /\/\.movscript\/(?:\.codex|\.mova|agent)\//)
+  assert.equal(resolveMovScriptProjectCwd({ workspaceDir, userId: 7, projectId: 42 }), projectDir)
+  assert.doesNotMatch(project.projectCwd, /\/\.movscript\/(?:\.codex|\.mova|agent)\//)
 })
 
-test('workspace context paths use the project repo as provider session cwd', () => {
+test('workspace context paths use local, user, and project cwd as provider session cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-context-paths-'))
   const global = resolveMovScriptWorkspaceContextPaths({ workspaceDir })
+  const user = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'global', userId: 7 })
   const project = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'project', userId: 7, projectId: 42 })
   const production = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42, productionId: 99 })
 
-  assert.equal(global.providerSessionCwd, workspaceDir)
-  assert.equal(global.editableBaseDir, join(workspaceDir, 'edit'))
+  assert.equal(global.providerSessionCwd, join(workspaceDir, '.movscript', 'local'))
+  assert.equal(global.projectCwd, join(workspaceDir, '.movscript', 'local'))
+  assert.equal(user.providerSessionCwd, join(workspaceDir, '.movscript', 'user', '7'))
+  assert.equal(user.projectCwd, join(workspaceDir, '.movscript', 'user', '7'))
   assert.equal(project.providerSessionCwd, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'))
-  assert.equal(project.editableBaseDir, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42', 'edit'))
+  assert.equal(project.projectCwd, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'))
   assert.equal(production.providerSessionCwd, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'))
-  assert.equal(production.editableBaseDir, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42', 'edit', 'productions', 'production_99'))
-  assert.throws(
-    () => resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42 }),
-    /requires productionId/,
-  )
+  assert.equal(production.projectCwd, join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'))
 })
 
-test('workspace context ids reject path traversal segments', () => {
+test('project cwd ids reject path traversal segments', () => {
   assert.throws(
-    () => resolveMovScriptWorkspaceContextPaths({
+    () => resolveMovScriptProjectCwd({
       workspaceDir: '/tmp/workspace',
-      scope: 'production',
       userId: 7,
-      projectId: 42,
-      productionId: '../99',
+      projectId: '../42',
     }),
     /invalid MovScript workspace id segment/,
   )
@@ -129,8 +111,6 @@ test('workspace root manifest is stored as the top-level .movscript contract', (
   assert.equal(raw.schema, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA)
   assert.equal(raw.workspaceId, manifest.workspaceId)
   assert.deepEqual(raw.layout, {
-    editableRoot: 'edit',
-    buildRoot: '.build',
     providerConfigRoot: 'providers',
   })
 })
@@ -139,30 +119,6 @@ test('default user workspace is a workspace root, not the .movscript control dir
   const fallback = fallbackUserMovScriptWorkspaceDir()
   assert.notEqual(fallback.split(/[\\/]/).at(-1), '.movscript')
   assert.equal(resolveMovScriptWorkspaceRootPaths(fallback).controlDir, join(fallback, '.movscript'))
-})
-
-test('provider profile config migrates from legacy top-level control dirs into provider config homes', () => {
-  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-profile-migration-'))
-  const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: '.codex' })
-  mkdirSync(paths.legacyConfigDir, { recursive: true })
-  writeFileSync(paths.legacyConfigPath, JSON.stringify({
-    schema: 'movscript.workspace-config.v1',
-    updatedAt: '2026-06-04T00:00:00.000Z',
-    providers: {
-      codex: {
-        auth: { mode: ['local', 'Codex'].join('') },
-      },
-    },
-  }, null, 2), 'utf8')
-
-  ensureMovScriptWorkspace(paths)
-
-  assert.equal(paths.configPath, join(workspaceDir, '.movscript', 'providers', '.codex', 'config.json'))
-  assert.equal(existsSync(paths.configPath), true)
-  assert.equal(existsSync(paths.legacyConfigPath), true)
-  const migrated = JSON.parse(readFileSync(paths.configPath, 'utf8'))
-  assert.equal(migrated.schema, 'movscript.workspace-config.v2')
-  assert.equal(migrated.providers.codex.auth.mode, ['local', 'Codex'].join(''))
 })
 
 test('codex provider profile config is separate from the managed .codex runtime home', () => {
@@ -197,4 +153,20 @@ test('desktop MovScript workspace root can be configured from app settings', () 
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
     else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
   }
+})
+
+test('workspace config stores the project movscript-lang cwd without inspecting language internals', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-lang-cwd-'))
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir)
+  ensureMovScriptWorkspace(paths)
+
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: 'movscript.workspace-config.v2',
+    updatedAt: '2026-06-09T00:00:00.000Z',
+    movscriptLang: { cwd: '../movscript-lang' },
+  })
+
+  const config = readMovScriptWorkspaceConfig(paths.configPath)
+  assert.equal(config.movscriptLang?.cwd, '../movscript-lang')
+  assert.equal(resolveMovScriptLangCwd(config, workspaceDir), join(workspaceDir, '../movscript-lang'))
 })

@@ -28,6 +28,17 @@ extraResources:
       - bin/**
       - skills/**
       - README.md
+  - from: ../cli
+    to: movcli
+    filter:
+      - bin/**
+      - dist/**
+      - package.json
+  - from: vendor/app-server
+    to: app-server
+    filter:
+      - "**/app-server"
+      - "**/app-server.exe"
   - from: vendor/ffmpeg
     to: ffmpeg
     filter:

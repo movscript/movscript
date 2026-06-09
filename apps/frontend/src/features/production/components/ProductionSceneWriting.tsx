@@ -10,28 +10,28 @@ import {
   isPersonReference,
   isPlaceReference,
   isVisibleOrchestrationRecord,
-  normalizeWritingExpressionWorkspace,
+  normalizeExpressionUnitWorkspace,
   referencesForOwner,
-  speakerLabelForWritingType,
+  speakerLabelForExpressionUnitType,
   speakerOptionValue,
   speakerOptionValueForWorkspace,
-  speakerPlaceholderForWritingType,
-  textPlaceholderForWritingType,
+  speakerPlaceholderForExpressionUnitType,
+  textPlaceholderForExpressionUnitType,
   type ProductionAssetSlotRecord,
   type ProductionSettingRecord,
   type ProductionSceneMomentRecord,
   type ProductionScriptBlockRecord,
   type ProductionSpeakerOption,
-  type ProductionWritingExpressionEditTarget,
-  type ProductionWritingExpressionLine,
-  type ProductionWritingExpressionSavePayload,
-  type ProductionWritingExpressionType,
-  type ProductionWritingLookup,
-  writingExpressionWorkspaceEquals,
-  writingExpressionLineWorkspace,
-  writingExpressionTypeOptions,
-  writingTypeLabel,
-} from '@/features/production/domain/productionWritingExpressions'
+  type ProductionExpressionUnitEditTarget,
+  type ProductionExpressionUnitLine,
+  type ProductionExpressionUnitSavePayload,
+  type ProductionExpressionUnitType,
+  type ProductionExpressionUnitLookup,
+  expressionUnitWorkspaceEquals,
+  expressionUnitLineWorkspace,
+  expressionUnitTypeOptions,
+  expressionUnitTypeLabel,
+} from '@/features/production/domain/productionExpressionUnits'
 import { productionReferencePresenceRecipe } from '@/features/production/presentation/productionSemanticUi'
 import {
   ProductionExpressionAuxFieldGrid,
@@ -98,7 +98,7 @@ export function SceneMomentSettingsEditor({
   moment: ProductionSceneMomentRecord | null
   settings: ProductionSettingRecord[]
   assetSlots: ProductionAssetSlotRecord[]
-  lookup: ProductionWritingLookup
+  lookup: ProductionExpressionUnitLookup
   isSaving: boolean
   onLinkReference: (momentId: number, referenceId: number, role: string) => void
   onUnlinkReference: (momentId: number, referenceId: number) => void
@@ -440,7 +440,7 @@ export function InlineSceneMomentEditor({
   )
 }
 
-export function ProductionWritingExpressionsPanel({
+export function ProductionExpressionUnitsPanel({
   selectedMoment,
   selectedMomentScriptBlock,
   expressionLines,
@@ -454,21 +454,21 @@ export function ProductionWritingExpressionsPanel({
 }: {
   selectedMoment: ProductionSceneMomentRecord | null
   selectedMomentScriptBlock: ProductionScriptBlockRecord | null
-  expressionLines: ProductionWritingExpressionLine[]
+  expressionLines: ProductionExpressionUnitLine[]
   settings: ProductionSettingRecord[]
-  lookup: ProductionWritingLookup
+  lookup: ProductionExpressionUnitLookup
   isSavingExpressionLine: boolean
   canDeleteFallbackContentUnits?: boolean
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
-  onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
-  onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
+  onSaveExpressionLine: (target: ProductionExpressionUnitEditTarget, payload: ProductionExpressionUnitSavePayload) => void
+  onDeleteExpressionLine: (target: ProductionExpressionUnitEditTarget) => void
 }) {
   const speakerOptions = buildSpeakerOptions(selectedMoment, settings, lookup)
   const [creating, setCreating] = useState(false)
   const nextOrder = expressionLines.length + 1
-  const createLine: ProductionWritingExpressionLine | null = selectedMoment ? {
+  const createLine: ProductionExpressionUnitLine | null = selectedMoment ? {
     type: 'action',
-    label: writingTypeLabel('action'),
+    label: expressionUnitTypeLabel('action'),
     speaker: defaultSpeakerForNewExpression('action'),
     text: '',
     editTarget: {
@@ -488,7 +488,7 @@ export function ProductionWritingExpressionsPanel({
         icon={ScrollText}
         eyebrow="表达结构"
         title="表达条目"
-        description="没有对白的片段也不空白，它可以用动作、旁白、屏幕文字、镜头描述或动作里的停顿完成表达。"
+        description="用对白、动作、旁白、屏幕文字和镜头描述拆解当前情节里的可见表达。"
         actions={(
           <ProductionSceneWritingActionButton
             size="sm"
@@ -505,7 +505,7 @@ export function ProductionWritingExpressionsPanel({
         {expressionLines.length === 0 ? (
           <ProductionExpressionEmptyState title="当前情节还没有表达条目。可以先写动作、对白、旁白、屏幕文字或镜头描述。" />
         ) : expressionLines.map((line, index) => (
-          <EditableWritingExpressionLine
+          <EditableExpressionUnitLine
             key={`${line.editTarget.kind}-${line.editTarget.id}`}
             index={index}
             line={line}
@@ -518,7 +518,7 @@ export function ProductionWritingExpressionsPanel({
         ))}
       </ProductionExpressionLineStack>
       {createLine ? (
-        <WritingExpressionDialog
+        <ExpressionUnitDialog
           open={creating}
           onOpenChange={setCreating}
           title="新增表达条目"
@@ -538,7 +538,7 @@ export function ProductionWritingExpressionsPanel({
   )
 }
 
-function EditableWritingExpressionLine({
+function EditableExpressionUnitLine({
   index,
   line,
   speakerOptions,
@@ -548,28 +548,28 @@ function EditableWritingExpressionLine({
   onDelete,
 }: {
   index: number
-  line: ProductionWritingExpressionLine
+  line: ProductionExpressionUnitLine
   speakerOptions: ProductionSpeakerOption[]
   isSaving: boolean
   canDeleteFallbackContentUnits: boolean
-  onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
-  onDelete: (target: ProductionWritingExpressionEditTarget) => void
+  onSave: (target: ProductionExpressionUnitEditTarget, payload: ProductionExpressionUnitSavePayload) => void
+  onDelete: (target: ProductionExpressionUnitEditTarget) => void
 }) {
-  const canDeleteLine = line.persisted && line.editTarget.kind === 'writingExpressions'
+  const canDeleteLine = line.persisted && line.editTarget.kind === 'expressionUnits'
     || (canDeleteFallbackContentUnits && line.editTarget.kind === 'fallback' && line.editTarget.id.startsWith('content-unit-'))
   return (
     <ProductionExpressionLineShell
       index={index}
       badges={(
         <>
-          <ProductionExpressionBadge variant="outline">{writingTypeLabel(line.type)}</ProductionExpressionBadge>
+          <ProductionExpressionBadge variant="outline">{expressionUnitTypeLabel(line.type)}</ProductionExpressionBadge>
           <ProductionExpressionBadge variant={line.persisted ? 'outline' : 'soft'}>
             {line.persisted ? '已保存' : '参考转写'}
           </ProductionExpressionBadge>
         </>
       )}
       speaker={line.speaker.trim() || undefined}
-      preview={line.text || textPlaceholderForWritingType(line.type)}
+      preview={line.text || textPlaceholderForExpressionUnitType(line.type)}
       meta={(line.intent || line.note) ? [line.intent, line.note].filter(Boolean).join(' · ') : undefined}
       actions={canDeleteLine ? (
         <ProductionExpressionDeleteButton
@@ -585,7 +585,7 @@ function EditableWritingExpressionLine({
       ) : null}
       defaultOpen={!line.persisted}
     >
-      <WritingExpressionEditorForm
+      <ExpressionUnitEditorForm
         actionLabel={line.persisted ? '保存' : '转为条目'}
         line={line}
         speakerOptions={speakerOptions}
@@ -598,7 +598,7 @@ function EditableWritingExpressionLine({
   )
 }
 
-function WritingExpressionDialog({
+function ExpressionUnitDialog({
   open,
   onOpenChange,
   title,
@@ -614,12 +614,12 @@ function WritingExpressionDialog({
   onOpenChange: (open: boolean) => void
   title: string
   actionLabel: string
-  line: ProductionWritingExpressionLine
+  line: ProductionExpressionUnitLine
   speakerOptions: ProductionSpeakerOption[]
   isSaving: boolean
   canDeleteFallbackContentUnits: boolean
-  onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
-  onDelete: (target: ProductionWritingExpressionEditTarget) => void
+  onSave: (target: ProductionExpressionUnitEditTarget, payload: ProductionExpressionUnitSavePayload) => void
+  onDelete: (target: ProductionExpressionUnitEditTarget) => void
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -627,7 +627,7 @@ function WritingExpressionDialog({
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>选择表达类型，并填写画面中真实发生、说出或出现的内容。</DialogDescription>
         <ProductionSceneWritingDialogBody>
-          <WritingExpressionEditorForm
+          <ExpressionUnitEditorForm
             actionLabel={actionLabel}
             line={line}
             speakerOptions={speakerOptions}
@@ -649,7 +649,7 @@ function WritingExpressionDialog({
   )
 }
 
-function WritingExpressionEditorForm({
+function ExpressionUnitEditorForm({
   actionLabel,
   line,
   speakerOptions,
@@ -660,39 +660,39 @@ function WritingExpressionEditorForm({
   onDelete,
 }: {
   actionLabel: string
-  line: ProductionWritingExpressionLine
+  line: ProductionExpressionUnitLine
   speakerOptions: ProductionSpeakerOption[]
   isSaving: boolean
   canDeleteFallbackContentUnits: boolean
   resetKey?: unknown
-  onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
-  onDelete: (target: ProductionWritingExpressionEditTarget) => void
+  onSave: (target: ProductionExpressionUnitEditTarget, payload: ProductionExpressionUnitSavePayload) => void
+  onDelete: (target: ProductionExpressionUnitEditTarget) => void
 }) {
-  const [workspace, setWorkspace] = useState<ProductionWritingExpressionSavePayload>(() => writingExpressionLineWorkspace(line))
+  const [workspace, setWorkspace] = useState<ProductionExpressionUnitSavePayload>(() => expressionUnitLineWorkspace(line))
   useEffect(() => {
-    setWorkspace(writingExpressionLineWorkspace(line))
+    setWorkspace(expressionUnitLineWorkspace(line))
   }, [line.intent, line.note, line.speaker, line.text, line.type, resetKey])
-  const original = writingExpressionLineWorkspace(line)
-  const changed = !writingExpressionWorkspaceEquals(workspace, original)
-  const typeLabel = writingTypeLabel(workspace.kind)
+  const original = expressionUnitLineWorkspace(line)
+  const changed = !expressionUnitWorkspaceEquals(workspace, original)
+  const typeLabel = expressionUnitTypeLabel(workspace.kind)
   const selectedSpeakerValue = speakerOptionValueForWorkspace(workspace.speaker, speakerOptions)
-  const canDeleteLine = line.persisted && line.editTarget.kind === 'writingExpressions'
+  const canDeleteLine = line.persisted && line.editTarget.kind === 'expressionUnits'
     || (canDeleteFallbackContentUnits && line.editTarget.kind === 'fallback' && line.editTarget.id.startsWith('content-unit-'))
 
   return (
     <ProductionExpressionEditorGrid>
       <ProductionExpressionEditorColumn>
-        <Select value={workspace.kind} onValueChange={(value) => setWorkspace((prev) => ({ ...prev, kind: value as ProductionWritingExpressionType }))}>
+        <Select value={workspace.kind} onValueChange={(value) => setWorkspace((prev) => ({ ...prev, kind: value as ProductionExpressionUnitType }))}>
           <ProductionSceneWritingSelectTrigger kind="expression-kind">
             <SelectValue />
           </ProductionSceneWritingSelectTrigger>
           <SelectContent>
-            {writingExpressionTypeOptions.map((option) => (
+            {expressionUnitTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <ProductionExpressionField label={speakerLabelForWritingType(workspace.kind)}>
+        <ProductionExpressionField label={speakerLabelForExpressionUnitType(workspace.kind)}>
           <Select
             value={selectedSpeakerValue}
             onValueChange={(value) => {
@@ -720,7 +720,7 @@ function WritingExpressionEditorForm({
             kind="speaker"
             value={workspace.speaker}
             onChange={(event) => setWorkspace((prev) => ({ ...prev, speaker: event.target.value }))}
-            placeholder={speakerPlaceholderForWritingType(workspace.kind)}
+            placeholder={speakerPlaceholderForExpressionUnitType(workspace.kind)}
           />
         </ProductionExpressionField>
       </ProductionExpressionEditorColumn>
@@ -729,7 +729,7 @@ function WritingExpressionEditorForm({
           kind="expression"
           value={workspace.text}
           onChange={(event) => setWorkspace((prev) => ({ ...prev, text: event.target.value }))}
-          placeholder={textPlaceholderForWritingType(workspace.kind)}
+          placeholder={textPlaceholderForExpressionUnitType(workspace.kind)}
         />
         <ProductionExpressionAuxFieldGrid>
           <ProductionSceneWritingTextarea
@@ -774,7 +774,7 @@ function WritingExpressionEditorForm({
         <ProductionSceneWritingActionButton
           size="sm"
           disabled={!changed || !workspace.text.trim() || isSaving}
-          onClick={() => onSave(line.editTarget, normalizeWritingExpressionWorkspace(workspace))}
+          onClick={() => onSave(line.editTarget, normalizeExpressionUnitWorkspace(workspace))}
         >
           {isSaving ? <ProductionSceneWritingSpinner icon={Loader2} /> : <Check size={12} />}
           {actionLabel}
@@ -784,7 +784,7 @@ function WritingExpressionEditorForm({
   )
 }
 
-function defaultSpeakerForNewExpression(type: ProductionWritingExpressionType) {
+function defaultSpeakerForNewExpression(type: ProductionExpressionUnitType) {
   if (type === 'dialogue') return ''
   if (type === 'narration') return '旁白'
   if (type === 'subtitle') return '屏幕文字'

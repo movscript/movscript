@@ -75,6 +75,7 @@ export function defaultMovScriptWorkspaceConfig(): MovScriptWorkspaceConfig {
 export function readMovScriptWorkspaceConfig(configPath: string): MovScriptWorkspaceConfig {
   const parsed = readJSON(configPath)
   if (!isRecord(parsed) || !isSupportedWorkspaceConfigSchema(parsed.schema)) return defaultMovScriptWorkspaceConfig()
+  const movscriptLang = normalizeMovScriptLangConfig(parsed.movscriptLang ?? parsed.movscript_lang)
   return {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
@@ -85,6 +86,7 @@ export function readMovScriptWorkspaceConfig(configPath: string): MovScriptWorks
     ...(isRecord(parsed.permissions) ? { permissions: parsed.permissions } : {}),
     ...(isStringRecord(parsed.environment) ? { environment: parsed.environment } : {}),
     ...(providerConfigRecords(parsed) ? { providers: providerConfigRecords(parsed)! } : {}),
+    ...(movscriptLang ? { movscriptLang } : {}),
   }
 }
 
@@ -107,6 +109,12 @@ export function normalizeMovScriptWorkspaceConfigDirName(value: string | undefin
 export function resolveDefaultMovScriptWorkspaceDir(): string {
   return process.env.MOVSCRIPT_WORKSPACE_DIR
     || process.cwd()
+}
+
+export function resolveMovScriptLangCwd(config: MovScriptWorkspaceConfig, workspaceDir = process.cwd()): string | undefined {
+  const cwd = stringField(config.movscriptLang?.cwd)
+  if (!cwd) return undefined
+  return resolve(workspaceDir, cwd)
 }
 
 export function fallbackUserMovScriptWorkspaceDir(): string {
@@ -160,6 +168,12 @@ function isSupportedWorkspaceConfigSchema(value: unknown): value is MovScriptWor
 function providerConfigRecords(value: Record<string, unknown>): Record<string, Record<string, unknown>> | undefined {
   if (isRecordOfRecords(value.providers)) return value.providers
   return undefined
+}
+
+function normalizeMovScriptLangConfig(value: unknown): MovScriptWorkspaceConfig['movscriptLang'] | undefined {
+  if (!isRecord(value)) return undefined
+  const cwd = stringField(value.cwd)
+  return cwd ? { cwd } : undefined
 }
 
 function normalizeWorkspaceCatalogConfig(value: unknown): MovScriptWorkspaceConfig['catalog'] | undefined {

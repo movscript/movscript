@@ -30,3 +30,13 @@ Do not remove old timeline components only because the unified chat exists. They
 - Prompt history is a server-side boundary. Frontend display metadata must not be treated as prompt-safe history unless the protocol explicitly marks it prompt-eligible. Timeline cursors are opaque pagination tokens; UI ordering uses explicit item fields: `createdAt`, `sortRank`, then `id`.
 
 When adding a new agent surface, choose exactly one owner first and add the protocol value only with a producer and a renderer. The current surfaces are `message_stream`, `status_strip`, and `debug_panel`. Components must not infer display behavior from raw `role`, `kind`, or message metadata when `AgentTimelineItem` semantics are available.
+
+## Internal Tool Call Display
+
+MovScript-owned tools should not fall back to provider-native tool cards once the UI can recognize them. The tool catalog is owned by core MCP registration (`packages/core/src/mcp/node/server/toolRegistry.ts`), while chat rendering stays in the neutral frontend domain.
+
+- Core is the authoritative list of tool names, schemas, and descriptions. Browser UI must not import the Node-only MCP registry directly; use provider/app-server capability data or a serialized catalog snapshot when a full catalog is needed.
+- The app-server adapter should preserve protocol facts. A wire `mcpToolCall` remains a neutral `mcpToolCall` with `raw`, `arguments`, `result`, and `error` intact.
+- Internal tool UI recognition lives in the frontend domain as a classifier from neutral tool-call items to a display view model. Renderers ask the classifier first and fall back to the generic tool card for unknown or third-party tools.
+- Prefer explicit adapters for high-value tools, backed by prefix/family fallback rules for broad groups such as `domain_*`, `system_*`, `movscript_*`, `workspace_*`, and `generation_*`.
+- Each adapter should expose concise business status, key arguments, result summaries, and an inspect section with raw protocol payload for debugging.

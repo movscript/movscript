@@ -1,10 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { basename, dirname, isAbsolute, relative, resolve } from 'node:path'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { createServer } from 'node:net'
 import {
   ensureMovScriptWorkspaceContext,
   resolveMovScriptWorkspaceContextPaths,
+  resolveMovScriptWorkspaceRootPaths,
   type MovScriptWorkspaceContext,
 } from '@movscript/core/workspace/node'
 import {
@@ -24,6 +25,7 @@ import {
   ensureMovScriptAppServerPlugin,
   type AppServerPluginBootstrap,
 } from './appServerPluginBootstrap'
+import { ensureWorkspaceMovScriptCliBin, movScriptCliPathEnv, resolveMovScriptCliBinDir } from './movscriptCliPath'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import { upsertProviderSessionInWorkspace } from './providerSessionWorkspace'
 import type {
@@ -36,6 +38,7 @@ import type {
 
 const QUICK_EXIT_RESTART_COOLDOWN_MS = 8_000
 const APP_SERVER_OUTPUT_EXCERPT_LIMIT = 2_048
+const APP_SERVER_GRACEFUL_STOP_TIMEOUT_MS = 10_000
 const DEFAULT_APP_SERVER_PROVIDER_KEY = 'mova'
 type AppServerExecutableKind = 'cli' | 'app-server'
 type AppServerProviderKey = NonNullable<ElectronAppServerProfile['providerKey']>
@@ -72,6 +75,8 @@ type ManagedAppServer = {
   workspaceDir?: string
   workspaceContext?: MovScriptWorkspaceContext
   providerSessionCwd?: string
+  cliBinDir?: string
+  cliEnv?: Record<string, string>
   configDistribution: AppServerConfigDistribution
   pluginBootstrap: AppServerPluginBootstrap
   executableDiagnostic?: ElectronAppServerExecutableDiagnostic
@@ -96,6 +101,8 @@ type RecentAppServerExit = {
   workspaceDir?: string
   workspaceContext?: MovScriptWorkspaceContext
   providerSessionCwd?: string
+  cliBinDir?: string
+  cliEnv?: Record<string, string>
   configDistribution: AppServerConfigDistribution
   pluginBootstrap: AppServerPluginBootstrap
   executableDiagnostic?: ElectronAppServerExecutableDiagnostic
@@ -122,6 +129,9 @@ type AppServerManagerDependencies = {
   defaultWorkspaceDir: () => string
   launchTransport?: (launch: ResolvedAppServerLaunch) => AppServerLaunchTransport
   recordProviderSession?: typeof upsertProviderSessionInWorkspace
+  resolveCliBinDir?: typeof resolveMovScriptCliBinDir
+  ensureWorkspaceCliBin?: typeof ensureWorkspaceMovScriptCliBin
+  resourcesPath?: () => string | undefined
   now?: () => number
 }
 
@@ -130,6 +140,7 @@ export type AppServerExecutableResolutionInput = {
   profile?: ElectronAppServerProfile
   cwd?: string
   sourceDir?: string
+  managedBinDir?: string
   env?: NodeJS.ProcessEnv
   exists?: (path: string) => boolean
 }
@@ -149,6 +160,9 @@ const defaultAppServerManagerDependencies: AppServerManagerDependencies = {
   defaultWorkspaceDir: resolveAppServerDefaultWorkspaceDir,
   launchTransport: defaultAppServerLaunchTransport,
   recordProviderSession: upsertProviderSessionInWorkspace,
+  resolveCliBinDir: resolveMovScriptCliBinDir,
+  ensureWorkspaceCliBin: ensureWorkspaceMovScriptCliBin,
+  resourcesPath: () => process.resourcesPath,
 }
 
 export class AppServerManager {
@@ -189,7 +203,8 @@ export class AppServerManager {
         return this.status(launch.profileId)
       }
       console.info(`[app-server:${launch.profileId}] ensure replacing running app-server because launch identity changed`)
-      existing.child.kill()
+      this.stoppingProfiles.add(existing.profileId)
+      await this.stopChildProcess(existing)
       this.managedServers.delete(launch.profileId)
     }
 
@@ -238,6 +253,8 @@ export class AppServerManager {
         preflight: appServerPreflightFromDistribution(launch.configDistribution),
       }
     }
+    const cliBinDir = this.resolveCliBinDir(launch.workspaceDir)
+    const cliEnv = movScriptCliStatusEnv(movScriptCliPathEnv({ cliBinDir }))
     return {
       ok: launch.configDistribution.accountConfigured,
       running: false,
@@ -249,6 +266,8 @@ export class AppServerManager {
       workspaceDir: launch.workspaceDir,
       workspaceContext: launch.workspaceContext,
       providerSessionCwd: launch.providerSessionCwd,
+      ...(cliBinDir ? { cliBinDir } : {}),
+      ...(Object.keys(cliEnv).length > 0 ? { cliEnv } : {}),
       config: appServerConfigStatusFromDistribution(launch.configDistribution),
       preflight: appServerPreflightFromDistribution(launch.configDistribution),
       ...(launch.executableDiagnostic ? { executableDiagnostic: launch.executableDiagnostic } : {}),
@@ -288,6 +307,8 @@ export class AppServerManager {
       ...(server.workspaceDir ? { workspaceDir: server.workspaceDir } : {}),
       ...(server.workspaceContext ? { workspaceContext: server.workspaceContext } : {}),
       ...(server.providerSessionCwd ? { providerSessionCwd: server.providerSessionCwd } : {}),
+      ...(server.cliBinDir ? { cliBinDir: server.cliBinDir } : {}),
+      ...(server.cliEnv ? { cliEnv: server.cliEnv } : {}),
       config,
       preflight: appServerPreflightFromDistribution(server.configDistribution),
       plugin: server.pluginBootstrap,
@@ -296,7 +317,7 @@ export class AppServerManager {
     }
   }
 
-  stop(profileId?: string): ElectronAppServerStatus {
+  async stop(profileId?: string): Promise<ElectronAppServerStatus> {
     const normalized = profileId?.trim()
     console.info(`[app-server:${normalized || 'app-server'}] stop requested`)
     if (normalized) this.recentExits.delete(normalized)
@@ -311,7 +332,7 @@ export class AppServerManager {
     this.stoppingProfiles.add(server.profileId)
     if (server.child.exitCode === null && !server.child.killed) {
       console.info(`[app-server:${server.profileId}] sending stop signal pid=${server.child.pid ?? 'unknown'} endpoint=${server.endpoint}`)
-      server.child.kill()
+      await this.stopChildProcess(server)
     }
     this.managedServers.delete(server.profileId)
     this.recordProviderSession(server, 'stopped')
@@ -334,6 +355,16 @@ export class AppServerManager {
       plugin: server.pluginBootstrap,
       ...(server.executableDiagnostic ? { executableDiagnostic: server.executableDiagnostic } : {}),
     }
+  }
+
+  async stopAll(): Promise<void> {
+    await Promise.all(Array.from(this.managedServers.keys()).map(async (profileId) => {
+      try {
+        await this.stop(profileId)
+      } catch (error) {
+        console.warn(`[app-server:${profileId}] failed to stop during shutdown`, error)
+      }
+    }))
   }
 
   onLog(listener: AppServerLogListener): () => void {
@@ -362,9 +393,13 @@ export class AppServerManager {
       ? managedAppServerEndpoint(launch.profileId)
       : `ws://127.0.0.1:${await this.dependencies.reservePort()}`
     this.recentExits.delete(launch.profileId)
+    const cliBinDir = this.resolveCliBinDir(launch.workspaceDir)
     const launchEnv = appServerLaunchEnv({
       profileId: launch.profileId,
       configDistribution: launch.configDistribution,
+      inheritedEnv: movScriptCliPathEnv({
+        cliBinDir,
+      }),
     })
     if (launch.executableDiagnostic && !launch.executableDiagnostic.ok) {
       console.warn(`[app-server:${launch.profileId}] ${formatExecutableDiagnostic(launch.executableDiagnostic)}`)
@@ -391,6 +426,8 @@ export class AppServerManager {
       workspaceDir: launch.workspaceDir,
       workspaceContext: launch.workspaceContext,
       providerSessionCwd: launch.providerSessionCwd,
+      ...(cliBinDir ? { cliBinDir } : {}),
+      cliEnv: movScriptCliStatusEnv(launchEnv),
       configDistribution: launch.configDistribution,
       pluginBootstrap: launch.pluginBootstrap,
       ...(launch.executableDiagnostic ? { executableDiagnostic: launch.executableDiagnostic } : {}),
@@ -435,6 +472,8 @@ export class AppServerManager {
           workspaceDir: launch.workspaceDir,
           workspaceContext: launch.workspaceContext,
           providerSessionCwd: launch.providerSessionCwd,
+          ...(server.cliBinDir ? { cliBinDir: server.cliBinDir } : {}),
+          ...(server.cliEnv ? { cliEnv: server.cliEnv } : {}),
           configDistribution: server.configDistribution,
           pluginBootstrap: server.pluginBootstrap,
           ...(server.executableDiagnostic ? { executableDiagnostic: server.executableDiagnostic } : {}),
@@ -467,24 +506,60 @@ export class AppServerManager {
     }
   }
 
+  private async stopChildProcess(server: ManagedAppServer): Promise<void> {
+    const child = server.child
+    if (server.transport === 'stdio' && child.stdin && typeof child.stdin.end === 'function') {
+      console.info(`[app-server:${server.profileId}] closing stdio stdin for graceful shutdown`)
+      try {
+        child.stdin.end()
+      } catch (error) {
+        console.warn(`[app-server:${server.profileId}] failed to close stdio stdin; falling back to kill`, error)
+        child.kill()
+      }
+    } else {
+      child.kill()
+    }
+
+    try {
+      await waitForChildExit(child, APP_SERVER_GRACEFUL_STOP_TIMEOUT_MS)
+    } catch (error) {
+      console.warn(`[app-server:${server.profileId}] graceful stop timed out; forcing process termination`, error)
+      if (child.exitCode === null && !child.killed) child.kill()
+      await waitForChildExit(child, 1_000).catch(() => undefined)
+    }
+  }
+
   private resolveLaunch(input: ElectronAppServerEnsureInput | undefined, options: { bootstrapPlugin?: boolean } = {}): ResolvedAppServerLaunch | { status: ElectronAppServerStatus } {
     const profile = input?.profile
     const profileId = profile?.id?.trim()
     if (!profileId) return { status: appServerError('app-server', 'app-server profile id is required') }
     const providerKey = resolveAppServerKey(profile)
     const label = profile?.label?.trim() || undefined
-    const executableResolution = profile?.executablePath?.trim()
-      ? { executablePath: profile.executablePath.trim(), found: true }
-      : defaultAppServerExecutableResolution(providerKey, profile)
-    const executablePath = executableResolution.executablePath
-    const executableDiagnostic = executableResolution.diagnostic ?? fallbackAppServerExecutableDiagnostic(providerKey, executablePath, profile)
     const workspaceDir = resolveAppServerWorkspaceDir(profile?.workspaceDir?.trim(), this.dependencies.defaultWorkspaceDir())
     const workspaceContextPaths = ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
       workspaceDir,
-      ...profile?.workspaceContext,
+      ...input?.workspaceContext,
     }))
     const workspaceContext = workspaceContextPaths.context
     const providerSessionCwd = workspaceContextPaths.providerSessionCwd
+    const managedBinDir = managedAppServerBinDir(workspaceDir)
+    try {
+      materializePackagedAppServerBinary({
+        providerKey,
+        workspaceDir,
+        resourcesPath: this.dependencies.resourcesPath?.(),
+      })
+    } catch (error) {
+      return {
+        status: appServerError(profileId, errorMessage(error)),
+      }
+    }
+    const explicitExecutablePath = explicitAppServerExecutablePath(profile, providerKey)
+    const executableResolution = explicitExecutablePath
+      ? { executablePath: explicitExecutablePath, found: true }
+      : defaultAppServerExecutableResolution(providerKey, profile, managedBinDir)
+    const executablePath = executableResolution.executablePath
+    const executableDiagnostic = executableResolution.diagnostic ?? fallbackAppServerExecutableDiagnostic(providerKey, executablePath, profile)
     const home = resolveAppServerHome(profile?.home?.trim(), workspaceDir, providerKey)
     const configDistribution = this.dependencies.distributeConfig({
       workspaceDir,
@@ -554,6 +629,12 @@ export class AppServerManager {
 
   private now(): number {
     return this.dependencies.now?.() ?? Date.now()
+  }
+
+  private resolveCliBinDir(workspaceDir: string): string | undefined {
+    const resourcesPath = this.dependencies.resourcesPath?.()
+    return this.dependencies.ensureWorkspaceCliBin?.({ workspaceDir, resourcesPath })
+      ?? this.dependencies.resolveCliBinDir?.({ workspaceDir, resourcesPath })
   }
 
   private emitLog(
@@ -639,6 +720,8 @@ function appServerRecentExitStatus(exit: RecentAppServerExit, cooldownMs: number
     ...(exit.workspaceDir ? { workspaceDir: exit.workspaceDir } : {}),
     ...(exit.workspaceContext ? { workspaceContext: exit.workspaceContext } : {}),
     ...(exit.providerSessionCwd ? { providerSessionCwd: exit.providerSessionCwd } : {}),
+    ...(exit.cliBinDir ? { cliBinDir: exit.cliBinDir } : {}),
+    ...(exit.cliEnv ? { cliEnv: exit.cliEnv } : {}),
     config,
     preflight: appServerPreflightFromDistribution(exit.configDistribution),
     plugin: exit.pluginBootstrap,
@@ -652,6 +735,39 @@ function appendProcessOutputExcerpt(previous: string | undefined, chunk: string)
   return combined.length > APP_SERVER_OUTPUT_EXCERPT_LIMIT
     ? combined.slice(combined.length - APP_SERVER_OUTPUT_EXCERPT_LIMIT)
     : combined
+}
+
+function movScriptCliStatusEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries([
+    ['MOVSCRIPT_NODE_BIN', env.MOVSCRIPT_NODE_BIN],
+    ['MOVSCRIPT_ELECTRON_BIN', env.MOVSCRIPT_ELECTRON_BIN],
+  ].filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0))
+}
+
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<void> {
+  if (child.exitCode !== null) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout>
+    const cleanup = () => {
+      clearTimeout(timer)
+      child.off('exit', onExit)
+      child.off('error', onError)
+    }
+    const onExit = () => {
+      cleanup()
+      resolve()
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+    timer = setTimeout(() => {
+      cleanup()
+      reject(new Error(`timed out waiting ${timeoutMs}ms for child process exit`))
+    }, timeoutMs)
+    child.once('exit', onExit)
+    child.once('error', onError)
+  })
 }
 
 function appServerRecentExitOutputExcerpt(exit: RecentAppServerExit): string {
@@ -742,8 +858,23 @@ function resolveAppServerDefaultWorkspaceDir(): string {
   return resolveDesktopDefaultMovScriptWorkspaceDir()
 }
 
-function defaultAppServerExecutableResolution(providerKey: AppServerProviderKey, profile?: ElectronAppServerProfile): AppServerExecutableResolution {
-  return resolveAppServerExecutableResolution({ provider: providerKey, profile })
+function defaultAppServerExecutableResolution(providerKey: AppServerProviderKey, profile?: ElectronAppServerProfile, managedBinDir?: string): AppServerExecutableResolution {
+  return resolveAppServerExecutableResolution({ provider: providerKey, profile, managedBinDir })
+}
+
+function explicitAppServerExecutablePath(profile: ElectronAppServerEnsureInput['profile'] | undefined, providerKey: AppServerProviderKey): string | undefined {
+  const executablePath = profile?.executablePath?.trim()
+  if (!executablePath) return undefined
+  const executableProfile = appServerExecutableProfile(providerKey, profile)
+  if (isPathLikeExecutable(executablePath)) return executablePath
+  if (executablePath === executableProfile.command && executableProfile.missingExecutableFound === false) {
+    return undefined
+  }
+  return executablePath
+}
+
+function isPathLikeExecutable(value: string): boolean {
+  return value.includes('/') || value.includes('\\') || isAbsolute(value)
 }
 
 function fallbackAppServerExecutableDiagnostic(
@@ -812,7 +943,12 @@ export function resolveAppServerExecutableResolution(input: AppServerExecutableR
   const cwd = input.cwd ?? process.cwd()
   const sourceDir = input.sourceDir ?? dirname(new URL(import.meta.url).pathname)
   const exists = input.exists ?? existsSync
-  const candidates = appServerExecutableCandidates({ profile, cwd, sourceDir })
+  const candidates = appServerExecutableCandidates({
+    profile,
+    cwd,
+    sourceDir,
+    managedBinDir: input.managedBinDir,
+  })
   const discovered = candidates.find((candidate) => exists(candidate))
   if (discovered) {
     return {
@@ -884,14 +1020,84 @@ function normalizeEnvironmentVariableName(value: unknown): string | undefined {
   return /^[A-Z_][A-Z0-9_]*$/.test(normalized) ? normalized : undefined
 }
 
-function appServerExecutableCandidates(input: { profile: AppServerExecutableProfile, cwd: string, sourceDir: string }): string[] {
+function appServerExecutableCandidates(input: { profile: AppServerExecutableProfile, cwd: string, sourceDir: string, managedBinDir?: string }): string[] {
   const relativeRoots = input.profile.candidateRootRelativePaths ?? []
   const roots = [
     ...relativeRoots.map((root) => resolve(input.cwd, root)),
     ...relativeRoots.map((root) => resolve(input.sourceDir, '../../../../', root)),
   ]
   const binaryNames = input.profile.candidateBinaryNames ?? []
-  return roots.flatMap((root) => binaryNames.map((binaryName) => resolve(root, binaryName)))
+  return [
+    ...managedAppServerExecutableCandidates(input.profile, input.managedBinDir),
+    ...roots.flatMap((root) => binaryNames.map((binaryName) => resolve(root, binaryName))),
+  ]
+}
+
+function managedAppServerExecutableCandidates(profile: AppServerExecutableProfile, managedBinDir?: string): string[] {
+  if (!managedBinDir) return []
+  return [
+    managedAppServerExecutablePath(managedBinDir, profile.providerKey),
+    join(managedBinDir, profile.providerKey, desktopAppServerBinaryName(process.platform)),
+  ]
+}
+
+function managedAppServerBinDir(workspaceDir: string): string {
+  return join(resolveMovScriptWorkspaceRootPaths(workspaceDir).controlDir, 'bin')
+}
+
+function managedAppServerExecutablePath(managedBinDir: string, providerKey: AppServerProviderKey, platform = process.platform): string {
+  const extension = platform === 'win32' ? '.exe' : ''
+  return join(managedBinDir, `${providerKey}-app-server${extension}`)
+}
+
+function materializePackagedAppServerBinary(input: {
+  providerKey: AppServerProviderKey
+  workspaceDir: string
+  resourcesPath?: string
+  platform?: NodeJS.Platform
+  arch?: string
+}): string | undefined {
+  const source = packagedAppServerSourceCandidates(input)
+    .find((candidate) => existsSync(candidate) && statSync(candidate).isFile())
+  if (!source) return undefined
+
+  const binDir = managedAppServerBinDir(input.workspaceDir)
+  const target = managedAppServerExecutablePath(binDir, input.providerKey, input.platform ?? process.platform)
+  mkdirSync(binDir, { recursive: true })
+  if (shouldCopyPackagedAppServerBinary(source, target)) {
+    copyFileSync(source, target)
+  }
+  if ((input.platform ?? process.platform) !== 'win32') chmodSync(target, 0o755)
+  return target
+}
+
+function shouldCopyPackagedAppServerBinary(source: string, target: string): boolean {
+  if (!existsSync(target)) return true
+  const sourceStat = statSync(source)
+  const targetStat = statSync(target)
+  return sourceStat.size !== targetStat.size || targetStat.mtimeMs < sourceStat.mtimeMs
+}
+
+function packagedAppServerSourceCandidates(input: {
+  providerKey: AppServerProviderKey
+  resourcesPath?: string
+  platform?: NodeJS.Platform
+  arch?: string
+}): string[] {
+  const resourcesPath = input.resourcesPath
+  if (!resourcesPath) return []
+  const platform = input.platform ?? process.platform
+  const arch = input.arch ?? process.arch
+  const binary = desktopAppServerBinaryName(platform)
+  return [
+    join(resourcesPath, 'app-server', input.providerKey, platform, arch, binary),
+    join(resourcesPath, 'app-server', input.providerKey, platform, binary),
+    join(resourcesPath, 'app-server', input.providerKey, binary),
+  ]
+}
+
+function desktopAppServerBinaryName(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'app-server.exe' : 'app-server'
 }
 
 function appServerExecutableFallbackMessage(profile: AppServerExecutableProfile): string {

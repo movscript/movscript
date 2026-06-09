@@ -65,7 +65,6 @@ type Detail struct {
 type ProjectSummary struct {
 	ID        uint      `json:"ID"`
 	Name      string    `json:"name"`
-	Status    string    `json:"status"`
 	OwnerID   uint      `json:"owner_id"`
 	UpdatedAt time.Time `json:"UpdatedAt"`
 }

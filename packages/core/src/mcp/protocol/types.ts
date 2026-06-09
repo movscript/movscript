@@ -32,8 +32,6 @@ export interface MCPObjectSchema {
   type: 'object'
   properties: Record<string, MCPJSONValue>
   required?: string[]
-  anyOf?: Array<{ required: string[] }>
-  allOf?: Array<{ anyOf: Array<{ required: string[] }> }>
   additionalProperties?: boolean
 }
 

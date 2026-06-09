@@ -1,10 +1,13 @@
 import { app } from 'electron'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
+const currentDir = dirname(fileURLToPath(import.meta.url))
 
 export function resolvePreloadPath(): string {
-  const jsPath = join(__dirname, '../preload/index.js')
-  const mjsPath = join(__dirname, '../preload/index.mjs')
+  const jsPath = join(currentDir, '../preload/index.js')
+  const mjsPath = join(currentDir, '../preload/index.mjs')
   return existsSync(jsPath) ? jsPath : mjsPath
 }
 
@@ -15,5 +18,5 @@ export function resolveAppIconPath(): string {
 }
 
 export function resolveRendererHTMLPath(): string {
-  return join(__dirname, '../renderer/index.html')
+  return join(currentDir, '../renderer/index.html')
 }

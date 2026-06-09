@@ -1,10 +1,25 @@
+import {
+  extractAgentConnectionDebugThreadId,
+  recordAgentConnectionDebugEvent,
+} from '@/shared/infrastructure/agentConnectionDebugStore'
 import type { ProviderSessionEventStream } from './types'
+
+export interface ProviderSessionEventStreamDebugContext {
+  connectionId: string
+  requestId: string
+  method: string
+  path: string
+  threadId?: string
+}
 
 export class ResponseProviderSessionEventStream implements ProviderSessionEventStream {
   readonly ok: boolean
   readonly status: number
 
-  constructor(private readonly response: Response) {
+  constructor(
+    private readonly response: Response,
+    private readonly debugContext?: ProviderSessionEventStreamDebugContext,
+  ) {
     this.ok = response.ok
     this.status = response.status
   }
@@ -28,7 +43,10 @@ export class ResponseProviderSessionEventStream implements ProviderSessionEventS
         let separatorIndex = normalized.indexOf('\n\n')
         while (separatorIndex >= 0) {
           const parsed = parseSSEBlock(normalized.slice(0, separatorIndex))
-          if (parsed) yield parsed.data
+          if (parsed) {
+            this.recordMessage(parsed.data, parsed.event)
+            yield parsed.data
+          }
           normalized = normalized.slice(separatorIndex + 2)
           separatorIndex = normalized.indexOf('\n\n')
         }
@@ -38,11 +56,27 @@ export class ResponseProviderSessionEventStream implements ProviderSessionEventS
       if (tail) buffer += tail
       if (buffer.trim()) {
         const parsed = parseSSEBlock(buffer)
-        if (parsed) yield parsed.data
+        if (parsed) {
+          this.recordMessage(parsed.data, parsed.event)
+          yield parsed.data
+        }
       }
     } finally {
       await reader.cancel().catch(() => undefined)
     }
+  }
+
+  private recordMessage(data: string, event?: string): void {
+    if (!this.debugContext) return
+    recordAgentConnectionDebugEvent({
+      direction: 'response',
+      source: 'provider-session-http',
+      connectionId: this.debugContext.connectionId,
+      requestId: this.debugContext.requestId,
+      method: event ? `${this.debugContext.method}:${event}` : this.debugContext.method,
+      threadId: extractAgentConnectionDebugThreadId(parseJsonMaybe(data)) || this.debugContext.threadId,
+      raw: data,
+    })
   }
 }
 
@@ -61,4 +95,12 @@ function parseSSEBlock(block: string): { event?: string; data: string } | undefi
   }
   if (data.length === 0) return undefined
   return { event, data: data.join('\n') }
+}
+
+function parseJsonMaybe(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
 }

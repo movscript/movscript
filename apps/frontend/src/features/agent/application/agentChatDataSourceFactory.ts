@@ -46,6 +46,7 @@ export async function createAgentChatDataSourceForProvider(
     label: provider.label,
     messageAdapter: provider.messageAdapter,
     ...(ensured?.providerSessionCwd ? { defaultThreadCwd: ensured.providerSessionCwd } : {}),
+    ...(options.workspaceContext ? { workspaceContext: options.workspaceContext } : {}),
     resolveModelForRequest: () => selectedAgentModel(textModels),
   })
 }
@@ -53,10 +54,8 @@ export async function createAgentChatDataSourceForProvider(
 async function ensureScopedAppServer(provider: ProviderConfig, workspaceContext: MovScriptWorkspaceContext) {
   const profile = resolveAppServerProfile(provider)
   const status = await ensureAppServer({
-    profile: {
-      ...profile,
-      workspaceContext,
-    },
+    profile,
+    workspaceContext,
   })
   if (!status?.ok || !status.endpoint) throw new Error(status?.error || `${provider.label} app-server failed to start: ${profile.id}`)
   return {

@@ -6,7 +6,7 @@ import {
 } from '@/shared/infrastructure/api/semanticEntities'
 import { api } from '@/shared/infrastructure/api'
 import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
-import type { ProductionWritingExpressionType as WritingExpressionType } from '@/features/production/domain/productionWritingExpressions'
+import type { ProductionExpressionUnitType as ExpressionUnitType } from '@/features/production/domain/productionExpressionUnits'
 import type { Job } from '@/types'
 
 export type ProductionRecord = SemanticEntityRecord & { script_version_id?: number; name?: string }
@@ -19,7 +19,6 @@ export type SegmentRecord = SemanticEntityRecord & {
   content?: string
   source_range?: string
   order?: number
-  status?: string
   script_version_id?: number
   script_block_id?: number
 }
@@ -35,7 +34,6 @@ export type SceneMomentRecord = SemanticEntityRecord & {
   condition_text?: string
   mood?: string
   order?: number
-  status?: string
   description?: string
   script_block_id?: number
 }
@@ -44,7 +42,6 @@ export type SettingRecord = SemanticEntityRecord & {
   name?: string
   kind?: string
   importance?: string
-  status?: string
   description?: string
   content?: string
   alias?: string
@@ -55,7 +52,6 @@ export type AssetSlotRecord = SemanticEntityRecord & {
   name?: string
   kind?: string
   priority?: string
-  status?: string
   description?: string
   owner_type?: string
   owner_id?: number
@@ -76,7 +72,6 @@ export type ContentUnitRecord = SemanticEntityRecord & {
   shot_size?: string
   camera_angle?: string
   camera_motion?: string
-  status?: string
   prompt?: string
   script_block_id?: number
 }
@@ -91,15 +86,14 @@ export type ScriptBlockRecord = SemanticEntityRecord & {
   summary?: string
   title?: string
   order?: number
-  status?: string
   start_line?: number
   end_line?: number
 }
 
-export type WritingExpressionRecord = SemanticEntityRecord & {
+export type ExpressionUnitRecord = SemanticEntityRecord & {
   scene_moment_id?: number
   script_block_id?: number
-  kind?: WritingExpressionType
+  kind?: ExpressionUnitType
   speaker?: string
   text?: string
   note?: string
@@ -115,7 +109,6 @@ export type KeyframeRecord = SemanticEntityRecord & {
   description?: string
   prompt?: string
   order?: number
-  status?: string
 }
 
 export interface OrchestrationData {
@@ -127,7 +120,7 @@ export interface OrchestrationData {
   assetSlots: AssetSlotRecord[]
   contentUnits: ContentUnitRecord[]
   scriptBlocks: ScriptBlockRecord[]
-  writingExpressions: WritingExpressionRecord[]
+  expressionUnits: ExpressionUnitRecord[]
   keyframes: KeyframeRecord[]
   previewTimelines: SemanticEntityRecord[]
   previewTimelineItems: SemanticEntityRecord[]
@@ -147,7 +140,7 @@ export const PRODUCTION_ORCHESTRATION_ENTITY_KINDS = [
   'assetSlots',
   'contentUnits',
   'scriptBlocks',
-  'writingExpressions',
+  'expressionUnits',
   'keyframes',
   'previewTimelines',
   'previewTimelineItems',
@@ -163,7 +156,7 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     assetSlots,
     contentUnits,
     scriptBlocks,
-    writingExpressions,
+    expressionUnits,
     keyframes,
     previewTimelines,
     previewTimelineItems,
@@ -178,7 +171,7 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     assetSlots: assetSlots as AssetSlotRecord[],
     contentUnits: (contentUnits as ContentUnitRecord[]).filter(isActiveProductionOrchestrationRecord),
     scriptBlocks: scriptBlocks as ScriptBlockRecord[],
-    writingExpressions: writingExpressions as WritingExpressionRecord[],
+    expressionUnits: expressionUnits as ExpressionUnitRecord[],
     keyframes: keyframes as KeyframeRecord[],
     previewTimelines,
     previewTimelineItems,

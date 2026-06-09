@@ -1,5 +1,6 @@
 import { stopMCPServer } from '@movscript/core/mcp/node'
 import { stopBackend } from '../services/backend'
+import { appServerManager } from '../services/appServerManager'
 import { broadcastBackendStatus } from './backendStatus'
 
 let shutdownCompleted = false
@@ -13,6 +14,7 @@ export async function shutdownManagedServices(): Promise<void> {
   if (shutdownPromise) return shutdownPromise
   shutdownPromise = (async () => {
     try {
+      await appServerManager.stopAll()
       await stopMCPServer()
       await stopBackend(broadcastBackendStatus)
     } finally {

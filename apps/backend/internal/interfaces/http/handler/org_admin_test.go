@@ -508,7 +508,7 @@ func TestOrgAdminDetailReturnsOperationalSummary(t *testing.T) {
 	if err := db.Create(&persistencemodel.OrgInvitation{OrgID: org.ID, Token: "detail-token", Role: "member", CreatedBy: 1, ExpiresAt: time.Now().UTC().Add(time.Hour)}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&persistencemodel.Project{Name: "Recent", OwnerID: 1, OrgID: &org.ID, Status: "planning"}).Error; err != nil {
+	if err := db.Create(&persistencemodel.Project{Name: "Recent", OwnerID: 1, OrgID: &org.ID}).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Create(&persistencemodel.RawResource{Name: "Asset", OwnerID: 1, OrgID: &org.ID, Type: "image", FilePath: "asset.png"}).Error; err != nil {

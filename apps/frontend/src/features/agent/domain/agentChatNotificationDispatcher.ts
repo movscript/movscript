@@ -115,6 +115,27 @@ export function dispatchAgentChatNotification<
     target.updateThreads((current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Math.max(thread.updatedAt, unixSecondsNow()) } : thread))
     return
   }
+  if (notification.method === 'thread/settings/updated') {
+    const settings = isRecord(params.threadSettings) ? params.threadSettings : {}
+    target.updateThreads((current) => current.map((thread) => {
+      if (thread.id !== threadId) return thread
+      return {
+        ...thread,
+        cwd: stringField(settings.cwd) ?? thread.cwd,
+        updatedAt: Math.max(thread.updatedAt, unixSecondsNow()),
+        executionSettings: {
+          ...thread.executionSettings,
+          ...(Object.prototype.hasOwnProperty.call(settings, 'model') ? { model: stringField(settings.model) ?? null } : {}),
+          ...(Object.prototype.hasOwnProperty.call(settings, 'modelProvider') ? { modelProvider: stringField(settings.modelProvider) ?? null } : {}),
+          ...(Object.prototype.hasOwnProperty.call(settings, 'cwd') ? { cwd: stringField(settings.cwd) ?? null } : {}),
+          ...(Object.prototype.hasOwnProperty.call(settings, 'approvalPolicy') ? { approvalPolicy: stringField(settings.approvalPolicy) ?? null } : {}),
+          ...(Object.prototype.hasOwnProperty.call(settings, 'approvalsReviewer') ? { approvalsReviewer: stringField(settings.approvalsReviewer) ?? null } : {}),
+          ...(Object.prototype.hasOwnProperty.call(settings, 'sandboxPolicy') ? { sandboxPolicy: settings.sandboxPolicy } : {}),
+        },
+      }
+    }))
+    return
+  }
   if (notification.method === 'thread/metadata/updated') {
     const status = agentChatThreadStatusField(params.status)
     const updatedAt = numberField(params.updatedAt) ?? unixSecondsNow()
@@ -736,10 +757,24 @@ function normalizeAgentChatNotificationThread(value: Record<string, unknown>): A
     createdAt: numberField(value.createdAt) ?? unixSecondsNow(),
     updatedAt: numberField(value.updatedAt) ?? unixSecondsNow(),
     status: agentChatThreadStatusField(value.status) ?? 'unknown',
+    ...(isRecord(value.executionSettings) ? { executionSettings: normalizeAgentThreadExecutionSettings(value.executionSettings) } : {}),
     turns: Array.isArray(value.turns)
       ? value.turns.flatMap((turn) => isRecord(turn) ? [normalizeAgentChatNotificationTurn(turn)].filter(Boolean) as AgentChatTurn[] : [])
       : [],
     raw: value.raw ?? value,
+  }
+}
+
+function normalizeAgentThreadExecutionSettings(value: Record<string, unknown>): AgentChatThread['executionSettings'] {
+  return {
+    ...(Object.prototype.hasOwnProperty.call(value, 'model') ? { model: stringField(value.model) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'modelProvider') ? { modelProvider: stringField(value.modelProvider) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'cwd') ? { cwd: stringField(value.cwd) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'approvalPolicy') ? { approvalPolicy: stringField(value.approvalPolicy) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'approvalsReviewer') ? { approvalsReviewer: stringField(value.approvalsReviewer) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'sandbox') ? { sandbox: value.sandbox } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'sandboxPolicy') ? { sandboxPolicy: value.sandboxPolicy } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'permissions') ? { permissions: stringField(value.permissions) ?? null } : {}),
   }
 }
 

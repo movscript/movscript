@@ -24,7 +24,7 @@ test('work mode route helpers keep canvas as a temporary surface', () => {
   assert.equal(workModeForRoute('/project/overview', 'agent'), 'detail')
   assert.equal(workModeForRoute('/canvases/42', 'agent'), 'agent')
   assert.equal(routeForWorkMode('agent', true), '/project/agent')
-  assert.equal(routeForWorkMode('detail', true), '/project/production/orchestration')
+  assert.equal(routeForWorkMode('detail', true), '/project/scripts/workbench')
   assert.equal(routeForWorkMode('agent', false), '/project/agent')
   assert.equal(routeForWorkMode('detail', false), '/')
 })

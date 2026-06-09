@@ -1,5 +1,9 @@
 import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
-import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
+import { movScriptContentUnitKeyframePath } from '@movscript/workspace'
+import {
+  createElectronMovScriptWorkspaceFileRepository,
+  createElectronMovScriptWorkspaceService,
+} from '@/shared/infrastructure/workspaceDomainRepository'
 import { mergeMetadataJSON, metadataObject, parseMetadataJSON } from '@/features/content/domain/contentUnitPlanningMetadata'
 
 export type ContentUnitWorkspaceEditRecord = {
@@ -201,10 +205,27 @@ async function writeContentUnitWorkspaceEdit(
 ): Promise<void> {
   const service = createElectronMovScriptWorkspaceService({ projectId })
   await service.upsertContentUnit({
-    projectId,
     unit: unit as Record<string, unknown>,
-    keyframes: options.keyframes?.map((keyframe) => keyframe as Record<string, unknown>),
   })
+  if (options.keyframes) await writeContentUnitWorkspaceKeyframes(projectId, unit, options.keyframes)
+}
+
+async function writeContentUnitWorkspaceKeyframes(
+  projectId: number,
+  unit: ContentUnitWorkspaceEditRecord,
+  keyframes: ContentUnitWorkspaceKeyframeRecord[],
+): Promise<void> {
+  const contentUnitId = unit.ID ?? unit.client_id
+  if (contentUnitId === undefined || contentUnitId === null) return
+  const repository = createElectronMovScriptWorkspaceFileRepository({ projectId })
+  await Promise.all(keyframes.map((keyframe) => {
+    const keyframeId = keyframe.ID ?? keyframe.client_id
+    if (keyframeId === undefined || keyframeId === null) return Promise.resolve()
+    return repository.write({
+      path: movScriptContentUnitKeyframePath({ contentUnitId, keyframeId }),
+      content: `${JSON.stringify(keyframe, null, 2)}\n`,
+    })
+  }))
 }
 
 function contentUnitRecordFromPayload(

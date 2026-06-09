@@ -9,7 +9,7 @@ const discoveryTimeoutMs = Number(process.env.MOVSCRIPT_MCP_BRIDGE_DISCOVERY_TIM
 const workspaceTools = [
   {
     name: 'movscript_focus_get',
-    description: 'Return the current MovScript task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, workspaces, or resources.',
+    description: 'Return the current MovScript task focus: route, selected project, active production id, and selected entity. This does not load project lists, scripts, workspaces, or resources.',
     inputSchema: objectSchema({}),
   },
   {
@@ -24,8 +24,9 @@ const workspaceTools = [
   },
   {
     name: 'movscript_workspace_get_model',
-    description: 'Return the domain workspace model for editing one MovScript entity: workspace kind, editable paths, context paths, schema ids, and agent instructions. This does not write files.',
-    inputSchema: objectSchema({
+    description: 'Return the movscript-lang workspace model for one editable domain entity: editable source paths, context paths, schema ids, supported write APIs, and agent instructions. Call this before direct file edits. This is project-scoped and does not write files.',
+    inputSchema: projectSchema({
+      ...workspaceLocatorProperties(),
       entityKind: { type: 'string', description: 'Domain entity kind, for example setting, asset, production, content_unit, or keyframe.' },
       entity_kind: { type: 'string', description: 'Alias for entityKind.' },
       entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
@@ -34,17 +35,13 @@ const workspaceTools = [
   },
   {
     name: 'movscript_workspace_review',
-    description: 'Review current source edits by comparing .build/current with source files. Reports changed files, changed entities, schema/domain issues, and whether build is ready. This does not make edits effective.',
-    inputSchema: objectSchema({
-      workspaceDir: { type: 'string', description: 'Optional project workspace root. Defaults to the current MovScript workspace dir.' },
-    }),
+    description: 'Inspect current source edits by comparing .build/current with source files. Reports changed files, changed entities, schema/domain issues, and compile readiness. This does not make edits effective.',
+    inputSchema: projectSchema(workspaceLocatorProperties()),
   },
   {
     name: 'movscript_workspace_build',
-    description: 'Build current source files into .build/current and .build/indexes. Build must succeed before edits become the current effective workspace state.',
-    inputSchema: objectSchema({
-      workspaceDir: { type: 'string', description: 'Optional project workspace root. Defaults to the current MovScript workspace dir.' },
-    }),
+    description: 'Compile current source files into .build/current and .build/indexes. Compile must succeed before edits become current effective workspace state.',
+    inputSchema: projectSchema(workspaceLocatorProperties()),
   },
 ]
 
@@ -66,8 +63,8 @@ const generationTools = [
       title: { type: 'string' },
       negative_prompt: { type: 'string' },
       model_id: { type: 'string' },
-      project_id: { type: 'number' },
-      projectId: { type: 'number' },
+      project_id: { type: ['string', 'number'], description: 'Required project id. MCP never infers project from session, cwd, route, or focus.' },
+      projectId: { type: ['string', 'number'], description: 'Alias for project_id.' },
       input_resource_ids: { type: 'array', items: { type: 'number' } },
       reference_resource_ids: { type: 'array', items: { type: 'number' } },
       aspect_ratio: { type: 'string', enum: ['1:1', '16:9', '9:16', '4:3', '3:4', '2:3', '3:2'] },
@@ -95,8 +92,8 @@ const generationTools = [
       prompt: { type: 'string', minLength: 1 },
       title: { type: 'string' },
       model_id: { type: 'string' },
-      project_id: { type: 'number' },
-      projectId: { type: 'number' },
+      project_id: { type: ['string', 'number'], description: 'Required project id. MCP never infers project from session, cwd, route, or focus.' },
+      projectId: { type: ['string', 'number'], description: 'Alias for project_id.' },
       input_resource_ids: { type: 'array', items: { type: 'number' } },
       reference_resource_ids: { type: 'array', items: { type: 'number' } },
       aspect_ratio: { type: 'string', enum: ['16:9', '9:16', '1:1', '4:3', '3:4'] },
@@ -239,7 +236,6 @@ const queryTools = [
       folderId: { type: 'string', description: 'Camel-case alias for folder_id.' },
       max_bytes: { type: 'number', description: 'Maximum upload input size. Defaults to 20 MiB.' },
       maxBytes: { type: 'number', description: 'Camel-case alias for max_bytes.' },
-      userId: { type: 'number', description: 'Optional user ID override for backend requests.' },
     }),
   },
   {
@@ -318,59 +314,83 @@ const domainTools = [
   }),
   {
     name: 'domain_query_entities',
-    description: 'Query indexed MovScript domain source entities by entity kind, ids, status, path context, or free text.',
-    inputSchema: objectSchema(domainQueryProperties()),
+    description: 'Query indexed MovScript domain entities from source/current indexes by entity kind, ids, path context, or free text. Use this before reading many files.',
+    inputSchema: projectSchema(domainQueryProperties()),
   },
   {
     name: 'domain_query_settings',
     description: 'Query MovScript setting domain entities such as characters, locations, props, world rules, and styles.',
-    inputSchema: objectSchema(domainQueryProperties()),
+    inputSchema: projectSchema(domainQueryProperties()),
   },
   {
     name: 'domain_query_assets',
     description: 'Query MovScript setting-owned and setting-state-owned asset slots, optionally including inline candidates.',
-    inputSchema: objectSchema({ ...domainQueryProperties(), includeCandidates: { type: 'boolean' }, include_candidates: { type: 'boolean' } }),
+    inputSchema: projectSchema({ ...domainQueryProperties(), includeCandidates: { type: 'boolean' }, include_candidates: { type: 'boolean' } }),
   },
   {
     name: 'domain_query_production_context',
-    description: 'Query production planning context: productions, segments, scene moments, storyboards, writing expressions, content units, and keyframes.',
-    inputSchema: objectSchema({ ...domainQueryProperties(), include: { type: 'array', items: { type: 'string' } } }),
+    description: 'Query production planning context: productions, segments, scene moments, storyboards, audio cues, expression units, content units, and candidate-bearing production slots.',
+    inputSchema: projectSchema({ ...domainQueryProperties(), include: { type: 'array', items: { type: 'string' } } }),
   },
   {
-    name: 'domain_compile_content_generation_prompt',
-    description: 'Compile generation prompt context for a content unit from domain source indexes.',
-    inputSchema: objectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+    name: 'domain_build_content_unit_artifact',
+    description: 'Build the compiler artifact bundle for a content unit, including runtime panel, input version, dependency report, and selection validity. Use before generation or candidate selection when content-unit context may be stale.',
+    inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
   },
   {
     name: 'domain_read_preview_timeline',
     description: 'Read a built production preview timeline from .build/current. This is read-only build output.',
-    inputSchema: objectSchema({ ...workspaceLocatorProperties(), productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] } }),
+    inputSchema: projectSchema({ ...workspaceLocatorProperties(), productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] } }),
   },
   {
-    name: 'domain_read_content_generation_prompt',
-    description: 'Read a built content unit generation prompt from .build/current. This is read-only build output.',
-    inputSchema: objectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+    name: 'domain_read_content_unit_runtime_panel',
+    description: 'Read a built content unit runtime panel from .build/current. This is read-only build output.',
+    inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+  },
+  {
+    name: 'domain_read_content_unit_input_version',
+    description: 'Read a built content unit input version from .build/current. This is read-only build output.',
+    inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+  },
+  {
+    name: 'domain_read_content_unit_dependency_report',
+    description: 'Read a built content unit dependency report from .build/current. This is read-only build output.',
+    inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+  },
+  {
+    name: 'domain_read_content_unit_selection_validity',
+    description: 'Read a built content unit selection validity report from .build/current. This is read-only build output.',
+    inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
   },
   ...[
-    ['domain_upsert_project_standards', 'Create or update project-wide creative standards in project_standards.json.'],
-    ['domain_upsert_setting', 'Create or update a MovScript setting source entity.'],
-    ['domain_upsert_asset', 'Create or update a MovScript asset slot source entity under a setting or setting state.'],
-    ['domain_upsert_script', 'Create or update a script source record and script.md text.'],
+    ['domain_upsert_project_standards', 'Create or update project-wide creative standards in source project_standards.json. Run inspect/review and compile after this write.'],
+    ['domain_upsert_setting', 'Create or update a MovScript setting source entity. Put the setting data to write in required payload; record/entity are optional existing-context objects only. Prefer this API over direct file edits for setting records.'],
+    ['domain_upsert_asset', 'Create or update a MovScript asset slot source entity under a setting or setting state. Put the asset data to write in required payload; record/entity are optional existing-context objects only. Store RawResource references by resource_id, not binaries or external URLs.'],
+    ['domain_upsert_script', 'Create or update a script source record and script.md text. Prefer this API over hand-editing script metadata plus markdown.'],
     ['domain_read_script_source', 'Read script.md source text for a script domain entity.'],
-    ['domain_snapshot_script_version', 'Create a script version and script blocks from a script Markdown source.'],
-    ['domain_upsert_content_unit', 'Create or update a project-level content unit and optional content-unit keyframes.'],
-    ['domain_update_content_unit_prompt', 'Update a content unit editable prompt.'],
-    ['domain_update_scene_moment_timing', 'Update scene_moment storyboard_timing, audio, transition, and active storyboard id.'],
+    ['domain_snapshot_script_version', 'Create a script version and script blocks from a script Markdown source so downstream production entities can reference stable script blocks.'],
+    ['domain_upsert_content_unit', 'Create or update a project-level content unit source record. Content units are independent production slots and do not become owned by storyboards through path nesting.'],
+    ['domain_update_content_unit_prompt', 'Update a content unit edit_prompt source field. Run inspect/review, compile, and regeneration planning when prompt changes may stale candidates.'],
+    ['domain_update_entity_transition', 'Update an entity transition boundary on the source entity that owns transition semantics. Do not write deprecated storyboard_timing transition fields unless the model says so.'],
+    ['domain_update_storyboard_timeline', 'Update a storyboard timeline source field. Storyboard order and timing belong on storyboard timeline entities, not on generated build output.'],
     ['domain_update_storyboard_shot_plans', 'Update storyboard shot_plans.'],
-    ['domain_append_candidate', 'Append an inline candidate to an asset, keyframe, or content unit source entity.'],
+    ['domain_append_candidate', 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become domain state only after candidate/selection writes and compile.'],
+    ['domain_create_content_candidate', 'Create an external content candidate record for a content unit output. Use for generated content-unit media rather than embedding provider job state in domain JSON.'],
+    ['domain_create_asset_slot_candidate', 'Create an asset-slot candidate using the MovScript workspace candidate service. If targetRecord carries a workspace path, this appends an inline candidate to that asset source entity.'],
+    ['domain_create_keyframe_candidate', 'Create a keyframe candidate using the MovScript workspace candidate service. If keyframes are represented as content units in the active model, use the content-unit candidate flow instead.'],
+    ['domain_select_content_unit_candidate', 'Select a content candidate for a content unit using the workspace selection record. Selection is a source write and must be followed by inspect/review and compile.'],
     ['domain_select_candidate', 'Select and lock an inline candidate on an asset, keyframe, or content unit source entity.'],
     ['domain_update_candidate', 'Update an inline candidate on an asset, keyframe, or content unit source entity.'],
     ['domain_unlock_candidate', 'Remove an inline candidate lock from an asset, keyframe, or content unit source entity.'],
-    ['domain_delete_entity', 'Delete a MovScript domain source entity file.'],
+    ['domain_delete_entity', 'Delete a MovScript domain source entity file through the workspace service. Do not delete .build output directly.'],
+    ['domain_overview', 'Show MovScript source state, last successful compiled state, pending edits, stale generated outputs, and recommended next actions.'],
+    ['domain_inspect', 'Inspect current source changes, diagnostics, and predicted impact without writing build artifacts. Use after API writes or direct file edits.'],
+    ['domain_compile', 'Compile current source files into .build/current, .build/indexes, and stable build artifacts. Compile must succeed before edits become current effective project state.'],
+    ['domain_regeneration_plan', 'Plan regeneration targets after compile based on changed source entities, dependency impact, stale prompts, and stale content unit selections.'],
   ].map(([name, description]) => ({
     name,
     description,
-    inputSchema: objectSchema({
+    inputSchema: projectSchema({
       ...workspaceLocatorProperties(),
       payload: { type: 'object', additionalProperties: true },
       record: { type: 'object', additionalProperties: true },
@@ -381,7 +401,7 @@ const domainTools = [
       target_kind: { type: 'string', enum: ['asset', 'keyframe', 'content_unit'] },
       candidateId: { type: 'string' },
       candidate_id: { type: 'string' },
-    }),
+    }, ['domain_upsert_setting', 'domain_upsert_asset'].includes(name) ? ['payload'] : []),
   })),
 ]
 
@@ -562,19 +582,15 @@ function renameTools(tools, names) {
       ...tool,
       name: names[tool.name],
       description: `${tool.description} Alias for ${tool.name}.`,
-    }))
+}))
 }
 
 function workspaceLocatorProperties() {
   return {
-    workspaceDir: { type: 'string' },
-    workspace_dir: { type: 'string' },
-    userId: { type: ['string', 'number'] },
-    user_id: { type: ['string', 'number'] },
-    orgId: { type: ['string', 'number'] },
-    org_id: { type: ['string', 'number'] },
-    projectId: { type: ['string', 'number'] },
-    project_id: { type: ['string', 'number'] },
+    workspaceDir: { type: 'string', description: 'Optional MovScript workspace container directory. Defaults to the current MovScript workspace dir.' },
+    workspace_dir: { type: 'string', description: 'Alias for workspaceDir.' },
+    projectId: { type: ['string', 'number'], description: 'Required project id for project-scoped tools. MCP never infers project from session, cwd, route, or focus.' },
+    project_id: { type: ['string', 'number'], description: 'Alias for projectId.' },
   }
 }
 
@@ -603,6 +619,10 @@ function domainQueryProperties() {
     setting_state_id: { type: ['string', 'number'] },
     limit: { type: 'number' },
   }
+}
+
+function projectSchema(properties, required = []) {
+  return objectSchema(properties, required)
 }
 
 function objectSchema(properties, required = []) {

@@ -21,6 +21,7 @@ interface WorkspaceEntityRecord {
   label?: string
   description?: string
   kind?: string
+  [key: string]: unknown
 }
 
 interface InlinePreProductionWorkspaceEntry {
@@ -219,7 +220,7 @@ function inlinePreProductionWorkspaceChangeType(item: Record<string, unknown>): 
 }
 
 function isVisibleWorkspaceRecord(record: WorkspaceEntityRecord) {
-  return !Boolean((record as Record<string, unknown>).__delete ?? (record as Record<string, unknown>).deleted)
+  return !Boolean(record.__delete ?? record.deleted)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

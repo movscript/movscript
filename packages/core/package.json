@@ -60,7 +60,12 @@
     "typecheck": "tsc --noEmit",
     "test": "pnpm build && node --test tests/*.test.mjs"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@movscript/compiler": "0.1.0",
+    "@movscript/engine": "0.1.0",
+    "@movscript/language": "0.1.0",
+    "@movscript/workspace": "0.1.0"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsup": "^8.5.0",

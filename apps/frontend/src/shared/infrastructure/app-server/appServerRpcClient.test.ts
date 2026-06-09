@@ -43,6 +43,28 @@ test('app-server rpc client sends thread and turn requests over the app-server w
     const thread = await threadPromise
     assert.equal(thread.thread.id, 'thread_1')
 
+    const listPromise = client.listThreads({ limit: 7, cursor: 'cursor_1' })
+    const threadList = await waitForSent(socket, 'thread/list')
+    assert.deepEqual(threadList.params, {
+      limit: 7,
+      cursor: 'cursor_1',
+      sortKey: 'updated_at',
+      sortDirection: 'desc',
+      archived: false,
+      modelProviders: [],
+      sourceKinds: ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'unknown'],
+    })
+    socket.respond(threadList.id, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+    assert.deepEqual(await listPromise, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+
     const resumePromise = client.resumeThread({ threadId: 'thread_1', cwd: '/tmp/project', model: 'gpt-5.4' })
     const threadResume = await waitForSent(socket, 'thread/resume')
     assert.deepEqual(threadResume.params, { threadId: 'thread_1', cwd: '/tmp/project', model: 'gpt-5.4' })

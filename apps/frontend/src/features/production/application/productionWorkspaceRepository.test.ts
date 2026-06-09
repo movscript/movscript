@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { MovScriptWorkspaceService } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import { __setElectronMovScriptWorkspaceServiceFactoryForTest } from '@/shared/infrastructure/workspaceDomainRepository'
 import {
-  createProductionWritingExpressionWorkspaceEdit,
-  deleteProductionWritingExpressionWorkspaceEdit,
+  createProductionExpressionUnitWorkspaceEdit,
+  deleteProductionExpressionUnitWorkspaceEdit,
   linkProductionSceneMomentReferenceWorkspaceEdit,
   saveProductionSceneMomentOrderWorkspaceEdit,
   saveProductionSegmentWorkspaceEdit,
-  saveProductionWritingExpressionWorkspaceEdit,
+  saveProductionExpressionUnitWorkspaceEdit,
   unlinkProductionSceneMomentReferenceWorkspaceEdit,
   type ProductionWorkspaceSnapshot,
 } from './productionWorkspaceRepository'
@@ -63,14 +63,14 @@ test('production workspace repository saves scene moment reorder across segments
   }
 })
 
-test('production workspace repository saves writing expression changes through core service', async () => {
+test('production workspace repository saves expression unit changes through core service', async () => {
   const calls = withProductionService()
   try {
-    await saveProductionWritingExpressionWorkspaceEdit({
+    await saveProductionExpressionUnitWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
-      target: { kind: 'writingExpressions', id: 100 },
+      target: { kind: 'expressionUnits', id: 100 },
       payload: {
         kind: 'dialogue',
         speaker: '林夏',
@@ -80,7 +80,7 @@ test('production workspace repository saves writing expression changes through c
       },
     })
 
-    const expression = calls.snapshots[0]?.snapshot.segments[0]?.scene_moments?.[0]?.writing_expressions?.[0]
+    const expression = calls.snapshots[0]?.snapshot.segments[0]?.scene_moments?.[0]?.expression_units?.[0]
     assert.equal(expression?.id, 100)
     assert.equal(expression?.kind, 'dialogue')
     assert.equal(expression?.speaker, '林夏')
@@ -91,12 +91,12 @@ test('production workspace repository saves writing expression changes through c
   }
 })
 
-test('production workspace repository creates and deletes writing expressions through core service', async () => {
+test('production workspace repository creates and deletes expression units through core service', async () => {
   const calls = withProductionService()
   const originalDateNow = Date.now
   Date.now = () => 123456
   try {
-    await createProductionWritingExpressionWorkspaceEdit({
+    await createProductionExpressionUnitWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
@@ -104,18 +104,18 @@ test('production workspace repository creates and deletes writing expressions th
       order: 2,
       scriptBlockId: null,
     })
-    const created = calls.snapshots[0]?.snapshot.segments[0]?.scene_moments?.[1]?.writing_expressions?.[0]
-    assert.equal(created?.client_id, 'writing_expression_local_123456')
+    const created = calls.snapshots[0]?.snapshot.segments[0]?.scene_moments?.[1]?.expression_units?.[0]
+    assert.equal(created?.client_id, 'expression_unit_local_123456')
     assert.equal(created?.kind, 'dialogue')
     assert.equal(created?.order, 2)
 
-    await deleteProductionWritingExpressionWorkspaceEdit({
+    await deleteProductionExpressionUnitWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
       expressionId: 100,
     })
-    const deleted = calls.snapshots[1]?.snapshot.segments[0]?.scene_moments?.[0]?.writing_expressions?.[0]
+    const deleted = calls.snapshots[1]?.snapshot.segments[0]?.scene_moments?.[0]?.expression_units?.[0]
     assert.equal(deleted?.id, 100)
     assert.equal(deleted?.__delete, true)
   } finally {
@@ -171,7 +171,7 @@ function snapshot(): ProductionWorkspaceSnapshot {
             settings: [
               { id: 500, name: '旧设定', kind: 'person', role: 'supporting' },
             ],
-            writing_expressions: [
+            expression_units: [
               { id: 100, kind: 'dialogue', speaker: '旧说话人', text: '旧台词', order: 1 },
             ],
           },
@@ -204,10 +204,10 @@ function withProductionService(): {
     productionId: string | number
     snapshot: ProductionWorkspaceSnapshot
   }> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => ({
+  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => ({
     saveProductionSnapshot: async (input) => {
       snapshots.push({
-        projectId: input.projectId,
+        projectId: context.projectId,
         productionId: input.productionId,
         snapshot: input.snapshot as ProductionWorkspaceSnapshot,
       })

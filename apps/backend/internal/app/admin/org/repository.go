@@ -154,7 +154,7 @@ func (r *gormRepository) Detail(ctx context.Context, id uint) (Detail, error) {
 	projects := make([]ProjectSummary, 0)
 	if err := r.db.WithContext(ctx).
 		Model(&persistencemodel.Project{}).
-		Select("id, name, status, owner_id, updated_at").
+		Select("id, name, owner_id, updated_at").
 		Where("org_id = ?", id).
 		Order("updated_at DESC, id DESC").
 		Limit(10).

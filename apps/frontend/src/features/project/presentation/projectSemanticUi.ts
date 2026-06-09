@@ -1,36 +1,36 @@
 import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/presentation/semanticRecipe'
 
-export type ProjectStatusRecipe = UiStatusRecipe
+export type ProjectSemanticRecipe = UiStatusRecipe
 
-export function projectLaneStateRecipe(state?: string): ProjectStatusRecipe {
+export function projectLaneStateRecipe(state?: string): ProjectSemanticRecipe {
   return projectLaneStatus.recipe(state)
 }
 
-export function projectPriorityRecipe(priority?: string): ProjectStatusRecipe {
+export function projectPriorityRecipe(priority?: string): ProjectSemanticRecipe {
   return projectPriorityStatus.recipe(priority)
 }
 
-export function projectBlockedSummaryRecipe(blockedCount: number): ProjectStatusRecipe {
+export function projectBlockedSummaryRecipe(blockedCount: number): ProjectSemanticRecipe {
   return projectBlockedSummaryStatus.recipe(blockedCount > 0 ? 'blocked' : 'clear')
 }
 
-export function projectReadinessRecipe(readiness: number): ProjectStatusRecipe {
+export function projectReadinessRecipe(readiness: number): ProjectSemanticRecipe {
   return projectReadinessStatus.recipe(readiness >= 70 ? 'ready' : 'default')
 }
 
-export function projectTaskStatusRecipe(status?: string): ProjectStatusRecipe {
+export function projectTaskStatusRecipe(status?: string): ProjectSemanticRecipe {
   return projectTaskStatus.recipe(status)
 }
 
-export function projectReviewStatusRecipe(status?: string): ProjectStatusRecipe {
+export function projectReviewStatusRecipe(status?: string): ProjectSemanticRecipe {
   return projectReviewStatus.recipe(status)
 }
 
-export function projectAiAssignmentRecipe(): ProjectStatusRecipe {
+export function projectAiAssignmentRecipe(): ProjectSemanticRecipe {
   return projectSystemStatus.recipe('ai_assigned')
 }
 
-export function projectErrorRecipe(): ProjectStatusRecipe {
+export function projectErrorRecipe(): ProjectSemanticRecipe {
   return projectSystemStatus.recipe('error')
 }
 

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSyn
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
-import { resolveMovScriptProjectWorkspacePaths } from '@movscript/core/workspace/node'
+import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import type {
   ElectronProjectGitActionInput,
@@ -77,28 +77,28 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     }
   }
   const userId = input?.userId ?? session.userId ?? 'local'
-  const projectPaths = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId, projectId })
+  const projectCwd = resolveMovScriptProjectCwd({ workspaceDir, userId, projectId })
   const branch = metadata.defaultBranch || 'main'
   const remoteURL = absoluteRemoteURL(session.baseURL, metadata.gitRemoteUrl || `/api/v1/projects/${projectId}/git/${metadata.repo || `movscript-project-${projectId}`}.git`)
 
-  mkdirSync(projectPaths.projectDir, { recursive: true })
+  mkdirSync(projectCwd, { recursive: true })
   if (operation !== 'pull') {
-    ensureProjectReadme(projectPaths.projectDir, projectId)
+    ensureProjectReadme(projectCwd, projectId)
   }
   logProjectGit('start', {
     operation,
     projectId,
     workspaceDir,
-    projectDir: projectPaths.projectDir,
+    projectDir: projectCwd,
     remoteURL,
     branch,
   })
-  const setupOutput = await ensureGitRepository(projectPaths.projectDir, remoteURL)
+  const setupOutput = await ensureGitRepository(projectCwd, remoteURL)
   if (setupOutput.code !== 0) {
     logProjectGit('setup failed', {
       operation,
       projectId,
-      projectDir: projectPaths.projectDir,
+      projectDir: projectCwd,
       code: setupOutput.code,
       stdout: setupOutput.stdout,
       stderr: setupOutput.stderr,
@@ -108,7 +108,7 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
       operation,
       projectId,
       workspaceDir,
-      path: projectPaths.projectDir,
+      path: projectCwd,
       remoteURL,
       branch,
       stdout: setupOutput.stdout,
@@ -120,7 +120,7 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     logProjectGit('init completed', {
       operation,
       projectId,
-      projectDir: projectPaths.projectDir,
+      projectDir: projectCwd,
       stdout: setupOutput.stdout,
       stderr: setupOutput.stderr,
     })
@@ -129,7 +129,7 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
       operation,
       projectId,
       workspaceDir,
-      path: projectPaths.projectDir,
+      path: projectCwd,
       remoteURL,
       branch,
       stdout: setupOutput.stdout,
@@ -137,18 +137,18 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     }
   }
   const result = operation === 'pull'
-    ? await gitPull(projectPaths.projectDir, remoteURL, branch, session.token, projectId, orgId)
+    ? await gitPull(projectCwd, remoteURL, branch, session.token, projectId, orgId)
     : operation === 'commit'
-      ? await gitCommit(projectPaths.projectDir)
-      : await gitPush(projectPaths.projectDir, remoteURL, branch, session.token, orgId)
+      ? await gitCommit(projectCwd)
+      : await gitPush(projectCwd, remoteURL, branch, session.token, orgId)
   if (operation === 'pull' && result.code === 0) {
-    ensureProjectReadme(projectPaths.projectDir, projectId)
+    ensureProjectReadme(projectCwd, projectId)
   }
 
   logProjectGit('finished', {
     operation,
     projectId,
-    projectDir: projectPaths.projectDir,
+    projectDir: projectCwd,
     code: result.code,
     stdout: [setupOutput.stdout, result.stdout].filter(Boolean).join('\n'),
     stderr: [setupOutput.stderr, result.stderr].filter(Boolean).join('\n'),
@@ -158,7 +158,7 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
     operation,
     projectId,
     workspaceDir,
-    path: projectPaths.projectDir,
+    path: projectCwd,
     remoteURL,
     branch,
     stdout: [setupOutput.stdout, result.stdout].filter(Boolean).join('\n'),

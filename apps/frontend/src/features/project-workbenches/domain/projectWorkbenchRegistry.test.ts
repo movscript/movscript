@@ -22,7 +22,7 @@ test('project workbench definitions cover the canonical workbenches', () => {
   assert.deepEqual(projectWorkbenchDefinitions.map((item) => item.id), expectedIds)
   assert.equal(getProjectWorkbenchDefinition('project_standards').route, '/project/standards')
   assert.equal(getProjectWorkbenchDefinition('pre_production').route, '/project/pre-production')
-  assert.equal(getProjectWorkbenchDefinition('orchestration_production').route, '/project/production/orchestration')
+  assert.equal(getProjectWorkbenchDefinition('orchestration_production').route, '/project/scripts/workbench')
   assert.equal(getProjectWorkbenchDefinition('content_orchestration').route, '/project/content-units/workbench')
   for (const definition of projectWorkbenchDefinitions) {
     assert.ok(definition.purpose.length > 0, `${definition.id} must document its purpose`)
@@ -40,7 +40,7 @@ test('project workbench definitions own workspace kinds at the correct layer', (
   assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('setting_workspace')?.id, 'pre_production')
   assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('asset_workspace')?.id, 'pre_production')
   assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('production_workspace'), null)
-  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('content_unit_workspace'), null)
+  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('content_unit_workspace')?.id, 'content_orchestration')
 })
 
 test('project workbench review paths are generated from review query contracts', () => {
@@ -74,7 +74,7 @@ test('project workbench review paths are generated from review query contracts',
       entityType: 'production',
       entityId: 301,
     }),
-    '/project/production/orchestration?view=review&workspaceId=workspace-d&productionId=301',
+    '/project/scripts/workbench?view=review&workspaceId=workspace-d&productionId=301',
   )
 })
 

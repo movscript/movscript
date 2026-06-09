@@ -1,4 +1,4 @@
-import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/core/workspace'
+import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/workspace'
 
 export const ASSET_WORKSPACE_WORKSPACE_SCHEMA = WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace
 export const ASSET_WORKSPACE_SCOPE = WORKSPACE_SCOPES.assetWorkspace

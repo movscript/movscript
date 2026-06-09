@@ -3,8 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Sidebar,
-  SIDEBAR_DEFAULT_WIDTH,
-  SIDEBAR_WIDTH_STORAGE_KEY,
   clampSidebarWidth,
 } from './features/app-shell/components/Sidebar'
 import { Header } from './features/app-shell/components/Header'
@@ -21,7 +19,7 @@ import {
 } from './features/agent/presentation/agentModePanelSizing'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
-import { AlertTriangle, ArrowLeft, ArrowRight, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, RefreshCw, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, RefreshCw, Save, Terminal, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from './routes/projectRoutes'
@@ -29,7 +27,15 @@ import {
   WORKSPACE_CHANGE_HANDOFF_EVENT,
   workspaceChangeHandoffPathFromEventDetail,
 } from './shared/contracts/workspaceChangeHandoff'
-import { canvasBackPath, getAppRouteSurface, routeForWorkMode, type AppRouteSurface } from './routes/appRouteModel'
+import { canvasBackPath, getAppRouteLayoutSpec, routeForWorkMode, type AppRouteSurface } from './routes/appRouteModel'
+import {
+  APP_SHELL_AGENT_CONTENT_PANE_ID,
+  APP_SHELL_AGENT_SIDEBAR_PANE_ID,
+  APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
+  APP_SHELL_TERMINAL_DOCK_PANE_ID,
+  appRouteViewportScrollForMode,
+} from './routes/routeLayoutRegistry'
+import { useRouteLayoutPaneController } from './features/app-shell/application/useRouteLayoutPaneController'
 import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
 import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
@@ -51,6 +57,7 @@ import type { Project } from './types'
 const AIAgentPanel = React.lazy(() => import('./features/agent/components/AIAgentPanel').then((module) => ({ default: module.AIAgentPanel })))
 const ProjectAgentContentPanel = React.lazy(() => import('./features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAgentContentPanel })))
 const ProjectAgentModeSidebar = React.lazy(() => import('./features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAgentModeSidebar })))
+const AgentTerminalPanel = React.lazy(() => import('./features/agent/components/AgentTerminalPanel').then((module) => ({ default: module.AgentTerminalPanel })))
 
 const PreProductionPage = React.lazy(() => import('./pages/pre-production/PreProductionPage'))
 const TasksPage = React.lazy(() => import('./pages/project/tasks/TasksPage'))
@@ -64,7 +71,6 @@ const RefVideoGenPage = React.lazy(() => import('./pages/tools/RefVideoGenPage')
 const MotionImitationPage = React.lazy(() => import('./pages/tools/MotionImitationPage'))
 const StyleTransferPage = React.lazy(() => import('./pages/tools/StyleTransferPage'))
 const MultiAnglePage = React.lazy(() => import('./pages/tools/MultiAnglePage'))
-const ProductionOrchestrationPage = React.lazy(() => import('./pages/project/production/ProductionOrchestrationPage'))
 const ContentUnitWorkbenchPage = React.lazy(() => import('./features/content/components/ContentUnitWorkbenchPage').then((module) => ({ default: module.ContentUnitWorkbenchPage })))
 const OrgSelectPage = React.lazy(() => import('./pages/org/OrgSelectPage'))
 const InvitePage = React.lazy(() => import('./pages/auth/InvitePage'))
@@ -79,6 +85,7 @@ const AgentModePage = React.lazy(() => import('./pages/agent-mode/AgentModePage'
 const AgentModeCanvasListPage = React.lazy(() => import('./pages/agent-mode/AgentModeCanvasListPage'))
 const ScriptsPage = React.lazy(() => import('./pages/scripts/ScriptsPage'))
 const AgentConsolePage = React.lazy(() => import('./pages/agent/AgentConsolePage'))
+const AgentConnectionsPage = React.lazy(() => import('./pages/agent/AgentConnectionsPage'))
 const MovScriptWorkspaceFilesPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceFilesPage'))
 const MovScriptWorkspaceReviewPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceReviewPage'))
 const ModelProvidersPage = React.lazy(() => import('./pages/agent/ModelProvidersPage'))
@@ -87,7 +94,6 @@ const AIAgentRunPage = React.lazy(() => import('./pages/agent/AIAgentRunPage'))
 const AIAgentSettingsPage = React.lazy(() => import('./pages/agent/AIAgentSettingsPage'))
 const AgentRunsPage = React.lazy(() => import('./pages/agent/AgentRunsPage'))
 const ClientPluginsPage = React.lazy(() => import('./pages/plugins/ClientPluginsPage'))
-
 function AgentsRedirect() {
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const settings = normalizeProviderSettings(savedSettings)
@@ -139,7 +145,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 function ContentWorkbenchRedirect() {
   const location = useLocation()
   useEffect(() => reportContentWorkbenchRouteMismatch(), [])
-  return <Navigate to={`${ROUTES.project.productionOrchestration}${location.search}`} replace />
+  return <Navigate to={`${ROUTES.project.contentUnitEditor}${location.search}`} replace />
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -294,6 +300,28 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
 
 function RouteContentShell({ children, width = 'xwide' }: { children: React.ReactNode; width?: 'narrow' | 'normal' | 'wide' | 'xwide' | 'full' }) {
   return <AppContentLayout variant="contained" width={width}>{children}</AppContentLayout>
+}
+
+function CanvasEditorShellRoute() {
+  const { pathname } = useLocation()
+  const routeLayout = getAppRouteLayoutSpec(pathname)
+
+  return (
+    <OrgGuard>
+      <WorkspaceShell
+        surface="canvas"
+        header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} centerContent={<CanvasHeaderTitle />} />}
+      >
+        <AppRouteViewport scroll={appRouteViewportScrollForMode(routeLayout.scrollMode)}>
+          <RouteErrorBoundary>
+            <RouteSuspense>
+              <CanvasEditorPage embeddedInShell />
+            </RouteSuspense>
+          </RouteErrorBoundary>
+        </AppRouteViewport>
+      </WorkspaceShell>
+    </OrgGuard>
+  )
 }
 
 function ProjectAgentModeRoute() {
@@ -632,22 +660,44 @@ function detailRouteHeaderTitle(pathname: string): React.ReactNode | undefined {
 
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { pathname } = useLocation()
-  const routeSurface = getAppRouteSurface(pathname)
+  const routeLayout = getAppRouteLayoutSpec(pathname)
+  const routeSurface = routeLayout.surface
+  const routeViewportScroll = appRouteViewportScrollForMode(routeLayout.scrollMode)
   const agentMode = routeSurface === 'agent'
   const currentUser = useUserStore((s) => s.currentUser)
+  const currentProject = useProjectStore((s) => s.current)
   const userId = currentUser ? String(currentUser.ID) : ''
   const hasOpenConversations = useHasOpenAgentConversations(userId)
-  const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'hidden'>('expanded')
-  const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
-    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH
-    const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
-    return Number.isFinite(saved) ? clampSidebarWidth(saved) : SIDEBAR_DEFAULT_WIDTH
+  const detailSidebarPane = useRouteLayoutPaneController({
+    routeLayout,
+    paneId: APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
+    clampSize: clampSidebarWidth,
   })
-  const detailSidebarHidden = detailSidebarState === 'hidden'
+  const terminalPane = useRouteLayoutPaneController({
+    routeLayout,
+    paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID,
+    fallbackState: 'hidden',
+  })
+  const detailSidebarHidden = detailSidebarPane.hidden
+  const terminalOpen = !terminalPane.hidden
   const agentModeSidebarCollapsed = useAgentPanelUiStore((s) => s.agentModeSidebarCollapsed)
-  const toggleAgentModeSidebarCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeSidebarCollapsed)
+  const setAgentModeSidebarCollapsed = useAgentPanelUiStore((s) => s.setAgentModeSidebarCollapsed)
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
-  const agentModeContentPanelOpen = !agentModeContentPanelCollapsed
+  const setAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.setAgentModeContentPanelCollapsed)
+  const agentSidebarPane = useRouteLayoutPaneController({
+    routeLayout,
+    paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID,
+    controlledState: agentModeSidebarCollapsed ? 'collapsed' : 'default',
+    onStateChange: (state) => setAgentModeSidebarCollapsed(state !== 'default'),
+  })
+  const agentContentPane = useRouteLayoutPaneController({
+    routeLayout,
+    paneId: APP_SHELL_AGENT_CONTENT_PANE_ID,
+    controlledState: agentModeContentPanelCollapsed ? 'collapsed' : 'default',
+    fallbackState: 'collapsed',
+    onStateChange: (state) => setAgentModeContentPanelCollapsed(state !== 'default'),
+  })
+  const agentModeContentPanelOpen = !agentContentPane.collapsed && !agentContentPane.hidden
   const detailAgentPanelOpen = useAgentPanelUiStore((s) => s.open)
   const detailAgentPanelWidth = useAgentPanelUiStore((s) => s.detailAgentPanelWidth)
   const detailHeaderActions = useAgentPanelUiStore((s) => s.detailHeaderActions)
@@ -657,16 +707,51 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   }, [])
   const detailRightPaneOpen = detailAgentPanelOpen
   const detailCenterContent = detailRouteHeaderTitle(pathname)
-  React.useEffect(() => {
-    if (detailSidebarHidden) return
-    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(detailSidebarWidth))
-  }, [detailSidebarHidden, detailSidebarWidth])
+  const terminalWorkspaceContext = React.useMemo(() => {
+    if (currentProject?.ID) {
+      return {
+        scope: 'project' as const,
+        userId: userId || undefined,
+        projectId: currentProject.ID,
+      }
+    }
+    return {
+      scope: 'global' as const,
+      userId: userId || undefined,
+    }
+  }, [currentProject?.ID, userId])
+  const terminalPlacement = agentMode ? 'center-right' : 'center'
+  const terminalHeaderControl = (
+    <AppWindowIconButton
+      type="button"
+      className="app-window-terminal-toggle"
+      data-active={terminalOpen ? 'true' : undefined}
+      onClick={terminalOpen ? terminalPane.hide : terminalPane.show}
+      title={terminalOpen ? '收起 Terminal' : '展开 Terminal'}
+      aria-label={terminalOpen ? '收起 Terminal' : '展开 Terminal'}
+    >
+      <Terminal size={13} />
+    </AppWindowIconButton>
+  )
+  const terminalPanel = (
+    <React.Suspense fallback={null}>
+      <AgentTerminalPanel
+        open={terminalOpen}
+        onOpenChange={(open) => {
+          if (open) terminalPane.show()
+          else terminalPane.hide()
+        }}
+        shellPlacement={terminalPlacement}
+        workspaceContext={terminalWorkspaceContext}
+      />
+    </React.Suspense>
+  )
   const showDetailSidebar = React.useCallback(() => {
-    setDetailSidebarState('expanded')
-  }, [])
+    detailSidebarPane.show()
+  }, [detailSidebarPane])
   const hideDetailSidebar = React.useCallback(() => {
-    setDetailSidebarState('hidden')
-  }, [])
+    detailSidebarPane.hide()
+  }, [detailSidebarPane])
   const sidebarHeaderControl = (
     <div className="flex shrink-0 items-center gap-1">
       <AppWindowIconButton
@@ -685,11 +770,11 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       <AppWindowIconButton
         type="button"
         className="app-window-sidebar-toggle agent-sidebar-window-controls__sidebar"
-        onClick={toggleAgentModeSidebarCollapsed}
-        title={agentModeSidebarCollapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
-        aria-label={agentModeSidebarCollapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
+        onClick={agentSidebarPane.collapsed ? agentSidebarPane.show : agentSidebarPane.collapse}
+        title={agentSidebarPane.collapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
+        aria-label={agentSidebarPane.collapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
       >
-        {agentModeSidebarCollapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+        {agentSidebarPane.collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
       </AppWindowIconButton>
       <AppWindowIconButton
         type="button"
@@ -735,6 +820,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showAppControls={!detailRightPaneOpen}
       showFallbackBrand={false}
       leftControls={detailCenterLeftControls}
+      appControls={terminalHeaderControl}
       centerContent={detailCenterContent}
       showAssistantShortcut
     />
@@ -744,11 +830,11 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
-      appControls={detailHeaderActions}
+      appControls={<>{detailHeaderActions}{terminalHeaderControl}</>}
       showAssistantShortcut
     />
   ) : undefined
-  const agentLeftHeader = !agentModeSidebarCollapsed ? (
+  const agentLeftHeader = !agentSidebarPane.collapsed ? (
     <Header
       showAppControls={false}
       showFallbackBrand={false}
@@ -761,7 +847,8 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={!agentLeftHeader}
       showAppControls={!agentModeContentPanelOpen}
       showFallbackBrand={false}
-      leftControls={agentModeSidebarCollapsed ? agentSidebarHeaderControl : undefined}
+      leftControls={agentSidebarPane.collapsed ? agentSidebarHeaderControl : undefined}
+      appControls={terminalHeaderControl}
       showAgentContentPanelShortcut
     />
   )
@@ -770,18 +857,19 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
+      appControls={terminalHeaderControl}
       showAgentContentPanelShortcut
     />
   ) : undefined
   const agentRightSlotStyle = {
-    width: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
-    minWidth: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
-    flexBasis: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
+    width: agentContentPane.collapsed ? 0 : agentModeContentPanelWidth,
+    minWidth: agentContentPane.collapsed ? 0 : agentModeContentPanelWidth,
+    flexBasis: agentContentPane.collapsed ? 0 : agentModeContentPanelWidth,
   }
   const detailLeftSlotStyle = {
-    width: detailSidebarHidden ? 0 : detailSidebarWidth,
-    minWidth: detailSidebarHidden ? 0 : detailSidebarWidth,
-    flexBasis: detailSidebarHidden ? 0 : detailSidebarWidth,
+    width: detailSidebarHidden ? 0 : detailSidebarPane.size,
+    minWidth: detailSidebarHidden ? 0 : detailSidebarPane.size,
+    flexBasis: detailSidebarHidden ? 0 : detailSidebarPane.size,
   }
   const detailRightSlotStyle = {
     width: detailRightPaneOpen ? detailAgentPanelWidth : 0,
@@ -804,19 +892,22 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           leftHeader={agentLeftHeader}
           centerHeader={agentCenterHeader}
           rightHeader={agentRightHeader}
-          leftPaneHidden={agentModeSidebarCollapsed}
+          leftPaneHidden={agentSidebarPane.collapsed}
           rightSlotStyle={agentRightSlotStyle}
-          rightPaneCollapsed={agentModeContentPanelCollapsed}
+          rightPaneCollapsed={agentContentPane.collapsed}
+          terminalPanel={terminalPanel}
+          terminalOpen={terminalOpen}
+          terminalPlacement={terminalPlacement}
           assistantPanel={(
             <React.Suspense fallback={null}>
               <ProjectAgentContentPanel
-                collapsed={agentModeContentPanelCollapsed}
+                collapsed={agentContentPane.collapsed}
                 onWidthChange={handleAgentModeContentPanelWidthChange}
               />
             </React.Suspense>
           )}
         >
-          <AppRouteViewport scroll="auto">
+          <AppRouteViewport scroll={routeViewportScroll}>
             <RouteErrorBoundary>
               <RouteSuspense>{children}</RouteSuspense>
             </RouteErrorBoundary>
@@ -827,8 +918,8 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           surface={shellSurface}
           sidebar={(
             <Sidebar
-              width={detailSidebarWidth}
-              onWidthChange={setDetailSidebarWidth}
+              width={detailSidebarPane.size}
+              onWidthChange={detailSidebarPane.setSize}
               onHide={hideDetailSidebar}
             />
           )}
@@ -837,6 +928,9 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           rightHeader={detailRightHeader}
           leftSlotStyle={detailLeftSlotStyle}
           rightSlotStyle={detailRightSlotStyle}
+          terminalPanel={terminalPanel}
+          terminalOpen={terminalOpen}
+          terminalPlacement={terminalPlacement}
           assistantPanel={detailAgentPanelOpen || hasOpenConversations ? (
             <React.Suspense fallback={null}>
               <AIAgentPanel />
@@ -845,7 +939,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           leftPaneHidden={detailSidebarHidden}
           rightPaneCollapsed={!detailRightPaneOpen}
         >
-          <AppRouteViewport scroll="auto">
+          <AppRouteViewport scroll={routeViewportScroll}>
             <RouteErrorBoundary>
               <RouteSuspense>{children}</RouteSuspense>
             </RouteErrorBoundary>
@@ -891,6 +985,7 @@ const AppRouter = typeof window !== 'undefined' && window.location.protocol === 
 
 export default function App() {
   const user = useUserStore((s) => s.currentUser)
+  const userHydrated = useUserStore((s) => s.hydrated)
   const settingsHydrated = useAppSettingsStore((s) => s.hydrated)
   const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
 
@@ -919,7 +1014,7 @@ export default function App() {
     })
   }, [settingsHydrated])
 
-  if (!settingsHydrated) {
+  if (!settingsHydrated || !userHydrated) {
     return <LoadingScreen fullScreen />
   }
 
@@ -955,22 +1050,7 @@ export default function App() {
         <ProjectRequiredDialog />
         <RouteSuspense fullScreen>
           <Routes>
-            <Route path={ROUTES.canvasEditor} element={
-              <OrgGuard>
-                <WorkspaceShell
-                  surface="canvas"
-                  header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} centerContent={<CanvasHeaderTitle />} />}
-                >
-                  <AppRouteViewport scroll="owned">
-                    <RouteErrorBoundary>
-                      <RouteSuspense>
-                        <CanvasEditorPage embeddedInShell />
-                      </RouteSuspense>
-                    </RouteErrorBoundary>
-                  </AppRouteViewport>
-                </WorkspaceShell>
-              </OrgGuard>
-            } />
+            <Route path={ROUTES.canvasEditor} element={<CanvasEditorShellRoute />} />
             <Route path={ROUTES.orgSelect} element={
               <ShellLayout requireOrg={false}>
                 <RouteContentShell width="wide"><OrgSelectPage /></RouteContentShell>
@@ -1003,9 +1083,9 @@ export default function App() {
               <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
               <Route path={ROUTES.project.legacyScripts} element={<Navigate to={ROUTES.project.scripts} replace />} />
 
-              <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><ProductionOrchestrationPage /></ProjectGuard>} />
+              <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><Navigate to={ROUTES.project.scripts} replace /></ProjectGuard>} />
               <Route path={ROUTES.project.tasks} element={<ProjectGuard><TasksPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.overview} element={<Navigate to={ROUTES.project.productionOrchestration} replace />} />
+              <Route path={ROUTES.project.overview} element={<Navigate to={ROUTES.project.scripts} replace />} />
               <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
               <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
               <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
@@ -1035,6 +1115,7 @@ export default function App() {
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
+              <Route path={ROUTES.agentConnections} element={<AgentConnectionsPage />} />
               <Route path={ROUTES.modelProviders} element={<ModelProvidersPage />} />
               <Route path={ROUTES.agents} element={<AgentsRedirect />} />
               <Route path={ROUTES.agentProvider} element={<AgentsPage />} />

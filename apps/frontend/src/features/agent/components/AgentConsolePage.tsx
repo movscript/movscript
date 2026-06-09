@@ -223,7 +223,7 @@ export default function AgentConsolePage() {
 
       <AgentConsoleNav compact />
 
-      <AgentPageShellBody>
+      <AgentPageShellBody scroll="responsive-split" className="agent-console-page-body">
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
             title="Agents"
@@ -485,7 +485,6 @@ function formatWorkspaceContext(context?: ElectronMovScriptWorkspaceContext): st
   if (!context) return '-'
   return [
     context.scope ?? 'global',
-    context.userId ? `user=${context.userId}` : undefined,
     context.projectId ? `project=${context.projectId}` : undefined,
     context.productionId ? `production=${context.productionId}` : undefined,
   ].filter(Boolean).join(' / ')

@@ -96,9 +96,6 @@ export interface AgentComposerSectionProps {
   workspaceProjectOptions?: WorkspaceContextOption[]
   workspaceProjectValue?: string
   workspaceProjectsLoading?: boolean
-  workspaceProductionOptions?: WorkspaceContextOption[]
-  workspaceProductionValue?: string
-  workspaceProductionsLoading?: boolean
   onAcceptMention: () => boolean
   onComposerDragEnter: DragEventHandler
   onComposerDragLeave: DragEventHandler
@@ -118,7 +115,6 @@ export interface AgentComposerSectionProps {
   onStopActiveRun: () => void
   onUploadFiles: (files: FileList) => void
   onWorkspaceProjectChange?: (value: string) => void
-  onWorkspaceProductionChange?: (value: string) => void
   showApprovalPresetSelector?: boolean
   showAttachmentTools?: boolean
   showDebugPreview?: boolean
@@ -155,9 +151,6 @@ export function AgentComposerSection({
   workspaceProjectOptions = [],
   workspaceProjectValue,
   workspaceProjectsLoading = false,
-  workspaceProductionOptions = [],
-  workspaceProductionValue,
-  workspaceProductionsLoading = false,
   onAcceptMention,
   onComposerDragEnter,
   onComposerDragLeave,
@@ -177,7 +170,6 @@ export function AgentComposerSection({
   onStopActiveRun,
   onUploadFiles,
   onWorkspaceProjectChange,
-  onWorkspaceProductionChange,
   showApprovalPresetSelector = true,
   showAttachmentTools = true,
   showDebugPreview = true,
@@ -240,9 +232,6 @@ export function AgentComposerSection({
   const showWorkspaceSelector = workspaceProjectOptions.length > 0
     && workspaceProjectValue !== undefined
     && !!onWorkspaceProjectChange
-  const showProductionSelector = workspaceProductionOptions.length > 0
-    && workspaceProductionValue !== undefined
-    && !!onWorkspaceProductionChange
   const showModelSelector = modelOptions.length > 0 && modelValue !== undefined && !!onModelChange
   const selectedModel = showModelSelector
     ? modelOptions.find((model) => model.id === modelValue) ?? modelOptions[0]
@@ -390,7 +379,7 @@ export function AgentComposerSection({
           <div className="ms-agent-composer__workspace-row">
             <span className="ms-agent-composer__workspace-label">
               <FolderTree size={12} />
-              工作目录
+              会话范围
             </span>
             <Select
               value={workspaceProjectValue}
@@ -398,7 +387,7 @@ export function AgentComposerSection({
               disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
             >
               <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(210px,100%)] min-w-0 type-tiny">
-                <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择项目'} />
+                <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择范围'} />
               </SelectTrigger>
               <SelectContent>
                 {workspaceProjectOptions.map((option) => (
@@ -411,27 +400,6 @@ export function AgentComposerSection({
                 ))}
               </SelectContent>
             </Select>
-            {showProductionSelector ? (
-              <Select
-                value={workspaceProductionValue}
-                onValueChange={onWorkspaceProductionChange}
-                disabled={workspaceSelectorDisabled || workspaceProductionsLoading}
-              >
-                <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(210px,100%)] min-w-0 type-tiny">
-                  <SelectValue placeholder={workspaceProductionsLoading ? '读取制作...' : '选择制作'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaceProductionOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{option.label}</span>
-                        {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
           </div>
         ) : null}
         <AgentComposerToolbar>

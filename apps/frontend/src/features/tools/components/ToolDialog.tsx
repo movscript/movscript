@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import { api } from '@/shared/infrastructure/api'
 import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, PaginatedResponse } from '@/types'
 import {
@@ -50,18 +51,14 @@ import {
   ToolDialogResourcePane,
   ToolDialogWarningCallout,
   OverlapPaneRevealButton,
-  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
 import { useTranslation } from 'react-i18next'
-import {
-  TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH,
-  TOOL_RESOURCE_PANE_MAX_WIDTH,
-  TOOL_RESOURCE_PANE_MIN_WIDTH,
-  TOOL_RESOURCE_PANE_DEFAULT_WIDTH,
-  TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY,
-} from './toolResourcePaneWidth'
+import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
+import { TOOL_WORKBENCH_RESOURCE_PANE_ID } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
+import { routeLayoutSpecForPathname } from '@/routes/routeLayoutRegistry'
+import { readResourceIdDragPayload } from '@/features/resources/domain/resourceDragPayload'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
 
@@ -350,6 +347,8 @@ export function ToolDialog({
   showHistory = true,
 }: ToolDialogDef) {
   const { t } = useTranslation()
+  const location = useLocation()
+  const routeLayout = routeLayoutSpecForPathname(location.pathname)
   const qc = useQueryClient()
   const [prompt, setPrompt] = useState('')
   const [attachments, setAttachments] = useState<RawResource[]>([])
@@ -359,17 +358,10 @@ export function ToolDialog({
   const [uploading, setUploading] = useState(false)
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [debugMode, setDebugMode] = useState(false)
-  const resourcePaneController = usePersistentOverlapPaneController({
-    storageKey: TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY,
-    defaultSize: TOOL_RESOURCE_PANE_DEFAULT_WIDTH,
-    minSize: TOOL_RESOURCE_PANE_MIN_WIDTH,
-    maxSize: (rect) => Math.max(
-      TOOL_RESOURCE_PANE_MIN_WIDTH,
-      Math.min(TOOL_RESOURCE_PANE_MAX_WIDTH, rect.width - TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH),
-    ),
+  const resourcePaneController = useRouteLayoutOverlapPaneController({
+    routeLayout,
+    paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID,
     resizeEdge: 'left',
-    collapseMode: 'after-min',
-    expandMode: 'after-max',
     ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
   })
   const [historyPage, setHistoryPage] = useState(1)
@@ -564,7 +556,7 @@ export function ToolDialog({
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault()
-        const id = Number(e.dataTransfer.getData('application/resource-id'))
+        const id = readResourceIdDragPayload(e.dataTransfer)
         if (!id) return
         const r = resources.find((r) => r.ID === id)
         if (r) addAttachment(r)

@@ -629,6 +629,7 @@ test('agent session UI keeps explicit provider session thread recovery contracts
   assert.match(uiAgentShellCssSource, /\.ms-agent-nav-item\s*\{/)
   assert.match(uiAgentShellCssSource, /\.ms-agent-conversation__icon\s*\{/)
   assert.match(uiAgentModeCssSource, /\.agent-mode-group__list--nested \{[\s\S]*margin-left: 0;[\s\S]*border-left: 0;[\s\S]*padding-left: 2px;/)
+  assert.match(uiAgentModeCssSource, /\.ms-agent-nav-item\.agent-mode-project-group__toggle\[data-density="compact"\],[\s\S]*\.ms-agent-nav-item\.agent-mode-project-group__toggle\[data-density="compact"\] \.agent-mode-label,[\s\S]*\.ms-agent-nav-item\.agent-mode-project-group__toggle\[data-density="compact"\] \.agent-mode-meta \{[\s\S]*font-size: var\(--ms-text-label\);[\s\S]*line-height: var\(--ms-leading-label\);/)
   assert.match(uiAgentModeCssSource, /\.agent-mode-conversation \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto;[\s\S]*padding: 4px 6px 4px 10px;/)
   assert.match(uiAgentModeCssSource, /\.agent-mode-conversation\[data-has-icon="true"\] \{[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto;/)
   assert.match(uiAgentModeCssSource, /\.agent-mode-conversation \.ms-agent-conversation__indicator \{[\s\S]*display: none;/)

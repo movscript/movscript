@@ -1,0 +1,15 @@
+#!/bin/sh
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ENTRY="$SCRIPT_DIR/movcli.mjs"
+
+if [ -n "${MOVSCRIPT_NODE_BIN:-}" ] && [ -x "$MOVSCRIPT_NODE_BIN" ]; then
+  exec "$MOVSCRIPT_NODE_BIN" "$ENTRY" "$@"
+fi
+
+if [ -n "${MOVSCRIPT_ELECTRON_BIN:-}" ] && [ -x "$MOVSCRIPT_ELECTRON_BIN" ]; then
+  export ELECTRON_RUN_AS_NODE=1
+  exec "$MOVSCRIPT_ELECTRON_BIN" "$ENTRY" "$@"
+fi
+
+exec node "$ENTRY" "$@"

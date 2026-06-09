@@ -79,3 +79,33 @@ test('provider session listing filters by provider profile key', () => {
     rmSync(workspaceDir, { recursive: true, force: true })
   }
 })
+
+test('provider session index exposes project id from workspace context and cwd', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-provider-sessions-project-'))
+  try {
+    upsertProviderSessionInWorkspace({
+      workspaceDir,
+      providerProfileKey: 'mova',
+      providerProfileId: 'mova-project-42',
+      providerKey: 'mova',
+      workspaceContext: {
+        scope: 'project',
+        projectId: 42,
+      },
+      providerSessionCwd: join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'),
+      status: 'running',
+      now: new Date('2026-06-05T01:02:05.000Z'),
+    })
+
+    const listed = listProviderSessionsFromWorkspace({ workspaceDir, providerProfileKey: 'mova' })
+    assert.equal(listed.sessions.length, 1)
+    assert.equal(listed.sessions[0]?.session.projectId, 42)
+    assert.equal(listed.sessions[0]?.state?.projectId, 42)
+    assert.deepEqual(listed.sessions[0]?.workspaceContext, {
+      scope: 'project',
+      projectId: 42,
+    })
+  } finally {
+    rmSync(workspaceDir, { recursive: true, force: true })
+  }
+})

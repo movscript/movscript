@@ -176,7 +176,6 @@ export type ElectronMovScriptWorkspaceScope = 'global' | 'project' | 'production
 
 export type ElectronMovScriptWorkspaceContext = {
   scope?: ElectronMovScriptWorkspaceScope
-  userId?: string | number
   projectId?: string | number
   productionId?: string | number
 }
@@ -195,12 +194,12 @@ export type ElectronAppServerProfile = {
   home?: string
   compatibilityHomeEnvNames?: string[]
   workspaceDir?: string
-  workspaceContext?: ElectronMovScriptWorkspaceContext
   lifecycle?: ElectronAppServerLifecycle
 }
 
 export type ElectronAppServerEnsureInput = {
   profile: ElectronAppServerProfile
+  workspaceContext?: ElectronMovScriptWorkspaceContext
 }
 
 export type ElectronAppServerStatusInput = {
@@ -259,6 +258,8 @@ export type ElectronAppServerStatus = {
   home?: string
   rustLog?: string
   workspaceDir?: string
+  cliBinDir?: string
+  cliEnv?: Record<string, string>
   config?: ElectronAppServerConfigStatus
   workspaceContext?: ElectronMovScriptWorkspaceContext
   providerSessionCwd?: string
@@ -387,12 +388,6 @@ export type ElectronMovScriptWorkspaceRootResult = {
   rootDir: string
   controlDir: string
   manifestPath: string
-  editDir: string
-  buildDir: string
-  buildCurrentDir: string
-  buildIndexesDir: string
-  buildReviewsDir: string
-  buildManifestsDir: string
   providersDir: string
   backendDir: string
   manifest: ElectronMovScriptWorkspaceRootManifest

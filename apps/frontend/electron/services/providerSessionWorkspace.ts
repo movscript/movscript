@@ -82,6 +82,12 @@ export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspace
   const createdAt = previous?.session.createdAt ?? now
   const title = input.label?.trim() || previous?.session.title || input.providerProfileId
   const home = input.home?.trim() || previous?.home
+  const workspaceContext = input.workspaceContext ?? previous?.workspaceContext
+  const providerSessionCwd = input.providerSessionCwd?.trim() || previous?.providerSessionCwd
+  const projectId = projectIdFromWorkspaceContext(workspaceContext)
+    ?? projectIdFromProviderSessionCwd(providerSessionCwd)
+    ?? previous?.state?.projectId
+    ?? previous?.session.projectId
   const record: ProviderSessionWorkspaceRecord = {
     schema: MOVSCRIPT_PROVIDER_SESSION_SCHEMA,
     providerProfileId: input.providerProfileId,
@@ -92,18 +98,20 @@ export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspace
     ...(input.executablePath ? { executablePath: input.executablePath } : {}),
     ...(home ? { home } : {}),
     workspaceDir: paths.workspaceDir,
-    ...(input.workspaceContext ? { workspaceContext: input.workspaceContext } : previous?.workspaceContext ? { workspaceContext: previous.workspaceContext } : {}),
-    ...(input.providerSessionCwd?.trim() ? { providerSessionCwd: input.providerSessionCwd.trim() } : previous?.providerSessionCwd ? { providerSessionCwd: previous.providerSessionCwd } : {}),
+    ...(workspaceContext ? { workspaceContext } : {}),
+    ...(providerSessionCwd ? { providerSessionCwd } : {}),
     statusUpdatedAt: now,
     session: {
       id: input.providerProfileId,
       title,
+      ...(projectId !== undefined ? { projectId } : {}),
       createdAt,
       updatedAt: now,
     },
     state: {
       title,
       status: input.status,
+      ...(projectId !== undefined ? { projectId } : {}),
       messageCount: previous?.state?.messageCount ?? 0,
       threadUpdatedAt: now,
       ...(input.message ? { lastMessageAt: now } : {}),
@@ -115,12 +123,19 @@ export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspace
 }
 
 function providerSessionSummaryFromRecord(record: ProviderSessionWorkspaceRecord): ElectronProviderSessionSummary {
+  const projectId = record.state?.projectId
+    ?? record.session.projectId
+    ?? projectIdFromWorkspaceContext(record.workspaceContext)
+    ?? projectIdFromProviderSessionCwd(record.providerSessionCwd)
   return {
-    session: record.session,
+    session: {
+      ...record.session,
+      ...(projectId !== undefined ? { projectId } : {}),
+    },
     ...(record.workspaceDir ? { workspaceDir: record.workspaceDir } : {}),
     ...(record.workspaceContext ? { workspaceContext: record.workspaceContext } : {}),
     ...(record.providerSessionCwd ? { providerSessionCwd: record.providerSessionCwd } : {}),
-    ...(record.state ? { state: record.state } : {}),
+    ...(record.state ? { state: { ...record.state, ...(projectId !== undefined ? { projectId } : {}) } } : {}),
     ...(record.runs ? { runs: record.runs } : {}),
   }
 }
@@ -160,6 +175,21 @@ function writeJSONAtomic(filePath: string, value: unknown): void {
 function safeSessionFileName(value: string): string {
   const safe = value.trim().replace(/[^a-zA-Z0-9._-]/g, '_')
   return safe || 'session'
+}
+
+function projectIdFromWorkspaceContext(context: ElectronProviderSessionSummary['workspaceContext'] | undefined): number | undefined {
+  const value = context?.projectId
+  const projectId = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : undefined
+  return typeof projectId === 'number' && Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
+}
+
+function projectIdFromProviderSessionCwd(cwd: string | undefined): number | undefined {
+  const normalized = cwd?.replace(/\\/g, '/')
+  if (!normalized) return undefined
+  const match = /(?:^|\/)\.movscript\/(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+  if (!match?.[1]) return undefined
+  const projectId = Number(match[1])
+  return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

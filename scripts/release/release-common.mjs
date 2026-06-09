@@ -31,6 +31,7 @@ export const ffmpegMetadataFields = Object.freeze([
   'size_bytes',
   'version',
 ])
+export const desktopAppServerProviders = Object.freeze(['codex', 'mova'])
 
 export function assertDesktopPlatform(platform, label = 'desktop target') {
   if (!desktopPlatforms.includes(platform)) {
@@ -80,6 +81,10 @@ export function desktopFFmpegBinaryName(platform) {
   return platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
 }
 
+export function desktopAppServerBinaryName(platform) {
+  return platform === 'win32' ? 'app-server.exe' : 'app-server'
+}
+
 export function goosForDesktopPlatform(platform) {
   if (platform === 'win32') return 'windows'
   return platform
@@ -93,6 +98,11 @@ export function goarchForDesktopArch(arch) {
 export function resolveDesktopFFmpegPath(root, platform = process.platform, arch = process.arch) {
   const binary = desktopFFmpegBinaryName(platform)
   return resolve(root, 'apps/frontend/vendor/ffmpeg', platform, arch, binary)
+}
+
+export function resolveDesktopAppServerPath(root, provider, platform = process.platform, arch = process.arch) {
+  const binary = desktopAppServerBinaryName(platform)
+  return resolve(root, 'apps/frontend/vendor/app-server', provider, platform, arch, binary)
 }
 
 export function isDesktopReleaseTarget(platform, arch) {
@@ -274,11 +284,13 @@ export function verifyDesktopPackage(root, options = {}) {
   const releaseDir = resolve(root, 'apps/frontend/release')
   const backendBinDir = resolve(root, 'apps/backend/bin')
   const ffmpegPath = resolveDesktopFFmpegPath(root, platform, arch)
+  const appServerPaths = desktopAppServerProviders.map((provider) => resolveDesktopAppServerPath(root, provider, platform, arch))
 
   const requiredPaths = [
     resolve(backendBinDir, platform === 'win32' ? 'server.exe' : 'server'),
     resolve(backendBinDir, 'admin/index.html'),
     ffmpegPath,
+    ...appServerPaths,
   ]
 
   const missing = requiredPaths.filter((path) => !existsSync(path))
@@ -322,6 +334,12 @@ export function verifyDesktopPackage(root, options = {}) {
     exit(1)
     return false
   }
+  const bundledAppServerError = verifyBundledDesktopAppServers(releaseDir, platform, { root, arch })
+  if (bundledAppServerError) {
+    logError(bundledAppServerError)
+    exit(1)
+    return false
+  }
 
   log('Desktop package verification passed.')
   for (const artifact of artifacts) {
@@ -329,6 +347,17 @@ export function verifyDesktopPackage(root, options = {}) {
     log(`- ${artifact} (${Math.round(size / 1024 / 1024)} MB)`)
   }
   return true
+}
+
+export function verifyDesktopAppServerBinary(path) {
+  if (!existsSync(path)) {
+    return `Desktop package app-server prerequisite is missing: ${path}`
+  }
+  const actualStat = statSync(path)
+  if (basename(path) !== 'app-server.exe' && (actualStat.mode & 0o111) === 0) {
+    return `Desktop package app-server binary is not executable: ${path}`
+  }
+  return ''
 }
 
 export function verifyDesktopFFmpeg(path, cwd = process.cwd(), spawn = spawnSync, timeoutMs = ffmpegVersionTimeoutMs, expected = {}) {
@@ -424,6 +453,41 @@ export function verifyBundledDesktopFFmpeg(releaseDir, platform = process.platfo
     `Bundled desktop ffmpeg is missing from unpacked Electron resources for ${platform}.`,
     ...expected.map((path) => `- expected: ${path}`),
   ].join('\n')
+}
+
+export function verifyBundledDesktopAppServers(releaseDir, platform = process.platform, options = {}) {
+  if (!existsSync(releaseDir)) {
+    return `Electron release directory does not exist: ${releaseDir}`
+  }
+  const resourceDirs = findUnpackedResourceDirs(releaseDir, platform)
+  if (resourceDirs.length === 0) {
+    return `No unpacked Electron resources directory found for ${platform}: ${releaseDir}`
+  }
+  const binary = desktopAppServerBinaryName(platform)
+  const missing = []
+  for (const provider of desktopAppServerProviders) {
+    const sourcePath = options.root
+      ? resolveDesktopAppServerPath(options.root, provider, platform, options.arch || process.arch)
+      : options.sourcePaths?.[provider]
+    const expected = resourceDirs.map((resourcesPath) => resolve(resourcesPath, 'app-server', provider, platform, options.arch || process.arch, binary))
+    const bundledPath = expected.find((path) => existsSync(path))
+    if (!bundledPath) {
+      missing.push(...expected.map((path) => `- expected ${provider}: ${path}`))
+      continue
+    }
+    const binaryError = verifyDesktopAppServerBinary(bundledPath)
+    if (binaryError) return binaryError
+    if (sourcePath && existsSync(sourcePath) && sha256File(bundledPath) !== sha256File(sourcePath)) {
+      return [
+        `Bundled desktop app-server does not match staged source for ${provider} ${platform}.`,
+        `Source: ${sourcePath}`,
+        `Bundled: ${bundledPath}`,
+      ].join('\n')
+    }
+  }
+  return missing.length > 0
+    ? ['Bundled desktop app-server binaries are missing from unpacked Electron resources.', ...missing].join('\n')
+    : ''
 }
 
 export function findUnpackedResourceDirs(releaseDir, platform = process.platform) {

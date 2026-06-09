@@ -96,9 +96,9 @@ export function normalizePageRoute(route?: { pathname?: string; search?: string;
 
 function inferRouteFromLabels(labels: string[] | undefined) {
   const list = labels ?? []
-  if (list.some((label) => /production-orchestration/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
+  if (list.some((label) => /production-orchestration/i.test(label))) return { pathname: ROUTES.project.scripts }
   if (list.some((label) => /pre-production/i.test(label))) return { pathname: ROUTES.project.preProduction }
-  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
+  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.scripts }
   return undefined
 }
 
@@ -113,17 +113,23 @@ export function buildPageKey(input: {
 }
 
 function inferPageType(labels: string[] | undefined, pathname?: string): string {
-  if (labels?.some((label) => /production-orchestration/i.test(label))) return 'production_orchestrate'
+  if (labels?.some((label) => /production-orchestration/i.test(label))) return 'workbench'
   if (labels?.some((label) => /pre-production/i.test(label))) return 'pre_production'
   if (labels?.some((label) => /workbench/i.test(label))) return 'workbench'
-  if (pathname?.includes(ROUTES.project.productionOrchestration)) return 'production_orchestrate'
+  if (pathname?.includes(ROUTES.project.productionOrchestration)) return 'workbench'
   if (pathname?.includes(ROUTES.project.preProduction)) return 'pre_production'
   if (pathname?.includes('/workbench')) return 'workbench'
   return 'page'
 }
 
 function inferEntityType(pathname?: string, productionId?: number, projectId?: number) {
-  if (pathname?.includes(ROUTES.project.productionOrchestration) && productionId !== undefined) return 'production'
+  if (
+    productionId !== undefined
+    && (
+      pathname?.includes(ROUTES.project.productionOrchestration)
+      || pathname?.includes(ROUTES.project.scripts)
+    )
+  ) return 'production'
   if (pathname?.includes(ROUTES.project.preProduction)) return 'project'
   if (projectId !== undefined) return 'project'
   return undefined

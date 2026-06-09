@@ -26,7 +26,7 @@ test('workbench session snapshot normalization drops invalid entries and preserv
     valid: {
       projectId: '18',
       workbenchId: 'orchestration_production',
-      route: '/project/production/orchestration',
+      route: '/project/scripts/workbench',
       search: 'productionId=4',
       updatedAt: '2026-05-29T00:00:00.000Z',
       filters: {

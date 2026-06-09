@@ -334,6 +334,90 @@ test('AgentChatThreadItemView renders MCP tool result content and structured con
   assert.match(html, /cached/)
 })
 
+test('AgentChatThreadItemView renders domain setting query as internal MovScript tool UI', () => {
+  const html = renderToStaticMarkup(
+    <AgentChatThreadItemView
+      item={{
+        type: 'mcpToolCall',
+        id: 'settings_query_1',
+        server: 'movscript_workspace',
+        tool: 'domain_query_settings',
+        status: 'completed',
+        arguments: { query: '咖啡馆', kind: 'location', projectId: 7, limit: 3 },
+        result: {
+          settings: [
+            { id: 'setting_cafe', title: '夜间咖啡馆', setting_kind: 'location', path: 'source/settings/setting_cafe/setting.json' },
+            { id: 'setting_backroom', name: '后厨通道', kind: 'location' },
+          ],
+        },
+        durationMs: 42,
+        raw: { type: 'mcpToolCall', server: 'movscript_workspace', tool: 'domain_query_settings' },
+      }}
+    />,
+  )
+
+  assert.match(html, /查询设定/)
+  assert.match(html, /completed/)
+  assert.match(html, /location/)
+  assert.match(html, /咖啡馆/)
+  assert.match(html, /2 result\(s\)/)
+  assert.match(html, /42ms/)
+  assert.match(html, /Query/)
+  assert.match(html, /query=咖啡馆/)
+  assert.match(html, /projectId=7/)
+  assert.match(html, /Results/)
+  assert.match(html, /1\. 夜间咖啡馆 - location - source\/settings\/setting_cafe\/setting\.json/)
+  assert.match(html, /2\. 后厨通道 - location/)
+  assert.match(html, /Result details/)
+  assert.doesNotMatch(html, /movscript_workspace\/domain_query_settings/)
+  assert.doesNotMatch(html, /Arguments/)
+})
+
+test('AgentChatThreadItemView renders domain setting upsert as internal MovScript tool UI', () => {
+  const html = renderToStaticMarkup(
+    <AgentChatThreadItemView
+      item={{
+        type: 'mcpToolCall',
+        id: 'settings_upsert_1',
+        server: 'movscript_workspace',
+        tool: 'domain_upsert_setting',
+        status: 'completed',
+        arguments: {
+          projectId: 7,
+          payload: { id: 'setting_cafe', title: '夜间咖啡馆', kind: 'location' },
+        },
+        result: {
+          path: 'settings/setting_cafe/setting.json',
+          entityKind: 'setting',
+          record: {
+            id: 'setting_cafe',
+            title: '夜间咖啡馆',
+            setting_kind: 'location',
+            kind: 'setting',
+          },
+        },
+        durationMs: 64,
+        raw: { type: 'mcpToolCall', server: 'movscript_workspace', tool: 'domain_upsert_setting' },
+      }}
+    />,
+  )
+
+  assert.match(html, /写入设定/)
+  assert.match(html, /completed/)
+  assert.match(html, /location/)
+  assert.match(html, /setting setting_cafe/)
+  assert.match(html, /settings\/setting_cafe\/setting\.json/)
+  assert.match(html, /64ms/)
+  assert.match(html, /设定：夜间咖啡馆/)
+  assert.match(html, /设定已写入本地工作区/)
+  assert.match(html, /title=夜间咖啡馆/)
+  assert.match(html, /projectId=7/)
+  assert.match(html, /1\. 夜间咖啡馆 - location - settings\/setting_cafe\/setting\.json/)
+  assert.match(html, /Result details/)
+  assert.doesNotMatch(html, /movscript_workspace\/domain_upsert_setting/)
+  assert.doesNotMatch(html, /Arguments/)
+})
+
 test('AgentChatThreadItemView renders pending MCP tool calls without result or progress', () => {
   const html = renderToStaticMarkup(
     <AgentChatThreadItemView

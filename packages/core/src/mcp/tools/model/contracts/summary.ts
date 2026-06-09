@@ -29,6 +29,6 @@ export function summarizeModelContractForAgent(model: unknown): Record<string, u
     supported_params: summarizeSupportedParamsForAgent(supportedParams, schema),
     supported_param_keys: Array.from(new Set(supportedParamKeys.length > 0 ? supportedParamKeys : propertyKeys)).sort(),
     params_schema_loaded: !!schema,
-    ...(Array.isArray(schema?.allOf) ? { params_schema_rule_count: schema.allOf.length } : {}),
+    ...(Array.isArray(schema?.['allOf']) ? { params_schema_rule_count: schema['allOf'].length } : {}),
   }
 }

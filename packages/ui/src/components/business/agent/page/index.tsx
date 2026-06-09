@@ -102,6 +102,23 @@ export function AgentWorkspacesPageMain({ className, ...props }: HTMLAttributes<
   return <main className={cn("agent-workspaces-page-main", className)} {...props} />;
 }
 
+export function AgentThreePanePageBody({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof AppPageShellBody>, "padding" | "scroll">) {
+  return <AgentPageShellBody padding="none" scroll="responsive-split" className={cn("agent-three-pane-page-body", className)} {...props} />;
+}
+
+export function AgentThreePanePagePane({
+  className,
+  tone = "surface",
+  ...props
+}: HTMLAttributes<HTMLElement> & {
+  tone?: "surface" | "raw";
+}) {
+  return <section data-tone={tone} className={cn("agent-three-pane-page-pane", className)} {...props} />;
+}
+
 export function AgentPageHeaderContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-page-header-content", className)} {...props} />;
 }

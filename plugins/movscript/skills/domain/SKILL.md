@@ -1,16 +1,20 @@
 ---
 name: domain
-description: Edit MovScript domain objects through structured APIs or source files, understand object meaning, storage layout, dependencies, review changes, and build so users can see the current effective project state.
+description: Understand MovScript domain concepts, choose the right MCP tool, edit source through APIs first and source files only as a controlled fallback, then inspect and compile.
 toolGrants:
   - mcp__movscript__system_focus_get
   - mcp__movscript__domain_get_model
+  - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_entities
   - mcp__movscript__domain_query_settings
   - mcp__movscript__domain_query_assets
   - mcp__movscript__domain_query_production_context
-  - mcp__movscript__domain_compile_content_generation_prompt
+  - mcp__movscript__domain_build_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
-  - mcp__movscript__domain_read_content_generation_prompt
+  - mcp__movscript__domain_read_content_unit_runtime_panel
+  - mcp__movscript__domain_read_content_unit_input_version
+  - mcp__movscript__domain_read_content_unit_dependency_report
+  - mcp__movscript__domain_read_content_unit_selection_validity
   - mcp__movscript__domain_upsert_project_standards
   - mcp__movscript__domain_upsert_setting
   - mcp__movscript__domain_upsert_asset
@@ -19,61 +23,100 @@ toolGrants:
   - mcp__movscript__domain_snapshot_script_version
   - mcp__movscript__domain_upsert_content_unit
   - mcp__movscript__domain_update_content_unit_prompt
-  - mcp__movscript__domain_update_scene_moment_timing
+  - mcp__movscript__domain_update_entity_transition
+  - mcp__movscript__domain_update_storyboard_timeline
   - mcp__movscript__domain_update_storyboard_shot_plans
   - mcp__movscript__domain_append_candidate
+  - mcp__movscript__domain_create_content_candidate
+  - mcp__movscript__domain_create_asset_slot_candidate
+  - mcp__movscript__domain_create_keyframe_candidate
+  - mcp__movscript__domain_select_content_unit_candidate
   - mcp__movscript__domain_select_candidate
   - mcp__movscript__domain_update_candidate
   - mcp__movscript__domain_unlock_candidate
   - mcp__movscript__domain_delete_entity
+  - mcp__movscript__domain_inspect
   - mcp__movscript__domain_review
-  - mcp__movscript__domain_build
+  - mcp__movscript__domain_compile
+  - mcp__movscript__domain_regeneration_plan
 ---
 
 # Domain Workspace
 
-Use this skill when a user asks to inspect or edit MovScript project domain entities.
+Use this skill when a user asks to inspect, change, compile, or reason about MovScript project domain entities.
 
-MovScript domain includes object meaning, storage layout, and APIs. The project workspace is the project Git repository. Source files include `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. Do not edit `.build/**` directly.
+MovScript domain includes object meaning, storage layout, compiler state, and write APIs. `movscript-lang` owns the language semantics through `@movscript/language`, `@movscript/workspace`, `@movscript/compiler`, and `@movscript/engine`. MovScript core exposes those semantics through MCP tools.
 
-## Workflow
+## Core Concepts
 
-1. Call `system_focus_get` when the request depends on the selected project, production, or entity.
-2. Prefer structured `domain_*` APIs for supported operations.
-3. If no API covers the edit, call `domain_get_model` for the target entity kind before editing files.
-4. Read returned editable paths, context paths, schema ids, and instructions.
-5. Edit only source files that belong to the returned domain model.
-6. Run `domain_review` after API writes or file edits.
-7. Fix review issues and re-run review until ready.
-8. Run `domain_build` after review is ready. Build success makes the edit state visible to the user through `.build/current` and indexes.
+- MCP does not infer project from session, cwd, route, or focus. Every project-scoped domain call must include the intended `projectId`/`project_id`.
+- User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
+- `source`: Editable creative source. It may be incomplete while the user or agent is editing.
+- `.build/current`: Last successful compiled state. UI display should prefer this stable state.
+- `.build/indexes` and `.build/manifests`: Compiler outputs. Do not edit them directly.
+- `domain_inspect` and `domain_review`: Diagnostics only. They do not make edits effective.
+- `domain_compile`: Validates source and writes the stable compiled state. `domain_build` is only a compatibility alias.
+- `domain_regeneration_plan`: Reports downstream targets that should be regenerated after source changes.
 
-## Entity Dependencies
+## Domain Graph
 
 ```text
-project -> project_standards
-project -> setting -> setting_state -> asset
-project -> script -> script_version -> script_block
-project -> production -> segment -> scene_moment -> storyboard -> writing_expression
-project -> production -> segment -> scene_moment -> keyframe
-project -> content_unit -> keyframe
+project
+  -> project_standards
+  -> setting -> setting_state -> asset
+  -> script -> script_version -> script_block
+  -> production -> segment -> scene_moment
+  -> storyboard -> expression_unit
+  -> content_unit -> candidate / selection
 ```
 
-Content units are project-level production units and may reference scene moments or storyboards through `source_context`. Storyboards do not own content units. Assets are setting-owned resource slots and may reference system RawResource IDs.
+Content units are project-level production slots. They can reference production context, storyboards, settings, resources, and generated candidates, but path containment does not imply semantic ownership.
 
-## Storage
+## Tool Map
 
-- Store source under `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`.
-- Store order in JSON fields such as `order`, `storyboard_timing.items[].order`, and `shot_plans[].order`; directory ids are stable locators, not titles or order.
-- Treat `.build/current/**`, `.build/indexes/**`, and `.build/manifests/**` as build output only.
+- Focus and overview: `system_focus_get`, `domain_overview`.
+- Model discovery: `domain_get_model`.
+- Query/read: `domain_query_entities`, `domain_query_settings`, `domain_query_assets`, `domain_query_production_context`, `domain_read_*`.
+- Structured writes: `domain_upsert_*`, `domain_update_*`, `domain_delete_entity`.
+- Candidate writes: `domain_append_candidate`, `domain_create_*_candidate`, `domain_select_*candidate`, `domain_update_candidate`, `domain_unlock_candidate`.
+- Compiler steps: `domain_inspect`, `domain_review`, `domain_compile`, `domain_regeneration_plan`.
 
-## API Or Files
+## Edit Workflow
 
-Use APIs for common operations: query entities, upsert settings/assets/scripts/content units, update timing or shot plans, compile content generation prompts, and manage candidates/locks. Use direct file edits only when an API does not cover the requested field or structure. Both paths must end with review and build when they change source.
+1. Call `system_focus_get` when the request depends on the selected project, production, or entity.
+2. Query existing context with `domain_query_*` or read built outputs with `domain_read_*`.
+3. Call `domain_get_model` before changing a domain entity so editable paths, schema ids, and instructions come from MovScript.
+4. Prefer structured `domain_*` write APIs when they cover the requested operation.
+5. Directly edit source files only when no structured API covers the field or structure.
+6. Run `domain_inspect` or `domain_review` after any API write or file edit.
+7. Fix diagnostics and re-run inspect/review until the source is ready.
+8. Run `domain_compile` after the source is ready. Build success makes the edit visible through `.build/current` and indexes.
+9. Run `domain_regeneration_plan` when the change can stale generated content, prompts, media, or selections.
+
+## Editable Source
+
+Direct file edits are allowed only under source paths returned by `domain_get_model` or under known source roots:
+
+- `project.json`
+- `project_standards.json`
+- `settings/**`
+- `scripts/**`
+- `content_units/**`
+- `productions/**`
+
+Do not directly edit:
+
+- `.build/**`
+- `.movscript/**` runtime, provider, session, cache, or local config files unless the user explicitly asks for configuration work.
+- Resource binaries, backend database state, or generation job runtime records.
 
 ## Rules
 
-- Review is a check only; it does not make changes effective.
-- Build validates source files and writes `.build/current`, `.build/indexes`, and `.build/manifests`.
-- After completing any user request that changes domain source files, run `domain_build`.
+- APIs first, source files second. Direct file editing is a controlled fallback, not the default write path.
+- Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
+- For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
+- If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
+- After completing any user request that changes domain source, run `domain_compile`.
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
-- Use stable ids and `resource_id` references for generated or uploaded media.
+- Use stable ids and MovScript `resource_id` references for generated or uploaded media.
+- Preserve user-facing review boundaries. Generated or edited data is not stable product state until compile succeeds.

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
-import type { WritingExpressionRecord } from './productionOrchestrationData'
+import type { ExpressionUnitRecord } from './productionOrchestrationData'
 import { buildProductionOrchestrationLookup } from '@/features/production/domain/productionOrchestrationEntityModel'
 import {
   buildProductionSceneMomentReorderPatches,
@@ -19,8 +19,8 @@ function record(input: Partial<SemanticEntityRecord> & Pick<SemanticEntityRecord
   return input as SemanticEntityRecord
 }
 
-function writingExpression(input: Partial<WritingExpressionRecord> & Pick<WritingExpressionRecord, 'ID'>): WritingExpressionRecord {
-  return input as WritingExpressionRecord
+function expressionUnit(input: Partial<ExpressionUnitRecord> & Pick<ExpressionUnitRecord, 'ID'>): ExpressionUnitRecord {
+  return input as ExpressionUnitRecord
 }
 
 test('production orchestration workspace model filters current production graph', () => {
@@ -98,7 +98,7 @@ test('production orchestration workspace model appends scene moment into empty s
   ])
 })
 
-test('production orchestration workspace model builds selected writing view', () => {
+test('production orchestration workspace model builds selected expression unit view', () => {
   const segments = [
     record({ ID: 1, title: '开场', summary: '建立气氛', kind: 'setup', order: 1 }),
     record({ ID: 2, title: '反转', summary: '制造冲突', kind: 'reversal', order: 2 }),
@@ -109,8 +109,8 @@ test('production orchestration workspace model builds selected writing view', ()
     record({ ID: 20, segment_id: 2, scene_code: 'B01', title: '发现线索' }),
   ]
   const scriptBlocks = [record({ ID: 100, content: '谁在外面？', kind: 'dialogue', speaker: '主角' })]
-  const writingExpressions = [
-    writingExpression({ ID: 1000, scene_moment_id: 10, kind: 'dialogue', speaker: '主角', text: '谁？', order: 1 }),
+  const expressionUnits = [
+    expressionUnit({ ID: 1000, scene_moment_id: 10, kind: 'dialogue', speaker: '主角', text: '谁？', order: 1 }),
   ]
   const contentUnits = [
     record({ ID: 200, scene_moment_id: 10, title: '门把手特写', kind: 'image' }),
@@ -129,7 +129,7 @@ test('production orchestration workspace model builds selected writing view', ()
   const view = buildProductionOrchestrationWorkspaceView({
     segments,
     sceneMoments,
-    writingExpressions,
+    expressionUnits,
     scriptBlocks,
     selectedMomentId: 10,
     lookup,
@@ -141,7 +141,7 @@ test('production orchestration workspace model builds selected writing view', ()
   assert.deepEqual(view.selectedMomentContentUnits.map((item) => item.ID), [200])
   assert.deepEqual(view.expressionLines.map((line) => line.text), ['谁？'])
   assert.equal(view.selectedSegmentLineCount, 2)
-  assert.equal(view.writingProgressLabel, '1 条表达')
+  assert.equal(view.expressionProgressLabel, '1 条表达')
   assert.deepEqual(view.segmentNavigatorItems.map((item) => ({
     id: item.id,
     title: item.title,
@@ -193,7 +193,7 @@ test('production orchestration workspace model preserves empty selection', () =>
   const view = buildProductionOrchestrationWorkspaceView({
     segments,
     sceneMoments,
-    writingExpressions: [],
+    expressionUnits: [],
     scriptBlocks: [],
     selectedMomentId: null,
     lookup,

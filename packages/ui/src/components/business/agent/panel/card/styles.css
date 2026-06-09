@@ -43,12 +43,22 @@
   box-shadow: none;
 }
 
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ai-agent-panel-input-card[data-chrome="bottom-bar"] {
+  border-top: 0;
+}
+
 .ai-agent-panel-input-card[data-chrome="flush"] {
   margin: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   padding: 8px 0 10px;
+  box-shadow: none;
+}
+
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] > .ai-agent-panel-main > .ai-agent-panel-input-card[data-chrome="flush"] {
+  margin-top: -1px;
+  border-top: 0;
   box-shadow: none;
 }
 
@@ -59,6 +69,10 @@
   background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
   padding: 8px 0;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--ms-color-foreground) 6%, transparent);
+}
+
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] > .ai-agent-panel-main > .ai-agent-panel-input-card[data-chrome="flush"] .ai-agent-panel-composer {
+  border-top-color: transparent;
 }
 
 .ai-agent-panel-content-card[data-empty-conversation="true"] > .ai-agent-panel-input-card {

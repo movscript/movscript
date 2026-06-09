@@ -17,6 +17,7 @@ import type { PaginatedResponse, RawResource, ResourceBinding } from '@/types'
 import { resourceMatchesSearch, resourceToNodeType } from '@/features/canvas/integrations/resources'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceImage } from '@/shared/ui/ResourceImage'
+import { writeResourceDragPayload } from '@/features/resources/domain/resourceDragPayload'
 
 const RESOURCE_SHELF_THUMB_MAX_SIZE = 160
 
@@ -54,8 +55,7 @@ export function CanvasResourceShelf({
   function dragResource(event: DragEvent<HTMLDivElement>, item: CanvasResourceShelfItem) {
     const resource = resourceItems.find((candidate) => candidate.ID === item.id)
     if (!resource) return
-    event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
-    event.dataTransfer.effectAllowed = 'copy'
+    writeResourceDragPayload(event.dataTransfer, resource)
   }
 
   return (

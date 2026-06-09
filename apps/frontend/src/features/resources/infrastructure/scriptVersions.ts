@@ -5,7 +5,6 @@ import {
   type SemanticEntityPayload,
 } from '@/shared/infrastructure/api/semanticEntities'
 
-export type ScriptVersionStatus = 'workspace' | 'active' | 'archived'
 export type ScriptVersionSourceType = 'raw' | 'adapted' | 'revised' | 'ai'
 
 export type ScriptVersion = {
@@ -19,7 +18,6 @@ export type ScriptVersion = {
   content: string
   raw_source: string
   summary: string
-  status: ScriptVersionStatus | string
   created_by_id?: number | null
   CreatedAt: string
   UpdatedAt: string
@@ -40,11 +38,10 @@ export type CreateScriptVersionPayload = {
   content?: string
   raw_source?: string
   summary?: string
-  status?: ScriptVersionStatus | string
 }
 
-export async function listScriptVersions(projectId: number, params: { scriptId?: number; status?: string } = {}) {
-  const versions = await listSemanticEntities(projectId, semanticEntityConfig('scriptVersions'), params.status ? { status: params.status } : {}) as unknown as ScriptVersion[]
+export async function listScriptVersions(projectId: number, params: { scriptId?: number } = {}) {
+  const versions = await listSemanticEntities(projectId, semanticEntityConfig('scriptVersions')) as unknown as ScriptVersion[]
   return versions.filter((version) => {
     if (params.scriptId && !sameId(version.script_id, params.scriptId)) return false
     return true
@@ -63,7 +60,6 @@ export async function createScriptVersion(projectId: number, payload: CreateScri
     content: payload.content ?? payload.raw_source ?? '',
     raw_source: payload.raw_source ?? payload.content ?? '',
     summary: payload.summary ?? '',
-    status: payload.status ?? 'active',
     CreatedAt: now,
     UpdatedAt: now,
   } as SemanticEntityPayload) as unknown as ScriptVersion

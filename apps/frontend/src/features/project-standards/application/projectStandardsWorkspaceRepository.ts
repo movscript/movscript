@@ -9,7 +9,6 @@ export async function saveProjectStandardsWorkspaceEdit(input: {
 }): Promise<void> {
   const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
   await service.upsertProjectStandards({
-    projectId: input.projectId,
     record: input.currentProject ?? undefined,
     projectStyle: projectStandardsPayload(input),
   })

@@ -785,6 +785,8 @@ export {
   AgentPageShellBody,
   AgentPageShellHeader,
   AgentPageTitleRow,
+  AgentThreePanePageBody,
+  AgentThreePanePagePane,
   AgentRunPageActionButton,
   AgentRunPageBadge,
   AgentRunPageBody,

@@ -252,7 +252,7 @@ export function ProductionSegmentNavigatorCardHeader({
   action,
 }: {
   index: ReactNode;
-  status: ReactNode;
+  status?: ReactNode;
   title: ReactNode;
   summary: ReactNode;
   action?: ReactNode;
@@ -262,7 +262,7 @@ export function ProductionSegmentNavigatorCardHeader({
       <div className="production-segment-card__copy">
         <div className="production-segment-card__meta">
           <span className="production-segment-card__index">{index}</span>
-          {status}
+          {status ? status : null}
         </div>
         <h3 className="production-segment-card__title">{title}</h3>
         <p className="production-segment-card__summary">{summary}</p>

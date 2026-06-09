@@ -203,11 +203,11 @@ func TestDetailReturnsOrgOperationalSummary(t *testing.T) {
 	if err := db.Create(&persistencemodel.OrgInvitation{OrgID: org.ID, Token: "expired-token", Role: "member", CreatedBy: 1, ExpiresAt: time.Now().UTC().Add(-time.Hour)}).Error; err != nil {
 		t.Fatal(err)
 	}
-	project := persistencemodel.Project{Name: "Project", OwnerID: 1, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Project", OwnerID: 1, OrgID: &org.ID}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatal(err)
 	}
-	otherProject := persistencemodel.Project{Name: "Other Project", OwnerID: 2, OrgID: &otherOrg.ID, Status: "planning"}
+	otherProject := persistencemodel.Project{Name: "Other Project", OwnerID: 2, OrgID: &otherOrg.ID}
 	if err := db.Create(&otherProject).Error; err != nil {
 		t.Fatal(err)
 	}

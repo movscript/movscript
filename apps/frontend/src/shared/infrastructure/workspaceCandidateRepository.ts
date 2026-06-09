@@ -1,6 +1,6 @@
 import {
   workspaceCandidateSemanticRecord,
-} from '@movscript/core/workspace'
+} from '@movscript/workspace'
 import {
   createElectronMovScriptWorkspaceService,
 } from '@/shared/infrastructure/workspaceDomainRepository'
@@ -14,7 +14,6 @@ export async function createWorkspaceAssetSlotCandidate(
   targetRecord?: SemanticEntityRecord,
 ): Promise<SemanticEntityRecord> {
   const result = await createElectronMovScriptWorkspaceService({ projectId }).createAssetSlotCandidate({
-    projectId,
     payload: payload as Record<string, unknown>,
     targetRecord: targetRecord as Record<string, unknown> | undefined,
   })
@@ -26,7 +25,6 @@ export async function createWorkspaceKeyframeCandidate(
   payload: WorkspaceCandidatePayload,
 ): Promise<SemanticEntityRecord> {
   const result = await createElectronMovScriptWorkspaceService({ projectId }).createKeyframeCandidate({
-    projectId,
     payload: payload as Record<string, unknown>,
   })
   return workspaceCandidateSemanticRecord(result) as SemanticEntityRecord

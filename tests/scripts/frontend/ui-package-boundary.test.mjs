@@ -5903,11 +5903,8 @@ test('production workspace pages use package semantic and accent contracts', () 
   const contentWorkbenchDialogPackageCss = readProjectFile('packages/ui/src/components/business/content/workbench/dialog/styles.css')
   const businessIndexSource = readProjectFile('packages/ui/src/components/business/index.ts')
   const contentUnitsSource = readProjectFile('apps/frontend/src/features/content/components/ContentUnitsPage.tsx')
-  const productionOrchestrationSource = readProjectFile('apps/frontend/src/features/production/components/ProductionOrchestrationPage.tsx')
   const productionPagePackageSource = readProjectFile('packages/ui/src/components/business/production/page/index.tsx')
   const productionPagePackageCss = readProjectFile('packages/ui/src/components/business/production/page/styles.css')
-  const productionOrchestrationPackageSource = readProjectFile('packages/ui/src/components/business/production/orchestration/index.tsx')
-  const productionOrchestrationPackageCss = readProjectFile('packages/ui/src/components/business/production/orchestration/styles.css')
   const sceneMomentsSource = readProjectFile('apps/frontend/src/features/content/components/SceneMomentsPage.tsx')
   const segmentsSource = readProjectFile('apps/frontend/src/features/content/components/SegmentsPage.tsx')
   const contentSemanticUiSource = readProjectFile('apps/frontend/src/features/content/presentation/contentSemanticUi.ts')
@@ -6078,36 +6075,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   ]) {
     assert.match(contentWorkbenchDialogPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
-  for (const exportName of ['WorkbenchSection', 'WorkbenchSurfaceItem', 'AppSkeleton', 'AppInlineMeta', 'AppSurfaceItem', 'Button', 'DialogContent', 'DialogTitle', 'Label', 'SelectTrigger', 'Textarea']) {
-    assert.match(productionOrchestrationPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be hidden inside production orchestration package`)
-    assert.doesNotMatch(productionOrchestrationSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not leak into ProductionOrchestrationPage`)
-  }
-  for (const className of [
-    'production-orchestration-header-badge',
-    'production-orchestration-header-action',
-    'production-orchestration-production-card',
-    'production-orchestration-production-card-breadcrumbs',
-    'production-orchestration-production-card-script',
-    'production-orchestration-production-card-script-select',
-    'production-orchestration-production-deck',
-    'production-orchestration-production-deck__grid',
-    'production-orchestration-production-empty',
-    'production-orchestration-production-pager',
-    'production-orchestration-generation-notice',
-    'production-orchestration-review-dialog-content',
-    'production-orchestration-review-dialog-title',
-    'production-orchestration-review-empty-notice',
-    'production-orchestration-revision-dialog-content',
-    'production-orchestration-revision-dialog-textarea',
-    'production-orchestration-revision-dialog-actions',
-    'production-orchestration-skeleton',
-    'production-orchestration-skeleton__grid',
-  ]) {
-    assert.match(productionOrchestrationPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
-  }
-  assert.match(productionOrchestrationSource, /orchestrationStage !== 'idle'[\s\S]*?<ProductionOrchestrationGenerationNotice/)
-  assert.match(productionOrchestrationSource, /reviewOpen[\s\S]*?<ProductionOrchestrationReviewDialogContent/)
-  assert.match(productionOrchestrationSource, /workspaceRevisionDialogOpen[\s\S]*?<ProductionOrchestrationRevisionDialogContent/)
   assert.match(productionSemanticUiSource, /import \{ defineFeatureStatusRecipeGroup, type UiStatusRecipe \} from '@\/shared\/presentation\/semanticRecipe'/)
   assert.match(productionSemanticUiSource, /export type ProductionStatusRecipe = UiStatusRecipe/)
   assert.match(productionSemanticUiSource, /defineFeatureStatusRecipeGroup\('production\.workflow\.status'/)
@@ -6215,12 +6182,6 @@ test('production workspace pages use package semantic and accent contracts', () 
     assert.match(productionPagePackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
   assert.match(productionPagePackageSource, /ProductionPageListCard[\s\S]*?<WorkbenchSurfaceItem[\s\S]*?<Button[\s\S]*?onClick=\{onSelect\}/)
-  assert.doesNotMatch(productionOrchestrationSource, /rounded-lg border border-border bg-background p-4/)
-  assert.doesNotMatch(productionOrchestrationSource, /h-[345] w-[^"]+ rounded bg-muted/)
-  assert.doesNotMatch(productionOrchestrationSource, /rounded-full bg-muted px-1\.5/)
-  assert.doesNotMatch(productionOrchestrationSource, /border-b border-border bg-muted\/40 px-4 py-2/)
-  assert.doesNotMatch(productionOrchestrationSource, /rounded-md border border-border bg-muted\/30/)
-  assert.doesNotMatch(productionOrchestrationSource, /rounded bg-muted\/70/)
   for (const exportName of ['AppPanel', 'AppSection', 'AppSurfaceItem', 'Button', 'Progress', 'accentBadgeClass', 'accentTextClass', 'toneTextClass']) {
   }
   for (const exportName of [
@@ -6397,10 +6358,6 @@ test('workbench workflow panels use package tone contracts', () => {
   const scenePreviewPackageSource = readProjectFile('packages/ui/src/components/business/workbench/scene-preview/index.tsx')
   const contentFilterSidebarSource = readProjectFile('packages/ui/src/components/business/content/workbench/index.tsx')
   const productionScriptBindingSource = readProjectFile('apps/frontend/src/features/production/components/ProductionScriptBinding.tsx')
-  const productionStructureSource = readProjectFile('apps/frontend/src/features/production/components/ProductionOrchestrationStructure.tsx')
-  const productionOrchestrationWorkspaceSource = readProjectFile('apps/frontend/src/features/production/components/ProductionOrchestrationWorkspace.tsx')
-  const productionOrchestrationPackageSource = readProjectFile('packages/ui/src/components/business/production/orchestration/index.tsx')
-  const productionOrchestrationPackageCss = readProjectFile('packages/ui/src/components/business/production/orchestration/styles.css')
   const productionSceneWritingSource = readProjectFile('apps/frontend/src/components/workbench/ProductionSceneWriting.tsx')
   const productionPackageSource = readProjectFile('packages/ui/src/components/business/production/index.tsx')
   const productionPackageCss = readProjectFile('packages/ui/src/components/business/production/styles.css')
@@ -6466,7 +6423,7 @@ test('workbench workflow panels use package tone contracts', () => {
   }
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchViewHeader[\s\S]*?title=\{contentWorkbenchViewTitle\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewButton[\s\S]*?pendingCount=\{reviewQueueSummary\.pending\}/)
-  assert.match(contentWorkbenchPageSource, /<ContentWorkbenchEmptyActionButton[\s\S]*?进入制作编排/)
+  assert.match(contentWorkbenchPageSource, /<ContentWorkbenchEmptyActionButton[\s\S]*?进入剧本工作台/)
   assert.match(contentUnitWorkbenchPageSource, /<ContentWorkbenchCandidateUploadInput ref=\{candidateUploadInput\.inputRef\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewPanel[\s\S]*?reviewModel=\{contentWorkspaceReview\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchFilterSidebar[\s\S]*?productionOptions=\{productionFilterOptions\}/)
@@ -6523,94 +6480,12 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.match(preProductionBoardSource, /\bResourcePrepSummaryPreviewStack\b/)
   assert.doesNotMatch(preProductionBoardSource, /className=|bodyClassName=/)
   assert.doesNotMatch(preProductionBoardSource, /<(?:div|section|aside|p|span|button|label|main|header|footer)\b/)
-  for (const exportName of [
-    'ProductionStructureWorkspaceLayout',
-    'ProductionWorkspaceHeaderContextShell',
-    'ProductionWorkspaceHeaderContextMeta',
-    'ProductionStructureBadge',
-    'ProductionStructureStatusBadge',
-    'ProductionSegmentNavigatorShell',
-    'ProductionSegmentNavigatorHeader',
-    'ProductionStructureIconButton',
-    'ProductionSegmentNavigatorEmptyState',
-    'ProductionSegmentStack',
-    'ProductionSegmentNavigatorSection',
-    'ProductionSegmentNavigatorCard',
-    'ProductionSegmentNavigatorCardHeader',
-    'ProductionSegmentMomentStack',
-    'ProductionSegmentEmptyMomentItem',
-    'ProductionSegmentMomentItem',
-    'ProductionSelectedSegmentSummaryShell',
-    'ProductionSelectedSegmentSummaryBody',
-    'ProductionSelectedSegmentCopy',
-    'ProductionSelectedSegmentEditStack',
-    'ProductionSelectedSegmentFieldGrid',
-    'ProductionSelectedSegmentField',
-    'ProductionSelectedSegmentInput',
-    'ProductionSelectedSegmentSelectTrigger',
-    'ProductionSelectedSegmentTextarea',
-    'ProductionSelectedSegmentActions',
-    'ProductionStructureActionButton',
-  ]) {
-    assert.match(productionStructureSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by production structure`)
-    assert.match(productionOrchestrationPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
-    assert.match(productionPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from production package`)
-  }
-  for (const exportName of [
-    'ProductionSceneEditorHeaderShell',
-    'ProductionSceneEditorHeaderCopy',
-    'ProductionSceneEditorContextGrid',
-    'ProductionSceneEditorContextLine',
-  ]) {
-    assert.match(productionOrchestrationPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
-    assert.match(productionPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from production package`)
-  }
-  for (const className of [
-    'production-structure-workspace-layout',
-    'production-workspace-header-context',
-    'production-structure-badge',
-    'production-segment-navigator',
-    'production-segment-section',
-    'production-segment-card',
-    'production-segment-moment-item',
-    'production-selected-segment-summary',
-    'production-selected-segment-field-grid',
-    'production-selected-segment-input',
-    'production-selected-segment-select-trigger',
-    'production-selected-segment-textarea',
-    'production-selected-segment-actions',
-    'production-structure-action-button',
-    'production-scene-editor-header',
-    'production-scene-editor-context-grid',
-    'production-scene-editor-context-line',
-  ]) {
-    assert.match(productionOrchestrationPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
-  }
-  assert.match(productionStructureSource, /segment\.moments\.map\(\(moment\)[\s\S]*?<ProductionSegmentMomentItem[\s\S]*?active=\{moment\.active\}/)
-  assert.match(productionOrchestrationPackageSource, /export function ProductionSegmentMomentItem[\s\S]*?<WorkbenchListItem[\s\S]*?active=\{active\}/)
-  assert.doesNotMatch(productionStructureSource, /segment\.moments\.map\(\(moment\)[\s\S]*?<WorkbenchListItem/)
-  assert.doesNotMatch(productionStructureSource, /className=|\bcn\(|\b(?:AppInlineMeta|AppMarkerDot|Badge|StatusBadge|Button|Input|SelectTrigger|Textarea|WorkbenchEmptyState|WorkbenchListItem)\b/)
-  assert.match(productionOrchestrationWorkspaceSource, /<ProductionOrchestrationWorkspaceShell>/)
-  assert.match(productionOrchestrationWorkspaceSource, /<ProductionSceneEditorSection>/)
-  assert.match(productionOrchestrationPackageSource, /export function ProductionOrchestrationWorkspaceShell\b/)
-  assert.match(productionOrchestrationPackageSource, /export function ProductionSceneEditorSection\b/)
-  assert.match(productionPackageSource, /\bProductionOrchestrationWorkspaceShell\b/)
-  assert.match(productionPackageSource, /\bProductionSceneEditorSection\b/)
-  assert.match(productionOrchestrationPackageCss, cssClassSelectorPattern('production-orchestration-workspace-shell'))
-  assert.match(productionOrchestrationPackageCss, cssClassSelectorPattern('production-scene-editor-section'))
-  assert.doesNotMatch(productionOrchestrationWorkspaceSource, /className=|<div\b|<section\b/)
   assert.match(productionSemanticUiSource, /productionPresenceRecipe/)
   assert.match(productionSemanticUiSource, /productionEntityStatusRecipe/)
   assert.match(productionSemanticUiSource, /productionReferencePresenceRecipe/)
   assert.doesNotMatch(productionSemanticUiSource, /productionTimelineItemRecipe/)
   assert.match(productionScriptBindingSource, /productionPresenceRecipe/)
-  assert.match(productionStructureSource, /productionPresenceRecipe/)
-  assert.match(productionStructureSource, /productionEntityStatusRecipe/)
   assert.match(productionSceneWritingSource, /productionReferencePresenceRecipe/)
-  assert.match(productionOrchestrationPackageSource, /\bAppMarkerDot\b/)
-  assert.doesNotMatch(productionStructureSource, /\bAppMarkerDot\b/)
-  assert.doesNotMatch(productionStructureSource, /absolute -left-\[5px\] top-2 h-2\.5 w-2\.5 rounded-full border bg-background/)
-  assert.doesNotMatch(productionStructureSource, /<button\b/)
   assert.match(productionScriptBindingSource, /scriptLines\.map\(\(line\)[\s\S]*?<ProductionScriptLineItem[\s\S]*?active=\{selected\}/)
   assert.match(productionScriptBindingPackageSource, /export function ProductionScriptLineItem[\s\S]*?<WorkbenchListItem[\s\S]*?active=\{active\}/)
   assert.doesNotMatch(productionScriptBindingSource, /scriptLines\.map\(\(line\)[\s\S]*?<WorkbenchListItem/)
@@ -6646,9 +6521,6 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(contentFilterSidebarSource, /inline-flex h-7 max-w-full items-center gap-1\.5 rounded-md border/)
   assert.match(contentFilterSidebarSource, /option\.identifier[\s\S]*?<AppInlineMeta/)
   assert.doesNotMatch(contentFilterSidebarSource, /rounded bg-muted px-1 py-0\.5/)
-  assert.match(productionOrchestrationPackageSource, /ProductionSegmentMomentItem[\s\S]*?<AppInlineMeta[\s\S]*?\{identifier\}/)
-  assert.doesNotMatch(productionStructureSource, /\bAppInlineMeta\b/)
-  assert.doesNotMatch(productionStructureSource, /rounded bg-muted px-1\.5 py-0\.5/)
   for (const exportName of [
     'ContentWorkbenchEditorActionGroup',
     'ContentWorkbenchEditorField',

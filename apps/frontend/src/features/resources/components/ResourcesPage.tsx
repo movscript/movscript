@@ -113,6 +113,7 @@ import {
   MAX_CLIP_SOURCE_BYTES,
   parseClipTimecode,
 } from '@/features/resources/domain/videoClipUi'
+import { writeResourceDragPayload } from '@/features/resources/domain/resourceDragPayload'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 
@@ -1261,9 +1262,7 @@ function ResourceCard({
           event.preventDefault()
           return
         }
-        event.dataTransfer.setData('application/resource-id', String(resource.ID))
-        event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
-        event.dataTransfer.effectAllowed = 'copy'
+        writeResourceDragPayload(event.dataTransfer, resource)
       }}
       title={t('shared.resourcePanel.previewDragTitle')}
       preview={(
@@ -2242,9 +2241,7 @@ export function ResourceLibraryView({
       event.preventDefault()
       return
     }
-    event.dataTransfer.setData('application/resource-id', String(resource.ID))
-    event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
-    event.dataTransfer.effectAllowed = 'copy'
+    writeResourceDragPayload(event.dataTransfer, resource)
   }
 
   function shareResourcesToTeam(resourcesToShare: RawResource[]) {

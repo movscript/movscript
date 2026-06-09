@@ -50,8 +50,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Use latest movscript-lang packages
+        run: node scripts/movscript-lang-deps.mjs latest
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm run typecheck

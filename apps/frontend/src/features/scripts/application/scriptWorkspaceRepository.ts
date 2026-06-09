@@ -1,5 +1,5 @@
 import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
-import type { MovScriptWorkspaceIndexedEntity } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type { Script } from '@/types'
 
 export interface ScriptWorkspaceRepositoryContext {
@@ -10,7 +10,7 @@ export interface ScriptWorkspaceRepositoryContext {
 export async function listWorkspaceScripts(projectId: number, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script[]> {
   const service = createElectronMovScriptWorkspaceService({ ...context, projectId })
   const scripts = await service.queryEntities({ entityKind: 'script' })
-  return Promise.all(scripts.map((entity) => scriptFromWorkspaceEntity(projectId, service, entity)))
+  return Promise.all(scripts.map((entity: MovScriptWorkspaceIndexedEntity) => scriptFromWorkspaceEntity(projectId, service, entity)))
 }
 
 export async function createWorkspaceScript(projectId: number, workspace: Partial<Script>, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script> {
@@ -28,10 +28,9 @@ export async function createWorkspaceScript(projectId: number, workspace: Partia
 export async function saveWorkspaceScript(projectId: number, scriptId: number, workspace: Partial<Script>, context: ScriptWorkspaceRepositoryContext = {}): Promise<Script> {
   const service = createElectronMovScriptWorkspaceService({ ...context, projectId })
   const existing = (await service.queryEntities({ entityKind: 'script' }))
-    .find((entity) => workspaceScriptNumericId(entity) === scriptId)
+    .find((entity: MovScriptWorkspaceIndexedEntity) => workspaceScriptNumericId(entity) === scriptId)
   const sourceText = scriptWorkspaceSourceText(workspace, existing?.record)
   const result = await service.upsertScript({
-    projectId,
     scriptId,
     record: existing?.record,
     sourceText,

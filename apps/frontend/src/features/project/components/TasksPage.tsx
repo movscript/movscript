@@ -232,7 +232,6 @@ interface WorkTargetOption {
   id: number
   label: string
   productionId?: number
-  status?: string
   subtitle?: string
 }
 
@@ -664,7 +663,6 @@ function recordField(record: SemanticEntityRecord, key: string) {
 }
 
 function targetOption(type: WorkTargetType, record: SemanticEntityRecord, fallback: string): WorkTargetOption {
-  const status = stringField(record, 'status')
   const slotKey = stringField(record, 'slot_key')
   const kind = stringField(record, 'kind')
   return {
@@ -673,8 +671,7 @@ function targetOption(type: WorkTargetType, record: SemanticEntityRecord, fallba
     id: record.ID,
     label: `${targetTypeLabels[type]} · ${titleOfRecord(record, fallback)}`,
     productionId: type === 'production' ? record.ID : numericField(record, 'production_id'),
-    status,
-    subtitle: [kind, slotKey, status].filter(Boolean).join(' · '),
+    subtitle: [kind, slotKey].filter(Boolean).join(' · '),
   }
 }
 
@@ -724,7 +721,7 @@ function keyframeCandidateOptionLabel(candidate: SemanticEntityRecord) {
   return `${label} · ${candidate.status ?? 'candidate'}`
 }
 
-function defaultResultJSON(purpose: TaskPurpose) {
+function defaultResultJSON(_purpose: TaskPurpose) {
   return ''
 }
 

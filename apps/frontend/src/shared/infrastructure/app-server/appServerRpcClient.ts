@@ -7,6 +7,7 @@ import {
   type AppServerNotificationHandler,
   type AppServerServerRequestHandler,
   type AppServerThreadListResponse,
+  type AppServerThreadSourceKind,
   type AppServerThreadReadResponse,
   type AppServerThreadResumeParams,
   type AppServerThreadResumeResponse,
@@ -33,6 +34,10 @@ import type {
   ElectronAppServerStatusInput as ElectronAppServerStatusInputContract,
   ElectronAppServerStopInput as ElectronAppServerStopInputContract,
 } from '@/shared/contracts/electronApi'
+import {
+  extractAgentConnectionDebugThreadId,
+  recordAgentConnectionDebugEvent,
+} from '@/shared/infrastructure/agentConnectionDebugStore'
 
 export type ElectronAppServerProfile = ElectronAppServerProfileContract
 export type ElectronAppServerEnsureInput = ElectronAppServerEnsureInputContract
@@ -43,6 +48,11 @@ export type ElectronAppServerStopInput = ElectronAppServerStopInputContract
 type PendingRequest = {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
+}
+
+type PendingDebugRequest = {
+  method: string
+  threadId?: string
 }
 
 type DeferredServerRequest = {
@@ -74,6 +84,14 @@ const APP_SERVER_RPC_DEBUG_NOTIFICATIONS = new Set([
   'thread/started',
   'thread/status/changed',
 ])
+const APP_SERVER_THREAD_LIST_SOURCE_KINDS: AppServerThreadSourceKind[] = [
+  'cli',
+  'vscode',
+  'exec',
+  'appServer',
+  'subAgent',
+  'unknown',
+]
 
 export function appServerURL(provider?: ProviderConfig): string | undefined {
   const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
@@ -132,6 +150,7 @@ export class AppServerRpcClient {
   private initialized = false
   private nextRequestId = 1
   private readonly pending = new Map<AppServerJsonRpcId, PendingRequest>()
+  private readonly pendingDebugRequests = new Map<AppServerJsonRpcId, PendingDebugRequest>()
   private readonly listeners = new Set<AppServerNotificationHandler>()
   private readonly serverRequestHandlers = new Set<AppServerServerRequestHandler>()
   private readonly deferredServerRequests = new Map<AppServerJsonRpcId, DeferredServerRequest>()
@@ -172,7 +191,8 @@ export class AppServerRpcClient {
       sortKey: 'updated_at',
       sortDirection: 'desc',
       archived: false,
-      sourceKinds: [],
+      modelProviders: [],
+      sourceKinds: APP_SERVER_THREAD_LIST_SOURCE_KINDS,
     }))
   }
 
@@ -324,7 +344,19 @@ export class AppServerRpcClient {
   private async request<T = unknown>(method: string, params?: unknown): Promise<T> {
     await this.connect()
     const id = this.nextRequestId++
-    const payload = JSON.stringify(compactRecord({ id, method, params }))
+    const rawPayload = compactRecord({ id, method, params })
+    const payload = JSON.stringify(rawPayload)
+    const threadId = extractAgentConnectionDebugThreadId(params)
+    this.pendingDebugRequests.set(id, { method, threadId })
+    recordAgentConnectionDebugEvent({
+      direction: 'request',
+      source: 'app-server-rpc',
+      connectionId: this.url,
+      requestId: id,
+      method,
+      threadId,
+      raw: rawPayload,
+    })
     debugAppServerRpc('request', { url: this.url, id, method, params }, { trace: shouldDebugAppServerRpcMethod(method) })
     const promise = new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject })
@@ -335,7 +367,16 @@ export class AppServerRpcClient {
 
   private async notify(method: string, params?: unknown): Promise<void> {
     await this.connect()
-    await this.transport?.send(JSON.stringify(compactRecord({ method, params })))
+    const rawPayload = compactRecord({ method, params })
+    recordAgentConnectionDebugEvent({
+      direction: 'request',
+      source: 'app-server-rpc',
+      connectionId: this.url,
+      method,
+      threadId: extractAgentConnectionDebugThreadId(params),
+      raw: rawPayload,
+    })
+    await this.transport?.send(JSON.stringify(rawPayload))
   }
 
   private handleMessage(data: unknown): void {
@@ -348,6 +389,19 @@ export class AppServerRpcClient {
     if (!isRecord(message)) return
     if (isJsonRpcId(message.id) && (hasOwn(message, 'result') || hasOwn(message, 'error'))) {
       const response = message as AppServerJsonRpcResponse
+      const debugRequest = this.pendingDebugRequests.get(response.id)
+      this.pendingDebugRequests.delete(response.id)
+      recordAgentConnectionDebugEvent({
+        direction: 'response',
+        source: 'app-server-rpc',
+        connectionId: this.url,
+        requestId: response.id,
+        method: debugRequest?.method,
+        threadId: extractAgentConnectionDebugThreadId(response.result)
+          || extractAgentConnectionDebugThreadId(response.error)
+          || debugRequest?.threadId,
+        raw: response,
+      })
       const pending = this.pending.get(response.id)
       if (!pending) return
       this.pending.delete(response.id)
@@ -363,10 +417,27 @@ export class AppServerRpcClient {
     if (typeof message.method === 'string') {
       const notification = message as AppServerJsonRpcNotification
       if (isJsonRpcId(message.id)) {
+        recordAgentConnectionDebugEvent({
+          direction: 'response',
+          source: 'app-server-rpc',
+          connectionId: this.url,
+          requestId: message.id,
+          method: notification.method,
+          threadId: extractAgentConnectionDebugThreadId(notification.params),
+          raw: message,
+        })
         debugAppServerRpc('server-request', { url: this.url, id: message.id, method: notification.method, params: notification.params }, { trace: false })
         this.handleServerRequest(message as AppServerJsonRpcServerRequest)
         return
       }
+      recordAgentConnectionDebugEvent({
+        direction: 'response',
+        source: 'app-server-rpc',
+        connectionId: this.url,
+        method: notification.method,
+        threadId: extractAgentConnectionDebugThreadId(notification.params),
+        raw: message,
+      })
       if (shouldDebugAppServerRpcNotification(notification.method)) {
         debugAppServerRpc('notification', { url: this.url, method: notification.method, params: notification.params }, { trace: false })
       }
@@ -387,19 +458,40 @@ export class AppServerRpcClient {
       for (const handler of Array.from(this.serverRequestHandlers)) {
         const result = await handler(request)
         if (result !== undefined) {
-          void this.transport?.send(JSON.stringify({ id: request.id, result }))
+          const rawPayload = { id: request.id, result }
+          recordAgentConnectionDebugEvent({
+            direction: 'request',
+            source: 'app-server-rpc',
+            connectionId: this.url,
+            requestId: request.id,
+            method: `${request.method}:response`,
+            threadId: extractAgentConnectionDebugThreadId(request.params)
+              || extractAgentConnectionDebugThreadId(result),
+            raw: rawPayload,
+          })
+          void this.transport?.send(JSON.stringify(rawPayload))
           return
         }
       }
       this.resolveServerRequest(request.id, request.method)
     } catch (error) {
-      void this.transport?.send(JSON.stringify({
+      const rawPayload = {
         id: request.id,
         error: {
           code: -32000,
           message: error instanceof Error ? error.message : String(error),
         },
-      }))
+      }
+      recordAgentConnectionDebugEvent({
+        direction: 'request',
+        source: 'app-server-rpc',
+        connectionId: this.url,
+        requestId: request.id,
+        method: `${request.method}:error`,
+        threadId: extractAgentConnectionDebugThreadId(request.params),
+        raw: rawPayload,
+      })
+      void this.transport?.send(JSON.stringify(rawPayload))
     }
   }
 
@@ -430,12 +522,22 @@ export class AppServerRpcClient {
 
   private resolveServerRequest(id: AppServerJsonRpcId, method: string): void {
     const result = fallbackServerRequestResult(method)
-    void this.transport?.send(JSON.stringify({ id, result }))
+    const rawPayload = { id, result }
+    recordAgentConnectionDebugEvent({
+      direction: 'request',
+      source: 'app-server-rpc',
+      connectionId: this.url,
+      requestId: id,
+      method: `${method}:fallback-response`,
+      raw: rawPayload,
+    })
+    void this.transport?.send(JSON.stringify(rawPayload))
   }
 
   private failPending(error: Error): void {
     for (const pending of this.pending.values()) pending.reject(error)
     this.pending.clear()
+    this.pendingDebugRequests.clear()
   }
 }
 

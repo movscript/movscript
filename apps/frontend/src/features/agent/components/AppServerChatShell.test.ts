@@ -11,30 +11,25 @@ import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore
 
 test('app-server chat shell maps routes to MovScript workspace contexts', () => {
   assert.deepEqual(appServerWorkspaceContextFromRoute({
-    userId: '7',
     pathname: '/project/agent',
     search: '',
   }), { scope: 'global' })
 
   assert.deepEqual(appServerWorkspaceContextFromRoute({
-    userId: '7',
     projectId: 42,
     pathname: '/project/agent',
     search: '',
   }), {
     scope: 'project',
-    userId: '7',
     projectId: 42,
   })
 
   assert.deepEqual(appServerWorkspaceContextFromRoute({
-    userId: '7',
     projectId: 42,
-    pathname: '/project/production/orchestration',
+    pathname: '/project/scripts/workbench',
     search: '?productionId=99',
   }), {
     scope: 'production',
-    userId: '7',
     projectId: 42,
     productionId: 99,
   })

@@ -136,6 +136,11 @@
   display: block;
 }
 
+.app-window-terminal-toggle[data-active="true"] {
+  background: color-mix(in srgb, var(--ms-color-primary) 14%, transparent);
+  color: var(--ms-color-primary);
+}
+
 .app-window-traffic-lights {
   display: flex;
   height: 34px;

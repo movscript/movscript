@@ -20,6 +20,7 @@ export const ROUTES = {
   workspaceConfig: '/workspace/config',
   workspaceReview: '/workspace/review',
   agentFiles: '/agent/files',
+  agentConnections: '/agent/connections',
   agentSettings: '/agent/settings',
   agentRuns: '/agent/runs',
   agentRun: '/agent/runs/:runId',

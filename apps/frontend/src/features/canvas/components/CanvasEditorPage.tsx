@@ -78,6 +78,10 @@ import {
   createWorkflowReferenceCanvasNode,
   isPaletteNodeTypeAvailable,
 } from '@/features/canvas/editor/nodeFactory'
+import {
+  hasResourceDragPayload,
+  readResourceFromDragPayload,
+} from '@/features/resources/domain/resourceDragPayload'
 import { CanvasResourceShelf } from '@/features/canvas/ui/CanvasResourceShelf'
 import { WorkflowRunResultsDialog, WorkflowSidePanel } from '@/features/canvas/ui/CanvasWorkflowPanels'
 import { useCanvasRuntimeStore } from '@/features/canvas/runtime/runHistoryStore'
@@ -975,13 +979,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       void uploadDroppedFilesToCanvas(droppedFiles, { x: e.clientX, y: e.clientY })
       return
     }
-    const resourcePayload = e.dataTransfer.getData('application/canvas-resource')
-    if (resourcePayload) {
-      try {
-        const resource = JSON.parse(resourcePayload) as RawResource
+    if (hasResourceDragPayload(e.dataTransfer.types)) {
+      const resource = readResourceFromDragPayload(e.dataTransfer)
+      if (resource) {
         addResourceNodeAt(resource, { x: e.clientX, y: e.clientY })
-      } catch {
-        // Ignore malformed drag data from outside the app.
       }
       return
     }
@@ -1002,7 +1003,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   }, [addNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, uploadDroppedFilesToCanvas])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-workflow')) {
+    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/canvas-node-type') || hasResourceDragPayload(e.dataTransfer.types) || e.dataTransfer.types.includes('application/canvas-workflow')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)

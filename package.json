@@ -11,6 +11,9 @@
     "test:scripts": "node scripts/run-node-tests.mjs --suite scripts",
     "app-server:install-plugin": "node scripts/install-app-server-plugin.mjs",
     "sync:app-server-protocol": "node scripts/sync-app-server-protocol.mjs",
+    "movscript-lang:local": "node scripts/movscript-lang-cwd.mjs --cwd ../movscript-lang",
+    "movscript-lang:latest": "node scripts/movscript-lang-deps.mjs latest",
+    "movscript-lang:version": "node scripts/movscript-lang-deps.mjs version",
     "release": "node scripts/release/release-workflow.mjs"
   },
   "testSuites": {
@@ -18,6 +21,7 @@
       "tests/scripts/app-server-entrypoints.test.mjs",
       "tests/scripts/run-node-tests.test.mjs",
       "tests/scripts/run-with-env.test.mjs",
+      "tests/scripts/movscript-lang-deps.test.mjs",
       "tests/scripts/verifier-utils.test.mjs",
       "tests/scripts/backend/*.test.mjs",
       "tests/scripts/frontend/*.test.mjs",
@@ -29,6 +33,7 @@
       "tests/scripts/release/package-desktop.test.mjs",
       "tests/scripts/release/release-workflow-cli.test.mjs",
       "tests/scripts/release/release-workflow.test.mjs",
+      "tests/scripts/release/stage-app-server-binaries.test.mjs",
       "tests/scripts/release/stage-ffmpeg.test.mjs"
     ]
   },

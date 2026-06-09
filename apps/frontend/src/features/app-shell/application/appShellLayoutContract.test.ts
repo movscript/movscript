@@ -32,6 +32,15 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
   assert.match(workspaceSource, /resizablePanelKeyboardKeys\(edge: ResizablePanelEdge\)[\s\S]*ArrowUp[\s\S]*ArrowDown[\s\S]*ArrowLeft[\s\S]*ArrowRight/)
 })
 
+test('route shell viewport scroll is derived from the route layout registry', () => {
+  const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
+
+  assert.match(appSource, /getAppRouteLayoutSpec\(pathname\)/)
+  assert.match(appSource, /appRouteViewportScrollForMode\(routeLayout\.scrollMode\)/)
+  assert.doesNotMatch(appSource, /<AppRouteViewport scroll="auto"/)
+  assert.doesNotMatch(appSource, /<AppRouteViewport scroll="owned"/)
+})
+
 test('enterprise app top controls extend the shared component instead of shadowing it', () => {
   const contractSource = readFileSync(resolve('src/runtime/contract.ts'), 'utf8')
   const communityRuntimeSource = readFileSync(resolve('src/runtime/community.tsx'), 'utf8')

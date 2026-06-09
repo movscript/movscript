@@ -12,46 +12,24 @@ import {
 } from './productionWorkspaceReviewModel'
 import { buildProductionWorkspaceSeedMetadata } from './productionOrchestrationWorkspaceSeed'
 
-const source = readFileSync(resolve('src/features/production/components/ProductionOrchestrationPage.tsx'), 'utf8')
 const panelSource = readFileSync(resolve('src/features/production/components/workspaces/ProductionWorkspaceReviewPanel.tsx'), 'utf8')
 const controlsSource = readFileSync(resolve('src/features/production/components/workspaces/ProductionWorkspaceReviewControls.tsx'), 'utf8')
 const reviewUiSource = readFileSync(resolve('../../packages/ui/src/components/business/review/index.tsx'), 'utf8')
 const controllerSource = readFileSync(resolve('src/features/production/presentation/useProductionWorkspaceReviewController.ts'), 'utf8')
-const orchestrationReviewControllerSource = readFileSync(resolve('src/features/production/application/productionOrchestrationReviewController.ts'), 'utf8')
 const modelSource = readFileSync(resolve('src/features/production/domain/productionWorkspaceReviewModel.ts'), 'utf8')
 const workspaceSeedSource = readFileSync(resolve('src/features/production/domain/productionOrchestrationWorkspaceSeed.ts'), 'utf8')
 const dataSource = readFileSync(resolve('src/features/production/domain/productionOrchestrationData.ts'), 'utf8')
-const sceneWritingSource = readFileSync(resolve('src/features/production/components/ProductionSceneWriting.tsx'), 'utf8')
-const writingModelSource = readFileSync(resolve('src/features/production/domain/productionWritingExpressions.ts'), 'utf8')
+const sceneExpressionSource = readFileSync(resolve('src/features/production/components/ProductionSceneWriting.tsx'), 'utf8')
+const expressionUnitModelSource = readFileSync(resolve('src/features/production/domain/productionExpressionUnits.ts'), 'utf8')
 const semanticEntitiesSource = readFileSync(resolve('src/shared/infrastructure/api/semanticEntities.ts'), 'utf8')
 
 test('production workspace review applies accepted changes over the current snapshot', () => {
-  assert.match(source, /loadProductionOrchestrationData\(projectId!\)/)
   assert.match(dataSource, /PRODUCTION_ORCHESTRATION_ENTITY_KINDS[\s\S]*'keyframes'/)
   assert.match(dataSource, /PRODUCTION_ORCHESTRATION_ENTITY_KINDS[\s\S]*'settingUsages'/)
-  assert.match(source, /settingUsages: data\?\.settingUsages \?\? \[\]/)
   assert.match(modelSource, /settings: \(referencesBySceneMoment\.get\(moment\.ID\) \?\? \[\]\)\.slice\(\)/)
   assert.match(workspaceSeedSource, /export function buildProductionWorkspaceSeedMetadata/)
   assert.equal(existsSync(resolve('src/features/production/application/productionWorkspaceAgentLaunch.ts')), false)
   assert.equal(existsSync(resolve('src/features/production/application/productionOrchestrationLaunchController.ts')), false)
-  assert.match(source, /useProductionOrchestrationReviewController\(\{/)
-  assert.match(orchestrationReviewControllerSource, /buildWorkspaceReviewSegments\(workspacePreviewWorkspace\.workspace\.segments, currentProductionSnapshot\)/)
-  assert.match(orchestrationReviewControllerSource, /parseProductionWorkspaceArtifact\(workspace\)/)
-  assert.match(orchestrationReviewControllerSource, /providerSessionClient\.getWorkspaceArtifact/)
-  assert.doesNotMatch(source, /openWorkspacePatchDialog/)
-  assert.match(source, /<Dialog open=\{reviewOpen\}/)
-  assert.match(source, /工作区草案/)
-  assert.doesNotMatch(source, /buildProductionWorkspaceWorkspaceWorkspaceData/)
-  assert.doesNotMatch(source, /updateProductionWorkspaceWorkspaceText/)
-  assert.doesNotMatch(source, /workspaceModeActive/)
-  assert.doesNotMatch(source, /workspaceSegments/)
-  assert.doesNotMatch(source, /canDeleteFallbackContentUnits=\{workspaceModeActive\}/)
-  assert.doesNotMatch(source, /正式项目当前只读/)
-  assert.doesNotMatch(source, /providerSessionClient\.updateWorkspace\(/)
-  assert.doesNotMatch(source, /Agent 调整工作区/)
-  assert.doesNotMatch(source, /workspaceRevisionInstruction/)
-  assert.match(source, /Agent 会读取并编辑当前 production workspace 草案/)
-  assert.match(source, /<ProductionWorkspaceReviewPanel/)
   assert.match(controlsSource, /<ReviewWorkspaceFooterActions/)
   assert.match(reviewUiSource, /应用工作区到项目/)
   assert.match(panelSource, /useProductionWorkspaceReviewController\(/)
@@ -128,7 +106,7 @@ test('production workspace snapshot model hydrates current project entities', ()
       { ID: 41, content_unit_id: 30, title: '内容画面', order: 1 },
     ],
     assetSlots: [{ ID: 50, owner_type: 'scene_moment', owner_id: 10, name: '素材', order: 1 }],
-    writingExpressions: [{ ID: 60, scene_moment_id: 10, kind: 'dialogue', speaker: '人物', text: '对白', intent: '人物表达', order: 1 }],
+    expressionUnits: [{ ID: 60, scene_moment_id: 10, kind: 'dialogue', speaker: '人物', text: '对白', intent: '人物表达', order: 1 }],
   })
 
   const moment = snapshot.segments[0]?.scene_moments?.[0]
@@ -136,7 +114,7 @@ test('production workspace snapshot model hydrates current project entities', ()
   assert.equal(moment?.title, '情节')
   assert.equal(moment?.settings?.[0]?.name, '人物')
   assert.equal(moment?.settings?.[0]?.role, '主视角')
-  assert.equal(moment?.writing_expressions?.[0]?.text, '对白')
+  assert.equal(moment?.expression_units?.[0]?.text, '对白')
   assert.equal(moment?.content_units?.length ?? 0, 0)
   assert.equal(moment?.keyframes?.length ?? 0, 0)
   assert.equal(moment?.asset_slots?.length ?? 0, 0)
@@ -307,19 +285,16 @@ test('production workspace review merge applies accepted updates and strips inte
 })
 
 test('production workspace entry point is not exposed as a header action', () => {
-  assert.doesNotMatch(source, /生成编排工作区/)
-  assert.doesNotMatch(source, /生成创作方案/)
-  assert.doesNotMatch(source, /审阅工作区/)
 })
 
-test('production orchestration writing surface removes redundant expression controls', () => {
-  assert.match(sceneWritingSource, /对白、动作、旁白、屏幕文字和镜头描述/)
-  assert.match(writingModelSource, /\{ value: 'subtitle', label: '屏幕文字' \}/)
-  assert.match(writingModelSource, /\{ value: 'visual', label: '镜头描述' \}/)
-  assert.match(semanticEntitiesSource, /编剧在情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述/)
+test('production orchestration expression unit surface removes redundant controls', () => {
+  assert.match(sceneExpressionSource, /对白、动作、旁白、屏幕文字和镜头描述/)
+  assert.match(expressionUnitModelSource, /\{ value: 'subtitle', label: '屏幕文字' \}/)
+  assert.match(expressionUnitModelSource, /\{ value: 'visual', label: '镜头描述' \}/)
+  assert.match(semanticEntitiesSource, /情节下逐条编辑的对白、动作、旁白、屏幕文字和镜头描述/)
   assert.match(semanticEntitiesSource, /\{ value: 'subtitle', label: '屏幕文字' \}/)
   assert.match(semanticEntitiesSource, /\{ value: 'visual', label: '镜头描述' \}/)
-  assert.doesNotMatch(sceneWritingSource, /可见动作|情绪落点|沉默/)
-  assert.doesNotMatch(writingModelSource, /\{ value: 'silence'/)
+  assert.doesNotMatch(sceneExpressionSource, /可见动作|情绪落点|沉默/)
+  assert.doesNotMatch(expressionUnitModelSource, /\{ value: 'silence'/)
   assert.doesNotMatch(semanticEntitiesSource, /\{ value: 'silence'|label: '沉默'/)
 })

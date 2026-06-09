@@ -48,12 +48,12 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
 
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.productionOrchestration, { view: 'review', workspaceId: workspace.id, content_unit_id: contentUnitId })
+    return withRouteParams(ROUTES.project.contentUnitEditor, { workspaceId: workspace.id, content_unit_id: contentUnitId })
   }
 
   if (targetEntityType === 'scene_moment' || sourceEntityType === 'scene_moment') {
     const sceneMomentId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.productionOrchestration, { view: 'review', workspaceId: workspace.id, scene_moment_id: sceneMomentId })
+    return withRouteParams(ROUTES.project.contentUnitEditor, { workspaceId: workspace.id, scene_moment_id: sceneMomentId })
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -67,7 +67,7 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
       || contentUnitRelatedKinds.includes(workspace.kind)
     )
   ) {
-    return withRouteParams(ROUTES.project.productionOrchestration, { view: 'review', workspaceId: workspace.id, productionId })
+    return withRouteParams(ROUTES.project.scripts, { workspaceId: workspace.id, productionId })
   }
 
   return null

@@ -17,6 +17,28 @@ Build:
 pnpm --filter @movscript/cli build
 ```
 
+## Install
+
+For a local user-wide install from this package:
+
+```bash
+pnpm --filter @movscript/cli build
+apps/cli/bin/install-movcli
+movcli --help
+```
+
+The installer writes a small wrapper to `~/.local/bin/movcli` by default. Use
+`--bin-dir <dir>` to install somewhere else, for example:
+
+```bash
+apps/cli/bin/install-movcli --bin-dir /usr/local/bin --force
+```
+
+When MovScript Desktop is packaged, the app bundles this CLI under its resources
+directory. Desktop-managed command environments prepend the bundled `movcli`
+directory to `PATH`, so internal terminals and provider sessions can run
+`movcli` without requiring a separate global install.
+
 ## Global Options
 
 ```text
@@ -59,6 +81,37 @@ Review and build local edits:
 ```bash
 pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- workspace build --workspace /path/to/project-repo
+```
+
+## Language Commands
+
+The language/workspace command surface from the old `movscript-lang` CLI now lives in `movcli`.
+
+```bash
+pnpm --filter @movscript/cli dev -- project init --id demo --title "Demo Film"
+pnpm --filter @movscript/cli dev -- project demo create --cwd ./demo
+pnpm --filter @movscript/cli dev -- setting add hero --title "Hero"
+pnpm --filter @movscript/cli dev -- asset add --setting hero --slot portrait --prompt "cinematic portrait"
+```
+
+Planning and generated candidate commands are available as top-level `movcli` commands:
+
+```bash
+pnpm --filter @movscript/cli dev -- production add --id p1 --title "Demo Production"
+pnpm --filter @movscript/cli dev -- segment add --production p1 --id opening --title "Opening" --order 1
+pnpm --filter @movscript/cli dev -- scene-moment add --production p1 --segment opening --id phone_call --title "Phone call"
+pnpm --filter @movscript/cli dev -- content-unit add --id opening_shot --title "Opening shot" --scene-moment phone_call --storyboard main
+pnpm --filter @movscript/cli dev -- candidate add content_units/opening_shot/content_unit.json --resource-id resource_manual_1
+```
+
+Compiler shortcuts are also top-level commands:
+
+```bash
+pnpm --filter @movscript/cli dev -- overview --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- inspect --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- compile --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- regen plan --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- interactive --workspace /path/to/project-repo
 ```
 
 Plugin scaffolding and packaging commands have been removed.

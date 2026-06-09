@@ -9,6 +9,7 @@ apps/frontend/out/
 apps/frontend/release/
 apps/frontend/electron.vite.config.*.mjs
 apps/frontend/src/api/generated.ts
+apps/frontend/vendor/app-server/*/
 apps/frontend/vendor/ffmpeg/*/
 apps/frontend/test-results/
 apps/frontend/playwright-report/

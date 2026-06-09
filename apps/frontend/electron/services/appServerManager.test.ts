@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import test from 'node:test'
 import type { ChildProcess } from 'node:child_process'
 import { MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA, resolveMovScriptWorkspacePaths, writeMovScriptWorkspaceConfig } from '@movscript/core/workspace/node'
@@ -99,6 +99,42 @@ test('app-server manager exposes managed stdio endpoints without reserving a loc
   assert.deepEqual(child.stdinWrites, ['{"id":3,"method":"ping"}\n'])
 })
 
+test('app-server manager stops stdio app-server by closing stdin before forcing termination', async () => {
+  const workspaceDir = fakeWorkspaceDir()
+  const child = fakeChildProcess()
+  const manager = new AppServerManager({
+    distributeConfig: () => movaDistributionFixture(),
+    ensurePlugin: () => appServerPluginFixture(),
+    reservePort: async () => {
+      throw new Error('stdio launch should not reserve a port')
+    },
+    waitReady: async () => {
+      throw new Error('stdio readiness should not run')
+    },
+    spawnProcess: (() => child) as never,
+    defaultWorkspaceDir: () => workspaceDir,
+    launchTransport: () => 'stdio',
+  })
+
+  await manager.ensure({
+    profile: {
+      id: 'mova-movscript-home',
+      providerKey: 'mova',
+      executablePath: 'mova',
+      home: '.movscript/.mova',
+    },
+  })
+  const stoppedPromise = manager.stop('mova-movscript-home')
+
+  assert.equal(child.stdinEnded, true)
+  assert.equal(child.killed, false)
+  child.emit('exit', 0, null)
+  const stopped = await stoppedPromise
+
+  assert.equal(stopped.running, false)
+  assert.equal(manager.status('mova-movscript-home').error, 'app-server is not running')
+})
+
 test('app-server manager emits realtime process logs', async () => {
   const workspaceDir = fakeWorkspaceDir()
   const child = fakeChildProcess()
@@ -161,10 +197,16 @@ test('app-server manager includes plugin bootstrap in launch reuse identity', as
     waitReady: async () => undefined,
     spawnProcess: (() => {
       const child = fakeChildProcess()
+      child.kill = ((signal?: NodeJS.Signals) => {
+        child.killed = true
+        queueMicrotask(() => child.emit('exit', null, signal ?? 'SIGTERM'))
+        return true
+      }) as never
       children.push(child)
       return child
     }) as never,
     defaultWorkspaceDir: () => workspaceDir,
+    launchTransport: () => 'websocket',
   })
 
   await manager.ensure({ profile: { id: 'mova-movscript-home', providerKey: 'mova', executablePath: 'mova' } })
@@ -343,7 +385,7 @@ test('app-server manager records running provider sessions under the provider pr
   assert.equal(records[0]?.status, 'running')
   assert.equal(records[0]?.workspaceDir, workspaceDir)
   assert.deepEqual(records[0]?.workspaceContext, { scope: 'global' })
-  assert.equal(records[0]?.providerSessionCwd, workspaceDir)
+  assert.equal(records[0]?.providerSessionCwd, join(workspaceDir, '.movscript', 'local'))
 })
 
 test('app-server manager keeps multiple profiles for one provider key isolated by profile id', async () => {
@@ -584,18 +626,17 @@ test('app-server manager launches with the project workspace cwd', async () => {
       id: 'mova-movscript-home',
       providerKey: 'mova',
       executablePath: 'mova',
-      workspaceContext: {
-        scope: 'project',
-        userId: 7,
-        projectId: 42,
-      },
+    },
+    workspaceContext: {
+      scope: 'project',
+      projectId: 42,
     },
   })
 
-  const expected = join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42')
+  const expected = join(workspaceDir, '.movscript', 'local', 'projects', 'project_42')
   assert.equal(spawnCwd, expected)
   assert.equal(status.providerSessionCwd, expected)
-  assert.deepEqual(status.workspaceContext, { scope: 'project', userId: '7', projectId: '42' })
+  assert.deepEqual(status.workspaceContext, { scope: 'project', projectId: '42' })
 })
 
 
@@ -618,9 +659,9 @@ test('app-server manager keeps explicit stops out of quick-restart cooldown', as
   })
 
   await manager.ensure({ profile: { id: 'mova-movscript-home', providerKey: 'mova', executablePath: 'mova' } })
-  const stopped = manager.stop('mova-movscript-home')
-  child.exitCode = null
+  const stoppedPromise = manager.stop('mova-movscript-home')
   child.emit('exit', null, 'SIGTERM')
+  const stopped = await stoppedPromise
   const status = manager.status('mova-movscript-home')
 
   assert.equal(stopped.running, false)
@@ -652,6 +693,8 @@ test('app-server protocol manager launches Mova with an isolated provider home',
     let spawnArgs: string[] = []
     let spawnCwd = ''
     let spawnEnv: NodeJS.ProcessEnv = {}
+    const cliBinDir = join(workspaceDir, '.movscript', 'bin')
+    let ensuredWorkspaceDir = ''
     const manager = new AppServerManager({
       distributeConfig: (input) => distributeAppServerConfigFromMovScriptWorkspace({ ...input, now: new Date('2026-06-04T01:02:03.000Z') }),
       ensurePlugin: () => appServerPluginFixture({ hash: 'plugin-mova' }),
@@ -665,6 +708,10 @@ test('app-server protocol manager launches Mova with an isolated provider home',
         return fakeChildProcess()
       }) as never,
       defaultWorkspaceDir: () => workspaceDir,
+      ensureWorkspaceCliBin: ((input: { workspaceDir?: string }) => {
+        ensuredWorkspaceDir = input.workspaceDir ?? ''
+        return cliBinDir
+      }) as never,
     })
 
     const status = await manager.ensure({
@@ -678,12 +725,17 @@ test('app-server protocol manager launches Mova with an isolated provider home',
     assert.equal(status.ok, true)
     assert.equal(spawnCommand, '/opt/mova/mova-app-server')
     assert.deepEqual(spawnArgs, ['--listen', 'ws://127.0.0.1:41234'])
-    assert.equal(spawnCwd, workspaceDir)
+    assert.equal(spawnCwd, join(workspaceDir, '.movscript', 'local'))
     assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_PROVIDER, 'mova')
     assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_HOME, join(workspaceDir, '.movscript', '.mova'))
     assert.equal(spawnEnv.MOVA_HOME, join(workspaceDir, '.movscript', '.mova'))
     assert.equal(spawnEnv.CODEX_HOME, join(workspaceDir, '.movscript', '.mova'))
-    assert.equal(status.providerSessionCwd, workspaceDir)
+    assert.equal(spawnEnv.MOVSCRIPT_CLI_BIN_DIR, cliBinDir)
+    assert.equal(spawnEnv.PATH?.split(delimiter)[0], cliBinDir)
+    assert.equal(status.cliBinDir, cliBinDir)
+    assert.equal(ensuredWorkspaceDir, workspaceDir)
+    assert.equal(status.cliEnv?.MOVSCRIPT_NODE_BIN, process.execPath)
+    assert.equal(status.providerSessionCwd, join(workspaceDir, '.movscript', 'local'))
     assert.equal(status.home, join(workspaceDir, '.movscript', '.mova'))
     assert.equal(status.config?.accountConfigured, true)
   } finally {
@@ -820,6 +872,161 @@ test('Mova app-server executable resolution explains PATH fallback when discover
   assert.ok(resolution.diagnostic?.candidatePaths?.some((path: string) => path.endsWith(`mova/codex-rs/target/debug/${['codex', 'app-server'].join('-')}`)))
 })
 
+test('Codex app-server executable resolution discovers sibling debug app-server before CLI fallback', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-codex-discovery-'))
+  const cwd = join(root, 'movscript')
+  const neutralAppServerCandidate = join(root, 'codex', 'codex-rs', 'target', 'debug', 'app-server')
+  const appServerCandidate = join(root, 'codex', 'codex-rs', 'target', 'debug', 'codex-app-server')
+  const cliCandidate = join(root, 'codex', 'codex-rs', 'target', 'debug', 'codex')
+  const sourceDir = join(root, 'movscript', 'apps', 'frontend', 'electron', 'services')
+
+  const neutralAppServerResolved = resolveAppServerExecutablePath({
+    provider: 'codex',
+    profile: codexExecutableProfile(),
+    cwd,
+    sourceDir,
+    env: {} as NodeJS.ProcessEnv,
+    exists: (path) => path === neutralAppServerCandidate || path === appServerCandidate || path === cliCandidate,
+  })
+  const appServerResolved = resolveAppServerExecutablePath({
+    provider: 'codex',
+    profile: codexExecutableProfile(),
+    cwd,
+    sourceDir,
+    env: {} as NodeJS.ProcessEnv,
+    exists: (path) => path === appServerCandidate || path === cliCandidate,
+  })
+  const cliResolved = resolveAppServerExecutablePath({
+    provider: 'codex',
+    profile: codexExecutableProfile(),
+    cwd,
+    sourceDir,
+    env: {} as NodeJS.ProcessEnv,
+    exists: (path) => path === cliCandidate,
+  })
+
+  assert.equal(neutralAppServerResolved, neutralAppServerCandidate)
+  assert.equal(appServerResolved, appServerCandidate)
+  assert.equal(cliResolved, cliCandidate)
+})
+
+test('Codex app-server executable resolution prefers managed .movscript/bin before debug checkout fallback', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-codex-managed-bin-discovery-'))
+  const managedBinDir = join(root, 'movscript', '.movscript', 'bin')
+  const cwd = join(root, 'movscript')
+  const sourceDir = join(root, 'movscript', 'apps', 'frontend', 'electron', 'services')
+  const managedCandidate = join(managedBinDir, process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server')
+  const debugCandidate = join(root, 'codex', 'codex-rs', 'target', 'debug', 'app-server')
+
+  const resolution = resolveAppServerExecutableResolution({
+    provider: 'codex',
+    profile: codexExecutableProfile(),
+    cwd,
+    sourceDir,
+    managedBinDir,
+    env: {} as NodeJS.ProcessEnv,
+    exists: (path) => path === managedCandidate || path === debugCandidate,
+  })
+
+  assert.equal(resolution.found, true)
+  assert.equal(resolution.executablePath, managedCandidate)
+  assert.equal(resolution.diagnostic?.candidatePaths?.[0], managedCandidate)
+})
+
+test('app-server manager materializes packaged Codex app-server into workspace .movscript/bin before launch', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-codex-packaged-materialize-'))
+  const workspaceDir = join(root, 'workspace')
+  const resourcesPath = join(root, 'resources')
+  const sourceDir = join(resourcesPath, 'app-server', 'codex', process.platform, process.arch)
+  const source = join(sourceDir, process.platform === 'win32' ? 'app-server.exe' : 'app-server')
+  const expectedTarget = join(workspaceDir, '.movscript', 'bin', process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server')
+  mkdirSync(sourceDir, { recursive: true })
+  writeFileSync(source, 'fake packaged codex app-server')
+  chmodSync(source, 0o755)
+
+  let spawnCommand = ''
+  let spawnArgs: string[] = []
+  const manager = new AppServerManager({
+    distributeConfig: () => movaDistributionFixture({ providerKey: 'codex' }),
+    ensurePlugin: () => appServerPluginFixture(),
+    reservePort: async () => 41234,
+    waitReady: async () => undefined,
+    spawnProcess: ((command: string, args: string[]) => {
+      spawnCommand = command
+      spawnArgs = args
+      return fakeChildProcess()
+    }) as never,
+    defaultWorkspaceDir: () => workspaceDir,
+    resourcesPath: () => resourcesPath,
+  })
+
+  await manager.ensure({ profile: codexExecutableProfile() })
+
+  assert.equal(spawnCommand, expectedTarget)
+  assert.deepEqual(spawnArgs, ['--listen', 'ws://127.0.0.1:41234'])
+  assert.equal(existsSync(expectedTarget), true)
+  assert.equal(readFileSync(expectedTarget, 'utf8'), 'fake packaged codex app-server')
+})
+
+test('app-server manager treats persisted Codex PATH command as discoverable fallback', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-codex-persisted-command-'))
+  const cwd = join(root, 'movscript')
+  const debugDir = join(root, 'codex', 'codex-rs', 'target', 'debug')
+  const appServerCandidate = join(debugDir, 'app-server')
+  mkdirSync(cwd, { recursive: true })
+  mkdirSync(debugDir, { recursive: true })
+  writeFileSync(appServerCandidate, '')
+
+  const previousCwd = process.cwd()
+  let spawnCommand = ''
+  try {
+    process.chdir(cwd)
+    const manager = new AppServerManager({
+      distributeConfig: () => movaDistributionFixture({ providerKey: 'codex' }),
+      ensurePlugin: () => appServerPluginFixture(),
+      reservePort: async () => 41234,
+      waitReady: async () => undefined,
+      spawnProcess: ((command: string) => {
+        spawnCommand = command
+        return fakeChildProcess()
+      }) as never,
+      defaultWorkspaceDir: () => cwd,
+    })
+
+    await manager.ensure({ profile: codexExecutableProfile({ executablePath: 'codex' }) })
+  } finally {
+    process.chdir(previousCwd)
+  }
+
+  assert.equal(spawnCommand, realpathSync(appServerCandidate))
+})
+
+test('Codex app-server executable resolution explains PATH fallback when discovery fails', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-codex-discovery-miss-'))
+  const cwd = join(root, 'enterprise', 'apps', 'frontend')
+  const sourceDir = join(root, 'enterprise', 'apps', 'frontend', 'out', 'main')
+
+  const resolution = resolveAppServerExecutableResolution({
+    provider: 'codex',
+    profile: codexExecutableProfile(),
+    cwd,
+    sourceDir,
+    env: {} as NodeJS.ProcessEnv,
+    exists: () => false,
+  })
+
+  assert.equal(resolution.found, false)
+  assert.equal(resolution.executablePath, 'codex')
+  assert.equal(resolution.diagnostic?.ok, false)
+  assert.equal(resolution.diagnostic?.envVar, 'MOVSCRIPT_APP_SERVER_BIN')
+  assert.match(resolution.diagnostic?.message ?? '', /MOVSCRIPT_CODEX_APP_SERVER_BIN/)
+  assert.match(resolution.diagnostic?.message ?? '', /MOVSCRIPT_CODEX_BIN/)
+  assert.equal(resolution.diagnostic?.cwd, cwd)
+  assert.equal(resolution.diagnostic?.sourceDir, sourceDir)
+  assert.ok(resolution.diagnostic?.candidatePaths?.some((path: string) => path.endsWith('codex/codex-rs/target/debug/app-server')))
+  assert.ok(resolution.diagnostic?.candidatePaths?.some((path: string) => path.endsWith('codex/codex-rs/target/debug/codex-app-server')))
+})
+
 test('app-server manager preserves Mova spawn ENOENT diagnostics through readiness failure', async () => {
   const previousMovaBin = process.env.MOVSCRIPT_MOVA_BIN
   const workspaceDir = fakeWorkspaceDir()
@@ -841,7 +1048,11 @@ test('app-server manager preserves Mova spawn ENOENT diagnostics through readine
 
     const status = await manager.ensure({
       profile: {
-        ...movaExecutableProfile(),
+        ...movaExecutableProfile({
+          candidateRootRelativePaths: ['missing-mova-debug-root'],
+          candidateBinaryNames: ['missing-mova-app-server'],
+          pathFallbackReady: false,
+        }),
         id: 'mova-movscript-home',
         providerKey: 'mova',
         executablePath: 'mova',
@@ -936,6 +1147,7 @@ type FakeChildProcess = ChildProcess & {
   killed: boolean
   exitCode: number | null
   stdinWrites: string[]
+  stdinEnded: boolean
 }
 
 function fakeChildProcess(): FakeChildProcess {
@@ -947,10 +1159,14 @@ function fakeChildProcess(): FakeChildProcess {
   child.exitCode = null
   child.killed = false
   child.stdinWrites = []
+  child.stdinEnded = false
   child.stdin = {
     write: (payload: string) => {
       child.stdinWrites.push(String(payload))
       return true
+    },
+    end: () => {
+      child.stdinEnded = true
     },
   } as never
   child.stdout = new EventEmitter() as never
@@ -1019,6 +1235,29 @@ function movaExecutableProfile(patch: Partial<ElectronAppServerProfile> = {}): E
       'app-server',
       'mova-app-server',
       ['codex', 'app-server'].join('-'),
+      'codex',
+    ],
+    pathFallbackReady: false,
+    ...patch,
+  }
+}
+
+function codexExecutableProfile(patch: Partial<ElectronAppServerProfile> = {}): ElectronAppServerProfile {
+  return {
+    id: 'codex-movscript-home',
+    label: 'MovScript Codex',
+    providerKey: 'codex',
+    executableCommand: 'codex',
+    executableEnvVar: 'MOVSCRIPT_CODEX_APP_SERVER_BIN',
+    compatibilityBinEnvNames: ['MOVSCRIPT_CODEX_BIN'],
+    candidateRootRelativePaths: [
+      '../codex/codex-rs/target/debug',
+      '../../codex/codex-rs/target/debug',
+      '../../../codex/codex-rs/target/debug',
+    ],
+    candidateBinaryNames: [
+      'app-server',
+      'codex-app-server',
       'codex',
     ],
     pathFallbackReady: false,

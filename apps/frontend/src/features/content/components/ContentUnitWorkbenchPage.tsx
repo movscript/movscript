@@ -173,7 +173,7 @@ function ContentUnitWorkbenchShotGrid({
 
           <div id="content-unit-workbench-content-grid" className="content-unit-workbench-list-panel__viewport">
             {items.length === 0 ? (
-              <WorkbenchEmptyState compact title="暂无内容" description="调整分类、制作、情绪段或情节搜索，或从创作编排工作台创建内容。" />
+              <WorkbenchEmptyState compact title="暂无内容" description="调整分类、制作、情绪段或情节搜索，或从内容编辑创建内容。" />
             ) : (
               pageItems.map((item) => (
                 <CompactShotListCard
@@ -453,21 +453,21 @@ export function ContentUnitWorkbenchPage() {
     projectName: project?.name,
     kicker: '内容编辑',
     title: selectedUnit ? titleOfRecord(selectedUnit) : '内容编辑',
-    description: selected ? `${selected.title} · 专注编辑单个镜头的生成目标、关键帧、素材和画布入口。` : '从创作编排页选择镜头后进入独立编辑工作台。',
+    description: selected ? `${selected.title} · 专注编辑单个镜头的生成目标、关键帧、素材和画布入口。` : '从内容列表选择镜头后进入独立编辑工作台。',
     badges: isFetching ? <Badge variant="outline">同步中</Badge> : null,
     actions: (
       <Button
         type="button"
         size="sm"
         variant="outline"
-        onClick={() => navigate(withRouteParams(ROUTES.project.productionOrchestration, {
+        onClick={() => navigate(withRouteParams(ROUTES.project.contentUnitEditor, {
           productionId: selected?.productionIds[0],
           scene_moment_id: selected?.moment.ID,
           content_unit_id: selectedUnit?.ID,
         }))}
       >
         <ArrowLeft size={14} />
-        返回创作编排
+        返回内容编辑
       </Button>
     ),
     onRefresh: () => { void refetch() },

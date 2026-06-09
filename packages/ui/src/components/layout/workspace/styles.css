@@ -285,6 +285,11 @@
   z-index: 1;
 }
 
+.app-shell[data-layout="stacked"] .app-shell__slot-group--center-right {
+  position: relative;
+  z-index: 2;
+}
+
 .app-shell[data-layout="stacked"] .app-shell__slot--center {
   z-index: 2;
 }
@@ -294,6 +299,7 @@
 }
 
 .app-shell[data-layout="stacked"] .app-shell__slot--left+.app-shell__slot--center,
+.app-shell[data-layout="stacked"] .app-shell__slot--left+.app-shell__slot-group--center-right,
 .app-shell[data-layout="stacked"] .app-shell__slot--center+.app-shell__slot--right {
   margin-left: calc(var(--app-shell-stack-overlap) * -1);
   box-shadow: -12px 0 24px -24px rgb(0 0 0 / 0.34);
@@ -304,8 +310,15 @@
   padding-right: var(--app-shell-stack-overlap);
 }
 
+.app-shell[data-layout="stacked"] .app-shell__slot--left:has(+ .app-shell__slot-group--center-right) {
+  box-sizing: content-box;
+  padding-right: var(--app-shell-stack-overlap);
+}
+
 .app-shell[data-layout="stacked"] .app-shell__slot--left[data-collapsed="true"],
 .app-shell[data-layout="stacked"] .app-shell__slot--left[data-hidden="true"],
+.app-shell[data-layout="stacked"] .app-shell__slot--left[data-collapsed="true"]:has(+ .app-shell__slot-group--center-right),
+.app-shell[data-layout="stacked"] .app-shell__slot--left[data-hidden="true"]:has(+ .app-shell__slot-group--center-right),
 .app-shell[data-layout="stacked"] .app-shell__slot--right[data-collapsed="true"],
 .app-shell[data-layout="stacked"] .app-shell__slot--center:has(+ .app-shell__slot--right[data-collapsed="true"]) {
   padding-right: 0;
@@ -313,6 +326,8 @@
 
 .app-shell[data-layout="stacked"] .app-shell__slot--left[data-collapsed="true"]+.app-shell__slot--center,
 .app-shell[data-layout="stacked"] .app-shell__slot--left[data-hidden="true"]+.app-shell__slot--center,
+.app-shell[data-layout="stacked"] .app-shell__slot--left[data-collapsed="true"]+.app-shell__slot-group--center-right,
+.app-shell[data-layout="stacked"] .app-shell__slot--left[data-hidden="true"]+.app-shell__slot-group--center-right,
 .app-shell[data-layout="stacked"] .app-shell__slot--right[data-collapsed="true"] {
   margin-left: 0;
   box-shadow: none;
@@ -353,6 +368,49 @@
 .app-shell[data-layout="stacked"] .app-content-frame--immersive,
 .app-shell[data-layout="stacked"] .app-content-frame--canvas {
   background: var(--app-shell-slot-center-background);
+}
+
+.app-shell__slot-group {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.app-shell__slot-group--center-right {
+  flex-direction: column;
+  border-radius: var(--app-shell-slot-radius);
+}
+
+.app-shell__slot-group-row {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.app-shell__slot-group--center-right[data-terminal-host="center-right"] > .app-shell__slot-group-row > .app-shell__slot {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.app-shell-terminal-region {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: var(--app-shell-slot-center-background);
+}
+
+.app-shell-terminal-region[data-open="false"] {
+  display: none;
+}
+
+.app-shell-terminal-region > * {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .panel-resize-handle {

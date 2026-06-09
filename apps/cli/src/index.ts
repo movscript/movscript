@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { registerAuthCommands } from './commands/auth.js'
+import { registerLangCommands } from './commands/lang.js'
 import { registerWorkspaceCommands } from './commands/workspace.js'
 
 const program = new Command()
@@ -13,6 +14,18 @@ program
   .option('--workspace <dir>', 'MovScript workspace root directory')
 
 registerAuthCommands(program)
+registerLangCommands(program)
 registerWorkspaceCommands(program)
 
-program.parse()
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exit(1)
+})
+
+async function main(): Promise<void> {
+  if (process.argv.length <= 2) {
+    program.outputHelp()
+    return
+  }
+  await program.parseAsync()
+}

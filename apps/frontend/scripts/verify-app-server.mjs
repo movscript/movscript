@@ -515,7 +515,8 @@ async function verifyAppServerStdioReady(appServerBin, env, options = {}) {
         sortKey: 'updated_at',
         sortDirection: 'desc',
         archived: false,
-        sourceKinds: [],
+        modelProviders: [],
+        sourceKinds: ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'unknown'],
       },
     })
     if (!Array.isArray(initialThreadList.data)) {
@@ -544,7 +545,8 @@ async function verifyAppServerStdioReady(appServerBin, env, options = {}) {
         sortKey: 'updated_at',
         sortDirection: 'desc',
         archived: false,
-        sourceKinds: [],
+        modelProviders: [],
+        sourceKinds: ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'unknown'],
         ...(options.cwd ? { cwd: options.cwd } : {}),
       },
     })

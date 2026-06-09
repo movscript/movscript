@@ -245,7 +245,7 @@ export function useProductionWorkspaceReviewController({
             assetSlots: localResult.counts.asset_slots_created,
             contentUnits: localResult.counts.content_units_created,
             keyframes: localResult.counts.keyframes_created,
-            writingExpressions: localResult.counts.writing_expressions_created,
+            expressionUnits: localResult.counts.expression_units_created,
           },
           semanticChanges: localResult.preview.writeTaskGraph.map((item) => ({
             kind: item.kind,

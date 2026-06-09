@@ -60,7 +60,6 @@ function formatProjectLine(project: unknown, index: number): string {
   const name = typeof project.name === 'string' && project.name.trim() ? project.name.trim() : `未命名项目 ${index + 1}`
   const details = [
     typeof project.description === 'string' && project.description.trim() ? project.description.trim() : undefined,
-    typeof project.status === 'string' && project.status.trim() ? `状态：${project.status.trim()}` : undefined,
     typeof project.totalEpisodes === 'number' ? `集数：${project.totalEpisodes}` : undefined,
   ].filter(Boolean).join('；')
   const id = typeof project.id === 'number' ? `（project#${project.id}）` : ''

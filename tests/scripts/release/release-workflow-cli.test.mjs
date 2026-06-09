@@ -9,6 +9,7 @@ test('release workflow exposes the curated release subcommand surface', () => {
     'collect',
     'download-ffmpeg-static',
     'package-desktop',
+    'stage-app-server-binaries',
     'stage-ffmpeg',
   ])
 })
@@ -86,6 +87,20 @@ test('runReleaseWorkflowCli dispatches release subcommands', () => {
 
   assert.equal(exitCode, 0)
   assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/stage-ffmpeg.mjs', '--inspect', '--platform=darwin']])
+})
+
+test('runReleaseWorkflowCli dispatches app-server binary staging', () => {
+  const calls = []
+  runReleaseWorkflowCli(['stage-app-server-binaries', '--platform=darwin', '--arch=arm64'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/stage-app-server-binaries.mjs', '--platform=darwin', '--arch=arm64']])
 })
 
 test('runReleaseWorkflowCli dispatches release artifact collection as a builtin command', () => {
