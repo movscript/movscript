@@ -22,6 +22,7 @@ export function buildAgentChatSendPipelineInput({
   return {
     workspaceBuilder: {
       input: composer.input,
+      getInput: composer.getInput,
       attachments: composer.attachments,
       composerAttachments: composer.composerAttachments,
       resourceAttachmentIndex: composer.resourceAttachmentIndex,
@@ -64,10 +65,10 @@ export function buildAgentChatSendPipelineInput({
       revokeAttachmentPreviewUrls: composer.revokeAttachmentPreviewUrls,
       setMentionRange: composer.setMentionRange,
       refetchProviderSessionHealth: context.refetchProviderSessionHealth,
-      refreshProviderCatalogContext: context.refreshProviderCatalogContext,
     },
     sendActions: {
       input: composer.input,
+      getInput: composer.getInput,
       composerAttachments: composer.composerAttachments,
       loading: presentation.loading,
       uploading: composer.uploading,
@@ -85,7 +86,7 @@ export function buildAgentChatSendPipelineInput({
         ...(composer.goalModeEnabled
           ? {
               goal: {
-                objective: composer.input.trim() || 'MovScript agent goal',
+                objective: composer.getInput().trim() || 'MovScript agent goal',
                 status: 'active' as const,
               },
             }
@@ -98,6 +99,7 @@ export function buildAgentChatSendPipelineInput({
       inputRef: providerSessionState.inputRef,
       onExternalWorkspaceConsumed,
       updateWorkspace: composer.updateWorkspace,
+      releaseAttachmentResources: composer.revokeAttachmentPreviewUrls,
       setMentionRange: composer.setMentionRange,
       setConversationBuilding: (patch) => store.updateConversationRuntimeState(conv.id, patch),
       sendActiveRunInput: async ({ content, attachments }) => {

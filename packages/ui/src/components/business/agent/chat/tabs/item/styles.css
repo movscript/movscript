@@ -122,7 +122,7 @@
 }
 
 .ai-agent-panel-conversation-tab-session-light[data-session-state="stopped"] {
-  background: rgb(239 68 68);
+  background: rgb(148 163 184);
 }
 
 .ai-agent-panel-conversation-tab-session-light[data-session-state="waiting"] {
@@ -131,6 +131,10 @@
 
 .ai-agent-panel-conversation-tab-session-light[data-session-state="active"] {
   background: rgb(16 185 129);
+}
+
+.ai-agent-panel-conversation-tab-session-light[data-session-state="error"] {
+  background: rgb(239 68 68);
 }
 
 .ai-agent-panel-conversation-tab-title {

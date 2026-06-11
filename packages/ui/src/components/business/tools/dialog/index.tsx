@@ -14,7 +14,7 @@ export function ToolDialogFrame({ className, ...props }: HTMLAttributes<HTMLDivE
 }
 
 export function ToolDialogBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <OverlapPaneGroup className={cn("tool-dialog-body", className)} {...props} />;
+  return <OverlapPaneGroup overlapSide="left" className={cn("tool-dialog-body", className)} {...props} />;
 }
 
 export function ToolDialogMain({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -157,14 +157,16 @@ export function ToolDialogDebugStatus({
 export function ToolDialogDebugJsonBlock({
   text,
   action,
+  maxHeight = "default",
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   text: ReactNode;
   action?: ReactNode;
+  maxHeight?: "default" | "large";
 }) {
   return (
-    <div className={cn("tool-dialog-debug-json", className)} {...props}>
+    <div data-max-height={maxHeight} className={cn("tool-dialog-debug-json", className)} {...props}>
       <AppSurfaceItem variant="muted" className="tool-dialog-debug-json__surface">
         <AppCodeBlock>{text}</AppCodeBlock>
       </AppSurfaceItem>

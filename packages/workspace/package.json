@@ -1,0 +1,60 @@
+{
+  "name": "@movscript/workspace",
+  "version": "0.1.1",
+  "private": true,
+  "description": "MovScript workspace facade for layout, stores, repositories, node adapters, and workspace services.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./indexer": {
+      "types": "./dist/indexer/index.d.ts",
+      "import": "./dist/indexer/index.js",
+      "require": "./dist/indexer/index.cjs"
+    },
+    "./layout": {
+      "types": "./dist/layout/index.d.ts",
+      "import": "./dist/layout/index.js",
+      "require": "./dist/layout/index.cjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "require": "./dist/node.cjs"
+    },
+    "./repository": {
+      "types": "./dist/repository/index.d.ts",
+      "import": "./dist/repository/index.js",
+      "require": "./dist/repository/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build"
+  },
+  "dependencies": {
+    "@movscript/decision": "workspace:*",
+    "@movscript/language": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

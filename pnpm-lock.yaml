@@ -91,18 +91,21 @@ importers:
 
   apps/cli:
     dependencies:
-      '@movscript/compiler':
-        specifier: 0.1.0
-        version: 0.1.0
+      '@movscript/interpreter':
+        specifier: workspace:*
+        version: link:../../packages/interpreter
       '@movscript/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@movscript/engine':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@movscript/language':
+        specifier: workspace:*
+        version: link:../../packages/language
       '@movscript/workspace':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/workspace
       commander:
         specifier: ^12.0.0
         version: 12.1.0
@@ -126,11 +129,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       '@movscript/engine':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@movscript/language':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/language
       '@movscript/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -138,8 +141,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@movscript/workspace':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/workspace
       '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -286,20 +289,42 @@ importers:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@22.19.17)
 
+  packages/interpreter:
+    dependencies:
+      '@movscript/decision':
+        specifier: workspace:*
+        version: link:../decision
+      '@movscript/language':
+        specifier: workspace:*
+        version: link:../language
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../workspace
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/core:
     dependencies:
-      '@movscript/compiler':
-        specifier: 0.1.0
-        version: 0.1.0
+      '@movscript/interpreter':
+        specifier: workspace:*
+        version: link:../interpreter
       '@movscript/engine':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../engine
       '@movscript/language':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../language
       '@movscript/workspace':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../workspace
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -309,6 +334,49 @@ importers:
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
       typescript:
         specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/decision:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/engine:
+    dependencies:
+      '@movscript/interpreter':
+        specifier: workspace:*
+        version: link:../interpreter
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../workspace
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/language:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/theme:
@@ -385,6 +453,25 @@ importers:
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
       typescript:
         specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/workspace:
+    dependencies:
+      '@movscript/decision':
+        specifier: workspace:*
+        version: link:../decision
+      '@movscript/language':
+        specifier: workspace:*
+        version: link:../language
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
         version: 5.9.3
 
 packages:
@@ -869,26 +956,6 @@ packages:
   '@malept/flatpak-bundler@0.4.0':
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
-
-  '@movscript/compiler@0.1.0':
-    resolution: {integrity: sha512-PTSZjlbpt++IulrymqTz0Daj+f58XB5DwFLLSlPS32WpQ7Jaw+JlUnUN3MNgCV8CMY6CrthqThyKX6ZWRYXo5Q==}
-    engines: {node: '>=20'}
-
-  '@movscript/decision@0.1.0':
-    resolution: {integrity: sha512-bY5HWooA9svGRRf/lAkIuJdfaYVGjovk7sqpJQYQKmTu4P/DK/DX82+LYIISL0Zq2JxeHKmW4R7jqGgIKgL23g==}
-    engines: {node: '>=20'}
-
-  '@movscript/engine@0.1.0':
-    resolution: {integrity: sha512-kzjWeK5SsqrDPlvf6zLWZjswf2FIItN4WKJ3ReyuRteCcj9G8SGrq/1NBhNvpomVeqtFzBoewLztaLFk9i8AUA==}
-    engines: {node: '>=20'}
-
-  '@movscript/language@0.1.0':
-    resolution: {integrity: sha512-r43CGj6gtfochuHOVNpYgdQuAblUbkrxFichTdq9KcLXUtR0vnSZwxsZYboH0NpQHoh7PUe+rgPZNI+JyrpUvg==}
-    engines: {node: '>=20'}
-
-  '@movscript/workspace@0.1.0':
-    resolution: {integrity: sha512-jykk0f8rWKmOb7eP3dC69V5bMl/yiTfEX9xWaeqOxuC/rM3zgBolQK3SIRrkmoHh9waY8ssQrExHlOpRNVF8zw==}
-    engines: {node: '>=20'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -4043,26 +4110,6 @@ snapshots:
       tmp-promise: 3.0.3
     transitivePeerDependencies:
       - supports-color
-
-  '@movscript/compiler@0.1.0':
-    dependencies:
-      '@movscript/decision': 0.1.0
-      '@movscript/language': 0.1.0
-      '@movscript/workspace': 0.1.0
-
-  '@movscript/decision@0.1.0': {}
-
-  '@movscript/engine@0.1.0':
-    dependencies:
-      '@movscript/compiler': 0.1.0
-      '@movscript/workspace': 0.1.0
-
-  '@movscript/language@0.1.0': {}
-
-  '@movscript/workspace@0.1.0':
-    dependencies:
-      '@movscript/decision': 0.1.0
-      '@movscript/language': 0.1.0
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

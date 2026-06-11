@@ -28,9 +28,9 @@ test('resolveMovScriptCliBinDir uses packaged resources when available', () => {
   }), binDir)
 })
 
-test('resolveMovScriptCliBinDir prefers workspace .movscript/bin before packaged resources', () => {
-  const workspaceDir = resolve('/Users/me/MovScript')
-  const workspaceBinDir = resolve(workspaceDir, '.movscript/bin')
+test('resolveMovScriptCliBinDir prefers workspace bin before packaged resources', () => {
+  const workspaceDir = resolve('/Users/me/.movscript')
+  const workspaceBinDir = resolve(workspaceDir, 'bin')
   const resourcesPath = resolve('/Applications/Movscript.app/Contents/Resources')
   const packagedBinDir = resolve(resourcesPath, 'movcli/bin')
   assert.equal(resolveMovScriptCliBinDir({
@@ -77,7 +77,7 @@ test('ensureWorkspaceMovScriptCliBin writes a workspace shim that points at pack
       resourcesPath: join(root, 'resources'),
     })
 
-    assert.equal(binDir, join(workspaceDir, '.movscript', 'bin'))
+    assert.equal(binDir, join(workspaceDir, 'bin'))
     assert.equal(existsSync(join(binDir!, 'movcli')), true)
     assert.equal(existsSync(join(binDir!, 'movcli.mjs')), true)
     assert.match(readFileSync(join(binDir!, 'movcli.mjs'), 'utf8'), /dist\/index\.cjs/)

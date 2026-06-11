@@ -161,7 +161,7 @@ test('timelineItemToChatMessage only projects transcript text messages into chat
 })
 
 test('timeline projection coverage matches every MovScript timeline origin purpose and surface', () => {
-  const protocol = readFileSync(resolve('src/features/agent/domain/agentProtocol.ts'), 'utf8')
+  const protocol = readFileSync(resolve('../../packages/core/src/agent/protocol.ts'), 'utf8')
   const origins = Object.keys(PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_ORIGIN_COVERAGE>
   const purposes = Object.keys(PROVIDER_SESSION_TIMELINE_PURPOSE_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_PURPOSE_COVERAGE>
   const surfaces = Object.keys(PROVIDER_SESSION_TIMELINE_SURFACE_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_SURFACE_COVERAGE>
@@ -176,7 +176,7 @@ test('timeline projection coverage matches every MovScript timeline origin purpo
 })
 
 test('timeline status coverage matches user input delivery projection', () => {
-  const protocol = readFileSync(resolve('src/features/agent/domain/agentProtocol.ts'), 'utf8')
+  const protocol = readFileSync(resolve('../../packages/core/src/agent/protocol.ts'), 'utf8')
   const statuses = Object.keys(PROVIDER_SESSION_TIMELINE_STATUS_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_TIMELINE_STATUS_COVERAGE>
   const messages = statuses.map((status) => timelineItemToChatMessage(message({
     origin: 'user',

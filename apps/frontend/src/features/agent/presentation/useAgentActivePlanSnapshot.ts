@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { shouldPollPlanSnapshot } from '@/features/agent/domain/agentPlanUi'
-import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 import { providerSessionClient, type ProviderSessionEventV2, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 interface UseAgentActivePlanSnapshotInput {
@@ -40,7 +40,7 @@ export function useAgentActivePlanSnapshot({
   })
 
   const terminalSnapshotRefreshKeyRef = useRef<string | null>(null)
-  const terminalSnapshotRefreshKey = enabled && activeRun && isTerminalAgentRunStatus(activeRun.status)
+  const terminalSnapshotRefreshKey = enabled && activeRun && isAgentRunTerminalStatus(activeRun.status)
     ? `${taskGraphId}:${activeRun.id}:${activeRun.status}:${activeRun.updatedAt}`
     : null
   useEffect(() => {

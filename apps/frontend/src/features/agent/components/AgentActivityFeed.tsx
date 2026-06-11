@@ -42,7 +42,7 @@ import {
   type AgentActivityKind,
   type AgentActivityRound as AgentActivityRoundModel,
 } from '@/features/agent/presentation/agentActivityFeed'
-import { agentRunPath } from '@/routes/projectRoutes'
+import { ROUTES } from '@/routes/projectRoutes'
 import { ProviderSessionApprovalRequestCard, ProviderSessionInputRequestCard, type ProviderSessionApprovalRequest } from '@/features/agent/components/providerSessionInteractions'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
@@ -181,9 +181,9 @@ export function AgentActivityDividerMenu({
           {canOpenTrace && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate(agentRunPath(activity.runId))}>
+              <DropdownMenuItem onClick={() => navigate(ROUTES.agentConsole)}>
                 <AgentActivityMenuIcon><Route size={12} /></AgentActivityMenuIcon>
-                打开 trace
+                打开 Agent 控制台
               </DropdownMenuItem>
             </>
           )}

@@ -1,7 +1,15 @@
-import { forwardRef, useEffect, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import { loadResourceUrlBlob } from '@/shared/ui/resourceBlob'
-import { acquireCachedResourceMediaUrl } from '@/shared/ui/resourceMediaCache'
+import {
+  acquireCachedInlineImageMediaUrl,
+  acquireCachedResourceMediaUrl,
+} from '@/shared/ui/resourceMediaCache'
 import { ResourceAuthAudio, ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui'
+import {
+  compactResourceMediaDiagnosticElementRect,
+  compactResourceMediaDiagnosticSrc,
+  resourceMediaDiagnosticsEnabled,
+} from '@/shared/ui/resourceMediaDiagnostics'
 
 const HEIC_MIME_TYPES = new Set([
   'image/heic',
@@ -30,11 +38,44 @@ async function runImageThumbnailTask<T>(task: () => Promise<T>): Promise<T> {
 }
 
 function useAuthBlobUrl(src: string | undefined, thumbnailMaxSize?: number): string | undefined {
-  const [blobUrl, setBlobUrl] = useState<string>()
+  const [blobUrl, setBlobUrl] = useState<string | undefined>(() => (
+    src && (typeof window === 'undefined' || canUseDirectMediaSrc(src)) ? src : undefined
+  ))
 
   useEffect(() => {
     if (!src) return
-    if (src.startsWith('data:')) {
+    if (isInlineImageDataUrl(src)) {
+      let active = true
+      let releaseObjectUrl: (() => void) | undefined
+      setBlobUrl(undefined)
+      const loadInlineImageDataUrl = async () => {
+        const cached = await acquireCachedInlineImageMediaUrl(
+          src,
+          async () => displayableImageBlob(dataUrlToBlob(src)),
+          thumbnailMaxSize
+            ? {
+                variantKey: `thumb:${thumbnailMaxSize}`,
+                transformBlob: (blob) => downscaleImageBlob(blob, thumbnailMaxSize),
+              }
+            : undefined,
+        )
+        releaseObjectUrl = cached.release
+        if (!active) {
+          cached.release()
+          return
+        }
+        setBlobUrl(cached.url)
+      }
+      loadInlineImageDataUrl().catch(() => {
+        if (active) setBlobUrl(undefined)
+      })
+      return () => {
+        active = false
+        releaseObjectUrl?.()
+        setBlobUrl(undefined)
+      }
+    }
+    if (!requiresResourceAPIAuth(src)) {
       setBlobUrl(src)
       return
     }
@@ -63,6 +104,48 @@ function useAuthBlobUrl(src: string | undefined, thumbnailMaxSize?: number): str
   }, [src, thumbnailMaxSize])
 
   return blobUrl
+}
+
+function canUseDirectMediaSrc(src: string): boolean {
+  return !requiresResourceAPIAuth(src) && !isInlineImageDataUrl(src)
+}
+
+function requiresResourceAPIAuth(src: string): boolean {
+  try {
+    const url = new URL(src, typeof window === 'undefined' ? 'http://localhost' : window.location.origin)
+    return url.pathname.startsWith('/api/v1/resources/')
+  } catch {
+    return src.startsWith('/api/v1/resources/')
+  }
+}
+
+function isInlineImageDataUrl(src: string): boolean {
+  return /^data:image\/[a-z0-9.+-]+[;,]/i.test(src)
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const match = /^data:([^;,]+)?((?:;[^,]*)?),(.*)$/is.exec(dataUrl)
+  if (!match) throw new Error('Invalid image data URL')
+  const mimeType = match[1] || 'application/octet-stream'
+  const metadata = match[2] ?? ''
+  const payload = match[3] ?? ''
+  if (!metadata.toLowerCase().includes(';base64')) {
+    return new Blob([decodeURIComponent(payload)], { type: mimeType })
+  }
+
+  const binary = atob(payload.replace(/\s/g, ''))
+  const chunks: ArrayBuffer[] = []
+  const chunkSize = 8192
+  for (let offset = 0; offset < binary.length; offset += chunkSize) {
+    const slice = binary.slice(offset, offset + chunkSize)
+    const buffer = new ArrayBuffer(slice.length)
+    const bytes = new Uint8Array(buffer)
+    for (let index = 0; index < slice.length; index += 1) {
+      bytes[index] = slice.charCodeAt(index)
+    }
+    chunks.push(buffer)
+  }
+  return new Blob(chunks, { type: mimeType })
 }
 
 async function displayableImageBlob(blob: Blob): Promise<Blob> {
@@ -123,7 +206,13 @@ interface ImgProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 
 // Use instead of raw media elements for URLs that need the API Authorization header.
 export function AuthedImage({ src, className, diagnosticLabel, thumbnailMaxSize, onLoad, onError, ...props }: ImgProps) {
-  const blobUrl = useAuthBlobUrl(src, thumbnailMaxSize)
+  const {
+    loading = 'lazy',
+    decoding = 'async',
+    ...imageProps
+  } = props
+  const lazyResolution = useLazyMediaResolution(src, loading === 'eager')
+  const blobUrl = useAuthBlobUrl(lazyResolution.ready ? src : undefined, thumbnailMaxSize)
   const variantLabel = thumbnailMaxSize ? `thumb:${thumbnailMaxSize}` : 'full'
   useEffect(() => {
     if (!mediaDiagnosticsEnabled() || !src) return
@@ -139,11 +228,28 @@ export function AuthedImage({ src, className, diagnosticLabel, thumbnailMaxSize,
   }, [blobUrl, diagnosticLabel, src, variantLabel])
 
   if (!src) return null
+  if (!lazyResolution.ready) {
+    return (
+      <span ref={lazyResolution.ref} style={{ display: 'block', minHeight: 1 }}>
+        <ResourceAuthImage
+          src={undefined}
+          isLoading
+          className={className}
+          loading={loading}
+          decoding={decoding}
+          {...imageProps}
+        />
+      </span>
+    )
+  }
+
   return (
     <ResourceAuthImage
       src={blobUrl}
       isLoading={!blobUrl}
       className={className}
+      loading={loading}
+      decoding={decoding}
       onLoad={(event) => {
         if (mediaDiagnosticsEnabled()) {
           const image = event.currentTarget
@@ -159,44 +265,69 @@ export function AuthedImage({ src, className, diagnosticLabel, thumbnailMaxSize,
         }
         onError?.(event)
       }}
-      {...props}
+      {...imageProps}
     />
   )
+}
+
+function useLazyMediaResolution(src: string | undefined, eager = false) {
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const canObserve = typeof window !== 'undefined' && typeof IntersectionObserver !== 'undefined'
+  const [readySrc, setReadySrc] = useState<string | null>(() => (
+    !src || eager || !canObserve ? (src ?? null) : null
+  ))
+  const ready = !src || eager || !canObserve || readySrc === src
+
+  useEffect(() => {
+    if (!src) {
+      setReadySrc(null)
+      return
+    }
+    if (eager || !canObserve) {
+      setReadySrc(src)
+      return
+    }
+    if (readySrc === src) return
+
+    const node = ref.current
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return
+      setReadySrc(src)
+      observer.disconnect()
+    }, { rootMargin: '900px 0px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [canObserve, eager, readySrc, src])
+
+  return { ref, ready }
 }
 
 interface VideoProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
   src: string | undefined
   diagnosticLabel?: string
+  lazy?: boolean
 }
 
 function mediaDiagnosticsEnabled() {
-  if (!import.meta.env.DEV) return false
-  if (import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS === '1') return true
-  try {
-    if (new URLSearchParams(window.location.search).has('canvasDebug')) return true
-    return !!window.localStorage.getItem('movscript.canvasDebug')
-  } catch {
-    return false
-  }
+  return resourceMediaDiagnosticsEnabled({
+    dev: import.meta.env.DEV,
+    renderDiagnostics: import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS,
+    search: window.location.search,
+  })
 }
 
 function compactMediaSrc(src: string | undefined) {
-  if (!src) return 'empty'
-  try {
-    const url = new URL(src, window.location.origin)
-    return `${url.pathname}${url.search}`
-  } catch {
-    return src.length > 96 ? `${src.slice(0, 96)}...` : src
-  }
+  return compactResourceMediaDiagnosticSrc(src, window.location.origin)
 }
 
 function compactMediaRect(element: HTMLElement) {
-  const rect = element.getBoundingClientRect()
-  return `${Math.round(rect.width)}x${Math.round(rect.height)}+${Math.round(rect.left)}+${Math.round(rect.top)}`
+  return compactResourceMediaDiagnosticElementRect(element)
 }
 
-export const AuthedVideo = forwardRef<HTMLVideoElement, VideoProps>(function AuthedVideo({ src, diagnosticLabel, onLoadedMetadata, onError, ...props }, ref) {
-  const blobUrl = useAuthBlobUrl(src)
+export const AuthedVideo = forwardRef<HTMLVideoElement, VideoProps>(function AuthedVideo({ src, diagnosticLabel, lazy = true, onLoadedMetadata, onError, className, autoPlay, ...props }, ref) {
+  const lazyResolution = useLazyMediaResolution(src, !lazy || Boolean(autoPlay))
+  const blobUrl = useAuthBlobUrl(lazyResolution.ready ? src : undefined)
   useEffect(() => {
     if (!mediaDiagnosticsEnabled() || !src) return
     console.info(`[canvas:media] video request label=${diagnosticLabel ?? 'video'} src=${compactMediaSrc(src)}`)
@@ -211,10 +342,15 @@ export const AuthedVideo = forwardRef<HTMLVideoElement, VideoProps>(function Aut
   }, [blobUrl, diagnosticLabel, src])
 
   if (!src) return null
+  if (!lazyResolution.ready) {
+    return <span ref={lazyResolution.ref} className={className} style={{ display: 'block', minHeight: 1 }} />
+  }
   return (
     <ResourceAuthVideo
       videoRef={ref}
       src={blobUrl}
+      className={className}
+      autoPlay={autoPlay}
       onLoadedMetadata={(event) => {
         if (mediaDiagnosticsEnabled()) {
           const video = event.currentTarget

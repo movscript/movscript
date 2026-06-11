@@ -64,7 +64,7 @@
 }
 
 .resource-asset-card:hover .resource-asset-card__select-control,
-.resource-asset-card__select-control:has(:checked) {
+.resource-asset-card[data-selected="true"] .resource-asset-card__select-control {
   opacity: 1;
 }
 

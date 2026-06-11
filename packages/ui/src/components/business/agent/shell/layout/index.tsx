@@ -7,14 +7,16 @@ import type { AgentDensity, AgentRunState } from "../../types";
 
 export interface AgentShellProps extends React.HTMLAttributes<HTMLDivElement> {
   density?: AgentDensity;
+  hasContext?: boolean;
 }
 
 export const AgentShell = React.forwardRef<HTMLDivElement, AgentShellProps>(
-  ({ className, density = "comfortable", ...props }, ref) => {
+  ({ className, density = "comfortable", hasContext = false, ...props }, ref) => {
     return (
       <div
         ref={ref}
         data-density={density}
+        data-has-context={hasContext ? "true" : undefined}
         className={cn("ms-agent-container ms-agent-shell", `ms-agent-shell--${density}`, className)}
         {...props}
       />

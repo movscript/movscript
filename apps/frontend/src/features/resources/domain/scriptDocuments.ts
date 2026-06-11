@@ -1,16 +1,22 @@
-export const SCRIPT_DOCUMENT_ACCEPT = '.txt,.md,.text,.csv,.json,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword'
+import {
+  SCRIPT_DOCUMENT_ACCEPT,
+  scriptDocumentBaseTitleFromName,
+  scriptDocumentFileKindFromName,
+} from '@movscript/core/resources'
+
+export { SCRIPT_DOCUMENT_ACCEPT, scriptDocumentFileKindFromName }
 
 export function scriptDocumentTitleFromName(fileName: string) {
-  const baseName = fileName.replace(/\.[^.]+$/, '').trim()
+  const baseName = scriptDocumentBaseTitleFromName(fileName)
   return baseName || '未命名剧本'
 }
 
 export async function readScriptDocument(file: File) {
-  const name = file.name.toLowerCase()
-  if (name.endsWith('.docx')) {
+  const kind = scriptDocumentFileKindFromName(file.name)
+  if (kind === 'docx') {
     return readDocx(file)
   }
-  if (name.endsWith('.doc')) {
+  if (kind === 'legacy_doc') {
     throw new Error('暂不支持旧版 .doc，请另存为 .docx 后上传')
   }
   return file.text()

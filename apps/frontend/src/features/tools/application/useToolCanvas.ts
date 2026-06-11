@@ -5,6 +5,7 @@ import { buildGenerationJobPayload } from '@/features/resources/domain/generatio
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { Job, NodeType, PublicModel, RawResource } from '@/types'
 import { useTranslation } from 'react-i18next'
+import { resolveGenerationJobTypeFromResourceCount } from '@movscript/core/generation'
 
 export type ToolStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 
@@ -63,9 +64,10 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
     try {
       const fallbackModel = models[0]
       const modelId = state.modelId || (fallbackModel ? publicModelId(fallbackModel) : '')
-      const jobType = capability === 'video'
-        ? (state.inputResources.length > 0 ? 'video_i2v' : 'video')
-        : (state.inputResources.length > 0 ? 'image_edit' : 'image')
+      const jobType = resolveGenerationJobTypeFromResourceCount({
+        outputType: capability,
+        inputResourceCount: state.inputResources.length,
+      })
 
       const job = await api.post('/jobs', buildGenerationJobPayload({
         modelId,

@@ -93,11 +93,13 @@ export function WorkbenchProjectShell({
 
 export function WorkbenchProjectBody({
   className,
+  layout,
   padding = "normal",
   scroll = "auto",
   tone = "plain",
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
+  layout?: "document" | "workspace";
   padding?: "normal" | "none";
   scroll?: "auto" | "hidden" | "responsive";
   tone?: "plain" | "muted";
@@ -105,6 +107,7 @@ export function WorkbenchProjectBody({
   return (
     <div
       className={cn("workbench-project-body", className)}
+      data-layout={layout}
       data-padding={padding}
       data-scroll={scroll}
       data-tone={tone}

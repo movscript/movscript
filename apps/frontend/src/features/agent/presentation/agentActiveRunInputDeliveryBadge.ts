@@ -1,5 +1,4 @@
-import { activeRunInputDisplayDeliveryStatus } from '@/features/agent/domain/agentActiveRunInputMessages'
-import { providerSessionInputRef } from '@/features/agent/domain/providerSessionMessageRefs'
+import { activeRunInputDisplayDeliveryStatus, providerSessionInputRef } from '@movscript/core/agent/protocol'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export interface AgentActiveRunInputDeliveryBadge {

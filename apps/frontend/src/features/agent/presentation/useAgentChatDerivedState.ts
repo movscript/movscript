@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { buildAgentChatComposerViewState } from '@/features/agent/presentation/agentChatComposerViewState'
-import { buildAgentChatConversationProjectionState } from '@/features/agent/presentation/agentChatConversationProjectionState'
+import { useAgentChatConversationProjectionState } from '@/features/agent/presentation/agentChatConversationProjectionState'
 import { buildAgentChatGenerationProgressViewState } from '@/features/agent/presentation/agentChatGenerationProgressViewState'
 import { buildAgentChatProviderSessionWorkViewState } from '@/features/agent/presentation/agentChatProviderSessionWorkViewState'
 import { useAgentChatRunInteractionState } from '@/features/agent/presentation/useAgentChatRunInteractionState'
@@ -79,7 +79,7 @@ export function useAgentChatDerivedState({
     run: activeRun,
     submittedInteractionRuns,
   })
-  const { conversationProjection } = useMemo(() => buildAgentChatConversationProjectionState({
+  const { conversationProjection } = useAgentChatConversationProjectionState({
     activeRun: activeRun,
     buildingSendWorkspace: providerSessionWorkViewState.buildingSendWorkspace,
     inputBlockingLoading: providerSessionWorkViewState.inputBlockingLoading,
@@ -91,19 +91,7 @@ export function useAgentChatDerivedState({
     streamingAssistantText,
     timelineItems,
     visibleActivityEvents,
-  }), [
-    activeRun,
-    providerSessionWorkViewState.buildingSendWorkspace,
-    providerSessionWorkViewState.inputBlockingLoading,
-    runInteractionState.interactionRuns,
-    messages,
-    pendingAssistantState,
-    pendingSendWorkspace,
-    streamingAssistantMessageId,
-    streamingAssistantText,
-    timelineItems,
-    visibleActivityEvents,
-  ])
+  })
   const composerViewState = useMemo(() => buildAgentChatComposerViewState({
     activePendingInputRequest: runInteractionState.activePendingInputRequest,
     activeRun: activeRun,

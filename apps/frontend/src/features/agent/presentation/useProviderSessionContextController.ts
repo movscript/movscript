@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { providerSessionClient, type ProviderSessionHealth } from '@/shared/infrastructure/providerSessionClient'
 
@@ -28,14 +28,9 @@ export function useProviderSessionContextController({
 
   const providerSessionOnline = !!providerSessionHealth?.ok && !providerSessionHealthError
 
-  const refreshProviderCatalogContext = useCallback(() => {
-    void refetchProviderSessionHealth()
-  }, [refetchProviderSessionHealth])
-
   return {
     providerSessionHealth,
     providerSessionOnline,
     refetchProviderSessionHealth,
-    refreshProviderCatalogContext,
   }
 }

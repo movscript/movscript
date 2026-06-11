@@ -8,20 +8,21 @@ MovScript keeps a provider-neutral manifest and also ships the upstream compatib
 - upstream compatibility manifest at `.codex-plugin/plugin.json`
 - `skills/domain/SKILL.md`
 - `skills/project/SKILL.md`
+- `skills/planning/SKILL.md`
 - `skills/generation/SKILL.md`
+- `skills/review/SKILL.md`
 - compatibility guidance at `skills/workspace/SKILL.md`
 - `.mcp.json`
 
-The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_compile`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business source files in the project Git workspace; successful compiles write `.build/current`, indexes, reviews, and manifests.
+The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The MCP server key is `movscript`, so provider tool grants use names such as `mcp__movscript__domain_interpret`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business source files in the project Git workspace; successful interprets write `.interpret/current`, indexes, reviews, and manifests.
 
-Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target source paths such as `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. The current effective state is read from `.build/current` and `.build/indexes` after `domain_compile` succeeds. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
+Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target source paths such as `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`. The current effective state is read from `.interpret/current` and `.interpret/indexes` after `domain_interpret` succeeds. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
 
 The bridge now exposes these MCP surfaces to app-server providers:
 
 - MCP resources: `resources/list` and `resources/read` are forwarded to MovScript Desktop when it is running. These are read-only context/catalog entries, not generation input resources.
 - System tools: `system_focus_get`, `system_project_create`, `system_model_list`, `system_generate_image`, `system_generate_video`, generation job polling, resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
-- Domain tools: `domain_get_model`, `domain_overview`, `domain_query_*`, `domain_read_*`, `domain_upsert_*`, `domain_update_*`, candidate tools, `domain_inspect`, `domain_review`, `domain_compile`, and `domain_regeneration_plan`. Inspect/review checks `.build/current -> source`; compile validates source and updates `.build/`. `domain_build` remains a compatibility alias for `domain_compile`.
-- Legacy aliases: older names such as `movscript_workspace_get_model`, `movscript_workspace_review`, `movscript_workspace_build`, `generation_image_generate`, and `movscript_resource_library_query` remain routable as compatibility aliases.
+- Domain tools: `domain_get_model`, `domain_overview`, `domain_query_*`, `domain_read_*`, `domain_upsert_*`, `domain_update_*`, candidate tools, `domain_inspect`, `domain_review`, `domain_interpret`, and `domain_regeneration_plan`. Planning upserts cover production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, expression_unit, and content_unit source records. Inspect/review checks `.interpret/current -> source`; interpret validates source and updates `.interpret/`.
 
 MovScript uses three separate media concepts in the plugin contract:
 

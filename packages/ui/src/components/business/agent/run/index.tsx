@@ -5,4 +5,3 @@ export * from "./attachment-preview";
 export * from "./field";
 export * from "./tool-step";
 export * from "./feedback";
-export * from "./list";

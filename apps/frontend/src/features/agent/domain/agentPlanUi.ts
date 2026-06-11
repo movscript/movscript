@@ -1,16 +1,16 @@
 import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@/shared/infrastructure/providerSessionClient'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { runHasRunInteraction } from '@/features/agent/domain/agentRunInteraction'
-import { isStoppableAgentRunStatus, isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunStoppableStatus, isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 const TERMINAL_AGENT_TASK_GRAPH_STATUSES = new Set<AgentTaskGraphStatus>(['done', 'failed', 'cancelled'])
 
 export function shouldPollPlanSnapshot(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): boolean {
   if (snapshot) {
     if (!TERMINAL_AGENT_TASK_GRAPH_STATUSES.has(snapshot.taskGraph.status)) return true
-    return snapshot.runs.some((run) => isStoppableAgentRunStatus(run.status))
+    return snapshot.runs.some((run) => isAgentRunStoppableStatus(run.status))
   }
-  return !!activeRun?.taskGraphId && !isTerminalAgentRunStatus(activeRun.status)
+  return !!activeRun?.taskGraphId && !isAgentRunTerminalStatus(activeRun.status)
 }
 
 export function plannerRunIdForPlanAction(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): string | undefined {
@@ -19,7 +19,7 @@ export function plannerRunIdForPlanAction(snapshot: AgentTaskGraphSnapshot | und
 }
 
 export function activeWorkerRunCount(snapshot: AgentTaskGraphSnapshot): number {
-  return snapshot.runs.filter((run) => run.role === 'worker' && isStoppableAgentRunStatus(run.status)).length
+  return snapshot.runs.filter((run) => run.role === 'worker' && isAgentRunStoppableStatus(run.status)).length
 }
 
 export interface AgentPlanTaskView {

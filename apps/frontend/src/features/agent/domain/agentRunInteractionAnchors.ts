@@ -1,5 +1,5 @@
 import { isTranscriptAssistantChatMessage, transcriptAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
-import { providerSessionMessageRef } from '@/features/agent/domain/providerSessionMessageRefs'
+import { providerSessionMessageRef } from '@movscript/core/agent/protocol'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 

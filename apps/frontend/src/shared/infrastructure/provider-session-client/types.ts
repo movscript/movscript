@@ -71,7 +71,7 @@ import type {
   ProviderWork,
   ToolCall,
   UpdateTaskGraphResult,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 
 export type {
   AgentApprovalRequest,

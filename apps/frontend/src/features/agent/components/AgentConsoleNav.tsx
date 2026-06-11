@@ -19,6 +19,7 @@ import { providerRoute } from '@/features/agent/application/providerRoutes'
 
 const agentConsoleSections = [
   {
+    tab: 'console',
     to: ROUTES.agentConsole,
     label: 'Overview',
     description: '全局状态、健康检查和待关注事项',
@@ -26,25 +27,29 @@ const agentConsoleSections = [
     end: true,
   },
   {
+    tab: 'console:model-providers',
     to: ROUTES.modelProviders,
     label: 'Model Providers',
     description: '本地模型供应商、Base URL、API Key',
     icon: Database,
   },
   {
+    tab: 'console:agents',
     to: ROUTES.agents,
     label: 'Agents',
     description: 'Provider 启用与生命周期',
     icon: Bot,
-    match: ['/agents', ROUTES.agentSettings, ROUTES.agentRuns],
+    match: ['/agents', ROUTES.agentSettings],
   },
   {
+    tab: 'console:connections',
     to: ROUTES.agentConnections,
     label: 'Connections',
     description: '裸请求、裸返回和 thread 流状态',
     icon: Cable,
   },
   {
+    tab: 'console:plugins',
     to: ROUTES.plugins,
     label: 'Plugins',
     description: '全局插件、Pack、Skills/Tools 贡献',
@@ -52,16 +57,18 @@ const agentConsoleSections = [
     match: [ROUTES.plugins],
   },
   {
+    tab: 'console:workspace',
     to: ROUTES.workspaceConfig,
     label: 'Workspace',
-    description: 'edit、.build、.movscript/providers',
+    description: 'edit、.interpret、.movscript/providers',
     icon: FileCog,
-    match: [ROUTES.workspaceConfig, ROUTES.agentFiles],
+    match: [ROUTES.workspaceConfig, ROUTES.workspaceReview],
   },
 ] as const
 
 export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
   const location = useLocation()
+  const settingsConsoleTab = settingsHostedConsoleTab(location.pathname, location.search)
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const settings = normalizeProviderSettings(savedSettings)
   const enabledProviderList = enabledProviders(settings)
@@ -77,11 +84,16 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
         <AgentConsoleNavList>
           {agentConsoleSections.map((section) => {
             const Icon = section.icon
-            const active = sectionIsActive(section, location.pathname)
+            const active = settingsConsoleTab
+              ? settingsConsoleTab === section.tab
+              : sectionIsActive(section, location.pathname)
             const description = section.label === 'Agents'
               ? `${enabledCount} 个 Provider 启用`
               : section.description
-            const to = section.label === 'Agents' ? agentsRoute : section.to
+            const defaultTo = section.label === 'Agents' ? agentsRoute : section.to
+            const to = settingsConsoleTab
+              ? settingsHostedConsoleRoute(section.tab)
+              : defaultTo
             return (
               <AgentConsoleNavLinkWrapper key={section.to}>
                 <Link to={to}>
@@ -110,6 +122,19 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
       </nav>
     </AgentConsoleNavShell>
   )
+}
+
+function settingsHostedConsoleRoute(tab: (typeof agentConsoleSections)[number]['tab']): string {
+  return `${ROUTES.appSettings}?tab=${encodeURIComponent(tab)}`
+}
+
+function settingsHostedConsoleTab(pathname: string, search: string): (typeof agentConsoleSections)[number]['tab'] | undefined {
+  if (pathname === ROUTES.agentConsole) return 'console'
+  if (pathname !== ROUTES.appSettings) return undefined
+  const tab = new URLSearchParams(search).get('tab')
+  return agentConsoleSections.some((section) => section.tab === tab)
+    ? tab as (typeof agentConsoleSections)[number]['tab']
+    : undefined
 }
 
 function sectionIsActive(section: (typeof agentConsoleSections)[number], pathname: string): boolean {

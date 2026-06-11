@@ -5,7 +5,7 @@ import {
   AGENT_PROTOCOL_VERSION,
   PROVIDER_SESSION_EVENT_COMPAT_SCHEMA,
   PROVIDER_SESSION_EVENT_V2_SCHEMA,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 import { parseProviderSessionEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEvent'
 
 function eventPayload(schema: string): string {

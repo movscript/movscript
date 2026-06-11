@@ -20,7 +20,7 @@ type WorkspaceElectronAPI = Pick<
   | 'writeMovScriptWorkspaceFile'
   | 'deleteMovScriptWorkspaceFile'
   | 'reviewMovScriptWorkspace'
-  | 'buildMovScriptWorkspace'
+  | 'interpretMovScriptWorkspace'
 >
 
 export function createElectronMovScriptWorkspaceFileRepository(

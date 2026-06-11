@@ -4,7 +4,7 @@ import { forwardRef, type ComponentProps, type HTMLAttributes, type IframeHTMLAt
 
 import { cn } from "../../../lib/cn";
 import { toneTextClass, type SemanticTone } from "../../../semantic";
-import { AppContentLayout } from "../../layout";
+import { AppContentLayout, AppPageShellBody } from "../../layout";
 import {
   AppCodeBlock,
   AppControlGroup,
@@ -31,6 +31,13 @@ export function PluginPageLayout({
       {...props}
     />
   );
+}
+
+export function PluginPageShellBody({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof AppPageShellBody>, "padding" | "scroll">) {
+  return <AppPageShellBody padding="none" scroll="hidden" className={cn("plugin-page-layout", className)} {...props} />;
 }
 
 export function PluginPageHeader({ className, ...props }: HTMLAttributes<HTMLElement>) {
@@ -95,10 +102,13 @@ export function PluginDialogSurface({
 }
 
 export function PluginCardSurface({
+  spacing = "default",
   className,
   ...props
-}: ComponentProps<typeof AppSurfaceItem>) {
-  return <AppSurfaceItem className={cn("plugin-card-surface", className)} {...props} />;
+}: Omit<ComponentProps<typeof AppSurfaceItem>, "density"> & {
+  spacing?: "default" | "compact";
+}) {
+  return <AppSurfaceItem data-spacing={spacing === "compact" ? "compact" : undefined} className={cn("plugin-card-surface", className)} {...props} />;
 }
 
 export function PluginCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -153,15 +163,36 @@ export function PluginSearchIconSlot({ className, ...props }: HTMLAttributes<HTM
   return <div className={cn("plugin-search-field__icon", className)} {...props} />;
 }
 
+export function PluginSearchInput({
+  className,
+  ...props
+}: ComponentProps<typeof Input>) {
+  return <Input className={cn("plugin-search-input", className)} {...props} />;
+}
+
+export function PluginFileInput({
+  className,
+  ...props
+}: ComponentProps<typeof Input>) {
+  return <Input className={cn("plugin-file-input", className)} {...props} />;
+}
+
+export function PluginButtonIcon({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("plugin-button-icon", className)} {...props} />;
+}
+
 export function PluginEmptyActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("plugin-empty-actions", className)} {...props} />;
 }
 
 export function PluginEmptyState({
+  layout = "default",
   className,
   ...props
-}: ComponentProps<typeof AppEmptyState>) {
-  return <AppEmptyState className={cn("plugin-empty-state", className)} {...props} />;
+}: ComponentProps<typeof AppEmptyState> & {
+  layout?: "default" | "marketplace";
+}) {
+  return <AppEmptyState data-layout={layout === "marketplace" ? "marketplace" : undefined} className={cn("plugin-empty-state", className)} {...props} />;
 }
 
 export function PluginStateBanner({
@@ -171,6 +202,13 @@ export function PluginStateBanner({
   return <AppStateMessage className={cn("plugin-state-banner", className)} {...props} />;
 }
 
+export function PluginBannerDismissAction({
+  className,
+  ...props
+}: ComponentProps<typeof Button>) {
+  return <Button size="xs" variant="link" className={cn("plugin-banner-dismiss-action", className)} {...props} />;
+}
+
 export function PluginTabGroup({
   className,
   ...props
@@ -178,11 +216,37 @@ export function PluginTabGroup({
   return <AppControlGroup className={cn("plugin-tab-group", className)} {...props} />;
 }
 
+export function PluginTabButton({
+  active = false,
+  className,
+  ...props
+}: ComponentProps<typeof Button> & {
+  active?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={active ? "solid" : "ghost"}
+      size="sm"
+      data-active={active ? "true" : undefined}
+      className={cn("plugin-tab-button", className)}
+      {...props}
+    />
+  );
+}
+
 export function PluginInlineMeta({
   className,
   ...props
 }: ComponentProps<typeof AppInlineMeta>) {
   return <AppInlineMeta className={cn("plugin-inline-meta", className)} {...props} />;
+}
+
+export function PluginTabCount({
+  className,
+  ...props
+}: ComponentProps<typeof AppInlineMeta>) {
+  return <AppInlineMeta asChild className={cn("plugin-tab-count", className)} {...props} />;
 }
 
 export function PluginStatusMeta({

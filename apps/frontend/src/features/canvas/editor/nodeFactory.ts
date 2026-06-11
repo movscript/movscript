@@ -3,19 +3,25 @@ import type { Edge, Node } from '@xyflow/react'
 import type { Canvas, CanvasNodeData, CanvasType, NodeType, RawResource } from '@/types'
 import { createCanvasNodeData } from '@/features/canvas/domain/graph'
 import { normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'
-import { edgeConnectionKey } from '@/features/canvas/domain/ports'
 import { deriveCanvasReferencePorts } from '@/features/canvas/integrations/workflowReferences'
+import {
+  createCanvasEdgeId as createCoreCanvasEdgeId,
+  nextWorkflowParamOrder,
+  readOnlyMediaPortPatch,
+  workflowIoDataPatch as coreWorkflowIoDataPatch,
+} from '@movscript/core/canvas'
+
+export {
+  nextWorkflowParamOrder,
+  readOnlyMediaPortPatch,
+} from '@movscript/core/canvas'
 
 export function createCanvasNodeId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
 export function createCanvasEdgeId(edge: Pick<Edge, 'source' | 'target' | 'sourceHandle' | 'targetHandle'>) {
-  return `${edgeConnectionKey(edge)}::${createCanvasNodeId()}`
-}
-
-export function readOnlyMediaPortPatch(source: CanvasNodeData['source']): Partial<CanvasNodeData> {
-  return source === 'ai' ? { inputPorts: undefined } : { inputPorts: [] }
+  return createCoreCanvasEdgeId(edge, createCanvasNodeId())
 }
 
 export function canvasTextNodeEditState(data: Partial<CanvasNodeData>) {
@@ -24,14 +30,6 @@ export function canvasTextNodeEditState(data: Partial<CanvasNodeData>) {
     resourceBacked,
     editable: data.source === 'manual' && !resourceBacked,
   }
-}
-
-export function nextWorkflowParamOrder(nodes: Node[], type: 'input' | 'output') {
-  const usedOrders = nodes
-    .filter((node) => node.type === type)
-    .map((node) => Number((node.data as Partial<CanvasNodeData>).paramOrder))
-    .filter((value) => Number.isInteger(value) && value > 0)
-  return usedOrders.length > 0 ? Math.max(...usedOrders) + 1 : 1
 }
 
 export function isPaletteNodeTypeAvailable(type: NodeType, canvasType: CanvasType) {
@@ -50,15 +48,11 @@ function workflowIoDataPatch({
   t: (key: string, options?: any) => string
 }): Partial<CanvasNodeData> & { label?: string } {
   if (type !== 'input' && type !== 'output') return {}
-  const ioType = type === 'input' ? 'input' : 'output'
-  const order = nextWorkflowParamOrder(existingNodes ?? [], ioType)
-  const baseName = ioType
-  const label = `${t(`canvas.nodeLabels.${type}`)} ${order}`
-  return {
-    label,
-    paramName: `${baseName}_${order}`,
-    paramOrder: order,
-  }
+  return coreWorkflowIoDataPatch({
+    type,
+    existingNodes,
+    label: t(`canvas.nodeLabels.${type}`),
+  }) as Partial<CanvasNodeData> & { label?: string }
 }
 
 export function createPaletteCanvasNode({

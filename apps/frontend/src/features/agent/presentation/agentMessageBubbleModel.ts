@@ -1,6 +1,6 @@
 import { buildAgentActivityFeed } from '@/features/agent/presentation/agentActivityFeed'
 import { transcriptAssistantProviderSessionRunId } from '@/features/agent/domain/agentMessageBoundaries'
-import { providerSessionMessageRef } from '@/features/agent/domain/providerSessionMessageRefs'
+import { providerSessionMessageRef } from '@movscript/core/agent/protocol'
 import { agentMessageDividerLabel } from '@/features/agent/presentation/agentMessageDivider'
 import type { AgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 import { activeRunInputDeliveryBadge, type AgentActiveRunInputDeliveryBadge } from '@/features/agent/presentation/agentActiveRunInputDeliveryBadge'

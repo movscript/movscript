@@ -17,8 +17,8 @@ export async function workspaceReview(args: Record<string, unknown>): Promise<un
   return service(args).reviewWorkspace()
 }
 
-export async function workspaceBuild(args: Record<string, unknown>): Promise<unknown> {
-  return service(args).buildWorkspace()
+export async function workspaceInterpret(args: Record<string, unknown>): Promise<unknown> {
+  return service(args).interpretWorkspace()
 }
 
 function service(args: Record<string, unknown>) {

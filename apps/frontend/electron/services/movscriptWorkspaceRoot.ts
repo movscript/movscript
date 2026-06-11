@@ -20,9 +20,11 @@ function workspaceRootResult(
     workspaceDir: paths.workspaceDir,
     rootDir: paths.rootDir,
     controlDir: paths.controlDir,
+    configTomlPath: paths.configTomlPath,
     manifestPath: paths.manifestPath,
     providersDir: paths.providersDir,
     backendDir: paths.backendDir,
+    binDir: paths.binDir,
     manifest,
   }
 }

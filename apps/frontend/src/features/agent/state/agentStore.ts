@@ -29,7 +29,7 @@ import type {
   ProviderCatalogConfigFile,
   ProviderToolApprovalMode,
   ProviderToolGrantMode,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 
 export type ChatMessage = AgentChatMessage
 export type Conversation = AgentConversation

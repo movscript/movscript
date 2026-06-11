@@ -79,15 +79,13 @@ export function buildWorkspaceBusinessReviewPath(input: {
     })
   }
   if (input.workspaceKind === 'setting_workspace') {
-    return withRouteParams('/project/pre-production', {
-      view: 'review',
+    return withRouteParams('/project/scripts/workbench', {
       workspaceId: input.workspaceId,
       reference_id: entityType === 'setting' ? entityId : undefined,
     })
   }
   if (input.workspaceKind === 'asset_workspace') {
-    return withRouteParams('/project/pre-production', {
-      view: 'review',
+    return withRouteParams('/project/content-units/editor', {
       workspaceId: input.workspaceId,
       asset_slot_id: entityType === 'asset_slot' ? entityId : undefined,
     })
@@ -104,7 +102,7 @@ export function buildWorkspaceBusinessReviewPath(input: {
   if (input.workspaceKind === 'content_unit_workspace') {
     const sceneMomentId = target.sceneMomentId ?? target.scene_moment_id ?? (entityType === 'scene_moment' ? entityId : undefined)
     const contentUnitId = target.contentUnitId ?? target.content_unit_id ?? (entityType === 'content_unit' ? entityId : undefined)
-    return withRouteParams('/project/content-units/workbench', {
+    return withRouteParams('/project/content-units/editor', {
       view: 'review',
       workspaceId: input.workspaceId,
       scene_moment_id: sceneMomentId,

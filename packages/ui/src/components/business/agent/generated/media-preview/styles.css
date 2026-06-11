@@ -26,8 +26,10 @@
 
 .ms-agent-generated-media-preview > img,
 .ms-agent-generated-media-preview > video,
+.ms-agent-generated-media-preview > .resource-media-thumb,
 .ms-agent-generated-media-preview > .ms-button__content > img,
-.ms-agent-generated-media-preview > .ms-button__content > video {
+.ms-agent-generated-media-preview > .ms-button__content > video,
+.ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb {
   width: 100%;
   height: 14rem;
   max-height: 45vh;

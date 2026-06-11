@@ -5,10 +5,11 @@ import {
   createNodeMovScriptEngine,
 } from '@movscript/engine/node'
 import {
+  interpretMovScriptWorkspace,
   inspectMovScriptWorkspace,
   overviewMovScriptWorkspace,
   planMovScriptWorkspaceRegeneration,
-} from '@movscript/compiler/node'
+} from '@movscript/interpreter/node'
 import {
   createNodeMovScriptWorkspaceFileRepository,
 } from '@movscript/workspace/node'
@@ -21,6 +22,11 @@ import type {
 interface WorkspaceOptions {
   json?: boolean
   cwd?: string
+}
+
+interface InterpretOptions extends WorkspaceOptions {
+  initGit?: boolean
+  debugArtifacts?: boolean
 }
 
 interface GetModelOptions extends WorkspaceOptions {
@@ -39,7 +45,7 @@ interface DemoCreateOptions extends WorkspaceOptions {
   id?: string
   title?: string
   overwrite?: boolean
-  noCompile?: boolean
+  noInterpret?: boolean
 }
 
 interface AddSettingOptions extends WorkspaceOptions {
@@ -73,6 +79,7 @@ interface AddContentUnitOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
+  shot?: string
   storyboard?: string
   audioCue?: string
   prompt?: string
@@ -104,7 +111,6 @@ interface AddSceneMomentOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
-  storyboard?: string
   order?: string
   time?: string
   sceneCode?: string
@@ -115,13 +121,36 @@ interface AddSceneMomentOptions extends WorkspaceOptions {
   description?: string
 }
 
+interface AddShotOptions extends WorkspaceOptions {
+  id?: string
+  title?: string
+  production?: string
+  segment?: string
+  sceneMoment?: string
+  kind?: string
+  order?: string
+  shotSize?: string
+}
+
 interface AddStoryboardOptions extends WorkspaceOptions {
   id?: string
   title?: string
   production?: string
   segment?: string
   sceneMoment?: string
+  shot?: string
   order?: string
+}
+
+interface AddKeyframeOptions extends WorkspaceOptions {
+  id?: string
+  title?: string
+  production?: string
+  segment?: string
+  sceneMoment?: string
+  shot?: string
+  role?: string
+  visualIntent?: string
 }
 
 interface AddAudioCueOptions extends WorkspaceOptions {
@@ -130,10 +159,10 @@ interface AddAudioCueOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
+  shot?: string
   storyboard?: string
   kind?: string
   order?: string
-  shotPlan?: string
   prompt?: string
 }
 
@@ -182,16 +211,18 @@ interface PlanningListOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
+  shot?: string
 }
 
 interface PlanningDeleteOptions extends WorkspaceOptions {
   production?: string
   segment?: string
   sceneMoment?: string
+  shot?: string
 }
 
-interface CompilerArtifactsOptions extends WorkspaceOptions {
-  buildId?: string
+interface InterpreterArtifactsOptions extends WorkspaceOptions {
+  interpretationId?: string
   createdAt?: string
 }
 
@@ -204,6 +235,7 @@ const SEMANTIC_ENTITY_KINDS = [
   'production',
   'segment',
   'scene_moment',
+  'shot',
   'storyboard',
   'audio_cue',
   'expression_unit',
@@ -231,7 +263,7 @@ Examples:
   $ movcli asset add --setting hero --slot portrait --prompt "cinematic portrait"
   $ movcli overview
   $ movcli inspect
-  $ movcli compile
+  $ movcli interpret
   $ movcli regen plan
 `)
 
@@ -271,11 +303,11 @@ Examples:
 
   projectDemo
     .command('create')
-    .description('Create a minimal demo project with asset_ref and storyboard_video content units')
+    .description('Create a minimal demo project with asset_ref, keyframe_ref, and storyboard_ref content units')
     .option('--id <id>', 'Project id', 'demo')
     .option('--title <title>', 'Project title', 'Demo Film')
     .option('--overwrite', 'Overwrite existing demo files')
-    .option('--no-compile', 'Only write demo source files; do not run compiler build')
+    .option('--no-interpret', 'Only write demo source files; do not run interpreter interpret')
     .option('--json', 'Print JSON output')
     .action(async (options: DemoCreateOptions, command: Command) => {
       await createDemoProjectFromCliOptions(options, command)
@@ -545,7 +577,6 @@ Examples:
     .option('--title <title>', 'Scene moment title')
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
-    .option('--storyboard <id>', 'Initial storyboard id', 'main')
     .option('--order <number>', 'Scene moment order')
     .option('--time <text>', 'Time text')
     .option('--scene-code <text>', 'Scene code')
@@ -563,7 +594,6 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         title: options.title,
-        storyboardId: options.storyboard,
         order: parseOptionalNumberOption(options.order, 'order'),
         timeText: options.time,
         sceneCode: options.sceneCode,
@@ -582,7 +612,6 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--title <title>', 'Scene moment title')
-    .option('--storyboard <id>', 'Initial storyboard id')
     .option('--order <number>', 'Scene moment order')
     .option('--time <text>', 'Time text')
     .option('--scene-code <text>', 'Scene code')
@@ -600,7 +629,6 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         title: options.title,
-        storyboardId: options.storyboard,
         order: parseOptionalNumberOption(options.order, 'order'),
         timeText: options.time,
         sceneCode: options.sceneCode,
@@ -624,6 +652,92 @@ Examples:
       return deletePlanningEntity('scene_moment', idOrPath, options, command)
     })
 
+  const shot = program
+    .command('shot')
+    .description('Manage shots')
+
+  shot
+    .command('list')
+    .description('List shots')
+    .option('--production <id>', 'Filter by production id')
+    .option('--segment <id-or-path>', 'Filter by segment id or path')
+    .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
+    .option('--kind <kind>', 'Filter by shot kind')
+    .option('--query <text>', 'Search text')
+    .option('--limit <number>', 'Maximum rows to print')
+    .option('--json', 'Print JSON output')
+    .action((options: PlanningListOptions, command: Command) => {
+      return printPlanningEntityList('shot', 'Shots', options, command)
+    })
+
+  shot
+    .command('add')
+    .alias('create')
+    .description('Create or update a shot under a scene moment')
+    .option('--id <id>', 'Shot id')
+    .option('--title <title>', 'Shot title')
+    .option('--production <id>', 'Production id')
+    .option('--segment <id-or-path>', 'Segment id or path')
+    .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--kind <kind>', 'Shot kind')
+    .option('--order <number>', 'Shot order')
+    .option('--shot-size <value>', 'Shot size')
+    .option('--json', 'Print JSON output')
+    .action(async (options: AddShotOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const source = parseShotParentOptions(options)
+      const result = await createCliEngine(merged).createShot({
+        id: options.id,
+        productionId: source.productionId,
+        segmentId: source.segmentId,
+        sceneMomentId: source.sceneMomentId,
+        title: options.title,
+        kind: options.kind,
+        order: parseOptionalNumberOption(options.order, 'order'),
+        shotSize: options.shotSize,
+      })
+      printResult(result, merged)
+    })
+
+  shot
+    .command('modify <id>')
+    .description('Modify a shot')
+    .option('--title <title>', 'Shot title')
+    .option('--production <id>', 'Production id')
+    .option('--segment <id-or-path>', 'Segment id or path')
+    .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--kind <kind>', 'Shot kind')
+    .option('--order <number>', 'Shot order')
+    .option('--shot-size <value>', 'Shot size')
+    .option('--json', 'Print JSON output')
+    .action(async (id: string, options: AddShotOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const source = parseShotParentOptions(options)
+      const result = await createCliEngine(merged).updateShot({
+        id,
+        productionId: source.productionId,
+        segmentId: source.segmentId,
+        sceneMomentId: source.sceneMomentId,
+        title: options.title,
+        kind: options.kind,
+        order: parseOptionalNumberOption(options.order, 'order'),
+        shotSize: options.shotSize,
+      })
+      printResult(result, merged)
+    })
+
+  shot
+    .command('delete <idOrPath>')
+    .alias('remove')
+    .description('Delete a shot')
+    .option('--production <id>', 'Filter by production id')
+    .option('--segment <id-or-path>', 'Filter by segment id or path')
+    .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
+    .option('--json', 'Print JSON output')
+    .action((idOrPath: string, options: PlanningDeleteOptions, command: Command) => {
+      return deletePlanningEntity('shot', idOrPath, options, command)
+    })
+
   const storyboard = program
     .command('storyboard')
     .description('Manage storyboards')
@@ -634,6 +748,7 @@ Examples:
     .option('--production <id>', 'Filter by production id')
     .option('--segment <id-or-path>', 'Filter by segment id or path')
     .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
+    .option('--shot <id-or-path>', 'Filter by shot id or path')
     .option('--query <text>', 'Search text')
     .option('--limit <number>', 'Maximum rows to print')
     .option('--json', 'Print JSON output')
@@ -644,12 +759,13 @@ Examples:
   storyboard
     .command('add')
     .alias('create')
-    .description('Create or update a storyboard under a scene moment')
+    .description('Create or update a storyboard under a shot')
     .option('--id <id>', 'Storyboard id')
     .option('--title <title>', 'Storyboard title')
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
     .option('--order <number>', 'Storyboard order; new storyboards append when omitted')
     .option('--json', 'Print JSON output')
     .action(async (options: AddStoryboardOptions, command: Command) => {
@@ -660,6 +776,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
+        shotId: source.shotId,
         title: options.title,
         order: parseOptionalNumberOption(options.order, 'order'),
       })
@@ -673,6 +790,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
     .option('--order <number>', 'Storyboard order')
     .option('--json', 'Print JSON output')
     .action(async (id: string, options: AddStoryboardOptions, command: Command) => {
@@ -683,6 +801,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
+        shotId: source.shotId,
         title: options.title,
         order: parseOptionalNumberOption(options.order, 'order'),
       })
@@ -696,9 +815,48 @@ Examples:
     .option('--production <id>', 'Filter by production id')
     .option('--segment <id-or-path>', 'Filter by segment id or path')
     .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
+    .option('--shot <id-or-path>', 'Filter by shot id or path')
     .option('--json', 'Print JSON output')
     .action((idOrPath: string, options: PlanningDeleteOptions, command: Command) => {
       return deletePlanningEntity('storyboard', idOrPath, options, command)
+    })
+
+  const keyframe = program
+    .command('keyframe')
+    .description('Manage shot keyframes')
+
+  keyframe
+    .command('list')
+    .description('List keyframes')
+    .option('--production <id>', 'Filter by production id')
+    .option('--segment <id-or-path>', 'Filter by segment id or path')
+    .option('--scene-moment <id-or-path>', 'Filter by scene moment id or path')
+    .option('--shot <id-or-path>', 'Filter by shot id or path')
+    .option('--query <text>', 'Search text')
+    .option('--limit <number>', 'Maximum rows to print')
+    .option('--json', 'Print JSON output')
+    .action((options: PlanningListOptions, command: Command) => {
+      return printPlanningEntityList('keyframe', 'Keyframes', options, command)
+    })
+
+  keyframe
+    .command('add')
+    .alias('create')
+    .description('Create or update a keyframe under a shot')
+    .option('--id <id>', 'Keyframe id')
+    .option('--title <title>', 'Keyframe title')
+    .option('--production <id>', 'Production id')
+    .option('--segment <id-or-path>', 'Segment id or path')
+    .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
+    .option('--role <role>', 'Keyframe role')
+    .option('--visual-intent <text>', 'Visual intent')
+    .option('--json', 'Print JSON output')
+    .action(async (options: AddKeyframeOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const source = parseKeyframeParentOptions(options)
+      const result = await createKeyframeFromCliOptions(createCliEngine(merged), options, source)
+      printResult(result, merged)
     })
 
   const audioCue = program
@@ -728,9 +886,9 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
     .option('--order <number>', 'Audio cue order')
-    .option('--shot-plan <id>', 'Shot plan id')
     .option('--prompt <text>', 'Audio prompt hint')
     .option('--json', 'Print JSON output')
     .action(async (options: AddAudioCueOptions, command: Command) => {
@@ -741,11 +899,11 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
+        shotId: source.shotId,
         storyboardId: source.storyboardId,
         title: options.title,
         kind: options.kind,
         order: parseOptionalNumberOption(options.order, 'order'),
-        shotPlanId: options.shotPlan,
         promptHint: options.prompt,
       })
       printResult(result, merged)
@@ -759,9 +917,9 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id-or-path>', 'Segment id or path')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
     .option('--order <number>', 'Audio cue order')
-    .option('--shot-plan <id>', 'Shot plan id')
     .option('--prompt <text>', 'Audio prompt hint')
     .option('--json', 'Print JSON output')
     .action(async (id: string, options: AddAudioCueOptions, command: Command) => {
@@ -772,11 +930,11 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
+        shotId: source.shotId,
         storyboardId: source.storyboardId,
         title: options.title,
         kind: options.kind,
         order: parseOptionalNumberOption(options.order, 'order'),
-        shotPlanId: options.shotPlan,
         promptHint: options.prompt,
       })
       printResult(result, merged)
@@ -926,11 +1084,21 @@ Examples:
   contentUnit
     .command('status <idOrPath>')
     .alias('panel')
-    .description('Show source and compiled generation status for a content unit')
+    .description('Show source and interpreted generation status for a content unit')
     .option('--json', 'Print JSON output')
     .action(async (idOrPath: string, options: WorkspaceOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const result = await buildContentUnitStatusPanel(createCliEngine(merged), idOrPath)
+      const result = await deriveContentUnitStatusPanel(createCliEngine(merged), idOrPath)
+      printContentUnitStatusPanel(result, merged)
+    })
+
+  contentUnit
+    .command('context <idOrPath>')
+    .description('Show the interpreted generation context for a content unit')
+    .option('--json', 'Print JSON output')
+    .action(async (idOrPath: string, options: WorkspaceOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const result = await deriveContentUnitStatusPanel(createCliEngine(merged), idOrPath)
       printContentUnitStatusPanel(result, merged)
     })
 
@@ -944,6 +1112,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id>', 'Segment id')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path', 'main')
     .option('--audio-cue <id-or-path>', 'Audio cue id or path for audio content units')
     .option('--prompt <text>', 'Editable generation prompt')
@@ -964,6 +1133,7 @@ Examples:
         productionId: source.productionId,
         segmentId: source.segmentId,
         sceneMomentId: source.sceneMomentId,
+        shotId: source.shotId,
         storyboardId: source.storyboardId,
         audioCueId: source.audioCueId,
         prompt: options.prompt,
@@ -985,6 +1155,7 @@ Examples:
     .option('--production <id>', 'Production id')
     .option('--segment <id>', 'Segment id')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
+    .option('--shot <id-or-path>', 'Shot id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
     .option('--audio-cue <id-or-path>', 'Audio cue id or path for audio content units')
     .option('--prompt <text>', 'Editable generation prompt')
@@ -1004,8 +1175,9 @@ Examples:
         kind: options.kind,
         productionId: source.productionId,
         segmentId: source.segmentId,
-        sceneMomentId: options.sceneMoment === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.sceneMomentId,
-        storyboardId: options.sceneMoment === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.storyboardId,
+        sceneMomentId: options.sceneMoment === undefined && options.shot === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.sceneMomentId,
+        shotId: options.sceneMoment === undefined && options.shot === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.shotId,
+        storyboardId: options.sceneMoment === undefined && options.shot === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.storyboardId,
         audioCueId: source.audioCueId,
         prompt: options.prompt,
         description: options.description,
@@ -1064,19 +1236,19 @@ Examples:
       })
     })
 
-  const compiler = program
-    .command('compiler')
-    .description('Run compiler workflows')
+  const interpreter = program
+    .command('interpreter')
+    .description('Run interpreter workflows')
 
-  compiler
+  interpreter
     .command('overview')
-    .description('Show the workspace overview and next compiler actions')
+    .description('Show the workspace overview and next interpreter actions')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return overviewWorkspaceFromCliOptions(options, command)
     })
 
-  compiler
+  interpreter
     .command('inspect')
     .description('Inspect source edits, diagnostics, and predicted impact')
     .option('--json', 'Print JSON output')
@@ -1084,54 +1256,55 @@ Examples:
       return inspectWorkspaceFromCliOptions(options, command)
     })
 
-  compiler
+  interpreter
     .command('review')
-    .description('Alias for inspect')
+    .description('Review source edits, diagnostics, and predicted impact')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return inspectWorkspaceFromCliOptions(options, command)
     })
 
-  compiler
-    .command('compile')
-    .alias('build')
-    .description('Compile source into stable MovScript build artifacts')
+  interpreter
+    .command('interpret')
+    .description('Commit the current source workspace as a MovScript checkpoint')
+    .option('--init-git', 'Initialize a git repository before committing if the workspace is not in git')
+    .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
     .option('--json', 'Print JSON output')
-    .action((options: WorkspaceOptions, command: Command) => {
-      return compileWorkspaceFromCliOptions(options, command)
+    .action((options: InterpretOptions, command: Command) => {
+      return interpretWorkspaceFromCliOptions(options, command)
     })
 
-  compiler
+  interpreter
     .command('prompt <contentUnitId>')
-    .description('Build the runtime artifact for one content unit from the current index')
+    .description('Derive the runtime artifact for one content unit from the current index')
     .option('--json', 'Print JSON output')
     .action(async (contentUnitId: string, options: WorkspaceOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const result = await createCliEngine(merged).buildContentUnitArtifact(contentUnitId)
+      const result = await createCliEngine(merged).deriveContentUnitArtifact(contentUnitId)
       printResult(result, merged)
     })
 
-  compiler
+  interpreter
     .command('artifacts')
-    .description('Build compiler artifacts in memory from the current index')
-    .option('--build-id <id>', 'Build id used in derived artifacts')
+    .description('Derive interpreter artifacts in memory from the current index')
+    .option('--interpretation-id <id>', 'Interpretation id used in derived artifacts')
     .option('--created-at <iso>', 'Creation timestamp used in derived artifacts')
     .option('--json', 'Print JSON output')
-    .action(async (options: CompilerArtifactsOptions, command: Command) => {
+    .action(async (options: InterpreterArtifactsOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const result = await createCliEngine(merged).buildArtifacts({
-        ...(options.buildId !== undefined ? { buildId: options.buildId } : {}),
+      const result = await createCliEngine(merged).deriveArtifacts({
+        ...(options.interpretationId !== undefined ? { interpretationId: options.interpretationId } : {}),
         ...(options.createdAt !== undefined ? { createdAt: options.createdAt } : {}),
       })
       printResult(result, merged)
     })
 
-  const compilerRegen = compiler
+  const interpreterRegen = interpreter
     .command('regen')
     .alias('regenerate')
-    .description('Inspect regeneration work after compile')
+    .description('Inspect regeneration work after interpret')
 
-  compilerRegen
+  interpreterRegen
     .command('plan')
     .description('Show generated outputs and prompt bundles that may need regeneration')
     .option('--json', 'Print JSON output')
@@ -1142,7 +1315,7 @@ Examples:
   program
     .command('overview')
     .alias('status')
-    .description('Show the workspace overview and next compiler actions')
+    .description('Show the workspace overview and next interpreter actions')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return overviewWorkspaceFromCliOptions(options, command)
@@ -1158,25 +1331,26 @@ Examples:
 
   program
     .command('review')
-    .description('Alias for inspect')
+    .description('Review source edits, diagnostics, and predicted impact')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return inspectWorkspaceFromCliOptions(options, command)
     })
 
   program
-    .command('compile')
-    .alias('build')
-    .description('Compile source into stable MovScript build artifacts')
+    .command('interpret')
+    .description('Commit the current source workspace as a MovScript checkpoint')
+    .option('--init-git', 'Initialize a git repository before committing if the workspace is not in git')
+    .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
     .option('--json', 'Print JSON output')
-    .action((options: WorkspaceOptions, command: Command) => {
-      return compileWorkspaceFromCliOptions(options, command)
+    .action((options: InterpretOptions, command: Command) => {
+      return interpretWorkspaceFromCliOptions(options, command)
     })
 
   const regen = program
     .command('regen')
     .alias('regenerate')
-    .description('Inspect regeneration work after compile')
+    .description('Inspect regeneration work after interpret')
 
   regen
     .command('plan')
@@ -1328,6 +1502,33 @@ async function selectCandidateFromCliOptions(
   })
 }
 
+async function createKeyframeFromCliOptions(
+  engine: CliEngine,
+  options: AddKeyframeOptions,
+  source: { productionId: string; segmentId: string; sceneMomentId: string; shotId: string },
+): Promise<unknown> {
+  return engine.saveProductionSnapshot({
+    productionId: source.productionId,
+    snapshot: {
+      segments: [{
+        id: source.segmentId,
+        scene_moments: [{
+          id: source.sceneMomentId,
+          shots: [{
+            id: source.shotId,
+            keyframes: [pruneUndefined({
+              id: options.id,
+              title: options.title,
+              role: options.role,
+              visual_intent: options.visualIntent,
+            })],
+          }],
+        }],
+      }],
+    },
+  })
+}
+
 async function resolveContentUnitTarget(engine: CliEngine, target: string): Promise<MovScriptWorkspaceIndexedEntity> {
   const normalized = normalizeCliPath(targetPathFromSelectionTarget(target))
   const id = contentUnitIdFromTarget(target)
@@ -1377,8 +1578,8 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined
 }
 
-function targetKindValue(value: string | undefined): value is 'asset' | 'keyframe' | 'content_unit' {
-  return value === 'asset' || value === 'keyframe' || value === 'content_unit'
+function targetKindValue(value: string | undefined): value is 'asset' | 'storyboard' | 'keyframe' | 'content_unit' {
+  return value === 'asset' || value === 'storyboard' || value === 'keyframe' || value === 'content_unit'
 }
 
 async function initProjectFromCliOptions(options: InitOptions, command: Command): Promise<void> {
@@ -1403,30 +1604,30 @@ async function createDemoProjectFromCliOptions(options: DemoCreateOptions, comma
     title: options.title ?? 'Demo Film',
     overwrite: Boolean(options.overwrite),
   })
-  const build = options.noCompile ? undefined : await engine.compile()
+  const interpretation = options.noInterpret ? undefined : await engine.interpret()
   printResult({
     projectDir: engine.projectDir,
     projectId: options.id ?? 'demo',
     writtenPaths,
-    build: summarizeDemoBuild(build),
+    interpretation: summarizeDemoInterpretation(interpretation),
     next: [
       'cd <projectDir>',
       'movcli review',
-      'movcli compiler prompt cu_storyboard_video',
-      'movcli compile',
+      'movcli interpreter prompt cu_storyboard_ref',
+      'movcli interpret',
     ],
   }, merged)
-  if (isRecord(build) && build.status === 'failed') process.exitCode = 2
+  if (isRecord(interpretation) && interpretation.status === 'failed') process.exitCode = 2
 }
 
-function summarizeDemoBuild(build: unknown): unknown {
-  if (!isRecord(build)) return build
-  const review = isRecord(build.review) ? build.review : undefined
-  const manifest = isRecord(build.manifest) ? build.manifest : undefined
+function summarizeDemoInterpretation(interpretation: unknown): unknown {
+  if (!isRecord(interpretation)) return interpretation
+  const review = isRecord(interpretation.review) ? interpretation.review : undefined
+  const manifest = isRecord(interpretation.manifest) ? interpretation.manifest : undefined
   const output = isRecord(manifest?.output) ? manifest.output : undefined
   return pruneUndefined({
-    status: build.status,
-    readyToBuild: review?.readyToBuild,
+    status: interpretation.status,
+    readyToInterpret: review?.readyToInterpret,
     summary: review?.summary,
     editorStatePath: output?.editorStatePath,
     impactReportPath: output?.impactReportPath,
@@ -1530,33 +1731,27 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       transition: { out: 'hold_then_cut' },
       action: 'The phone screen lights the hero face while rain taps the window.',
     }],
-    ['productions/p_demo/segments/opening/scene_moments/phone_call/storyboards/main/storyboard.json', {
+    ['productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/shot.json', {
+      schema: 'movscript.shot.v1',
+      kind: 'shot',
+      id: 'phone',
+      title: 'Phone close-up',
+      order: 1,
+      shot_size: 'close_up',
+      camera: { movement: 'slow_push_in', lens_mm: 50 },
+      lighting: { key: 'cold phone screen blue light' },
+    }],
+    ['productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main/storyboard.json', {
       schema: 'movscript.storyboard.v1',
       kind: 'storyboard',
       id: 'main',
       title: 'Phone close-up',
       order: 1,
+      slot: 'main',
+      asset_kind: 'video',
+      shot_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone',
       timeline: { caption: 'Phone glow returns.', duration_sec: 4 },
       setting_refs: [{ setting_id: 'hero', setting_state_id: 'rain', role: 'subject' }],
-      shot_plans: [{
-        id: 'shot_plan_1',
-        order: 1,
-        shot_size: 'close_up',
-        camera: { movement: 'slow_push_in', lens_mm: 50 },
-        lighting: { key: 'cold phone screen blue light' },
-      }],
-    }],
-    ['productions/p_demo/segments/opening/scene_moments/phone_call/keyframes/scene_anchor/keyframe.json', {
-      schema: 'movscript.keyframe.v1',
-      kind: 'keyframe',
-      id: 'scene_anchor',
-      title: 'Scene anchor',
-      scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/storyboards/main',
-      role: 'continuity_anchor',
-      visual_intent: 'Rainy apartment close-up; cold phone light on frightened face.',
-      reference_asset_refs: ['wet_hair'],
-      continuity: { hair: 'wet and stuck to forehead', lighting: 'cold phone glow' },
     }],
     ['productions/p_demo/segments/opening/scene_moments/phone_call/audio_cues/phone_vibration/audio_cue.json', {
       schema: 'movscript.audio_cue.v1',
@@ -1566,7 +1761,8 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       cue_kind: 'sound_effect',
       order: 1,
       scope_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/storyboards/main',
+      shot_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
       timing: { start: 'after_action', duration_sec: 1.2 },
       prompt_hint: 'Rain low, phone vibration sharp.',
     }],
@@ -1576,6 +1772,36 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       id: 'caption_1',
       expression_kind: 'caption',
       text: 'Unknown number lights up again.',
+    }],
+    ['content_units/cu_scene_anchor_keyframe_ref/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_scene_anchor_keyframe_ref',
+      title: 'Scene anchor keyframe',
+      content_unit_type: 'keyframe_ref',
+      output_kind: 'image',
+      scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
+      shot_id: 'phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
+      keyframe_ref: 'scene_anchor',
+      edit_prompt: {
+        text: 'Create a scene anchor keyframe for the phone close-up.',
+        negative_text: 'cartoon, glamour lighting',
+      },
+      model_intent: { capability: 'image', aspect_ratio: '16:9' },
+    }],
+    ['productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/keyframes/scene_anchor/keyframe.json', {
+      schema: 'movscript.keyframe.v1',
+      kind: 'keyframe',
+      id: 'scene_anchor',
+      title: 'Scene anchor',
+      scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
+      shot_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
+      role: 'continuity_anchor',
+      visual_intent: 'Rainy apartment close-up; cold phone light on frightened face.',
+      reference_asset_refs: ['wet_hair'],
+      continuity: { hair: 'wet and stuck to forehead', lighting: 'cold phone glow' },
     }],
     ['content_units/cu_wet_hair_ref/content_unit.json', {
       schema: 'movscript.content_unit.v1',
@@ -1591,15 +1817,16 @@ function demoProjectFileEntries(projectId: string, title: string): Array<[string
       },
       model_intent: { capability: 'image', aspect_ratio: '1:1' },
     }],
-    ['content_units/cu_storyboard_video/content_unit.json', {
+    ['content_units/cu_storyboard_ref/content_unit.json', {
       schema: 'movscript.content_unit.v1',
       kind: 'content_unit',
-      id: 'cu_storyboard_video',
+      id: 'cu_storyboard_ref',
       title: 'Phone close-up video',
-      content_unit_type: 'storyboard_video',
+      content_unit_type: 'storyboard_ref',
       output_kind: 'video',
       scene_moment_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call',
-      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/storyboards/main',
+      shot_id: 'phone',
+      storyboard_ref: 'productions/p_demo/segments/opening/scene_moments/phone_call/shots/phone/storyboards/main',
       keyframe_refs: ['scene_anchor'],
       edit_prompt: {
         text: 'Keep the push-in slow. Preserve wet hair and frightened expression continuity.',
@@ -1624,16 +1851,20 @@ async function inspectWorkspaceFromCliOptions(options: WorkspaceOptions, command
     fileRepository: createCliFileRepository(merged),
   })
   printResult(result, merged)
-  if (isRecord(result) && result.readyToBuild === false) process.exitCode = 2
+  if (isRecord(result) && result.readyToInterpret === false) process.exitCode = 2
 }
 
 async function reviewWorkspaceFromCliOptions(options: WorkspaceOptions, command: Command): Promise<void> {
   return inspectWorkspaceFromCliOptions(options, command)
 }
 
-async function compileWorkspaceFromCliOptions(options: WorkspaceOptions, command: Command): Promise<void> {
+async function interpretWorkspaceFromCliOptions(options: InterpretOptions, command: Command): Promise<void> {
   const merged = mergeGlobalOptions(options, command)
-  const result = await createCliEngine(merged).compile()
+  const result = await interpretMovScriptWorkspace({
+    fileRepository: createCliFileRepository(merged),
+    initGitIfMissing: Boolean(options.initGit),
+    debugArtifacts: options.debugArtifacts,
+  })
   printResult(result, merged)
   if (isRecord(result) && result.status === 'failed') process.exitCode = 2
 }
@@ -1759,8 +1990,16 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
     await dispatchInteractiveSceneMomentCommand(args, options, engine)
     return false
   }
+  if (command === 'shot') {
+    await dispatchInteractiveShotCommand(args, options, engine)
+    return false
+  }
   if (command === 'storyboard') {
     await dispatchInteractiveStoryboardCommand(args, options, engine)
+    return false
+  }
+  if (command === 'keyframe') {
+    await dispatchInteractiveKeyframeCommand(args, options, engine)
     return false
   }
   if (command === 'audio-cue') {
@@ -1783,8 +2022,8 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
     await dispatchInteractiveCandidateCommand(args, options, engine)
     return false
   }
-  if (command === 'compiler') {
-    await dispatchInteractiveCompilerCommand(args, options, engine)
+  if (command === 'interpreter') {
+    await dispatchInteractiveInterpreterCommand(args, options, engine)
     return false
   }
   if (command === 'overview' || command === 'status') {
@@ -1808,8 +2047,8 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
     printResult(result, options)
     return false
   }
-  if (command === 'compile' || command === 'build') {
-    const result = await engine.compile()
+  if (command === 'interpret') {
+    const result = await engine.interpret()
     printResult(result, options)
     return false
   }
@@ -1821,7 +2060,7 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
   throw new Error(`unknown slash command: /${command}`)
 }
 
-async function dispatchInteractiveCompilerCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
+async function dispatchInteractiveInterpreterCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
   const action = args.shift()
   const parsed = parseSlashOptions(args)
   if (action === 'overview') {
@@ -1838,22 +2077,22 @@ async function dispatchInteractiveCompilerCommand(args: string[], options: Works
     printResult(result, options)
     return
   }
-  if (action === 'compile' || action === 'build') {
-    const result = await engine.compile()
+  if (action === 'interpret') {
+    const result = await engine.interpret()
     printResult(result, options)
     return
   }
   if (action === 'prompt') {
     const contentUnitId = parsed.options.contentUnit ?? parsed.options['content-unit'] ?? parsed.positionals[0]
-    if (!contentUnitId) throw new Error('usage: /compiler prompt <contentUnitId>')
-    const result = await engine.buildContentUnitArtifact(contentUnitId)
+    if (!contentUnitId) throw new Error('usage: /interpreter prompt <contentUnitId>')
+    const result = await engine.deriveContentUnitArtifact(contentUnitId)
     printResult(result, options)
     return
   }
   if (action === 'artifacts') {
-    const result = await engine.buildArtifacts({
-      ...(parsed.options.buildId !== undefined ? { buildId: parsed.options.buildId } : {}),
-      ...(parsed.options['build-id'] !== undefined ? { buildId: parsed.options['build-id'] } : {}),
+    const result = await engine.deriveArtifacts({
+      ...(parsed.options.interpretationId !== undefined ? { interpretationId: parsed.options.interpretationId } : {}),
+      ...(parsed.options['interpretation-id'] !== undefined ? { interpretationId: parsed.options['interpretation-id'] } : {}),
       ...(parsed.options.createdAt !== undefined ? { createdAt: parsed.options.createdAt } : {}),
       ...(parsed.options['created-at'] !== undefined ? { createdAt: parsed.options['created-at'] } : {}),
     })
@@ -1864,7 +2103,7 @@ async function dispatchInteractiveCompilerCommand(args: string[], options: Works
     await dispatchInteractiveRegenerationCommand(args, options, engine)
     return
   }
-  throw new Error(`unknown /compiler action: ${action}`)
+  throw new Error(`unknown /interpreter action: ${action}`)
 }
 
 async function dispatchInteractiveRegenerationCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
@@ -1906,13 +2145,13 @@ async function dispatchInteractiveProjectCommand(args: string[], options: Worksp
       title: demoOptions.options.title ?? 'Demo Film',
       overwrite: demoOptions.options.overwrite === 'true',
     })
-    const shouldCompile = demoOptions.options.compile !== 'false' && demoOptions.options['no-compile'] !== 'true'
-    const build = shouldCompile ? await engine.compile() : undefined
+    const shouldInterpret = demoOptions.options.interpret !== 'false' && demoOptions.options['no-interpret'] !== 'true'
+    const interpretation = shouldInterpret ? await engine.interpret() : undefined
     printResult({
       projectDir: engine.projectDir,
       projectId: demoOptions.options.id ?? 'demo',
       writtenPaths,
-      build: summarizeDemoBuild(build),
+      interpretation: summarizeDemoInterpretation(interpretation),
     }, options)
     return
   }
@@ -2033,7 +2272,6 @@ async function dispatchInteractiveSceneMomentCommand(args: string[], options: Wo
       productionId: source.productionId,
       segmentId: source.segmentId,
       title: parsed.options.title ?? parsed.positionals[0],
-      storyboardId: parsed.options.storyboard ?? 'main',
       order: parseOptionalNumberOption(parsed.options.order, 'order'),
       timeText: parsed.options.time,
       sceneCode: parsed.options.sceneCode ?? parsed.options['scene-code'],
@@ -2049,6 +2287,31 @@ async function dispatchInteractiveSceneMomentCommand(args: string[], options: Wo
   throw new Error(`unknown /scene-moment action: ${action}`)
 }
 
+async function dispatchInteractiveShotCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
+  const action = args.shift()
+  const parsed = parseSlashOptions(args)
+  if (action === 'add' || action === 'create' || action === 'upsert') {
+    const source = parseShotParentOptions({
+      production: parsed.options.production,
+      segment: parsed.options.segment,
+      sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
+    })
+    const result = await engine.createShot({
+      id: parsed.options.id,
+      productionId: source.productionId,
+      segmentId: source.segmentId,
+      sceneMomentId: source.sceneMomentId,
+      title: parsed.options.title ?? parsed.positionals[0],
+      kind: parsed.options.kind,
+      order: parseOptionalNumberOption(parsed.options.order, 'order'),
+      shotSize: parsed.options.shotSize ?? parsed.options['shot-size'],
+    })
+    printResult(result, options)
+    return
+  }
+  throw new Error(`unknown /shot action: ${action}`)
+}
+
 async function dispatchInteractiveStoryboardCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
   const action = args.shift()
   const parsed = parseSlashOptions(args)
@@ -2057,12 +2320,14 @@ async function dispatchInteractiveStoryboardCommand(args: string[], options: Wor
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
+      shot: parsed.options.shot,
     })
     const result = await engine.createStoryboard({
       id: parsed.options.id ?? 'main',
       productionId: source.productionId,
       segmentId: source.segmentId,
       sceneMomentId: source.sceneMomentId,
+      shotId: source.shotId,
       title: parsed.options.title ?? parsed.positionals[0],
       order: parseOptionalNumberOption(parsed.options.order, 'order'),
     })
@@ -2070,6 +2335,28 @@ async function dispatchInteractiveStoryboardCommand(args: string[], options: Wor
     return
   }
   throw new Error(`unknown /storyboard action: ${action}`)
+}
+
+async function dispatchInteractiveKeyframeCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
+  const action = args.shift()
+  const parsed = parseSlashOptions(args)
+  if (action === 'add' || action === 'create' || action === 'upsert') {
+    const source = parseKeyframeParentOptions({
+      production: parsed.options.production,
+      segment: parsed.options.segment,
+      sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
+      shot: parsed.options.shot,
+    })
+    const result = await createKeyframeFromCliOptions(engine, {
+      id: parsed.options.id,
+      title: parsed.options.title ?? parsed.positionals[0],
+      role: parsed.options.role,
+      visualIntent: parsed.options.visualIntent ?? parsed.options['visual-intent'],
+    }, source)
+    printResult(result, options)
+    return
+  }
+  throw new Error(`unknown /keyframe action: ${action}`)
 }
 
 async function dispatchInteractiveAudioCueCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
@@ -2080,6 +2367,7 @@ async function dispatchInteractiveAudioCueCommand(args: string[], options: Works
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
+      shot: parsed.options.shot,
       storyboard: parsed.options.storyboard,
     })
     const result = await engine.createAudioCue({
@@ -2087,11 +2375,11 @@ async function dispatchInteractiveAudioCueCommand(args: string[], options: Works
       productionId: source.productionId,
       segmentId: source.segmentId,
       sceneMomentId: source.sceneMomentId,
+      shotId: source.shotId,
       storyboardId: source.storyboardId,
       title: parsed.options.title ?? parsed.positionals[0],
       kind: parsed.options.kind ?? 'sound_effect',
       order: parseOptionalNumberOption(parsed.options.order, 'order'),
-      shotPlanId: parsed.options.shotPlan ?? parsed.options['shot-plan'],
       promptHint: parsed.options.prompt,
     })
     printResult(result, options)
@@ -2149,7 +2437,7 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
   if (action === 'status' || action === 'panel') {
     const idOrPath = parsed.positionals[0] ?? parsed.options.id
     if (!idOrPath) throw new Error('usage: /content-unit status <idOrPath>')
-    const result = await buildContentUnitStatusPanel(engine, idOrPath)
+    const result = await deriveContentUnitStatusPanel(engine, idOrPath)
     printContentUnitStatusPanel(result, options)
     return
   }
@@ -2162,6 +2450,7 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
+      shot: parsed.options.shot,
       storyboard: parsed.options.storyboard ?? 'main',
       audioCue: parsed.options.audioCue ?? parsed.options['audio-cue'],
       prompt: parsed.options.prompt,
@@ -2180,6 +2469,7 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
       productionId: source.productionId,
       segmentId: source.segmentId,
       sceneMomentId: source.sceneMomentId,
+      shotId: source.shotId,
       storyboardId: source.storyboardId,
       audioCueId: source.audioCueId,
       prompt: sourceOptions.prompt,
@@ -2263,7 +2553,7 @@ async function dispatchInteractiveCandidateCommand(args: string[], options: Work
 function printInteractiveHelp(): void {
   console.log(`Slash commands:
   /project init [id] [--title <title>] [--language <language>] [--standard <key=value>] [--overwrite]
-  /project demo create [--id <id>] [--title <title>] [--overwrite] [--no-compile]
+  /project demo create [--id <id>] [--title <title>] [--overwrite] [--no-interpret]
   /init [id] [--title <title>] [--language <language>] [--standard <key=value>] [--overwrite]
   /setting list [--kind <kind>] [--query <text>] [--limit <n>]
   /setting add <id> [--title <title>] [--kind <kind>] [--description <text>]
@@ -2273,7 +2563,7 @@ function printInteractiveHelp(): void {
   /segment add --title <title> [--production <id>] [--id <id>] [--order <n>]
   /scene-moment add --title <title> --segment <id-or-path> [--production <id>] [--id <id>] [--storyboard <id>]
   /storyboard add --scene-moment <id-or-path> [--segment <id-or-path>] [--id <id>] [--title <title>] [--order <n>]
-  /audio-cue add --scene-moment <id-or-path> [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
+  /audio-cue add --scene-moment <id-or-path> [--shot <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
   /expression-unit add --scene-moment <id-or-path> [--id <id>] [--kind <kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
   /content-unit add --title <title> --scene-moment <id-or-path> [--storyboard <id-or-path>] [--audio-cue <id-or-path>] [--prompt <text>]
   /content-unit status <id-or-path>
@@ -2282,14 +2572,14 @@ function printInteractiveHelp(): void {
   /candidate select <content-unit> <candidate-id> [--reason <text>]
   /overview
   /inspect
-  /compiler overview
-  /compiler inspect
-  /compiler compile
-  /compiler regen plan
-  /compiler prompt <contentUnitId>
-  /compiler artifacts [--build-id <id>] [--created-at <iso>]
+  /interpreter overview
+  /interpreter inspect
+  /interpreter interpret
+  /interpreter regen plan
+  /interpreter prompt <contentUnitId>
+  /interpreter artifacts [--interpretation-id <id>] [--created-at <iso>]
   /review
-  /compile
+  /interpret
   /regen plan
   /help
   /exit`)
@@ -2303,7 +2593,7 @@ function printResult(result: unknown, options: WorkspaceOptions): void {
   console.log(JSON.stringify(result, null, 2))
 }
 
-async function buildContentUnitStatusPanel(
+async function deriveContentUnitStatusPanel(
   engine: CliEngine,
   idOrPath: string,
 ): Promise<Record<string, unknown>> {
@@ -2416,7 +2706,7 @@ function summarizeContentUnitStatus(
   candidates: unknown[] = [],
 ): Record<string, unknown> {
   return pruneUndefined({
-    built: Boolean(runtimePanel && inputVersion),
+    derived: Boolean(runtimePanel && inputVersion),
     status: runtimePanel?.status,
     inputHash: shortHash(inputVersion?.hash),
     selected: selectionValidity?.selected,
@@ -2456,8 +2746,9 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
     `Content Unit: ${scalarDisplayValue(contentUnit?.id)}  ${scalarDisplayValue(contentUnit?.title)}`,
     `Path: ${scalarDisplayValue(contentUnit?.path)}`,
     `Type: ${scalarDisplayValue(contentUnit?.type)} -> ${scalarDisplayValue(contentUnit?.outputKind)}`,
-    `Build: ${summary?.built ? 'built' : 'missing'}  Runtime: ${scalarDisplayValue(summary?.status)}  Hash: ${scalarDisplayValue(summary?.inputHash)}  Candidates: ${scalarDisplayValue(summary?.candidateCount)}`,
+    `Derived: ${summary?.derived ? 'ready' : 'missing'}  Runtime: ${scalarDisplayValue(summary?.status)}  Hash: ${scalarDisplayValue(summary?.inputHash)}  Candidates: ${scalarDisplayValue(summary?.candidateCount)}`,
     `Selection: ${selectionLabel(selection, selectionValidity)}  Stale: ${selectionValidity?.stale === true ? 'yes' : 'no'}`,
+    `Accepted Hash: ${shortHash(selectionValidity?.accepted_input_hash)}  Current Hash: ${shortHash(selectionValidity?.current_input_hash)}`,
     '',
     'Source Refs',
     `  scene_moment: ${scalarDisplayValue(source?.sceneMomentRef)}`,
@@ -2468,6 +2759,13 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
     'Prompt',
     `  text:     ${formatCell(prompt?.text, 96)}`,
     `  negative: ${formatCell(prompt?.negative_text, 96)}`,
+    '',
+    'Generation Context',
+    `  input_hash:      ${scalarDisplayValue(inputVersion?.hash)}`,
+    `  interpreter:        ${scalarDisplayValue(inputVersion?.interpreter_version)}`,
+    `  adapter:         ${scalarDisplayValue(inputVersion?.adapter_version)}`,
+    `  hash_rule:       ${scalarDisplayValue(recordField(dependencyReport?.hash_rule)?.rule_id)}@${scalarDisplayValue(recordField(dependencyReport?.hash_rule)?.rule_version)}`,
+    `  included_roles:  ${scalarDisplayValue(recordField(dependencyReport?.hash_rule)?.included_roles)}`,
     '',
     'Runtime Inputs',
     ...(runtimeInputs.length ? runtimeInputs.map((item) => {
@@ -2487,7 +2785,8 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
       const outputSummary = outputs.length
         ? outputs.map((output) => `${scalarDisplayValue(output.kind)}:${scalarDisplayValue(output.resource_id)}`).join(', ')
         : '-'
-      return ` ${selected} ${scalarDisplayValue(record.id)} source=${scalarDisplayValue(record.source)} status=${scalarDisplayValue(record.status)} outputs=${outputSummary}`
+      const candidateHash = shortHash(recordField(record.input_version)?.hash)
+      return ` ${selected} ${scalarDisplayValue(record.id)} source=${scalarDisplayValue(record.source)} status=${scalarDisplayValue(record.status)} hash=${candidateHash} outputs=${outputSummary}`
     }) : ['  -']),
     '',
     'Dependencies',
@@ -2506,7 +2805,7 @@ function selectionLabel(
   selectionValidity: Record<string, unknown> | undefined,
 ): string {
   if (selection?.candidate_id !== undefined) {
-    return `${scalarDisplayValue(selection.candidate_id)} resource=${scalarDisplayValue(selection.resource_id)} reason=${scalarDisplayValue(selection.reason)}`
+    return `${scalarDisplayValue(selection.candidate_id)} resource=${scalarDisplayValue(selection.resource_id)} accepted=${shortHash(selection.accepted_input_hash)} reason=${scalarDisplayValue(selection.reason)}`
   }
   if (!selectionValidity?.selected) return 'none'
   return `${scalarDisplayValue(selectionValidity.candidate_id)} resource=${scalarDisplayValue(selectionValidity.resource_id)} accepted=${shortHash(selectionValidity.accepted_input_hash)}`
@@ -2603,6 +2902,7 @@ function planningListInput(options: PlanningListOptions): {
   productionId?: string | number
   segmentId?: string | number
   sceneMomentId?: string | number
+  shotId?: string | number
   limit?: number
 } {
   return pruneUndefined({
@@ -2611,6 +2911,7 @@ function planningListInput(options: PlanningListOptions): {
     productionId: options.production,
     segmentId: options.segment !== undefined ? parseSegmentRefOption(options.segment).segmentId ?? options.segment : undefined,
     sceneMomentId: options.sceneMoment !== undefined ? parseSceneMomentRefOption(options.sceneMoment).sceneMomentId ?? options.sceneMoment : undefined,
+    shotId: options.shot !== undefined ? parseShotRefOption(options.shot).shotId ?? options.shot : undefined,
     limit: options.limit !== undefined ? parsePositiveIntegerOption(options.limit, 'limit') : undefined,
   })
 }
@@ -2619,11 +2920,13 @@ function planningParentInput(options: PlanningDeleteOptions): {
   productionId?: string | number
   segmentId?: string | number
   sceneMomentId?: string | number
+  shotId?: string | number
 } {
   return pruneUndefined({
     productionId: options.production,
     segmentId: options.segment !== undefined ? parseSegmentRefOption(options.segment).segmentId ?? options.segment : undefined,
     sceneMomentId: options.sceneMoment !== undefined ? parseSceneMomentRefOption(options.sceneMoment).sceneMomentId ?? options.sceneMoment : undefined,
+    shotId: options.shot !== undefined ? parseShotRefOption(options.shot).shotId ?? options.shot : undefined,
   })
 }
 
@@ -2635,6 +2938,7 @@ function listPlanningEntities(
   if (entityKind === 'production') return engine.listProductions(input)
   if (entityKind === 'segment') return engine.listSegments(input)
   if (entityKind === 'scene_moment') return engine.listSceneMoments(input)
+  if (entityKind === 'shot') return engine.listShots(input)
   if (entityKind === 'storyboard') return engine.listStoryboards(input)
   if (entityKind === 'audio_cue') return engine.listAudioCues(input)
   if (entityKind === 'expression_unit') return engine.listExpressionUnits(input)
@@ -2645,11 +2949,12 @@ function listPlanningEntities(
 function deletePlanningEntityWithEngine(
   engine: ReturnType<typeof createCliEngine>,
   entityKind: CliSemanticEntityKind,
-  input: { id: string | number; productionId?: string | number; segmentId?: string | number; sceneMomentId?: string | number },
+  input: { id: string | number; productionId?: string | number; segmentId?: string | number; sceneMomentId?: string | number; shotId?: string | number },
 ) {
   if (entityKind === 'production') return engine.deleteProduction(input)
   if (entityKind === 'segment') return engine.deleteSegment(input)
   if (entityKind === 'scene_moment') return engine.deleteSceneMoment(input)
+  if (entityKind === 'shot') return engine.deleteShot(input)
   if (entityKind === 'storyboard') return engine.deleteStoryboard(input)
   if (entityKind === 'audio_cue') return engine.deleteAudioCue(input)
   if (entityKind === 'expression_unit') return engine.deleteExpressionUnit(input)
@@ -2758,6 +3063,7 @@ interface ContentUnitSourceRefs {
   productionId?: string
   segmentId?: string
   sceneMomentId?: string
+  shotId?: string
   storyboardId?: string
   audioCueId?: string
   expressionUnitId?: string
@@ -2765,12 +3071,14 @@ interface ContentUnitSourceRefs {
 
 function parseContentUnitSourceOptions(options: AddContentUnitOptions): ContentUnitSourceRefs {
   const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
+  const shot = parseShotRefOption(options.shot)
   const storyboard = parseStoryboardRefOption(options.storyboard)
   const audioCue = parseAudioCueRefOption(options.audioCue)
   const source = pruneUndefined({
-    productionId: options.production ?? audioCue.productionId ?? storyboard.productionId ?? sceneMoment.productionId,
-    segmentId: options.segment ?? audioCue.segmentId ?? storyboard.segmentId ?? sceneMoment.segmentId,
-    sceneMomentId: sceneMoment.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId,
+    productionId: options.production ?? audioCue.productionId ?? storyboard.productionId ?? shot.productionId ?? sceneMoment.productionId,
+    segmentId: options.segment ?? audioCue.segmentId ?? storyboard.segmentId ?? shot.segmentId ?? sceneMoment.segmentId,
+    sceneMomentId: sceneMoment.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? shot.sceneMomentId,
+    shotId: shot.shotId ?? storyboard.shotId ?? options.shot,
     storyboardId: storyboard.storyboardId ?? 'main',
     audioCueId: audioCue.audioCueId,
   })
@@ -2791,7 +3099,7 @@ function parsePlanningParentOptions(options: {
   return { productionId, segmentId }
 }
 
-function parseStoryboardParentOptions(options: {
+function parseShotParentOptions(options: {
   production?: string
   segment?: string
   sceneMoment?: string
@@ -2806,24 +3114,55 @@ function parseStoryboardParentOptions(options: {
   return { productionId, segmentId, sceneMomentId }
 }
 
+function parseStoryboardParentOptions(options: {
+  production?: string
+  segment?: string
+  sceneMoment?: string
+  shot?: string
+}): { productionId: string; segmentId: string; sceneMomentId: string; shotId: string } {
+  const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
+  const shot = parseShotRefOption(options.shot)
+  const productionId = options.production ?? shot.productionId ?? sceneMoment.productionId ?? parseSegmentRefOption(options.segment).productionId ?? 'main'
+  const segmentId = shot.segmentId ?? sceneMoment.segmentId ?? parseSegmentRefOption(options.segment).segmentId
+  const sceneMomentId = shot.sceneMomentId ?? sceneMoment.sceneMomentId
+  const shotId = shot.shotId
+  if (!segmentId) throw new Error('--segment is required unless --scene-moment or --shot is a path under segments')
+  if (!sceneMomentId) throw new Error('--scene-moment is required unless --shot is a path under scene_moments')
+  if (!shotId) throw new Error('--shot is required')
+  return { productionId, segmentId, sceneMomentId, shotId }
+}
+
+function parseKeyframeParentOptions(options: {
+  production?: string
+  segment?: string
+  sceneMoment?: string
+  shot?: string
+}): { productionId: string; segmentId: string; sceneMomentId: string; shotId: string } {
+  return parseStoryboardParentOptions(options)
+}
+
 function parseAudioCueParentOptions(options: {
   production?: string
   segment?: string
   sceneMoment?: string
+  shot?: string
   storyboard?: string
-}): { productionId: string; segmentId: string; sceneMomentId: string; storyboardId?: string } {
+}): { productionId: string; segmentId: string; sceneMomentId: string; shotId?: string; storyboardId?: string } {
   const segment = parseSegmentRefOption(options.segment)
   const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
+  const shot = parseShotRefOption(options.shot)
   const storyboard = parseStoryboardRefOption(options.storyboard)
-  const productionId = options.production ?? storyboard.productionId ?? sceneMoment.productionId ?? segment.productionId ?? 'main'
-  const segmentId = storyboard.segmentId ?? sceneMoment.segmentId ?? segment.segmentId
-  const sceneMomentId = sceneMoment.sceneMomentId ?? storyboard.sceneMomentId
-  if (!segmentId) throw new Error('--segment is required unless --scene-moment or --storyboard is a path under segments')
-  if (!sceneMomentId) throw new Error('--scene-moment is required unless --storyboard is a path under scene_moments')
+  const productionId = options.production ?? storyboard.productionId ?? shot.productionId ?? sceneMoment.productionId ?? segment.productionId ?? 'main'
+  const segmentId = storyboard.segmentId ?? shot.segmentId ?? sceneMoment.segmentId ?? segment.segmentId
+  const sceneMomentId = sceneMoment.sceneMomentId ?? storyboard.sceneMomentId ?? shot.sceneMomentId
+  const shotId = shot.shotId ?? storyboard.shotId
+  if (!segmentId) throw new Error('--segment is required unless --scene-moment, --shot, or --storyboard is a path under segments')
+  if (!sceneMomentId) throw new Error('--scene-moment is required unless --shot or --storyboard is a path under scene_moments')
   return {
     productionId,
     segmentId,
     sceneMomentId,
+    ...(shotId !== undefined ? { shotId } : {}),
     ...(storyboard.storyboardId !== undefined ? { storyboardId: storyboard.storyboardId } : {}),
   }
 }
@@ -2879,6 +3218,12 @@ function parseStoryboardRefOption(value: string | undefined): ContentUnitSourceR
   return { storyboardId: value }
 }
 
+function parseShotRefOption(value: string | undefined): ContentUnitSourceRefs {
+  if (!value) return {}
+  if (value.includes('/')) return parsePlanningSourcePath(value)
+  return { shotId: value }
+}
+
 function parseAudioCueRefOption(value: string | undefined): ContentUnitSourceRefs {
   if (!value) return {}
   if (value.includes('/')) return parsePlanningSourcePath(value)
@@ -2892,6 +3237,7 @@ function parsePlanningSourcePath(value: string): ContentUnitSourceRefs {
     productionId: pathSegmentAfter(parts, 'productions'),
     segmentId: pathSegmentAfter(parts, 'segments'),
     sceneMomentId: pathSegmentAfter(parts, 'scene_moments'),
+    shotId: pathSegmentAfter(parts, 'shots'),
     storyboardId: pathSegmentAfter(parts, 'storyboards'),
     audioCueId: pathSegmentAfter(parts, 'audio_cues'),
     expressionUnitId: pathSegmentAfter(parts, 'expression_units'),
@@ -2988,13 +3334,14 @@ function normalizeCliPath(value: string): string {
   return value.replace(/\\/g, '/').replace(/^\.movscript\//, '').replace(/^\/+/, '').replace(/\/+$/, '')
 }
 
-function inferTargetKind(value: string): 'asset' | 'keyframe' | 'content_unit' {
+function inferTargetKind(value: string): 'asset' | 'storyboard' | 'keyframe' | 'content_unit' {
   const path = targetPathFromSelectionTarget(value)
   if (path.endsWith('/asset.json') || path.endsWith('asset.json')) return 'asset'
+  if (path.endsWith('/storyboard.json') || path.endsWith('storyboard.json')) return 'storyboard'
   if (path.endsWith('/keyframe.json') || path.endsWith('keyframe.json')) return 'keyframe'
   if (path.endsWith('/content_unit.json') || path.endsWith('content_unit.json')) return 'content_unit'
   const kind = value.split(':')[0]
-  if (kind === 'asset' || kind === 'keyframe' || kind === 'content_unit') return kind
+  if (kind === 'asset' || kind === 'storyboard' || kind === 'keyframe' || kind === 'content_unit') return kind
   throw new Error('target kind is required for selection')
 }
 
@@ -3002,7 +3349,7 @@ function parseTargetKindOption(
   kind: string | undefined,
   target: string,
   options?: { defaultContentUnit?: boolean },
-): 'asset' | 'keyframe' | 'content_unit' {
+): 'asset' | 'storyboard' | 'keyframe' | 'content_unit' {
   if (kind === undefined) {
     try {
       return inferTargetKind(target)
@@ -3011,7 +3358,7 @@ function parseTargetKindOption(
       throw error
     }
   }
-  if (kind === 'asset' || kind === 'keyframe' || kind === 'content_unit') return kind
+  if (kind === 'asset' || kind === 'storyboard' || kind === 'keyframe' || kind === 'content_unit') return kind
   if (options?.defaultContentUnit) return 'content_unit'
-  throw new Error('target kind must be asset, keyframe, or content_unit')
+  throw new Error('target kind must be asset, storyboard, keyframe, or content_unit')
 }

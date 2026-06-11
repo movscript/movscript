@@ -9,9 +9,8 @@
 }
 
 .resource-panel__tab[data-active="true"] {
-  margin-bottom: -1px;
-  border-bottom: 2px solid var(--ms-color-primary);
   color: var(--ms-color-foreground);
+  box-shadow: inset 0 -2px 0 var(--ms-color-primary);
 }
 
 .resource-panel-search {

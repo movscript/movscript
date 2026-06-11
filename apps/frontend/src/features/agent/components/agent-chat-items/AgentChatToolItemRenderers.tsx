@@ -3,8 +3,7 @@ import {
   AgentChatMessage,
   AgentMessageSection,
 } from '@movscript/ui'
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
-import { agentInternalToolDisplay, type AgentInternalToolDisplay } from '@/features/agent/domain/agentInternalToolDisplay'
+import type { AgentChatThreadItem } from '@movscript/core/agent/chat'
 import {
   agentChatCollabAgentToolCallView,
   agentChatCommandExecutionView,
@@ -12,7 +11,8 @@ import {
   agentChatImageItemView,
   agentChatToolCallView,
   agentChatWebSearchView,
-} from '@/features/agent/domain/agentChatToolResultViews'
+} from '@movscript/core/agent/chat'
+import { agentInternalToolDisplay, type AgentInternalToolDisplay } from '@/features/agent/domain/agentInternalToolDisplay'
 import {
   AgentChatImagePreviewGrid,
   AgentChatInspectBlock,

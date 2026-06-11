@@ -119,7 +119,7 @@ function repoMovScriptCliPackageDir(input: MovScriptCliPathInput): string {
 
 function resolveWorkspaceMovScriptCliBinDir(input: MovScriptCliPathInput): string | undefined {
   const workspaceDir = input.workspaceDir?.trim()
-  return workspaceDir ? join(resolveMovScriptWorkspaceRootPaths(workspaceDir).controlDir, 'bin') : undefined
+  return workspaceDir ? resolveMovScriptWorkspaceRootPaths(workspaceDir).binDir : undefined
 }
 
 function resolvePackagedMovScriptCliBinDir(input: MovScriptCliPathInput): string | undefined {

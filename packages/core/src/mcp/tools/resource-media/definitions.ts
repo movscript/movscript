@@ -13,6 +13,12 @@ export function resourceMediaTools(): MCPTool[] {
         id: { type: 'number', description: 'Alias for resource_id.' },
         max_bytes: { type: 'number', description: 'Maximum image file size to return. Defaults to 8 MiB, hard-capped at 20 MiB.' },
         maxBytes: { type: 'number', description: 'Camel-case alias for max_bytes.' },
+        mode: { type: 'string', enum: ['fit', 'original'], description: 'Image read mode. fit validates and downsizes to max_width/max_height when needed; original validates but returns the original bytes.' },
+        detail: { type: 'string', enum: ['high', 'auto', 'low', 'original'], description: 'Codex-style image detail hint. detail=original is equivalent to mode=original; other values use mode=fit.' },
+        max_width: { type: 'number', description: 'Maximum output width for mode=fit. Defaults to 1568, hard-capped at 4096.' },
+        maxWidth: { type: 'number', description: 'Camel-case alias for max_width.' },
+        max_height: { type: 'number', description: 'Maximum output height for mode=fit. Defaults to 1568, hard-capped at 4096.' },
+        maxHeight: { type: 'number', description: 'Camel-case alias for max_height.' },
         mime_type: { type: 'string', description: 'Optional MIME type override when backend headers are missing.' },
         mimeType: { type: 'string', description: 'Camel-case alias for mime_type.' },
 
@@ -21,11 +27,21 @@ export function resourceMediaTools(): MCPTool[] {
         {
           status: { type: 'string' },
           resource_id: { type: 'number' },
+          mode: { type: 'string' },
+          source_mime_type: { type: 'string' },
+          source_size_bytes: { type: 'number' },
+          source_width: { type: 'number' },
+          source_height: { type: 'number' },
           mime_type: { type: 'string' },
           size_bytes: { type: 'number' },
+          width: { type: 'number' },
+          height: { type: 'number' },
+          resized: { type: 'boolean' },
+          max_width: { type: 'number' },
+          max_height: { type: 'number' },
           image_payload: { type: 'string' },
         },
-        ['status', 'resource_id', 'mime_type', 'size_bytes', 'image_payload']
+        ['status', 'resource_id', 'mode', 'source_mime_type', 'source_size_bytes', 'source_width', 'source_height', 'mime_type', 'size_bytes', 'width', 'height', 'resized', 'image_payload']
       ),
     },
     {
@@ -87,7 +103,7 @@ export function resourceMediaTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_image_annotate',
-      description: 'Create a simple agent-authored visual guidance image by overlaying structured annotations on a MovScript image resource, data URL, or local artifact. Outputs an SVG artifact plus MCP image content for review. Upload artifact_path with movscript_resource_upload before using it in generation.',
+      description: 'Create a simple agent-authored visual guidance image by overlaying structured annotations on a MovScript image resource, data URL, or local artifact. Writes an SVG artifact to the cache by default and returns artifact_path metadata only; image bytes are not returned as MCP image content. Upload artifact_path with movscript_resource_upload before using it in generation.',
       inputSchema: objectSchema({
         resource_id: { type: 'number', description: 'Optional MovScript image RawResource ID used as the annotation background.' },
         resourceId: { type: 'number', description: 'Camel-case alias for resource_id.' },
@@ -129,15 +145,18 @@ export function resourceMediaTools(): MCPTool[] {
           source: { type: 'object', additionalProperties: true },
           annotation_count: { type: 'number' },
           annotations: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          artifact_location: { type: 'string' },
+          cache_dir: { type: 'string' },
           image_payload: { type: 'string' },
+          mcp_image_content: { type: 'boolean' },
           message: { type: 'string' },
         },
-        ['status', 'artifact_path', 'mime_type', 'size_bytes', 'annotation_count', 'image_payload']
+        ['status', 'artifact_path', 'mime_type', 'size_bytes', 'annotation_count', 'image_payload', 'mcp_image_content']
       ),
     },
     {
       name: 'movscript_resource_upload',
-      description: 'Upload an agent-created image artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 image bytes. Use the returned resource_id in generation input_resource_ids/reference_resource_ids.',
+      description: 'Upload an agent-accessible image or video artifact to the MovScript RawResource library. Accepts artifact/local paths, .movscript workspace paths, data URLs, or base64 bytes. Use the returned resource_id in shot groups or generation input_resource_ids/reference_resource_ids.',
       inputSchema: objectSchema({
         artifact_path: { type: 'string', description: 'Local artifact path returned by movscript_resource_image_annotate or another agent tool.' },
         artifactPath: { type: 'string', description: 'Camel-case alias for artifact_path.' },
@@ -152,7 +171,7 @@ export function resourceMediaTools(): MCPTool[] {
         base64: { type: 'string', description: 'Base64 image payload without the data URL prefix.' },
         filename: { type: 'string', description: 'Resource filename. Defaults to the local file name or a generated guidance filename.' },
         name: { type: 'string', description: 'Alias for filename.' },
-        mime_type: { type: 'string', description: 'Upload MIME type. Defaults from filename or image/png.' },
+        mime_type: { type: 'string', description: 'Upload MIME type. Defaults from filename, including common image/video extensions.' },
         mimeType: { type: 'string', description: 'Camel-case alias for mime_type.' },
         folder_id: { type: 'string', description: 'Optional resource library folder ID.' },
         folderId: { type: 'string', description: 'Camel-case alias for folder_id.' },
@@ -171,6 +190,38 @@ export function resourceMediaTools(): MCPTool[] {
           message: { type: 'string' },
         },
         ['status', 'resource', 'filename', 'mime_type', 'size_bytes', 'message']
+      ),
+    },
+    {
+      name: 'movscript_resource_upload_batch',
+      description: 'Upload multiple agent-accessible image or video artifacts to the MovScript RawResource library. Each item accepts the same fields as movscript_resource_upload. Results are returned in input order with per-item errors so agents can keep partial successes.',
+      inputSchema: objectSchema({
+        items: {
+          type: 'array',
+          description: 'Upload item array. Each item accepts artifact_path/local_path/workspace_path/data_url/base64 plus optional filename, mime_type, folder_id, and max_bytes.',
+          items: { type: 'object', additionalProperties: true },
+        },
+        folder_id: { type: 'string', description: 'Default resource library folder ID applied to items that omit folder_id.' },
+        folderId: { type: 'string', description: 'Camel-case alias for folder_id.' },
+        max_bytes: { type: 'number', description: 'Default maximum upload input size applied to items that omit max_bytes. Defaults to 20 MiB, hard-capped at 100 MiB.' },
+        maxBytes: { type: 'number', description: 'Camel-case alias for max_bytes.' },
+        workspaceDir: { type: 'string', description: 'Default MovScript workspace root directory applied to workspace_path items.' },
+        continue_on_error: { type: 'boolean', description: 'When true, continue after item failures. Defaults to true.' },
+        continueOnError: { type: 'boolean', description: 'Camel-case alias for continue_on_error.' },
+        max_concurrency: { type: 'number', description: 'Maximum concurrent uploads. Defaults to 3 when continue_on_error is true; forced to 1 when false.' },
+        maxConcurrency: { type: 'number', description: 'Camel-case alias for max_concurrency.' },
+      }, ['items']),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string' },
+          total: { type: 'number' },
+          success_count: { type: 'number' },
+          failed_count: { type: 'number' },
+          items: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          resource_ids: { type: 'array', items: { type: 'number' } },
+          message: { type: 'string' },
+        },
+        ['status', 'total', 'success_count', 'failed_count', 'items', 'resource_ids', 'message']
       ),
     },
   ]

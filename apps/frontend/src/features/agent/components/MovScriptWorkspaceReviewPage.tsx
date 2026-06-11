@@ -2,14 +2,36 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, ClipboardCheck, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowRight, ClipboardCheck, RefreshCw } from 'lucide-react'
 import {
+  AgentConsoleActionButton,
+  AgentConsoleHeader,
+  AgentConsoleHeaderActions,
+  AgentConsoleHeaderCopy,
+  AgentConsoleHeaderDescription,
+  AgentConsoleHeaderTitle,
+  AgentConsoleHeaderTitleRow,
+  AgentConsoleStatusBadge,
   AgentPageShell,
   AgentPageShellHeader,
+  AgentWorkspaceReviewEffectsList,
+  AgentWorkspaceReviewEmptyBlock,
+  AgentWorkspaceReviewJsonBlock,
+  AgentWorkspaceReviewJsonBlockTitle,
+  AgentWorkspaceReviewJsonPre,
+  AgentWorkspaceReviewPaneTitle,
+  AgentWorkspaceReviewRawPane,
+  AgentWorkspaceReviewSection,
+  AgentWorkspaceReviewSectionTitle,
+  AgentWorkspaceReviewSummaryPane,
+  AgentWorkspaceReviewTextarea,
+  AgentWorkspaceSummaryLabel,
+  AgentWorkspaceSummaryRow,
+  AgentWorkspaceSummaryValue,
+  AgentWorkspaceStateRow,
+  AgentWorkspaceStateSpinner,
   AgentWorkspacesPageBody,
-  AgentWorkspacesPageMain,
-  AgentWorkspacesPageSidebar,
-  Button,
+  AgentWorkspacesPageFullMain,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import type { ElectronMovScriptWorkspaceFileReadResult } from '@/shared/contracts/electronApi'
@@ -47,88 +69,90 @@ export default function MovScriptWorkspaceReviewPage() {
   return (
     <AgentPageShell data-testid="movscript-workspace-review-page">
       <AgentPageShellHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <ClipboardCheck size={18} />
-                Workspace Review
-              </div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {reviewPath || '等待 workspace_submit 提交工作区修改'}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {openBusinessReviewPath && (
+        <AgentConsoleHeader>
+          <AgentConsoleHeaderCopy>
+            <AgentConsoleHeaderTitleRow>
+              <ClipboardCheck size={18} />
+              <AgentConsoleHeaderTitle>Workspace Review</AgentConsoleHeaderTitle>
+              <AgentConsoleStatusBadge intent={activeError || parsedRecord.error ? 'danger' : reviewPath ? 'info' : 'neutral'} emphasis="soft">
+                {activeError || parsedRecord.error ? '审阅异常' : reviewPath ? '待审阅' : '等待提交'}
+              </AgentConsoleStatusBadge>
+            </AgentConsoleHeaderTitleRow>
+            <AgentConsoleHeaderDescription>
+              {reviewPath || '等待 workspace_submit 提交工作区修改'}
+            </AgentConsoleHeaderDescription>
+          </AgentConsoleHeaderCopy>
+          <AgentConsoleHeaderActions>
+            {openBusinessReviewPath && (
+              <AgentConsoleActionButton asChild size="sm">
                 <Link to={openBusinessReviewPath}>
-                  <Button type="button" size="sm">
-                    <ArrowRight size={14} />
-                    打开业务审阅
-                  </Button>
+                  <ArrowRight size={14} />
+                  打开业务审阅
                 </Link>
-              )}
-              <Button type="button" variant="outline" size="sm" onClick={() => {
+              </AgentConsoleActionButton>
+            )}
+            <AgentConsoleActionButton type="button" variant="outline" size="sm" onClick={() => {
                 if (reviewPath) void reviewQuery.refetch()
               }} disabled={!reviewPath || activeFetching}>
-                <RefreshCw size={14} />
-                刷新
-              </Button>
-            </div>
-          </div>
-          <AgentConsoleNav compact />
-        </div>
+              <RefreshCw size={14} />
+              刷新
+            </AgentConsoleActionButton>
+          </AgentConsoleHeaderActions>
+        </AgentConsoleHeader>
       </AgentPageShellHeader>
+
+      <AgentConsoleNav compact />
+
       <AgentWorkspacesPageBody>
         {!reviewPath ? (
-          <AgentWorkspacesPageMain className="lg:col-span-2">
+          <AgentWorkspacesPageFullMain>
             <StateRow text="等待审阅记录" />
-          </AgentWorkspacesPageMain>
+          </AgentWorkspacesPageFullMain>
         ) : activeLoading ? (
-          <AgentWorkspacesPageMain className="lg:col-span-2">
-            <StateRow icon={<Loader2 size={14} className="animate-spin" />} text="读取工作区修改" />
-          </AgentWorkspacesPageMain>
+          <AgentWorkspacesPageFullMain>
+            <StateRow icon={<AgentWorkspaceStateSpinner />} text="读取工作区修改" />
+          </AgentWorkspacesPageFullMain>
         ) : activeError ? (
-          <AgentWorkspacesPageMain className="lg:col-span-2">
+          <AgentWorkspacesPageFullMain>
             <StateRow text={errorMessage(activeError)} tone="danger" />
-          </AgentWorkspacesPageMain>
+          </AgentWorkspacesPageFullMain>
         ) : parsedRecord.error ? (
-          <AgentWorkspacesPageMain className="lg:col-span-2">
+          <AgentWorkspacesPageFullMain>
             <StateRow text={parsedRecord.error} tone="danger" />
-          </AgentWorkspacesPageMain>
+          </AgentWorkspacesPageFullMain>
         ) : (
           <>
-            <AgentWorkspacesPageSidebar className="gap-3 overflow-auto p-4" data-testid="movscript-workspace-review-summary">
+            <AgentWorkspaceReviewSummaryPane data-testid="movscript-workspace-review-summary">
               <ReviewSummaryRow label="状态" value={stringValue(record?.status) ?? 'submitted'} />
               <ReviewSummaryRow label="类型" value={stringValue(record?.workspaceKind) ?? stringValue(recordHandoff?.workspaceKind) ?? '-'} />
               <ReviewSummaryRow label="创建时间" value={stringValue(record?.createdAt) ?? '-'} />
               <ReviewJSONBlock title="Target" value={target} />
               <ReviewJSONBlock title="Validation" value={validation} />
-              <div>
-                <div className="mb-2 text-sm font-medium text-foreground">Effects</div>
+              <AgentWorkspaceReviewSection>
+                <AgentWorkspaceReviewSectionTitle>Effects</AgentWorkspaceReviewSectionTitle>
                 {effects.length === 0 ? (
-                  <div className="rounded border border-border bg-background p-3 text-sm text-muted-foreground">无记录</div>
+                  <AgentWorkspaceReviewEmptyBlock>无记录</AgentWorkspaceReviewEmptyBlock>
                 ) : (
-                  <div className="space-y-2">
+                  <AgentWorkspaceReviewEffectsList>
                     {effects.map((effect, index) => (
-                      <pre key={index} className="overflow-auto rounded border border-border bg-background p-3 text-xs leading-5 text-foreground">
+                      <AgentWorkspaceReviewJsonPre key={index}>
                         {JSON.stringify(effect, null, 2)}
-                      </pre>
+                      </AgentWorkspaceReviewJsonPre>
                     ))}
-                  </div>
+                  </AgentWorkspaceReviewEffectsList>
                 )}
-              </div>
-            </AgentWorkspacesPageSidebar>
-            <AgentWorkspacesPageMain className="flex flex-col gap-3" data-testid="movscript-workspace-review-raw">
-              <div className="text-sm font-medium text-foreground">
+              </AgentWorkspaceReviewSection>
+            </AgentWorkspaceReviewSummaryPane>
+            <AgentWorkspaceReviewRawPane data-testid="movscript-workspace-review-raw">
+              <AgentWorkspaceReviewPaneTitle>
                 原始修改记录
-              </div>
-              <textarea
-                className="min-h-0 flex-1 resize-none bg-background p-3 font-mono text-xs leading-5 text-foreground outline-none"
+              </AgentWorkspaceReviewPaneTitle>
+              <AgentWorkspaceReviewTextarea
                 value={activeFile?.content ?? ''}
                 readOnly
                 spellCheck={false}
               />
-            </AgentWorkspacesPageMain>
+            </AgentWorkspaceReviewRawPane>
           </>
         )}
       </AgentWorkspacesPageBody>
@@ -138,30 +162,30 @@ export default function MovScriptWorkspaceReviewPage() {
 
 function ReviewSummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 text-sm">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="min-w-0 break-words text-foreground">{value}</div>
-    </div>
+    <AgentWorkspaceSummaryRow>
+      <AgentWorkspaceSummaryLabel>{label}</AgentWorkspaceSummaryLabel>
+      <AgentWorkspaceSummaryValue>{value}</AgentWorkspaceSummaryValue>
+    </AgentWorkspaceSummaryRow>
   )
 }
 
 function ReviewJSONBlock({ title, value }: { title: string; value?: Record<string, unknown> }) {
   return (
-    <div>
-      <div className="mb-2 text-sm font-medium text-foreground">{title}</div>
-      <pre className="max-h-64 overflow-auto rounded border border-border bg-background p-3 text-xs leading-5 text-foreground">
+    <AgentWorkspaceReviewJsonBlock>
+      <AgentWorkspaceReviewJsonBlockTitle>{title}</AgentWorkspaceReviewJsonBlockTitle>
+      <AgentWorkspaceReviewJsonPre maxHeight>
         {value ? JSON.stringify(value, null, 2) : '无记录'}
-      </pre>
-    </div>
+      </AgentWorkspaceReviewJsonPre>
+    </AgentWorkspaceReviewJsonBlock>
   )
 }
 
 function StateRow({ icon, text, tone = 'muted' }: { icon?: ReactNode; text: string; tone?: 'muted' | 'danger' }) {
   return (
-    <div className={`flex min-h-32 items-center justify-center gap-2 text-sm ${tone === 'danger' ? 'text-destructive' : 'text-muted-foreground'}`}>
+    <AgentWorkspaceStateRow tone={tone}>
       {icon}
       <span>{text}</span>
-    </div>
+    </AgentWorkspaceStateRow>
   )
 }
 

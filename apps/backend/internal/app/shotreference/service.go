@@ -79,6 +79,21 @@ type CreateFromResourceInput struct {
 	Shots       []domainshotreference.UpdateInput
 }
 
+type CreateGroupInput struct {
+	UserID      uint
+	OrgID       *uint
+	ResourceID  uint
+	Title       string
+	Summary     string
+	CutStrategy string
+}
+
+type GroupDetail struct {
+	Info  domainshotreference.ShotReferenceGroup `json:"group"`
+	Shots []domainshotreference.ShotReference    `json:"shots"`
+	Count int                                    `json:"count"`
+}
+
 func (s *Service) UploadAndAnalyze(ctx context.Context, input UploadInput) (domainshotreference.ShotReference, error) {
 	if domainresource.MimeToType(input.MimeType, input.Filename) != "video" {
 		return domainshotreference.ShotReference{}, StageError{Stage: StageValidateVideo, Err: ErrInvalidVideo}
@@ -120,6 +135,59 @@ func (s *Service) UploadAndAnalyze(ctx context.Context, input UploadInput) (doma
 	s.populateResourceURLs(references)
 	reference = references[0]
 	return reference, nil
+}
+
+func (s *Service) CreateGroup(ctx context.Context, input CreateGroupInput) (domainshotreference.ShotReferenceGroup, error) {
+	resource, err := s.resources.GetVisible(ctx, input.ResourceID, input.UserID, input.OrgID)
+	if err != nil {
+		return domainshotreference.ShotReferenceGroup{}, StageError{Stage: StageValidateVideo, Err: err}
+	}
+	if resource.Type != "video" {
+		return domainshotreference.ShotReferenceGroup{}, StageError{Stage: StageValidateVideo, Err: ErrInvalidVideo}
+	}
+	group := domainshotreference.NewGroupForResource(resource)
+	if title := strings.TrimSpace(input.Title); title != "" {
+		group.Title = title
+	}
+	if summary := strings.TrimSpace(input.Summary); summary != "" {
+		group.Summary = summary
+	} else if strings.TrimSpace(input.Title) != "" {
+		group.Summary = group.Title + " shot reference group."
+	}
+	if cutStrategy := strings.TrimSpace(input.CutStrategy); cutStrategy != "" {
+		group.CutStrategy = cutStrategy
+	}
+	if err := s.repo.CreateGroup(ctx, &group); err != nil {
+		return domainshotreference.ShotReferenceGroup{}, StageError{Stage: StagePersistResult, Err: err}
+	}
+	if group.SourceResource != nil {
+		group.SourceResource.URL = resourceProxyURL(group.SourceResource.ID)
+	}
+	return group, nil
+}
+
+func (s *Service) GetGroupDetail(ctx context.Context, id uint, input domainshotreference.ListInput) (GroupDetail, error) {
+	group, err := s.repo.GetGroup(ctx, id, input)
+	if err != nil {
+		return GroupDetail{}, err
+	}
+	if group.SourceResource != nil {
+		group.SourceResource.URL = resourceProxyURL(group.SourceResource.ID)
+	}
+	input.GroupID = &id
+	input.Query = ""
+	input.Page = 1
+	input.PageSize = 10000
+	shots, err := s.repo.List(ctx, input)
+	if err != nil {
+		return GroupDetail{}, err
+	}
+	s.populateResourceURLs(shots)
+	return GroupDetail{
+		Info:  group,
+		Shots: shots,
+		Count: len(shots),
+	}, nil
 }
 
 func (s *Service) CreateFromResource(ctx context.Context, input CreateFromResourceInput) ([]domainshotreference.ShotReference, error) {

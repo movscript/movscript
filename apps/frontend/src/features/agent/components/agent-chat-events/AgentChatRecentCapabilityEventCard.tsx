@@ -3,9 +3,9 @@ import {
   AgentChatMessage,
   AgentMessageSection,
 } from '@movscript/ui'
-import type { AgentChatNotificationEvent } from '@/features/agent/domain/agentChatProtocol'
-import { agentChatContentDefaultOpen } from '@/features/agent/domain/agentChatDisplayPolicy'
-import { agentChatRecentCapabilityEventView } from '@/features/agent/domain/agentChatRecentCapabilityEvents'
+import type { AgentChatNotificationEvent } from '@movscript/core/agent/chat'
+import { agentChatContentDefaultOpen } from '@movscript/core/agent/chat'
+import { agentChatRecentCapabilityEventView } from '@movscript/core/agent/chat'
 import {
   AgentChatSectionTitle,
   AgentChatTextBlock,

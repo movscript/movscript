@@ -488,8 +488,6 @@
         "statusFallback": "Not set"
       },
       "sections": {
-        "pipeline": "Production Pipeline",
-        "pipelineHint": "A project overview from production management to creative orchestration.",
         "focus": "Today's Focus",
         "focusHint": "Prioritize gaps that block downstream production.",
         "quickLinks": "Quick Links"
@@ -1114,7 +1112,6 @@
           "content_unit": "Shot suggestion",
           "prompt": "Prompt",
           "note": "Review note",
-          "pipeline": "Pipeline workspace",
           "segment": "Segment workspace",
           "scene_moment": "Scene moment workspace",
           "asset_workspace": "Asset candidate workspace",

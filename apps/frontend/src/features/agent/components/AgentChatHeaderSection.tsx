@@ -11,8 +11,14 @@ import {
   DropdownMenuTrigger,
 } from '@movscript/ui'
 import { AgentConversationTabs } from '@/features/agent/components/AgentConversationTabs'
+import {
+  agentConversationTabMenuAnchorStyleFromPosition,
+  agentConversationTabMenuPositionFromPointerEvent,
+  agentConversationTabMenuPositionFromTriggerElement,
+} from '@/features/agent/presentation/agentConversationTabMenuPlacement'
 import { useAgentConversationTabProviderSessionStatusLights } from '@/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights'
-import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
+import { subscribeTransientOverlayDismissal } from '@/shared/ui/transientOverlayDismissal'
+import type { ProviderSessionStatusLight } from '@movscript/core/agent'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 type ConversationTabMenuState = {
@@ -20,10 +26,6 @@ type ConversationTabMenuState = {
   x: number
   y: number
 } | null
-
-function clampNumber(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
-}
 
 export interface AgentChatHeaderSectionProps {
   activeConversation: Conversation
@@ -89,23 +91,22 @@ export function AgentChatHeaderSection({
   const openConversationTabMenu = useCallback((event: MouseEvent, conversationId: string) => {
     event.preventDefault()
     event.stopPropagation()
-    const menuWidth = 208
-    const menuHeight = 158
+    const position = agentConversationTabMenuPositionFromPointerEvent(event)
     setTabContextMenu({
       conversationId,
-      x: clampNumber(event.clientX, 8, Math.max(8, window.innerWidth - menuWidth - 8)),
-      y: clampNumber(event.clientY, 8, Math.max(8, window.innerHeight - menuHeight - 8)),
+      x: position.x,
+      y: position.y,
     })
   }, [])
   const openConversationTabKeyboardMenu = useCallback((event: KeyboardEvent, conversationId: string) => {
     if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
     event.preventDefault()
     event.stopPropagation()
-    const rect = event.currentTarget.getBoundingClientRect()
+    const position = agentConversationTabMenuPositionFromTriggerElement(event.currentTarget)
     setTabContextMenu({
       conversationId,
-      x: clampNumber(rect.left + 16, 8, Math.max(8, window.innerWidth - 208 - 8)),
-      y: clampNumber(rect.bottom + 4, 8, Math.max(8, window.innerHeight - 158 - 8)),
+      x: position.x,
+      y: position.y,
     })
   }, [])
   const closeTabContextMenu = useCallback(() => setTabContextMenu(null), [])
@@ -118,13 +119,9 @@ export function AgentChatHeaderSection({
 
   useEffect(() => {
     if (!tabContextMenu) return
-    const close = () => setTabContextMenu(null)
-    window.addEventListener('resize', close)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      window.removeEventListener('resize', close)
-      window.removeEventListener('scroll', close, true)
-    }
+    return subscribeTransientOverlayDismissal({
+      onDismiss: () => setTabContextMenu(null),
+    })
   }, [tabContextMenu])
 
   const tabContextMenuNode = tabContextMenu ? (() => {
@@ -157,7 +154,7 @@ export function AgentChatHeaderSection({
             size="icon-xs"
             aria-label={t('agents.chat.tabActions')}
             className="ai-agent-panel-tab-context-menu-anchor"
-            style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
+            style={agentConversationTabMenuAnchorStyleFromPosition(tabContextMenu)}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent

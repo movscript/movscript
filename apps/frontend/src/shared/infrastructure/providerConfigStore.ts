@@ -79,8 +79,8 @@ export const MOVA_PROVIDER_ID = 'mova'
 export const PROVIDER_CONFIG_STORAGE_KEY = 'movscript-provider-config'
 export const CODEX_MOVSCRIPT_HOME_PROFILE_ID = 'codex-movscript-home'
 export const MOVA_MOVSCRIPT_HOME_PROFILE_ID = 'mova-movscript-home'
-export const MOVSCRIPT_MANAGED_CODEX_HOME = '.movscript/.codex'
-export const MOVSCRIPT_MANAGED_MOVA_HOME = '.movscript/.mova'
+export const MOVSCRIPT_MANAGED_CODEX_HOME = '.codex'
+export const MOVSCRIPT_MANAGED_MOVA_HOME = '.mova'
 
 export interface ProviderThreadRef {
   providerId: string
@@ -451,7 +451,7 @@ function normalizedAppServerProfileId(id: string, kind: AppServerProviderKind): 
 
 function managedAppServerHome(value: string, kind: AppServerProviderKind): string {
   const managedHome = managedAppServerHomePath(kind)
-  const trimmed = value.trim()
+  const trimmed = normalizeMovScriptManagedHome(value.trim())
   if (!trimmed || trimmed === '~' || trimmed.startsWith('~/') || trimmed.startsWith('/')) {
     return managedHome
   }
@@ -462,7 +462,11 @@ function managedAppServerHome(value: string, kind: AppServerProviderKind): strin
 }
 
 function managedAppServerHomePath(kind: AppServerProviderKind): string {
-  return `.movscript/.${kind}`
+  return `.${kind}`
+}
+
+function normalizeMovScriptManagedHome(value: string): string {
+  return value.replace(/^\.movscript[\\/](\.[^\\/]+)/, '$1')
 }
 
 export function providerInstanceId(provider: ProviderConfig): string {

@@ -57,7 +57,6 @@
 }
 
 .ai-agent-panel-shell[data-agent-chat-host="dock-panel"] > .ai-agent-panel-main > .ai-agent-panel-input-card[data-chrome="flush"] {
-  margin-top: -1px;
   border-top: 0;
   box-shadow: none;
 }

@@ -12,7 +12,7 @@ export { normalizeBackendHTTPErrorForMCP } from '../../../backend/errors.js'
 export { listTools } from './toolRegistry.js'
 export { summarizeModelContractForAgent } from '../../tools/model/contracts/index.js'
 export { listModels } from '../tools/model/actions.js'
-export { workspaceBuild, workspaceGetModel, workspaceReview } from '../tools/workspace/actions.js'
+export { workspaceInterpret, workspaceGetModel, workspaceReview } from '../tools/workspace/actions.js'
 export { readResource } from './resourceRegistry.js'
 export { queryShotLibrary } from '../tools/shot-library/actions.js'
 

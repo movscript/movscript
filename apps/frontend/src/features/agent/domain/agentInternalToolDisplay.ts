@@ -1,4 +1,4 @@
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
+import type { AgentChatThreadItem } from '@movscript/core/agent/chat'
 
 export type AgentInternalToolTone = 'neutral' | 'result' | 'process' | 'diagnostic'
 
@@ -96,7 +96,7 @@ function domainUpsertSettingDisplay(item: ToolCallItem): AgentInternalToolDispla
       kind ? `类型：${kind}` : undefined,
       id ? `ID：${id}` : undefined,
       path ? `路径：${path}` : undefined,
-      resultRecord ? '设定已写入本地工作区，尚需后续 review/build 才会成为当前生效数据。' : undefined,
+      resultRecord ? '设定已写入本地工作区，尚需后续 review/interpret 才会成为当前生效数据。' : undefined,
     ]),
     argumentsSummary: compactStrings([
       settingTitle(payload) ? `title=${settingTitle(payload)}` : undefined,

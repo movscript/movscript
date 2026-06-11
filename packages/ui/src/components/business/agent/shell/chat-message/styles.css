@@ -417,20 +417,25 @@
 }
 
 .ms-agent-chat-media-grid {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--ms-space-2);
 }
 
 .ms-agent-chat-media-grid[data-kind="image"] {
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  align-items: flex-start;
 }
 
 .ms-agent-chat-media-grid[data-kind="media"] {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: flex-start;
 }
 
 .ms-agent-chat-media-tile {
-  display: block;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
@@ -439,28 +444,28 @@
   padding: var(--ms-space-2);
 }
 
-a.ms-agent-chat-media-tile {
-  padding: 0;
-}
-
 .ms-agent-chat-media-tile__image {
   display: block;
-  width: 100%;
-  height: 128px;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 520px);
+  max-height: min(56vh, 420px);
+  object-fit: contain;
 }
 
 .ms-agent-chat-media-tile__video {
   display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 560px);
+  max-height: min(56vh, 420px);
   background: var(--ms-color-background);
   object-fit: contain;
 }
 
 .ms-agent-chat-media-tile__audio {
   display: block;
-  width: 100%;
+  width: min(100%, 360px);
 }
 
 .ms-agent-chat-media-tile__caption {

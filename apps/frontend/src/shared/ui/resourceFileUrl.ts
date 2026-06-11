@@ -1,4 +1,12 @@
+import {
+  resourceFileImageUrl as coreResourceFileImageUrl,
+  resourceFileUrl as coreResourceFileUrl,
+} from '@movscript/core/resources'
+
+export function resourceFileUrl(resourceId?: number | null, resourceUrl?: string) {
+  return coreResourceFileUrl(resourceId, resourceUrl)
+}
+
 export function resourceFileImageUrl(resourceId?: number | null, resourceUrl?: string) {
-  if (resourceUrl) return resourceUrl
-  return resourceId ? `/api/v1/resources/${resourceId}/file` : undefined
+  return coreResourceFileImageUrl(resourceId, resourceUrl)
 }

@@ -29,6 +29,7 @@ export function attachmentFromResource(resource: RawResource): AgentAttachment {
     size: resource.size,
     url: resourceUrl(resource),
     resourceId: resource.ID,
+    source: { kind: 'backend_resource', resourceId: resource.ID },
   }
 }
 
@@ -56,6 +57,7 @@ export function placeholderAttachment(resourceId: number): AgentAttachment {
     mimeType: 'application/octet-stream',
     size: 0,
     resourceId,
+    source: { kind: 'backend_resource', resourceId },
   }
 }
 

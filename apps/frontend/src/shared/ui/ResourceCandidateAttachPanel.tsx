@@ -9,6 +9,7 @@ import {
   generatedBindingTargetLabel,
   generatedCandidateAttachSummary,
   generatedTargetRecordDescription,
+  generatedTargetRecordId,
   generatedTargetRecordLabel,
   generatedTargetRecordMeta,
   generatedTargetSearchText,
@@ -97,9 +98,10 @@ export function ResourceCandidateAttachPanel({
   const normalizedQuery = targetQuery.trim().toLowerCase()
   const filteredTargets = targetRecords
     .filter((record) => isGeneratedCandidateTargetRecord(record, targetConfig.value))
+    .filter((record) => generatedTargetRecordId(record) !== undefined)
     .filter((record) => !normalizedQuery || generatedTargetSearchText(record).includes(normalizedQuery))
     .slice(0, 80)
-  const selectedTarget = targetId !== undefined ? filteredTargets.find((record) => record.ID === targetId) : undefined
+  const selectedTarget = targetId !== undefined ? filteredTargets.find((record) => generatedTargetRecordId(record) === targetId) : undefined
   const canAttach = !!projectId && targetId !== undefined && !!selectedTarget && hasCandidateResources && attachStatus !== 'attaching' && attachStatus !== 'attached'
   const selectedTargetDescription = selectedTarget ? generatedTargetRecordDescription(selectedTarget) : ''
   const selectedTargetMeta = selectedTarget ? generatedTargetRecordMeta(selectedTarget) : []
@@ -206,19 +208,21 @@ export function ResourceCandidateAttachPanel({
               {projectId ? '没有匹配的目标对象，请调整搜索条件。' : '请选择当前项目后再加入候选。'}
             </ResourceCandidateTargetEmpty>
           ) : filteredTargets.map((record) => {
-            const selected = record.ID === targetId
+            const recordId = generatedTargetRecordId(record)
+            if (recordId === undefined) return null
+            const selected = recordId === targetId
             const meta = generatedTargetRecordMeta(record)
             const description = generatedTargetRecordDescription(record)
             return (
               <ResourceCandidateTargetItem
-                key={`${targetConfig.value}-${record.ID}`}
+                key={`${targetConfig.value}-${recordId}`}
                 active={selected}
                 title={generatedTargetRecordLabel(record)}
-                idLabel={`#${record.ID}`}
+                idLabel={`#${recordId}`}
                 meta={meta.length > 0 ? meta.join(' · ') : undefined}
                 description={description || undefined}
                 onClick={() => {
-                  setTargetId(record.ID)
+                  setTargetId(recordId)
                   setAttachMessage('')
                   if (attachStatus !== 'attaching') setAttachStatus('idle')
                 }}
@@ -278,10 +282,11 @@ function resourceAssetCandidatePayload(assetSlotId: number, resource: CandidateR
 function resourceKeyframeCandidatePayload(targetKeyframe: SemanticEntityRecord, resource: CandidateResourceRef) {
   const resourceId = validResourceId(resource.resourceId)
   if (resourceId === undefined) throw new Error('resource_id required')
+  const targetKeyframeId = generatedTargetRecordId(targetKeyframe)
   const targetTitle = stringField(targetKeyframe.title)
     || stringField(targetKeyframe.name)
     || stringField(targetKeyframe.label)
-    || `画面锚点 #${targetKeyframe.ID}`
+    || `画面锚点 #${targetKeyframeId ?? targetKeyframe.ID}`
   return {
     production_id: nullablePositiveNumber(targetKeyframe.production_id),
     scene_moment_id: nullablePositiveNumber(targetKeyframe.scene_moment_id),
@@ -295,7 +300,7 @@ function resourceKeyframeCandidatePayload(targetKeyframe: SemanticEntityRecord, 
     status: 'candidate',
     metadata_json: JSON.stringify({
       source: resource.sourceJobId !== undefined ? 'ai_generated_keyframe_candidate' : 'resource_library_keyframe_candidate',
-      target_keyframe_id: targetKeyframe.ID,
+      target_keyframe_id: targetKeyframeId ?? targetKeyframe.ID,
       resource_id: resourceId,
       ...(resource.sourceJobId !== undefined ? { source_job_id: resource.sourceJobId } : {}),
     }),

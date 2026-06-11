@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/decision": ["../decision/src/index.ts"],
+      "@movscript/language/domain": ["../language/src/domain/index.ts"],
+      "@movscript/workspace": ["../workspace/src/index.ts"],
+      "@movscript/workspace/indexer": ["../workspace/src/indexer/index.ts"],
+      "@movscript/workspace/layout": ["../workspace/src/layout/index.ts"],
+      "@movscript/workspace/node": ["../workspace/src/node.ts"],
+      "@movscript/workspace/repository": ["../workspace/src/repository/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

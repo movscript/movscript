@@ -1,4 +1,4 @@
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
+import type { AgentChatThreadItem } from '@movscript/core/agent/chat'
 import {
   AgentChatAgentMessageItem,
   AgentChatCollabAgentToolCallItem,

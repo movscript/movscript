@@ -100,8 +100,13 @@ func (r *gormRepository) Update(ctx context.Context, reference *domainshotrefere
 }
 
 func (r *gormRepository) List(ctx context.Context, input domainshotreference.ListInput) ([]domainshotreference.ShotReference, error) {
-	q := r.db.WithContext(ctx).Model(&persistencemodel.ShotReference{}).Preload("Resource").Preload("Group").Preload("Group.SourceResource").Order("updated_at desc")
+	q := r.db.WithContext(ctx).Model(&persistencemodel.ShotReference{}).Preload("Resource").Preload("Group").Preload("Group.SourceResource")
 	q = applyScope(q, input)
+	if input.GroupID != nil {
+		q = q.Order(`"order" asc`).Order("id asc")
+	} else {
+		q = q.Order("updated_at desc")
+	}
 	var rows []persistencemodel.ShotReference
 	if err := q.Find(&rows).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -142,6 +147,9 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, input domainshotre
 }
 
 func applyScope(q *gorm.DB, input domainshotreference.ListInput) *gorm.DB {
+	if input.GroupID != nil {
+		q = q.Where("group_id = ?", *input.GroupID)
+	}
 	if input.OrgID != nil {
 		return q.Where("org_id = ? OR (org_id IS NULL AND owner_id = ?)", *input.OrgID, input.UserID)
 	}

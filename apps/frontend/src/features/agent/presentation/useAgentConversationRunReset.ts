@@ -17,7 +17,7 @@ export function useAgentConversationRunReset({
   resetStreamingAssistant,
   setSubmittedInteractionRuns,
 }: UseAgentConversationRunResetInput) {
-  const resetCursorRef = useRef<AgentConversationRunResetCursor>()
+  const resetCursorRef = useRef<AgentConversationRunResetCursor | undefined>(undefined)
   useEffect(() => {
     const decision = nextAgentConversationRunReset({
       cursor: resetCursorRef.current,

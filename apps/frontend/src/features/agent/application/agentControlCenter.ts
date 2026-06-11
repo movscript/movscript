@@ -3,7 +3,7 @@ import { providerSessionClient, type ProviderSessionSummary, type AgentThreadCle
 import type { ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
-import type { AgentChatDataSource } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentChatDataSource } from '@movscript/core/agent/chat'
 import { providerProtocol } from '@/shared/infrastructure/providerConfigStore'
 import { providerRoute } from '@/features/agent/application/providerRoutes'
 
@@ -150,7 +150,7 @@ export function buildAgentControlIssues(input: {
       tone: 'action',
       title: '有运行等待输入或审批',
       detail: `${input.waitingRuns} 个 Run 处于等待处理状态。`,
-      to: ROUTES.agentRuns,
+      to: ROUTES.agentConsole,
     })
   }
   if (input.failedRuns > 0) {
@@ -158,8 +158,8 @@ export function buildAgentControlIssues(input: {
       id: 'failed-runs',
       tone: 'warning',
       title: '最近存在失败运行',
-      detail: `${input.failedRuns} 个 Run 失败，可从运行记录进入 trace 详情定位。`,
-      to: ROUTES.agentRuns,
+      detail: `${input.failedRuns} 个 Run 失败，可从 Agent 控制台检查当前状态。`,
+      to: ROUTES.agentConsole,
     })
   }
   if (input.blockedTools > 0 || input.capabilityWarnings > 0) {

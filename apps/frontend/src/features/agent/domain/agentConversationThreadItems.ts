@@ -2,7 +2,7 @@ import {
   transcriptMessageItemThreadRunId,
   transcriptUserRelatedRunId,
 } from '@/features/agent/domain/agentMessageBoundaries'
-import { activeRunInputIsWaitingForDelivery } from '@/features/agent/domain/agentActiveRunInputMessages'
+import { activeRunInputIsWaitingForDelivery } from '@movscript/core/agent/protocol'
 import {
   type AgentTranscriptMessageItem,
 } from '@/features/agent/domain/agentTranscriptMessageItems'

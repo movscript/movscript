@@ -20,8 +20,7 @@
   background: var(--ms-color-muted);
 }
 
-.canvas-node-card:has(.canvas-node-card-textarea),
-.canvas-node-card:has(.canvas-node-card-preview-text) {
+.canvas-node-card[data-content-mode="text"] {
   position: relative;
   height: 144px;
   min-height: 144px;
@@ -37,8 +36,7 @@
 }
 
 .canvas-media-node-card .canvas-media-node-info,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info {
   pointer-events: none;
   position: absolute;
   z-index: 2;
@@ -52,8 +50,7 @@
 }
 
 .canvas-media-node-card .canvas-media-node-info__crumbs,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__crumbs,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__crumbs {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__crumbs {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -65,40 +62,34 @@
 }
 
 .canvas-media-node-card .canvas-media-node-info__crumb,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__crumb,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__crumb {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__crumb {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .canvas-media-node-card .canvas-media-node-info__crumb + .canvas-media-node-info__crumb::before,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__crumb + .canvas-media-node-info__crumb::before,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__crumb + .canvas-media-node-info__crumb::before {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__crumb + .canvas-media-node-info__crumb::before {
   content: "/";
   margin: 0 6px;
   color: color-mix(in srgb, var(--ms-color-muted-foreground) 56%, transparent);
 }
 
 .canvas-media-node-card .canvas-media-node-info__name,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__name,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__name {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__name {
   color: var(--ms-color-foreground);
   text-shadow: none;
 }
 
 .canvas-media-node-card .canvas-media-node-info__meta,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__meta,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__meta {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__meta {
   color: var(--ms-color-muted-foreground);
 }
 
 .canvas-media-node-card .canvas-media-node-info__crumb svg,
 .canvas-media-node-card .canvas-media-node-info__meta svg,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__crumb svg,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-media-node-info__meta svg,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__crumb svg,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-media-node-info__meta svg {
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__crumb svg,
+.canvas-node-card[data-content-mode="text"] .canvas-media-node-info__meta svg {
   width: 12px;
   height: 12px;
 }
@@ -124,22 +115,18 @@
   box-shadow: var(--ms-shadow-sm);
 }
 
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-node-card-body,
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-node-card-textarea,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-node-card-body,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-node-card-textarea {
+.canvas-node-card[data-content-mode="text"] .canvas-node-card-body,
+.canvas-node-card[data-content-mode="text"] .canvas-node-card-textarea {
   min-height: 0;
   flex: 1;
   border-radius: inherit;
 }
 
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-node-card-body,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-node-card-body {
+.canvas-node-card[data-content-mode="text"] .canvas-node-card-body {
   padding-bottom: calc(var(--ms-space-2) + 22px);
 }
 
-.canvas-node-card:has(.canvas-node-card-textarea) .canvas-node-card-textarea,
-.canvas-node-card:has(.canvas-node-card-preview-text) .canvas-node-card-textarea {
+.canvas-node-card[data-content-mode="text"] .canvas-node-card-textarea {
   overflow: auto;
   padding-bottom: calc(var(--ms-space-2) + 22px);
   white-space: pre-wrap;

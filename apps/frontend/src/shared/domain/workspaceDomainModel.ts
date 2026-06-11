@@ -44,7 +44,7 @@ function workspaceDomainModelFromCore(model: MovScriptDomainWorkspaceModel): Wor
       forbids: [],
     },
     applyBoundary: {
-      backendApply: 'workspace_build',
+      backendApply: 'workspace_interpret',
     },
   }
 }

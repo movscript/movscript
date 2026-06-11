@@ -221,7 +221,11 @@ export function AppSettingsFeedbackText({
   icon?: ReactNode;
 }) {
   return (
-    <p className={cn("app-settings-feedback", tone !== "neutral" ? toneTextClass(appSettingsFeedbackSemanticTone(tone)) : undefined, className)} {...props}>
+    <p
+      data-has-icon={icon ? "true" : undefined}
+      className={cn("app-settings-feedback", tone !== "neutral" ? toneTextClass(appSettingsFeedbackSemanticTone(tone)) : undefined, className)}
+      {...props}
+    >
       {icon}
       {children}
     </p>

@@ -106,13 +106,11 @@ import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspace
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import type { Script } from '@/types'
 import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
-
-type BrowserBounds = {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+import {
+  agentBrowserBoundsFromViewportElement,
+  subscribeAgentBrowserBoundsSync,
+  type AgentBrowserBounds,
+} from '@/features/agent/presentation/agentBrowserBounds'
 
 type WebTabState = {
   tabId: string
@@ -217,18 +215,9 @@ export function AgentBrowserPanel() {
   const activeWebState = activeTab?.kind === 'web' ? webStates[activeTab.id] ?? { ...EMPTY_WEB_STATE, tabId: activeTab.id, url: activeTab.url ?? '' } : null
   const activeWebURL = activeTab?.kind === 'web' ? activeWebState?.url || activeTab.url || '' : ''
 
-  const readBounds = useCallback((): BrowserBounds | null => {
-    const viewport = viewportRef.current
-    if (!viewport) return null
-    const rect = viewport.getBoundingClientRect()
-    if (rect.width < 16 || rect.height < 16) return null
-    return {
-      x: Math.round(rect.left),
-      y: Math.round(rect.top),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-    }
-  }, [])
+  const readBounds = useCallback((): AgentBrowserBounds | null => (
+    agentBrowserBoundsFromViewportElement(viewportRef.current)
+  ), [])
 
   const syncBounds = useCallback(() => {
     if (!available) return
@@ -257,17 +246,7 @@ export function AgentBrowserPanel() {
 
   useEffect(() => {
     syncBounds()
-    const viewport = viewportRef.current
-    if (!viewport) return
-    const observer = new ResizeObserver(syncBounds)
-    observer.observe(viewport)
-    window.addEventListener('resize', syncBounds)
-    window.addEventListener('scroll', syncBounds, true)
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', syncBounds)
-      window.removeEventListener('scroll', syncBounds, true)
-    }
+    return subscribeAgentBrowserBoundsSync(viewportRef.current, syncBounds)
   }, [syncBounds])
 
   useEffect(() => {
@@ -861,7 +840,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '设定'),
         description: firstText(record.description, record.content, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.preProduction, { reference_id: recordRouteId(record) }),
+        to: ROUTES.project.scripts,
       })),
     },
     {
@@ -876,10 +855,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '素材'),
         description: firstText(record.description, record.prompt_hint, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.preProduction, {
-          asset_slot_id: recordRouteId(record),
-          reference_id: numberField(record.setting_id),
-        }),
+        to: ROUTES.project.sourceWorkspace,
       })),
     },
     {
@@ -909,7 +885,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '情节'),
         description: firstText(record.description, record.action_text, record.location_text, record.mood, '暂无描述'),
         status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.contentUnitEditor, {
+        to: withRouteParams(ROUTES.project.sourceWorkspace, {
           scene_moment_id: recordRouteId(record),
         }),
       })),
@@ -926,7 +902,7 @@ function ProjectHomeBrowserPage({
         title: titleOfRecord(record, '内容'),
         description: firstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.contentUnitEditor, {
+        to: withRouteParams(ROUTES.project.sourceWorkspace, {
           scene_moment_id: numberField(record.scene_moment_id),
           content_unit_id: recordRouteId(record),
         }),

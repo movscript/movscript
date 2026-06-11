@@ -1,7 +1,59 @@
 import type { Node } from '@xyflow/react'
 
-export const FINAL_OUTPUT_NODE_ID = 'final-output'
+export { FINAL_OUTPUT_NODE_ID } from '@movscript/core/canvas'
 export const GROUP_SELECTION_PADDING = 64
+
+export interface CanvasClientPoint {
+  x: number
+  y: number
+}
+
+export interface CanvasFlowPoint {
+  x: number
+  y: number
+}
+
+export interface CanvasFlowCoordinateSpace {
+  fromClient(point: CanvasClientPoint): CanvasFlowPoint
+  defaultClientPoint(): CanvasClientPoint
+}
+
+export function canvasDefaultClientPoint({
+  containerRect,
+  viewportWidth,
+  viewportHeight,
+}: {
+  containerRect?: Pick<DOMRectReadOnly, 'left' | 'top' | 'width' | 'height'> | null
+  viewportWidth: number
+  viewportHeight: number
+}): CanvasClientPoint {
+  if (containerRect) {
+    return {
+      x: containerRect.left + containerRect.width / 2,
+      y: containerRect.top + containerRect.height / 2,
+    }
+  }
+  return {
+    x: Math.max(0, viewportWidth) / 2,
+    y: Math.max(0, viewportHeight) / 2,
+  }
+}
+
+function roundedCanvasLayoutValue(value: unknown) {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) ? Math.round(number) : 0
+}
+
+export function compactCanvasLayoutRect(
+  rect?: Pick<DOMRectReadOnly, 'width' | 'height' | 'left' | 'top'> | null,
+) {
+  if (!rect) return 'none'
+  return [
+    `${roundedCanvasLayoutValue(rect.width)}x${roundedCanvasLayoutValue(rect.height)}`,
+    `${roundedCanvasLayoutValue(rect.left)}`,
+    `${roundedCanvasLayoutValue(rect.top)}`,
+  ].join('+')
+}
 
 const MEDIA_PREVIEW_VISIBLE_NODE_BUDGET = 32
 const MEDIA_PREVIEW_SCREEN_PIXEL_BUDGET = 2_400_000

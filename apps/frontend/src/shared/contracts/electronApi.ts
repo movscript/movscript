@@ -440,9 +440,11 @@ export type ElectronMovScriptWorkspaceRootResult = {
   workspaceDir: string
   rootDir: string
   controlDir: string
+  configTomlPath: string
   manifestPath: string
   providersDir: string
   backendDir: string
+  binDir: string
   manifest: ElectronMovScriptWorkspaceRootManifest
 }
 
@@ -480,7 +482,7 @@ export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspac
   content: string
 }
 
-export type ElectronMovScriptWorkspaceBuildActionInput = {
+export type ElectronMovScriptWorkspaceInterpretActionInput = {
   workspaceDir?: string
   userId?: number | string
   orgId?: number | string
@@ -612,8 +614,8 @@ export type ElectronAPI = {
   readMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
   writeMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFileWriteInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
   deleteMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<{ ok: true }>
-  reviewMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceBuildActionInput) => Promise<unknown>
-  buildMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceBuildActionInput) => Promise<unknown>
+  reviewMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceInterpretActionInput) => Promise<unknown>
+  interpretMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceInterpretActionInput) => Promise<unknown>
   initProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   commitProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   pullProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>

@@ -3,12 +3,12 @@ import {
   AgentChatMessage,
   AgentMessageSection,
 } from '@movscript/ui'
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
 import {
+  type AgentChatThreadItem,
   agentChatAgentMessageView,
   agentChatHookPromptView,
   agentChatUserMessageView,
-} from '@/features/agent/domain/agentChatMessageViews'
+} from '@movscript/core/agent/chat'
 import {
   AgentChatImagePreviewGrid,
   AgentChatInspectBlock,

@@ -35,8 +35,6 @@ export interface UseAgentCommitSendWorkspaceInput {
   revokeAttachmentPreviewUrls: CommitAgentSendWorkspaceDeps['revokeAttachmentPreviewUrls']
   setMentionRange: CommitAgentSendWorkspaceDeps['setMentionRange']
   refetchProviderSessionHealth: CommitAgentSendWorkspaceDeps['refetchProviderSessionHealth']
-  runTouchesProviderCatalog: CommitAgentSendWorkspaceDeps['runTouchesProviderCatalog']
-  refreshProviderCatalogContext: CommitAgentSendWorkspaceDeps['refreshProviderCatalogContext']
   labels: CommitAgentSendWorkspaceDeps['labels']
 }
 
@@ -75,8 +73,6 @@ export function useAgentCommitSendWorkspace({
   revokeAttachmentPreviewUrls,
   setMentionRange,
   refetchProviderSessionHealth,
-  runTouchesProviderCatalog,
-  refreshProviderCatalogContext,
   labels,
 }: UseAgentCommitSendWorkspaceInput) {
   return useCallback(async (workspace: AgentSendWorkspace) => {
@@ -110,8 +106,6 @@ export function useAgentCommitSendWorkspace({
       refetchProviderSessionHealth,
       isProviderSessionAbortError,
       thinkingStateForRun: (run) => getAgentThinkingState(run, []),
-      runTouchesProviderCatalog,
-      refreshProviderCatalogContext,
       cancelGenerationJobIfActive: (state) => {
         void cancelGenerationJobIfActive(state)
       },
@@ -129,10 +123,8 @@ export function useAgentCommitSendWorkspace({
     mcpEndpoint,
     recordLiveTraceEvent,
     refetchProviderSessionHealth,
-    refreshProviderCatalogContext,
     resetStreamingAssistant,
     revokeAttachmentPreviewUrls,
-    runTouchesProviderCatalog,
     setConversationSessionId,
     setConversationProviderSessionTreeId,
     setConversationProviderSessionId,

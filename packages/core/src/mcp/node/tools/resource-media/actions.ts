@@ -9,6 +9,7 @@ import { resolveFFmpegPath } from './ffmpegPath.js'
 import { resolveMCPDefaultWorkspaceDir } from '../workspace/dir.js'
 
 type VideoFrameExtractionMode = 'overview' | 'timestamps' | 'range' | 'burst'
+type ResourceImageReadMode = 'fit' | 'original'
 type AnnotationShapeType = 'rect' | 'circle' | 'line' | 'arrow' | 'text' | 'highlight'
 
 type VideoFrameSourceMetadata = {
@@ -35,6 +36,9 @@ type VideoFrameSamplingPlan = {
 
 const DEFAULT_MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const ABSOLUTE_MAX_IMAGE_BYTES = 20 * 1024 * 1024
+const DEFAULT_MAX_IMAGE_WIDTH = 1568
+const DEFAULT_MAX_IMAGE_HEIGHT = 1568
+const ABSOLUTE_MAX_IMAGE_DIMENSION = 4096
 const DEFAULT_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 const ABSOLUTE_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 const DEFAULT_MAX_VIDEO_BYTES = 200 * 1024 * 1024
@@ -53,27 +57,43 @@ const DEFAULT_ANNOTATION_HEIGHT = 768
 export async function readResourceImageForVision(args: Record<string, unknown>): Promise<Record<string, unknown>> {
   const resourceId = resourceIdParam(args)
   const maxBytes = clampInteger(numberParam(args.max_bytes) ?? numberParam(args.maxBytes) ?? DEFAULT_MAX_IMAGE_BYTES, 1, ABSOLUTE_MAX_IMAGE_BYTES)
+  const mode = resourceImageReadModeParam(args)
+  const maxWidth = clampInteger(numberParam(args.max_width) ?? numberParam(args.maxWidth) ?? DEFAULT_MAX_IMAGE_WIDTH, 1, ABSOLUTE_MAX_IMAGE_DIMENSION)
+  const maxHeight = clampInteger(numberParam(args.max_height) ?? numberParam(args.maxHeight) ?? DEFAULT_MAX_IMAGE_HEIGHT, 1, ABSOLUTE_MAX_IMAGE_DIMENSION)
   const file = await downloadResourceFile(resourceId, { maxBytes })
-  const mimeType = normalizeImageMimeType(stringParam(args.mime_type) ?? stringParam(args.mimeType) ?? file.contentType)
-  if (!mimeType.startsWith('image/')) {
+  const sourceMimeType = normalizeImageMimeType(stringParam(args.mime_type) ?? stringParam(args.mimeType) ?? file.contentType)
+  if (!sourceMimeType.startsWith('image/')) {
     throw new Error(`resource ${resourceId} is not an image resource; content-type=${file.contentType ?? 'unknown'}`)
   }
   if (file.bytes.length > maxBytes) {
     throw new Error(`resource ${resourceId} image is ${file.bytes.length} bytes, above max_bytes=${maxBytes}`)
   }
 
+  const processed = await processResourceImageForVision(resourceId, file.bytes, sourceMimeType, {
+    mode,
+    maxWidth,
+    maxHeight,
+  })
   const metadata = {
     status: 'image_read',
     resource_id: resourceId,
-    mime_type: mimeType,
-    size_bytes: file.bytes.length,
+    mode,
+    source_mime_type: sourceMimeType,
+    source_size_bytes: file.bytes.length,
+    source_width: processed.source.width,
+    source_height: processed.source.height,
+    mime_type: processed.mimeType,
+    size_bytes: processed.bytes.length,
+    width: processed.width,
+    height: processed.height,
+    resized: processed.resized,
+    ...(mode === 'fit' ? { max_width: maxWidth, max_height: maxHeight } : {}),
     image_payload: 'sent_as_mcp_image_content',
   }
   return mcpToolResultWithImages(metadata, [{
-    label: `resource_id=${resourceId}`,
-    data: file.bytes.toString('base64'),
-    mimeType,
-  }])
+    data: processed.bytes.toString('base64'),
+    mimeType: processed.mimeType,
+  }], { includeText: false })
 }
 
 export async function extractResourceVideoFramesForVision(args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -175,7 +195,8 @@ export async function annotateResourceImage(args: Record<string, unknown>): Prom
     shapes,
     note: stringParam(args.note),
   })
-  const outputPath = await resolveAnnotationOutputPath(args, title)
+  const output = await resolveAnnotationOutputPath(args, title)
+  const outputPath = output.path
   await mkdir(dirname(outputPath), { recursive: true })
   await writeFile(outputPath, svg, 'utf8')
   const bytes = Buffer.from(svg, 'utf8')
@@ -189,14 +210,13 @@ export async function annotateResourceImage(args: Record<string, unknown>): Prom
     source: source.public,
     annotation_count: shapes.length,
     annotations: shapes.map(publicAnnotationShape),
-    image_payload: 'sent_as_mcp_image_content',
-    message: 'Annotated guidance image was rendered as SVG. Upload artifact_path with movscript_resource_upload to store it as a RawResource for generation.',
+    artifact_location: output.location,
+    ...(output.cacheDir ? { cache_dir: output.cacheDir } : {}),
+    image_payload: 'stored_as_local_artifact',
+    mcp_image_content: false,
+    message: 'Annotated guidance image was rendered as SVG and stored at artifact_path. The image bytes were not returned as MCP image content. Upload artifact_path with movscript_resource_upload to store it as a RawResource for generation.',
   }
-  return mcpToolResultWithImages(metadata, [{
-    label: `annotated guidance image: ${basename(outputPath)}`,
-    data: bytes.toString('base64'),
-    mimeType: 'image/svg+xml',
-  }])
+  return mcpToolResultMetadata(metadata)
 }
 
 export async function uploadAgentImageResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -223,6 +243,43 @@ export async function uploadAgentImageResource(args: Record<string, unknown>): P
     mime_type: input.mimeType,
     size_bytes: input.bytes.length,
     message: 'Agent-created image was uploaded to MovScript RawResource library. Use resource_id in generation input_resource_ids/reference_resource_ids.',
+  }
+}
+
+export async function uploadAgentImageResources(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const items = batchItems(args.items, 'items')
+  const continueOnError = booleanParam(args.continue_on_error) ?? booleanParam(args.continueOnError) ?? true
+  const maxConcurrency = continueOnError
+    ? clampInteger(numberParam(args.max_concurrency) ?? numberParam(args.maxConcurrency) ?? 3, 1, 8)
+    : 1
+  const defaults = batchDefaults(args, new Set(['items', 'continue_on_error', 'continueOnError', 'max_concurrency', 'maxConcurrency']))
+  const results = await runBatch(items, maxConcurrency, async (item, index) => {
+    const result = await uploadAgentImageResource({ ...defaults, ...item })
+    return {
+      index,
+      status: 'uploaded',
+      resource_id: result.resource_id,
+      resource: result.resource,
+      source: result.source,
+      filename: result.filename,
+      mime_type: result.mime_type,
+      size_bytes: result.size_bytes,
+      message: result.message,
+    }
+  }, continueOnError)
+  const successItems = results.filter((item) => item.status !== 'error' && item.status !== 'skipped')
+  const failedItems = results.filter((item) => item.status === 'error')
+  const resourceIds = successItems
+    .map((item) => numberParam(item.resource_id))
+    .filter((value): value is number => value !== undefined)
+  return {
+    status: batchStatus(successItems.length, failedItems.length),
+    total: items.length,
+    success_count: successItems.length,
+    failed_count: failedItems.length,
+    items: results,
+    resource_ids: resourceIds,
+    message: `${successItems.length}/${items.length} resource upload(s) completed.`,
   }
 }
 
@@ -311,20 +368,157 @@ async function downloadResourceFile(resourceId: number, options: { maxBytes?: nu
   return backendGetBinary(`/resources/${encodeURIComponent(String(resourceId))}/file`, options)
 }
 
+async function processResourceImageForVision(
+  resourceId: number,
+  bytes: Buffer,
+  mimeType: string,
+  options: { mode: ResourceImageReadMode; maxWidth: number; maxHeight: number },
+): Promise<{
+  bytes: Buffer
+  mimeType: string
+  width: number
+  height: number
+  resized: boolean
+  source: { width: number; height: number }
+}> {
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_image_read image validation and resizing but was not found')
+
+  const dir = await mkdtempStable('movscript-mcp-image-')
+  const inputPath = join(dir, `resource-${resourceId}${extensionForMimeType(mimeType) || '.image'}`)
+  try {
+    await writeFile(inputPath, bytes)
+    const source = await probeImageMetadata(inputPath, ffmpeg)
+    await decodeImageFrame(inputPath, ffmpeg)
+
+    if (options.mode === 'original') {
+      return {
+        bytes,
+        mimeType,
+        width: source.width,
+        height: source.height,
+        resized: false,
+        source,
+      }
+    }
+
+    const outputDimensions = fitDimensions(source, options.maxWidth, options.maxHeight)
+    if (outputDimensions.width === source.width && outputDimensions.height === source.height) {
+      return {
+        bytes,
+        mimeType,
+        width: source.width,
+        height: source.height,
+        resized: false,
+        source,
+      }
+    }
+
+    const outputPath = join(dir, 'image-fit.png')
+    await runFFmpeg(ffmpeg, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      inputPath,
+      '-frames:v',
+      '1',
+      '-vf',
+      `scale=${options.maxWidth}:${options.maxHeight}:force_original_aspect_ratio=decrease`,
+      outputPath,
+    ])
+    const outputBytes = await readFile(outputPath)
+    return {
+      bytes: outputBytes,
+      mimeType: 'image/png',
+      width: outputDimensions.width,
+      height: outputDimensions.height,
+      resized: true,
+      source,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+async function probeImageMetadata(path: string, ffmpeg: string): Promise<{ width: number; height: number }> {
+  const ffprobe = ffprobePath(ffmpeg)
+  const result = await runCommand(ffprobe, [
+    '-v',
+    'error',
+    '-select_streams',
+    'v:0',
+    '-show_entries',
+    'stream=width,height',
+    '-of',
+    'json',
+    path,
+  ]).catch((error) => {
+    throw new Error(`unable to read image dimensions: ${error instanceof Error ? error.message : String(error)}`)
+  })
+  const parsed = JSON.parse(result.stdout) as { streams?: Array<{ width?: number; height?: number }> }
+  const stream = parsed.streams?.find(item => positiveInteger(item.width) !== undefined && positiveInteger(item.height) !== undefined)
+  const width = positiveInteger(stream?.width)
+  const height = positiveInteger(stream?.height)
+  if (width === undefined || height === undefined) throw new Error('unable to read image dimensions')
+  return { width, height }
+}
+
+async function decodeImageFrame(path: string, ffmpeg: string): Promise<void> {
+  await runFFmpeg(ffmpeg, [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    path,
+    '-frames:v',
+    '1',
+    '-f',
+    'null',
+    '-',
+  ]).catch((error) => {
+    throw new Error(`unable to decode image bytes: ${error instanceof Error ? error.message : String(error)}`)
+  })
+}
+
+function fitDimensions(source: { width: number; height: number }, maxWidth: number, maxHeight: number): { width: number; height: number } {
+  if (source.width <= maxWidth && source.height <= maxHeight) return source
+  const scale = Math.min(maxWidth / source.width, maxHeight / source.height)
+  return {
+    width: Math.max(1, Math.floor(source.width * scale)),
+    height: Math.max(1, Math.floor(source.height * scale)),
+  }
+}
+
 function mcpToolResultWithImages(
   metadata: Record<string, unknown>,
-  images: Array<{ label: string; data: string; mimeType: string }>,
+  images: Array<{ label?: string; data: string; mimeType: string }>,
+  options: { includeText?: boolean } = {},
 ): Record<string, unknown> {
+  const includeText = options.includeText ?? true
+  return {
+    content: [
+      ...(includeText ? [{
+        type: 'text',
+        text: JSON.stringify(metadata, null, 2),
+      }] : []),
+      ...images.flatMap((image) => [
+        ...(includeText && image.label ? [{ type: 'text', text: image.label }] : []),
+        { type: 'image', data: image.data, mimeType: image.mimeType },
+      ]),
+    ],
+    data: metadata,
+  }
+}
+
+function mcpToolResultMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
   return {
     content: [
       {
         type: 'text',
         text: JSON.stringify(metadata, null, 2),
       },
-      ...images.flatMap((image) => [
-        { type: 'text', text: image.label },
-        { type: 'image', data: image.data, mimeType: image.mimeType },
-      ]),
     ],
     data: metadata,
   }
@@ -698,14 +892,23 @@ function publicAnnotationShape(shape: AnnotationShape): Record<string, unknown> 
   }
 }
 
-async function resolveAnnotationOutputPath(args: Record<string, unknown>, title: string): Promise<string> {
+async function resolveAnnotationOutputPath(args: Record<string, unknown>, title: string): Promise<{
+  path: string
+  location: string
+  cacheDir?: string
+}> {
   const outputPath = stringParam(args.output_path) ?? stringParam(args.outputPath)
-  if (outputPath) return outputPath
+  if (outputPath) return { path: outputPath, location: 'explicit_path' }
   const workspacePath = stringParam(args.workspace_path) ?? stringParam(args.workspacePath)
-  if (workspacePath) return resolveWorkspaceFilePath(stringParam(args.workspaceDir), workspacePath)
+  if (workspacePath) {
+    return {
+      path: await resolveWorkspaceFilePath(stringParam(args.workspaceDir), workspacePath),
+      location: 'workspace_path',
+    }
+  }
   const dir = join(tmpdir(), 'movscript-mcp-artifacts')
   const filename = `${safeFilename(title || 'annotation')}-${randomUUID().slice(0, 8)}.svg`
-  return join(dir, filename)
+  return { path: join(dir, filename), location: 'cache', cacheDir: dir }
 }
 
 async function loadUploadInput(args: Record<string, unknown>): Promise<{
@@ -849,6 +1052,17 @@ function modeParam(value: unknown): VideoFrameExtractionMode | undefined {
   return value === 'overview' || value === 'timestamps' || value === 'range' || value === 'burst' ? value : undefined
 }
 
+function resourceImageReadModeParam(args: Record<string, unknown>): ResourceImageReadMode {
+  const mode = stringParam(args.mode)
+  if (mode === 'original' || mode === 'fit') return mode
+  if (mode) throw new Error('mode must be "fit" or "original"')
+
+  const detail = stringParam(args.detail)
+  if (detail === 'original') return 'original'
+  if (detail === undefined || detail === 'high' || detail === 'auto' || detail === 'low') return 'fit'
+  throw new Error('detail must be "original", "high", "auto", or "low"')
+}
+
 function shapeType(value: unknown): AnnotationShapeType | undefined {
   return value === 'rect' || value === 'circle' || value === 'line' || value === 'arrow' || value === 'text' || value === 'highlight'
     ? value
@@ -871,6 +1085,15 @@ function mimeTypeFromFilename(filename: string): string {
       return 'image/webp'
     case '.gif':
       return 'image/gif'
+    case '.mp4':
+    case '.m4v':
+      return 'video/mp4'
+    case '.mov':
+      return 'video/quicktime'
+    case '.webm':
+      return 'video/webm'
+    case '.mkv':
+      return 'video/x-matroska'
     case '.png':
     default:
       return 'image/png'
@@ -887,6 +1110,14 @@ function extensionForMimeType(mimeType: string): string {
       return '.webp'
     case 'image/gif':
       return '.gif'
+    case 'video/mp4':
+      return '.mp4'
+    case 'video/quicktime':
+      return '.mov'
+    case 'video/webm':
+      return '.webm'
+    case 'video/x-matroska':
+      return '.mkv'
     case 'image/png':
     default:
       return '.png'
@@ -909,6 +1140,75 @@ function numberParam(value: unknown): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+function booleanParam(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return undefined
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
+
+function batchItems(value: unknown, name: string): Record<string, unknown>[] {
+  if (!Array.isArray(value) || value.length === 0) throw new Error(`${name} must contain at least one item`)
+  return value.map((item, index) => {
+    if (!isRecord(item)) throw new Error(`${name}[${index}] must be an object`)
+    return item
+  })
+}
+
+function batchDefaults(args: Record<string, unknown>, excluded: Set<string>): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(args)) {
+    if (!excluded.has(key) && value !== undefined) defaults[key] = value
+  }
+  return defaults
+}
+
+async function runBatch(
+  items: Record<string, unknown>[],
+  concurrency: number,
+  worker: (item: Record<string, unknown>, index: number) => Promise<Record<string, unknown>>,
+  continueOnError: boolean,
+): Promise<Record<string, unknown>[]> {
+  const results: Array<Record<string, unknown> | undefined> = new Array(items.length)
+  let nextIndex = 0
+  let stopped = false
+  async function runWorker() {
+    while (!stopped) {
+      const index = nextIndex
+      nextIndex += 1
+      if (index >= items.length) return
+      const item = items[index]
+      if (!item) return
+      try {
+        results[index] = await worker(item, index)
+      } catch (error) {
+        results[index] = {
+          index,
+          status: 'error',
+          error: errorMessage(error),
+        }
+        if (!continueOnError) stopped = true
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runWorker))
+  return results.map((result, index) => result ?? {
+    index,
+    status: 'skipped',
+    error: 'Skipped because an earlier item failed and continue_on_error is false.',
+  })
+}
+
+function batchStatus(successCount: number, failedCount: number): string {
+  if (failedCount === 0) return 'completed'
+  return successCount > 0 ? 'partial_error' : 'error'
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function clampInteger(value: number, min: number, max: number): number {

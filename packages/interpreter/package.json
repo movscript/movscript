@@ -1,0 +1,51 @@
+{
+  "name": "@movscript/interpreter",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Interpreter package for translating checkpoint git diffs into MovScript domain impact, reshoot plans, and deterministic artifacts.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./artifacts": {
+      "types": "./dist/artifacts/index.d.ts",
+      "import": "./dist/artifacts/index.js",
+      "require": "./dist/artifacts/index.cjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "require": "./dist/node.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm --filter @movscript/language build && pnpm --filter @movscript/workspace build && pnpm build && find tests -name '*.test.mjs' -print | sort | xargs node --test"
+  },
+  "dependencies": {
+    "@movscript/decision": "workspace:*",
+    "@movscript/language": "workspace:*",
+    "@movscript/workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

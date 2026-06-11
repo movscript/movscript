@@ -1,10 +1,22 @@
 import type { Edge, Node } from '@xyflow/react'
+import {
+  buildRuntimeWorkflowOutputs,
+  connectedInputPortIds,
+  defaultRuntimeValueForPort,
+  encodeRuntimePortValue as encodeCoreRuntimePortValue,
+} from '@movscript/core/canvas'
 
 import type { CanvasNodeData, CanvasPortDef, CanvasPortValue, RawResource } from '@/types'
 import { compareWorkflowIoNodes, workflowIoOrder } from '@/features/canvas/domain/graph'
-import { fromUiHandleId, portsForNode } from '@/features/canvas/domain/ports'
-import type { CanvasRuntimeOutputCache } from '@/features/canvas/runtime/canvasRuntimeGraph'
+import { portsForNode } from '@/features/canvas/domain/ports'
 import type { CanvasRuntimeRun } from './runHistoryStore'
+
+export {
+  buildRuntimeWorkflowOutputs,
+  connectedInputPortIds,
+  defaultRuntimeValueForPort,
+}
+export { valuesHaveRuntimeValue as hasValueForPort } from '@movscript/core/canvas'
 
 const TOOL_CARD_NODE_TYPES = new Set([
   'text_gen',
@@ -58,6 +70,10 @@ export function textContentFromOutputs(outputs: Record<string, CanvasPortValue>)
     if (text) return text
   }
   return undefined
+}
+
+export function encodeRuntimePortValue(port: CanvasPortDef, raw: string): CanvasPortValue | null {
+  return encodeCoreRuntimePortValue(port, raw) as CanvasPortValue | null
 }
 
 export function resourceTypeForPortValue(value: CanvasPortValue): RawResource['type'] {
@@ -120,52 +136,6 @@ export function workflowRunOutputItems(run: CanvasRuntimeRun | undefined, nodes:
   return items
 }
 
-export function buildRuntimeWorkflowOutputs(nodes: Node[], outputCache: CanvasRuntimeOutputCache): Record<string, CanvasPortValue> {
-  const outputs: Record<string, CanvasPortValue> = {}
-  for (const node of nodes) {
-    const nodeOutputs = outputCache[node.id]
-    if (!nodeOutputs) continue
-    if (node.type === 'output') {
-      const value = nodeOutputs.value ?? nodeOutputs[node.id] ?? nodeOutputs.result ?? Object.values(nodeOutputs)[0]
-      if (value) outputs[node.id] = value
-      const name = (node.data as Partial<CanvasNodeData>).paramName
-      if (name && value) outputs[name] = value
-      continue
-    }
-    if (node.type === 'resource_sink') {
-      const value = nodeOutputs.result ?? nodeOutputs.value ?? Object.values(nodeOutputs)[0]
-      if (value) outputs[node.id] = value
-    }
-  }
-  if (Object.keys(outputs).length === 0) {
-    for (const node of nodes) {
-      const value = outputCache[node.id]?.result ?? outputCache[node.id]?.value ?? Object.values(outputCache[node.id] ?? {})[0]
-      if (value) outputs[node.id] = value
-    }
-  }
-  return outputs
-}
-
-export function hasValueForPort(values: CanvasPortValue[] | undefined) {
-  return (values ?? []).some((value) => {
-    if (!value) return false
-    return value.resource_id !== undefined
-      || value.text !== undefined
-      || value.json !== undefined
-      || value.number !== undefined
-      || value.boolean !== undefined
-  })
-}
-
-export function connectedInputPortIds(nodeId: string, edges: Edge[]) {
-  const ids = new Set<string>()
-  edges.forEach((edge) => {
-    if (edge.target !== nodeId) return
-    ids.add(fromUiHandleId(edge.targetHandle) || 'input')
-  })
-  return ids
-}
-
 export function runtimeInputPortsForNode(node: Node | undefined, edges: Edge[]) {
   if (!node) return []
   const connected = connectedInputPortIds(node.id, edges)
@@ -174,45 +144,6 @@ export function runtimeInputPortsForNode(node: Node | undefined, edges: Edge[]) 
     && !connected.has(port.id)
     && !isToolCardResourceInput(node, port)
   ))
-}
-
-export function defaultRuntimeValueForPort(port: CanvasPortDef) {
-  switch (port.type) {
-    case 'json':
-      return '{}'
-    case 'boolean':
-      return 'false'
-    default:
-      return ''
-  }
-}
-
-export function encodeRuntimePortValue(port: CanvasPortDef, raw: string): CanvasPortValue | null {
-  switch (port.type) {
-    case 'number': {
-      const value = Number(raw)
-      return Number.isFinite(value) ? { type: 'number', number: value } : null
-    }
-    case 'boolean':
-      return { type: 'boolean', boolean: raw === 'true' }
-    case 'json': {
-      try {
-        return { type: 'json', json: raw.trim() ? JSON.parse(raw) : null }
-      } catch {
-        return null
-      }
-    }
-    case 'image':
-    case 'video':
-    case 'audio':
-    case 'resource': {
-      const id = Number(raw)
-      return Number.isInteger(id) && id > 0 ? { type: port.type, resource_id: id } : null
-    }
-    case 'text':
-    default:
-      return { type: 'text', text: raw }
-  }
 }
 
 function isToolCardResourceInput(node: Node, port: CanvasPortDef) {

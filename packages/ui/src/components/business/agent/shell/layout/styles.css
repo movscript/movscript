@@ -6,7 +6,7 @@
   background: var(--ms-color-surface);
 }
 
-.ms-agent-shell:has(.ms-agent-context) {
+.ms-agent-shell[data-has-context="true"] {
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(240px, 320px);
 }
 
@@ -19,7 +19,7 @@
   min-height: 480px;
 }
 
-.ms-agent-shell--compact:has(.ms-agent-context) {
+.ms-agent-shell--compact[data-has-context="true"] {
   grid-template-columns: minmax(192px, 248px) minmax(0, 1fr) minmax(216px, 284px);
 }
 

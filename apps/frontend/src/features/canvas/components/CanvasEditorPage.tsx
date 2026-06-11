@@ -41,6 +41,18 @@ import {
 import { toast } from '@/shared/ui/toastStore'
 import { useCanvasHeaderStore } from '@/features/canvas/presentation/canvasHeaderStore'
 import {
+  canvasRenderDiagnosticsEnabled,
+  compactCanvasDebugOptions,
+  parseCanvasDebugOptions,
+} from '@/features/canvas/presentation/canvasDebugOptions'
+import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
+import {
+  CANVAS_WORKFLOW_PANE_ID,
+  CANVAS_WORKFLOW_PANE_MAX_WIDTH,
+  CANVAS_WORKFLOW_PANE_MIN_WIDTH,
+  routeLayoutSpecForPathname,
+} from '@/routes/routeLayoutRegistry'
+import {
   CANVAS_NODE_CATALOG,
   CANVAS_NODE_CATEGORIES,
   CANVAS_NODE_META,
@@ -58,13 +70,14 @@ import {
   resolveCanvasGroupPromotionId,
   shouldUseCanvasMediaLightweightMode,
   topLevelSelectedCanvasNodes,
+  type CanvasClientPoint,
+  type CanvasFlowCoordinateSpace,
 } from '@/features/canvas/domain/layout'
 import {
-  hasCanvasDragPayload,
-  readCanvasNodeTypeDragPayload,
-  readCanvasWorkflowDragPayload,
-  writeCanvasNodeTypeDragPayload,
-} from '@/features/canvas/domain/canvasDragPayload'
+  acceptCanvasDropDragOver,
+  readCanvasDropPayload,
+  startCanvasNodeTemplateDrag,
+} from '@/features/canvas/domain/canvasDropTarget'
 import { compareWorkflowIoNodes, isFinalOutputNode } from '@/features/canvas/domain/graph'
 import {
   arePortTypesCompatible,
@@ -84,10 +97,6 @@ import {
   createWorkflowReferenceCanvasNode,
   isPaletteNodeTypeAvailable,
 } from '@/features/canvas/editor/nodeFactory'
-import {
-  hasResourceDragPayload,
-  readResourceFromDragPayload,
-} from '@/features/resources/domain/resourceDragPayload'
 import { CanvasResourceShelf } from '@/features/canvas/ui/CanvasResourceShelf'
 import { WorkflowRunResultsDialog, WorkflowSidePanel } from '@/features/canvas/ui/CanvasWorkflowPanels'
 import { useCanvasRuntimeStore } from '@/features/canvas/runtime/runHistoryStore'
@@ -149,6 +158,7 @@ import {
   CanvasViewportBoundsLayer,
   CanvasViewportEmptyOverlay,
   CanvasViewportEmptyState,
+  CanvasViewportOverlayLayer,
   CanvasViewportPane,
   CanvasViewportSelectionActionButton,
   CanvasViewportStatusOverlay,
@@ -158,6 +168,16 @@ import {
 import { cn } from '@/shared/ui/cn'
 import { canvasBackPath } from '@/routes/appRouteModel'
 import { useInlineTitleEditor } from '@/features/canvas/presentation/useInlineTitleEditor'
+import { logCanvasRenderDiagnostics } from '@/features/canvas/presentation/canvasRenderDiagnostics'
+import {
+  canvasClientPointFromEvent,
+  canvasDefaultClientPointFromViewportElement,
+  canvasOverlayPointFromClient as canvasOverlayPointFromViewportElement,
+  canvasRenderDiagnosticViewport,
+  canvasViewportContextMenuBoundary,
+  canvasViewportDropHitBoxFromEvent,
+  canvasViewportSizeFromElement,
+} from '@/features/canvas/presentation/canvasViewportGeometry'
 import {
   ArrowLeft,
   GripVertical,
@@ -203,7 +223,13 @@ const CANVAS_OVERVIEW_MIN_ZOOM = 0.45
 const CANVAS_BUSY_OVERVIEW_MIN_ZOOM = 0.8
 const CANVAS_OVERVIEW_NODE_LIMIT = 80
 const CANVAS_MINIMAP_NODE_LIMIT = 60
-const CANVAS_DEBUG_STORAGE_KEY = 'movscript.canvasDebug'
+
+function clampCanvasWorkflowPaneWidth(width: number) {
+  return Math.min(
+    CANVAS_WORKFLOW_PANE_MAX_WIDTH,
+    Math.max(CANVAS_WORKFLOW_PANE_MIN_WIDTH, Math.round(Number(width) || 0)),
+  )
+}
 
 type CanvasGroupDragSnapshot = {
   nodeId: string
@@ -211,152 +237,10 @@ type CanvasGroupDragSnapshot = {
   memberPositions: Map<string, { x: number; y: number }>
 }
 
-type CanvasDebugBooleanKey = 'nodes' | 'grid' | 'media' | 'images' | 'videos' | 'shelf' | 'edges' | 'shadows' | 'controls' | 'minimap' | 'visibleOnly'
-
-type CanvasDebugOptions = Record<CanvasDebugBooleanKey, boolean> & {
-  enabled: boolean
-  source: string
-}
-
-const DEFAULT_CANVAS_DEBUG_OPTIONS: CanvasDebugOptions = {
-  enabled: false,
-  source: 'default',
-  nodes: true,
-  grid: true,
-  media: true,
-  images: true,
-  videos: true,
-  shelf: true,
-  edges: true,
-  shadows: true,
-  controls: true,
-  minimap: true,
-  visibleOnly: true,
-}
-
-const CANVAS_DEBUG_KEY_ALIASES: Record<string, CanvasDebugBooleanKey> = {
-  node: 'nodes',
-  nodes: 'nodes',
-  grid: 'grid',
-  media: 'media',
-  image: 'images',
-  images: 'images',
-  img: 'images',
-  video: 'videos',
-  videos: 'videos',
-  shelf: 'shelf',
-  resources: 'shelf',
-  resourceShelf: 'shelf',
-  edges: 'edges',
-  edge: 'edges',
-  shadows: 'shadows',
-  shadow: 'shadows',
-  controls: 'controls',
-  minimap: 'minimap',
-  miniMap: 'minimap',
-  visible: 'visibleOnly',
-  visibleOnly: 'visibleOnly',
-  virtualization: 'visibleOnly',
-}
-
-function parseCanvasDebugBool(value: string | null | undefined, fallback: boolean) {
-  if (value == null || value === '') return fallback
-  const normalized = value.trim().toLowerCase()
-  if (['1', 'true', 'on', 'yes', 'y', 'enable', 'enabled'].includes(normalized)) return true
-  if (['0', 'false', 'off', 'no', 'n', 'disable', 'disabled'].includes(normalized)) return false
-  return fallback
-}
-
-function applyCanvasDebugSpec(options: CanvasDebugOptions, raw: string | null | undefined, source: string) {
-  if (raw == null) return
-  const trimmed = raw.trim()
-  if (!trimmed) {
-    options.enabled = true
-    options.source = source
-    return
-  }
-  const normalized = trimmed.toLowerCase()
-  if (['0', 'false', 'off', 'no', 'disabled'].includes(normalized)) {
-    options.enabled = false
-    options.source = source
-    return
-  }
-  options.enabled = true
-  options.source = source
-  if (['1', 'true', 'on', 'yes', 'enabled'].includes(normalized)) return
-  for (const token of trimmed.split(/[,&;]/)) {
-    const part = token.trim()
-    if (!part) continue
-    const [rawKey, rawValue] = part.split(/[:=]/, 2)
-    const key = CANVAS_DEBUG_KEY_ALIASES[rawKey.trim()]
-    if (!key) continue
-    options[key] = parseCanvasDebugBool(rawValue, true)
-  }
-}
-
-function parseCanvasDebugOptions(search: string): CanvasDebugOptions {
-  const options: CanvasDebugOptions = { ...DEFAULT_CANVAS_DEBUG_OPTIONS }
-  try {
-    applyCanvasDebugSpec(options, window.localStorage.getItem(CANVAS_DEBUG_STORAGE_KEY), 'localStorage')
-  } catch {
-    // Ignore blocked storage in restricted browser contexts.
-  }
-  const params = new URLSearchParams(search)
-  if (params.has('canvasDebug')) {
-    applyCanvasDebugSpec(options, params.get('canvasDebug'), 'query')
-  }
-  for (const [param, value] of params.entries()) {
-    if (!param.startsWith('canvasDebug') || param === 'canvasDebug') continue
-    const rawKey = param.slice('canvasDebug'.length)
-    const key = CANVAS_DEBUG_KEY_ALIASES[rawKey.charAt(0).toLowerCase() + rawKey.slice(1)]
-    if (!key) continue
-    options.enabled = true
-    options.source = 'query'
-    options[key] = parseCanvasDebugBool(value, true)
-  }
-  return options
-}
-
-function canvasRenderDiagnosticsEnabled(debugOptions?: CanvasDebugOptions) {
-  return import.meta.env.DEV && (import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS === '1' || !!debugOptions?.enabled)
-}
-
-function compactCanvasDebugOptions(options: CanvasDebugOptions) {
-  if (!options.enabled) return 'off'
-  const flags = (Object.keys(DEFAULT_CANVAS_DEBUG_OPTIONS) as Array<keyof CanvasDebugOptions>)
-    .filter((key): key is CanvasDebugBooleanKey => typeof options[key] === 'boolean')
-    .map((key) => `${key}=${options[key] ? '1' : '0'}`)
-    .join(',')
-  return `${options.source}:${flags}`
-}
-
-function compactCanvasRect(rect: DOMRect) {
-  return `${Math.round(rect.width)}x${Math.round(rect.height)}+${Math.round(rect.left)}+${Math.round(rect.top)}`
-}
-
-function compactCanvasResource(resource: RawResource | undefined) {
-  if (!resource) return 'none'
-  return `#${resource.ID}:${resource.type}:${resource.size ?? 0}:${resource.name}`
-}
-
-function compactCanvasMediaSrc(src: string | undefined) {
-  if (!src) return 'empty'
-  try {
-    const url = new URL(src, window.location.origin)
-    return `${url.pathname}${url.search}`
-  } catch {
-    return src.length > 80 ? `${src.slice(0, 80)}...` : src
-  }
-}
-
-function compactCanvasMediaElement(element: HTMLImageElement | HTMLVideoElement) {
-  const rect = element.getBoundingClientRect()
-  const flowNode = element.closest<HTMLElement>('.react-flow__node')
-  const owner = flowNode?.dataset.id ? `node:${flowNode.dataset.id}` : element.closest('.canvas-resource-shelf-card') ? 'shelf' : 'other'
-  const natural = element instanceof HTMLVideoElement
-    ? `${element.videoWidth}x${element.videoHeight}`
-    : `${element.naturalWidth}x${element.naturalHeight}`
-  return `${owner}:${compactCanvasRect(rect)}:natural=${natural}:${compactCanvasMediaSrc(element.currentSrc || element.src)}`
+type CanvasContextMenuPosition = {
+  client: CanvasClientPoint
+  overlay: CanvasClientPoint
+  boundary: { width: number; height: number }
 }
 
 function shouldUseCanvasOverviewMode(zoom: number, nodeCount: number) {
@@ -374,9 +258,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { search } = useLocation()
+  const { pathname, search } = useLocation()
   const { screenToFlowPosition, fitView } = useReactFlow()
   const id = String(canvasId)
+  const routeLayout = useMemo(() => routeLayoutSpecForPathname(pathname), [pathname])
   const canvasDebug = useMemo(() => parseCanvasDebugOptions(search), [search])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -384,7 +269,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [canvasName, setCanvasName] = useState('')
   const [canvasType, setCanvasType] = useState<CanvasType>('inspiration')
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [menu, setMenu] = useState<CanvasContextMenuPosition | null>(null)
   const [libraryCollapsed, setLibraryCollapsed] = useState(true)
   const toggleLibraryCollapsed = useCallback(() => setLibraryCollapsed((value) => !value), [])
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
@@ -407,12 +292,36 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRunStatus>('all')
 	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'workflows' | 'history'>('resources')
   const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(false)
-  const toggleWorkflowPanelCollapsed = useCallback(() => setWorkflowPanelCollapsed((value) => !value), [])
+  const workflowPane = useRouteLayoutPaneController({
+    routeLayout,
+    paneId: CANVAS_WORKFLOW_PANE_ID,
+    clampSize: clampCanvasWorkflowPaneWidth,
+    controlledState: workflowPanelCollapsed ? 'collapsed' : 'default',
+    onStateChange: (state) => setWorkflowPanelCollapsed(state !== 'default'),
+  })
+  const toggleWorkflowPanelCollapsed = useCallback(() => {
+    if (workflowPane.collapsed) workflowPane.show()
+    else workflowPane.collapse()
+  }, [workflowPane])
 	  const [runResultDialogRunId, setRunResultDialogRunId] = useState<string | null>(null)
   const [runtimeStarting, setRuntimeStarting] = useState(false)
 
   const pendingResultRunIdsRef = useRef<Set<string>>(new Set())
   const canvasPaneRef = useRef<HTMLDivElement>(null)
+  const canvasCoordinateSpace = useMemo<CanvasFlowCoordinateSpace>(() => ({
+    fromClient: (point) => screenToFlowPosition(point),
+    defaultClientPoint: () => canvasDefaultClientPointFromViewportElement(canvasPaneRef.current),
+  }), [screenToFlowPosition])
+  const canvasOverlayPointFromClient = useCallback((point: CanvasClientPoint) => {
+    return canvasOverlayPointFromViewportElement(point, canvasPaneRef.current)
+  }, [])
+  const openCanvasContextMenu = useCallback((point: CanvasClientPoint) => {
+    setMenu({
+      client: point,
+      overlay: canvasOverlayPointFromClient(point),
+      boundary: canvasViewportContextMenuBoundary(canvasPaneRef.current),
+    })
+  }, [canvasOverlayPointFromClient])
   const runHistoryPageSize = 8
 	  const setCanvasHeader = useCanvasHeaderStore((s) => s.setHeader)
 	  const resetCanvasHeader = useCanvasHeaderStore((s) => s.reset)
@@ -471,14 +380,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     t,
   })
   const {
-    dependencyBindings: canvasDependencyBindings,
     nodeResources: canvasNodeResources,
     nodeResourceById: canvasNodeResourceById,
     removingRunResultResourceId,
     removeRunResultResource,
   } = useCanvasResourceIntegration({
-    canvas,
-    canvasId: id,
     removeFailedMessage: t('canvas.editor.runResults.removeFailed', { defaultValue: 'Failed to remove resource' }),
   })
   const {
@@ -645,28 +551,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     updateNodeData(nodeId, { approvalStatus: 'rejected' })
   }
 
-  const addNodeAt = useCallback((type: NodeType, clientPosition?: { x: number; y: number }) => {
+  const addNodeAt = useCallback((type: NodeType, clientPosition?: CanvasClientPoint) => {
     if (!isPaletteNodeTypeAvailable(type, canvasType) || SIDEBAR_HIDDEN_NODE_TYPES.has(type)) return
-    const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
-    const screenPosition = clientPosition ?? (
-      fallbackRect
-        ? { x: fallbackRect.left + fallbackRect.width / 2, y: fallbackRect.top + fallbackRect.height / 2 }
-        : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-    )
-    const position = screenToFlowPosition(screenPosition)
+    const position = canvasCoordinateSpace.fromClient(clientPosition ?? canvasCoordinateSpace.defaultClientPoint())
     setNodes((prev) => [...prev, createPaletteCanvasNode({ type, position, t, existingNodes: prev })])
-  }, [canvasType, screenToFlowPosition, t])
+  }, [canvasCoordinateSpace, canvasType, t])
 
-  const addResourceNodeAt = useCallback((resource: RawResource, clientPosition: { x: number; y: number }) => {
+  const addResourceNodeAt = useCallback((resource: RawResource, clientPosition: CanvasClientPoint) => {
     const type = resourceToNodeType(resource)
     if (!type) {
       toast.error('暂不支持将该素材加入画布')
       return
     }
-    const position = screenToFlowPosition(clientPosition)
+    const position = canvasCoordinateSpace.fromClient(clientPosition)
     const newNode = createResourceCanvasNode({ resource, type, position, t })
     setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition, setNodes, t])
+  }, [canvasCoordinateSpace, setNodes, t])
 
   const addResourceNodeAtFlowPosition = useCallback((resource: RawResource, position: { x: number; y: number }) => {
     const type = resourceToNodeType(resource)
@@ -679,7 +579,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     return true
   }, [setNodes, t])
 
-  const addWorkflowReferenceNodeAt = useCallback(async (workflowCanvas: Canvas, clientPosition: { x: number; y: number }) => {
+  const addWorkflowReferenceNodeAt = useCallback(async (workflowCanvas: Canvas, clientPosition: CanvasClientPoint) => {
     if (String(workflowCanvas.ID) === id) {
       toast.error(t('canvas.editor.errors.selfReferenceWorkflow', { defaultValue: 'A canvas cannot reference itself.' }))
       return
@@ -689,18 +589,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         ? workflowCanvas
         : await api.get(`/canvases/${workflowCanvas.ID}`).then((r) => r.data as Canvas)
       if ((referencedCanvas.canvas_type ?? 'inspiration') !== 'workflow') return
-      const position = screenToFlowPosition(clientPosition)
+      const position = canvasCoordinateSpace.fromClient(clientPosition)
       const newNode = createWorkflowReferenceCanvasNode({ workflowCanvas: referencedCanvas, position, t })
       setNodes((prev) => [...prev, newNode])
     } catch (err: any) {
       toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.errors.workflowReferenceFailed', { defaultValue: 'Failed to add workflow reference.' }))
     }
-  }, [id, screenToFlowPosition, setNodes, t])
+  }, [canvasCoordinateSpace, id, setNodes, t])
 
   // Add node from context menu
   const addNode = useCallback((type: NodeType) => {
     if (!menu) return
-    addNodeAt(type, { x: menu.x, y: menu.y })
+    addNodeAt(type, menu.client)
   }, [addNodeAt, menu])
 
   // Delete selected nodes. Lightweight groups are removed as containers while members are promoted.
@@ -937,28 +837,28 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   const onPaneContextMenu = useCallback((e: React.MouseEvent | MouseEvent) => {
     e.preventDefault()
-    setMenu({ x: e.clientX, y: e.clientY })
-  }, [])
+    openCanvasContextMenu(canvasClientPointFromEvent(e))
+  }, [openCanvasContextMenu])
 
   // Right-click on a selection (multi-select) → show context menu
   const onSelectionContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    setMenu({ x: e.clientX, y: e.clientY })
-  }, [])
+    openCanvasContextMenu(canvasClientPointFromEvent(e))
+  }, [openCanvasContextMenu])
 
   // Right-click on a single node → show context menu
   const onNodeContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    setMenu({ x: e.clientX, y: e.clientY })
-  }, [])
+    openCanvasContextMenu(canvasClientPointFromEvent(e))
+  }, [openCanvasContextMenu])
 
-  const uploadDroppedFilesToCanvas = useCallback(async (files: File[], clientPosition: { x: number; y: number }) => {
+  const uploadDroppedFilesToCanvas = useCallback(async (files: File[], clientPosition: CanvasClientPoint) => {
     const supportedFiles = files.filter((file) => fileToCanvasResourceNodeType(file))
     if (supportedFiles.length === 0) {
       toast.error(t('canvas.editor.errors.unsupportedDropFiles', { defaultValue: 'No supported image, video, or text files found.' }))
       return
     }
-    const basePosition = screenToFlowPosition(clientPosition)
+    const basePosition = canvasCoordinateSpace.fromClient(clientPosition)
     let addedCount = 0
     for (const [index, file] of supportedFiles.entries()) {
       try {
@@ -975,40 +875,39 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     if (addedCount > 0) {
       toast.success(t('canvas.editor.uploadedFilesToCanvas', { count: addedCount, defaultValue: `Added ${addedCount} file(s) to canvas` }))
     }
-  }, [addResourceNodeAtFlowPosition, screenToFlowPosition, t])
+  }, [addResourceNodeAtFlowPosition, canvasCoordinateSpace, t])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDropActive(false)
-    const droppedFiles = Array.from(e.dataTransfer.files ?? [])
-    if (droppedFiles.length > 0) {
-      void uploadDroppedFilesToCanvas(droppedFiles, { x: e.clientX, y: e.clientY })
-      return
+    const clientPoint = canvasClientPointFromEvent(e)
+    const payload = readCanvasDropPayload(e.dataTransfer, {
+      isNodeTypeAllowed: (nodeType) => Boolean(CANVAS_NODE_META[nodeType]),
+    })
+    if (!payload) return
+    const hitBox = canvasViewportDropHitBoxFromEvent({ event: e, viewport: canvasPaneRef.current, payload })
+    if (!hitBox) return
+    switch (payload.kind) {
+      case 'files':
+        void uploadDroppedFilesToCanvas(payload.files, clientPoint)
+        return
+      case 'resource':
+        addResourceNodeAt(payload.resource, clientPoint)
+        return
+      case 'workflow-canvas':
+        void addWorkflowReferenceNodeAt(payload.canvas, clientPoint)
+        return
+      case 'canvas-node-template':
+        addNodeAt(payload.nodeType, clientPoint)
+        return
     }
-    if (hasResourceDragPayload(e.dataTransfer.types)) {
-      const resource = readResourceFromDragPayload(e.dataTransfer)
-      if (resource) {
-        addResourceNodeAt(resource, { x: e.clientX, y: e.clientY })
-      }
-      return
-    }
-    const workflowCanvas = readCanvasWorkflowDragPayload(e.dataTransfer)
-    if (workflowCanvas) {
-      const clientPosition = { x: e.clientX, y: e.clientY }
-      void addWorkflowReferenceNodeAt(workflowCanvas, clientPosition)
-      return
-    }
-    const type = readCanvasNodeTypeDragPayload(e.dataTransfer)
-    if (!type || !CANVAS_NODE_META[type]) return
-    addNodeAt(type, { x: e.clientX, y: e.clientY })
   }, [addNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, uploadDroppedFilesToCanvas])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files') || hasCanvasDragPayload(e.dataTransfer.types) || hasResourceDragPayload(e.dataTransfer.types)) {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'copy'
-      setDropActive(true)
-    }
+    const hitBox = canvasViewportDropHitBoxFromEvent({ event: e, viewport: canvasPaneRef.current })
+    if (!acceptCanvasDropDragOver({ dataTransfer: e.dataTransfer, hitBox })) return
+    e.preventDefault()
+    setDropActive(true)
   }, [])
 
   const onDragLeave = useCallback((e: React.DragEvent) => {
@@ -1041,13 +940,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     viewportPositionRef.current = { x: viewport.x, y: viewport.y }
     const nextGridZoomEligible = viewport.zoom >= CANVAS_GRID_MIN_ZOOM
     const nextOverviewMode = shouldUseCanvasOverviewMode(viewport.zoom, nodes.length)
+    const viewportSize = canvasViewportSizeFromElement(canvasPaneRef.current)
     const nextMediaLightweightMode = shouldUseCanvasMediaLightweightMode({
       nodes,
       viewportX: viewport.x,
       viewportY: viewport.y,
       zoom: viewport.zoom,
-      viewportWidth: canvasPaneRef.current?.clientWidth ?? window.innerWidth,
-      viewportHeight: canvasPaneRef.current?.clientHeight ?? window.innerHeight,
+      viewportWidth: viewportSize.width,
+      viewportHeight: viewportSize.height,
     })
     setGridZoomEligible((current) => current === nextGridZoomEligible ? current : nextGridZoomEligible)
     setCanvasOverviewMode((current) => current === nextOverviewMode ? current : nextOverviewMode)
@@ -1056,13 +956,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   useEffect(() => {
     const nextOverviewMode = shouldUseCanvasOverviewMode(viewportZoomRef.current, nodes.length)
+    const viewportSize = canvasViewportSizeFromElement(canvasPaneRef.current)
     const nextMediaLightweightMode = shouldUseCanvasMediaLightweightMode({
       nodes,
       viewportX: viewportPositionRef.current.x,
       viewportY: viewportPositionRef.current.y,
       zoom: viewportZoomRef.current,
-      viewportWidth: canvasPaneRef.current?.clientWidth ?? window.innerWidth,
-      viewportHeight: canvasPaneRef.current?.clientHeight ?? window.innerHeight,
+      viewportWidth: viewportSize.width,
+      viewportHeight: viewportSize.height,
     })
     setCanvasOverviewMode((current) => current === nextOverviewMode ? current : nextOverviewMode)
     setCanvasMediaLightweightMode((current) => current === nextMediaLightweightMode ? current : nextMediaLightweightMode)
@@ -1190,69 +1091,36 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     }))
     .filter((section) => section.items.length > 0), [canvasType])
   useEffect(() => {
-    if (!canvasRenderDiagnosticsEnabled(canvasDebug)) return
+    if (!canvasRenderDiagnosticsEnabled({
+      dev: import.meta.env.DEV,
+      renderDiagnostics: import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS,
+    }, canvasDebug)) return
     if (renderDiagnosticsTimerRef.current !== null) {
       window.clearTimeout(renderDiagnosticsTimerRef.current)
     }
     renderDiagnosticsTimerRef.current = window.setTimeout(() => {
       renderDiagnosticsTimerRef.current = null
-      const root = canvasPaneRef.current
-      const flow = root?.querySelector<HTMLElement>('.react-flow')
-      const viewport = root?.querySelector<HTMLElement>('.react-flow__viewport')
-      const domNodes = root?.querySelectorAll('.react-flow__node').length ?? 0
-      const domEdges = root?.querySelectorAll('.react-flow__edge').length ?? 0
-      const domVideos = root?.querySelectorAll('video').length ?? 0
-      const domImages = root?.querySelectorAll('img').length ?? 0
-      const domImageSample = Array.from(root?.querySelectorAll('img') ?? [])
-        .slice(0, 12)
-        .map((element) => compactCanvasMediaElement(element))
-        .join('|') || 'none'
-      const domVideoSample = Array.from(root?.querySelectorAll('video') ?? [])
-        .slice(0, 6)
-        .map((element) => compactCanvasMediaElement(element))
-        .join('|') || 'none'
-      const videoNodes = nodes.filter((node) => node.type === 'video' || (node.data as Partial<CanvasNodeData>)?.resource?.type === 'video')
-      const imageNodes = nodes.filter((node) => node.type === 'image' || (node.data as Partial<CanvasNodeData>)?.resource?.type === 'image')
-      const mediaWithResources = nodes
-        .map((node) => ({ node, resource: (node.data as Partial<CanvasNodeData>)?.resource }))
-        .filter((item) => item.resource?.type === 'image' || item.resource?.type === 'video')
-      const rootRect = root?.getBoundingClientRect()
-      const flowRect = flow?.getBoundingClientRect()
-      const viewportTransform = viewport ? window.getComputedStyle(viewport).transform : 'none'
-      const firstMedia = mediaWithResources.slice(0, 8).map((item) => `${item.node.id}:${compactCanvasResource(item.resource)}`).join('|') || 'none'
-
-      console.info(
-        [
-          `[canvas:render] id=${id}`,
-          `canvasType=${canvasType}`,
-          `viewport=${window.innerWidth}x${window.innerHeight}`,
-          `dpr=${window.devicePixelRatio.toFixed(2)}`,
-          `pane=${rootRect ? compactCanvasRect(rootRect) : 'none'}`,
-          `flow=${flowRect ? compactCanvasRect(flowRect) : 'none'}`,
-          `nodes=${nodes.length}`,
-          `edges=${edges.length}`,
-          `renderedNodes=${renderedNodes.length}`,
-          `renderedEdges=${visibleEdges.length}`,
-          `domNodes=${domNodes}`,
-          `domEdges=${domEdges}`,
-          `images=${imageNodes.length}/${domImages}`,
-          `videos=${videoNodes.length}/${domVideos}`,
-          `resources=${canvasNodeResources.length}`,
-          `selected=${selectedNodeIds.length}`,
-          `running=${runningCount}`,
-          `libraryCollapsed=${libraryCollapsed}`,
-          `workflowCollapsed=${workflowPanelCollapsed}`,
-          `zoom=${viewportZoomRef.current.toFixed(3)}`,
-          `grid=${showCanvasGrid ? 'on' : 'off'}`,
-          `minimap=${showCanvasMinimap ? 'on' : 'off'}`,
-          `mediaLightweight=${canvasMediaLightweightMode ? 'on' : 'off'}`,
-          `debug=${compactCanvasDebugOptions(canvasDebug)}`,
-          `transform=${viewportTransform}`,
-        ].join(' '),
-      )
-      console.info(`[canvas:render] media-sample id=${id} items=${firstMedia}`)
-      console.info(`[canvas:render] image-dom-sample id=${id} items=${domImageSample}`)
-      console.info(`[canvas:render] video-dom-sample id=${id} items=${domVideoSample}`)
+      logCanvasRenderDiagnostics({
+        id,
+        canvasType,
+        root: canvasPaneRef.current,
+        viewport: canvasRenderDiagnosticViewport(),
+        nodes,
+        edgesCount: edges.length,
+        renderedNodesCount: renderedNodes.length,
+        renderedEdgesCount: visibleEdges.length,
+        resourcesCount: canvasNodeResources.length,
+        selectedCount: selectedNodeIds.length,
+        runningCount,
+        libraryCollapsed,
+        workflowPanelCollapsed,
+        zoom: viewportZoomRef.current,
+        grid: showCanvasGrid,
+        minimap: showCanvasMinimap,
+        mediaLightweight: canvasMediaLightweightMode,
+        debugOptions: compactCanvasDebugOptions(canvasDebug),
+        origin: window.location.origin,
+      })
     }, 250)
 
     return () => {
@@ -1479,7 +1347,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                               type="button"
                               draggable
                               onDragStart={(e) => {
-                                writeCanvasNodeTypeDragPayload(e.dataTransfer, item.type)
+                                startCanvasNodeTemplateDrag(e.dataTransfer, item.type)
                               }}
                               onClick={() => addNodeAt(item.type)}
                               title={t(item.labelKey)}
@@ -1516,7 +1384,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                                 type="button"
                                 draggable
                                 onDragStart={(e) => {
-                                  writeCanvasNodeTypeDragPayload(e.dataTransfer, item.type)
+                                  startCanvasNodeTemplateDrag(e.dataTransfer, item.type)
                                 }}
                                 onClick={() => addNodeAt(item.type)}
                                 icon={<Icon size={14} />}
@@ -1624,39 +1492,61 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               {showCanvasMinimap && <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />}
             </ReactFlow>
 
-            {nodes.length === 0 && (
-              <CanvasViewportEmptyOverlay>
-                <CanvasViewportEmptyState
-                  icon={Sparkles}
-                  title={t('canvas.editor.emptyTitle')}
-                  detail={t('canvas.editor.emptyDescription')}
+            <CanvasViewportOverlayLayer>
+              {nodes.length === 0 && (
+                <CanvasViewportEmptyOverlay>
+                  <CanvasViewportEmptyState
+                    icon={Sparkles}
+                    title={t('canvas.editor.emptyTitle')}
+                    detail={t('canvas.editor.emptyDescription')}
+                  />
+                </CanvasViewportEmptyOverlay>
+              )}
+
+              {dropActive && (
+                <CanvasDropOverlay>
+                  {t('canvas.editor.dropToPlace')}
+                </CanvasDropOverlay>
+              )}
+
+              <CanvasViewportStatusOverlay icon={<MousePointer2 size={14} />}>
+                {draggingNodeId
+                  ? t('canvas.editor.status.dragging')
+                  : selectedNode
+                    ? t('canvas.editor.status.selected', { label: selectedNodeData?.label || (selectedNodeMeta ? t(selectedNodeMeta.labelKey) : selectedNode.type) })
+                    : t('canvas.editor.status.idle')}
+              </CanvasViewportStatusOverlay>
+
+              {menu && (
+                <ContextMenu
+                  x={menu.overlay.x}
+                  y={menu.overlay.y}
+                  positioning="viewport"
+                  boundary={menu.boundary}
+                  canvasType={canvasType}
+                  onAdd={addNode}
+                  onClose={() => setMenu(null)}
+                  selectedCount={topLevelSelectedNodes.length}
+                  selectedGroupCount={topLevelSelectedGroups.length}
+                  onGroupSelected={createGroupFromSelection}
+                  onUngroupSelected={ungroupSelectedGroups}
+                  onDeleteSelected={deleteSelectedNodes}
+                  hasSelection={nodes.some(n => n.selected)}
                 />
-              </CanvasViewportEmptyOverlay>
-            )}
-
-            {dropActive && (
-              <CanvasDropOverlay>
-                {t('canvas.editor.dropToPlace')}
-              </CanvasDropOverlay>
-            )}
-
-            <CanvasViewportStatusOverlay icon={<MousePointer2 size={14} />}>
-              {draggingNodeId
-                ? t('canvas.editor.status.dragging')
-                : selectedNode
-                  ? t('canvas.editor.status.selected', { label: selectedNodeData?.label || (selectedNodeMeta ? t(selectedNodeMeta.labelKey) : selectedNode.type) })
-                  : t('canvas.editor.status.idle')}
-            </CanvasViewportStatusOverlay>
+              )}
+            </CanvasViewportOverlayLayer>
 
           </CanvasViewportPane>
 
           {canvasDebug.shelf && (
             <WorkflowSidePanel
               projectId={canvas?.project_id}
-              dependencyBindings={canvasDependencyBindings}
               disableResourcePreviews={!canvasDebug.media}
+              width={workflowPane.size}
+              minWidth={CANVAS_WORKFLOW_PANE_MIN_WIDTH}
+              maxWidth={CANVAS_WORKFLOW_PANE_MAX_WIDTH}
               activeTab={workflowPanelTab}
-              collapsed={workflowPanelCollapsed}
+              collapsed={workflowPane.collapsed}
               runs={workflowRuns}
               total={workflowRunTotal}
               page={runHistoryPage}
@@ -1664,18 +1554,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               statusFilter={runStatusFilter}
               activeRunId={activeRunId}
 	              isLoading={false}
+              onWidthChange={workflowPane.setSize}
               onTabChange={setWorkflowPanelTab}
-              onCollapsedChange={setWorkflowPanelCollapsed}
+              onCollapsedChange={(collapsed) => {
+                if (collapsed) workflowPane.collapse()
+                else workflowPane.show()
+              }}
               onStatusFilterChange={setRunStatusFilter}
               onPageChange={setRunHistoryPage}
               onSelectRun={setActiveRunId}
               currentCanvasId={Number(id)}
               onAddWorkflowReference={(workflowCanvas) => {
-                const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
-                const screenPosition = fallbackRect
-                  ? { x: fallbackRect.left + fallbackRect.width / 2, y: fallbackRect.top + fallbackRect.height / 2 }
-                  : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-                void addWorkflowReferenceNodeAt(workflowCanvas, screenPosition)
+                void addWorkflowReferenceNodeAt(workflowCanvas, canvasCoordinateSpace.defaultClientPoint())
               }}
             />
           )}
@@ -1689,23 +1579,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           removingResourceId={removingRunResultResourceId}
           onRemoveResource={(resourceId) => removeRunResultResource.mutateAsync(resourceId).then(() => undefined)}
           onClose={() => setRunResultDialogRunId(null)}
-        />
-      )}
-
-      {/* Context menu */}
-      {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          canvasType={canvasType}
-          onAdd={addNode}
-          onClose={() => setMenu(null)}
-          selectedCount={topLevelSelectedNodes.length}
-          selectedGroupCount={topLevelSelectedGroups.length}
-          onGroupSelected={createGroupFromSelection}
-          onUngroupSelected={ungroupSelectedGroups}
-          onDeleteSelected={deleteSelectedNodes}
-          hasSelection={nodes.some(n => n.selected)}
         />
       )}
 

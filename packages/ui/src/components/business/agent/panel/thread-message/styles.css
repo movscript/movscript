@@ -36,14 +36,6 @@
   display: none;
 }
 
-.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.ms-agent-message-section)::before {
-  display: none;
-}
-
-.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.ms-agent-message-section) {
-  padding-top: 8px;
-}
-
 .ai-agent-panel-shell .ms-agent-message__avatar {
   display: none;
 }
@@ -219,8 +211,10 @@
 
 .ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > img,
 .ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > video,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .resource-media-thumb,
 .ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > img,
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > video {
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > video,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb {
   height: 10rem;
   max-height: 34vh;
 }

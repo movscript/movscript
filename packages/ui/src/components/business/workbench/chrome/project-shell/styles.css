@@ -143,6 +143,15 @@
   overflow: hidden;
 }
 
+.workbench-project-body[data-layout="workspace"] {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .workbench-project-viewport {
   display: flex;
   min-width: 0;

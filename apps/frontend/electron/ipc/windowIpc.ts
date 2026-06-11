@@ -44,7 +44,12 @@ function trackWindowState(win: BrowserWindow): void {
 
   const sendState = () => {
     if (win.isDestroyed() || win.webContents.isDestroyed()) return
-    win.webContents.send('window:state', windowState(win))
+    try {
+      win.webContents.send('window:state', windowState(win))
+    } catch (error) {
+      if (String(error).includes('Render frame was disposed')) return
+      throw error
+    }
   }
 
   win.on('focus', sendState)
@@ -53,6 +58,14 @@ function trackWindowState(win: BrowserWindow): void {
   win.on('leave-full-screen', sendState)
   win.on('maximize', sendState)
   win.on('unmaximize', sendState)
+  win.once('closed', () => {
+    win.removeListener('focus', sendState)
+    win.removeListener('blur', sendState)
+    win.removeListener('enter-full-screen', sendState)
+    win.removeListener('leave-full-screen', sendState)
+    win.removeListener('maximize', sendState)
+    win.removeListener('unmaximize', sendState)
+  })
 }
 
 function windowState(win: BrowserWindow): ElectronWindowState {

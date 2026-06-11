@@ -2,7 +2,7 @@ import React from 'react'
 import { X } from 'lucide-react'
 import { AgentMediaThumb, Button } from '@movscript/ui'
 import { formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
-import { mentionEditorTextBeforeCaret, serializeMentionEditor } from '@/features/agent/presentation/agentMentionEditorModel'
+import { readMentionEditorState } from '@/features/agent/presentation/agentMentionEditorModel'
 import { AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import { cn } from '@/shared/ui/cn'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
@@ -64,6 +64,7 @@ export function AgentMentionEditor({
   editorRef,
   disabled,
   placeholder,
+  value,
   onChange,
   onMentionState,
   onSubmit,
@@ -74,6 +75,7 @@ export function AgentMentionEditor({
   editorRef: React.RefObject<HTMLDivElement>
   disabled?: boolean
   placeholder: string
+  value: string
   onChange: (value: string) => void
   onMentionState: (value: string, caret: number) => void
   onSubmit: () => void
@@ -81,15 +83,23 @@ export function AgentMentionEditor({
   onAcceptMention: () => boolean
   onPaste?: (event: React.ClipboardEvent<HTMLDivElement>) => void
 }) {
+  const valueRef = React.useRef(value)
+
+  React.useEffect(() => {
+    valueRef.current = value
+  }, [value])
+
   function syncFromEditor(kind: 'input' | 'click' | 'keyup') {
     const editor = editorRef.current
     if (!editor) return
     const started = performanceNow()
-    const next = serializeMentionEditor(editor)
+    const editorState = readMentionEditorState(editor)
     const serializedAt = performanceNow()
-    onChange(next)
-    const { text, caret } = mentionEditorTextBeforeCaret(editor)
-    onMentionState(text, caret)
+    if (editorState.value !== valueRef.current) {
+      valueRef.current = editorState.value
+      onChange(editorState.value)
+    }
+    onMentionState(editorState.textBeforeCaret, editorState.caret)
     const completedAt = performanceNow()
     recordComposerInputMetric('frontend_agent_composer_serialize_ms', serializedAt - started, kind, 'serialize')
     recordComposerInputMetric('frontend_agent_composer_input_latency_ms', completedAt - started, kind, 'handler')
@@ -112,7 +122,7 @@ export function AgentMentionEditor({
       onInput={() => syncFromEditor('input')}
       onClick={() => syncFromEditor('click')}
       onKeyUp={(event) => {
-        if (event.key === 'Escape') return
+        if (!shouldSyncMentionEditorOnKeyUp(event)) return
         syncFromEditor('keyup')
       }}
       onKeyDown={(event) => {
@@ -139,6 +149,13 @@ export function AgentMentionEditor({
       }}
     />
   )
+}
+
+function shouldSyncMentionEditorOnKeyUp(event: React.KeyboardEvent): boolean {
+  if (event.key === 'Escape') return false
+  if (event.key.startsWith('Arrow')) return true
+  if (event.key === 'Home' || event.key === 'End' || event.key === 'PageUp' || event.key === 'PageDown') return true
+  return event.ctrlKey || event.metaKey || event.altKey
 }
 
 function recordComposerInputMetric(

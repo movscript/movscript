@@ -13,7 +13,7 @@ import type {
   AgentTimelineActivityStep,
   AgentThread,
   ProviderInteraction,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 
 export type {
   AgentAttachment,
@@ -32,7 +32,7 @@ export type {
   ProviderSessionMessageRef,
   AgentThread,
   ProviderInteraction,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 
 export interface AgentConversationTranscriptMessageMetaShape {
   modelId?: number | null

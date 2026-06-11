@@ -113,25 +113,27 @@ import {
   MAX_CLIP_SOURCE_BYTES,
   parseClipTimecode,
 } from '@/features/resources/domain/videoClipUi'
-import { writeResourceDragPayload } from '@/features/resources/domain/resourceDragPayload'
+import {
+  resourceContextMenuPositionFromEvent,
+  resourceViewportBoundaryFromWindow,
+  startResourceDragSource,
+  type ResourceClientPoint,
+} from '@/features/resources/domain/resourceInteraction'
+import {
+  externalResourceSearchInitialData,
+  loadExternalResourceSearchSnapshot,
+  normalizeExternalMediaTypes,
+  normalizeExternalOrientation,
+  saveExternalResourceSearchSnapshot,
+  type ExternalMediaFilter,
+  type ExternalOrientationFilter,
+} from '@/features/resources/application/externalResourceSearchSnapshot'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type ResourceScopeFilter = 'all' | 'personal' | 'team' | 'project'
-type ExternalMediaFilter = 'image' | 'video'
-type ExternalOrientationFilter = 'all' | 'landscape' | 'portrait' | 'square'
 type ClipPhase = 'idle' | 'preparing' | 'clipping' | 'uploading'
-
-interface ExternalResourceSearchSnapshot {
-  sourceId?: number
-  query: string
-  submittedQuery: string
-  mediaTypes: ExternalMediaFilter[]
-  orientation: ExternalOrientationFilter
-  page: number
-  result: ExternalResourceSearchResult
-}
 
 const EXTERNAL_ORIENTATION_OPTIONS: { value: ExternalOrientationFilter; label: string }[] = [
   { value: 'all', label: '任意方向' },
@@ -139,8 +141,6 @@ const EXTERNAL_ORIENTATION_OPTIONS: { value: ExternalOrientationFilter; label: s
   { value: 'portrait', label: '竖向' },
   { value: 'square', label: '方形' },
 ]
-
-const EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY = 'movscript.externalResourceSearch.last'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -866,6 +866,12 @@ function resourceIDs(resources: RawResource[]) {
   return Array.from(new Set(resources.map(resource => resource.ID).filter(id => Number.isFinite(id) && id > 0)))
 }
 
+function adjacentResource(resources: RawResource[], current: RawResource, direction: -1 | 1) {
+  const currentIndex = resources.findIndex(resource => resource.ID === current.ID)
+  if (currentIndex < 0) return current
+  return resources[(currentIndex + direction + resources.length) % resources.length]
+}
+
 function resourceScopeLabel(resource: RawResource, currentUserID: number | undefined, currentOrgID: number | undefined, t: ReturnType<typeof useTranslation>['t']) {
   if (currentOrgID && resource.org_id === currentOrgID) {
     if (resource.owner && resource.owner_id !== currentUserID) {
@@ -904,10 +910,6 @@ function paginateResources(resources: RawResource[], page: number, pageSize: num
 
 function resourceTypeLabel(resource: RawResource, t: ReturnType<typeof useTranslation>['t']) {
   return t(`pages.resources.types.${resource.type}`, { defaultValue: resource.type })
-}
-
-function isResourceInteractiveTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('[data-resource-interactive="true"]'))
 }
 
 // ─── Share To Project Dialog ─────────────────────────────────────────────────
@@ -1230,7 +1232,7 @@ function ResourceCard({
   selected,
   onSelectChange,
   onContextMenu,
-  previewProjectId,
+  onPreview,
 }: {
   resource: RawResource
   currentUserID?: number
@@ -1247,7 +1249,7 @@ function ResourceCard({
   selected?: boolean
   onSelectChange?: (selected: boolean) => void
   onContextMenu?: (event: MouseEvent, resource: RawResource) => void
-  previewProjectId?: number
+  onPreview?: (resource: RawResource) => void
 }) {
   const { t } = useTranslation()
   const scopeLabel = resourceScopeLabel(resource, currentUserID, currentOrgID, t)
@@ -1256,28 +1258,27 @@ function ResourceCard({
     <ResourceAssetCard
       selected={selected}
       draggable
+      onClick={(event) => {
+        if ((event.target as HTMLElement | null)?.closest('[data-resource-interactive="true"]')) return
+        onPreview?.(resource)
+      }}
       onContextMenu={(event) => onContextMenu?.(event, resource)}
       onDragStart={(event) => {
-        if (isResourceInteractiveTarget(event.target)) {
-          event.preventDefault()
-          return
-        }
-        writeResourceDragPayload(event.dataTransfer, resource)
+        startResourceDragSource({
+          dataTransfer: event.dataTransfer,
+          resource,
+          target: event.target,
+          preventDefault: () => event.preventDefault(),
+        })
       }}
       title={t('shared.resourcePanel.previewDragTitle')}
       preview={(
         resource.type === 'image' || resource.type === 'video' || resource.type === 'audio' || resource.type === 'text' ? (
-          <MediaViewer
-            resource={resource}
-            fit="cover"
-            sidePanel={(
-              <ResourceCandidateAttachPanel
-                resources={[candidateResourceFromRawResource(resource)]}
-                projectId={previewProjectId}
-                compact
-              />
-            )}
-          />
+            <MediaViewer
+              resource={resource}
+              fit="cover"
+              lightbox={false}
+            />
         ) : (
           <ResourceAssetPreviewFallback>
             <TypeIcon type={resource.type} />
@@ -1910,71 +1911,6 @@ function externalResourceProviderName(providerKey: string) {
   }
 }
 
-function loadExternalResourceSearchSnapshot(): ExternalResourceSearchSnapshot | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = window.localStorage.getItem(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<ExternalResourceSearchSnapshot>
-    const submittedQuery = typeof parsed.submittedQuery === 'string' ? parsed.submittedQuery.trim() : ''
-    if (!submittedQuery || !parsed.result || !Array.isArray(parsed.result.items)) return null
-    return {
-      sourceId: typeof parsed.sourceId === 'number' ? parsed.sourceId : undefined,
-      query: typeof parsed.query === 'string' && parsed.query.trim() ? parsed.query.trim() : submittedQuery,
-      submittedQuery,
-      mediaTypes: normalizeExternalMediaTypes(parsed.mediaTypes),
-      orientation: normalizeExternalOrientation(parsed.orientation),
-      page: normalizeExternalSnapshotPage(parsed.page),
-      result: parsed.result as ExternalResourceSearchResult,
-    }
-  } catch {
-    return null
-  }
-}
-
-function saveExternalResourceSearchSnapshot(snapshot: ExternalResourceSearchSnapshot) {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(snapshot))
-  } catch {
-    // Best-effort UI state persistence; search remains fully usable without storage.
-  }
-}
-
-function externalResourceSearchInitialData(
-  snapshot: ExternalResourceSearchSnapshot | null,
-  current: {
-    sourceId?: number
-    submittedQuery: string
-    mediaTypeKey: string
-    orientation: ExternalOrientationFilter
-    page: number
-  },
-) {
-  if (!snapshot || !current.sourceId) return undefined
-  if (snapshot.sourceId && snapshot.sourceId !== current.sourceId) return undefined
-  if (snapshot.submittedQuery !== current.submittedQuery.trim()) return undefined
-  if (snapshot.mediaTypes.join('|') !== current.mediaTypeKey) return undefined
-  if (snapshot.orientation !== current.orientation) return undefined
-  if (snapshot.page !== current.page) return undefined
-  return snapshot.result
-}
-
-function normalizeExternalMediaTypes(value: unknown): ExternalMediaFilter[] {
-  const input = Array.isArray(value) ? value : []
-  const output = input.filter((item): item is ExternalMediaFilter => item === 'image' || item === 'video')
-  return output.length > 0 ? (Array.from(new Set(output)).sort() as ExternalMediaFilter[]) : ['image', 'video']
-}
-
-function normalizeExternalOrientation(value: unknown): ExternalOrientationFilter {
-  return value === 'landscape' || value === 'portrait' || value === 'square' ? value : 'all'
-}
-
-function normalizeExternalSnapshotPage(value: unknown) {
-  const page = Number(value)
-  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
-}
-
 async function uploadExternalResourceItem(item: ExternalResourceItem): Promise<RawResource> {
   const url = item.preview_url || item.thumbnail_url
   if (!url) throw new Error('外部资源没有可导入的文件地址')
@@ -2055,7 +1991,7 @@ export function ResourceLibraryView({
   const [clipResource, setClipResource] = useState<RawResource | null>(null)
   const [previewResource, setPreviewResource] = useState<RawResource | null>(null)
   const [selectedResourceIDs, setSelectedResourceIDs] = useState<Set<number>>(() => new Set())
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; resources: RawResource[] } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ position: ResourceClientPoint; resources: RawResource[] } | null>(null)
   const [shareProjectResources, setShareProjectResources] = useState<RawResource[] | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectionMode, setSelectionMode] = useState(false)
@@ -2188,6 +2124,7 @@ export function ResourceLibraryView({
   const isSharedView = isProjectScope
 
   const visible = resources
+  const visibleImageResources = visible.filter(resource => resource.type === 'image')
   const selectedResources = visible.filter(resource => selectedResourceIDs.has(resource.ID))
   const selectedIDs = resourceIDs(selectedResources)
   const selectedProjectBindingIDs = selectedIDs
@@ -2233,15 +2170,26 @@ export function ResourceLibraryView({
 
   function openResourceContextMenu(event: MouseEvent, resource: RawResource) {
     event.preventDefault()
-    setContextMenu({ x: event.clientX, y: event.clientY, resources: contextMenuResources(resource) })
+    setContextMenu({
+      position: resourceContextMenuPositionFromEvent(event, resourceViewportBoundaryFromWindow(window)),
+      resources: contextMenuResources(resource),
+    })
   }
 
   function handleResourceRowDragStart(event: DragEvent<HTMLDivElement>, resource: RawResource) {
-    if (isResourceInteractiveTarget(event.target)) {
-      event.preventDefault()
-      return
-    }
-    writeResourceDragPayload(event.dataTransfer, resource)
+    startResourceDragSource({
+      dataTransfer: event.dataTransfer,
+      resource,
+      target: event.target,
+      preventDefault: () => event.preventDefault(),
+    })
+  }
+
+  function switchPreviewImage(direction: -1 | 1) {
+    setPreviewResource(current => {
+      if (!current || current.type !== 'image' || visibleImageResources.length < 2) return current
+      return adjacentResource(visibleImageResources, current, direction)
+    })
   }
 
   function shareResourcesToTeam(resourcesToShare: RawResource[]) {
@@ -2440,7 +2388,7 @@ export function ResourceLibraryView({
                   selected={selectionMode && selectedResourceIDs.has(r.ID)}
                   onSelectChange={selectionMode ? selected => setResourceSelected(r, selected) : undefined}
                   onContextMenu={openResourceContextMenu}
-                  previewProjectId={currentProject?.ID}
+                  onPreview={setPreviewResource}
                 />
               ))}
             </ResourcePageAssetGrid>
@@ -2558,6 +2506,8 @@ export function ResourceLibraryView({
           resource={previewResource}
           open
           onOpenChange={open => !open && setPreviewResource(null)}
+          onPrevious={previewResource.type === 'image' && visibleImageResources.length > 1 ? () => switchPreviewImage(-1) : undefined}
+          onNext={previewResource.type === 'image' && visibleImageResources.length > 1 ? () => switchPreviewImage(1) : undefined}
           fit="contain"
           sidePanel={(
             <ResourceCandidateAttachPanel
@@ -2570,8 +2520,8 @@ export function ResourceLibraryView({
       )}
       {contextMenu && (
         <ResourceBulkContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
+          x={contextMenu.position.x}
+          y={contextMenu.position.y}
           resources={contextMenu.resources}
           canShareToTeam={contextMenu.resources.some(canAdoptToTeam)}
           onClose={() => setContextMenu(null)}

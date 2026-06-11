@@ -4,6 +4,7 @@ import { Database, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 import {
   AgentConsoleActionButton,
   AgentConsoleCallout,
+  AgentConsoleDocumentBody,
   AgentConsoleDescription,
   AgentConsoleFormField,
   AgentConsoleGrid,
@@ -14,6 +15,7 @@ import {
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
   AgentConsoleInlineError,
+  AgentConsoleIntroRow,
   AgentConsoleLocalToolActions,
   AgentConsoleLocalToolCard,
   AgentConsoleLocalToolControls,
@@ -26,11 +28,11 @@ import {
   AgentConsolePanelActions,
   AgentConsoleSavedText,
   AgentConsoleSelectField,
+  AgentConsoleStack,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
   AgentConsoleToolbar,
   AgentPageShell,
-  AgentPageShellBody,
   AgentPageShellHeader,
   IdentityBadge,
   IdentityMark,
@@ -189,7 +191,7 @@ export default function ModelProvidersPage() {
 
       <AgentConsoleNav compact />
 
-      <AgentPageShellBody>
+      <AgentConsoleDocumentBody>
         <AgentConsolePanel
           title="Backend Providers"
           icon={<Database size={14} />}
@@ -201,8 +203,8 @@ export default function ModelProvidersPage() {
             </AgentConsolePanelActions>
           )}
         >
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <AgentConsoleStack spacing="loose">
+            <AgentConsoleIntroRow>
               <AgentConsoleDescription>
                 Backend Providers 来自后端模型目录和凭证配置。这里不展示 API Key，Agent 只引用 provider 和模型路由。
               </AgentConsoleDescription>
@@ -211,7 +213,7 @@ export default function ModelProvidersPage() {
                   backend / models
                 </AgentConsoleStatusBadge>
               </AgentConsoleToolbar>
-            </div>
+            </AgentConsoleIntroRow>
 
             {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
             {!backendModelsQuery.error && backendProviders.length === 0 ? (
@@ -251,7 +253,7 @@ export default function ModelProvidersPage() {
                 </AgentConsoleLocalToolCard>
               ))}
             </AgentConsoleGrid>
-          </div>
+          </AgentConsoleStack>
         </AgentConsolePanel>
 
         <AgentConsolePanel
@@ -266,8 +268,8 @@ export default function ModelProvidersPage() {
             </AgentConsolePanelActions>
           )}
         >
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <AgentConsoleStack spacing="loose">
+            <AgentConsoleIntroRow>
               <AgentConsoleDescription>
                 Local Providers 只保存在当前 provider profile config 中，用于接入后端目录之外的模型服务。
               </AgentConsoleDescription>
@@ -276,7 +278,7 @@ export default function ModelProvidersPage() {
                   provider profile config / modelProviders
                 </AgentConsoleStatusBadge>
               </AgentConsoleToolbar>
-            </div>
+            </AgentConsoleIntroRow>
 
             {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
             {saveError ? <AgentConsoleCallout tone="danger" compact>保存失败：{saveError}</AgentConsoleCallout> : null}
@@ -331,9 +333,9 @@ export default function ModelProvidersPage() {
                 </AgentConsoleLocalToolCard>
               ))}
             </AgentConsoleGrid>
-          </div>
+          </AgentConsoleStack>
         </AgentConsolePanel>
-      </AgentPageShellBody>
+      </AgentConsoleDocumentBody>
     </AgentPageShell>
   )
 }

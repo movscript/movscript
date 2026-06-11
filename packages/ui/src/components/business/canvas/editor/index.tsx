@@ -268,6 +268,13 @@ export function CanvasViewportEmptyOverlay({
   return <div className={cn("canvas-viewport-empty-overlay", className)} {...props} />;
 }
 
+export function CanvasViewportOverlayLayer({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-viewport-overlay-layer", className)} {...props} />;
+}
+
 export function CanvasViewportEmptyState({
   icon,
   title,

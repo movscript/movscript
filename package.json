@@ -12,6 +12,7 @@
     "app-server:install-plugin": "node scripts/install-app-server-plugin.mjs",
     "sync:app-server-protocol": "node scripts/sync-app-server-protocol.mjs",
     "movscript-lang:local": "node scripts/movscript-lang-cwd.mjs --cwd ../movscript-lang",
+    "movscript-lang:link": "node scripts/movscript-lang-deps.mjs local --path ../movscript-lang",
     "movscript-lang:latest": "node scripts/movscript-lang-deps.mjs latest",
     "movscript-lang:version": "node scripts/movscript-lang-deps.mjs version",
     "release": "node scripts/release/release-workflow.mjs"

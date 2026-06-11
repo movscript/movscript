@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@movscript/ui'
 import { conversationDisplayTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
-import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
+import type { ProviderSessionStatusLight } from '@movscript/core/agent'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import { ProviderControls } from '@/features/agent/components/ProviderControls'
 

@@ -192,6 +192,7 @@ type ListInput struct {
 	UserID   uint
 	OrgID    *uint
 	Query    string
+	GroupID  *uint
 	Page     int
 	PageSize int
 }
@@ -460,10 +461,10 @@ func ApplyUpdate(reference ShotReference, input UpdateInput) ShotReference {
 		reference.EmotionalEffect = cleanValues(input.EmotionalEffect)
 	}
 	if input.StartSecSet {
-		reference.StartSec = normalizedDuration(input.StartSec)
+		reference.StartSec = normalizedTime(input.StartSec)
 	}
 	if input.EndSecSet {
-		reference.EndSec = normalizedDuration(input.EndSec)
+		reference.EndSec = normalizedTime(input.EndSec)
 	}
 	if input.ExecutionDetailsSet {
 		reference.ExecutionDetails = input.ExecutionDetails
@@ -1161,6 +1162,14 @@ func titleFromName(name string) string {
 
 func normalizedDuration(value *float64) *float64 {
 	if value == nil || *value <= 0 {
+		return nil
+	}
+	rounded := float64(int(*value*10+0.5)) / 10
+	return &rounded
+}
+
+func normalizedTime(value *float64) *float64 {
+	if value == nil || *value < 0 {
 		return nil
 	}
 	rounded := float64(int(*value*10+0.5)) / 10

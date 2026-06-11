@@ -212,10 +212,6 @@ function depsFixture(calls: string[]): AgentRunInteractionActionDeps {
       calls.push('stream')
       return makeRun({ status: 'completed' })
     },
-    runTouchesProviderCatalog: () => false,
-    refreshProviderCatalogContext: () => {
-      calls.push('refreshCatalog')
-    },
   }
 }
 

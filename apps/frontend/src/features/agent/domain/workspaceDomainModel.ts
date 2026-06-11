@@ -37,9 +37,20 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
     return withRouteParams(ROUTES.project.standards, { workspaceId: workspace.id })
   }
 
+  if (workspace.kind === 'setting_workspace' || sourceEntityType === 'setting' || targetEntityType === 'setting') {
+    return withRouteParams(ROUTES.project.scripts, {
+      workspaceId: workspace.id,
+      reference_id: sourceEntityId ?? targetEntityId,
+    })
+  }
+
+  if (workspace.kind === 'asset_workspace' && sourceEntityType !== 'asset_slot' && targetEntityType !== 'asset_slot') {
+    return withRouteParams(ROUTES.project.sourceWorkspace, { workspaceId: workspace.id })
+  }
+
   if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
     const assetSlotId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.preProduction, { view: 'review', workspaceId: workspace.id, asset_slot_id: assetSlotId })
+    return withRouteParams(ROUTES.project.sourceWorkspace, { workspaceId: workspace.id, asset_slot_id: assetSlotId })
   }
 
   if (sourceEntityType === 'project' || targetEntityType === 'project') {
@@ -48,12 +59,12 @@ export function buildWorkspaceReviewPath(workspace: WorkspaceArtifact): string |
 
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.contentUnitEditor, { workspaceId: workspace.id, content_unit_id: contentUnitId })
+    return withRouteParams(ROUTES.project.sourceWorkspace, { workspaceId: workspace.id, content_unit_id: contentUnitId })
   }
 
   if (targetEntityType === 'scene_moment' || sourceEntityType === 'scene_moment') {
     const sceneMomentId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.contentUnitEditor, { workspaceId: workspace.id, scene_moment_id: sceneMomentId })
+    return withRouteParams(ROUTES.project.sourceWorkspace, { workspaceId: workspace.id, scene_moment_id: sceneMomentId })
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -83,6 +94,12 @@ function buildWorkbenchWorkspaceReviewPath(input: {
 }) {
   const definition = getProjectWorkbenchDefinitionForWorkspaceKind(input.kind)
   if (!definition) return null
+  if (
+    definition.id === 'content_orchestration'
+    && (input.sourceEntityType === 'production' || input.targetEntityType === 'production')
+  ) {
+    return null
+  }
   const entity = pickWorkbenchReviewEntity(definition, input)
   return buildProjectWorkbenchReviewPath(definition, {
     workspaceId: input.workspaceId,

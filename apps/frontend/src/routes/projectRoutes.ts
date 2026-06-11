@@ -19,24 +19,14 @@ export const ROUTES = {
   modelProviders: '/model-providers',
   workspaceConfig: '/workspace/config',
   workspaceReview: '/workspace/review',
-  agentFiles: '/agent/files',
   agentConnections: '/agent/connections',
   agentSettings: '/agent/settings',
-  agentRuns: '/agent/runs',
-  agentRun: '/agent/runs/:runId',
   project: {
     agent: '/project/agent',
     agentCanvases: '/project/agent/canvases',
-    overview: '/project/overview',
     standards: '/project/standards',
-    preProduction: '/project/pre-production',
     scripts: '/project/scripts/workbench',
-    legacyScripts: '/project/scripts',
-    contentUnitWorkbench: '/project/content-units/workbench',
-    contentUnitEditor: '/project/content-units/editor',
-    production: '/project/production',
-    productionOrchestration: '/project/production/orchestration',
-    tasks: '/project/tasks',
+    sourceWorkspace: '/project/content-units/editor',
   },
   tools: {
     refImageGen: '/tools/ref-image-gen',
@@ -69,11 +59,4 @@ export function mergeSearch(pathname: string, search: string, nextParams: Record
   }
   const query = params.toString()
   return query ? `${pathname}?${query}` : pathname
-}
-
-export function agentRunPath(runId: string, providerSession?: { sessionId?: string; workspaceDir?: string }) {
-  return withRouteParams(`/agent/runs/${encodeURIComponent(runId)}`, {
-    sessionId: providerSession?.sessionId,
-    workspaceDir: providerSession?.workspaceDir,
-  })
 }

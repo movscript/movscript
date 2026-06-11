@@ -6,22 +6,22 @@ import {
   canvasEditorPath,
   canvasListPathForSource,
   canvasRouteSourceFromSearch,
-  getAppRouteSurface,
+  getAppRouteLayoutSpec,
   routeForWorkMode,
   workModeForRoute,
 } from './appRouteModel'
 
-test('app route surface is derived from pathname instead of the saved work mode', () => {
-  assert.equal(getAppRouteSurface('/project/agent'), 'agent')
-  assert.equal(getAppRouteSurface('/project/agent/canvases'), 'agent')
-  assert.equal(getAppRouteSurface('/project/overview'), 'detail')
-  assert.equal(getAppRouteSurface('/canvases'), 'detail')
-  assert.equal(getAppRouteSurface('/canvases/42'), 'canvas')
+test('app route layout spec is derived from pathname instead of the saved work mode', () => {
+  assert.equal(getAppRouteLayoutSpec('/project/agent').surface, 'agent')
+  assert.equal(getAppRouteLayoutSpec('/project/agent/canvases').surface, 'agent')
+  assert.equal(getAppRouteLayoutSpec('/project/scripts/workbench').surface, 'detail')
+  assert.equal(getAppRouteLayoutSpec('/canvases').surface, 'detail')
+  assert.equal(getAppRouteLayoutSpec('/canvases/42').surface, 'canvas')
 })
 
 test('work mode route helpers keep canvas as a temporary surface', () => {
   assert.equal(workModeForRoute('/project/agent', 'detail'), 'agent')
-  assert.equal(workModeForRoute('/project/overview', 'agent'), 'detail')
+  assert.equal(workModeForRoute('/project/scripts/workbench', 'agent'), 'detail')
   assert.equal(workModeForRoute('/canvases/42', 'agent'), 'agent')
   assert.equal(routeForWorkMode('agent', true), '/project/agent')
   assert.equal(routeForWorkMode('detail', true), '/project/scripts/workbench')

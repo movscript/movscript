@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent, RefObject } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
@@ -7,22 +7,23 @@ import { fetchResourceById } from '@/features/agent/domain/agentResourceLookup'
 import {
   RESOURCE_MENTION_RE,
   RESOURCE_MENTION_TRIGGER_RE,
-  mentionEditorTextBeforeCaret,
   normalizeInlineSpacing,
+  readMentionEditorState,
   resourceMentionToken,
-  serializeMentionEditor,
   setCaretAtEnd,
 } from '@/features/agent/presentation/agentMentionEditorModel'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
+import { registerAgentLocalFile, releaseAgentLocalFile } from '@/features/agent/application/agentLocalFileRegistry'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import type { Project, RawResource } from '@/types'
 import {
-  hasResourceDragPayload,
-  readResourceDragPayload,
-} from '@/features/resources/domain/resourceDragPayload'
+  acceptAgentComposerDropDragOver,
+  agentComposerDropKind,
+  readAgentComposerResourceDrop,
+} from '@/features/agent/presentation/agentComposerDropInteraction'
 
 const USER_WORKSPACE_VALUE = '__user__'
 
@@ -57,7 +58,8 @@ export function useAgentComposerController({
   const [uploadingFileNames, setUploadingFileNames] = useState<string[]>([])
   const [uploadedFileCount, setUploadedFileCount] = useState(0)
   const [draggingFiles, setDraggingFiles] = useState(false)
-  const input = workspace.input
+  const [input, setInput] = useState(workspace.input)
+  const inputValueRef = useRef(workspace.input)
   const attachments = workspace.attachments
   const effectiveWorkspaceContext = useMemo(() => normalizeAgentWorkspaceContext(
     workspace.workspaceContext,
@@ -140,8 +142,34 @@ export function useAgentComposerController({
 
   const composerAttachments = useMemo(() => composerAttachmentEntries.map((entry) => entry.attachment), [composerAttachmentEntries])
 
+  useEffect(() => {
+    inputValueRef.current = workspace.input
+    setInput(workspace.input)
+  }, [conversationId, workspace.input])
+
+  function updateInputValue(next: string, mode: 'defer' | 'immediate') {
+    inputValueRef.current = next
+    if (mode === 'immediate') {
+      setInput((current) => current === next ? current : next)
+    }
+  }
+
+  function updateInputDraft(next: string) {
+    updateInputValue(next, 'defer')
+  }
+
+  function getInput() {
+    return inputValueRef.current
+  }
+
   function updateWorkspace(patch: Partial<typeof workspace>) {
-    updateConversationWorkspace(userId, conversationId, patch)
+    const nextPatch = { ...patch }
+    if (Object.prototype.hasOwnProperty.call(nextPatch, 'input')) {
+      updateInputValue(nextPatch.input ?? '', 'immediate')
+      delete nextPatch.input
+    }
+    if (Object.keys(nextPatch).length === 0) return
+    updateConversationWorkspace(userId, conversationId, nextPatch)
   }
 
   function changeWorkspaceProject(value: string) {
@@ -162,6 +190,7 @@ export function useAgentComposerController({
   function revokeAttachmentPreviewUrls(items: AgentAttachment[]) {
     for (const attachment of items) {
       revokeObjectUrl(attachment.previewUrl)
+      releaseLocalAttachmentSource(attachment)
     }
   }
 
@@ -176,6 +205,7 @@ export function useAgentComposerController({
       pending = await Promise.all(list.map(async (file) => {
         const kind = attachmentKind(file.type, file.name)
         const previewUrl = (kind === 'image' || kind === 'video') ? createObjectUrl(file) : undefined
+        const source = registerAgentLocalFile(file)
         return {
           id: `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
           name: file.name || 'clipboard-file',
@@ -183,6 +213,7 @@ export function useAgentComposerController({
           mimeType: file.type || 'application/octet-stream',
           size: file.size,
           previewUrl,
+          source,
           ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
         } satisfies AgentAttachment
       }))
@@ -194,6 +225,7 @@ export function useAgentComposerController({
         fd.append('file', file)
         const { data } = await api.post('/resources/upload', fd)
         setUploadedFileCount(index + 1)
+        releaseLocalAttachmentSource(pending[index])
         uploaded.push({
           ...attachmentFromResource(data as RawResource),
           id: pending[index]?.id ?? `res-${(data as RawResource).ID}`,
@@ -214,6 +246,7 @@ export function useAgentComposerController({
       const pendingIds = new Set(pending.map((attachment) => attachment.id))
       updateWorkspace({ attachments: latestAttachments.filter((attachment) => !pendingIds.has(attachment.id)) })
       revokeAttachmentPreviewUrls(pending)
+      releaseLocalAttachmentSources(pending)
       throw e
     } finally {
       setUploading(false)
@@ -230,14 +263,6 @@ export function useAgentComposerController({
       reader.onerror = () => reject(reader.error ?? new Error('failed to read image attachment'))
       reader.readAsDataURL(file)
     })
-  }
-
-  function dataTransferTypes(event: DragEvent) {
-    return Array.from(event.dataTransfer.types)
-  }
-
-  function hasFileDrop(event: DragEvent) {
-    return dataTransferTypes(event).includes('Files') || event.dataTransfer.files.length > 0
   }
 
   function clipboardFiles(event: ClipboardEvent): File[] {
@@ -271,25 +296,22 @@ export function useAgentComposerController({
     return ''
   }
 
-  function hasResourceDrop(event: DragEvent) {
-    return hasResourceDragPayload(dataTransferTypes(event))
-  }
-
   function hasComposerDropData(event: DragEvent) {
-    return hasFileDrop(event) || hasResourceDrop(event)
+    return Boolean(agentComposerDropKind(event.dataTransfer))
   }
 
   async function addResourceFromDrop(event: DragEvent) {
-    const droppedResourcePayload = readResourceDragPayload(event.dataTransfer)
+    const droppedResourcePayload = readAgentComposerResourceDrop(event.dataTransfer)
     if (!droppedResourcePayload) return
 
     const { resourceId } = droppedResourcePayload
     const resource = droppedResourcePayload.resource ?? await fetchResourceById(resourceId)
     const nextAttachment = resource ? attachmentFromResource(resource) : placeholderAttachment(resourceId)
     const latestWorkspace = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId)
-    const nextInput = latestWorkspace.input.includes(resourceMentionToken(resourceId))
-      ? latestWorkspace.input
-      : normalizeInlineSpacing(`${latestWorkspace.input.trimEnd()} ${resourceMentionToken(resourceId)} `)
+    const latestInput = getInput()
+    const nextInput = latestInput.includes(resourceMentionToken(resourceId))
+      ? latestInput
+      : normalizeInlineSpacing(`${latestInput.trimEnd()} ${resourceMentionToken(resourceId)} `)
     updateWorkspace({
       input: nextInput,
       attachments: dedupeAttachments([...latestWorkspace.attachments, nextAttachment]),
@@ -302,10 +324,9 @@ export function useAgentComposerController({
   }
 
   function handleComposerDragOver(event: DragEvent) {
-    if (!hasComposerDropData(event)) return
+    if (!acceptAgentComposerDropDragOver(event.dataTransfer)) return
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = 'copy'
     setDraggingFiles(true)
   }
 
@@ -329,7 +350,7 @@ export function useAgentComposerController({
     event.preventDefault()
     event.stopPropagation()
     setDraggingFiles(false)
-    if (hasFileDrop(event)) {
+    if (agentComposerDropKind(event.dataTransfer) === 'files') {
       await uploadFiles(event.dataTransfer.files)
       return
     }
@@ -348,22 +369,24 @@ export function useAgentComposerController({
     const before = value.slice(0, caret)
     const match = before.match(RESOURCE_MENTION_TRIGGER_RE)
     if (!match) {
-      setMentionRange(null)
+      setMentionRange((current) => current === null ? current : null)
       return
     }
-    setMentionRange({
+    const nextRange = {
       start: caret - match[1].length - 1,
       end: caret,
       query: match[1],
-    })
+    }
+    setMentionRange((current) => sameMentionRange(current, nextRange) ? current : nextRange)
   }
 
   function insertResourceMention(attachment: AgentAttachment) {
     if (attachment.resourceId === undefined) return
     const editor = inputRef.current
-    const value = editor ? serializeMentionEditor(editor) : input
-    const caretState = editor ? mentionEditorTextBeforeCaret(editor) : { text: value, caret: value.length }
-    const start = mentionRange?.start ?? caretState.caret
+    const editorState = editor ? readMentionEditorState(editor) : undefined
+    const value = editorState?.value ?? getInput()
+    const caret = editorState?.caret ?? value.length
+    const start = mentionRange?.start ?? caret
     const end = mentionRange?.end ?? start
     const token = `${resourceMentionToken(attachment.resourceId)} `
     const next = `${value.slice(0, start)}${token}${value.slice(end)}`
@@ -377,9 +400,9 @@ export function useAgentComposerController({
 
   function addMentionTrigger() {
     const editor = inputRef.current
-    const value = editor ? serializeMentionEditor(editor) : input
-    const caretState = editor ? mentionEditorTextBeforeCaret(editor) : { text: value, caret: value.length }
-    const start = caretState.caret
+    const editorState = editor ? readMentionEditorState(editor) : undefined
+    const value = editorState?.value ?? getInput()
+    const start = editorState?.caret ?? value.length
     const end = start
     const next = `${value.slice(0, start)}@${value.slice(end)}`
     updateWorkspace({ input: next })
@@ -395,9 +418,10 @@ export function useAgentComposerController({
     const removed = composerAttachments.find((a) => a.id === id)
     updateWorkspace({ attachments: attachments.filter((a) => a.id !== id) })
     revokeObjectUrl(removed?.previewUrl)
+    releaseLocalAttachmentSource(removed)
     if (removed?.resourceId !== undefined) {
       const tokenPattern = new RegExp(`\\s*@\\[resource:${removed.resourceId}\\]\\s*`, 'g')
-      updateWorkspace({ input: normalizeInlineSpacing(input.replace(tokenPattern, ' ')) })
+      updateWorkspace({ input: normalizeInlineSpacing(getInput().replace(tokenPattern, ' ')) })
     }
     setMentionRange(null)
   }
@@ -425,14 +449,27 @@ export function useAgentComposerController({
     handleComposerDrop,
     handleComposerPaste,
     insertResourceMention,
+    getInput,
     changeWorkspaceProject,
     removeAttachment,
     revokeAttachmentPreviewUrls,
     setMentionRange,
     updateWorkspace,
+    updateInputDraft,
     updateMentionState,
     uploadFiles,
   }
+}
+
+function releaseLocalAttachmentSources(items: AgentAttachment[]) {
+  for (const item of items) {
+    releaseLocalAttachmentSource(item)
+  }
+}
+
+function releaseLocalAttachmentSource(attachment: AgentAttachment | undefined) {
+  if (attachment?.source?.kind !== 'local_file') return
+  releaseAgentLocalFile(attachment.source.fileId)
 }
 
 function normalizeAgentWorkspaceContext(
@@ -460,6 +497,16 @@ function normalizeAgentWorkspaceContext(
 function positiveInteger(value: unknown): number | undefined {
   const numeric = Number(value)
   return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
+}
+
+function sameMentionRange(
+  current: { start: number; end: number; query: string } | null,
+  next: { start: number; end: number; query: string },
+): boolean {
+  return !!current
+    && current.start === next.start
+    && current.end === next.end
+    && current.query === next.query
 }
 
 function mergeCurrentProject(projects: Project[], currentProject: Project | null): Project[] {

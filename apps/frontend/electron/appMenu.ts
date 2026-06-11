@@ -19,7 +19,6 @@ const navigationGroups: NavigationMenuGroup[] = [
       { label: 'Home', route: '/project/overview' },
       { label: 'Script Workbench', route: '/project/scripts/workbench' },
       { label: 'Production Overview', route: '/project/production' },
-      { label: 'Production Tasks', route: '/project/tasks' },
     ],
   },
   {

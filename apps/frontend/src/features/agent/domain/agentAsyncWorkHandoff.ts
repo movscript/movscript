@@ -1,6 +1,6 @@
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity } from '@/features/agent/state/agentStore'
-import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 export function hasAgentAsyncWorkHandoffActivity(input: {
   activity?: ChatRunActivity
@@ -11,7 +11,7 @@ export function hasAgentAsyncWorkHandoffActivity(input: {
 }
 
 export function isAgentAsyncWorkHandoffRun(run: AgentRun | null | undefined): boolean {
-  if (!run || !isTerminalAgentRunStatus(run.status)) return false
+  if (!run || !isAgentRunTerminalStatus(run.status)) return false
   return run.steps.some((step) => step.type === 'tool_call' && step.toolName === 'core_work_start')
 }
 

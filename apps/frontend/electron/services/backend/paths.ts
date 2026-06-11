@@ -7,15 +7,20 @@ export function resolveBackendBinary(): string {
   const envPath = process.env.MOVSCRIPT_BACKEND_BIN?.trim()
   if (envPath) return envPath
 
-  const binary = process.platform === 'win32' ? 'server.exe' : 'server'
+  const binary = process.platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'
+  const legacyBinary = process.platform === 'win32' ? 'server.exe' : 'server'
   const candidates = app.isPackaged
     ? [
         join(process.resourcesPath, 'backend', binary),
+        join(process.resourcesPath, 'backend', legacyBinary),
         join(app.getAppPath(), '..', 'backend', binary),
+        join(app.getAppPath(), '..', 'backend', legacyBinary),
       ]
     : [
         resolve(process.cwd(), '../backend/bin', binary),
+        resolve(process.cwd(), '../backend/bin', legacyBinary),
         resolve(process.cwd(), '../../apps/backend/bin', binary),
+        resolve(process.cwd(), '../../apps/backend/bin', legacyBinary),
       ]
 
   const found = candidates.find((candidate) => existsSync(candidate))

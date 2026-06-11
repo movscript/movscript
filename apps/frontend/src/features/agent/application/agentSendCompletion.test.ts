@@ -224,10 +224,6 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     setLiveTraceEvents: (events) => {
       calls.push(`liveState:${events.length}`)
     },
-    runTouchesProviderCatalog: () => false,
-    refreshProviderCatalogContext: () => {
-      calls.push('refreshCatalog')
-    },
     notifyRunSettled: (input) => {
       calls.push(`settled:${input.requestId}:${input.status}:${input.run.id}:${input.thread.id}:${input.artifacts.length}`)
     },

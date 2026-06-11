@@ -166,6 +166,38 @@ test('buildProviderSessionSendWorkspace keeps sending when image attachment data
   assert.match(workspace.warnings.join('\n'), /download stalled/)
 })
 
+test('buildProviderSessionSendWorkspace does not forward local resource URLs as model image URLs', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
+    workspaceInput: 'Describe this image',
+    attachments: [],
+    composerAttachments: [attachment({
+      resourceId: 42,
+      name: 'shot.png',
+      type: 'image',
+      mimeType: 'image/png',
+      url: 'http://localhost:8765/api/v1/resources/42/file',
+      source: { kind: 'backend_resource', resourceId: 42 },
+    })],
+    resourceAttachmentIndex: new Map(),
+    settings: settings(),
+    currentProject: null,
+    systemPrompt: '',
+    contextLabels: [],
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+    resolveAttachmentDataUrl: async () => undefined,
+  })
+
+  const sent = workspace.providerSession?.clientInput?.attachments?.[0]
+  assert.equal(sent?.resourceId, 42)
+  assert.equal(sent?.dataUrl, undefined)
+  assert.equal(sent?.url, undefined)
+  assert.deepEqual(sent?.source, { kind: 'backend_resource', resourceId: 42 })
+})
+
 test('buildProviderSessionSendWorkspace keeps video attachments metadata-only for frame extraction', async () => {
   let resolved = false
   const workspace = await buildProviderSessionSendWorkspace({

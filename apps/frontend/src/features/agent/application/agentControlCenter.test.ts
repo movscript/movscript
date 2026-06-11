@@ -4,7 +4,7 @@ import {
   inspectAgentControlDataSourceCapabilities,
   summarizeAgentControlCapabilityHealth,
 } from './agentControlCenter'
-import type { AgentChatDataSource } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentChatDataSource } from '@movscript/core/agent/chat'
 import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
 
 test('agent control capability health counts tools, skills, and plugins from provider responses', async () => {

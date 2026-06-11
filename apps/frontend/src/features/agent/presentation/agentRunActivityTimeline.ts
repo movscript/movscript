@@ -4,7 +4,7 @@ import { agentTraceView, approvalStatusLabel, traceEventStatusLabel, traceKindLa
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import type { JSONValue } from '@/features/agent/domain/agentProtocol'
+import type { JSONValue } from '@movscript/core/agent/protocol'
 
 export type AgentRunActivityTimelineItemType = 'approval' | 'input_request' | 'tool_call' | 'message' | 'generation_job' | 'http' | 'trace_event'
 

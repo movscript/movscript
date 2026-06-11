@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { AudioHTMLAttributes, ImgHTMLAttributes, Ref, VideoHTMLAttributes } from "react";
 
 import { cn } from "../../../../lib/cn";

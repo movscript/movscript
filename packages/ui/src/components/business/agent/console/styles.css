@@ -22,6 +22,7 @@
 .agent-console-panel-actions,
 .agent-console-intro-row,
 .agent-console-toolbar,
+.agent-console-tab-list,
 .agent-console-local-tool-card,
 .agent-console-local-tool-card__header,
 .agent-console-local-tool-card__copy,
@@ -136,7 +137,7 @@
   margin-top: var(--ms-space-4);
 }
 
-.agent-console-main-grid--control-logs {
+.agent-console-main-grid[data-layout="control-logs"] {
   min-height: 0;
 }
 
@@ -145,15 +146,15 @@
     grid-template-columns: minmax(0, 1fr) 360px;
   }
 
-  .agent-console-main-grid--control-logs {
+  .agent-console-main-grid[data-layout="control-logs"] {
     flex: 1 1 auto;
     grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
     align-items: start;
     overflow: hidden;
   }
 
-  .agent-console-main-grid--control-logs > .agent-console-main-column,
-  .agent-console-main-grid--control-logs > .agent-console-sidebar {
+  .agent-console-main-grid[data-layout="control-logs"] > .agent-console-main-column,
+  .agent-console-main-grid[data-layout="control-logs"] > .agent-console-sidebar {
     min-height: 0;
     overflow-y: auto;
   }
@@ -166,13 +167,27 @@
   gap: var(--ms-space-4);
 }
 
-.agent-console-sidebar--logs {
+.agent-console-sidebar[data-pane="logs"] {
   min-width: 0;
 }
 
 .agent-console-stack {
   display: flex;
   flex-direction: column;
+  gap: var(--ms-space-2);
+}
+
+.agent-console-stack[data-spacing="loose"] {
+  gap: var(--ms-space-4);
+}
+
+.agent-console-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ms-space-2);
+}
+
+.agent-console-tab-button {
   gap: var(--ms-space-2);
 }
 

@@ -3,7 +3,7 @@ import { forwardRef, type ChangeEventHandler, type ComponentPropsWithoutRef, typ
 import { cn } from "../../../../lib/cn";
 import type { UiSemanticIntent } from "../../../../style-system";
 import { AppCreateDialog } from "../../app/dialog";
-import { AppKeyValue, AppMetricCard } from "../../app/data-display";
+import { AppMetricCard } from "../../app/data-display";
 import { AppProgressBar } from "../../app/display";
 import { AppEmptyState, AppStateMessage } from "../../app/state";
 import { AppPanel, AppSurfaceItem } from "../../app/surface";
@@ -30,7 +30,7 @@ export function ScriptWorkspaceShell({
 
 export function ScriptWorkspaceLayout({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <OverlapPaneGroup className={cn("script-workbench-layout", className)} {...props}>
+    <OverlapPaneGroup overlapSide="left" className={cn("script-workbench-layout", className)} {...props}>
       {children}
     </OverlapPaneGroup>
   );
@@ -345,26 +345,6 @@ export function ScriptReadinessPanel({ title, value, status, tone = "brand", row
       {actions ? <div className="script-readiness-panel__actions">{actions}</div> : null}
     </AppPanel>
   );
-}
-
-export interface ScriptPipelinePanelProps {
-  title: ReactNode;
-  metrics: ReactNode;
-  sourceLabel: ReactNode;
-  sourceValue: ReactNode;
-}
-
-export function ScriptPipelinePanel({ title, metrics, sourceLabel, sourceValue }: ScriptPipelinePanelProps) {
-  return (
-    <AppPanel title={title} className="bg-background">
-      <div className="script-pipeline-panel__metrics">{metrics}</div>
-      <AppKeyValue className="script-pipeline-panel__source" label={sourceLabel} value={sourceValue} />
-    </AppPanel>
-  );
-}
-
-export function ScriptPipelineMetric({ label, value }: { label: ReactNode; value: ReactNode }) {
-  return <AppMetricCard label={label} value={value} compact />;
 }
 
 export function ScriptWorkflowPanel({ title, children }: { title: ReactNode; children: ReactNode }) {

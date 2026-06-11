@@ -1,9 +1,11 @@
 export const MOVSCRIPT_WORKSPACE_DIR_NAME = '.movscript'
 export const MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME = 'MovScript'
 export const MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME = 'manifest.json'
+export const MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME = 'config.toml'
 export const MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA = 'movscript.project-workspace.v1'
 export const MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME = 'providers'
 export const MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME = 'backend'
+export const MOVSCRIPT_WORKSPACE_BIN_DIR_NAME = 'bin'
 
 export type MovScriptWorkspaceScope = 'global' | 'project' | 'production'
 
@@ -26,9 +28,11 @@ export interface MovScriptWorkspaceRootPaths {
   workspaceDir: string
   rootDir: string
   controlDir: string
+  configTomlPath: string
   manifestPath: string
   providersDir: string
   backendDir: string
+  binDir: string
 }
 
 export interface MovScriptWorkspaceRootManifest {

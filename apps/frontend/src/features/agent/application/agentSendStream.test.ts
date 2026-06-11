@@ -98,15 +98,13 @@ test('handleSendRunUpdate carries live reasoning text across run snapshots', () 
   assert.equal(calls[0], 'pending:thinking:正在检查上下文')
 })
 
-test('handleSendRunUpdate clears pending assistant state for terminal runs and refreshes catalog context', () => {
+test('handleSendRunUpdate clears pending assistant state for terminal runs', () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
-  deps.runTouchesProviderCatalog = () => true
 
   handleSendRunUpdate(makeRun({ status: 'completed' }), deps)
 
   assert.equal(calls.includes('pending:null'), true)
-  assert.equal(calls.includes('refreshCatalog'), true)
 })
 
 test('handleSendRunUpdate cancels a stoppable run when stop was requested', async () => {
@@ -210,10 +208,6 @@ function depsFixture(calls: string[], options: {
       calls.push(`pending:${resolved?.status ?? 'null'}`)
     },
     thinkingStateForRun: () => ({ status: 'thinking' }),
-    runTouchesProviderCatalog: () => false,
-    refreshProviderCatalogContext: () => {
-      calls.push('refreshCatalog')
-    },
     setPageTaskRunning: (requestId, patch) => {
       calls.push(`task:${requestId}:${patch.run?.id}:${patch.threadId}:${patch.artifacts?.length ?? 0}`)
     },

@@ -117,6 +117,7 @@ export {
   CanvasViewportBoundsLayer,
   CanvasViewportEmptyOverlay,
   CanvasViewportEmptyState,
+  CanvasViewportOverlayLayer,
   CanvasViewportPane,
   CanvasViewportSelectionActionButton,
   CanvasViewportStatusOverlay,

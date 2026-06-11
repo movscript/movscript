@@ -25,7 +25,7 @@ export function buildBackend(root = repoRoot) {
   const targetArch = process.env.GOARCH || process.arch
   const goCache = process.env.GOCACHE || resolve(tmpdir(), 'movscript-go-cache')
   const isWindows = targetOS === 'win32' || targetOS === 'windows'
-  const serverName = isWindows ? 'server.exe' : 'server'
+  const serverName = isWindows ? 'movscript-server.exe' : 'movscript-server'
   const outputPath = resolve(binDir, serverName)
 
   console.log(`[build-backend] Platform: ${process.platform} ${process.arch}`)
@@ -71,8 +71,10 @@ export function buildBackend(root = repoRoot) {
   }
 
   if (isWindows) {
-    const compatibilityPath = resolve(binDir, 'server')
-    cpSync(outputPath, compatibilityPath)
+    cpSync(outputPath, resolve(binDir, 'server.exe'))
+    cpSync(outputPath, resolve(binDir, 'server'))
+  } else {
+    cpSync(outputPath, resolve(binDir, 'server'))
   }
 
   console.log(`[build-backend] Built backend binary: ${outputPath} (${elapsedSeconds}s)`)

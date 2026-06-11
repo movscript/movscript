@@ -23,8 +23,6 @@ export interface CompleteSendRunResultDeps {
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
   setPendingAssistantState: (state: AgentThinkingState | null) => void
   setLiveTraceEvents: (events: ChatRunActivityEvent[]) => void
-  runTouchesProviderCatalog: (run: AgentRun) => boolean
-  refreshProviderCatalogContext: () => void
   notifyRunSettled: (input: {
     requestId?: string
     status: 'completed' | 'error' | 'cancelled'
@@ -70,7 +68,6 @@ export async function completeSendRunResult(input: {
   deps.setLiveEventsRef(liveEvents)
   deps.setLiveEventsRef([])
   deps.setLiveTraceEvents([])
-  if (deps.runTouchesProviderCatalog(run)) deps.refreshProviderCatalogContext()
   deps.notifyRunSettled({
     ...(workspace.providerSession?.requestId ? { requestId: workspace.providerSession.requestId } : {}),
     status: runtimeSendSettledStatusFromRun(run),

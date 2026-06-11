@@ -1,3 +1,4 @@
+import { startTransition, useEffect, useRef, useState } from 'react'
 import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
 import type {
   AgentConversationProjection,
@@ -26,6 +27,10 @@ export interface AgentChatConversationProjectionStateInput {
 
 export interface AgentChatConversationProjectionState {
   conversationProjection: AgentConversationProjection
+}
+
+const EMPTY_AGENT_CHAT_CONVERSATION_PROJECTION_STATE: AgentChatConversationProjectionState = {
+  conversationProjection: { items: [] },
 }
 
 export function buildAgentChatConversationProjectionState(input: AgentChatConversationProjectionStateInput): AgentChatConversationProjectionState {
@@ -66,4 +71,52 @@ export function buildAgentChatConversationProjectionState(input: AgentChatConver
       transcriptMessages: input.messages,
     }),
   }
+}
+
+export function useAgentChatConversationProjectionState(input: AgentChatConversationProjectionStateInput): AgentChatConversationProjectionState {
+  const [state, setState] = useState<AgentChatConversationProjectionState>(EMPTY_AGENT_CHAT_CONVERSATION_PROJECTION_STATE)
+  const requestIdRef = useRef(0)
+
+  useEffect(() => {
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
+    let cancelled = false
+
+    const cancelSchedule = scheduleAgentConversationProjectionCompute(() => {
+      if (cancelled || requestId !== requestIdRef.current) return
+      const nextState = buildAgentChatConversationProjectionState(input)
+      if (cancelled || requestId !== requestIdRef.current) return
+      startTransition(() => {
+        if (!cancelled && requestId === requestIdRef.current) setState(nextState)
+      })
+    })
+
+    return () => {
+      cancelled = true
+      cancelSchedule()
+    }
+  }, [
+    input.activeRun,
+    input.buildingSendWorkspace,
+    input.inputBlockingLoading,
+    input.interactionRuns,
+    input.messages,
+    input.pendingAssistantState,
+    input.pendingSendWorkspace,
+    input.streamingAssistantMessageId,
+    input.streamingAssistantText,
+    input.timelineItems,
+    input.visibleActivityEvents,
+  ])
+
+  return state
+}
+
+function scheduleAgentConversationProjectionCompute(callback: () => void): () => void {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    const handle = window.requestIdleCallback(callback, { timeout: 120 })
+    return () => window.cancelIdleCallback(handle)
+  }
+  const handle = globalThis.setTimeout(callback, 0)
+  return () => globalThis.clearTimeout(handle)
 }

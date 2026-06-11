@@ -18,22 +18,6 @@ export function projectReadinessRecipe(readiness: number): ProjectSemanticRecipe
   return projectReadinessStatus.recipe(readiness >= 70 ? 'ready' : 'default')
 }
 
-export function projectTaskStatusRecipe(status?: string): ProjectSemanticRecipe {
-  return projectTaskStatus.recipe(status)
-}
-
-export function projectReviewStatusRecipe(status?: string): ProjectSemanticRecipe {
-  return projectReviewStatus.recipe(status)
-}
-
-export function projectAiAssignmentRecipe(): ProjectSemanticRecipe {
-  return projectSystemStatus.recipe('ai_assigned')
-}
-
-export function projectErrorRecipe(): ProjectSemanticRecipe {
-  return projectSystemStatus.recipe('error')
-}
-
 const projectLaneStatus = defineFeatureStatusRecipeGroup('project.lane.status', {
   ready: 'success',
   active: 'info',
@@ -55,27 +39,5 @@ const projectBlockedSummaryStatus = defineFeatureStatusRecipeGroup('project.bloc
 
 const projectReadinessStatus = defineFeatureStatusRecipeGroup('project.readiness.status', {
   ready: 'success',
-  default: 'neutral',
-})
-
-const projectTaskStatus = defineFeatureStatusRecipeGroup('project.task.status', {
-  in_progress: 'info',
-  submitted: 'warning',
-  blocked: 'warning',
-  changes_requested: 'danger',
-  approved: 'success',
-  default: 'neutral',
-})
-
-const projectReviewStatus = defineFeatureStatusRecipeGroup('project.review.status', {
-  pending: 'warning',
-  approved: 'success',
-  changes_requested: 'danger',
-  default: 'neutral',
-})
-
-const projectSystemStatus = defineFeatureStatusRecipeGroup('project.system.status', {
-  ai_assigned: 'info',
-  error: 'danger',
   default: 'neutral',
 })

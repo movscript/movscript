@@ -32,9 +32,6 @@ export type SemanticEntityKind =
   | 'assetSlotCandidates'
   | 'candidateDecisions'
   | 'reviewEvents'
-  | 'workItems'
-  | 'workReviews'
-  | 'workDependencies'
   | 'canvasOutputs'
 
 export type SemanticEntityRecord = Record<string, unknown> & {
@@ -261,12 +258,12 @@ export async function listScriptBlockUsageMap(_projectId: number, _scriptVersion
   throw unsupportedWorkspaceSemanticRead('listScriptBlockUsageMap')
 }
 
-export async function buildContentUnitGenerationContext(
+export async function deriveContentUnitGenerationContext(
   _projectId: number,
   _contentUnitId: number,
   _intent: 'keyframe' | 'video' = 'video',
 ): Promise<GenerationContext> {
-  throw unsupportedWorkspaceSemanticRead('buildContentUnitGenerationContext')
+  throw unsupportedWorkspaceSemanticRead('deriveContentUnitGenerationContext')
 }
 
 export async function abandonSegment(_projectId: number, _id: number): Promise<AbandonSegmentResult> {
@@ -766,15 +763,6 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
     ], '创建时需要填写 asset_slot_id，并提供 candidate_asset_slot_id 或 resource_id；传入 resource_id 时会自动创建候选素材位。'),
     cfg('candidateDecisions', 'candidate-decisions', '候选决策', '候选素材的决策记录。', ['status'], genericFields()),
     cfg('reviewEvents', 'review-events', '审阅事件', '审阅事件。', ['status'], genericFields()),
-    cfg('workItems', 'work-items', '任务', '项目任务。', ['title', 'status'], [
-      text('title', '标题', true),
-      area('description', '描述'),
-      text('owner_type', '归属类型'),
-      num('owner_id', '归属 ID'),
-      select('status', '状态', ['workspace', 'todo', 'doing', 'done', 'blocked', 'archived']),
-    ]),
-    cfg('workReviews', 'work-reviews', '任务审阅', '任务审阅记录。', ['status'], genericFields()),
-    cfg('workDependencies', 'work-dependencies', '任务依赖', '任务依赖。', ['status'], genericFields()),
     cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布输出。', ['status'], genericFields()),
   ]
 }

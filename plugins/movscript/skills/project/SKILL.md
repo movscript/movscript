@@ -1,6 +1,6 @@
 ---
 name: project
-description: Resolve MovScript project focus, create projects only on explicit request, and orient agents to source versus compiled project state.
+description: Resolve MovScript project focus, create projects only on explicit request, and orient agents to source versus interpreted project state.
 toolGrants:
   - mcp__movscript__system_focus_get
   - mcp__movscript__system_project_create
@@ -20,7 +20,7 @@ Use this skill when a user asks the provider to inspect the current MovScript pr
 - MCP project-scoped tools do not infer project from the provider session. Every project-scoped domain or generation call must include `projectId`/`project_id`.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
 - Editable source files live under `project.json`, `project_standards.json`, `settings/**`, `scripts/**`, `content_units/**`, and `productions/**`.
-- `.build/current` and `.build/indexes` are the last successful compiled state.
+- `.interpret/current` and `.interpret/indexes` are the last successful interpreted state.
 - Project creation is a durable backend action. Do not create a project from vague planning or naming ideas.
 
 ## Workflow
@@ -38,4 +38,4 @@ Use this skill when a user asks the provider to inspect the current MovScript pr
 - Do not create projects from vague brainstorming prompts.
 - Prefer project workspace domain files and `domain_*` APIs over backend list/locate tools for project data, scripts, settings, assets, and productions.
 - Preserve script file identity in follow-up work; do not mix passages from different files unless the user asks for comparison.
-- Do not edit `.build/**` or `.movscript/**` when the user is asking about creative project content.
+- Do not edit `.interpret/**` or `.movscript/**` when the user is asking about creative project content.

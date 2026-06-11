@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import test from 'node:test'
+
+test('source workspace experience is the canonical project content entry', () => {
+  const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
+  const routeSource = readFileSync(resolve('src/routes/projectRoutes.ts'), 'utf8')
+  const sidebarSource = readFileSync(resolve('src/features/app-shell/components/Sidebar.tsx'), 'utf8')
+  const registrySource = readFileSync(resolve('src/features/project-workbenches/domain/projectWorkbenchRegistry.tsx'), 'utf8')
+  const overviewSource = readFileSync(resolve('src/features/project/components/ProjectOverviewPage.tsx'), 'utf8')
+  const workspaceSource = readFileSync(resolve('src/features/content-workbench/components/ContentSourceWorkspacePage.tsx'), 'utf8')
+  const workspaceStyles = readFileSync(resolve('src/features/content-workbench/components/ContentSourceWorkspacePage.css'), 'utf8')
+  const workspaceFixtures = readFileSync(resolve('src/features/content-workbench/domain/sourceWorkspaceFixtures.ts'), 'utf8')
+  const workspaceTree = readFileSync(resolve('src/features/content-workbench/domain/sourceWorkspaceTree.ts'), 'utf8')
+
+  assert.match(routeSource, /sourceWorkspace: '\/project\/content-units\/editor'/)
+  assert.match(registrySource, /id: 'content_orchestration'[\s\S]*route: ROUTES\.project\.sourceWorkspace/)
+  assert.match(appSource, /path=\{ROUTES\.project\.sourceWorkspace\}[\s\S]*<ContentSourceWorkspacePage \/>/)
+  assert.match(workspaceSource, /export default function ContentSourceWorkspacePage/)
+  assert.match(workspaceSource, /data-testid="content-source-workspace-page"/)
+  assert.match(workspaceSource, /Source Workspace/)
+  assert.match(workspaceSource, /Ontology Tree/)
+  assert.match(workspaceSource, /from '..\/domain\/sourceWorkspaceFixtures'/)
+  assert.match(workspaceFixtures, /export const previewMoments/)
+  assert.match(workspaceTree, /export function filterHierarchyTree/)
+  assert.match(workspaceStyles, /\.content-source-workspace\s*\{[\s\S]*grid-template-columns: minmax\(280px, min\(360px, 32%\)\) minmax\(0, 1fr\)/)
+  assert.match(workspaceStyles, /\.content-source-workspace--source-workspace\s*\{[\s\S]*width: 100%;[\s\S]*height: 100%;/)
+
+  assert.match(sidebarSource, /projectWorkbenchDefinitions\.map/)
+  assert.match(overviewSource, /projectWorkbenchDefinitions\.map/)
+  assert.match(overviewSource, /只暴露 3 个工作台入口/)
+})
+
+test('legacy content routes redirect instead of exposing extra workbench pages', () => {
+  const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
+  const routeLayoutSource = readFileSync(resolve('src/routes/routeLayoutRegistry.ts'), 'utf8')
+  const routeSource = readFileSync(resolve('src/routes/projectRoutes.ts'), 'utf8')
+
+  assert.doesNotMatch(appSource, /production-workbench-preview/)
+  assert.doesNotMatch(routeSource, /contentUnitWorkbench|\/project\/content-units\/workbench/)
+  assert.doesNotMatch(appSource, /ContentWorkbenchRedirect|contentUnitWorkbench/)
+  assert.doesNotMatch(routeSource, /legacyScripts|overview:|production:|productionOrchestration/)
+  assert.doesNotMatch(appSource, /legacyScripts|project\.production|productionOrchestration|agentFiles|agent\/model-providers/)
+
+  assert.doesNotMatch(routeLayoutSource, /project\.contentUnitWorkbench\.redirect|contentUnitWorkbench/)
+  assert.doesNotMatch(routeLayoutSource, /project\.legacyScripts\.redirect|project\.production\.redirect|project\.productionOrchestration\.redirect|project\.overview\.redirect|agent\.files\.redirect|agent\.modelProviders\.redirect/)
+  assert.doesNotMatch(routeSource, /productionPreview|workbenchProductionTaskGraph|workbenchPreview|\/project\/production\/preview|\/workbench\/production-taskGraph|\/workbench\/preview/)
+})
+
+test('obsolete content workbench page components are not kept as shadow entries', () => {
+  assert.equal(existsSync(resolve('src/features/content')), false)
+  assert.equal(existsSync(resolve('src/features/production')), false)
+  assert.equal(existsSync(resolve('src/features/production-workbench')), false)
+  assert.equal(existsSync(resolve('src/features/pre-production')), false)
+  assert.equal(existsSync(resolve('src/pages/pre-production')), false)
+  assert.equal(existsSync(resolve('src/features/production-workbench/components/ProductionWorkbenchPage.tsx')), false)
+  assert.equal(existsSync(resolve('src/features/content/components/ContentWorkbenchPage.tsx')), false)
+  assert.equal(existsSync(resolve('src/features/content/components/ContentUnitWorkbenchPage.tsx')), false)
+  assert.equal(existsSync(resolve('src/features/content/components/ContentUnitsPage.tsx')), false)
+  assert.equal(existsSync(resolve('src/features/content/components/SceneMomentsPage.tsx')), false)
+  assert.equal(existsSync(resolve('src/features/content/components/SegmentsPage.tsx')), false)
+  assert.equal(existsSync(resolve('src/pages/project/tasks')), false)
+  assert.equal(existsSync(resolve('src/pages/project/content-units')), false)
+  assert.equal(existsSync(resolve('src/pages/scene-moments')), false)
+  assert.equal(existsSync(resolve('src/pages/segments')), false)
+  assert.equal(existsSync(resolve('src/features/workbench/components/WorkbenchPage.tsx')), false)
+})

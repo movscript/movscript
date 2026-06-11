@@ -13,22 +13,19 @@ import {
   CanvasResourceShelfView,
   type CanvasResourceShelfItem,
 } from '@movscript/ui'
-import type { PaginatedResponse, RawResource, ResourceBinding } from '@/types'
+import type { PaginatedResponse, RawResource } from '@/types'
 import { resourceMatchesSearch, resourceToNodeType } from '@/features/canvas/integrations/resources'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceImage } from '@/shared/ui/ResourceImage'
-import { writeResourceDragPayload } from '@/features/resources/domain/resourceDragPayload'
+import { resourceMediaDiagnosticsEnabled } from '@/shared/ui/resourceMediaDiagnostics'
+import { startResourceDragSource } from '@/features/resources/domain/resourceInteraction'
 
 const RESOURCE_SHELF_THUMB_MAX_SIZE = 160
 
 export function CanvasResourceShelf({
-  projectId,
-  dependencyBindings = [],
   variant = 'floating',
   disablePreviews = false,
 }: {
-  projectId?: number
-  dependencyBindings?: ResourceBinding[]
   variant?: 'floating' | 'panel' | 'side'
   disablePreviews?: boolean
 }) {
@@ -48,14 +45,13 @@ export function CanvasResourceShelf({
     name: resource.name,
     description: side ? undefined : <ResourceDetailMeta resource={resource} />,
     footerMeta: formatBytes(resource.size),
-    selected: dependencyBindings.some((binding) => binding.resource_id === resource.ID),
     media: <ResourceThumb resource={resource} disablePreview={disablePreviews} />,
   }))
 
   function dragResource(event: DragEvent<HTMLDivElement>, item: CanvasResourceShelfItem) {
     const resource = resourceItems.find((candidate) => candidate.ID === item.id)
     if (!resource) return
-    writeResourceDragPayload(event.dataTransfer, resource)
+    startResourceDragSource({ dataTransfer: event.dataTransfer, resource })
   }
 
   return (
@@ -72,7 +68,6 @@ export function CanvasResourceShelf({
       hint={search.trim() ? `${activeFilteredCount} 个结果` : (side ? `${resources.length}` : t('canvas.editor.resourceShelf.dragHint'))}
       emptyTitle={t('shared.resourcePanel.noResources')}
       items={shelfItems}
-      selectedLabel="已作为依赖"
       dragMetaLabel={side ? undefined : '可直接拖入画布'}
       onItemDragStart={dragResource}
     />
@@ -194,14 +189,11 @@ function LazyResourcePreview({ children, fallback }: { children: ReactNode; fall
 }
 
 function mediaDiagnosticsEnabled() {
-  if (!import.meta.env.DEV) return false
-  if (import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS === '1') return true
-  try {
-    if (new URLSearchParams(window.location.search).has('canvasDebug')) return true
-    return !!window.localStorage.getItem('movscript.canvasDebug')
-  } catch {
-    return false
-  }
+  return resourceMediaDiagnosticsEnabled({
+    dev: import.meta.env.DEV,
+    renderDiagnostics: import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS,
+    search: window.location.search,
+  })
 }
 
 function formatBytes(value: number | undefined) {

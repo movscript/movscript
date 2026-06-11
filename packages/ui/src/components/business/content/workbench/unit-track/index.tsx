@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
 import { Button, type ButtonProps } from "../../../../primitives";
@@ -382,25 +382,25 @@ export function ContentWorkbenchTimelineZoomControl({
   );
 }
 
-export function ContentWorkbenchTimelineViewport({
+export const ContentWorkbenchTimelineViewport = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & {
+  minWidth: number;
+}>(function ContentWorkbenchTimelineViewport({
   minWidth,
   children,
   className,
   style,
   ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  minWidth: number;
-}) {
+}, ref) {
   return (
-    <div className={cn("content-workbench-timeline-viewport", className)}>
-      <div className="content-workbench-timeline-viewport__canvas" style={{ minWidth, ...style }}>
+    <div ref={ref} className={cn("content-workbench-timeline-viewport", className)}>
+      <div className="content-workbench-timeline-viewport__canvas" style={{ width: minWidth, minWidth, ...style }}>
         <div className="content-workbench-timeline" data-testid="content-workbench-unit-timeline" {...props}>
           {children}
         </div>
       </div>
     </div>
   );
-}
+});
 
 export function ContentWorkbenchTimelineGridRow({
   label,

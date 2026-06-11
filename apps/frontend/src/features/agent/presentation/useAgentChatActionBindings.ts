@@ -1,4 +1,3 @@
-import { runTouchesProviderCatalog } from '@/features/agent/application/providerCatalogRun'
 import { useAgentPlanActionBindings, type UseAgentPlanActionBindingsInput } from '@/features/agent/presentation/useAgentPlanActionBindings'
 import { useAgentRunResultActions, type UseAgentRunResultActionsInput } from '@/features/agent/presentation/useAgentRunResultActions'
 import { useAgentRunStopAction, type UseAgentRunStopActionInput } from '@/features/agent/presentation/useAgentRunStopAction'
@@ -6,7 +5,7 @@ import { useAgentRunInteractionActionBindings, type UseAgentRunInteractionAction
 
 export interface UseAgentChatActionBindingsInput {
   runResultActions: UseAgentRunResultActionsInput
-  runInteractionActions: Omit<UseAgentRunInteractionActionBindingsInput, 'streamFollowUpRun' | 'runTouchesProviderCatalog'>
+  runInteractionActions: Omit<UseAgentRunInteractionActionBindingsInput, 'streamFollowUpRun'>
   planActions: UseAgentPlanActionBindingsInput
   stopAction: UseAgentRunStopActionInput
 }
@@ -22,7 +21,6 @@ export function useAgentChatActionBindings({
   const runInteraction = useAgentRunInteractionActionBindings({
     ...runInteractionActions,
     streamFollowUpRun,
-    runTouchesProviderCatalog,
   })
 
   const taskGraph = useAgentPlanActionBindings(planActions)

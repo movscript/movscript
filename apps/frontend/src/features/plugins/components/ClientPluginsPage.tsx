@@ -20,8 +20,18 @@ import {
   type ProviderPluginMarketplaceState,
 } from '@/features/plugins/application/providerPluginMarketplace'
 import {
+  AgentConsoleActionButton,
+  AgentConsoleHeader,
+  AgentConsoleHeaderActions,
+  AgentConsoleHeaderCopy,
+  AgentConsoleHeaderDescription,
+  AgentConsoleHeaderTitle,
+  AgentConsoleHeaderTitleRow,
+  AgentPageShell,
+  AgentPageShellHeader,
   Button,
-  Input,
+  PluginBannerDismissAction,
+  PluginButtonIcon,
   PluginCardActions,
   PluginCardCopy,
   PluginCardDescription,
@@ -40,21 +50,19 @@ import {
   PluginDialogTitle,
   PluginEmptyActions,
   PluginEmptyState,
-  PluginInlineMeta,
+  PluginFileInput,
   PluginMarketplaceToolbar,
   PluginPageCardGrid,
-  PluginPageHeader,
-  PluginPageHeaderActions,
-  PluginPageHeaderCopy,
-  PluginPageHeaderInner,
-  PluginPageHeaderTitleRow,
-  PluginPageLayout,
   PluginPageScrollBody,
+  PluginPageShellBody,
   PluginPageTabBar,
   PluginStateBanner,
   PluginStatusMeta,
   PluginSearchField,
   PluginSearchIconSlot,
+  PluginSearchInput,
+  PluginTabButton,
+  PluginTabCount,
   PluginTabGroup,
   PluginTagMeta,
 } from '@movscript/ui'
@@ -202,15 +210,14 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
       <PluginMarketplaceToolbar>
         <PluginSearchField>
           <PluginSearchIconSlot><Search size={14} /></PluginSearchIconSlot>
-          <Input
+          <PluginSearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('plugins.searchPlaceholder')}
-            className="pl-8 type-body"
           />
         </PluginSearchField>
-        <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
-          {loading ? <Loader2 size={12} className="mr-1.5 animate-spin" /> : <RefreshCw size={12} className="mr-1.5" />}
+        <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading} loading={loading}>
+          {!loading ? <PluginButtonIcon><RefreshCw size={12} /></PluginButtonIcon> : null}
           {t('plugins.refresh')}
         </Button>
       </PluginMarketplaceToolbar>
@@ -226,14 +233,14 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
           icon={Loader2}
           title={t('plugins.loadingMarketplace')}
           detail={t('plugins.loadingMarketplaceHint')}
-          className="h-[320px]"
+          layout="marketplace"
         />
       ) : filtered.length === 0 ? (
         <PluginEmptyState
           icon={Store}
           title={t('plugins.marketplaceEmpty')}
           detail={t('plugins.marketplaceEmptyHint')}
-          className="h-[320px]"
+          layout="marketplace"
         />
       ) : (
         <PluginPageCardGrid>
@@ -241,7 +248,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
             const isInstalling = installing === entry.key
             const installBlocked = entry.installPolicy === 'NOT_AVAILABLE' || entry.availability === 'DISABLED_BY_ADMIN'
             return (
-              <PluginCardSurface key={entry.key} className="gap-2">
+              <PluginCardSurface key={entry.key} spacing="compact">
                 <PluginCardHeader>
                   <PluginCardCopy>
                     <PluginCardTitle>{entry.displayName}</PluginCardTitle>
@@ -252,15 +259,15 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
                   {entry.installed ? (
                     <PluginCardActions>
                       <PluginStatusMeta>{t('plugins.alreadyInstalled')}</PluginStatusMeta>
-                      <Button size="icon-sm" variant="ghost" tone="danger" onClick={() => void handleUninstall(entry)} disabled={isInstalling}>
-                        {isInstalling ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={14} />}
+                      <Button size="icon-sm" variant="ghost" tone="danger" onClick={() => void handleUninstall(entry)} disabled={isInstalling} loading={isInstalling}>
+                        <Trash2 size={14} />
                       </Button>
                     </PluginCardActions>
                   ) : (
-                    <Button size="sm" onClick={() => void handleInstall(entry)} disabled={isInstalling || installBlocked} className="shrink-0">
+                    <Button size="sm" onClick={() => void handleInstall(entry)} disabled={isInstalling || installBlocked} loading={isInstalling}>
                       {isInstalling
-                        ? <Loader2 size={12} className="animate-spin" />
-                        : <><Download size={12} className="mr-1" />{t('plugins.install')}</>
+                        ? t('plugins.install')
+                        : <><PluginButtonIcon><Download size={12} /></PluginButtonIcon>{t('plugins.install')}</>
                       }
                     </Button>
                   )}
@@ -377,147 +384,140 @@ export default function ClientPluginsPage() {
   }
 
   return (
-    <PluginPageLayout>
-      <PluginPageHeader>
-        <PluginPageHeaderInner>
-          <PluginPageHeaderCopy>
-            <PluginPageHeaderTitleRow>
+    <AgentPageShell data-testid="client-plugins-page">
+      <AgentPageShellHeader>
+        <AgentConsoleHeader>
+          <AgentConsoleHeaderCopy>
+            <AgentConsoleHeaderTitleRow>
               <Blocks size={18} />
-              <h1 className="type-title font-semibold text-foreground">{t('plugins.title')}</h1>
-            </PluginPageHeaderTitleRow>
-            <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">
+              <AgentConsoleHeaderTitle>{t('plugins.title')}</AgentConsoleHeaderTitle>
+            </AgentConsoleHeaderTitleRow>
+            <AgentConsoleHeaderDescription>
               管理全局插件、Pack 安装来源以及贡献给 provider、工具页和工作区的扩展能力。
-            </p>
-          </PluginPageHeaderCopy>
-          <PluginPageHeaderActions>
-            <Input
+            </AgentConsoleHeaderDescription>
+          </AgentConsoleHeaderCopy>
+          <AgentConsoleHeaderActions>
+            <PluginFileInput
               ref={fileInputRef}
               type="file"
               accept=".movpkg,.zip"
-              className="hidden"
               onChange={handleFileChange}
             />
-            <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={fileInstalling}>
-              {fileInstalling
-                ? <Loader2 size={14} className="mr-1.5 animate-spin" />
-                : <Upload size={14} className="mr-1.5" />}
+            <AgentConsoleActionButton size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={fileInstalling} loading={fileInstalling}>
+              {!fileInstalling ? <PluginButtonIcon><Upload size={14} /></PluginButtonIcon> : null}
               {t('plugins.installFromFile')}
-            </Button>
-          </PluginPageHeaderActions>
-        </PluginPageHeaderInner>
-      </PluginPageHeader>
+            </AgentConsoleActionButton>
+          </AgentConsoleHeaderActions>
+        </AgentConsoleHeader>
+      </AgentPageShellHeader>
 
       <AgentConsoleNav compact />
 
-      {fileError && (
-        <PluginStateBanner
-          tone="danger"
-          icon={<AlertCircle size={12} />}
-        >
-          {fileError}
-          <Button size="xs" variant="link" className="ml-auto" onClick={() => setFileError(undefined)}>{t('common.close')}</Button>
-        </PluginStateBanner>
-      )}
-
-      <PluginPageTabBar>
-        <PluginTabGroup>
-          <Button
-            type="button"
-            variant={tab === 'installed' ? 'solid' : 'ghost'}
-            size="sm"
-            onClick={() => setTab('installed')}
-            className="gap-1.5 type-body font-medium"
+      <PluginPageShellBody>
+        {fileError && (
+          <PluginStateBanner
+            tone="danger"
+            icon={<AlertCircle size={12} />}
           >
-            {t('plugins.myPlugins')}
-            {installedCount > 0 && (
-              <PluginInlineMeta asChild className="ml-1.5 type-label">
-                <span>{installedCount}</span>
-              </PluginInlineMeta>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant={tab === 'marketplace' ? 'solid' : 'ghost'}
-            size="sm"
-            onClick={() => setTab('marketplace')}
-            className="gap-1.5 type-body font-medium"
-          >
-            <Store size={14} />
-            {t('plugins.marketplace')}
-          </Button>
-        </PluginTabGroup>
-      </PluginPageTabBar>
+            {fileError}
+            <PluginBannerDismissAction onClick={() => setFileError(undefined)}>{t('common.close')}</PluginBannerDismissAction>
+          </PluginStateBanner>
+        )}
 
-      {migrationNote && (
-        <PluginStateBanner
-          icon={<AlertCircle size={12} />}
-        >
-          {migrationNote}
-          <Button size="xs" variant="link" className="ml-auto" onClick={() => setMigrationNote(undefined)}>{t('common.close')}</Button>
-        </PluginStateBanner>
-      )}
-
-      {providerPluginError && (
-        <PluginStateBanner
-          tone="danger"
-          icon={<AlertCircle size={12} />}
-        >
-          {providerPluginError}
-          <Button size="xs" variant="link" className="ml-auto" onClick={() => setProviderPluginError(undefined)}>{t('common.close')}</Button>
-        </PluginStateBanner>
-      )}
-
-      {tab === 'marketplace' && (
-        <MarketplaceView
-          items={providerPluginState.items}
-          errors={providerPluginState.errors}
-          loading={providerPluginLoading}
-          onInstall={handleProviderPluginInstall}
-          onUninstall={handleProviderPluginUninstall}
-          onRefresh={refreshProviderPlugins}
-        />
-      )}
-
-      {tab === 'installed' && (
-        <PluginPageScrollBody>
-          {plugins.length === 0 && installedProviderPlugins.length === 0 ? (
-            <PluginEmptyState
-              icon={Plus}
-              title={t('plugins.empty')}
-              detail={t('plugins.emptyHint')}
-              action={(
-                <PluginEmptyActions>
-                  <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                    <Upload size={14} className="mr-1.5" />
-                    {t('plugins.installFromFile')}
-                  </Button>
-                  <Button size="sm" onClick={() => setTab('marketplace')}>
-                    <Store size={14} className="mr-1.5" />
-                    {t('plugins.browseMarketplace')}
-                  </Button>
-                </PluginEmptyActions>
+        <PluginPageTabBar>
+          <PluginTabGroup>
+            <PluginTabButton
+              active={tab === 'installed'}
+              onClick={() => setTab('installed')}
+            >
+              {t('plugins.myPlugins')}
+              {installedCount > 0 && (
+                <PluginTabCount>
+                  <span>{installedCount}</span>
+                </PluginTabCount>
               )}
-            />
-          ) : (
-            <PluginPageCardGrid>
-              {installedProviderPlugins.map((plugin) => (
-                <ProviderPluginCard
-                  key={plugin.key}
-                  item={plugin}
-                  onUninstall={() => void handleProviderPluginUninstall(plugin)}
-                />
-              ))}
-              {plugins.map((plugin) => (
-                <PluginCard
-                  key={plugin.id}
-                  plugin={plugin}
-                  onRemove={() => handleRemove(plugin.id)}
-                />
-              ))}
-            </PluginPageCardGrid>
-          )}
-        </PluginPageScrollBody>
-      )}
-    </PluginPageLayout>
+            </PluginTabButton>
+            <PluginTabButton
+              active={tab === 'marketplace'}
+              onClick={() => setTab('marketplace')}
+            >
+              <PluginButtonIcon><Store size={14} /></PluginButtonIcon>
+              {t('plugins.marketplace')}
+            </PluginTabButton>
+          </PluginTabGroup>
+        </PluginPageTabBar>
+
+        {migrationNote && (
+          <PluginStateBanner
+            icon={<AlertCircle size={12} />}
+          >
+            {migrationNote}
+            <PluginBannerDismissAction onClick={() => setMigrationNote(undefined)}>{t('common.close')}</PluginBannerDismissAction>
+          </PluginStateBanner>
+        )}
+
+        {providerPluginError && (
+          <PluginStateBanner
+            tone="danger"
+            icon={<AlertCircle size={12} />}
+          >
+            {providerPluginError}
+            <PluginBannerDismissAction onClick={() => setProviderPluginError(undefined)}>{t('common.close')}</PluginBannerDismissAction>
+          </PluginStateBanner>
+        )}
+
+        {tab === 'marketplace' && (
+          <MarketplaceView
+            items={providerPluginState.items}
+            errors={providerPluginState.errors}
+            loading={providerPluginLoading}
+            onInstall={handleProviderPluginInstall}
+            onUninstall={handleProviderPluginUninstall}
+            onRefresh={refreshProviderPlugins}
+          />
+        )}
+
+        {tab === 'installed' && (
+          <PluginPageScrollBody>
+            {plugins.length === 0 && installedProviderPlugins.length === 0 ? (
+              <PluginEmptyState
+                icon={Plus}
+                title={t('plugins.empty')}
+                detail={t('plugins.emptyHint')}
+                action={(
+                  <PluginEmptyActions>
+                    <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                      <PluginButtonIcon><Upload size={14} /></PluginButtonIcon>
+                      {t('plugins.installFromFile')}
+                    </Button>
+                    <Button size="sm" onClick={() => setTab('marketplace')}>
+                      <PluginButtonIcon><Store size={14} /></PluginButtonIcon>
+                      {t('plugins.browseMarketplace')}
+                    </Button>
+                  </PluginEmptyActions>
+                )}
+              />
+            ) : (
+              <PluginPageCardGrid>
+                {installedProviderPlugins.map((plugin) => (
+                  <ProviderPluginCard
+                    key={plugin.key}
+                    item={plugin}
+                    onUninstall={() => void handleProviderPluginUninstall(plugin)}
+                  />
+                ))}
+                {plugins.map((plugin) => (
+                  <PluginCard
+                    key={plugin.id}
+                    plugin={plugin}
+                    onRemove={() => handleRemove(plugin.id)}
+                  />
+                ))}
+              </PluginPageCardGrid>
+            )}
+          </PluginPageScrollBody>
+        )}
+      </PluginPageShellBody>
+    </AgentPageShell>
   )
 }

@@ -77,6 +77,17 @@ export function openAgentConversationIds(records: AgentConversationOpenRecord[])
     .map((record) => record.id)
 }
 
+export function closedAgentConversationIds(records: AgentConversationOpenRecord[]) {
+  return normalizeOpenRecords(records)
+    .filter((record) => !record.open)
+    .map((record) => record.id)
+}
+
+export function visibleAgentConversationIds(records: AgentConversationOpenRecord[], conversationIds: string[]) {
+  const closedIds = new Set(closedAgentConversationIds(records))
+  return conversationIds.filter((id) => !closedIds.has(id))
+}
+
 export function hasOpenAgentConversationRecords(records: AgentConversationOpenRecord[]) {
   return normalizeOpenRecords(records).some((record) => record.open)
 }

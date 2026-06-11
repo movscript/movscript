@@ -1,6 +1,7 @@
 import { providerSessionClient, type ProviderSessionClientInput, type AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import { notifyAgentTimelineAcceptedSource } from '@/features/agent/application/agentTimelineBridge'
 import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
+import { prepareProviderSessionAttachmentRefs } from '@movscript/core/agent'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 export interface SendActiveRunInputDeps {
@@ -17,7 +18,7 @@ export async function sendActiveRunInput(input: {
   attachments?: AgentAttachment[]
   deps: SendActiveRunInputDeps
 }): Promise<void> {
-  const attachments = await resolveActiveRunInputAttachments(input.attachments ?? [])
+  const attachments = await resolveActiveRunInputAttachmentRefs(input.attachments ?? [])
   const content = input.content.trim()
   if (!content && attachments.length === 0) return
   const sessionId = input.deps.sessionId?.trim()
@@ -37,7 +38,7 @@ export async function sendActiveRunInput(input: {
       clientInput: {
         message: content,
         ...(attachments.length > 0
-          ? { attachments: attachments.map(providerSessionAttachmentToClientInputRef) }
+          ? { attachments }
           : {}),
       } satisfies ProviderSessionClientInput,
     } as const
@@ -51,29 +52,12 @@ export async function sendActiveRunInput(input: {
   }
 }
 
-async function resolveActiveRunInputAttachments(attachments: AgentAttachment[]): Promise<AgentAttachment[]> {
-  return Promise.all(attachments.map(async (attachment) => {
-    if (attachment.dataUrl || attachment.type !== 'image' || !attachment.resourceId) return attachment
-    let dataUrl: string | undefined
-    try {
-      dataUrl = await resolveAgentAttachmentDataUrl(attachment)
-    } catch {
-      dataUrl = undefined
-    }
-    return dataUrl ? { ...attachment, dataUrl } : attachment
-  }))
-}
-
-function providerSessionAttachmentToClientInputRef(attachment: AgentAttachment) {
-  return {
-    id: attachment.id,
-    name: attachment.name,
-    type: attachment.type,
-    mimeType: attachment.mimeType,
-    size: attachment.size,
-    ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
-    ...(attachment.dataUrl ? { dataUrl: attachment.dataUrl } : {}),
-  }
+async function resolveActiveRunInputAttachmentRefs(attachments: AgentAttachment[]): Promise<NonNullable<ProviderSessionClientInput['attachments']>> {
+  return prepareProviderSessionAttachmentRefs(attachments, {
+    resolver: {
+      resolveDataUrl: ({ attachment }) => resolveAgentAttachmentDataUrl(attachment),
+    },
+  })
 }
 
 function sourceMessageIdForActiveRunInput(runId: string): string {

@@ -22,20 +22,20 @@ test('workspace domain model separates project standards, settings, and asset sl
 
   assert.equal(project?.targetEntityType, 'project_standards')
   assert.equal(project?.contentSchemaId, 'movscript.project_standards.v1')
-  assert.equal(project?.applyBoundary.backendApply, 'workspace_build')
+  assert.equal(project?.applyBoundary.backendApply, 'workspace_interpret')
 
   assert.equal(setting?.contentSchemaId, 'movscript.setting.v1')
   assert.ok(setting?.entityTypes.includes('setting'))
-  assert.equal(setting?.applyBoundary.backendApply, 'workspace_build')
+  assert.equal(setting?.applyBoundary.backendApply, 'workspace_interpret')
 
   assert.equal(assetWorkspace?.contentSchemaId, 'movscript.asset.v1')
   assert.ok(assetWorkspace?.fieldGuide.owns.includes('asset'))
-  assert.equal(assetWorkspace?.applyBoundary.backendApply, 'workspace_build')
+  assert.equal(assetWorkspace?.applyBoundary.backendApply, 'workspace_interpret')
 
   assert.equal(production?.targetEntityType, 'production')
   assert.equal(production?.contentSchemaId, 'movscript.production.v1')
   assert.ok(production?.entityTypes.includes('production'))
-  assert.equal(production?.applyBoundary.backendApply, 'workspace_build')
+  assert.equal(production?.applyBoundary.backendApply, 'workspace_interpret')
 })
 
 test('workspace domain model defines content unit workspace contracts', () => {
@@ -44,7 +44,7 @@ test('workspace domain model defines content unit workspace contracts', () => {
   assert.equal(contentUnit?.targetEntityType, 'content_unit')
   assert.equal(contentUnit?.contentSchemaId, 'movscript.content_unit.v1')
   assert.ok(contentUnit?.fieldGuide.owns.includes('content_unit'))
-  assert.equal(contentUnit?.applyBoundary.backendApply, 'workspace_build')
+  assert.equal(contentUnit?.applyBoundary.backendApply, 'workspace_interpret')
 })
 
 test('workspace review path is resolved from the shared frontend workspace model helpers', () => {
@@ -54,11 +54,11 @@ test('workspace review path is resolved from the shared frontend workspace model
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-setting', kind: 'setting_workspace' })),
-    '/project/pre-production?view=review&workspaceId=workspace-setting',
+    '/project/scripts/workbench?workspaceId=workspace-setting',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-asset-workspace', kind: 'asset_workspace' })),
-    '/project/pre-production?view=review&workspaceId=workspace-asset-workspace',
+    '/project/content-units/editor?workspaceId=workspace-asset-workspace',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({ id: 'workspace-script', kind: 'production_workspace' })),
@@ -78,7 +78,7 @@ test('workspace review path is resolved from the shared frontend workspace model
       kind: 'asset_workspace',
       target: { entityType: 'asset_slot', entityId: 88 },
     })),
-    '/project/pre-production?view=review&workspaceId=workspace-asset&asset_slot_id=88',
+    '/project/content-units/editor?workspaceId=workspace-asset&asset_slot_id=88',
   )
   assert.equal(
     buildWorkspaceReviewPath(workspace({

@@ -90,24 +90,24 @@ MOVSCRIPT_WORKSPACE_DIR=/tmp/movscript-debug pnpm --filter @movscript/desktop de
 
 ## Workspace Model
 
-MovScript treats each project Git repository as the project workspace. Business source files live under `edit/`; successful builds write the current effective state under `.build/`. The `.movscript/` directory inside the repo is only the local control directory for app/provider configuration and backend auth.
+MovScript treats each project Git repository as the project workspace. Business source files live under `edit/`; successful interprets write the current effective state under `.interpret/`. The `.movscript/` directory inside the repo is only the local control directory for app/provider configuration and backend auth.
 
 ```text
 project.json
 workspace.json
 edit/                       Editable business files
-.build/
-├── current/                Last successful build state
-├── indexes/                Built domain indexes
+.interpret/
+├── current/                Last successful interpreted state
+├── indexes/                Derived domain indexes
 ├── reviews/                Review evidence
-└── manifests/              Build manifests
+└── manifests/              Interpret manifests
 .movscript/
 ├── manifest.json           Local workspace control contract
 ├── providers/              Provider configs, sessions, runs, and cache
 └── backend/                Local backend auth and connection config
 ```
 
-Workspace tools are `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_build`. Review compares `.build/current` to `edit/`; build validates `edit/`, updates `.build/current`, and writes indexes/manifests. Git commit/push persists a successful build in repo history.
+Workspace tools are `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_interpret`. Review compares `.interpret/current` to `edit/`; interpret validates `edit/`, updates `.interpret/current`, and writes indexes/manifests. Git commit/push persists a successful interpret step in repo history.
 
 See [docs/workspace-ontology.zh-CN.md](docs/workspace-ontology.zh-CN.md) for the current workspace ontology.
 

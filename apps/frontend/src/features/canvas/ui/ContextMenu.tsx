@@ -3,6 +3,10 @@ import { useTranslation } from 'react-i18next'
 import type { CanvasType, NodeType } from '@/types'
 import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '@/features/canvas/presentation/nodeCatalog'
 import { isPaletteNodeTypeAvailable } from '@/features/canvas/editor/nodeFactory'
+import {
+  canvasContextMenuPositionFromElement,
+  canvasContextMenuStyleFromPosition,
+} from '@/features/canvas/presentation/canvasContextMenuPlacement'
 import { Boxes, Trash2, Ungroup } from 'lucide-react'
 import {
   CanvasContextMenuView,
@@ -16,6 +20,8 @@ const CONTEXT_MENU_MEDIA_NODE_TYPES = new Set<NodeType>(['text'])
 interface Props {
   x: number
   y: number
+  positioning?: 'fixed' | 'viewport'
+  boundary?: { width: number; height: number }
   canvasType: CanvasType
   onAdd: (type: NodeType) => void
   onClose: () => void
@@ -27,7 +33,21 @@ interface Props {
   hasSelection?: boolean
 }
 
-export function ContextMenu({ x, y, canvasType, onAdd, onClose, selectedCount, selectedGroupCount, onGroupSelected, onUngroupSelected, onDeleteSelected, hasSelection }: Props) {
+export function ContextMenu({
+  x,
+  y,
+  positioning = 'fixed',
+  boundary,
+  canvasType,
+  onAdd,
+  onClose,
+  selectedCount,
+  selectedGroupCount,
+  onGroupSelected,
+  onUngroupSelected,
+  onDeleteSelected,
+  hasSelection,
+}: Props) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
@@ -84,13 +104,14 @@ export function ContextMenu({ x, y, canvasType, onAdd, onClose, selectedCount, s
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    const padding = 8
-    setPosition({
-      left: Math.min(Math.max(padding, x), window.innerWidth - rect.width - padding),
-      top: Math.min(Math.max(padding, y), window.innerHeight - rect.height - padding),
-    })
-  }, [x, y])
+    setPosition(canvasContextMenuPositionFromElement({
+      element: el,
+      x,
+      y,
+      positioning,
+      boundary,
+    }))
+  }, [boundary?.height, boundary?.width, positioning, x, y])
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -103,7 +124,8 @@ export function ContextMenu({ x, y, canvasType, onAdd, onClose, selectedCount, s
   return (
     <CanvasContextMenuView
       ref={ref}
-      style={{ left: position.left, top: position.top }}
+      className={positioning === 'viewport' ? 'canvas-context-menu--viewport' : undefined}
+      style={canvasContextMenuStyleFromPosition(position)}
       actions={actions}
       sections={sections}
     />

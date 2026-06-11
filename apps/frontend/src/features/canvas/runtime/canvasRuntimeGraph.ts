@@ -1,6 +1,25 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasNodeData, CanvasPortType, CanvasPortValue, RawResource } from '@/types'
 import { defaultHandleForNode, normalizeCanvasHandle, portsForNode } from '@/features/canvas/domain/ports'
+import {
+  firstRuntimeValue,
+  inputResourceIdsFromValues,
+  resourceIdsFromCanvasPrompt,
+  runtimePromptForNode,
+  runtimeResourceIdsForNode,
+  topoSortCanvasNodes,
+  valuesHaveRuntimeValue,
+} from '@movscript/core/canvas'
+
+export {
+  firstRuntimeValue,
+  inputResourceIdsFromValues,
+  resourceIdsFromCanvasPrompt,
+  runtimePromptForNode,
+  runtimeResourceIdsForNode,
+  topoSortCanvasNodes,
+  valuesHaveRuntimeValue,
+} from '@movscript/core/canvas'
 
 export type CanvasRuntimeInputValues = Record<string, CanvasPortValue | CanvasPortValue[]>
 export type CanvasRuntimeOutputValues = Record<string, CanvasPortValue>
@@ -19,7 +38,6 @@ export interface CanvasRuntimeCollectedInputs {
   upstreamNodeIds: string[]
 }
 
-const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
 const MEDIA_PORT_TYPES = new Set<CanvasPortType>(['image', 'video', 'audio', 'text', 'resource'])
 
 export function collectCanvasNodeInputs(input: CanvasRuntimeGraphInput & { nodeId: string }): CanvasRuntimeCollectedInputs {
@@ -58,38 +76,6 @@ export function canvasRuntimeOrderForNode(nodeId: string, nodes: Node[], edges: 
   }
   visit(nodeId)
   return topoSortCanvasNodes(nodes.filter((node) => upstream.has(node.id) || node.id === nodeId), edges)
-}
-
-export function topoSortCanvasNodes(nodes: Node[], edges: Edge[]) {
-  const ids = new Set(nodes.map((node) => node.id))
-  const indegree = new Map<string, number>()
-  const outgoing = new Map<string, string[]>()
-  for (const node of nodes) indegree.set(node.id, 0)
-  for (const edge of edges) {
-    if (!ids.has(edge.source) || !ids.has(edge.target)) continue
-    indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1)
-    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target])
-  }
-
-  const queue = nodes.filter((node) => (indegree.get(node.id) ?? 0) === 0)
-  const ordered: Node[] = []
-  for (let index = 0; index < queue.length; index += 1) {
-    const node = queue[index]
-    ordered.push(node)
-    for (const next of outgoing.get(node.id) ?? []) {
-      const count = (indegree.get(next) ?? 0) - 1
-      indegree.set(next, count)
-      if (count === 0) {
-        const nextNode = nodes.find((item) => item.id === next)
-        if (nextNode) queue.push(nextNode)
-      }
-    }
-  }
-  if (ordered.length !== nodes.length) {
-    const orderedIds = new Set(ordered.map((node) => node.id))
-    return [...ordered, ...nodes.filter((node) => !orderedIds.has(node.id))]
-  }
-  return ordered
 }
 
 export function canvasNodeOutputValue(
@@ -138,71 +124,6 @@ export function reusableCanvasNodeOutputValues(
   outputs.value = outputs.value ?? primary
   outputs[node.id] = outputs[node.id] ?? primary
   return outputs
-}
-
-export function valuesHaveRuntimeValue(values: CanvasPortValue[] | undefined) {
-  return (values ?? []).some((value) => (
-    value.resource_id !== undefined
-    || value.text !== undefined
-    || value.json !== undefined
-    || value.number !== undefined
-    || value.boolean !== undefined
-  ))
-}
-
-export function firstRuntimeValue(inputs: Record<string, CanvasPortValue[]>, handles: string[]) {
-  for (const handle of handles) {
-    const value = inputs[handle]?.find((item) => valuesHaveRuntimeValue([item]))
-    if (value) return value
-  }
-  return Object.values(inputs).flat().find((item) => valuesHaveRuntimeValue([item]))
-}
-
-export function runtimePromptForNode(node: Node, inputs: Record<string, CanvasPortValue[]>) {
-  const data = node.data as Partial<CanvasNodeData>
-  const promptParts = [data.prompt?.trim()].filter(Boolean) as string[]
-  const upstreamText = Object.values(inputs)
-    .flat()
-    .map((value) => value.text)
-    .filter((value): value is string => Boolean(value?.trim()))
-  if (upstreamText.length > 0) {
-    promptParts.push(upstreamText.join('\n\n'))
-  }
-  return promptParts.join('\n\n').trim()
-}
-
-export function resourceIdsFromCanvasPrompt(prompt: string | undefined) {
-  const ids: number[] = []
-  const seen = new Set<number>()
-  for (const match of (prompt ?? '').matchAll(RESOURCE_MENTION_RE)) {
-    const id = Number(match[1])
-    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue
-    seen.add(id)
-    ids.push(id)
-  }
-  return ids
-}
-
-export function inputResourceIdsFromValues(inputs: Record<string, CanvasPortValue[]>) {
-  return [...new Set(Object.values(inputs)
-    .flat()
-    .map((value) => value.resource_id)
-    .filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0))]
-}
-
-export function runtimeResourceIdsForNode(node: Node, inputs: Record<string, CanvasPortValue[]>) {
-  const data = node.data as Partial<CanvasNodeData>
-  const ordered = [
-    ...resourceIdsFromCanvasPrompt(data.prompt),
-    ...(data.inputResourceIds ?? []),
-    ...inputResourceIdsFromValues(inputs),
-  ]
-  const seen = new Set<number>()
-  return ordered.filter((id) => {
-    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) return false
-    seen.add(id)
-    return true
-  })
 }
 
 function normalizePortValueList(value: CanvasPortValue | CanvasPortValue[]) {

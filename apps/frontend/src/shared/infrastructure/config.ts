@@ -1,19 +1,16 @@
 import type { AppSettings } from '@/shared/contracts/appSettings'
+import {
+  isLocalLaunchMode,
+  normalizeAPIBaseURL,
+  trimTrailingSlash,
+} from '@movscript/core/shared'
 
 const DEFAULT_API_ORIGIN = 'http://localhost:8765'
 const LOCAL_API_ORIGIN = 'http://localhost:8766'
 export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
 
 export type { AppSettings }
-
-export function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '')
-}
-
-export function normalizeAPIBaseURL(value: string): string {
-  const trimmed = trimTrailingSlash(value.trim())
-  return trimmed.endsWith('/api/v1') ? trimmed.slice(0, -'/api/v1'.length) : trimmed
-}
+export { isLocalLaunchMode, normalizeAPIBaseURL, trimTrailingSlash }
 
 function readStoredAPIBaseURL(): string | null {
   if (typeof window === 'undefined') return null
@@ -31,10 +28,6 @@ function readStoredAPIBaseURL(): string | null {
   } catch {
     return null
   }
-}
-
-export function isLocalLaunchMode(settings?: Pick<AppSettings, 'launchMode'> | null): boolean {
-  return settings?.launchMode === 'local'
 }
 
 export function getDefaultAPIBaseURL(): string {

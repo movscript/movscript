@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import {
-  STOPPED_PROVIDER_SESSION_STATUS_LIGHT,
   providerSessionStatusLightFromStatusRecord,
   type ProviderSessionStatusLight,
-} from '@/features/agent/domain/providerSessionStatusLight'
+} from '@movscript/core/agent'
+import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
 import { providerSessionClient, type ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
 
 export interface ProviderSessionStatusLightWatchTarget {

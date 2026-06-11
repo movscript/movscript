@@ -61,7 +61,7 @@ import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { providerSessionApprovalImpactText, providerSessionApprovalPermissionText, providerSessionApprovalRiskText } from '@/features/agent/components/providerSessionInteractions'
 import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
-import { agentRunPath } from '@/routes/projectRoutes'
+import { ROUTES } from '@/routes/projectRoutes'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 
 const DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS: PlanDispatchSettings = {
@@ -151,7 +151,7 @@ export function AgentPlanOverviewPanel({
   }
   const openRun = (runId: string | undefined) => {
     if (!runId) return
-    navigate(agentRunPath(runId, { sessionId: snapshot.taskGraph.sessionId }))
+    navigate(ROUTES.agentConsole)
   }
   const loadTraceSummary = async (runId: string) => {
     if (traceSummaries[runId] || loadingTraceSummaryRunId === runId) return
@@ -470,10 +470,10 @@ export function AgentPlanOverviewPanel({
                           <AgentPlanOverviewActionButton
                             type="button"
                             variant="ghost"
-                            onClick={() => navigate(agentRunPath(view.worker!.id, { sessionId: view.worker?.sessionId ?? snapshot.taskGraph.sessionId }))}
+                            onClick={() => navigate(ROUTES.agentConsole)}
                           >
                             <Route size={10} />
-                            详情
+                            Agent 控制台
                           </AgentPlanOverviewActionButton>
                           <AgentPlanOverviewActionButton
                             type="button"

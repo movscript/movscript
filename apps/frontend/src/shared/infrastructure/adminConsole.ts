@@ -1,9 +1,7 @@
-import { normalizeAPIBaseURL } from '@/shared/infrastructure/config'
+import { resolveAdminConsoleURL } from '@movscript/core/backend'
 
 export function adminConsoleURL(baseURL: string, path = ''): string {
-  const base = normalizeAPIBaseURL(baseURL)
-  const adminPath = normalizeAdminPath(path)
-  return `${base}/admin${adminPath}`
+  return resolveAdminConsoleURL({ baseURL, path })
 }
 
 export async function openAdminConsole(baseURL: string, path = ''): Promise<void> {
@@ -13,11 +11,4 @@ export async function openAdminConsole(baseURL: string, path = ''): Promise<void
     return
   }
   window.open(adminConsoleURL(baseURL, path), '_blank', 'noopener,noreferrer')
-}
-
-function normalizeAdminPath(path: string): string {
-  const trimmed = path.trim().replace(/^\/+/, '')
-  if (!trimmed || trimmed === 'admin') return ''
-  const withoutAdminPrefix = trimmed.startsWith('admin/') ? trimmed.slice('admin/'.length) : trimmed
-  return `/${withoutAdminPrefix}`
 }

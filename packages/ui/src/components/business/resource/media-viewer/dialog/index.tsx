@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogOverlay,
   DialogPortal,
+  DialogTitle,
 } from "../../../../primitives/dialog";
 
 export function ResourceMediaDialog({
@@ -46,7 +47,7 @@ export function ResourceMediaDialog({
           <AppSurfaceItem className={cn("resource-media-dialog", !sidePanel && "resource-media-dialog--compact")}>
             <div className="resource-media-dialog__header">
               <div className="resource-media-dialog__title-block">
-                <span className="resource-media-dialog__title">{name}</span>
+                <DialogTitle className="resource-media-dialog__title">{name}</DialogTitle>
                 {metadata ? <div className="resource-media-dialog__metadata">{metadata}</div> : null}
               </div>
               <div className="resource-media-dialog__actions">

@@ -1,3 +1,4 @@
+import { publicAgentBackendModelId } from '@movscript/core/agent'
 import type { PublicModel } from '@/types'
 
 export function publicModelLabel(model: PublicModel, includeProvider = false): string {
@@ -6,5 +7,5 @@ export function publicModelLabel(model: PublicModel, includeProvider = false): s
 }
 
 export function publicModelId(model: PublicModel): string {
-  return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `model_config:${model.id}`
+  return publicAgentBackendModelId(model)
 }

@@ -7,12 +7,13 @@ import { spawn } from 'node:child_process'
 const scriptDir = fileURLToPath(new URL('.', import.meta.url))
 const appDir = resolve(scriptDir, '..')
 const repoDir = resolve(appDir, '../..')
-const workspaceDir = resolve(process.env.MOVSCRIPT_WORKSPACE_DIR || resolve(repoDir, '.movscript-dev'))
+const workspaceDir = resolve(process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || resolve(repoDir, '.movscript-dev', '.movscript'))
 
 mkdirSync(workspaceDir, { recursive: true })
 
 const env = {
   ...process.env,
+  MOVSCRIPT_HOME: workspaceDir,
   MOVSCRIPT_WORKSPACE_DIR: workspaceDir,
   MOVSCRIPT_BROWSER_DIAGNOSTICS: process.env.MOVSCRIPT_BROWSER_DIAGNOSTICS || '1',
   VITE_MOVSCRIPT_RENDER_DIAGNOSTICS: process.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS || '1',

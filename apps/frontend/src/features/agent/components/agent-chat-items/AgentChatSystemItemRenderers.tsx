@@ -3,14 +3,13 @@ import {
   AgentChatMessage,
   AgentMessageSection,
 } from '@movscript/ui'
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
+import { agentChatSystemItemView, type AgentChatThreadItem } from '@movscript/core/agent/chat'
 import {
   AgentChatInspectBlock,
   AgentChatInlineList,
   AgentChatSectionTitle,
   AgentChatTextBlock,
 } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks'
-import { agentChatSystemItemView } from '@/features/agent/domain/agentChatSystemItemViews'
 
 export function AgentChatSystemItem({ item }: { item: Extract<AgentChatThreadItem, { type: 'reviewMode' | 'systemNotice' | 'approvalReview' | 'contextCompaction' | 'unknown' }> }) {
   const view = agentChatSystemItemView(item)

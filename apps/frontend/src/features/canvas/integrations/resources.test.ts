@@ -41,3 +41,17 @@ test('canvas resource shelf keeps thumbnails visible for resources already on th
   assert.doesNotMatch(source, /\bsuppressPreview\b/)
   assert.doesNotMatch(source, /already-on-canvas/)
 })
+
+test('canvas resource integration reads resources directly without resource bindings', () => {
+  const integrationSource = readFileSync(resolve('src/features/canvas/integrations/resources.ts'), 'utf8')
+  const shelfSource = readFileSync(resolve('src/features/canvas/ui/CanvasResourceShelf.tsx'), 'utf8')
+  const workflowPanelSource = readFileSync(resolve('src/features/canvas/ui/CanvasWorkflowPanels.tsx'), 'utf8')
+
+  assert.match(integrationSource, /api\.get\('\/resources'/)
+  assert.doesNotMatch(integrationSource, /resource-bindings/)
+  assert.doesNotMatch(integrationSource, /canvas-dependencies/)
+  assert.doesNotMatch(integrationSource, /\bResourceBinding\b/)
+  assert.doesNotMatch(shelfSource, /\bdependencyBindings\b/)
+  assert.doesNotMatch(shelfSource, /selectedLabel/)
+  assert.doesNotMatch(workflowPanelSource, /\bdependencyBindings\b/)
+})

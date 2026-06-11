@@ -32,7 +32,6 @@ export function buildAgentChatActionBindingsInput({
       setSubmittedInteractionRuns: providerSessionState.setSubmittedInteractionRuns,
       updateConversationRuntimeState: store.updateConversationRuntimeState,
       setConversationRun: store.setConversationRun,
-      refreshProviderCatalogContext: context.refreshProviderCatalogContext,
     },
     planActions: {
       conversationId: conv.id,

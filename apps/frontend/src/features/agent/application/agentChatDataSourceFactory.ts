@@ -1,4 +1,4 @@
-import type { AgentChatDataSource, AgentChatModelSelection } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentChatDataSource, AgentChatModelSelection } from '@movscript/core/agent/chat'
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import {

@@ -38,7 +38,6 @@ test('generated result previews use the shared media preview component', () => {
   assert.match(source, /import \{ AgentAttachmentIcon, AgentAttachmentMediaPreview \}/)
   assert.match(source, /const resource = attachmentToResource\(attachment\)/)
   assert.match(source, /<AgentAttachmentMediaPreview attachment=\{attachment\} variant="result" thumbnailMaxSize=\{480\} \/>/)
-  assert.match(source, /<AgentAttachmentMediaPreview attachment=\{attachment\} variant="result" \/>/)
   assert.match(source, /<AgentAttachmentIcon type=\{attachment\.type\} size=\{12\} \/>/)
   assert.doesNotMatch(source, /function AttachmentIcon/)
   assert.doesNotMatch(source, /AuthedVideo/)

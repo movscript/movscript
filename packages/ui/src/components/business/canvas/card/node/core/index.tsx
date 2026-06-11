@@ -18,16 +18,19 @@ import { CanvasCardShell } from "../../shell";
 
 export function CanvasNodeCard({
   selected,
+  contentMode,
   className,
   children,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   selected?: boolean;
+  contentMode?: "text";
   children: ReactNode;
 }) {
   return (
     <CanvasCardShell
       selected={selected}
+      data-content-mode={contentMode}
       className={cn("canvas-node-card", className)}
       {...props}
     >
@@ -247,7 +250,7 @@ export function CanvasTextNodeView({
   const isRunning = status === "pending" || status === "running";
   const canEdit = editable ?? manual;
   return (
-    <CanvasNodeCard selected={selected}>
+    <CanvasNodeCard selected={selected} contentMode="text">
       {ports}
       <CanvasMediaNodeInfo>
         {meta ?? (

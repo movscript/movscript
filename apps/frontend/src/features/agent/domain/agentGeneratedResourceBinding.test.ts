@@ -11,6 +11,7 @@ import {
   generatedKeyframeCandidatePayload,
   generatedBindingErrorMessage,
   generatedBindingTargetLabel,
+  generatedTargetRecordId,
   generatedTargetRecordDescription,
   generatedTargetRecordLabel,
   generatedTargetRecordMeta,
@@ -77,6 +78,12 @@ test('generated target helpers build searchable labels and preview metadata', ()
 test('generated target label falls back to object kind and id', () => {
   assert.equal(generatedTargetRecordLabel({ ID: 9, kind: 'asset_slot' }), 'asset_slot #9 · asset_slot')
   assert.equal(generatedTargetRecordDescription({ ID: 9, visual_intent: '  high contrast keyframe  ' }), 'high contrast keyframe')
+})
+
+test('generated target id accepts numeric ids and workspace id suffixes only', () => {
+  assert.equal(generatedTargetRecordId({ ID: 9 }), 9)
+  assert.equal(generatedTargetRecordId({ id: 'asset_slot-31' } as Parameters<typeof generatedTargetRecordId>[0]), 31)
+  assert.equal(generatedTargetRecordId({ id: 'asset_slot_draft' } as Parameters<typeof generatedTargetRecordId>[0]), undefined)
 })
 
 test('generated binding error copy uses candidate wording by default', () => {

@@ -54,7 +54,10 @@ import {
 import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
 import { routeLayoutSpecForPathname } from '@/routes/routeLayoutRegistry'
-import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
+import {
+  routeLayoutOverlapPaneGroupPropsForVisibility,
+  useRouteLayoutOverlapPaneController,
+} from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
 import { scriptLibraryStatusRecipe } from '@/features/scripts/presentation/scriptsSemanticUi'
 import {
   SCRIPT_WORKBENCH_DETAIL_PANE_ID,
@@ -161,13 +164,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const scriptGroups = useMemo(() => groupScriptsByCategory(sortedScripts), [sortedScripts])
   const selected = selectedId ? scripts.find((s) => s.ID === selectedId) ?? null : null
   const hasSelectedScript = Boolean(selected)
-  const detailPaneLayoutProps = hasSelectedScript
-    ? detailPane.groupProps
-    : {
-        ...detailPane.groupProps,
-        'data-overlap-pane-collapsed': 'true' as const,
-        'data-overlap-pane-expanded': undefined,
-      }
+  const detailPaneLayoutProps = routeLayoutOverlapPaneGroupPropsForVisibility(detailPane.groupProps, hasSelectedScript)
   const workspaceSourceText = selected ? scriptWorkspaceSourceText(workspace, selected) : ''
   const hasWorkspaceBody = workspaceSourceText.trim().length > 0
   const versionsForSelected = useMemo(() => {

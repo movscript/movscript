@@ -7,7 +7,6 @@ import { ROUTES } from '@/routes/projectRoutes'
 
 const productionOrchestrationPaths: readonly string[] = [
   ROUTES.project.scripts,
-  ROUTES.project.productionOrchestration,
 ]
 
 export function ElectronMCPContextBridge() {

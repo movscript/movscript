@@ -47,12 +47,6 @@
   margin-top: var(--ms-space-5);
 }
 
-.project-overview-pipeline-grid {
-  display: grid;
-  gap: var(--ms-space-2);
-  margin-top: var(--ms-space-5);
-}
-
 .project-overview-meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -137,10 +131,6 @@
 @media (min-width: 1280px) {
   .project-overview-metric-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .project-overview-pipeline-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

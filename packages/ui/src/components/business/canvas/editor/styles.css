@@ -222,6 +222,17 @@
   padding: 32px;
 }
 
+.canvas-viewport-overlay-layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+}
+
+.canvas-viewport-overlay-layer > .canvas-context-menu {
+  pointer-events: auto;
+}
+
 .canvas-viewport-empty-state {
   max-width: 384px;
   border-style: dashed;

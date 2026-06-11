@@ -397,17 +397,6 @@
   margin-top: var(--ms-space-3);
 }
 
-.script-pipeline-panel__metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ms-space-2);
-  margin-top: var(--ms-space-3);
-}
-
-.script-pipeline-panel__source {
-  margin-top: var(--ms-space-3);
-}
-
 .script-workflow-step {
   display: flex;
   align-items: center;

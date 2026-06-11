@@ -1,13 +1,24 @@
 import type {
   AgentChatInput,
   AgentChatThreadItem,
-} from '@/features/agent/domain/agentChatThreadItems'
+} from '@movscript/core/agent/chat'
+import {
+  compactAgentChatThreadItemForRuntime,
+  isModelReachableRemoteUrl,
+} from '@movscript/core/agent/chat'
 import type {
   AppServerThreadItem,
   AppServerUserInput,
 } from '@/shared/infrastructure/app-server/appServerProtocol'
 
 export function agentChatThreadItemFromAppServerThreadTurnItem(
+  item: AppServerThreadItem,
+  options: { lifecycle?: 'started' | 'completed' } = {},
+): AgentChatThreadItem {
+  return compactAgentChatThreadItemForRuntime(agentChatThreadItemFromAppServerThreadTurnItemRaw(item, options))
+}
+
+function agentChatThreadItemFromAppServerThreadTurnItemRaw(
   item: AppServerThreadItem,
   options: { lifecycle?: 'started' | 'completed' } = {},
 ): AgentChatThreadItem {
@@ -183,10 +194,37 @@ function agentChatCommandActionFromAppServerThreadTurnItem(action: Extract<AppSe
 
 function agentChatInputFromAppServerThreadTurnItem(input: AppServerUserInput): AgentChatInput {
   if (input.type === 'text') return { type: 'text', text: input.text, textElements: input.text_elements }
-  if (input.type === 'image') return { type: 'image', url: input.url, detail: input.detail }
+  if (input.type === 'image') return agentChatImageInputFromAppServerThreadTurnItem(input)
   if (input.type === 'localImage') return { type: 'localImage', path: input.path, detail: input.detail, url: agentChatLocalPathPreviewUrl(input.path) }
   if (input.type === 'skill') return { type: 'skill', name: input.name, path: input.path }
   return agentChatMentionInputFromAppServerThreadTurnItem(input)
+}
+
+function agentChatImageInputFromAppServerThreadTurnItem(input: Extract<AppServerUserInput, { type: 'image' }>): AgentChatInput {
+  if (agentChatImageUrlIsApiReady(input.url)) return { type: 'image', url: input.url, detail: input.detail }
+  const resourceId = agentChatResourceMentionId(input.url)
+  if (resourceId !== undefined) {
+    return {
+      type: 'mention',
+      name: `resource-${resourceId}`,
+      path: `resource:${resourceId}`,
+      kind: 'image',
+      mimeType: 'image/*',
+      url: input.url,
+    }
+  }
+  return {
+    type: 'mention',
+    name: 'Image attachment',
+    path: input.url,
+    kind: 'image',
+    mimeType: 'image/*',
+    url: input.url,
+  }
+}
+
+function agentChatImageUrlIsApiReady(value: string): boolean {
+  return /^data:image\/[a-z0-9.+-]+[;,]/i.test(value) || isModelReachableRemoteUrl(value)
 }
 
 function agentChatDynamicToolContentItemsFromAppServerThreadTurnItem(contentItems: unknown[] | null | undefined): unknown[] | null | undefined {

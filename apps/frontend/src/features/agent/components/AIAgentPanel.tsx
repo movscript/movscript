@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { AgentUnifiedChatShell } from '@/features/agent/components/AgentUnifiedChatShell'
 import { useAIAgentPanelDockController } from '@/features/agent/presentation/useAIAgentPanelDockController'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { AgentPanelShell } from '@movscript/ui'
 
-export function AIAgentPanel() {
+export const AIAgentPanel = memo(function AIAgentPanel({
+  width,
+  onWidthChange,
+}: {
+  width: number
+  onWidthChange: (width: number) => void
+}) {
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
   const {
@@ -14,7 +20,10 @@ export function AIAgentPanel() {
     panelWidth,
     resizeHandleProps,
     toggleOpen,
-  } = useAIAgentPanelDockController()
+  } = useAIAgentPanelDockController({
+    panelWidth: width,
+    onPanelWidthChange: onWidthChange,
+  })
   const [renderPanel, setRenderPanel] = useState(open)
   const [animatedOpen, setAnimatedOpen] = useState(open)
 
@@ -56,4 +65,4 @@ export function AIAgentPanel() {
       />
     </AgentPanelShell>
   )
-}
+})

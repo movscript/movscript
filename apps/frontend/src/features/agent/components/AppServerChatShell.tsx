@@ -3,9 +3,12 @@ import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AgentChatDataSourceShell,
-  openAgentChatDataSourceThread,
   type AgentChatDataSourceShellLoadResult,
 } from '@/features/agent/components/AgentChatDataSourceShell'
+import {
+  openAgentChatDataSourceThread,
+  readStoredActiveThreadId,
+} from '@/features/agent/presentation/agentActiveThreadStorage'
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import {
   appServerRpcClientForURL,
@@ -39,15 +42,51 @@ export interface AppServerChatShellProps {
 }
 
 export function AppServerChatShell({
+  surface = 'panel',
+  ...props
+}: AppServerChatShellProps) {
+  const project = useProjectStore((state) => state.current)
+
+  if (surface === 'page') {
+    return <RouteAwareAppServerChatShell {...props} surface={surface} projectId={project?.ID} />
+  }
+
+  return (
+    <AppServerChatShellContent
+      {...props}
+      surface={surface}
+      routeWorkspaceContext={appServerProjectWorkspaceContext(project?.ID)}
+    />
+  )
+}
+
+function RouteAwareAppServerChatShell({
+  projectId,
+  ...props
+}: AppServerChatShellProps & {
+  projectId?: number
+}) {
+  const location = useLocation()
+  const routeWorkspaceContext = useMemo(() => appServerWorkspaceContextFromRoute({
+    projectId,
+    pathname: location.pathname,
+    search: location.search,
+  }), [location.pathname, location.search, projectId])
+
+  return <AppServerChatShellContent {...props} routeWorkspaceContext={routeWorkspaceContext} />
+}
+
+function AppServerChatShellContent({
   userId,
   provider,
   host,
   surface = 'panel',
   showCollapse,
   onCollapse,
-}: AppServerChatShellProps) {
-  const location = useLocation()
-  const project = useProjectStore((state) => state.current)
+  routeWorkspaceContext,
+}: AppServerChatShellProps & {
+  routeWorkspaceContext: MovScriptWorkspaceContext
+}) {
   const settings = useAgentStore((state) => state.settings)
   const updateSettings = useAgentStore((state) => state.updateSettings)
   const { data: textModels = [] } = useQuery({
@@ -62,11 +101,6 @@ export function AppServerChatShell({
     ...(selectedModel ? { model: publicModelId(selectedModel) } : {}),
   }), [selectedModel])
   const providerLabel = provider?.label?.trim() || 'App-server Provider'
-  const routeWorkspaceContext = useMemo(() => appServerWorkspaceContextFromRoute({
-    projectId: project?.ID,
-    pathname: location.pathname,
-    search: location.search,
-  }), [location.pathname, location.search, project?.ID])
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
     if (provider) await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
     if (provider && routeWorkspaceContext) return loadScopedAppServerDataSource({
@@ -96,6 +130,7 @@ export function AppServerChatShell({
 
   const activeThreadStorageKey = appServerActiveThreadStorageKey(provider)
   const openThreadEventName = appServerThreadOpenEvent(provider)
+  const readActiveThreadId = useCallback(() => readAppServerActiveThreadId(provider), [provider])
 
   return (
     <AgentChatDataSourceShell
@@ -103,6 +138,7 @@ export function AppServerChatShell({
       loadDataSource={loadDataSource}
       loadDataSourceForNewThread={loadDataSourceForNewThread}
       activeThreadStorageKey={activeThreadStorageKey}
+      readActiveThreadId={readActiveThreadId}
       openThreadEventName={openThreadEventName}
       providerLabel={providerLabel}
       threadListLabel={`${providerLabel} Threads`}
@@ -190,6 +226,14 @@ export function appServerWorkspaceContextFromRoute(input: {
   }
 }
 
+function appServerProjectWorkspaceContext(projectId?: number): MovScriptWorkspaceContext {
+  if (!projectId) return { scope: 'global' }
+  return {
+    scope: 'project',
+    projectId,
+  }
+}
+
 function productionIdFromLocation(pathname: string, search: string): number | undefined {
   const queryValue = new URLSearchParams(search).get('productionId') ?? new URLSearchParams(search).get('production_id')
   const queryId = positiveInteger(queryValue)
@@ -226,11 +270,12 @@ export function appServerThreadOpenEvent(provider?: ProviderConfig): string {
 }
 
 export function readAppServerActiveThreadId(provider?: ProviderConfig): string | null {
-  if (typeof window === 'undefined') return null
-  const current = window.localStorage.getItem(appServerActiveThreadStorageKey(provider))?.trim()
+  const current = readStoredActiveThreadId(appServerActiveThreadStorageKey(provider))
   if (current) return current
-  const compat = window.localStorage.getItem(appServerActiveThreadCompatStorageKey(provider))?.trim()
-  return compat || null
+  const compat = readStoredActiveThreadId(appServerActiveThreadCompatStorageKey(provider))
+  if (compat) return compat
+  if (provider) return readStoredActiveThreadId(ACTIVE_APP_SERVER_THREAD_STORAGE_KEY)
+  return null
 }
 
 function appServerProviderScopedKey(provider: ProviderConfig, suffix: string): string {

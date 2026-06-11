@@ -25,10 +25,10 @@ import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessa
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import { agentRunPath } from '@/routes/projectRoutes'
+import { ROUTES } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/presentation/agentActivityFeed'
-import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentRunApprovalDecisionInput } from '@/features/agent/application/agentRunInteractionActions'
@@ -104,16 +104,16 @@ export function RunActivityPanel({
       action={runId && (
         <AgentRunActivityDetailButton
           type="button"
-          title="打开完整运行详情"
-          aria-label="打开完整运行详情"
+          title="打开 Agent 控制台"
+          aria-label="打开 Agent 控制台"
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            navigate(agentRunPath(runId, { sessionId: run?.sessionId }))
+            navigate(ROUTES.agentConsole)
           }}
         >
           <Route size={10} />
-          详情
+          控制台
         </AgentRunActivityDetailButton>
       )}
       status={(
@@ -226,7 +226,7 @@ export function LiveRunActivityBubble({
 }
 
 function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEvent[]): string | undefined {
-  if (run && isTerminalAgentRunStatus(run.status)) return undefined
+  if (run && isAgentRunTerminalStatus(run.status)) return undefined
   const latest = [...events].reverse().find((event) => event.status === 'started' || event.status === 'info' || event.status === 'completed' || event.status === 'failed' || event.status === 'blocked')
   if (latest && latest.status !== 'started' && latest.status !== 'info') return undefined
   if (latest?.title === 'Model HTTP request sent') return '正在请求模型'

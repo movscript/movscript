@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react'
 import {
-  STOPPED_PROVIDER_SESSION_STATUS_LIGHT,
+  providerSessionStatusLightForTargetKeys as coreProviderSessionStatusLightForTargetKeys,
   type ProviderSessionStatusLight,
-} from '@/features/agent/domain/providerSessionStatusLight'
+} from '@movscript/core/agent'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
+import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
 import {
   providerSessionStatusLightController,
   providerSessionStatusLightTargetKeys,
@@ -25,7 +26,7 @@ export function useAgentConversationTabProviderSessionStatusLights(conversations
   const targetSignature = useMemo(() => providerSessionStatusLightTargetsSignature(tabProviderSessionTargets), [tabProviderSessionTargets])
   const targetsRef = useRef(tabProviderSessionTargets)
   targetsRef.current = tabProviderSessionTargets
-  const ownerIdRef = useRef<string>()
+  const ownerIdRef = useRef<string | undefined>(undefined)
   if (!ownerIdRef.current) {
     nextProviderSessionStatusLightOwnerId += 1
     ownerIdRef.current = `conversation-tab-provider-session-status-lights:${nextProviderSessionStatusLightOwnerId}`
@@ -54,12 +55,13 @@ export function useAgentConversationTabProviderSessionStatusLights(conversations
 
 export function providerSessionStatusLightForTargetKeys(
   providerSessionStatusLightsByTarget: Record<string, ProviderSessionStatusLight>,
-  targetKeys: string[],
+  targetKeys: readonly string[],
 ): ProviderSessionStatusLight {
-  const lights = targetKeys
-    .map((targetKey) => providerSessionStatusLightsByTarget[targetKey])
-    .filter((light): light is ProviderSessionStatusLight => Boolean(light))
-  return lights.find((light) => light.state !== 'stopped') ?? lights[0] ?? STOPPED_PROVIDER_SESSION_STATUS_LIGHT
+  return coreProviderSessionStatusLightForTargetKeys(
+    providerSessionStatusLightsByTarget,
+    targetKeys,
+    STOPPED_PROVIDER_SESSION_STATUS_LIGHT,
+  )
 }
 
 export interface AgentConversationTabProviderSessionTarget extends ProviderSessionStatusLightWatchTarget {

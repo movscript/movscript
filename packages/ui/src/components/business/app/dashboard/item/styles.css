@@ -1,4 +1,3 @@
-.app-dashboard-pipeline-step,
 .app-dashboard-entry {
   display: flex;
   min-width: 0;
@@ -10,17 +9,10 @@
   transition: border-color var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
-.app-dashboard-pipeline-step {
-  min-width: 136px;
-  flex: 1;
-  padding: 9px 0 9px 10px;
-}
-
 .app-dashboard-entry {
   padding: 10px 0 10px 10px;
 }
 
-.app-dashboard-pipeline-step:hover,
 .app-dashboard-entry:hover {
   border-left-color: var(--ms-color-primary);
 }

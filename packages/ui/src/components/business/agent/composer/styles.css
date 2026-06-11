@@ -9,7 +9,7 @@
   border: 1px solid var(--ms-agent-composer-border);
   border-radius: var(--ms-radius-composer);
   background: var(--ms-agent-composer-fill);
-  padding: 0;
+  padding: 9px 0;
   box-shadow:
     0 16px 38px color-mix(in srgb, var(--ms-color-foreground) 7%, transparent),
     0 1px 0 color-mix(in srgb, white 5%, transparent) inset;
@@ -17,6 +17,7 @@
 
 .ms-agent-shell--compact .ms-agent-composer {
   margin: 0 0 12px;
+  padding: 8px 0;
 }
 
 .ms-agent-composer:focus-within {

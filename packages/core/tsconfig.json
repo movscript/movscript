@@ -6,7 +6,14 @@
     "strict": true,
     "declaration": true,
     "outDir": "dist",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/engine": ["../engine/src/index.ts"],
+      "@movscript/engine/node": ["../engine/src/node.ts"],
+      "@movscript/interpreter": ["../interpreter/src/index.ts"],
+      "@movscript/interpreter/artifacts": ["../interpreter/src/artifacts/index.ts"],
+      "@movscript/interpreter/node": ["../interpreter/src/node.ts"]
+    }
   },
   "include": ["src"]
 }

@@ -793,12 +793,12 @@ function appServerPluginNotBootstrapped(): AppServerPluginBootstrap {
 
 function resolveAppServerHome(value: string | undefined, workspaceDir: string, providerKey: AppServerProviderKey): string {
   const defaultHome = defaultManagedAppServerHomePath(providerKey)
-  const input = value?.trim() || defaultHome
+  const input = normalizeMovScriptManagedAppServerHome(value?.trim() || defaultHome)
   if (input === '~' || input.startsWith('~/') || isAbsolute(input)) {
     throw new Error(`app-server home must be a MovScript-managed relative workspace path: ${input}`)
   }
   if (!isMovScriptManagedAppServerHome(input)) {
-    throw new Error(`app-server home must be under a MovScript-managed provider home such as .movscript/.<provider>: ${input}`)
+    throw new Error(`app-server home must be under a MovScript-managed provider home such as .<provider>: ${input}`)
   }
   const root = resolve(workspaceDir || process.cwd())
   const resolved = resolve(root, input)
@@ -840,12 +840,16 @@ function isMovScriptManagedAppServerHome(value: string): boolean {
 }
 
 function defaultManagedAppServerHomePath(providerKey: AppServerProviderKey): string {
-  return `.movscript/.${providerKey}`
+  return `.${providerKey}`
+}
+
+function normalizeMovScriptManagedAppServerHome(value: string): string {
+  return value.replace(/^\.movscript[\\/](\.[^\\/]+)/, '$1')
 }
 
 function appServerKeyFromManagedHome(value: string): AppServerProviderKey | undefined {
   const normalized = value.replace(/\\/g, '/')
-  const match = normalized.match(/^\.movscript\/\.([a-z0-9][a-z0-9_-]*)(?:\/.*)?$/i)
+  const match = normalized.match(/^(?:\.movscript\/)?\.([a-z0-9][a-z0-9_-]*)(?:\/.*)?$/i)
   return normalizeAppServerKey(match?.[1])
 }
 

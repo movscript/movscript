@@ -1,3 +1,1 @@
-export function isActiveSemanticEntityRecord(record: Record<string, unknown>) {
-  return !Boolean(record.__delete ?? record.deleted)
-}
+export { isActiveSemanticEntityRecord } from '@movscript/core/shared'

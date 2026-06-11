@@ -55,8 +55,6 @@ export interface CommitAgentSendWorkspaceDeps {
   refetchProviderSessionHealth: () => Promise<unknown>
   isProviderSessionAbortError: (error: unknown) => boolean
   thinkingStateForRun: (run: AgentRun) => AgentThinkingState
-  runTouchesProviderCatalog: (run: AgentRun) => boolean
-  refreshProviderCatalogContext: () => void
   cancelGenerationJobIfActive: AgentSendRunUpdateDeps['cancelGenerationJobIfActive']
   toastError: (error: unknown) => void
   labels: {
@@ -213,8 +211,6 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
           getConversationRuntimeState: () => useAgentSessionStore.getState().conversationRuntimeStates[deps.conversationId],
           setPendingAssistantState: deps.setPendingAssistantState,
           thinkingStateForRun: deps.thinkingStateForRun,
-          runTouchesProviderCatalog: deps.runTouchesProviderCatalog,
-          refreshProviderCatalogContext: deps.refreshProviderCatalogContext,
           setPageTaskRunning: (requestId, patch) => deps.setPageTaskRunning(requestId, patch),
           setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
           updateConversationRuntimeState: (patch) => deps.updateConversationRuntimeState(deps.conversationId, patch),
@@ -269,8 +265,6 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
               getConversationRuntimeState: () => useAgentSessionStore.getState().conversationRuntimeStates[deps.conversationId],
               setPendingAssistantState: deps.setPendingAssistantState,
               thinkingStateForRun: deps.thinkingStateForRun,
-              runTouchesProviderCatalog: deps.runTouchesProviderCatalog,
-              refreshProviderCatalogContext: deps.refreshProviderCatalogContext,
               setPageTaskRunning: (requestId, patch) => deps.setPageTaskRunning(requestId, patch),
               setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
               updateConversationRuntimeState: (patch) => deps.updateConversationRuntimeState(deps.conversationId, patch),
@@ -308,8 +302,6 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
         setPendingHttpEvents: deps.setPendingHttpEvents,
         setPendingAssistantState: deps.setPendingAssistantState,
         setLiveTraceEvents: deps.setLiveTraceEvents,
-        runTouchesProviderCatalog: deps.runTouchesProviderCatalog,
-        refreshProviderCatalogContext: deps.refreshProviderCatalogContext,
         notifyRunSettled: notifyAgentPanelRunSettled,
       },
     })

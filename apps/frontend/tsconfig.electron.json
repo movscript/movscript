@@ -20,11 +20,50 @@
       "@movscript/core/backend/node": [
         "../../packages/core/src/backend/node/index.ts"
       ],
+      "@movscript/core/generation": [
+        "../../packages/core/src/generation/index.ts"
+      ],
+      "@movscript/core/production": [
+        "../../packages/core/src/production/index.ts"
+      ],
+      "@movscript/core/resources": [
+        "../../packages/core/src/resources/index.ts"
+      ],
+      "@movscript/core/shot-library": [
+        "../../packages/core/src/shot-library/index.ts"
+      ],
+      "@movscript/core/shared": [
+        "../../packages/core/src/shared/index.ts"
+      ],
+      "@movscript/core/agent": [
+        "../../packages/core/src/agent/index.ts"
+      ],
+      "@movscript/core/agent/chat": [
+        "../../packages/core/src/agent/chat/index.ts"
+      ],
+      "@movscript/core/agent/protocol": [
+        "../../packages/core/src/agent/protocol.ts"
+      ],
       "@movscript/core/plugins": [
         "../../packages/core/src/plugins/index.ts"
       ],
       "@movscript/core/plugins/node": [
         "../../packages/core/src/plugins/node/index.ts"
+      ],
+      "@movscript/engine": [
+        "../../packages/engine/src/index.ts"
+      ],
+      "@movscript/engine/node": [
+        "../../packages/engine/src/node.ts"
+      ],
+      "@movscript/interpreter": [
+        "../../packages/interpreter/src/index.ts"
+      ],
+      "@movscript/interpreter/artifacts": [
+        "../../packages/interpreter/src/artifacts/index.ts"
+      ],
+      "@movscript/interpreter/node": [
+        "../../packages/interpreter/src/node.ts"
       ]
     }
   },

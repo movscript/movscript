@@ -66,7 +66,7 @@ export function AgentArtifactResultCards({ artifacts }: { artifacts?: AgentTaskA
                 variant="outline"
                 className="shrink-0 px-1.5 type-tiny"
                 disabled={!openPath && workspacesQuery.isLoading && !workspace}
-                onClick={() => navigate(openPath ?? ROUTES.agentRuns)}
+                onClick={() => navigate(openPath ?? ROUTES.agentConsole)}
               >
                 <Route size={10} />
                 {openPath ? t('agents.chat.panel.workspaces.openPage') : t('agents.chat.panel.workspaces.history')}

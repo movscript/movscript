@@ -8,6 +8,7 @@ export function AppWindowHeader({
   isMacOS = true,
   windowControls,
   leftControls,
+  leftControlsLayout,
   controls,
   centerContent,
   fallbackBrand,
@@ -17,6 +18,7 @@ export function AppWindowHeader({
   isMacOS?: boolean;
   windowControls?: React.ReactNode;
   leftControls?: React.ReactNode;
+  leftControlsLayout?: "default" | "fill";
   controls?: React.ReactNode;
   centerContent?: React.ReactNode;
   fallbackBrand?: React.ReactNode;
@@ -31,7 +33,14 @@ export function AppWindowHeader({
       {...props}
     >
       {isMacOS && windowControls ? <div className="app-window-header__window-controls app-window-no-drag">{windowControls}</div> : null}
-      {leftControls ? <div className="app-window-header__left-controls app-window-no-drag">{leftControls}</div> : null}
+      {leftControls ? (
+        <div
+          className="app-window-header__left-controls app-window-no-drag"
+          data-layout={leftControlsLayout === "fill" ? "fill" : undefined}
+        >
+          {leftControls}
+        </div>
+      ) : null}
       {!isMacOS && controls}
       {centerContent ? <div className="app-window-header__center">{centerContent}</div> : (fallbackBrand ?? <div className="app-window-header__spacer" />)}
       {isMacOS && controls}

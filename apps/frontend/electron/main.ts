@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import { installChromiumRenderDiagnostics } from './diagnostics/rendering'
 import { installApplicationMenu } from './appMenu'
 import { createWindow } from './appWindow'
@@ -25,6 +25,9 @@ app.whenReady().then(async () => {
     await bootstrapManagedServicesBeforeWindow()
   } catch (error) {
     console.error('[bootstrap] failed to start desktop services', error)
+    dialog.showErrorBox('MovScript failed to start', error instanceof Error ? error.message : String(error))
+    app.quit()
+    return
   }
 
   createWindow()

@@ -12,7 +12,7 @@ export function workspaceTools(): MCPTool[] {
   return [
     {
       name: 'movscript_workspace_get_model',
-      description: 'Compatibility alias for domain_get_model. Return the movscript-lang workspace model for one editable domain entity: editable source paths, context paths, schema ids, supported write APIs, and agent instructions. This is project-scoped and does not write files.',
+      description: 'Return the movscript-lang workspace model for one editable domain entity: editable source paths, context paths, schema ids, supported write APIs, and agent instructions. This is project-scoped and does not write files.',
       inputSchema: projectSchema(
         {
           ...workspaceLocator,
@@ -38,12 +38,12 @@ export function workspaceTools(): MCPTool[] {
     },
     {
       name: 'movscript_workspace_review',
-      description: 'Compatibility alias for domain_review. Inspect current source files by comparing them with .build/current. Reports changed files, changed entities, schema/domain issues, and compile readiness. This does not make edits effective.',
+      description: 'Review current source files by comparing them with .interpret/current. Reports changed files, changed entities, schema/domain issues, and interpret readiness. This does not make edits effective.',
       inputSchema: projectSchema(workspaceLocator),
     },
     {
-      name: 'movscript_workspace_build',
-      description: 'Compatibility alias for domain_compile/domain_build. Compile current source files into .build/current and .build/indexes. Compile must succeed before edits become current effective workspace state.',
+      name: 'movscript_workspace_interpret',
+      description: 'Interpret current source files into .interpret/current and .interpret/indexes. Interpret must succeed before edits become current effective workspace state.',
       inputSchema: projectSchema(workspaceLocator),
     },
   ]

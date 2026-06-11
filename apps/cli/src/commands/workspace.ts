@@ -3,9 +3,9 @@ import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 import { createNodeMovScriptEngine } from '@movscript/engine/node'
 import { getMovScriptWorkspaceModel } from '@movscript/workspace'
 import type {
-  MovScriptWorkspaceBuildResult,
+  MovScriptWorkspaceInterpretResult,
   MovScriptWorkspaceReviewResult,
-} from '@movscript/compiler/node'
+} from '@movscript/interpreter/node'
 
 interface WorkspaceCommandOptions {
   workspace?: string
@@ -24,7 +24,7 @@ export function registerWorkspaceCommands(program: Command): void {
   const workspace = program
     .command('workspace')
     .alias('ws')
-    .description('Inspect, review, and build MovScript project workspaces')
+    .description('Inspect, review, and interpret MovScript project workspaces')
 
   workspace
     .command('get-model <entityType>')
@@ -43,7 +43,7 @@ export function registerWorkspaceCommands(program: Command): void {
 
   workspace
     .command('review')
-    .description('Review current MovScript source files against .build/current without making them effective')
+    .description('Review current MovScript source files against .interpret/current without making them effective')
     .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')
@@ -53,12 +53,12 @@ export function registerWorkspaceCommands(program: Command): void {
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
       const result = await workspaceEngine(options, command).review() as MovScriptWorkspaceReviewResult
       printResult(result, options)
-      if (!result.readyToBuild) process.exitCode = 2
+      if (!result.readyToInterpret) process.exitCode = 2
     })
 
   workspace
-    .command('build')
-    .description('Build current MovScript source files into .build/current and .build/indexes')
+    .command('interpret')
+    .description('Interpret current MovScript source files into .interpret/current and .interpret/indexes')
     .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')
@@ -66,7 +66,7 @@ export function registerWorkspaceCommands(program: Command): void {
     .option('--project-id <id>', 'Project id')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
-      const result = await workspaceEngine(options, command).compile() as MovScriptWorkspaceBuildResult
+      const result = await workspaceEngine(options, command).interpret() as MovScriptWorkspaceInterpretResult
       printResult(result, options)
       if (result.status === 'failed') process.exitCode = 2
     })

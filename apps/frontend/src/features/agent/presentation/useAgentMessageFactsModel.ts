@@ -4,6 +4,7 @@ import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFact
 import { agentMessageBubbleModel } from '@/features/agent/presentation/agentMessageBubbleModel'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { AgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 
 export interface UseAgentMessageBubbleModelInput {
   message: ChatMessage
@@ -14,7 +15,30 @@ export interface UseAgentMessageBubbleModelInput {
 }
 
 export function useAgentMessageFactsModel(message: ChatMessage, timelineActivity?: ChatRunActivity) {
-  return useMemo(() => buildAgentMessageFacts(message, { timelineActivity }), [message, timelineActivity])
+  return useMemo(() => cachedAgentMessageFacts(message, timelineActivity), [message, timelineActivity])
+}
+
+const messageFactsCache = new WeakMap<ChatMessage, {
+  noActivity?: AgentMessageFacts
+  byActivity?: WeakMap<ChatRunActivity, AgentMessageFacts>
+}>()
+
+export function cachedAgentMessageFacts(message: ChatMessage, timelineActivity?: ChatRunActivity): AgentMessageFacts {
+  let entry = messageFactsCache.get(message)
+  if (!entry) {
+    entry = {}
+    messageFactsCache.set(message, entry)
+  }
+  if (!timelineActivity) {
+    entry.noActivity ??= buildAgentMessageFacts(message)
+    return entry.noActivity
+  }
+  entry.byActivity ??= new WeakMap<ChatRunActivity, AgentMessageFacts>()
+  const cached = entry.byActivity.get(timelineActivity)
+  if (cached) return cached
+  const next = buildAgentMessageFacts(message, { timelineActivity })
+  entry.byActivity.set(timelineActivity, next)
+  return next
 }
 
 export function useAgentMessageBubbleModel({

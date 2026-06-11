@@ -78,21 +78,6 @@
   height: auto;
 }
 
-.ai-agent-panel-resizing,
-.ai-agent-panel-resizing * {
-  user-select: none !important;
-}
-
-.ai-agent-panel-resizing--x,
-.ai-agent-panel-resizing--x * {
-  cursor: col-resize !important;
-}
-
-.ai-agent-panel-resizing--x .ai-agent-panel {
-  transition: none !important;
-}
-
-.ai-agent-panel-resizing--y,
-.ai-agent-panel-resizing--y * {
-  cursor: row-resize !important;
+body.ui-resizable-panel-resizing--x .ai-agent-panel {
+  transition: none;
 }

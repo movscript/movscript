@@ -3,10 +3,12 @@ import test from 'node:test'
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasNodeData } from '@/types'
 import {
+  canvasDefaultClientPoint,
   canvasGroupAncestorIds,
   canvasGroupDescendantIds,
   canvasGroupSelectionBounds,
   canvasNodeWithGroupId,
+  compactCanvasLayoutRect,
   commonCanvasGroupId,
   findCanvasGroupDropTarget,
   resizeCanvasGroupsToFitMembers,
@@ -26,6 +28,37 @@ import {
 } from './ports'
 import { canvasGraphSignature, serializableCanvasNodeData } from './serialization'
 import { compareWorkflowIoNodes, ensureFinalOutputNode, isFinalOutputNode, normalizeWorkflowIoNodeOrders } from './graph'
+
+test('canvas coordinate space uses the canvas viewport center as the default client point', () => {
+  assert.deepEqual(canvasDefaultClientPoint({
+    containerRect: { left: 40, top: 60, width: 800, height: 500 },
+    viewportWidth: 1440,
+    viewportHeight: 900,
+  }), { x: 440, y: 310 })
+
+  assert.deepEqual(canvasDefaultClientPoint({
+    containerRect: null,
+    viewportWidth: 1200,
+    viewportHeight: 800,
+  }), { x: 600, y: 400 })
+})
+
+test('canvas layout rect diagnostics are formatted by the domain helper', () => {
+  assert.equal(compactCanvasLayoutRect({
+    width: 319.6,
+    height: 240.4,
+    left: 12.2,
+    top: 48.8,
+  }), '320x240+12+49')
+
+  assert.equal(compactCanvasLayoutRect(null), 'none')
+  assert.equal(compactCanvasLayoutRect({
+    width: Number.POSITIVE_INFINITY,
+    height: Number.NaN,
+    left: 0,
+    top: -1.2,
+  }), '0x0+0+-1')
+})
 
 test('canvas port handles normalize UI and persisted handle forms', () => {
   assert.equal(fromUiHandleId('in:prompt'), 'prompt')

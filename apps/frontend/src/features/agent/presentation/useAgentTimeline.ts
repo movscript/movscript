@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react'
 import { AGENT_TIMELINE_LOCAL_EVENT, isAcceptedSourceTimelineItem } from '@/features/agent/application/agentTimelineBridge'
 import {
-  EMPTY_AGENT_TIMELINE_STATE,
+  EMPTY_AGENT_TIMELINE_STATE as CORE_EMPTY_AGENT_TIMELINE_STATE,
   applyTimelineEvent,
   mergeTimelinePage,
   mergeTimelineResetPage,
   replaceTimelinePage,
-  type AgentTimelineState,
-} from '@/features/agent/application/agentTimelineState'
+  type AgentTimelineState as CoreAgentTimelineState,
+} from '@movscript/core/agent'
 import {
   beginAgentPerformanceOperation,
   finishAgentPerformanceOperation,
@@ -20,10 +20,14 @@ import {
   type AgentTimelineItem,
   type AgentTimelinePage,
 } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentTimelineStreamEvent } from '@movscript/core/agent'
 import { generationProgressListFromEvents } from '@/features/agent/domain/agentGenerationMedia'
 import type { ChatMessage, ChatMessageMeta } from '@/features/agent/state/agentStore'
 
 const TIMELINE_PAGE_SIZE = 10
+const EMPTY_AGENT_TIMELINE_STATE = CORE_EMPTY_AGENT_TIMELINE_STATE as CoreAgentTimelineState<AgentTimelineItem>
+
+type AgentTimelineState = CoreAgentTimelineState<AgentTimelineItem>
 
 interface UseAgentTimelineInput {
   providerSessionId?: string
@@ -43,7 +47,7 @@ interface AgentTimelineView {
 type TimelineAction =
   | { type: 'replace'; scopeKey: string; page: AgentTimelinePage }
   | { type: 'merge'; scopeKey: string; page: AgentTimelinePage }
-  | { type: 'event'; scopeKey: string; event: Parameters<typeof applyTimelineEvent>[1] }
+  | { type: 'event'; scopeKey: string; event: AgentTimelineStreamEvent<AgentTimelineItem> }
   | { type: 'loading'; scopeKey: string; loading: boolean }
   | { type: 'reset'; scopeKey: string }
 

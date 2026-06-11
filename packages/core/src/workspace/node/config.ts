@@ -1,11 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import {
   ensureMovScriptWorkspaceRoot,
-  MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME,
-  MOVSCRIPT_WORKSPACE_DIR_NAME,
+  fallbackUserMovScriptHomeDir,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
+  resolveMovScriptHomeDir,
   resolveMovScriptWorkspaceRootPaths,
 } from './paths.js'
 export {
@@ -38,9 +37,9 @@ export function resolveMovScriptWorkspacePaths(
   workspaceDir = process.cwd(),
   input: { configDirName?: string } = {},
 ): MovScriptWorkspacePaths {
-  const rootDir = resolve(workspaceDir)
+  const rootDir = resolveMovScriptHomeDir(workspaceDir)
   const configDirName = normalizeMovScriptWorkspaceConfigDirName(input.configDirName) ?? MOVSCRIPT_WORKSPACE_CONFIG_DIR_NAME
-  const providerConfigsDir = join(rootDir, MOVSCRIPT_WORKSPACE_DIR_NAME, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME)
+  const providerConfigsDir = join(rootDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME)
   const configDir = join(providerConfigsDir, configDirName)
   return {
     workspaceDir: rootDir,
@@ -107,7 +106,8 @@ export function normalizeMovScriptWorkspaceConfigDirName(value: string | undefin
 }
 
 export function resolveDefaultMovScriptWorkspaceDir(): string {
-  return process.env.MOVSCRIPT_WORKSPACE_DIR
+  return process.env.MOVSCRIPT_HOME
+    || process.env.MOVSCRIPT_WORKSPACE_DIR
     || process.cwd()
 }
 
@@ -118,7 +118,7 @@ export function resolveMovScriptLangCwd(config: MovScriptWorkspaceConfig, worksp
 }
 
 export function fallbackUserMovScriptWorkspaceDir(): string {
-  return join(homedir(), MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME)
+  return fallbackUserMovScriptHomeDir()
 }
 
 function normalizeMovScriptWorkspaceConfigFile(configPath: string): void {

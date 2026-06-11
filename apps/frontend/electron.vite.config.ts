@@ -8,6 +8,7 @@ const coreSharedAlias = {
   '@movscript/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
   '@movscript/core/backend': resolve('../../packages/core/src/backend/index.ts'),
   '@movscript/core/plugins': resolve('../../packages/core/src/plugins/index.ts'),
+  '@movscript/core/resources': resolve('../../packages/core/src/resources/index.ts'),
 }
 
 const coreNodeAlias = {

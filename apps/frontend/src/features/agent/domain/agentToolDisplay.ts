@@ -14,6 +14,21 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   generation_image_job_get: '查看图像生成任务',
   generation_video_generate: '提交视频生成',
   generation_video_job_get: '查看视频生成任务',
+  movscript_shot_library_query: '查询镜头库',
+  movscript_shot_group_create: '创建镜头组',
+  movscript_shot_group_get: '读取镜头组',
+  movscript_shot_group_add_shots: '写入镜头组镜头',
+  movscript_video_shot_cuts_analyze: '分析视频切镜头',
+  movscript_resource_video_extract_frames: '抽取视频帧',
+  movscript_resource_upload: '上传资源',
+  domain_upsert_storyboard: '创建或更新分镜',
+  system_shot_library_query: '查询镜头库',
+  system_shot_group_create: '创建镜头组',
+  system_shot_group_get: '读取镜头组',
+  system_shot_group_add_shots: '写入镜头组镜头',
+  system_video_shot_cuts_analyze: '分析视频切镜头',
+  system_resource_video_extract_frames: '抽取视频帧',
+  system_resource_upload: '上传资源',
   generation_job_create: '创建生成任务',
   core_memory_create: '创建记忆',
   movscript_project_create: '创建项目',
@@ -163,6 +178,11 @@ function businessPermissionLabel(permission: string): string | undefined {
 
 function formatUnknownToolName(toolName: string): string {
   return toolName
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[\s_.:/-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ') || toolName
 }
 
 function permissionI18nKey(permission: string): string {

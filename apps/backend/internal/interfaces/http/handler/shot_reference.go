@@ -39,6 +39,7 @@ func (h *ShotReferenceHandler) List(c *gin.Context) {
 		UserID:   user.ID,
 		OrgID:    currentOrgID(c),
 		Query:    c.Query("q"),
+		GroupID:  optionalID(c.Query("group_id")),
 		Page:     parseInt(c.DefaultQuery("page", "1")),
 		PageSize: parseInt(c.DefaultQuery("page_size", "30")),
 	})
@@ -47,6 +48,49 @@ func (h *ShotReferenceHandler) List(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, page)
+}
+
+func (h *ShotReferenceHandler) CreateGroup(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var req createShotReferenceGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, shotReferenceErrorBody("invalid request", "group_create"))
+		return
+	}
+	group, err := h.service.CreateGroup(c.Request.Context(), appshotreference.CreateGroupInput{
+		UserID:      user.ID,
+		OrgID:       currentOrgID(c),
+		ResourceID:  req.ResourceID,
+		Title:       req.Title,
+		Summary:     req.Summary,
+		CutStrategy: req.CutStrategy,
+	})
+	if err != nil {
+		h.writeShotReferenceError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, group)
+}
+
+func (h *ShotReferenceHandler) GetGroup(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	detail, err := h.service.GetGroupDetail(c.Request.Context(), parseID(c.Param("id")), domainshotreference.ListInput{
+		UserID: user.ID,
+		OrgID:  currentOrgID(c),
+	})
+	if err != nil {
+		h.writeShotReferenceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, detail)
 }
 
 func (h *ShotReferenceHandler) AdminVectorStats(c *gin.Context) {
@@ -237,6 +281,13 @@ type createShotReferencesFromResourceRequest struct {
 	Shots       []patchShotReferenceRequest `json:"shots"`
 }
 
+type createShotReferenceGroupRequest struct {
+	ResourceID  uint   `json:"resource_id"`
+	Title       string `json:"title"`
+	Summary     string `json:"summary"`
+	CutStrategy string `json:"cut_strategy"`
+}
+
 func (req patchShotReferenceRequest) toUpdateInput() domainshotreference.UpdateInput {
 	input := domainshotreference.UpdateInput{
 		Title:   req.Title,
@@ -342,4 +393,12 @@ func optionalFloat(value string) *float64 {
 		return nil
 	}
 	return &parsed
+}
+
+func optionalID(value string) *uint {
+	id := parseID(value)
+	if id == 0 {
+		return nil
+	}
+	return &id
 }

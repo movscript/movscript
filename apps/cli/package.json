@@ -12,11 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@movscript/compiler": "0.1.0",
+    "@movscript/interpreter": "workspace:*",
     "@movscript/core": "workspace:*",
-    "@movscript/engine": "0.1.0",
-    "@movscript/workspace": "0.1.0",
-    "commander": "^12.0.0"
+    "@movscript/engine": "workspace:*",
+    "@movscript/workspace": "workspace:*",
+    "commander": "^12.0.0",
+    "@movscript/language": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

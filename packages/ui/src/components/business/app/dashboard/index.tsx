@@ -7,6 +7,6 @@ export {
   AppDashboardSectionHeader,
   AppDashboardSplit,
 } from "./layout";
-export { AppDashboardEntry, AppDashboardPipelineStep } from "./item";
+export { AppDashboardEntry } from "./item";
 export { AppDashboardLane, AppDashboardLaneSummary } from "./lane";
 export { AppDashboardMetric } from "./metric";

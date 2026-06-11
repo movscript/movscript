@@ -23,10 +23,10 @@ import {
 } from '@/shared/infrastructure/provider-session-client/requestSignal'
 import { withProviderSessionModelConfigError } from '@/shared/infrastructure/provider-session-client/modelConfigError'
 import { parseProviderSessionEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEvent'
-import { AGENT_TRACE_EVENT_KINDS, PROVIDER_MODEL_API_KINDS, isAgentRunStreamSettledStatus, isAgentRunTerminalStatus } from '@/features/agent/domain/agentProtocol'
+import { AGENT_TRACE_EVENT_KINDS, PROVIDER_MODEL_API_KINDS, isAgentRunStreamSettledStatus, isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 import { providerSessionRunFromEvent, providerSessionRunIdFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
-import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentThreadControlState } from '@movscript/core/agent/chat'
 import type {
   AgentApprovalRequest,
   ProviderSessionCapabilitiesResponse,

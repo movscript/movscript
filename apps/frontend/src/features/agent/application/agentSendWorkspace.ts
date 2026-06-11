@@ -1,12 +1,13 @@
 import { attachmentKey, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/features/agent/domain/agentCommandInput'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
+import { prepareProviderSessionAttachmentRefs, providerSessionAttachmentRef } from '@movscript/core/agent'
 import { type AgentAttachment, type AgentSettings } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel, RawResource } from '@/types'
 import type { ProviderSessionClientInput, ProviderManifest, ProviderSessionLimitsOverride, AgentRunPreview } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
-import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentThreadControlState } from '@movscript/core/agent/chat'
 
 export type AgentSendRoute = 'provider-session'
 
@@ -162,12 +163,12 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined
   const text = (options.message ?? input.workspaceInput).trim()
   const warnings: string[] = []
-  const sentAttachments = options.message === undefined
-    ? input.composerAttachments
-    : dedupeAttachments([
-      ...(options.clientInput?.attachments?.length ? options.clientInput.attachments.map(attachmentFromClientInputRef) : input.attachments),
-      ...resourceMentionAttachments(text, input.resourceAttachmentIndex),
-    ])
+  const sentAttachments = dedupeAttachments([
+    ...(options.message === undefined
+      ? input.composerAttachments
+      : (options.clientInput?.attachments?.length ? options.clientInput.attachments.map(attachmentFromClientInputRef) : input.attachments)),
+    ...resourceMentionAttachments(text, input.resourceAttachmentIndex),
+  ])
   const clientAttachmentRefs = await resolveProviderSessionClientAttachmentRefs(sentAttachments, input.resolveAttachmentDataUrl, (warning) => warnings.push(warning))
   const visibleText = (options.displayMessage ?? text).trim()
   const visibleUserContent = visibleText || input.attachmentOnlyMessageLabel
@@ -314,6 +315,8 @@ export function attachmentFromClientInputRef(attachment: NonNullable<ProviderSes
     size: attachment.size ?? 0,
     ...(attachment.resourceId !== undefined ? { resourceId: attachment.resourceId } : {}),
     ...(attachment.dataUrl ? { dataUrl: attachment.dataUrl } : {}),
+    ...(attachment.url ? { url: attachment.url } : {}),
+    ...(attachment.source ? { source: attachment.source } : {}),
   }
 }
 
@@ -351,19 +354,14 @@ async function resolveProviderSessionClientAttachmentRefs(
   resolveDataUrl?: (attachment: AgentAttachment) => Promise<string | undefined>,
   onWarning?: (warning: string) => void,
 ): Promise<NonNullable<ProviderSessionClientInput['attachments']>> {
-  return Promise.all(attachments.map(async (attachment) => {
-    let dataUrl = attachment.dataUrl
-    if (!dataUrl && isImageAttachment(attachment) && resolveDataUrl) {
-      try {
-        dataUrl = await resolveDataUrl(attachment)
-      } catch (error) {
-        const id = attachment.resourceId !== undefined ? `resource_id=${attachment.resourceId}` : attachment.id
-        const message = error instanceof Error ? error.message : String(error)
-        onWarning?.(`Image attachment ${attachment.name} (${id}) could not be loaded before send and will be metadata-only: ${message}`)
-      }
-    }
-    return providerSessionAttachmentToClientInputRef(dataUrl ? { ...attachment, dataUrl } : attachment)
-  }))
+  return prepareProviderSessionAttachmentRefs(attachments, {
+    resolver: resolveDataUrl
+      ? {
+          resolveDataUrl: ({ attachment }) => resolveDataUrl(attachment),
+        }
+      : undefined,
+    onWarning,
+  })
 }
 
 export function buildDebugHttpRequests(options: {
@@ -481,19 +479,7 @@ function parseResourceMentionIds(text: string): number[] {
 }
 
 function providerSessionAttachmentToClientInputRef(attachment: AgentAttachment): NonNullable<ProviderSessionClientInput['attachments']>[number] {
-  return {
-    id: attachment.id,
-    name: attachment.name,
-    type: attachment.type,
-    mimeType: attachment.mimeType,
-    size: attachment.size,
-    ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
-    ...(attachment.dataUrl ? { dataUrl: attachment.dataUrl } : {}),
-  }
-}
-
-function isImageAttachment(attachment: AgentAttachment): boolean {
-  return attachment.type === 'image' || attachment.mimeType.toLowerCase().startsWith('image/')
+  return providerSessionAttachmentRef(attachment)
 }
 
 function compactDebugValue(value: unknown, maxChars = 4000): unknown {

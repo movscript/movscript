@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { compactRunActivity, liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunProviderSessionTraceEvent } from '@/features/agent/domain/agentRunActivity'
-import { AGENT_PROTOCOL_VERSION, PROVIDER_SESSION_EVENT_V2_SCHEMA } from '@/features/agent/domain/agentProtocol'
+import { AGENT_PROTOCOL_VERSION, PROVIDER_SESSION_EVENT_V2_SCHEMA } from '@movscript/core/agent/protocol'
 import type { AgentRun, ProviderSessionEventV2, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 

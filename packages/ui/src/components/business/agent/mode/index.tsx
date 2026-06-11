@@ -1,4 +1,4 @@
-import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { forwardRef } from "react";
 
 import { cn } from "../../../../lib/cn";
@@ -24,12 +24,25 @@ export function AgentModeSidebar({
   className,
   resizing = false,
   collapsed = false,
+  width,
+  style,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   resizing?: boolean;
   collapsed?: boolean;
+  width?: number;
 }) {
-  return <aside data-collapsed={collapsed ? "true" : undefined} className={cn("agent-mode-sidebar", resizing && "agent-mode-sidebar--resizing", className)} {...props} />;
+  const resolvedStyle =
+    width === undefined ? style : ({ ...style, width } satisfies CSSProperties);
+
+  return (
+    <aside
+      data-collapsed={collapsed ? "true" : undefined}
+      className={cn("agent-mode-sidebar", resizing && "agent-mode-sidebar--resizing", className)}
+      style={resolvedStyle}
+      {...props}
+    />
+  );
 }
 
 export function AgentModeSidebarTop({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -107,11 +120,19 @@ export function AgentModeConversationRow({ className, ...props }: HTMLAttributes
 export function AgentModeConversationItem({
   className,
   hasAction = false,
+  description,
   ...props
 }: ComponentProps<typeof AgentConversationItem> & {
   hasAction?: boolean;
 }) {
-  return <AgentConversationItem className={cn("agent-mode-conversation", hasAction && "agent-mode-conversation--with-action", className)} {...props} />;
+  return (
+    <AgentConversationItem
+      className={cn("agent-mode-conversation", hasAction && "agent-mode-conversation--with-action", className)}
+      data-has-description={description ? "true" : undefined}
+      description={description}
+      {...props}
+    />
+  );
 }
 
 export function AgentModeConversationArchiveButton({ className, ...props }: ButtonProps) {
@@ -208,10 +229,32 @@ export function AgentModeContentPanel({
   className,
   resizing = false,
   collapsed = false,
+  width,
+  minWidth,
+  style,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   resizing?: boolean;
   collapsed?: boolean;
+  width?: number;
+  minWidth?: number;
 }) {
-  return <aside data-collapsed={collapsed ? "true" : undefined} className={cn("agent-mode-content-panel", resizing && "agent-mode-content-panel--resizing", className)} {...props} />;
+  const resolvedStyle =
+    width === undefined || collapsed
+      ? style
+      : ({
+          ...style,
+          width,
+          flexBasis: width,
+          ...(minWidth === undefined ? {} : { minWidth }),
+        } satisfies CSSProperties);
+
+  return (
+    <aside
+      data-collapsed={collapsed ? "true" : undefined}
+      className={cn("agent-mode-content-panel", resizing && "agent-mode-content-panel--resizing", className)}
+      style={resolvedStyle}
+      {...props}
+    />
+  );
 }

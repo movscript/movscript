@@ -1,6 +1,5 @@
-import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind } from '@/features/agent/domain/agentChatProtocol'
-import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
-import type { AppServerJsonValue, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
+import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind, AgentChatRunProfileSelection, AgentChatThreadReadInput } from '@movscript/core/agent/chat'
+import type { AppServerJsonValue, AppServerThread, AppServerTurn, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
 import { MOVA_PROVIDER_ID, type MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import {
   appServerThreadTurnItemServerRequestResponseFromAgentChat,
@@ -49,8 +48,25 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
       }
     },
     async readThread(threadId, input = {}) {
-      const response = await client.readThread(threadId, input)
-      return adapter.thread(response.thread, provider)
+      if (input.includeTurns === false || !appServerThreadReadShouldUseTurnPages(input) || typeof client.listThreadTurns !== 'function') {
+        const response = await client.readThread(threadId, input)
+        return adapter.thread(response.thread, provider)
+      }
+      try {
+        const turnsResponse = await client.listThreadTurns(appServerThreadTurnsListParams(threadId, input))
+        if (appServerThreadReadIsOlderPage(input)) {
+          return adapter.thread(appServerThreadTurnsListPageThread(threadId, turnsResponse.data, input), provider)
+        }
+        const metadataResponse = await client.readThread(threadId, { includeTurns: false })
+        return adapter.thread({
+          ...metadataResponse.thread,
+          turns: appServerThreadTurnsListPageTurns(turnsResponse.data, input),
+        }, provider)
+      } catch (error) {
+        if (!appServerThreadTurnsListCanFallback(error)) throw error
+        const response = await client.readThread(threadId, input)
+        return adapter.thread(response.thread, provider)
+      }
     },
     async resumeThread(input) {
       const modelSelection = modelSelectionForRequest(options, input)
@@ -217,6 +233,73 @@ function idText(value: string | number | undefined): string | undefined {
   return text || undefined
 }
 
+function appServerThreadReadShouldUseTurnPages(input: AgentChatThreadReadInput): boolean {
+  return input.includeTurns !== false
+}
+
+function appServerThreadReadIsOlderPage(input: AgentChatThreadReadInput): boolean {
+  return (input.direction ?? 'newer') === 'older'
+}
+
+function appServerThreadTurnsListParams(threadId: string, input: AgentChatThreadReadInput) {
+  const direction = input.direction ?? 'newer'
+  const beforeTurnId = input.beforeTurnId?.trim()
+  const afterTurnId = input.afterTurnId?.trim()
+  const older = direction === 'older'
+  return {
+    threadId,
+    ...(older && beforeTurnId ? { cursor: appServerThreadTurnsCursor(beforeTurnId) } : {}),
+    ...(!older && afterTurnId ? { cursor: appServerThreadTurnsCursor(afterTurnId) } : {}),
+    ...(input.limit !== undefined && input.limit !== null ? { limit: input.limit } : {}),
+    sortDirection: older || !afterTurnId ? 'desc' as const : 'asc' as const,
+    itemsView: 'full' as const,
+  }
+}
+
+function appServerThreadTurnsCursor(turnId: string): string {
+  return JSON.stringify({ turnId, includeAnchor: false })
+}
+
+function appServerThreadTurnsListPageTurns(turns: AppServerTurn[], input: AgentChatThreadReadInput): AppServerTurn[] {
+  const direction = input.direction ?? 'newer'
+  const afterTurnId = input.afterTurnId?.trim()
+  return direction === 'older' || !afterTurnId ? [...turns].reverse() : turns
+}
+
+function appServerThreadTurnsListPageThread(
+  threadId: string,
+  turns: AppServerTurn[],
+  input: AgentChatThreadReadInput,
+): AppServerThread {
+  return {
+    id: threadId,
+    sessionId: '',
+    forkedFromId: null,
+    parentThreadId: null,
+    preview: '',
+    ephemeral: false,
+    modelProvider: '',
+    createdAt: 0,
+    updatedAt: 0,
+    status: { type: 'idle' },
+    path: null,
+    cwd: '',
+    cliVersion: '',
+    source: 'unknown',
+    threadSource: null,
+    agentNickname: null,
+    agentRole: null,
+    gitInfo: null,
+    name: null,
+    turns: appServerThreadTurnsListPageTurns(turns, input),
+  }
+}
+
+function appServerThreadTurnsListCanFallback(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /thread\/turns\/list|method not found|not supported|unknown method/i.test(message)
+}
+
 function appServerProviderTitle(provider: string): string {
   return provider
     .split(/[-_\s]+/g)
@@ -273,7 +356,7 @@ function appServerTurnControlParams(
     : {}
 }
 
-function appServerRunProfileParams(profile: AgentRunProfileSelection | undefined, target: 'thread' | 'turn') {
+function appServerRunProfileParams(profile: AgentChatRunProfileSelection | undefined, target: 'thread' | 'turn') {
   if (!profile) return {}
   return {
     approvalPolicy: profile.approvalPolicy,
@@ -286,7 +369,7 @@ function appServerRunProfileParams(profile: AgentRunProfileSelection | undefined
   }
 }
 
-function sandboxPolicyFromRunProfile(profile: AgentRunProfileSelection): SandboxPolicy {
+function sandboxPolicyFromRunProfile(profile: AgentChatRunProfileSelection): SandboxPolicy {
   if (profile.fallbackSandbox === 'danger-full-access') return { type: 'dangerFullAccess' }
   if (profile.fallbackSandbox === 'read-only') return { type: 'readOnly', networkAccess: false }
   return {

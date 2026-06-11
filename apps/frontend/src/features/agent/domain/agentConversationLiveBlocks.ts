@@ -1,6 +1,6 @@
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 export type AgentConversationLiveBlock =
   | { id: 'assistant-stream'; type: 'assistant_stream'; content: string }
@@ -31,9 +31,9 @@ export function buildAgentConversationLiveBlocks(input: AgentConversationLiveBlo
   const streamingText = input.streamingAssistantText.trim()
 
   const blockedByWorkspace = !!input.pendingSendWorkspace
-  const runIsNonTerminal = !!input.activeRun && !isTerminalAgentRunStatus(input.activeRun.status)
+  const runIsNonTerminal = !!input.activeRun && !isAgentRunTerminalStatus(input.activeRun.status)
   const terminalRunNeedsResultBridge = !!input.activeRun
-    && isTerminalAgentRunStatus(input.activeRun.status)
+    && isAgentRunTerminalStatus(input.activeRun.status)
     && !input.activeRunHasActivityMessage
   const busy = !!input.loading || !!input.buildingSendWorkspace
   const showLiveRunActivity = !blockedByWorkspace

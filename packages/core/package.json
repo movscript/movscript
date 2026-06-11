@@ -1,10 +1,12 @@
 {
   "name": "@movscript/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MovScript domain core shared by CLI, frontend, and provider adapters.",
   "license": "MIT",
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -44,6 +46,56 @@
       "import": "./dist/backend/node/index.js",
       "require": "./dist/backend/node/index.cjs"
     },
+    "./canvas": {
+      "types": "./dist/canvas/index.d.ts",
+      "import": "./dist/canvas/index.js",
+      "require": "./dist/canvas/index.cjs"
+    },
+    "./content": {
+      "types": "./dist/content/index.d.ts",
+      "import": "./dist/content/index.js",
+      "require": "./dist/content/index.cjs"
+    },
+    "./generation": {
+      "types": "./dist/generation/index.d.ts",
+      "import": "./dist/generation/index.js",
+      "require": "./dist/generation/index.cjs"
+    },
+    "./production": {
+      "types": "./dist/production/index.d.ts",
+      "import": "./dist/production/index.js",
+      "require": "./dist/production/index.cjs"
+    },
+    "./resources": {
+      "types": "./dist/resources/index.d.ts",
+      "import": "./dist/resources/index.js",
+      "require": "./dist/resources/index.cjs"
+    },
+    "./shot-library": {
+      "types": "./dist/shot-library/index.d.ts",
+      "import": "./dist/shot-library/index.js",
+      "require": "./dist/shot-library/index.cjs"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.js",
+      "require": "./dist/shared/index.cjs"
+    },
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.js",
+      "require": "./dist/agent/index.cjs"
+    },
+    "./agent/chat": {
+      "types": "./dist/agent/chat/index.d.ts",
+      "import": "./dist/agent/chat/index.js",
+      "require": "./dist/agent/chat/index.cjs"
+    },
+    "./agent/protocol": {
+      "types": "./dist/agent/protocol.d.ts",
+      "import": "./dist/agent/protocol.js",
+      "require": "./dist/agent/protocol.cjs"
+    },
     "./plugins": {
       "types": "./dist/plugins/index.d.ts",
       "import": "./dist/plugins/index.js",
@@ -61,10 +113,10 @@
     "test": "pnpm build && node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@movscript/compiler": "0.1.0",
-    "@movscript/engine": "0.1.0",
-    "@movscript/language": "0.1.0",
-    "@movscript/workspace": "0.1.0"
+    "@movscript/interpreter": "workspace:*",
+    "@movscript/engine": "workspace:*",
+    "@movscript/language": "workspace:*",
+    "@movscript/workspace": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

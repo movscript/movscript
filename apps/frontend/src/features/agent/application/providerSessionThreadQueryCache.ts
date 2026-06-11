@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { isAgentTranscriptExcludedAssistantMessage } from '@/features/agent/domain/agentProtocol'
+import { isAgentTranscriptExcludedAssistantMessage } from '@movscript/core/agent/protocol'
 import { providerSessionClient, type AgentRunRole, type AgentRunStatus, type ProviderSessionSummary, type AgentSessionSummary, type AgentThread, type AgentThreadListPage, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 
 type StartProvisionalConversationInput = Parameters<typeof providerSessionClient.startProvisionalConversation>[0] & {

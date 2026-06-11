@@ -1,24 +1,21 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   AppWindow,
-  Clapperboard,
   CirclePlay,
   FolderArchive,
   FolderOpen,
   Hammer,
   Home,
   Images,
-  ListChecks,
   ListTodo,
   Move,
   Palette,
   Radar,
   ScanSearch,
-  ScrollText,
   Shapes,
   Telescope,
   ToyBrick,
@@ -188,22 +185,13 @@ export function Sidebar({
                   />
                 </AppSidebarProjectRow>
               )}
-              <NavItem to={ROUTES.project.tasks} icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
             </AppSidebarSection>
 
             <AppSidebarDivider collapsed={collapsed} />
             <AppSidebarSection title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              {projectWorkbenchDefinitions
-                .filter((item) => !['content_orchestration', 'orchestration_production'].includes(item.id))
-                .map((item, index) => (
-                <Fragment key={item.id}>
-                  <NavItem to={item.route} icon={item.icon} label={t(item.sidebarTitleKey)} collapsed={collapsed} />
-                  {index === 0 ? (
-                    <NavItem to={ROUTES.project.scripts} icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
-                  ) : null}
-                </Fragment>
+              {projectWorkbenchDefinitions.map((item) => (
+                <NavItem key={item.id} to={item.route} icon={item.icon} label={t(item.sidebarTitleKey)} collapsed={collapsed} />
               ))}
-              <NavItem to={ROUTES.project.contentUnitEditor} icon={Clapperboard} label={t('sidebar.items.shotEditWorkbench')} collapsed={collapsed} />
             </AppSidebarSection>
           </>
         )}

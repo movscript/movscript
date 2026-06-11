@@ -1,7 +1,7 @@
 import type { IpcRenderer } from 'electron'
 import type { ElectronAPI } from '../../../src/shared/contracts/electronApi'
 
-export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'getMovScriptWorkspaceRoot' | 'getMovScriptWorkspaceConfig' | 'saveMovScriptWorkspaceConfig' | 'listMovScriptWorkspaceFiles' | 'readMovScriptWorkspaceFile' | 'writeMovScriptWorkspaceFile' | 'deleteMovScriptWorkspaceFile' | 'reviewMovScriptWorkspace' | 'buildMovScriptWorkspace' | 'initProjectGitWorkspace' | 'commitProjectGitWorkspace' | 'pullProjectGitWorkspace' | 'pushProjectGitWorkspace' | 'listProviderSessions'> {
+export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'getMovScriptWorkspaceRoot' | 'getMovScriptWorkspaceConfig' | 'saveMovScriptWorkspaceConfig' | 'listMovScriptWorkspaceFiles' | 'readMovScriptWorkspaceFile' | 'writeMovScriptWorkspaceFile' | 'deleteMovScriptWorkspaceFile' | 'reviewMovScriptWorkspace' | 'interpretMovScriptWorkspace' | 'initProjectGitWorkspace' | 'commitProjectGitWorkspace' | 'pullProjectGitWorkspace' | 'pushProjectGitWorkspace' | 'listProviderSessions'> {
   return {
     getMovScriptWorkspaceRoot: (input) => ipcRenderer.invoke('movscript:workspace-root-get', input),
     getMovScriptWorkspaceConfig: (input) => ipcRenderer.invoke('movscript:workspace-config-get', input),
@@ -11,7 +11,7 @@ export function createMovScriptWorkspaceAPI(ipcRenderer: IpcRenderer): Pick<Elec
     writeMovScriptWorkspaceFile: (input) => ipcRenderer.invoke('movscript:workspace-files-write', input),
     deleteMovScriptWorkspaceFile: (input) => ipcRenderer.invoke('movscript:workspace-files-delete', input),
     reviewMovScriptWorkspace: (input) => ipcRenderer.invoke('movscript:workspace-review', input),
-    buildMovScriptWorkspace: (input) => ipcRenderer.invoke('movscript:workspace-build', input),
+    interpretMovScriptWorkspace: (input) => ipcRenderer.invoke('movscript:workspace-interpret', input),
     initProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-init', input),
     commitProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-commit', input),
     pullProjectGitWorkspace: (input) => ipcRenderer.invoke('movscript:project-git-pull', input),

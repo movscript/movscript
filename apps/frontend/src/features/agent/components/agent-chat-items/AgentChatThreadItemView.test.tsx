@@ -5,11 +5,12 @@ import test from 'node:test'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
+import type { AgentChatThreadItem } from '@movscript/core/agent/chat'
+import { AgentChatImagePreviewGrid, AgentChatMediaPreviewGrid } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks'
 import { AgentChatThreadItemView } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemView'
 
 test('AgentChatThreadItemView switches over every neutral item type', () => {
-  const itemProtocol = readFileSync(resolve('src/features/agent/domain/agentChatThreadItems.ts'), 'utf8')
+  const itemProtocol = readFileSync(resolve('../../packages/core/src/agent/chat/agentChatThreadItems.ts'), 'utf8')
   const itemView = readFileSync(resolve('src/features/agent/components/agent-chat-items/AgentChatThreadItemView.tsx'), 'utf8')
   const itemTypeAlias = itemProtocol.match(/export type AgentChatThreadItem =([\s\S]*?)\n\nexport function agentChatTextInput/)
   assert.ok(itemTypeAlias)
@@ -95,6 +96,37 @@ test('AgentChatThreadItemView renders user message structured inputs separately'
   assert.match(html, /attachments/)
   assert.doesNotMatch(html, /User message details/)
   assert.match(html, /composer/)
+})
+
+test('Agent chat media preview grids cap initial mounted media', () => {
+  const imageHtml = renderToStaticMarkup(
+    <AgentChatImagePreviewGrid
+      label="Images"
+      images={Array.from({ length: 8 }, (_, index) => ({
+        url: `https://cdn.example.com/image-${index + 1}.png`,
+        alt: `Image ${index + 1}`,
+      }))}
+    />,
+  )
+  assert.equal((imageHtml.match(/<img/g) ?? []).length, 6)
+  assert.match(imageHtml, /Show 2 more/)
+  assert.match(imageHtml, /loading="lazy"/)
+  assert.match(imageHtml, /decoding="async"/)
+  assert.doesNotMatch(imageHtml, /image-7\.png/)
+
+  const mediaHtml = renderToStaticMarkup(
+    <AgentChatMediaPreviewGrid
+      label="Media"
+      media={Array.from({ length: 8 }, (_, index) => ({
+        url: `https://cdn.example.com/video-${index + 1}.mp4`,
+        kind: 'video' as const,
+        label: `Video ${index + 1}`,
+      }))}
+    />,
+  )
+  assert.equal((mediaHtml.match(/<video/g) ?? []).length, 6)
+  assert.match(mediaHtml, /Show 2 more/)
+  assert.doesNotMatch(mediaHtml, /video-7\.mp4/)
 })
 
 test('AgentChatThreadItemView renders command executions with structured output sections', () => {

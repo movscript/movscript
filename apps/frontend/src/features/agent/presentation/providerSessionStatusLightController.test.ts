@@ -9,7 +9,7 @@ import {
   type ProviderSessionStatusLightClient,
 } from '@/features/agent/presentation/providerSessionStatusLightController'
 import type { ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
-import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
+import type { ProviderSessionStatusLight } from '@movscript/core/agent'
 
 test('provider session status light controller shares one stream per target across owners', async () => {
   const client = new FakeProviderSessionStatusLightClient()
@@ -160,7 +160,7 @@ class FakeStream {
   }
 }
 
-function statusLightEvent(status: { state: 'stopped' | 'waiting' | 'active'; label: string; detail: string }): ProviderSessionEventV2 {
+function statusLightEvent(status: { state: 'stopped' | 'waiting' | 'active' | 'error'; label: string; detail: string }): ProviderSessionEventV2 {
   return runtimeEvent({
     kind: 'runtime_status.upserted',
     causality: { threadId: 'thread_1', runId: 'run_1', runtimeStatusId: 'runtime-status-light:thread_1' },

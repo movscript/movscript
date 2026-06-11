@@ -505,6 +505,7 @@ export function ContentWorkbenchCommandCenter({
   return (
     <div className={cn("content-workbench-frame", className)}>
       <OverlapPaneGroup
+        overlapSide="left"
         className="content-workbench-command-center"
         data-testid="content-workbench-command-center"
         {...props}
@@ -644,6 +645,7 @@ export function ContentWorkbenchProductionGrid({
   return (
     <OverlapPaneGroup
       as="section"
+      overlapSide="left"
       className={cn("content-workbench-production-grid", className)}
       data-testid="content-workbench-production-grid"
       {...props}

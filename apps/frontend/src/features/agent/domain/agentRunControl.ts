@@ -1,7 +1,5 @@
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
-import { isAgentRunTerminalStatus } from '@/features/agent/domain/agentProtocol'
-
-const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
+import { isAgentRunStoppableStatus, isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 export type RunControlProviderSessionPatch = {
   stopping?: boolean
@@ -24,19 +22,11 @@ export interface StopProviderSessionRunActionDeps {
 }
 
 export function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun {
-  return !!run && isStoppableAgentRunStatus(run.status)
+  return !!run && isAgentRunStoppableStatus(run.status)
 }
 
 export function isTerminalAgentRun(run: AgentRun | null | undefined): run is AgentRun {
-  return !!run && isTerminalAgentRunStatus(run.status)
-}
-
-export function isStoppableAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
-  return !!status && STOPPABLE_AGENT_RUN_STATUSES.has(status)
-}
-
-export function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
-  return isAgentRunTerminalStatus(status)
+  return !!run && isAgentRunTerminalStatus(run.status)
 }
 
 export function createProviderSessionStopAbortError(): Error {

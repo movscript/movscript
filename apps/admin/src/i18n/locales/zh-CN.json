@@ -487,8 +487,6 @@
         "statusFallback": "未设置"
       },
       "sections": {
-        "pipeline": "制作链路",
-        "pipelineHint": "从制作管理到创作编排的项目总览。",
         "focus": "今日关注",
         "focusHint": "优先处理会阻塞后续生产的内容缺口。",
         "quickLinks": "快速入口"
@@ -1113,7 +1111,6 @@
           "content_unit": "镜头建议",
           "prompt": "提示词",
           "note": "审阅备注",
-          "pipeline": "流程工作区",
           "segment": "编排段工作区",
           "scene_moment": "情节工作区",
           "asset_workspace": "素材候选工作区",

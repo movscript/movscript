@@ -76,6 +76,10 @@ import {
   updateShotReferenceInSource,
   shotLibraryEntryFromApi,
 } from '@/features/shot-library/domain/shotReferenceLibrary'
+import {
+  calculateShotWorkspaceGridMetrics,
+} from '@/features/shot-library/domain/shotLibraryLayout'
+import { subscribeShotLibraryMeasuredBox } from '@/features/shot-library/presentation/shotLibraryMeasurement'
 
 type ShotImportPhase = 'idle' | 'preparing' | 'cutting' | 'review' | 'saving'
 type ShotImportSourceKind = 'file' | 'resource'
@@ -837,7 +841,7 @@ function ShotImportDialog({
           )}
         </DialogHeader>
 
-        <div className="shot-import-dialog__body">
+        <div className="shot-import-dialog__body" data-scroll-owner="dialog-body">
           <aside className="shot-import-dialog__source-pane">
             <div className="shot-import-dialog__source-actions">
               <Button type="button" size="sm" variant="outline" onClick={onChooseFile} disabled={isSaving}>
@@ -1019,55 +1023,10 @@ function useShotWorkspaceGridMetrics(gridRef: RefObject<HTMLElement>, workspaceC
   const [size, setSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
-    const element = gridRef.current
-    if (!element) return
-    const update = () => {
-      const rect = element.getBoundingClientRect()
-      setSize({
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      })
-    }
-    update()
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(update)
-      observer.observe(element)
-      return () => observer.disconnect()
-    }
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
+    return subscribeShotLibraryMeasuredBox(gridRef.current, setSize)
   }, [gridRef])
 
-  return calculateShotWorkspaceGridMetrics(size.width, size.height, workspaceCount)
-}
-
-function calculateShotWorkspaceGridMetrics(width: number, height: number, workspaceCount: number): { columns: number; pageSize: number } {
-  if (workspaceCount <= 0) return { columns: 1, pageSize: 1 }
-  if (width <= 0) return { columns: Math.min(workspaceCount, 2), pageSize: Math.min(workspaceCount, 2) }
-  const gap = 10
-  const minimumCardWidth = width < 520 ? 190 : 220
-  const preferredCardWidth = width >= 920 ? 300 : width >= 680 ? 260 : 230
-  let columns = Math.max(1, Math.floor((width + gap) / (preferredCardWidth + gap)))
-  columns = Math.min(columns, workspaceCount)
-  while (columns > 1 && (width - gap * (columns - 1)) / columns < minimumCardWidth) {
-    columns -= 1
-  }
-  while (
-    columns < workspaceCount
-    && columns < 4
-    && (width - gap * columns) / (columns + 1) >= minimumCardWidth
-    && (width - gap * (columns - 1)) / columns > 360
-  ) {
-    columns += 1
-  }
-  columns = Math.max(1, columns)
-  const cardWidth = (width - gap * (columns - 1)) / columns
-  const estimatedCardHeight = (cardWidth * 9 / 16) + 54
-  const rows = height > 0 ? Math.max(1, Math.floor((height + gap) / (estimatedCardHeight + gap))) : 1
-  return {
-    columns,
-    pageSize: Math.max(1, columns * Math.min(rows, 2)),
-  }
+  return calculateShotWorkspaceGridMetrics(size, workspaceCount)
 }
 
 function ShotImportResourceGrid({

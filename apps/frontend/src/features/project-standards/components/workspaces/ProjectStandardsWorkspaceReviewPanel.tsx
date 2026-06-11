@@ -116,9 +116,9 @@ export function ProjectStandardsWorkspaceReviewPanel({
                 <ProjectWorkspaceReviewCallout tone="neutral" compact title="历史">
                   <div className="flex justify-end">
                     <ProjectWorkspaceReviewActionButton size="xs" variant="outline" className="gap-1.5" asChild>
-                      <Link to={ROUTES.agentRuns}>
+                      <Link to={ROUTES.agentConsole}>
                         <FileText size={12} />
-                        查看运行记录
+                        打开 Agent 控制台
                       </Link>
                     </ProjectWorkspaceReviewActionButton>
                   </div>

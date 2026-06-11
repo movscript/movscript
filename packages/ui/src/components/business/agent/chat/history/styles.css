@@ -54,12 +54,6 @@
   background: var(--ms-color-accent);
 }
 
-.ai-agent-panel-main[data-history-resizing="true"],
-.ai-agent-panel-main[data-history-resizing="true"] * {
-  cursor: row-resize !important;
-  user-select: none !important;
-}
-
 .ai-agent-panel-empty-history-header {
   display: flex;
   flex: 0 0 auto;
@@ -90,6 +84,13 @@
   min-height: 32px;
   justify-content: center;
   gap: 6px;
+}
+
+.ai-agent-panel-empty-history-more-row {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  padding: 4px 2px 0;
 }
 
 .ai-agent-panel-empty-history-empty {

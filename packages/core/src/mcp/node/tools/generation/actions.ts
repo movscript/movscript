@@ -27,6 +27,10 @@ export async function getImageGenerationJob(args: Record<string, unknown>): Prom
   return generationJobGetResult('image', await getGenerationJob(normalizedJobId(args)))
 }
 
+export async function getImageGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
+  return getGenerationJobs('image', args)
+}
+
 export async function generateVideo(args: Record<string, unknown>): Promise<unknown> {
   const built = buildVideoRequest(args)
   const modelId = await resolveModelId(args, built.jobType, 'video')
@@ -36,6 +40,10 @@ export async function generateVideo(args: Record<string, unknown>): Promise<unkn
 
 export async function getVideoGenerationJob(args: Record<string, unknown>): Promise<unknown> {
   return generationJobGetResult('video', await getGenerationJob(normalizedJobId(args)))
+}
+
+export async function getVideoGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
+  return getGenerationJobs('video', args)
 }
 
 function buildImageRequest(args: Record<string, unknown>): BuiltGenerationRequest {
@@ -165,6 +173,52 @@ function generationJobGetResult(kind: 'image' | 'video', job: Record<string, unk
   }
 }
 
+async function getGenerationJobs(kind: 'image' | 'video', args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const jobIds = normalizedJobIds(args)
+  const items: Record<string, unknown>[] = []
+  for (let index = 0; index < jobIds.length; index += 1) {
+    const jobId = jobIds[index]!
+    try {
+      const result = generationJobGetResult(kind, await getGenerationJob(jobId))
+      items.push({
+        index,
+        status: 'loaded',
+        jobId,
+        job_id: jobId,
+        terminal: result.terminal,
+        outputResourceIds: result.outputResourceIds,
+        output_resource_ids: result.output_resource_ids,
+        result,
+      })
+    } catch (error) {
+      items.push({
+        index,
+        status: 'error',
+        jobId,
+        job_id: jobId,
+        terminal: true,
+        error: errorMessage(error),
+      })
+    }
+  }
+  const successItems = items.filter((item) => item.status !== 'error')
+  const failedItems = items.filter((item) => item.status === 'error')
+  const terminalCount = items.filter((item) => item.terminal === true).length
+  const outputResourceIds = Array.from(new Set(successItems.flatMap((item) => numericList(item.output_resource_ids))))
+  return {
+    status: failedItems.length === 0 ? 'loaded' : successItems.length > 0 ? 'partial_error' : 'error',
+    total: jobIds.length,
+    success_count: successItems.length,
+    failed_count: failedItems.length,
+    terminal_count: terminalCount,
+    all_terminal: terminalCount === jobIds.length,
+    output_resource_ids: outputResourceIds,
+    outputResourceIds,
+    items,
+    message: `${successItems.length}/${jobIds.length} ${kind} generation job(s) loaded.`,
+  }
+}
+
 function normalizeJob(job: Record<string, unknown>): Record<string, unknown> {
   const outputResourceIds = outputResourceIdsFromJob(job)
   return {
@@ -219,6 +273,22 @@ function normalizedJobId(args: Record<string, unknown>): number {
   return jobId
 }
 
+function normalizedJobIds(args: Record<string, unknown>): number[] {
+  const rawIds = Array.isArray(args.jobIds)
+    ? args.jobIds
+    : Array.isArray(args.job_ids)
+      ? args.job_ids
+      : undefined
+  const ids = rawIds
+    ? rawIds.map((value) => idField(value)).filter((value): value is number => value !== undefined)
+    : Array.isArray(args.items)
+      ? args.items.map((item) => isRecord(item) ? normalizedJobId(item) : undefined).filter((value): value is number => value !== undefined)
+      : []
+  const unique = Array.from(new Set(ids))
+  if (unique.length === 0) throw new Error('jobIds must contain at least one positive integer')
+  return unique
+}
+
 function modelPublicId(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined
   return stringField(value.model_id) ?? stringField(value.logical_model_id)
@@ -241,6 +311,15 @@ function appendId(ids: number[], value: unknown): void {
 function appendIds(ids: number[], value: unknown): void {
   if (!Array.isArray(value)) return
   for (const item of value) appendId(ids, item)
+}
+
+function numericList(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return value.map(idField).filter((item): item is number => item !== undefined)
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isTerminalStatus(status: string): boolean {

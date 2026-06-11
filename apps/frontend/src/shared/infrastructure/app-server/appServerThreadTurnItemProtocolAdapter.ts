@@ -10,7 +10,8 @@ import type {
   AgentChatTurn,
   AgentChatTurnItemsView,
   AgentChatTurnStatus,
-} from '@/features/agent/domain/agentChatProtocol'
+} from '@movscript/core/agent/chat'
+import { isModelReachableRemoteUrl } from '@movscript/core/agent/chat'
 import { agentChatThreadItemFromAppServerThreadTurnItem } from '@/shared/infrastructure/app-server/appServerThreadTurnItemItems'
 import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
 import type {
@@ -142,11 +143,24 @@ export function agentChatTurnFromAppServerThreadTurnItem(turn: Partial<AppServer
 
 export function appServerThreadTurnItemUserInputFromAgentChat(input: AgentChatInput): AppServerUserInput {
   if (input.type === 'text') return { type: 'text', text: input.text, text_elements: input.textElements as never[] }
-  if (input.type === 'image') return { type: 'image', url: input.url, detail: input.detail } as AppServerUserInput
+  if (input.type === 'image') {
+    if (appServerThreadTurnItemImageUrlIsApiReady(input.url)) {
+      return { type: 'image', url: input.url, detail: input.detail } as AppServerUserInput
+    }
+    return {
+      type: 'mention',
+      name: input.name ?? 'image attachment',
+      path: input.resourceId !== undefined ? `resource:${input.resourceId}` : input.name ?? 'image attachment',
+    }
+  }
   if (input.type === 'localImage') return { type: 'localImage', path: input.path, detail: input.detail } as AppServerUserInput
   if (input.type === 'skill') return { type: 'skill', name: input.name, path: input.path }
   const path = appServerThreadTurnItemMentionPathFromAgentChat(input)
   return { type: 'mention', name: appServerThreadTurnItemMentionNameFromAgentChat(input, path), path }
+}
+
+function appServerThreadTurnItemImageUrlIsApiReady(value: string): boolean {
+  return /^data:image\/[a-z0-9.+-]+[;,]/i.test(value) || isModelReachableRemoteUrl(value)
 }
 
 function appServerThreadTurnItemMentionPathFromAgentChat(input: Extract<AgentChatInput, { type: 'mention' }>): string {
@@ -219,7 +233,8 @@ function appServerThreadTurnItemDynamicToolOutputContentItems(contentItems: unkn
     const text = appServerThreadTurnItemDynamicToolOutputText(item)
     if (text) return [{ type: 'inputText', text }]
     const imageUrl = appServerThreadTurnItemDynamicToolOutputImageUrl(item)
-    if (imageUrl) return [{ type: 'inputImage', imageUrl }]
+    if (imageUrl && appServerThreadTurnItemImageUrlIsApiReady(imageUrl)) return [{ type: 'inputImage', imageUrl }]
+    if (imageUrl) return [{ type: 'inputText', text: appServerThreadTurnItemDynamicToolOutputImageReferenceText(imageUrl) }]
     const mediaReference = appServerThreadTurnItemDynamicToolOutputMediaReference(item)
     if (mediaReference) return [{ type: 'inputText', text: mediaReference }]
     return []
@@ -240,6 +255,10 @@ function appServerThreadTurnItemDynamicToolOutputImageUrl(item: Record<string, u
   const data = nonEmptyString(item.data)
   if (!data) return undefined
   return `data:${stringField(item.mimeType) ?? stringField(item.mime_type) ?? 'image/png'};base64,${data}`
+}
+
+function appServerThreadTurnItemDynamicToolOutputImageReferenceText(imageUrl: string): string {
+  return `Image result: ${imageUrl}`
 }
 
 function appServerThreadTurnItemDynamicToolOutputMediaReference(item: Record<string, unknown>): string | undefined {

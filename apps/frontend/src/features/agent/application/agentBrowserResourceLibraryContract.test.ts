@@ -29,3 +29,18 @@ test('agent browser opens resource library inside the agent content panel', () =
   assert.match(uiAgentBrowserCssSource, /\.agent-browser-resource-pane \{[\s\S]*height: 100%;[\s\S]*overflow: hidden;/)
   assert.match(uiAgentBrowserCssSource, /\.agent-browser-internal-pane \{[\s\S]*height: 100%;[\s\S]*overflow-y: auto;/)
 })
+
+test('agent browser view bounds are owned by the presentation bounds helper', () => {
+  const agentBrowserPanelSource = readFileSync(resolve('src/features/agent/components/AgentBrowserPanel.tsx'), 'utf8')
+  const boundsSource = readFileSync(resolve('src/features/agent/presentation/agentBrowserBounds.ts'), 'utf8')
+
+  assert.match(boundsSource, /export function agentBrowserBoundsFromViewportElement/)
+  assert.match(boundsSource, /export function agentBrowserBoundsFromViewportRect/)
+  assert.match(boundsSource, /export function subscribeAgentBrowserBoundsSync/)
+  assert.match(agentBrowserPanelSource, /agentBrowserBoundsFromViewportElement\(viewportRef\.current\)/)
+  assert.match(agentBrowserPanelSource, /subscribeAgentBrowserBoundsSync\(viewportRef\.current, syncBounds\)/)
+  assert.doesNotMatch(agentBrowserPanelSource, /new ResizeObserver/)
+  assert.doesNotMatch(agentBrowserPanelSource, /window\.addEventListener\('resize'/)
+  assert.doesNotMatch(agentBrowserPanelSource, /rect\.width < 16/)
+  assert.doesNotMatch(agentBrowserPanelSource, /Math\.round\(rect\.left\)/)
+})

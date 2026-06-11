@@ -2,6 +2,10 @@ import { api } from '@/shared/infrastructure/api'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { CanvasNodeData, CanvasPortType, Job, PublicModel } from '@/types'
+import {
+  resolveGenerationCapabilityForResourceCount,
+  resolveGenerationJobTypeFromResourceCount,
+} from '@movscript/core/generation'
 
 export interface CanvasRuntimeTextRequest {
   modelId?: string
@@ -86,19 +90,18 @@ async function pollCanvasRuntimeJob(jobId: number, timeoutMs: number) {
 }
 
 function runtimeCapability(outputType: CanvasPortType, inputResourceIds: number[]) {
-  if (outputType === 'image') return inputResourceIds.length > 0 ? 'image_edit' : 'image'
-  if (outputType === 'video') return inputResourceIds.length > 0 ? 'video_i2v' : 'video'
-  return outputType
+  return resolveGenerationCapabilityForResourceCount({
+    outputType,
+    inputResourceCount: inputResourceIds.length,
+  })
 }
 
 function runtimeJobType(outputType: CanvasPortType, inputResourceIds: number[], data: Partial<CanvasNodeData>) {
-  if (outputType === 'image') return inputResourceIds.length > 0 ? 'image_edit' : 'image'
-  if (outputType === 'video') {
-    const preferred = String(data.params?.job_type ?? '')
-    if (preferred === 'video_i2v' || preferred === 'video_v2v') return preferred
-    return inputResourceIds.length > 0 ? 'video_i2v' : 'video'
-  }
-  return outputType
+  return resolveGenerationJobTypeFromResourceCount({
+    outputType,
+    inputResourceCount: inputResourceIds.length,
+    preferredVideoJobType: data.params?.job_type,
+  })
 }
 
 function runtimeSourceKey(nodeType: string | undefined, outputType: CanvasPortType) {

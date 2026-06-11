@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
+import { appServerThreadTurnItemServerRequestResponseFromAgentChat } from '@/shared/infrastructure/app-server/appServerThreadTurnItemProtocolAdapter'
 import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { agentRunProfilePresetById } from '@/features/agent/domain/agentRunProfilePreset'
 
@@ -53,6 +54,143 @@ test('app-server protocol data source preserves injected provider identity', asy
   assert.equal(listed.threads[0]?.provider, 'mova')
   assert.equal(read.provider, 'mova')
   assert.equal(started.provider, 'mova')
+})
+
+test('app-server protocol data source reads thread turns through paged turns list when available', async () => {
+  const calls: Array<{ method: string; params: unknown }> = []
+  const client = {
+    readThread: async (threadId: string, input: unknown) => {
+      calls.push({ method: 'thread/read', params: { threadId, input } })
+      return { thread: appServerThread({ id: threadId, turns: [appServerTurn('metadata_turn')] }) }
+    },
+    listThreadTurns: async (params: unknown) => {
+      calls.push({ method: 'thread/turns/list', params })
+      return {
+        data: [appServerTurn('turn_2'), appServerTurn('turn_1')],
+        nextCursor: null,
+        backwardsCursor: null,
+      }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('thread_1', {
+    includeTurns: true,
+    beforeTurnId: 'turn_3',
+    beforeItemId: 'item_3',
+    limit: 20,
+    direction: 'older',
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/turns/list',
+      params: {
+        threadId: 'thread_1',
+        cursor: '{"turnId":"turn_3","includeAnchor":false}',
+        limit: 20,
+        sortDirection: 'desc',
+        itemsView: 'full',
+      },
+    },
+  ])
+  assert.deepEqual(thread.turns.map((turn) => turn.id), ['turn_1', 'turn_2'])
+})
+
+test('app-server protocol data source reads metadata only for newer turn pages', async () => {
+  const calls: Array<{ method: string; params: unknown }> = []
+  const client = {
+    readThread: async (threadId: string, input: unknown) => {
+      calls.push({ method: 'thread/read', params: { threadId, input } })
+      return { thread: appServerThread({ id: threadId, name: 'Updated thread metadata', turns: [appServerTurn('metadata_turn')] }) }
+    },
+    listThreadTurns: async (params: unknown) => {
+      calls.push({ method: 'thread/turns/list', params })
+      return {
+        data: [appServerTurn('turn_4')],
+        nextCursor: null,
+        backwardsCursor: null,
+      }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('thread_1', {
+    includeTurns: true,
+    afterTurnId: 'turn_3',
+    afterItemId: 'item_3',
+    limit: 1,
+    direction: 'newer',
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/turns/list',
+      params: {
+        threadId: 'thread_1',
+        cursor: '{"turnId":"turn_3","includeAnchor":false}',
+        limit: 1,
+        sortDirection: 'asc',
+        itemsView: 'full',
+      },
+    },
+    { method: 'thread/read', params: { threadId: 'thread_1', input: { includeTurns: false } } },
+  ])
+  assert.equal(thread.name, 'Updated thread metadata')
+  assert.deepEqual(thread.turns.map((turn) => turn.id), ['turn_4'])
+})
+
+test('app-server protocol data source falls back to thread/read when turns list is unavailable', async () => {
+  const calls: Array<{ method: string; params: unknown }> = []
+  const client = {
+    readThread: async (threadId: string, input: unknown) => {
+      calls.push({ method: 'thread/read', params: { threadId, input } })
+      const includeTurns = input && typeof input === 'object' && 'includeTurns' in input
+        ? (input as { includeTurns?: unknown }).includeTurns
+        : undefined
+      return { thread: appServerThread({ id: threadId, turns: includeTurns === false ? [] : [appServerTurn('full_turn')] }) }
+    },
+    listThreadTurns: async (params: unknown) => {
+      calls.push({ method: 'thread/turns/list', params })
+      throw new Error('thread/turns/list method not found')
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('thread_1', {
+    includeTurns: true,
+    afterTurnId: 'turn_1',
+    afterItemId: 'item_1',
+    limit: 20,
+    direction: 'newer',
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/turns/list',
+      params: {
+        threadId: 'thread_1',
+        cursor: '{"turnId":"turn_1","includeAnchor":false}',
+        limit: 20,
+        sortDirection: 'asc',
+        itemsView: 'full',
+      },
+    },
+    {
+      method: 'thread/read',
+      params: {
+        threadId: 'thread_1',
+        input: {
+          includeTurns: true,
+          afterTurnId: 'turn_1',
+          afterItemId: 'item_1',
+          limit: 20,
+          direction: 'newer',
+        },
+      },
+    },
+  ])
+  assert.deepEqual(thread.turns.map((turn) => turn.id), ['full_turn'])
 })
 
 test('app-server protocol data source exposes provider thread and session tree ids explicitly', async () => {
@@ -193,6 +331,80 @@ test('app-server thread-turn-item data source forwards model selection to thread
       },
     },
   ])
+})
+
+test('app-server thread-turn-item data source only forwards API-ready image URLs', async () => {
+  const calls: Array<{ method: string; params: Record<string, unknown> }> = []
+  const client = {
+    startTurn: async (params: Record<string, unknown>) => {
+      calls.push({ method: 'turn/start', params })
+      return {
+        turn: {
+          id: 'turn_1',
+          status: 'inProgress',
+          error: null,
+          startedAt: 3,
+          completedAt: null,
+          items: [],
+        },
+      }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  await dataSource.startTurn?.({
+    threadId: 'thread_1',
+    inputs: [
+      { type: 'image', url: 'data:image/png;base64,AAAA', detail: 'auto', name: 'Inline' },
+      {
+        type: 'image',
+        url: 'http://localhost:8765/api/v1/resources/42/file',
+        detail: 'auto',
+        name: 'Local resource',
+        resourceId: 42,
+      },
+      { type: 'localImage', path: '/tmp/frame.png', detail: 'auto' },
+    ],
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'turn/start',
+      params: {
+        threadId: 'thread_1',
+        clientUserMessageId: undefined,
+        input: [
+          { type: 'image', url: 'data:image/png;base64,AAAA', detail: 'auto' },
+          { type: 'mention', name: 'Local resource', path: 'resource:42' },
+          { type: 'localImage', path: '/tmp/frame.png', detail: 'auto' },
+        ],
+      },
+    },
+  ])
+})
+
+test('app-server protocol adapter keeps local dynamic tool images out of inputImage responses', () => {
+  const response = appServerThreadTurnItemServerRequestResponseFromAgentChat(
+    { id: 'req_1', method: 'item/tool/call', params: {}, raw: {} } as never,
+    {
+      action: 'toolResult',
+      success: true,
+      contentItems: [
+        { type: 'inputImage', imageUrl: 'http://localhost:8765/api/v1/resources/9/file' },
+        { type: 'inputImage', imageUrl: 'https://cdn.example.com/render.png' },
+        { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+      ],
+    },
+  )
+
+  assert.deepEqual(response, {
+    contentItems: [
+      { type: 'inputText', text: 'Image result: http://localhost:8765/api/v1/resources/9/file' },
+      { type: 'inputImage', imageUrl: 'https://cdn.example.com/render.png' },
+      { type: 'inputImage', imageUrl: 'data:image/png;base64,AAAA' },
+    ],
+    success: true,
+  })
 })
 
 test('app-server thread-turn-item data source forwards run profiles to thread and turn requests', async () => {
@@ -545,5 +757,18 @@ function appServerThread(patch: Record<string, unknown> = {}) {
     status: { type: 'idle' },
     turns: [],
     ...patch,
+  }
+}
+
+function appServerTurn(id: string) {
+  return {
+    id,
+    status: 'completed',
+    itemsView: 'full',
+    error: null,
+    startedAt: 1,
+    completedAt: 2,
+    durationMs: 1000,
+    items: [],
   }
 }

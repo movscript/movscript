@@ -131,7 +131,7 @@ test('normalizes custom app-server providers without binding them to Codex or Mo
     id: 'studio-agent-home',
     label: 'Studio Agent',
     providerKey: 'studio-agent',
-    home: '.movscript/.studio-agent',
+    home: '.studio-agent',
     lifecycle: 'movscript-owned',
   })
 })
@@ -225,7 +225,7 @@ test('preserves built-in app-server profile ids for provider instance isolation'
     id: 'mova-sandbox-home',
     label: 'Mova Sandbox',
     providerKey: 'mova',
-    home: '.movscript/.mova/sandbox',
+    home: '.mova/sandbox',
     lifecycle: 'movscript-owned',
   })
   assert.equal(createProviderThreadRef({

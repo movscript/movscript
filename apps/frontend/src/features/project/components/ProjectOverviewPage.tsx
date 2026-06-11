@@ -5,10 +5,8 @@ import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
   CheckCircle2,
-  ChevronRight,
   Database,
   LayoutDashboard,
-  ListChecks,
 } from 'lucide-react'
 import {
   AppDashboardDividerBlock,
@@ -18,7 +16,6 @@ import {
   AppDashboardLaneSummary,
   AppDashboardMetaCell,
   AppDashboardMetric,
-  AppDashboardPipelineStep,
   AppDashboardRegion,
   AppDashboardSection,
   AppDashboardSplit,
@@ -39,7 +36,6 @@ import {
   ProjectOverviewMetricGrid,
   ProjectOverviewPageLayout,
   ProjectOverviewPanelHeader,
-  ProjectOverviewPipelineGrid,
   ProjectOverviewStatusHeader,
   ProjectOverviewTitleGroup,
   ProjectOverviewTitleRow,
@@ -51,7 +47,7 @@ import { ProjectSurfaceHeader } from '@movscript/ui'
 import { isGeneratedKeyframeCandidateRecord } from '@/features/agent/domain/agentGeneratedResourceBinding'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { getProjectWorkbenchDefinition, projectWorkbenchDefinitions, type ProjectWorkbenchId } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
-import { ROUTES, mergeSearch } from '@/routes/projectRoutes'
+import { ROUTES } from '@/routes/projectRoutes'
 import {
   projectBlockedSummaryRecipe,
   projectLaneStateRecipe,
@@ -82,7 +78,6 @@ interface ProjectHomeData {
   assetSlotCandidates: HomeRecord[]
   contentUnits: HomeRecord[]
   keyframes: HomeRecord[]
-  workItems: HomeRecord[]
 }
 
 interface WorkLane {
@@ -122,7 +117,6 @@ const emptyHomeData: ProjectHomeData = {
   assetSlotCandidates: [],
   contentUnits: [],
   keyframes: [],
-  workItems: [],
 }
 
 function percentage(value: number, total: number) {
@@ -176,7 +170,6 @@ function stateLabel(state: LaneState) {
 function nextLaneActionLabel(lane?: WorkLane) {
   if (!lane) return '进入工作台'
   if (lane.key === 'project_standards') return '进入项目规范'
-  if (lane.key === 'pre_production') return '进入前期准备'
   if (lane.key === 'orchestration_production') return '进入剧本工作台'
   if (lane.key === 'content_orchestration') return '进入内容编辑'
   return `进入${lane.title}`
@@ -216,7 +209,6 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     assetSlotCandidates,
     contentUnits,
     keyframes,
-    workItems,
   ] = await Promise.all([
     safeListSemanticEntities(projectId, 'scriptVersions'),
     safeListSemanticEntities(projectId, 'segments'),
@@ -231,7 +223,6 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     safeListSemanticEntities(projectId, 'assetSlotCandidates'),
     safeListSemanticEntities(projectId, 'contentUnits'),
     safeListSemanticEntities(projectId, 'keyframes'),
-    safeListSemanticEntities(projectId, 'workItems'),
   ])
 
   return {
@@ -248,26 +239,7 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     assetSlotCandidates,
     contentUnits,
     keyframes: keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe)),
-    workItems,
   } as ProjectHomeData
-}
-
-function PipelineStep({ lane, last = false }: { lane: WorkLane; last?: boolean }) {
-  const Icon = lane.icon
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      <AppDashboardPipelineStep asChild>
-        <Link to={lane.href} className="group">
-          <Icon size={14} className="shrink-0 text-muted-foreground group-hover:text-foreground" />
-          <ProjectOverviewEntryContent>
-            <ProjectOverviewEntryTitle className="type-label">{lane.title}</ProjectOverviewEntryTitle>
-            <ProjectOverviewEntryDetail className="tabular-nums">{lane.progress}%</ProjectOverviewEntryDetail>
-          </ProjectOverviewEntryContent>
-        </Link>
-      </AppDashboardPipelineStep>
-      {!last ? <ChevronRight size={14} className="hidden shrink-0 text-muted-foreground xl:block" /> : null}
-    </div>
-  )
 }
 
 function WorkLanePanel({ lane }: { lane: WorkLane }) {
@@ -384,7 +356,6 @@ export default function ProjectOverviewPage() {
     const readyContents = data.contentUnits.filter((item) => hasMeaningfulText(item, ['description', 'prompt', 'title'])).length
     const lockedContents = data.contentUnits.filter(hasLockedResource).length
     const readyKeyframes = data.keyframes.filter((item) => hasMeaningfulText(item, ['description', 'prompt', 'title'])).length
-    const blockedTasks = data.workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).length
 
     return {
       readyScripts,
@@ -400,13 +371,11 @@ export default function ProjectOverviewPage() {
       readyContents,
       lockedContents,
       readyKeyframes,
-      blockedTasks,
     }
   }, [data])
 
   const lanes = useMemo<WorkLane[]>(() => {
     const standards = getProjectWorkbenchDefinition('project_standards')
-    const preProduction = getProjectWorkbenchDefinition('pre_production')
     const creative = getProjectWorkbenchDefinition('orchestration_production')
 
     const standardsTotal = 5
@@ -418,10 +387,6 @@ export default function ProjectOverviewPage() {
       data.productions.length > 0 || data.settings.length > 0,
     ].filter(Boolean).length
     const standardsProgress = percentage(standardsDone, standardsTotal)
-
-    const preProductionTotal = data.settings.length + data.creativeRelationships.length + data.assetSlots.length
-    const preProductionDone = counts.readyReferences + counts.readyRelationships + counts.lockedAssets
-    const preProductionProgress = preProductionTotal > 0 ? percentage(preProductionDone, preProductionTotal) : standardsProgress > 0 ? 20 : 0
 
     const contentTotal = data.contentUnits.length + data.keyframes.length
     const contentDone = counts.readyContents + counts.readyKeyframes
@@ -442,19 +407,6 @@ export default function ProjectOverviewPage() {
         href: standards.route,
         workbenchHref: standards.route,
         icon: standards.icon,
-      },
-      {
-        key: 'pre_production',
-        title: preProduction.title,
-        description: preProduction.purpose,
-        primaryLabel: '设定/素材',
-        primaryValue: preProductionTotal,
-        secondary: `${counts.readyReferences} 个设定资料有内容，${counts.missingAssets} 个素材未锁定`,
-        progress: preProductionProgress,
-        state: counts.missingAssets > 0 ? 'blocked' : preProductionTotal === 0 ? (standardsProgress > 0 ? 'active' : 'empty') : preProductionProgress >= 70 ? 'ready' : 'active',
-        href: preProduction.route,
-        workbenchHref: preProduction.route,
-        icon: preProduction.icon,
       },
       {
         key: 'orchestration_production',
@@ -497,23 +449,12 @@ export default function ProjectOverviewPage() {
       })
     }
 
-    for (const task of data.workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).slice(0, 2)) {
-      items.push({
-        key: `task:${task.ID}`,
-        title: titleOf(task, `任务 #${task.ID}`),
-        area: '项目任务',
-        href: ROUTES.project.tasks,
-        priority: String(task.status ?? '') === 'blocked' ? 'high' : 'medium',
-        detail: String(task.description ?? itemStatusText(task.status)),
-      })
-    }
-
     for (const slot of data.assetSlots.filter((item) => !hasLockedResource(item)).slice(0, 3)) {
       items.push({
         key: `asset:${slot.ID}`,
         title: titleOf(slot, `素材需求 #${slot.ID}`),
-        area: '前期准备工作台',
-        href: mergeSearch(ROUTES.project.preProduction, '', { tab: 'assets' }),
+        area: '内容编辑',
+        href: ROUTES.project.sourceWorkspace,
         priority: ['critical', 'high'].includes(String(slot.priority ?? '')) ? 'high' : 'medium',
         detail: String(slot.description ?? '素材需求缺口会影响画面锚点和视频生产'),
       })
@@ -524,7 +465,7 @@ export default function ProjectOverviewPage() {
         key: 'content',
         title: '拆解或确认制作项',
         area: '内容编辑',
-        href: ROUTES.project.contentUnitEditor,
+        href: ROUTES.project.sourceWorkspace,
         priority: 'medium',
         detail: '制作创建后，需要先在内容编辑中拆出可执行镜头',
       })
@@ -536,7 +477,7 @@ export default function ProjectOverviewPage() {
         key: 'preview',
         title: '检查预览挂载',
         area: '内容编辑',
-        href: ROUTES.project.contentUnitEditor,
+        href: ROUTES.project.sourceWorkspace,
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },
@@ -544,7 +485,7 @@ export default function ProjectOverviewPage() {
   }, [data])
 
   const readiness = lanes.length > 0 ? Math.round(lanes.reduce((sum, lane) => sum + lane.progress, 0) / lanes.length) : 0
-  const blockedCount = lanes.filter((lane) => lane.state === 'blocked').length + counts.blockedTasks
+  const blockedCount = lanes.filter((lane) => lane.state === 'blocked').length
   const nextLane = lanes.find((lane) => lane.state === 'blocked') ?? lanes.find((lane) => lane.state === 'active') ?? lanes[0]
   const updatedAt = project?.UpdatedAt ?? [...Object.values(data).flat()].sort((a, b) => String(b.UpdatedAt ?? '').localeCompare(String(a.UpdatedAt ?? '')))[0]?.UpdatedAt
 
@@ -596,21 +537,16 @@ export default function ProjectOverviewPage() {
             <ProjectOverviewMetricGrid>
               <AppDashboardMetric label="创作方案" value={data.productions.length} detail={`${counts.readySegments} 个编排段`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
               <AppDashboardMetric label="镜头" value={data.contentUnits.length} detail={`${counts.readyContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
-              <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个未锁定`} icon={<WorkbenchMetricIcon workbenchId="pre_production" />} />
+              <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个未锁定`} icon={<WorkbenchMetricIcon workbenchId="content_orchestration" />} />
             </ProjectOverviewMetricGrid>
 
-            <ProjectOverviewPipelineGrid>
-              {lanes.map((lane, index) => (
-                <PipelineStep key={lane.key} lane={lane} last={index === lanes.length - 1} />
-              ))}
-            </ProjectOverviewPipelineGrid>
           </AppDashboardRegion>
 
           <AppDashboardRegion>
             <ProjectOverviewStatusHeader>
               <div>
                 <h2 className="type-body font-semibold text-foreground">下一步</h2>
-                <ProjectOverviewBodyCopy>按阻塞、任务和素材需求缺口排序。</ProjectOverviewBodyCopy>
+                <ProjectOverviewBodyCopy>按阻塞和素材需求缺口排序。</ProjectOverviewBodyCopy>
               </div>
               <StatusBadge {...projectLaneStateRecipe(nextLane?.state ?? 'empty')}>{stateLabel(nextLane?.state ?? 'empty')}</StatusBadge>
             </ProjectOverviewStatusHeader>
@@ -655,12 +591,6 @@ export default function ProjectOverviewPage() {
                 <h2 className="type-title font-semibold text-foreground">优先处理</h2>
                 <p className="mt-1 type-body text-muted-foreground">只列会影响制作推进的事项。</p>
               </div>
-              <Button asChild variant="outline" size="sm" className="gap-2">
-                <Link to={ROUTES.project.tasks}>
-                  <ListChecks size={14} />
-                  任务
-                </Link>
-              </Button>
             </ProjectOverviewPanelHeader>
             <ProjectOverviewEntryStack>
               {focusItems.map((item) => <FocusRow key={item.key} item={item} />)}
@@ -669,7 +599,7 @@ export default function ProjectOverviewPage() {
 
           <AppDashboardRegion>
             <h2 className="type-title font-semibold text-foreground">工作台入口</h2>
-            <p className="mt-1 type-body text-muted-foreground">当前项目只暴露 5 个工作台入口，避免从总览进入零散对象页面。</p>
+            <p className="mt-1 type-body text-muted-foreground">当前项目只暴露 3 个工作台入口：剧本、内容工作台和项目规范。</p>
             <ProjectOverviewEntryStack className="mt-4">
               {projectWorkbenchDefinitions.map((item) => {
                 const Icon = item.icon
@@ -688,11 +618,4 @@ export default function ProjectOverviewPage() {
         </AppDashboardSplit>
     </ProjectOverviewPageLayout>
   )
-}
-
-function itemStatusText(status: unknown) {
-  const value = String(status ?? '')
-  if (value === 'blocked') return '阻塞'
-  if (value === 'review') return '待审核'
-  return value || '待处理'
 }

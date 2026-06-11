@@ -248,12 +248,16 @@
 }
 
 .tool-dialog-debug-json__surface {
-  max-height: var(--ui-tool-dialog-debug-json-max-height, 8rem);
+  max-height: 8rem;
   overflow: auto;
   padding: var(--ms-space-2);
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
   line-height: var(--ms-leading-caption);
+}
+
+.tool-dialog-debug-json[data-max-height="large"] .tool-dialog-debug-json__surface {
+  max-height: 12rem;
 }
 
 .tool-dialog-debug-json__action {

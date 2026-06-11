@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useStreamingAssistantBuffer } from '@/features/agent/application/agentStreamingAssistant'
 import { useAgentLiveRunActivity } from '@/features/agent/presentation/agentLiveRunActivity'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
-import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/domain/providerSessionStatusLight'
+import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import { useAgentConversationRunReset } from '@/features/agent/presentation/useAgentConversationRunReset'
 

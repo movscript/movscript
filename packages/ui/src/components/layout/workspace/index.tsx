@@ -34,6 +34,7 @@ export interface ResizablePanelOptions {
   resizeEdge: ResizablePanelEdge;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  onSizeCommit?: (size: number) => void;
   collapseMode?: ResizablePanelCollapseMode;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -107,6 +108,7 @@ export interface PersistentOverlapPaneControllerState extends OverlapPaneControl
 }
 
 const EMPTY_RESIZING_BODY_CLASS_NAMES: string[] = [];
+const RESIZABLE_PANEL_RESIZING_BODY_CLASS = "ui-resizable-panel-resizing";
 
 export function WorkspaceShell({
   sidebar,
@@ -154,10 +156,13 @@ export function WorkspaceShell({
   const resolvedCenterHeader = centerHeader ?? header;
   const hasLeftSlot = Boolean(sidebar || leftHeader || leftPaneHidden);
   const hasRightSlot = Boolean(assistantPanel || rightHeader);
+  const hasCenterRightSlotGroup = Boolean(terminalPanel && terminalPlacement === "center-right");
   const centerSlot = (
     <div
       className={cn("app-shell__slot app-shell__slot--center min-w-0 flex-1 overflow-hidden", resolvedPaddingClassName)}
       data-shell-slot="center"
+      data-has-next-slot={hasRightSlot ? "true" : undefined}
+      data-next-slot-collapsed={hasRightSlot && rightPaneCollapsed ? "true" : undefined}
       data-terminal-host={terminalPanel && terminalOpen && terminalPlacement === "center" ? terminalPlacement : undefined}
     >
       <div className={cn("app-content-frame h-full min-h-0 min-w-0 overflow-hidden", frameChromeClassName)}>
@@ -184,7 +189,7 @@ export function WorkspaceShell({
       <div className="app-shell-pane__body">{assistantPanel}</div>
     </div>
   ) : null;
-  const centerRightSlots = terminalPanel && terminalPlacement === "center-right" ? (
+  const centerRightSlots = hasCenterRightSlotGroup ? (
     <div className="app-shell__slot-group app-shell__slot-group--center-right" data-terminal-host={terminalOpen ? "center-right" : undefined}>
       <div className="app-shell__slot-group-row">
         {centerSlot}
@@ -214,6 +219,7 @@ export function WorkspaceShell({
             <div
               className="app-shell__slot app-shell__slot--left app-shell-pane"
               data-shell-slot="left"
+              data-has-next-slot="true"
               data-collapsed={sidebarCollapsed ? "true" : undefined}
               data-hidden={leftPaneHidden ? "true" : undefined}
               style={leftSlotStyle}
@@ -248,16 +254,18 @@ export function PanelResizeHandle({
 
 export function OverlapPaneGroup({
   as = "div",
+  overlapSide,
   className,
   children,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   as?: OverlapPaneGroupElement;
+  overlapSide?: OverlapPaneSide;
 }) {
   const Component = as;
 
   return (
-    <Component className={cn("overlap-pane-layout", className)} {...props}>
+    <Component className={cn("overlap-pane-layout", className)} data-overlap-side={overlapSide} {...props}>
       {children}
     </Component>
   );
@@ -420,18 +428,21 @@ export function usePersistentOverlapPaneController({
 }: PersistentOverlapPaneControllerOptions): PersistentOverlapPaneControllerState {
   const [size, setSizeState] = useState(() => readStoredOverlapPaneSize(storageKey, defaultSize, minSize, maxSize));
 
-  const setSize = useCallback((nextSize: number) => {
+  const setSize = useCallback((nextSize: number, persist = true) => {
     const clampedSize = clampStoredOverlapPaneSize(nextSize, minSize, maxSize);
     setSizeState(clampedSize);
-    writeStoredOverlapPaneSize(storageKey, clampedSize);
+    if (persist) writeStoredOverlapPaneSize(storageKey, clampedSize);
   }, [maxSize, minSize, storageKey]);
+  const previewSize = useCallback((nextSize: number) => setSize(nextSize, false), [setSize]);
+  const commitSize = useCallback((nextSize: number) => setSize(nextSize), [setSize]);
 
   const controller = useOverlapPaneController({
     ...controllerOptions,
     minSize,
     maxSize,
     size,
-    onSizeChange: setSize,
+    onSizeChange: previewSize,
+    onSizeCommit: commitSize,
   });
 
   return {
@@ -460,6 +471,7 @@ export function useResizableOverlapPane({
 export function useResizablePanel({
   size,
   onSizeChange,
+  onSizeCommit,
   minSize,
   maxSize,
   resizeEdge,
@@ -481,13 +493,25 @@ export function useResizablePanel({
     minSize: resolvePanelSizeLimit(minSize),
     maxSize: resolvePanelSizeLimit(maxSize),
   });
+  const currentSize = useRef(size);
+  const onSizeChangeRef = useRef(onSizeChange);
+  const onSizeCommitRef = useRef(onSizeCommit);
+  const onCollapsedChangeRef = useRef(onCollapsedChange);
+  const onExpandedChangeRef = useRef(onExpandedChange);
   const [resizing, setResizing] = useState(false);
   const ariaMinSize = resolvePanelSizeLimit(minSize);
   const ariaMaxSize = resolvePanelSizeLimit(maxSize);
+  onSizeChangeRef.current = onSizeChange;
+  onSizeCommitRef.current = onSizeCommit;
+  onCollapsedChangeRef.current = onCollapsedChange;
+  onExpandedChangeRef.current = onExpandedChange;
 
   const applySize = useCallback((nextSize: number, startSize: number) => {
     const resolvedMinSize = resizeStart.current.minSize;
     const resolvedMaxSize = Math.max(resolvedMinSize, resizeStart.current.maxSize);
+    const onSizeChange = onSizeChangeRef.current;
+    const onCollapsedChange = onCollapsedChangeRef.current;
+    const onExpandedChange = onExpandedChangeRef.current;
     if (nextSize < resolvedMinSize) {
       if (collapseMode === "after-min" && startSize <= resolvedMinSize && onCollapsedChange) {
         onExpandedChange?.(false);
@@ -496,8 +520,11 @@ export function useResizablePanel({
         return;
       }
       onExpandedChange?.(false);
-      onSizeChange(resolvedMinSize);
-      return;
+      if (currentSize.current !== resolvedMinSize) {
+        currentSize.current = resolvedMinSize;
+        onSizeChange(resolvedMinSize);
+      }
+      return resolvedMinSize;
     }
     if (nextSize > resolvedMaxSize) {
       if (expanded) return;
@@ -507,26 +534,54 @@ export function useResizablePanel({
         setResizing(false);
         return;
       }
-      onSizeChange(resolvedMaxSize);
-      return;
+      if (currentSize.current !== resolvedMaxSize) {
+        currentSize.current = resolvedMaxSize;
+        onSizeChange(resolvedMaxSize);
+      }
+      return resolvedMaxSize;
     }
     if (expanded) onExpandedChange?.(false);
     onCollapsedChange?.(false);
-    onSizeChange(clampPanelSize(nextSize, resolvedMinSize, resolvedMaxSize));
-  }, [collapseMode, expandMode, expanded, onCollapsedChange, onExpandedChange, onSizeChange]);
+    const clampedSize = clampPanelSize(nextSize, resolvedMinSize, resolvedMaxSize);
+    if (currentSize.current !== clampedSize) {
+      currentSize.current = clampedSize;
+      onSizeChange(clampedSize);
+    }
+    return clampedSize;
+  }, [collapseMode, expandMode, expanded]);
+
+  useEffect(() => {
+    if (!resizing) currentSize.current = size;
+  }, [resizing, size]);
 
   useEffect(() => {
     if (!resizing) return;
 
-    const handlePointerMove = (event: PointerEvent) => {
-      const pointerCoordinate = resizablePanelPointerCoordinate(event, resizeEdge);
-      const delta = resizablePanelPointerDelta(pointerCoordinate, resizeStart.current.coordinate, resizeEdge);
+    let resizeFrame: number | null = null;
+    let pendingPointerCoordinate = resizeStart.current.coordinate;
+    const applyPendingPointerMove = () => {
+      resizeFrame = null;
+      const delta = resizablePanelPointerDelta(pendingPointerCoordinate, resizeStart.current.coordinate, resizeEdge);
       applySize(resizeStart.current.size + delta, resizeStart.current.size);
     };
-    const handlePointerUp = () => setResizing(false);
+    const handlePointerMove = (event: PointerEvent) => {
+      pendingPointerCoordinate = resizablePanelPointerCoordinate(event, resizeEdge);
+      if (resizeFrame !== null) return;
+      resizeFrame = window.requestAnimationFrame(applyPendingPointerMove);
+    };
+    const handlePointerUp = () => {
+      if (resizeFrame !== null) {
+        window.cancelAnimationFrame(resizeFrame);
+        applyPendingPointerMove();
+      }
+      onSizeCommitRef.current?.(currentSize.current);
+      setResizing(false);
+    };
     const previousCursor = document.body.style.cursor;
     const previousUserSelect = document.body.style.userSelect;
 
+    const standardResizingBodyClassNames = resizablePanelBodyClassNames(resizeEdge);
+    document.body.classList.add(...standardResizingBodyClassNames);
     if (resizingBodyClassNames.length > 0) document.body.classList.add(...resizingBodyClassNames);
     document.body.style.cursor = resizablePanelCursor(resizeEdge);
     document.body.style.userSelect = "none";
@@ -535,7 +590,9 @@ export function useResizablePanel({
     window.addEventListener("pointercancel", handlePointerUp);
 
     return () => {
+      document.body.classList.remove(...standardResizingBodyClassNames);
       if (resizingBodyClassNames.length > 0) document.body.classList.remove(...resizingBodyClassNames);
+      if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
       window.removeEventListener("pointermove", handlePointerMove);
@@ -574,7 +631,8 @@ export function useResizablePanel({
       minSize: resolvedMinSize,
       maxSize: resolvePanelSizeLimit(maxSize),
     };
-    applySize(size + delta, size);
+    const committedSize = applySize(size + delta, size);
+    if (committedSize !== undefined) onSizeCommitRef.current?.(committedSize);
   }, [applySize, collapsed, maxSize, minSize, size]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
@@ -671,6 +729,15 @@ function resizablePanelContainerSize(rect: DOMRectReadOnly, edge: ResizablePanel
 
 function resizablePanelCursor(edge: ResizablePanelEdge): string {
   return edge === "top" || edge === "bottom" ? "row-resize" : "col-resize";
+}
+
+function resizablePanelBodyClassNames(edge: ResizablePanelEdge): string[] {
+  const axis = edge === "top" || edge === "bottom" ? "y" : "x";
+  return [
+    RESIZABLE_PANEL_RESIZING_BODY_CLASS,
+    `${RESIZABLE_PANEL_RESIZING_BODY_CLASS}--${axis}`,
+    `${RESIZABLE_PANEL_RESIZING_BODY_CLASS}--${edge}`,
+  ];
 }
 
 function resizablePanelAriaOrientation(edge: ResizablePanelEdge): "horizontal" | "vertical" {

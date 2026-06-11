@@ -2,22 +2,19 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
   LayoutDashboard,
-  Sparkles,
   Wand2,
 } from 'lucide-react'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 export type ProjectWorkbenchId =
-  | 'project_standards'
-  | 'pre_production'
   | 'orchestration_production'
   | 'content_orchestration'
+  | 'project_standards'
 
 export type ProjectWorkbenchStage =
-  | 'standards'
-  | 'pre_production'
   | 'orchestration_production'
   | 'content_orchestration'
+  | 'standards'
 
 export type ProjectWorkbenchWorkspaceKind =
   | 'setting_workspace'
@@ -56,52 +53,6 @@ export interface ProjectWorkbenchDefinition {
 
 export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
   {
-    id: 'project_standards',
-    title: '项目规范工作台',
-    shortTitle: '规范',
-    route: ROUTES.project.standards,
-    sidebarTitleKey: 'sidebar.items.projectWorkspace',
-    headerTitleKey: 'header.titles.projectWorkspace',
-    stage: 'standards',
-    icon: LayoutDashboard,
-    purpose: '统一项目级画幅、镜头语言、视觉风格、节奏和禁用规则。',
-    decision: '手动维护固定 8 项项目规范和扩展 prompt 规则。',
-    output: '可被后续设定、素材、编排和生成继承的项目级规范。',
-    owns: ['project.aspect_ratio', 'project.visual_style', 'project.project_style'],
-    reads: ['project'],
-    workspaceKinds: [],
-    primarySelection: { queryParam: 'projectId', entityType: 'project' },
-    reviewQuery: {
-      workspaceIdParam: 'workspaceId',
-      entityParams: { project: 'projectId' },
-    },
-  },
-  {
-    id: 'pre_production',
-    title: '前期准备工作台',
-    shortTitle: '前期',
-    route: ROUTES.project.preProduction,
-    sidebarTitleKey: 'sidebar.items.preProduction',
-    headerTitleKey: 'header.titles.preProduction',
-    stage: 'pre_production',
-    icon: Sparkles,
-    purpose: '沉淀设定资料、素材需求和候选素材，补齐下游生成前的可复用上下文。',
-    decision: '审阅设定和素材工作区，确认缺口、归属、候选、锁定和豁免状态。',
-    output: '可进入剧本工作台和内容编辑的设定素材包。',
-    owns: ['setting', 'asset_slot', 'asset_slot_candidate'],
-    reads: ['project', 'script', 'production', 'scene_moment', 'content_unit', 'resource'],
-    workspaceKinds: ['setting_workspace', 'asset_workspace'],
-    reviewQuery: {
-      viewParam: 'view',
-      viewValue: 'review',
-      workspaceIdParam: 'workspaceId',
-      entityParams: {
-        setting: 'reference_id',
-        asset_slot: 'asset_slot_id',
-      },
-    },
-  },
-  {
     id: 'orchestration_production',
     title: '剧本工作台',
     shortTitle: '剧本',
@@ -133,7 +84,7 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     id: 'content_orchestration',
     title: '内容编排工作台',
     shortTitle: '编排',
-    route: ROUTES.project.contentUnitWorkbench,
+    route: ROUTES.project.sourceWorkspace,
     sidebarTitleKey: 'sidebar.items.workbenchContentGeneration',
     headerTitleKey: 'header.titles.workbenchContentGeneration',
     stage: 'content_orchestration',
@@ -146,14 +97,32 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     workspaceKinds: ['content_unit_workspace'],
     primarySelection: { queryParam: 'scene_moment_id', entityType: 'scene_moment' },
     reviewQuery: {
-      viewParam: 'view',
-      viewValue: 'review',
       workspaceIdParam: 'workspaceId',
       entityParams: {
-        production: 'productionId',
         scene_moment: 'scene_moment_id',
         content_unit: 'content_unit_id',
       },
+    },
+  },
+  {
+    id: 'project_standards',
+    title: '项目规范工作台',
+    shortTitle: '规范',
+    route: ROUTES.project.standards,
+    sidebarTitleKey: 'sidebar.items.projectWorkspace',
+    headerTitleKey: 'header.titles.projectWorkspace',
+    stage: 'standards',
+    icon: LayoutDashboard,
+    purpose: '统一项目级画幅、镜头语言、视觉风格、节奏和禁用规则。',
+    decision: '手动维护固定 8 项项目规范和扩展 prompt 规则。',
+    output: '可被后续设定、素材、编排和生成继承的项目级规范。',
+    owns: ['project.aspect_ratio', 'project.visual_style', 'project.project_style'],
+    reads: ['project'],
+    workspaceKinds: [],
+    primarySelection: { queryParam: 'projectId', entityType: 'project' },
+    reviewQuery: {
+      workspaceIdParam: 'workspaceId',
+      entityParams: { project: 'projectId' },
     },
   },
 ]
@@ -180,15 +149,12 @@ export function buildProjectWorkbenchReviewParams(
   const entityParam = input.entityType && input.entityId !== undefined
     ? definition.reviewQuery.entityParams?.[input.entityType]
     : undefined
-  if (!definition.reviewQuery.viewParam && entityParam) {
-    params[entityParam] = input.entityId
-  }
   if (definition.reviewQuery.viewParam && definition.reviewQuery.viewValue) {
     params[definition.reviewQuery.viewParam] = definition.reviewQuery.viewValue
   }
   params[definition.reviewQuery.workspaceIdParam] = input.workspaceId
-  if (definition.reviewQuery.viewParam && entityParam) {
-    if (entityParam) params[entityParam] = input.entityId
+  if (entityParam) {
+    params[entityParam] = input.entityId
   }
   if (definition.reviewQuery.requiresEntity) {
     const entityParamNames = new Set(Object.values(definition.reviewQuery.entityParams ?? {}))

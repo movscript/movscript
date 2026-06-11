@@ -1,5 +1,5 @@
 import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
-import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 
 export function traceEventIdFromHash(hash: string | undefined): string | undefined {
   if (!hash?.startsWith('#event-')) return undefined
@@ -28,5 +28,5 @@ export function buildTraceEventLink(input: {
 }
 
 export function canCancelWorkerRun(run: Pick<AgentRun, 'role' | 'status'> | undefined): boolean {
-  return run?.role === 'worker' && !isTerminalAgentRunStatus(run.status)
+  return run?.role === 'worker' && !isAgentRunTerminalStatus(run.status)
 }

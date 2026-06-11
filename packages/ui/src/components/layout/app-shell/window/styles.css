@@ -51,6 +51,11 @@
   gap: var(--ms-space-1);
 }
 
+.app-window-header__left-controls[data-layout="fill"] {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .app-window-header__center,
 .app-window-header__spacer {
   min-width: 0;
@@ -140,6 +145,19 @@
 
 .app-window-sidebar-toggle svg {
   display: block;
+}
+
+.detail-sidebar-window-controls {
+  width: 100%;
+  gap: 18px;
+}
+
+.detail-sidebar-window-controls .app-window-sidebar-toggle {
+  color: color-mix(in srgb, var(--ms-color-foreground) 50%, transparent);
+}
+
+.detail-sidebar-window-controls__nav {
+  opacity: 0.62;
 }
 
 .app-window-terminal-toggle[data-active="true"] {

@@ -1,0 +1,206 @@
+import type {
+  MovScriptWorkspaceDomainIndex,
+  MovScriptWorkspaceIndexedEntity,
+} from '@movscript/workspace/indexer'
+
+export type ContentUnitOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
+export type ContentUnitRuntimePanelStatus = 'ready' | 'blocked'
+
+export type ContentUnitPromptRefKind = 'asset' | 'keyframe' | 'storyboard' | 'shot' | 'content_unit'
+
+export interface ContentUnitPromptRef {
+  kind: ContentUnitPromptRefKind
+  id: string
+  raw: string
+  source: {
+    field: string
+    start?: number
+    end?: number
+  }
+}
+
+export interface ContentUnitResolvedRef extends ContentUnitPromptRef {
+  role: 'primary' | 'input'
+  resolved?: {
+    entityKind: string
+    id?: string | number
+    path?: string
+  }
+  selection?: ContentUnitUpstreamSelection
+  blocker?: ContentUnitPromptBlocker
+}
+
+export interface ContentUnitUpstreamSelection {
+  content_unit_ref: string
+  candidate_id?: string | number
+  resource_id?: string | number
+  stale?: boolean
+  stale_policy?: string
+  role?: string
+  continuity_role?: string
+}
+
+export interface ContentUnitPromptBlocker {
+  code:
+    | 'ref_not_found'
+    | 'primary_ref_missing'
+    | 'primary_ref_ambiguous'
+    | 'upstream_content_unit_not_found'
+    | 'upstream_selection_missing'
+    | 'upstream_selection_stale'
+    | 'upstream_resource_missing'
+    | 'prompt_dependency_cycle'
+  ref?: string
+  message: string
+}
+
+export interface NormalizedContentUnitPrompt {
+  schema: 'movscript.content_unit_prompt.v1'
+  content_unit_ref: string
+  content_unit_id?: string | number
+  content_unit_type: string
+  output_kind: ContentUnitOutputKind
+  adapter_version: string
+  edit_prompt?: {
+    text?: string
+    negative_text?: string
+    notes?: string
+    structured?: Record<string, unknown>
+  }
+  model_intent?: Record<string, unknown>
+  refs: ContentUnitResolvedRef[]
+  runtime_request: {
+    capability: string
+    provider_intent?: string
+    model_intent?: Record<string, unknown>
+    inputs: Array<{
+      role: string
+      kind: 'text' | 'image' | 'video' | 'audio' | 'metadata'
+      ref?: string
+      source_content_unit_ref?: string
+      candidate_id?: string | number
+      resource_id?: string | number
+      mime_type?: string
+      required: boolean
+    }>
+    params?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+  }
+  blockers?: ContentUnitPromptBlocker[]
+  created_at: string
+}
+
+export interface ContentUnitRuntimePanel {
+  schema: 'movscript.content_unit_runtime_panel.v1'
+  content_unit_ref: string
+  content_unit_id?: string | number
+  content_unit_type: string
+  adapter_version: string
+  output_kind: ContentUnitOutputKind
+  status: ContentUnitRuntimePanelStatus
+  prompt?: {
+    text?: string
+    negative_text?: string
+    notes?: string
+    structured?: Record<string, unknown>
+  }
+  runtime_request?: {
+    capability: string
+    provider_intent?: string
+    model_intent?: Record<string, unknown>
+    inputs: Array<{
+      role: string
+      kind: 'text' | 'image' | 'video' | 'audio' | 'metadata'
+      ref?: string
+      source_content_unit_ref?: string
+      candidate_id?: string | number
+      resource_id?: string | number
+      mime_type?: string
+      required: boolean
+    }>
+    params?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+  }
+  review?: {
+    warnings?: string[]
+    blockers?: string[]
+  }
+}
+
+export interface ContentUnitDependencyReport {
+  schema: 'movscript.content_unit_dependency_report.v1'
+  content_unit_ref: string
+  content_unit_type: string
+  dependencies: Array<{
+    role: string
+    entityKind?: string
+    id?: string | number
+    path?: string
+    required?: boolean
+  }>
+  refs: ContentUnitResolvedRef[]
+  upstream_selections: ContentUnitUpstreamSelection[]
+  blockers?: ContentUnitPromptBlocker[]
+  issues: Array<{
+    severity: 'error' | 'warning'
+    message: string
+  }>
+}
+
+export interface ContentUnitSelectionValidity {
+  schema: 'movscript.content_unit_selection_validity.v2'
+  content_unit_ref: string
+  selected: boolean
+  candidate_id?: string | number
+  resource_id?: string | number
+  stale: boolean
+  stale_policy: 'strict' | 'accept_stale'
+  reason?: string
+  stale_reasons?: Array<
+    | 'edit_prompt_changed'
+    | 'model_intent_changed'
+    | 'refs_changed'
+    | 'runtime_inputs_changed'
+    | 'candidate_prompt_missing'
+    | 'prompt_dependency_missing'
+  >
+}
+
+export interface ContentUnitDerivedArtifactBundle {
+  contentUnitId: string | number
+  contentUnitPath: string
+  runtimePanel: ContentUnitRuntimePanel
+  generationPrompt: NormalizedContentUnitPrompt
+  dependencyReport: ContentUnitDependencyReport
+  selectionValidity: ContentUnitSelectionValidity
+}
+
+export interface AdapterContext {
+  index: MovScriptWorkspaceDomainIndex
+  contentUnit: MovScriptWorkspaceIndexedEntity
+  interpreterVersion: string
+  createdAt: string
+  promptStack?: string[]
+}
+
+export interface AdapterDerivation {
+  dependencies: AdapterDependencies
+  prompt: NormalizedContentUnitPrompt
+}
+
+export interface ContentUnitAdapter {
+  type: string
+  version: string
+  outputKind: ContentUnitOutputKind
+  validate(context: AdapterContext): ContentUnitDependencyReport['issues']
+  derivePrompt(context: AdapterContext): NormalizedContentUnitPrompt
+  collectDependencies(context: AdapterContext, prompt: NormalizedContentUnitPrompt): AdapterDependencies
+  deriveRuntimePanel(context: AdapterContext, derivation: AdapterDerivation): ContentUnitRuntimePanel
+}
+
+export interface AdapterDependencies {
+  entities: Record<string, MovScriptWorkspaceIndexedEntity[]>
+  upstreamSelections: ContentUnitUpstreamSelection[]
+  refs: ContentUnitResolvedRef[]
+  blockers: ContentUnitPromptBlocker[]
+}

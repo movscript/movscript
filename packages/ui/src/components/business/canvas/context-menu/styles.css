@@ -7,6 +7,11 @@
   padding-block: var(--ms-space-1);
 }
 
+.canvas-context-menu--viewport {
+  position: absolute;
+  z-index: 20;
+}
+
 .canvas-context-menu__section-title {
   margin: 0;
   padding: var(--ms-space-2) var(--ms-space-3) var(--ms-space-1);

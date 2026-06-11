@@ -1,19 +1,6 @@
-export interface AppSettings {
-  apiBaseURL: string
-  launchMode: 'cloud' | 'local'
-  workMode: 'detail' | 'agent'
-  onboardingCompleted: boolean
-  movScriptWorkspaceDir?: string
-  localDisplayName?: string
-  shotLibrarySources?: ShotLibrarySourceConfig[]
-  defaultShotLibrarySourceId?: string
-}
-
-export interface ShotLibrarySourceConfig {
-  id: string
-  name: string
-  baseURL: string
-  enabled?: boolean
-  readOnly?: boolean
-  authToken?: string
-}
+export type {
+  AppLaunchMode,
+  AppSettings,
+  AppWorkMode,
+  ShotLibrarySourceConfig,
+} from '@movscript/core/shared'

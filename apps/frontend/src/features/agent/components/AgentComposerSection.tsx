@@ -1,4 +1,4 @@
-import type { ClipboardEventHandler, ComponentProps, CSSProperties, DragEventHandler, FormEvent, RefObject } from 'react'
+import type { ClipboardEventHandler, ComponentProps, DragEventHandler, FormEvent, RefObject } from 'react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -39,8 +39,15 @@ import {
   ComposerAttachmentChip,
   MentionResourceOption,
 } from '@/features/agent/components/AgentMentionEditor'
+import {
+  agentComposerMentionMenuPositionEqual,
+  agentComposerMentionMenuPositionFromEditorElement,
+  agentComposerMentionMenuStyleFromPosition,
+  subscribeAgentComposerMentionMenuPlacement,
+  type AgentComposerMentionMenuPosition,
+} from '@/features/agent/presentation/agentComposerMentionMenuPlacement'
 import { ProviderMark } from '@/features/agent/components/ProviderControls'
-import type { AgentPendingActiveRunInputQueueItem } from '@/features/agent/domain/agentActiveRunInputMessages'
+import type { AgentPendingActiveRunInputQueueItem } from '@movscript/core/agent/protocol'
 import {
   AGENT_RUN_PROFILE_PRESETS,
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
@@ -51,13 +58,6 @@ import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { PublicModel } from '@/types'
 
 type MentionStateHandler = ComponentProps<typeof AgentMentionEditor>['onMentionState']
-
-interface MentionMenuPosition {
-  bottom: number
-  left: number
-  maxHeight: number
-  width: number
-}
 
 interface WorkspaceContextOption {
   value: string
@@ -76,6 +76,7 @@ export interface AgentComposerSectionProps {
   canStopActiveRun: boolean
   composerAttachmentEntries: { attachment: AgentAttachment }[]
   composerAttachmentsCount: number
+  composerInput: string
   composerPlaceholder: string
   debugBeforeSend: boolean
   draggingFiles: boolean
@@ -131,6 +132,7 @@ export function AgentComposerSection({
   canStopActiveRun,
   composerAttachmentEntries,
   composerAttachmentsCount,
+  composerInput,
   composerPlaceholder,
   debugBeforeSend,
   draggingFiles,
@@ -177,11 +179,16 @@ export function AgentComposerSection({
 }: AgentComposerSectionProps) {
   const { t } = useTranslation()
   const editorDisabled = buildingSendWorkspace || (answeringPendingInput && !canAnswerPendingInputWithText)
-  const [mentionMenuPosition, setMentionMenuPosition] = useState<MentionMenuPosition | null>(null)
+  const [mentionMenuPosition, setMentionMenuPosition] = useState<AgentComposerMentionMenuPosition | null>(null)
   const [profilePresetId, setProfilePresetId] = useState<AgentRunProfilePresetId>(DEFAULT_AGENT_RUN_PROFILE_PRESET_ID)
+  const [draftHasInput, setDraftHasInput] = useState(() => !!composerInput.trim())
   const runProfile = agentRunProfilePresetById(profilePresetId)
   const mentionMenuOpen = mentionRangeActive && mentionResults.length > 0
   const actionMenuDisabled = answeringPendingInput || uploading || loading || buildingSendWorkspace
+
+  useEffect(() => {
+    setDraftHasInput(!!composerInput.trim())
+  }, [composerInput])
 
   useEffect(() => {
     if (!mentionMenuOpen) {
@@ -192,39 +199,18 @@ export function AgentComposerSection({
     function updateMentionMenuPosition() {
       const editor = inputRef.current
       if (!editor) return
-      const rect = editor.getBoundingClientRect()
-      const viewportPadding = 8
-      const gap = 6
-      const availableAbove = Math.max(120, rect.top - viewportPadding - gap)
-      const width = Math.min(Math.max(rect.width, 360), window.innerWidth - viewportPadding * 2)
-      const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding)
-
-      const nextPosition = {
-        bottom: Math.max(viewportPadding, window.innerHeight - rect.top + gap),
-        left,
-        maxHeight: Math.min(360, availableAbove),
-        width,
-      }
+      const nextPosition = agentComposerMentionMenuPositionFromEditorElement(editor)
+      if (!nextPosition) return
 
       setMentionMenuPosition((current) => (
-        current
-          && current.bottom === nextPosition.bottom
-          && current.left === nextPosition.left
-          && current.maxHeight === nextPosition.maxHeight
-          && current.width === nextPosition.width
+        agentComposerMentionMenuPositionEqual(current, nextPosition)
           ? current
           : nextPosition
       ))
     }
 
     updateMentionMenuPosition()
-    window.addEventListener('resize', updateMentionMenuPosition)
-    window.addEventListener('scroll', updateMentionMenuPosition, true)
-
-    return () => {
-      window.removeEventListener('resize', updateMentionMenuPosition)
-      window.removeEventListener('scroll', updateMentionMenuPosition, true)
-    }
+    return subscribeAgentComposerMentionMenuPlacement(updateMentionMenuPosition)
   }, [inputRef, mentionMenuOpen])
 
   const mentionMenuPortalTarget = typeof document === 'undefined' ? null : document.body
@@ -240,12 +226,7 @@ export function AgentComposerSection({
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
     <div
       className="ai-agent-resource-mention-menu overflow-hidden border border-border bg-background shadow-lg"
-      style={{
-        '--ai-agent-resource-mention-menu-max-height': `${mentionMenuPosition.maxHeight}px`,
-        bottom: mentionMenuPosition.bottom,
-        left: mentionMenuPosition.left,
-        width: mentionMenuPosition.width,
-      } as CSSProperties}
+      style={agentComposerMentionMenuStyleFromPosition(mentionMenuPosition)}
     >
       <div className="ai-agent-resource-mention-menu__header border-b border-border px-2 py-1 type-tiny text-muted-foreground">
         {t('shared.genInput.mention')}
@@ -268,8 +249,21 @@ export function AgentComposerSection({
     onSend(profilePresetId)
   }
 
+  function handleInputChange(nextInput: string) {
+    const nextHasInput = !!nextInput.trim()
+    setDraftHasInput((current) => current === nextHasInput ? current : nextHasInput)
+    onInputChange(nextInput)
+  }
+
   const uploadingFileCount = uploadingFileNames.length
   const uploadingPrimaryFileName = uploadingFileNames[0]
+  const canSubmit = canSend || (
+    draftHasInput
+    && !loading
+    && !uploading
+    && !buildingSendWorkspace
+    && (!answeringPendingInput || canAnswerPendingInputWithText)
+  )
 
   return (
     <AgentSurfaceBlock asChild variant="card">
@@ -361,7 +355,8 @@ export function AgentComposerSection({
             editorRef={inputRef}
             placeholder={composerPlaceholder}
             disabled={editorDisabled}
-            onChange={onInputChange}
+            value={composerInput}
+            onChange={handleInputChange}
             onMentionState={onMentionState}
             onEscape={onMentionEscape}
             onAcceptMention={onAcceptMention}
@@ -573,7 +568,7 @@ export function AgentComposerSection({
             <AgentComposerSubmit
               type="submit"
               running={loading || buildingSendWorkspace}
-              disabled={!canSend}
+              disabled={!canSubmit}
               label={answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
             >
               {stoppingActiveRun

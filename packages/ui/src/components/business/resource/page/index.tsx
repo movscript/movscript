@@ -709,7 +709,7 @@ export function ResourcePrepWorkbenchShell({ className, ...props }: HTMLAttribut
 }
 
 export function ResourcePrepWorkbenchLayout({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <OverlapPaneGroup className={cn("resource-prep-workbench-layout", className)} {...props} />;
+  return <OverlapPaneGroup overlapSide="left" className={cn("resource-prep-workbench-layout", className)} {...props} />;
 }
 
 export function ResourcePrepWorkbenchRail({ className, ...props }: HTMLAttributes<HTMLElement>) {
@@ -913,9 +913,13 @@ export function ResourceAssetPreviewFallback({ className, ...props }: HTMLAttrib
   return <div className={cn("resource-asset-card__fallback", className)} {...props} />;
 }
 
-export function ResourceAssetActionButton({ className, ...props }: ButtonProps) {
+export const ResourceAssetActionButton = forwardRef<HTMLButtonElement, ButtonProps>(function ResourceAssetActionButton(
+  { className, ...props },
+  ref,
+) {
   return (
     <Button
+      ref={ref}
       type="button"
       variant="ghost"
       size="icon-xs"
@@ -923,7 +927,7 @@ export function ResourceAssetActionButton({ className, ...props }: ButtonProps) 
       {...props}
     />
   );
-}
+});
 
 export function ResourceAssetName({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn("resource-asset-card__resource-name", className)} {...props} />;

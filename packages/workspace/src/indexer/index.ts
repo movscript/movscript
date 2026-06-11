@@ -1,0 +1,17 @@
+export {
+  SEMANTIC_ENTITY_KINDS,
+  deriveMovScriptWorkspaceDomainIndex,
+  isSemanticEntityKind,
+  queryMovScriptCanonicalEntities,
+  queryMovScriptWorkspaceAssets,
+  queryMovScriptWorkspaceEntities,
+  queryMovScriptWorkspaceProductionContext,
+  queryMovScriptWorkspaceSettings,
+  type MovScriptWorkspaceAssetQuery,
+  type MovScriptWorkspaceDocument,
+  type MovScriptWorkspaceDomainIndex,
+  type MovScriptWorkspaceEntityQuery,
+  type MovScriptWorkspaceIndexedEntity,
+  type MovScriptWorkspaceProductionContextQuery,
+  type MovScriptWorkspaceSettingQuery,
+} from './domainIndex.js'

@@ -27,10 +27,9 @@ import { isLocalLaunchMode } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { projectListQueryKey, projectProgressQueryKey } from '@/features/project/application/projectQueries'
 import { initializeProjectGitWorkspace } from '@/features/project/application/projectGitWorkspace'
+import { readLocalAdminPromptDismissed, saveLocalAdminPromptDismissed } from '@/features/project/presentation/localAdminPromptPreference'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
-
-const LOCAL_ADMIN_PROMPT_DISMISSED_KEY = 'movscript-local-admin-prompt-dismissed'
 
 interface ContentUnitProgress {
   total: number
@@ -206,13 +205,7 @@ export default function ProjectsPage() {
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const settings = useAppSettingsStore((s) => s.settings)
   const [showCreate, setShowCreate] = useState(false)
-  const [adminPromptDismissed, setAdminPromptDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(LOCAL_ADMIN_PROMPT_DISMISSED_KEY) === 'true'
-    } catch {
-      return false
-    }
-  })
+  const [adminPromptDismissed, setAdminPromptDismissed] = useState(readLocalAdminPromptDismissed)
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: projectListQueryKey(currentOrgID),
@@ -255,7 +248,7 @@ export default function ProjectsPage() {
 
   function dismissAdminPrompt() {
     setAdminPromptDismissed(true)
-    try { localStorage.setItem(LOCAL_ADMIN_PROMPT_DISMISSED_KEY, 'true') } catch {}
+    saveLocalAdminPromptDismissed()
   }
 
   const showAdminPrompt = isLocalLaunchMode(settings)

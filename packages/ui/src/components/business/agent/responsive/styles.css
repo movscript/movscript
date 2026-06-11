@@ -10,7 +10,7 @@
 }
 
 @media (max-width: 1024px) {
-  .ms-agent-shell:has(.ms-agent-context) {
+  .ms-agent-shell[data-has-context="true"] {
     grid-template-columns: minmax(198px, 240px) minmax(0, 1fr);
   }
 
@@ -29,7 +29,7 @@
 
 @media (max-width: 760px) {
   .ms-agent-shell,
-  .ms-agent-shell:has(.ms-agent-context) {
+  .ms-agent-shell[data-has-context="true"] {
     grid-template-columns: minmax(0, 1fr);
     min-height: 100dvh;
     height: 100dvh;

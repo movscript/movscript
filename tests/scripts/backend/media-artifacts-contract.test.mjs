@@ -43,11 +43,10 @@ test('media pipeline capability names are shared across contracts and runtime de
   const files = {
     backendAI: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'infra', 'ai', 'feature.go'), 'utf8'),
     backendJob: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'domain', 'job', 'helpers.go'), 'utf8'),
-    workspaceRegistry: await readFile(path.join(repoRoot, 'packages', 'workspaces', 'src', 'registry.ts'), 'utf8'),
-    frontendAgentProtocol: await readFile(path.join(repoRoot, 'apps', 'frontend', 'src', 'features', 'agent', 'domain', 'agentProtocol.ts'), 'utf8'),
+    coreAgentProtocol: await readFile(path.join(repoRoot, 'packages', 'core', 'src', 'agent', 'protocol.ts'), 'utf8'),
     frontendTypes: await readFile(path.join(repoRoot, 'apps', 'frontend', 'src', 'types', 'index.ts'), 'utf8'),
     adminTypes: await readFile(path.join(repoRoot, 'apps', 'admin', 'src', 'types', 'index.ts'), 'utf8'),
-    modelAliases: await readFile(path.join(repoRoot, 'apps', 'frontend', 'electron', 'mcp', 'modelContracts', 'capability.ts'), 'utf8'),
+    modelAliases: await readFile(path.join(repoRoot, 'packages', 'core', 'src', 'mcp', 'tools', 'model', 'contracts', 'capability.ts'), 'utf8'),
   }
 
   for (const capability of expectedCapabilities) {
@@ -62,8 +61,8 @@ test('media pipeline capability names are shared across contracts and runtime de
   assert.match(files.modelAliases, /ffmpeg_render[\s\S]*render_video/)
 })
 
-test('frontend agent protocol exports the media artifacts v1 contract shape', async () => {
-  const protocol = await readFile(path.join(repoRoot, 'apps', 'frontend', 'src', 'features', 'agent', 'domain', 'agentProtocol.ts'), 'utf8')
+test('core agent protocol exports the media artifacts v1 contract shape', async () => {
+  const protocol = await readFile(path.join(repoRoot, 'packages', 'core', 'src', 'agent', 'protocol.ts'), 'utf8')
 
   assert.match(protocol, /MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript\.media\.artifacts\.v1'/)
   for (const exportedType of [

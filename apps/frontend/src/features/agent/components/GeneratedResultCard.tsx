@@ -22,6 +22,7 @@ import {
   attachedGeneratedCandidateIdsAfterResults,
   invalidateGeneratedCandidateQueries,
   generatedTargetRecordDescription,
+  generatedTargetRecordId,
   generatedTargetRecordLabel,
   generatedTargetRecordMeta,
   generatedTargetSearchText,
@@ -62,7 +63,6 @@ import {
   AgentGeneratedCandidateTargetMeta,
   AgentGeneratedCandidateTargetRow,
   AgentGeneratedCandidateTargetTitle,
-  AgentGeneratedMediaPreview,
   AgentGeneratedMediaPreviewButton,
   AgentGeneratedResultActionButton,
   AgentGeneratedResultActions,
@@ -93,14 +93,19 @@ import {
   SelectValue,
 } from '@movscript/ui'
 
+const AGENT_GENERATED_RESULT_INITIAL_RENDER_LIMIT = 4
+
 export function GeneratedResultCard({ attachments, projectId }: { attachments: AgentAttachment[]; projectId?: number }) {
   const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
+  const [expandedResults, setExpandedResults] = useState(false)
   const [candidateDialogAttachments, setCandidateDialogAttachments] = useState<AgentAttachment[] | null>(null)
   const [viewerAttachment, setViewerAttachment] = useState<AgentAttachment | null>(null)
   const generated = attachments.filter(isGeneratedResultAttachment)
   if (generated.length === 0) return null
   const hasUsableGeneratedResource = generated.some((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
   const candidateAttachments = generated.filter((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
+  const renderedGenerated = expandedResults ? generated : generated.slice(0, AGENT_GENERATED_RESULT_INITIAL_RENDER_LIMIT)
+  const hiddenGeneratedCount = generated.length - renderedGenerated.length
 
   function copyResourceMention(resourceId: number) {
     navigator.clipboard.writeText(resourceMentionToken(resourceId))
@@ -129,7 +134,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
         </AgentGeneratedResultActions>
       </AgentGeneratedResultHeader>
       <AgentGeneratedResultList>
-        {generated.map((attachment) => {
+        {renderedGenerated.map((attachment) => {
           const resourceId = generatedAttachmentResourceId(attachment)
           return (
             <AgentGeneratedResultItem key={attachment.id}>
@@ -173,6 +178,15 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
           )
         })}
       </AgentGeneratedResultList>
+      {hiddenGeneratedCount > 0 && (
+        <AgentGeneratedResultActionButton
+          type="button"
+          variant="ghost"
+          onClick={() => setExpandedResults(true)}
+        >
+          显示剩余 {hiddenGeneratedCount} 个结果
+        </AgentGeneratedResultActionButton>
+      )}
       <AgentGeneratedResultHelperText>
         {hasUsableGeneratedResource
           ? '可在后续消息中粘贴资源引用，或将可用的生成资源加入素材需求、画面锚点的候选列表。'
@@ -217,9 +231,19 @@ function GeneratedMediaPreview({ attachment, onPreview }: { attachment: AgentAtt
   }
   if (attachment.type === 'video') {
     return (
-      <AgentGeneratedMediaPreview data-testid="agent-generated-media-preview" surface="dark">
-        <AgentAttachmentMediaPreview attachment={attachment} variant="result" />
-      </AgentGeneratedMediaPreview>
+      <AgentGeneratedMediaPreviewButton
+        type="button"
+        data-testid="agent-generated-media-preview"
+        surface="dark"
+        onClick={onPreview}
+      >
+        <MediaViewer
+          resource={resource}
+          fit="contain"
+          lightbox={false}
+          lightweightVideoThumb
+        />
+      </AgentGeneratedMediaPreviewButton>
     )
   }
   return null
@@ -273,9 +297,10 @@ function GeneratedCandidateAttachDialog({
   const normalizedQuery = targetQuery.trim().toLowerCase()
   const filteredTargets = targetRecords
     .filter((record) => isGeneratedCandidateTargetRecord(record, targetConfig.value))
+    .filter((record) => generatedTargetRecordId(record) !== undefined)
     .filter((record) => !normalizedQuery || generatedTargetSearchText(record).includes(normalizedQuery))
     .slice(0, 80)
-  const selectedTarget = targetId !== undefined ? filteredTargets.find((record) => record.ID === targetId) : undefined
+  const selectedTarget = targetId !== undefined ? filteredTargets.find((record) => generatedTargetRecordId(record) === targetId) : undefined
   const canAttach = !!projectId && targetId !== undefined && !!selectedTarget && hasCandidateAttachments && attachStatus !== 'attaching' && attachStatus !== 'attached'
   const selectedTargetDescription = selectedTarget ? generatedTargetRecordDescription(selectedTarget) : ''
   const selectedTargetMeta = selectedTarget ? generatedTargetRecordMeta(selectedTarget) : []
@@ -458,22 +483,24 @@ function GeneratedCandidateAttachDialog({
               ) : (
                 <AgentGeneratedCandidateTargetList>
                   {filteredTargets.map((record) => {
-                    const selected = record.ID === targetId
+                    const recordId = generatedTargetRecordId(record)
+                    if (recordId === undefined) return null
+                    const selected = recordId === targetId
                     const meta = generatedTargetRecordMeta(record)
                     const description = generatedTargetRecordDescription(record)
                     return (
                       <AgentGeneratedCandidateTargetItem
-                        key={`${targetConfig.value}-${record.ID}`}
+                        key={`${targetConfig.value}-${recordId}`}
                         active={selected}
                         onClick={() => {
-                          setTargetId(record.ID)
+                          setTargetId(recordId)
                           setAttachMessage('')
                           if (attachStatus !== 'attaching') setAttachStatus('idle')
                         }}
                       >
                         <AgentGeneratedCandidateTargetRow>
                           <AgentGeneratedCandidateTargetTitle>{generatedTargetRecordLabel(record)}</AgentGeneratedCandidateTargetTitle>
-                          <AgentGeneratedCandidateTargetId>#{record.ID}</AgentGeneratedCandidateTargetId>
+                          <AgentGeneratedCandidateTargetId>#{recordId}</AgentGeneratedCandidateTargetId>
                         </AgentGeneratedCandidateTargetRow>
                         {meta.length > 0 && <AgentGeneratedCandidateTargetMeta>{meta.join(' · ')}</AgentGeneratedCandidateTargetMeta>}
                         {description && <AgentGeneratedCandidateTargetDescription>{description}</AgentGeneratedCandidateTargetDescription>}

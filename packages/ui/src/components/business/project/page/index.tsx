@@ -50,10 +50,6 @@ export function ProjectOverviewMetricGrid({ className, ...props }: HTMLAttribute
   return <div className={cn("project-overview-metric-grid", className)} {...props} />;
 }
 
-export function ProjectOverviewPipelineGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("project-overview-pipeline-grid", className)} {...props} />;
-}
-
 export function ProjectOverviewMetaGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("project-overview-meta-grid", className)} {...props} />;
 }

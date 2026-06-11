@@ -1,0 +1,121 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import test from 'node:test'
+
+const agentConsolePages = [
+  {
+    label: 'overview',
+    path: 'src/features/agent/components/AgentConsolePage.tsx',
+    body: 'AgentConsolePageBody',
+  },
+  {
+    label: 'model providers',
+    path: 'src/features/agent/components/ModelProvidersPage.tsx',
+    body: 'AgentConsoleDocumentBody',
+  },
+  {
+    label: 'agents',
+    path: 'src/features/agent/components/AgentsPage.tsx',
+    body: 'AgentConsoleDocumentBody',
+  },
+  {
+    label: 'connections',
+    path: 'src/features/agent/components/AgentConnectionsPage.tsx',
+    body: 'AgentThreePanePageBody',
+  },
+  {
+    label: 'plugins',
+    path: 'src/features/plugins/components/ClientPluginsPage.tsx',
+    body: 'PluginPageShellBody',
+  },
+  {
+    label: 'workspace files',
+    path: 'src/features/agent/components/MovScriptWorkspaceFilesPage.tsx',
+    body: 'AgentWorkspacesPageBody',
+  },
+  {
+    label: 'workspace review',
+    path: 'src/features/agent/components/MovScriptWorkspaceReviewPage.tsx',
+    body: 'AgentWorkspacesPageBody',
+  },
+] as const
+
+test('agent console pages share the shell header nav body layout contract', () => {
+  for (const page of agentConsolePages) {
+    const source = readFileSync(resolve(page.path), 'utf8')
+
+    assert.match(source, /<AgentPageShell[\s>]/, `${page.label} should render the shared agent page shell`)
+    assert.match(source, /<AgentPageShellHeader>/, `${page.label} should render the shared page header slot`)
+    assert.match(source, /<AgentConsoleHeader>/, `${page.label} should render the shared console header`)
+    assert.match(source, /<\/AgentPageShellHeader>\s*<AgentConsoleNav compact \/>/, `${page.label} should keep console nav outside the header slot`)
+    assert.match(source, new RegExp(`<${page.body}[\\s>]`), `${page.label} should render the expected shared body primitive`)
+  }
+})
+
+test('agent console nav stays inside settings-hosted console tabs', () => {
+  const navSource = readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8')
+
+  assert.match(navSource, /tab: 'console:model-providers'/)
+  assert.match(navSource, /tab: 'console:agents'/)
+  assert.match(navSource, /settingsHostedConsoleTab\(location\.pathname, location\.search\)/)
+  assert.match(navSource, /settingsHostedConsoleRoute\(section\.tab\)/)
+  assert.match(navSource, /\$\{ROUTES\.appSettings\}\?tab=\$\{encodeURIComponent\(tab\)\}/)
+  assert.match(navSource, /pathname === ROUTES\.agentConsole\)[\s\S]*return 'console'/)
+  assert.match(navSource, /settingsConsoleTab === section\.tab/)
+})
+
+test('agent console document pages use shared content flow primitives', () => {
+  const modelProvidersSource = readFileSync(resolve('src/features/agent/components/ModelProvidersPage.tsx'), 'utf8')
+  const agentsSource = readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8')
+  const pluginsSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPage.tsx'), 'utf8')
+  const consoleSource = readFileSync(resolve('../../packages/ui/src/components/business/agent/console/index.tsx'), 'utf8')
+  const consoleStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/console/styles.css'), 'utf8')
+  const pluginStyles = readFileSync(resolve('../../packages/ui/src/components/business/plugins/styles.css'), 'utf8')
+  const businessExports = readFileSync(resolve('../../packages/ui/src/components/business/index.ts'), 'utf8')
+
+  for (const source of [modelProvidersSource, agentsSource]) {
+    assert.match(source, /AgentConsoleStack/)
+    assert.match(source, /AgentConsoleIntroRow/)
+    assert.doesNotMatch(source, /className="space-y-/)
+    assert.doesNotMatch(source, /className="flex flex-wrap/)
+  }
+
+  assert.match(agentsSource, /AgentConsoleTabList/)
+  assert.match(agentsSource, /AgentConsoleTabButton/)
+  assert.doesNotMatch(agentsSource, /className="gap-2"/)
+  assert.match(consoleSource, /export function AgentConsoleTabList/)
+  assert.match(consoleSource, /export function AgentConsoleTabButton/)
+  assert.match(consoleSource, /export function AgentConsoleDocumentBody/)
+  assert.match(consoleSource, /export function AgentConsolePageBody/)
+  assert.match(consoleSource, /export function AgentConsoleLogSummary/)
+  assert.match(consoleSource, /export const AgentConsoleLogStream/)
+  assert.match(consoleSource, /export function AgentConsoleLogLineText/)
+  assert.match(consoleSource, /layout\?: "default" \| "control-logs"/)
+  assert.match(consoleSource, /pane\?: "default" \| "logs"/)
+  assert.match(consoleSource, /spacing\?: "default" \| "loose"/)
+  assert.match(consoleStyles, /\.agent-console-stack\[data-spacing="loose"\] \{[\s\S]*gap: var\(--ms-space-4\);/)
+  assert.match(consoleStyles, /\.agent-console-tab-list \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/)
+  assert.match(businessExports, /AgentConsoleTabList/)
+  assert.match(businessExports, /AgentConsoleTabButton/)
+  assert.match(businessExports, /AgentConsoleDocumentBody/)
+  assert.match(businessExports, /AgentConsolePageBody/)
+  assert.match(businessExports, /AgentConsoleLogSummary/)
+  assert.match(businessExports, /AgentConsoleLogStream/)
+  assert.match(businessExports, /AgentConsoleLogLineText/)
+  assert.match(pluginsSource, /<PluginCardSurface key=\{entry\.key\} spacing="compact">/)
+  assert.match(pluginsSource, /PluginTabButton/)
+  assert.match(pluginsSource, /PluginPageShellBody/)
+  assert.match(pluginsSource, /PluginSearchInput/)
+  assert.match(pluginsSource, /PluginBannerDismissAction/)
+  assert.match(pluginsSource, /layout="marketplace"/)
+  assert.doesNotMatch(pluginsSource, /className="gap-2"/)
+  assert.doesNotMatch(pluginsSource, /className="gap-1\.5/)
+  assert.doesNotMatch(pluginsSource, /className="ml-auto/)
+  assert.doesNotMatch(pluginsSource, /plugin-empty-state--marketplace/)
+  assert.doesNotMatch(pluginsSource, /className="plugin-page-layout"/)
+  assert.doesNotMatch(pluginsSource, /animate-spin/)
+  assert.match(pluginStyles, /\.plugin-card-surface\[data-spacing="compact"\] \{[\s\S]*gap: var\(--ms-space-2\);/)
+  assert.match(pluginStyles, /\.plugin-empty-state\[data-layout="marketplace"\] \{[\s\S]*height: 320px;/)
+  assert.match(pluginStyles, /\.plugin-tab-button \{[\s\S]*gap: 0\.375rem;/)
+})

@@ -1,5 +1,11 @@
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
+import {
+  isResourceFileUrl as isCoreResourceFileUrl,
+  hashResourceCacheScopeValue,
+  resourceAuthCacheScopeKey,
+  resourceMediaCacheKey as coreResourceMediaCacheKey,
+} from '@movscript/core/resources'
 
 export interface CachedMediaUrl {
   url: string
@@ -30,22 +36,14 @@ const MAX_RESOURCE_MEDIA_CACHE_BYTES = 256 * 1024 * 1024
 const mediaCache = new Map<string, CacheEntry>()
 
 export function isResourceFileUrl(src: string): boolean {
-  try {
-    const url = new URL(src, globalThis.location?.origin ?? 'http://movscript.local')
-    return isResourceFilePath(url.pathname)
-  } catch {
-    return isResourceFilePath(src)
-  }
+  return isCoreResourceFileUrl(src, resourceMediaOrigin())
 }
 
 export function resourceMediaCacheKey(src: string): string {
-  try {
-    const url = new URL(src, globalThis.location?.origin ?? 'http://movscript.local')
-    const baseKey = `${url.origin}${url.pathname}${url.search}`
-    return isResourceFilePath(url.pathname) ? `${baseKey}::${resourceAuthCacheScope()}` : baseKey
-  } catch {
-    return isResourceFilePath(src) ? `${src}::${resourceAuthCacheScope()}` : src
-  }
+  return coreResourceMediaCacheKey(src, {
+    origin: resourceMediaOrigin(),
+    authScope: resourceAuthCacheScope(),
+  })
 }
 
 export async function acquireCachedResourceMediaUrl(
@@ -84,6 +82,54 @@ export async function acquireCachedResourceMediaUrl(
   const activeEntry = mediaCache.get(key)
   if (!activeEntry) {
     return acquireCachedResourceMediaUrl(src, loadBlob, options)
+  }
+
+  const objectUrl = await getOrCreateObjectUrl(activeEntry, options?.variantKey, options?.transformBlob)
+
+  activeEntry.lastAccessed = Date.now()
+  pruneResourceMediaCache()
+  return {
+    url: objectUrl,
+    release: () => releaseCacheReference(key),
+  }
+}
+
+export async function acquireCachedInlineImageMediaUrl(
+  dataUrl: string,
+  loadBlob: BlobLoader,
+  options?: {
+    variantKey?: string
+    transformBlob?: BlobTransformer
+  },
+): Promise<CachedMediaUrl> {
+  const key = inlineImageMediaCacheKey(dataUrl)
+  let entry = mediaCache.get(key)
+  if (!entry) {
+    entry = {
+      blobPromise: loadBlob(),
+      full: {},
+      variants: new Map(),
+      refCount: 0,
+      lastAccessed: Date.now(),
+    }
+    mediaCache.set(key, entry)
+  }
+
+  entry.refCount += 1
+  entry.lastAccessed = Date.now()
+
+  try {
+    const blob = await entry.blobPromise
+    entry.byteSize = blob.size
+  } catch (error) {
+    releaseCacheReference(key)
+    mediaCache.delete(key)
+    throw error
+  }
+
+  const activeEntry = mediaCache.get(key)
+  if (!activeEntry) {
+    return acquireCachedInlineImageMediaUrl(dataUrl, loadBlob, options)
   }
 
   const objectUrl = await getOrCreateObjectUrl(activeEntry, options?.variantKey, options?.transformBlob)
@@ -237,25 +283,23 @@ function totalCachedBytes() {
   return total
 }
 
-function isResourceFilePath(pathname: string): boolean {
-  return /^\/(?:api\/v1\/)?resources\/\d+\/file(?:$|[?#])/.test(pathname)
+function inlineImageMediaCacheKey(dataUrl: string): string {
+  const headerEnd = dataUrl.indexOf(',')
+  const header = (headerEnd >= 0 ? dataUrl.slice(0, headerEnd) : dataUrl).slice(0, 128)
+  return `inline-image:${header}:len:${dataUrl.length}:hash:${hashResourceCacheScopeValue(dataUrl)}`
+}
+
+function resourceMediaOrigin(): string {
+  return globalThis.location?.origin ?? 'http://movscript.local'
 }
 
 function resourceAuthCacheScope(): string {
   const { currentUser, currentOrgID, token } = useUserStore.getState()
-  const user = currentUser?.ID ? String(currentUser.ID) : 'anonymous'
-  const org = currentOrgID ? String(currentOrgID) : 'none'
-  const tokenHash = token ? hashCacheScopeValue(token) : 'none'
-  return `auth:user:${user}:org:${org}:token:${tokenHash}`
-}
-
-function hashCacheScopeValue(value: string): string {
-  let hash = 0x811c9dc5
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0')
+  return resourceAuthCacheScopeKey({
+    userId: currentUser?.ID,
+    orgId: currentOrgID,
+    token,
+  })
 }
 
 let lastResourceAuthCacheScope = resourceAuthCacheScope()

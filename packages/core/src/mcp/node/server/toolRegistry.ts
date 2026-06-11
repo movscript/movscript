@@ -56,8 +56,10 @@ function systemTools(input: {
     ...renameTools(input.generation, {
       generation_image_generate: 'system_generate_image',
       generation_image_job_get: 'system_generate_image_job_get',
+      generation_image_job_get_batch: 'system_generate_image_job_get_batch',
       generation_video_generate: 'system_generate_video',
       generation_video_job_get: 'system_generate_video_job_get',
+      generation_video_job_get_batch: 'system_generate_video_job_get_batch',
     }),
     ...renameTools(input.resourceLibrary, { movscript_resource_library_query: 'system_resource_library_query' }),
     ...renameTools(input.resourceMedia, {
@@ -65,8 +67,15 @@ function systemTools(input: {
       movscript_resource_video_extract_frames: 'system_resource_video_extract_frames',
       movscript_resource_image_annotate: 'system_resource_image_annotate',
       movscript_resource_upload: 'system_resource_upload',
+      movscript_resource_upload_batch: 'system_resource_upload_batch',
     }),
-    ...renameTools(input.shotLibrary, { movscript_shot_library_query: 'system_shot_library_query' }),
+    ...renameTools(input.shotLibrary, {
+      movscript_shot_library_query: 'system_shot_library_query',
+      movscript_shot_group_create: 'system_shot_group_create',
+      movscript_shot_group_get: 'system_shot_group_get',
+      movscript_shot_group_add_shots: 'system_shot_group_add_shots',
+      movscript_video_shot_cuts_analyze: 'system_video_shot_cuts_analyze',
+    }),
     ...renameTools(input.externalResources, {
       movscript_external_resource_source_list: 'system_external_resource_source_list',
       movscript_external_resource_search: 'system_external_resource_search',

@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 import { agentMessageBubbleModel } from '@/features/agent/presentation/agentMessageBubbleModel'
+import { cachedAgentMessageFacts } from '@/features/agent/presentation/useAgentMessageFactsModel'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
@@ -219,6 +220,21 @@ test('agentMessageBubbleModel projects content, result, diagnostic, and attachme
     userAttachments: [],
     userAttachmentColumns: 1,
   })
+})
+
+test('cachedAgentMessageFacts reuses facts for stable message and activity references', () => {
+  const msg = message({
+    attachments: [
+      attachment({ id: 'generated-1', generated: { status: 'completed' } }),
+      attachment({ id: 'generated-1', generated: { status: 'completed' } }),
+    ],
+  })
+  const activity = runActivity('run_1', true)
+
+  assert.equal(cachedAgentMessageFacts(msg), cachedAgentMessageFacts(msg))
+  assert.equal(cachedAgentMessageFacts(msg, activity), cachedAgentMessageFacts(msg, activity))
+  assert.notEqual(cachedAgentMessageFacts(msg), cachedAgentMessageFacts(msg, activity))
+  assert.equal(cachedAgentMessageFacts(msg).messageAttachments.length, 1)
 })
 
 function bubbleModel(

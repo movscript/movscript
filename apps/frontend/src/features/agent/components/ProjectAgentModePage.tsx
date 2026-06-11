@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Archive,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   Folder,
@@ -63,13 +64,15 @@ import {
 } from '@/features/agent/application/providerSessionThreadQueryCache'
 import { conversationDisplayTitle, formatAgentDate, formatAgentRelativeTime, providerThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import {
+  AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT,
   agentConversationOpenRecordsEqual,
+  closedAgentConversationIds,
   mergeAgentConversationOpenState,
-  openAgentConversationIds,
   readAgentActiveConversationId,
   readAgentConversationOpenState,
   removeAgentConversationOpenRecords,
   setAgentConversationOpen,
+  visibleAgentConversationIds,
   writeAgentActiveConversationId,
   writeAgentConversationOpenState,
   type AgentConversationOpenRecord,
@@ -79,23 +82,30 @@ import { api } from '@/shared/infrastructure/api'
 import { providerSessionClient, type AgentSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { ROUTES } from '@/routes/projectRoutes'
+import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
+import {
+  APP_SHELL_AGENT_CONTENT_PANE_ID,
+  APP_SHELL_AGENT_SIDEBAR_PANE_ID,
+  routeLayoutSpecForPathname,
+} from '@/routes/routeLayoutRegistry'
 import { useAgentConversationTabProviderSessionStatusLights } from '@/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights'
-import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-  AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
   AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH,
   AGENT_MODE_SIDEBAR_DEFAULT_WIDTH,
   AGENT_MODE_SIDEBAR_MAX_WIDTH,
   AGENT_MODE_SIDEBAR_MIN_WIDTH,
-  AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
   clampAgentModeSidebarWidth,
   clampAgentModeContentPanelWidth,
 } from '@/features/agent/presentation/agentModePanelSizing'
-import type { ProviderSessionStatusLight } from '@/features/agent/domain/providerSessionStatusLight'
-import type { AgentChatThread } from '@/features/agent/domain/agentChatProtocol'
+import {
+  agentModeRenderDiagnosticsEnabled,
+  scheduleAgentModePaintDiagnostics,
+} from '@/features/agent/presentation/agentModePaintDiagnostics'
+import type { ProviderSessionStatusLight } from '@movscript/core/agent'
+import type { AgentChatThread } from '@movscript/core/agent/chat'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore, type AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
 import {
@@ -113,24 +123,11 @@ import type { Project } from '@/types'
 const DEFAULT_VISIBLE_PROJECT_CONVERSATIONS = 5
 const DEFAULT_VISIBLE_CHAT_CONVERSATIONS = 5
 const APP_SERVER_THREAD_LIST_STALE_MS = 15_000
+const PROJECT_AGENT_ROUTE_LAYOUT = routeLayoutSpecForPathname(ROUTES.project.agent)
 const APP_SERVER_THREAD_LIST_REFRESH_MS = 30_000
 const APP_SERVER_THREAD_LIST_GC_MS = 5 * 60_000
+const APP_SERVER_THREAD_LIST_PAGE_SIZE = 20
 type AgentWorkspaceScopeSelection = 'global' | 'project'
-
-interface PaintDiagnosticRow {
-  selector: string
-  rect: string
-  scroll: string
-  area: number
-  scrollArea: number
-  position: string
-  overflow: string
-  transform: string
-  filter: string
-  backdrop: string
-  shadow: string
-  willChange: string
-}
 
 function readLastAgentModeActiveThreadId(userId: string) {
   return readAgentActiveConversationId(userId)
@@ -138,118 +135,6 @@ function readLastAgentModeActiveThreadId(userId: string) {
 
 function writeLastAgentModeActiveThreadId(userId: string, threadId: string | null) {
   writeAgentActiveConversationId(userId, threadId)
-}
-
-function agentModeRenderDiagnosticsEnabled() {
-  return import.meta.env.DEV && import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS === '1'
-}
-
-function compactStyleValue(value: string, maxLength = 72) {
-  if (!value || value === 'none' || value === 'auto' || value === 'normal') return value
-  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
-}
-
-function diagnosticSelector(element: Element) {
-  const className = typeof element.className === 'string'
-    ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((name) => `.${name}`).join('')
-    : ''
-  const id = element.id ? `#${element.id}` : ''
-  return `${element.tagName.toLowerCase()}${id}${className}`
-}
-
-function rectOutsideViewport(rect: DOMRect, margin = 240) {
-  return (
-    rect.bottom < -margin ||
-    rect.right < -margin ||
-    rect.top > window.innerHeight + margin ||
-    rect.left > window.innerWidth + margin
-  )
-}
-
-function collectPaintDiagnosticElements(root: HTMLElement) {
-  const elements: HTMLElement[] = []
-  const visit = (element: HTMLElement) => {
-    elements.push(element)
-    const style = window.getComputedStyle(element)
-    if (style.contentVisibility === 'auto' && rectOutsideViewport(element.getBoundingClientRect())) return
-    for (const child of Array.from(element.children)) {
-      if (child instanceof HTMLElement) visit(child)
-    }
-  }
-  visit(root)
-  return elements
-}
-
-function logAgentModePaintDiagnostics(root: HTMLElement) {
-  const viewportWidth = window.innerWidth
-  const viewportHeight = window.innerHeight
-  const viewportArea = Math.max(1, viewportWidth * viewportHeight)
-  const visualScale = window.visualViewport?.scale ?? 1
-  const rootRect = root.getBoundingClientRect()
-  const rows: PaintDiagnosticRow[] = []
-  const elements = collectPaintDiagnosticElements(root)
-
-  for (const element of elements) {
-    const rect = element.getBoundingClientRect()
-    const width = Math.max(0, Math.round(rect.width))
-    const height = Math.max(0, Math.round(rect.height))
-    if (width === 0 || height === 0) continue
-
-    const style = window.getComputedStyle(element)
-    const area = width * height
-    const scrollWidth = Math.max(width, element.scrollWidth)
-    const scrollHeight = Math.max(height, element.scrollHeight)
-    const scrollArea = scrollWidth * scrollHeight
-    const hasPaintEffect = (
-      style.transform !== 'none' ||
-      style.filter !== 'none' ||
-      style.backdropFilter !== 'none' ||
-      style.boxShadow !== 'none' ||
-      style.willChange !== 'auto' ||
-      style.position === 'fixed' ||
-      style.position === 'sticky'
-    )
-    const hasLargeScrollSurface = scrollArea > viewportArea * 1.5
-    const isLargeVisibleSurface = area > viewportArea * 0.35
-    if (!hasLargeScrollSurface && !isLargeVisibleSurface && !hasPaintEffect) continue
-
-    rows.push({
-      selector: diagnosticSelector(element),
-      rect: `${width}x${height}+${Math.round(rect.left)}+${Math.round(rect.top)}`,
-      scroll: `${scrollWidth}x${scrollHeight}`,
-      area,
-      scrollArea,
-      position: style.position,
-      overflow: `${style.overflowX}/${style.overflowY}`,
-      transform: compactStyleValue(style.transform),
-      filter: compactStyleValue(style.filter),
-      backdrop: compactStyleValue(style.backdropFilter),
-      shadow: compactStyleValue(style.boxShadow),
-      willChange: compactStyleValue(style.willChange),
-    })
-  }
-
-  rows.sort((a, b) => Math.max(b.area, b.scrollArea) - Math.max(a.area, a.scrollArea))
-  console.info(
-    `[agent-mode:paint] viewport=${viewportWidth}x${viewportHeight} dpr=${window.devicePixelRatio.toFixed(2)} visualScale=${visualScale.toFixed(3)} root=${Math.round(rootRect.width)}x${Math.round(rootRect.height)} candidates=${rows.length}`,
-  )
-  for (const [index, row] of rows.slice(0, 24).entries()) {
-    console.info(
-      [
-        `[agent-mode:paint] #${index + 1}`,
-        row.selector,
-        `rect=${row.rect}`,
-        `scroll=${row.scroll}`,
-        `position=${row.position}`,
-        `overflow=${row.overflow}`,
-        `transform=${row.transform}`,
-        `filter=${row.filter}`,
-        `backdrop=${row.backdrop}`,
-        `shadow=${row.shadow}`,
-        `willChange=${row.willChange}`,
-      ].join(' '),
-    )
-  }
 }
 
 export default function ProjectAgentModePage({
@@ -261,30 +146,16 @@ export default function ProjectAgentModePage({
 }) {
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const contentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
 
   useEffect(() => {
     if (!agentModeRenderDiagnosticsEnabled()) return
-    const log = () => {
-      const root = document.querySelector<HTMLElement>('.project-agent-mode')
-      if (root) logAgentModePaintDiagnostics(root)
-    }
-    const animationFrame = window.requestAnimationFrame(log)
-    const timeout = window.setTimeout(log, 350)
-    return () => {
-      window.cancelAnimationFrame(animationFrame)
-      window.clearTimeout(timeout)
-    }
+    return scheduleAgentModePaintDiagnostics()
   }, [embeddedInShell, fullscreen])
 
   return (
     <AgentModeRoot>
       {fullscreen && !embeddedInShell && (
-        <AgentModeFullscreenLayout>
-          <ProjectAgentModeSidebar />
-          <ProjectAgentModeWorkspace userId={userId} />
-          <ProjectAgentContentPanel manageOwnWidth collapsed={contentPanelCollapsed} />
-        </AgentModeFullscreenLayout>
+        <ProjectAgentModeFullscreen userId={userId} />
       )}
       {(!fullscreen || embeddedInShell) && (
         <ProjectAgentModeWorkspace userId={userId} />
@@ -293,12 +164,55 @@ export default function ProjectAgentModePage({
   )
 }
 
+function ProjectAgentModeFullscreen({ userId }: { userId: string }) {
+  const agentSidebarPane = useRouteLayoutPaneController({
+    routeLayout: PROJECT_AGENT_ROUTE_LAYOUT,
+    paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID,
+    clampSize: clampAgentModeSidebarWidth,
+  })
+  const agentContentPane = useRouteLayoutPaneController({
+    routeLayout: PROJECT_AGENT_ROUTE_LAYOUT,
+    paneId: APP_SHELL_AGENT_CONTENT_PANE_ID,
+    clampSize: clampAgentModeContentPanelWidth,
+    fallbackState: 'default',
+  })
+
+  return (
+    <AgentModeFullscreenLayout>
+      <ProjectAgentModeSidebar
+        collapsed={agentSidebarPane.collapsed}
+        onCollapsedChange={(collapsed) => {
+          if (collapsed) agentSidebarPane.collapse()
+          else agentSidebarPane.show()
+        }}
+        width={agentSidebarPane.size}
+        onWidthChange={agentSidebarPane.setSize}
+      />
+      <ProjectAgentModeWorkspace userId={userId} />
+      <ProjectAgentContentPanel
+        manageOwnWidth
+        collapsed={agentContentPane.collapsed}
+        onCollapsedChange={(collapsed) => {
+          if (collapsed) agentContentPane.collapse()
+          else agentContentPane.show()
+        }}
+        width={agentContentPane.size}
+        onWidthChange={agentContentPane.setSize}
+      />
+    </AgentModeFullscreenLayout>
+  )
+}
+
 export function ProjectAgentModeSidebar({
   headerActions,
+  collapsed = false,
+  onCollapsedChange,
   width,
   onWidthChange,
 }: {
   headerActions?: ReactNode
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
   width?: number
   onWidthChange?: (width: number) => void
 } = {}) {
@@ -330,36 +244,23 @@ export function ProjectAgentModeSidebar({
   const [appServerActiveThreadId, setAppServerActiveThreadId] = useState(() => readAppServerActiveThreadId())
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
   const [newConversationWorkspaceScope] = useState<AgentWorkspaceScopeSelection>('project')
-  const controlledByRouteLayout = typeof width === 'number' && onWidthChange !== undefined
-  const [ownSidebarWidth, setOwnSidebarWidth] = useState(() => {
-    if (controlledByRouteLayout) return clampAgentModeSidebarWidth(width)
-    if (typeof window === 'undefined') return AGENT_MODE_SIDEBAR_DEFAULT_WIDTH
-    const saved = Number(window.localStorage.getItem(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY))
-    return Number.isFinite(saved) ? clampAgentModeSidebarWidth(saved) : AGENT_MODE_SIDEBAR_DEFAULT_WIDTH
-  })
-  const sidebarWidth = controlledByRouteLayout ? clampAgentModeSidebarWidth(width) : ownSidebarWidth
+  const sidebarWidth = clampAgentModeSidebarWidth(width ?? AGENT_MODE_SIDEBAR_DEFAULT_WIDTH)
   const setSidebarWidth = useCallback((nextWidth: number) => {
-    const clampedWidth = clampAgentModeSidebarWidth(nextWidth)
-    if (controlledByRouteLayout) {
-      onWidthChange?.(clampedWidth)
-      return
-    }
-    setOwnSidebarWidth(clampedWidth)
-  }, [controlledByRouteLayout, onWidthChange])
-  const sidebarCollapsed = useAgentPanelUiStore((s) => s.agentModeSidebarCollapsed)
-  const setSidebarCollapsed = useAgentPanelUiStore((s) => s.setAgentModeSidebarCollapsed)
+    onWidthChange?.(clampAgentModeSidebarWidth(nextWidth))
+  }, [onWidthChange])
   const sidebarResize = useResizablePanel({
     size: sidebarWidth,
     onSizeChange: setSidebarWidth,
     minSize: AGENT_MODE_SIDEBAR_MIN_WIDTH,
     maxSize: AGENT_MODE_SIDEBAR_MAX_WIDTH,
     resizeEdge: 'right',
-    collapsed: sidebarCollapsed,
-    onCollapsedChange: setSidebarCollapsed,
+    collapsed,
+    onCollapsedChange,
     collapseMode: 'after-min',
     ariaLabel: '调整左侧栏宽度',
   })
-  const renderedSidebarWidth = sidebarCollapsed ? AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
+  const renderedSidebarWidth = collapsed ? AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
+  const sidebarToggleLabel = collapsed ? t('agents.chat.expandAgentSidebar') : t('agents.chat.collapseAgentSidebar')
   const providerSettings = useProviderConfigStore((s) => s.settings)
   const setNewConversationProviderId = useProviderConfigStore((s) => s.setNewConversationProviderId)
   const availableProviders = useMemo(() => enabledProviders(providerSettings), [providerSettings])
@@ -370,11 +271,6 @@ export function ProjectAgentModeSidebar({
     projectId: project?.ID,
   }), [newConversationWorkspaceScope, project?.ID])
   const effectiveNewConversationWorkspaceScope = newConversationWorkspaceContext.scope ?? 'global'
-
-  useEffect(() => {
-    if (controlledByRouteLayout) return
-    window.localStorage.setItem(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, String(ownSidebarWidth))
-  }, [controlledByRouteLayout, ownSidebarWidth])
 
   useEffect(() => {
     const interval = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000)
@@ -401,7 +297,7 @@ export function ProjectAgentModeSidebar({
     queryKey: ['app-server-threads', newConversationProvider.id, providerInstanceId(newConversationProvider), 'agent-mode-sidebar'],
     queryFn: async () => {
       const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider, { appServerPolicy: 'status-only' })
-      const page = await dataSource.listThreads({ limit: 50 })
+      const page = await dataSource.listThreads({ limit: APP_SERVER_THREAD_LIST_PAGE_SIZE })
       return page.threads
     },
     enabled: appServerMode,
@@ -439,9 +335,22 @@ export function ProjectAgentModeSidebar({
     setConversationOpenState(readAgentConversationOpenState(userId))
   }, [userId])
   useEffect(() => {
+    function handleOpenStateChanged(event: Event) {
+      const detailUserId = (event as CustomEvent<{ userId?: string }>).detail?.userId
+      if (detailUserId !== undefined && detailUserId !== userId) return
+      setConversationOpenState(readAgentConversationOpenState(userId))
+    }
+    window.addEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleOpenStateChanged)
+    window.addEventListener('storage', handleOpenStateChanged)
+    return () => {
+      window.removeEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleOpenStateChanged)
+      window.removeEventListener('storage', handleOpenStateChanged)
+    }
+  }, [userId])
+  useEffect(() => {
     if (providerSessionThreadsLoading) return
     setConversationOpenState((current) => {
-      let merged = mergeAgentConversationOpenState(current, availableConversationIds, { defaultOpen: false })
+      let merged = mergeAgentConversationOpenState(current, availableConversationIds, { defaultOpen: true })
       const activeConversationExplicitlyClosed = merged.some((record) => record.id === activeConversationId && record.open === false)
       if (activeConversationId && availableConversationIds.includes(activeConversationId) && !activeConversationExplicitlyClosed) {
         merged = setAgentConversationOpen(merged, [activeConversationId], true)
@@ -451,7 +360,16 @@ export function ProjectAgentModeSidebar({
       return merged
     })
   }, [activeConversationId, availableConversationIds, providerSessionThreadsLoading, userId])
-  const openConversationIds = useMemo(() => openAgentConversationIds(conversationOpenState), [conversationOpenState])
+  const openConversationIds = useMemo(() => visibleAgentConversationIds(conversationOpenState, availableConversationIds), [availableConversationIds, conversationOpenState])
+  const appServerClosedThreadIds = useMemo(() => new Set(closedAgentConversationIds(conversationOpenState)), [conversationOpenState])
+  const visibleAppServerThreads = useMemo(
+    () => appServerThreads.filter((thread) => !appServerClosedThreadIds.has(thread.id)),
+    [appServerClosedThreadIds, appServerThreads],
+  )
+  const closedAppServerThreads = useMemo(
+    () => appServerThreads.filter((thread) => appServerClosedThreadIds.has(thread.id)),
+    [appServerClosedThreadIds, appServerThreads],
+  )
   const openConversations = useMemo(() => {
     const openIds = new Set(openConversationIds)
     const orderIndex = new Map(conversationOpenState.map((record, index) => [record.id, index]))
@@ -485,7 +403,7 @@ export function ProjectAgentModeSidebar({
   const providerSessionThreadsById = useMemo(() => new Map(providerSessionThreads.map((thread) => [thread.id, thread])), [providerSessionThreads])
   const appServerThreadsByProjectId = useMemo(() => {
     const groups = new Map<number, AgentChatThread[]>()
-    for (const thread of appServerThreads) {
+    for (const thread of visibleAppServerThreads) {
       const projectId = projectIdFromProviderSessionCwd(thread.cwd)
       if (projectId === undefined) continue
       const threads = groups.get(projectId) ?? []
@@ -493,10 +411,10 @@ export function ProjectAgentModeSidebar({
       groups.set(projectId, threads)
     }
     return groups
-  }, [appServerThreads])
+  }, [visibleAppServerThreads])
   const appServerChatThreads = useMemo(
-    () => appServerThreads.filter((thread) => projectIdFromProviderSessionCwd(thread.cwd) === undefined),
-    [appServerThreads],
+    () => visibleAppServerThreads.filter((thread) => projectIdFromProviderSessionCwd(thread.cwd) === undefined),
+    [visibleAppServerThreads],
   )
   const projectNamesById = useMemo(() => {
     const names = new Map<number, string>()
@@ -591,13 +509,24 @@ export function ProjectAgentModeSidebar({
         timestamp: Date.parse(thread.updatedAt) || 0,
         thread,
       })),
-  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedProviderThreadIds, providerSessionThreads, openProviderThreadIds])
+    ...closedAppServerThreads.map((thread) => ({
+      type: 'app-server-thread' as const,
+      id: thread.id,
+      timestamp: thread.updatedAt * 1000,
+      thread,
+    })),
+  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedProviderThreadIds, closedAppServerThreads, providerSessionThreads, openProviderThreadIds])
   const visibleHistoryItems = showAllHistoryConversations
     ? historyItems
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenHistoryItemCount = Math.max(0, historyItems.length - visibleHistoryItems.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   function selectAppServerThread(threadId: string) {
+    setConversationOpenState((current) => {
+      const next = setAgentConversationOpen(current, [threadId], true)
+      writeAgentConversationOpenState(userId, next)
+      return next
+    })
     setAppServerActiveThreadId(threadId)
     openAppServerThread({ threadId, provider: newConversationProvider })
     navigate(ROUTES.project.agent)
@@ -695,6 +624,11 @@ export function ProjectAgentModeSidebar({
 
   function archiveConversationFromSidebar(conversation: Conversation) {
     void (async () => {
+      const providerThreadId = threadIdForConversation(conversation)
+      if (providerThreadId && providerSessionThreadsById.get(providerThreadId)?.status === 'running') {
+        window.alert(t('agents.chat.stopBeforeClosingConversation'))
+        return
+      }
       setConversationOpenState((current) => {
         const next = setAgentConversationOpen(current, [conversation.id], false)
         writeAgentConversationOpenState(userId, next)
@@ -786,15 +720,23 @@ export function ProjectAgentModeSidebar({
   return (
     <AgentModeSidebar
       resizing={sidebarResize.resizing}
-      collapsed={sidebarCollapsed}
-      style={{ width: renderedSidebarWidth }}
+      collapsed={collapsed}
+      width={renderedSidebarWidth}
     >
       <AgentModeSidebarTop>
-        {!sidebarCollapsed && headerActions ? (
+        {!collapsed && headerActions ? (
           <div className="agent-mode-sidebar__header-actions">
             {headerActions}
           </div>
         ) : null}
+        <AgentModePrimaryNavItem
+          onClick={() => onCollapsedChange?.(!collapsed)}
+          title={sidebarToggleLabel}
+          aria-label={sidebarToggleLabel}
+        >
+          <AgentModeIconSlot>{collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</AgentModeIconSlot>
+          {!collapsed ? <AgentModeLabel>{sidebarToggleLabel}</AgentModeLabel> : null}
+        </AgentModePrimaryNavItem>
         <AgentModePrimaryNavItem
           onClick={startNewConversation}
           title={t('agents.chat.agentModeSidebar.startConversation')}
@@ -802,8 +744,15 @@ export function ProjectAgentModeSidebar({
           <AgentModeIconSlot><SquarePen size={18} /></AgentModeIconSlot>
           <AgentModeLabel>新对话</AgentModeLabel>
         </AgentModePrimaryNavItem>
-        {!sidebarCollapsed ? (
+        {!collapsed ? (
           <>
+            <AgentModePrimaryNavItem
+              onClick={() => navigate(ROUTES.project.agent)}
+              title={t('agents.chat.agentModeSidebar.conversations')}
+            >
+              <AgentModeIconSlot><MessageSquare size={14} /></AgentModeIconSlot>
+              <AgentModeLabel>{t('agents.chat.agentModeSidebar.conversations')}</AgentModeLabel>
+            </AgentModePrimaryNavItem>
             <AgentModePrimaryNavItem
               className="agent-mode-nav-item--search"
               onClick={() => navigate(ROUTES.project.agent)}
@@ -840,7 +789,7 @@ export function ProjectAgentModeSidebar({
       </AgentModeSidebarTop>
 
       <AgentModeSidebarScroll>
-        {!sidebarCollapsed ? (
+        {!collapsed ? (
           <div className="agent-mode-sidebar-project-heading">
             <span>项目</span>
           </div>
@@ -1051,6 +1000,24 @@ export function ProjectAgentModeSidebar({
                     />
                   )
                 }
+                if (item.type === 'app-server-thread') {
+                  const thread = item.thread
+                  const title = thread.name || thread.preview || `Untitled ${newConversationProvider.label} thread`
+                  const description = thread.name && thread.preview && thread.preview !== thread.name
+                    ? thread.preview
+                    : newConversationProvider.label
+                  return (
+                    <AgentModeConversationRow key={thread.id}>
+                      <AgentModeConversationItem
+                        icon={<History size={11} />}
+                        title={title}
+                        description={description}
+                        meta={formatAgentDate(thread.updatedAt * 1000, locale)}
+                        onClick={() => selectAppServerThread(thread.id)}
+                      />
+                    </AgentModeConversationRow>
+                  )
+                }
                 const thread = item.thread
                 return (
                   <AgentModeConversationRow key={thread.id}>
@@ -1091,7 +1058,7 @@ export function ProjectAgentModeSidebar({
 
       </AgentModeSidebarScroll>
 
-      {!sidebarCollapsed ? (
+      {!collapsed ? (
         <AgentModeResizeHandle
           {...sidebarResize.resizeHandleProps}
           side="right"
@@ -1248,7 +1215,9 @@ function AppServerSidebarThread({
 }) {
   const label = providerLabel.trim() || 'App-server'
   const relativeTime = formatAgentRelativeTime(thread.updatedAt * 1000, locale, now)
-  const sessionState = thread.status === 'running' ? 'active' : thread.status === 'failed' ? 'waiting' : 'stopped'
+  const sessionState = thread.status === 'running' ? 'active' : thread.status === 'failed' ? 'error' : 'stopped'
+  const title = thread.name || thread.preview || `Untitled ${label} thread`
+  const description = thread.name && thread.preview && thread.preview !== thread.name ? thread.preview : undefined
   return (
     <AgentModeConversationRow>
       <AgentModeConversationItem
@@ -1264,8 +1233,8 @@ function AppServerSidebarThread({
             />
           </span>
         )}
-        title={thread.name || thread.preview || `Untitled ${label} thread`}
-        description={thread.preview || label}
+        title={title}
+        description={description}
         meta={relativeTime}
       />
     </AgentModeConversationRow>
@@ -1285,7 +1254,10 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
     retry: false,
   })
   const frontendOpenState = readAgentConversationOpenState(userId)
-  const frontendOpenThreadIds = openAgentConversationIds(frontendOpenState)
+  const availableThreadIds = providerThreads
+    .filter((thread) => thread.archived !== true && thread.lifecycle !== 'abandoned')
+    .map((thread) => thread.id)
+  const frontendOpenThreadIds = visibleAgentConversationIds(frontendOpenState, availableThreadIds)
   const activeConversationOpen = !!activeConversationId
     && !appServerMode
     && providerThreads.some((thread) => thread.id === activeConversationId && thread.archived !== true)
@@ -1366,31 +1338,20 @@ function positiveInteger(value: string | null | undefined): number | undefined {
 export function ProjectAgentContentPanel({
   manageOwnWidth = false,
   collapsed = false,
+  onCollapsedChange,
   width,
   onWidthChange,
 }: {
   manageOwnWidth?: boolean
   collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
   width?: number
   onWidthChange?: (width: number) => void
 } = {}) {
-  const setCollapsed = useAgentPanelUiStore((s) => s.setAgentModeContentPanelCollapsed)
-  const controlledByRouteLayout = typeof width === 'number' && onWidthChange !== undefined
-  const [ownPanelWidth, setOwnPanelWidth] = useState(() => {
-    if (controlledByRouteLayout) return clampAgentModeContentPanelWidth(width)
-    if (typeof window === 'undefined') return AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
-    const saved = Number(window.localStorage.getItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY))
-    return Number.isFinite(saved) ? clampAgentModeContentPanelWidth(saved) : AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
-  })
-  const panelWidth = controlledByRouteLayout ? clampAgentModeContentPanelWidth(width) : ownPanelWidth
+  const panelWidth = clampAgentModeContentPanelWidth(width ?? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   const setPanelWidth = useCallback((nextWidth: number) => {
-    const clampedWidth = clampAgentModeContentPanelWidth(nextWidth)
-    if (controlledByRouteLayout) {
-      onWidthChange?.(clampedWidth)
-      return
-    }
-    setOwnPanelWidth(clampedWidth)
-  }, [controlledByRouteLayout, onWidthChange])
+    onWidthChange?.(clampAgentModeContentPanelWidth(nextWidth))
+  }, [onWidthChange])
   const panelResize = useResizablePanel({
     size: panelWidth,
     onSizeChange: setPanelWidth,
@@ -1398,29 +1359,17 @@ export function ProjectAgentContentPanel({
     maxSize: AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
     resizeEdge: 'left',
     collapsed,
-    onCollapsedChange: setCollapsed,
+    onCollapsedChange,
     collapseMode: 'after-min',
     ariaLabel: '调整对话区宽度',
   })
-
-  useEffect(() => {
-    if (controlledByRouteLayout) return
-    window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, String(ownPanelWidth))
-  }, [controlledByRouteLayout, ownPanelWidth])
 
   return (
     <AgentModeContentPanel
       resizing={panelResize.resizing}
       collapsed={collapsed}
-      style={manageOwnWidth ? (
-        collapsed
-          ? { width: 0, flexBasis: 0, minWidth: 0 }
-          : {
-            width: panelWidth,
-            flexBasis: panelWidth,
-            minWidth: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-          }
-      ) : undefined}
+      width={manageOwnWidth ? panelWidth : undefined}
+      minWidth={AGENT_MODE_CONTENT_PANEL_MIN_WIDTH}
       aria-label="Agent 内容区"
       aria-hidden={collapsed ? true : undefined}
     >

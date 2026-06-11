@@ -17,10 +17,37 @@ export function normalizeInlineSpacing(text: string): string {
 }
 
 export function serializeMentionEditor(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
-  const el = node as HTMLElement
-  if (el.dataset?.resourceId) return `${resourceMentionToken(Number(el.dataset.resourceId))} `
-  return Array.from(node.childNodes).map(serializeMentionEditor).join('')
+  const parts: string[] = []
+  appendSerializedMentionEditor(node, parts)
+  return parts.join('')
+}
+
+export function readMentionEditorState(editor: HTMLElement): { value: string; textBeforeCaret: string; caret: number } {
+  const selection = window.getSelection()
+  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+  const hasCaret = !!range && editor.contains(range.endContainer)
+  if (!hasCaret) {
+    return {
+      value: serializeMentionEditor(editor),
+      textBeforeCaret: '',
+      caret: 0,
+    }
+  }
+
+  const state = {
+    endContainer: range.endContainer,
+    endOffset: range.endOffset,
+    prefixActive: true,
+    prefixParts: [] as string[],
+    valueParts: [] as string[],
+  }
+  appendSerializedMentionEditorState(editor, state)
+  const textBeforeCaret = state.prefixParts.join('')
+  return {
+    value: state.valueParts.join(''),
+    textBeforeCaret,
+    caret: textBeforeCaret.length,
+  }
 }
 
 export function setCaretAtEnd(element: HTMLElement) {
@@ -34,16 +61,8 @@ export function setCaretAtEnd(element: HTMLElement) {
 }
 
 export function mentionEditorTextBeforeCaret(editor: HTMLElement): { text: string; caret: number } {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0 || !editor.contains(selection.anchorNode)) return { text: serializeMentionEditor(editor), caret: 0 }
-  const caretRange = selection.getRangeAt(0).cloneRange()
-  const prefixRange = document.createRange()
-  prefixRange.selectNodeContents(editor)
-  prefixRange.setEnd(caretRange.endContainer, caretRange.endOffset)
-  const container = document.createElement('div')
-  container.appendChild(prefixRange.cloneContents())
-  const text = serializeMentionEditor(container)
-  return { text, caret: text.length }
+  const state = readMentionEditorState(editor)
+  return { text: state.textBeforeCaret, caret: state.caret }
 }
 
 export function renderMentionEditorValue(editor: HTMLElement, value: string, attachmentsById: Map<number, AgentAttachment>) {
@@ -103,6 +122,80 @@ function mentionChipMediaNeedsAuth(src: string): boolean {
   } catch {
     return src.startsWith('/api/v1/resources/')
   }
+}
+
+function appendSerializedMentionEditor(node: Node, parts: string[]): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    parts.push(node.textContent ?? '')
+    return
+  }
+  const resourceId = mentionResourceId(node)
+  if (resourceId !== undefined) {
+    parts.push(`${resourceMentionToken(resourceId)} `)
+    return
+  }
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    appendSerializedMentionEditor(child, parts)
+  }
+}
+
+function appendSerializedMentionEditorState(
+  node: Node,
+  state: {
+    endContainer: Node
+    endOffset: number
+    prefixActive: boolean
+    prefixParts: string[]
+    valueParts: string[]
+  },
+): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent ?? ''
+    state.valueParts.push(text)
+    if (state.prefixActive) {
+      if (node === state.endContainer) {
+        state.prefixParts.push(text.slice(0, state.endOffset))
+        state.prefixActive = false
+      } else {
+        state.prefixParts.push(text)
+      }
+    }
+    return
+  }
+
+  const resourceId = mentionResourceId(node)
+  if (resourceId !== undefined) {
+    const token = `${resourceMentionToken(resourceId)} `
+    state.valueParts.push(token)
+    if (state.prefixActive) {
+      state.prefixParts.push(token)
+      if (node === state.endContainer || node.contains(state.endContainer)) state.prefixActive = false
+    }
+    return
+  }
+
+  if (node === state.endContainer) {
+    let index = 0
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (state.prefixActive && index >= state.endOffset) state.prefixActive = false
+      appendSerializedMentionEditorState(child, state)
+      index += 1
+    }
+    state.prefixActive = false
+    return
+  }
+
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    appendSerializedMentionEditorState(child, state)
+  }
+}
+
+function mentionResourceId(node: Node): number | undefined {
+  if (node.nodeType !== Node.ELEMENT_NODE) return undefined
+  const resourceId = (node as HTMLElement).dataset?.resourceId
+  if (resourceId === undefined) return undefined
+  const parsed = Number(resourceId)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function buildMentionChipElement(attachment: AgentAttachment): HTMLElement {

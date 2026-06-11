@@ -3,17 +3,6 @@
 @import "./review/styles.css";
 @import "./unit-track/styles.css";
 
-.workbench-project-body:has(.content-workbench-workspace-shell),
-.workbench-project-viewport:has(.content-workbench-workspace-shell),
-.workbench-project-pane:has(> .content-workbench-workspace-shell) {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  overflow: hidden;
-}
-
 .content-workbench-workspace-shell {
   --workbench-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
   display: flex;
@@ -355,14 +344,16 @@
   display: flex;
   min-width: 0;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   flex-direction: column;
 }
 
 .content-workbench-hierarchy-filter__list {
   display: grid;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  align-content: start;
+  grid-auto-rows: max-content;
   gap: var(--ms-space-3);
 }
 
@@ -577,7 +568,7 @@
 
 .content-workbench-command-center[data-overlap-pane-resized="true"] {
   --content-workbench-filter-pane-width: clamp(252px, 19%, 300px);
-  grid-template-columns: minmax(240px, 1fr) minmax(560px, var(--overlap-pane-size, 880px));
+  grid-template-columns: minmax(240px, 1fr) minmax(min(420px, 58cqw), min(var(--overlap-pane-size, 880px), 68cqw));
 }
 
 .content-workbench-command-center[data-overlap-pane-resized="true"] > .content-workbench-filter-sidebar {
@@ -896,6 +887,17 @@
 }
 
 @container (max-width: 899px) {
+  .content-workbench-command-center,
+  .content-workbench-command-center[data-overlap-pane-resized="true"],
+  .content-workbench-command-center[data-overlap-pane-collapsed="true"],
+  .content-workbench-command-center[data-overlap-pane-expanded="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content-workbench-command-center:not([data-overlap-pane-collapsed="true"]) > .content-workbench-filter-sidebar {
+    display: none;
+  }
+
   .content-workbench-production-grid,
   .content-workbench-production-grid[data-overlap-pane-collapsed="true"],
   .content-workbench-production-grid[data-overlap-pane-expanded="true"] {

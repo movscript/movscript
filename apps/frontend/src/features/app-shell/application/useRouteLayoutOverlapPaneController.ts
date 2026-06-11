@@ -1,5 +1,6 @@
 import {
   usePersistentOverlapPaneController,
+  type OverlapPaneGroupGeometryProps,
   type OverlapPaneCollapseMode,
   type OverlapPaneExpandMode,
   type OverlapPaneResizeEdge,
@@ -55,6 +56,18 @@ export function routeLayoutOverlapPaneControllerOptionsForPane(
     collapseMode: overlapPaneCollapseModeFromRoutePane(pane.collapseMode),
     expandMode: overlapPaneExpandModeFromRoutePane(pane.expandMode),
     ariaLabel: options.ariaLabel,
+  }
+}
+
+export function routeLayoutOverlapPaneGroupPropsForVisibility(
+  groupProps: OverlapPaneGroupGeometryProps,
+  visible: boolean,
+): OverlapPaneGroupGeometryProps {
+  if (visible) return groupProps
+  return {
+    ...groupProps,
+    'data-overlap-pane-collapsed': 'true',
+    'data-overlap-pane-expanded': undefined,
   }
 }
 

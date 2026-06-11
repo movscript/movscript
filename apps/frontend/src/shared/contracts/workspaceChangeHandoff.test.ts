@@ -30,7 +30,7 @@ test('workspace change handoff can include an existing business review path when
       workspaceId: 'workspace-asset',
       target: { entityType: 'asset_slot', entityId: 88 },
     }),
-    '/project/pre-production?view=review&workspaceId=workspace-asset&asset_slot_id=88',
+    '/project/content-units/editor?workspaceId=workspace-asset&asset_slot_id=88',
   )
 
   const navigation = buildWorkspaceChangeHandoffNavigation({
@@ -39,7 +39,7 @@ test('workspace change handoff can include an existing business review path when
     target: { entityType: 'asset_slot', entityId: 88 },
   })
 
-  assert.equal(navigation.businessReviewPath, '/project/pre-production?view=review&workspaceId=workspace-asset&asset_slot_id=88')
+  assert.equal(navigation.businessReviewPath, '/project/content-units/editor?workspaceId=workspace-asset&asset_slot_id=88')
   assert.equal(new URLSearchParams(navigation.path.split('?')[1]).get('businessReviewPath'), navigation.businessReviewPath)
 
   assert.equal(

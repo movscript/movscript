@@ -30,8 +30,6 @@ export interface AgentRunInteractionActionDeps {
   updateConversationRuntimeState: (patch: RunInteractionConversationProviderSessionPatch) => void
   setConversationRun: (run: AgentRun, patch: RunInteractionConversationProviderSessionPatch) => void
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
-  runTouchesProviderCatalog: (run: AgentRun) => boolean
-  refreshProviderCatalogContext: () => void
 }
 
 export async function approveRunInteractionAction(input: {
@@ -70,7 +68,6 @@ export async function approveRunInteractionAction(input: {
       details: { runId: finalRun.id, status: finalRun.status },
     })
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, finalRun))
-    if (deps.runTouchesProviderCatalog(finalRun)) deps.refreshProviderCatalogContext()
     finishAgentPerformanceOperation(operationId, 'success', { runId: finalRun.id, status: finalRun.status })
   } catch (error) {
     finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
@@ -108,7 +105,6 @@ export async function rejectRunInteractionAction(input: {
     })
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, rejectedRun))
     deps.setConversationRun(rejectedRun, { approving: true, loading: true })
-    if (deps.runTouchesProviderCatalog(rejectedRun)) deps.refreshProviderCatalogContext()
     finishAgentPerformanceOperation(operationId, 'success', { runId: rejectedRun.id, status: rejectedRun.status })
   } catch (error) {
     finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
@@ -179,7 +175,6 @@ export async function answerRunInteractionInputAction(input: {
     deps.setConversationRun(answeredRun, { approving: true, loading: true })
     const finalRun = await deps.streamFollowUpRun(answeredRun.id)
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, finalRun))
-    if (deps.runTouchesProviderCatalog(finalRun)) deps.refreshProviderCatalogContext()
   } catch (error) {
     deps.updateConversationRuntimeState({ approving: false, loading: false, error: `补充信息提交失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {

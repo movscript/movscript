@@ -37,19 +37,23 @@ import { api } from '@/shared/infrastructure/api'
 import { applyResourceChipMediaUrl, buildResourceChipElement, loadResourceChipMediaUrl } from '@/shared/ui/ResourceChipDom'
 import { revokeObjectUrls } from '@/shared/ui/objectUrl'
 import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
+import {
+  genInputAttachmentPreviewPositionFromElement,
+  genInputAttachmentPreviewStyleFromPosition,
+  type GenInputAttachmentPreviewPosition,
+} from '@/shared/ui/genInputAttachmentPreviewPlacement'
 
 function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove: () => void }) {
   const { t } = useTranslation()
   const [showPreview, setShowPreview] = useState(false)
-  const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 })
+  const [previewPos, setPreviewPos] = useState<GenInputAttachmentPreviewPosition>({ left: 8, top: 8 })
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tagRef = useRef<HTMLDivElement>(null)
 
   function handleMouseEnter() {
     timerRef.current = setTimeout(() => {
       if (tagRef.current) {
-        const rect = tagRef.current.getBoundingClientRect()
-        setPreviewPos({ x: rect.left, y: rect.top })
+        setPreviewPos(genInputAttachmentPreviewPositionFromElement(tagRef.current))
       }
       setShowPreview(true)
     }, 2000)
@@ -61,9 +65,6 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
   }
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
-
-  const previewLeft = Math.min(previewPos.x, window.innerWidth - 216)
-  const previewTop = Math.max(8, previewPos.y - 232)
 
   return (
     <>
@@ -82,7 +83,7 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
           media={<MediaViewer resource={resource} lightbox={false} />}
           name={resource.name}
           typeLabel={t(`pages.resources.types.${resource.type}`, { defaultValue: resource.type })}
-          style={{ left: previewLeft, top: previewTop }}
+          style={genInputAttachmentPreviewStyleFromPosition(previewPos)}
         />,
         document.body
       )}

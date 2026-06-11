@@ -1,4 +1,4 @@
-import { isAgentTranscriptAssistantMessage } from '@/features/agent/domain/agentProtocol'
+import { isAgentTranscriptAssistantMessage } from '@movscript/core/agent/protocol'
 import i18n from '@/i18n'
 import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
 

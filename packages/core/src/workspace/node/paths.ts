@@ -1,9 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 export {
   MOVSCRIPT_DEFAULT_USER_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_BIN_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME,
   MOVSCRIPT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
@@ -17,6 +20,8 @@ export {
 } from '../root.js'
 import {
   MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_BIN_DIR_NAME,
+  MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME,
   MOVSCRIPT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
@@ -37,16 +42,28 @@ export interface MovScriptProjectWorkspacePaths {
 }
 
 export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd()): MovScriptWorkspaceRootPaths {
-  const rootDir = resolve(workspaceDir)
-  const controlDir = join(rootDir, MOVSCRIPT_WORKSPACE_DIR_NAME)
+  const rootDir = resolveMovScriptHomeDir(workspaceDir)
+  const controlDir = rootDir
   return {
     workspaceDir: rootDir,
     rootDir,
     controlDir,
+    configTomlPath: join(controlDir, MOVSCRIPT_WORKSPACE_CONFIG_TOML_FILE_NAME),
     manifestPath: join(controlDir, MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME),
     providersDir: join(controlDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME),
     backendDir: join(controlDir, MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME),
+    binDir: join(controlDir, MOVSCRIPT_WORKSPACE_BIN_DIR_NAME),
   }
+}
+
+export function resolveMovScriptHomeDir(workspaceDir?: string): string {
+  const explicit = process.env.MOVSCRIPT_HOME?.trim()
+  if (explicit) return resolve(explicit)
+  const input = workspaceDir?.trim()
+  if (input) return resolve(input)
+  const legacy = process.env.MOVSCRIPT_WORKSPACE_DIR?.trim()
+  if (legacy) return resolve(legacy)
+  return process.cwd()
 }
 
 export function ensureMovScriptWorkspaceRoot(paths: MovScriptWorkspaceRootPaths): MovScriptWorkspaceRootManifest {
@@ -54,6 +71,7 @@ export function ensureMovScriptWorkspaceRoot(paths: MovScriptWorkspaceRootPaths)
   mkdirSync(paths.rootDir, { recursive: true })
   mkdirSync(paths.providersDir, { recursive: true })
   mkdirSync(paths.backendDir, { recursive: true })
+  mkdirSync(paths.binDir, { recursive: true })
   const current = readMovScriptWorkspaceRootManifest(paths.manifestPath)
   if (current) return current
   const manifest = defaultMovScriptWorkspaceRootManifest()
@@ -164,6 +182,10 @@ export function resolveMovScriptWorkspaceContextPaths(input: MovScriptWorkspaceC
     projectCwd,
     providerSessionCwd: projectCwd,
   }
+}
+
+export function fallbackUserMovScriptHomeDir(): string {
+  return join(homedir(), MOVSCRIPT_WORKSPACE_DIR_NAME)
 }
 
 export function ensureMovScriptWorkspaceContext(paths: MovScriptWorkspaceContextPaths): MovScriptWorkspaceContextPaths {

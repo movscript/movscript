@@ -9,12 +9,12 @@ import {
   AgentPlanOverviewTaskHeader,
   AgentPlanOverviewTaskTitle,
 } from '@movscript/ui'
-import type { AgentChatThreadItem } from '@/features/agent/domain/agentChatThreadItems'
 import {
+  type AgentChatThreadItem,
   agentChatPlanItemView,
   agentChatPlanStatusIntent,
   agentChatReasoningItemView,
-} from '@/features/agent/domain/agentChatProcessItemViews'
+} from '@movscript/core/agent/chat'
 import {
   AgentChatInspectBlock,
   AgentChatPreviewBlock,

@@ -11,26 +11,18 @@ import {
   AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
 } from '@/features/agent/presentation/agentModePanelSizing'
 import {
+  DETAIL_AGENT_PANEL_DEFAULT_WIDTH,
+  DETAIL_AGENT_PANEL_MAX_WIDTH,
+  DETAIL_AGENT_PANEL_MIN_WIDTH,
+  DETAIL_AGENT_PANEL_WIDTH_STORAGE_KEY,
+} from '@/features/agent/presentation/agentDetailAssistantPaneSizing'
+import {
   SCRIPT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
   SCRIPT_WORKBENCH_DETAIL_PANE_ID,
   SCRIPT_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
   SCRIPT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
   scriptWorkbenchDetailPaneMaxWidth,
 } from '@/features/scripts/presentation/scriptsWorkbenchLayoutSpec'
-import {
-  CONTENT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
-  CONTENT_WORKBENCH_DETAIL_PANE_ID,
-  CONTENT_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
-  CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-  contentWorkbenchDetailPaneMaxWidth,
-} from '@/features/content/presentation/contentWorkbenchLayoutSpec'
-import {
-  PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
-  PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_ID,
-  PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
-  PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-  preProductionWorkbenchDetailPaneMaxWidth,
-} from '@/features/pre-production/presentation/preProductionWorkbenchLayoutSpec'
 import {
   TOOL_WORKBENCH_RESOURCE_PANE_DEFAULT_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_ID,
@@ -69,8 +61,6 @@ export const APP_SHELL_AGENT_SIDEBAR_PANE_ID = 'app-shell.agent-sidebar'
 export const APP_SHELL_AGENT_CONTENT_PANE_ID = 'app-shell.agent-content-pane'
 export const APP_SHELL_TERMINAL_DOCK_PANE_ID = 'app-shell.terminal-dock'
 export const APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY = 'movscript.appShell.terminal.open'
-export const AGENT_CONSOLE_MAIN_PANE_ID = 'agent.console.main-pane'
-export const AGENT_CONSOLE_LOGS_PANE_ID = 'agent.console.logs-pane'
 export const AGENT_CONNECTION_THREADS_PANE_ID = 'agent.connections.threads-pane'
 export const AGENT_CONNECTION_EVENTS_PANE_ID = 'agent.connections.events-pane'
 export const AGENT_CONNECTION_RAW_PANE_ID = 'agent.connections.raw-pane'
@@ -78,8 +68,12 @@ export const WORKSPACE_CONFIG_FILE_TREE_PANE_ID = 'workspace.config.file-tree-pa
 export const WORKSPACE_CONFIG_EDITOR_PANE_ID = 'workspace.config.editor-pane'
 export const WORKSPACE_REVIEW_SUMMARY_PANE_ID = 'workspace.review.summary-pane'
 export const WORKSPACE_REVIEW_RAW_PANE_ID = 'workspace.review.raw-pane'
-export const AGENT_RUN_SIDEBAR_PANE_ID = 'agent.run.sidebar-pane'
-export const AGENT_RUN_TRACE_PANE_ID = 'agent.run.trace-pane'
+export const CANVAS_PALETTE_PANE_ID = 'canvas.palette-pane'
+export const CANVAS_WORKFLOW_PANE_ID = 'canvas.workflow-pane'
+export const CANVAS_WORKFLOW_PANE_WIDTH_STORAGE_KEY = 'movscript.canvas.workflowPaneWidth'
+export const CANVAS_WORKFLOW_PANE_DEFAULT_WIDTH = 300
+export const CANVAS_WORKFLOW_PANE_MIN_WIDTH = 260
+export const CANVAS_WORKFLOW_PANE_MAX_WIDTH = 420
 
 export interface RouteLayoutPaneSpec {
   id: string
@@ -109,7 +103,7 @@ export interface RouteLayoutSpec {
   scrollMode: RouteScrollMode
   shellLayout: RouteShellLayout
   contentWidth?: 'narrow' | 'normal' | 'wide' | 'xwide' | 'full'
-  workbenchId?: 'project_standards' | 'pre_production' | 'orchestration_production' | 'content_orchestration'
+  workbenchId?: 'project_standards' | 'orchestration_production' | 'content_orchestration'
   panes: RouteLayoutPaneSpec[]
   notes?: string
 }
@@ -138,8 +132,13 @@ const APP_SHELL_DETAIL_PANES: RouteLayoutPaneSpec[] = [
     id: APP_SHELL_ASSISTANT_DOCK_PANE_ID,
     side: 'right',
     owner: 'app-shell',
+    defaultSize: DETAIL_AGENT_PANEL_DEFAULT_WIDTH,
+    minSize: DETAIL_AGENT_PANEL_MIN_WIDTH,
+    maxSize: DETAIL_AGENT_PANEL_MAX_WIDTH,
+    collapsedSize: 0,
     defaultState: 'hidden',
     allowedStates: ['default', 'hidden'],
+    storageKey: DETAIL_AGENT_PANEL_WIDTH_STORAGE_KEY,
     persistState: false,
     collapsible: true,
     overlapMode: 'offset-stack',
@@ -205,7 +204,7 @@ const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec[] = [
 
 const CANVAS_PANES: RouteLayoutPaneSpec[] = [
   {
-    id: 'canvas.palette-pane',
+    id: CANVAS_PALETTE_PANE_ID,
     side: 'left',
     owner: 'canvas',
     defaultState: 'default',
@@ -214,11 +213,16 @@ const CANVAS_PANES: RouteLayoutPaneSpec[] = [
     overlapMode: 'none',
   },
   {
-    id: 'canvas.workflow-pane',
+    id: CANVAS_WORKFLOW_PANE_ID,
     side: 'right',
     owner: 'canvas',
+    defaultSize: CANVAS_WORKFLOW_PANE_DEFAULT_WIDTH,
+    minSize: CANVAS_WORKFLOW_PANE_MIN_WIDTH,
+    maxSize: CANVAS_WORKFLOW_PANE_MAX_WIDTH,
     defaultState: 'default',
     allowedStates: ['default', 'collapsed', 'expanded'],
+    collapsedSize: 44,
+    storageKey: CANVAS_WORKFLOW_PANE_WIDTH_STORAGE_KEY,
     collapsible: true,
     expandable: true,
     overlapMode: 'pane-surface',
@@ -236,46 +240,6 @@ const SCRIPT_WORKBENCH_PANES: RouteLayoutPaneSpec[] = [
     defaultState: 'default',
     allowedStates: ['default', 'collapsed', 'expanded'],
     storageKey: SCRIPT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    expandable: true,
-    collapseMode: 'after-min',
-    expandMode: 'after-max',
-    overlapMode: 'pane-surface',
-  },
-]
-
-const PRE_PRODUCTION_WORKBENCH_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_ID,
-    side: 'right',
-    owner: 'workbench',
-    defaultSize: PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
-    minSize: PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
-    maxSize: preProductionWorkbenchDetailPaneMaxWidth,
-    defaultState: 'default',
-    allowedStates: ['default', 'collapsed', 'expanded'],
-    storageKey: PRE_PRODUCTION_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    expandable: true,
-    collapseMode: 'after-min',
-    expandMode: 'after-max',
-    overlapMode: 'pane-surface',
-  },
-]
-
-const CONTENT_WORKBENCH_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: CONTENT_WORKBENCH_DETAIL_PANE_ID,
-    side: 'right',
-    owner: 'workbench',
-    defaultSize: CONTENT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
-    minSize: CONTENT_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
-    maxSize: contentWorkbenchDetailPaneMaxWidth,
-    defaultState: 'default',
-    allowedStates: ['default', 'collapsed', 'expanded'],
-    storageKey: CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
     persistState: true,
     collapsible: true,
     expandable: true,
@@ -309,25 +273,6 @@ const PLUGIN_TOOL_WORKBENCH_PANES: RouteLayoutPaneSpec[] = [
   {
     id: PLUGIN_TOOL_NATIVE_MAIN_PANE_ID,
     side: 'left',
-    owner: 'workbench',
-    defaultState: 'default',
-    allowedStates: ['default'],
-    overlapMode: 'none',
-  },
-]
-
-const AGENT_CONSOLE_WORKSPACE_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: AGENT_CONSOLE_MAIN_PANE_ID,
-    side: 'left',
-    owner: 'workbench',
-    defaultState: 'default',
-    allowedStates: ['default'],
-    overlapMode: 'none',
-  },
-  {
-    id: AGENT_CONSOLE_LOGS_PANE_ID,
-    side: 'right',
     owner: 'workbench',
     defaultState: 'default',
     allowedStates: ['default'],
@@ -392,25 +337,6 @@ const WORKSPACE_REVIEW_PANES: RouteLayoutPaneSpec[] = [
   },
   {
     id: WORKSPACE_REVIEW_RAW_PANE_ID,
-    side: 'right',
-    owner: 'workbench',
-    defaultState: 'default',
-    allowedStates: ['default'],
-    overlapMode: 'none',
-  },
-]
-
-const AGENT_RUN_WORKSPACE_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: AGENT_RUN_SIDEBAR_PANE_ID,
-    side: 'left',
-    owner: 'workbench',
-    defaultState: 'default',
-    allowedStates: ['default'],
-    overlapMode: 'none',
-  },
-  {
-    id: AGENT_RUN_TRACE_PANE_ID,
     side: 'right',
     owner: 'workbench',
     defaultState: 'default',
@@ -499,13 +425,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     workbenchId: 'project_standards',
   }, exact(ROUTES.project.standards)),
   route({
-    routeId: 'project.preProduction',
-    pathnamePattern: ROUTES.project.preProduction,
-    ...DETAIL_WORKSPACE_ROUTE,
-    workbenchId: 'pre_production',
-    panes: [...DETAIL_WORKSPACE_ROUTE.panes, ...PRE_PRODUCTION_WORKBENCH_PANES],
-  }, exact(ROUTES.project.preProduction)),
-  route({
     routeId: 'project.scripts',
     pathnamePattern: ROUTES.project.scripts,
     ...DETAIL_WORKSPACE_ROUTE,
@@ -513,12 +432,11 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     panes: [...DETAIL_WORKSPACE_ROUTE.panes, ...SCRIPT_WORKBENCH_PANES],
   }, exact(ROUTES.project.scripts)),
   route({
-    routeId: 'project.contentUnitEditor',
-    pathnamePattern: ROUTES.project.contentUnitEditor,
+    routeId: 'project.sourceWorkspace',
+    pathnamePattern: ROUTES.project.sourceWorkspace,
     ...DETAIL_WORKSPACE_ROUTE,
     workbenchId: 'content_orchestration',
-    panes: [...DETAIL_WORKSPACE_ROUTE.panes, ...CONTENT_WORKBENCH_PANES],
-  }, exact(ROUTES.project.contentUnitEditor)),
+  }, exact(ROUTES.project.sourceWorkspace)),
   route({
     routeId: 'tools.refImageGen',
     pathnamePattern: ROUTES.tools.refImageGen,
@@ -557,36 +475,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     notes: PLUGIN_TOOL_NATIVE_LAYOUT_NOTE,
   }, (pathname) => /^\/tools\/plugin\/[^/]+\/?$/.test(pathname)),
   route({
-    routeId: 'project.contentUnitWorkbench.redirect',
-    pathnamePattern: ROUTES.project.contentUnitWorkbench,
-    ...REDIRECT_ROUTE,
-  }, exact(ROUTES.project.contentUnitWorkbench)),
-  route({
-    routeId: 'project.legacyScripts.redirect',
-    pathnamePattern: ROUTES.project.legacyScripts,
-    ...REDIRECT_ROUTE,
-  }, exact(ROUTES.project.legacyScripts)),
-  route({
-    routeId: 'project.productionOrchestration.redirect',
-    pathnamePattern: ROUTES.project.productionOrchestration,
-    ...REDIRECT_ROUTE,
-  }, exact(ROUTES.project.productionOrchestration)),
-  route({
-    routeId: 'project.overview.redirect',
-    pathnamePattern: ROUTES.project.overview,
-    ...REDIRECT_ROUTE,
-  }, exact(ROUTES.project.overview)),
-  route({
-    routeId: 'agent.files.redirect',
-    pathnamePattern: ROUTES.agentFiles,
-    ...REDIRECT_ROUTE,
-  }, exact(ROUTES.agentFiles)),
-  route({
-    routeId: 'agent.modelProviders.redirect',
-    pathnamePattern: '/agent/model-providers',
-    ...REDIRECT_ROUTE,
-  }, exact('/agent/model-providers')),
-  route({
     routeId: 'admin.redirect',
     pathnamePattern: '/admin/*',
     ...REDIRECT_ROUTE,
@@ -594,29 +482,20 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'account.settings',
     pathnamePattern: ROUTES.appSettings,
-    kind: 'overlay-action',
-    surface: 'detail',
-    scrollMode: 'hidden',
-    shellLayout: 'stacked',
-    panes: [],
+    ...DETAIL_WORKSPACE_ROUTE,
+    notes: 'Account settings reuse the detail app shell with a route-specific settings sidebar and content pane.',
   }, exact(ROUTES.appSettings)),
   route({
     routeId: 'account.profile',
     pathnamePattern: ROUTES.user,
-    kind: 'overlay-action',
-    surface: 'detail',
-    scrollMode: 'hidden',
-    shellLayout: 'stacked',
-    panes: [],
+    ...DETAIL_WORKSPACE_ROUTE,
+    notes: 'Account profile is hosted inside the settings detail shell.',
   }, exact(ROUTES.user)),
   route({
     routeId: 'account.workspace',
     pathnamePattern: ROUTES.orgSettings,
-    kind: 'overlay-action',
-    surface: 'detail',
-    scrollMode: 'hidden',
-    shellLayout: 'stacked',
-    panes: [],
+    ...DETAIL_WORKSPACE_ROUTE,
+    notes: 'Workspace settings reuse the settings detail shell.',
   }, exact(ROUTES.orgSettings)),
   route({
     routeId: 'org.select',
@@ -640,11 +519,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     ...DETAIL_DOCUMENT_ROUTE,
     contentWidth: 'normal',
   }, exact(ROUTES.canvases)),
-  route({
-    routeId: 'project.tasks',
-    pathnamePattern: ROUTES.project.tasks,
-    ...DETAIL_DOCUMENT_ROUTE,
-  }, exact(ROUTES.project.tasks)),
   route({
     routeId: 'resources',
     pathnamePattern: ROUTES.resources,
@@ -675,7 +549,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     routeId: 'agent.console',
     pathnamePattern: ROUTES.agentConsole,
     ...DETAIL_WORKSPACE_ROUTE,
-    panes: [...DETAIL_WORKSPACE_ROUTE.panes, ...AGENT_CONSOLE_WORKSPACE_PANES],
+    notes: 'Agent console is a settings tab hosted inside the settings detail shell.',
   }, exact(ROUTES.agentConsole)),
   route({
     routeId: 'agent.connections',
@@ -716,17 +590,6 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     pathnamePattern: ROUTES.agentSettings,
     ...DETAIL_DOCUMENT_ROUTE,
   }, exact(ROUTES.agentSettings)),
-  route({
-    routeId: 'agent.runs',
-    pathnamePattern: ROUTES.agentRuns,
-    ...DETAIL_DOCUMENT_ROUTE,
-  }, exact(ROUTES.agentRuns)),
-  route({
-    routeId: 'agent.run',
-    pathnamePattern: ROUTES.agentRun,
-    ...DETAIL_WORKSPACE_ROUTE,
-    panes: [...DETAIL_WORKSPACE_ROUTE.panes, ...AGENT_RUN_WORKSPACE_PANES],
-  }, (pathname) => /^\/agent\/runs\/[^/]+\/?$/.test(pathname)),
 ]
 
 export const registeredRouteLayoutSpecs: readonly RouteLayoutSpec[] = routeLayoutRegistry.map(({ match: _match, ...spec }) => spec)

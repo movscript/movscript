@@ -7,7 +7,6 @@ import '@xterm/xterm/css/xterm.css'
 
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
-const AGENT_TERMINAL_PANEL_OPEN_KEY = 'movscript.agentMode.terminal.open'
 const AGENT_TERMINAL_DEFAULT_ROWS = 12
 const AGENT_TERMINAL_DEFAULT_COLS = 100
 const AGENT_TERMINAL_OUTPUT_BUFFER_LIMIT = 200_000
@@ -86,10 +85,7 @@ function createInitialAgentTerminalStore(): AgentTerminalStoreState {
 }
 
 export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onOpenChange, shellPlacement = 'center' }: AgentTerminalPanelProps) {
-  const [internalOpen, setInternalOpen] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(AGENT_TERMINAL_PANEL_OPEN_KEY) === '1'
-  })
+  const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const terminalStore = useAgentTerminalStore()
   const sessions = terminalStore.sessions
@@ -292,10 +288,6 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
   }, [sessions, stopShell])
 
   useEffect(() => {
-    window.localStorage.setItem(AGENT_TERMINAL_PANEL_OPEN_KEY, open ? '1' : '0')
-  }, [open])
-
-  useEffect(() => {
     if (!agentTerminalContextKey) {
       agentTerminalContextKey = workspaceContextKey
       return
@@ -495,6 +487,7 @@ function ShellTerminalViewport({
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
     terminal.open(host)
+    const disposeThemeObserver = observeTerminalTheme(host, terminal)
     runtime.terminal = terminal
     runtime.fitAddon = fitAddon
     if (runtime.outputBuffer) terminal.write(runtime.outputBuffer)
@@ -509,6 +502,7 @@ function ShellTerminalViewport({
 
     return () => {
       window.cancelAnimationFrame(frame)
+      disposeThemeObserver()
       inputDisposable.dispose()
       resizeObserver.disconnect()
       if (runtime.terminal === terminal) runtime.terminal = null
@@ -606,4 +600,19 @@ function terminalTheme(host: HTMLElement) {
 function cssColorValue(value: string, fallback: string): string {
   const trimmed = value.trim()
   return trimmed || fallback
+}
+
+function observeTerminalTheme(host: HTMLElement, terminal: Terminal): () => void {
+  const applyTheme = () => {
+    terminal.options.theme = { ...terminalTheme(host) }
+  }
+  applyTheme()
+
+  const root = document.documentElement
+  const shell = host.closest('.app-shell')
+  const observer = new MutationObserver(() => applyTheme())
+  observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] })
+  if (shell) observer.observe(shell, { attributes: true, attributeFilter: ['data-surface', 'data-chrome', 'data-layout', 'style'] })
+
+  return () => observer.disconnect()
 }

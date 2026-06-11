@@ -27,6 +27,16 @@ import {
   AgentConsoleInlineError,
   AgentConsoleIntroRow,
   AgentConsoleIssueRowSurface,
+  AgentConsoleLogEmpty,
+  AgentConsoleLogLine,
+  AgentConsoleLogLineStream,
+  AgentConsoleLogLineText,
+  AgentConsoleLogLineTime,
+  AgentConsoleLogStream,
+  AgentConsoleLogSummary,
+  AgentConsoleLogSummaryItem,
+  AgentConsoleLogSummaryLabel,
+  AgentConsoleLogSummaryValue,
   AgentConsoleLocalToolActions,
   AgentConsoleLocalToolCard,
   AgentConsoleLocalToolControls,
@@ -40,6 +50,7 @@ import {
   AgentConsoleManagementLink,
   AgentConsoleMetricCard,
   AgentConsoleMetricGrid,
+  AgentConsolePageBody,
   AgentConsolePanel,
   AgentConsolePanelActions,
   AgentConsoleSectionSpacer,
@@ -50,7 +61,6 @@ import {
   AgentConsoleTestResult,
   AgentConsoleToolbar,
   AgentPageShell,
-  AgentPageShellBody,
   AgentPageShellHeader,
   type AgentConsoleIssueTone,
 } from '@movscript/ui'
@@ -64,7 +74,7 @@ import {
   probeAgentChatDataSourceCapabilities,
   type AgentChatCapabilityProbeItem,
   type AgentChatCapabilityProbeResult,
-} from '@/features/agent/application/agentChatCapabilityProbe'
+} from '@movscript/core/agent/chat'
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
 import {
   agentReadinessStatusRecipe,
@@ -223,7 +233,7 @@ export default function AgentConsolePage() {
 
       <AgentConsoleNav compact />
 
-      <AgentPageShellBody scroll="responsive-split" className="agent-console-page-body">
+      <AgentConsolePageBody>
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
             title="Agents"
@@ -259,8 +269,8 @@ export default function AgentConsolePage() {
           />
         </AgentConsoleMetricGrid>
 
-        <AgentConsoleMainGrid className="agent-console-main-grid--control-logs">
-          <AgentConsoleMainColumn className="agent-console-main-column--config">
+        <AgentConsoleMainGrid layout="control-logs">
+          <AgentConsoleMainColumn pane="config">
             <AgentControlMatrixPanel
               appServerLabel={appServerProvider?.label ?? 'App Server Agent'}
               appServerConfigRoute={agentsConfigRoute}
@@ -295,7 +305,7 @@ export default function AgentConsolePage() {
 
           </AgentConsoleMainColumn>
 
-          <AgentConsoleSidebar className="agent-console-sidebar--logs">
+          <AgentConsoleSidebar pane="logs">
             <AppServerRealtimeLogPanel
               logs={appServerLogs}
               status={appServerStatusQuery.data}
@@ -334,7 +344,7 @@ export default function AgentConsolePage() {
                     detail={`管理 ${provider.label} 的 app-server、托管 home 和运行状态。`}
                   />
                 ))}
-                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace" detail="查看 edit、.build 和 .movscript/providers 文件。" />
+                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace" detail="查看 edit、.interpret 和 .movscript/providers 文件。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Terminal size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
                 <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Plugins" detail="插件是全局扩展入口，也可以贡献 Provider Skills、Tools 和 UI 扩展。" />
@@ -355,7 +365,7 @@ export default function AgentConsolePage() {
             </ConsolePanel>
           </AgentConsoleSidebar>
         </AgentConsoleMainGrid>
-      </AgentPageShellBody>
+      </AgentConsolePageBody>
     </AgentPageShell>
   )
 }
@@ -440,7 +450,7 @@ function AppServerRealtimeLogPanel({
       </AgentConsolePanelActions>
       }
     >
-      <div className="agent-console-log-summary">
+      <AgentConsoleLogSummary>
         <LogSummaryItem label="Primary" value={primaryProviderLabel} />
         <LogSummaryItem label="Primary Profile" value={primaryProfileId} />
         <LogSummaryItem label="Listening" value={formatAppServerLogProfiles(profiles)} />
@@ -452,32 +462,32 @@ function AppServerRealtimeLogPanel({
         <LogSummaryItem label="Base URL" value={config?.baseURL ?? '-'} />
         <LogSummaryItem label="Account" value={formatAppServerAccount(config)} />
         <LogSummaryItem label="RUST_LOG" value={status?.rustLog ?? '-'} />
-      </div>
+      </AgentConsoleLogSummary>
       {status?.error ? <AgentConsoleInlineError>{status.error}</AgentConsoleInlineError> : null}
-      <div ref={streamRef} className="agent-console-log-stream" data-testid="agent-console-app-server-log-stream">
+      <AgentConsoleLogStream ref={streamRef} data-testid="agent-console-app-server-log-stream">
         {logs.length === 0 ? (
-          <p className="agent-console-log-empty">等待 app-server 输出。</p>
+          <AgentConsoleLogEmpty>等待 app-server 输出。</AgentConsoleLogEmpty>
         ) : (
           logs.map((line) => (
-            <div key={line.id} className="agent-console-log-line" data-stream={line.stream}>
-              <span className="agent-console-log-line__time">{formatLogTime(line.at)}</span>
-              <span className="agent-console-log-line__stream">{line.stream}</span>
-              <span className="agent-console-log-line__stream" title={line.profileId}>{line.providerLabel ?? line.profileId}</span>
-              <span className="agent-console-log-line__text">{line.text}</span>
-            </div>
+            <AgentConsoleLogLine key={line.id} data-stream={line.stream}>
+              <AgentConsoleLogLineTime>{formatLogTime(line.at)}</AgentConsoleLogLineTime>
+              <AgentConsoleLogLineStream>{line.stream}</AgentConsoleLogLineStream>
+              <AgentConsoleLogLineStream title={line.profileId}>{line.providerLabel ?? line.profileId}</AgentConsoleLogLineStream>
+              <AgentConsoleLogLineText>{line.text}</AgentConsoleLogLineText>
+            </AgentConsoleLogLine>
           ))
         )}
-      </div>
+      </AgentConsoleLogStream>
     </ConsolePanel>
   )
 }
 
 function LogSummaryItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="agent-console-log-summary__item">
-      <span className="agent-console-log-summary__label">{label}</span>
-      <span className="agent-console-log-summary__value" title={value}>{value}</span>
-    </div>
+    <AgentConsoleLogSummaryItem>
+      <AgentConsoleLogSummaryLabel>{label}</AgentConsoleLogSummaryLabel>
+      <AgentConsoleLogSummaryValue title={value}>{value}</AgentConsoleLogSummaryValue>
+    </AgentConsoleLogSummaryItem>
   )
 }
 

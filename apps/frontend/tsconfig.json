@@ -11,6 +11,36 @@
       "@movscript/core/backend": [
         "../../packages/core/src/backend/index.ts"
       ],
+      "@movscript/core/canvas": [
+        "../../packages/core/src/canvas/index.ts"
+      ],
+      "@movscript/core/content": [
+        "../../packages/core/src/content/index.ts"
+      ],
+      "@movscript/core/generation": [
+        "../../packages/core/src/generation/index.ts"
+      ],
+      "@movscript/core/production": [
+        "../../packages/core/src/production/index.ts"
+      ],
+      "@movscript/core/resources": [
+        "../../packages/core/src/resources/index.ts"
+      ],
+      "@movscript/core/shot-library": [
+        "../../packages/core/src/shot-library/index.ts"
+      ],
+      "@movscript/core/shared": [
+        "../../packages/core/src/shared/index.ts"
+      ],
+      "@movscript/core/agent": [
+        "../../packages/core/src/agent/index.ts"
+      ],
+      "@movscript/core/agent/chat": [
+        "../../packages/core/src/agent/chat/index.ts"
+      ],
+      "@movscript/core/agent/protocol": [
+        "../../packages/core/src/agent/protocol.ts"
+      ],
       "@movscript/core/plugins": [
         "../../packages/core/src/plugins/index.ts"
       ],

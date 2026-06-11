@@ -1,10 +1,11 @@
-import { cloneElement, type ComponentProps, type HTMLAttributes, type ReactElement, type ReactNode } from "react";
+import { cloneElement, forwardRef, type ComponentProps, type HTMLAttributes, type ReactElement, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Trash2, XCircle } from "lucide-react";
 
 import { AsChildSlot, isSingleElementChild } from "../../../../lib/asChild";
 import { cn } from "../../../../lib/cn";
 import { toneSurfaceClass, toneTextClass, type SemanticTone } from "../../../../semantic";
 import { AppInlineError, AppTextEmptyState } from "../../app";
+import { AppPageShellBody } from "../../../layout";
 import { ReviewCallout } from "../../review";
 import {
   Badge,
@@ -180,6 +181,17 @@ export function AgentConsoleIcon({
   return <Icon className={cn("agent-console-icon", spinning && "agent-console-icon--spinning", className)} {...props} />;
 }
 
+export function AgentConsolePageBody({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof AppPageShellBody>, "scroll">) {
+  return <AppPageShellBody scroll="responsive-split" className={cn("agent-console-page-body", className)} {...props} />;
+}
+
+export function AgentConsoleDocumentBody(props: ComponentProps<typeof AppPageShellBody>) {
+  return <AppPageShellBody {...props} />;
+}
+
 export function AgentConsoleMetricGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-console-metric-grid", className)} {...props} />;
 }
@@ -188,20 +200,44 @@ export function AgentConsoleSectionSpacer({ className, ...props }: HTMLAttribute
   return <div className={cn("agent-console-section-spacer", className)} {...props} />;
 }
 
-export function AgentConsoleMainGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-console-main-grid", className)} {...props} />;
+export function AgentConsoleMainGrid({
+  layout = "default",
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  layout?: "default" | "control-logs";
+}) {
+  return <div data-layout={layout === "control-logs" ? "control-logs" : undefined} className={cn("agent-console-main-grid", className)} {...props} />;
 }
 
-export function AgentConsoleMainColumn({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-console-main-column", className)} {...props} />;
+export function AgentConsoleMainColumn({
+  pane = "default",
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  pane?: "default" | "config";
+}) {
+  return <div data-pane={pane === "config" ? "config" : undefined} className={cn("agent-console-main-column", className)} {...props} />;
 }
 
-export function AgentConsoleSidebar({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <aside className={cn("agent-console-sidebar", className)} {...props} />;
+export function AgentConsoleSidebar({
+  pane = "default",
+  className,
+  ...props
+}: HTMLAttributes<HTMLElement> & {
+  pane?: "default" | "logs";
+}) {
+  return <aside data-pane={pane === "logs" ? "logs" : undefined} className={cn("agent-console-sidebar", className)} {...props} />;
 }
 
-export function AgentConsoleStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-console-stack", className)} {...props} />;
+export function AgentConsoleStack({
+  spacing = "default",
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  spacing?: "default" | "loose";
+}) {
+  return <div data-spacing={spacing === "loose" ? "loose" : undefined} className={cn("agent-console-stack", className)} {...props} />;
 }
 
 export function AgentConsoleGrid({
@@ -249,6 +285,48 @@ export function AgentConsoleInlineError({ className, ...props }: ComponentProps<
   return <AppInlineError className={cn("agent-console-inline-error", className)} {...props} />;
 }
 
+export function AgentConsoleLogSummary({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-console-log-summary", className)} {...props} />;
+}
+
+export function AgentConsoleLogSummaryItem({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-console-log-summary__item", className)} {...props} />;
+}
+
+export function AgentConsoleLogSummaryLabel({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-console-log-summary__label", className)} {...props} />;
+}
+
+export function AgentConsoleLogSummaryValue({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-console-log-summary__value", className)} {...props} />;
+}
+
+export const AgentConsoleLogStream = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("agent-console-log-stream", className)} {...props} />
+);
+
+AgentConsoleLogStream.displayName = "AgentConsoleLogStream";
+
+export function AgentConsoleLogEmpty({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("agent-console-log-empty", className)} {...props} />;
+}
+
+export function AgentConsoleLogLine({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-console-log-line", className)} {...props} />;
+}
+
+export function AgentConsoleLogLineTime({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-console-log-line__time", className)} {...props} />;
+}
+
+export function AgentConsoleLogLineStream({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-console-log-line__stream", className)} {...props} />;
+}
+
+export function AgentConsoleLogLineText({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-console-log-line__text", className)} {...props} />;
+}
+
 export function AgentConsoleBoundaryCard({ title, detail }: { title: ReactNode; detail: ReactNode }) {
   return (
     <AgentSurfaceBlock variant="subtle" className="agent-console-boundary-card">
@@ -276,6 +354,20 @@ export function AgentConsoleDescription({ className, ...props }: HTMLAttributes<
 
 export function AgentConsoleToolbar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-console-toolbar", className)} {...props} />;
+}
+
+export function AgentConsoleTabList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-console-tab-list", className)} {...props} />;
+}
+
+export function AgentConsoleTabButton({
+  active = false,
+  className,
+  ...props
+}: ButtonProps & {
+  active?: boolean;
+}) {
+  return <Button size="sm" variant={active ? "solid" : "outline"} className={cn("agent-console-tab-button", className)} {...props} />;
 }
 
 export function AgentConsoleSavedAt({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {

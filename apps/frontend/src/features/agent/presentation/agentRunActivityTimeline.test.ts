@@ -104,7 +104,7 @@ test('formatToolCallStreamDetail summarizes streamed tool call arguments', () =>
   }
 
   assert.deepEqual(formatToolCallStreamDetail(event), {
-    label: 'movscript_read_project',
+    label: 'Movscript Read Project',
     parseStatus: '参数已解析',
     args: '{"projectId":1}',
     parsedArgs: { projectId: 1 },

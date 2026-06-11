@@ -16,8 +16,6 @@ export interface AgentSendRunUpdateDeps {
   getConversationRuntimeState: () => { stopRequested?: boolean; run?: AgentRun } | undefined
   setPendingAssistantState: (value: AgentThinkingState | null | ((current: AgentThinkingState | null) => AgentThinkingState | null)) => void
   thinkingStateForRun: (run: AgentRun) => AgentThinkingState
-  runTouchesProviderCatalog: (run: AgentRun) => boolean
-  refreshProviderCatalogContext: () => void
   setPageTaskRunning: (requestId: string, patch: AgentPageTaskRunningPatch) => void
   setConversationRun: (run: AgentRun, patch: RunControlProviderSessionPatch & { approving?: boolean }) => void
   updateConversationRuntimeState: (patch: RunControlProviderSessionPatch) => void
@@ -49,7 +47,6 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
   } else if (isTerminalAgentRun(nextRun)) {
     deps.setPendingAssistantState(null)
   }
-  if (deps.runTouchesProviderCatalog(nextRun)) deps.refreshProviderCatalogContext()
   if (deps.requestId) {
     deps.setPageTaskRunning(deps.requestId, {
       conversationId: deps.conversationId,

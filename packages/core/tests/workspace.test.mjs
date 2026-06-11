@@ -6,13 +6,22 @@ import { tmpdir } from 'node:os'
 import test from 'node:test'
 
 import {
+  defaultMovScriptHomeConfig,
   ensureMovScriptWorkspaceContext,
   ensureMovScriptWorkspaceRoot,
+  ensureMovScriptHomeConfig,
+  movScriptRuntimeBinaryName,
+  movScriptRuntimePreflight,
+  readMovScriptHomeConfig,
   readMovScriptWorkspaceRootManifest,
+  resolveMovScriptHomeConfigPaths,
+  resolveMovScriptHomeDir,
   resolveMovScriptProjectCwd,
   resolveMovScriptProjectWorkspacePaths,
   resolveMovScriptWorkspaceContextPaths,
+  resolveMovScriptWorkspaceRuntimePaths,
   resolveMovScriptWorkspaceRootPaths,
+  writeMovScriptHomeConfig,
 } from '../dist/workspace/node/index.js'
 
 test('core workspace resolves project cwd by user, org, and project ids', () => {
@@ -20,15 +29,15 @@ test('core workspace resolves project cwd by user, org, and project ids', () => 
 
   assert.equal(
     resolveMovScriptProjectCwd({ workspaceDir, userId: 7, projectId: 'demo' }),
-    '/tmp/movscript-root/.movscript/user/7/projects/project_demo',
+    '/tmp/movscript-root/user/7/projects/project_demo',
   )
   assert.equal(
     resolveMovScriptProjectWorkspacePaths({ workspaceDir, orgId: 'team_a', projectId: 42 }).projectDir,
-    '/tmp/movscript-root/.movscript/org/team_a/projects/project_42',
+    '/tmp/movscript-root/org/team_a/projects/project_42',
   )
   assert.equal(
     resolveMovScriptProjectCwd({ workspaceDir }),
-    '/tmp/movscript-root/.movscript/local/projects/project',
+    '/tmp/movscript-root/local/projects/project',
   )
 })
 
@@ -40,7 +49,7 @@ test('core workspace context forwards project cwd as provider session cwd', () =
   })
 
   assert.equal(paths.scope, 'project')
-  assert.equal(paths.projectCwd, '/tmp/movscript-root/.movscript/user/alice/projects/project_trailer')
+  assert.equal(paths.projectCwd, '/tmp/movscript-root/user/alice/projects/project_trailer')
   assert.equal(paths.providerSessionCwd, paths.projectCwd)
   assert.equal(paths.contextKey, 'project/trailer')
 })
@@ -61,12 +70,98 @@ test('core workspace root and context only create app workspace directories', as
     assert.equal(existsSync(rootPaths.controlDir), true)
     assert.equal(existsSync(rootPaths.providersDir), true)
     assert.equal(existsSync(rootPaths.backendDir), true)
+    assert.equal(existsSync(rootPaths.binDir), true)
     assert.equal(existsSync(contextPaths.projectCwd), true)
-    assert.equal(existsSync(join(rootPaths.controlDir, '.build')), false)
+    assert.equal(rootPaths.controlDir, rootPaths.rootDir)
+    assert.equal(existsSync(join(rootPaths.controlDir, '.interpret')), false)
     assert.equal(existsSync(join(rootPaths.workspaceDir, 'scripts')), false)
     assert.equal(existsSync(join(rootPaths.workspaceDir, 'productions')), false)
     assert.equal(existsSync(join(rootPaths.workspaceDir, 'content_units')), false)
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('core workspace runtime paths resolve desktop binaries under .movscript/bin', () => {
+  const paths = resolveMovScriptWorkspaceRuntimePaths({
+    workspaceDir: '/tmp/movscript-root',
+    platform: 'darwin',
+  })
+
+  assert.equal(paths.binDir, '/tmp/movscript-root/bin')
+  assert.equal(paths.configTomlPath, '/tmp/movscript-root/config.toml')
+  assert.equal(paths.movscriptServerPath, '/tmp/movscript-root/bin/movscript-server')
+  assert.equal(paths.movcliPath, '/tmp/movscript-root/bin/movcli')
+  assert.equal(paths.movcliShimPath, '/tmp/movscript-root/bin/movcli.mjs')
+  assert.equal(movScriptRuntimeBinaryName('movscript-server', 'win32'), 'movscript-server.exe')
+})
+
+test('core workspace runtime preflight reports missing fatal dependencies', () => {
+  const workspaceDir = '/tmp/missing-runtime-workspace'
+  const preflight = movScriptRuntimePreflight({
+    workspaceDir,
+    platform: 'darwin',
+    exists: () => false,
+  })
+
+  assert.equal(preflight.ok, false)
+  assert.equal(preflight.fatalCount, preflight.checks.length)
+  assert.deepEqual(preflight.checks.map((check) => check.id), [
+    'workspace.homeDir',
+    'workspace.configToml',
+    'workspace.binDir',
+    'runtime.movscriptServer',
+    'runtime.movcli',
+    'runtime.movcliShim',
+  ])
+})
+
+test('core workspace runtime preflight accepts prepared workspace binaries', () => {
+  const workspaceDir = '/tmp/prepared-runtime-workspace'
+  const paths = resolveMovScriptWorkspaceRuntimePaths({ workspaceDir, platform: 'darwin' })
+  const directories = new Set([paths.controlDir, paths.binDir])
+  const files = new Set([paths.configTomlPath, paths.movscriptServerPath, paths.movcliPath, paths.movcliShimPath])
+  const preflight = movScriptRuntimePreflight({
+    workspaceDir,
+    platform: 'darwin',
+    exists: (path) => directories.has(path) || files.has(path),
+    statFile: (path) => ({
+      isDirectory: () => directories.has(path),
+      isFile: () => files.has(path),
+    }),
+    canExecute: (path) => path !== paths.movcliShimPath,
+  })
+
+  assert.equal(preflight.ok, true)
+  assert.equal(preflight.fatalCount, 0)
+})
+
+test('core MovScript home config lives at MOVSCRIPT_HOME/config.toml', async () => {
+  const homeDir = await mkdtemp(join(tmpdir(), 'movscript-home-config-'))
+  const previousHome = process.env.MOVSCRIPT_HOME
+  try {
+    process.env.MOVSCRIPT_HOME = homeDir
+    assert.equal(resolveMovScriptHomeDir(), homeDir)
+    assert.equal(resolveMovScriptHomeConfigPaths().configPath, join(homeDir, 'config.toml'))
+
+    const config = ensureMovScriptHomeConfig(join(homeDir, 'config.toml'))
+    assert.deepEqual(config, defaultMovScriptHomeConfig())
+
+    writeMovScriptHomeConfig(join(homeDir, 'config.toml'), {
+      schema: 'movscript.config.v1',
+      startup: { backendPolicy: 'external', agentPolicy: 'prewarm' },
+      backend: { baseURL: 'http://127.0.0.1:8766' },
+      paths: { binDir: 'bin', dataDir: 'data' },
+    })
+    assert.deepEqual(readMovScriptHomeConfig(join(homeDir, 'config.toml')), {
+      schema: 'movscript.config.v1',
+      startup: { backendPolicy: 'external', agentPolicy: 'prewarm' },
+      backend: { baseURL: 'http://127.0.0.1:8766' },
+      paths: { binDir: 'bin', dataDir: 'data' },
+    })
+  } finally {
+    if (previousHome === undefined) delete process.env.MOVSCRIPT_HOME
+    else process.env.MOVSCRIPT_HOME = previousHome
+    await rm(homeDir, { recursive: true, force: true })
   }
 })

@@ -353,10 +353,10 @@ test('app-server manager resolves dot workspaceDir against the managed workspace
   })
 
   assert.equal(status.ok, false)
-  assert.equal(status.home, join(workspaceDir, '.movscript', '.codex'))
+  assert.equal(status.home, join(workspaceDir, '.codex'))
   assert.equal(status.config?.baseURL, 'http://127.0.0.1:8765/v1')
   assert.equal(status.config?.sourceConfigPath, providerPaths.configPath)
-  assert.match(readFileSync(join(workspaceDir, '.movscript', '.codex', 'config.toml'), 'utf8'), /base_url = "http:\/\/127\.0\.0\.1:8765\/v1"/)
+  assert.match(readFileSync(join(workspaceDir, '.codex', 'config.toml'), 'utf8'), /base_url = "http:\/\/127\.0\.0\.1:8765\/v1"/)
 })
 
 test('app-server manager records running provider sessions under the provider profile key', async () => {
@@ -385,7 +385,7 @@ test('app-server manager records running provider sessions under the provider pr
   assert.equal(records[0]?.status, 'running')
   assert.equal(records[0]?.workspaceDir, workspaceDir)
   assert.deepEqual(records[0]?.workspaceContext, { scope: 'global' })
-  assert.equal(records[0]?.providerSessionCwd, join(workspaceDir, '.movscript', 'local'))
+  assert.equal(records[0]?.providerSessionCwd, join(workspaceDir, 'local'))
 })
 
 test('app-server manager keeps multiple profiles for one provider key isolated by profile id', async () => {
@@ -446,7 +446,7 @@ test('app-server manager defaults an unbranded profile to Mova', async () => {
   const manager = new AppServerManager({
     distributeConfig: (input) => {
       assert.equal(input.providerKey, 'mova')
-      assert.equal(input.home, join(workspaceDir, '.movscript', '.mova'))
+      assert.equal(input.home, join(workspaceDir, '.mova'))
       return movaDistributionFixture({ home: input.home })
     },
     ensurePlugin: () => appServerPluginFixture(),
@@ -473,7 +473,7 @@ test('app-server manager defaults an unbranded profile to Mova', async () => {
   })
 
   assert.equal(status.ok, true)
-  assert.equal(status.home, join(workspaceDir, '.movscript', '.mova'))
+  assert.equal(status.home, join(workspaceDir, '.mova'))
   assert.equal(records[0]?.providerProfileKey, 'mova')
   assert.equal(records[0]?.providerKey, 'mova')
 })
@@ -484,7 +484,7 @@ test('app-server manager accepts custom provider keys without Codex or Mova bind
   const manager = new AppServerManager({
     distributeConfig: (input) => {
       assert.equal(input.providerKey, 'claude')
-      assert.equal(input.home, join(workspaceDir, '.movscript', '.claude'))
+      assert.equal(input.home, join(workspaceDir, '.claude'))
       return appServerDistributionFixture({
         providerKey: 'claude',
         sourceConfigPath: '/workspace/.movscript/providers/claude/config.json',
@@ -517,7 +517,7 @@ test('app-server manager accepts custom provider keys without Codex or Mova bind
   })
 
   assert.equal(status.ok, true)
-  assert.equal(status.home, join(workspaceDir, '.movscript', '.claude'))
+  assert.equal(status.home, join(workspaceDir, '.claude'))
   assert.equal(records[0]?.providerProfileKey, 'claude')
   assert.equal(records[0]?.providerKey, 'claude')
 })
@@ -528,7 +528,7 @@ test('app-server manager infers custom provider keys from managed profile ids', 
   const manager = new AppServerManager({
     distributeConfig: (input) => {
       assert.equal(input.providerKey, 'claude')
-      assert.equal(input.home, join(workspaceDir, '.movscript', '.claude'))
+      assert.equal(input.home, join(workspaceDir, '.claude'))
       return appServerDistributionFixture({
         providerKey: 'claude',
         sourceConfigPath: '/workspace/.movscript/providers/claude/config.json',
@@ -560,7 +560,7 @@ test('app-server manager infers custom provider keys from managed profile ids', 
   })
 
   assert.equal(status.ok, true)
-  assert.equal(status.home, join(workspaceDir, '.movscript', '.claude'))
+  assert.equal(status.home, join(workspaceDir, '.claude'))
   assert.equal(records[0]?.providerProfileKey, 'claude')
   assert.equal(records[0]?.providerKey, 'claude')
 })
@@ -571,7 +571,7 @@ test('app-server manager does not infer provider keys from arbitrary provider na
   const manager = new AppServerManager({
     distributeConfig: (input) => {
       assert.equal(input.providerKey, 'mova')
-      assert.equal(input.home, join(workspaceDir, '.movscript', '.mova'))
+      assert.equal(input.home, join(workspaceDir, '.mova'))
       return movaDistributionFixture({ home: input.home })
     },
     ensurePlugin: () => appServerPluginFixture(),
@@ -598,7 +598,7 @@ test('app-server manager does not infer provider keys from arbitrary provider na
   })
 
   assert.equal(status.ok, true)
-  assert.equal(status.home, join(workspaceDir, '.movscript', '.mova'))
+  assert.equal(status.home, join(workspaceDir, '.mova'))
   assert.equal(records[0]?.providerProfileKey, 'mova')
   assert.equal(records[0]?.providerKey, 'mova')
 })
@@ -609,7 +609,7 @@ test('app-server manager launches with the project workspace cwd', async () => {
   const manager = new AppServerManager({
     distributeConfig: () => appServerDistributionFixture({
       providerKey: 'mova',
-      home: join(workspaceDir, '.movscript', '.mova'),
+      home: join(workspaceDir, '.mova'),
     }),
     ensurePlugin: () => appServerPluginFixture(),
     reservePort: async () => 41234,
@@ -633,7 +633,7 @@ test('app-server manager launches with the project workspace cwd', async () => {
     },
   })
 
-  const expected = join(workspaceDir, '.movscript', 'local', 'projects', 'project_42')
+  const expected = join(workspaceDir, 'local', 'projects', 'project_42')
   assert.equal(spawnCwd, expected)
   assert.equal(status.providerSessionCwd, expected)
   assert.deepEqual(status.workspaceContext, { scope: 'project', projectId: '42' })
@@ -693,7 +693,7 @@ test('app-server protocol manager launches Mova with an isolated provider home',
     let spawnArgs: string[] = []
     let spawnCwd = ''
     let spawnEnv: NodeJS.ProcessEnv = {}
-    const cliBinDir = join(workspaceDir, '.movscript', 'bin')
+    const cliBinDir = join(workspaceDir, 'bin')
     let ensuredWorkspaceDir = ''
     const manager = new AppServerManager({
       distributeConfig: (input) => distributeAppServerConfigFromMovScriptWorkspace({ ...input, now: new Date('2026-06-04T01:02:03.000Z') }),
@@ -725,18 +725,18 @@ test('app-server protocol manager launches Mova with an isolated provider home',
     assert.equal(status.ok, true)
     assert.equal(spawnCommand, '/opt/mova/mova-app-server')
     assert.deepEqual(spawnArgs, ['--listen', 'ws://127.0.0.1:41234'])
-    assert.equal(spawnCwd, join(workspaceDir, '.movscript', 'local'))
+    assert.equal(spawnCwd, join(workspaceDir, 'local'))
     assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_PROVIDER, 'mova')
-    assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_HOME, join(workspaceDir, '.movscript', '.mova'))
-    assert.equal(spawnEnv.MOVA_HOME, join(workspaceDir, '.movscript', '.mova'))
-    assert.equal(spawnEnv.CODEX_HOME, join(workspaceDir, '.movscript', '.mova'))
+    assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_HOME, join(workspaceDir, '.mova'))
+    assert.equal(spawnEnv.MOVA_HOME, join(workspaceDir, '.mova'))
+    assert.equal(spawnEnv.CODEX_HOME, join(workspaceDir, '.mova'))
     assert.equal(spawnEnv.MOVSCRIPT_CLI_BIN_DIR, cliBinDir)
     assert.equal(spawnEnv.PATH?.split(delimiter)[0], cliBinDir)
     assert.equal(status.cliBinDir, cliBinDir)
     assert.equal(ensuredWorkspaceDir, workspaceDir)
     assert.equal(status.cliEnv?.MOVSCRIPT_NODE_BIN, process.execPath)
-    assert.equal(status.providerSessionCwd, join(workspaceDir, '.movscript', 'local'))
-    assert.equal(status.home, join(workspaceDir, '.movscript', '.mova'))
+    assert.equal(status.providerSessionCwd, join(workspaceDir, 'local'))
+    assert.equal(status.home, join(workspaceDir, '.mova'))
     assert.equal(status.config?.accountConfigured, true)
   } finally {
     if (previousNeutralBin === undefined) delete process.env.MOVSCRIPT_APP_SERVER_BIN
@@ -933,13 +933,13 @@ test('Codex app-server executable resolution prefers managed .movscript/bin befo
   assert.equal(resolution.diagnostic?.candidatePaths?.[0], managedCandidate)
 })
 
-test('app-server manager materializes packaged Codex app-server into workspace .movscript/bin before launch', async () => {
+test('app-server manager materializes packaged Codex app-server into workspace bin before launch', async () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-codex-packaged-materialize-'))
   const workspaceDir = join(root, 'workspace')
   const resourcesPath = join(root, 'resources')
   const sourceDir = join(resourcesPath, 'app-server', 'codex', process.platform, process.arch)
   const source = join(sourceDir, process.platform === 'win32' ? 'app-server.exe' : 'app-server')
-  const expectedTarget = join(workspaceDir, '.movscript', 'bin', process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server')
+  const expectedTarget = join(workspaceDir, 'bin', process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server')
   mkdirSync(sourceDir, { recursive: true })
   writeFileSync(source, 'fake packaged codex app-server')
   chmodSync(source, 0o755)

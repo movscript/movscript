@@ -8,5 +8,5 @@ export function setMCPDefaultWorkspaceDir(workspaceDir: string | undefined): voi
 }
 
 export function resolveMCPDefaultWorkspaceDir(): string {
-  return configuredMCPDefaultWorkspaceDir || process.env.MOVSCRIPT_WORKSPACE_DIR || process.cwd()
+  return configuredMCPDefaultWorkspaceDir || process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || process.cwd()
 }

@@ -76,11 +76,11 @@ Inspect a local workspace model:
 pnpm --filter @movscript/cli dev -- workspace get-model setting --entity-id hero --workspace /path/to/project-repo
 ```
 
-Review and build local edits:
+Review and interpret local edits:
 
 ```bash
 pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/project-repo
-pnpm --filter @movscript/cli dev -- workspace build --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- workspace interpret --workspace /path/to/project-repo
 ```
 
 ## Language Commands
@@ -104,12 +104,12 @@ pnpm --filter @movscript/cli dev -- content-unit add --id opening_shot --title "
 pnpm --filter @movscript/cli dev -- candidate add content_units/opening_shot/content_unit.json --resource-id resource_manual_1
 ```
 
-Compiler shortcuts are also top-level commands:
+Interpreter shortcuts are also top-level commands:
 
 ```bash
 pnpm --filter @movscript/cli dev -- overview --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- inspect --workspace /path/to/project-repo
-pnpm --filter @movscript/cli dev -- compile --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- interpret --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- regen plan --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- interactive --workspace /path/to/project-repo
 ```

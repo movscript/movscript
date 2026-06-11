@@ -1,6 +1,6 @@
 import type { AgentTranscriptMessageItem } from '@/features/agent/domain/agentTranscriptMessageItems'
 import { transcriptMessageItemRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
-import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import { isAgentRunTerminalStatus } from '@movscript/core/agent/protocol'
 import type {
   AgentConversationProjectionContentItem,
   AgentConversationProjectionItem,
@@ -67,7 +67,7 @@ export function suppressedInteractionRunIdsForActiveRun(activeRun: AgentRun | nu
   if (
     activeRunId
     && activeRun?.status !== 'requires_action'
-    && !isTerminalAgentRunStatus(activeRun?.status)
+    && !isAgentRunTerminalStatus(activeRun?.status)
   ) {
     return new Set([activeRunId])
   }

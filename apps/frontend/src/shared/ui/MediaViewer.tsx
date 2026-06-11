@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactEventHandler, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -35,13 +35,15 @@ interface MediaViewerProps {
   /** Controlled open state — when provided, the component acts as a pure lightbox (no thumbnail) */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onPrevious?: () => void
+  onNext?: () => void
   onImageLoad?: ReactEventHandler<HTMLImageElement>
   onVideoLoadedMetadata?: ReactEventHandler<HTMLVideoElement>
 }
 
 /** Renders a thumbnail/preview of a resource; image or video.
  *  Pass `open` + `onOpenChange` to use as a controlled lightbox without a thumbnail. */
-export function MediaViewer({ resource, className = '', fit = 'cover', metadata, sidePanel, diagnosticLabel, lightweightVideoThumb = false, thumbnailMaxSize, lightbox = true, open: controlledOpen, onOpenChange, onImageLoad, onVideoLoadedMetadata }: MediaViewerProps) {
+export function MediaViewer({ resource, className = '', fit = 'cover', metadata, sidePanel, diagnosticLabel, lightweightVideoThumb = false, thumbnailMaxSize, lightbox = true, open: controlledOpen, onOpenChange, onPrevious, onNext, onImageLoad, onVideoLoadedMetadata }: MediaViewerProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const proxyUrl = resolveResourceUrl(resource)
@@ -49,6 +51,25 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
   const setOpen = isControlled ? (v: boolean) => onOpenChange?.(v) : setInternalOpen
+
+  useEffect(() => {
+    if (!open || (!onPrevious && !onNext)) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      if (isEditableKeyboardTarget(event.target)) return
+      if (event.key === 'ArrowLeft' && onPrevious) {
+        event.preventDefault()
+        onPrevious()
+      } else if (event.key === 'ArrowRight' && onNext) {
+        event.preventDefault()
+        onNext()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onNext, onPrevious, open])
 
   const thumb = (
     <ResourceMediaThumb
@@ -116,6 +137,12 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       {lightboxDialog}
     </>
   )
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
 }
 
 function ImageThumb({ proxyUrl, alt, diagnosticLabel, thumbnailMaxSize, onLoad }: { proxyUrl: string; alt: string; diagnosticLabel?: string; thumbnailMaxSize?: number; onLoad?: ReactEventHandler<HTMLImageElement> }) {

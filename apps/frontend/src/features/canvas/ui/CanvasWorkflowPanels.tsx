@@ -53,11 +53,11 @@ import {
   type CanvasWorkflowRunResultsItem,
   useResizablePanel,
 } from '@movscript/ui'
-import type { Canvas, CanvasRunStatus, ResourceBinding } from '@/types'
+import type { Canvas, CanvasRunStatus } from '@/types'
 import type { CanvasRuntimeRun } from '@/features/canvas/runtime/runHistoryStore'
 import { canvasPortValuePreviewText, workflowRunOutputItems } from '@/features/canvas/runtime/runtimeValues'
 import { deriveCanvasReferencePorts } from '@/features/canvas/integrations/workflowReferences'
-import { writeCanvasWorkflowDragPayload } from '@/features/canvas/domain/canvasDragPayload'
+import { startCanvasWorkflowDrag } from '@/features/canvas/domain/canvasDropTarget'
 import { CanvasResourceShelf } from './CanvasResourceShelf'
 
 type WorkflowPanelTab = 'resources' | 'workflows' | 'history'
@@ -231,7 +231,7 @@ function WorkflowReferencePicker({
     .filter((canvas) => !term || canvas.name.toLowerCase().includes(term) || String(canvas.ID).includes(term))
 
   function dragWorkflow(event: React.DragEvent<HTMLDivElement>, canvas: Canvas) {
-    writeCanvasWorkflowDragPayload(event.dataTransfer, canvas)
+    startCanvasWorkflowDrag(event.dataTransfer, canvas)
   }
 
   return (
@@ -300,8 +300,10 @@ function WorkflowReferencePicker({
 export function WorkflowSidePanel({
   projectId,
   currentCanvasId,
-  dependencyBindings,
   disableResourcePreviews = false,
+  width,
+  minWidth,
+  maxWidth,
   activeTab,
   collapsed,
   runs,
@@ -311,6 +313,7 @@ export function WorkflowSidePanel({
   statusFilter,
   activeRunId,
   isLoading,
+  onWidthChange,
   onTabChange,
   onCollapsedChange,
   onStatusFilterChange,
@@ -320,8 +323,10 @@ export function WorkflowSidePanel({
 }: {
   projectId?: number
   currentCanvasId?: number
-  dependencyBindings: ResourceBinding[]
   disableResourcePreviews?: boolean
+  width: number
+  minWidth: number
+  maxWidth: number
   activeTab: WorkflowPanelTab
   collapsed: boolean
   runs: CanvasRuntimeRun[]
@@ -331,6 +336,7 @@ export function WorkflowSidePanel({
   statusFilter: 'all' | CanvasRunStatus
   activeRunId: string | null
   isLoading: boolean
+  onWidthChange: (width: number) => void
   onTabChange: (tab: WorkflowPanelTab) => void
   onCollapsedChange: (collapsed: boolean) => void
   onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
@@ -339,12 +345,11 @@ export function WorkflowSidePanel({
   onAddWorkflowReference: (workflowCanvas: Canvas) => void
 }) {
   const { t } = useTranslation()
-  const [width, setWidth] = useState(300)
   const sidePanelResize = useResizablePanel({
     size: width,
-    onSizeChange: setWidth,
-    minSize: 260,
-    maxSize: 420,
+    onSizeChange: onWidthChange,
+    minSize: minWidth,
+    maxSize: maxWidth,
     resizeEdge: 'left',
     ariaLabel: t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' }),
   })
@@ -394,7 +399,7 @@ export function WorkflowSidePanel({
           />
           <CanvasWorkflowSideBody>
             {activeTab === 'resources' ? (
-              <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} disablePreviews={disableResourcePreviews} variant="side" />
+              <CanvasResourceShelf disablePreviews={disableResourcePreviews} variant="side" />
             ) : activeTab === 'workflows' ? (
               <WorkflowReferencePicker projectId={projectId} currentCanvasId={currentCanvasId} onAddWorkflowReference={onAddWorkflowReference} />
             ) : (

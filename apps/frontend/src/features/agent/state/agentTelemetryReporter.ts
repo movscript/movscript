@@ -7,7 +7,7 @@ import {
   createAgentTelemetryMetricSample,
   isAgentTelemetryReportableMetricName,
   type AgentTelemetryMetricSample,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 import {
   createTransientAgentTelemetrySink,
   setAgentTelemetrySink,

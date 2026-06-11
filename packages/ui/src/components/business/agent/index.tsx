@@ -35,7 +35,6 @@ export * from "./mode";
 export * from "./run-interaction";
 export * from "./generated";
 export * from "./settings";
-export * from "./performance";
 export * from "./pinned-status";
 export * from "./browser";
 export * from "./console-nav";

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   AgentChatResultStack,
   AgentChatTinyBadge,
@@ -8,9 +9,15 @@ import {
   agentChatContentDefaultOpen,
   agentChatListDefaultOpen,
   type AgentChatContentKind,
-} from '@/features/agent/domain/agentChatDisplayPolicy'
+} from '@movscript/core/agent/chat'
+import { ResourceFileAudio } from '@/shared/ui/ResourceFileAudio'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
+import { ResourceFileVideo } from '@/shared/ui/ResourceFileVideo'
 
 type AgentChatSectionTone = 'neutral' | 'result' | 'process' | 'diagnostic'
+
+const AGENT_CHAT_MEDIA_PREVIEW_INITIAL_LIMIT = 6
+const AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE = 512
 
 export function AgentChatSectionTitle({ title, meta }: { title: string; meta?: Array<string | undefined | null | false> }) {
   return (
@@ -54,12 +61,15 @@ export function AgentChatImagePreviewGrid({
   label: string
   images: Array<{ url: string; alt: string }>
 }) {
+  const [expanded, setExpanded] = useState(false)
   const visibleImages = images.filter((image) => image.url.trim())
   if (visibleImages.length === 0) return null
+  const renderedImages = expanded ? visibleImages : visibleImages.slice(0, AGENT_CHAT_MEDIA_PREVIEW_INITIAL_LIMIT)
+  const hiddenImageCount = visibleImages.length - renderedImages.length
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen>
       <div className="ms-agent-chat-media-grid" data-kind="image">
-        {visibleImages.map((image, index) => (
+        {renderedImages.map((image, index) => (
           <a
             key={`${index}:${image.url}`}
             href={image.url}
@@ -67,15 +77,22 @@ export function AgentChatImagePreviewGrid({
             rel="noreferrer"
             className="ms-agent-chat-media-tile"
           >
-            <img
-              src={image.url}
+            <ResourceFileImage
+              resourceUrl={image.url}
               alt={image.alt}
               loading="lazy"
+              decoding="async"
+              thumbnailMaxSize={AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE}
               className="ms-agent-chat-media-tile__image"
             />
           </a>
         ))}
       </div>
+      {hiddenImageCount > 0 ? (
+        <Button type="button" variant="ghost" size="xs" onClick={() => setExpanded(true)}>
+          Show {hiddenImageCount} more
+        </Button>
+      ) : null}
     </AgentMessageSection>
   )
 }
@@ -87,16 +104,19 @@ export function AgentChatMediaPreviewGrid({
   label: string
   media: Array<{ url: string; kind: 'audio' | 'video'; label: string; mimeType?: string }>
 }) {
+  const [expanded, setExpanded] = useState(false)
   const visibleMedia = media.filter((item) => item.url.trim())
   if (visibleMedia.length === 0) return null
+  const renderedMedia = expanded ? visibleMedia : visibleMedia.slice(0, AGENT_CHAT_MEDIA_PREVIEW_INITIAL_LIMIT)
+  const hiddenMediaCount = visibleMedia.length - renderedMedia.length
   return (
     <AgentMessageSection title={label} tone="process" defaultOpen>
       <div className="ms-agent-chat-media-grid" data-kind="media">
-        {visibleMedia.map((item, index) => (
+        {renderedMedia.map((item, index) => (
           <div key={`${index}:${item.url}`} className="ms-agent-chat-media-tile">
             {item.kind === 'video' ? (
-              <video
-                src={item.url}
+              <ResourceFileVideo
+                resourceUrl={item.url}
                 aria-label={item.label}
                 controls
                 playsInline
@@ -104,8 +124,8 @@ export function AgentChatMediaPreviewGrid({
                 className="ms-agent-chat-media-tile__video"
               />
             ) : (
-              <audio
-                src={item.url}
+              <ResourceFileAudio
+                resourceUrl={item.url}
                 aria-label={item.label}
                 controls
                 preload="metadata"
@@ -118,6 +138,11 @@ export function AgentChatMediaPreviewGrid({
           </div>
         ))}
       </div>
+      {hiddenMediaCount > 0 ? (
+        <Button type="button" variant="ghost" size="xs" onClick={() => setExpanded(true)}>
+          Show {hiddenMediaCount} more
+        </Button>
+      ) : null}
     </AgentMessageSection>
   )
 }

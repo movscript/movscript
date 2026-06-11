@@ -1,5 +1,6 @@
 import { loadResourceFileDataURL } from '@/shared/ui/resourceBlob'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
+import { resolveAgentLocalFileDataUrl } from '@/features/agent/application/agentLocalFileRegistry'
 
 export const AGENT_ATTACHMENT_DATA_URL_TIMEOUT_MS = 8_000
 
@@ -13,13 +14,25 @@ export async function resolveAgentAttachmentDataUrl(
   options: ResolveAgentAttachmentDataUrlOptions = {},
 ): Promise<string | undefined> {
   if (attachment.dataUrl) return attachment.dataUrl
-  if (!isImageAttachment(attachment) || !attachment.resourceId) return undefined
+  if (attachment.source?.kind === 'inline_data') return attachment.source.dataUrl
+  if (!isImageAttachment(attachment)) return undefined
   const timeoutMs = options.timeoutMs ?? AGENT_ATTACHMENT_DATA_URL_TIMEOUT_MS
+  if (attachment.source?.kind === 'local_file') {
+    const fileId = attachment.source.fileId
+    return withAbortTimeout(
+      timeoutMs,
+      () => resolveAgentLocalFileDataUrl(fileId),
+      `loading local image ${fileId} timed out after ${timeoutMs}ms`,
+    )
+  }
+  const resourceId = attachment.resourceId
+    ?? (attachment.source?.kind === 'backend_resource' ? attachment.source.resourceId : undefined)
+  if (!resourceId) return undefined
   const load = options.loadResourceDataURL ?? loadResourceFileDataURL
   return withAbortTimeout(
     timeoutMs,
-    (signal) => load(attachment.resourceId!, { signal }),
-    `loading image resource ${attachment.resourceId} timed out after ${timeoutMs}ms`,
+    (signal) => load(resourceId, { signal }),
+    `loading image resource ${resourceId} timed out after ${timeoutMs}ms`,
   )
 }
 

@@ -9,6 +9,8 @@ import {
   type AppServerThreadListResponse,
   type AppServerThreadSourceKind,
   type AppServerThreadReadResponse,
+  type AppServerThreadTurnsListParams,
+  type AppServerThreadTurnsListResponse,
   type AppServerThreadResumeParams,
   type AppServerThreadResumeResponse,
   type AppServerThreadStartParams,
@@ -38,6 +40,7 @@ import {
   extractAgentConnectionDebugThreadId,
   recordAgentConnectionDebugEvent,
 } from '@/shared/infrastructure/agentConnectionDebugStore'
+import type { AgentChatThreadReadInput } from '@movscript/core/agent/chat'
 
 export type ElectronAppServerProfile = ElectronAppServerProfileContract
 export type ElectronAppServerEnsureInput = ElectronAppServerEnsureInputContract
@@ -57,7 +60,6 @@ type PendingDebugRequest = {
 
 type DeferredServerRequest = {
   request: AppServerJsonRpcServerRequest
-  timer: ReturnType<typeof globalThis.setTimeout>
 }
 
 type AppServerTransport = {
@@ -68,7 +70,6 @@ type AppServerTransport = {
 let configuredClient: AppServerRpcClient | undefined
 const APP_SERVER_WS_URL_STORAGE_KEY = 'movscript.appServerWsUrl'
 const APP_SERVER_WS_URL_STORAGE_KEY_PREFIX = 'movscript.appServerWsUrl'
-const SERVER_REQUEST_HANDLER_GRACE_MS = 30_000
 const APP_SERVER_RPC_DEBUG_STORAGE_KEY = 'movscript.debugAppServerRpc'
 const APP_SERVER_RPC_DEBUG_METHODS = new Set([
   'thread/list',
@@ -147,6 +148,7 @@ export function stopAppServer(input?: ElectronAppServerStopInput): Promise<Elect
 export class AppServerRpcClient {
   private transport?: AppServerTransport
   private connectPromise?: Promise<void>
+  private initializePromise?: Promise<void>
   private initialized = false
   private nextRequestId = 1
   private readonly pending = new Map<AppServerJsonRpcId, PendingRequest>()
@@ -157,13 +159,32 @@ export class AppServerRpcClient {
 
   constructor(
     readonly url: string,
-    private readonly serverRequestHandlerGraceMs = SERVER_REQUEST_HANDLER_GRACE_MS,
+    _serverRequestHandlerGraceMs?: number,
   ) {}
 
   async initialize(): Promise<void> {
     await this.connect()
     if (this.initialized) return
-    await this.request('initialize', {
+    if (this.initializePromise) return this.initializePromise
+    this.initializePromise = this.performInitialize()
+      .finally(() => {
+        this.initializePromise = undefined
+      })
+    return this.initializePromise
+  }
+
+  private async performInitialize(): Promise<void> {
+    try {
+      await this.request('initialize', this.initializeParams())
+    } catch (error) {
+      if (!isAlreadyInitializedError(error)) throw error
+    }
+    await this.notify('initialized')
+    this.initialized = true
+  }
+
+  private initializeParams() {
+    return {
       clientInfo: {
         name: 'movscript-frontend',
         title: 'MovScript Frontend',
@@ -173,9 +194,7 @@ export class AppServerRpcClient {
         experimentalApi: true,
         requestAttestation: false,
       },
-    })
-    await this.notify('initialized')
-    this.initialized = true
+    }
   }
 
   async startThread(params: AppServerThreadStartParams = {}) {
@@ -196,12 +215,29 @@ export class AppServerRpcClient {
     }))
   }
 
-  async readThread(threadId: string, input: { includeTurns?: boolean } = {}) {
+  async readThread(threadId: string, input: AgentChatThreadReadInput = {}) {
     await this.initialize()
-    return this.request<AppServerThreadReadResponse>('thread/read', {
+    return this.request<AppServerThreadReadResponse>('thread/read', compactRecord({
       threadId,
       includeTurns: input.includeTurns ?? true,
-    })
+      afterTurnId: input.afterTurnId ?? undefined,
+      beforeTurnId: input.beforeTurnId ?? undefined,
+      afterItemId: input.afterItemId ?? undefined,
+      beforeItemId: input.beforeItemId ?? undefined,
+      limit: input.limit ?? undefined,
+      direction: input.direction ?? undefined,
+    }))
+  }
+
+  async listThreadTurns(input: AppServerThreadTurnsListParams) {
+    await this.initialize()
+    return this.request<AppServerThreadTurnsListResponse>('thread/turns/list', compactRecord({
+      threadId: input.threadId,
+      cursor: input.cursor ?? undefined,
+      limit: input.limit ?? undefined,
+      sortDirection: input.sortDirection ?? undefined,
+      itemsView: input.itemsView ?? undefined,
+    }))
   }
 
   async resumeThread(params: AppServerThreadResumeParams) {
@@ -258,6 +294,7 @@ export class AppServerRpcClient {
 
   async close(): Promise<void> {
     this.initialized = false
+    this.initializePromise = undefined
     this.connectPromise = undefined
     for (const pending of this.pending.values()) pending.reject(new Error(`app-server disconnected: ${this.url}`))
     this.pending.clear()
@@ -308,6 +345,7 @@ export class AppServerRpcClient {
       if (message.kind === 'close') {
         debugAppServerRpc('relay:closed', { url: this.url, connectionId }, { trace: false })
         this.initialized = false
+        this.initializePromise = undefined
         this.transport = undefined
         this.failPending(new Error(`app-server relay closed: ${this.url}`))
       }
@@ -332,6 +370,7 @@ export class AppServerRpcClient {
     socket.addEventListener('message', (event) => this.handleMessage(event.data))
     socket.addEventListener('close', () => {
       this.initialized = false
+      this.initializePromise = undefined
       this.transport = undefined
       this.failPending(new Error(`app-server disconnected: ${this.url}`))
     })
@@ -407,7 +446,11 @@ export class AppServerRpcClient {
       this.pending.delete(response.id)
       if (response.error) {
         debugAppServerRpc('response:error', { url: this.url, id: response.id, error: response.error }, { trace: false })
-        pending.reject(new Error(response.error.message || `app-server request ${response.id} failed`))
+        pending.reject(new AppServerRpcError(
+          response.error.message || `app-server request ${response.id} failed`,
+          response.error.code,
+          response.error.data,
+        ))
       } else {
         debugAppServerRpc('response', { url: this.url, id: response.id }, { trace: false })
         pending.resolve(response.result)
@@ -496,27 +539,17 @@ export class AppServerRpcClient {
   }
 
   private deferServerRequest(request: AppServerJsonRpcServerRequest): void {
-    const existing = this.deferredServerRequests.get(request.id)
-    if (existing) globalThis.clearTimeout(existing.timer)
-    const timer = globalThis.setTimeout(() => {
-      this.deferredServerRequests.delete(request.id)
-      void this.dispatchServerRequest(request)
-    }, this.serverRequestHandlerGraceMs)
-    this.deferredServerRequests.set(request.id, { request, timer })
+    this.deferredServerRequests.set(request.id, { request })
   }
 
   private flushDeferredServerRequests(): void {
     if (this.serverRequestHandlers.size === 0 || this.deferredServerRequests.size === 0) return
     const deferred = Array.from(this.deferredServerRequests.values())
     this.deferredServerRequests.clear()
-    for (const item of deferred) {
-      globalThis.clearTimeout(item.timer)
-      void this.dispatchServerRequest(item.request)
-    }
+    for (const item of deferred) void this.dispatchServerRequest(item.request)
   }
 
   private clearDeferredServerRequests(): void {
-    for (const item of this.deferredServerRequests.values()) globalThis.clearTimeout(item.timer)
     this.deferredServerRequests.clear()
   }
 
@@ -539,6 +572,23 @@ export class AppServerRpcClient {
     this.pending.clear()
     this.pendingDebugRequests.clear()
   }
+}
+
+class AppServerRpcError extends Error {
+  constructor(
+    message: string,
+    readonly code?: number,
+    readonly data?: unknown,
+  ) {
+    super(message)
+    this.name = 'AppServerRpcError'
+  }
+}
+
+function isAlreadyInitializedError(error: unknown): boolean {
+  return error instanceof AppServerRpcError
+    && error.code === -32600
+    && error.message === 'Already initialized'
 }
 
 function configuredAppServerURL(provider?: ProviderConfig): string | undefined {

@@ -1,4 +1,4 @@
-import { agentTimelineStatusFromRunStatus } from '@/features/agent/domain/agentProtocol'
+import { agentTimelineStatusFromRunStatus } from '@movscript/core/agent/protocol'
 import type { AgentTimelineItem, AgentMessage, AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 export const AGENT_TIMELINE_LOCAL_EVENT = 'movscript:agent-timeline-local'

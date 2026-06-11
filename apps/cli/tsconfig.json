@@ -5,7 +5,14 @@
     "moduleResolution": "bundler",
     "strict": true,
     "baseUrl": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "paths": {
+      "@movscript/engine": ["../../packages/engine/src/index.ts"],
+      "@movscript/engine/node": ["../../packages/engine/src/node.ts"],
+      "@movscript/interpreter": ["../../packages/interpreter/src/index.ts"],
+      "@movscript/interpreter/artifacts": ["../../packages/interpreter/src/artifacts/index.ts"],
+      "@movscript/interpreter/node": ["../../packages/interpreter/src/node.ts"]
+    }
   },
   "include": ["src"]
 }

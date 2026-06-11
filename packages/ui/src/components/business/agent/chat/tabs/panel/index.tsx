@@ -4,18 +4,14 @@ import * as React from "react";
 import type { AgentConversationTabsPanelProps } from "../../types";
 import { AgentConversationTab } from "../item";
 import {
-  agentConversationTabDropPositionFromClientX,
-  readAgentConversationTabDragPayload,
-  writeAgentConversationTabDragPayload,
+  agentConversationTabClientPointFromEvent,
+  resolveAgentConversationTabDragOver,
+  resolveAgentConversationTabDrop,
+  startAgentConversationTabDrag,
   type AgentConversationTabDropPosition,
 } from "./dragPayload";
 
 type DropTarget = { conversationId: string; position: AgentConversationTabDropPosition };
-
-function dropPositionForEvent(event: React.DragEvent<HTMLElement>): AgentConversationTabDropPosition {
-  const rect = event.currentTarget.getBoundingClientRect();
-  return agentConversationTabDropPositionFromClientX(event.clientX, rect);
-}
 
 export function AgentConversationTabsPanel({
   activeConversationId,
@@ -72,19 +68,23 @@ export function AgentConversationTabsPanel({
                 return;
               }
               onCloseTabContextMenu();
-              event.dataTransfer.effectAllowed = "move";
-              writeAgentConversationTabDragPayload(event.dataTransfer, item.id);
+              startAgentConversationTabDrag(event.dataTransfer, item.id);
               setDraggingConversationId(item.id);
             }}
             onDragOver={(event) => {
-              const draggedId = draggingConversationId ?? readAgentConversationTabDragPayload(event.dataTransfer)?.conversationId;
-              if (!draggedId || draggedId === item.id) {
+              const target = resolveAgentConversationTabDragOver({
+                dataTransfer: event.dataTransfer,
+                draggingConversationId,
+                targetConversationId: item.id,
+                point: agentConversationTabClientPointFromEvent(event),
+                tabElement: event.currentTarget,
+              });
+              if (!target) {
                 setDropTarget(null);
                 return;
               }
               event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-              setDropTarget({ conversationId: item.id, position: dropPositionForEvent(event) });
+              setDropTarget(target);
             }}
             onDragLeave={(event) => {
               const nextTarget = event.relatedTarget;
@@ -92,12 +92,17 @@ export function AgentConversationTabsPanel({
               if (dropTarget?.conversationId === item.id) setDropTarget(null);
             }}
             onDrop={(event) => {
-              const draggedId = draggingConversationId ?? readAgentConversationTabDragPayload(event.dataTransfer)?.conversationId;
-              const position = dropPositionForEvent(event);
+              const drop = resolveAgentConversationTabDrop({
+                dataTransfer: event.dataTransfer,
+                draggingConversationId,
+                targetConversationId: item.id,
+                point: agentConversationTabClientPointFromEvent(event),
+                tabElement: event.currentTarget,
+              });
               event.preventDefault();
               clearDragState();
-              if (!draggedId || draggedId === item.id) return;
-              onReorderConversation(draggedId, item.id, position);
+              if (!drop) return;
+              onReorderConversation(drop.draggedConversationId, drop.targetConversationId, drop.position);
             }}
             onDragEnd={clearDragState}
           />

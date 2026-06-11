@@ -13,66 +13,6 @@ test('generation prompt resource chips use the shared MediaViewer thumbnail path
   assert.doesNotMatch(source, /<img src=\{url\}/)
 })
 
-test('resource attachment tiles use the shared MediaViewer thumbnail path for media files', () => {
-  const source = readFileSync(resolve('src/shared/ui/ResourceAttachments.tsx'), 'utf8')
-
-  assert.match(source, /resource\.type === 'image' \|\| resource\.type === 'video'/)
-  assert.match(source, /<MediaViewer[\s\S]*resource=\{resource\}[\s\S]*fit="cover"[\s\S]*lightbox=\{false\}/)
-  assert.doesNotMatch(source, /AuthedVideo/)
-  assert.doesNotMatch(source, /AuthedImage/)
-})
-
-test('canvas generation output surfaces use the shared GenerationOutputPreview', () => {
-  const canvasSource = readFileSync(resolve('src/shared/ui/CanvasGenBody.tsx'), 'utf8')
-  const toolSource = readFileSync(resolve('src/shared/ui/ToolNodeFullCard.tsx'), 'utf8')
-  const previewSource = readFileSync(resolve('src/shared/ui/GenerationOutputPreview.tsx'), 'utf8')
-  const resourceAudioSource = readFileSync(resolve('src/shared/ui/ResourceAudio.tsx'), 'utf8')
-  const resourceImageSource = readFileSync(resolve('src/shared/ui/ResourceImage.tsx'), 'utf8')
-  const resourceVideoSource = readFileSync(resolve('src/shared/ui/ResourceVideo.tsx'), 'utf8')
-
-  assert.match(canvasSource, /import \{ GenerationOutputPreview \}/)
-  assert.match(canvasSource, /<GenerationOutputPreview resource=\{resource\} outputType=\{outputType\} \/>/)
-  assert.doesNotMatch(canvasSource, /AuthedVideo/)
-  assert.doesNotMatch(canvasSource, /AuthedImage/)
-  assert.doesNotMatch(canvasSource, /API_BASE/)
-
-  assert.match(toolSource, /import \{ GenerationOutputPreview \}/)
-  assert.match(toolSource, /<GenerationOutputPreview resource=\{resource\} outputType=\{outputType\}/)
-  assert.doesNotMatch(toolSource, /AuthedVideo/)
-  assert.doesNotMatch(toolSource, /AuthedImage/)
-  assert.doesNotMatch(toolSource, /API_BASE/)
-
-  assert.match(previewSource, /videoProps\?: Omit<VideoHTMLAttributes<HTMLVideoElement>, 'controls' \| 'src' \| 'resource'>/)
-  assert.match(previewSource, /<ResourceImage resource=\{resource\} alt=\{alt\} \/>/)
-  assert.match(previewSource, /<ResourceVideo resource=\{resource\} \{\.\.\.videoProps\} controls \/>/)
-  assert.doesNotMatch(previewSource, /AuthedImage/)
-  assert.doesNotMatch(previewSource, /AuthedVideo/)
-
-  assert.match(resourceAudioSource, /resolveResourceUrl\(resource\)/)
-  assert.match(resourceAudioSource, /<AuthedAudio src=\{resolveResourceUrl\(resource\)\} \{\.\.\.props\} \/>/)
-
-  assert.match(resourceImageSource, /resolveResourceUrl\(resource\)/)
-  assert.match(resourceImageSource, /<AuthedImage src=\{resolveResourceUrl\(resource\)\} \{\.\.\.props\} \/>/)
-
-  assert.match(resourceVideoSource, /resolveResourceUrl\(resource\)/)
-  assert.match(resourceVideoSource, /<AuthedVideo ref=\{ref\} src=\{resolveResourceUrl\(resource\)\} \{\.\.\.props\} \/>/)
-})
-
-test('tool page input previews and outputs use shared media primitives', () => {
-  const source = readFileSync(resolve('src/features/tools/components/ToolPage.tsx'), 'utf8')
-
-  assert.match(source, /import \{ MediaViewer \}/)
-  assert.match(source, /import \{ resolveResourceUrl \}/)
-  assert.match(source, /import \{ GenerationOutputPreview \}/)
-  assert.match(source, /<MediaViewer resource=\{r\} lightbox=\{false\} \/>/)
-  assert.match(source, /<GenerationOutputPreview[\s\S]*resource=\{state\.outputResource\}[\s\S]*outputType=\{def\.outputType\}/)
-  assert.doesNotMatch(source, /AuthedVideo/)
-  assert.doesNotMatch(source, /AuthedImage/)
-  assert.doesNotMatch(source, /API_BASE/)
-  assert.doesNotMatch(source, /<video/)
-  assert.doesNotMatch(source, /<img/)
-})
-
 test('canvas run results use MediaViewer for generated media outputs', () => {
   const source = readFileSync(resolve('src/features/canvas/ui/CanvasWorkflowPanels.tsx'), 'utf8')
 
@@ -102,17 +42,6 @@ test('canvas resource image previews use ResourceImage instead of direct AuthedI
   assert.doesNotMatch(shelfSource, /API_BASE/)
 })
 
-test('pre-production asset thumbnails use MediaViewer for slot media', () => {
-  const source = readFileSync(resolve('src/features/pre-production/components/PreProductionAssetBoard.tsx'), 'utf8')
-
-  assert.match(source, /import \{ MediaViewer \}/)
-  assert.match(source, /<MediaViewer resource=\{resource\} fit=\{fit\} lightbox=\{false\} \/>/)
-  assert.doesNotMatch(source, /AuthedVideo/)
-  assert.doesNotMatch(source, /AuthedImage/)
-  assert.doesNotMatch(source, /API_BASE_URL/)
-  assert.doesNotMatch(source, /mediaSrc/)
-})
-
 test('shot library custom clip player uses ResourceVideo for resource playback', () => {
   const source = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
 
@@ -138,35 +67,14 @@ test('resource page blob and external previews use UrlMedia primitives', () => {
   assert.match(urlMediaSource, /<UrlVideo src=\{src\} poster=\{poster\} \{\.\.\.videoProps\} controls playsInline \/>/)
 })
 
-test('resource file and temporary image previews use shared image primitives', () => {
-  const fileImageSource = readFileSync(resolve('src/shared/ui/ResourceFileImage.tsx'), 'utf8')
-  const fileUrlSource = readFileSync(resolve('src/shared/ui/resourceFileUrl.ts'), 'utf8')
-  const previewDrawerSource = readFileSync(resolve('src/shared/ui/PreviewDrawer.tsx'), 'utf8')
-  const agentRunInteractionSource = readFileSync(resolve('src/features/agent/components/AgentRunInteractionBubble.tsx'), 'utf8')
-  const keyframeEditorSource = readFileSync(resolve('src/features/content/components/ContentWorkbenchKeyframeEditor.tsx'), 'utf8')
-  const scenePreviewSource = readFileSync(resolve('src/features/content/components/ContentWorkbenchScenePreview.tsx'), 'utf8')
-  const projectStandardsSource = readFileSync(resolve('src/features/project-standards/components/ProjectStandardsPage.tsx'), 'utf8')
-  const shotLibrarySource = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
+test('authed media defers heavy video blob resolution until the preview is near the viewport', () => {
+  const source = readFileSync(resolve('src/shared/ui/AuthedImage.tsx'), 'utf8')
 
-  assert.match(fileImageSource, /import \{ resourceFileImageUrl \}/)
-  assert.match(fileImageSource, /<AuthedImage src=\{resourceFileImageUrl\(resourceId, resourceUrl\)\} \{\.\.\.props\} \/>/)
-  assert.match(fileUrlSource, /resourceId \? `\/api\/v1\/resources\/\$\{resourceId\}\/file` : undefined/)
-
-  for (const source of [
-    previewDrawerSource,
-    agentRunInteractionSource,
-    keyframeEditorSource,
-    scenePreviewSource,
-    projectStandardsSource,
-  ]) {
-    assert.match(source, /ResourceFileImage/)
-    assert.doesNotMatch(source, /AuthedImage/)
-    assert.doesNotMatch(source, /<img/)
-  }
-
-  assert.match(shotLibrarySource, /import \{ UrlImage \}/)
-  assert.match(shotLibrarySource, /<UrlImage src=\{workspace\.thumbnailUrl\} alt="" \/>/)
-  assert.doesNotMatch(shotLibrarySource, /<img/)
+  assert.match(source, /lazy\?: boolean/)
+  assert.match(source, /useLazyMediaResolution\(src, !lazy \|\| Boolean\(autoPlay\)\)/)
+  assert.match(source, /useAuthBlobUrl\(lazyResolution\.ready \? src : undefined\)/)
+  assert.match(source, /<span ref=\{lazyResolution\.ref\} className=\{className\}/)
+  assert.match(source, /new IntersectionObserver/)
 })
 
 test('contenteditable resource chips use shared DOM media helpers', () => {
@@ -223,7 +131,8 @@ test('API base URL media resolution is isolated to the shared resource resolver'
   assert.match(mediaViewerSource, /import \{ resolveResourceUrl \}/)
   assert.doesNotMatch(mediaViewerSource, /API_BASE/)
   assert.match(resourceUrlSource, /API_BASE_URL as API_BASE/)
-  assert.match(resourceUrlSource, /return `\$\{API_BASE\}\$\{resource\.url\}`/)
+  assert.match(resourceUrlSource, /from '@movscript\/core\/resources'/)
+  assert.match(resourceUrlSource, /resolveCoreResourceUrl\(resource, API_BASE\)/)
 
   const offenders = listSourceFiles(resolve('src'))
     .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
@@ -326,6 +235,7 @@ test('resource media cache lives in shared UI media infrastructure', () => {
   assert.match(mentionSource, /from '@\/shared\/ui\/resourceMediaCache'/)
   assert.match(resourceCacheCompatSource, /export \* from '@\/shared\/ui\/resourceMediaCache'/)
   assert.match(sharedCacheSource, /acquireCachedResourceMediaUrl/)
+  assert.match(sharedCacheSource, /acquireCachedInlineImageMediaUrl/)
   assert.doesNotMatch(authedSource, /@\/features\/resources\/domain\/resourceMediaCache/)
 
   const offenders = listSourceFiles(resolve('src/shared/ui'))
@@ -336,35 +246,16 @@ test('resource media cache lives in shared UI media infrastructure', () => {
   assert.deepEqual(offenders, [])
 })
 
-test('media upload accept constants live in shared domain', () => {
-  const sharedTypesSource = readFileSync(resolve('src/shared/domain/mediaTypes.ts'), 'utf8')
-  const resourceTypesCompatSource = readFileSync(resolve('src/features/resources/domain/mediaTypes.ts'), 'utf8')
-  const genInputSource = readFileSync(resolve('src/shared/ui/GenInputCard.tsx'), 'utf8')
-  const attachmentsSource = readFileSync(resolve('src/shared/ui/ResourceAttachments.tsx'), 'utf8')
+test('authed image renders inline image data URLs through revocable object URLs', () => {
+  const authedSource = readFileSync(resolve('src/shared/ui/AuthedImage.tsx'), 'utf8')
+  const sharedCacheSource = readFileSync(resolve('src/shared/ui/resourceMediaCache.ts'), 'utf8')
 
-  assert.match(sharedTypesSource, /RESOURCE_UPLOAD_ACCEPT/)
-  assert.match(resourceTypesCompatSource, /export \* from '@\/shared\/domain\/mediaTypes'/)
-  assert.match(genInputSource, /from '@\/shared\/domain\/mediaTypes'/)
-  assert.match(attachmentsSource, /from '@\/shared\/domain\/mediaTypes'/)
-
-  const offenders = listSourceFiles(resolve('src'))
-    .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
-    .filter(({ relativePath, source }) => (
-      /@\/features\/resources\/domain\/mediaTypes/.test(source)
-      && relativePath !== 'src/features/resources/domain/mediaTypes.ts'
-    ))
-    .map(({ relativePath }) => relativePath)
-
-  assert.deepEqual(offenders, [])
-})
-
-test('resource attachments use resource binding routes instead of semantic entity routes', () => {
-  const attachmentsSource = readFileSync(resolve('src/shared/ui/ResourceAttachments.tsx'), 'utf8')
-
-  assert.match(attachmentsSource, /\/resource-bindings/)
-  assert.match(attachmentsSource, /owner_type: ownerType/)
-  assert.match(attachmentsSource, /owner_id: ownerId/)
-  assert.doesNotMatch(attachmentsSource, /\/entities\/\$\{ownerType\}/)
+  assert.match(authedSource, /isInlineImageDataUrl\(src\)/)
+  assert.match(authedSource, /dataUrlToBlob\(src\)/)
+  assert.match(authedSource, /acquireCachedInlineImageMediaUrl/)
+  assert.match(sharedCacheSource, /createObjectUrl\(blob\)/)
+  assert.match(sharedCacheSource, /releaseCacheReference\(key\)/)
+  assert.match(authedSource, /!requiresResourceAPIAuth\(src\) && !isInlineImageDataUrl\(src\)/)
 })
 
 test('text resource loading is isolated to the shared text helper', () => {
@@ -406,11 +297,15 @@ test('MediaViewer uses resource-level primitives for audio playback', () => {
 test('resource file URL synthesis is limited to data normalization and shared resource primitives', () => {
   const allowed = new Set([
     'src/features/agent/domain/agentAttachments.ts',
+    'src/features/agent/domain/agentConversation.ts',
     'src/features/agent/domain/agentGenerationMedia.ts',
     'src/features/agent/domain/agentResourceLookup.ts',
     'src/features/canvas/runtime/runtimeValues.ts',
     'src/features/shot-library/domain/shotReferenceLibrary.ts',
+    'src/shared/infrastructure/app-server/appServerThreadTurnItemItems.ts',
+    'src/shared/ui/ResourceFileAudio.tsx',
     'src/shared/ui/ResourceFileImage.tsx',
+    'src/shared/ui/ResourceFileVideo.tsx',
     'src/shared/ui/resourceBlob.ts',
     'src/shared/ui/resourceFileUrl.ts',
   ])
@@ -449,13 +344,13 @@ test('direct AuthedVideo usage is limited to shared media primitives', () => {
     'src/shared/ui/AuthedImage.tsx',
     'src/shared/ui/GenerationOutputPreview.tsx',
     'src/shared/ui/MediaViewer.tsx',
+    'src/shared/ui/ResourceFileVideo.tsx',
     'src/shared/ui/ResourceImage.tsx',
     'src/shared/ui/ResourceVideo.tsx',
   ])
   const files = [
     ...listSourceFiles(resolve('src/features/agent')),
     ...listSourceFiles(resolve('src/features/canvas')),
-    ...listSourceFiles(resolve('src/features/pre-production')),
     ...listSourceFiles(resolve('src/features/shot-library')),
     ...listSourceFiles(resolve('src/features/tools')),
     ...listSourceFiles(resolve('src/shared/ui')),
@@ -486,6 +381,7 @@ test('direct AuthedImage usage is limited to shared media primitives', () => {
 test('direct AuthedAudio usage is limited to shared media primitives', () => {
   const allowed = new Set([
     'src/shared/ui/AuthedImage.tsx',
+    'src/shared/ui/ResourceFileAudio.tsx',
     'src/shared/ui/ResourceAudio.tsx',
   ])
   const offenders = listSourceFiles(resolve('src'))
@@ -494,6 +390,31 @@ test('direct AuthedAudio usage is limited to shared media primitives', () => {
     .map(({ file }) => relative(process.cwd(), file))
 
   assert.deepEqual(offenders, [])
+})
+
+test('agent chat attachment previews use authorized resource media primitives', () => {
+  const source = readFileSync(resolve('src/features/agent/components/agent-chat-items/AgentChatThreadItemBlocks.tsx'), 'utf8')
+
+  assert.match(source, /import \{ ResourceFileImage \}/)
+  assert.match(source, /import \{ ResourceFileVideo \}/)
+  assert.match(source, /import \{ ResourceFileAudio \}/)
+  assert.match(source, /<ResourceFileImage[\s\S]*resourceUrl=\{image\.url\}/)
+  assert.match(source, /<ResourceFileVideo[\s\S]*resourceUrl=\{item\.url\}/)
+  assert.match(source, /<ResourceFileAudio[\s\S]*resourceUrl=\{item\.url\}/)
+  assert.doesNotMatch(source, /<img/)
+  assert.doesNotMatch(source, /<video/)
+  assert.doesNotMatch(source, /<audio/)
+})
+
+test('agent chat attachment media previews preserve intrinsic media dimensions', () => {
+  const source = readFileSync(resolve('../../packages/ui/src/components/business/agent/shell/chat-message/styles.css'), 'utf8')
+
+  assert.match(source, /\.ms-agent-chat-media-grid \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/)
+  assert.match(source, /\.ms-agent-chat-media-tile \{[\s\S]*width: fit-content;[\s\S]*max-width: 100%;/)
+  assert.match(source, /\.ms-agent-chat-media-tile__image \{[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*max-width: min\(100%, 520px\);[\s\S]*object-fit: contain;/)
+  assert.match(source, /\.ms-agent-chat-media-tile__video \{[\s\S]*width: auto;[\s\S]*height: auto;[\s\S]*max-width: min\(100%, 560px\);[\s\S]*object-fit: contain;/)
+  assert.doesNotMatch(source, /\.ms-agent-chat-media-tile__image \{[\s\S]*height: 128px;/)
+  assert.doesNotMatch(source, /\.ms-agent-chat-media-tile__video \{[\s\S]*aspect-ratio: 16 \/ 9;/)
 })
 
 function listSourceFiles(dir: string): string[] {

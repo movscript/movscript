@@ -4,7 +4,7 @@ import type {
   AgentTimelinePurpose,
   AgentTimelineStatus,
   AgentTimelineSurface,
-} from '@/features/agent/domain/agentProtocol'
+} from '@movscript/core/agent/protocol'
 
 export type ProviderSessionTimelinePhase = 'pending' | 'streaming' | 'waiting' | 'resolved' | 'failed' | 'cancelled'
 export type ProviderSessionTranscriptRole = 'user' | 'assistant' | null

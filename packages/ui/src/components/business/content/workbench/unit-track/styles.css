@@ -467,12 +467,13 @@
 
 .content-workbench-timeline-viewport {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
 }
 
 .content-workbench-timeline-viewport__canvas {
-  min-width: 0 !important;
-  width: 100%;
+  max-width: none;
 }
 
 .content-workbench-timeline {

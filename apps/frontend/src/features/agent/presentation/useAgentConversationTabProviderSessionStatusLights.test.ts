@@ -54,12 +54,38 @@ test('buildAgentConversationTabProviderSessionTargets leaves unanchored conversa
   ])
 })
 
-test('providerSessionStatusLightForTargetKeys prefers non-stopped lights across session and thread targets', () => {
+test('providerSessionStatusLightForTargetKeys prefers the highest-priority light across session and thread targets', () => {
   assert.equal(providerSessionStatusLightForTargetKeys({
     'session:session_1': {
       state: 'stopped',
       label: '停止',
       detail: 'Provider 会话当前不会自行触发新的 run。',
+    },
+    'thread:thread_1': {
+      state: 'active',
+      label: '运行',
+      detail: 'Provider 会话正在触发 run 循环。',
+    },
+  }, ['session:session_1', 'thread:thread_1']).state, 'active')
+
+  assert.equal(providerSessionStatusLightForTargetKeys({
+    'session:session_1': {
+      state: 'active',
+      label: '运行',
+      detail: 'Provider 会话正在触发 run 循环。',
+    },
+    'thread:thread_1': {
+      state: 'error',
+      label: '错误',
+      detail: 'Provider 会话已失败。',
+    },
+  }, ['session:session_1', 'thread:thread_1']).state, 'error')
+
+  assert.equal(providerSessionStatusLightForTargetKeys({
+    'session:session_1': {
+      state: 'waiting',
+      label: '等待',
+      detail: 'Provider 会话正在等待外部信息。',
     },
     'thread:thread_1': {
       state: 'active',

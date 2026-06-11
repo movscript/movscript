@@ -7,7 +7,7 @@ import {
   inspectMovScriptWorkspace,
   overviewMovScriptWorkspace,
   planMovScriptWorkspaceRegeneration,
-} from '@movscript/compiler/node'
+} from '@movscript/interpreter/node'
 import { resolveMovScriptProjectCwd } from '../../../../workspace/node/index.js'
 
 export interface MovScriptDomainRuntimeInput {
@@ -21,9 +21,8 @@ export type MovScriptDomainRuntime = NodeMovScriptEngine & NodeMovScriptWorkspac
   projectCwd: string
   projectDir: string
   reviewWorkspace(): Promise<unknown>
-  buildWorkspace(): Promise<unknown>
   inspectWorkspace(): Promise<unknown>
-  compileWorkspace(): ReturnType<NodeMovScriptEngine['compile']>
+  interpretWorkspace(): ReturnType<NodeMovScriptEngine['interpret']>
   overviewWorkspace(): Promise<unknown>
   regenerationPlan(): Promise<unknown>
 }
@@ -38,9 +37,8 @@ export function createMovScriptDomainRuntime(input: MovScriptDomainRuntimeInput)
     projectCwd,
     projectDir: projectCwd,
     reviewWorkspace: () => engine.review(),
-    buildWorkspace: () => engine.compile(),
     inspectWorkspace: () => inspectMovScriptWorkspace({ fileRepository }),
-    compileWorkspace: () => engine.compile(),
+    interpretWorkspace: () => engine.interpret(),
     overviewWorkspace: () => overviewMovScriptWorkspace({ fileRepository }),
     regenerationPlan: () => planMovScriptWorkspaceRegeneration({ fileRepository }),
   }

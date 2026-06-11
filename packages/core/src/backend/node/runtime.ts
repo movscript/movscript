@@ -28,7 +28,7 @@ export function setMovScriptBackendDefaultWorkspaceDir(workspaceDir: string | un
 }
 
 export function resolveMovScriptBackendDefaultWorkspaceDir(): string {
-  return configuredBackendDefaultWorkspaceDir || process.env.MOVSCRIPT_WORKSPACE_DIR || process.cwd()
+  return configuredBackendDefaultWorkspaceDir || process.env.MOVSCRIPT_HOME || process.env.MOVSCRIPT_WORKSPACE_DIR || process.cwd()
 }
 
 function defaultMovScriptBackendBaseURL(): string {

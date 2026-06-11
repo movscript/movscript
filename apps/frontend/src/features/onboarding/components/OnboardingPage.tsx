@@ -19,7 +19,7 @@ import {
   type WorkModeChoice,
 } from '@movscript/ui'
 import { api } from '@/shared/infrastructure/api'
-import { APP_SETTINGS_STORAGE_KEY, getDefaultAPIBaseURL, getLocalAPIBaseURL, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
+import { getDefaultAPIBaseURL, getLocalAPIBaseURL, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { translateApiError } from '@/shared/infrastructure/apiError'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -33,8 +33,7 @@ export default function OnboardingPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const completeOnboarding = useAppSettingsStore((s) => s.completeOnboarding)
-  const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
-  const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
+  const setOnboardingSettings = useAppSettingsStore((s) => s.setOnboardingSettings)
   const setSession = useUserStore((s) => s.setSession)
   const [workMode, setWorkMode] = useState<WorkModeChoice | null>(null)
   const [mode, setMode] = useState<Mode | null>(null)
@@ -62,9 +61,7 @@ export default function OnboardingPage() {
     setLoading(true)
     setError('')
     try {
-      setLaunchMode('local')
-      setAPIBaseURL(LOCAL_API_URL)
-      persistOnboardingSettings({
+      setOnboardingSettings({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
         workMode: workMode ?? 'detail',
@@ -90,13 +87,6 @@ export default function OnboardingPage() {
         workMode: workMode ?? 'detail',
         localDisplayName: displayName.trim(),
       })
-      persistOnboardingSettings({
-        launchMode: 'local',
-        apiBaseURL: LOCAL_API_URL,
-        workMode: workMode ?? 'detail',
-        localDisplayName: displayName.trim(),
-        onboardingCompleted: true,
-      })
       navigate(ROUTES.projects, { replace: true })
     } catch (err: any) {
       setError(translateApiError(err.response?.data, 'onboarding.localFailed'))
@@ -108,11 +98,6 @@ export default function OnboardingPage() {
   function startCloud() {
     if (!cloudURLValid) return
     completeOnboarding({
-      launchMode: 'cloud',
-      apiBaseURL: normalizedCloudURL,
-      workMode: workMode ?? 'detail',
-    })
-    persistOnboardingSettings({
       launchMode: 'cloud',
       apiBaseURL: normalizedCloudURL,
       workMode: workMode ?? 'detail',
@@ -262,32 +247,6 @@ export default function OnboardingPage() {
       </OnboardingMain>
     </OnboardingShell>
   )
-}
-
-function persistOnboardingSettings(partial: {
-  launchMode: 'local' | 'cloud'
-  apiBaseURL: string
-  workMode?: 'detail' | 'agent'
-  localDisplayName?: string
-  onboardingCompleted?: boolean
-}): void {
-  try {
-    const raw = window.localStorage.getItem(APP_SETTINGS_STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : { state: {} }
-    const state = parsed.state ?? {}
-    parsed.state = {
-      ...state,
-      settings: {
-        ...(state.settings ?? {}),
-        ...partial,
-        onboardingCompleted: partial.onboardingCompleted ?? true,
-      },
-      savedAt: new Date().toISOString(),
-    }
-    window.localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(parsed))
-  } catch {
-    // The store update above is still the source of truth for the current render.
-  }
 }
 
 async function waitForLocalBackend(): Promise<void> {

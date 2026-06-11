@@ -5,7 +5,7 @@ import { processExternalAgentTask } from '@/features/agent/application/agentExte
 import type { BuildAgentSendWorkspaceOptions } from '@/features/agent/presentation/useAgentSendWorkspaceBuilder'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
-import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentThreadControlState } from '@movscript/core/agent/chat'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import {
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
@@ -27,6 +27,7 @@ interface PendingInputRequestRef {
 
 export interface UseAgentSendActionsInput {
   input: string
+  getInput?: () => string
   composerAttachments: AgentAttachment[]
   loading: boolean
   uploading: boolean
@@ -44,6 +45,7 @@ export interface UseAgentSendActionsInput {
   inputRef: RefObject<HTMLDivElement>
   onExternalWorkspaceConsumed?: () => void
   updateWorkspace: (patch: { input?: string; attachments?: AgentAttachment[] }) => void
+  releaseAttachmentResources?: (items: AgentAttachment[]) => void
   setMentionRange: (range: null) => void
   answerActiveRunInput: (requestId: string, answer: AgentInputAnswer) => Promise<unknown>
   sendActiveRunInput: (input: { content: string; attachments: AgentAttachment[] }) => Promise<unknown>
@@ -60,6 +62,7 @@ export interface UseAgentSendActionsInput {
 
 export function useAgentSendActions({
   input,
+  getInput,
   composerAttachments,
   loading,
   uploading,
@@ -77,6 +80,7 @@ export function useAgentSendActions({
   inputRef,
   onExternalWorkspaceConsumed,
   updateWorkspace,
+  releaseAttachmentResources,
   setMentionRange,
   answerActiveRunInput,
   sendActiveRunInput,
@@ -121,9 +125,10 @@ export function useAgentSendActions({
   ])
 
   const send = useCallback(async (profilePresetId: AgentRunProfilePresetId = DEFAULT_AGENT_RUN_PROFILE_PRESET_ID) => {
-    if ((!input.trim() && composerAttachments.length === 0) || uploading || buildingSendWorkspace) return
+    const currentInput = getInput?.() ?? input
+    if ((!currentInput.trim() && composerAttachments.length === 0) || uploading || buildingSendWorkspace) return
     if (answeringPendingInput && activePendingInputRequest) {
-      const text = input.trim()
+      const text = currentInput.trim()
       if (!canAnswerPendingInputWithText || !text) return
       const operationId = beginAgentPerformanceOperation({
         kind: 'input_answer',
@@ -142,7 +147,7 @@ export function useAgentSendActions({
       return
     }
     if (canSendActiveRunInput) {
-      const content = input.trim()
+      const content = currentInput.trim()
       const attachments = composerAttachments
       const operationId = beginAgentPerformanceOperation({
         kind: 'active_run_input',
@@ -157,6 +162,8 @@ export function useAgentSendActions({
       } catch (error) {
         finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
         throw error
+      } finally {
+        releaseAttachmentResources?.(attachments)
       }
       return
     }
@@ -167,7 +174,7 @@ export function useAgentSendActions({
 
     const operationId = beginAgentPerformanceOperation({
       kind: 'send',
-      meta: { inputLength: input.trim().length, attachmentCount: composerAttachments.length, debugBeforeSend },
+      meta: { inputLength: currentInput.trim().length, attachmentCount: composerAttachments.length, debugBeforeSend },
     })
     const sendStartedMs = performanceNow()
     markAgentPerformancePhase(operationId, 'click_send')
@@ -176,12 +183,21 @@ export function useAgentSendActions({
     recordSendEntryStageLatency('pending_send_visible', sendStartedMs)
     schedulePendingSendFrame(operationId, sendStartedMs)
     try {
+      const resolvedThreadControl = threadControl?.goal
+        ? {
+            ...threadControl,
+            goal: {
+              ...threadControl.goal,
+              objective: currentInput.trim() || threadControl.goal.objective,
+            },
+          }
+        : threadControl
       markAgentPerformancePhase(operationId, 'build_workspace_start')
       const workspace = await buildSendWorkspace({
         includeProviderSessionPreview: debugBeforeSend,
         performanceOperationId: operationId,
         runProfile: agentRunProfilePresetById(profilePresetId),
-        ...(threadControl ? { threadControl } : {}),
+        ...(resolvedThreadControl ? { threadControl: resolvedThreadControl } : {}),
       })
       markAgentPerformancePhase(operationId, 'build_workspace_done', {
         details: { warningCount: workspace.warnings.length, messageCount: workspace.outbound.messages.length },
@@ -202,6 +218,7 @@ export function useAgentSendActions({
     }
   }, [
     input,
+    getInput,
     composerAttachments,
     loading,
     uploading,
@@ -220,6 +237,7 @@ export function useAgentSendActions({
     setConversationBuilding,
     buildSendWorkspace,
     debugBeforeSend,
+    releaseAttachmentResources,
     setPendingSendWorkspace,
     commitSendWorkspace,
   ])

@@ -1,5 +1,7 @@
 import { isRecord, stringValue } from '../../../tools/shared/record.js'
 import type { MovScriptContentCandidateWriteInput } from '@movscript/workspace'
+import { saveMovScriptProductionWorkspaceSnapshot } from '@movscript/workspace'
+import { createNodeMovScriptWorkspaceFileRepository } from '@movscript/workspace/node'
 import type { SemanticEntityKind } from '@movscript/language/domain'
 import { createMovScriptDomainRuntime } from './runtime.js'
 import { resolveMCPProjectWorkspaceLocator } from '../workspace/locator.js'
@@ -62,8 +64,8 @@ export async function domainQueryProductionContext(args: Args): Promise<unknown>
   })
 }
 
-export async function domainBuildContentUnitArtifact(args: Args): Promise<unknown> {
-  return service(args).buildContentUnitArtifact(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
+export async function domainInterpretContentUnitArtifact(args: Args): Promise<unknown> {
+  return service(args).deriveContentUnitArtifact(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
 }
 
 export async function domainReadPreviewTimeline(args: Args): Promise<unknown> {
@@ -74,8 +76,8 @@ export async function domainReadContentUnitRuntimePanel(args: Args): Promise<unk
   return service(args).readContentUnitRuntimePanel(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
 }
 
-export async function domainReadContentUnitInputVersion(args: Args): Promise<unknown> {
-  return service(args).readContentUnitInputVersion(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
+export async function domainReadContentUnitGenerationPrompt(args: Args): Promise<unknown> {
+  return service(args).readContentUnitGenerationPrompt(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
 }
 
 export async function domainReadContentUnitDependencyReport(args: Args): Promise<unknown> {
@@ -142,6 +144,231 @@ export async function domainUpsertContentUnit(args: Args): Promise<unknown> {
   })
 }
 
+export async function domainUpsertProduction(args: Args): Promise<unknown> {
+  const production = requiredRecord(args.production ?? args.payload ?? args.record, 'production')
+  const productionId = productionIdFrom(args, production)
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      production,
+      segments: [],
+    },
+  })
+  return productionWriteResult('production', { productionId }, result)
+}
+
+export async function domainUpsertSegment(args: Args): Promise<unknown> {
+  const segment = requiredRecord(args.segment ?? args.payload, 'segment')
+  const production = optionalRecord(args.production)
+  const productionId = productionIdFrom(args, production)
+  const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment.id ?? segment.client_id, 'segmentId')
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      ...(production ? { production } : {}),
+      segments: [{
+        ...segment,
+        id: segmentId,
+      }],
+    },
+  })
+  return productionWriteResult('segment', { productionId, segmentId }, result)
+}
+
+export async function domainUpsertSceneMoment(args: Args): Promise<unknown> {
+  const sceneMoment = requiredRecord(args.sceneMoment ?? args.scene_moment ?? args.payload, 'sceneMoment')
+  const production = optionalRecord(args.production)
+  const segment = optionalRecord(args.segment)
+  const productionId = productionIdFrom(args, production)
+  const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment.id ?? sceneMoment.client_id, 'sceneMomentId')
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      ...(production ? { production } : {}),
+      segments: [{
+        ...(segment ?? {}),
+        id: segmentId,
+        scene_moments: [{
+          ...sceneMoment,
+          id: sceneMomentId,
+        }],
+      }],
+    },
+  })
+  return productionWriteResult('scene_moment', { productionId, segmentId, sceneMomentId }, result)
+}
+
+export async function domainUpsertShot(args: Args): Promise<unknown> {
+  const shot = normalizeShotPayload(requiredRecord(args.shot ?? args.payload, 'shot'))
+  const production = optionalRecord(args.production)
+  const segment = optionalRecord(args.segment)
+  const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
+  const productionId = productionIdFrom(args, production)
+  const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
+  const shotId = requiredId(args.shotId ?? args.shot_id ?? shot.id ?? shot.client_id, 'shotId')
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      ...(production ? { production } : {}),
+      segments: [{
+        ...(segment ?? {}),
+        id: segmentId,
+        scene_moments: [{
+          ...(sceneMoment ?? {}),
+          id: sceneMomentId,
+          shots: [{
+            ...shot,
+            id: shotId,
+          }],
+        }],
+      }],
+    },
+  })
+  return productionWriteResult('shot', { productionId, segmentId, sceneMomentId, shotId }, result)
+}
+
+export async function domainUpsertKeyframe(args: Args): Promise<unknown> {
+  const keyframe = normalizeKeyframePayload(requiredRecord(args.keyframe ?? args.payload, 'keyframe'))
+  const production = optionalRecord(args.production)
+  const segment = optionalRecord(args.segment)
+  const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
+  const shot = optionalRecord(args.shot)
+  const productionId = productionIdFrom(args, production)
+  const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
+  const shotId = requiredId(args.shotId ?? args.shot_id ?? shot?.id ?? shot?.client_id, 'shotId')
+  const keyframeId = requiredId(args.keyframeId ?? args.keyframe_id ?? keyframe.id ?? keyframe.client_id, 'keyframeId')
+  const snapshot = {
+    ...(production ? { production } : {}),
+    segments: [{
+      ...(segment ?? {}),
+      id: segmentId,
+      scene_moments: [{
+        ...(sceneMoment ?? {}),
+        id: sceneMomentId,
+        shots: [{
+          ...(shot ?? {}),
+          id: shotId,
+          keyframes: [{
+            ...keyframe,
+            id: keyframeId,
+          }],
+        }],
+      }],
+    }],
+  }
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot,
+  })
+  return productionWriteResult('keyframe', { productionId, segmentId, sceneMomentId, shotId, keyframeId }, result)
+}
+
+export async function domainUpsertStoryboard(args: Args): Promise<unknown> {
+  const locator = resolveMCPProjectWorkspaceLocator(args)
+  const runtime = createMovScriptDomainRuntime(locator)
+  const storyboard = requiredRecord(args.storyboard ?? args.payload, 'storyboard')
+  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const segmentId = requiredId(args.segmentId ?? args.segment_id, 'segmentId')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId')
+  const shotId = requiredId(args.shotId ?? args.shot_id ?? storyboard.shot_id, 'shotId')
+  const storyboardId = idValue(args.storyboardId ?? args.storyboard_id ?? storyboard.id ?? storyboard.client_id ?? 'main')
+  const result = await saveMovScriptProductionWorkspaceSnapshot({
+    fileRepository: createNodeMovScriptWorkspaceFileRepository(runtime.projectCwd),
+    productionId,
+    snapshot: {
+      ...(optionalRecord(args.production) ? { production: optionalRecord(args.production) } : {}),
+      segments: [{
+        id: segmentId,
+        ...(stringValue(args.segmentTitle ?? args.segment_title) ? { title: stringValue(args.segmentTitle ?? args.segment_title) } : {}),
+        scene_moments: [{
+          id: sceneMomentId,
+          ...(stringValue(args.sceneMomentTitle ?? args.scene_moment_title) ? { title: stringValue(args.sceneMomentTitle ?? args.scene_moment_title) } : {}),
+          shots: [{
+            id: shotId,
+            storyboards: [{
+              ...storyboard,
+              id: storyboardId,
+            }],
+          }],
+        }],
+      }],
+    },
+  })
+  return {
+    status: 'upserted',
+    productionId,
+    segmentId,
+    sceneMomentId,
+    shotId,
+    storyboardId,
+    writtenPaths: result.writtenPaths,
+    storyboardPath: result.writtenPaths.find(path => path.endsWith('/storyboard.json')),
+  }
+}
+
+export async function domainUpsertAudioCue(args: Args): Promise<unknown> {
+  const audioCue = normalizeAudioCuePayload(requiredRecord(args.audioCue ?? args.audio_cue ?? args.payload, 'audioCue'))
+  const production = optionalRecord(args.production)
+  const segment = optionalRecord(args.segment)
+  const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
+  const productionId = productionIdFrom(args, production)
+  const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
+  const audioCueId = requiredId(args.audioCueId ?? args.audio_cue_id ?? audioCue.id ?? audioCue.client_id, 'audioCueId')
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      ...(production ? { production } : {}),
+      segments: [{
+        ...(segment ?? {}),
+        id: segmentId,
+        scene_moments: [{
+          ...(sceneMoment ?? {}),
+          id: sceneMomentId,
+          audio_cues: [{
+            ...audioCue,
+            id: audioCueId,
+          }],
+        }],
+      }],
+    },
+  })
+  return productionWriteResult('audio_cue', { productionId, segmentId, sceneMomentId, audioCueId }, result)
+}
+
+export async function domainUpsertExpressionUnit(args: Args): Promise<unknown> {
+  const expressionUnit = normalizeExpressionUnitPayload(requiredRecord(args.expressionUnit ?? args.expression_unit ?? args.payload, 'expressionUnit'))
+  const production = optionalRecord(args.production)
+  const segment = optionalRecord(args.segment)
+  const sceneMoment = optionalRecord(args.sceneMoment ?? args.scene_moment)
+  const productionId = productionIdFrom(args, production)
+  const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
+  const expressionUnitId = requiredId(args.expressionUnitId ?? args.expression_unit_id ?? expressionUnit.id ?? expressionUnit.client_id, 'expressionUnitId')
+  const result = await service(args).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      ...(production ? { production } : {}),
+      segments: [{
+        ...(segment ?? {}),
+        id: segmentId,
+        scene_moments: [{
+          ...(sceneMoment ?? {}),
+          id: sceneMomentId,
+          expression_units: [{
+            ...expressionUnit,
+            id: expressionUnitId,
+          }],
+        }],
+      }],
+    },
+  })
+  return productionWriteResult('expression_unit', { productionId, segmentId, sceneMomentId, expressionUnitId }, result)
+}
+
 export async function domainUpdateContentUnitPrompt(args: Args): Promise<unknown> {
   return service(args).updateContentUnitEditPrompt({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
@@ -163,13 +390,6 @@ export async function domainUpdateStoryboardTimeline(args: Args): Promise<unknow
   })
 }
 
-export async function domainUpdateStoryboardShotPlans(args: Args): Promise<unknown> {
-  return service(args).updateStoryboardShotPlans({
-    targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
-    shotPlans: requiredArray(args.shotPlans ?? args.shot_plans, 'shotPlans').filter(isRecord),
-  })
-}
-
 export async function domainAppendCandidate(args: Args): Promise<unknown> {
   return service(args).appendCandidate({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
@@ -187,11 +407,14 @@ export async function domainCreateContentCandidate(args: Args): Promise<unknown>
     ...(args.candidateId !== undefined || args.candidate_id !== undefined ? { candidateId: idValue(args.candidateId ?? args.candidate_id) } : {}),
     ...(stringValue(args.source) ? { source: stringValue(args.source) } : {}),
     ...(status ? { status } : {}),
-    ...(optionalRecord(args.inputVersion ?? args.input_version) ? { inputVersion: optionalRecord(args.inputVersion ?? args.input_version) } : {}),
     ...(optionalRecord(args.producer) ? { producer: optionalRecord(args.producer) } : {}),
     outputs: requiredArray(args.outputs, 'outputs').filter(isRecord) as never,
     ...(optionalRecord(args.promptSnapshot ?? args.prompt_snapshot) ? { promptSnapshot: optionalRecord(args.promptSnapshot ?? args.prompt_snapshot) } : {}),
   })
+}
+
+export async function domainCreateContentCandidateBatch(args: Args): Promise<unknown> {
+  return runDomainBatch(args, domainCreateContentCandidate)
 }
 
 export async function domainCreateAssetSlotCandidate(args: Args): Promise<unknown> {
@@ -215,10 +438,13 @@ export async function domainSelectContentUnitCandidate(args: Args): Promise<unkn
     contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
     candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
     ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: idValue(args.resourceId ?? args.resource_id) } : {}),
-    ...(stringValue(args.acceptedInputHash ?? args.accepted_input_hash) ? { acceptedInputHash: stringValue(args.acceptedInputHash ?? args.accepted_input_hash) } : {}),
     ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
   })
+}
+
+export async function domainSelectContentUnitCandidateBatch(args: Args): Promise<unknown> {
+  return runDomainBatch(args, domainSelectContentUnitCandidate)
 }
 
 export async function domainSelectCandidate(args: Args): Promise<unknown> {
@@ -266,12 +492,8 @@ export async function domainOverview(args: Args): Promise<unknown> {
   return service(args).overviewWorkspace()
 }
 
-export async function domainBuild(args: Args): Promise<unknown> {
-  return service(args).buildWorkspace()
-}
-
-export async function domainCompile(args: Args): Promise<unknown> {
-  return service(args).compileWorkspace()
+export async function domainInterpret(args: Args): Promise<unknown> {
+  return service(args).interpretWorkspace()
 }
 
 export async function domainRegenerationPlan(args: Args): Promise<unknown> {
@@ -280,6 +502,53 @@ export async function domainRegenerationPlan(args: Args): Promise<unknown> {
 
 function service(args: Args) {
   return createMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator(args))
+}
+
+async function runDomainBatch(args: Args, action: (item: Args) => Promise<unknown>): Promise<Record<string, unknown>> {
+  const items = requiredArray(args.items, 'items')
+  if (items.length === 0) throw new Error('items must contain at least one item')
+  const continueOnError = booleanValue(args.continueOnError ?? args.continue_on_error) ?? true
+  const defaults = batchDefaults(args, new Set(['items', 'continueOnError', 'continue_on_error']))
+  const results: Record<string, unknown>[] = []
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index]
+    if (!isRecord(item)) {
+      results.push({ index, status: 'error', error: `items[${index}] must be an object` })
+      if (!continueOnError) break
+      continue
+    }
+    try {
+      results.push({ index, status: 'ok', result: await action({ ...defaults, ...item }) })
+    } catch (error) {
+      results.push({ index, status: 'error', error: errorMessage(error) })
+      if (!continueOnError) break
+    }
+  }
+  for (let index = results.length; index < items.length; index += 1) {
+    results.push({
+      index,
+      status: 'skipped',
+      error: 'Skipped because an earlier item failed and continue_on_error is false.',
+    })
+  }
+  const successCount = results.filter((item) => item.status === 'ok').length
+  const failedCount = results.filter((item) => item.status === 'error').length
+  return {
+    status: failedCount === 0 ? 'completed' : successCount > 0 ? 'partial_error' : 'error',
+    total: items.length,
+    success_count: successCount,
+    failed_count: failedCount,
+    items: results,
+    message: `${successCount}/${items.length} domain batch item(s) completed.`,
+  }
+}
+
+function batchDefaults(args: Args, excluded: Set<string>): Args {
+  const defaults: Args = {}
+  for (const [key, value] of Object.entries(args)) {
+    if (!excluded.has(key) && value !== undefined) defaults[key] = value
+  }
+  return defaults
 }
 
 export async function domainProjectWorkspaceDir(args: Args): Promise<string> {
@@ -291,11 +560,74 @@ function contextIds(args: Args): Record<string, string | number> {
     ...(args.productionId !== undefined || args.production_id !== undefined ? { productionId: idValue(args.productionId ?? args.production_id) } : {}),
     ...(args.segmentId !== undefined || args.segment_id !== undefined ? { segmentId: idValue(args.segmentId ?? args.segment_id) } : {}),
     ...(args.sceneMomentId !== undefined || args.scene_moment_id !== undefined ? { sceneMomentId: idValue(args.sceneMomentId ?? args.scene_moment_id) } : {}),
+    ...(args.shotId !== undefined || args.shot_id !== undefined ? { shotId: idValue(args.shotId ?? args.shot_id) } : {}),
     ...(args.storyboardId !== undefined || args.storyboard_id !== undefined ? { storyboardId: idValue(args.storyboardId ?? args.storyboard_id) } : {}),
     ...(args.contentUnitId !== undefined || args.content_unit_id !== undefined ? { contentUnitId: idValue(args.contentUnitId ?? args.content_unit_id) } : {}),
     ...(args.settingId !== undefined || args.setting_id !== undefined ? { settingId: idValue(args.settingId ?? args.setting_id) } : {}),
     ...(args.settingStateId !== undefined || args.setting_state_id !== undefined ? { settingStateId: idValue(args.settingStateId ?? args.setting_state_id) } : {}),
   }
+}
+
+function productionIdFrom(args: Args, production?: Record<string, unknown>): string | number {
+  return idValue(args.productionId ?? args.production_id ?? production?.id ?? production?.client_id ?? 'main')
+}
+
+function productionWriteResult(
+  entityKind: string,
+  ids: Record<string, string | number>,
+  result: { productionPath: string; writtenPaths: string[]; snapshot: unknown },
+): Record<string, unknown> {
+  return {
+    status: 'upserted',
+    entityKind,
+    ...ids,
+    productionPath: result.productionPath,
+    writtenPaths: result.writtenPaths,
+    snapshot: result.snapshot,
+  }
+}
+
+function normalizeShotPayload(record: Record<string, unknown>): Record<string, unknown> {
+  return pruneUndefinedRecord({
+    ...record,
+    kind: record.kind ?? record.shot_kind,
+    shot_size: record.shot_size ?? record.shotSize,
+    reference_asset_refs: record.reference_asset_refs ?? record.referenceAssetRefs,
+  })
+}
+
+function normalizeKeyframePayload(record: Record<string, unknown>): Record<string, unknown> {
+  return pruneUndefinedRecord({
+    ...record,
+    visual_intent: record.visual_intent ?? record.visualIntent,
+    reference_asset_refs: record.reference_asset_refs ?? record.referenceAssetRefs,
+    reference_keyframe_refs: record.reference_keyframe_refs ?? record.referenceKeyframeRefs,
+  })
+}
+
+function normalizeAudioCuePayload(record: Record<string, unknown>): Record<string, unknown> {
+  return pruneUndefinedRecord({
+    ...record,
+    cue_kind: record.cue_kind ?? record.cueKind ?? record.kind,
+    shot_id: record.shot_id ?? record.shotId,
+    shot_ref: record.shot_ref ?? record.shotRef,
+    storyboard_id: record.storyboard_id ?? record.storyboardId,
+    storyboard_ref: record.storyboard_ref ?? record.storyboardRef,
+    prompt_hint: record.prompt_hint ?? record.promptHint,
+    asset_refs: record.asset_refs ?? record.assetRefs,
+  })
+}
+
+function normalizeExpressionUnitPayload(record: Record<string, unknown>): Record<string, unknown> {
+  return pruneUndefinedRecord({
+    ...record,
+    kind: record.kind ?? record.expression_kind ?? record.expressionKind,
+    script_block_id: record.script_block_id ?? record.scriptBlockId,
+  })
+}
+
+function pruneUndefinedRecord(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined))
 }
 
 function requiredTargetKind(args: Args): 'asset' | 'keyframe' | 'content_unit' {
@@ -353,6 +685,18 @@ function numberValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
   return undefined
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return undefined
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isString(value: unknown): value is string {

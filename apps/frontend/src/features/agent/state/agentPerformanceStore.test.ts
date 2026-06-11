@@ -15,7 +15,7 @@ import {
   type AgentPerformanceOperation,
   type AgentTelemetrySink,
 } from './agentPerformanceStore'
-import { isAgentTelemetryReportableMetricName } from '@/features/agent/domain/agentProtocol'
+import { isAgentTelemetryReportableMetricName } from '@movscript/core/agent/protocol'
 
 test('agent performance instrumentation forwards completed operation without storing local history', () => {
   resetAgentTelemetrySink()

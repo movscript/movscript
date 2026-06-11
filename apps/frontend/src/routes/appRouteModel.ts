@@ -15,16 +15,12 @@ export function isCanvasEditorRoute(pathname: string): boolean {
   return /^\/canvases\/[^/]+\/?$/.test(pathname)
 }
 
-export function getAppRouteSurface(pathname: string): AppRouteSurface {
-  return routeLayoutSpecForPathname(pathname).surface
-}
-
 export function getAppRouteLayoutSpec(pathname: string): RouteLayoutSpec {
   return routeLayoutSpecForPathname(pathname)
 }
 
 export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWorkMode {
-  const surface = getAppRouteSurface(pathname)
+  const surface = routeLayoutSpecForPathname(pathname).surface
   if (surface === 'agent') return 'agent'
   if (surface === 'detail') return 'detail'
   return fallback

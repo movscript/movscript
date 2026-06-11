@@ -5,6 +5,7 @@ import { Cable, Play, Power, RefreshCw, RotateCw, Save, Square } from 'lucide-re
 import {
   AgentConsoleActionButton,
   AgentConsoleCallout,
+  AgentConsoleDocumentBody,
   AgentConsoleDescription,
   AgentConsoleDivider,
   AgentConsoleHeader,
@@ -14,6 +15,7 @@ import {
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
   AgentConsoleInlineError,
+  AgentConsoleIntroRow,
   AgentConsoleLocalToolActions,
   AgentConsoleLocalToolCard,
   AgentConsoleLocalToolControls,
@@ -26,15 +28,16 @@ import {
   AgentConsolePanelActions,
   AgentConsoleSavedText,
   AgentConsoleSelectField,
+  AgentConsoleStack,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
+  AgentConsoleTabButton,
+  AgentConsoleTabList,
   AgentConsoleToolbar,
   AgentPageShell,
-  AgentPageShellBody,
   AgentPageShellHeader,
   IdentityBadge,
   IdentityMark,
-  Button,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
@@ -172,9 +175,9 @@ export default function AgentsPage() {
 
       <AgentConsoleNav compact />
 
-      <AgentPageShellBody>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
+      <AgentConsoleDocumentBody>
+        <AgentConsoleStack spacing="loose">
+          <AgentConsoleTabList>
             {appServerProviders.map((provider) => {
               const key = providerRouteKey(provider)
               return (
@@ -183,7 +186,7 @@ export default function AgentsPage() {
                 </AgentTabButton>
               )
             })}
-          </div>
+          </AgentConsoleTabList>
 
           {defaultWorkspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(defaultWorkspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
           {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
@@ -199,20 +202,20 @@ export default function AgentsPage() {
             providerSessionClient={activeProfileSessionClient}
             onPatch={patchProvider}
           />
-        </div>
-      </AgentPageShellBody>
+        </AgentConsoleStack>
+      </AgentConsoleDocumentBody>
     </AgentPageShell>
   )
 }
 
 function AgentTabButton({ to, active, icon, children }: { to: string; active: boolean; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Button asChild size="sm" variant={active ? 'solid' : 'outline'} className="gap-2">
+    <AgentConsoleTabButton asChild active={active}>
       <NavLink to={to}>
         {icon}
         {children}
       </NavLink>
-    </Button>
+    </AgentConsoleTabButton>
   )
 }
 
@@ -411,7 +414,7 @@ function AppServerPanel({
         </AgentConsolePanelActions>
       )}
     >
-      <div className="space-y-4">
+      <AgentConsoleStack spacing="loose">
         {configLocked ? (
           <AgentConsoleCallout compact tone="warning">
             {title} 运行中：停止 app-server 后才能修改 provider 和账号来源。
@@ -484,15 +487,17 @@ function AppServerPanel({
         {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
 
         <AgentConsoleDivider>
-          <AgentConsoleDescription>
-            {title} 的 app-server 生命周期由 MovScript 托管；账号和 Base URL 从 workspace 的 provider 配置投影到托管 home，并在启动时传给 app-server 进程。
-          </AgentConsoleDescription>
-          <AgentConsoleToolbar>
-            <AgentConsoleStatusBadge intent="neutral" emphasis="soft">profile={profile.id}</AgentConsoleStatusBadge>
-            <AgentConsoleStatusBadge intent="neutral" emphasis="soft">lifecycle={profile.lifecycle}</AgentConsoleStatusBadge>
-          </AgentConsoleToolbar>
+          <AgentConsoleIntroRow>
+            <AgentConsoleDescription>
+              {title} 的 app-server 生命周期由 MovScript 托管；账号和 Base URL 从 workspace 的 provider 配置投影到托管 home，并在启动时传给 app-server 进程。
+            </AgentConsoleDescription>
+            <AgentConsoleToolbar>
+              <AgentConsoleStatusBadge intent="neutral" emphasis="soft">profile={profile.id}</AgentConsoleStatusBadge>
+              <AgentConsoleStatusBadge intent="neutral" emphasis="soft">lifecycle={profile.lifecycle}</AgentConsoleStatusBadge>
+            </AgentConsoleToolbar>
+          </AgentConsoleIntroRow>
         </AgentConsoleDivider>
-      </div>
+      </AgentConsoleStack>
     </AgentConsolePanel>
   )
 }

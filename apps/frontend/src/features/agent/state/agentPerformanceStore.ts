@@ -1,4 +1,4 @@
-import type { AgentTelemetryMetricUnit } from '@/features/agent/domain/agentProtocol'
+import type { AgentTelemetryMetricUnit } from '@movscript/core/agent/protocol'
 
 export type AgentPerformanceOperationKind =
   | 'send'

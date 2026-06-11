@@ -34,11 +34,11 @@ test('buildTraceEventLink preserves route and encodes event id', () => {
   assert.equal(
     buildTraceEventLink({
       origin: 'http://localhost:5173',
-      pathname: '/agent/runs/run_1',
+      pathname: '/agent',
       search: '?tab=trace',
       eventId: 'event/with space',
     }),
-    'http://localhost:5173/agent/runs/run_1?tab=trace#event-event%2Fwith%20space',
+    'http://localhost:5173/agent?tab=trace#event-event%2Fwith%20space',
   )
 })
 

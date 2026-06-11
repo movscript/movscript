@@ -4,7 +4,7 @@ import type { ProviderSessionClientInput, ProviderManifest, AgentRun, AgentThrea
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 import type { ConversationWorkspace } from '@/features/agent/state/agentStore'
-import type { AgentChatProviderKind, AgentChatTurnStatus, AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentChatProviderKind, AgentChatTurnStatus, AgentThreadControlState } from '@movscript/core/agent/chat'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'

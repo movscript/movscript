@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   __resetResourceMediaCacheForTests,
+  acquireCachedInlineImageMediaUrl,
   acquireCachedResourceMediaUrl,
   isResourceFileUrl,
   loadCachedResourceBlob,
@@ -234,6 +235,48 @@ test('acquireCachedResourceMediaUrl caches transformed variants separately', asy
     first.release()
     second.release()
     full.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('acquireCachedInlineImageMediaUrl deduplicates inline image decoding and transformed variants', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let transforms = 0
+  let objectUrls = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = ((blob: Blob) => {
+    objectUrls += 1
+    return `blob:inline-${blob.type || 'media'}-${objectUrls}`
+  }) as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const dataUrl = `data:image/png;base64,${Buffer.from('image').toString('base64')}`
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+    const transformBlob = async () => {
+      transforms += 1
+      return new Blob(['thumb'], { type: 'image/jpeg' })
+    }
+
+    const [first, second] = await Promise.all([
+      acquireCachedInlineImageMediaUrl(dataUrl, loadBlob, { variantKey: 'thumb:512', transformBlob }),
+      acquireCachedInlineImageMediaUrl(dataUrl, loadBlob, { variantKey: 'thumb:512', transformBlob }),
+    ])
+
+    assert.equal(loads, 1)
+    assert.equal(transforms, 1)
+    assert.equal(objectUrls, 1)
+    assert.equal(first.url, second.url)
+    first.release()
+    second.release()
   } finally {
     __resetResourceMediaCacheForTests()
     URL.createObjectURL = originalCreateObjectURL

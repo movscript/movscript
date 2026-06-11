@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { test } from 'node:test'
+
+test('resource page context menu positioning is owned by the resource interaction helper', () => {
+  const resourcePageSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
+  const resourcePanelSource = readFileSync(resolve('src/shared/ui/ResourcePanel.tsx'), 'utf8')
+  const canvasResourceShelfSource = readFileSync(resolve('src/features/canvas/ui/CanvasResourceShelf.tsx'), 'utf8')
+  const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
+  const interactionSource = readFileSync(resolve('src/features/resources/domain/resourceInteraction.ts'), 'utf8')
+  const externalSearchSnapshotSource = readFileSync(resolve('src/features/resources/application/externalResourceSearchSnapshot.ts'), 'utf8')
+
+  assert.match(interactionSource, /export function resourceContextMenuPositionFromClient/)
+  assert.match(interactionSource, /export function resourceContextMenuPositionFromEvent/)
+  assert.match(interactionSource, /export function resourceViewportBoundaryFromWindow/)
+  assert.match(interactionSource, /export function startResourceDragSource/)
+  assert.match(interactionSource, /export function isResourceInteractiveDragTarget/)
+  assert.match(interactionSource, /export function acceptResourceDropDragOver/)
+  assert.match(interactionSource, /export function resolveResourceDropResource/)
+  assert.match(resourcePageSource, /resourceContextMenuPositionFromEvent\(event, resourceViewportBoundaryFromWindow\(window\)\)/)
+  assert.match(resourcePageSource, /resourceViewportBoundaryFromWindow\(window\)/)
+  assert.match(externalSearchSnapshotSource, /export function loadExternalResourceSearchSnapshot/)
+  assert.match(externalSearchSnapshotSource, /window\.localStorage\.getItem\(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY\)/)
+  assert.match(resourcePageSource, /loadExternalResourceSearchSnapshot\(\)/)
+  assert.match(resourcePageSource, /saveExternalResourceSearchSnapshot\(\{/)
+  assert.match(resourcePageSource, /startResourceDragSource\(\{/)
+  assert.match(resourcePanelSource, /startResourceDragSource\(\{/)
+  assert.match(canvasResourceShelfSource, /startResourceDragSource\(\{/)
+  assert.match(resourcePageSource, /position: ResourceClientPoint/)
+  assert.match(toolDialogSource, /acceptResourceDropDragOver\(event\.dataTransfer\)/)
+  assert.match(toolDialogSource, /resolveResourceDropResource\(\{/)
+  assert.doesNotMatch(resourcePageSource, /event\.clientX/)
+  assert.doesNotMatch(resourcePageSource, /event\.clientY/)
+  assert.doesNotMatch(resourcePageSource, /window\.localStorage\.(getItem|setItem|removeItem)/)
+  assert.doesNotMatch(resourcePageSource, /setContextMenu\(\{\s*x: event\.clientX,\s*y: event\.clientY/)
+  assert.doesNotMatch(resourcePageSource, /writeResourceDragPayload\(/)
+  assert.doesNotMatch(resourcePageSource, /function isResourceInteractiveTarget/)
+  assert.doesNotMatch(resourcePanelSource, /writeResourceDragPayload\(/)
+  assert.doesNotMatch(canvasResourceShelfSource, /writeResourceDragPayload\(/)
+  assert.doesNotMatch(toolDialogSource, /readResourceIdDragPayload/)
+})

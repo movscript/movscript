@@ -225,7 +225,7 @@
 .agent-mode-group__list--nested {
   margin-left: 0;
   border-left: 0;
-  padding-left: 0;
+  padding-left: 2px;
 }
 
 .agent-mode-project-group {
@@ -294,13 +294,19 @@
 
 .agent-mode-conversation {
   grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 37px;
+  min-height: 34px;
   gap: 10px;
   border: 0;
   border-radius: var(--ms-radius-control);
   color: var(--agent-mode-sidebar-text);
-  padding: 6px 10px;
+  padding: 4px 6px 4px 10px;
   box-shadow: none;
+}
+
+.agent-mode-conversation[data-has-description="true"] {
+  min-height: 48px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .agent-mode-conversation[data-has-icon="true"] {
@@ -335,7 +341,7 @@
 
 .agent-mode-conversation[data-active="true"] {
   border-color: transparent;
-  background: color-mix(in srgb, var(--ms-color-muted) 44%, transparent);
+  background: color-mix(in srgb, var(--ms-color-surface) 86%, var(--ms-color-background));
   color: var(--ms-color-foreground);
   box-shadow: none;
 }
@@ -392,7 +398,7 @@
 }
 
 .agent-mode-conversation-session-light[data-session-state="stopped"] {
-  background: rgb(239 68 68);
+  background: rgb(148 163 184);
 }
 
 .agent-mode-conversation-session-light[data-session-state="waiting"] {
@@ -401,6 +407,10 @@
 
 .agent-mode-conversation-session-light[data-session-state="active"] {
   background: rgb(16 185 129);
+}
+
+.agent-mode-conversation-session-light[data-session-state="error"] {
+  background: rgb(239 68 68);
 }
 
 .agent-mode-conversation--with-action {
@@ -590,8 +600,8 @@
 .agent-terminal-panel {
   --agent-terminal-primary: var(--ms-color-primary, #38bdf8);
   --agent-terminal-accent: color-mix(in srgb, var(--agent-terminal-primary) 68%, #facc15);
-  --agent-terminal-background: color-mix(in srgb, var(--ms-color-app-background, #101216) 82%, var(--agent-terminal-primary) 18%);
-  --agent-terminal-header-background: color-mix(in srgb, var(--ms-color-surface-raised, var(--ms-color-surface)) 88%, var(--ms-color-foreground) 12%);
+  --agent-terminal-background: var(--app-shell-slot-center-background, var(--ms-color-app-background, #101216));
+  --agent-terminal-header-background: var(--agent-terminal-background);
   --agent-terminal-border: color-mix(in srgb, var(--ms-color-border) 82%, transparent);
   --agent-terminal-selection: color-mix(in srgb, var(--agent-terminal-primary) 42%, #1f2937);
   --agent-terminal-text: color-mix(in srgb, var(--ms-color-foreground, #f8fafc) 90%, white);
@@ -745,10 +755,12 @@
 }
 
 .agent-terminal-panel__placeholder {
+  background: color-mix(in srgb, var(--agent-terminal-background) 86%, transparent);
   color: var(--agent-terminal-muted);
 }
 
 .agent-terminal-panel__error {
+  background: color-mix(in srgb, var(--agent-terminal-background) 86%, transparent);
   color: var(--ms-color-danger, #d92d20);
 }
 
@@ -758,7 +770,7 @@
   flex: 0 0 146px;
   flex-direction: column;
   border-left: 1px solid var(--agent-terminal-border);
-  background: color-mix(in srgb, var(--agent-terminal-background) 82%, var(--ms-color-surface, #20242a));
+  background: var(--agent-terminal-background);
   color: var(--agent-terminal-text);
   font-family: var(--ms-font-sans);
 }
@@ -895,11 +907,6 @@
 .agent-sidebar-window-controls--collapsed {
   width: 100%;
   gap: 0;
-}
-
-.app-window-header:has(.agent-sidebar-window-controls) .app-window-header__left-controls {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 .agent-sidebar-window-controls .app-window-sidebar-toggle {

@@ -12,7 +12,27 @@ import {
   AgentPageShell,
   AgentPageShellHeader,
   AgentThreePanePageBody,
+  AgentThreePanePageEmptyText,
+  AgentThreePanePageItemBadge,
+  AgentThreePanePageItemButton,
+  AgentThreePanePageItemDetail,
+  AgentThreePanePageItemHeader,
+  AgentThreePanePageItemMetaRow,
+  AgentThreePanePageItemTime,
+  AgentThreePanePageItemTitle,
+  AgentThreePanePageListHeader,
+  AgentThreePanePageListMeta,
+  AgentThreePanePageListStack,
+  AgentThreePanePageListTitle,
   AgentThreePanePagePane,
+  AgentThreePanePagePaneDescription,
+  AgentThreePanePagePaneHeader,
+  AgentThreePanePagePaneHeaderCopy,
+  AgentThreePanePagePaneRaw,
+  AgentThreePanePagePaneScroller,
+  AgentThreePanePagePaneTitle,
+  AgentThreePanePageSegmentButton,
+  AgentThreePanePageSegmentedControl,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import {
@@ -102,16 +122,16 @@ export default function AgentConnectionsPage() {
 
       <AgentThreePanePageBody>
         <AgentThreePanePagePane data-testid="agent-connections-threads-pane">
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Threads</h2>
-              <span className="text-xs text-muted-foreground">{snapshot.threads.length}</span>
-            </div>
-            <div className="space-y-2">
+          <AgentThreePanePagePaneScroller>
+            <AgentThreePanePageListHeader>
+              <AgentThreePanePageListTitle>Threads</AgentThreePanePageListTitle>
+              <AgentThreePanePageListMeta>{snapshot.threads.length}</AgentThreePanePageListMeta>
+            </AgentThreePanePageListHeader>
+            <AgentThreePanePageListStack>
               {snapshot.threads.length === 0 ? (
-                <p className="rounded border border-dashed border-border p-3 text-xs text-muted-foreground">
+                <AgentThreePanePageEmptyText>
                   暂无连接事件。发起一次 agent 请求后这里会出现 thread。
-                </p>
+                </AgentThreePanePageEmptyText>
               ) : snapshot.threads.map((thread) => (
                 <ThreadButton
                   key={thread.threadId}
@@ -120,34 +140,31 @@ export default function AgentConnectionsPage() {
                   onClick={() => setSelectedThreadId(thread.threadId)}
                 />
               ))}
-            </div>
-          </div>
+            </AgentThreePanePageListStack>
+          </AgentThreePanePagePaneScroller>
         </AgentThreePanePagePane>
 
         <AgentThreePanePagePane data-testid="agent-connections-events-pane">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">请求 / 返回</h2>
-              <p className="text-xs text-muted-foreground">{activeThreadId === AGENT_CONNECTION_DEBUG_GLOBAL_THREAD_ID ? 'Global' : activeThreadId}</p>
-            </div>
-            <div className="flex rounded border border-border p-0.5">
+          <AgentThreePanePagePaneHeader>
+            <AgentThreePanePagePaneHeaderCopy>
+              <AgentThreePanePagePaneTitle>请求 / 返回</AgentThreePanePagePaneTitle>
+              <AgentThreePanePagePaneDescription>{activeThreadId === AGENT_CONNECTION_DEBUG_GLOBAL_THREAD_ID ? 'Global' : activeThreadId}</AgentThreePanePagePaneDescription>
+            </AgentThreePanePagePaneHeaderCopy>
+            <AgentThreePanePageSegmentedControl>
               {(['all', 'request', 'response'] as DirectionFilter[]).map((item) => (
-                <button
+                <AgentThreePanePageSegmentButton
                   key={item}
-                  type="button"
-                  className={item === direction
-                    ? 'rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground'
-                    : 'rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground'}
+                  active={item === direction}
                   onClick={() => setDirection(item)}
                 >
                   {item === 'all' ? '全部' : item === 'request' ? '请求' : '返回'}
-                </button>
+                </AgentThreePanePageSegmentButton>
               ))}
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+            </AgentThreePanePageSegmentedControl>
+          </AgentThreePanePagePaneHeader>
+          <AgentThreePanePagePaneScroller padding="none">
             {filteredEvents.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">没有匹配的事件。</p>
+              <AgentThreePanePageEmptyText>没有匹配的事件。</AgentThreePanePageEmptyText>
             ) : filteredEvents.slice().reverse().map((event) => (
               <EventButton
                 key={event.id}
@@ -156,17 +173,17 @@ export default function AgentConnectionsPage() {
                 onClick={() => setSelectedEventId(event.id)}
               />
             ))}
-          </div>
+          </AgentThreePanePagePaneScroller>
         </AgentThreePanePagePane>
 
         <AgentThreePanePagePane tone="raw" data-testid="agent-connections-raw-pane">
-          <div className="flex items-start justify-between gap-3 border-b border-border p-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">裸信息</h2>
-              <p className="text-xs text-muted-foreground">
+          <AgentThreePanePagePaneHeader>
+            <AgentThreePanePagePaneHeaderCopy>
+              <AgentThreePanePagePaneTitle>裸信息</AgentThreePanePagePaneTitle>
+              <AgentThreePanePagePaneDescription>
                 {selectedEvent ? `${selectedEvent.direction} · ${selectedEvent.method ?? 'unknown'} · ${formatTime(selectedEvent.timestamp)}` : '未选择事件'}
-              </p>
-            </div>
+              </AgentThreePanePagePaneDescription>
+            </AgentThreePanePagePaneHeaderCopy>
             <AgentConsoleActionButton
               type="button"
               size="sm"
@@ -177,10 +194,10 @@ export default function AgentConnectionsPage() {
               <Clipboard size={14} />
               复制
             </AgentConsoleActionButton>
-          </div>
-          <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs leading-5 text-foreground">
+          </AgentThreePanePagePaneHeader>
+          <AgentThreePanePagePaneRaw>
             {selectedEvent ? agentConnectionDebugRawText(selectedEvent.raw) : 'No raw event selected.'}
-          </pre>
+          </AgentThreePanePagePaneRaw>
         </AgentThreePanePagePane>
       </AgentThreePanePageBody>
     </AgentPageShell>
@@ -197,23 +214,17 @@ function ThreadButton({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      className={active
-        ? 'block w-full rounded border border-primary bg-primary/10 p-3 text-left'
-        : 'block w-full rounded border border-border bg-background p-3 text-left hover:border-primary/50 hover:bg-muted/60'}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium text-foreground">{thread.label}</span>
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{thread.eventCount}</span>
-      </div>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{thread.lastMethod ?? 'unknown'}</p>
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+    <AgentThreePanePageItemButton active={active} onClick={onClick}>
+      <AgentThreePanePageItemHeader>
+        <AgentThreePanePageItemTitle>{thread.label}</AgentThreePanePageItemTitle>
+        <AgentThreePanePageItemBadge>{thread.eventCount}</AgentThreePanePageItemBadge>
+      </AgentThreePanePageItemHeader>
+      <AgentThreePanePageItemDetail>{thread.lastMethod ?? 'unknown'}</AgentThreePanePageItemDetail>
+      <AgentThreePanePageItemMetaRow>
         <span>{thread.requestCount} 请求 / {thread.responseCount} 返回</span>
         <span>{thread.lastEventAt ? formatTime(thread.lastEventAt) : '-'}</span>
-      </div>
-    </button>
+      </AgentThreePanePageItemMetaRow>
+    </AgentThreePanePageItemButton>
   )
 }
 
@@ -227,27 +238,18 @@ function EventButton({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      className={active
-        ? 'block w-full border-b border-border bg-primary/10 p-3 text-left'
-        : 'block w-full border-b border-border p-3 text-left hover:bg-muted/60'}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className={event.direction === 'request'
-          ? 'rounded bg-blue-500/10 px-1.5 py-0.5 text-xs font-medium text-blue-600'
-          : 'rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs font-medium text-emerald-600'}
-        >
+    <AgentThreePanePageItemButton active={active} variant="row" onClick={onClick}>
+      <AgentThreePanePageItemHeader>
+        <AgentThreePanePageItemBadge tone={event.direction === 'request' ? 'info' : 'success'}>
           {event.direction === 'request' ? '请求' : '返回'}
-        </span>
-        <span className="text-xs text-muted-foreground">{formatTime(event.timestamp)}</span>
-      </div>
-      <p className="mt-2 truncate text-sm font-medium text-foreground">{event.method ?? 'unknown'}</p>
-      <p className="mt-1 truncate text-xs text-muted-foreground">
+        </AgentThreePanePageItemBadge>
+        <AgentThreePanePageItemTime>{formatTime(event.timestamp)}</AgentThreePanePageItemTime>
+      </AgentThreePanePageItemHeader>
+      <AgentThreePanePageItemTitle>{event.method ?? 'unknown'}</AgentThreePanePageItemTitle>
+      <AgentThreePanePageItemDetail>
         {event.requestId !== undefined && event.requestId !== null ? `requestId ${event.requestId}` : event.connectionId ?? event.source}
-      </p>
-    </button>
+      </AgentThreePanePageItemDetail>
+    </AgentThreePanePageItemButton>
   )
 }
 

@@ -33,18 +33,32 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/shared/ui/ResourceCandidateAttachPanel'
 import { FileAudio, FileText, Package, Search } from 'lucide-react'
-import { writeResourceDragPayload } from '@/features/resources/domain/resourceDragPayload'
+import { startResourceDragSource } from '@/features/resources/domain/resourceInteraction'
 
 type AssetSlotPanelRecord = SemanticEntityRecord & AssetSlot
 
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 
-export function ResourcePreviewDialog({ resource, projectId, onClose }: { resource: RawResource; projectId?: number; onClose: () => void }) {
+export function ResourcePreviewDialog({
+  resource,
+  projectId,
+  onClose,
+  onPrevious,
+  onNext,
+}: {
+  resource: RawResource
+  projectId?: number
+  onClose: () => void
+  onPrevious?: () => void
+  onNext?: () => void
+}) {
   return (
     <MediaViewer
       resource={resource}
       open
       onOpenChange={v => !v && onClose()}
+      onPrevious={onPrevious}
+      onNext={onNext}
       fit="contain"
       sidePanel={(
         <ResourceCandidateAttachPanel
@@ -72,6 +86,7 @@ interface ResourceListItemProps {
   trailing?: React.ReactNode
   thumbSize?: 'sm' | 'md'
   previewProjectId?: number
+  previewResources?: RawResource[]
 }
 
 export function ResourceListItem({
@@ -82,17 +97,26 @@ export function ResourceListItem({
   trailing,
   thumbSize = 'sm',
   previewProjectId,
+  previewResources = [r],
 }: ResourceListItemProps) {
   const { t } = useTranslation()
-  const [preview, setPreview] = useState(false)
+  const [preview, setPreview] = useState<RawResource | null>(null)
+  const previewImages = previewResources.filter((resource) => resource.type === 'image')
 
   function handleDragStart(e: React.DragEvent) {
-    writeResourceDragPayload(e.dataTransfer, r)
+    startResourceDragSource({ dataTransfer: e.dataTransfer, resource: r })
   }
 
   function handleClick() {
     if (onClick) { onClick(); return }
-    setPreview(true)
+    setPreview(r)
+  }
+
+  function switchPreviewImage(direction: -1 | 1) {
+    setPreview(current => {
+      if (!current || current.type !== 'image' || previewImages.length < 2) return current
+      return adjacentResource(previewImages, current, direction)
+    })
   }
 
   return (
@@ -124,7 +148,15 @@ export function ResourceListItem({
       </ResourceListItemShell>
 
       {/* Controlled MediaViewer lightbox uses the same AuthedImage path as grid mode. */}
-      {preview && <ResourcePreviewDialog resource={r} projectId={previewProjectId} onClose={() => setPreview(false)} />}
+      {preview && (
+        <ResourcePreviewDialog
+          resource={preview}
+          projectId={previewProjectId}
+          onClose={() => setPreview(null)}
+          onPrevious={preview.type === 'image' && previewImages.length > 1 ? () => switchPreviewImage(-1) : undefined}
+          onNext={preview.type === 'image' && previewImages.length > 1 ? () => switchPreviewImage(1) : undefined}
+        />
+      )}
     </>
   )
 }
@@ -139,6 +171,7 @@ interface AssetSlotListItemProps {
   selectedResourceIds?: number[]
   trailing?: React.ReactNode
   previewProjectId?: number
+  previewResources?: RawResource[]
 }
 
 export function AssetSlotListItem({
@@ -149,13 +182,22 @@ export function AssetSlotListItem({
   selectedResourceIds = [],
   trailing,
   previewProjectId,
+  previewResources = [],
 }: AssetSlotListItemProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<RawResource | null>(null)
   const resource = slot.resource
+  const previewImages = previewResources.filter((item) => item.type === 'image')
 
   function handleDragStart(e: React.DragEvent, res: RawResource) {
-    writeResourceDragPayload(e.dataTransfer, res)
+    startResourceDragSource({ dataTransfer: e.dataTransfer, resource: res })
+  }
+
+  function switchPreviewImage(direction: -1 | 1) {
+    setPreview(current => {
+      if (!current || current.type !== 'image' || previewImages.length < 2) return current
+      return adjacentResource(previewImages, current, direction)
+    })
   }
 
   return (
@@ -208,7 +250,15 @@ export function AssetSlotListItem({
         )}
       </ResourceAssetSlotCard>
 
-      {preview && <ResourcePreviewDialog resource={preview} projectId={previewProjectId} onClose={() => setPreview(null)} />}
+      {preview && (
+        <ResourcePreviewDialog
+          resource={preview}
+          projectId={previewProjectId}
+          onClose={() => setPreview(null)}
+          onPrevious={preview.type === 'image' && previewImages.length > 1 ? () => switchPreviewImage(-1) : undefined}
+          onNext={preview.type === 'image' && previewImages.length > 1 ? () => switchPreviewImage(1) : undefined}
+        />
+      )}
     </>
   )
 }
@@ -271,6 +321,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   const slotTotal = filteredSlots.length
   const slotPageCount = Math.max(1, Math.ceil(slotTotal / pageSize))
   const slots = filteredSlots.slice((slotPage - 1) * pageSize, slotPage * pageSize)
+  const slotPreviewResources = slots.map(slot => slot.resource).filter((resource): resource is RawResource => Boolean(resource))
 
   function resetFilters(nextTab?: 'resources' | 'assetSlots') {
     if (nextTab) setTab(nextTab)
@@ -337,6 +388,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
                 onClick={() => !selectedIds.includes(r.ID) && _onSelect(r)}
                 draggable
                 thumbSize="sm"
+                previewResources={resources}
               />
             ))}
           </ResourcePanelList>
@@ -353,6 +405,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
                 draggable
                 selectedResourceIds={selectedIds}
                 previewProjectId={current?.ID}
+                previewResources={slotPreviewResources}
               />
             ))}
           </ResourcePanelList>
@@ -379,4 +432,10 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
       )}
     </ResourcePanelShell>
   )
+}
+
+function adjacentResource(resources: RawResource[], current: RawResource, direction: -1 | 1) {
+  const currentIndex = resources.findIndex(resource => resource.ID === current.ID)
+  if (currentIndex < 0) return current
+  return resources[(currentIndex + direction + resources.length) % resources.length]
 }

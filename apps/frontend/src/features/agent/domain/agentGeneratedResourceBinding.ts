@@ -19,15 +19,20 @@ export function generatedBindingTargetLabel(value: GeneratedBindingTarget) {
   return GENERATED_BINDING_TARGETS.find((target) => target.value === value)?.label ?? value
 }
 
+export function generatedTargetRecordId(record: SemanticEntityRecord): number | undefined {
+  return positiveInteger(record.ID ?? record.id) ?? numericSuffix(record.id)
+}
+
 export function generatedTargetRecordLabel(record: SemanticEntityRecord) {
-  const title = record.title ?? record.name ?? record.label ?? `${record.kind ?? '对象'} #${record.ID}`
+  const id = generatedTargetRecordId(record)
+  const title = record.title ?? record.name ?? record.label ?? `${record.kind ?? '对象'} #${id ?? record.id ?? 'unknown'}`
   const details = [record.kind, record.status, record.order !== undefined ? `order ${record.order}` : undefined].filter(Boolean).join(' · ')
   return details ? `${title} · ${details}` : title
 }
 
 export function generatedTargetSearchText(record: SemanticEntityRecord) {
   return [
-    record.ID,
+    generatedTargetRecordId(record),
     record.title,
     record.name,
     record.label,
@@ -169,7 +174,7 @@ export function isUnresolvedCandidateStatus(status: unknown) {
 }
 
 export function generatedKeyframeCandidateTargetId(record: SemanticEntityRecord) {
-  const metadata = parseMetadataRecord(record.metadata_json)
+  const metadata = parseMetadataRecord(record.metadata_json) ?? parseMetadataRecord(record.metadata)
   const targetId = nullablePositiveNumber(metadata?.target_keyframe_id)
   if (metadata?.source === 'ai_generated_keyframe_candidate') return targetId ?? 0
   return targetId ?? undefined
@@ -251,6 +256,18 @@ function stringField(value: unknown) {
 function numberField(value: unknown) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0
+}
+
+function positiveInteger(value: unknown) {
+  const number = Number(value)
+  return Number.isFinite(number) && Number.isInteger(number) && number > 0 ? number : undefined
+}
+
+function numericSuffix(value: unknown) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text) return undefined
+  const match = text.match(/(\d+)$/)
+  return match ? positiveInteger(match[1]) : undefined
 }
 
 function nullablePositiveNumber(value: unknown) {

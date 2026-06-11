@@ -3,32 +3,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '@/shared/infrastructure/api'
 import { toast } from '@/shared/ui/toastStore'
-import type { Canvas, NodeType, PaginatedResponse, RawResource, ResourceBinding } from '@/types'
+import type { NodeType, PaginatedResponse, RawResource } from '@/types'
+import {
+  canvasResourceMatchesSearch,
+  fileToCanvasResourceNodeType as coreFileToCanvasResourceNodeType,
+  resourceToCanvasNodeType,
+} from '@movscript/core/canvas'
 
 export function resourceToNodeType(resource: RawResource): NodeType | undefined {
-  if (resource.type === 'image' || resource.type === 'video' || resource.type === 'text') {
-    return resource.type
-  }
-  return undefined
+  return resourceToCanvasNodeType(resource) as NodeType | undefined
 }
 
 export function resourceMatchesSearch(resource: RawResource, query: string) {
-  const term = query.trim().toLowerCase()
-  if (!term) return true
-  return [resource.ID, resource.name, resource.type, resource.mime_type]
-    .some((value) => String(value ?? '').toLowerCase().includes(term))
+  return canvasResourceMatchesSearch(resource, query)
 }
 
 export function fileToCanvasResourceNodeType(file: Pick<File, 'name' | 'type'>): NodeType | undefined {
-  const mime = file.type.toLowerCase()
-  if (mime.startsWith('image/')) return 'image'
-  if (mime.startsWith('video/')) return 'video'
-  if (mime.startsWith('text/')) return 'text'
-  const ext = file.name.toLowerCase().split('.').pop() ?? ''
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif'].includes(ext)) return 'image'
-  if (['mp4', 'mov', 'avi', 'webm'].includes(ext)) return 'video'
-  if (['txt', 'md', 'json', 'csv', 'ts', 'tsx', 'js', 'jsx', 'css', 'html', 'xml', 'yaml', 'yml', 'log'].includes(ext)) return 'text'
-  return undefined
+  return coreFileToCanvasResourceNodeType(file) as NodeType | undefined
 }
 
 export async function uploadCanvasResourceFile(file: File): Promise<RawResource> {
@@ -45,27 +36,12 @@ export async function uploadCanvasTextResource(name: string, content: string): P
 }
 
 export function useCanvasResourceIntegration({
-  canvas,
-  canvasId,
   removeFailedMessage,
 }: {
-  canvas?: Canvas
-  canvasId: string
   removeFailedMessage: string
 }) {
   const qc = useQueryClient()
   const [removingRunResultResourceId, setRemovingRunResultResourceId] = useState<number>()
-
-  const { data: dependencyBindings = [] } = useQuery<ResourceBinding[]>({
-    queryKey: ['canvas-dependencies', canvas?.project_id, canvasId],
-    queryFn: () => api.get(`/projects/${canvas!.project_id}/resource-bindings`, {
-      params: {
-        owner_type: 'canvas',
-        owner_id: canvasId,
-      },
-    }).then((r) => r.data),
-    enabled: !!canvas?.project_id && !!canvasId,
-  })
 
   const { data: nodeResourcePage } = useQuery<PaginatedResponse<RawResource>>({
     queryKey: ['canvas-node-resources'],
@@ -96,7 +72,6 @@ export function useCanvasResourceIntegration({
   })
 
   return {
-    dependencyBindings,
     nodeResources,
     nodeResourceById,
     removingRunResultResourceId,

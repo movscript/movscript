@@ -34,45 +34,45 @@
   stroke: color-mix(in srgb, var(--ms-color-muted-foreground) 50%, transparent);
 }
 
-.canvas-flow--debug-no-shadows .react-flow__node,
-.canvas-flow--debug-no-shadows .react-flow__node *,
-.canvas-flow--debug-no-shadows .react-flow__edge,
-.canvas-flow--debug-no-shadows .react-flow__edge *,
-.canvas-flow--debug-no-shadows .react-flow__controls,
-.canvas-flow--debug-no-shadows .react-flow__minimap {
-  box-shadow: none !important;
-  filter: none !important;
-  backdrop-filter: none !important;
+.canvas-flow.canvas-flow--debug-no-shadows .react-flow__node,
+.canvas-flow.canvas-flow--debug-no-shadows .react-flow__node *,
+.canvas-flow.canvas-flow--debug-no-shadows .react-flow__edge,
+.canvas-flow.canvas-flow--debug-no-shadows .react-flow__edge *,
+.canvas-flow.canvas-flow--debug-no-shadows .react-flow__controls,
+.canvas-flow.canvas-flow--debug-no-shadows .react-flow__minimap {
+  box-shadow: none;
+  filter: none;
+  backdrop-filter: none;
 }
 
-.canvas-flow--overview .react-flow__handle,
-.canvas-flow--overview .canvas-media-node-card__controls,
-.canvas-flow--overview .canvas-node-card-action-button {
-  opacity: 0 !important;
-  pointer-events: none !important;
+.canvas-flow.canvas-flow--overview .react-flow__handle,
+.canvas-flow.canvas-flow--overview .canvas-media-node-card__controls,
+.canvas-flow.canvas-flow--overview .canvas-node-card-action-button {
+  opacity: 0;
+  pointer-events: none;
 }
 
-.canvas-flow--overview .canvas-media-node-card__controls,
-.canvas-flow--overview .canvas-node-card-action-button {
-  visibility: hidden !important;
+.canvas-flow.canvas-flow--overview .canvas-media-node-card__controls,
+.canvas-flow.canvas-flow--overview .canvas-node-card-action-button {
+  visibility: hidden;
 }
 
-.canvas-flow--overview .react-flow__edge-path {
+.canvas-flow.canvas-flow--overview .react-flow__edge-path {
   vector-effect: non-scaling-stroke;
   stroke: color-mix(in srgb, var(--ms-color-muted-foreground) 42%, transparent);
 }
 
-.canvas-flow--overview .canvas-node-card {
+.canvas-flow.canvas-flow--overview .canvas-node-card {
   --ui-surface-shadow: none;
 }
 
-.canvas-flow--overview .canvas-node-card,
-.canvas-flow--overview .canvas-tool-action-card,
-.canvas-flow--overview .canvas-workflow-reference-card {
-  box-shadow: none !important;
+.canvas-flow.canvas-flow--overview .canvas-node-card,
+.canvas-flow.canvas-flow--overview .canvas-tool-action-card,
+.canvas-flow.canvas-flow--overview .canvas-workflow-reference-card {
+  box-shadow: none;
 }
 
-.canvas-flow--overview .canvas-media-node-info__crumb:not(.canvas-media-node-info__name) {
+.canvas-flow.canvas-flow--overview .canvas-media-node-info__crumb:not(.canvas-media-node-info__name) {
   display: none;
 }
 

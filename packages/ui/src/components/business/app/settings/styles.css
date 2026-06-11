@@ -146,7 +146,7 @@
   margin-top: var(--ms-space-3);
 }
 
-.app-settings-feedback:has(svg) {
+.app-settings-feedback[data-has-icon="true"] {
   display: inline-flex;
   align-items: center;
   gap: 6px;

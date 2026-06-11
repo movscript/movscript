@@ -4,7 +4,7 @@ import type {
   AgentThread,
   AgentTraceEvent,
 } from '@/shared/infrastructure/providerSessionHttpClient'
-import type { ProviderSessionAssistantProgressV2 } from '@/features/agent/domain/agentProtocol'
+import type { ProviderSessionAssistantProgressV2 } from '@movscript/core/agent/protocol'
 
 export function providerSessionRunFromEvent(event: ProviderSessionEventV2): AgentRun | undefined {
   return event.entity?.type === 'run' ? event.entity.value : undefined

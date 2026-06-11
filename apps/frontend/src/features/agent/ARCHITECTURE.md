@@ -6,15 +6,38 @@ This feature keeps provider-session facts, timeline projection, and UI render su
 
 The unified Agent Chat is one UI over provider-specific protocols. Its domain layer must be the superset that the UI renders; provider protocols are adapted only at infrastructure boundaries.
 
-- Neutral item domain lives under `src/features/agent/domain/agentChat*.ts`. It owns thread items, notification events, pending server requests, display view models, and response intents. It must not import Codex, MovScript-owned agent internals, Claude, or UI component types.
-- UI renderers live under `src/features/agent/components/agent-chat-*` plus `AgentChatDataSourceShell`. They render only neutral domain values and helper view models. They must not branch on provider protocol types.
+- Provider-session protocol types, schema constants, status helpers, telemetry payload helpers, media provider contracts, and run/task graph data contracts live in `packages/core/src/agent/protocol.ts`. Frontend code must import these directly from `@movscript/core/agent/protocol`; do not keep a frontend compatibility alias.
+- Neutral chat protocol and runtime live under `packages/core/src/agent/chat`. Frontend code must import migrated service-level chat modules directly from `@movscript/core/agent/chat`; do not keep frontend compatibility aliases for thread items, notification events, pending server requests, server-request action/form models, runtime state, or response intents. Core owns that service logic and must not import React, UI component types, browser APIs, app-server clients, Codex, MovScript-owned agent internals, or Claude.
+- UI renderers live under `src/features/agent/components/agent-chat-*` plus `AgentChatDataSourceShell`. They render only neutral domain values and helper view models. Provider-neutral chat view-model helpers, copy, labels, collapse thresholds, and inspect-section grouping live in `packages/core/src/agent/chat`; frontend keeps component composition, orchestration, and product-specific display classifiers. Renderers must not branch on provider protocol types.
 - App-server thread-turn-item mapping is reached through `src/shared/infrastructure/app-server/appServerThreadTurnItemAdapter.ts`. Provider-specific compatibility aliases must not be reintroduced; Codex, Mova, and future app-server providers share this neutral adapter unless their wire protocol genuinely differs.
 - Mova reuses the app-server protocol through provider configuration. The neutral UI should reach it through the provider factory, not a separate provider session chat adapter.
 - Claude mapping is not implemented in the current unified shell. Until a Claude adapter exists, the UI boundary tests must keep Claude protocol names out of the neutral shell and domain.
 
 Server-initiated requests are first-class chat state, not side effects hidden in a tool row. If a provider asks for approval, user input, elicitation, or a dynamic tool result, the adapter must emit an `AgentChatServerRequest` with enough scoped IDs to resolve it. If the protocol event lacks executable IDs, the adapter must recover them from authoritative pending state or expose the item as non-actionable instead of fabricating an approval path.
 
+`agentChatRuntime` owns the unified chat's runtime state machine in core. Components dispatch provider-neutral events and user intents into the runtime, then render the runtime view selectors. Frontend components keep orchestration concerns: loading a data source, subscribing to notifications, reading canonical threads, routing local events, and syncing browser storage.
+
+Timeline pagination and stream-event merge rules are service-level state logic. `packages/core/src/agent/timelineState.ts` owns item sorting, dedupe, page replacement/merge, reset handling, and stale-event rejection. Frontend timeline hooks fetch pages, subscribe to streams, record performance, and map timeline items into UI messages.
+
+Run profile presets are split by boundary. Permission policy, reviewer routing, permission profile IDs, and fallback sandbox choices live in `packages/core/src/agent/runProfilePreset.ts`; frontend decorates those profiles with labels and descriptions for controls.
+
 Media inputs are neutral resources. Images can remain native image inputs; video, audio, and generic resources travel through mention/resource references with MIME, name, URL, and resource ID metadata preserved where the provider supports it.
+
+## Attachment Source Contract
+
+Attachment reachability is a core protocol fact, not a UI heuristic. `AgentAttachment.source` records where bytes can be resolved from: inline data, a frontend-local `File`, a backend resource ID, a local filesystem path, a model-reachable remote URL, or a display-only URL.
+
+- Frontend upload/paste flows may create object URLs or localhost resource URLs for preview, but those URLs are display-only unless core classifies them as model-reachable.
+- Provider-session sends must build attachment refs through `prepareProviderSessionAttachmentRefs` or `providerSessionAttachmentRef`. These helpers resolve local files and backend resources to `data:image/...` only when bytes are available; unresolved local/private URLs stay metadata-only and emit warnings.
+- App-server user input and dynamic tool output must use the same model-reachability rule. Only `data:image/...` and public HTTP(S) URLs become native image inputs; localhost, private-network, blob, file, and relative URLs become mentions/resources/text references.
+- History restore keeps local resource images as resource mentions, preserving preview URL metadata for display without reclassifying it as prompt-ready model input.
+- New attachment entry points must carry `source` across protocol boundaries instead of deriving behavior from `url` alone.
+
+Agent backend model catalog and default-provider rules are service-level logic. Capability queries, public model IDs, model deduplication, default backend model selection, backend provider refs, and generated provider config fragments live in `packages/core/src/agent`. Frontend wrappers only inject the browser API client, read local settings, and save workspace/provider config.
+
+Sensitive data detection and redaction are service-level safety rules. Secret detection, URL credential stripping, and trace/debug payload redaction live in `packages/core/src/agent/sensitiveData.ts`; frontend surfaces must import these helpers from `@movscript/core/agent` instead of keeping legacy trace helper aliases.
+
+Agent settings snapshot schema, parsing, export normalization, and reference validation are service-level portability rules. They live in `packages/core/src/agent/settingsSnapshot.ts`; frontend keeps file import/export UI and impact preview copy, and must import snapshot helpers from `@movscript/core/agent` instead of keeping compatibility re-exports.
 
 Do not remove old timeline components only because the unified chat exists. They can be deleted only after their routes and owners no longer reference them. New unified-chat work should instead tighten adapter coverage and move render logic into neutral view helpers.
 

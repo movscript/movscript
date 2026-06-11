@@ -65,6 +65,32 @@ test('app-server rpc client sends thread and turn requests over the app-server w
       backwardsCursor: null,
     })
 
+    const turnsPromise = client.listThreadTurns({
+      threadId: 'thread_1',
+      cursor: '{"turnId":"turn_1","includeAnchor":false}',
+      limit: 20,
+      sortDirection: 'desc',
+      itemsView: 'full',
+    })
+    const turnsList = await waitForSent(socket, 'thread/turns/list')
+    assert.deepEqual(turnsList.params, {
+      threadId: 'thread_1',
+      cursor: '{"turnId":"turn_1","includeAnchor":false}',
+      limit: 20,
+      sortDirection: 'desc',
+      itemsView: 'full',
+    })
+    socket.respond(turnsList.id, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+    assert.deepEqual(await turnsPromise, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+
     const resumePromise = client.resumeThread({ threadId: 'thread_1', cwd: '/tmp/project', model: 'gpt-5.4' })
     const threadResume = await waitForSent(socket, 'thread/resume')
     assert.deepEqual(threadResume.params, { threadId: 'thread_1', cwd: '/tmp/project', model: 'gpt-5.4' })
@@ -212,6 +238,108 @@ test('app-server rpc client sends thread and turn requests over the app-server w
   }
 })
 
+test('app-server rpc client shares one initialize handshake across concurrent requests', async () => {
+  const originalWebSocket = globalThis.WebSocket
+  const sockets: FakeWebSocket[] = []
+  ;(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      sockets.push(this)
+    }
+  } as unknown as typeof WebSocket
+
+  try {
+    const client = new AppServerRpcClient('ws://127.0.0.1:48768')
+    const listPromise = client.listThreads()
+    const readPromise = client.readThread('thread_1', {
+      includeTurns: true,
+      afterTurnId: 'turn_10',
+      afterItemId: 'item_10',
+      limit: 25,
+      direction: 'newer',
+    })
+
+    const socket = await waitFor(() => sockets[0])
+    const initialize = await waitForSent(socket, 'initialize')
+    socket.respond(initialize.id, { userAgent: 'app-server-test' })
+    await waitForSent(socket, 'initialized')
+
+    const threadList = await waitForSent(socket, 'thread/list')
+    const threadRead = await waitForSent(socket, 'thread/read')
+    assert.deepEqual(threadRead.params, {
+      threadId: 'thread_1',
+      includeTurns: true,
+      afterTurnId: 'turn_10',
+      afterItemId: 'item_10',
+      limit: 25,
+      direction: 'newer',
+    })
+    socket.respond(threadList.id, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+    socket.respond(threadRead.id, {
+      thread: {
+        id: 'thread_1',
+        sessionId: 'session_1',
+        preview: '',
+        createdAt: 1,
+        updatedAt: 1,
+        status: { type: 'idle' },
+        name: null,
+        turns: [],
+      },
+    })
+
+    assert.deepEqual(await listPromise, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+    assert.equal((await readPromise).thread.id, 'thread_1')
+    assert.equal(socket.sent.filter((message) => message.method === 'initialize').length, 1)
+  } finally {
+    if (originalWebSocket) globalThis.WebSocket = originalWebSocket
+  }
+})
+
+test('app-server rpc client recovers from already initialized handshake errors', async () => {
+  const originalWebSocket = globalThis.WebSocket
+  const sockets: FakeWebSocket[] = []
+  ;(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      sockets.push(this)
+    }
+  } as unknown as typeof WebSocket
+
+  try {
+    const client = new AppServerRpcClient('ws://127.0.0.1:48769')
+    const listPromise = client.listThreads()
+
+    const socket = await waitFor(() => sockets[0])
+    const initialize = await waitForSent(socket, 'initialize')
+    socket.respondError(initialize.id, -32600, 'Already initialized')
+    await waitForSent(socket, 'initialized')
+
+    const threadList = await waitForSent(socket, 'thread/list')
+    socket.respond(threadList.id, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+
+    assert.deepEqual(await listPromise, {
+      data: [],
+      nextCursor: null,
+      backwardsCursor: null,
+    })
+  } finally {
+    if (originalWebSocket) globalThis.WebSocket = originalWebSocket
+  }
+})
+
 test('app-server rpc client returns protocol-shaped fallback server request responses', async () => {
   const originalWebSocket = globalThis.WebSocket
   const sockets: FakeWebSocket[] = []
@@ -223,12 +351,13 @@ test('app-server rpc client returns protocol-shaped fallback server request resp
   } as unknown as typeof WebSocket
 
   try {
-    const client = new AppServerRpcClient('ws://127.0.0.1:48766', 0)
+    const client = new AppServerRpcClient('ws://127.0.0.1:48766')
     const initializePromise = client.initialize()
     const socket = await waitFor(() => sockets[0])
     const initialize = await waitForSent(socket, 'initialize')
     socket.respond(initialize.id, { userAgent: 'app-server-test' })
     await initializePromise
+    const dispose = client.onServerRequest(() => undefined)
 
     socket.serverRequest('request_permissions_1', 'item/permissions/requestApproval', {
       threadId: 'thread_1',
@@ -247,6 +376,7 @@ test('app-server rpc client returns protocol-shaped fallback server request resp
     socket.serverRequest('request_input_1', 'item/tool/requestUserInput', { threadId: 'thread_1' })
     const inputResponse = await waitForResponse(socket, 'request_input_1')
     assert.deepEqual(inputResponse.result, { answers: {} })
+    dispose()
   } finally {
     if (originalWebSocket) globalThis.WebSocket = originalWebSocket
   }
@@ -300,6 +430,91 @@ test('app-server rpc client defers early server requests until the UI handler is
     }])
     assert.deepEqual(approvalResponse.result, { decision: 'accept' })
     dispose()
+  } finally {
+    if (originalWebSocket) globalThis.WebSocket = originalWebSocket
+  }
+})
+
+test('app-server rpc client keeps MCP elicitation requests pending without a UI handler', async () => {
+  const originalWebSocket = globalThis.WebSocket
+  const sockets: FakeWebSocket[] = []
+  ;(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      sockets.push(this)
+    }
+  } as unknown as typeof WebSocket
+
+  try {
+    const client = new AppServerRpcClient('ws://127.0.0.1:48770', 0)
+    const initializePromise = client.initialize()
+    const socket = await waitFor(() => sockets[0])
+    const initialize = await waitForSent(socket, 'initialize')
+    socket.respond(initialize.id, { userAgent: 'app-server-test' })
+    await initializePromise
+
+    socket.serverRequest('elicitation_1', 'mcpServer/elicitation/request', {
+      threadId: 'thread_1',
+      turnId: 'turn_1',
+      server: 'figma',
+      message: 'Allow Figma access?',
+    })
+    await nextTick()
+    assert.equal(socket.sent.some((message) => message.id === 'elicitation_1'), false)
+
+    const dispose = client.onServerRequest((request) => {
+      assert.equal(request.method, 'mcpServer/elicitation/request')
+      return { action: 'accept', content: {}, _meta: null }
+    })
+
+    const response = await waitForResponse(socket, 'elicitation_1')
+    assert.deepEqual(response.result, { action: 'accept', content: {}, _meta: null })
+    dispose()
+  } finally {
+    if (originalWebSocket) globalThis.WebSocket = originalWebSocket
+  }
+})
+
+test('app-server rpc client lets later server request handlers answer when earlier handlers ignore', async () => {
+  const originalWebSocket = globalThis.WebSocket
+  const sockets: FakeWebSocket[] = []
+  ;(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      sockets.push(this)
+    }
+  } as unknown as typeof WebSocket
+
+  try {
+    const client = new AppServerRpcClient('ws://127.0.0.1:48771')
+    const initializePromise = client.initialize()
+    const socket = await waitFor(() => sockets[0])
+    const initialize = await waitForSent(socket, 'initialize')
+    socket.respond(initialize.id, { userAgent: 'app-server-test' })
+    await initializePromise
+
+    const ignored: string[] = []
+    const disposeIgnored = client.onServerRequest((request) => {
+      ignored.push(request.method)
+      return undefined
+    })
+    const disposeAnswering = client.onServerRequest((request) => {
+      assert.equal(request.method, 'mcpServer/elicitation/request')
+      return { action: 'accept', content: { ok: true }, _meta: null }
+    })
+
+    socket.serverRequest('elicitation_2', 'mcpServer/elicitation/request', {
+      threadId: 'thread_1',
+      turnId: 'turn_1',
+      server: 'figma',
+      message: 'Allow Figma access?',
+    })
+
+    const response = await waitForResponse(socket, 'elicitation_2')
+    assert.deepEqual(ignored, ['mcpServer/elicitation/request'])
+    assert.deepEqual(response.result, { action: 'accept', content: { ok: true }, _meta: null })
+    disposeIgnored()
+    disposeAnswering()
   } finally {
     if (originalWebSocket) globalThis.WebSocket = originalWebSocket
   }
@@ -415,7 +630,7 @@ test('app-server ensure sends neutral provider home through neutral Electron API
     },
   })
 
-  assert.equal(ensuredProfile?.home, '.movscript/.mova')
+  assert.equal(ensuredProfile?.home, '.mova')
   assert.equal((ensuredProfile as Record<string, unknown> | undefined)?.[['codex', 'Home'].join('')], undefined)
   assert.equal(ensuredProfile?.providerKey, 'mova')
 })
@@ -516,7 +731,7 @@ test('default Mova provider initializes through a managed Electron relay endpoin
   })
 
   assert.equal(ensuredProfile?.providerKey, 'mova')
-  assert.equal(ensuredProfile?.home, '.movscript/.mova')
+  assert.equal(ensuredProfile?.home, '.mova')
   assert.equal(connectedURL, 'managed:///mova-movscript-home')
 })
 
@@ -560,6 +775,11 @@ class FakeWebSocket {
   respond(id: number | string | undefined, result: unknown): void {
     assert.ok(typeof id === 'number' || typeof id === 'string')
     this.emit('message', { data: JSON.stringify({ id, result }) })
+  }
+
+  respondError(id: number | string | undefined, code: number, message: string, data?: unknown): void {
+    assert.ok(typeof id === 'number' || typeof id === 'string')
+    this.emit('message', { data: JSON.stringify({ id, error: { code, message, data } }) })
   }
 
   serverRequest(id: string, method: string, params: unknown): void {

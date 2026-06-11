@@ -60,7 +60,7 @@ test('activeRunInputDeliveryBadge accepts compatibility input refs only through 
 })
 
 test('active run input delivery coverage matches every MovScript delivery status', () => {
-  const protocol = readFileSync(resolve('src/features/agent/domain/agentProtocol.ts'), 'utf8')
+  const protocol = readFileSync(resolve('../../packages/core/src/agent/protocol.ts'), 'utf8')
   const statuses = Object.keys(PROVIDER_SESSION_INPUT_DELIVERY_STATUS_COVERAGE).sort() as Array<keyof typeof PROVIDER_SESSION_INPUT_DELIVERY_STATUS_COVERAGE>
   const badges = statuses.map((status) => activeRunInputDeliveryBadge(message({
     meta: {

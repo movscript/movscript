@@ -9,8 +9,6 @@ import {
   LayoutDashboard,
   MessageSquare,
   Palette,
-  PanelRightClose,
-  PanelRightOpen,
   Plus,
   Settings,
 } from 'lucide-react'
@@ -50,13 +48,13 @@ import {
 
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
-import { canvasRouteSourceFromSearch, getAppRouteSurface, routeForWorkMode, workModeForRoute } from '@/routes/appRouteModel'
+import { canvasRouteSourceFromSearch, getAppRouteLayoutSpec, routeForWorkMode, workModeForRoute } from '@/routes/appRouteModel'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
 import { ROUTES } from '@/routes/projectRoutes'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { runtimeAppTopControls } from '@runtime'
@@ -73,7 +71,7 @@ export function AppTopControls({
   className = '',
   compact = false,
   showAssistantShortcut: showAssistantShortcutProp = true,
-  showAgentContentPanelShortcut: showAgentContentPanelShortcutProp = true,
+  showAgentContentPanelShortcut: _showAgentContentPanelShortcutProp = true,
 }: AppTopControlsProps) {
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
@@ -83,12 +81,9 @@ export function AppTopControls({
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
-  const openAccountSettings = useAppShellDialogStore((s) => s.openAccountSettings)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
   const agentPanelOpen = useAgentPanelUiStore((s) => s.open)
   const toggleAgentPanelOpen = useAgentPanelUiStore((s) => s.toggleOpen)
-  const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
-  const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [createOpen, setCreateOpen] = useState(false)
@@ -97,7 +92,8 @@ export function AppTopControls({
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectDescription, setProjectDescription] = useState('')
-  const routeSurface = getAppRouteSurface(pathname)
+  const routeLayout = getAppRouteLayoutSpec(pathname)
+  const routeSurface = routeLayout.surface
   const currentRouteWorkMode = routeSurface === 'canvas'
     ? canvasRouteSourceFromSearch(search)
     : workModeForRoute(pathname, workMode)
@@ -158,15 +154,10 @@ export function AppTopControls({
   const languageControl = runtimeAppTopControls.languageControl ?? 'select'
   const settingsAction = runtimeAppTopControls.settingsAction ?? 'accountDialog'
   const showAssistantShortcut = routeSurface === 'detail' && showAssistantShortcutProp
-  const showAgentContentPanelShortcut = routeSurface === 'agent' && showAgentContentPanelShortcutProp
   const AssistantShortcutIcon = MessageSquare
   const assistantShortcutTitle = agentPanelOpen
     ? t('agents.chat.collapseAssistant')
     : t('agents.chat.aiAssistant')
-  const AgentContentPanelIcon = agentModeContentPanelCollapsed ? PanelRightOpen : PanelRightClose
-  const agentContentPanelTitle = agentModeContentPanelCollapsed
-    ? t('agents.chat.expandAgentContentPanel')
-    : t('agents.chat.collapseAgentContentPanel')
   const currentLanguageLabel = i18n.language
   const currentThemeLabel = getThemeLabel(theme, t)
 
@@ -204,18 +195,6 @@ export function AppTopControls({
           aria-label={assistantShortcutTitle}
         >
           <AssistantShortcutIcon size={iconSize} />
-        </AppTopControlButton>
-      )}
-      {showAgentContentPanelShortcut && (
-        <AppTopControlButton
-          variant="ghost"
-          density={density}
-          onClick={toggleAgentModeContentPanelCollapsed}
-          active={!agentModeContentPanelCollapsed}
-          title={agentContentPanelTitle}
-          aria-label={agentContentPanelTitle}
-        >
-          <AgentContentPanelIcon size={iconSize} />
         </AppTopControlButton>
       )}
       <DropdownMenu open={projectMenuOpen} onOpenChange={(open) => {
@@ -350,11 +329,10 @@ export function AppTopControls({
         variant="ghost"
         density={density}
         onClick={() => {
-          if (settingsAction === 'appSettingsRoute') {
+          if (settingsAction === 'appSettingsRoute' || settingsAction === 'accountDialog') {
             navigate(ROUTES.appSettings)
             return
           }
-          openAccountSettings('settings')
         }}
         title={t('appSettings.title')}
         aria-label={t('appSettings.title')}

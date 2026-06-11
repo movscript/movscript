@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Archive, Loader2 } from 'lucide-react'
-import { AgentConversationItem, AgentMain, Button, useResizablePanel } from '@movscript/ui'
+import { AgentConversationHistoryPanel, AgentConversationItem, AgentMain, Button } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
 import { AgentChatHeaderSection } from '@/features/agent/components/AgentChatHeaderSection'
@@ -12,13 +12,12 @@ import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedSta
 import { conversationDisplayTitle, formatAgentDate, providerThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { latestTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 import { listProviderSessionThreadPageFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { useAgentChatHistoryPaneController } from '@/features/agent/presentation/useAgentChatHistoryPaneController'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
 import type { AgentChatHost } from '@/features/agent/components/agentChatHost'
 
 const HISTORY_PAGE_SIZE = 20
-const HISTORY_MIN_RATIO = 1 / 3
-const HISTORY_MAX_RATIO = 0.78
 
 export function AgentChatPanelLayout({
   composer,
@@ -32,11 +31,14 @@ export function AgentChatPanelLayout({
   const { t, i18n } = useTranslation()
   const conversationStarted = thread.conversationStarted || !!debugPreview.workspace
   const emptyConversation = !conversationStarted
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [historyHeight, setHistoryHeight] = useState<number | null>(null)
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const historyPane = useAgentChatHistoryPaneController({
+    activeConversationId: header.activeConversation.id,
+    ariaLabel: t('agents.chat.conversationHistory'),
+    conversationStarted,
+  })
   const historyQuery = useInfiniteQuery({
     queryKey: ['provider-session-panel-thread-history', providerSessionClient.baseURL],
     queryFn: async ({ pageParam, signal }) => {
@@ -49,7 +51,7 @@ export function AgentChatPanelLayout({
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: historyOpen,
+    enabled: historyPane.open,
     retry: false,
   })
   const historyThreads = historyQuery.data?.pages
@@ -104,46 +106,17 @@ export function AgentChatPanelLayout({
     }
   }
 
-  const historyResize = useResizablePanel({
-    size: historyHeight ?? 0,
-    onSizeChange: setHistoryHeight,
-    minSize: (rect) => Math.round(rect.height * HISTORY_MIN_RATIO),
-    maxSize: (rect) => Math.round(rect.height * HISTORY_MAX_RATIO),
-    resizeEdge: 'top',
-    collapsed: !historyOpen,
-    onCollapsedChange: (collapsed) => {
-      if (collapsed) {
-        setHistoryOpen(false)
-        setHistoryHeight(null)
-      }
-    },
-    collapseMode: 'after-min',
-    ariaLabel: t('agents.chat.conversationHistory'),
-    getContainer: (handle) => handle.closest('.ai-agent-panel-main') as HTMLElement | null,
-  })
-
-  useEffect(() => {
-    setHistoryOpen(false)
-    setHistoryHeight(null)
-  }, [header.activeConversation.id])
-
-  useEffect(() => {
-    if (conversationStarted) setHistoryOpen(false)
-    if (conversationStarted) setHistoryHeight(null)
-  }, [conversationStarted])
-
-  const historyPanel = historyOpen ? (
-    <section
-      className="ai-agent-panel-empty-history"
+  const historyPanel = historyPane.open ? (
+    <AgentConversationHistoryPanel
       aria-label={t('agents.chat.conversationHistory')}
-      style={historyHeight ? { flexBasis: historyHeight } : undefined}
+      height={historyPane.height}
     >
       <div
         className="ai-agent-panel-empty-history-divider"
         role="separator"
         aria-orientation="horizontal"
         aria-label={t('agents.chat.conversationHistory')}
-        {...historyResize.resizeHandleProps}
+        {...historyPane.resize.resizeHandleProps}
       />
       <div className="ai-agent-panel-empty-history-header">
         <span>{t('agents.chat.conversationHistory')}</span>
@@ -211,29 +184,29 @@ export function AgentChatPanelLayout({
           </Button>
         )}
       </div>
-    </section>
+    </AgentConversationHistoryPanel>
   ) : null
 
   return (
     <AgentMain
       className="ai-agent-panel-main"
       data-agent-chat-host={host}
-      data-history-resizing={historyResize.resizing ? 'true' : undefined}
+      data-history-resizing={historyPane.resize.resizing ? 'true' : undefined}
     >
       <AgentDebugPreviewDialog {...debugPreview} />
       <ContextDiagnosticDialog {...contextDiagnosticDialog} />
       <section
         className="ai-agent-panel-content-card"
         data-empty-conversation={emptyConversation ? 'true' : undefined}
-        data-history-open={historyOpen ? 'true' : undefined}
+        data-history-open={historyPane.open ? 'true' : undefined}
       >
         <AgentChatHeaderSection
           {...header}
-          historyOpen={historyOpen}
+          historyOpen={historyPane.open}
           pinnedStatusExpanded={pinnedStatusExpanded}
           showPinnedStatusControl={hasPinnedStatus}
           onTogglePinnedStatus={() => setPinnedStatusExpanded((expanded) => !expanded)}
-          onToggleHistory={() => setHistoryOpen((open) => !open)}
+          onToggleHistory={historyPane.toggleOpen}
         />
         <AgentConversationThreadSection
           {...thread}

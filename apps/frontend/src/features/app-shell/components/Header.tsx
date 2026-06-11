@@ -14,6 +14,7 @@ export function Header({
   titleKey: _titleKey,
   appControls,
   leftControls,
+  leftControlsLayout,
   centerContent,
   showWindowControls = true,
   showAppControls = true,
@@ -24,6 +25,7 @@ export function Header({
   titleKey?: string
   appControls?: ReactNode
   leftControls?: ReactNode
+  leftControlsLayout?: 'default' | 'fill'
   centerContent?: ReactNode
   showWindowControls?: boolean
   showAppControls?: boolean
@@ -80,6 +82,7 @@ export function Header({
         />
       ) : undefined}
       leftControls={leftControls}
+      leftControlsLayout={leftControlsLayout}
       controls={showAppControls ? controls : undefined}
       centerContent={centerContent}
       fallbackBrand={showFallbackBrand ? (

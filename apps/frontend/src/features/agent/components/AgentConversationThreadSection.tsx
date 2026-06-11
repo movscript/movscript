@@ -24,6 +24,8 @@ import type { GenerationProgressState } from '@/features/agent/domain/agentGener
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 import type { AgentTaskGraphSnapshot, AgentPlan } from '@/shared/infrastructure/providerSessionClient'
 
+const AGENT_CONVERSATION_OLDER_ITEMS_SCROLL_THRESHOLD_PX = 96
+
 export interface AgentConversationThreadSectionProps {
   activePlanSnapshot?: AgentTaskGraphSnapshot
   approvingActiveRun: boolean
@@ -110,6 +112,13 @@ export function AgentConversationThreadSection({
     })
   }
 
+  function handleThreadScroll(event: UIEvent<HTMLDivElement>) {
+    onScroll(event)
+    if (threadWindow.hiddenCount === 0) return
+    if (event.currentTarget.scrollTop > AGENT_CONVERSATION_OLDER_ITEMS_SCROLL_THRESHOLD_PX) return
+    showOlderThreadItems()
+  }
+
   return (
     <AgentBody className="ai-agent-panel-thread-body">
       {showPinnedStatus ? (
@@ -123,7 +132,7 @@ export function AgentConversationThreadSection({
       ) : null}
       <AgentThreadFill
         ref={threadRef}
-        onScroll={onScroll}
+        onScroll={handleThreadScroll}
         data-agent-thread-hidden-items={threadWindow.hiddenCount}
         data-agent-thread-visible-items={threadWindow.visibleCount}
         data-agent-thread-total-items={threadWindow.totalCount}

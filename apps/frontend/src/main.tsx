@@ -7,9 +7,11 @@ import App from './App'
 import './index.css'
 import './i18n'
 import { applyE2EBootstrapSeedFromStorage } from './shared/infrastructure/e2eBootstrap'
+import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
 
 initTheme()
 applyE2EBootstrapSeedFromStorage()
+installAgentPerformanceObservers()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

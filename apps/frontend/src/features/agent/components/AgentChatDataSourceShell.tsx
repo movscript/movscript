@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type UIEvent } from 'react'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -19,16 +19,14 @@ import { AgentPinnedStatusShelf, type AgentPinnedStatusSummaryItem } from '@/fea
 import { AgentChatServerRequestCard } from '@/features/agent/components/agent-chat-items/AgentChatServerRequestCard'
 import { AgentChatThreadItemView } from '@/features/agent/components/agent-chat-items/AgentChatThreadItemView'
 import { publicModelId } from '@/shared/domain/modelDisplay'
-import { agentChatRecentCapabilityEventEntryId } from '@/features/agent/domain/agentChatRecentCapabilityEvents'
 import {
-  type AgentChatPendingServerRequestQueueEntry,
+  agentChatPendingServerRequestMatchesResolvedEvent,
   agentChatPendingServerRequestEntryKey,
   agentChatThreadIdForServerRequest,
-  removeAgentChatPendingServerRequests,
-  resolveAgentChatPendingServerRequest,
+  dropAgentChatPendingServerRequests,
+  ensureAgentChatThreadReadyForTurn,
   upsertAgentChatPendingServerRequest,
-  visibleAgentChatPendingServerRequests,
-} from '@/features/agent/domain/agentChatPendingServerRequests'
+} from '@movscript/core/agent/chat'
 import {
   AGENT_PANEL_WORKSPACE_EVENT,
   AGENT_PANEL_NEW_CONVERSATION_EVENT,
@@ -42,41 +40,46 @@ import {
   type AgentPanelNewConversationPayload,
 } from '@/features/agent/application/agentPanelBridge'
 import {
+  AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT,
+  closedAgentConversationIds,
   readAgentConversationOpenState,
-  removeAgentConversationOpenRecords,
   setAgentConversationOpen,
   writeAgentActiveConversationId,
   writeAgentConversationOpenState,
+  type AgentConversationOpenRecord,
 } from '@/features/agent/presentation/agentConversationOpenOrder'
 import {
   agentChatInputsFromTextAndAttachments,
+  buildAgentChatRuntimeThreadReadInput,
   legacySessionIdFromAgentChatThread,
+  agentChatServerRequestResponseForAction,
   type AgentChatDataSource,
   type AgentChatCollaborationMode,
   type AgentChatModelSelection,
   type AgentChatNotification,
-  type AgentChatNotificationEvent,
   type AgentChatServerRequest,
   type AgentChatServerRequestResponse,
   type AgentChatThread,
+  type AgentChatThreadReadInput,
   type AgentChatThreadItem,
-  type AgentChatTurn,
-} from '@/features/agent/domain/agentChatProtocol'
+} from '@movscript/core/agent/chat'
 import {
-  agentChatServerRequestResponseForAction,
-} from '@/features/agent/domain/agentChatServerRequests'
-import {
-  agentChatNotificationEventShouldDisplayAsRecent,
-  buildAgentChatVisibleItems,
-  dispatchAgentChatNotification,
-  type AgentChatPendingServerRequestEntry,
-  type AgentChatPendingUserItem,
-  type AgentChatRealtimeAudioItem,
-  type AgentChatRealtimeTranscriptItem,
-  type AgentChatStreamingAgentItem,
-} from '@/features/agent/domain/agentChatNotificationDispatcher'
+  agentChatRuntimeReducer,
+  AGENT_CHAT_VISIBLE_ITEM_WINDOW_INITIAL_SIZE,
+  buildAgentChatVisibleItemWindow,
+  createAgentChatRuntimeState,
+  selectAgentChatRuntimePendingThreadResumeRequests,
+  selectAgentChatRuntimePendingThreadReadRequests,
+  selectAgentChatRuntimeView,
+  type AgentChatRuntimePendingServerRequest,
+  type AgentChatRuntimeRecentCapabilityEvent,
+} from '@movscript/core/agent/chat'
 import { useAgentComposerController } from '@/features/agent/presentation/useAgentComposerController'
 import { useAgentMentionEditorSync } from '@/features/agent/presentation/useAgentMentionEditorSync'
+import {
+  readStoredActiveThreadId,
+  writeStoredActiveThreadId,
+} from '@/features/agent/presentation/agentActiveThreadStorage'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
@@ -87,15 +90,72 @@ import {
 import { api } from '@/shared/infrastructure/api'
 import type { PublicModel, RawResource } from '@/types'
 
-type PendingServerRequest = AgentChatPendingServerRequestEntry & AgentChatPendingServerRequestQueueEntry
+const AGENT_CHAT_OLDER_ITEMS_SCROLL_THRESHOLD_PX = 96
+const AGENT_CHAT_THREAD_LIST_PAGE_SIZE = 20
+const persistentPendingServerRequests = new Map<string, AgentChatRuntimePendingServerRequest[]>()
 
-type RecentCapabilityEvent = {
-  id: string
-  event: AgentChatNotificationEvent
+function persistentServerRequestScopeKey(activeThreadStorageKey: string): string {
+  return activeThreadStorageKey
 }
 
-type AgentChatStatusSummaryEntry = AgentPinnedStatusSummaryItem & {
-  updatedAt: number
+function storePersistentServerRequest(
+  scopeKey: string,
+  request: AgentChatServerRequest,
+  resolve: (response: AgentChatServerRequestResponse | undefined) => void,
+): (response: AgentChatServerRequestResponse | undefined) => void {
+  const persistentResolve = (response: AgentChatServerRequestResponse | undefined) => {
+    removePersistentServerRequest(scopeKey, request)
+    resolve(response)
+  }
+  const current = persistentPendingServerRequests.get(scopeKey) ?? []
+  persistentPendingServerRequests.set(
+    scopeKey,
+    upsertAgentChatPendingServerRequest(current, request, persistentResolve),
+  )
+  return persistentResolve
+}
+
+function removePersistentServerRequest(scopeKey: string, request: AgentChatServerRequest): void {
+  const current = persistentPendingServerRequests.get(scopeKey)
+  if (!current) return
+  const requestKey = agentChatPendingServerRequestEntryKey({ request })
+  const next = current.filter((entry) => agentChatPendingServerRequestEntryKey(entry) !== requestKey)
+  if (next.length === 0) persistentPendingServerRequests.delete(scopeKey)
+  else persistentPendingServerRequests.set(scopeKey, next)
+}
+
+function dropPersistentServerRequests(
+  scopeKey: string,
+  shouldDrop: (entry: AgentChatRuntimePendingServerRequest) => boolean,
+): void {
+  const current = persistentPendingServerRequests.get(scopeKey)
+  if (!current) return
+  const next = dropAgentChatPendingServerRequests(current, shouldDrop)
+  if (next.length === 0) persistentPendingServerRequests.delete(scopeKey)
+  else persistentPendingServerRequests.set(scopeKey, next)
+}
+
+function applyPersistentServerRequestNotification(scopeKey: string, notification: AgentChatNotification): void {
+  const event = notification.event
+  if (event?.type === 'serverRequestResolved') {
+    dropPersistentServerRequests(scopeKey, (entry) => agentChatPendingServerRequestMatchesResolvedEvent(entry.request, event))
+    return
+  }
+  if (event?.type === 'threadLifecycle') {
+    if (event.action === 'unarchived') return
+    dropPersistentServerRequests(scopeKey, (entry) => entry.request.threadId === event.threadId)
+    return
+  }
+  if (notification.method !== 'turn/completed') return
+  const params = recordValue(notification.params)
+  const threadId = stringValue(params?.threadId)
+  const turn = recordValue(params?.turn)
+  const turnId = stringValue(turn?.id)
+  if (!threadId || !turnId) return
+  dropPersistentServerRequests(scopeKey, (entry) => {
+    if (entry.request.threadId !== threadId) return false
+    return !entry.request.turnId || entry.request.turnId === turnId
+  })
 }
 
 export interface AgentChatDataSourceShellLoadResult {
@@ -108,6 +168,7 @@ export interface AgentChatDataSourceShellProps {
   loadDataSource: () => Promise<AgentChatDataSourceShellLoadResult>
   loadDataSourceForNewThread?: (input: AgentPanelNewConversationPayload) => Promise<AgentChatDataSourceShellLoadResult>
   activeThreadStorageKey: string
+  readActiveThreadId?: () => string | null
   openThreadEventName: string
   providerLabel: string
   threadListLabel: string
@@ -137,6 +198,7 @@ export function AgentChatDataSourceShell({
   loadDataSource,
   loadDataSourceForNewThread,
   activeThreadStorageKey,
+  readActiveThreadId,
   openThreadEventName,
   providerLabel,
   threadListLabel,
@@ -157,21 +219,45 @@ export function AgentChatDataSourceShell({
   showThreadList = surface !== 'page',
   autoLoadThreads = true,
 }: AgentChatDataSourceShellProps) {
+  const readCurrentActiveThreadId = useCallback(
+    () => readActiveThreadId?.() ?? readStoredActiveThreadId(activeThreadStorageKey),
+    [activeThreadStorageKey, readActiveThreadId],
+  )
   const [dataSource, setDataSource] = useState<AgentChatDataSource | undefined>()
   const [endpoint, setEndpoint] = useState<string | undefined>()
-  const [threads, setThreads] = useState<AgentChatThread[]>([])
-  const [activeThreadId, setActiveThreadId] = useState(() => readStoredActiveThreadId(activeThreadStorageKey))
-  const [pendingUserItems, setPendingUserItems] = useState<AgentChatPendingUserItem[]>([])
-  const [pendingServerRequests, setPendingServerRequests] = useState<PendingServerRequest[]>([])
-  const [recentCapabilityEvents, setRecentCapabilityEvents] = useState<RecentCapabilityEvent[]>([])
-  const [statusSummaryEntries, setStatusSummaryEntries] = useState<AgentChatStatusSummaryEntry[]>([])
-  const [streamingAgentItems, setStreamingAgentItems] = useState<Record<string, AgentChatStreamingAgentItem>>({})
-  const [realtimeTranscriptItems, setRealtimeTranscriptItems] = useState<Record<string, AgentChatRealtimeTranscriptItem>>({})
-  const [realtimeAudioItems, setRealtimeAudioItems] = useState<Record<string, AgentChatRealtimeAudioItem>>({})
+  const [runtime, dispatchRuntime] = useReducer(
+    agentChatRuntimeReducer,
+    undefined,
+    () => createAgentChatRuntimeState(readCurrentActiveThreadId()),
+  )
+  const runtimeRef = useRef(runtime)
+  useEffect(() => {
+    runtimeRef.current = runtime
+  }, [runtime])
+  const {
+    threads,
+    activeThreadId,
+    pendingUserItems,
+    recentCapabilityEvents,
+    streamingAgentItems,
+    realtimeTranscriptItems,
+    realtimeAudioItems,
+    threadReadRequests,
+    threadReadStates,
+  } = runtime
+  const pendingThreadReadRequests = useMemo(
+    () => selectAgentChatRuntimePendingThreadReadRequests(runtime),
+    [runtime],
+  )
+  const pendingThreadResumeRequests = useMemo(
+    () => selectAgentChatRuntimePendingThreadResumeRequests(runtime),
+    [runtime],
+  )
   const [threadModelOverrides, setThreadModelOverrides] = useState<Record<string, string>>({})
-  const streamingAgentItemsRef = useRef<Record<string, AgentChatStreamingAgentItem>>({})
+  const [conversationOpenState, setConversationOpenState] = useState<AgentConversationOpenRecord[]>(() => readAgentConversationOpenState(userId))
   const recentCapabilityEventSequenceRef = useRef(0)
   const activeThreadIdRef = useRef(activeThreadId)
+  const shellInstanceIdRef = useRef(`agent_chat_shell_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`)
   const loadDataSourceRef = useRef(loadDataSource)
   const loadThreadsRef = useRef<() => Promise<void>>(async () => undefined)
   const restoreStoredThreadRef = useRef<() => Promise<void>>(async () => undefined)
@@ -195,13 +281,36 @@ export function AgentChatDataSourceShell({
   const [stoppingTurn, setStoppingTurn] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [threadListNextCursor, setThreadListNextCursor] = useState<string | null>(null)
+  const [threadListLoadingMore, setThreadListLoadingMore] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const olderItemsScrollAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null)
+  const suppressNextAutoScrollRef = useRef(false)
+  const [visibleThreadItemCount, setVisibleThreadItemCount] = useState(AGENT_CHAT_VISIBLE_ITEM_WINDOW_INITIAL_SIZE)
   const composerConversationId = agentChatComposerConversationId(activeThreadStorageKey, activeThreadId)
   const composerWorkspace = useAgentSessionStore((state) => state.getConversationWorkspace(userId, composerConversationId))
   const { data: resourcesData } = useQuery<RawResource[] | { items: RawResource[] }>({
     queryKey: ['resources', 'agent-panel'],
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((response) => response.data),
   })
+
+  useEffect(() => {
+    setConversationOpenState(readAgentConversationOpenState(userId))
+  }, [userId])
+
+  useEffect(() => {
+    function handleOpenStateChanged(event: Event) {
+      const detailUserId = (event as CustomEvent<{ userId?: string }>).detail?.userId
+      if (detailUserId !== undefined && detailUserId !== userId) return
+      setConversationOpenState(readAgentConversationOpenState(userId))
+    }
+    window.addEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleOpenStateChanged)
+    window.addEventListener('storage', handleOpenStateChanged)
+    return () => {
+      window.removeEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleOpenStateChanged)
+      window.removeEventListener('storage', handleOpenStateChanged)
+    }
+  }, [userId])
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
   const composer = useAgentComposerController({
     userId,
@@ -214,18 +323,41 @@ export function AgentChatDataSourceShell({
 
   const setActiveThreadIdValue = useCallback((threadId: string | null) => {
     activeThreadIdRef.current = threadId
-    setActiveThreadId(threadId)
+    dispatchRuntime({ type: 'setActiveThreadId', threadId })
   }, [])
-
-  const updateStreamingAgentItems = useCallback((updater: (current: Record<string, AgentChatStreamingAgentItem>) => Record<string, AgentChatStreamingAgentItem>) => {
-    const next = updater(streamingAgentItemsRef.current)
-    streamingAgentItemsRef.current = next
-    setStreamingAgentItems(next)
-  }, [])
+  const persistentRequestScopeKey = persistentServerRequestScopeKey(activeThreadStorageKey)
+  const replayPersistentServerRequests = useCallback(() => {
+    const entries = persistentPendingServerRequests.get(persistentRequestScopeKey) ?? []
+    if (entries.length === 0) return
+    dispatchRuntime({
+      type: 'updatePendingServerRequests',
+      update: (current) => {
+        let next = current
+        const currentKeys = new Set(current.map(agentChatPendingServerRequestEntryKey))
+        for (const entry of entries) {
+          const entryKey = agentChatPendingServerRequestEntryKey(entry)
+          if (currentKeys.has(entryKey)) continue
+          currentKeys.add(entryKey)
+          next = upsertAgentChatPendingServerRequest(next, entry.request, entry.resolve)
+        }
+        return next
+      },
+    })
+  }, [persistentRequestScopeKey])
 
   useEffect(() => {
     loadDataSourceRef.current = loadDataSource
   }, [loadDataSource])
+
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId
+    writeStoredActiveThreadId(activeThreadStorageKey, activeThreadId)
+    notifyAgentChatDataSourceActiveThread({
+      eventName: openThreadEventName,
+      sourceId: shellInstanceIdRef.current,
+      threadId: activeThreadId,
+    })
+  }, [activeThreadId, activeThreadStorageKey, openThreadEventName])
 
   useAgentMentionEditorSync({
     conversationId: composerConversationId,
@@ -240,18 +372,14 @@ export function AgentChatDataSourceShell({
     setError(null)
     setDataSource(undefined)
     setEndpoint(undefined)
-    setThreads([])
-    setPendingUserItems([])
-    setPendingServerRequests((current) => removeAgentChatPendingServerRequests(current, () => true))
-    setRecentCapabilityEvents([])
-    setStatusSummaryEntries([])
-    updateStreamingAgentItems(() => ({}))
-    setRealtimeTranscriptItems({})
-    setRealtimeAudioItems({})
     recentCapabilityEventSequenceRef.current = 0
     setSending(false)
     setStoppingTurn(false)
-    setActiveThreadIdValue(readStoredActiveThreadId(activeThreadStorageKey))
+    setThreadListNextCursor(null)
+    setThreadListLoadingMore(false)
+    const storedThreadId = readCurrentActiveThreadId()
+    activeThreadIdRef.current = storedThreadId
+    dispatchRuntime({ type: 'reset', activeThreadId: storedThreadId })
     void loadDataSourceRef.current()
       .then((result) => {
         if (cancelled) return
@@ -267,14 +395,17 @@ export function AgentChatDataSourceShell({
     return () => {
       cancelled = true
     }
-  }, [activeThreadStorageKey, setActiveThreadIdValue, updateStreamingAgentItems])
+  }, [activeThreadStorageKey, readCurrentActiveThreadId])
 
   const upsertThread = useCallback((thread: AgentChatThread) => {
-    setThreads((current) => {
-      const without = current.filter((item) => item.id !== thread.id)
-      return [thread, ...without].sort((a, b) => b.updatedAt - a.updatedAt)
-    })
+    dispatchRuntime({ type: 'upsertThread', thread })
   }, [])
+
+  const upsertThreadReadResult = useCallback((thread: AgentChatThread, input: AgentChatThreadReadInput) => {
+    dispatchRuntime({ type: 'upsertThreadReadResult', thread, input })
+  }, [])
+
+  const closedThreadIds = useMemo(() => new Set(closedAgentConversationIds(conversationOpenState)), [conversationOpenState])
 
   const markThreadOpen = useCallback((threadId: string) => {
     const next = setAgentConversationOpen(readAgentConversationOpenState(userId), [threadId], true)
@@ -283,7 +414,7 @@ export function AgentChatDataSourceShell({
   }, [userId])
 
   const markThreadClosed = useCallback((threadId: string, clearActive: boolean) => {
-    const next = removeAgentConversationOpenRecords(readAgentConversationOpenState(userId), [threadId])
+    const next = setAgentConversationOpen(readAgentConversationOpenState(userId), [threadId], false)
     writeAgentConversationOpenState(userId, next)
     if (clearActive) writeAgentActiveConversationId(userId, null)
   }, [userId])
@@ -298,7 +429,9 @@ export function AgentChatDataSourceShell({
 
   const readHistoryThread = useCallback(async (threadId: string) => {
     if (!dataSource) throw new Error('Agent data source is not available')
-    return dataSource.readThread(threadId, { includeTurns: true })
+    const input = buildAgentChatRuntimeThreadReadInput(runtimeRef.current, threadId)
+    const thread = await dataSource.readThread(threadId, input)
+    return { thread, input }
   }, [dataSource])
 
   const loadThreads = useCallback(async () => {
@@ -306,41 +439,72 @@ export function AgentChatDataSourceShell({
     setLoading(true)
     setError(null)
     try {
-      const response = await dataSource.listThreads({ limit: 50 })
+      const response = await dataSource.listThreads({ limit: AGENT_CHAT_THREAD_LIST_PAGE_SIZE })
+      setThreadListNextCursor(response.nextCursor ?? null)
       const nextThreads = response.threads
-      setThreads(nextThreads)
-      const stored = readStoredActiveThreadId(activeThreadStorageKey)
+      const stored = readCurrentActiveThreadId()
+      const nextThreadsWithStored = stored && !nextThreads.some((thread) => thread.id === stored)
+        ? [provisionalAgentChatThread(stored, dataSource), ...nextThreads]
+        : nextThreads
+      dispatchRuntime({ type: 'setThreads', threads: nextThreadsWithStored })
       const candidateIds = uniqueAgentChatThreadIds([
-        nextThreads.find((thread) => thread.id === stored)?.id,
-        ...nextThreads.map((thread) => thread.id),
+        stored,
+        ...nextThreads.filter((thread) => !closedThreadIds.has(thread.id)).map((thread) => thread.id),
       ])
       let lastMissingThreadError: unknown
       for (const candidateId of candidateIds) {
         setActiveThreadIdValue(candidateId)
         writeStoredActiveThreadId(activeThreadStorageKey, candidateId)
         try {
-          const thread = await readHistoryThread(candidateId)
-          upsertThread(thread)
+          const { thread, input } = await readHistoryThread(candidateId)
+          upsertThreadReadResult(thread, input)
           return
         } catch (readError) {
           if (!isUnavailableThreadReadError(readError)) throw readError
           lastMissingThreadError = readError
+          if (candidateId === stored) {
+            setError(errorMessage(readError))
+            return
+          }
           clearUnavailableActiveThread(candidateId)
         }
       }
-      setActiveThreadIdValue(null)
-      writeStoredActiveThreadId(activeThreadStorageKey, null)
+      if (!stored) {
+        setActiveThreadIdValue(null)
+        writeStoredActiveThreadId(activeThreadStorageKey, null)
+      }
       if (lastMissingThreadError) setError(errorMessage(lastMissingThreadError))
     } catch (nextError) {
       setError(errorMessage(nextError))
     } finally {
       setLoading(false)
     }
-  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, clearUnavailableActiveThread, closedThreadIds, dataSource, readCurrentActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
+
+  const loadMoreThreads = useCallback(async () => {
+    if (!dataSource || !threadListNextCursor || threadListLoadingMore) return
+    setThreadListLoadingMore(true)
+    setError(null)
+    try {
+      const response = await dataSource.listThreads({
+        limit: AGENT_CHAT_THREAD_LIST_PAGE_SIZE,
+        cursor: threadListNextCursor,
+      })
+      setThreadListNextCursor(response.nextCursor ?? null)
+      dispatchRuntime({
+        type: 'updateThreads',
+        update: (current) => mergeAgentChatThreadListPage(current, response.threads),
+      })
+    } catch (nextError) {
+      setError(errorMessage(nextError))
+    } finally {
+      setThreadListLoadingMore(false)
+    }
+  }, [dataSource, threadListLoadingMore, threadListNextCursor])
 
   const restoreStoredThread = useCallback(async () => {
     if (!dataSource) return
-    const stored = readStoredActiveThreadId(activeThreadStorageKey)
+    const stored = readCurrentActiveThreadId()
     if (!stored) {
       setLoading(false)
       return
@@ -348,19 +512,16 @@ export function AgentChatDataSourceShell({
     setLoading(true)
     setError(null)
     setActiveThreadIdValue(stored)
+    dispatchRuntime({ type: 'upsertThread', thread: provisionalAgentChatThread(stored, dataSource) })
     try {
-      const thread = await readHistoryThread(stored)
-      upsertThread(thread)
+      const { thread, input } = await readHistoryThread(stored)
+      upsertThreadReadResult(thread, input)
     } catch (nextError) {
-      if (isUnavailableThreadReadError(nextError)) {
-        clearUnavailableActiveThread(stored)
-        setThreads((current) => current.filter((thread) => thread.id !== stored))
-      }
       setError(errorMessage(nextError))
     } finally {
       setLoading(false)
     }
-  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, readHistoryThread, setActiveThreadIdValue, upsertThread])
+  }, [dataSource, readCurrentActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
   useEffect(() => {
     loadThreadsRef.current = loadThreads
@@ -377,21 +538,23 @@ export function AgentChatDataSourceShell({
     markThreadOpen(threadId)
     setError(null)
     try {
-      const response = await readHistoryThread(threadId)
-      upsertThread(response)
+      const { thread, input } = await readHistoryThread(threadId)
+      upsertThreadReadResult(thread, input)
       setHistoryOpen(false)
     } catch (nextError) {
       if (isUnavailableThreadReadError(nextError)) {
         clearUnavailableActiveThread(threadId)
-        setThreads((current) => current.filter((thread) => thread.id !== threadId))
+        dispatchRuntime({ type: 'removeThread', threadId })
       }
       setError(errorMessage(nextError))
     }
-  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, clearUnavailableActiveThread, dataSource, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
   useEffect(() => {
     function handleOpenThread(event: Event) {
-      const threadId = (event as CustomEvent<{ threadId?: string }>).detail?.threadId?.trim()
+      const detail = (event as CustomEvent<{ threadId?: string; sourceId?: string }>).detail
+      if (detail?.sourceId === shellInstanceIdRef.current) return
+      const threadId = detail?.threadId?.trim()
       if (!threadId) return
       void openThread(threadId)
     }
@@ -516,51 +679,24 @@ export function AgentChatDataSourceShell({
       markThreadOpen(requestThreadId)
     }
     return new Promise<AgentChatServerRequestResponse | undefined>((resolve) => {
-      setPendingServerRequests((current) => upsertAgentChatPendingServerRequest(current, request, resolve))
+      const persistentResolve = storePersistentServerRequest(persistentRequestScopeKey, request, resolve)
+      dispatchRuntime({ type: 'enqueueServerRequest', request, resolve: persistentResolve })
     })
-  }, [activeThreadStorageKey, markThreadOpen, setActiveThreadIdValue])
+  }, [activeThreadStorageKey, markThreadOpen, persistentRequestScopeKey, setActiveThreadIdValue])
+
+  useEffect(() => {
+    replayPersistentServerRequests()
+  }, [activeThreadId, dataSource, replayPersistentServerRequests])
 
   const handleNotification = useCallback((notification: AgentChatNotification) => {
-    const statusSummary = agentChatStatusSummaryEntryFromNotification(notification)
-    if (statusSummary) {
-      setStatusSummaryEntries((current) => upsertAgentChatStatusSummaryEntry(current, statusSummary))
-    }
-    if (
-      notification.event
-      && !agentChatNotificationEventIsStatusSummary(notification.event)
-      && agentChatNotificationEventShouldDisplayAsRecent(notification.event)
-    ) {
-      const recentEventId = agentChatRecentCapabilityEventEntryId({
-        method: notification.method,
-        nowMs: Date.now(),
-        sequence: ++recentCapabilityEventSequenceRef.current,
-      })
-      setRecentCapabilityEvents((current) => [
-        { id: recentEventId, event: notification.event as AgentChatNotificationEvent },
-        ...current,
-      ].slice(0, 6))
-    }
-    dispatchAgentChatNotification(notification, {
-      upsertThread,
-      updateThreads: setThreads,
-      activeThreadId,
-      setActiveThreadId: (threadId) => {
-        setActiveThreadIdValue(threadId)
-        writeStoredActiveThreadId(activeThreadStorageKey, threadId)
-      },
-      updatePendingUserItems: setPendingUserItems,
-      updatePendingServerRequests: setPendingServerRequests,
-      updateStreamingAgentItems,
-      readStreamingAgentItems: () => streamingAgentItemsRef.current,
-      updateRealtimeTranscriptItems: setRealtimeTranscriptItems,
-      updateRealtimeAudioItems: setRealtimeAudioItems,
-      readThread: (threadId) => {
-        void dataSource?.readThread(threadId, { includeTurns: true })
-          .then((thread) => upsertThread(thread))
-          .catch((nextError) => setError(errorMessage(nextError)))
-      },
+    applyPersistentServerRequestNotification(persistentRequestScopeKey, notification)
+    dispatchRuntime({
+      type: 'applyNotification',
+      notification,
+      nowMs: Date.now(),
+      recentEventSequence: ++recentCapabilityEventSequenceRef.current,
     })
-  }, [activeThreadId, activeThreadStorageKey, dataSource, setActiveThreadIdValue, updateStreamingAgentItems, upsertThread])
+  }, [persistentRequestScopeKey])
 
   useEffect(() => {
     if (!dataSource?.subscribeServerRequests) return undefined
@@ -660,10 +796,113 @@ export function AgentChatDataSourceShell({
   }, [activeThreadId, dataSource, handleNotification, handleServerRequest])
 
   useEffect(() => {
+    if (!dataSource || pendingThreadReadRequests.length === 0) return
+    for (const request of pendingThreadReadRequests) {
+      dispatchRuntime({ type: 'beginThreadReadRequest', requestId: request.id })
+      void dataSource.readThread(request.threadId, request.input)
+        .then((thread) => upsertThreadReadResult(thread, request.input))
+        .catch((nextError) => setError(errorMessage(nextError)))
+        .finally(() => dispatchRuntime({ type: 'completeThreadReadRequest', requestId: request.id }))
+    }
+  }, [dataSource, pendingThreadReadRequests, upsertThreadReadResult])
+
+  useEffect(() => {
+    if (!dataSource?.resumeThread || pendingThreadResumeRequests.length === 0) return
+    for (const request of pendingThreadResumeRequests) {
+      dispatchRuntime({ type: 'beginThreadResumeRequest', requestId: request.id })
+      const thread = runtimeRef.current.threads.find((item) => item.id === request.threadId)
+      void dataSource.resumeThread({
+        threadId: request.threadId,
+        ...(thread?.cwd?.trim() ? { cwd: thread.cwd.trim() } : {}),
+        ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+        ...(goalModeEnabled ? { goalModeEnabled } : {}),
+        ...selectedModelSelectionForRequest(thread),
+      })
+        .then((resumedThread) => {
+          dispatchRuntime({ type: 'completeThreadResumeRequest', requestId: request.id, thread: resumedThread })
+        })
+        .catch((nextError) => {
+          const message = errorMessage(nextError)
+          setError(message)
+          dispatchRuntime({ type: 'completeThreadResumeRequest', requestId: request.id, error: message })
+        })
+    }
+  }, [collaborationMode, dataSource, goalModeEnabled, pendingThreadResumeRequests, selectedModelSelectionForRequest])
+
+  useLayoutEffect(() => {
+    const anchor = olderItemsScrollAnchorRef.current
+    const thread = scrollRef.current
+    if (!anchor || !thread) return
+    olderItemsScrollAnchorRef.current = null
+    suppressNextAutoScrollRef.current = true
+    thread.scrollTop = anchor.scrollTop + Math.max(0, thread.scrollHeight - anchor.scrollHeight)
+  }, [threads, visibleThreadItemCount])
+
+  useEffect(() => {
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false
+      return
+    }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [threads, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems, activeThreadId])
 
-  const activeThread = threads.find((thread) => thread.id === activeThreadId) ?? null
+  const {
+    activeThread,
+    activeTurn,
+    historyThreads,
+    visibleItems: runtimeVisibleItems,
+    visiblePendingServerRequests,
+    visibleStatusItems,
+  } = useMemo(() => selectAgentChatRuntimeView(runtime), [runtime])
+  useEffect(() => {
+    setVisibleThreadItemCount(AGENT_CHAT_VISIBLE_ITEM_WINDOW_INITIAL_SIZE)
+  }, [activeThreadId])
+  const visibleItemWindow = useMemo(() => buildAgentChatVisibleItemWindow({
+    items: runtimeVisibleItems,
+    visibleCount: visibleThreadItemCount,
+    keepItem: (item) => item.streaming,
+  }), [runtimeVisibleItems, visibleThreadItemCount])
+  const visibleItems = visibleItemWindow.visibleItems
+  const activeThreadReadState = activeThreadId ? threadReadStates[activeThreadId] : undefined
+  const olderThreadReadPending = Boolean(activeThreadId && threadReadRequests.some((request) => (
+    request.threadId === activeThreadId
+    && (request.input.direction ?? 'newer') === 'older'
+  )))
+  const canFetchEarlierThreadItems = Boolean(
+    activeThreadId
+    && activeThreadReadState
+    && !activeThreadReadState.hasCompleteHistory
+    && visibleItemWindow.hiddenCount === 0
+    && !olderThreadReadPending,
+  )
+  const canShowOlderThreadItems = visibleItemWindow.hiddenCount > 0 || canFetchEarlierThreadItems
+  const showOlderThreadItems = useCallback(() => {
+    const thread = scrollRef.current
+    if (thread) {
+      olderItemsScrollAnchorRef.current = {
+        scrollHeight: thread.scrollHeight,
+        scrollTop: thread.scrollTop,
+      }
+    }
+    if (visibleItemWindow.hiddenCount === 0) {
+      if (activeThreadId && canFetchEarlierThreadItems) {
+        dispatchRuntime({ type: 'requestThreadRead', threadId: activeThreadId, direction: 'older' })
+      }
+      return
+    }
+    const previousScrollHeight = thread?.scrollHeight ?? 0
+    const previousScrollTop = thread?.scrollTop ?? 0
+    setVisibleThreadItemCount(visibleItemWindow.nextVisibleCount)
+    requestAnimationFrame(() => {
+      if (!thread) return
+      thread.scrollTop = previousScrollTop + Math.max(0, thread.scrollHeight - previousScrollHeight)
+    })
+  }, [activeThreadId, canFetchEarlierThreadItems, visibleItemWindow.hiddenCount, visibleItemWindow.nextVisibleCount])
+  const handleThreadScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    if (!canShowOlderThreadItems) return
+    if (event.currentTarget.scrollTop > AGENT_CHAT_OLDER_ITEMS_SCROLL_THRESHOLD_PX) return
+    showOlderThreadItems()
+  }, [canShowOlderThreadItems, showOlderThreadItems])
   const activeThreadModelValue = useMemo(() => {
     const model = (activeThreadId ? threadModelOverrides[activeThreadId] : undefined)
       || activeThread?.executionSettings?.model
@@ -685,18 +924,6 @@ export function AgentChatDataSourceShell({
       return next
     })
   }, [activeThreadId, modelOptions, onSelectedModelChange])
-  const visibleStatusItems = useMemo(() => statusSummaryEntries
-    .filter((item) => !item.threadId || item.threadId === activeThreadId)
-    .sort((left, right) => right.updatedAt - left.updatedAt)
-    .slice(0, 8), [activeThreadId, statusSummaryEntries])
-  const activeTurn = useMemo(() => activeThread?.turns.find(agentChatTurnIsActive) ?? null, [activeThread])
-  const visibleItems = useMemo(() => {
-    if (!activeThread) return []
-    return buildAgentChatVisibleItems(activeThread, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems)
-  }, [activeThread, pendingUserItems, streamingAgentItems, realtimeTranscriptItems, realtimeAudioItems])
-  const visiblePendingServerRequests = useMemo(() => (
-    visibleAgentChatPendingServerRequests(pendingServerRequests, activeThreadId)
-  ), [activeThreadId, pendingServerRequests])
   const hasComposerActionLayer = visiblePendingServerRequests.length > 0
   const hasThreadBodyContent = Boolean(
     visibleItems.length
@@ -707,10 +934,8 @@ export function AgentChatDataSourceShell({
 
   useEffect(() => {
     if (!dataSource || !activeThreadId || activeThread || visiblePendingServerRequests.length === 0) return
-    void dataSource.readThread(activeThreadId, { includeTurns: true })
-      .then((thread) => upsertThread(thread))
-      .catch((nextError) => setError(errorMessage(nextError)))
-  }, [activeThread, activeThreadId, dataSource, upsertThread, visiblePendingServerRequests.length])
+    dispatchRuntime({ type: 'requestThreadRead', threadId: activeThreadId })
+  }, [activeThread, activeThreadId, dataSource, visiblePendingServerRequests.length])
 
   const canSteerActiveTurn = Boolean(activeTurn && dataSource?.steerTurn)
   const canSend = Boolean(
@@ -728,11 +953,13 @@ export function AgentChatDataSourceShell({
   const sendMessage = useCallback(async (profilePresetId: AgentRunProfilePresetId = DEFAULT_AGENT_RUN_PROFILE_PRESET_ID) => {
     if (!dataSource || sending) return
     const runProfile = agentRunProfilePresetById(profilePresetId)
-    const text = composer.input.trim()
-    const inputs = agentChatInputsFromTextAndAttachments(text, composer.composerAttachments)
+    const composerInput = composer.getInput()
+    const text = composerInput.trim()
+    const sentAttachments = composer.composerAttachments
+    const inputs = agentChatInputsFromTextAndAttachments(text, sentAttachments)
     if (inputs.length === 0) return
     const previousWorkspace = {
-      input: composer.input,
+      input: composerInput,
       attachments: composer.attachments,
       workspaceContext: composer.selectedWorkspaceContext,
     }
@@ -745,15 +972,15 @@ export function AgentChatDataSourceShell({
         : undefined
       let thread = activeThread
       if (thread?.status === 'notLoaded') {
-        if (!dataSource.resumeThread) {
-          throw new Error(`Thread ${thread.id} is not loaded and cannot be resumed by ${dataSource.label}.`)
-        }
-        thread = await dataSource.resumeThread({
-          threadId: thread.id,
-          cwd: thread.cwd,
+        thread = await ensureAgentChatThreadReadyForTurn({
+          dataSource,
+          thread,
           runProfile,
-          ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
-          ...selectedModelSelectionForRequest(thread),
+          controls: {
+            ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+            ...(goalModeEnabled ? { goalModeEnabled } : {}),
+          },
+          modelSelection: selectedModelSelectionForRequest(thread),
         })
         upsertThread(thread)
       }
@@ -772,12 +999,12 @@ export function AgentChatDataSourceShell({
       }
       restoreConversationId = agentChatComposerConversationId(activeThreadStorageKey, thread.id)
       useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, { input: '', attachments: [] })
-      if (restoreConversationId !== composerConversationId) composer.updateWorkspace({ input: '', attachments: [] })
+      composer.updateWorkspace({ input: '', attachments: [] })
       clearAgentChatComposerEditor(composerInputRef.current)
       const clientUserMessageId = `agent_user_${Date.now()}`
-      setPendingUserItems((current) => [
-        ...current,
-        {
+      dispatchRuntime({
+        type: 'appendPendingUserItem',
+        item: {
           threadId: thread.id,
           item: {
             type: 'userMessage',
@@ -786,7 +1013,7 @@ export function AgentChatDataSourceShell({
             content: inputs,
           },
         },
-      ])
+      })
       if (activeTurn && dataSource.steerTurn) {
         await dataSource.steerTurn({
           threadId: thread.id,
@@ -815,8 +1042,10 @@ export function AgentChatDataSourceShell({
           ...selectedModelSelectionForRequest(thread),
         })
       }
+      composer.revokeAttachmentPreviewUrls(sentAttachments)
     } catch (nextError) {
       useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, previousWorkspace)
+      composer.updateWorkspace(previousWorkspace)
       setError(errorMessage(nextError))
     } finally {
       setSending(false)
@@ -833,17 +1062,18 @@ export function AgentChatDataSourceShell({
         turnId: activeTurn.id,
         reason: `Interrupted from ${providerLabel}.`,
       })
-      const thread = await dataSource.readThread(activeThread.id, { includeTurns: true })
-      upsertThread(thread)
+      const input = buildAgentChatRuntimeThreadReadInput(runtimeRef.current, activeThread.id)
+      const thread = await dataSource.readThread(activeThread.id, input)
+      upsertThreadReadResult(thread, input)
     } catch (nextError) {
       setError(errorMessage(nextError))
     } finally {
       setStoppingTurn(false)
     }
-  }, [activeThread, activeTurn, dataSource, providerLabel, stoppingTurn, upsertThread])
+  }, [activeThread, activeTurn, dataSource, providerLabel, stoppingTurn, upsertThreadReadResult])
 
   const resolveServerRequest = useCallback((request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => {
-    setPendingServerRequests((current) => resolveAgentChatPendingServerRequest(current, request, response))
+    dispatchRuntime({ type: 'resolveServerRequest', request, response })
   }, [])
 
   const renameThread = useCallback(async (threadId: string, name: string) => {
@@ -853,48 +1083,42 @@ export function AgentChatDataSourceShell({
       const response = await dataSource.renameThread({ threadId, name })
       if (isAgentChatThread(response)) upsertThread(response)
       else {
-        setThreads((current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Date.now() } : thread))
+        dispatchRuntime({
+          type: 'updateThreads',
+          update: (current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Date.now() } : thread),
+        })
       }
     } catch (nextError) {
       setError(errorMessage(nextError))
     }
   }, [dataSource, upsertThread])
 
-  const archiveThread = useCallback(async (threadId: string) => {
-    if (!dataSource?.archiveThread) {
-      if (threadId === activeThreadId) {
-        setActiveThreadIdValue(null)
-        writeStoredActiveThreadId(activeThreadStorageKey, null)
-      }
-      markThreadClosed(threadId, threadId === activeThreadId)
+  const closeThreadTab = useCallback(async (threadId: string) => {
+    const thread = runtimeRef.current.threads.find((item) => item.id === threadId)
+    if (thread && agentChatThreadIsRunning(thread)) {
+      setError('Stop the running turn before closing this tab.')
       return
     }
-    setError(null)
-    try {
-      await dataSource.archiveThread({ threadId })
-      setThreads((current) => current.filter((thread) => thread.id !== threadId))
-      if (threadId === activeThreadId) {
-        setActiveThreadIdValue(null)
-        writeStoredActiveThreadId(activeThreadStorageKey, null)
-      }
-      markThreadClosed(threadId, threadId === activeThreadId)
-    } catch (nextError) {
-      setError(errorMessage(nextError))
+    if (threadId === activeThreadId) {
+      setActiveThreadIdValue(null)
+      writeStoredActiveThreadId(activeThreadStorageKey, null)
     }
-  }, [activeThreadId, activeThreadStorageKey, dataSource, markThreadClosed, setActiveThreadIdValue])
+    markThreadClosed(threadId, threadId === activeThreadId)
+  }, [activeThreadId, activeThreadStorageKey, markThreadClosed, setActiveThreadIdValue])
 
-  const threadTabs = useMemo(() => threads.map((thread) => ({
-    id: thread.id,
-    title: thread.name || thread.preview || 'Untitled thread',
-    messageCount: thread.turns.reduce((count, turn) => count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length, 0),
-    sessionState: agentChatThreadProviderSessionState(thread),
-    ...(dataSource?.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
-  })), [dataSource?.renameThread, renameThread, threads])
-  const historyThreads = useMemo(
-    () => activeThreadId ? threads.filter((thread) => thread.id !== activeThreadId) : threads,
-    [activeThreadId, threads],
-  )
-
+  const threadTabs = useMemo(() => threads
+    .filter((thread) => !closedThreadIds.has(thread.id))
+    .map((thread) => ({
+      id: thread.id,
+      title: thread.name || thread.preview || 'Untitled thread',
+      messageCount: thread.turns.reduce((count, turn) => count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length, 0),
+      sessionState: agentChatThreadProviderSessionState(thread),
+      ...(dataSource?.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
+    })), [closedThreadIds, dataSource?.renameThread, renameThread, threads])
+  const closedHistoryThreads = useMemo(() => {
+    const closedIds = closedThreadIds
+    return historyThreads.filter((thread) => closedIds.has(thread.id))
+  }, [closedThreadIds, historyThreads])
   if (!dataSource) {
     return (
       <AgentShell density="compact" className={shellClassName}>
@@ -931,7 +1155,7 @@ export function AgentChatDataSourceShell({
                         />
                       )}
                       onCloseConversation={(threadId) => {
-                        void archiveThread(threadId)
+                        void closeThreadTab(threadId)
                       }}
                       onCloseTabContextMenu={() => undefined}
                       onOpenKeyboardMenu={() => undefined}
@@ -952,7 +1176,11 @@ export function AgentChatDataSourceShell({
                 recentCapabilityEvents={recentCapabilityEvents}
                 scrollRef={scrollRef}
                 statusItems={visibleStatusItems}
+                hiddenItemCount={visibleItemWindow.hiddenCount}
+                canLoadEarlierItems={canShowOlderThreadItems}
                 visibleItems={visibleItems}
+                onScroll={handleThreadScroll}
+                onShowOlderItems={showOlderThreadItems}
               />
             </section>
           ) : (
@@ -969,7 +1197,11 @@ export function AgentChatDataSourceShell({
                     recentCapabilityEvents={recentCapabilityEvents}
                     scrollRef={scrollRef}
                     statusItems={visibleStatusItems}
+                    hiddenItemCount={visibleItemWindow.hiddenCount}
+                    canLoadEarlierItems={canShowOlderThreadItems}
                     visibleItems={visibleItems}
+                    onScroll={handleThreadScroll}
+                    onShowOlderItems={showOlderThreadItems}
                   />
                 </div>
               )}
@@ -990,6 +1222,7 @@ export function AgentChatDataSourceShell({
               chrome={surface === 'page' ? 'flush' : 'bottom-bar'}
               composerAttachmentEntries={composer.composerAttachmentEntries}
               composerAttachmentsCount={composer.composerAttachments.length}
+              composerInput={composer.input}
               composerPlaceholder={composerPlaceholder}
               debugBeforeSend={false}
               draggingFiles={composer.draggingFiles}
@@ -1023,7 +1256,7 @@ export function AgentChatDataSourceShell({
               onComposerDrop={(event) => void composer.handleComposerDrop(event)}
               onComposerPaste={(event) => void composer.handleComposerPaste(event)}
               onDebugBeforeSendChange={() => undefined}
-              onInputChange={(nextInput) => composer.updateWorkspace({ input: nextInput })}
+              onInputChange={composer.updateInputDraft}
               onMentionEscape={() => composer.setMentionRange(null)}
               onMentionSelect={composer.insertResourceMention}
               onMentionState={composer.updateMentionState}
@@ -1046,9 +1279,12 @@ export function AgentChatDataSourceShell({
               dataSourceLabel={dataSource.label}
               emptyThreadListLabel={emptyThreadListLabel}
               endpoint={endpoint}
-              historyThreads={historyThreads}
+              hasMoreThreadPages={Boolean(threadListNextCursor)}
+              historyThreads={closedHistoryThreads}
               loading={loading}
+              loadingMore={threadListLoadingMore}
               threadListLabel={threadListLabel}
+              onLoadMoreThreads={loadMoreThreads}
               onLoadThreads={loadThreads}
               onOpenThread={openThread}
             />
@@ -1064,128 +1300,6 @@ function clearAgentChatComposerEditor(editor: HTMLDivElement | null): void {
   editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }))
 }
 
-function agentChatStatusSummaryEntryFromNotification(notification: AgentChatNotification): AgentChatStatusSummaryEntry | null {
-  const now = Date.now()
-  const params = isAgentChatRecord(notification.params) ? notification.params : {}
-  const threadId = stringValue(params.threadId)
-  if (notification.event?.type === 'mcpStatus') {
-    return {
-      id: `mcp:${notification.event.server}`,
-      title: `MCP ${notification.event.server}`,
-      detail: notification.event.error ?? undefined,
-      badge: notification.event.status,
-      tone: agentChatStatusTone(notification.event.status, notification.event.error),
-      updatedAt: now,
-    }
-  }
-  if (notification.method === 'remoteControl/status/changed') {
-    const status = stringValue(params.status) ?? 'updated'
-    return {
-      id: 'remote-control',
-      title: 'Remote control',
-      detail: [stringValue(params.server), stringValue(params.installation)].filter(Boolean).join(' · ') || undefined,
-      badge: status,
-      tone: agentChatStatusTone(status),
-      updatedAt: now,
-    }
-  }
-  if (notification.method === 'thread/tokenUsage/updated') {
-    return {
-      id: `token-usage:${threadId ?? 'global'}`,
-      threadId,
-      title: 'Token usage',
-      detail: tokenUsageSummary(params.tokenUsage),
-      badge: 'tokens',
-      tone: 'neutral',
-      updatedAt: now,
-    }
-  }
-  if (notification.method === 'thread/goal/updated') {
-    const goal = isAgentChatRecord(params.goal) ? params.goal : {}
-    const status = stringValue(goal.status) ?? 'updated'
-    const eventDetail = notification.event?.type === 'systemNotice' ? notification.event.detail ?? undefined : undefined
-    return {
-      id: `goal:${threadId ?? 'global'}`,
-      threadId,
-      title: 'Goal',
-      detail: stringValue(goal.objective) ?? eventDetail,
-      badge: status,
-      tone: agentChatStatusTone(status),
-      updatedAt: now,
-    }
-  }
-  if (notification.method === 'thread/goal/cleared') {
-    return {
-      id: `goal:${threadId ?? 'global'}`,
-      threadId,
-      title: 'Goal',
-      detail: 'Cleared',
-      badge: 'cleared',
-      tone: 'neutral',
-      updatedAt: now,
-    }
-  }
-  return null
-}
-
-function upsertAgentChatStatusSummaryEntry(
-  current: AgentChatStatusSummaryEntry[],
-  entry: AgentChatStatusSummaryEntry,
-): AgentChatStatusSummaryEntry[] {
-  return [
-    entry,
-    ...current.filter((item) => item.id !== entry.id),
-  ].slice(0, 24)
-}
-
-function agentChatNotificationEventIsStatusSummary(event: AgentChatNotificationEvent): boolean {
-  return event.type === 'mcpStatus'
-    || (event.type === 'systemNotice' && event.code === 'remoteControl/status/changed')
-    || (event.type === 'systemNotice' && event.code === 'thread/tokenUsage/updated')
-    || (event.type === 'systemNotice' && event.code === 'thread/goal/updated')
-    || (event.type === 'systemNotice' && event.code === 'thread/goal/cleared')
-}
-
-function tokenUsageSummary(value: unknown): string | undefined {
-  if (!isAgentChatRecord(value)) return undefined
-  const totalRecord = isAgentChatRecord(value.total) ? value.total : value
-  const lastRecord = isAgentChatRecord(value.last) ? value.last : null
-  const total = numberValue(totalRecord.total)
-  const input = numberValue(totalRecord.input)
-  const output = numberValue(totalRecord.output)
-  const cached = numberValue(totalRecord.cached)
-  const reasoning = numberValue(totalRecord.reasoning)
-  const lastTotal = lastRecord ? numberValue(lastRecord.total) : undefined
-  return [
-    total !== undefined ? `total ${total}` : null,
-    input !== undefined ? `input ${input}` : null,
-    output !== undefined ? `output ${output}` : null,
-    cached !== undefined ? `cached ${cached}` : null,
-    reasoning !== undefined ? `reasoning ${reasoning}` : null,
-    lastTotal !== undefined ? `last ${lastTotal}` : null,
-  ].filter(Boolean).join(' · ') || undefined
-}
-
-function agentChatStatusTone(status: string | undefined | null, error?: string | null): AgentPinnedStatusSummaryItem['tone'] {
-  if (error) return 'danger'
-  if (!status) return 'neutral'
-  if (/error|fail|failed|stopped|unavailable|denied|rejected|disabled/i.test(status)) return 'warning'
-  if (/ready|running|complete|completed|ok|enabled/i.test(status)) return 'success'
-  return 'neutral'
-}
-
-function isAgentChatRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function numberValue(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
-}
-
 function agentChatComposerConversationId(activeThreadStorageKey: string, threadId: string | null): string {
   return `${activeThreadStorageKey}:${threadId ?? 'draft'}`
 }
@@ -1199,25 +1313,37 @@ function isAgentChatThread(value: unknown): value is AgentChatThread {
   )
 }
 
+function agentChatThreadIsRunning(thread: AgentChatThread): boolean {
+  return thread.status === 'running' || thread.turns.some((turn) => turn.status === 'inProgress')
+}
+
 function AgentChatDataSourceThreadBody({
+  canLoadEarlierItems,
   emptyThreadLabel,
   error,
+  hiddenItemCount,
   recentCapabilityEvents,
   scrollRef,
   statusItems,
   visibleItems,
+  onScroll,
+  onShowOlderItems,
 }: {
+  canLoadEarlierItems: boolean
   emptyThreadLabel: string
   error: string | null
-  recentCapabilityEvents: RecentCapabilityEvent[]
+  hiddenItemCount: number
+  recentCapabilityEvents: AgentChatRuntimeRecentCapabilityEvent[]
   scrollRef: { current: HTMLDivElement | null }
   statusItems: AgentPinnedStatusSummaryItem[]
   visibleItems: Array<{ viewId: string; item: AgentChatThreadItem; streaming: boolean }>
+  onScroll: (event: UIEvent<HTMLDivElement>) => void
+  onShowOlderItems: () => void
 }) {
   return (
     <AgentBody className="ai-agent-panel-thread-body">
       <AgentPinnedStatusShelf statusItems={statusItems} defaultExpanded={false} />
-      <AgentThreadFill ref={(node) => { scrollRef.current = node }} className="ms-agent-chat-thread-fill">
+      <AgentThreadFill ref={(node) => { scrollRef.current = node }} className="ms-agent-chat-thread-fill" onScroll={onScroll}>
         {error ? (
           <div className="ms-agent-chat-thread-error">{error}</div>
         ) : null}
@@ -1226,6 +1352,13 @@ function AgentChatDataSourceThreadBody({
             {recentCapabilityEvents.map((item) => (
               <AgentChatRecentCapabilityEventCard key={item.id} event={item.event} />
             ))}
+          </div>
+        ) : null}
+        {canLoadEarlierItems ? (
+          <div className="ai-agent-panel-thread-window-control">
+            <Button type="button" size="xs" variant="ghost" onClick={onShowOlderItems}>
+              {hiddenItemCount > 0 ? `Load earlier items (${hiddenItemCount})` : 'Load earlier items'}
+            </Button>
           </div>
         ) : null}
         <div className="ms-agent-chat-thread-items">
@@ -1247,18 +1380,24 @@ function AgentChatDataSourceHistoryPanel({
   dataSourceLabel,
   emptyThreadListLabel,
   endpoint,
+  hasMoreThreadPages,
   historyThreads,
   loading,
+  loadingMore,
   threadListLabel,
+  onLoadMoreThreads,
   onLoadThreads,
   onOpenThread,
 }: {
   dataSourceLabel: string
   emptyThreadListLabel: string
   endpoint?: string
+  hasMoreThreadPages: boolean
   historyThreads: AgentChatThread[]
   loading: boolean
+  loadingMore: boolean
   threadListLabel: string
+  onLoadMoreThreads: () => Promise<void>
   onLoadThreads: () => Promise<void>
   onOpenThread: (threadId: string) => Promise<void>
 }) {
@@ -1271,6 +1410,7 @@ function AgentChatDataSourceHistoryPanel({
           size="xs"
           variant="ghost"
           className="ai-agent-panel-empty-history-more"
+          disabled={loading}
           onClick={() => void onLoadThreads()}
         >
           Refresh
@@ -1297,6 +1437,20 @@ function AgentChatDataSourceHistoryPanel({
           />
         ))}
       </div>
+      {hasMoreThreadPages ? (
+        <div className="ai-agent-panel-empty-history-more-row">
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="ai-agent-panel-empty-history-more"
+            disabled={loadingMore}
+            onClick={() => void onLoadMoreThreads()}
+          >
+            {loadingMore ? 'Loading' : 'Load more'}
+          </Button>
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -1305,7 +1459,7 @@ function AgentComposerActionLayer({
   pendingServerRequests,
   onResolveServerRequest,
 }: {
-  pendingServerRequests: PendingServerRequest[]
+  pendingServerRequests: AgentChatRuntimePendingServerRequest[]
   onResolveServerRequest: (request: AgentChatServerRequest, response: AgentChatServerRequestResponse | undefined) => void
 }) {
   const [page, setPage] = useState(0)
@@ -1375,29 +1529,16 @@ function clampPage(page: number, itemCount: number): number {
   return Math.min(Math.max(0, Math.floor(page)), itemCount - 1)
 }
 
-export function openAgentChatDataSourceThread(input: {
-  storageKey: string
-  eventName: string
-  threadId: string
-}): void {
-  if (typeof window === 'undefined') return
-  writeStoredActiveThreadId(input.storageKey, input.threadId)
-  window.dispatchEvent(new CustomEvent(input.eventName, { detail: { threadId: input.threadId } }))
-}
-
-function readStoredActiveThreadId(storageKey: string): string | null {
-  if (typeof window === 'undefined') return null
-  return window.localStorage.getItem(storageKey)?.trim() || null
-}
-
-function writeStoredActiveThreadId(storageKey: string, threadId: string | null): void {
-  if (typeof window === 'undefined') return
-  if (threadId) window.localStorage.setItem(storageKey, threadId)
-  else window.localStorage.removeItem(storageKey)
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function isUnavailableThreadReadError(error: unknown): boolean {
@@ -1419,19 +1560,55 @@ function uniqueAgentChatThreadIds(values: Array<string | null | undefined>): str
   return ids
 }
 
+function mergeAgentChatThreadListPage(current: AgentChatThread[], page: AgentChatThread[]): AgentChatThread[] {
+  const existingIds = new Set(current.map((thread) => thread.id))
+  return [
+    ...current,
+    ...page.filter((thread) => !existingIds.has(thread.id)),
+  ].sort((left, right) => right.updatedAt - left.updatedAt)
+}
+
+function provisionalAgentChatThread(threadId: string, dataSource: AgentChatDataSource): AgentChatThread {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    provider: dataSource.provider,
+    ...(dataSource.providerId ? { providerThreadId: threadId } : {}),
+    ...(dataSource.providerInstanceId ? { providerSessionTreeId: dataSource.providerInstanceId } : {}),
+    id: threadId,
+    preview: 'Loading thread...',
+    name: null,
+    createdAt: now,
+    updatedAt: now,
+    status: 'notLoaded',
+    turns: [],
+  }
+}
+
+function notifyAgentChatDataSourceActiveThread(input: {
+  eventName: string
+  sourceId: string
+  threadId: string | null
+}): void {
+  if (typeof window === 'undefined') return
+  const threadId = input.threadId?.trim()
+  if (!threadId) return
+  window.dispatchEvent(new CustomEvent(input.eventName, {
+    detail: {
+      threadId,
+      sourceId: input.sourceId,
+    },
+  }))
+}
+
 function formatAgentChatTime(value: number | undefined): string {
   if (!value) return ''
   return new Date(value * 1000).toLocaleString()
 }
 
-function agentChatThreadProviderSessionState(thread: AgentChatThread): 'stopped' | 'waiting' | 'active' {
+function agentChatThreadProviderSessionState(thread: AgentChatThread): 'stopped' | 'waiting' | 'active' | 'error' {
   if (thread.status === 'running') return 'active'
-  if (thread.status === 'failed') return 'waiting'
+  if (thread.status === 'failed') return 'error'
   return 'stopped'
-}
-
-function agentChatTurnIsActive(turn: AgentChatTurn): boolean {
-  return turn.status === 'inProgress'
 }
 
 function debugAgentChatShellLoad(label: string, payload: Record<string, unknown>): void {

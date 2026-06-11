@@ -58,7 +58,16 @@ import { useTranslation } from 'react-i18next'
 import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
 import { TOOL_WORKBENCH_RESOURCE_PANE_ID } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
 import { routeLayoutSpecForPathname } from '@/routes/routeLayoutRegistry'
-import { readResourceIdDragPayload } from '@/features/resources/domain/resourceDragPayload'
+import {
+  acceptResourceDropDragOver,
+  resolveResourceDropResource,
+} from '@/features/resources/domain/resourceInteraction'
+import {
+  generationModelAcceptsImageInput,
+  generationModelAcceptsVideoInput,
+  generationParamDefaults,
+  resolveGenerationJobType,
+} from '@movscript/core/generation'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
 
@@ -126,13 +135,13 @@ function DebugPanel({ job }: { job: Job }) {
     )
   }
 
-  function JsonBlock({ text, maxH = 'max-h-32' }: { text: string; maxH?: string }) {
+  function JsonBlock({ text, maxHeight = 'default' }: { text: string; maxHeight?: 'default' | 'large' }) {
     const pretty = (() => { try { return JSON.stringify(JSON.parse(text), null, 2) } catch { return text } })()
     return (
       <ToolDialogDebugJsonBlock
         text={pretty}
         action={<CopyButton text={text} />}
-        style={{ '--ui-tool-dialog-debug-json-max-height': maxH === 'max-h-48' ? '12rem' : '8rem' } as React.CSSProperties}
+        maxHeight={maxHeight}
       />
     )
   }
@@ -207,7 +216,7 @@ function DebugPanel({ job }: { job: Job }) {
           <ToolDialogDebugStatus tone={debug.response_status < 400 ? 'success' : 'danger'}>
             {debug.response_status}
           </ToolDialogDebugStatus>
-          {debug.response_body && <JsonBlock text={debug.response_body} maxH="max-h-48" />}
+          {debug.response_body && <JsonBlock text={debug.response_body} maxHeight="large" />}
         </Section>
       )}
 
@@ -373,8 +382,7 @@ export function ToolDialog({
   })
   const resources = resourcesData ?? []
 
-  // Derive from model capabilities: image_edit/i2v models accept media input.
-  const modelAcceptsImageInput = selectedModel?.accepts_image_input ?? false
+  const modelAcceptsImageInput = generationModelAcceptsImageInput(selectedModel)
   // Fallback to static inputType for tools where the model hasn't been selected yet.
   const showImageInput = modelAcceptsImageInput || (selectedModel == null && (inputType === 'image' || inputType === 'image+video'))
 
@@ -426,10 +434,9 @@ export function ToolDialog({
   // Warn when an attachment's type doesn't match any accepted slot for the selected model.
   const attachmentMismatchWarnings: string[] = (() => {
     if (!selectedModel || attachments.length === 0) return []
-    const caps = selectedModel.capabilities ?? []
     const warnings: string[] = []
-    const acceptsImage = caps.includes('image_edit') || caps.includes('video_i2v') || caps.includes('video_v2v') || selectedModel.accepts_image_input
-    const acceptsVideo = caps.includes('video_v2v')
+    const acceptsImage = generationModelAcceptsImageInput(selectedModel)
+    const acceptsVideo = generationModelAcceptsVideoInput(selectedModel)
     for (const a of attachments) {
       if (a.type === 'image' && !acceptsImage) {
         warnings.push(t('tools.page.imageUnsupportedWarning', { name: a.name }))
@@ -465,11 +472,7 @@ export function ToolDialog({
       setExtraParams({})
       return
     }
-    const defaults: Record<string, string | number | boolean> = {}
-    for (const p of selectedModel.supported_params) {
-      if (p.default !== undefined) defaults[p.key] = p.default
-    }
-    setExtraParams(defaults)
+    setExtraParams(generationParamDefaults(selectedModel))
   }, [selectedModel?.model_def_id])
 
   async function uploadFile(file: File) {
@@ -487,24 +490,11 @@ export function ToolDialog({
 
   async function generate() {
     if (!prompt.trim() || !selectedModel) return
-    // Derive the exact job_type from model capabilities and provided inputs.
-    const caps = selectedModel?.capabilities ?? []
-    let effectiveJobType: string = outputType
-    const hasImageAttachment = attachments.some((a) => a.type === 'image')
-    if (outputType === 'image' && caps.includes('image_edit') && (hasImageAttachment || !caps.includes('image'))) {
-      effectiveJobType = 'image_edit'
-    } else if (outputType === 'video') {
-      const hasVideoAttachment = attachments.some((a) => a.type === 'video')
-      if (caps.includes('video_v2v') && hasVideoAttachment) {
-        effectiveJobType = 'video_v2v'
-      } else if (caps.includes('video_i2v') && hasImageAttachment) {
-        effectiveJobType = 'video_i2v'
-      } else if (caps.includes('video_i2v') && !caps.includes('video')) {
-        effectiveJobType = 'video_i2v'
-      } else if (caps.includes('video_v2v') && !caps.includes('video')) {
-        effectiveJobType = 'video_v2v'
-      }
-    }
+    const effectiveJobType = resolveGenerationJobType({
+      outputType,
+      model: selectedModel,
+      attachments,
+    })
 
     try {
       const job = await api.post('/jobs', buildGenerationJobPayload({
@@ -553,13 +543,17 @@ export function ToolDialog({
 
   const mainPane = (
     <ToolDialogMain
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault()
-        const id = readResourceIdDragPayload(e.dataTransfer)
-        if (!id) return
-        const r = resources.find((r) => r.ID === id)
-        if (r) addAttachment(r)
+      onDragOver={(event) => {
+        if (!acceptResourceDropDragOver(event.dataTransfer)) return
+        event.preventDefault()
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        const resource = resolveResourceDropResource({
+          dataTransfer: event.dataTransfer,
+          resources,
+        })
+        if (resource) addAttachment(resource)
       }}
     >
       {/* ── Section 1: Generation input ─────────────────────────────────── */}

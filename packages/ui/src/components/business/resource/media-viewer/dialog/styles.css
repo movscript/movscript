@@ -48,6 +48,7 @@
 
 .resource-media-dialog__title {
   display: block;
+  margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-body);

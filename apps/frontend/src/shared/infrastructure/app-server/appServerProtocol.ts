@@ -1,3 +1,6 @@
+import type { Turn as AppServerTurn } from '@/shared/infrastructure/app-server/app-server-protocol/v2/Turn'
+import type { TurnItemsView as AppServerTurnItemsView } from '@/shared/infrastructure/app-server/app-server-protocol/v2/TurnItemsView'
+
 export type * from '@/shared/infrastructure/app-server/app-server-protocol'
 
 export type { RequestId as AppServerJsonRpcId } from '@/shared/infrastructure/app-server/app-server-protocol/RequestId'
@@ -16,7 +19,7 @@ export type { ThreadResumeParams as AppServerThreadResumeParams } from '@/shared
 export type { ThreadResumeResponse as AppServerThreadResumeResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadResumeResponse'
 export type { ThreadStartParams as AppServerThreadStartParams } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadStartParams'
 export type { ThreadStartResponse as AppServerThreadStartResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/ThreadStartResponse'
-export type { Turn as AppServerTurn } from '@/shared/infrastructure/app-server/app-server-protocol/v2/Turn'
+export type { AppServerTurn, AppServerTurnItemsView }
 export type { TurnInterruptParams as AppServerTurnInterruptParams } from '@/shared/infrastructure/app-server/app-server-protocol/v2/TurnInterruptParams'
 export type { TurnInterruptResponse as AppServerTurnInterruptResponse } from '@/shared/infrastructure/app-server/app-server-protocol/v2/TurnInterruptResponse'
 export type { TurnStartParams as AppServerTurnStartParams } from '@/shared/infrastructure/app-server/app-server-protocol/v2/TurnStartParams'
@@ -57,6 +60,20 @@ export type AppServerJsonRpcRequest = {
 export type AppServerJsonRpcServerRequest = AppServerJsonRpcRequest
 export type AppServerServerRequestHandler = (request: AppServerJsonRpcServerRequest) => Promise<unknown> | unknown
 export type AppServerNotificationHandler = (notification: AppServerJsonRpcNotification) => void
+
+export interface AppServerThreadTurnsListParams {
+  threadId: string
+  cursor?: string | null
+  limit?: number | null
+  sortDirection?: 'asc' | 'desc' | null
+  itemsView?: AppServerTurnItemsView | null
+}
+
+export interface AppServerThreadTurnsListResponse {
+  data: AppServerTurn[]
+  nextCursor: string | null
+  backwardsCursor: string | null
+}
 
 export function appServerTextInput(text: string): import('@/shared/infrastructure/app-server/app-server-protocol/v2/UserInput').UserInput {
   return { type: 'text', text, text_elements: [] }

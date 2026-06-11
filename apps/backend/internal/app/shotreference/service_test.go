@@ -330,6 +330,73 @@ func TestCreateFromResourceAppendsToExistingGroup(t *testing.T) {
 	}
 }
 
+func TestCreateGroupThenAppendShotsAndReadDetail(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-group-detail.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
+	service := NewService(db, fakeShotStorage{}, nil)
+
+	created, err := service.UploadAndAnalyze(context.Background(), UploadInput{
+		UserID:   7,
+		Filename: "source_clip.mp4",
+		MimeType: "video/mp4",
+		Size:     12,
+		Data:     []byte("video-bytes"),
+	})
+	if err != nil {
+		t.Fatalf("seed resource: %v", err)
+	}
+
+	group, err := service.CreateGroup(context.Background(), CreateGroupInput{
+		UserID:      7,
+		ResourceID:  created.ResourceID,
+		Title:       "复刻镜头组",
+		CutStrategy: "scene_detection",
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	detail, err := service.GetGroupDetail(context.Background(), group.ID, domainshotreference.ListInput{UserID: 7})
+	if err != nil {
+		t.Fatalf("read empty group detail: %v", err)
+	}
+	if detail.Info.Title != "复刻镜头组" || detail.Count != 0 || len(detail.Shots) != 0 {
+		t.Fatalf("empty group detail = %+v", detail)
+	}
+
+	startA := 0.0
+	endA := 2.4
+	startB := 2.4
+	endB := 4.8
+	shots, err := service.CreateFromResource(context.Background(), CreateFromResourceInput{
+		UserID:     7,
+		ResourceID: created.ResourceID,
+		GroupID:    &group.ID,
+		Shots: []domainshotreference.UpdateInput{
+			{Title: strPtr("shot a"), StartSec: &startA, StartSecSet: true, EndSec: &endA, EndSecSet: true},
+			{Title: strPtr("shot b"), StartSec: &startB, StartSecSet: true, EndSec: &endB, EndSecSet: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("append shots: %v", err)
+	}
+	if len(shots) != 2 {
+		t.Fatalf("created shots = %d, want 2", len(shots))
+	}
+
+	detail, err = service.GetGroupDetail(context.Background(), group.ID, domainshotreference.ListInput{UserID: 7})
+	if err != nil {
+		t.Fatalf("read populated group detail: %v", err)
+	}
+	if detail.Count != 2 || len(detail.Shots) != 2 {
+		t.Fatalf("populated group detail count = %+v", detail)
+	}
+	if detail.Shots[0].Title != "shot a" || detail.Shots[1].Title != "shot b" {
+		t.Fatalf("shot order = %q, %q", detail.Shots[0].Title, detail.Shots[1].Title)
+	}
+	if detail.Shots[0].StartSec == nil || *detail.Shots[0].StartSec != startA || detail.Shots[1].EndSec == nil || *detail.Shots[1].EndSec != endB {
+		t.Fatalf("shot ranges = %+v", detail.Shots)
+	}
+}
+
 func TestNextGroupOrderUsesPostgresSafeOrderIdentifier(t *testing.T) {
 	db := testutil.OpenPostgresDryRun(t)
 	sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {

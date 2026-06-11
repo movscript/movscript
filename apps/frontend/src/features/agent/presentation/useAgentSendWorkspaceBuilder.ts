@@ -12,7 +12,7 @@ import {
 import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
 import type { AgentAttachment, AgentSettings } from '@/features/agent/state/agentStore'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
-import type { AgentThreadControlState } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentThreadControlState } from '@movscript/core/agent/chat'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel } from '@/types'
 
@@ -39,6 +39,7 @@ export interface BuildAgentSendWorkspaceOptions {
 
 export interface UseAgentSendWorkspaceBuilderInput {
   input: string
+  getInput?: () => string
   attachments: AgentAttachment[]
   composerAttachments: AgentAttachment[]
   resourceAttachmentIndex: Map<number, AgentAttachment>
@@ -87,7 +88,7 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
         ...(providerSessionWorkspaceDir?.trim() ? { providerSessionWorkspaceDir: providerSessionWorkspaceDir.trim() } : {}),
         ...(providerSessionId?.trim() ? { providerSessionId: providerSessionId.trim() } : {}),
       },
-      workspaceInput: input.input,
+      workspaceInput: input.getInput?.() ?? input.input,
       attachments: input.attachments,
       composerAttachments: input.composerAttachments,
       resourceAttachmentIndex: input.resourceAttachmentIndex,
@@ -127,6 +128,7 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
     })
   }, [
     input.input,
+    input.getInput,
     input.attachments,
     input.composerAttachments,
     input.resourceAttachmentIndex,

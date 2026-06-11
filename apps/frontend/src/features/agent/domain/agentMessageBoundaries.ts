@@ -1,5 +1,5 @@
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
-import { providerSessionInputRef, providerSessionMessageRef } from '@/features/agent/domain/providerSessionMessageRefs'
+import { providerSessionInputRef, providerSessionMessageRef } from '@movscript/core/agent/protocol'
 
 export function isTranscriptAssistantChatMessage(message: Pick<ChatMessage, 'role' | 'meta'>): boolean {
   return message.role === 'assistant'

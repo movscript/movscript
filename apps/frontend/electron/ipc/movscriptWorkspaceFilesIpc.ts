@@ -9,7 +9,7 @@ import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 import { createNodeMovScriptEngine } from '@movscript/engine/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
 import type {
-  ElectronMovScriptWorkspaceBuildActionInput,
+  ElectronMovScriptWorkspaceInterpretActionInput,
   ElectronMovScriptWorkspaceFileWriteInput,
   ElectronMovScriptWorkspaceFilesInput,
 } from '../../src/shared/contracts/electronApi'
@@ -28,17 +28,17 @@ export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
     await deleteMovScriptWorkspaceFile(input)
     return { ok: true as const }
   })
-  ipcMain.handle('movscript:workspace-review', (_event, input?: ElectronMovScriptWorkspaceBuildActionInput) => {
+  ipcMain.handle('movscript:workspace-review', (_event, input?: ElectronMovScriptWorkspaceInterpretActionInput) => {
     const action = actionInput(input)
     return createNodeMovScriptEngine({ projectDir: resolveMovScriptProjectCwd(action) }).review()
   })
-  ipcMain.handle('movscript:workspace-build', (_event, input?: ElectronMovScriptWorkspaceBuildActionInput) => {
+  ipcMain.handle('movscript:workspace-interpret', (_event, input?: ElectronMovScriptWorkspaceInterpretActionInput) => {
     const action = actionInput(input)
-    return createNodeMovScriptEngine({ projectDir: resolveMovScriptProjectCwd(action) }).compile()
+    return createNodeMovScriptEngine({ projectDir: resolveMovScriptProjectCwd(action) }).interpret()
   })
 }
 
-function actionInput(input?: ElectronMovScriptWorkspaceBuildActionInput): {
+function actionInput(input?: ElectronMovScriptWorkspaceInterpretActionInput): {
   workspaceDir: string
   userId?: number | string
   orgId?: number | string

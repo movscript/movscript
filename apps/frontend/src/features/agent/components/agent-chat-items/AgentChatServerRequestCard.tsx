@@ -5,29 +5,28 @@ import {
   AgentMessageSection,
   Button,
 } from '@movscript/ui'
-import type { AgentChatServerRequest, AgentChatServerRequestResponse } from '@/features/agent/domain/agentChatProtocol'
 import {
   agentChatAnswerResponse,
-  agentChatElicitationResponse,
-  agentChatServerRequestView,
-  agentChatToolResultResponse,
-} from '@/features/agent/domain/agentChatServerRequests'
-import {
   agentChatElicitationContent,
   agentChatElicitationFieldValueIsValid,
   agentChatElicitationFormModel,
   agentChatElicitationInputType,
+  agentChatElicitationResponse,
   agentChatInputAnswerText,
   agentChatInputAnswerValues,
   agentChatInputRequestAnswerPayload,
   agentChatInputRequestFormCanSubmit,
   agentChatInputRequestFormModel,
+  agentChatServerRequestView,
   agentChatToolResultContentItems,
+  agentChatToolResultResponse,
   nextAgentChatInputAnswerValues,
   type AgentChatElicitationField,
   type AgentChatElicitationValue,
   type AgentChatInputAnswerDraft,
-} from '@/features/agent/domain/agentChatServerRequestForms'
+  type AgentChatServerRequest,
+  type AgentChatServerRequestResponse,
+} from '@movscript/core/agent/chat'
 import {
   AgentChatInspectBlock,
   AgentChatInlineList,
