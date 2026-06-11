@@ -72,6 +72,13 @@ export {
 } from './config.js'
 
 export {
+  deriveMovScriptWorkspacePreviewTimelines,
+  type MovScriptWorkspacePreviewTimelineArtifact,
+  type MovScriptWorkspacePreviewTimelineEntityRef,
+  type MovScriptWorkspacePreviewTimelineItem,
+} from './previewTimeline.js'
+
+export {
   MOVSCRIPT_DEFAULT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
@@ -173,6 +180,10 @@ export {
 
 export {
   createMovScriptWorkspaceService,
+  type MovScriptAudioCueUpdateInput,
+  type MovScriptAudioCueUpdateResult,
+  type MovScriptExpressionUnitUpdateInput,
+  type MovScriptExpressionUnitUpdateResult,
   type MovScriptWorkspaceInitializeFileResult,
   type MovScriptWorkspaceInitializeInput,
   type MovScriptWorkspaceInitializeResult,

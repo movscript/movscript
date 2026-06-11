@@ -1,6 +1,6 @@
 ---
 name: domain
-description: Understand MovScript domain concepts, choose the right MCP tool, edit source through APIs first and source files only as a controlled fallback, then inspect and interpret.
+description: Understand MovScript domain concepts, production prerequisites, content units, candidates, selections, stale impact, and MCP/domain edit workflows.
 toolGrants:
   - mcp__movscript__system_focus_get
   - mcp__movscript__domain_get_model
@@ -56,6 +56,8 @@ Use this skill when a user asks to inspect, change, interpret, or reason about M
 
 MovScript domain includes object meaning, storage layout, interpreter state, and write APIs. `movscript-lang` owns the language semantics through `@movscript/language`, `@movscript/workspace`, `@movscript/interpreter`, and `@movscript/engine`. MovScript core exposes those semantics through MCP tools.
 
+Open `references/domain-story.md` when the task depends on the meaning of production structure, content units, candidates, selections, stale state, or regeneration impact. Open `references/entity-glossary.md` when mapping user/product terms to source entity names.
+
 ## Core Concepts
 
 - MCP does not infer project from session, cwd, route, or focus. Every project-scoped domain call must include the intended `projectId`/`project_id`.
@@ -66,29 +68,10 @@ MovScript domain includes object meaning, storage layout, interpreter state, and
 - `domain_inspect` and `domain_review`: Diagnostics only. They do not make edits effective.
 - `domain_interpret`: Validates source and writes the stable interpreted state.
 - `domain_regeneration_plan`: After interpret, reports downstream content units, prompt bundles, selected outputs, or preview timelines that need review.
+- Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
+- Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
+- Generated/imported resources become domain state only through candidates and selections. A candidate is not a stable dependency until selected.
 - Affected does not mean regenerate. Affected means the downstream target needs an explicit keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept-stale decision.
-
-## Domain Graph
-
-```text
-project
-  -> project_standards
-  -> setting -> setting_state -> asset
-  -> script -> script_version -> script_block
-  -> production -> segment -> scene_moment
-  -> shot -> keyframe / storyboard
-  -> audio_cue / expression_unit
-  -> content_unit -> candidate / selection
-```
-
-Content units are project-level production slots. They can reference production context, shots, storyboards, keyframes, settings, resources, and generated candidates, but path containment does not imply semantic ownership.
-
-Canonical production source ownership is:
-
-- Keyframes and storyboards are shot-owned source entities under `productions/**/scene_moments/**/shots/**`.
-- Audio cues and expression units are scene-moment-owned source entities.
-- Content units live under top-level `content_units/**` and use flat refs such as `scene_moment_ref`, `storyboard_ref`, `keyframe_ref`, `keyframe_refs`, `audio_cue_refs`, `expression_unit_refs`, and `asset_ref`.
-- Historical content-unit keyframe helpers or inline candidates are compatibility paths; do not treat them as the canonical planning structure.
 
 ## Tool Map
 

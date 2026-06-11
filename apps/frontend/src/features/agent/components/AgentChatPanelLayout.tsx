@@ -95,6 +95,7 @@ export function AgentChatPanelLayout({
     plan: thread.currentPlan,
     generationProgressStates: thread.generationProgressStates,
     planSnapshot: thread.activePlanSnapshot,
+    statusItems: thread.statusItems,
   })
 
   async function restoreThread(threadId: string, sessionId?: string) {

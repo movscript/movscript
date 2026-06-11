@@ -145,7 +145,7 @@ function AppServerChatShellContent({
       emptyThreadListLabel={`No ${providerLabel} threads yet.`}
       emptyThreadLabel={`Start a ${providerLabel} turn from the composer.`}
       unavailableLabel={`${providerLabel} app-server URL is not configured.`}
-      composerPlaceholder={`Message ${providerLabel}`}
+      composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}
       modelOptions={textModels}
       selectedModelId={settings.modelId}

@@ -193,6 +193,42 @@ test('app-server protocol data source falls back to thread/read when turns list 
   assert.deepEqual(thread.turns.map((turn) => turn.id), ['full_turn'])
 })
 
+test('app-server protocol data source treats pre-message materialization errors as an empty thread', async () => {
+  const calls: Array<{ method: string; params: unknown }> = []
+  const client = {
+    readThread: async (threadId: string, input: unknown) => {
+      calls.push({ method: 'thread/read', params: { threadId, input } })
+      return { thread: appServerThread({ id: threadId, turns: [appServerTurn('full_turn')] }) }
+    },
+    listThreadTurns: async (params: unknown) => {
+      calls.push({ method: 'thread/turns/list', params })
+      throw new Error('thread 019eb75c-31ee-75f2-85ad-2b52ed95be04 is not materialized yet; thread/turns/list is unavailable before first user message')
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const thread = await dataSource.readThread('019eb75c-31ee-75f2-85ad-2b52ed95be04', {
+    includeTurns: true,
+    limit: 1,
+    direction: 'newer',
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/turns/list',
+      params: {
+        threadId: '019eb75c-31ee-75f2-85ad-2b52ed95be04',
+        limit: 1,
+        sortDirection: 'desc',
+        itemsView: 'full',
+      },
+    },
+  ])
+  assert.equal(thread.id, '019eb75c-31ee-75f2-85ad-2b52ed95be04')
+  assert.equal(thread.status, 'idle')
+  assert.deepEqual(thread.turns, [])
+})
+
 test('app-server protocol data source exposes provider thread and session tree ids explicitly', async () => {
   const client = {
     readThread: async () => ({ thread: appServerThread({ id: 'thread_read', sessionId: 'session_tree_1' }) }),

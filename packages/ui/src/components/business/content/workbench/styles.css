@@ -361,13 +361,13 @@
   position: relative;
   min-width: 0;
   padding-right: var(--ms-space-1);
-  padding-left: var(--ms-space-3);
+  padding-left: var(--ms-space-2);
 }
 
 .content-workbench-hierarchy-filter__group-dot {
   position: absolute;
   top: var(--ms-space-2);
-  left: -5px;
+  left: -3px;
   width: 9px;
   height: 9px;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);

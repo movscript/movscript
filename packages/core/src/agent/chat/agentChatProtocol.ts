@@ -19,7 +19,7 @@ export type {
 
 export type AgentChatProviderKind = 'codex' | 'mova' | 'claude' | (string & {})
 
-export type AgentChatThreadStatus = 'notLoaded' | 'idle' | 'running' | 'failed' | 'completed' | 'cancelled' | 'unknown'
+export type AgentChatThreadStatus = 'notLoaded' | 'idle' | 'running' | 'requires_action' | 'failed' | 'completed' | 'cancelled' | 'unknown'
 export type AgentChatTurnStatus = 'completed' | 'interrupted' | 'failed' | 'inProgress' | (string & {})
 export type AgentChatTurnItemsView = 'notLoaded' | 'summary' | 'full'
 export type AgentChatCollaborationMode = 'default' | 'plan'

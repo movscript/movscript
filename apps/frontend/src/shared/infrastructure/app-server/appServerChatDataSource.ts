@@ -63,6 +63,9 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
           turns: appServerThreadTurnsListPageTurns(turnsResponse.data, input),
         }, provider)
       } catch (error) {
+        if (appServerThreadReadIsBeforeFirstUserMessage(error)) {
+          return adapter.thread(appServerUnmaterializedThread(threadId), provider)
+        }
         if (!appServerThreadTurnsListCanFallback(error)) throw error
         const response = await client.readThread(threadId, input)
         return adapter.thread(response.thread, provider)
@@ -295,9 +298,42 @@ function appServerThreadTurnsListPageThread(
   }
 }
 
+function appServerUnmaterializedThread(threadId: string): AppServerThread {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    id: threadId,
+    sessionId: '',
+    forkedFromId: null,
+    parentThreadId: null,
+    preview: '',
+    ephemeral: false,
+    modelProvider: '',
+    createdAt: now,
+    updatedAt: now,
+    status: { type: 'idle' },
+    path: null,
+    cwd: '',
+    cliVersion: '',
+    source: 'unknown',
+    threadSource: null,
+    agentNickname: null,
+    agentRole: null,
+    gitInfo: null,
+    name: null,
+    turns: [],
+  }
+}
+
 function appServerThreadTurnsListCanFallback(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /thread\/turns\/list|method not found|not supported|unknown method/i.test(message)
+  if (appServerThreadReadIsBeforeFirstUserMessage(error)) return false
+  return /method not found|not supported|unknown method/i.test(message)
+}
+
+function appServerThreadReadIsBeforeFirstUserMessage(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /\bnot materialized yet\b/i.test(message)
+    || /\bbefore first user message\b/i.test(message)
 }
 
 function appServerProviderTitle(provider: string): string {

@@ -13,3 +13,16 @@ Use this when writing or selecting generated, uploaded, imported, or manually re
 9. Run `domain_regeneration_plan` when selected outputs may affect downstream content.
 
 Inline candidate APIs are compatibility paths for asset/keyframe/source-entity candidate workflows. Prefer content unit candidates for production outputs.
+
+## Dependency Gate
+
+A candidate is not a stable dependency until selected.
+
+Before generating a downstream content unit:
+
+- read the dependency report and selection validity for relevant upstream content units,
+- confirm required upstream candidates have selections,
+- stop if a required upstream content unit has no selected candidate/resource,
+- continue without selection only if the user explicitly asks for an unstable draft path.
+
+When using an unstable draft path, state that downstream outputs may not be continuity-safe and may not be tracked as stable dependencies.

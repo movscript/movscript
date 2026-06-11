@@ -1,6 +1,6 @@
 ---
 name: review
-description: Explain MovScript pending source changes, interpret status, content unit dependency artifacts, stale selections, and regeneration plans without automatically editing source or regenerating media.
+description: Explain MovScript pending changes, readiness, affected content units, stale or missing selections, and regeneration decisions without automatically editing or generating.
 toolGrants:
   - mcp__movscript__system_focus_get
   - mcp__movscript__domain_overview
@@ -29,8 +29,9 @@ Use this skill when a user asks what changed, whether the project is ready, what
 - `domain_inspect` and `domain_review` are diagnostic only. They report pending files/entities/business changes, issues, and interpret readiness; they do not make source current.
 - Full affected content unit review is post-interpret. Use `domain_regeneration_plan` after interpret to explain changed entities, affected content units, prompt bundles, preview timelines, and stale selections.
 - Affected does not mean regenerate. Affected means review the downstream target and choose keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept stale.
+- Missing upstream selection means downstream generation should stop until the user selects, confirms, or explicitly accepts an unstable draft path.
 - Do not modify source, select candidates, or regenerate media during review unless the user explicitly asks for that follow-up.
-- When reviewing production readiness, classify the focused scene_moment or shot as `缺规划`, `可补图`, or `可生成`, and bind the recommendation to the user's goal.
+- When reviewing production readiness, classify the focused scene_moment or shot as `缺规划`, `可补图`, `缺选择`, or `可生成`, and bind the recommendation to the user's goal.
 
 ## Workflow
 
@@ -50,6 +51,7 @@ Summaries should say:
 - Whether inspect/review found blocking issues.
 - Whether interpreted current state is missing, current, or stale.
 - Which content units or selections are affected or stale, and what decision options exist.
+- Which upstream selections are missing before downstream generation can start.
 - The focused scene_moment/shot readiness when the user is deciding whether to keep planning, supplement keyframes/storyboards, generate, or review generated candidates.
 
 Do not say "must regenerate" unless artifacts or an explicit user/workflow policy says regeneration is mandatory.

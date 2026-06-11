@@ -156,6 +156,7 @@ function collectionDirForEntityKind(entityKind: SemanticEntityKind): string | un
   if (entityKind === 'scene_moment') return 'scene_moments'
   if (entityKind === 'shot') return 'shots'
   if (entityKind === 'storyboard') return 'storyboards'
+  if (entityKind === 'keyframe') return 'keyframes'
   if (entityKind === 'audio_cue') return 'audio_cues'
   if (entityKind === 'expression_unit') return 'expression_units'
   return undefined

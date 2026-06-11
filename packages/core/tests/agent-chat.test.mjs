@@ -172,6 +172,41 @@ test('core agent chat runtime keeps pending server requests unresolved across re
   assert.equal(state.pendingServerRequests.length, 0)
 })
 
+test('core agent chat runtime exposes a stable status item for a running thread', () => {
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'setThreads',
+    threads: [{
+      id: 'thread_1',
+      status: 'running',
+      turns: [{
+        id: 'turn_1',
+        status: 'inProgress',
+        items: [],
+        itemsView: 'full',
+        error: null,
+        startedAt: 100,
+        completedAt: null,
+        durationMs: null,
+      }],
+      createdAt: 100,
+      updatedAt: 100,
+    }],
+  })
+
+  const view = agentChat.selectAgentChatRuntimeView(state)
+
+  assert.deepEqual(view.visibleStatusItems[0], {
+    id: 'active-thread:thread_1',
+    threadId: 'thread_1',
+    title: 'Agent run',
+    detail: 'A turn is currently active.',
+    badge: 'running',
+    tone: 'brand',
+    updatedAt: Number.MAX_SAFE_INTEGER - 1,
+  })
+})
+
 test('core agent chat runtime drops server-resolved pending requests without responding for the user', () => {
   let resolved = 0
   let state = agentChat.createAgentChatRuntimeState('thread_1')

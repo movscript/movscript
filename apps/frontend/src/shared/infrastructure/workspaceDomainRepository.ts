@@ -102,6 +102,32 @@ export function createElectronMovScriptWorkspaceService(
   })
 }
 
+export async function reviewElectronMovScriptWorkspace(
+  context?: ElectronMovScriptWorkspaceFileRepositoryContext,
+  api?: WorkspaceElectronAPI,
+): Promise<unknown> {
+  if (movScriptWorkspaceActionFactoryForTest) {
+    return movScriptWorkspaceActionFactoryForTest('review', defaultWorkspaceOwnerContext(context ?? {}))
+  }
+  const args = repositoryArgs(context, api)
+  const result = await args.api.reviewMovScriptWorkspace?.(args.context)
+  if (!result) throw new Error('MovScript workspace review is unavailable')
+  return result
+}
+
+export async function interpretElectronMovScriptWorkspace(
+  context?: ElectronMovScriptWorkspaceFileRepositoryContext,
+  api?: WorkspaceElectronAPI,
+): Promise<unknown> {
+  if (movScriptWorkspaceActionFactoryForTest) {
+    return movScriptWorkspaceActionFactoryForTest('interpret', defaultWorkspaceOwnerContext(context ?? {}))
+  }
+  const args = repositoryArgs(context, api)
+  const result = await args.api.interpretMovScriptWorkspace?.(args.context)
+  if (!result) throw new Error('MovScript workspace interpret is unavailable')
+  return result
+}
+
 export function __setElectronMovScriptWorkspaceServiceFactoryForTest(
   factory: ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceService) | undefined,
 ): () => void {
@@ -122,6 +148,16 @@ export function __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest(
   }
 }
 
+export function __setElectronMovScriptWorkspaceActionFactoryForTest(
+  factory: ((action: 'review' | 'interpret', context: ElectronMovScriptWorkspaceFileRepositoryContext) => Promise<unknown>) | undefined,
+): () => void {
+  const previous = movScriptWorkspaceActionFactoryForTest
+  movScriptWorkspaceActionFactoryForTest = factory
+  return () => {
+    movScriptWorkspaceActionFactoryForTest = previous
+  }
+}
+
 export type ElectronMovScriptWorkspaceFileRepositoryContext = {
   workspaceDir?: string
   userId?: string | number
@@ -135,6 +171,10 @@ let movScriptWorkspaceServiceFactoryForTest:
 
 let movScriptWorkspaceFileRepositoryFactoryForTest:
   | ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceFileRepository)
+  | undefined
+
+let movScriptWorkspaceActionFactoryForTest:
+  | ((action: 'review' | 'interpret', context: ElectronMovScriptWorkspaceFileRepositoryContext) => Promise<unknown>)
   | undefined
 
 function requireElectronMovScriptWorkspaceAPI(): WorkspaceElectronAPI {

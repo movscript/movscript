@@ -39,8 +39,20 @@ export function addTargetForSelectedNode(selectedNode: HierarchyNode): AddTarget
 }
 
 export function buildChildNodePath(parentNode: HierarchyNode, pathSlug: string, childType: HierarchyNodeType) {
+  if (parentNode.id === 'settings_root') return `settings/${pathSlug}/setting.json`
+  if (parentNode.id === 'productions_group') return `productions/${pathSlug}/production.json`
   const parentPath = parentNode.path.replace(/\/[^/]*\.json$/, '')
-  return `${parentPath}/${pathSlug}/${childType}.json`
+  const childFolder = childFolderName(childType)
+  const childFile = childFileName(childType)
+  return `${parentPath}/${childFolder}/${pathSlug}/${childFile}.json`
+}
+
+export function buildChildNodeId(parentNode: HierarchyNode, pathSlug: string, childType: HierarchyNodeType): string {
+  if (childType === 'setting') return `setting/${pathSlug}`
+  if (childType === 'state') return `state/${pathSegmentAfter(parentNode.path, 'settings') ?? ''}/${pathSlug}`
+  if (childType === 'asset') return `asset/${pathSlug}`
+  if (childType === 'storyboard') return `storyboard/${pathSlug}`
+  return pathSlug
 }
 
 export function slugifyNodeTitle(title: string) {
@@ -87,6 +99,7 @@ function addableChildTypeForNode(node: HierarchyNode): HierarchyNodeType | null 
     if (normalizedTitle.includes('storyboard')) return 'storyboard'
     if (normalizedTitle.includes('keyframe')) return 'keyframe'
     if (normalizedTitle.includes('expression')) return 'expression_unit'
+    if (normalizedTitle.includes('audio')) return 'audio_cue'
     return null
   }
 
@@ -102,4 +115,43 @@ function addableChildTypeForNode(node: HierarchyNode): HierarchyNodeType | null 
     default:
       return null
   }
+}
+
+function childFolderName(type: HierarchyNodeType): string {
+  switch (type) {
+    case 'state':
+      return 'states'
+    case 'asset':
+      return 'assets'
+    case 'segment':
+      return 'segments'
+    case 'scene_moment':
+      return 'scene_moments'
+    case 'shot':
+      return 'shots'
+    case 'storyboard':
+      return 'storyboards'
+    case 'keyframe':
+      return 'keyframes'
+    case 'expression_unit':
+      return 'expression_units'
+    case 'audio_cue':
+      return 'audio_cues'
+    case 'production':
+      return 'productions'
+    case 'setting':
+      return 'settings'
+    case 'group':
+      return 'groups'
+  }
+}
+
+function childFileName(type: HierarchyNodeType): string {
+  return type === 'state' ? 'setting_state' : type
+}
+
+function pathSegmentAfter(path: string, marker: string): string | undefined {
+  const parts = path.split('/')
+  const index = parts.indexOf(marker)
+  return index >= 0 ? parts[index + 1] : undefined
 }

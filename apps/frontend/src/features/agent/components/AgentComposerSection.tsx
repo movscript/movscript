@@ -2,7 +2,7 @@ import type { ClipboardEventHandler, ComponentProps, DragEventHandler, FormEvent
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { AtSign, Check, ChevronDown, CircleDot, CircleStop, Eye, FolderTree, Loader2, Paperclip, Plus, Send, Sparkles } from 'lucide-react'
+import { AtSign, Check, ChevronDown, CircleDot, CircleStop, Eye, Hand, Loader2, Mic, Paperclip, Plus, Send, Sparkles } from 'lucide-react'
 import {
   AgentComposer,
   AgentComposerAction,
@@ -223,6 +223,7 @@ export function AgentComposerSection({
     ? modelOptions.find((model) => model.id === modelValue) ?? modelOptions[0]
     : undefined
   const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
+  const runProfileDisplayLabel = runProfile.id === 'default' ? '默认权限' : runProfile.label
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
     <div
       className="ai-agent-resource-mention-menu overflow-hidden border border-border bg-background shadow-lg"
@@ -323,7 +324,7 @@ export function AgentComposerSection({
         </div>
       )}
       <AgentComposer
-        className={cn('ai-agent-panel-composer', draggingFiles && 'ai-agent-panel-composer--dragging')}
+        className={cn('ai-agent-panel-composer ms-agent-composer--panel', draggingFiles && 'ai-agent-panel-composer--dragging')}
         onDragEnter={onComposerDragEnter}
         onDragOver={onComposerDragOver}
         onDragLeave={onComposerDragLeave}
@@ -370,72 +371,8 @@ export function AgentComposerSection({
           )}
           {mentionMenu}
         </div>
-        {showWorkspaceSelector ? (
-          <div className="ms-agent-composer__workspace-row">
-            <span className="ms-agent-composer__workspace-label">
-              <FolderTree size={12} />
-              会话范围
-            </span>
-            <Select
-              value={workspaceProjectValue}
-              onValueChange={onWorkspaceProjectChange}
-              disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
-            >
-              <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(210px,100%)] min-w-0 type-tiny">
-                <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择范围'} />
-              </SelectTrigger>
-              <SelectContent>
-                {workspaceProjectOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate">{option.label}</span>
-                      {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
         <AgentComposerToolbar>
           <div className="ms-agent-composer__toolstrip flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            <ProviderMark />
-            {showModelSelector ? (
-              <Select
-                value={modelValue === null ? 'auto' : String(modelValue)}
-                onValueChange={(value) => onModelChange(value === 'auto' ? null : Number(value))}
-                disabled={loading || buildingSendWorkspace || answeringPendingInput}
-              >
-                <SelectTrigger size="sm" className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny">
-                  <span className="ai-agent-model-select__value">
-                    {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
-                    <span className="ai-agent-model-select__id">{selectedModelId ?? 'Auto model'}</span>
-                  </span>
-                </SelectTrigger>
-                <SelectContent align="start" className="min-w-64">
-                  <SelectItem value="auto">
-                    <span className="ai-agent-model-select__option">
-                      {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
-                      <span className="ai-agent-model-select__option-copy">
-                        <span className="ai-agent-model-select__id">Auto model</span>
-                        <span className="ai-agent-model-select__meta">{selectedModelId ?? 'backend default'}</span>
-                      </span>
-                    </span>
-                  </SelectItem>
-                  {modelOptions.map((model) => (
-                    <SelectItem key={model.id} value={String(model.id)}>
-                      <span className="ai-agent-model-select__option">
-                        <IdentityMark kind="model" id={agentComposerModelId(model)} />
-                        <span className="ai-agent-model-select__option-copy">
-                          <span className="ai-agent-model-select__id">{agentComposerModelId(model)}</span>
-                          {model.provider_name ? <span className="ai-agent-model-select__meta">{model.provider_name}</span> : null}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
             {showAttachmentTools || showMentionTools || onCollaborationModeChange || onGoalModeEnabledChange ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -499,6 +436,81 @@ export function AgentComposerSection({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
+            {showApprovalPresetSelector && !answeringPendingInput ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="ms-control ms-agent-composer__approval-trigger"
+                    disabled={loading || buildingSendWorkspace || uploading}
+                    aria-label={`Run profile: ${runProfile.label}`}
+                    title={`Run profile: ${runProfile.label}`}
+                  >
+                    <Hand size={15} />
+                    <span>{runProfileDisplayLabel}</span>
+                    <ChevronDown size={12} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="min-w-64">
+                  <DropdownMenuLabel>Run Profile</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {AGENT_RUN_PROFILE_PRESETS.map((preset) => (
+                    <DropdownMenuItem
+                      key={preset.id}
+                      onSelect={() => setProfilePresetId(preset.id)}
+                      className="items-start gap-2"
+                    >
+                      <span className="mt-0.5 flex w-3 justify-center text-muted-foreground">
+                        {preset.id === profilePresetId ? <Check size={12} /> : null}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block type-tiny font-medium text-foreground">{preset.id === 'default' ? '默认权限' : preset.label}</span>
+                        <span className="block whitespace-normal type-tiny text-muted-foreground">{preset.description}</span>
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            {(showApprovalPresetSelector && !answeringPendingInput) || onGoalModeEnabledChange ? (
+              <span className="ms-agent-composer__toolbar-divider" aria-hidden="true" />
+            ) : null}
+            {onGoalModeEnabledChange ? (
+              <button
+                type="button"
+                className="ms-control ms-agent-composer__goal-trigger"
+                data-active={goalModeEnabled ? 'true' : undefined}
+                onClick={() => onGoalModeEnabledChange(!goalModeEnabled)}
+                disabled={answeringPendingInput || loading || buildingSendWorkspace}
+                aria-pressed={goalModeEnabled}
+                title="追求目标"
+              >
+                <CircleDot size={15} />
+                <span>目标</span>
+              </button>
+            ) : null}
+            {showWorkspaceSelector ? (
+              <Select
+                value={workspaceProjectValue}
+                onValueChange={onWorkspaceProjectChange}
+                disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
+              >
+                <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(178px,32vw)] min-w-0 type-tiny">
+                  <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择范围'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaceProjectOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">{option.label}</span>
+                        {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <ProviderMark />
             {composerAttachmentsCount > 0 && (
               <Badge className="max-w-24 truncate type-tiny">
                 {t('agents.chat.attachmentsCount', { count: composerAttachmentsCount })}
@@ -530,41 +542,50 @@ export function AgentComposerSection({
             )}
           </div>
           <div className="ms-agent-composer__submit-group">
-            {showApprovalPresetSelector && !answeringPendingInput ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="ms-control ms-agent-composer__approval-trigger"
-                    disabled={loading || buildingSendWorkspace || uploading}
-                    aria-label={`Run profile: ${runProfile.label}`}
-                    title={`Run profile: ${runProfile.label}`}
-                  >
-                    <span>{runProfile.shortLabel}</span>
-                    <ChevronDown size={12} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-64">
-                  <DropdownMenuLabel>Run Profile</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {AGENT_RUN_PROFILE_PRESETS.map((preset) => (
-                    <DropdownMenuItem
-                      key={preset.id}
-                      onSelect={() => setProfilePresetId(preset.id)}
-                      className="items-start gap-2"
-                    >
-                      <span className="mt-0.5 flex w-3 justify-center text-muted-foreground">
-                        {preset.id === profilePresetId ? <Check size={12} /> : null}
+            {showModelSelector ? (
+              <Select
+                value={modelValue === null ? 'auto' : String(modelValue)}
+                onValueChange={(value) => onModelChange(value === 'auto' ? null : Number(value))}
+                disabled={loading || buildingSendWorkspace || answeringPendingInput}
+              >
+                <SelectTrigger size="sm" className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny">
+                  <span className="ai-agent-model-select__value">
+                    <span className="ai-agent-model-select__id">{selectedModelId ?? 'Auto model'}</span>
+                  </span>
+                </SelectTrigger>
+                <SelectContent align="end" className="min-w-64">
+                  <SelectItem value="auto">
+                    <span className="ai-agent-model-select__option">
+                      {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
+                      <span className="ai-agent-model-select__option-copy">
+                        <span className="ai-agent-model-select__id">Auto model</span>
+                        <span className="ai-agent-model-select__meta">{selectedModelId ?? 'backend default'}</span>
                       </span>
-                      <span className="min-w-0">
-                        <span className="block type-tiny font-medium text-foreground">{preset.label}</span>
-                        <span className="block whitespace-normal type-tiny text-muted-foreground">{preset.description}</span>
+                    </span>
+                  </SelectItem>
+                  {modelOptions.map((model) => (
+                    <SelectItem key={model.id} value={String(model.id)}>
+                      <span className="ai-agent-model-select__option">
+                        <IdentityMark kind="model" id={agentComposerModelId(model)} />
+                        <span className="ai-agent-model-select__option-copy">
+                          <span className="ai-agent-model-select__id">{agentComposerModelId(model)}</span>
+                          {model.provider_name ? <span className="ai-agent-model-select__meta">{model.provider_name}</span> : null}
+                        </span>
                       </span>
-                    </DropdownMenuItem>
+                    </SelectItem>
                   ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </SelectContent>
+              </Select>
             ) : null}
+            <button
+              type="button"
+              className="ms-control ms-agent-composer__voice-action"
+              disabled
+              aria-label="语音输入"
+              title="语音输入"
+            >
+              <Mic size={15} />
+            </button>
             <AgentComposerSubmit
               type="submit"
               running={loading || buildingSendWorkspace}

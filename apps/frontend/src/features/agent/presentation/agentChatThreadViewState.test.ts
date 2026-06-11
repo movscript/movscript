@@ -72,6 +72,34 @@ test('buildAgentChatThreadViewState resolves current plan from timeline items', 
   assert.equal(state.currentPlan?.id, 'plan_1')
 })
 
+test('buildAgentChatThreadViewState keeps a stable pinned status while a run is active', () => {
+  const state = buildAgentChatThreadViewState({
+    activeRun: run({ status: 'in_progress', progress: 0.42 }),
+    conversationProjection: projection({ items: [] }),
+    hasTranscriptMessages: false,
+    timelineItems: [],
+    timelineLoading: false,
+  })
+
+  assert.equal(state.statusItems.length, 1)
+  assert.equal(state.statusItems[0].id, 'active-run:run_1')
+  assert.equal(state.statusItems[0].badge, '运行中')
+  assert.equal(state.statusItems[0].tone, 'brand')
+  assert.match(state.statusItems[0].detail ?? '', /42%/)
+})
+
+test('buildAgentChatThreadViewState does not keep completed runs in pinned status', () => {
+  const state = buildAgentChatThreadViewState({
+    activeRun: run({ status: 'completed' }),
+    conversationProjection: projection({ items: [] }),
+    hasTranscriptMessages: false,
+    timelineItems: [],
+    timelineLoading: false,
+  })
+
+  assert.deepEqual(state.statusItems, [])
+})
+
 function projection(overrides: Partial<AgentConversationProjection> = {}): AgentConversationProjection {
   return {
     items: [],

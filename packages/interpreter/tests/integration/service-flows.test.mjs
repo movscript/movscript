@@ -61,6 +61,35 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
       caption: 'Phone glow returns.',
     },
   })
+  await service.updateExpressionUnitSource({
+    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/caption_1/expression_unit.json',
+    patch: {
+      title: 'Unknown number caption',
+      expressionKind: 'caption',
+      speaker: 'hero',
+      text: 'Unknown number lights up again.',
+      intent: 'The call interrupts the silence.',
+      note: 'Keep the caption minimal.',
+    },
+  })
+  const expressionRecord = JSON.parse(files.get('productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/caption_1/expression_unit.json'))
+  assert.equal(expressionRecord.title, 'Unknown number caption')
+  assert.equal(expressionRecord.expression_kind, 'caption')
+  assert.equal(expressionRecord.intent, 'The call interrupts the silence.')
+  await service.updateAudioCueSource({
+    targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/audio_cues/phone_vibration/audio_cue.json',
+    patch: {
+      title: 'Phone vibration hit',
+      cueKind: 'sound_effect',
+      promptHint: 'Phone vibration cuts through rain.',
+      timing: { start: 'on_screen_light', duration_sec: 0.8 },
+      assetRefs: ['wet_hair'],
+    },
+  })
+  const audioRecord = JSON.parse(files.get('productions/p8f3/segments/a19d/scene_moments/r72k/audio_cues/phone_vibration/audio_cue.json'))
+  assert.equal(audioRecord.title, 'Phone vibration hit')
+  assert.equal(audioRecord.prompt_hint, 'Phone vibration cuts through rain.')
+  assert.equal(audioRecord.timing.duration_sec, 0.8)
   const firstArtifacts = deriveMovScriptWorkspaceArtifacts({
     index: await service.loadIndex(),
     changedEntities: [],
@@ -103,6 +132,14 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
   assert.equal(artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel.prompt?.negative_text, 'flat lighting')
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'scene_moment' && item.transition.out === 'hard_cut'))
   assert.ok(artifacts.previewTimelines[0].items.some((item) => item.itemType === 'storyboard' && item.caption === 'Phone glow returns.' && item.gapAfterSec === 0.4))
+
+  files.set('.interpret/current/productions/p8f3/preview_timeline.json', JSON.stringify({
+    schema: 'movscript.preview_timeline.v1',
+    productionId: 'p8f3',
+    items: [],
+  }))
+  const livePreviewTimeline = await service.readPreviewTimeline('p8f3')
+  assert.ok(livePreviewTimeline?.items.some((item) => item.itemType === 'storyboard' && item.caption === 'Phone glow returns.'))
 })
 
 test('content unit integration flow writes, interprets, generates, impacts, and regenerates explicitly', async () => {

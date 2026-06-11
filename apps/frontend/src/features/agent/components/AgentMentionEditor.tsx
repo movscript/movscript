@@ -118,7 +118,7 @@ export function AgentMentionEditor({
       contentEditable={!disabled}
       suppressContentEditableWarning
       data-placeholder={placeholder}
-      className={cn('ai-agent-panel-mention-editor', disabled && 'ai-agent-panel-mention-editor--disabled')}
+      className={cn('ai-agent-panel-mention-editor ms-agent-composer__rich-field', disabled && 'ai-agent-panel-mention-editor--disabled')}
       onInput={() => syncFromEditor('input')}
       onClick={() => syncFromEditor('click')}
       onKeyUp={(event) => {

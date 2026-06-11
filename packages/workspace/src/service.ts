@@ -78,6 +78,10 @@ import {
   type MovScriptStoryboardTimelineUpdateResult,
   type MovScriptWorkspaceFileRepository,
 } from './repository/index.js'
+import {
+  deriveMovScriptWorkspacePreviewTimelines,
+  type MovScriptWorkspacePreviewTimelineArtifact,
+} from './previewTimeline.js'
 
 export interface MovScriptWorkspaceServiceOptions {
   fileRepository: MovScriptWorkspaceFileRepository
@@ -104,6 +108,41 @@ export interface MovScriptWorkspaceInitializeResult {
   files: MovScriptWorkspaceInitializeFileResult[]
 }
 
+export interface MovScriptExpressionUnitUpdateInput {
+  targetPath: string
+  patch: {
+    title?: string
+    expressionKind?: string
+    speaker?: string
+    text?: string
+    note?: string
+    intent?: string
+  }
+}
+
+export interface MovScriptExpressionUnitUpdateResult {
+  path: string
+  record: Record<string, unknown>
+}
+
+export interface MovScriptAudioCueUpdateInput {
+  targetPath: string
+  patch: {
+    title?: string
+    cueKind?: string
+    shotRef?: string
+    storyboardRef?: string
+    promptHint?: string
+    timing?: Record<string, unknown>
+    assetRefs?: string[]
+  }
+}
+
+export interface MovScriptAudioCueUpdateResult {
+  path: string
+  record: Record<string, unknown>
+}
+
 export interface MovScriptWorkspaceService {
   initializeProject(input?: MovScriptWorkspaceInitializeInput): Promise<MovScriptWorkspaceInitializeResult>
   getModel(input: MovScriptWorkspaceGetModelInput): MovScriptWorkspaceGetModelResult
@@ -113,7 +152,7 @@ export interface MovScriptWorkspaceService {
   queryAssets(query?: MovScriptWorkspaceAssetQuery): Promise<ReturnType<typeof queryMovScriptWorkspaceAssets>>
   queryProductionContext(query?: MovScriptWorkspaceProductionContextQuery): Promise<Record<string, MovScriptWorkspaceIndexedEntity[]>>
   readEditorState(): Promise<Record<string, unknown> | undefined>
-  readPreviewTimeline(productionId: string | number): Promise<Record<string, unknown> | undefined>
+  readPreviewTimeline(productionId: string | number): Promise<MovScriptWorkspacePreviewTimelineArtifact | undefined>
   readContentUnitRuntimePanel(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitGenerationPrompt(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitDependencyReport(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
@@ -142,6 +181,8 @@ export interface MovScriptWorkspaceService {
   updateStoryboardTimeline(
     input: Omit<MovScriptStoryboardTimelineUpdateInput, 'fileRepository'>,
   ): Promise<MovScriptStoryboardTimelineUpdateResult>
+  updateExpressionUnitSource(input: MovScriptExpressionUnitUpdateInput): Promise<MovScriptExpressionUnitUpdateResult>
+  updateAudioCueSource(input: MovScriptAudioCueUpdateInput): Promise<MovScriptAudioCueUpdateResult>
   appendCandidate(
     input: Omit<MovScriptInlineCandidateWriteInput, 'fileRepository'>,
   ): Promise<MovScriptInlineCandidateWriteResult>
@@ -229,8 +270,9 @@ export function createMovScriptWorkspaceService(
     readEditorState() {
       return readJSONArtifact(options.fileRepository, MOVSCRIPT_EDITOR_STATE_PATH)
     },
-    readPreviewTimeline(productionId) {
-      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/productions/${entityPathSlug(productionId, 'production')}/preview_timeline.json`)
+    async readPreviewTimeline(productionId) {
+      const timelines = deriveMovScriptWorkspacePreviewTimelines(await loadIndex())
+      return timelines.find((timeline) => samePreviewTimelineProduction(timeline.productionId, productionId))
     },
     readContentUnitRuntimePanel(contentUnitId) {
       return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/runtime_panel.json`)
@@ -321,6 +363,12 @@ export function createMovScriptWorkspaceService(
         ...input,
       })
     },
+    updateExpressionUnitSource(input) {
+      return updateMovScriptExpressionUnit(options.fileRepository, input)
+    },
+    updateAudioCueSource(input) {
+      return updateMovScriptAudioCue(options.fileRepository, input)
+    },
     appendCandidate(input) {
       return appendMovScriptInlineCandidate({
         fileRepository: options.fileRepository,
@@ -390,6 +438,64 @@ async function readJSONArtifact(
   if (!file) return undefined
   const parsed = JSON.parse(file.content) as unknown
   return isRecord(parsed) ? parsed : undefined
+}
+
+async function updateMovScriptExpressionUnit(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  input: MovScriptExpressionUnitUpdateInput,
+): Promise<MovScriptExpressionUnitUpdateResult> {
+  const normalizedPath = normalizeWorkspacePath(input.targetPath)
+  const existing = await readJSONArtifact(fileRepository, normalizedPath)
+  if (!existing) throw new Error(`Expression unit source not found: ${normalizedPath}`)
+  if (existing.kind !== 'expression_unit') throw new Error(`Target is not an expression_unit: ${normalizedPath}`)
+  const record = pruneUndefined({
+    ...existing,
+    schema: stringField(existing.schema) ?? 'movscript.expression_unit.v1',
+    kind: 'expression_unit',
+    title: input.patch.title !== undefined ? input.patch.title : existing.title,
+    expression_kind: input.patch.expressionKind !== undefined ? input.patch.expressionKind : existing.expression_kind,
+    speaker: input.patch.speaker !== undefined ? input.patch.speaker : existing.speaker,
+    text: input.patch.text !== undefined ? input.patch.text : existing.text,
+    note: input.patch.note !== undefined ? input.patch.note : existing.note,
+    intent: input.patch.intent !== undefined ? input.patch.intent : existing.intent,
+  })
+  await fileRepository.write({
+    path: normalizedPath,
+    content: `${JSON.stringify(record, null, 2)}\n`,
+  })
+  return { path: normalizedPath, record }
+}
+
+async function updateMovScriptAudioCue(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  input: MovScriptAudioCueUpdateInput,
+): Promise<MovScriptAudioCueUpdateResult> {
+  const normalizedPath = normalizeWorkspacePath(input.targetPath)
+  const existing = await readJSONArtifact(fileRepository, normalizedPath)
+  if (!existing) throw new Error(`Audio cue source not found: ${normalizedPath}`)
+  if (existing.kind !== 'audio_cue') throw new Error(`Target is not an audio_cue: ${normalizedPath}`)
+  const record = pruneUndefined({
+    ...existing,
+    schema: stringField(existing.schema) ?? 'movscript.audio_cue.v1',
+    kind: 'audio_cue',
+    title: input.patch.title !== undefined ? input.patch.title : existing.title,
+    cue_kind: input.patch.cueKind !== undefined ? input.patch.cueKind : existing.cue_kind,
+    shot_ref: input.patch.shotRef !== undefined ? input.patch.shotRef : existing.shot_ref,
+    storyboard_ref: input.patch.storyboardRef !== undefined ? input.patch.storyboardRef : existing.storyboard_ref,
+    timing: input.patch.timing !== undefined ? input.patch.timing : existing.timing,
+    prompt_hint: input.patch.promptHint !== undefined ? input.patch.promptHint : existing.prompt_hint,
+    asset_refs: input.patch.assetRefs !== undefined ? input.patch.assetRefs : existing.asset_refs,
+  })
+  await fileRepository.write({
+    path: normalizedPath,
+    content: `${JSON.stringify(record, null, 2)}\n`,
+  })
+  return { path: normalizedPath, record }
+}
+
+function samePreviewTimelineProduction(left: string | number, right: string | number): boolean {
+  return String(left) === String(right)
+    || entityPathSlug(left, 'production') === entityPathSlug(right, 'production')
 }
 
 function contentUnitDerivedArtifactPath(contentUnitId: string | number, filename: string): string {

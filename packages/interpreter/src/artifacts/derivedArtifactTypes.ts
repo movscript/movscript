@@ -69,7 +69,7 @@ export interface MovScriptImpactReportArtifact {
 
 export interface MovScriptPreviewTimelineItem {
   id: string
-  itemType: 'segment' | 'scene_moment' | 'shot' | 'storyboard' | 'audio_cue' | 'content_unit'
+  itemType: 'segment' | 'scene_moment' | 'shot' | 'storyboard' | 'keyframe' | 'audio_cue' | 'expression_unit' | 'content_unit'
   entity: MovScriptDomainEntityRef
   order: number
   parentId?: string

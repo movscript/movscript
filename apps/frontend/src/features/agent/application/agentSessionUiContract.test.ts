@@ -88,3 +88,10 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   assert.match(mentionEditorSource, /if \(event\.defaultPrevented\) return/)
   assert.match(layoutPropsSource, /onComposerPaste: composer\.handleComposerPaste/)
 })
+
+test('agent chat composer uses the same chrome in page and detail surfaces', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+
+  assert.match(dataSourceShellSource, /<AgentComposerSection[\s\S]*?chrome="flush"/)
+  assert.doesNotMatch(dataSourceShellSource, /chrome=\{surface === 'page' \? 'flush' : 'bottom-bar'\}/)
+})

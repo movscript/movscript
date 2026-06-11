@@ -4,17 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
 import {
+  AgentComposer,
+  AgentComposerAction,
+  AgentComposerSubmit,
+  AgentComposerToolbar,
   CheckboxField,
-  GenerationActionBar,
-  GenerationActionButton,
   GenerationActionHint,
-  GenerationActionSpacer,
   GenerationAttachmentList,
   GenerationAttachmentPreview,
   GenerationAttachmentTag,
-  GenerationGenerateButton,
   GenerationHiddenFileInput,
-  GenerationInputRoot,
   GenerationInputSlotCard,
   GenerationMentionEmpty,
   GenerationMentionItem,
@@ -22,7 +21,6 @@ import {
   GenerationMentionMenu,
   GenerationParamItem,
   GenerationParamsRow,
-  GenerationPromptArea,
   GenerationPromptEditor,
   GenerationSlotAttachmentList,
   GenerationSlotAttachmentTag,
@@ -262,11 +260,18 @@ export function GenInputCard({
   }, [])
 
   return (
-    <GenerationInputRoot>
+    <AgentComposer
+      className="ms-agent-composer--panel"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (canGenerate) onGenerate()
+      }}
+    >
       {/* Prompt area — contenteditable */}
-      <GenerationPromptArea>
+      <div className="relative">
         <GenerationPromptEditor
           ref={editorRef}
+          className="ms-agent-composer__rich-field"
           onInput={handleInput}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setMentionQuery(null)
@@ -298,7 +303,7 @@ export function GenInputCard({
             )}
           </GenerationMentionMenu>
         )}
-      </GenerationPromptArea>
+      </div>
 
       {/* Input slots (typed, ordered) — shown when model declares specific input requirements */}
       {inputSlots && inputSlots.length > 0 ? (
@@ -348,7 +353,7 @@ export function GenInputCard({
 
       {/* Params row */}
       {params.length > 0 && (
-        <GenerationParamsRow>
+        <GenerationParamsRow className="ms-agent-composer__workspace-row">
           {params.map((p) => {
             const val = paramValues[p.key] ?? p.default ?? ''
             return (
@@ -394,44 +399,49 @@ export function GenInputCard({
       )}
 
       {/* Action bar */}
-      <GenerationActionBar>
-        <GenerationActionButton
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          icon={uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-        >
-          {t('shared.genInput.addToLibrary')}
-        </GenerationActionButton>
-        <GenerationHiddenFileInput
-          ref={fileRef}
-          accept={accept}
-          onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
-        />
-        <GenerationActionButton
-          onClick={() => {
-            const el = editorRef.current
-            if (!el) return
-            el.focus()
-            document.execCommand('insertText', false, '@')
-            setMentionQuery('')
-          }}
-          icon={<AtSign size={12} />}
-        >
-          {t('shared.genInput.mention')}
-        </GenerationActionButton>
-        <GenerationActionHint data-variant="library" icon={<Library size={12} />}>
-          {t('shared.genInput.libraryOnlyHint')}
-        </GenerationActionHint>
-        <GenerationActionSpacer />
-        <GenerationActionHint data-variant="shortcut">⌘ + Enter</GenerationActionHint>
-        <GenerationGenerateButton
-          onClick={onGenerate}
-          disabled={!canGenerate}
-          icon={isRunning ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-        >
-          {isRunning ? t('pages.jobs.generating') : t('shared.genInput.generate')}
-        </GenerationGenerateButton>
-      </GenerationActionBar>
-    </GenerationInputRoot>
+      <AgentComposerToolbar>
+        <div className="ms-agent-composer__toolstrip flex min-w-0 flex-1 flex-wrap items-center gap-1">
+          <AgentComposerAction
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            aria-label={t('shared.genInput.addToLibrary')}
+            title={t('shared.genInput.addToLibrary')}
+          >
+            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          </AgentComposerAction>
+          <GenerationHiddenFileInput
+            ref={fileRef}
+            accept={accept}
+            onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+          />
+          <AgentComposerAction
+            onClick={() => {
+              const el = editorRef.current
+              if (!el) return
+              el.focus()
+              document.execCommand('insertText', false, '@')
+              setMentionQuery('')
+            }}
+            aria-label={t('shared.genInput.mention')}
+            title={t('shared.genInput.mention')}
+          >
+            <AtSign size={14} />
+          </AgentComposerAction>
+          <GenerationActionHint data-variant="library" icon={<Library size={12} />}>
+            {t('shared.genInput.libraryOnlyHint')}
+          </GenerationActionHint>
+        </div>
+        <div className="ms-agent-composer__submit-group">
+          <GenerationActionHint data-variant="shortcut">⌘ + Enter</GenerationActionHint>
+          <AgentComposerSubmit
+            disabled={!canGenerate}
+            running={isRunning}
+            label={isRunning ? t('pages.jobs.generating') : t('shared.genInput.generate')}
+          >
+            {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+          </AgentComposerSubmit>
+        </div>
+      </AgentComposerToolbar>
+    </AgentComposer>
   )
 }

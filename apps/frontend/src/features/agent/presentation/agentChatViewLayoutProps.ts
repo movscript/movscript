@@ -120,6 +120,7 @@ export function buildAgentChatViewLayoutProps({
       planActionBusy,
       planDispatchSettings,
       projectId: currentProject?.ID,
+      statusItems: threadViewState.statusItems,
       threadRef: presentation.threadRef,
       onAcceptPlanReview: interaction.acceptPlanTaskReview,
       onAnswerRunInput: interaction.answerRunInput,

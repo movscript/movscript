@@ -370,6 +370,21 @@ function agentChatRuntimeVisibleStatusItems(
 ): AgentChatRuntimeStatusSummaryEntry[] {
   const statusItems = state.statusSummaryEntries
     .filter((item) => !item.threadId || item.threadId === state.activeThreadId)
+  const activeThread = state.threads.find((thread) => thread.id === state.activeThreadId) ?? null
+  const activeTurn = activeThread?.turns.find(agentChatRuntimeTurnIsActive) ?? null
+  const activeThreadStatus = activeThread ? String(activeThread.status) : undefined
+
+  if (activeThread && (activeThreadStatus === 'running' || activeThreadStatus === 'requires_action' || activeTurn)) {
+    statusItems.push({
+      id: `active-thread:${activeThread.id}`,
+      threadId: activeThread.id,
+      title: 'Agent run',
+      detail: activeTurn ? 'A turn is currently active.' : undefined,
+      badge: activeThreadStatus === 'requires_action' ? 'waiting' : 'running',
+      tone: activeThreadStatus === 'requires_action' ? 'warning' : 'brand',
+      updatedAt: Number.MAX_SAFE_INTEGER - 1,
+    })
+  }
 
   if (visiblePendingServerRequests.length > 0) {
     statusItems.push({

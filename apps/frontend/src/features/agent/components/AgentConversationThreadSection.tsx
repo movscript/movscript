@@ -8,7 +8,7 @@ import {
   Button,
 } from '@movscript/ui'
 import { AgentPlanOverviewPanel } from '@/features/agent/components/AgentPlanOverviewPanel'
-import { AgentPinnedStatusShelf, hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
+import { AgentPinnedStatusShelf, hasAgentPinnedStatus, type AgentPinnedStatusSummaryItem } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { hiddenActivityActionItemIdsFromProjectionItems } from '@/features/agent/components/AgentConversationProjectionActivityFilters'
 import { AgentConversationProjectionItems } from '@/features/agent/components/AgentConversationProjectionItems'
 import {
@@ -39,6 +39,7 @@ export interface AgentConversationThreadSectionProps {
   planDispatchSettings: PlanDispatchSettings
   pinnedStatusExpanded?: boolean
   projectId?: number
+  statusItems?: AgentPinnedStatusSummaryItem[]
   threadRef: RefObject<HTMLDivElement>
   onAcceptPlanReview: (taskId: string) => void
   onAnswerRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
@@ -67,6 +68,7 @@ export function AgentConversationThreadSection({
   planDispatchSettings,
   pinnedStatusExpanded,
   projectId,
+  statusItems = [],
   threadRef,
   onAcceptPlanReview,
   onAnswerRunInput,
@@ -91,7 +93,8 @@ export function AgentConversationThreadSection({
     plan: currentPlan,
     generationProgressStates,
     planSnapshot: activePlanSnapshot,
-  }), [activePlanSnapshot, currentPlan, generationProgressStates])
+    statusItems,
+  }), [activePlanSnapshot, currentPlan, generationProgressStates, statusItems])
   const threadWindow = useMemo(() => buildAgentConversationProjectionRenderWindow({
     projection: conversationProjection,
     visibleCount: visibleThreadItemCount,
@@ -126,6 +129,7 @@ export function AgentConversationThreadSection({
           plan={currentPlan}
           generationProgressStates={generationProgressStates}
           planSnapshot={activePlanSnapshot}
+          statusItems={statusItems}
           expanded={pinnedStatusExpanded}
           onExpandedChange={onPinnedStatusExpandedChange}
         />

@@ -12,6 +12,7 @@ export type HierarchyNodeType =
   | 'group'
   | 'shot'
   | 'expression_unit'
+  | 'audio_cue'
   | 'storyboard'
   | 'keyframe'
 
@@ -72,6 +73,8 @@ export interface PreviewContentUnit {
   id: string
   type: 'storyboard_ref' | 'keyframe_ref' | 'shot_video'
   outputKind: 'image' | 'video' | 'storyboard'
+  path: string
+  editPrompt: string
   sceneMomentRef: string
   shotId: string
   storyboardRef: string
@@ -123,6 +126,7 @@ export interface ShotChildOption {
   status: ChildStatus
   inputHash: string
   summary: string
+  contentUnit?: PreviewContentUnit
 }
 
 export interface ShotImpact {
@@ -181,13 +185,44 @@ export interface HierarchyNode {
   state?: SelectionState | RefStatus | ChildStatus
   shotId?: string
   momentId?: string
+  transition?: HierarchyTransition
+  storyboardTimeline?: StoryboardTimeline
   children?: HierarchyNode[]
+}
+
+export interface HierarchyTransition {
+  in?: string
+  out?: string
+  notes?: string
+}
+
+export interface StoryboardTimeline {
+  caption?: string
+  gapAfterSec?: number
+  durationSec?: number
 }
 
 export interface ExpressionUnit {
   id: string
   title: string
+  path: string
   kind: string
+  text: string
   summary: string
+  speaker?: string
+  note?: string
+  sceneMomentId: string
+}
+
+export interface AudioCue {
+  id: string
+  title: string
+  path: string
+  cueKind: string
+  promptHint: string
+  shotRef?: string
+  storyboardRef?: string
+  timing: Record<string, unknown>
+  assetRefs: string[]
   sceneMomentId: string
 }

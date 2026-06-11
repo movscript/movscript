@@ -1,6 +1,8 @@
 # Content Unit Recipes
 
-Content units are top-level project production slots. They are not generated resources, candidates, or selections.
+Content units are top-level project production tasks. They are not generated resources, candidates, selections, or production hierarchy nodes.
+
+Create the necessary upstream structure first, then create the content unit. Do not invent all shots, storyboards, keyframes, assets, expression units, or audio cues just to fill a content unit. Use the smallest structure that supports the user's current goal.
 
 ## Specialized Types
 
@@ -9,6 +11,19 @@ Content units are top-level project production slots. They are not generated res
 - `storyboard_ref`: video output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_refs`. Use for storyboard-level continuous visual expression.
 
 Unknown `content_unit_type` values are valid generic slots, but interpreter adapters do not collect upstream dependencies, hash source refs, mark selections stale, or include them in regeneration planning.
+
+For storyboard-panel upload after reference-shot imitation, use a clearly named generic type such as `storyboard_panel_ref` or `storyboard_upload_ref` until a specialized adapter exists. State that it is for storyboard-panel upload/candidate/selection, not final video generation.
+
+## Asset References
+
+`asset_ref` output should usually be reusable and weakly tied to plot:
+
+- prefer low-background, clean-background, or neutral-background images,
+- prefer multi-view or reference-sheet style when useful,
+- show identity, state, costume, makeup, prop shape, material, or style,
+- avoid complex scene lighting, one-off action, specific plot blocking, or final-shot composition.
+
+Put story lighting, camera composition, action, and scene-specific mood in `keyframe` or `storyboard`, not in `asset`.
 
 ## Flat Refs
 
@@ -42,9 +57,13 @@ asset_ref content unit
 
 Use this path when cross-shot or cross-scene continuity matters.
 
+Do not start a downstream stage until the required upstream candidate has been selected. A generated candidate is not a stable dependency until it has a selection.
+
 ## Fast Exploration Path
 
 For rapid exploration, create only the needed generic or specialized content unit and generate candidates quickly. Tell the user that generic slots and skipped asset/keyframe stages trade consistency and stale tracking for speed.
+
+If the user explicitly accepts a draft path with missing upstream selection, state that the result is not a stable continuity dependency.
 
 ## Checkpoint
 

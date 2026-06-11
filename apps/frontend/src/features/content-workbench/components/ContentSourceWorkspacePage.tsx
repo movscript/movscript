@@ -24,16 +24,27 @@ import {
   Input,
 } from '@movscript/ui'
 
+import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+
 import {
-  assetReferenceUnits,
-  expressionUnitsByMoment,
-  hierarchyTree,
-  previewMoments,
-  shotWorkspaceDetails,
-} from '../domain/sourceWorkspaceFixtures'
+  createContentSourceWorkspaceHierarchyNode,
+  createContentSourceWorkspaceCandidate,
+  fixtureContentSourceWorkspaceData,
+  loadContentSourceWorkspaceData,
+  selectContentSourceWorkspaceCandidate,
+  syncContentSourceWorkspace,
+  type CreatedContentSourceCandidate,
+  updateContentSourceWorkspaceAudioCue,
+  updateContentSourceWorkspaceExpressionUnit,
+  updateContentSourceWorkspaceEditPrompt,
+  updateContentSourceWorkspaceStoryboardTimeline,
+  updateContentSourceWorkspaceTransition,
+  type ContentSourceWorkspaceData,
+} from '../domain/contentSourceWorkspaceData'
 import {
   addTargetForSelectedNode,
   appendChildNode,
+  buildChildNodeId,
   buildChildNodePath,
   countHierarchyNodes,
   filterHierarchyTree,
@@ -43,9 +54,11 @@ import {
   type AddTarget,
 } from '../domain/sourceWorkspaceTree'
 import type {
+  AudioCue,
   ChildStatus,
   EditableRef,
   ExpressionUnit,
+  HierarchyTransition,
   HierarchyNode,
   HierarchyNodeType,
   PreviewAssetCandidate,
@@ -53,6 +66,7 @@ import type {
   PreviewAssetReferenceUnit,
   PreviewAssetUpstream,
   PreviewCandidate,
+  PreviewContentUnit,
   PreviewMode,
   PreviewMoment,
   PreviewShot,
@@ -63,40 +77,72 @@ import type {
   SettingScopeDetails,
   ShotChildOption,
   ShotImpact,
+  ShotWorkspaceDetails,
+  StoryboardTimeline,
 } from '../domain/sourceWorkspaceTypes'
 
 import './ContentSourceWorkspacePage.css'
 
 const stillSheetUrl = new URL('../assets/production-stills-sheet.png', import.meta.url).href
+let activeWorkspaceData: ContentSourceWorkspaceData = fixtureContentSourceWorkspaceData
+type WorkspaceDataStatus = 'fixture' | 'loading' | 'workspace' | 'fallback'
+type SourceSyncStatus = 'clean' | 'dirty' | 'syncing' | 'synced' | 'error'
 
 export default function ContentSourceWorkspacePage() {
-  const [productionTree, setProductionTree] = useState<HierarchyNode[]>(hierarchyTree)
+  const projectId = useProjectStore((state) => state.current?.ID)
+  const [workspaceData, setWorkspaceData] = useState<ContentSourceWorkspaceData>(fixtureContentSourceWorkspaceData)
+  const [workspaceDataStatus, setWorkspaceDataStatus] = useState<WorkspaceDataStatus>('fixture')
+  const [workspaceDataError, setWorkspaceDataError] = useState<string | null>(null)
+  const [sourceSyncStatus, setSourceSyncStatus] = useState<SourceSyncStatus>('clean')
+  activeWorkspaceData = workspaceData
+  const previewMoments = workspaceData.previewMoments
+  const initialMoment = previewMoments[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0]
+  const initialShot = initialMoment.shots[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0].shots[0]
+
+  const [productionTree, setProductionTree] = useState<HierarchyNode[]>(workspaceData.hierarchyTree)
   const [newNodeTitle, setNewNodeTitle] = useState('')
   const [addTarget, setAddTarget] = useState<Pick<AddTarget, 'parentId' | 'type'> | null>(null)
-  const [selectedMomentId, setSelectedMomentId] = useState(previewMoments[0].id)
-  const [selectedShotId, setSelectedShotId] = useState(previewMoments[0].shots[0].id)
-  const [selectedNodeId, setSelectedNodeId] = useState('shot_phone_press')
-  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(() => new Set(getExpandableNodeIds(hierarchyTree)))
+  const [selectedMomentId, setSelectedMomentId] = useState(initialMoment.id)
+  const [selectedShotId, setSelectedShotId] = useState(initialShot.id)
+  const [selectedNodeId, setSelectedNodeId] = useState(initialShot.id)
+  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(() => new Set(getExpandableNodeIds(workspaceData.hierarchyTree)))
   const [mode, setMode] = useState<PreviewMode>('structure')
   const [query, setQuery] = useState('')
-  const [selectionByShot, setSelectionByShot] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      previewMoments.flatMap((moment) =>
-        moment.shots.map((shot) => [
-          shot.id,
-          shot.contentUnit.candidates.find((candidate) => candidate.selected)?.id ?? '',
-        ]),
-      ),
-    ),
-  )
-  const [selectionByAsset, setSelectionByAsset] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      Object.values(assetReferenceUnits).map((unit) => [
-        unit.assetId,
-        unit.candidates.find((candidate) => candidate.selected)?.id ?? '',
-      ]),
-    ),
-  )
+  const [selectionByShot, setSelectionByShot] = useState<Record<string, string>>(() => selectionByShotFromMoments(workspaceData.previewMoments))
+  const [selectionByAsset, setSelectionByAsset] = useState<Record<string, string>>(() => selectionByAssetFromUnits(workspaceData.assetReferenceUnits))
+
+  useEffect(() => {
+    if (!projectId) {
+      setWorkspaceData(fixtureContentSourceWorkspaceData)
+      resetWorkspaceState(fixtureContentSourceWorkspaceData)
+      setWorkspaceDataStatus('fixture')
+      setWorkspaceDataError(null)
+      setSourceSyncStatus('clean')
+      return
+    }
+    let cancelled = false
+    setWorkspaceDataStatus('loading')
+    setWorkspaceDataError(null)
+    loadContentSourceWorkspaceData(projectId)
+      .then((data) => {
+        if (cancelled) return
+        setWorkspaceData(data)
+        resetWorkspaceState(data)
+        setWorkspaceDataStatus('workspace')
+        setSourceSyncStatus('clean')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setWorkspaceData(fixtureContentSourceWorkspaceData)
+        resetWorkspaceState(fixtureContentSourceWorkspaceData)
+        setWorkspaceDataStatus('fallback')
+        setWorkspaceDataError(error instanceof Error ? error.message : 'workspace_data_load_failed')
+        setSourceSyncStatus('error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
 
   const filteredMoments = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -117,7 +163,7 @@ export default function ContentSourceWorkspacePage() {
         ]),
       ].join(' ').toLowerCase().includes(normalizedQuery)
     })
-  }, [query])
+  }, [previewMoments, query])
   const visibleTree = useMemo(() => filterHierarchyTree(productionTree, query), [productionTree, query])
   const selectedNode = findHierarchyNode(productionTree, selectedNodeId) ?? productionTree[0]
   const selectedAddTarget = useMemo(
@@ -126,7 +172,7 @@ export default function ContentSourceWorkspacePage() {
   )
 
   const selectedMoment = filteredMoments.find((moment) => moment.id === selectedMomentId) ?? filteredMoments[0] ?? previewMoments[0]
-  const selectedShot = selectedMoment.shots.find((shot) => shot.id === selectedShotId) ?? selectedMoment.shots[0]
+  const selectedShot = selectedMoment.shots.find((shot) => shot.id === selectedShotId) ?? selectedMoment.shots[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0].shots[0]
   const selectedCandidateId = selectionByShot[selectedShot.id]
 
   function selectMoment(moment: PreviewMoment) {
@@ -137,12 +183,195 @@ export default function ContentSourceWorkspacePage() {
 
   function selectCandidate(candidateId: string) {
     setSelectionByShot((current) => ({ ...current, [selectedShot.id]: candidateId }))
+    selectContentUnitCandidate(selectedShot.contentUnit.id, candidateId)
+  }
+
+  function selectContentUnitCandidate(contentUnitId: string, candidateId: string) {
+    setWorkspaceData((current) => updateWorkspaceContentUnitSelection(current, contentUnitId, candidateId))
     setMode('select')
+    if (!projectId || workspaceData.source !== 'workspace') return
+    markSourceDirty()
+    selectContentSourceWorkspaceCandidate({
+      projectId,
+      contentUnitId,
+      candidateId,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_selection_failed')
+    })
   }
 
   function selectAssetCandidate(assetId: string, candidateId: string) {
     setSelectionByAsset((current) => ({ ...current, [assetId]: candidateId }))
     setMode('select')
+    if (!projectId || workspaceData.source !== 'workspace') return
+    markSourceDirty()
+    const unit = workspaceData.assetReferenceUnits[assetId]
+    const candidate = unit?.candidates.find((item) => item.id === candidateId)
+    if (!unit) return
+    selectContentSourceWorkspaceCandidate({
+      projectId,
+      contentUnitId: unit.contentUnitId,
+      candidateId,
+      resourceId: candidate?.resourceId,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_selection_failed')
+    })
+  }
+
+  function createCandidateForContentUnit(contentUnit: PreviewContentUnit): Promise<void> {
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return createContentSourceWorkspaceCandidate({
+      projectId,
+      contentUnitId: contentUnit.id,
+      outputKind: contentUnit.outputKind,
+      promptText: contentUnit.editPrompt,
+    })
+      .then((candidate) => {
+        setWorkspaceData((current) => updateWorkspaceContentUnitCandidate(current, contentUnit.id, candidate))
+      })
+      .catch((error: unknown) => {
+        setWorkspaceDataStatus('fallback')
+        setWorkspaceDataError(error instanceof Error ? error.message : 'content_candidate_create_failed')
+        throw error
+      })
+  }
+
+  function createCandidateForAsset(assetId: string): Promise<void> {
+    const unit = workspaceData.assetReferenceUnits[assetId]
+    if (!unit || !projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return createContentSourceWorkspaceCandidate({
+      projectId,
+      contentUnitId: unit.contentUnitId,
+      outputKind: unit.outputKind,
+      promptText: unit.editPrompt,
+    })
+      .then((candidate) => {
+        setWorkspaceData((current) => updateWorkspaceAssetCandidate(current, assetId, candidate))
+      })
+      .catch((error: unknown) => {
+        setWorkspaceDataStatus('fallback')
+        setWorkspaceDataError(error instanceof Error ? error.message : 'asset_candidate_create_failed')
+        throw error
+      })
+  }
+
+  function updateAssetPrompt(assetId: string, text: string): Promise<void> {
+    const unit = workspaceData.assetReferenceUnits[assetId]
+    if (!unit) return Promise.resolve()
+    setWorkspaceData((current) => {
+      const currentUnit = current.assetReferenceUnits[assetId] ?? unit
+      return {
+        ...current,
+        assetReferenceUnits: {
+          ...current.assetReferenceUnits,
+          [assetId]: {
+            ...currentUnit,
+            editPrompt: text,
+          },
+        },
+      }
+    })
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return updateContentSourceWorkspaceEditPrompt({
+      projectId,
+      targetPath: unit.path,
+      text,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_prompt_update_failed')
+      throw error
+    })
+  }
+
+  function updateContentUnitPrompt(contentUnitId: string, targetPath: string, text: string): Promise<void> {
+    setWorkspaceData((current) => updateWorkspaceContentUnitPrompt(current, contentUnitId, text))
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return updateContentSourceWorkspaceEditPrompt({
+      projectId,
+      targetPath,
+      text,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_prompt_update_failed')
+      throw error
+    })
+  }
+
+  function updateExpressionUnit(unit: ExpressionUnit): Promise<void> {
+    setWorkspaceData((current) => updateWorkspaceExpressionUnit(current, unit))
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return updateContentSourceWorkspaceExpressionUnit({
+      projectId,
+      targetPath: unit.path,
+      title: unit.title,
+      kind: unit.kind,
+      text: unit.text,
+      summary: unit.summary,
+      speaker: unit.speaker,
+      note: unit.note,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'expression_unit_update_failed')
+      throw error
+    })
+  }
+
+  function updateAudioCue(cue: AudioCue): Promise<void> {
+    setWorkspaceData((current) => updateWorkspaceAudioCue(current, cue))
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return updateContentSourceWorkspaceAudioCue({
+      projectId,
+      targetPath: cue.path,
+      title: cue.title,
+      cueKind: cue.cueKind,
+      promptHint: cue.promptHint,
+      shotRef: cue.shotRef,
+      storyboardRef: cue.storyboardRef,
+      timing: cue.timing,
+      assetRefs: cue.assetRefs,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'audio_cue_update_failed')
+      throw error
+    })
+  }
+
+  function updateNodeTransition(nodeId: string, targetPath: string, transition: HierarchyTransition): Promise<void> {
+    setWorkspaceData((current) => updateWorkspaceHierarchyNodePlanning(current, nodeId, { transition }))
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return updateContentSourceWorkspaceTransition({
+      projectId,
+      targetPath,
+      transition,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'entity_transition_update_failed')
+      throw error
+    })
+  }
+
+  function updateStoryboardTimeline(nodeId: string, targetPath: string, timeline: StoryboardTimeline): Promise<void> {
+    setWorkspaceData((current) => updateWorkspaceHierarchyNodePlanning(current, nodeId, { storyboardTimeline: timeline }))
+    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
+    markSourceDirty()
+    return updateContentSourceWorkspaceStoryboardTimeline({
+      projectId,
+      targetPath,
+      timeline,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'storyboard_timeline_update_failed')
+      throw error
+    })
   }
 
   function selectShot(momentId: string, shotId: string) {
@@ -182,13 +411,14 @@ export default function ContentSourceWorkspacePage() {
     const parentNode = findHierarchyNode(productionTree, addTarget.parentId)
     if (!parentNode) return
     const childType = addTarget.type
-    const id = `${childType}_custom_${Date.now()}`
     const pathSlug = slugifyNodeTitle(title)
+    const id = buildChildNodeId(parentNode, pathSlug, childType)
+    const path = buildChildNodePath(parentNode, pathSlug, childType)
     const node: HierarchyNode = {
       id,
       type: childType,
       title,
-      path: buildChildNodePath(parentNode, pathSlug, childType),
+      path,
       state: 'ready',
       children: [],
     }
@@ -198,11 +428,62 @@ export default function ContentSourceWorkspacePage() {
     setNewNodeTitle('')
     setAddTarget(null)
     setQuery('')
+    if (!projectId || workspaceData.source !== 'workspace') return
+    markSourceDirty()
+    createContentSourceWorkspaceHierarchyNode({
+      projectId,
+      type: childType,
+      id: pathSlug,
+      title,
+      targetPath: path,
+      parentNode,
+    }).catch((error: unknown) => {
+      setWorkspaceDataStatus('fallback')
+      setWorkspaceDataError(error instanceof Error ? error.message : 'hierarchy_node_create_failed')
+    })
+  }
+
+  function markSourceDirty() {
+    setSourceSyncStatus((current) => current === 'syncing' ? current : 'dirty')
+  }
+
+  function syncWorkspaceSource() {
+    if (!projectId || workspaceData.source !== 'workspace' || sourceSyncStatus === 'syncing') return
+    setSourceSyncStatus('syncing')
+    setWorkspaceDataError(null)
+    syncContentSourceWorkspace({ projectId })
+      .then(() => loadContentSourceWorkspaceData(projectId))
+      .then((data) => {
+        setWorkspaceData(data)
+        resetWorkspaceState(data)
+        setWorkspaceDataStatus('workspace')
+        setSourceSyncStatus('synced')
+      })
+      .catch((error: unknown) => {
+        setSourceSyncStatus('error')
+        setWorkspaceDataError(error instanceof Error ? error.message : 'workspace_sync_failed')
+      })
   }
 
   function cancelChildNodeCreation() {
     setNewNodeTitle('')
     setAddTarget(null)
+  }
+
+  function resetWorkspaceState(data: ContentSourceWorkspaceData) {
+    const nextMoment = data.previewMoments[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0]
+    const nextShot = nextMoment.shots[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0].shots[0]
+    const nextTree = data.hierarchyTree.length > 0 ? data.hierarchyTree : fixtureContentSourceWorkspaceData.hierarchyTree
+    setProductionTree(nextTree)
+    setExpandedNodeIds(new Set(getExpandableNodeIds(nextTree)))
+    setSelectedMomentId(nextMoment.id)
+    setSelectedShotId(nextShot.id)
+    setSelectedNodeId(nextShot.id)
+    setSelectionByShot(selectionByShotFromMoments(data.previewMoments))
+    setSelectionByAsset(selectionByAssetFromUnits(data.assetReferenceUnits))
+    setNewNodeTitle('')
+    setAddTarget(null)
+    setQuery('')
   }
 
   function startAddForSelection() {
@@ -222,7 +503,19 @@ export default function ContentSourceWorkspacePage() {
             <h2>Ontology Tree</h2>
           </div>
           <div className="content-source-workspace-nav__header-actions">
+            <Badge variant={workspaceDataStatus === 'workspace' ? 'outline' : 'soft'}>{workspaceDataStatusLabel(workspaceDataStatus)}</Badge>
+            <Badge variant={sourceSyncStatus === 'dirty' || sourceSyncStatus === 'error' ? 'soft' : 'outline'}>{sourceSyncStatusLabel(sourceSyncStatus)}</Badge>
             <Badge variant="outline">{countHierarchyNodes(productionTree)} nodes</Badge>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!projectId || workspaceData.source !== 'workspace' || sourceSyncStatus === 'syncing'}
+              onClick={syncWorkspaceSource}
+            >
+              <GitCompareArrows size={13} />
+              {sourceSyncStatus === 'syncing' ? '同步中' : 'Interpret'}
+            </Button>
             <button
               type="button"
               className="content-source-workspace-nav__add"
@@ -256,6 +549,7 @@ export default function ContentSourceWorkspacePage() {
         <div className="content-source-workspace-nav__selection">
           <span>当前节点</span>
           <strong>{nodeTypeLabel(selectedNode.type)} · {selectedNode.title}</strong>
+          {workspaceDataError ? <small>{workspaceDataError}</small> : null}
         </div>
       </aside>
 
@@ -270,12 +564,334 @@ export default function ContentSourceWorkspacePage() {
           selectedCandidateId={selectedCandidateId}
           selectedAssetCandidateId={selectionByAsset[selectedNode.id] ?? ''}
           onSelectCandidate={selectCandidate}
+          onSelectContentUnitCandidate={selectContentUnitCandidate}
           onSelectAssetCandidate={selectAssetCandidate}
+          onCreateContentUnitCandidate={createCandidateForContentUnit}
+          onCreateAssetCandidate={createCandidateForAsset}
+          onUpdateAssetPrompt={updateAssetPrompt}
+          onUpdateContentUnitPrompt={updateContentUnitPrompt}
+          onUpdateExpressionUnit={updateExpressionUnit}
+          onUpdateAudioCue={updateAudioCue}
+          onUpdateTransition={updateNodeTransition}
+          onUpdateStoryboardTimeline={updateStoryboardTimeline}
           onJumpToNode={jumpToNode}
         />
       </section>
     </main>
   )
+}
+
+function selectionByShotFromMoments(moments: PreviewMoment[]): Record<string, string> {
+  return Object.fromEntries(
+    moments.flatMap((moment) =>
+      moment.shots.map((shot) => [
+        shot.id,
+        shot.contentUnit.candidates.find((candidate) => candidate.selected)?.id ?? '',
+      ]),
+    ),
+  )
+}
+
+function selectionByAssetFromUnits(units: Record<string, PreviewAssetReferenceUnit>): Record<string, string> {
+  return Object.fromEntries(
+    Object.values(units).map((unit) => [
+      unit.assetId,
+      unit.candidates.find((candidate) => candidate.selected)?.id ?? '',
+    ]),
+  )
+}
+
+function shotWorkspaceFor(shotId: string): ShotWorkspaceDetails {
+  return activeWorkspaceData.shotWorkspaceDetails[shotId] ?? {
+    settings: [],
+    assets: [],
+    keyframes: [],
+    storyboards: [],
+    impacts: [],
+  }
+}
+
+function workspaceDataStatusLabel(status: WorkspaceDataStatus): string {
+  switch (status) {
+    case 'workspace':
+      return 'Live source'
+    case 'loading':
+      return 'Loading'
+    case 'fallback':
+      return 'Fixture fallback'
+    case 'fixture':
+      return 'Fixture'
+  }
+}
+
+function sourceSyncStatusLabel(status: SourceSyncStatus): string {
+  switch (status) {
+    case 'clean':
+      return 'Interpreted'
+    case 'dirty':
+      return 'Needs interpret'
+    case 'syncing':
+      return 'Interpreting'
+    case 'synced':
+      return 'Synced'
+    case 'error':
+      return 'Sync failed'
+  }
+}
+
+function updateWorkspaceContentUnitPrompt(
+  data: ContentSourceWorkspaceData,
+  contentUnitId: string,
+  text: string,
+): ContentSourceWorkspaceData {
+  return {
+    ...data,
+    previewMoments: data.previewMoments.map((moment) => ({
+      ...moment,
+      shots: moment.shots.map((shot) => (
+        shot.contentUnit.id === contentUnitId
+          ? {
+            ...shot,
+            contentUnit: {
+              ...shot.contentUnit,
+              editPrompt: text,
+            },
+          }
+          : shot
+      )),
+    })),
+    shotWorkspaceDetails: Object.fromEntries(
+      Object.entries(data.shotWorkspaceDetails).map(([shotId, workspace]) => [
+        shotId,
+        {
+          ...workspace,
+          keyframes: updateShotChildContentUnitPrompt(workspace.keyframes, contentUnitId, text),
+          storyboards: updateShotChildContentUnitPrompt(workspace.storyboards, contentUnitId, text),
+        },
+      ]),
+    ),
+  }
+}
+
+function updateShotChildContentUnitPrompt(
+  items: ShotChildOption[],
+  contentUnitId: string,
+  text: string,
+): ShotChildOption[] {
+  return items.map((item) => item.contentUnit?.id === contentUnitId
+    ? {
+      ...item,
+      contentUnit: {
+        ...item.contentUnit,
+        editPrompt: text,
+      },
+    }
+    : item)
+}
+
+function updateWorkspaceContentUnitSelection(
+  data: ContentSourceWorkspaceData,
+  contentUnitId: string,
+  candidateId: string,
+): ContentSourceWorkspaceData {
+  return {
+    ...data,
+    previewMoments: data.previewMoments.map((moment) => ({
+      ...moment,
+      shots: moment.shots.map((shot) => (
+        shot.contentUnit.id === contentUnitId
+          ? {
+            ...shot,
+            contentUnit: selectPreviewContentUnitCandidate(shot.contentUnit, candidateId),
+          }
+          : shot
+      )),
+    })),
+    shotWorkspaceDetails: Object.fromEntries(
+      Object.entries(data.shotWorkspaceDetails).map(([shotId, workspace]) => [
+        shotId,
+        {
+          ...workspace,
+          keyframes: updateShotChildContentUnitSelection(workspace.keyframes, contentUnitId, candidateId),
+          storyboards: updateShotChildContentUnitSelection(workspace.storyboards, contentUnitId, candidateId),
+        },
+      ]),
+    ),
+  }
+}
+
+function updateWorkspaceContentUnitCandidate(
+  data: ContentSourceWorkspaceData,
+  contentUnitId: string,
+  candidate: CreatedContentSourceCandidate,
+): ContentSourceWorkspaceData {
+  return {
+    ...data,
+    previewMoments: data.previewMoments.map((moment) => ({
+      ...moment,
+      shots: moment.shots.map((shot) => (
+        shot.contentUnit.id === contentUnitId
+          ? {
+            ...shot,
+            contentUnit: appendPreviewCandidate(shot.contentUnit, candidate),
+          }
+          : shot
+      )),
+    })),
+    shotWorkspaceDetails: Object.fromEntries(
+      Object.entries(data.shotWorkspaceDetails).map(([shotId, workspace]) => [
+        shotId,
+        {
+          ...workspace,
+          keyframes: updateShotChildContentUnitCandidate(workspace.keyframes, contentUnitId, candidate),
+          storyboards: updateShotChildContentUnitCandidate(workspace.storyboards, contentUnitId, candidate),
+        },
+      ]),
+    ),
+  }
+}
+
+function updateWorkspaceAssetCandidate(
+  data: ContentSourceWorkspaceData,
+  assetId: string,
+  candidate: CreatedContentSourceCandidate,
+): ContentSourceWorkspaceData {
+  const unit = data.assetReferenceUnits[assetId]
+  if (!unit) return data
+  return {
+    ...data,
+    assetReferenceUnits: {
+      ...data.assetReferenceUnits,
+      [assetId]: {
+        ...unit,
+        candidates: [
+          ...unit.candidates,
+          {
+            ...candidate,
+            resourceId: candidate.resourceId,
+            confirmation: 'review',
+          },
+        ],
+      },
+    },
+  }
+}
+
+function updateShotChildContentUnitSelection(
+  items: ShotChildOption[],
+  contentUnitId: string,
+  candidateId: string,
+): ShotChildOption[] {
+  return items.map((item) => item.contentUnit?.id === contentUnitId
+    ? {
+      ...item,
+      contentUnit: selectPreviewContentUnitCandidate(item.contentUnit, candidateId),
+    }
+    : item)
+}
+
+function updateShotChildContentUnitCandidate(
+  items: ShotChildOption[],
+  contentUnitId: string,
+  candidate: CreatedContentSourceCandidate,
+): ShotChildOption[] {
+  return items.map((item) => item.contentUnit?.id === contentUnitId
+    ? {
+      ...item,
+      contentUnit: appendPreviewCandidate(item.contentUnit, candidate),
+    }
+    : item)
+}
+
+function selectPreviewContentUnitCandidate(contentUnit: PreviewContentUnit, candidateId: string): PreviewContentUnit {
+  return {
+    ...contentUnit,
+    selectionState: 'selected',
+    candidates: contentUnit.candidates.map((candidate) => ({
+      ...candidate,
+      selected: candidate.id === candidateId,
+    })),
+  }
+}
+
+function appendPreviewCandidate(contentUnit: PreviewContentUnit, candidate: CreatedContentSourceCandidate): PreviewContentUnit {
+  return {
+    ...contentUnit,
+    selectionState: contentUnit.selectionState === 'selected' ? 'selected' : 'needs_candidate',
+    candidates: [
+      ...contentUnit.candidates,
+      {
+        id: candidate.id,
+        title: candidate.title,
+        model: candidate.model,
+        inputHash: candidate.inputHash,
+        note: candidate.note,
+      },
+    ],
+  }
+}
+
+function updateWorkspaceExpressionUnit(
+  data: ContentSourceWorkspaceData,
+  unit: ExpressionUnit,
+): ContentSourceWorkspaceData {
+  return {
+    ...data,
+    expressionUnitsByMoment: Object.fromEntries(
+      Object.entries(data.expressionUnitsByMoment).map(([momentId, units]) => [
+        momentId,
+        units.map((item) => item.id === unit.id ? unit : item),
+      ]),
+    ),
+    hierarchyTree: updateHierarchyNodeTitle(data.hierarchyTree, unit.id, unit.title),
+  }
+}
+
+function updateWorkspaceAudioCue(
+  data: ContentSourceWorkspaceData,
+  cue: AudioCue,
+): ContentSourceWorkspaceData {
+  return {
+    ...data,
+    audioCuesByMoment: Object.fromEntries(
+      Object.entries(data.audioCuesByMoment).map(([momentId, cues]) => [
+        momentId,
+        cues.map((item) => item.id === cue.id ? cue : item),
+      ]),
+    ),
+    hierarchyTree: updateHierarchyNodeTitle(data.hierarchyTree, cue.id, cue.title),
+  }
+}
+
+function updateWorkspaceHierarchyNodePlanning(
+  data: ContentSourceWorkspaceData,
+  nodeId: string,
+  patch: Pick<Partial<HierarchyNode>, 'transition' | 'storyboardTimeline'>,
+): ContentSourceWorkspaceData {
+  return {
+    ...data,
+    hierarchyTree: updateHierarchyNodePlanning(data.hierarchyTree, nodeId, patch),
+  }
+}
+
+function updateHierarchyNodePlanning(
+  nodes: HierarchyNode[],
+  nodeId: string,
+  patch: Pick<Partial<HierarchyNode>, 'transition' | 'storyboardTimeline'>,
+): HierarchyNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    ...(node.id === nodeId ? patch : {}),
+    children: node.children ? updateHierarchyNodePlanning(node.children, nodeId, patch) : node.children,
+  }))
+}
+
+function updateHierarchyNodeTitle(nodes: HierarchyNode[], nodeId: string, title: string): HierarchyNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    title: node.id === nodeId ? title : node.title,
+    children: node.children ? updateHierarchyNodeTitle(node.children, nodeId, title) : node.children,
+  }))
 }
 
 function PreviewMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
@@ -447,7 +1063,16 @@ function HierarchyContentView({
   selectedCandidateId,
   selectedAssetCandidateId,
   onSelectCandidate,
+  onSelectContentUnitCandidate,
   onSelectAssetCandidate,
+  onCreateContentUnitCandidate,
+  onCreateAssetCandidate,
+  onUpdateAssetPrompt,
+  onUpdateContentUnitPrompt,
+  onUpdateExpressionUnit,
+  onUpdateAudioCue,
+  onUpdateTransition,
+  onUpdateStoryboardTimeline,
   onJumpToNode,
 }: {
   node: HierarchyNode
@@ -459,16 +1084,29 @@ function HierarchyContentView({
   selectedCandidateId: string
   selectedAssetCandidateId: string
   onSelectCandidate: (candidateId: string) => void
+  onSelectContentUnitCandidate: (contentUnitId: string, candidateId: string) => void
   onSelectAssetCandidate: (assetId: string, candidateId: string) => void
+  onCreateContentUnitCandidate: (contentUnit: PreviewContentUnit) => Promise<void>
+  onCreateAssetCandidate: (assetId: string) => Promise<void>
+  onUpdateAssetPrompt: (assetId: string, text: string) => Promise<void>
+  onUpdateContentUnitPrompt: (contentUnitId: string, targetPath: string, text: string) => Promise<void>
+  onUpdateExpressionUnit: (unit: ExpressionUnit) => Promise<void>
+  onUpdateAudioCue: (cue: AudioCue) => Promise<void>
+  onUpdateTransition: (nodeId: string, targetPath: string, transition: HierarchyTransition) => Promise<void>
+  onUpdateStoryboardTimeline: (nodeId: string, targetPath: string, timeline: StoryboardTimeline) => Promise<void>
   onJumpToNode: (nodeId: string, momentId?: string, shotId?: string) => void
 }) {
   const linkedRefs = findRefsForNode(node)
   const linkedChild = findChildForNode(node, selectedShot)
-  const workspace = shotWorkspaceDetails[selectedShot.id]
+  const linkedContentUnit = linkedChild?.contentUnit
+  const workspace = shotWorkspaceFor(selectedShot.id)
   const currentMoment = node.type === 'scene_moment' || node.type === 'group'
     ? moments.find((moment) => moment.id === (node.momentId ?? node.id)) ?? selectedMoment
     : selectedMoment
-  const currentExpressionUnits = expressionUnitsByMoment[currentMoment.id] ?? []
+  const currentExpressionUnits = activeWorkspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
+  const currentAudioCues = activeWorkspaceData.audioCuesByMoment[currentMoment.id] ?? []
+  const selectedExpressionUnit = currentExpressionUnits.find((unit) => unit.id === node.id)
+  const selectedAudioCue = currentAudioCues.find((cue) => cue.id === node.id)
   const groupChildren = node.children ?? []
 
   return (
@@ -513,139 +1151,179 @@ function HierarchyContentView({
             unit={assetReferenceUnitForNode(node)}
             selectedCandidateId={selectedAssetCandidateId}
             onSelectCandidate={onSelectAssetCandidate}
+            onCreateCandidate={onCreateAssetCandidate}
+            onUpdatePrompt={onUpdateAssetPrompt}
             onJumpToNode={onJumpToNode}
           />
         ) : (
           <>
-        <section className="content-source-workspace-entity-section">
-          <div className="content-source-workspace-entity-section__title">
-            <span className="content-source-workspace__eyebrow">Editor</span>
-            <strong>{nodeTypeLabel(node.type)} edit surface</strong>
-          </div>
-          {node.type === 'production' || node.type === 'segment' ? (
-            <div className="content-source-workspace-entity-grid">
-              {moments.map((moment, momentIndex) => (
-                <section
-                  key={moment.id}
-                  className="content-source-workspace-moment"
-                  data-active={selectedMoment.id === moment.id}
-                  onClick={() => onSelectMoment(moment)}
-                >
-                  <div className="content-source-workspace-moment__header">
-                    <div>
-                      <span className="content-source-workspace__eyebrow">Scene Moment {momentIndex + 1}</span>
-                      <h3>{moment.title}</h3>
-                      <p>{moment.path}</p>
-                    </div>
-                    <div className="content-source-workspace-moment__state">
-                      <Badge variant={moment.selectionState === 'stale' ? 'soft' : 'outline'}>{selectionStateText(moment.selectionState)}</Badge>
-                      <span>{moment.priority}</span>
-                    </div>
-                  </div>
-                  <ShotCardRow moment={moment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
-                </section>
-              ))}
-            </div>
-          ) : null}
-          {node.type === 'scene_moment' ? (
-            <PreviewPacket icon={Layers3} title="Scene Moment Editor" meta={`${currentMoment.shots.length} shots · ${currentExpressionUnits.length} expression_units`}>
-              <PreviewFact label="scene_moment" value={currentMoment.title} />
-              <PreviewFact label="path" value={currentMoment.path} />
-              <PreviewFact label="segment" value={currentMoment.segment} />
-            </PreviewPacket>
-          ) : null}
-          {node.type === 'group' ? (
-            <PreviewPacket icon={Layers3} title={`${node.title} Group`} meta={`${groupChildren.length} children`}>
-              {groupChildren.length ? (
-                <PreviewList items={groupChildren.map((child) => `${nodeTypeBadge(child.type)} · ${child.title}`)} />
-              ) : (
-                <PreviewList items={['等待候选生成']} />
-              )}
-            </PreviewPacket>
-          ) : null}
-          {node.type === 'setting' || node.type === 'state' ? (
-            <PreviewPacket icon={FilePenLine} title={`${nodeTypeLabel(node.type)} Editor`} meta={`${linkedRefs.length} linked`}>
-              <EditableRefList items={linkedRefs.length ? linkedRefs : collectEditableRefs(node.type)} />
-            </PreviewPacket>
-          ) : null}
-          {node.type === 'shot' ? (
-            <PreviewPacket icon={Clapperboard} title="Shot Editor" meta={selectedShot.contentUnit.id}>
-              <PreviewFact label="brief" value={selectedShot.expression} />
-              <PreviewFact label="camera" value={`${selectedShot.camera} · ${selectedShot.duration}`} />
-              <PreviewFact label="content_unit_type" value={selectedShot.contentUnit.type} />
-              <PreviewFact label="output_kind" value={selectedShot.contentUnit.outputKind} />
-            </PreviewPacket>
-          ) : null}
-          {node.type === 'keyframe' || node.type === 'storyboard' ? (
-            <PreviewPacket icon={node.type === 'keyframe' ? Frame : Image} title={`${nodeTypeLabel(node.type)} Editor`} meta={linkedChild?.id ?? node.id}>
-              <ShotChildList
-                items={node.type === 'keyframe' ? workspace.keyframes : workspace.storyboards}
-                stillPosition={selectedShot.stillPosition}
-              />
-            </PreviewPacket>
-          ) : null}
-          {node.type === 'expression_unit' ? (
-            <PreviewPacket icon={Sparkles} title="Expression Unit Editor" meta={node.id}>
-              <ExpressionUnitList items={currentExpressionUnits.filter((unit) => unit.id === node.id)} />
-            </PreviewPacket>
-          ) : null}
-        </section>
-
-        <section className="content-source-workspace-entity-section">
-          <div className="content-source-workspace-entity-section__title">
-            <span className="content-source-workspace__eyebrow">Children / Relations</span>
-            <strong>下游子节点、候选与影响链</strong>
-          </div>
-          {node.type === 'production' || node.type === 'segment' ? (
-            <PreviewPacket icon={Layers3} title="Child Nodes" meta={`${moments.length} scene_moments`}>
-              <PreviewList items={moments.map((moment) => moment.path)} />
-            </PreviewPacket>
-          ) : null}
-          {node.type === 'scene_moment' ? (
-            <div className="content-source-workspace-entity-split">
-              <PreviewPacket icon={Clapperboard} title="Shots" meta={`${currentMoment.shots.length} shots`}>
-                <ShotCardRow moment={currentMoment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
-              </PreviewPacket>
-              <PreviewPacket icon={Sparkles} title="Expression Units" meta={`${currentExpressionUnits.length} units`}>
-                <ExpressionUnitList items={currentExpressionUnits} />
-              </PreviewPacket>
-            </div>
-          ) : null}
-          {node.type === 'group' ? (
-            <GroupRelationView
-              node={node}
-              currentMoment={currentMoment}
-              selectedShot={selectedShot}
-              onSelectShot={onSelectShot}
-            />
-          ) : null}
-          {node.type === 'setting' || node.type === 'state' ? (
-            <SettingScopeDetail node={node} onJumpToNode={onJumpToNode} />
-          ) : null}
-          {node.type === 'shot' ? (
-            <div className="content-source-workspace-entity-split">
-              <PreviewPacket icon={Frame} title="Keyframes" meta={`${workspace.keyframes.length} options`}>
-                <ShotChildList items={workspace.keyframes} stillPosition={selectedShot.stillPosition} />
-              </PreviewPacket>
-              <PreviewPacket icon={Image} title="Storyboards" meta={`${workspace.storyboards.length} options`}>
-                <ShotChildList items={workspace.storyboards} stillPosition={selectedShot.stillPosition} />
-              </PreviewPacket>
-              <PreviewPacket icon={Sparkles} title="Candidates / selection.json" meta={selectedCandidateId || '未选择'}>
-                <CandidateList
-                  candidates={selectedShot.contentUnit.candidates}
-                  selectedCandidateId={selectedCandidateId}
-                  stillPosition={selectedShot.stillPosition}
-                  onSelect={onSelectCandidate}
+            <section className="content-source-workspace-entity-section">
+              <div className="content-source-workspace-entity-section__title">
+                <span className="content-source-workspace__eyebrow">Editor</span>
+                <strong>{nodeTypeLabel(node.type)} edit surface</strong>
+              </div>
+              {supportsTransitionEditor(node) ? (
+                <PlanningEditor
+                  node={node}
+                  onUpdateTransition={onUpdateTransition}
+                  onUpdateStoryboardTimeline={onUpdateStoryboardTimeline}
                 />
-              </PreviewPacket>
-            </div>
-          ) : null}
-          {node.type === 'keyframe' || node.type === 'storyboard' || node.type === 'expression_unit' ? (
-            <PreviewPacket icon={GitCompareArrows} title="Downstream Impact" meta={selectedShot.id}>
-              <ImpactList impacts={workspace.impacts} />
-            </PreviewPacket>
-          ) : null}
-        </section>
+              ) : null}
+              {node.type === 'production' || node.type === 'segment' ? (
+                <div className="content-source-workspace-entity-grid">
+                  {moments.map((moment, momentIndex) => (
+                    <section
+                      key={moment.id}
+                      className="content-source-workspace-moment"
+                      data-active={selectedMoment.id === moment.id}
+                      onClick={() => onSelectMoment(moment)}
+                    >
+                      <div className="content-source-workspace-moment__header">
+                        <div>
+                          <span className="content-source-workspace__eyebrow">Scene Moment {momentIndex + 1}</span>
+                          <h3>{moment.title}</h3>
+                          <p>{moment.path}</p>
+                        </div>
+                        <div className="content-source-workspace-moment__state">
+                          <Badge variant={moment.selectionState === 'stale' ? 'soft' : 'outline'}>{selectionStateText(moment.selectionState)}</Badge>
+                          <span>{moment.priority}</span>
+                        </div>
+                      </div>
+                      <ShotCardRow moment={moment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
+                    </section>
+                  ))}
+                </div>
+              ) : null}
+              {node.type === 'scene_moment' ? (
+                <PreviewPacket icon={Layers3} title="Scene Moment Editor" meta={`${currentMoment.shots.length} shots · ${currentExpressionUnits.length} expression_units`}>
+                  <PreviewFact label="scene_moment" value={currentMoment.title} />
+                  <PreviewFact label="path" value={currentMoment.path} />
+                  <PreviewFact label="segment" value={currentMoment.segment} />
+                  <PreviewFact label="audio_cues" value={String(currentAudioCues.length)} />
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'group' ? (
+                <PreviewPacket icon={Layers3} title={`${node.title} Group`} meta={`${groupChildren.length} children`}>
+                  {groupChildren.length ? (
+                    <PreviewList items={groupChildren.map((child) => `${nodeTypeBadge(child.type)} · ${child.title}`)} />
+                  ) : (
+                    <PreviewList items={['等待候选生成']} />
+                  )}
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'setting' || node.type === 'state' ? (
+                <PreviewPacket icon={FilePenLine} title={`${nodeTypeLabel(node.type)} Editor`} meta={`${linkedRefs.length} linked`}>
+                  <EditableRefList items={linkedRefs.length ? linkedRefs : collectEditableRefs(node.type)} />
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'shot' ? (
+                <PreviewPacket icon={Clapperboard} title="Shot Editor" meta={selectedShot.contentUnit.id}>
+                  <PreviewFact label="brief" value={selectedShot.expression} />
+                  <PreviewFact label="camera" value={`${selectedShot.camera} · ${selectedShot.duration}`} />
+                  <PreviewFact label="content_unit_type" value={selectedShot.contentUnit.type} />
+                  <PreviewFact label="output_kind" value={selectedShot.contentUnit.outputKind} />
+                  <ContentUnitPromptEditor contentUnit={selectedShot.contentUnit} onUpdatePrompt={onUpdateContentUnitPrompt} onCreateCandidate={onCreateContentUnitCandidate} />
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'keyframe' || node.type === 'storyboard' ? (
+                <PreviewPacket icon={node.type === 'keyframe' ? Frame : Image} title={`${nodeTypeLabel(node.type)} Editor`} meta={linkedChild?.id ?? node.id}>
+                  <ShotChildList
+                    items={node.type === 'keyframe' ? workspace.keyframes : workspace.storyboards}
+                    stillPosition={selectedShot.stillPosition}
+                  />
+                  {linkedContentUnit ? (
+                    <>
+                      <ContentUnitPromptEditor contentUnit={linkedContentUnit} onUpdatePrompt={onUpdateContentUnitPrompt} onCreateCandidate={onCreateContentUnitCandidate} />
+                      <CandidateList
+                        candidates={linkedContentUnit.candidates}
+                        selectedCandidateId={linkedContentUnit.candidates.find((candidate) => candidate.selected)?.id ?? ''}
+                        stillPosition={selectedShot.stillPosition}
+                        onSelect={(candidateId) => onSelectContentUnitCandidate(linkedContentUnit.id, candidateId)}
+                      />
+                    </>
+                  ) : (
+                    <PreviewList items={['该节点尚未通过 edit_prompt 绑定 content_unit。']} />
+                  )}
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'expression_unit' ? (
+                <PreviewPacket icon={Sparkles} title="Expression Unit Editor" meta={node.id}>
+                  {selectedExpressionUnit ? (
+                    <ExpressionUnitEditor unit={selectedExpressionUnit} onUpdate={onUpdateExpressionUnit} />
+                  ) : (
+                    <PreviewList items={['未在当前 scene_moment 中找到 expression_unit source。']} />
+                  )}
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'audio_cue' ? (
+                <PreviewPacket icon={Sparkles} title="Audio Cue Editor" meta={node.id}>
+                  {selectedAudioCue ? (
+                    <AudioCueEditor cue={selectedAudioCue} onUpdate={onUpdateAudioCue} />
+                  ) : (
+                    <PreviewList items={['未在当前 scene_moment 中找到 audio_cue source。']} />
+                  )}
+                </PreviewPacket>
+              ) : null}
+            </section>
+
+            <section className="content-source-workspace-entity-section">
+              <div className="content-source-workspace-entity-section__title">
+                <span className="content-source-workspace__eyebrow">Children / Relations</span>
+                <strong>下游子节点、候选与影响链</strong>
+              </div>
+              {node.type === 'production' || node.type === 'segment' ? (
+                <PreviewPacket icon={Layers3} title="Child Nodes" meta={`${moments.length} scene_moments`}>
+                  <PreviewList items={moments.map((moment) => moment.path)} />
+                </PreviewPacket>
+              ) : null}
+              {node.type === 'scene_moment' ? (
+                <div className="content-source-workspace-entity-split">
+                  <PreviewPacket icon={Clapperboard} title="Shots" meta={`${currentMoment.shots.length} shots`}>
+                    <ShotCardRow moment={currentMoment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
+                  </PreviewPacket>
+                  <PreviewPacket icon={Sparkles} title="Expression Units" meta={`${currentExpressionUnits.length} units`}>
+                    <ExpressionUnitList items={currentExpressionUnits} />
+                  </PreviewPacket>
+                  <PreviewPacket icon={Sparkles} title="Audio Cues" meta={`${currentAudioCues.length} cues`}>
+                    <AudioCueList items={currentAudioCues} />
+                  </PreviewPacket>
+                </div>
+              ) : null}
+              {node.type === 'group' ? (
+                <GroupRelationView
+                  node={node}
+                  currentMoment={currentMoment}
+                  selectedShot={selectedShot}
+                  onSelectShot={onSelectShot}
+                />
+              ) : null}
+              {node.type === 'setting' || node.type === 'state' ? (
+                <SettingScopeDetail node={node} onJumpToNode={onJumpToNode} />
+              ) : null}
+              {node.type === 'shot' ? (
+                <div className="content-source-workspace-entity-split">
+                  <PreviewPacket icon={Frame} title="Keyframes" meta={`${workspace.keyframes.length} options`}>
+                    <ShotChildList items={workspace.keyframes} stillPosition={selectedShot.stillPosition} />
+                  </PreviewPacket>
+                  <PreviewPacket icon={Image} title="Storyboards" meta={`${workspace.storyboards.length} options`}>
+                    <ShotChildList items={workspace.storyboards} stillPosition={selectedShot.stillPosition} />
+                  </PreviewPacket>
+                  <PreviewPacket icon={Sparkles} title="Candidates / selection.json" meta={selectedCandidateId || '未选择'}>
+                    <CandidateList
+                      candidates={selectedShot.contentUnit.candidates}
+                      selectedCandidateId={selectedCandidateId}
+                      stillPosition={selectedShot.stillPosition}
+                      onSelect={onSelectCandidate}
+                    />
+                  </PreviewPacket>
+                </div>
+              ) : null}
+              {node.type === 'keyframe' || node.type === 'storyboard' || node.type === 'expression_unit' ? (
+                <PreviewPacket icon={GitCompareArrows} title="Downstream Impact" meta={selectedShot.id}>
+                  <ImpactList impacts={workspace.impacts} />
+                </PreviewPacket>
+              ) : null}
+            </section>
           </>
         )}
       </section>
@@ -796,16 +1474,45 @@ function AssetReferenceDetail({
   unit,
   selectedCandidateId,
   onSelectCandidate,
+  onCreateCandidate,
+  onUpdatePrompt,
   onJumpToNode,
 }: {
   node: HierarchyNode
   unit: PreviewAssetReferenceUnit
   selectedCandidateId: string
   onSelectCandidate: (assetId: string, candidateId: string) => void
+  onCreateCandidate: (assetId: string) => Promise<void>
+  onUpdatePrompt: (assetId: string, text: string) => Promise<void>
   onJumpToNode: (nodeId: string, momentId?: string, shotId?: string) => void
 }) {
+  const [draftPrompt, setDraftPrompt] = useState(unit.editPrompt)
+  const [savingPrompt, setSavingPrompt] = useState(false)
+  const [creatingCandidate, setCreatingCandidate] = useState(false)
   const selectedCandidate = unit.candidates.find((candidate) => candidate.id === selectedCandidateId) ?? unit.candidates.find((candidate) => candidate.selected)
   const staleDownstreamCount = unit.downstream.filter((item) => item.state === 'stale' || item.state === 'needs_candidate').length
+  const promptDirty = draftPrompt !== unit.editPrompt
+
+  useEffect(() => {
+    setDraftPrompt(unit.editPrompt)
+    setSavingPrompt(false)
+  }, [unit.contentUnitId, unit.editPrompt])
+
+  function savePrompt() {
+    if (!promptDirty || savingPrompt) return
+    setSavingPrompt(true)
+    onUpdatePrompt(unit.assetId, draftPrompt)
+      .catch(() => undefined)
+      .finally(() => setSavingPrompt(false))
+  }
+
+  function createCandidate() {
+    if (creatingCandidate) return
+    setCreatingCandidate(true)
+    onCreateCandidate(unit.assetId)
+      .catch(() => undefined)
+      .finally(() => setCreatingCandidate(false))
+  }
 
   return (
     <>
@@ -827,20 +1534,20 @@ function AssetReferenceDetail({
           </div>
           <label className="content-source-workspace-asset-unit__field">
             <span>edit_prompt</span>
-            <textarea value={unit.editPrompt} readOnly rows={4} />
+            <textarea value={draftPrompt} onChange={(event) => setDraftPrompt(event.target.value)} rows={4} />
           </label>
           <label className="content-source-workspace-asset-unit__field">
             <span>lock_policy</span>
             <textarea value={unit.lockPolicy} readOnly rows={3} />
           </label>
           <div className="content-source-workspace-view-jumps">
-            <Button type="button" size="sm">
+            <Button type="button" size="sm" disabled={!promptDirty || savingPrompt} onClick={savePrompt}>
               <FilePenLine size={13} />
-              编辑参考图单元
+              {savingPrompt ? '保存中' : '保存 edit_prompt'}
             </Button>
-            <Button type="button" size="sm" variant="outline">
+            <Button type="button" size="sm" variant="outline" disabled={creatingCandidate} onClick={createCandidate}>
               <Wand2 size={13} />
-              生成新候选
+              {creatingCandidate ? '排队中' : '生成新候选'}
             </Button>
           </div>
         </div>
@@ -1056,7 +1763,7 @@ function GroupRelationView({
   selectedShot: PreviewShot
   onSelectShot: (momentId: string, shotId: string) => void
 }) {
-  const workspace = shotWorkspaceDetails[selectedShot.id]
+  const workspace = shotWorkspaceFor(selectedShot.id)
 
   if (node.title === 'Shots') {
     return (
@@ -1067,10 +1774,19 @@ function GroupRelationView({
   }
 
   if (node.title === 'Expression Units') {
-    const expressionUnits = expressionUnitsByMoment[currentMoment.id] ?? []
+    const expressionUnits = activeWorkspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
     return (
       <PreviewPacket icon={Sparkles} title="Expression Units" meta={`${expressionUnits.length} units`}>
         <ExpressionUnitList items={expressionUnits} />
+      </PreviewPacket>
+    )
+  }
+
+  if (node.title === 'Audio Cues') {
+    const audioCues = activeWorkspaceData.audioCuesByMoment[currentMoment.id] ?? []
+    return (
+      <PreviewPacket icon={Sparkles} title="Audio Cues" meta={`${audioCues.length} cues`}>
+        <AudioCueList items={audioCues} />
       </PreviewPacket>
     )
   }
@@ -1110,7 +1826,7 @@ function ShotCardRow({
   return (
     <div className="content-source-workspace-shot-row">
       {moment.shots.map((shot, shotIndex) => {
-        const shotWorkspace = shotWorkspaceDetails[shot.id]
+        const shotWorkspace = shotWorkspaceFor(shot.id)
         const refIssueCount = [...shotWorkspace.settings, ...shotWorkspace.assets].filter((ref) => ref.status === 'changed' || ref.status === 'missing').length
         const shotImpactCount = shotWorkspace.impacts.length
         return (
@@ -1178,6 +1894,188 @@ function PreviewFact({ label, value }: { label: string; value: string }) {
   )
 }
 
+function PlanningEditor({
+  node,
+  onUpdateTransition,
+  onUpdateStoryboardTimeline,
+}: {
+  node: HierarchyNode
+  onUpdateTransition: (nodeId: string, targetPath: string, transition: HierarchyTransition) => Promise<void>
+  onUpdateStoryboardTimeline: (nodeId: string, targetPath: string, timeline: StoryboardTimeline) => Promise<void>
+}) {
+  return (
+    <div className="content-source-workspace-entity-split">
+      <TransitionEditor node={node} onUpdate={onUpdateTransition} />
+      {node.type === 'storyboard' ? (
+        <StoryboardTimelineEditor node={node} onUpdate={onUpdateStoryboardTimeline} />
+      ) : null}
+    </div>
+  )
+}
+
+function TransitionEditor({
+  node,
+  onUpdate,
+}: {
+  node: HierarchyNode
+  onUpdate: (nodeId: string, targetPath: string, transition: HierarchyTransition) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<HierarchyTransition>(node.transition ?? {})
+  const [saving, setSaving] = useState(false)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(node.transition ?? {})
+
+  useEffect(() => {
+    setDraft(node.transition ?? {})
+    setSaving(false)
+  }, [node.id, node.transition])
+
+  function updateDraft(patch: Partial<HierarchyTransition>) {
+    setDraft((current) => ({ ...current, ...patch }))
+  }
+
+  function save() {
+    if (!dirty || saving) return
+    setSaving(true)
+    onUpdate(node.id, node.path, draft)
+      .catch(() => undefined)
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <PreviewPacket icon={GitCompareArrows} title="Transition" meta={node.path}>
+      <div className="content-source-workspace-expression-editor">
+        <label className="content-source-workspace-asset-unit__field">
+          <span>in</span>
+          <Input value={draft.in ?? ''} onChange={(event) => updateDraft({ in: event.target.value })} />
+        </label>
+        <label className="content-source-workspace-asset-unit__field">
+          <span>out</span>
+          <Input value={draft.out ?? ''} onChange={(event) => updateDraft({ out: event.target.value })} />
+        </label>
+        <label className="content-source-workspace-asset-unit__field">
+          <span>notes</span>
+          <textarea value={draft.notes ?? ''} onChange={(event) => updateDraft({ notes: event.target.value })} rows={3} />
+        </label>
+        <div className="content-source-workspace-view-jumps">
+          <Button type="button" size="sm" disabled={!dirty || saving} onClick={save}>
+            <FilePenLine size={13} />
+            {saving ? '保存中' : '保存 transition'}
+          </Button>
+        </div>
+      </div>
+    </PreviewPacket>
+  )
+}
+
+function StoryboardTimelineEditor({
+  node,
+  onUpdate,
+}: {
+  node: HierarchyNode
+  onUpdate: (nodeId: string, targetPath: string, timeline: StoryboardTimeline) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<StoryboardTimeline>(node.storyboardTimeline ?? {})
+  const [saving, setSaving] = useState(false)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(node.storyboardTimeline ?? {})
+
+  useEffect(() => {
+    setDraft(node.storyboardTimeline ?? {})
+    setSaving(false)
+  }, [node.id, node.storyboardTimeline])
+
+  function updateDraft(patch: Partial<StoryboardTimeline>) {
+    setDraft((current) => ({ ...current, ...patch }))
+  }
+
+  function save() {
+    if (!dirty || saving) return
+    setSaving(true)
+    onUpdate(node.id, node.path, draft)
+      .catch(() => undefined)
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <PreviewPacket icon={Image} title="Storyboard Timeline" meta={node.id}>
+      <div className="content-source-workspace-expression-editor">
+        <label className="content-source-workspace-asset-unit__field">
+          <span>caption</span>
+          <textarea value={draft.caption ?? ''} onChange={(event) => updateDraft({ caption: event.target.value })} rows={3} />
+        </label>
+        <label className="content-source-workspace-asset-unit__field">
+          <span>gap_after_sec</span>
+          <Input value={numberInputValue(draft.gapAfterSec)} onChange={(event) => updateDraft({ gapAfterSec: numberInputValueToNumber(event.target.value) })} />
+        </label>
+        <label className="content-source-workspace-asset-unit__field">
+          <span>duration_sec</span>
+          <Input value={numberInputValue(draft.durationSec)} onChange={(event) => updateDraft({ durationSec: numberInputValueToNumber(event.target.value) })} />
+        </label>
+        <div className="content-source-workspace-view-jumps">
+          <Button type="button" size="sm" disabled={!dirty || saving} onClick={save}>
+            <FilePenLine size={13} />
+            {saving ? '保存中' : '保存 timeline'}
+          </Button>
+        </div>
+      </div>
+    </PreviewPacket>
+  )
+}
+
+function ContentUnitPromptEditor({
+  contentUnit,
+  onUpdatePrompt,
+  onCreateCandidate,
+}: {
+  contentUnit: PreviewContentUnit
+  onUpdatePrompt: (contentUnitId: string, targetPath: string, text: string) => Promise<void>
+  onCreateCandidate: (contentUnit: PreviewContentUnit) => Promise<void>
+}) {
+  const [draftPrompt, setDraftPrompt] = useState(contentUnit.editPrompt)
+  const [savingPrompt, setSavingPrompt] = useState(false)
+  const [creatingCandidate, setCreatingCandidate] = useState(false)
+  const promptDirty = draftPrompt !== contentUnit.editPrompt
+
+  useEffect(() => {
+    setDraftPrompt(contentUnit.editPrompt)
+    setSavingPrompt(false)
+  }, [contentUnit.id, contentUnit.editPrompt])
+
+  function savePrompt() {
+    if (!promptDirty || savingPrompt) return
+    setSavingPrompt(true)
+    onUpdatePrompt(contentUnit.id, contentUnit.path, draftPrompt)
+      .catch(() => undefined)
+      .finally(() => setSavingPrompt(false))
+  }
+
+  function createCandidate() {
+    if (creatingCandidate) return
+    setCreatingCandidate(true)
+    onCreateCandidate(contentUnit)
+      .catch(() => undefined)
+      .finally(() => setCreatingCandidate(false))
+  }
+
+  return (
+    <>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>edit_prompt</span>
+        <textarea value={draftPrompt} onChange={(event) => setDraftPrompt(event.target.value)} rows={4} />
+      </label>
+      <div className="content-source-workspace-view-jumps">
+        <Button type="button" size="sm" disabled={!promptDirty || savingPrompt} onClick={savePrompt}>
+          <FilePenLine size={13} />
+          {savingPrompt ? '保存中' : '保存 edit_prompt'}
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={creatingCandidate} onClick={createCandidate}>
+          <Wand2 size={13} />
+          {creatingCandidate ? '排队中' : '生成新候选'}
+        </Button>
+      </div>
+    </>
+  )
+}
+
 function PreviewList({ items }: { items: string[] }) {
   return (
     <ul className="content-source-workspace-packet-list">
@@ -1237,6 +2135,9 @@ function ShotChildList({ items, stillPosition }: { items: ShotChildOption[]; sti
             <strong>{item.title}</strong>
             <small>{item.id} · {item.inputHash}</small>
             <span>{item.summary}</span>
+            {item.contentUnit ? (
+              <small>{item.contentUnit.id} · {selectionStateText(item.contentUnit.selectionState)}</small>
+            ) : null}
           </span>
           <Badge variant={item.status === 'selected' ? 'outline' : 'soft'}>{childStatusText(item.status)}</Badge>
         </button>
@@ -1259,6 +2160,197 @@ function ExpressionUnitList({ items }: { items: ExpressionUnit[] }) {
       ))}
     </div>
   )
+}
+
+function ExpressionUnitEditor({
+  unit,
+  onUpdate,
+}: {
+  unit: ExpressionUnit
+  onUpdate: (unit: ExpressionUnit) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(unit)
+  const [saving, setSaving] = useState(false)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(unit)
+
+  useEffect(() => {
+    setDraft(unit)
+    setSaving(false)
+  }, [unit])
+
+  function updateDraft(patch: Partial<ExpressionUnit>) {
+    setDraft((current) => ({ ...current, ...patch }))
+  }
+
+  function save() {
+    if (!dirty || saving) return
+    setSaving(true)
+    onUpdate(draft)
+      .catch(() => undefined)
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="content-source-workspace-expression-editor">
+      <label className="content-source-workspace-asset-unit__field">
+        <span>title</span>
+        <Input value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>expression_kind</span>
+        <Input value={draft.kind} onChange={(event) => updateDraft({ kind: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>speaker</span>
+        <Input value={draft.speaker ?? ''} onChange={(event) => updateDraft({ speaker: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>text</span>
+        <textarea value={draft.text} onChange={(event) => updateDraft({ text: event.target.value })} rows={3} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>intent</span>
+        <textarea value={draft.summary} onChange={(event) => updateDraft({ summary: event.target.value })} rows={3} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>note</span>
+        <textarea value={draft.note ?? ''} onChange={(event) => updateDraft({ note: event.target.value })} rows={2} />
+      </label>
+      <div className="content-source-workspace-view-jumps">
+        <Button type="button" size="sm" disabled={!dirty || saving} onClick={save}>
+          <FilePenLine size={13} />
+          {saving ? '保存中' : '保存 expression_unit'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function AudioCueList({ items }: { items: AudioCue[] }) {
+  return (
+    <div className="content-source-workspace-expression-list">
+      {items.map((item) => (
+        <article key={item.id} className="content-source-workspace-expression-card">
+          <div>
+            <strong>{item.title}</strong>
+            <small>{item.id} · {item.cueKind}</small>
+          </div>
+          <p>{item.promptHint || JSON.stringify(item.timing)}</p>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function AudioCueEditor({
+  cue,
+  onUpdate,
+}: {
+  cue: AudioCue
+  onUpdate: (cue: AudioCue) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(cue)
+  const [timingText, setTimingText] = useState(JSON.stringify(cue.timing, null, 2))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(cue) || timingText !== JSON.stringify(cue.timing, null, 2)
+
+  useEffect(() => {
+    setDraft(cue)
+    setTimingText(JSON.stringify(cue.timing, null, 2))
+    setSaving(false)
+    setError(null)
+  }, [cue])
+
+  function updateDraft(patch: Partial<AudioCue>) {
+    setDraft((current) => ({ ...current, ...patch }))
+  }
+
+  function save() {
+    if (!dirty || saving) return
+    const parsedTiming = parseTimingJSON(timingText)
+    if (!parsedTiming) {
+      setError('timing 必须是 JSON object')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    onUpdate({ ...draft, timing: parsedTiming })
+      .catch(() => undefined)
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="content-source-workspace-expression-editor">
+      <label className="content-source-workspace-asset-unit__field">
+        <span>title</span>
+        <Input value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>cue_kind</span>
+        <Input value={draft.cueKind} onChange={(event) => updateDraft({ cueKind: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>shot_ref</span>
+        <Input value={draft.shotRef ?? ''} onChange={(event) => updateDraft({ shotRef: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>storyboard_ref</span>
+        <Input value={draft.storyboardRef ?? ''} onChange={(event) => updateDraft({ storyboardRef: event.target.value })} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>prompt_hint</span>
+        <textarea value={draft.promptHint} onChange={(event) => updateDraft({ promptHint: event.target.value })} rows={3} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>timing</span>
+        <textarea value={timingText} onChange={(event) => setTimingText(event.target.value)} rows={4} />
+      </label>
+      <label className="content-source-workspace-asset-unit__field">
+        <span>asset_refs</span>
+        <Input value={draft.assetRefs.join(', ')} onChange={(event) => updateDraft({ assetRefs: splitCommaList(event.target.value) })} />
+      </label>
+      <div className="content-source-workspace-view-jumps">
+        <Button type="button" size="sm" disabled={!dirty || saving} onClick={save}>
+          <FilePenLine size={13} />
+          {saving ? '保存中' : '保存 audio_cue'}
+        </Button>
+        {error ? <span>{error}</span> : null}
+      </div>
+    </div>
+  )
+}
+
+function parseTimingJSON(value: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function splitCommaList(value: string): string[] {
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function supportsTransitionEditor(node: HierarchyNode): boolean {
+  return node.type === 'production'
+    || node.type === 'segment'
+    || node.type === 'scene_moment'
+    || node.type === 'shot'
+    || node.type === 'storyboard'
+}
+
+function numberInputValue(value: number | undefined): string {
+  return value === undefined ? '' : String(value)
+}
+
+function numberInputValueToNumber(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function CandidateList({
@@ -1383,7 +2475,7 @@ function buildRefDependencies(nodes: HierarchyNode[]): SettingScopeDependency[] 
         action: `${ref.id} affects ${target}`,
       })),
     )
-    const impactDependencies = Object.values(shotWorkspaceDetails).flatMap((workspace) =>
+    const impactDependencies = Object.values(activeWorkspaceData.shotWorkspaceDetails).flatMap((workspace) =>
       workspace.impacts
         .filter((impact) => hierarchyNodeMatchesRef(node, impact.source))
         .flatMap((impact) =>
@@ -1423,7 +2515,7 @@ function uniqueSettingDependencies(items: SettingScopeDependency[]): SettingScop
 }
 
 function findRefsForNode(node: HierarchyNode): EditableRef[] {
-  return Object.values(shotWorkspaceDetails).flatMap((workspace) => {
+  return Object.values(activeWorkspaceData.shotWorkspaceDetails).flatMap((workspace) => {
     const refs = node.type === 'asset' ? workspace.assets : workspace.settings
     return refs.filter((ref) => hierarchyNodeMatchesRef(node, ref.id))
   })
@@ -1445,7 +2537,7 @@ function hierarchyNodeRefTokens(node: HierarchyNode): string[] {
 }
 
 function assetReferenceUnitForNode(node: HierarchyNode): PreviewAssetReferenceUnit {
-  const existingUnit = assetReferenceUnits[node.id]
+  const existingUnit = activeWorkspaceData.assetReferenceUnits[node.id]
   if (existingUnit) return existingUnit
   return {
     assetId: node.id,
@@ -1465,12 +2557,12 @@ function assetReferenceUnitForNode(node: HierarchyNode): PreviewAssetReferenceUn
 }
 
 function collectEditableRefs(type: HierarchyNodeType): EditableRef[] {
-  const refs = Object.values(shotWorkspaceDetails).flatMap((workspace) => (type === 'asset' ? workspace.assets : workspace.settings))
+  const refs = Object.values(activeWorkspaceData.shotWorkspaceDetails).flatMap((workspace) => (type === 'asset' ? workspace.assets : workspace.settings))
   return Array.from(new Map(refs.map((ref) => [ref.id, ref])).values())
 }
 
 function findChildForNode(node: HierarchyNode, shot: PreviewShot): ShotChildOption | undefined {
-  const workspace = shotWorkspaceDetails[shot.id]
+  const workspace = shotWorkspaceFor(shot.id)
   return [...workspace.keyframes, ...workspace.storyboards].find((item) => item.id === node.id)
 }
 
@@ -1494,6 +2586,8 @@ function nodeTypeLabel(type: HierarchyNodeType) {
       return 'shot'
     case 'expression_unit':
       return 'expression_unit'
+    case 'audio_cue':
+      return 'audio_cue'
     case 'storyboard':
       return 'storyboard'
     case 'keyframe':
@@ -1534,6 +2628,7 @@ function previewKindLabel(type: HierarchyNodeType) {
   if (type === 'storyboard') return '分镜预览'
   if (type === 'shot') return '镜头预览'
   if (type === 'expression_unit') return '表达单元预览'
+  if (type === 'audio_cue') return '声音提示预览'
   if (type === 'asset') return '资产预览'
   if (type === 'setting' || type === 'state') return '设定预览'
   return '结构预览'
@@ -1544,6 +2639,7 @@ function previewTitleForNode(node: HierarchyNode, shot: PreviewShot, child?: Sho
   if (node.type === 'group') return `${node.title} 选择集合`
   if (node.type === 'shot') return shot.title
   if (node.type === 'expression_unit') return node.title
+  if (node.type === 'audio_cue') return node.title
   if (node.type === 'asset' || node.type === 'setting' || node.type === 'state') return node.title
   return `${node.title} 的制作范围`
 }
@@ -1553,6 +2649,7 @@ function previewCopyForNode(node: HierarchyNode, shot: PreviewShot, child?: Shot
   if (node.type === 'group') return '分组只用于把同一层级的候选集合收纳起来，帮助在左侧保持清晰层级；真实编辑仍发生在下方的 shot、expression、keyframe 或 storyboard 节点。'
   if (node.type === 'shot') return `${shot.expression} ${shot.camera}，时长 ${shot.duration}。`
   if (node.type === 'expression_unit') return '表达单元定义 scene_moment 中的表演、情绪和潜台词约束，可同时影响多个 shot、keyframe 和 storyboard。'
+  if (node.type === 'audio_cue') return 'Audio cue 是 scene_moment 下独立的声音、音乐、环境或对白规划对象，可绑定 shot、storyboard 和 timing。'
   if (node.type === 'asset') return '资产节点是可确认的参考图标识；下面先编辑它自己的 asset_ref 内容单元和候选确认，再预览依赖这个确认态的下游节点。'
   if (node.type === 'setting' || node.type === 'state') return '设定预览展示当前空间、状态或光线条件；下面编辑区维护结构化字段，子节点区展示受影响的下游制作单元。'
   return '结构节点的预览展示该层级覆盖的镜头范围；下面编辑区用于管理组织信息，子节点区展示下一层制作节点。'
@@ -1645,13 +2742,3 @@ function stillSheetStyle(position: string): CSSProperties {
   }
 }
 
-function assetStatusText(status: PreviewShot['assets'][number]['status']) {
-  switch (status) {
-    case 'ready':
-      return '就绪'
-    case 'missing':
-      return '缺口'
-    case 'locked':
-      return '已锁定'
-  }
-}

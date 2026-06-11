@@ -1219,7 +1219,7 @@ export function AgentChatDataSourceShell({
               canSend={canSend}
               canAnswerPendingInputWithText={false}
               canStopActiveRun={canStopActiveTurn}
-              chrome={surface === 'page' ? 'flush' : 'bottom-bar'}
+              chrome="flush"
               composerAttachmentEntries={composer.composerAttachmentEntries}
               composerAttachmentsCount={composer.composerAttachments.length}
               composerInput={composer.input}

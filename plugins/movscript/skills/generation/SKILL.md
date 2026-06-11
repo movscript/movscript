@@ -1,6 +1,6 @@
 ---
 name: generation
-description: Generate or plan MovScript image/video outputs with project context, resource IDs, job polling, candidate writes, inspect, and interpret.
+description: Generate MovScript image/video candidates from content units, enforce upstream selection gates, inspect reference-shot imitation via frames, and interpret candidate writes.
 toolGrants:
   - mcp__movscript__system_model_list
   - mcp__movscript__system_generate_image
@@ -56,7 +56,9 @@ Use this skill when a user asks the provider to generate or plan generated image
 - Generated candidates and selections are source changes. Inspect/review and interpret after writing them.
 - `domain_create_content_candidate` is the preferred path for production outputs anchored to content units. Inline asset/keyframe candidates are compatibility paths for source-entity candidate workflows.
 - Do not select a candidate just because generation succeeded. Select only when the user or an explicit workflow asks to use, confirm, choose, lock, or set the output.
-- Before generation, classify the focused scene_moment or shot as `缺规划`, `可补图`, or `可生成`. Generate only when the requested output's content unit artifacts and upstream visual/audio anchors are ready enough for the user's goal; otherwise state the smallest planning or anchor gap first.
+- Before generation, classify the focused scene_moment or shot as `缺规划`, `可补图`, `缺选择`, or `可生成`. Generate only when the requested output's content unit artifacts and upstream visual/audio anchors are ready enough for the user's goal; otherwise state the smallest planning, anchor, or selection gap first.
+- If a downstream content unit depends on an upstream content unit output, and the upstream output has no selection, stop before generation unless the user explicitly asks for an unstable draft path.
+- If the user asks to mimic a specific shot or reference video, open `references/shot-imitation-workflow.md`; analyze extracted frames and create storyboard panels before downstream video generation.
 
 ## Workflow
 
@@ -69,14 +71,16 @@ Use this skill when a user asks the provider to generate or plan generated image
 7. Use `system_shot_library_query` for camera, composition, motion, narrative, emotion, and production-pattern references. Treat shot-library records as prompt guidance unless they also include a usable MovScript RawResource ID.
 8. Use `system_external_resource_source_list` and `system_external_resource_search` only for external provider discovery. External results must be imported into MovScript before they can be used as generation resource IDs.
 9. For image requests, prefer supplementing keyframes when the shot is clear but visual anchors are missing; use `system_generate_image` for text-to-image and image-to-image only after the content unit and references are clear enough.
-10. For storyboard or shot-image requests, prefer supplementing storyboard graph/panels when the shot is clear but storyboard assets are missing.
-11. For video requests, use `system_generate_video` for text-to-video and image-to-video only after the shot, keyframes/storyboards, and content unit inputs are ready enough; if the user still wants video with gaps, explain the risk and use the minimum viable references.
-12. Pass `input_resource_ids` or `reference_resource_ids` for image/video-conditioned generation, including uploaded agent guidance images when useful.
-13. Poll with the matching `system_generate_*_job_get` tool until `terminal` is true.
-14. When a generated `output_resource_id` should become a content unit candidate, use `domain_create_content_candidate` or `domain_create_content_candidate_batch` with the content unit artifact input version and prompt snapshot.
-15. Use `domain_select_content_unit_candidate` or its batch variant only after the user/workflow confirms that the candidate should become the chosen output/reference.
-16. Use `domain_create_asset_slot_candidate`, `domain_create_keyframe_candidate`, or inline `domain_append_candidate` only for compatibility source-entity candidate flows.
-17. Run `domain_inspect` or `domain_review` after candidate/selection writes, then run `domain_interpret`. Use `domain_regeneration_plan` after interpret when the change may stale downstream generated media.
+10. For asset references, prefer low-background, multi-view, weakly plot-bound images unless the user asks for scene-specific imagery.
+11. For storyboard or shot-image requests, prefer supplementing storyboard graph/panels when the shot is clear but storyboard assets are missing.
+12. For reference-shot imitation, extract frames across the full reference clip, analyze the shot, create/update shot/storyboard/keyframe structure, create a storyboard-panel content unit, and require selection before dependent video generation.
+13. For video requests, use `system_generate_video` for text-to-video and image-to-video only after the shot, keyframes/storyboards, upstream selections, and content unit inputs are ready enough; if the user still wants video with gaps, explain the risk and use the minimum viable references.
+14. Pass `input_resource_ids` or `reference_resource_ids` for image/video-conditioned generation, including uploaded agent guidance images when useful.
+15. Poll with the matching `system_generate_*_job_get` tool until `terminal` is true.
+16. When a generated `output_resource_id` should become a content unit candidate, use `domain_create_content_candidate` or `domain_create_content_candidate_batch` with the content unit artifact input version and prompt snapshot.
+17. Use `domain_select_content_unit_candidate` or its batch variant only after the user/workflow confirms that the candidate should become the chosen output/reference.
+18. Use `domain_create_asset_slot_candidate`, `domain_create_keyframe_candidate`, or inline `domain_append_candidate` only for compatibility source-entity candidate flows.
+19. Run `domain_inspect` or `domain_review` after candidate/selection writes, then run `domain_interpret`. Use `domain_regeneration_plan` after interpret when the change may stale downstream generated media.
 
 ## Notes
 
@@ -84,7 +88,7 @@ Use this skill when a user asks the provider to generate or plan generated image
 - Pass `projectId` for generation and candidate/domain writes. MCP must not infer project.
 - Prefer `model_id` values returned by `system_model_list`; do not invent provider-specific model identifiers.
 - Keep generation prompts grounded in project context, resource-library records, and shot-library references when available.
-- In the final answer, briefly report the focused scene_moment/shot readiness and whether the next action is planning, keyframe/storyboard supplementation, candidate generation, or candidate selection.
+- In the final answer, briefly report the focused scene_moment/shot readiness and whether the next action is planning, keyframe/storyboard supplementation, candidate generation, dependency selection, or candidate selection.
 - Do not pass MCP resource URIs or external provider URLs to `input_resource_ids` / `reference_resource_ids`; those fields accept MovScript RawResource IDs.
 - Preserve UI review boundaries. Do not treat generated resources as final accepted domain state until inspect/review and interpret confirm the change.
-- Open `references/candidate-selection-flow.md` when writing or selecting candidates, and `references/resource-id-rules.md` when a request mixes URLs, local files, MCP resources, uploads, or RawResource IDs.
+- Open `references/candidate-selection-flow.md` when writing or selecting candidates, `references/resource-id-rules.md` when a request mixes URLs, local files, MCP resources, uploads, or RawResource IDs, and `references/shot-imitation-workflow.md` when the user asks to mimic a specific shot or reference video.

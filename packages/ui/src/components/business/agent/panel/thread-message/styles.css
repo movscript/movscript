@@ -8,14 +8,31 @@
   padding: 4px var(--ai-agent-panel-message-inline-margin) 8px;
 }
 
+.ai-agent-panel-shell:not(.project-agent-chat-shell) .ms-agent-thread {
+  width: 90%;
+  align-self: center;
+  padding-right: 0;
+  padding-left: 0;
+}
+
 .ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-thread {
   gap: 4px;
   padding: 4px var(--ai-agent-panel-message-inline-margin) 8px;
 }
 
+.ai-agent-panel-shell:not(.project-agent-chat-shell)[data-agent-chat-host="dock-panel"] .ms-agent-thread {
+  padding-right: 0;
+  padding-left: 0;
+}
+
 .ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-thread {
   gap: 4px;
   padding: 4px var(--ai-agent-panel-message-inline-margin) 8px;
+}
+
+.ai-agent-panel-shell:not(.project-agent-chat-shell).ms-agent-shell--compact .ms-agent-thread {
+  padding-right: 0;
+  padding-left: 0;
 }
 
 .ai-agent-panel-shell .ms-agent-message {

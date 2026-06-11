@@ -1,4 +1,4 @@
-import type { ExpressionUnit, HierarchyNode, PreviewAssetReferenceUnit, PreviewMoment, ShotWorkspaceDetails } from './sourceWorkspaceTypes'
+import type { AudioCue, ExpressionUnit, HierarchyNode, PreviewAssetReferenceUnit, PreviewMoment, ShotWorkspaceDetails } from './sourceWorkspaceTypes'
 
 export const previewMoments: PreviewMoment[] = [
   {
@@ -29,6 +29,8 @@ export const previewMoments: PreviewMoment[] = [
           id: 'cu_storyboard_phone_press',
           type: 'storyboard_ref',
           outputKind: 'video',
+          path: 'content_units/cu_storyboard_phone_press/content_unit.json',
+          editPrompt: '雨夜手机特写视频，使用 {{storyboard:phone_press_board}} 和 {{asset:phone_screen}} 作为主要输入。',
           sceneMomentRef: 'scene_moment/rain_call',
           shotId: 'shot_phone_press',
           storyboardRef: 'storyboard/phone_press_board',
@@ -60,6 +62,8 @@ export const previewMoments: PreviewMoment[] = [
           id: 'cu_video_headlights_back',
           type: 'shot_video',
           outputKind: 'video',
+          path: 'content_units/cu_video_headlights_back/content_unit.json',
+          editPrompt: '背影被车灯扫过的视频镜头，使用 {{shot:shot_headlights_back}} 和 {{asset:headlight_beam}} 控制压迫感。',
           sceneMomentRef: 'scene_moment/rain_call',
           shotId: 'shot_headlights_back',
           storyboardRef: 'storyboard/headlights_back_board',
@@ -101,6 +105,8 @@ export const previewMoments: PreviewMoment[] = [
           id: 'cu_storyboard_elevator_gap',
           type: 'storyboard_ref',
           outputKind: 'video',
+          path: 'content_units/cu_storyboard_elevator_gap/content_unit.json',
+          editPrompt: '电梯门缝对视镜头，使用 {{storyboard:elevator_gap_board}} 和 {{asset:evening_dress}} 控制材质与光位。',
           sceneMomentRef: 'scene_moment/elevator_look',
           shotId: 'shot_elevator_gap',
           storyboardRef: 'storyboard/elevator_gap_board',
@@ -143,6 +149,8 @@ export const previewMoments: PreviewMoment[] = [
           id: 'cu_keyframe_coffee_tremble',
           type: 'keyframe_ref',
           outputKind: 'image',
+          path: 'content_units/cu_keyframe_coffee_tremble/content_unit.json',
+          editPrompt: '清晨厨房咖啡杯关键帧，使用 {{keyframe:kf_cup_still}} 和 {{asset:coffee_cup}} 表达表面平静。',
           sceneMomentRef: 'scene_moment/morning_kitchen',
           shotId: 'shot_coffee_tremble',
           storyboardRef: 'storyboard/coffee_tremble_board',
@@ -456,17 +464,19 @@ export const assetReferenceUnits: Record<string, PreviewAssetReferenceUnit> = {
 
 export const expressionUnitsByMoment: Record<string, ExpressionUnit[]> = {
   m1: [
-    { id: 'expr_rain_call_hesitation', title: '迟疑', kind: 'micro_expression', summary: '手指悬停时的犹豫和恐惧，约束 shot_phone_press 的表演节奏。', sceneMomentId: 'm1' },
-    { id: 'expr_rain_call_misread', title: '误会逼近', kind: 'dramatic_pressure', summary: '车灯和背影制造危险靠近，约束 shot_headlights_back 的情绪方向。', sceneMomentId: 'm1' },
+    { id: 'expr_rain_call_hesitation', title: '迟疑', path: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/expr_rain_call_hesitation/expression_unit.json', kind: 'micro_expression', text: '迟疑', summary: '手指悬停时的犹豫和恐惧，约束 shot_phone_press 的表演节奏。', sceneMomentId: 'm1' },
+    { id: 'expr_rain_call_misread', title: '误会逼近', path: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/expr_rain_call_misread/expression_unit.json', kind: 'dramatic_pressure', text: '误会逼近', summary: '车灯和背影制造危险靠近，约束 shot_headlights_back 的情绪方向。', sceneMomentId: 'm1' },
   ],
   m2: [
-    { id: 'expr_elevator_eye_lock', title: '眼神锁定', kind: 'relationship_beat', summary: '门缝收窄前两人的眼神互相确认，影响 keyframe 和 storyboard 选择。', sceneMomentId: 'm2' },
-    { id: 'expr_elevator_withhold', title: '克制不说', kind: 'subtext', summary: '台词缺席时用呼吸和停顿表达未说出口的关系变化。', sceneMomentId: 'm2' },
+    { id: 'expr_elevator_eye_lock', title: '眼神锁定', path: 'productions/pilot/segments/escalation/scene_moments/elevator_look/expression_units/expr_elevator_eye_lock/expression_unit.json', kind: 'relationship_beat', text: '眼神锁定', summary: '门缝收窄前两人的眼神互相确认，影响 keyframe 和 storyboard 选择。', sceneMomentId: 'm2' },
+    { id: 'expr_elevator_withhold', title: '克制不说', path: 'productions/pilot/segments/escalation/scene_moments/elevator_look/expression_units/expr_elevator_withhold/expression_unit.json', kind: 'subtext', text: '克制不说', summary: '台词缺席时用呼吸和停顿表达未说出口的关系变化。', sceneMomentId: 'm2' },
   ],
   m3: [
-    { id: 'expr_morning_contained_break', title: '假装平静', kind: 'internal_state', summary: '人物不动，杯面轻颤承担情绪外化。', sceneMomentId: 'm3' },
+    { id: 'expr_morning_contained_break', title: '假装平静', path: 'productions/pilot/segments/aftermath/scene_moments/morning_kitchen/expression_units/expr_morning_contained_break/expression_unit.json', kind: 'internal_state', text: '假装平静', summary: '人物不动，杯面轻颤承担情绪外化。', sceneMomentId: 'm3' },
   ],
 }
+
+export const audioCuesByMoment: Record<string, AudioCue[]> = {}
 
 export const hierarchyTree: HierarchyNode[] = [
   {
