@@ -118,6 +118,11 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
+      name: 'domain_read_content_unit_input_version',
+      description: 'Compatibility alias for domain_read_content_unit_generation_prompt. Reads the interpreted normalized content unit generation prompt from .interpret/current.',
+      inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+    },
+    {
       name: 'domain_read_content_unit_dependency_report',
       description: 'Read an interpreted content unit dependency report from .interpret/current. This is read-only interpreted output.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
@@ -243,7 +248,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_create_content_candidate',
-      description: 'Create an external content candidate record for a content unit output. Use for generated content-unit media rather than embedding provider job state in domain JSON.',
+      description: 'Create an external content candidate record for a content unit output through the backend decision API. This does not edit workspace source files.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         contentUnitId: { type: ['string', 'number'] },
@@ -260,7 +265,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_create_content_candidate_batch',
-      description: 'Create multiple external content candidate records for content unit outputs. Each item accepts the same fields as domain_create_content_candidate. Runs sequentially and returns per-item results so agents can keep partial successes.',
+      description: 'Create multiple external content candidate records for content unit outputs through the backend decision API. Each item accepts the same fields as domain_create_content_candidate. Runs sequentially and returns per-item results so agents can keep partial successes.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         items: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -280,7 +285,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_select_content_unit_candidate',
-      description: 'Select a content candidate for a content unit using the workspace selection record. Selection is a source write and must be followed by inspect/review and interpret.',
+      description: 'Select a content candidate for a content unit through the backend decision API. Selection is backend decision metadata, not a workspace source-file edit; run inspect/review/interpret when effective interpreted state must be refreshed.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         contentUnitId: { type: ['string', 'number'] },
@@ -296,7 +301,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_select_content_unit_candidate_batch',
-      description: 'Select content candidates for multiple content units using workspace selection records. Each item accepts the same fields as domain_select_content_unit_candidate. Runs sequentially and returns per-item results.',
+      description: 'Select content candidates for multiple content units through the backend decision API. Each item accepts the same fields as domain_select_content_unit_candidate. Runs sequentially and returns per-item results.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         items: { type: 'array', items: { type: 'object', additionalProperties: true } },

@@ -618,6 +618,8 @@ function defaultContentUnitOutputKind(contentUnitType: string): string {
     case 'keyframe_ref':
     case 'storyboard_ref':
       return 'image'
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
     case 'shot_ref':
       return 'video'
     default:
@@ -640,6 +642,9 @@ function contentUnitPrimaryRef(contentUnitType: string, input: MovScriptEngineCo
       return input.assetRef === undefined ? undefined : `{{asset:${String(input.assetRef)}}}`
     case 'storyboard_ref':
       return input.storyboardId === undefined ? undefined : `{{storyboard:${String(input.storyboardId)}}}`
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
+      return input.sceneMomentId === undefined ? undefined : `{{scene_moment:${String(input.sceneMomentId)}}}`
     case 'shot_ref':
       return input.shotId === undefined ? undefined : `{{shot:${String(input.shotId)}}}`
     default:

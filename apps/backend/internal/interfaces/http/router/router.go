@@ -45,6 +45,11 @@ func New(deps Dependencies) *gin.Engine {
 
 		protected := v1.Group("", middleware.RequireAuth(), middleware.ResolveOrgMember(db))
 		{
+			if deps.Config != nil {
+				protected.GET("/backend/dependencies", func(c *gin.Context) {
+					c.JSON(http.StatusOK, deps.Config.EffectiveDependencyProviders())
+				})
+			}
 			registerGatewayProtectedRoutes(protected, h)
 			registerOrgRoutes(protected, db, h)
 			registerResourceRoutes(protected, h)

@@ -1,4 +1,5 @@
 import * as electron from 'electron'
+import { spawnSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import {
@@ -25,6 +26,7 @@ export function prepareDesktopRuntimeDependencies(input: {
   resourcesPath?: string
   requireMovScriptServer?: boolean
   requireMovcli?: boolean
+  requireGit?: boolean
 } = {}): DesktopRuntimePreparation {
   const workspaceDir = input.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir()
   const resourcesPath = input.resourcesPath ?? process.resourcesPath
@@ -40,11 +42,11 @@ export function prepareDesktopRuntimeDependencies(input: {
     ? undefined
     : materializeWorkspaceMovScriptServer({ workspaceDir, resourcesPath })
 
-  const preflight = movScriptRuntimePreflight({
+  const preflight = withDesktopLocalGitPreflight(movScriptRuntimePreflight({
     workspaceDir,
     requireMovScriptServer: input.requireMovScriptServer,
     requireMovcli: input.requireMovcli,
-  })
+  }), input)
 
   if (movscriptServerPath) process.env.MOVSCRIPT_BACKEND_BIN = movscriptServerPath
   if (movcliBinDir) process.env.MOVSCRIPT_CLI_BIN_DIR = movcliBinDir
@@ -56,6 +58,63 @@ export function prepareDesktopRuntimeDependencies(input: {
     ...(movscriptServerPath ? { movscriptServerPath } : {}),
     ...(movcliBinDir ? { movcliBinDir } : {}),
     preflight,
+  }
+}
+
+function withDesktopLocalGitPreflight(
+  preflight: MovScriptRuntimePreflightResult,
+  input: { requireGit?: boolean; requireMovScriptServer?: boolean },
+): MovScriptRuntimePreflightResult {
+  if (!shouldRequireLocalGit(input)) return preflight
+  const check = gitRuntimeCheck(process.env.MOVSCRIPT_GIT_BINARY?.trim() || 'git')
+  const checks = [...preflight.checks, check]
+  const fatalCount = checks.filter((item) => item.severity === 'fatal' && item.status !== 'ok').length
+  return { ok: fatalCount === 0, fatalCount, checks }
+}
+
+function shouldRequireLocalGit(input: { requireGit?: boolean; requireMovScriptServer?: boolean }): boolean {
+  if (input.requireGit === true) return true
+  if (input.requireGit === false || input.requireMovScriptServer === false) return false
+  const profile = process.env.MOVSCRIPT_DEPENDENCY_PROFILE?.trim() || 'local'
+  const workspaceBackend = process.env.MOVSCRIPT_WORKSPACE_STORAGE_BACKEND?.trim()
+    || process.env.MOVSCRIPT_WORKSPACE_BACKEND?.trim()
+    || (profile === 'external' ? 'gitea' : 'http')
+  return normalizeWorkspaceBackend(workspaceBackend) === 'http'
+}
+
+function normalizeWorkspaceBackend(value: string): string {
+  return value === 'git-http' || value === 'git-http-backend' ? 'http' : value
+}
+
+function gitRuntimeCheck(binary: string): MovScriptRuntimePreflightResult['checks'][number] {
+  const result = spawnSync(binary, ['--version'], { stdio: 'ignore' })
+  if (result.error) {
+    const code = (result.error as NodeJS.ErrnoException).code
+    return {
+      id: 'runtime.git',
+      label: 'Git command for local project storage',
+      severity: 'fatal',
+      status: code === 'ENOENT' ? 'missing' : 'invalid',
+      path: binary,
+      message: result.error.message,
+    }
+  }
+  if (result.status !== 0) {
+    return {
+      id: 'runtime.git',
+      label: 'Git command for local project storage',
+      severity: 'fatal',
+      status: 'invalid',
+      path: binary,
+      message: `git --version exited with ${result.status ?? 'unknown status'}`,
+    }
+  }
+  return {
+    id: 'runtime.git',
+    label: 'Git command for local project storage',
+    severity: 'fatal',
+    status: 'ok',
+    path: binary,
   }
 }
 

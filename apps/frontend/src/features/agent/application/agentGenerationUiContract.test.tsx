@@ -182,6 +182,8 @@ test('generated result card limits initially mounted media previews', () => {
   assertIncludes(source, 'lightweightVideoThumb')
   assertIncludes(source, 'surface="dark"')
   assertIncludes(generatedMediaPreviewCss, '.ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb')
+  assertIncludes(panelThreadMessageCss, 'width: calc(100% - 20px)')
+  assertIncludes(panelThreadMessageCss, 'margin-left: 10px')
   assertIncludes(panelThreadMessageCss, '.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb')
   assertNotIncludes(source, 'generated.map((attachment)')
   assertNotIncludes(source, '<AgentGeneratedMediaPreview data-testid="agent-generated-media-preview" surface="dark">')

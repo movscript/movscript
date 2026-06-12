@@ -135,6 +135,8 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_query_settings'))
   assert.ok(tools.includes('domain_query_assets'))
   assert.ok(tools.includes('domain_query_production_context'))
+  assert.ok(tools.includes('domain_read_content_unit_generation_prompt'))
+  assert.ok(tools.includes('domain_read_content_unit_input_version'))
   assert.ok(tools.includes('domain_upsert_setting'))
   assert.ok(tools.includes('domain_upsert_production'))
   assert.ok(tools.includes('domain_upsert_segment'))
@@ -1005,6 +1007,12 @@ test('MCP content unit candidate flow writes source records and interprets check
 
     assert.equal(interpretResponse.error, undefined)
     assert.equal(interpretResponse.result.data.status, 'interpreted')
+    const interpretText = interpretResponse.result.content?.[0]?.text ?? ''
+    assert.match(interpretText, /movscript\.workspace-interpret-agent-summary\.v1/)
+    assert.doesNotMatch(interpretText, /basePath/)
+    assert.doesNotMatch(interpretText, /currentPath/)
+    assert.doesNotMatch(interpretText, /contentHash/)
+    assert.equal(Boolean(interpretResponse.result.data.review?.changedFiles?.[0]?.currentPath), true)
     assert.equal(existsSync(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'content_unit.json')), true)
     assert.equal(existsSync(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'candidates', 'candidate_a', 'content_candidate.json')), true)
     const selection = JSON.parse(await readFile(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'selection.json'), 'utf8'))
@@ -1104,6 +1112,12 @@ test('MCP workspace tools expose get_model review and interpret over source/.int
     })
     const build = record(buildResponse?.result?.data)
     assert.equal(build.status, 'interpreted')
+    const buildText = buildResponse.result.content?.[0]?.text ?? ''
+    assert.match(buildText, /movscript\.workspace-interpret-agent-summary\.v1/)
+    assert.doesNotMatch(buildText, /basePath/)
+    assert.doesNotMatch(buildText, /currentPath/)
+    assert.doesNotMatch(buildText, /contentHash/)
+    assert.equal(Boolean(build.review?.changedFiles?.[0]?.currentPath), true)
     assert.equal(existsSync(join(projectDir, '.interpret', 'indexes', 'domain-index.json')), true)
     assert.equal(JSON.parse(readFileSync(join(projectDir, '.interpret', 'current', 'settings', 'setting_hero', 'setting.json'), 'utf8')).title, 'New Hero')
   } finally {

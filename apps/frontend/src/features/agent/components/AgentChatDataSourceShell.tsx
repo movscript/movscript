@@ -249,6 +249,7 @@ export function AgentChatDataSourceShell({
     () => selectAgentChatRuntimePendingThreadReadRequests(runtime),
     [runtime],
   )
+  const inFlightThreadResumeRequestIdsRef = useRef(new Set<number>())
   const pendingThreadResumeRequests = useMemo(
     () => selectAgentChatRuntimePendingThreadResumeRequests(runtime),
     [runtime],
@@ -809,6 +810,8 @@ export function AgentChatDataSourceShell({
   useEffect(() => {
     if (!dataSource?.resumeThread || pendingThreadResumeRequests.length === 0) return
     for (const request of pendingThreadResumeRequests) {
+      if (inFlightThreadResumeRequestIdsRef.current.has(request.id)) continue
+      inFlightThreadResumeRequestIdsRef.current.add(request.id)
       dispatchRuntime({ type: 'beginThreadResumeRequest', requestId: request.id })
       const thread = runtimeRef.current.threads.find((item) => item.id === request.threadId)
       void dataSource.resumeThread({
@@ -825,6 +828,9 @@ export function AgentChatDataSourceShell({
           const message = errorMessage(nextError)
           setError(message)
           dispatchRuntime({ type: 'completeThreadResumeRequest', requestId: request.id, error: message })
+        })
+        .finally(() => {
+          inFlightThreadResumeRequestIdsRef.current.delete(request.id)
         })
     }
   }, [collaborationMode, dataSource, goalModeEnabled, pendingThreadResumeRequests, selectedModelSelectionForRequest])
@@ -1099,12 +1105,34 @@ export function AgentChatDataSourceShell({
       setError('Stop the running turn before closing this tab.')
       return
     }
-    if (threadId === activeThreadId) {
+    if (threadId !== activeThreadId) {
+      markThreadClosed(threadId, false)
+      return
+    }
+
+    const openThreads = runtimeRef.current.threads.filter((item) => !closedThreadIds.has(item.id))
+    const closingIndex = openThreads.findIndex((item) => item.id === threadId)
+    const remainingThreads = openThreads.filter((item) => item.id !== threadId)
+    const nextThread = remainingThreads[Math.max(0, closingIndex - 1)] ?? remainingThreads[0]
+
+    markThreadClosed(threadId, !nextThread)
+    if (!nextThread) {
       setActiveThreadIdValue(null)
       writeStoredActiveThreadId(activeThreadStorageKey, null)
+      return
     }
-    markThreadClosed(threadId, threadId === activeThreadId)
-  }, [activeThreadId, activeThreadStorageKey, markThreadClosed, setActiveThreadIdValue])
+
+    setActiveThreadIdValue(nextThread.id)
+    writeStoredActiveThreadId(activeThreadStorageKey, nextThread.id)
+    markThreadOpen(nextThread.id)
+    setError(null)
+    try {
+      const { thread: nextThreadResult, input } = await readHistoryThread(nextThread.id)
+      upsertThreadReadResult(nextThreadResult, input)
+    } catch (nextError) {
+      setError(errorMessage(nextError))
+    }
+  }, [activeThreadId, activeThreadStorageKey, closedThreadIds, markThreadClosed, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
   const threadTabs = useMemo(() => threads
     .filter((thread) => !closedThreadIds.has(thread.id))
@@ -1207,7 +1235,7 @@ export function AgentChatDataSourceShell({
               )}
             </section>
           )}
-          <div className={surface === 'page' ? 'agent-page-chat-composer relative z-30' : 'relative z-30'}>
+          <div className={surface === 'page' ? 'agent-page-chat-composer relative z-30' : 'ai-agent-panel-composer-wrap relative z-30'}>
             <AgentComposerActionLayer
               pendingServerRequests={visiblePendingServerRequests}
               onResolveServerRequest={resolveServerRequest}

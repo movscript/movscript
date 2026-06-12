@@ -21,6 +21,7 @@ const (
 	AdapterGemini       = "gemini" // Google Gemini API (text/image/video)
 	AdapterDashScope    = "dashscope"
 	AdapterVidu         = "vidu"
+	AdapterLocal        = "local"
 )
 
 // ParamDef describes a user-configurable generation parameter for a model.
@@ -366,6 +367,17 @@ func viduVideoParams() []ParamDef {
 
 // AdapterDefs lists all supported adapter definitions.
 var AdapterDefs = []AdapterDef{
+	{
+		AdapterType:    AdapterLocal,
+		DisplayName:    "MovScript Local",
+		Description:    "本地确定性 AI gateway 模拟 provider，不依赖外部 API Key",
+		DefaultBaseURL: "movscript://local",
+		CredFields:     []CredField{},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityText, Params: commonTextParams()},
+			{Capability: CapabilityReasoning, Params: commonTextParams()},
+		},
+	},
 	{
 		AdapterType:      AdapterOpenAICompat,
 		DisplayName:      "OpenAI 兼容 API",

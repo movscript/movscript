@@ -61,7 +61,7 @@ asset_ref
 
 ### 3. 一种 `content_unit_type` 对应一种主引用规则
 
-第一阶段固定四种 content unit。
+第一阶段固定五种 content unit。
 
 每个 `content_unit_type` 只声明一种主 ref 规则。主 ref 表达“这个内容单元归属于哪个源实体”，不是把该实体内容动态展开进提示词。
 
@@ -72,6 +72,7 @@ asset_ref
 | `asset_ref` | `image` | 必须且只能引用 1 个 `asset` | 这个内容单元生成某个 asset 的当前提示词版本 |
 | `keyframe_ref` | `image` | 必须且只能引用 1 个 `keyframe` | 这个内容单元生成某个关键帧的当前提示词版本 |
 | `storyboard_ref` | `image` | 必须且只能引用 1 个 `storyboard` | 这个内容单元生成某个分镜图的当前提示词版本 |
+| `scence_moment_ref` | `video` | 必须且只能引用 1 个 `scene_moment` | 这个内容单元直接生成某个情节的当前提示词版本 |
 | `shot_ref` | `video` | 必须且只能引用 1 个 `shot` | 这个内容单元生成某个镜头的当前提示词版本 |
 
 如果未来确实需要多种引用，不应继续往同一个 content unit 顶层加字段，而应新增明确类型，例如：
@@ -377,13 +378,14 @@ interface ContentUnitAdapter {
 
 ### Adapter 映射表
 
-第一阶段只支持四种专用 Adapter：
+第一阶段只支持五种专用 Adapter：
 
 | `content_unit_type` | Adapter | 主 ref kind | 默认输出 | 允许作为上游输入时的 resource kind |
 | --- | --- | --- | --- | --- |
 | `asset_ref` | `assetRefAdapter` | `asset` | `image` | `image` |
 | `keyframe_ref` | `keyframeRefAdapter` | `keyframe` | `image` | `image` |
 | `storyboard_ref` | `storyboardRefAdapter` | `storyboard` | `image` | `image` |
+| `scence_moment_ref` | `sceneMomentRefAdapter` | `scene_moment` | `video` | `video` |
 | `shot_ref` | `shotRefAdapter` | `shot` | `video` | `video` |
 
 注意：这里的“允许作为上游输入”不是说当前 Adapter 必须消费自己，而是说其他内容单元引用该实体时，应该找到归属于该实体的对应 content unit，并使用它已选择候选的 `resource_id`。

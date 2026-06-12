@@ -23,7 +23,7 @@ toolGrants:
   - mcp__movscript__domain_query_production_context
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_content_unit_runtime_panel
-  - mcp__movscript__domain_read_content_unit_input_version
+  - mcp__movscript__domain_read_content_unit_generation_prompt
   - mcp__movscript__domain_read_content_unit_dependency_report
   - mcp__movscript__domain_read_content_unit_selection_validity
   - mcp__movscript__domain_append_candidate
@@ -50,11 +50,11 @@ Use this skill when a user asks the provider to generate or plan generated image
 
 - Generation tools do not infer project from session, cwd, route, or focus. Pass the intended `projectId`/`project_id` for project-scoped generation.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
-- Generation outputs are MovScript resources first. They become domain state only when written as candidates or selections.
+- Generation outputs are MovScript resources first. They become effective domain state only when written as backend candidates or selections.
 - `input_resource_ids` and `reference_resource_ids` accept MovScript RawResource IDs, not MCP resource URIs, local paths, or external provider URLs.
 - Content unit artifact bundles contain runtime panel, input version, dependency report, and selection validity. Derive or read these before changing generated content when they are relevant.
-- Generated candidates and selections are source changes. Inspect/review and interpret after writing them.
-- `domain_create_content_candidate` is the preferred path for production outputs anchored to content units. Inline asset/keyframe candidates are compatibility paths for source-entity candidate workflows.
+- Generated content-unit candidates and selections are backend decision metadata, not workspace source-file edits. Inspect/review and interpret after writing them when the effective interpreted state must be refreshed.
+- `domain_create_content_candidate` is the preferred backend decision path for production outputs anchored to content units. Inline asset/keyframe candidates are compatibility paths for source-entity candidate workflows.
 - Do not select a candidate just because generation succeeded. Select only when the user or an explicit workflow asks to use, confirm, choose, lock, or set the output.
 - Before generation, classify the focused scene_moment or shot as `缺规划`, `可补图`, `缺选择`, or `可生成`. Generate only when the requested output's content unit artifacts and upstream visual/audio anchors are ready enough for the user's goal; otherwise state the smallest planning, anchor, or selection gap first.
 - If a downstream content unit depends on an upstream content unit output, and the upstream output has no selection, stop before generation unless the user explicitly asks for an unstable draft path.
@@ -80,7 +80,7 @@ Use this skill when a user asks the provider to generate or plan generated image
 16. When a generated `output_resource_id` should become a content unit candidate, use `domain_create_content_candidate` or `domain_create_content_candidate_batch` with the content unit artifact input version and prompt snapshot.
 17. Use `domain_select_content_unit_candidate` or its batch variant only after the user/workflow confirms that the candidate should become the chosen output/reference.
 18. Use `domain_create_asset_slot_candidate`, `domain_create_keyframe_candidate`, or inline `domain_append_candidate` only for compatibility source-entity candidate flows.
-19. Run `domain_inspect` or `domain_review` after candidate/selection writes, then run `domain_interpret`. Use `domain_regeneration_plan` after interpret when the change may stale downstream generated media.
+19. Run `domain_inspect` or `domain_review` after content candidate/selection writes, then run `domain_interpret` when the effective state must include the backend decision metadata. Use `domain_regeneration_plan` after interpret when the change may stale downstream generated media.
 
 ## Notes
 
@@ -90,5 +90,5 @@ Use this skill when a user asks the provider to generate or plan generated image
 - Keep generation prompts grounded in project context, resource-library records, and shot-library references when available.
 - In the final answer, briefly report the focused scene_moment/shot readiness and whether the next action is planning, keyframe/storyboard supplementation, candidate generation, dependency selection, or candidate selection.
 - Do not pass MCP resource URIs or external provider URLs to `input_resource_ids` / `reference_resource_ids`; those fields accept MovScript RawResource IDs.
-- Preserve UI review boundaries. Do not treat generated resources as final accepted domain state until inspect/review and interpret confirm the change.
+- Preserve UI review boundaries. Do not treat generated resources as final accepted domain state until inspect/review and interpret confirm the relevant source or backend decision metadata.
 - Open `references/candidate-selection-flow.md` when writing or selecting candidates, `references/resource-id-rules.md` when a request mixes URLs, local files, MCP resources, uploads, or RawResource IDs, and `references/shot-imitation-workflow.md` when the user asks to mimic a specific shot or reference video.

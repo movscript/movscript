@@ -5,7 +5,6 @@ import {
   appServerThreadOpenEvent,
   readAppServerActiveThreadId,
 } from '@/features/agent/components/AppServerChatShell'
-import { AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT } from '@/features/agent/presentation/agentConversationOpenOrder'
 import {
   enabledProviders,
   resolveNewConversationProvider,
@@ -33,17 +32,19 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
 
   useEffect(() => {
     const appServerProviders = enabledProviders(providerSettings).filter(usesAppServerProtocol)
-    const handleActiveThreadChanged = () => setActiveThreadVersion((version) => version + 1)
+    const handleActiveThreadChanged = (event: Event) => {
+      const sourceId = event instanceof CustomEvent ? event.detail?.sourceId : undefined
+      if (typeof sourceId === 'string' && sourceId) return
+      setActiveThreadVersion((version) => version + 1)
+    }
 
     window.addEventListener('storage', handleActiveThreadChanged)
-    window.addEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleActiveThreadChanged)
     for (const provider of appServerProviders) {
       window.addEventListener(appServerThreadOpenEvent(provider), handleActiveThreadChanged)
     }
 
     return () => {
       window.removeEventListener('storage', handleActiveThreadChanged)
-      window.removeEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleActiveThreadChanged)
       for (const provider of appServerProviders) {
         window.removeEventListener(appServerThreadOpenEvent(provider), handleActiveThreadChanged)
       }

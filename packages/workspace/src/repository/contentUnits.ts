@@ -81,6 +81,8 @@ function defaultOutputKind(contentUnitType: string): string {
     case 'keyframe_ref':
     case 'storyboard_ref':
       return 'image'
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
     case 'shot_ref':
       return 'video'
     default:

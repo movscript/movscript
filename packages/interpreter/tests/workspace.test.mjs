@@ -238,6 +238,39 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.ok(impactReport.changedEntities.some((entity) => entity.entityKind === 'content_unit' && entity.editorImpacts.some((impact) => impact.includes('Content production context'))))
 })
 
+test('interpreter tracks scence_moment_ref content units as scene videos', async () => {
+  const files = new Map(sourceFileEntries())
+  files.set('content_units/cu_r72k_scene_video/content_unit.json', JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_r72k_scene_video',
+    title: 'Phone call scene video',
+    content_unit_type: 'scence_moment_ref',
+    output_kind: 'video',
+    edit_prompt: {
+      text: 'Generate the complete dramatic beat as one video. {{scene_moment:r72k}}',
+    },
+    model_intent: { capability: 'video', duration_sec: 8 },
+  }))
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const result = await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  assert.equal(result.status, 'interpreted')
+  const runtimePanel = JSON.parse(files.get('.interpret/current/content_units/cu_r72k_scene_video/runtime_panel.json'))
+  const generationPrompt = JSON.parse(files.get('.interpret/current/content_units/cu_r72k_scene_video/generation_prompt.json'))
+  const previewTimeline = JSON.parse(files.get('.interpret/current/productions/p8f3/preview_timeline.json'))
+  assert.equal(runtimePanel.content_unit_type, 'scence_moment_ref')
+  assert.equal(runtimePanel.output_kind, 'video')
+  assert.equal(runtimePanel.status, 'ready')
+  assert.equal(generationPrompt.refs.some((ref) => ref.kind === 'scene_moment' && ref.role === 'primary' && ref.resolved?.id === 'r72k'), true)
+  assert.ok(previewTimeline.items.some((item) => item.itemType === 'scene_moment' && item.entity.id === 'r72k' && item.contentUnitIds.includes('cu_r72k_scene_video')))
+  assert.ok(previewTimeline.items.some((item) => item.itemType === 'content_unit' && item.entity.id === 'cu_r72k_scene_video' && item.parentId === 'scene_moment:r72k'))
+})
+
 test('workspace review maps git checkpoint text diff to entity, semantic, and production impact', async () => {
   const rootDir = join(tmpdir(), `movscript-git-${Date.now()}-${Math.random().toString(16).slice(2)}`)
   try {

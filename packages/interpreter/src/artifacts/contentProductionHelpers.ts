@@ -92,6 +92,9 @@ export function primaryRefKindForContentUnitType(contentUnitType: string): Conte
       return 'keyframe'
     case 'storyboard_ref':
       return 'storyboard'
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
+      return 'scene_moment'
     case 'shot_ref':
       return 'shot'
     default:
@@ -107,6 +110,8 @@ export function outputKindForContentUnitType(contentUnitType: string, value: unk
     case 'keyframe_ref':
     case 'storyboard_ref':
       return 'image'
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
     case 'shot_ref':
       return 'video'
     default:
@@ -120,6 +125,8 @@ export function expectedOutputKindForContentUnitType(contentUnitType: string): C
     case 'keyframe_ref':
     case 'storyboard_ref':
       return 'image'
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
     case 'shot_ref':
       return 'video'
     default:
@@ -143,10 +150,10 @@ export function resolveContentUnitForPromptRef(
   ref: ContentUnitPromptRef,
 ): MovScriptWorkspaceIndexedEntity | undefined {
   if (ref.kind === 'content_unit') return resolvePromptRefEntity(index, ref)
-  const expectedType = `${ref.kind}_ref`
+  const expectedTypes = contentUnitTypesForPromptRefKind(ref.kind)
   return queryMovScriptWorkspaceEntities(index, { entityKind: 'content_unit' })
     .find((entity) => {
-      if (entity.record.content_unit_type !== expectedType) return false
+      if (!expectedTypes.includes(String(entity.record.content_unit_type ?? ''))) return false
       return parseContentUnitEditPromptRefs(entity.record.edit_prompt)
         .some((candidate) => candidate.kind === ref.kind
           && (String(candidate.id) === String(ref.id) || sameEntityRef(candidate.id, ref.id, ref.kind)))
@@ -204,12 +211,18 @@ function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | un
     case 'asset':
     case 'keyframe':
     case 'storyboard':
+    case 'scene_moment':
     case 'shot':
     case 'content_unit':
       return value
     default:
       return undefined
   }
+}
+
+function contentUnitTypesForPromptRefKind(kind: ContentUnitPromptRefKind): string[] {
+  if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
+  return [`${kind}_ref`]
 }
 
 export function readSelectedContentUnit(

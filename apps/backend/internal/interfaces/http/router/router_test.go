@@ -1,12 +1,17 @@
 package router
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/config"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/testutil"
 )
 
 func TestNewRegistersCoreRoutes(t *testing.T) {
@@ -34,6 +39,7 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"GET /api/v1/models",
 		"GET /api/v1/ws",
 		"GET /api/v1/users",
+		"GET /api/v1/backend/dependencies",
 		"GET /api/v1/resources",
 		"POST /api/v1/resources/upload",
 		"GET /api/v1/jobs",
@@ -42,6 +48,11 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"GET /api/v1/canvases",
 		"GET /api/v1/projects",
 		"GET /api/v1/projects/:id/workspace",
+		"GET /api/v1/projects/:id/decisions",
+		"PUT /api/v1/projects/:id/decisions/candidates",
+		"POST /api/v1/projects/:id/decisions/candidates",
+		"PUT /api/v1/projects/:id/decisions/selection",
+		"DELETE /api/v1/projects/:id/decisions/selection",
 		"GET /api/v1/projects/:id/git/*gitPath",
 		"POST /api/v1/projects/:id/git/*gitPath",
 		"GET /api/v1/admin/projects",
@@ -54,6 +65,49 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		if !routes[route] {
 			t.Fatalf("expected route %q to be registered", route)
 		}
+	}
+}
+
+func TestBackendDependenciesEndpointReturnsEffectiveProviders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "router-backend-dependencies.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{})
+	tokens, err := tokenauth.NewManager("0123456789abcdef0123456789abcdef", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		DependencyProfile:       "local",
+		DBDriver:                "sqlite",
+		StorageBackend:          "filesystem",
+		WorkspaceStorageBackend: "git-http-backend",
+		AIGatewayProvider:       "local",
+		CacheBackend:            "memory",
+	}
+	r := New(Dependencies{Config: cfg, DB: db, Tokens: tokens})
+
+	user := persistencemodel.User{Username: "deps-user", Status: "active", SystemRole: "user"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := tokens.Issue(tokenauth.Subject{UserID: user.ID, Username: user.Username, SystemRole: user.SystemRole})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/backend/dependencies", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	res := httptest.NewRecorder()
+
+	r.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", res.Code, res.Body.String())
+	}
+	var body config.DependencyProviders
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Profile != "local" || body.Database != "sqlite" || body.ObjectStorage != "filesystem" || body.WorkspaceStorage != "http" || body.AIGateway != "local" || body.Cache != "memory" {
+		t.Fatalf("dependencies response = %+v, want local sqlite/filesystem/http/local/memory", body)
 	}
 }
 

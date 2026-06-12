@@ -2,12 +2,14 @@ import {
   createMovScriptWorkspaceService,
   type MovScriptWorkspaceService,
 } from '../service.js'
+import type { MovScriptDecisionStore } from '../repository/index.js'
 import { createNodeMovScriptWorkspaceFileRepository } from './fileRepository.js'
 import { resolveMovScriptProjectWorkspacePaths } from './paths.js'
 
 export interface NodeMovScriptWorkspaceServiceInput {
   projectDir?: string
   workspaceDir?: string
+  decisionStore?: MovScriptDecisionStore
   now?: () => Date
 }
 
@@ -24,6 +26,7 @@ export function createNodeMovScriptWorkspaceService(
   const fileRepository = createNodeMovScriptWorkspaceFileRepository(projectDir)
   const service = createMovScriptWorkspaceService({
     fileRepository,
+    decisionStore: input.decisionStore,
     now: input.now,
   })
   return {

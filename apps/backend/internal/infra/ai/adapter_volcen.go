@@ -18,7 +18,9 @@ import (
 // covering text (doubao), image (Seedream), and async video (Seedance).
 type VolcenAdapter struct {
 	baseURL string
+	apiKey  string
 	client  *arkruntime.Client
+	rawHTTP *http.Client
 }
 
 const volcenTextMaxTokensLimit = 131072
@@ -28,11 +30,12 @@ func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 	if baseURL == "" {
 		baseURL = "https://ark.cn-beijing.volces.com/api/v3"
 	}
+	httpClient := debugHTTPClient(apiKey, volcenHTTPTimeout)
 	c := arkruntime.NewClientWithApiKey(apiKey,
 		arkruntime.WithBaseUrl(baseURL),
-		arkruntime.WithHTTPClient(debugHTTPClient(apiKey, volcenHTTPTimeout)),
+		arkruntime.WithHTTPClient(httpClient),
 	)
-	return &VolcenAdapter{baseURL: baseURL, client: c}
+	return &VolcenAdapter{baseURL: baseURL, apiKey: apiKey, client: c, rawHTTP: httpClient}
 }
 
 func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
@@ -618,9 +621,9 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		expires := int64(req.ExecutionExpiresAfter)
 		createReq.ExecutionExpiresAfter = &expires
 	}
-		if req.WebSearch {
-			createReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
-		}
+	if req.WebSearch {
+		createReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
+	}
 
 	debugBody := map[string]any{
 		"model":  req.Model,
@@ -712,10 +715,58 @@ func buildVolcenImageInput(req ImageRequest) any {
 }
 
 func (a *VolcenAdapter) Ping(ctx context.Context) error {
-	pageSize := 1
-	ps := arkmodel.ListContentGenerationTasksRequest{PageSize: &pageSize}
-	_, err := a.client.ListContentGenerationTasks(ctx, ps)
+	_, err := a.FetchModels(ctx)
 	return err
+}
+
+func (a *VolcenAdapter) FetchModels(ctx context.Context) ([]string, error) {
+	baseURL := a.baseURL
+	if baseURL == "" {
+		baseURL = "https://ark.cn-beijing.volces.com/api/v3"
+	}
+	endpoint := strings.TrimRight(baseURL, "/") + "/models"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if a.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	}
+
+	client := a.rawHTTP
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("volcen models HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("decode volcen models: %w", err)
+	}
+	ids := make([]string, 0, len(parsed.Data))
+	for _, model := range parsed.Data {
+		if model.ID != "" {
+			ids = append(ids, model.ID)
+		}
+	}
+	return ids, nil
 }
 
 // aspectRatioToArkSize maps common ratio strings to Ark image size strings.

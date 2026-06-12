@@ -28,7 +28,9 @@ export function readAgentConversationOpenState(userId: string): AgentConversatio
 
 export function writeAgentConversationOpenState(userId: string, records: AgentConversationOpenRecord[]) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(agentConversationOpenStateStorageKey(userId), JSON.stringify(normalizeOpenRecords(records)))
+  const normalized = normalizeOpenRecords(records)
+  if (agentConversationOpenRecordsEqual(readAgentConversationOpenState(userId), normalized)) return
+  window.localStorage.setItem(agentConversationOpenStateStorageKey(userId), JSON.stringify(normalized))
   window.dispatchEvent(new CustomEvent(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, { detail: { userId } }))
 }
 
@@ -46,12 +48,12 @@ export function writeAgentActiveConversationId(userId: string, conversationId: s
   if (typeof window === 'undefined') return
   const key = agentActiveConversationStorageKey(userId)
   const value = conversationId?.trim()
+  if ((window.localStorage.getItem(key)?.trim() || null) === (value || null)) return
   if (value) {
     window.localStorage.setItem(key, value)
   } else {
     window.localStorage.removeItem(key)
   }
-  window.dispatchEvent(new CustomEvent(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, { detail: { userId } }))
 }
 
 export function mergeAgentConversationOpenState(

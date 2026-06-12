@@ -9,7 +9,7 @@ toolGrants:
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
   - mcp__movscript__domain_read_content_unit_runtime_panel
-  - mcp__movscript__domain_read_content_unit_input_version
+  - mcp__movscript__domain_read_content_unit_generation_prompt
   - mcp__movscript__domain_read_content_unit_dependency_report
   - mcp__movscript__domain_read_content_unit_selection_validity
   - mcp__movscript__domain_inspect

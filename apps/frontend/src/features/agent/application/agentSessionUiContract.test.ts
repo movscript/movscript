@@ -91,7 +91,10 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
 
 test('agent chat composer uses the same chrome in page and detail surfaces', () => {
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const panelShellLayoutCss = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/shell-layout/styles.css'), 'utf8')
 
   assert.match(dataSourceShellSource, /<AgentComposerSection[\s\S]*?chrome="flush"/)
+  assert.match(dataSourceShellSource, /ai-agent-panel-composer-wrap/)
+  assert.match(panelShellLayoutCss, /\.ai-agent-panel-shell \.ai-agent-panel-composer-wrap/)
   assert.doesNotMatch(dataSourceShellSource, /chrome=\{surface === 'page' \? 'flush' : 'bottom-bar'\}/)
 })

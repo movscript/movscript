@@ -37,22 +37,27 @@ export function createNodeMovScriptEngine(input: NodeMovScriptEngineInput = {}):
     workspaceService,
     overviewWorkspace: () => overviewMovScriptWorkspace({
       fileRepository,
+      decisionStore: input.decisionStore,
       ...(input.now ? { now: input.now() } : {}),
     }),
     inspectWorkspace: () => inspectMovScriptWorkspace({
       fileRepository,
+      decisionStore: input.decisionStore,
       ...(input.now ? { now: input.now() } : {}),
     }),
     reviewWorkspace: () => reviewMovScriptWorkspace({
       fileRepository,
+      decisionStore: input.decisionStore,
       ...(input.now ? { now: input.now() } : {}),
     }),
     interpretWorkspace: () => interpretMovScriptWorkspace({
       fileRepository,
+      decisionStore: input.decisionStore,
       ...(input.now ? { now: input.now() } : {}),
     }),
     regenerationPlan: () => planMovScriptWorkspaceRegeneration({
       fileRepository,
+      decisionStore: input.decisionStore,
       ...(input.now ? { now: input.now() } : {}),
     }),
     async deriveContentUnitArtifact(contentUnitId) {

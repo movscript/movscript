@@ -83,6 +83,7 @@ import {
 } from './external-resources/actions'
 import { toolText } from '../../protocol/index.js'
 import type { MCPJSONValue } from '../../protocol/types.js'
+import { summarizeWorkspaceInterpretForAgent } from './domain/interpretSummary.js'
 
 export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue> {
   const name = getStringParam(params, 'name')
@@ -170,6 +171,7 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'domain_read_content_unit_runtime_panel':
       return toolText(await domainReadContentUnitRuntimePanel(args))
     case 'domain_read_content_unit_generation_prompt':
+    case 'domain_read_content_unit_input_version':
       return toolText(await domainReadContentUnitGenerationPrompt(args))
     case 'domain_read_content_unit_dependency_report':
       return toolText(await domainReadContentUnitDependencyReport(args))
@@ -240,7 +242,7 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'domain_review':
       return toolText(await domainReview(args))
     case 'domain_interpret':
-      return toolText(await domainInterpret(args))
+      return interpretToolText(await domainInterpret(args))
     case 'domain_regeneration_plan':
       return toolText(await domainRegenerationPlan(args))
     case 'movscript_workspace_get_model':
@@ -248,11 +250,15 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'movscript_workspace_review':
       return toolText(await workspaceReview(args))
     case 'movscript_workspace_interpret':
-      return toolText(await workspaceInterpret(args))
+      return interpretToolText(await workspaceInterpret(args))
     case 'system_project_create':
     case 'movscript_project_create':
       return toolText(await createProject(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
+}
+
+function interpretToolText(value: unknown): MCPJSONValue {
+  return toolText(value, summarizeWorkspaceInterpretForAgent(value))
 }

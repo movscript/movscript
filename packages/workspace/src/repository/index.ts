@@ -104,6 +104,20 @@ export {
 } from './contentUnits.js'
 
 export {
+  contentUnitDecisionTargetRef,
+  createMovScriptBackendDecisionStore,
+  overlayMovScriptDecisionDocuments,
+  type MovScriptBackendDecisionStoreOptions,
+  type MovScriptContentUnitDecisionCandidateInput,
+  type MovScriptContentUnitDecisionCandidatesInput,
+  type MovScriptContentUnitDecisionSelectionInput,
+  type MovScriptContentUnitDecisionTarget,
+  type MovScriptDecisionContext,
+  type MovScriptDecisionStore,
+} from './decisionStore.js'
+
+export {
+  buildMovScriptContentCandidate,
   clearMovScriptContentUnitSelection,
   createMovScriptContentCandidate,
   selectMovScriptContentUnitCandidate,

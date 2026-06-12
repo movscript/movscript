@@ -45,7 +45,7 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 - Treat scene moments as narrative events, shots as camera units, keyframes/storyboards as shot-owned visual anchors/assets, and expression units/audio cues as scene-moment-owned planning objects.
 - Treat setting/state/asset as continuity structure only when reuse or consistency matters. Asset reference images should usually be low-background, multi-view, and weakly tied to plot.
 - Treat content units as top-level project production slots with flat refs. Do not nest content unit semantics under storyboard paths.
-- Prefer specialized content unit types only when interpreter tracking is needed: `asset_ref`, `keyframe_ref`, or `storyboard_ref`. Unknown `content_unit_type` values are valid generic slots but untracked for upstream hash/stale checks.
+- Prefer specialized content unit types only when interpreter tracking is needed: `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, or `shot_ref`. Unknown `content_unit_type` values are valid generic slots but untracked for upstream hash/stale checks.
 - Interpret after each coherent semantic planning step, not after every field. Skip interpret only for read-only planning, draft analysis, or blocking inspect/review issues.
 - Affected downstream content units require review, not automatic regeneration.
 
@@ -77,4 +77,4 @@ Tie the recommendation to the user's intent: continue planning for story/camera 
 
 - Open `references/production-planning-examples.md` for multi-step production planning from loose story material.
 - Open `references/planning-workflows.md` for scope selection, minimal prerequisite design, continuity planning, and reference-shot imitation planning.
-- Open `references/content-unit-recipes.md` when creating content units or choosing between `asset_ref`, `keyframe_ref`, `storyboard_ref`, and generic untracked slots.
+- Open `references/content-unit-recipes.md` when creating content units or choosing between `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, `shot_ref`, and generic untracked slots.

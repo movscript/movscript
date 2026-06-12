@@ -196,6 +196,9 @@ test('content source workspace data maps live timeline, candidates, and selectio
     assert.deepEqual(storyboardNode?.transition, { in: 'hard_cut', out: undefined, notes: undefined })
     assert.deepEqual(storyboardNode?.storyboardTimeline, { caption: 'Phone glow.', gapAfterSec: 0.2, durationSec: 3 })
     assert.equal(data.assetReferenceUnits['asset/phone_screen'].candidates[0].resourceId, 'res_asset_1')
+    assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream.length, 1)
+    assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream[0].title, 'Phone shot unit')
+    assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream[0].ownerNodeId, 'storyboard/main')
   } finally {
     restore()
   }
@@ -231,6 +234,97 @@ test('content source workspace selection writes content unit selection through w
       resourceId: 'res_video_1',
       reason: 'content_source_workspace_selection',
     })
+  } finally {
+    restore()
+  }
+})
+
+test('content source workspace data keeps live ontology tree when preview shots are not planned yet', async () => {
+  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => {
+    const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
+    const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', order: 1 })
+    const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
+    const entities = [production, segment, moment]
+    const index: MovScriptWorkspaceDomainIndex = {
+      documents: entities.map((item) => ({ path: item.path, data: item.record })),
+      entities,
+      byKind: new Map([
+        ['production', [production]],
+        ['segment', [segment]],
+        ['scene_moment', [moment]],
+      ] as never),
+    }
+    return {
+      loadIndex: async () => index,
+      querySettings: async () => [],
+      queryEntities: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      queryProductionContext: async () => ({
+        productions: [production],
+        segments: [segment],
+        scene_moments: [moment],
+        shots: [],
+        storyboards: [],
+        keyframes: [],
+        expression_units: [],
+        audio_cues: [],
+        content_units: [],
+      }),
+      readPreviewTimeline: async () => ({
+        schema: 'movscript.preview_timeline.v1',
+        productionId: 'pilot',
+        productionPath: 'productions/pilot',
+        items: [
+          timelineItem('segment:opening', 'segment', segment, 0),
+          timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1, 'segment:opening'),
+        ],
+      }),
+    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
+  })
+
+  try {
+    const data = await loadContentSourceWorkspaceData(123)
+    assert.equal(data.source, 'workspace')
+    assert.equal(data.hierarchyTree[1].children?.[0].title, 'Pilot')
+    assert.equal(data.previewMoments[0].id, 'rain_call')
+    assert.equal(data.previewMoments[0].shots.length, 0)
+  } finally {
+    restore()
+  }
+})
+
+test('content source workspace data treats an empty project as live empty workspace', async () => {
+  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => {
+    const index: MovScriptWorkspaceDomainIndex = {
+      documents: [],
+      entities: [],
+      byKind: new Map(),
+    }
+    return {
+      loadIndex: async () => index,
+      querySettings: async () => [],
+      queryEntities: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      queryProductionContext: async () => ({
+        productions: [],
+        segments: [],
+        scene_moments: [],
+        shots: [],
+        storyboards: [],
+        keyframes: [],
+        expression_units: [],
+        audio_cues: [],
+        content_units: [],
+      }),
+    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
+  })
+
+  try {
+    const data = await loadContentSourceWorkspaceData(124)
+    assert.equal(data.source, 'workspace')
+    assert.equal(data.hierarchyTree[0].id, 'settings_root')
+    assert.equal(data.hierarchyTree[1].id, 'productions_group')
+    assert.equal(data.previewMoments.length, 0)
   } finally {
     restore()
   }

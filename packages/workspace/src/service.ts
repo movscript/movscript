@@ -25,6 +25,7 @@ import {
 } from './layout/index.js'
 import {
   appendMovScriptInlineCandidate,
+  buildMovScriptContentCandidate,
   createMovScriptWorkspaceAssetSlotCandidate,
   createMovScriptWorkspaceKeyframeCandidate,
   createMovScriptContentCandidate,
@@ -45,6 +46,7 @@ import {
   upsertMovScriptWorkspaceAsset,
   upsertMovScriptWorkspaceSetting,
   saveMovScriptProductionWorkspaceSnapshot,
+  overlayMovScriptDecisionDocuments,
   type MovScriptContentUnitEditPromptUpdateInput,
   type MovScriptContentUnitEditPromptUpdateResult,
   type MovScriptContentUnitWriteInput,
@@ -76,8 +78,10 @@ import {
   type MovScriptEntityTransitionUpdateResult,
   type MovScriptStoryboardTimelineUpdateInput,
   type MovScriptStoryboardTimelineUpdateResult,
+  type MovScriptDecisionStore,
   type MovScriptWorkspaceFileRepository,
 } from './repository/index.js'
+import { deriveMovScriptWorkspaceDomainIndex } from './indexer/index.js'
 import {
   deriveMovScriptWorkspacePreviewTimelines,
   type MovScriptWorkspacePreviewTimelineArtifact,
@@ -85,6 +89,7 @@ import {
 
 export interface MovScriptWorkspaceServiceOptions {
   fileRepository: MovScriptWorkspaceFileRepository
+  decisionStore?: MovScriptDecisionStore
   now?: () => Date
 }
 
@@ -215,7 +220,11 @@ export function createMovScriptWorkspaceService(
   const domainRepository = createMovScriptWorkspaceDomainRepository({
     fileRepository: options.fileRepository,
   })
-  const loadIndex = (input?: { path?: string }) => domainRepository.loadIndex(input)
+  const loadIndex = async (input?: { path?: string }) => {
+    const documents = await domainRepository.loadDocuments(input)
+    const decisionDocuments = await overlayMovScriptDecisionDocuments(documents, options.decisionStore)
+    return deriveMovScriptWorkspaceDomainIndex(decisionDocuments)
+  }
 
   return {
     async initializeProject(input = {}) {
@@ -380,6 +389,17 @@ export function createMovScriptWorkspaceService(
         await readContentUnitGenerationPromptArtifact(options.fileRepository, input.contentUnitId),
         input.promptSnapshot,
       )
+      if (options.decisionStore) {
+        const result = buildMovScriptContentCandidate({
+          ...input,
+          ...(promptSnapshot !== undefined ? { promptSnapshot } : {}),
+        })
+        await options.decisionStore.upsertContentUnitCandidate({
+          contentUnitId: input.contentUnitId,
+          candidate: result.record,
+        })
+        return result
+      }
       return createMovScriptContentCandidate({
         fileRepository: options.fileRepository,
         ...input,
@@ -387,8 +407,24 @@ export function createMovScriptWorkspaceService(
       })
     },
     async selectContentUnitCandidate(input) {
-      const candidate = await readContentCandidateRecord(options.fileRepository, input.contentUnitId, input.candidateId)
+      const candidate = options.decisionStore
+        ? await readBackendContentCandidateRecord(options.decisionStore, input.contentUnitId, input.candidateId)
+        : await readContentCandidateRecord(options.fileRepository, input.contentUnitId, input.candidateId)
       const resourceId = input.resourceId ?? firstCandidateResourceId(candidate)
+      if (options.decisionStore) {
+        const context = await options.decisionStore.selectContentUnitCandidate({
+          contentUnitId: input.contentUnitId,
+          candidateId: input.candidateId,
+          ...(resourceId !== undefined ? { resourceId } : {}),
+          stalePolicy: input.stalePolicy,
+          reason: input.reason,
+          selectedAt: input.selectedAt,
+        })
+        return {
+          path: `content_units/${entityPathSlug(input.contentUnitId, 'content_unit')}/selection.json`,
+          record: context.selection ?? {},
+        }
+      }
       return selectMovScriptContentUnitCandidate({
         fileRepository: options.fileRepository,
         ...input,
@@ -527,6 +563,15 @@ async function readContentCandidateRecord(
   candidateId: string | number,
 ): Promise<Record<string, unknown> | undefined> {
   return readJSONArtifact(fileRepository, contentCandidatePath(contentUnitId, candidateId))
+}
+
+async function readBackendContentCandidateRecord(
+  decisionStore: MovScriptDecisionStore,
+  contentUnitId: string | number,
+  candidateId: string | number,
+): Promise<Record<string, unknown> | undefined> {
+  const context = await decisionStore.getContentUnitDecision({ contentUnitId })
+  return context?.candidates.find((candidate) => String(candidate.id) === String(candidateId))
 }
 
 function mergePromptSnapshots(

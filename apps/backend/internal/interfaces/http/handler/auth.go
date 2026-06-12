@@ -67,6 +67,9 @@ func newGitIdentityService(db *gorm.DB, cfg *config.Config, encryptionKey []byte
 	if len(encryptionKey) == 0 && strings.TrimSpace(cfg.EncryptionKey) != "" {
 		encryptionKey, _ = hex.DecodeString(cfg.EncryptionKey)
 	}
+	if strings.TrimSpace(cfg.WorkspaceStorageBackend) != projectrepoapp.ProviderGitea {
+		return nil
+	}
 	adapter := projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
 	if adapter == nil || len(encryptionKey) == 0 {
 		return nil

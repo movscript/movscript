@@ -27,6 +27,9 @@ import {
   type MovScriptWorkspaceDocument,
 } from '@movscript/workspace/indexer'
 import {
+  overlayMovScriptDecisionDocuments,
+} from '@movscript/workspace/repository'
+import {
   MOVSCRIPT_INTERPRET_CURRENT_DIR,
   normalizeWorkspacePath,
 } from '@movscript/workspace/layout'
@@ -62,10 +65,11 @@ export async function reviewMovScriptWorkspace(input: MovScriptWorkspaceInterpre
     ...await validateGitFileChangeCoverage(input.fileRepository, baseline, changedFiles),
   ]
   const semanticChanges = semanticChangesFromEntityChanges(changedEntities)
-  const documents = editFiles.map((file): MovScriptWorkspaceDocument => ({
+  const sourceDocuments = editFiles.map((file): MovScriptWorkspaceDocument => ({
     path: file.relativePath,
     data: parseWorkspaceDocument(file.path, file.content),
   }))
+  const documents = await overlayMovScriptDecisionDocuments(sourceDocuments, input.decisionStore)
   const index = deriveMovScriptWorkspaceDomainIndex(documents)
   const artifacts = deriveMovScriptWorkspaceArtifacts({
     index,

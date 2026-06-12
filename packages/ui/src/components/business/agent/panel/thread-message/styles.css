@@ -222,6 +222,9 @@
 }
 
 .ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview {
+  width: calc(100% - 20px);
+  margin-right: 10px;
+  margin-left: 10px;
   border-radius: var(--ms-radius-sm);
   margin-bottom: 6px;
 }

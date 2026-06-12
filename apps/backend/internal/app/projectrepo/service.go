@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	ProviderGitea = "gitea"
+	ProviderGitea   = "gitea"
+	ProviderGitHTTP = "http"
 
 	StatusProvisioning = "provisioning"
 	StatusActive       = "active"
@@ -276,7 +277,7 @@ func ownerName(project persistencemodel.Project) string {
 }
 
 func normalizeConfig(cfg Config) Config {
-	cfg.Provider = strings.TrimSpace(cfg.Provider)
+	cfg.Provider = NormalizeProvider(cfg.Provider)
 	if cfg.Provider == "" {
 		cfg.Provider = ProviderGitea
 	}
@@ -294,6 +295,15 @@ func normalizeConfig(cfg Config) Config {
 		cfg.OrgPrefix = "movscript-org-"
 	}
 	return cfg
+}
+
+func NormalizeProvider(provider string) string {
+	switch strings.TrimSpace(provider) {
+	case "git-http", "git-http-backend":
+		return ProviderGitHTTP
+	default:
+		return strings.TrimSpace(provider)
+	}
 }
 
 func bindingFromModel(model persistencemodel.ProjectRepository) Binding {

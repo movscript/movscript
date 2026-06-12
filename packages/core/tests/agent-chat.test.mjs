@@ -282,6 +282,7 @@ test('core agent chat runtime drops turn-completed pending requests without resp
 
   assert.equal(resolved, 0)
   assert.equal(state.pendingServerRequests.length, 0)
+  assert.deepEqual(state.threadReadRequests, [])
 })
 
 test('core agent chat system item views classify diagnostics and summarize raw items', () => {
@@ -911,6 +912,66 @@ test('core dedupes managed resume requests and records refresh-after-in-flight',
     status: 'resumed',
   })
   assert.equal(state.threads[0]?.updatedAt, 2)
+})
+
+test('core does not requeue failed automatic resume during thread refresh', () => {
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'upsertThreadReadResult',
+    input: { includeTurns: true, limit: 1, direction: 'newer' },
+    thread: testThread({ status: 'running' }),
+  })
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'beginThreadResumeRequest', requestId: 1 })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'completeThreadResumeRequest',
+    requestId: 1,
+    error: 'timeout waiting for child process to exit',
+  })
+
+  assert.deepEqual(state.threadResumeRequests, [])
+  assert.deepEqual(state.managedThreadResumes.thread_1, {
+    threadId: 'thread_1',
+    status: 'failed',
+    error: 'timeout waiting for child process to exit',
+  })
+
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'setThreads',
+    threads: [testThread({ status: 'running', updatedAt: 3 })],
+  })
+
+  assert.deepEqual(state.threadResumeRequests, [])
+  assert.deepEqual(state.managedThreadResumes.thread_1?.status, 'failed')
+})
+
+test('core allows failed automatic resume to retry after the user reselects the thread', () => {
+  let state = agentChat.createAgentChatRuntimeState('thread_1')
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'setThreads',
+    threads: [
+      testThread({ status: 'running' }),
+      testThread({ id: 'thread_2', status: 'completed' }),
+    ],
+  })
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'beginThreadResumeRequest', requestId: 1 })
+  state = agentChat.agentChatRuntimeReducer(state, {
+    type: 'completeThreadResumeRequest',
+    requestId: 1,
+    error: 'timeout waiting for child process to exit',
+  })
+
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'setActiveThreadId', threadId: 'thread_2' })
+  state = agentChat.agentChatRuntimeReducer(state, { type: 'setActiveThreadId', threadId: 'thread_1' })
+
+  assert.deepEqual(state.threadResumeRequests, [{
+    id: 2,
+    threadId: 'thread_1',
+    status: 'pending',
+  }])
+  assert.deepEqual(state.managedThreadResumes.thread_1, {
+    threadId: 'thread_1',
+    status: 'pending',
+  })
 })
 
 test('core builds incremental thread read inputs from known thread items', () => {

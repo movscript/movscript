@@ -30,6 +30,8 @@ type ProjectHandler struct {
 	giteaToken         string
 	giteaAdminUsername string
 	giteaAdminPassword string
+	gitHTTPRoot        string
+	gitBinary          string
 	httpClient         *http.Client
 }
 
@@ -45,7 +47,18 @@ func NewProjectHandlerWithConfigAndEncryption(db *gorm.DB, cfg *config.Config, e
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	giteaAdapter := projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
+	workspaceStorageBackend := projectrepoapp.NormalizeProvider(cfg.WorkspaceStorageBackend)
+	if workspaceStorageBackend == "" {
+		workspaceStorageBackend = projectrepoapp.ProviderGitea
+	}
+	var repositoryAdapter projectrepoapp.GitRepositoryAdapter
+	var giteaAdapter *projectrepoapp.GiteaAdapter
+	if workspaceStorageBackend == projectrepoapp.ProviderGitea {
+		giteaAdapter = projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
+		repositoryAdapter = giteaAdapter
+	} else if workspaceStorageBackend == projectrepoapp.ProviderGitHTTP {
+		repositoryAdapter = projectrepoapp.NewLocalGitAdapter(cfg.GitHTTPRoot, cfg.GitBinary)
+	}
 	var gitIdentities *gitidentityapp.Service
 	if giteaAdapter != nil && len(encryptionKey) > 0 {
 		gitIdentities = gitidentityapp.NewService(db, giteaAdapter, gitidentityapp.Config{
@@ -54,7 +67,7 @@ func NewProjectHandlerWithConfigAndEncryption(db *gorm.DB, cfg *config.Config, e
 		}, encryptionKey)
 	}
 	repositoryConfig := projectrepoapp.Config{
-		Provider:      "gitea",
+		Provider:      workspaceStorageBackend,
 		Repo:          cfg.GiteaRepo,
 		RepoPrefix:    cfg.GiteaRepoPrefix,
 		DefaultBranch: cfg.GiteaBranch,
@@ -63,16 +76,25 @@ func NewProjectHandlerWithConfigAndEncryption(db *gorm.DB, cfg *config.Config, e
 	return &ProjectHandler{
 		db:                 db,
 		projects:           projectapp.NewService(db, cacheStore...),
-		repositories:       projectrepoapp.NewService(db, repositoryConfig, giteaAdapter),
+		repositories:       projectrepoapp.NewService(db, repositoryConfig, repositoryAdapter),
 		gitIdentities:      gitIdentities,
-		giteaBaseURL:       strings.TrimRight(strings.TrimSpace(cfg.GiteaBaseURL), "/"),
-		giteaToken:         strings.TrimSpace(cfg.GiteaToken),
-		giteaAdminUsername: strings.TrimSpace(cfg.GiteaAdminUsername),
-		giteaAdminPassword: strings.TrimSpace(cfg.GiteaAdminPassword),
+		giteaBaseURL:       configuredGiteaValue(giteaAdapter, cfg.GiteaBaseURL),
+		giteaToken:         configuredGiteaValue(giteaAdapter, cfg.GiteaToken),
+		giteaAdminUsername: configuredGiteaValue(giteaAdapter, cfg.GiteaAdminUsername),
+		giteaAdminPassword: configuredGiteaValue(giteaAdapter, cfg.GiteaAdminPassword),
+		gitHTTPRoot:        strings.TrimSpace(cfg.GitHTTPRoot),
+		gitBinary:          strings.TrimSpace(cfg.GitBinary),
 		httpClient: &http.Client{
 			Timeout: 0,
 		},
 	}
+}
+
+func configuredGiteaValue(adapter *projectrepoapp.GiteaAdapter, value string) string {
+	if adapter == nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 func currentOrgID(c *gin.Context) *uint {
@@ -358,13 +380,6 @@ func (h *ProjectHandler) Workspace(c *gin.Context) {
 }
 
 func (h *ProjectHandler) GitProxy(c *gin.Context) {
-	hasToken := h.giteaToken != ""
-	hasAdminBasic := h.giteaAdminUsername != "" && h.giteaAdminPassword != ""
-	if h.giteaBaseURL == "" || (!hasToken && !hasAdminBasic) {
-		log.Printf("[movscript:project-git-proxy] proxy not configured baseURLSet=%t tokenSet=%t adminBasicSet=%t", h.giteaBaseURL != "", hasToken, hasAdminBasic)
-		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库代理未配置：缺少 Gitea base URL 或管理凭据"))
-		return
-	}
 	orgID, ok := requireCurrentOrgID(c)
 	if !ok {
 		return
@@ -395,6 +410,24 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 	user, ok := middleware.CurrentUserProfileFromContext(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, api.AuthRequired())
+		return
+	}
+
+	switch target.Provider {
+	case projectrepoapp.ProviderGitHTTP:
+		h.gitProxyLocal(c, target, user.Username)
+		return
+	case projectrepoapp.ProviderGitea:
+	default:
+		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库 provider 不受支持"))
+		return
+	}
+
+	hasToken := h.giteaToken != ""
+	hasAdminBasic := h.giteaAdminUsername != "" && h.giteaAdminPassword != ""
+	if h.giteaBaseURL == "" || (!hasToken && !hasAdminBasic) {
+		log.Printf("[movscript:project-git-proxy] proxy not configured baseURLSet=%t tokenSet=%t adminBasicSet=%t", h.giteaBaseURL != "", hasToken, hasAdminBasic)
+		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库代理未配置：缺少 Gitea base URL 或管理凭据"))
 		return
 	}
 	upstreamUsername := target.Owner

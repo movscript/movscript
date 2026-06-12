@@ -80,7 +80,10 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("decode encryption key: %w", err)
 	}
 
-	registry := ai.NewRegistry(database, encKey)
+	if err := ai.ConfigureLocalGatewayDefaults(context.Background(), database, cfg.AIGatewayProvider == "local"); err != nil {
+		return nil, fmt.Errorf("configure local AI gateway defaults: %w", err)
+	}
+	registry := ai.NewRegistryWithProviderMode(database, encKey, cfg.AIGatewayProvider)
 	aiService := ai.NewAIService(database, registry)
 	var imageVerifier ai.ImageVerificationClient
 	if cfg.ImageVerifyBaseURL != "" {

@@ -306,7 +306,6 @@ export function AgentBrowserPanel() {
     setActiveTabId(id)
     setLauncherOpen(false)
     setAddressWorkspace('')
-    void window.api?.embeddedBrowserHide?.()
   }
 
   function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'project_standards', title: string, options?: { replaceActiveBlank?: boolean }) {
@@ -319,7 +318,6 @@ export function AgentBrowserPanel() {
       )))
       setActiveTabId(activeTab.id)
       setLauncherOpen(false)
-      void window.api?.embeddedBrowserHide?.()
       return
     }
 
@@ -327,7 +325,6 @@ export function AgentBrowserPanel() {
     if (existing) {
       setActiveTabId(existing.id)
       setLauncherOpen(false)
-      void window.api?.embeddedBrowserHide?.()
       return
     }
 
@@ -335,7 +332,6 @@ export function AgentBrowserPanel() {
     setTabs((current) => [...current, { id, kind, title, createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
-    void window.api?.embeddedBrowserHide?.()
   }
 
   function openResourceLibraryTab() {
@@ -400,7 +396,14 @@ export function AgentBrowserPanel() {
     const closingIndex = tabs.findIndex((tab) => tab.id === tabId)
     const closingTab = tabs[closingIndex]
     if (!closingTab) return
+    const remaining = tabs.filter((tab) => tab.id !== tabId)
+    const nextActiveTab = activeTabId === tabId
+      ? remaining[Math.max(0, closingIndex - 1)] ?? remaining[0]
+      : activeTab
     if (closingTab.kind === 'web') {
+      if (activeTabId === tabId && nextActiveTab?.kind === 'web' && (webStates[nextActiveTab.id]?.url || nextActiveTab.url)) {
+        void window.api?.embeddedBrowserActivate?.({ tabId: nextActiveTab.id, bounds: readBounds() })
+      }
       void window.api?.embeddedBrowserClose?.({ tabId })
       setWebStates((current) => {
         const next = { ...current }
@@ -408,7 +411,6 @@ export function AgentBrowserPanel() {
         return next
       })
     }
-    const remaining = tabs.filter((tab) => tab.id !== tabId)
     if (remaining.length === 0) {
       const fallback: AgentBrowserTab = {
         id: 'project_home',

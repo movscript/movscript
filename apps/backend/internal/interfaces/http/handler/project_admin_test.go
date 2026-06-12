@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
+	"github.com/movscript/movscript/internal/infra/config"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"github.com/movscript/movscript/internal/testutil"
@@ -664,6 +666,132 @@ func TestProjectMemberActionsWriteOrgAudit(t *testing.T) {
 	}
 	if countAuditAction(t, db, "project.member_removed") != 1 {
 		t.Fatalf("missing member should not add remove audit log")
+	}
+}
+
+func TestProjectHandlerDoesNotEnableGiteaWhenWorkspaceStorageIsHTTP(t *testing.T) {
+	db := testutil.OpenSQLite(t, "handler-project-http-workspace-provider.db")
+	h := NewProjectHandlerWithConfigAndEncryption(db, &config.Config{
+		WorkspaceStorageBackend: "http",
+		GiteaBaseURL:            "http://gitea.local",
+		GiteaToken:              "admin-token",
+		GiteaAdminUsername:      "movscript",
+		GiteaAdminPassword:      "movscript12345",
+		GiteaRepoPrefix:         "movscript-project-",
+		GiteaBranch:             "main",
+	}, []byte("0123456789abcdef0123456789abcdef"))
+
+	if h.gitIdentities != nil {
+		t.Fatal("gitIdentities should be nil when workspace storage provider is http")
+	}
+	if h.giteaBaseURL != "" || h.giteaToken != "" || h.giteaAdminUsername != "" || h.giteaAdminPassword != "" {
+		t.Fatalf("Gitea proxy config should be disabled for http workspace provider: base=%q token=%q user=%q", h.giteaBaseURL, h.giteaToken, h.giteaAdminUsername)
+	}
+}
+
+func TestProjectHandlerEnablesGiteaOnlyForGiteaWorkspaceStorage(t *testing.T) {
+	db := testutil.OpenSQLite(t, "handler-project-gitea-workspace-provider.db")
+	h := NewProjectHandlerWithConfigAndEncryption(db, &config.Config{
+		WorkspaceStorageBackend: "gitea",
+		GiteaBaseURL:            "http://gitea.local",
+		GiteaToken:              "admin-token",
+		GiteaRepoPrefix:         "movscript-project-",
+		GiteaBranch:             "main",
+	}, []byte("0123456789abcdef0123456789abcdef"))
+
+	if h.giteaBaseURL != "http://gitea.local" || h.giteaToken != "admin-token" {
+		t.Fatalf("expected Gitea proxy config to be enabled, got base=%q token=%q", h.giteaBaseURL, h.giteaToken)
+	}
+}
+
+func TestProjectGitProxyUsesLocalGitHTTPBackend(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git binary not available: %v", err)
+	}
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-project-local-git-http.db",
+		&persistencemodel.User{},
+		&persistencemodel.Organization{},
+		&persistencemodel.OrganizationMember{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectMember{},
+		&persistencemodel.ProjectRepository{},
+	)
+
+	owner := persistencemodel.User{Username: "local-git-owner", Status: "active"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	org := persistencemodel.Organization{Name: "Local Git Org", Slug: "local-git-org", Plan: "team", Status: "active", CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	orgMember := persistencemodel.OrganizationMember{OrgID: org.ID, UserID: owner.ID, Role: "owner"}
+	if err := db.Create(&orgMember).Error; err != nil {
+		t.Fatalf("create org member: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Local Git Project", OwnerID: owner.ID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: "owner"}).Error; err != nil {
+		t.Fatalf("create project owner member: %v", err)
+	}
+
+	h := NewProjectHandlerWithConfig(db.Session(&gorm.Session{SkipHooks: true}), &config.Config{
+		WorkspaceStorageBackend: "http",
+		GitHTTPRoot:             t.TempDir(),
+		GitBinary:               "git",
+		GiteaBaseURL:            "http://gitea.local",
+		GiteaToken:              "server-gitea-token",
+		GiteaRepoPrefix:         "local-project-",
+		GiteaBranch:             "main",
+		GiteaOrgPrefix:          "movscript-org-",
+	})
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.ContextUserKey, domainauth.UserProfile{
+			ID:         owner.ID,
+			Username:   owner.Username,
+			SystemRole: domainauth.SystemRoleUser,
+			Status:     domainauth.UserStatusActive,
+		})
+		c.Set(middleware.ContextOrgMemberKey, domainorg.OrganizationMember{
+			ID:     orgMember.ID,
+			OrgID:  org.ID,
+			UserID: owner.ID,
+			Role:   orgMember.Role,
+		})
+		c.Next()
+	})
+	router.Any("/projects/:id/git/*gitPath", h.GitProxy)
+
+	repoName := "local-project-" + strconv.FormatUint(uint64(project.ID), 10)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/projects/"+strconv.FormatUint(uint64(project.ID), 10)+"/git/"+repoName+".git/info/refs?service=git-upload-pack",
+		nil,
+	)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected local git upload-pack response, got %d: %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "application/x-git-upload-pack-advertisement") {
+		t.Fatalf("Content-Type = %q, want upload-pack advertisement", got)
+	}
+	if !strings.Contains(res.Body.String(), "# service=git-upload-pack") {
+		t.Fatalf("response body did not include upload-pack advertisement: %q", res.Body.String())
+	}
+
+	var binding persistencemodel.ProjectRepository
+	if err := db.Where("project_id = ?", project.ID).First(&binding).Error; err != nil {
+		t.Fatalf("load project repository binding: %v", err)
+	}
+	if binding.Provider != "http" || binding.Status != "active" {
+		t.Fatalf("expected active http binding, got %+v", binding)
 	}
 }
 

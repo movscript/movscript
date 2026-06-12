@@ -31,9 +31,9 @@ export interface MovScriptContentCandidateWriteResult {
   record: Record<string, unknown>
 }
 
-export async function createMovScriptContentCandidate(
-  input: MovScriptContentCandidateWriteInput,
-): Promise<MovScriptContentCandidateWriteResult> {
+export function buildMovScriptContentCandidate(
+  input: Omit<MovScriptContentCandidateWriteInput, 'fileRepository'>,
+): MovScriptContentCandidateWriteResult {
   const contentUnitId = stableEntityId(input.contentUnitId, 'content_unit')
   const candidateId = stableEntityId(input.candidateId ?? `candidate_${Date.now()}`, 'candidate')
   const path = `${contentUnitDirectory(contentUnitId)}/candidates/${entityPathSlug(candidateId, 'candidate')}/content_candidate.json`
@@ -48,6 +48,13 @@ export async function createMovScriptContentCandidate(
     prompt_snapshot: input.promptSnapshot,
     created_at: input.createdAt ?? new Date().toISOString(),
   })
+  return { path, record }
+}
+
+export async function createMovScriptContentCandidate(
+  input: MovScriptContentCandidateWriteInput,
+): Promise<MovScriptContentCandidateWriteResult> {
+  const { path, record } = buildMovScriptContentCandidate(input)
   await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
   return { path, record }
 }

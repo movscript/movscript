@@ -217,6 +217,32 @@ test('workspace source review validates min length in source references', async 
   assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit requires {{storyboard:id}} in edit_prompt')))
 })
 
+test('workspace source review validates scence_moment_ref primary refs', async () => {
+  const files = new Map([
+    ['content_units/scene_video/content_unit.json', JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'scene_video',
+      title: 'Scene video',
+      content_unit_type: 'scence_moment_ref',
+      output_kind: 'image',
+      edit_prompt: {
+        text: 'No scene moment ref here.',
+      },
+    })],
+  ])
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const review = await reviewMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  assert.equal(review.readyToInterpret, false)
+  assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit output_kind must be video')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit requires {{scene_moment:id}} in edit_prompt')))
+})
+
 test('workspace source review rejects unresolved content unit prompt refs', async () => {
   const files = new Map([
     ['productions/p8f3/production.json', JSON.stringify({ schema: 'movscript.production.v1', kind: 'production', id: 'p8f3', title: 'Episode 1' })],

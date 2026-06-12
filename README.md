@@ -47,6 +47,8 @@ This mode lets Electron start the backend at `http://localhost:8766`, uses SQLit
 http://localhost:8766/admin
 ```
 
+Local desktop startup uses the `MOVSCRIPT_DEPENDENCY_PROFILE=local` backend dependency profile: SQLite, filesystem object storage, the local Git HTTP backend provider, local AI gateway mode, and memory cache. External service mode is selected with `MOVSCRIPT_DEPENDENCY_PROFILE=external`: PostgreSQL, MinIO, Gitea, new-api, and Redis. Individual provider env vars such as `DB_DRIVER`, `STORAGE_BACKEND`, `MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`, `MOVSCRIPT_AI_GATEWAY_PROVIDER`, and `CACHE_BACKEND` can still override the profile defaults.
+
 If you want to run the backend separately:
 
 ```bash

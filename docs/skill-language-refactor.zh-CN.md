@@ -117,6 +117,7 @@ keyframe 锁定某个关键画面应该长什么样
 | `asset_ref` | image | 生成或选择可复用资产参考图 |
 | `keyframe_ref` | image | 生成或选择关键帧参考图 |
 | `storyboard_ref` | video | 生成或选择分镜/镜头视频结果 |
+| `scence_moment_ref` | video | 直接生成或选择完整情节视频结果 |
 
 未知 `content_unit_type` 可以存在，但 interpreter 不会为它完整追踪上游依赖、hash 和 stale 状态。
 
@@ -248,6 +249,7 @@ project_standards
 - `asset_ref` 的图像目标应尽量少背景、多视角、弱剧情绑定，避免把一次性场景情节写死进资产。
 - `keyframe_ref` 用于先看关键画面效果。
 - `storyboard_ref` 用于最终视频/分镜视频生成。
+- `scence_moment_ref` 用于不拆 shot、直接生成完整情节视频。
 - 强一致路径是：asset candidate selected -> keyframe candidate selected -> storyboard/video candidate selected。
 - 快速探索路径可以跳过资产化，但要说明一致性和 stale tracking 风险。
 
@@ -308,7 +310,8 @@ project_standards
 - 是否需要复用？需要才创建 setting/state/asset。
 - 是否需要先看图？需要就创建 keyframe 和 `keyframe_ref` content unit。
 - 是否是在模仿参考镜头？是的话先规划参考视频抽帧、镜头分析、storyboard panels 和分镜图 content unit。
-- 是否要生成视频？需要就创建 storyboard 和 `storyboard_ref` content unit。
+- 是否要直接生成完整情节视频？需要就创建 `scence_moment_ref` content unit。
+- 是否要生成分镜/镜头视频？需要就创建 storyboard 和 `storyboard_ref` content unit。
 
 如果用户只是做一个简单视频，不要默认创建完整 project-level 资产体系。可以走最小结构：必要的 scene_moment、shot、storyboard 或一个 content unit。只有当用户明确需要复用、系列化生产、角色/场景一致性、后续可追踪修改时，才扩展为完整项目结构。
 

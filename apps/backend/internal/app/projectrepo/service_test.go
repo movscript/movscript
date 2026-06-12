@@ -3,6 +3,9 @@ package projectrepo
 import (
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	domainorg "github.com/movscript/movscript/internal/domain/org"
@@ -53,6 +56,36 @@ func TestEnsureProjectRepositoryCreatesStableBinding(t *testing.T) {
 	}
 	if adapter.calls != 2 {
 		t.Fatalf("adapter calls = %d, want 2", adapter.calls)
+	}
+}
+
+func TestLocalGitAdapterCreatesBareRepository(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git binary not available: %v", err)
+	}
+	root := t.TempDir()
+	adapter := NewLocalGitAdapter(root, "git")
+
+	result, err := adapter.EnsureRepository(context.Background(), EnsureRepositoryInput{
+		Owner:         "alice",
+		Repo:          "project-1",
+		DefaultBranch: "main",
+	})
+	if err != nil {
+		t.Fatalf("EnsureRepository returned error: %v", err)
+	}
+	if result.ProviderRepoID != "alice/project-1.git" {
+		t.Fatalf("ProviderRepoID = %q, want alice/project-1.git", result.ProviderRepoID)
+	}
+	if _, err := os.Stat(filepath.Join(root, "alice", "project-1.git", "HEAD")); err != nil {
+		t.Fatalf("bare repository HEAD not created: %v", err)
+	}
+	head, err := os.ReadFile(filepath.Join(root, "alice", "project-1.git", "HEAD"))
+	if err != nil {
+		t.Fatalf("read HEAD: %v", err)
+	}
+	if string(head) != "ref: refs/heads/main\n" {
+		t.Fatalf("HEAD = %q, want main symbolic ref", string(head))
 	}
 }
 

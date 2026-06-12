@@ -30,7 +30,7 @@ export const APP_SERVER_THREAD_TURN_ITEM_NOTIFICATION_COVERAGE: Record<AppServer
   'thread/tokenUsage/updated': { handling: 'thread-item-notice', note: 'Token usage can be shown as neutral systemNotice when turn-scoped.' },
   'turn/started': { handling: 'thread-state', note: 'Upserts normalized turn state.' },
   'hook/started': { handling: 'thread-item-notice', note: 'Hook lifecycle can be shown as neutral systemNotice when turn-scoped.' },
-  'turn/completed': { handling: 'thread-state', note: 'Upserts completed turn and refreshes canonical thread.' },
+  'turn/completed': { handling: 'thread-state', note: 'Upserts completed turn from the live connection without re-reading thread history.' },
   'hook/completed': { handling: 'thread-item-notice', note: 'Hook lifecycle can be shown as neutral systemNotice when turn-scoped.' },
   'turn/diff/updated': { handling: 'thread-item', note: 'Projects turn diff into stable neutral fileChange item.' },
   'turn/plan/updated': { handling: 'thread-item', note: 'Projects turn plan into stable neutral plan item.' },

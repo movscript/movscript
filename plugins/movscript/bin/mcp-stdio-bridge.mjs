@@ -348,8 +348,8 @@ const domainTools = [
     inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
   },
   {
-    name: 'domain_read_content_unit_input_version',
-    description: 'Read an interpreted content unit input version from .interpret/current. This is read-only interpreted output.',
+    name: 'domain_read_content_unit_generation_prompt',
+    description: 'Read an interpreted normalized content unit generation prompt from .interpret/current. This is read-only interpreted output.',
     inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
   },
   {

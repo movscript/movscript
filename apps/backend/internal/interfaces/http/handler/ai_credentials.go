@@ -124,8 +124,7 @@ func (h *AIHandler) DeleteCredential(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// ListRemoteModels calls the provider's /models endpoint and returns available model IDs.
-// Only supported for OpenAI-compatible providers (including custom).
+// ListRemoteModels calls the provider's model-list endpoint and returns available model IDs.
 func (h *AIHandler) ListRemoteModels(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()

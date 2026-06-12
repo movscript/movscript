@@ -6,6 +6,9 @@ import {
   type MovScriptWorkspaceDocument,
 } from '@movscript/workspace/indexer'
 import {
+  overlayMovScriptDecisionDocuments,
+} from '@movscript/workspace/repository'
+import {
   MOVSCRIPT_INTERPRET_CURRENT_DIR,
   MOVSCRIPT_INTERPRET_REVIEWS_DIR,
   MOVSCRIPT_ASSET_INDEX_PATH,
@@ -98,10 +101,11 @@ export async function interpretMovScriptWorkspace(input: MovScriptWorkspaceInter
 
   const source = await resolveWorkspaceSource(input.fileRepository)
   const editFiles = source.files
-  const documents = editFiles.map((file): MovScriptWorkspaceDocument => ({
+  const sourceDocuments = editFiles.map((file): MovScriptWorkspaceDocument => ({
     path: file.relativePath,
     data: parseWorkspaceDocument(file.path, file.content),
   }))
+  const documents = await overlayMovScriptDecisionDocuments(sourceDocuments, input.decisionStore)
   const index = deriveMovScriptWorkspaceDomainIndex(documents)
   const interpretationId = interpretationIdFor(now)
   const checkpoint = await commitCheckpoint(input.fileRepository, editFiles, {

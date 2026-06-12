@@ -335,7 +335,6 @@ export function dispatchAgentChatNotification<
       return next
     })
     clearAgentChatRealtimeItemsForThread(target, threadId)
-    target.readThread(threadId)
   }
 }
 

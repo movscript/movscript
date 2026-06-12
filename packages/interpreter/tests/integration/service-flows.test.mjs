@@ -281,6 +281,60 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   assert.equal(finalPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_asset_2')
 })
 
+test('workspace service and interpreter can use backend decision store for content unit choices', async () => {
+  const files = new Map(sourceFileEntries())
+  const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    decisionStore,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    decisionStore,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+  const assetPrompt = await service.readContentUnitGenerationPrompt('cu_wet_hair_ref')
+  assert.ok(assetPrompt)
+
+  await service.createContentCandidate({
+    contentUnitId: 'cu_wet_hair_ref',
+    candidateId: 'candidate_backend_asset_1',
+    outputs: [{ kind: 'image', resource_id: 'resource_backend_asset_1' }],
+    promptSnapshot: assetPrompt,
+    createdAt: '2026-06-07T00:01:00.000Z',
+  })
+  await service.selectContentUnitCandidate({
+    contentUnitId: 'cu_wet_hair_ref',
+    candidateId: 'candidate_backend_asset_1',
+    reason: 'backend_selection',
+    selectedAt: '2026-06-07T00:01:00.000Z',
+  })
+
+  assert.equal(files.has('content_units/cu_wet_hair_ref/selection.json'), false)
+  assert.equal(files.has('content_units/cu_wet_hair_ref/candidates/candidate_backend_asset_1/content_candidate.json'), false)
+
+  const index = await service.loadIndex()
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [],
+    interpretationId: 'backend_decision_store',
+    createdAt: '2026-06-07T00:02:00.000Z',
+  })
+  const videoPanel = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel
+  assert.equal(videoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_backend_asset_1')
+
+  await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    decisionStore,
+    now: new Date('2026-06-07T00:02:00.000Z'),
+  })
+  const interpretedVideoPanel = await service.readContentUnitRuntimePanel('k41m')
+  assert.equal(interpretedVideoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_backend_asset_1')
+})
+
 test('workspace service snapshots script markdown into explicit version and blocks', async () => {
   const files = new Map([
     ['scripts/main/script.json', JSON.stringify({
@@ -329,6 +383,63 @@ test('workspace service snapshots script markdown into explicit version and bloc
   assert.equal(index.byKind.get('script_version')?.length, 1)
   assert.equal(index.byKind.get('script_block')?.length, 3)
 })
+
+function memoryDecisionStore() {
+  const contexts = new Map()
+  const targetRef = (contentUnitId) => `content_units/${String(contentUnitId)}`
+  const key = (contentUnitId) => `content_unit:${targetRef(contentUnitId)}`
+  const ensure = (contentUnitId) => {
+    const contextKey = key(contentUnitId)
+    const existing = contexts.get(contextKey)
+    if (existing) return existing
+    const context = {
+      target_kind: 'content_unit',
+      target_ref: targetRef(contentUnitId),
+      candidates: [],
+      status: 'open',
+    }
+    contexts.set(contextKey, context)
+    return context
+  }
+  return {
+    async getContentUnitDecision(input) {
+      return contexts.get(key(input.contentUnitId))
+    },
+    async replaceContentUnitCandidates(input) {
+      const context = ensure(input.contentUnitId)
+      context.candidates = input.candidates
+      return context
+    },
+    async upsertContentUnitCandidate(input) {
+      const context = ensure(input.contentUnitId)
+      const index = context.candidates.findIndex((candidate) => String(candidate.id) === String(input.candidate.id))
+      if (index >= 0) context.candidates[index] = input.candidate
+      else context.candidates.push(input.candidate)
+      return context
+    },
+    async selectContentUnitCandidate(input) {
+      const context = ensure(input.contentUnitId)
+      const candidate = context.candidates.find((item) => String(item.id) === String(input.candidateId))
+      if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`)
+      const firstOutput = Array.isArray(candidate.outputs) ? candidate.outputs[0] : undefined
+      context.selection = {
+        candidate_id: input.candidateId,
+        resource_id: input.resourceId ?? firstOutput?.resource_id,
+        stale_policy: input.stalePolicy ?? 'strict',
+        reason: input.reason,
+        selected_at: input.selectedAt,
+      }
+      context.status = 'selected'
+      return context
+    },
+    async clearContentUnitSelection(input) {
+      const context = ensure(input.contentUnitId)
+      delete context.selection
+      context.status = 'open'
+      return context
+    },
+  }
+}
 
 test('node workspace service composes with interpreter review and interpret for adapters', async () => {
   const rootDir = join(tmpdir(), `movscript-node-workspace-service-${Date.now()}-${Math.random().toString(36).slice(2)}`)

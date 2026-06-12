@@ -9,6 +9,7 @@ Create the necessary upstream structure first, then create the content unit. Do 
 - `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable character, location, prop, style, or state asset.
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a shot or storyboard.
 - `storyboard_ref`: video output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_refs`. Use for storyboard-level continuous visual expression.
+- `scence_moment_ref`: video output, uses a `{{scene_moment:id}}` primary prompt ref. Use when directly generating one complete scene moment video without committing to shot/storyboard breakdown first.
 
 Unknown `content_unit_type` values are valid generic slots, but interpreter adapters do not collect upstream dependencies, hash source refs, mark selections stale, or include them in regeneration planning.
 

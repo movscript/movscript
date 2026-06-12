@@ -71,6 +71,7 @@ export {
   type MovScriptWorkspaceContextInput,
   type MovScriptWorkspaceContextPaths,
   type MovScriptWorkspaceFileRepository,
+  type MovScriptDecisionStore,
   type MovScriptWorkspaceRootManifest,
   type MovScriptWorkspaceRootPaths,
   type MovScriptWorkspaceScope,

@@ -5,6 +5,15 @@ import {
   createNodeMovScriptEngine,
 } from '@movscript/engine/node'
 import {
+  SEMANTIC_ENTITY_KIND_VALUES,
+  SEMANTIC_ENTITY_SCHEMA_IDS,
+  SEMANTIC_ENTITY_SCHEMA_REGISTRY,
+  getActiveSemanticEntitySchemaForKind,
+  getSemanticEntitySchemaEntry,
+  type SemanticEntityKind,
+  type SemanticEntitySchemaDefinition,
+} from '@movscript/language'
+import {
   interpretMovScriptWorkspace,
   inspectMovScriptWorkspace,
   overviewMovScriptWorkspace,
@@ -75,20 +84,32 @@ interface AddAssetOptions extends WorkspaceOptions {
 interface AddContentUnitOptions extends WorkspaceOptions {
   id?: string
   title?: string
+  type?: string
   kind?: string
+  contentUnitType?: string
+  outputKind?: string
+  asset?: string
   production?: string
   segment?: string
   sceneMoment?: string
   shot?: string
   storyboard?: string
+  keyframe?: string
   audioCue?: string
   prompt?: string
+  negativePrompt?: string
   description?: string
   order?: string
   duration?: string
+  aspectRatio?: string
+  capability?: string
+  provider?: string
+  model?: string
+  quality?: string
   shotSize?: string
   cameraAngle?: string
   cameraMotion?: string
+  param?: string[]
 }
 
 interface AddProductionOptions extends WorkspaceOptions {
@@ -226,27 +247,11 @@ interface InterpreterArtifactsOptions extends WorkspaceOptions {
   createdAt?: string
 }
 
-const SEMANTIC_ENTITY_KINDS = [
-  'project',
-  'project_standards',
-  'script',
-  'script_version',
-  'script_block',
-  'production',
-  'segment',
-  'scene_moment',
-  'shot',
-  'storyboard',
-  'audio_cue',
-  'expression_unit',
-  'content_unit',
-  'keyframe',
-  'setting',
-  'setting_state',
-  'asset',
-] as const satisfies readonly NonNullable<MovScriptWorkspaceEntityQuery['entityKind']>[]
-
 type CliSemanticEntityKind = NonNullable<MovScriptWorkspaceEntityQuery['entityKind']>
+type CliContentUnitOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
+
+const SEMANTIC_ENTITY_KINDS = SEMANTIC_ENTITY_KIND_VALUES as readonly CliSemanticEntityKind[]
+const CONTENT_UNIT_OUTPUT_KINDS = ['image', 'video', 'audio', 'text', 'metadata'] as const
 
 const INTERACTIVE_PROMPT = 'movscript> '
 
@@ -261,6 +266,9 @@ Examples:
   $ movcli project demo create --cwd ./demo
   $ movcli setting add hero --title "Hero"
   $ movcli asset add --setting hero --slot portrait --prompt "cinematic portrait"
+  $ movcli language schemas
+  $ movcli language schema content_unit
+  $ movcli content-unit add --id cu_phone --type storyboard_ref --output-kind video --scene-moment phone_call --storyboard main
   $ movcli overview
   $ movcli inspect
   $ movcli interpret
@@ -325,6 +333,40 @@ Examples:
         ...(options.entityId !== undefined ? { entityId: options.entityId } : {}),
       })
       printResult(result, mergeGlobalOptions(options, command))
+    })
+
+  const language = program
+    .command('language')
+    .alias('lang')
+    .description('Inspect MovScript language kinds and schemas')
+
+  language
+    .command('kinds')
+    .description('List semantic entity kinds supported by the language package')
+    .option('--json', 'Print JSON output')
+    .action((options: WorkspaceOptions, command: Command) => {
+      printLanguageKinds(mergeGlobalOptions(options, command))
+    })
+
+  language
+    .command('schemas')
+    .description('List semantic entity schemas from the language package')
+    .option('--kind <kind>', 'Filter by semantic entity kind')
+    .option('--json', 'Print JSON output')
+    .action((options: WorkspaceOptions & { kind?: string }, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const schemas = listLanguageSchemas(options.kind)
+      printLanguageSchemaList(schemas, merged)
+    })
+
+  language
+    .command('schema <schemaIdOrKind>')
+    .description('Show one semantic entity schema by schema id or entity kind')
+    .option('--json', 'Print JSON output')
+    .action((schemaIdOrKind: string, options: WorkspaceOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const schema = resolveLanguageSchema(schemaIdOrKind)
+      printResult(schema, merged)
     })
 
   program
@@ -1105,45 +1147,39 @@ Examples:
   contentUnit
     .command('add')
     .alias('create')
-    .description('Create or update a content unit from a scene moment and storyboard')
+    .description('Create or update a project-level content unit with prompt refs')
     .option('--id <id>', 'Content unit id')
     .option('--title <title>', 'Content unit title')
-    .option('--kind <kind>', 'Content unit kind, such as shot, voiceover, dialogue_audio, sound, music_beat, subtitle, or caption_card', 'shot')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or shot_ref')
+    .option('--content-unit-type <type>', 'Content unit type field; same as --type')
+    .option('--kind <kind>', 'Deprecated alias for --type')
+    .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
+    .option('--asset <id-or-path>', 'Asset id or path for asset_ref content units')
     .option('--production <id>', 'Production id')
     .option('--segment <id>', 'Segment id')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
     .option('--shot <id-or-path>', 'Shot id or path')
-    .option('--storyboard <id-or-path>', 'Storyboard id or path', 'main')
+    .option('--storyboard <id-or-path>', 'Storyboard id or path; storyboard_ref defaults to main when omitted')
+    .option('--keyframe <id-or-path>', 'Keyframe id or path for keyframe_ref content units')
     .option('--audio-cue <id-or-path>', 'Audio cue id or path for audio content units')
     .option('--prompt <text>', 'Editable generation prompt')
+    .option('--negative-prompt <text>', 'Negative generation prompt')
     .option('--description <text>', 'Content unit description')
     .option('--order <number>', 'Content unit order')
     .option('--duration <seconds>', 'Expected duration in seconds')
+    .option('--aspect-ratio <value>', 'Model intent aspect ratio')
+    .option('--capability <value>', 'Model intent capability')
+    .option('--provider <value>', 'Model provider hint')
+    .option('--model <value>', 'Model name hint')
+    .option('--quality <value>', 'Model quality hint')
     .option('--shot-size <value>', 'Shot size')
     .option('--camera-angle <value>', 'Camera angle')
     .option('--camera-motion <value>', 'Camera motion')
+    .option('--param <key=value...>', 'Model intent param, repeatable', collectOption, [])
     .option('--json', 'Print JSON output')
     .action(async (options: AddContentUnitOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const source = parseContentUnitSourceOptions(options)
-      const result = await createCliEngine(merged).createContentUnit({
-        id: options.id,
-        title: options.title,
-        kind: options.kind,
-        productionId: source.productionId,
-        segmentId: source.segmentId,
-        sceneMomentId: source.sceneMomentId,
-        shotId: source.shotId,
-        storyboardId: source.storyboardId,
-        audioCueId: source.audioCueId,
-        prompt: options.prompt,
-        description: options.description,
-        order: parseOptionalNumberOption(options.order, 'order'),
-        durationSeconds: parseOptionalNumberOption(options.duration, 'duration'),
-        shotSize: options.shotSize,
-        cameraAngle: options.cameraAngle,
-        cameraMotion: options.cameraMotion,
-      })
+      const result = await saveContentUnitFromCliOptions(createCliEngine(merged), options, { defaultType: 'storyboard_ref' })
       printResult(result, merged)
     })
 
@@ -1151,42 +1187,36 @@ Examples:
     .command('modify <id>')
     .description('Modify a content unit')
     .option('--title <title>', 'Content unit title')
-    .option('--kind <kind>', 'Content unit kind')
+    .option('--type <type>', 'Content unit type, such as asset_ref, keyframe_ref, storyboard_ref, scence_moment_ref, or shot_ref')
+    .option('--content-unit-type <type>', 'Content unit type field; same as --type')
+    .option('--kind <kind>', 'Deprecated alias for --type')
+    .option('--output-kind <kind>', 'Output kind: image, video, audio, text, or metadata')
+    .option('--asset <id-or-path>', 'Asset id or path for asset_ref content units')
     .option('--production <id>', 'Production id')
     .option('--segment <id>', 'Segment id')
     .option('--scene-moment <id-or-path>', 'Scene moment id or path')
     .option('--shot <id-or-path>', 'Shot id or path')
     .option('--storyboard <id-or-path>', 'Storyboard id or path')
+    .option('--keyframe <id-or-path>', 'Keyframe id or path for keyframe_ref content units')
     .option('--audio-cue <id-or-path>', 'Audio cue id or path for audio content units')
     .option('--prompt <text>', 'Editable generation prompt')
+    .option('--negative-prompt <text>', 'Negative generation prompt')
     .option('--description <text>', 'Content unit description')
     .option('--order <number>', 'Content unit order')
     .option('--duration <seconds>', 'Expected duration in seconds')
+    .option('--aspect-ratio <value>', 'Model intent aspect ratio')
+    .option('--capability <value>', 'Model intent capability')
+    .option('--provider <value>', 'Model provider hint')
+    .option('--model <value>', 'Model name hint')
+    .option('--quality <value>', 'Model quality hint')
     .option('--shot-size <value>', 'Shot size')
     .option('--camera-angle <value>', 'Camera angle')
     .option('--camera-motion <value>', 'Camera motion')
+    .option('--param <key=value...>', 'Model intent param, repeatable', collectOption, [])
     .option('--json', 'Print JSON output')
     .action(async (id: string, options: AddContentUnitOptions, command: Command) => {
       const merged = mergeGlobalOptions(options, command)
-      const source = parseContentUnitSourceOptions({ ...options, sceneMoment: options.sceneMoment ?? 'local' })
-      const result = await createCliEngine(merged).updateContentUnit({
-        id,
-        title: options.title,
-        kind: options.kind,
-        productionId: source.productionId,
-        segmentId: source.segmentId,
-        sceneMomentId: options.sceneMoment === undefined && options.shot === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.sceneMomentId,
-        shotId: options.sceneMoment === undefined && options.shot === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.shotId,
-        storyboardId: options.sceneMoment === undefined && options.shot === undefined && options.storyboard === undefined && options.audioCue === undefined ? undefined : source.storyboardId,
-        audioCueId: source.audioCueId,
-        prompt: options.prompt,
-        description: options.description,
-        order: parseOptionalNumberOption(options.order, 'order'),
-        durationSeconds: parseOptionalNumberOption(options.duration, 'duration'),
-        shotSize: options.shotSize,
-        cameraAngle: options.cameraAngle,
-        cameraMotion: options.cameraMotion,
-      })
+      const result = await saveContentUnitFromCliOptions(createCliEngine(merged), { ...options, id })
       printResult(result, merged)
     })
 
@@ -1568,10 +1598,195 @@ function parseContentCandidateOutputKind(
 function outputKindFromContentUnitType(value: string | undefined): 'image' | 'video' | 'audio' | 'text' | 'metadata' | undefined {
   if (!value) return undefined
   if (value.includes('video')) return 'video'
+  if (value === 'scence_moment_ref' || value === 'scene_moment_ref') return 'video'
   if (value.includes('image') || value.includes('frame') || value.includes('asset_ref')) return 'image'
   if (value.includes('audio') || value.includes('sound')) return 'audio'
   if (value.includes('text') || value.includes('script')) return 'text'
   return undefined
+}
+
+async function saveContentUnitFromCliOptions(
+  engine: CliEngine,
+  options: AddContentUnitOptions,
+  config: { defaultType?: string } = {},
+): Promise<unknown> {
+  const requestedType = contentUnitTypeFromOptions(options, config.defaultType)
+  const source = parseContentUnitSourceOptions(options, requestedType)
+  const requestedOutputKind = parseOptionalContentUnitOutputKind(options.outputKind)
+    ?? (requestedType !== undefined ? defaultCliContentUnitOutputKind(requestedType) : undefined)
+  if (requestedType !== undefined) validateContentUnitSourceForType(requestedType, source, options)
+  const shouldDefaultCapability = config.defaultType !== undefined || requestedType !== undefined || requestedOutputKind !== undefined
+  const preliminaryPrompt = buildContentUnitEditPrompt({
+    text: options.prompt,
+    negativeText: options.negativePrompt,
+    primaryRef: requestedType !== undefined ? contentUnitPrimaryPromptRef(requestedType, source) : undefined,
+  })
+  const preliminaryModelIntent = buildContentUnitModelIntent(options, requestedOutputKind, { defaultCapability: shouldDefaultCapability })
+  const preliminary = await engine.workspaceService.upsertContentUnit({
+    unit: pruneUndefined({
+      id: options.id,
+      title: options.title,
+      content_unit_type: requestedType,
+      output_kind: requestedOutputKind,
+      edit_prompt: preliminaryPrompt,
+      model_intent: preliminaryModelIntent,
+      description: options.description,
+      order: parseOptionalNumberOption(options.order, 'order'),
+    }),
+  })
+
+  const record = isRecord(preliminary.record) ? preliminary.record : {}
+  const contentUnitType = stringValue(record.content_unit_type) ?? requestedType ?? 'storyboard_ref'
+  const outputKind = parseOptionalContentUnitOutputKind(record.output_kind)
+    ?? requestedOutputKind
+    ?? defaultCliContentUnitOutputKind(contentUnitType)
+  const primaryRef = contentUnitPrimaryPromptRef(contentUnitType, source)
+  const finalRecord = pruneUndefined({
+    ...record,
+    content_unit_type: contentUnitType,
+    output_kind: outputKind,
+    edit_prompt: buildContentUnitEditPrompt({
+      text: options.prompt ?? stringValue(recordField(record.edit_prompt)?.text),
+      negativeText: options.negativePrompt ?? stringValue(recordField(record.edit_prompt)?.negative_text),
+      primaryRef,
+    }),
+    model_intent: buildContentUnitModelIntent(options, outputKind, { defaultCapability: shouldDefaultCapability }) ?? record.model_intent,
+    production_ref: source.productionId,
+    segment_ref: source.segmentId,
+    scene_moment_ref: source.sceneMomentId,
+    shot_ref: source.shotId,
+    storyboard_ref: source.storyboardId,
+    keyframe_ref: source.keyframeId,
+    asset_ref: source.assetRef,
+    audio_cue_ref: source.audioCueId,
+  })
+
+  validateContentUnitSourceForType(contentUnitType, source, options)
+  const repository = createCliFileRepositoryFromEngine(engine)
+  await repository.write({ path: preliminary.contentUnitPath, content: `${JSON.stringify(finalRecord, null, 2)}\n` })
+  return { ...preliminary, record: finalRecord }
+}
+
+function contentUnitTypeFromOptions(options: AddContentUnitOptions, defaultType?: string): string | undefined {
+  const value = options.contentUnitType ?? options.type ?? options.kind ?? defaultType
+  if (!value) return undefined
+  return normalizeContentUnitType(value)
+}
+
+function normalizeContentUnitType(value: string): string {
+  switch (value) {
+    case 'asset':
+      return 'asset_ref'
+    case 'keyframe':
+      return 'keyframe_ref'
+    case 'storyboard':
+      return 'storyboard_ref'
+    case 'scene_moment':
+    case 'scene':
+    case 'moment':
+      return 'scence_moment_ref'
+    case 'shot':
+      return 'shot_ref'
+    default:
+      return value
+  }
+}
+
+function parseOptionalContentUnitOutputKind(value: unknown): CliContentUnitOutputKind | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') throw new Error('output kind must be image, video, audio, text, or metadata')
+  if ((CONTENT_UNIT_OUTPUT_KINDS as readonly string[]).includes(value)) return value as CliContentUnitOutputKind
+  throw new Error(`unknown output kind: ${value}`)
+}
+
+function defaultCliContentUnitOutputKind(contentUnitType: string): CliContentUnitOutputKind {
+  switch (contentUnitType) {
+    case 'asset_ref':
+    case 'keyframe_ref':
+      return 'image'
+    case 'storyboard_ref':
+    case 'shot_ref':
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
+      return 'video'
+    default:
+      return 'metadata'
+  }
+}
+
+function contentUnitPrimaryPromptRef(contentUnitType: string, source: ContentUnitSourceRefs): string | undefined {
+  switch (contentUnitType) {
+    case 'asset_ref':
+      return source.assetRef === undefined ? undefined : `{{asset:${source.assetRef}}}`
+    case 'keyframe_ref':
+      return source.keyframeId === undefined ? undefined : `{{keyframe:${source.keyframeId}}}`
+    case 'storyboard_ref':
+      return source.storyboardId === undefined ? undefined : `{{storyboard:${source.storyboardId}}}`
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
+      return source.sceneMomentId === undefined ? undefined : `{{scene_moment:${source.sceneMomentId}}}`
+    case 'shot_ref':
+      return source.shotId === undefined ? undefined : `{{shot:${source.shotId}}}`
+    default:
+      return undefined
+  }
+}
+
+function validateContentUnitSourceForType(
+  contentUnitType: string,
+  source: ContentUnitSourceRefs,
+  options: AddContentUnitOptions,
+): void {
+  if (contentUnitType === 'asset_ref' && !source.assetRef) throw new Error('--asset is required for asset_ref content units')
+  if (contentUnitType === 'keyframe_ref' && !source.keyframeId) throw new Error('--keyframe is required for keyframe_ref content units')
+  if (contentUnitType === 'storyboard_ref' && !source.storyboardId) throw new Error('--storyboard is required for storyboard_ref content units')
+  if ((contentUnitType === 'scence_moment_ref' || contentUnitType === 'scene_moment_ref') && !source.sceneMomentId) throw new Error('--scene-moment is required for scence_moment_ref content units')
+  if (contentUnitType === 'shot_ref' && !source.shotId) throw new Error('--shot is required for shot_ref content units')
+  if (contentUnitType === 'storyboard_ref' && !options.storyboard && source.storyboardId === 'main' && !source.sceneMomentId) {
+    throw new Error('--scene-moment is required when storyboard_ref uses the default --storyboard main')
+  }
+}
+
+function buildContentUnitEditPrompt(input: {
+  text?: string
+  negativeText?: string
+  primaryRef?: string
+}): Record<string, unknown> | undefined {
+  const text = appendPromptRef(input.text, input.primaryRef)
+  return pruneUndefined({
+    text,
+    negative_text: input.negativeText,
+  })
+}
+
+function appendPromptRef(text: string | undefined, primaryRef: string | undefined): string | undefined {
+  const trimmed = text?.trim()
+  if (!primaryRef) return trimmed || undefined
+  if (trimmed?.includes(primaryRef)) return trimmed
+  return [trimmed, primaryRef].filter((item) => item && item.trim()).join('\n')
+}
+
+function buildContentUnitModelIntent(
+  options: AddContentUnitOptions,
+  outputKind: CliContentUnitOutputKind | undefined,
+  config: { defaultCapability?: boolean } = {},
+): Record<string, unknown> | undefined {
+  const params = pruneUndefined({
+    ...(parseOptionalKeyValueOptions(options.param ?? []) ?? {}),
+    shot_size: options.shotSize,
+    camera_angle: options.cameraAngle,
+    camera_motion: options.cameraMotion,
+  })
+  const modelIntent = pruneUndefined({
+    capability: options.capability ?? (config.defaultCapability ? outputKind : undefined),
+    provider: options.provider,
+    model: options.model,
+    quality: options.quality,
+    aspect_ratio: options.aspectRatio,
+    duration_sec: parseOptionalNumberOption(options.duration, 'duration'),
+    params: Object.keys(params).length ? params : undefined,
+  })
+  return Object.keys(modelIntent).length ? modelIntent : undefined
 }
 
 function stringValue(value: unknown): string | undefined {
@@ -2014,6 +2229,10 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
     await dispatchInteractiveContentUnitCommand(args, options, engine)
     return false
   }
+  if (command === 'language' || command === 'lang') {
+    await dispatchInteractiveLanguageCommand(args, options)
+    return false
+  }
   if (command === 'entity') {
     await dispatchInteractiveEntityCommand(args, options, engine)
     return false
@@ -2058,6 +2277,26 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
   }
 
   throw new Error(`unknown slash command: /${command}`)
+}
+
+async function dispatchInteractiveLanguageCommand(args: string[], options: WorkspaceOptions): Promise<void> {
+  const action = args.shift()
+  const parsed = parseSlashOptions(args)
+  if (action === 'kinds' || action === undefined) {
+    printLanguageKinds(options)
+    return
+  }
+  if (action === 'schemas') {
+    printLanguageSchemaList(listLanguageSchemas(parsed.options.kind), options)
+    return
+  }
+  if (action === 'schema') {
+    const schemaIdOrKind = parsed.positionals[0]
+    if (!schemaIdOrKind) throw new Error('usage: /language schema <schema-id-or-kind>')
+    printResult(resolveLanguageSchema(schemaIdOrKind), options)
+    return
+  }
+  throw new Error(`unknown /language action: ${action}`)
 }
 
 async function dispatchInteractiveInterpreterCommand(args: string[], options: WorkspaceOptions, engine: CliEngine): Promise<void> {
@@ -2446,40 +2685,34 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
     const sourceOptions: AddContentUnitOptions = {
       id: parsed.options.id,
       title,
-      kind: parsed.options.kind ?? 'shot',
+      type: parsed.options.type,
+      kind: parsed.options.kind,
+      contentUnitType: parsed.options.contentUnitType ?? parsed.options['content-unit-type'],
+      outputKind: parsed.options.outputKind ?? parsed.options['output-kind'],
+      asset: parsed.options.asset,
       production: parsed.options.production,
       segment: parsed.options.segment,
       sceneMoment: parsed.options.sceneMoment ?? parsed.options['scene-moment'],
       shot: parsed.options.shot,
-      storyboard: parsed.options.storyboard ?? 'main',
+      storyboard: parsed.options.storyboard,
+      keyframe: parsed.options.keyframe,
       audioCue: parsed.options.audioCue ?? parsed.options['audio-cue'],
       prompt: parsed.options.prompt,
+      negativePrompt: parsed.options.negativePrompt ?? parsed.options['negative-prompt'],
       description: parsed.options.description,
       order: parsed.options.order,
       duration: parsed.options.duration,
+      aspectRatio: parsed.options.aspectRatio ?? parsed.options['aspect-ratio'],
+      capability: parsed.options.capability,
+      provider: parsed.options.provider,
+      model: parsed.options.model,
+      quality: parsed.options.quality,
       shotSize: parsed.options.shotSize ?? parsed.options['shot-size'],
       cameraAngle: parsed.options.cameraAngle ?? parsed.options['camera-angle'],
       cameraMotion: parsed.options.cameraMotion ?? parsed.options['camera-motion'],
+      param: repeatedSlashOption(parsed.options.param),
     }
-    const source = parseContentUnitSourceOptions(sourceOptions)
-    const result = await engine.createContentUnit({
-      id: sourceOptions.id,
-      title: sourceOptions.title,
-      kind: sourceOptions.kind,
-      productionId: source.productionId,
-      segmentId: source.segmentId,
-      sceneMomentId: source.sceneMomentId,
-      shotId: source.shotId,
-      storyboardId: source.storyboardId,
-      audioCueId: source.audioCueId,
-      prompt: sourceOptions.prompt,
-      description: sourceOptions.description,
-      order: parseOptionalNumberOption(sourceOptions.order, 'order'),
-      durationSeconds: parseOptionalNumberOption(sourceOptions.duration, 'duration'),
-      shotSize: sourceOptions.shotSize,
-      cameraAngle: sourceOptions.cameraAngle,
-      cameraMotion: sourceOptions.cameraMotion,
-    })
+    const result = await saveContentUnitFromCliOptions(engine, sourceOptions, { defaultType: 'storyboard_ref' })
     printResult(result, options)
     return
   }
@@ -2565,8 +2798,11 @@ function printInteractiveHelp(): void {
   /storyboard add --scene-moment <id-or-path> [--segment <id-or-path>] [--id <id>] [--title <title>] [--order <n>]
   /audio-cue add --scene-moment <id-or-path> [--shot <id-or-path>] [--storyboard <id-or-path>] [--id <id>] [--title <title>] [--kind <kind>] [--prompt <text>]
   /expression-unit add --scene-moment <id-or-path> [--id <id>] [--kind <kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
-  /content-unit add --title <title> --scene-moment <id-or-path> [--storyboard <id-or-path>] [--audio-cue <id-or-path>] [--prompt <text>]
+  /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|shot_ref> [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--shot <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
   /content-unit status <id-or-path>
+  /language kinds
+  /language schemas [--kind <kind>]
+  /language schema <schema-id-or-kind>
   /entity list [entityKind] [--kind <kind>] [--query <text>] [--limit <n>]
   /candidate add <content-unit> <resource-id> [--kind <output-kind|content_unit_type>] [--id <id>] [--source <source>] [--notes <text>]
   /candidate select <content-unit> <candidate-id> [--reason <text>]
@@ -2593,6 +2829,46 @@ function printResult(result: unknown, options: WorkspaceOptions): void {
   console.log(JSON.stringify(result, null, 2))
 }
 
+function listLanguageSchemas(kind: string | undefined): SemanticEntitySchemaDefinition[] {
+  if (kind !== undefined && !isSemanticEntityKind(kind)) throw new Error(`unknown entity kind: ${kind}`)
+  return (SEMANTIC_ENTITY_SCHEMA_IDS
+    .map((schemaId) => SEMANTIC_ENTITY_SCHEMA_REGISTRY[schemaId]) as SemanticEntitySchemaDefinition[])
+    .filter((schema) => kind === undefined || schema.entityKind === kind)
+}
+
+function resolveLanguageSchema(schemaIdOrKind: string): SemanticEntitySchemaDefinition {
+  const byId = getSemanticEntitySchemaEntry(schemaIdOrKind)
+  if (byId) return byId
+  if (isSemanticEntityKind(schemaIdOrKind)) return getActiveSemanticEntitySchemaForKind(schemaIdOrKind as SemanticEntityKind)
+  throw new Error(`unknown language schema or entity kind: ${schemaIdOrKind}`)
+}
+
+function printLanguageKinds(options: WorkspaceOptions): void {
+  if (options.json) {
+    printResult(SEMANTIC_ENTITY_KIND_VALUES, options)
+    return
+  }
+  console.log(SEMANTIC_ENTITY_KIND_VALUES.join('\n'))
+}
+
+function printLanguageSchemaList(schemas: SemanticEntitySchemaDefinition[], options: WorkspaceOptions): void {
+  if (options.json) {
+    printResult(schemas, options)
+    return
+  }
+  if (schemas.length === 0) {
+    console.log('Language schemas: no schemas found')
+    return
+  }
+  console.log(renderTable([
+    { header: 'Schema ID', value: (schema: SemanticEntitySchemaDefinition) => schema.id, maxWidth: 36 },
+    { header: 'Kind', value: (schema) => schema.entityKind },
+    { header: 'Version', value: (schema) => schema.version },
+    { header: 'Status', value: (schema) => schema.status },
+    { header: 'Summary', value: (schema) => schema.promptSummary, maxWidth: 72 },
+  ], schemas))
+}
+
 async function deriveContentUnitStatusPanel(
   engine: CliEngine,
   idOrPath: string,
@@ -2608,7 +2884,7 @@ async function deriveContentUnitStatusPanel(
     selection,
   ] = await Promise.all([
     engine.workspaceService.readContentUnitRuntimePanel(contentUnitId),
-    engine.workspaceService.readContentUnitInputVersion(contentUnitId),
+    engine.workspaceService.readContentUnitGenerationPrompt(contentUnitId),
     engine.workspaceService.readContentUnitDependencyReport(contentUnitId),
     engine.workspaceService.readContentUnitSelectionValidity(contentUnitId),
     listContentUnitCandidates(engine, contentUnit),
@@ -2626,7 +2902,9 @@ async function deriveContentUnitStatusPanel(
       sceneMomentRef: contentUnit.record.scene_moment_ref,
       storyboardRef: contentUnit.record.storyboard_ref,
       assetRef: contentUnit.record.asset_ref,
+      keyframeRef: contentUnit.record.keyframe_ref,
       keyframeRefs: contentUnit.record.keyframe_refs,
+      audioCueRef: contentUnit.record.audio_cue_ref,
       editPrompt: contentUnit.record.edit_prompt,
       modelIntent: contentUnit.record.model_intent,
     }),
@@ -2754,7 +3032,9 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
     `  scene_moment: ${scalarDisplayValue(source?.sceneMomentRef)}`,
     `  storyboard:    ${scalarDisplayValue(source?.storyboardRef)}`,
     `  asset:         ${scalarDisplayValue(source?.assetRef)}`,
+    `  keyframe:      ${scalarDisplayValue(source?.keyframeRef)}`,
     `  keyframes:     ${scalarDisplayValue(source?.keyframeRefs)}`,
+    `  audio_cue:     ${scalarDisplayValue(source?.audioCueRef)}`,
     '',
     'Prompt',
     `  text:     ${formatCell(prompt?.text, 96)}`,
@@ -3065,27 +3345,29 @@ interface ContentUnitSourceRefs {
   sceneMomentId?: string
   shotId?: string
   storyboardId?: string
+  keyframeId?: string
+  assetRef?: string
   audioCueId?: string
   expressionUnitId?: string
 }
 
-function parseContentUnitSourceOptions(options: AddContentUnitOptions): ContentUnitSourceRefs {
+function parseContentUnitSourceOptions(options: AddContentUnitOptions, contentUnitType?: string): ContentUnitSourceRefs {
+  const asset = parseAssetRefOption(options.asset)
   const sceneMoment = parseSceneMomentRefOption(options.sceneMoment)
   const shot = parseShotRefOption(options.shot)
   const storyboard = parseStoryboardRefOption(options.storyboard)
+  const keyframe = parseKeyframeRefOption(options.keyframe)
   const audioCue = parseAudioCueRefOption(options.audioCue)
-  const source = pruneUndefined({
-    productionId: options.production ?? audioCue.productionId ?? storyboard.productionId ?? shot.productionId ?? sceneMoment.productionId,
-    segmentId: options.segment ?? audioCue.segmentId ?? storyboard.segmentId ?? shot.segmentId ?? sceneMoment.segmentId,
-    sceneMomentId: sceneMoment.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? shot.sceneMomentId,
-    shotId: shot.shotId ?? storyboard.shotId ?? options.shot,
-    storyboardId: storyboard.storyboardId ?? 'main',
+  return pruneUndefined({
+    productionId: options.production ?? keyframe.productionId ?? audioCue.productionId ?? storyboard.productionId ?? shot.productionId ?? sceneMoment.productionId,
+    segmentId: options.segment ?? keyframe.segmentId ?? audioCue.segmentId ?? storyboard.segmentId ?? shot.segmentId ?? sceneMoment.segmentId,
+    sceneMomentId: sceneMoment.sceneMomentId ?? keyframe.sceneMomentId ?? audioCue.sceneMomentId ?? storyboard.sceneMomentId ?? shot.sceneMomentId,
+    shotId: shot.shotId ?? storyboard.shotId ?? plainIdOption(options.shot),
+    storyboardId: storyboard.storyboardId ?? (contentUnitType === undefined || contentUnitType === 'storyboard_ref' ? 'main' : undefined),
+    keyframeId: keyframe.keyframeId ?? options.keyframe,
+    assetRef: asset.assetRef ?? options.asset,
     audioCueId: audioCue.audioCueId,
   })
-  if (!source.sceneMomentId) {
-    throw new Error('--scene-moment is required unless --storyboard is a path under scene_moments')
-  }
-  return source
 }
 
 function parsePlanningParentOptions(options: {
@@ -3218,6 +3500,18 @@ function parseStoryboardRefOption(value: string | undefined): ContentUnitSourceR
   return { storyboardId: value }
 }
 
+function parseKeyframeRefOption(value: string | undefined): ContentUnitSourceRefs {
+  if (!value) return {}
+  if (value.includes('/')) return parsePlanningSourcePath(value)
+  return { keyframeId: value }
+}
+
+function parseAssetRefOption(value: string | undefined): ContentUnitSourceRefs {
+  if (!value) return {}
+  if (value.includes('/')) return parsePlanningSourcePath(value)
+  return { assetRef: value }
+}
+
 function parseShotRefOption(value: string | undefined): ContentUnitSourceRefs {
   if (!value) return {}
   if (value.includes('/')) return parsePlanningSourcePath(value)
@@ -3230,6 +3524,10 @@ function parseAudioCueRefOption(value: string | undefined): ContentUnitSourceRef
   return { audioCueId: value }
 }
 
+function plainIdOption(value: string | undefined): string | undefined {
+  return value === undefined || value.includes('/') ? undefined : value
+}
+
 function parsePlanningSourcePath(value: string): ContentUnitSourceRefs {
   const path = normalizeCliPath(targetPathFromSelectionTarget(value))
   const parts = path.split('/').filter(Boolean)
@@ -3239,6 +3537,8 @@ function parsePlanningSourcePath(value: string): ContentUnitSourceRefs {
     sceneMomentId: pathSegmentAfter(parts, 'scene_moments'),
     shotId: pathSegmentAfter(parts, 'shots'),
     storyboardId: pathSegmentAfter(parts, 'storyboards'),
+    keyframeId: pathSegmentAfter(parts, 'keyframes'),
+    assetRef: pathSegmentAfter(parts, 'assets'),
     audioCueId: pathSegmentAfter(parts, 'audio_cues'),
     expressionUnitId: pathSegmentAfter(parts, 'expression_units'),
   })

@@ -30,6 +30,8 @@ const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = {
   asset_ref: refAdapter('asset_ref', 'asset', 'image'),
   keyframe_ref: refAdapter('keyframe_ref', 'keyframe', 'image'),
   storyboard_ref: refAdapter('storyboard_ref', 'storyboard', 'image'),
+  scence_moment_ref: refAdapter('scence_moment_ref', 'scene_moment', 'video'),
+  scene_moment_ref: refAdapter('scene_moment_ref', 'scene_moment', 'video'),
   shot_ref: refAdapter('shot_ref', 'shot', 'video'),
 }
 
@@ -67,7 +69,7 @@ function genericAdapter(contentUnitType: string): ContentUnitAdapter {
 }
 
 function refAdapter(
-  type: 'asset_ref' | 'keyframe_ref' | 'storyboard_ref' | 'shot_ref',
+  type: string,
   primaryKind: ContentUnitPromptRefKind,
   outputKind: ContentUnitOutputKind,
 ): ContentUnitAdapter {

@@ -346,6 +346,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.UserGitCredential{})
 			},
 		},
+		{
+			Version: "000042",
+			Name:    "add_decision_contexts",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.DecisionContext{})
+			},
+		},
 	}
 	return core
 }
@@ -878,6 +885,7 @@ func allModels() []any {
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectRepository{},
 		&persistencemodel.ProjectMember{},
+		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
 		&persistencemodel.UsageReservation{},
@@ -924,6 +932,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.Project{},
 		&persistencemodel.ProjectRepository{},
 		&persistencemodel.ProjectMember{},
+		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
 		&persistencemodel.UsageReservation{},

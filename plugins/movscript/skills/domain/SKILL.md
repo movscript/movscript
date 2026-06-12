@@ -12,7 +12,7 @@ toolGrants:
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
   - mcp__movscript__domain_read_content_unit_runtime_panel
-  - mcp__movscript__domain_read_content_unit_input_version
+  - mcp__movscript__domain_read_content_unit_generation_prompt
   - mcp__movscript__domain_read_content_unit_dependency_report
   - mcp__movscript__domain_read_content_unit_selection_validity
   - mcp__movscript__domain_upsert_project_standards
@@ -54,7 +54,7 @@ toolGrants:
 
 Use this skill when a user asks to inspect, change, interpret, or reason about MovScript project domain entities.
 
-MovScript domain includes object meaning, storage layout, interpreter state, and write APIs. `movscript-lang` owns the language semantics through `@movscript/language`, `@movscript/workspace`, `@movscript/interpreter`, and `@movscript/engine`. MovScript core exposes those semantics through MCP tools.
+MovScript domain includes object meaning, storage layout, interpreter state, and write APIs. The active language/runtime implementation lives in the MovScript package workspace through `@movscript/language`, `@movscript/workspace`, `@movscript/interpreter`, and `@movscript/engine`. MovScript core exposes those semantics through MCP tools.
 
 Open `references/domain-story.md` when the task depends on the meaning of production structure, content units, candidates, selections, stale state, or regeneration impact. Open `references/entity-glossary.md` when mapping user/product terms to source entity names.
 
@@ -70,7 +70,7 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - `domain_regeneration_plan`: After interpret, reports downstream content units, prompt bundles, selected outputs, or preview timelines that need review.
 - Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
 - Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
-- Generated/imported resources become domain state only through candidates and selections. A candidate is not a stable dependency until selected.
+- Generated/imported resources become effective domain state only through backend-stored candidates and selections. A candidate is not a stable dependency until selected.
 - Affected does not mean regenerate. Affected means the downstream target needs an explicit keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept-stale decision.
 
 ## Tool Map
@@ -79,7 +79,7 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - Model discovery: `domain_get_model`.
 - Query/read: `domain_query_entities`, `domain_query_settings`, `domain_query_assets`, `domain_query_production_context`, `domain_read_*`.
 - Structured writes: `domain_upsert_*`, `domain_update_*`, `domain_delete_entity`. Use production-chain upserts for production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, and expression_unit records when available.
-- Candidate writes: `domain_create_content_candidate`, batch content-candidate tools, content-unit selection tools, plus inline candidate tools for compatibility with asset/keyframe/source-entity candidates.
+- Candidate writes: `domain_create_content_candidate`, batch content-candidate tools, and content-unit selection tools write backend decision metadata. Inline candidate tools remain compatibility APIs for asset/keyframe/source-entity candidates.
 - Interpreter steps: `domain_inspect`, `domain_review`, `domain_interpret`, `domain_regeneration_plan`.
 
 ## Edit Workflow
@@ -117,9 +117,9 @@ Do not directly edit:
 - Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
 - For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
 - If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
-- After completing any user request that changes domain source, run `domain_interpret`.
+- After completing any user request that changes domain source, run `domain_interpret`. After content candidate or selection writes, run interpret when the effective interpreted state must include the backend decision metadata.
 - Do not interpret for read-only review, draft-only analysis, or source states with blocking issues; state the reason when interpret is intentionally skipped.
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
 - Use stable ids and MovScript `resource_id` references for generated or uploaded media.
-- Preserve user-facing review boundaries. Generated or edited data is not stable product state until interpret succeeds.
-- Current specialized `content_unit_type` adapters are `asset_ref`, `keyframe_ref`, and `storyboard_ref`. Unknown types are valid generic production slots, but the interpreter does not track their upstream dependencies or stale state.
+- Preserve user-facing review boundaries. Generated or edited data is not stable product state until the relevant source or backend decision metadata has been interpreted successfully.
+- Current specialized `content_unit_type` adapters are `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, and `shot_ref`. Unknown types are valid generic production slots, but the interpreter does not track their upstream dependencies or stale state.

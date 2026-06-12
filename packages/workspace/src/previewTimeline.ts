@@ -51,11 +51,19 @@ export function deriveMovScriptWorkspacePreviewTimelines(index: MovScriptWorkspa
         const sceneMoments = childEntities(index, entityDir(segment.path), 'scene_moment')
         for (const sceneMoment of sortEntities(sceneMoments)) {
           const sceneMomentItemId = timelineItemId(sceneMoment)
+          const sceneMomentContentUnits = contentUnitsForEntity(contentUnitsByPrimaryRef, 'scene_moment', sceneMoment)
           items.push({
             ...timelineItem(sceneMomentItemId, 'scene_moment', sceneMoment, order++),
             parentId: segmentItemId,
             transition: recordField(sceneMoment.record.transition),
+            contentUnitIds: sceneMomentContentUnits.map((contentUnit) => contentUnit.id).filter(isDefined),
           })
+          for (const contentUnit of sortEntities(sceneMomentContentUnits)) {
+            items.push({
+              ...timelineItem(timelineItemId(contentUnit), 'content_unit', contentUnit, order++),
+              parentId: sceneMomentItemId,
+            })
+          }
           const shots = childEntities(index, entityDir(sceneMoment.path), 'shot')
           for (const shot of sortEntities(shots)) {
             const shotItemId = timelineItemId(shot)
@@ -166,7 +174,7 @@ function hasSpecializedContentUnitAdapter(contentUnitType: string): boolean {
   return primaryRefKindForContentUnitType(contentUnitType) !== undefined
 }
 
-function primaryRefKindForContentUnitType(contentUnitType: string): 'asset' | 'keyframe' | 'storyboard' | 'shot' | undefined {
+function primaryRefKindForContentUnitType(contentUnitType: string): 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
   switch (contentUnitType) {
     case 'asset_ref':
       return 'asset'
@@ -174,6 +182,9 @@ function primaryRefKindForContentUnitType(contentUnitType: string): 'asset' | 'k
       return 'keyframe'
     case 'storyboard_ref':
       return 'storyboard'
+    case 'scence_moment_ref':
+    case 'scene_moment_ref':
+      return 'scene_moment'
     case 'shot_ref':
       return 'shot'
     default:

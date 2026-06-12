@@ -14,11 +14,13 @@ test('desktop runtime preparation materializes movscript-server and movcli into 
   const previousCliBinDir = process.env.MOVSCRIPT_CLI_BIN_DIR
   const previousHome = process.env.MOVSCRIPT_HOME
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousGitBinary = process.env.MOVSCRIPT_GIT_BINARY
   try {
     delete process.env.MOVSCRIPT_BACKEND_BIN
     delete process.env.MOVSCRIPT_CLI_BIN_DIR
     delete process.env.MOVSCRIPT_HOME
     delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    process.env.MOVSCRIPT_GIT_BINARY = process.execPath
 
     const workspaceDir = join(root, 'workspace')
     const resourcesPath = join(root, 'resources')
@@ -55,6 +57,7 @@ test('desktop runtime preparation materializes movscript-server and movcli into 
     assert.equal(process.env.MOVSCRIPT_CLI_BIN_DIR, expectedBinDir)
     assert.equal(process.env.MOVSCRIPT_HOME, workspaceDir)
     assert.equal(process.env.MOVSCRIPT_WORKSPACE_DIR, workspaceDir)
+    assert.equal(prepared.preflight.checks.some((check) => check.id === 'runtime.git' && check.status === 'ok'), true)
     assert.equal(readFileSync(expectedServer, 'utf8'), 'fake movscript server')
     assert.equal(existsSync(join(workspaceDir, 'config.toml')), true)
     assert.equal(existsSync(join(expectedBinDir, 'movcli')), true)
@@ -64,6 +67,7 @@ test('desktop runtime preparation materializes movscript-server and movcli into 
     restoreEnv('MOVSCRIPT_CLI_BIN_DIR', previousCliBinDir)
     restoreEnv('MOVSCRIPT_HOME', previousHome)
     restoreEnv('MOVSCRIPT_WORKSPACE_DIR', previousWorkspaceDir)
+    restoreEnv('MOVSCRIPT_GIT_BINARY', previousGitBinary)
     rmSync(root, { recursive: true, force: true })
   }
 })
@@ -73,6 +77,7 @@ test('desktop runtime preparation materializes movscript-server from MOVSCRIPT_B
   const previousBackendBin = process.env.MOVSCRIPT_BACKEND_BIN
   const previousHome = process.env.MOVSCRIPT_HOME
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const previousGitBinary = process.env.MOVSCRIPT_GIT_BINARY
   try {
     const workspaceDir = join(root, 'workspace')
     const sourceDir = join(root, 'source')
@@ -84,6 +89,7 @@ test('desktop runtime preparation materializes movscript-server from MOVSCRIPT_B
     if (process.platform !== 'win32') chmodSync(sourceServer, 0o755)
 
     process.env.MOVSCRIPT_BACKEND_BIN = sourceServer
+    process.env.MOVSCRIPT_GIT_BINARY = process.execPath
     delete process.env.MOVSCRIPT_HOME
     delete process.env.MOVSCRIPT_WORKSPACE_DIR
 
@@ -102,6 +108,31 @@ test('desktop runtime preparation materializes movscript-server from MOVSCRIPT_B
     restoreEnv('MOVSCRIPT_BACKEND_BIN', previousBackendBin)
     restoreEnv('MOVSCRIPT_HOME', previousHome)
     restoreEnv('MOVSCRIPT_WORKSPACE_DIR', previousWorkspaceDir)
+    restoreEnv('MOVSCRIPT_GIT_BINARY', previousGitBinary)
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop runtime preflight requires git for local backend git-http storage', () => {
+  const root = mkdtempSync(join(tmpdir(), 'movscript-desktop-runtime-git-'))
+  const previousGitBinary = process.env.MOVSCRIPT_GIT_BINARY
+  try {
+    const workspaceDir = join(root, 'workspace')
+    process.env.MOVSCRIPT_GIT_BINARY = join(root, 'missing-git')
+
+    const prepared = prepareDesktopRuntimeDependencies({
+      workspaceDir,
+      requireMovScriptServer: false,
+      requireMovcli: false,
+      requireGit: true,
+    })
+
+    const gitCheck = prepared.preflight.checks.find((check) => check.id === 'runtime.git')
+    assert.equal(prepared.preflight.ok, false)
+    assert.equal(gitCheck?.status, 'missing')
+    assert.equal(gitCheck?.path, join(root, 'missing-git'))
+  } finally {
+    restoreEnv('MOVSCRIPT_GIT_BINARY', previousGitBinary)
     rmSync(root, { recursive: true, force: true })
   }
 })

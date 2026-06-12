@@ -7,6 +7,7 @@ import (
 
 type handlers struct {
 	projects          *handler.ProjectHandler
+	decisions         *handler.DecisionHandler
 	users             *handler.UserHandler
 	userAdmin         *handler.UserAdminHandler
 	auth              *handler.AuthHandler
@@ -48,6 +49,7 @@ func newHandlers(deps Dependencies) handlers {
 
 	return handlers{
 		projects:          handler.NewProjectHandlerWithConfigAndEncryption(db, cfg, deps.EncryptionKey, cacheStore),
+		decisions:         handler.NewDecisionHandler(db),
 		users:             handler.NewUserHandler(db),
 		userAdmin:         handler.NewUserAdminHandler(db),
 		auth:              handler.NewAuthHandlerWithConfigAndEncryption(db, tokens, cfg, deps.EncryptionKey),

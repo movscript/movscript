@@ -15,6 +15,8 @@ import (
 type Config struct {
 	AppMode            string
 	DeploymentMode     string
+	DependencyProfile  string
+	Dependencies       DependencyProviders
 	DataDir            string
 	DBDriver           string
 	DBHost             string
@@ -46,6 +48,8 @@ type Config struct {
 	GiteaBranch             string
 	GiteaUserEmailDomain    string
 	GiteaUserTokenName      string
+	GitHTTPRoot             string
+	GitBinary               string
 
 	// Cache
 	CacheBackend   string
@@ -60,6 +64,7 @@ type Config struct {
 	StorageBackend     string
 	ImageVerifyBaseURL string
 	ImageVerifyAPIKey  string
+	AIGatewayProvider  string
 
 	// Filesystem object storage
 	FilesystemStorageRoot string
@@ -72,16 +77,29 @@ type Config struct {
 	MinIOUseSSL    bool
 }
 
+type DependencyProviders struct {
+	Profile          string `json:"profile"`
+	Database         string `json:"database"`
+	ObjectStorage    string `json:"object_storage"`
+	WorkspaceStorage string `json:"workspace_storage"`
+	AIGateway        string `json:"ai_gateway"`
+	Cache            string `json:"cache"`
+}
+
 func Load() *Config {
 	_ = godotenv.Load()
 
 	authSecret := getEnv("AUTH_TOKEN_SECRET", getEnv("ENCRYPTION_KEY", ""))
 	dataDir := getEnv("MOVSCRIPT_DATA_DIR", defaultDataDir())
-	return &Config{
+	appMode := getEnv("MOVSCRIPT_APP_MODE", "cloud")
+	profile := normalizeDependencyProfile(getEnv("MOVSCRIPT_DEPENDENCY_PROFILE", defaultDependencyProfile(appMode)))
+	providers := defaultDependencyProviders(profile)
+	cfg := &Config{
 		AppMode:            getEnv("MOVSCRIPT_APP_MODE", "cloud"),
-		DeploymentMode:     getEnv("MOVSCRIPT_DEPLOYMENT_MODE", defaultDeploymentMode(getEnv("MOVSCRIPT_APP_MODE", "cloud"))),
+		DeploymentMode:     getEnv("MOVSCRIPT_DEPLOYMENT_MODE", defaultDeploymentMode(appMode)),
+		DependencyProfile:  profile,
 		DataDir:            dataDir,
-		DBDriver:           getEnv("DB_DRIVER", "postgres"),
+		DBDriver:           getEnv("DB_DRIVER", providers.Database),
 		DBHost:             getEnv("DB_HOST", "localhost"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "postgres"),
@@ -99,7 +117,7 @@ func Load() *Config {
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
 		AdminStaticDir:     getEnv("MOVSCRIPT_ADMIN_DIR", "admin"),
 
-		WorkspaceStorageBackend: getEnv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", getEnv("MOVSCRIPT_WORKSPACE_BACKEND", "http")),
+		WorkspaceStorageBackend: normalizeWorkspaceStorageBackend(getEnv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", getEnv("MOVSCRIPT_WORKSPACE_BACKEND", providers.WorkspaceStorage))),
 		GiteaBaseURL:            getEnv("MOVSCRIPT_GITEA_BASE_URL", ""),
 		GiteaToken:              getEnv("MOVSCRIPT_GITEA_TOKEN", ""),
 		GiteaAdminUsername:      getEnv("MOVSCRIPT_GITEA_ADMIN_USERNAME", getEnv("GITEA_ADMIN_USERNAME", "")),
@@ -110,8 +128,10 @@ func Load() *Config {
 		GiteaBranch:             getEnv("MOVSCRIPT_GITEA_BRANCH", "main"),
 		GiteaUserEmailDomain:    getEnv("MOVSCRIPT_GITEA_USER_EMAIL_DOMAIN", "users.movscript.local"),
 		GiteaUserTokenName:      getEnv("MOVSCRIPT_GITEA_USER_TOKEN_NAME", "movscript-desktop"),
+		GitHTTPRoot:             getEnv("MOVSCRIPT_GIT_HTTP_ROOT", filepath.Join(dataDir, "git")),
+		GitBinary:               getEnv("MOVSCRIPT_GIT_BINARY", "git"),
 
-		CacheBackend:   getEnv("CACHE_BACKEND", "memory"),
+		CacheBackend:   getEnv("CACHE_BACKEND", providers.Cache),
 		CacheKeyPrefix: getEnv("CACHE_KEY_PREFIX", "movscript"),
 		RedisURL:       getEnv("REDIS_URL", ""),
 		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6379"),
@@ -119,9 +139,10 @@ func Load() *Config {
 		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
 		RedisDB:        getEnvInt("REDIS_DB", 0),
 
-		StorageBackend:        getEnv("STORAGE_BACKEND", "minio"),
+		StorageBackend:        getEnv("STORAGE_BACKEND", providers.ObjectStorage),
 		ImageVerifyBaseURL:    getEnv("IMAGE_VERIFY_BASE_URL", ""),
 		ImageVerifyAPIKey:     getEnv("IMAGE_VERIFY_API_KEY", ""),
+		AIGatewayProvider:     getEnv("MOVSCRIPT_AI_GATEWAY_PROVIDER", providers.AIGateway),
 		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", filepath.Join(dataDir, "resources")),
 
 		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "minio:9000"),
@@ -130,6 +151,8 @@ func Load() *Config {
 		MinIOBucket:    getEnv("MINIO_BUCKET", "movscript"),
 		MinIOUseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
 	}
+	cfg.Dependencies = cfg.EffectiveDependencyProviders()
+	return cfg
 }
 
 func (c *Config) ValidateStartup() error {
@@ -145,6 +168,11 @@ func (c *Config) ValidateStartup() error {
 	}
 	if c.MaxUploadBytes < 0 {
 		problems = append(problems, "MAX_UPLOAD_BYTES must be greater than or equal to 0")
+	}
+	switch normalizeDependencyProfile(c.DependencyProfile) {
+	case "", "custom", "local", "external":
+	default:
+		problems = append(problems, "MOVSCRIPT_DEPENDENCY_PROFILE must be one of: custom, local, external")
 	}
 	switch c.DBDriver {
 	case "postgres":
@@ -178,12 +206,18 @@ func (c *Config) ValidateStartup() error {
 	if c.CacheBackend == "redis" && c.RedisURL == "" && c.RedisAddr == "" {
 		problems = append(problems, "REDIS_URL or REDIS_ADDR is required when CACHE_BACKEND=redis")
 	}
-	switch c.WorkspaceStorageBackend {
+	workspaceStorageBackend := normalizeWorkspaceStorageBackend(c.WorkspaceStorageBackend)
+	switch workspaceStorageBackend {
 	case "", "http", "gitea":
 	default:
 		problems = append(problems, "MOVSCRIPT_WORKSPACE_STORAGE_BACKEND must be one of: http, gitea")
 	}
-	if c.WorkspaceStorageBackend == "gitea" {
+	switch strings.TrimSpace(c.AIGatewayProvider) {
+	case "", "builtin", "local", "new-api":
+	default:
+		problems = append(problems, "MOVSCRIPT_AI_GATEWAY_PROVIDER must be one of: builtin, local, new-api")
+	}
+	if workspaceStorageBackend == "gitea" {
 		if c.GiteaBaseURL == "" {
 			problems = append(problems, "MOVSCRIPT_GITEA_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
 		}
@@ -206,6 +240,14 @@ func (c *Config) ValidateStartup() error {
 			problems = append(problems, "MOVSCRIPT_GITEA_USER_TOKEN_NAME is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
 		}
 	}
+	if workspaceStorageBackend == "http" {
+		if c.GitHTTPRoot == "" {
+			problems = append(problems, "MOVSCRIPT_GIT_HTTP_ROOT or MOVSCRIPT_DATA_DIR is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=http")
+		}
+		if c.GitBinary == "" {
+			problems = append(problems, "MOVSCRIPT_GIT_BINARY is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=http")
+		}
+	}
 	if len(problems) > 0 {
 		return errors.New("invalid startup configuration: " + joinProblems(problems))
 	}
@@ -216,6 +258,8 @@ func (c *Config) SafeSummary() map[string]any {
 	return map[string]any{
 		"app_mode":                  c.AppMode,
 		"deployment_mode":           c.DeploymentMode,
+		"dependency_profile":        c.DependencyProfile,
+		"dependency_providers":      c.EffectiveDependencyProviders(),
 		"data_dir":                  c.DataDir,
 		"db_driver":                 c.DBDriver,
 		"db_host":                   c.DBHost,
@@ -228,6 +272,7 @@ func (c *Config) SafeSummary() map[string]any {
 		"auth_ttl_hours":            c.AuthTokenTTLHours,
 		"cors_allowed_origins":      c.CORSAllowedOrigins,
 		"storage_backend":           c.StorageBackend,
+		"ai_gateway_provider":       c.AIGatewayProvider,
 		"image_verify_set":          c.ImageVerifyBaseURL != "",
 		"filesystem_root":           c.FilesystemStorageRoot,
 		"minio_endpoint":            c.MinIOEndpoint,
@@ -253,6 +298,26 @@ func (c *Config) SafeSummary() map[string]any {
 		"gitea_branch":              c.GiteaBranch,
 		"gitea_user_email_domain":   c.GiteaUserEmailDomain,
 		"gitea_user_token_name":     c.GiteaUserTokenName,
+		"git_http_root":             c.GitHTTPRoot,
+		"git_binary":                c.GitBinary,
+	}
+}
+
+func (c *Config) EffectiveDependencyProviders() DependencyProviders {
+	if c == nil {
+		return defaultDependencyProviders("custom")
+	}
+	profile := normalizeDependencyProfile(c.DependencyProfile)
+	if profile == "" {
+		profile = "custom"
+	}
+	return DependencyProviders{
+		Profile:          profile,
+		Database:         strings.TrimSpace(c.DBDriver),
+		ObjectStorage:    strings.TrimSpace(c.StorageBackend),
+		WorkspaceStorage: normalizeWorkspaceStorageBackend(c.WorkspaceStorageBackend),
+		AIGateway:        strings.TrimSpace(c.AIGatewayProvider),
+		Cache:            strings.TrimSpace(c.CacheBackend),
 	}
 }
 
@@ -262,6 +327,67 @@ func defaultDeploymentMode(appMode string) string {
 		return "personal-local"
 	default:
 		return "self-hosted-team"
+	}
+}
+
+func defaultDependencyProfile(appMode string) string {
+	if strings.TrimSpace(appMode) == "local" {
+		return "local"
+	}
+	return "custom"
+}
+
+func normalizeDependencyProfile(profile string) string {
+	switch strings.TrimSpace(profile) {
+	case "":
+		return ""
+	case "desktop-local", "personal-local":
+		return "local"
+	case "cloud", "self-hosted", "self-hosted-team":
+		return "external"
+	default:
+		return strings.TrimSpace(profile)
+	}
+}
+
+func defaultDependencyProviders(profile string) DependencyProviders {
+	switch normalizeDependencyProfile(profile) {
+	case "local":
+		return DependencyProviders{
+			Profile:          "local",
+			Database:         "sqlite",
+			ObjectStorage:    "filesystem",
+			WorkspaceStorage: "http",
+			AIGateway:        "local",
+			Cache:            "memory",
+		}
+	case "external":
+		return DependencyProviders{
+			Profile:          "external",
+			Database:         "postgres",
+			ObjectStorage:    "minio",
+			WorkspaceStorage: "gitea",
+			AIGateway:        "new-api",
+			Cache:            "redis",
+		}
+	default:
+		return DependencyProviders{
+			Profile:          "custom",
+			Database:         "postgres",
+			ObjectStorage:    "minio",
+			WorkspaceStorage: "http",
+			AIGateway:        "builtin",
+			Cache:            "memory",
+		}
+	}
+}
+
+func normalizeWorkspaceStorageBackend(backend string) string {
+	switch strings.TrimSpace(backend) {
+	case "git-http", "git-http-backend":
+		return "http"
+	default:
+		return strings.TrimSpace(backend)
 	}
 }
 

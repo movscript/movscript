@@ -18,11 +18,16 @@ import (
 type Registry struct {
 	db              *gorm.DB
 	encryptionKey   []byte
+	providerMode    string
 	providerFactory func(persistencemodel.AICredential, *ModelDef) (Provider, error)
 }
 
 func NewRegistry(db *gorm.DB, encryptionKey []byte) *Registry {
 	return &Registry{db: db, encryptionKey: encryptionKey}
+}
+
+func NewRegistryWithProviderMode(db *gorm.DB, encryptionKey []byte, providerMode string) *Registry {
+	return &Registry{db: db, encryptionKey: encryptionKey, providerMode: strings.TrimSpace(providerMode)}
 }
 
 // BuildForConfig constructs a Provider for the given AIModelConfig.
@@ -53,6 +58,9 @@ func (r *Registry) BuildForCredential(cred persistencemodel.AICredential) (Provi
 func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelDef) (Provider, error) {
 	if r.providerFactory != nil {
 		return r.providerFactory(cred, def)
+	}
+	if r.providerMode == "local" || cred.AdapterType == AdapterLocal {
+		return NewLocalAdapter(), nil
 	}
 	apiKey := ""
 	if cred.EncryptedKey != "" && len(r.encryptionKey) > 0 {
@@ -308,9 +316,9 @@ func (r *Registry) DebugCall(ctx context.Context, cfg persistencemodel.AIModelCo
 		}, modelID)
 
 	case AdapterVolcen:
-		// For video, validate auth by listing tasks without recording usage.
-		endpoint := baseURL + "/contents/generations/tasks?page_size=1"
+		endpoint := strings.TrimRight(baseURL, "/") + "/models"
 		return debugHTTPGet(ctx, endpoint, map[string]string{
+			"Content-Type":  "application/json",
 			"Authorization": "Bearer " + apiKey,
 		}, modelID)
 

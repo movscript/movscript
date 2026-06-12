@@ -23,6 +23,7 @@ import type {
   MovScriptWorkspaceDomainIndex,
 } from '@movscript/workspace/indexer'
 import type {
+  MovScriptDecisionStore,
   MovScriptWorkspaceFileRepository,
 } from '@movscript/workspace/repository'
 import type {
@@ -163,6 +164,7 @@ export interface MovScriptWorkspaceInterpretResult {
 
 export interface MovScriptWorkspaceInterpretInput {
   fileRepository: MovScriptWorkspaceFileRepository
+  decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision'>
   now?: Date
   checkpointHash?: string
   debugArtifacts?: boolean

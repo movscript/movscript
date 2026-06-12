@@ -17,12 +17,16 @@ export function spawnBackendProcess(): ChildProcess {
   const dataDir = resolveLocalDataDir()
   const localSecret = resolveLocalSecret(dataDir)
   const env = buildBackendSpawnEnv({ adminDir, dataDir, localSecret })
-  console.info('[backend] spawn git config', {
-    workspaceBackend: env.MOVSCRIPT_WORKSPACE_STORAGE_BACKEND || env.MOVSCRIPT_WORKSPACE_BACKEND,
-    giteaBaseURLSet: Boolean(env.MOVSCRIPT_GITEA_BASE_URL),
-    giteaTokenSet: Boolean(env.MOVSCRIPT_GITEA_TOKEN),
-    giteaAdminBasicSet: Boolean(env.MOVSCRIPT_GITEA_ADMIN_USERNAME && env.MOVSCRIPT_GITEA_ADMIN_PASSWORD),
-    giteaRepoPrefix: env.MOVSCRIPT_GITEA_REPO_PREFIX,
+  console.info('[backend] spawn dependency providers', {
+    profile: env.MOVSCRIPT_DEPENDENCY_PROFILE,
+    database: env.DB_DRIVER,
+    objectStorage: env.STORAGE_BACKEND,
+    workspaceStorage: env.MOVSCRIPT_WORKSPACE_STORAGE_BACKEND || env.MOVSCRIPT_WORKSPACE_BACKEND,
+    aiGateway: env.MOVSCRIPT_AI_GATEWAY_PROVIDER,
+    cache: env.CACHE_BACKEND,
+    gitHTTPRoot: env.MOVSCRIPT_GIT_HTTP_ROOT,
+    gitBinary: env.MOVSCRIPT_GIT_BINARY,
+    giteaConfigured: Boolean(env.MOVSCRIPT_GITEA_BASE_URL && (env.MOVSCRIPT_GITEA_TOKEN || (env.MOVSCRIPT_GITEA_ADMIN_USERNAME && env.MOVSCRIPT_GITEA_ADMIN_PASSWORD))),
   })
 
   const child = spawn(bin, [], {

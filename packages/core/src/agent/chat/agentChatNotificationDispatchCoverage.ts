@@ -106,8 +106,8 @@ export const AGENT_CHAT_NOTIFICATION_METHOD_DISPATCH_COVERAGE: Record<string, {
     note: 'Commits the normalized item and clears matching optimistic/streaming state.',
   },
   'turn/completed': {
-    handling: ['thread-state', 'pending-state', 'streaming-state', 'refresh-effect'],
-    note: 'Commits the completed turn, clears transient user/server/streaming turn state, then reloads canonical thread history.',
+    handling: ['thread-state', 'pending-state', 'streaming-state'],
+    note: 'Commits the completed turn from the live connection and clears transient user/server/streaming turn state.',
   },
 }
 

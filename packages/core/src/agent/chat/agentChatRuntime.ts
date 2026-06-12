@@ -179,7 +179,10 @@ export function agentChatRuntimeReducer(
     case 'setActiveThreadId':
       return state.activeThreadId === action.threadId
         ? state
-        : requestAgentChatRuntimeActiveThreadResume({ ...state, activeThreadId: action.threadId })
+        : requestAgentChatRuntimeActiveThreadResume(resetAgentChatRuntimeFailedThreadResume({
+          ...state,
+          activeThreadId: action.threadId,
+        }, action.threadId))
     case 'setThreads':
       return requestAgentChatRuntimeActiveThreadResume({
         ...state,
@@ -619,9 +622,25 @@ function requestAgentChatRuntimeActiveThreadResume(state: AgentChatRuntimeState)
   const activeThread = state.activeThreadId
     ? state.threads.find((thread) => thread.id === state.activeThreadId)
     : undefined
+  const activeManagedResume = activeThread ? state.managedThreadResumes[activeThread.id] : undefined
+  if (activeManagedResume?.status === 'failed') return state
   return activeThread && agentChatThreadShouldKeepResumed(activeThread)
     ? queueAgentChatRuntimeThreadResumeRequest(state, activeThread.id)
     : state
+}
+
+function resetAgentChatRuntimeFailedThreadResume(
+  state: AgentChatRuntimeState,
+  threadId: string | null,
+): AgentChatRuntimeState {
+  const normalizedThreadId = threadId?.trim()
+  if (!normalizedThreadId || state.managedThreadResumes[normalizedThreadId]?.status !== 'failed') return state
+  const nextManagedThreadResumes = { ...state.managedThreadResumes }
+  delete nextManagedThreadResumes[normalizedThreadId]
+  return {
+    ...state,
+    managedThreadResumes: nextManagedThreadResumes,
+  }
 }
 
 function updateAgentChatRuntimeThreadReadStates(

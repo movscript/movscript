@@ -47,6 +47,8 @@ make dev-frontend-local
 http://localhost:8766/admin
 ```
 
+桌面本地启动使用 `MOVSCRIPT_DEPENDENCY_PROFILE=local` 后端依赖组：SQLite、文件系统对象存储、本地 Git HTTP backend provider、本地 AI gateway 模式和内存缓存。外部服务模式使用 `MOVSCRIPT_DEPENDENCY_PROFILE=external`：PostgreSQL、MinIO、Gitea、new-api 和 Redis。`DB_DRIVER`、`STORAGE_BACKEND`、`MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`、`MOVSCRIPT_AI_GATEWAY_PROVIDER`、`CACHE_BACKEND` 等单项 provider 环境变量仍然可以覆盖依赖组默认值。
+
 如果需要单独运行后端：
 
 ```bash
