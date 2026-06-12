@@ -2,7 +2,7 @@ import type { ClipboardEventHandler, ComponentProps, DragEventHandler, FormEvent
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { AtSign, Check, ChevronDown, ChevronUp, CircleDot, CircleStop, CornerDownLeft, Eye, Hand, Loader2, Mic, Paperclip, Pencil, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
+import { AtSign, Check, ChevronDown, ChevronUp, CircleDot, CircleStop, CornerDownLeft, Eye, FolderOpen, Hand, Loader2, Mic, Paperclip, Pencil, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import {
   AgentComposer,
   AgentComposerAction,
@@ -71,7 +71,7 @@ interface WorkspaceContextOption {
 }
 
 export interface AgentComposerSectionProps {
-  chrome?: 'card' | 'bottom-bar' | 'flush'
+  chrome?: 'card' | 'bottom-bar' | 'flush' | 'hero'
   answeringPendingInput: boolean
   activePendingInputTitle?: string
   addMentionTrigger: () => void
@@ -265,6 +265,42 @@ export function AgentComposerSection({
     : undefined
   const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
   const runProfileDisplayLabel = runProfile.id === 'default' ? '默认权限' : runProfile.label
+  const workspaceSelectControl = showWorkspaceSelector && workspaceProjectLocked ? (
+    <span
+      className="ms-agent-composer__workspace-select h-7 max-w-[128px] min-w-0 truncate px-2 type-tiny"
+      title={selectedWorkspaceProjectTitle || '选择范围'}
+    >
+      <FolderOpen size={15} />
+      {selectedWorkspaceProjectLabel || '选择范围'}
+    </span>
+  ) : showWorkspaceSelector ? (
+    <Select
+      value={workspaceProjectValue}
+      onValueChange={onWorkspaceProjectChange}
+      disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
+    >
+      <SelectTrigger
+        size="sm"
+        className="ms-agent-composer__workspace-select h-7 max-w-[128px] min-w-0 type-tiny"
+        title={selectedWorkspaceProjectTitle || (workspaceProjectsLoading ? '读取项目...' : '选择范围')}
+      >
+        <FolderOpen size={15} />
+        <span className="min-w-0 truncate">
+          {workspaceProjectsLoading ? '读取项目...' : selectedWorkspaceProjectLabel || '选择范围'}
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {workspaceProjectOptions.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">{option.label}</span>
+              {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  ) : null
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
     <div
       className="ai-agent-resource-mention-menu overflow-hidden border border-border bg-background shadow-lg"
@@ -534,40 +570,7 @@ export function AgentComposerSection({
                 <span>目标</span>
               </span>
             ) : null}
-            {showWorkspaceSelector && workspaceProjectLocked ? (
-              <span
-                className="ms-agent-composer__workspace-select h-7 max-w-[128px] min-w-0 truncate px-2 type-tiny"
-                title={selectedWorkspaceProjectTitle || '选择范围'}
-              >
-                {selectedWorkspaceProjectLabel || '选择范围'}
-              </span>
-            ) : showWorkspaceSelector ? (
-              <Select
-                value={workspaceProjectValue}
-                onValueChange={onWorkspaceProjectChange}
-                disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="ms-agent-composer__workspace-select h-7 max-w-[128px] min-w-0 type-tiny"
-                  title={selectedWorkspaceProjectTitle || (workspaceProjectsLoading ? '读取项目...' : '选择范围')}
-                >
-                  <span className="min-w-0 truncate">
-                    {workspaceProjectsLoading ? '读取项目...' : selectedWorkspaceProjectLabel || '选择范围'}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaceProjectOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{option.label}</span>
-                        {option.meta ? <span className="truncate text-muted-foreground">{option.meta}</span> : null}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
+            {chrome === 'hero' ? null : workspaceSelectControl}
             {composerAttachmentsCount > 0 && (
               <Badge className="max-w-24 truncate type-tiny">
                 {t('agents.chat.attachmentsCount', { count: composerAttachmentsCount })}
@@ -658,6 +661,11 @@ export function AgentComposerSection({
           </div>
         </AgentComposerToolbar>
       </AgentComposer>
+      {chrome === 'hero' && workspaceSelectControl ? (
+        <div className="ms-agent-composer__hero-project-row">
+          {workspaceSelectControl}
+        </div>
+      ) : null}
       </section>
     </AgentSurfaceBlock>
   )
@@ -775,6 +783,7 @@ function AgentQueuedInputPreview({
                           }
                           if (event.key === 'Escape') {
                             event.preventDefault()
+                            event.stopPropagation()
                             cancelEditing(item)
                           }
                         }}
