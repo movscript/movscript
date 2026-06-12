@@ -65,8 +65,9 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - `source`: Editable creative source. It may be incomplete while the user or agent is editing.
 - `.interpret/current`: Last successful interpreted state. UI display should prefer this stable state.
 - `.interpret/indexes` and `.interpret/manifests`: Interpreter outputs. Do not edit them directly.
-- `domain_inspect` and `domain_review`: Diagnostics only. They do not make edits effective.
-- `domain_interpret`: Validates source and writes the stable interpreted state.
+- `domain_inspect`: Primary current-source diagnostic entrypoint. It reports source changes, issues, and interpret readiness without writing interpreted artifacts.
+- `domain_review`: Compatibility diagnostic alias for older review workflows. Prefer `domain_inspect` unless the user explicitly asks for review.
+- `domain_interpret`: Refreshes `.interpret/current`, indexes, and derived read models from current source when diagnostics pass. It is not publish, approval, commit, or user-intent checkpoint.
 - `domain_regeneration_plan`: After interpret, reports downstream content units, prompt bundles, selected outputs, or preview timelines that need review.
 - Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
 - Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
@@ -80,7 +81,8 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - Query/read: `domain_query_entities`, `domain_query_settings`, `domain_query_assets`, `domain_query_production_context`, `domain_read_*`.
 - Structured writes: `domain_upsert_*`, `domain_update_*`, `domain_delete_entity`. Use production-chain upserts for production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, and expression_unit records when available.
 - Candidate writes: `domain_create_content_candidate`, batch content-candidate tools, and content-unit selection tools write backend decision metadata. Inline candidate tools remain compatibility APIs for asset/keyframe/source-entity candidates.
-- Interpreter steps: `domain_inspect`, `domain_review`, `domain_interpret`, `domain_regeneration_plan`.
+- For completed generated content-unit candidates, omit `status`; the backend defaults it to `succeeded`. If status is needed, use only `queued`, `running`, `succeeded`, `failed`, `canceled`, or `imported`; do not use workflow words such as `completed`, `ready`, `selected`, or `accepted`.
+- Interpreter steps: `domain_inspect`, `domain_interpret`, `domain_regeneration_plan`. `domain_review` is compatibility-only.
 
 ## Edit Workflow
 
@@ -89,9 +91,9 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 3. Call `domain_get_model` before changing a domain entity so editable paths, schema ids, and instructions come from MovScript.
 4. Prefer structured `domain_*` write APIs when they cover the requested operation.
 5. Directly edit source files only when no structured API covers the field or structure.
-6. Run `domain_inspect` or `domain_review` after any API write or file edit.
-7. Fix diagnostics and re-run inspect/review until the source is ready.
-8. Run `domain_interpret` after the coherent semantic step is ready. Interpret success makes the edit visible through `.interpret/current` and indexes.
+6. Run `domain_inspect` after any API write or file edit.
+7. Fix diagnostics and re-run `domain_inspect` until the source is ready.
+8. Run `domain_interpret` after the coherent semantic step is ready. Interpret refreshes `.interpret/current`, indexes, and derived read models from source; it does not publish, approve, commit, or checkpoint user intent.
 9. Run `domain_regeneration_plan` after interpret when the change can stale generated content, prompts, media, or selections.
 
 ## Editable Source
@@ -117,7 +119,7 @@ Do not directly edit:
 - Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
 - For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
 - If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
-- After completing any user request that changes domain source, run `domain_interpret`. After content candidate or selection writes, run interpret when the effective interpreted state must include the backend decision metadata.
+- After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and interpreted read models should be refreshed. After content candidate or selection writes, run `domain_interpret` when `.interpret/current` must include the backend decision metadata.
 - Do not interpret for read-only review, draft-only analysis, or source states with blocking issues; state the reason when interpret is intentionally skipped.
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
 - Use stable ids and MovScript `resource_id` references for generated or uploaded media.

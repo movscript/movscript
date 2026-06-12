@@ -5,7 +5,7 @@ import { buildAgentChatGenerationProgressViewState } from '@/features/agent/pres
 import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
-test('buildAgentChatGenerationProgressViewState exposes current generation progress and scroll key', () => {
+test('buildAgentChatGenerationProgressViewState exposes current generation progress', () => {
   const state = buildAgentChatGenerationProgressViewState({
     activeRun: null,
     messages: [message({
@@ -35,7 +35,6 @@ test('buildAgentChatGenerationProgressViewState exposes current generation progr
   assert.equal(state.generationProgressStates.length, 1)
   assert.equal(state.generationProgressState?.jobId, 42)
   assert.equal(state.generationProgressState?.status, 'completed')
-  assert.equal(state.generationProgressKey, '42:420:completed:completed')
 })
 
 test('buildAgentChatGenerationProgressViewState returns empty progress state when no evidence exists', () => {
@@ -48,7 +47,6 @@ test('buildAgentChatGenerationProgressViewState returns empty progress state whe
 
   assert.deepEqual(state.generationProgressStates, [])
   assert.equal(state.generationProgressState, null)
-  assert.equal(state.generationProgressKey, undefined)
 })
 
 test('buildAgentChatGenerationProgressViewState restores completed timeline activity progress', () => {
@@ -61,7 +59,6 @@ test('buildAgentChatGenerationProgressViewState restores completed timeline acti
 
   assert.equal(state.generationProgressStates.length, 1)
   assert.equal(state.generationProgressState?.outputResourceId, 420)
-  assert.equal(state.generationProgressKey, '42:420:completed:completed')
 })
 
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {

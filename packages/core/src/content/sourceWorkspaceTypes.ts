@@ -2,6 +2,16 @@ export type PreviewMode = 'structure' | 'source' | 'generate' | 'select'
 export type SelectionState = 'selected' | 'stale' | 'needs_candidate' | 'ready'
 export type RefStatus = 'current' | 'changed' | 'missing' | 'locked'
 export type ChildStatus = 'selected' | 'candidate' | 'stale' | 'draft'
+export type ProductionWorkItemKind =
+  | 'fix_source'
+  | 'edit_structure'
+  | 'create_content_unit'
+  | 'generate_candidates'
+  | 'select_candidate'
+  | 'review_stale_selection'
+  | 'review_affected_output'
+export type ProductionWorkItemStatus = 'open' | 'blocked' | 'ready' | 'informational'
+export type ProductionWorkItemSeverity = 'blocking' | 'warning' | 'suggestion'
 export type HierarchyNodeType =
   | 'production'
   | 'setting'
@@ -225,4 +235,30 @@ export interface AudioCue {
   timing: Record<string, unknown>
   assetRefs: string[]
   sceneMomentId: string
+}
+
+export interface ProductionWorkItemView {
+  id: string
+  kind: ProductionWorkItemKind
+  status: ProductionWorkItemStatus
+  severity: ProductionWorkItemSeverity
+  priority: number
+  reason: string
+  targetKind: string
+  targetId?: string
+  targetPath?: string
+  recommendedActor: 'human' | 'agent' | 'workflow'
+  actionLabels: string[]
+}
+
+export interface ProductionWorkPlanView {
+  summary: {
+    open: number
+    blocking: number
+    humanRecommended: number
+    agentRecommended: number
+    readyToGenerate: number
+    staleSelections: number
+  }
+  items: ProductionWorkItemView[]
 }

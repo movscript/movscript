@@ -9,8 +9,6 @@ test('canonical content workbench renders the production workspace preview', asy
 
   await expect(page).toHaveURL(/\/project\/content-units\/editor/)
   await expect(page.getByTestId('content-source-workspace-page')).toBeVisible()
-  await expect(page.getByText('Source Workspace', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Ontology Tree' })).toBeVisible()
   await expect(page.getByPlaceholder('搜索层级节点或源文件')).toBeVisible()
 })
 

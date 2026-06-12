@@ -396,7 +396,16 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       clearConversationWorkspace: (userId, conversationId) => set((state) => {
         if (!state.workspacesByUser[userId]?.[conversationId]) return {}
         const userWorkspaces = { ...state.workspacesByUser[userId] }
-        delete userWorkspaces[conversationId]
+        const workspaceContext = userWorkspaces[conversationId]?.workspaceContext
+        if (workspaceContext) {
+          userWorkspaces[conversationId] = {
+            input: '',
+            attachments: [],
+            workspaceContext,
+          }
+        } else {
+          delete userWorkspaces[conversationId]
+        }
         return {
           workspacesByUser: {
             ...state.workspacesByUser,

@@ -8,6 +8,7 @@ export {
 } from './contentProduction.js'
 
 export {
+  deriveProductionWorkPlan,
   deriveAssetIndex,
   deriveDomainTree,
   deriveImpactReport,
@@ -25,6 +26,12 @@ export {
   type MovScriptImpactReportChangedEntity,
   type MovScriptPreviewTimelineArtifact,
   type MovScriptPreviewTimelineItem,
+  type MovScriptProductionActor,
+  type MovScriptProductionWorkAction,
+  type MovScriptProductionWorkItem,
+  type MovScriptProductionWorkItemBlocker,
+  type MovScriptProductionWorkPlan,
+  type MovScriptProductionWorkPlanSourceIssue,
   type MovScriptRelationGraphArtifact,
   type MovScriptWorkspaceArtifactsInput,
   type MovScriptWorkspaceDerivedArtifacts,

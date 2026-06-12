@@ -1,11 +1,7 @@
 import { getFocus } from './focus/actions'
 import {
-  workspaceInterpret,
-  workspaceGetModel,
-  workspaceReview,
-} from './workspace/actions.js'
-import {
   domainAppendCandidate,
+  domainBuildContentUnitBackendPrompt,
   domainInterpretContentUnitArtifact,
   domainInterpret,
   domainCreateAssetSlotCandidate,
@@ -25,6 +21,7 @@ import {
   domainReadContentUnitRuntimePanel,
   domainReadContentUnitSelectionValidity,
   domainReadPreviewTimeline,
+  domainReadProductionWorkPlan,
   domainReadScriptSource,
   domainRegenerationPlan,
   domainReview,
@@ -72,8 +69,16 @@ import {
 import { queryResourceLibrary } from './resource-library/actions'
 import {
   annotateResourceImage,
+  composeResourceVideosToResource,
+  createResourceVideoContactSheetToResource,
+  extractResourceVideoAudioToResource,
+  extractResourceVideoFrameToResource,
   extractResourceVideoFramesForVision,
+  extractResourceVideoFramesToResources,
+  probeResourceVideo,
   readResourceImageForVision,
+  transformResourceImageToResource,
+  trimResourceVideoToResource,
   uploadAgentImageResource,
   uploadAgentImageResources,
 } from './resource-media/actions'
@@ -121,9 +126,35 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'system_resource_image_read':
     case 'movscript_resource_image_read':
       return await readResourceImageForVision(args) as MCPJSONValue
+    case 'system_resource_image_transform_to_resource':
+    case 'movscript_resource_image_transform_to_resource':
+      return toolText(await transformResourceImageToResource(args))
     case 'system_resource_video_extract_frames':
     case 'movscript_resource_video_extract_frames':
       return await extractResourceVideoFramesForVision(args) as MCPJSONValue
+    case 'system_resource_video_probe':
+    case 'movscript_resource_video_probe':
+      return toolText(await probeResourceVideo(args))
+    case 'system_resource_video_extract_frame_to_resource':
+    case 'movscript_resource_video_extract_frame_to_resource':
+      return toolText(await extractResourceVideoFrameToResource(args))
+    case 'system_resource_video_extract_frames_to_resources':
+    case 'movscript_resource_video_extract_frames_to_resources':
+      return toolText(await extractResourceVideoFramesToResources(args))
+    case 'system_resource_video_trim_to_resource':
+    case 'movscript_resource_video_trim_to_resource':
+      return toolText(await trimResourceVideoToResource(args))
+    case 'system_resource_video_compose_to_resource':
+    case 'system_resource_video_concat_to_resource':
+    case 'movscript_resource_video_compose_to_resource':
+    case 'movscript_resource_video_concat_to_resource':
+      return toolText(await composeResourceVideosToResource(args))
+    case 'system_resource_video_contact_sheet_to_resource':
+    case 'movscript_resource_video_contact_sheet_to_resource':
+      return toolText(await createResourceVideoContactSheetToResource(args))
+    case 'system_resource_video_extract_audio_to_resource':
+    case 'movscript_resource_video_extract_audio_to_resource':
+      return toolText(await extractResourceVideoAudioToResource(args))
     case 'system_resource_image_annotate':
     case 'movscript_resource_image_annotate':
       return await annotateResourceImage(args) as MCPJSONValue
@@ -166,6 +197,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainQueryProductionContext(args))
     case 'domain_derive_content_unit_artifact':
       return toolText(await domainInterpretContentUnitArtifact(args))
+    case 'domain_build_content_unit_backend_prompt':
+      return toolText(await domainBuildContentUnitBackendPrompt(args))
     case 'domain_read_preview_timeline':
       return toolText(await domainReadPreviewTimeline(args))
     case 'domain_read_content_unit_runtime_panel':
@@ -237,6 +270,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainDeleteEntity(args))
     case 'domain_overview':
       return toolText(await domainOverview(args))
+    case 'domain_read_production_work_plan':
+      return toolText(await domainReadProductionWorkPlan(args))
     case 'domain_inspect':
       return toolText(await domainInspect(args))
     case 'domain_review':
@@ -245,12 +280,6 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return interpretToolText(await domainInterpret(args))
     case 'domain_regeneration_plan':
       return toolText(await domainRegenerationPlan(args))
-    case 'movscript_workspace_get_model':
-      return toolText(await workspaceGetModel(args))
-    case 'movscript_workspace_review':
-      return toolText(await workspaceReview(args))
-    case 'movscript_workspace_interpret':
-      return interpretToolText(await workspaceInterpret(args))
     case 'system_project_create':
     case 'movscript_project_create':
       return toolText(await createProject(args))

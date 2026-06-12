@@ -409,8 +409,7 @@ function sourcePathMatchesEntityKind(path: string, entityKind: string): boolean 
 
 function isRuntimeContentUnitDocument(path: string): boolean {
   const normalized = normalizeWorkspacePath(path)
-  return /^content_units\/[^/]+\/selection\.json$/.test(normalized)
-    || /^content_units\/[^/]+\/candidates\/[^/]+\/content_candidate\.json$/.test(normalized)
+  return /^content_units\/[^/]+\/candidates\/[^/]+\/content_candidate\.json$/.test(normalized)
 }
 
 function idField(value: unknown): string | number | undefined {

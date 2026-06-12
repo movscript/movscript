@@ -15,6 +15,7 @@ type repository interface {
 	Transaction(ctx context.Context, fn func(repository) error) error
 	List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error)
 	CreateResource(ctx context.Context, r *domainresource.RawResource) error
+	CreateDerivative(ctx context.Context, derivative resourceDerivative) error
 	FindBlobByHash(ctx context.Context, hash string) (resourceBlob, bool, error)
 	CreateBlob(ctx context.Context, blob *resourceBlob) error
 	IncrementBlobRef(ctx context.Context, blobID uint) error
@@ -57,6 +58,14 @@ type resourceBlob struct {
 	RefCount       int
 }
 
+type resourceDerivative struct {
+	OutputResourceID uint
+	Operation        string
+	Tool             string
+	InputResourceIDs string
+	Params           string
+}
+
 func (r *gormRepository) List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error) {
 	q, err := r.listQuery(ctx, input)
 	if err != nil {
@@ -90,6 +99,17 @@ func (r *gormRepository) CreateResource(ctx context.Context, resource *domainres
 	}
 	*resource = domainresource.RawResourceFromModel(modelResource)
 	return nil
+}
+
+func (r *gormRepository) CreateDerivative(ctx context.Context, derivative resourceDerivative) error {
+	modelDerivative := persistencemodel.ResourceDerivative{
+		OutputResourceID: derivative.OutputResourceID,
+		Operation:        derivative.Operation,
+		Tool:             derivative.Tool,
+		InputResourceIDs: derivative.InputResourceIDs,
+		Params:           derivative.Params,
+	}
+	return r.db.WithContext(ctx).Create(&modelDerivative).Error
 }
 
 func (r *gormRepository) FindBlobByHash(ctx context.Context, hash string) (resourceBlob, bool, error) {
@@ -198,6 +218,7 @@ func (r *gormRepository) ResourceReferenceCount(ctx context.Context, resourceID 
 		{model: &persistencemodel.CanvasTask{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.CanvasOutput{}, where: "resource_id = ?", args: []any{resourceID}},
 		{model: &persistencemodel.Job{}, where: "input_resource_id = ? OR output_resource_id = ? OR input_resource_ids = ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ?", args: jobResourceReferenceArgs(resourceID)},
+		{model: &persistencemodel.ResourceDerivative{}, where: "output_resource_id = ? OR input_resource_ids = ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ?", args: resourceDerivativeReferenceArgs(resourceID)},
 	}
 	var total int64
 	for _, check := range checks {
@@ -211,6 +232,17 @@ func (r *gormRepository) ResourceReferenceCount(ctx context.Context, resourceID 
 		total += count
 	}
 	return total, nil
+}
+
+func resourceDerivativeReferenceArgs(resourceID uint) []any {
+	id := fmt.Sprint(resourceID)
+	return []any{
+		resourceID,
+		"[" + id + "]",
+		"[" + id + ",%",
+		"%," + id + ",%",
+		"%," + id + "]",
+	}
 }
 
 func jobResourceReferenceArgs(resourceID uint) []any {

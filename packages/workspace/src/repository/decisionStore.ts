@@ -4,9 +4,12 @@ import {
 } from '../indexer/index.js'
 import {
   entityPathSlug,
+  isMovScriptContentUnitDecisionPath,
 } from '../layout/index.js'
 
 export interface MovScriptDecisionContext {
+  [key: string]: unknown
+  schema?: 'movscript.decision_context.v1'
   project_id?: string | number
   target_kind: string
   target_ref: string
@@ -34,6 +37,12 @@ export interface MovScriptContentUnitDecisionSelectionInput extends MovScriptCon
   reason?: string
   selectedAt?: string
   metadata?: Record<string, unknown>
+}
+
+export interface MovScriptContentUnitDecisionSelectionResult {
+  path: string
+  record: Record<string, unknown>
+  context: MovScriptDecisionContext
 }
 
 export interface MovScriptDecisionStore {
@@ -134,7 +143,8 @@ export async function overlayMovScriptDecisionDocuments(
   decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision'>,
 ): Promise<MovScriptWorkspaceDocument[]> {
   if (!decisionStore) return documents
-  const baseIndex = deriveMovScriptWorkspaceDomainIndex(documents)
+  const sourceDocuments = documents.filter((document) => !isMovScriptContentUnitDecisionPath(document.path))
+  const baseIndex = deriveMovScriptWorkspaceDomainIndex(sourceDocuments)
   const contentUnits = baseIndex.byKind.get('content_unit') ?? []
   const overlays: MovScriptWorkspaceDocument[] = []
   for (const contentUnit of contentUnits) {
@@ -142,6 +152,10 @@ export async function overlayMovScriptDecisionDocuments(
     const context = await decisionStore.getContentUnitDecision({ contentUnitId: contentUnit.id })
     if (!context) continue
     const contentUnitRef = entityDir(contentUnit.path)
+    overlays.push({
+      path: contentUnitDecisionContextPath(contentUnit.id),
+      data: normalizeDecisionContext(context, contentUnitRef),
+    })
     for (const candidate of context.candidates) {
       const candidateId = idField(candidate.id)
       if (candidateId === undefined) continue
@@ -150,23 +164,34 @@ export async function overlayMovScriptDecisionDocuments(
         data: normalizeContentUnitCandidate(candidate, contentUnitRef),
       })
     }
-    if (context.selection) {
-      overlays.push({
-        path: `${contentUnitRef}/selection.json`,
-        data: normalizeContentUnitSelection(context.selection, contentUnitRef),
-      })
-    }
   }
-  if (overlays.length === 0) return documents
   const overlayPaths = new Set(overlays.map((document) => document.path))
   return [
-    ...documents.filter((document) => !overlayPaths.has(document.path)),
+    ...sourceDocuments.filter((document) => !overlayPaths.has(document.path)),
     ...overlays,
   ].sort((left, right) => left.path.localeCompare(right.path))
 }
 
 export function contentUnitDecisionTargetRef(contentUnitId: string | number): string {
   return `content_units/${entityPathSlug(contentUnitId, 'content_unit')}`
+}
+
+export function contentUnitDecisionContextPath(contentUnitId: string | number): string {
+  return `.movscript/decisions/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/decision_context.json`
+}
+
+export function normalizeDecisionContext(
+  context: MovScriptDecisionContext,
+  targetRef: string = context.target_ref,
+): MovScriptDecisionContext {
+  return pruneUndefined({
+    ...context,
+    schema: 'movscript.decision_context.v1' as const,
+    target_kind: context.target_kind,
+    target_ref: targetRef,
+    candidates: context.candidates.map((candidate) => normalizeContentUnitCandidate(candidate, targetRef)),
+    selection: isRecord(context.selection) ? normalizeContentUnitDecisionSelection(context.selection) : undefined,
+  })
 }
 
 function normalizeContentUnitCandidate(
@@ -180,16 +205,10 @@ function normalizeContentUnitCandidate(
   })
 }
 
-function normalizeContentUnitSelection(
+function normalizeContentUnitDecisionSelection(
   selection: Record<string, unknown>,
-  contentUnitRef: string,
 ): Record<string, unknown> {
   return pruneUndefined({
-    schema: 'movscript.selection.v1',
-    target: {
-      kind: 'content_unit',
-      ref: contentUnitRef,
-    },
     candidate_id: selection.candidate_id,
     resource_id: selection.resource_id,
     stale_policy: selection.stale_policy === 'accept_stale' ? 'accept_stale' : 'strict',

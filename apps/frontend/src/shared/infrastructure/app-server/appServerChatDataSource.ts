@@ -1,4 +1,4 @@
-import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind, AgentChatRunProfileSelection, AgentChatThreadReadInput } from '@movscript/core/agent/chat'
+import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind, AgentChatRunProfileSelection, AgentChatThreadReadInput, AgentThreadExecutionSettings } from '@movscript/core/agent/chat'
 import type { AppServerJsonValue, AppServerThread, AppServerTurn, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
 import { MOVA_PROVIDER_ID, type MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import {
@@ -107,6 +107,22 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
       })
       return response.goal ?? response
     },
+    async updateThreadSettings(input) {
+      const modelSelection = modelSelectionForRequest(options, input)
+      const runProfileParams = appServerRunProfileParams(input.runProfile, 'turn')
+      const params = {
+        threadId: input.threadId,
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
+        ...(modelSelection.modelProvider ? { modelProvider: modelSelection.modelProvider } : {}),
+        ...(input.cwd?.trim() ? { cwd: input.cwd.trim() } : {}),
+        ...runProfileParams,
+        ...appServerTurnControlParams(input, modelSelection),
+      }
+      const response = typeof client.updateThreadSettings === 'function'
+        ? await client.updateThreadSettings(params)
+        : await client.requestProtocol<{ threadSettings?: unknown }>('thread/settings/update', params)
+      return executionSettingsFromThreadSettings(response.threadSettings ?? response)
+    },
     async renameThread(input) {
       const response = await client.requestProtocol<{ thread?: unknown }>('thread/name/set', {
         threadId: input.threadId,
@@ -171,7 +187,7 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
     subscribeThread({ threadId, onNotification, onServerRequest }) {
       const disposeNotification = client.onNotification((notification) => {
         const notificationThreadId = threadIdFromParams(notification.params)
-        if (notificationThreadId && notificationThreadId !== threadId) return
+        if (notificationThreadId !== threadId) return
         onNotification?.(adapter.notification(notification, provider))
       })
       const disposeServerRequest = client.onServerRequest((request) => {
@@ -188,7 +204,9 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
     },
     subscribeServerRequests({ onServerRequest, onNotification }) {
       const disposeNotification = client.onNotification((notification) => {
-        if (notification.method === 'serverRequest/resolved') onNotification?.(adapter.notification(notification, provider))
+        if (notification.method !== 'serverRequest/resolved') return
+        if (!threadIdFromParams(notification.params)) return
+        onNotification?.(adapter.notification(notification, provider))
       })
       const disposeServerRequest = client.onServerRequest((request) => {
         const nextRequest = adapter.serverRequest(request)
@@ -439,6 +457,7 @@ type AppServerThreadRuntimeSettingsResponse = {
   approvalPolicy?: unknown
   approvalsReviewer?: unknown
   sandbox?: unknown
+  activePermissionProfile?: unknown
 }
 
 function threadWithExecutionSettings(
@@ -455,8 +474,35 @@ function threadWithExecutionSettings(
       ...(typeof response.approvalPolicy === 'string' ? { approvalPolicy: response.approvalPolicy } : {}),
       ...(typeof response.approvalsReviewer === 'string' ? { approvalsReviewer: response.approvalsReviewer } : {}),
       ...(response.sandbox !== undefined ? { sandbox: response.sandbox } : {}),
+      ...(response.activePermissionProfile !== undefined ? { permissions: activePermissionProfileId(response.activePermissionProfile) } : {}),
     },
   }
+}
+
+function executionSettingsFromThreadSettings(value: unknown): AgentThreadExecutionSettings | unknown {
+  if (!isRecord(value)) return value
+  return {
+    ...(Object.prototype.hasOwnProperty.call(value, 'model') ? { model: stringField(value.model) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'modelProvider') ? { modelProvider: stringField(value.modelProvider) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'cwd') ? { cwd: stringField(value.cwd) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'approvalPolicy') ? { approvalPolicy: stringField(value.approvalPolicy) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'approvalsReviewer') ? { approvalsReviewer: stringField(value.approvalsReviewer) ?? null } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'sandboxPolicy') ? { sandboxPolicy: value.sandboxPolicy } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'activePermissionProfile') ? { permissions: activePermissionProfileId(value.activePermissionProfile) } : {}),
+  }
+}
+
+function activePermissionProfileId(value: unknown): string | null {
+  if (value === null) return null
+  return isRecord(value) ? stringField(value.id) ?? null : null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function threadFromLifecycleResponse(response: { thread?: unknown }, provider: AgentChatProviderKind, adapter: AppServerChatMessageAdapter): ReturnType<typeof agentChatThreadFromAppServerThreadTurnItem> | unknown {
@@ -630,7 +676,7 @@ function createAppServerChatCapabilities(client: AppServerRpcClient, provider: A
         const dispose = client.onNotification((notification) => {
           if (!notification.method.startsWith('thread/realtime/')) return
           const notificationThreadId = threadIdFromParams(notification.params)
-          if (notificationThreadId && notificationThreadId !== threadId) return
+          if (notificationThreadId !== threadId) return
           onNotification(adapter.notification(notification, provider) as AgentChatNotification)
         })
         return dispose
@@ -641,6 +687,15 @@ function createAppServerChatCapabilities(client: AppServerRpcClient, provider: A
 
 function threadIdFromParams(params: unknown): string | undefined {
   if (!params || typeof params !== 'object' || Array.isArray(params)) return undefined
-  const value = (params as Record<string, unknown>).threadId
+  const record = params as Record<string, unknown>
+  const value = record.threadId ?? record.thread_id
+  const threadId = stringId(value)
+  if (threadId) return threadId
+  const thread = record.thread
+  if (!thread || typeof thread !== 'object' || Array.isArray(thread)) return undefined
+  return stringId((thread as Record<string, unknown>).id)
+}
+
+function stringId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

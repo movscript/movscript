@@ -21,8 +21,7 @@ export function classifyMovScriptWorkspacePath(path: string): MovScriptWorkspace
 export function isMovScriptSourcePath(path: string): boolean {
   const normalized = normalizeWorkspacePath(path)
   if (MOVSCRIPT_SOURCE_ROOT_FILES.has(normalized)) return true
-  if (/^content_units\/[^/]+\/selection\.json$/.test(normalized)) return true
-  if (/^content_units\/[^/]+\/candidates\/[^/]+\/content_candidate\.json$/.test(normalized)) return true
+  if (isMovScriptContentUnitCandidatePath(normalized)) return true
   const [first] = normalized.split('/')
   const fileName = normalized.split('/').pop()
   return first !== undefined
@@ -34,6 +33,21 @@ export function isMovScriptSourcePath(path: string): boolean {
 
 export function isMovScriptSourceDocumentPath(path: string): boolean {
   return path.endsWith('.json') || path.endsWith('.md')
+}
+
+export function isMovScriptContentUnitDecisionPath(path: string): boolean {
+  const normalized = normalizeWorkspacePath(path)
+  return isLegacyMovScriptContentUnitSelectionPath(normalized) || isMovScriptContentUnitCandidatePath(normalized)
+}
+
+export function isMovScriptContentUnitCandidatePath(path: string): boolean {
+  const normalized = normalizeWorkspacePath(path)
+  return /^content_units\/[^/]+\/candidates\/[^/]+\/content_candidate\.json$/.test(normalized)
+}
+
+function isLegacyMovScriptContentUnitSelectionPath(path: string): boolean {
+  const normalized = normalizeWorkspacePath(path)
+  return /^content_units\/[^/]+\/selection\.json$/.test(normalized)
 }
 
 export function isMovScriptNonSourceRootDirectory(path: string): boolean {

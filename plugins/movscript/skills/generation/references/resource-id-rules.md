@@ -21,4 +21,16 @@ If the user gives a local file or an agent-created annotation image, upload it f
 
 If the user gives an external media result, import it into MovScript first. The imported RawResource ID is the generation-ready reference.
 
-If the user asks to inspect media, use `system_resource_image_read` for images and `system_resource_video_extract_frames` for video frames.
+If the user asks to inspect media, use `system_resource_image_read` for images and `system_resource_video_extract_frames` for video frames. These tools return MCP image content for the agent to see; they do not create generation-ready RawResources.
+
+If extracted or edited media must become an input, reference, candidate output, or reusable artifact, create a RawResource first:
+
+- `system_resource_video_extract_frame_to_resource` for one reference frame.
+- `system_resource_video_extract_frames_to_resources` for multiple reference frames.
+- `system_resource_image_transform_to_resource` for crop, resize, fit, or image format conversion.
+- `system_resource_video_contact_sheet_to_resource` for reusable overview images.
+- `system_resource_video_trim_to_resource` for clip ranges.
+- `system_resource_video_extract_audio_to_resource` for audio tracks or ranges.
+- `system_resource_video_compose_to_resource` or `system_resource_video_concat_to_resource` for one combined MP4 from several video resources.
+
+These resource/media operations are not business candidate operations. After creating the RawResource, write content-unit candidate or selection metadata separately when the output should affect domain state.

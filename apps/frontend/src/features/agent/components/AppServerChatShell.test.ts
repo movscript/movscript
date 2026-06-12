@@ -131,14 +131,20 @@ test('agent chat active thread storage is owned by the presentation helper', () 
   assert.match(unifiedShellSource, /readAppServerActiveThreadId\(selectedProvider\)/)
   assert.match(unifiedShellSource, /find\(\(provider\) => readAppServerActiveThreadId\(provider\)\)/)
   assert.match(unifiedShellSource, /window\.addEventListener\(appServerThreadOpenEvent\(provider\), handleActiveThreadChanged\)/)
-  assert.match(unifiedShellSource, /AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT/)
+  assert.match(dataSourceShellSource, /AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT/)
   assert.match(dataSourceShellSource, /readActiveThreadId\?: \(\) => string \| null/)
   assert.match(dataSourceShellSource, /const readCurrentActiveThreadId = useCallback/)
-  assert.match(dataSourceShellSource, /createAgentChatRuntimeState\(readCurrentActiveThreadId\(\)\)/)
+  assert.match(dataSourceShellSource, /const readRestorableActiveThreadId = useCallback/)
+  assert.match(dataSourceShellSource, /closedAgentConversationIds\(readAgentConversationOpenState\(userId\)\)\.includes\(threadId\)/)
+  assert.match(dataSourceShellSource, /createAgentChatRuntimeState\(readRestorableActiveThreadId\(\)\)/)
+  assert.match(dataSourceShellSource, /const storedThreadId = readRestorableActiveThreadId\(\)/)
+  assert.match(dataSourceShellSource, /const stored = readRestorableActiveThreadId\(\)/)
   assert.match(dataSourceShellSource, /writeStoredActiveThreadId\(activeThreadStorageKey, activeThreadId\)/)
+  assert.match(dataSourceShellSource, /const activeThreadClosed = readCurrentActiveThreadId\(\) === threadId/)
+  assert.match(dataSourceShellSource, /if \(closedThreadIds\.has\(request\.threadId\)\) \{[\s\S]*type: 'clearThreadResumeRequest'/)
   assert.match(dataSourceShellSource, /notifyAgentChatDataSourceActiveThread\(\{[\s\S]*eventName: openThreadEventName,[\s\S]*sourceId: shellInstanceIdRef\.current,[\s\S]*threadId: activeThreadId,[\s\S]*\}\)/)
   assert.match(dataSourceShellSource, /if \(detail\?\.sourceId === shellInstanceIdRef\.current\) return/)
-  assert.match(dataSourceShellSource, /const candidateIds = uniqueAgentChatThreadIds\(\[[\s\S]*stored,[\s\S]*\.\.\.nextThreads\.map\(\(thread\) => thread\.id\),[\s\S]*\]\)/)
+  assert.match(dataSourceShellSource, /const candidateIds = uniqueAgentChatThreadIds\(\[[\s\S]*stored,[\s\S]*\.\.\.nextThreads\.filter\(\(thread\) => !closedThreadIds\.has\(thread\.id\)\)\.map\(\(thread\) => thread\.id\),[\s\S]*\]\)/)
   assert.match(dataSourceShellSource, /provisionalAgentChatThread\(stored, dataSource\)/)
   assert.doesNotMatch(dataSourceShellSource, /clearUnavailableActiveThread\(stored\)/)
   assert.doesNotMatch(appServerShellSource, /window\.localStorage\.(getItem|setItem|removeItem)/)
@@ -160,6 +166,92 @@ test('agent chat pending server requests survive shell remounts without stale re
   assert.match(dataSourceShellSource, /notification\.method !== 'turn\/completed'/)
   assert.match(dataSourceShellSource, /applyPersistentServerRequestNotification\(persistentRequestScopeKey, notification\)/)
   assert.doesNotMatch(dataSourceShellSource, /setPendingServerRequests\(\(current\) => removeAgentChatPendingServerRequests\(current, \(\) => true\)\)/)
+})
+
+test('agent chat permission profile updates wait until a thread is loaded', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const profileChangeSource = dataSourceShellSource.match(/const handleProfilePresetChange = useCallback[\s\S]*?\}, \[activeThreadId/)?.[0] ?? ''
+
+  assert.match(profileChangeSource, /setProfilePresetId\(nextProfilePresetId\)/)
+  assert.match(profileChangeSource, /if \(!dataSource\?\.updateThreadSettings \|\| !activeThreadId \|\| activeTurn\) return/)
+  assert.match(profileChangeSource, /const thread = runtimeRef\.current\.threads\.find\(\(item\) => item\.id === activeThreadId\)/)
+  assert.match(profileChangeSource, /if \(!thread \|\| thread\.status === 'notLoaded'\) return/)
+  assert.match(profileChangeSource, /dataSource\.updateThreadSettings/)
+})
+
+test('agent chat queued composer inputs stay editable until sent or steered', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const composerSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
+  const coreIndexSource = readFileSync(resolve('../../packages/core/src/agent/chat/index.ts'), 'utf8')
+  const queuedInputSource = readFileSync(resolve('../../packages/core/src/agent/chat/agentChatQueuedInputs.ts'), 'utf8')
+
+  assert.match(coreIndexSource, /export \* from '\.\/agentChatQueuedInputs\.js'/)
+  assert.match(queuedInputSource, /export interface AgentChatQueuedInputPreviewItem/)
+  assert.match(queuedInputSource, /export function agentChatQueuedInputSummary/)
+  assert.match(dataSourceShellSource, /interface AgentComposerQueuedInput extends AgentChatQueuedInputPreviewItem/)
+  assert.match(dataSourceShellSource, /const \[queuedInputs, setQueuedInputs\] = useState<AgentComposerQueuedInput\[\]>\(\[\]\)/)
+  assert.match(dataSourceShellSource, /if \(activeTurn\) \{[\s\S]*setQueuedInputs\(\(current\) => \[[\s\S]*status: 'draft'/)
+  assert.match(dataSourceShellSource, /workspaceContext: composer\.selectedWorkspaceContext/)
+  assert.match(dataSourceShellSource, /status: 'editing'/)
+  assert.match(dataSourceShellSource, /const updateQueuedInputText = useCallback/)
+  assert.match(dataSourceShellSource, /agentChatQueuedInputsWithText\(candidate\.inputs, text\)/)
+  assert.match(dataSourceShellSource, /const cancelQueuedInputEdit = useCallback/)
+  assert.match(dataSourceShellSource, /const steerQueuedInputNow = useCallback/)
+  assert.match(dataSourceShellSource, /await dataSource\.steerTurn\(\{[\s\S]*clientUserMessageId: item\.clientUserMessageId,[\s\S]*inputs: item\.inputs/)
+  assert.match(dataSourceShellSource, /const submitQueuedInputAsTurn = useCallback/)
+  assert.match(dataSourceShellSource, /queuedInputs\.find\(\(item\) => item\.threadId === activeThread\.id && item\.status === 'draft'\)/)
+  assert.match(dataSourceShellSource, /queuedInputSteerEnabled=\{Boolean\(activeTurn && dataSource\.steerTurn\)\}/)
+  assert.match(dataSourceShellSource, /onQueuedInputEditCancel=\{cancelQueuedInputEdit\}/)
+  assert.match(dataSourceShellSource, /onQueuedInputTextChange=\{updateQueuedInputText\}/)
+  assert.match(composerSource, /function AgentQueuedInputPreview/)
+  assert.match(composerSource, /const \[editingId, setEditingId\] = useState<string \| null>\(null\)/)
+  assert.match(composerSource, /aria-label="编辑等待消息内容"/)
+  assert.match(composerSource, /onBlur=\{\(\) => commitEditing\(item\)\}/)
+  assert.match(composerSource, /event\.key === 'Escape'/)
+  assert.match(composerSource, /aria-label=\{editingId === item\.id \? '保存等待消息' : '编辑等待消息'\}/)
+  assert.match(composerSource, /aria-label="立即插队"/)
+  assert.match(composerSource, /disabled=\{editingId === item\.id \|\| !steerEnabled\}/)
+  assert.match(composerSource, /aria-label="删除等待消息"/)
+  assert.match(composerSource, /w-\[calc\(100%-32px\)\] max-w-\[680px\]/)
+})
+
+test('agent chat goal state flows from protocol to composer UI', () => {
+  const uiProtocolSource = readFileSync(resolve('../../packages/core/src/agent/chat/agentChatProtocol.ts'), 'utf8')
+  const goalStateSource = readFileSync(resolve('../../packages/core/src/agent/chat/agentChatGoalState.ts'), 'utf8')
+  const dispatcherSource = readFileSync(resolve('../../packages/core/src/agent/chat/agentChatNotificationDispatcher.ts'), 'utf8')
+  const adapterSource = readFileSync(resolve('src/shared/infrastructure/app-server/appServerThreadTurnItemProtocolAdapter.ts'), 'utf8')
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const composerSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
+
+  assert.match(uiProtocolSource, /goal\?: AgentThreadGoalState \| null/)
+  assert.match(goalStateSource, /export function agentThreadGoalStateFromUnknown/)
+  assert.match(goalStateSource, /export function agentThreadGoalStatusLabel/)
+  assert.match(dispatcherSource, /notification\.method === 'thread\/goal\/updated'[\s\S]*agentThreadGoalStateFromUnknown\(params\.goal\)[\s\S]*goal/)
+  assert.match(dispatcherSource, /notification\.method === 'thread\/goal\/cleared'[\s\S]*goal: null/)
+  assert.match(adapterSource, /goal: agentThreadGoalStateFromUnknown\(\(thread as \{ goal\?: unknown \}\)\.goal\) \?\? null/)
+  assert.match(dataSourceShellSource, /goalState=\{activeThread\?\.goal \?\? null\}/)
+  assert.match(composerSource, /function AgentGoalStatusPill/)
+  assert.match(composerSource, /agentThreadGoalStatusLabel\(goal\.status\)/)
+})
+
+test('agent chat queued input summaries prefer text then attachments', async () => {
+  const { agentChatQueuedInputSummary } = await import('@movscript/core/agent/chat')
+
+  assert.equal(agentChatQueuedInputSummary({
+    text: '  hello\n  world  ',
+    inputs: [],
+  }), 'hello world')
+  assert.equal(agentChatQueuedInputSummary({
+    text: '',
+    inputs: [{ type: 'image', url: 'https://example.test/image.png' }],
+  }), '1 attachment')
+  assert.equal(agentChatQueuedInputSummary({
+    text: '',
+    inputs: [
+      { type: 'image', url: 'https://example.test/image.png' },
+      { type: 'mention', name: 'clip', path: 'resources/1' },
+    ],
+  }), '2 attachments')
 })
 
 function appServerProvider(input: {

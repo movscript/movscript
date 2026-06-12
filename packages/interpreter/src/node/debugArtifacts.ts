@@ -22,6 +22,7 @@ import {
   loadInterpretedCurrentSourceSnapshots,
   loadWorkspaceFileSnapshots,
   resolveWorkspaceSource,
+  type WorkspaceSourceSnapshot,
 } from './sourceStore.js'
 
 export interface MovScriptDebugArtifactInterpretManifest {
@@ -34,8 +35,9 @@ export async function writeDebugArtifacts(
   index: MovScriptWorkspaceDomainIndex,
   manifest: MovScriptDebugArtifactInterpretManifest,
   impactReportPath: string,
+  sourceSnapshot?: WorkspaceSourceSnapshot,
 ): Promise<void> {
-  const source = await resolveWorkspaceSource(fileRepository)
+  const source = sourceSnapshot ?? await resolveWorkspaceSource(fileRepository)
   const sourcePaths = new Set(source.files.map((file) => file.relativePath))
   for (const file of await loadInterpretedCurrentSourceSnapshots(fileRepository, 'source')) {
     if (!sourcePaths.has(file.relativePath)) {

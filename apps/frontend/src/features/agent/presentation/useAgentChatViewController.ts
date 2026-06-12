@@ -80,6 +80,7 @@ export function useAgentChatViewController({
     activeRunId: activeRun?.id,
     conversationId: conv.id,
   })
+  const conversationEstablished = Boolean(store.providerThreadId || effectiveConversation.transcriptMessages.length > 0)
   const composer = useAgentChatComposerState({
     userId,
     conversationId: conv.id,
@@ -88,6 +89,7 @@ export function useAgentChatViewController({
     updateSettings: store.updateSettings,
     fileRef: providerSessionState.fileRef,
     inputRef: providerSessionState.inputRef,
+    workspaceContextLocked: conversationEstablished,
   })
 
   const loading = store.conversationRuntimeState?.loading ?? false
@@ -152,6 +154,7 @@ export function useAgentChatViewController({
     currentProject: store.currentProject,
     interaction,
     timelineLoading: timeline.initialLoading,
+    conversationEstablished,
     planActionBusy: providerSessionState.planActionBusy,
     planDispatchSettings: taskGraph.planDispatchSettings,
     presentation,

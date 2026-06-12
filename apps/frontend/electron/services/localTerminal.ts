@@ -7,7 +7,9 @@ import {
   ensureMovScriptWorkspaceContext,
   resolveMovScriptWorkspaceContextPaths,
   type MovScriptWorkspaceContextInput,
+  type MovScriptWorkspaceContextPaths,
 } from '@movscript/core/workspace/node'
+import { localTerminalEnv } from './localTerminalEnv'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import type {
   ElectronLocalTerminalCreateInput,
@@ -59,7 +61,8 @@ class LocalTerminalManager {
 
     const pty = await this.loadNodePty()
     const sessionId = requestedSessionId || randomUUID()
-    const cwd = resolveLocalTerminalCwd(input.workspaceContext)
+    const workspace = resolveLocalTerminalWorkspace(input.workspaceContext)
+    const cwd = workspace.providerSessionCwd
     const shell = localTerminalShell()
     const size = input.size ?? { rows: 24, cols: 80 }
     const child = pty.spawn(shell.command, shell.args, {
@@ -67,7 +70,14 @@ class LocalTerminalManager {
       cols: clampTerminalCols(size.cols),
       rows: clampTerminalRows(size.rows),
       cwd,
-      env: localTerminalEnv(process.env),
+      env: localTerminalEnv({
+        inheritedEnv: process.env,
+        workspaceDir: workspace.workspaceDir,
+        projectDir: workspace.providerSessionCwd,
+        userId: workspace.context.userId,
+        orgId: workspace.context.orgId,
+        projectId: workspace.context.projectId,
+      }),
     })
     const session: LocalTerminalSession = {
       id: sessionId,
@@ -183,7 +193,7 @@ function ensureNodePtySpawnHelperExecutable(): void {
   }
 }
 
-function resolveLocalTerminalCwd(context: ElectronMovScriptWorkspaceContext | undefined): string {
+function resolveLocalTerminalWorkspace(context: ElectronMovScriptWorkspaceContext | undefined): MovScriptWorkspaceContextPaths {
   const scope = context?.scope === 'project' || context?.scope === 'production'
     ? 'project'
     : 'global'
@@ -193,36 +203,16 @@ function resolveLocalTerminalCwd(context: ElectronMovScriptWorkspaceContext | un
     ...(context?.orgId !== undefined ? { orgId: String(context.orgId) } : {}),
     ...(context?.projectId !== undefined ? { projectId: String(context.projectId) } : {}),
   }
-  const workspaceContextPaths = ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
+  return ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
     workspaceDir: resolveDesktopDefaultMovScriptWorkspaceDir(),
     ...normalizedContext,
   }))
-  return workspaceContextPaths.providerSessionCwd
 }
 
 function localTerminalShell(): { command: string; args: string[] } {
   if (process.platform === 'win32') return { command: process.env.ComSpec || 'cmd.exe', args: [] }
   const accountShell = typeof userInfo().shell === 'string' ? userInfo().shell : ''
   return { command: process.env.SHELL || accountShell || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'), args: [] }
-}
-
-function localTerminalEnv(env: NodeJS.ProcessEnv): Record<string, string | undefined> {
-  return {
-    ...env,
-    TERM: env.TERM || 'xterm-256color',
-    COLORTERM: env.COLORTERM || 'truecolor',
-    PATH: env.PATH || defaultTerminalPath(),
-  }
-}
-
-function defaultTerminalPath(): string {
-  if (process.platform === 'win32') return [
-    'C:\\Windows\\System32',
-    'C:\\Windows',
-    'C:\\Windows\\System32\\Wbem',
-  ].join(';')
-  if (process.platform === 'darwin') return '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
-  return '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
 }
 
 function clampTerminalRows(value: number): number {

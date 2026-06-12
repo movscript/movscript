@@ -12,6 +12,7 @@ interface UseAgentChatComposerStateInput {
   settings: AgentSettings
   updateSettings: (settings: Partial<AgentSettings>) => void
   userId: string
+  workspaceContextLocked?: boolean
 }
 
 export function useAgentChatComposerState({
@@ -22,6 +23,7 @@ export function useAgentChatComposerState({
   settings,
   updateSettings,
   userId,
+  workspaceContextLocked = false,
 }: UseAgentChatComposerStateInput) {
   const {
     activeModel,
@@ -39,6 +41,7 @@ export function useAgentChatComposerState({
     recentResources,
     fileRef,
     inputRef,
+    workspaceContextLocked,
   })
 
   useAgentMentionEditorSync({

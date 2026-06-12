@@ -6,7 +6,7 @@ const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_ENDPOINT
 const debug = process.env.MOVSCRIPT_MCP_BRIDGE_DEBUG === '1'
 const discoveryTimeoutMs = Number(process.env.MOVSCRIPT_MCP_BRIDGE_DISCOVERY_TIMEOUT_MS || 750)
 
-const workspaceTools = [
+const sessionTools = [
   {
     name: 'movscript_focus_get',
     description: 'Return the current MovScript task focus: route, selected project, active production id, and selected entity. This does not load project lists, scripts, workspaces, or resources.',
@@ -21,27 +21,6 @@ const workspaceTools = [
       status: { type: 'string' },
       total_episodes: { type: 'number' },
     }, ['name']),
-  },
-  {
-    name: 'movscript_workspace_get_model',
-    description: 'Return the movscript-lang workspace model for one editable domain entity: editable source paths, context paths, schema ids, supported write APIs, and agent instructions. Call this before direct file edits. This is project-scoped and does not write files.',
-    inputSchema: projectSchema({
-      ...workspaceLocatorProperties(),
-      entityKind: { type: 'string', description: 'Domain entity kind, for example setting, asset, production, content_unit, or keyframe.' },
-      entity_kind: { type: 'string', description: 'Alias for entityKind.' },
-      entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
-      entity_id: { type: ['string', 'number'], description: 'Alias for entityId.' },
-    }, ['entityKind']),
-  },
-  {
-    name: 'movscript_workspace_review',
-    description: 'Inspect current source edits by comparing .interpret/current with source files. Reports changed files, changed entities, schema/domain issues, and interpret readiness. This does not make edits effective.',
-    inputSchema: projectSchema(workspaceLocatorProperties()),
-  },
-  {
-    name: 'movscript_workspace_interpret',
-    description: 'Interpret current source files into .interpret/current and .interpret/indexes. Interpret must succeed before edits become current effective workspace state.',
-    inputSchema: projectSchema(workspaceLocatorProperties()),
   },
 ]
 
@@ -283,7 +262,7 @@ const queryTools = [
 ]
 
 const systemTools = [
-  ...renameTools(workspaceTools, {
+  ...renameTools(sessionTools, {
     movscript_focus_get: 'system_focus_get',
     movscript_project_create: 'system_project_create',
   }),
@@ -307,11 +286,6 @@ const systemTools = [
 ]
 
 const domainTools = [
-  ...renameTools(workspaceTools, {
-    movscript_workspace_get_model: 'domain_get_model',
-    movscript_workspace_review: 'domain_review',
-    movscript_workspace_interpret: 'domain_interpret',
-  }),
   {
     name: 'domain_query_entities',
     description: 'Query indexed MovScript domain entities from source/current indexes by entity kind, ids, path context, or free text. Use this before reading many files.',
@@ -363,7 +337,7 @@ const domainTools = [
     inputSchema: projectSchema({ ...workspaceLocatorProperties(), contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
   },
   ...[
-    ['domain_upsert_project_standards', 'Create or update project-wide creative standards in source project_standards.json. Run inspect/review and interpret after this write.'],
+    ['domain_upsert_project_standards', 'Create or update project-wide creative standards in source project_standards.json. Run domain_inspect, then domain_interpret to refresh interpreted read models when diagnostics pass.'],
     ['domain_upsert_setting', 'Create or update a MovScript setting source entity. Put the setting data to write in required payload; record/entity are optional existing-context objects only. Prefer this API over direct file edits for setting records.'],
     ['domain_upsert_asset', 'Create or update a MovScript asset slot source entity under a setting or setting state. Put the asset data to write in required payload; record/entity are optional existing-context objects only. Store RawResource references by resource_id, not binaries or external URLs.'],
     ['domain_upsert_script', 'Create or update a script source record and script.md text. Prefer this API over hand-editing script metadata plus markdown.'],
@@ -378,24 +352,24 @@ const domainTools = [
     ['domain_upsert_storyboard', 'Create or update a storyboard source record under production/segment/scene_moment/shot. Use this when an agent turns shot-group entries into editable MovScript storyboards before creating candidates.'],
     ['domain_upsert_audio_cue', 'Create or update an audio_cue source entity under a scene_moment.'],
     ['domain_upsert_expression_unit', 'Create or update an expression_unit source entity under a scene_moment.'],
-    ['domain_update_content_unit_prompt', 'Update a content unit edit_prompt source field. Run inspect/review, interpret, and regeneration planning when prompt changes may stale candidates.'],
+    ['domain_update_content_unit_prompt', 'Update a content unit edit_prompt source field. Run domain_inspect, domain_interpret, and regeneration planning when prompt changes may stale candidates.'],
     ['domain_update_entity_transition', 'Update an entity transition boundary on the source entity that owns transition semantics.'],
     ['domain_update_storyboard_timeline', 'Update a storyboard timeline source field. Storyboard order and timing belong on storyboard timeline entities, not on generated interpreted output.'],
-    ['domain_append_candidate', 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become domain state only after candidate/selection writes and interpret.'],
-    ['domain_create_content_candidate', 'Create an external content candidate record for a content unit output. Use for generated content-unit media rather than embedding provider job state in domain JSON.'],
-    ['domain_create_content_candidate_batch', 'Create multiple external content candidate records for content unit outputs. Each item accepts the same fields as domain_create_content_candidate.'],
+    ['domain_append_candidate', 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become interpreted read-model state only after candidate/selection writes are refreshed with domain_interpret.'],
+    ['domain_create_content_candidate', 'Create an external content candidate record for a content unit output. Use for generated content-unit media rather than embedding provider job state in domain JSON. Omit status for completed generated resources; the backend defaults it to succeeded.'],
+    ['domain_create_content_candidate_batch', 'Create multiple external content candidate records for content unit outputs. Each item accepts the same fields as domain_create_content_candidate. Omit item status for completed generated resources.'],
     ['domain_create_asset_slot_candidate', 'Create an asset-slot candidate using the MovScript workspace candidate service. If targetRecord carries a workspace path, this appends an inline candidate to that asset source entity.'],
     ['domain_create_keyframe_candidate', 'Create a keyframe candidate using the MovScript workspace candidate service. If keyframes are represented as content units in the active model, use the content-unit candidate flow instead.'],
-    ['domain_select_content_unit_candidate', 'Select a content candidate for a content unit using the workspace selection record. Selection is a source write and must be followed by inspect/review and interpret.'],
+    ['domain_select_content_unit_candidate', 'Select a content candidate for a content unit through the backend decision API. Run domain_inspect and domain_interpret when interpreted read models must be refreshed.'],
     ['domain_select_content_unit_candidate_batch', 'Select content candidates for multiple content units using workspace selection records.'],
     ['domain_select_candidate', 'Select and lock an inline candidate on an asset, keyframe, or content unit source entity.'],
     ['domain_update_candidate', 'Update an inline candidate on an asset, keyframe, or content unit source entity.'],
     ['domain_unlock_candidate', 'Remove an inline candidate lock from an asset, keyframe, or content unit source entity.'],
     ['domain_delete_entity', 'Delete a MovScript domain source entity file through the workspace service. Do not delete .interpret output directly.'],
     ['domain_overview', 'Show MovScript source state, last successful interpreted state, pending edits, stale generated outputs, and recommended next actions.'],
-    ['domain_inspect', 'Inspect current source changes, diagnostics, and predicted impact without writing derived artifacts. Use after API writes or direct file edits.'],
-    ['domain_interpret', 'Interpret current source files into .interpret/current, .interpret/indexes, and stable derived artifacts. Interpret must succeed before edits become current effective project state.'],
-    ['domain_regeneration_plan', 'Plan regeneration targets after interpret based on changed source entities, dependency impact, stale prompts, and stale content unit selections.'],
+    ['domain_inspect', 'Inspect current source changes, diagnostics, and predicted impact without writing interpreted artifacts. This is the primary diagnostic entrypoint after API writes or direct source edits.'],
+    ['domain_interpret', 'Refresh interpreted project read models from current source. Writes .interpret/current, indexes, and derived artifacts when diagnostics pass. Does not publish, approve, commit, or checkpoint user intent.'],
+    ['domain_regeneration_plan', 'Plan downstream review targets after domain_interpret refreshes interpreted state. Reports affected or stale content units, prompt bundles, preview timelines, and selections; it does not require regeneration by itself.'],
   ].map(([name, description]) => ({
     name,
     description,
@@ -449,7 +423,7 @@ const fallbackTools = [
   ...domainTools,
   ...generationTools,
   ...queryTools,
-  ...workspaceTools,
+  ...sessionTools,
 ]
 
 const rl = readline.createInterface({

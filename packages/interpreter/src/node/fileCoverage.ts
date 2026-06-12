@@ -9,11 +9,13 @@ import type {
   MovScriptWorkspaceFileRepository,
 } from '@movscript/workspace/repository'
 import {
+  isMovScriptContentUnitDecisionPath,
   normalizeWorkspacePath,
 } from '@movscript/workspace/layout'
 import {
   MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR,
   type CheckpointSourceSnapshot,
+  type WorkspaceSourceOptions,
 } from './sourceStore.js'
 import type {
   MovScriptWorkspaceChangedFile,
@@ -42,11 +44,17 @@ export async function validateGitFileChangeCoverage(
   fileRepository: MovScriptWorkspaceFileRepository,
   baseline: CheckpointSourceSnapshot,
   changedFiles: readonly MovScriptWorkspaceChangedFile[],
+  options: WorkspaceSourceOptions = {},
 ): Promise<MovScriptWorkspaceReviewIssue[]> {
   if (baseline.source !== 'git' || !baseline.checkpointHash) return []
   const rootDir = getNodeMovScriptWorkspaceFileRepositoryRoot(fileRepository)
   if (!rootDir) return []
-  const gitChanges = await readNodeMovScriptGitSourceFileChanges(rootDir, baseline.checkpointHash)
+  const gitChanges = (await readNodeMovScriptGitSourceFileChanges(rootDir, baseline.checkpointHash))
+    .filter((change) => {
+      if (options.includeContentUnitDecisionDocuments !== false) return true
+      return !isMovScriptContentUnitDecisionPath(change.path)
+        && (change.previousPath === undefined || !isMovScriptContentUnitDecisionPath(change.previousPath))
+    })
   if (gitChanges.length === 0) return []
 
   const missing = findUncoveredGitSourceFileChanges(gitChanges, changedFiles)

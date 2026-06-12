@@ -7,6 +7,7 @@
       "@movscript/interpreter": ["../interpreter/src/index.ts"],
       "@movscript/interpreter/artifacts": ["../interpreter/src/artifacts/index.ts"],
       "@movscript/interpreter/node": ["../interpreter/src/node.ts"],
+      "@movscript/prompt": ["../prompt/src/index.ts"],
       "@movscript/decision": ["../decision/src/index.ts"],
       "@movscript/language/domain": ["../language/src/domain/index.ts"],
       "@movscript/workspace": ["../workspace/src/index.ts"],

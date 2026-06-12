@@ -11,7 +11,7 @@ import type {
   AgentChatTurnItemsView,
   AgentChatTurnStatus,
 } from '@movscript/core/agent/chat'
-import { isModelReachableRemoteUrl } from '@movscript/core/agent/chat'
+import { agentThreadGoalStateFromUnknown, isModelReachableRemoteUrl } from '@movscript/core/agent/chat'
 import { agentChatThreadItemFromAppServerThreadTurnItem } from '@/shared/infrastructure/app-server/appServerThreadTurnItemItems'
 import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
 import type {
@@ -117,6 +117,7 @@ export function agentChatThreadFromAppServerThreadTurnItem(thread: AppServerThre
     updatedAt: thread.updatedAt,
     status: agentChatThreadStatusFromAppServerThreadTurnItem(thread.status),
     cwd: thread.cwd,
+    goal: agentThreadGoalStateFromUnknown((thread as { goal?: unknown }).goal) ?? null,
     executionSettings: {
       modelProvider: thread.modelProvider,
       cwd: thread.cwd,

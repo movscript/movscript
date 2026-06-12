@@ -8,6 +8,8 @@ const workspaceLocator = {
   project_id: { type: ['string', 'number'], description: 'Alias for projectId.' },
 }
 
+const contentCandidateStatuses = ['queued', 'running', 'succeeded', 'failed', 'canceled', 'imported'] as const
+
 const entityQuery = {
   ...workspaceLocator,
   entityKind: { type: 'string', description: 'Optional semantic entity kind, for example setting, production, scene_moment, content_unit, or keyframe.' },
@@ -32,6 +34,13 @@ const entityQuery = {
   settingStateId: { type: ['string', 'number'] },
   setting_state_id: { type: ['string', 'number'] },
   limit: { type: 'number' },
+}
+
+const inspectOptions = {
+  ...workspaceLocator,
+  commit: { type: 'string', description: 'Optional git commit/ref to compare current source against. Defaults to HEAD when the workspace is in git.' },
+  checkpointHash: { type: 'string', description: 'Compatibility alias for commit.' },
+  checkpoint_hash: { type: 'string', description: 'Alias for checkpointHash.' },
 }
 
 export function domainTools(): MCPTool[] {
@@ -103,6 +112,11 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
+      name: 'domain_build_content_unit_backend_prompt',
+      description: 'Build a backend-ready prompt for a content unit by resolving prompt refs through backend decision selections. Rewrites selected upstream resources like {{asset:id}} to [[resource::id]] and returns blockers when referenced content has not been produced or selected.',
+      inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
+    },
+    {
       name: 'domain_read_preview_timeline',
       description: 'Read an interpreted production preview timeline from .interpret/current. This is read-only interpreted output.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] } }),
@@ -134,7 +148,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_project_standards',
-      description: 'Create or update project-wide creative standards in source project_standards.json. Run inspect/review and interpret after this write.',
+      description: 'Create or update project-wide creative standards in source project_standards.json. Run domain_inspect, then domain_interpret to refresh interpreted read models when diagnostics pass.',
       inputSchema: projectSchema({ ...workspaceLocator, projectStyle: { type: 'object', additionalProperties: true }, project_style: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true } }),
     },
     {
@@ -228,7 +242,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_update_content_unit_prompt',
-      description: 'Update a content unit edit_prompt source field. Run inspect/review, interpret, and regeneration planning when prompt changes may stale candidates.',
+      description: 'Update a content unit edit_prompt source field. Run domain_inspect, domain_interpret, and regeneration planning when prompt changes may stale candidates.',
       inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: 'string' }, target_path: { type: 'string' }, editPrompt: { type: 'object', additionalProperties: true }, edit_prompt: { type: 'object', additionalProperties: true } }),
     },
     {
@@ -243,32 +257,23 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_append_candidate',
-      description: 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become domain state only after candidate/selection writes and interpret.',
+      description: 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become interpreted read-model state only after candidate/selection writes are refreshed with domain_interpret.',
       inputSchema: candidateSchema(),
     },
     {
       name: 'domain_create_content_candidate',
-      description: 'Create an external content candidate record for a content unit output through the backend decision API. This does not edit workspace source files.',
+      description: 'Create an external content candidate record for a content unit output through the backend decision API. This does not edit workspace source files. Omit status for completed generated resources; the backend defaults it to succeeded. If status is provided, use only queued, running, succeeded, failed, canceled, or imported.',
       inputSchema: projectSchema({
         ...workspaceLocator,
-        contentUnitId: { type: ['string', 'number'] },
-        content_unit_id: { type: ['string', 'number'] },
-        candidateId: { type: ['string', 'number'] },
-        candidate_id: { type: ['string', 'number'] },
-        source: { type: 'string' },
-        status: { type: 'string' },
-        producer: { type: 'object', additionalProperties: true },
-        outputs: { type: 'array', items: { type: 'object', additionalProperties: true } },
-        promptSnapshot: { type: 'object', additionalProperties: true },
-        prompt_snapshot: { type: 'object', additionalProperties: true },
+        ...contentCandidateWriteProperties(),
       }),
     },
     {
       name: 'domain_create_content_candidate_batch',
-      description: 'Create multiple external content candidate records for content unit outputs through the backend decision API. Each item accepts the same fields as domain_create_content_candidate. Runs sequentially and returns per-item results so agents can keep partial successes.',
+      description: 'Create multiple external content candidate records for content unit outputs through the backend decision API. Each item accepts the same candidate fields as domain_create_content_candidate. Omit item status for completed generated resources; the backend defaults it to succeeded. Runs sequentially and returns per-item results so agents can keep partial successes.',
       inputSchema: projectSchema({
         ...workspaceLocator,
-        items: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        items: { type: 'array', items: contentCandidateWriteItemSchema() },
         continueOnError: { type: 'boolean' },
         continue_on_error: { type: 'boolean' },
       }, ['items']),
@@ -285,7 +290,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_select_content_unit_candidate',
-      description: 'Select a content candidate for a content unit through the backend decision API. Selection is backend decision metadata, not a workspace source-file edit; run inspect/review/interpret when effective interpreted state must be refreshed.',
+      description: 'Select a content candidate for a content unit through the backend decision API. Selection is backend decision metadata, not a workspace source-file edit; run domain_inspect and domain_interpret when interpreted read models must be refreshed.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         contentUnitId: { type: ['string', 'number'] },
@@ -335,23 +340,28 @@ export function domainTools(): MCPTool[] {
       inputSchema: projectSchema(workspaceLocator),
     },
     {
-      name: 'domain_inspect',
-      description: 'Inspect current source changes, diagnostics, and predicted impact without writing derived artifacts. Use after API writes or direct file edits.',
+      name: 'domain_read_production_work_plan',
+      description: 'Derive the current in-memory production work plan from source and decision state. This does not read or write .interpret/current and should be used by UI, CLI, and agents as the shared production todo graph.',
       inputSchema: projectSchema(workspaceLocator),
+    },
+    {
+      name: 'domain_inspect',
+      description: 'Inspect current source changes, diagnostics, and predicted impact without writing interpreted artifacts. This is the primary diagnostic entrypoint after API writes or direct source edits.',
+      inputSchema: projectSchema(inspectOptions),
     },
     {
       name: 'domain_review',
-      description: 'Review current source files by comparing them with .interpret/current. This is diagnostic only and does not make edits effective.',
-      inputSchema: projectSchema(workspaceLocator),
+      description: 'Compatibility alias for domain_inspect with review-shaped output. Prefer domain_inspect for current source diagnostics. This is diagnostic only and writes no interpreted artifacts.',
+      inputSchema: projectSchema(inspectOptions),
     },
     {
       name: 'domain_interpret',
-      description: 'Interpret current source files into .interpret/current, .interpret/indexes, and stable derived artifacts. Interpret must succeed before edits become current effective project state.',
+      description: 'Refresh interpreted project read models from current source. Writes .interpret/current, indexes, and derived artifacts when diagnostics pass. Does not publish, approve, commit, or checkpoint user intent.',
       inputSchema: projectSchema(workspaceLocator),
     },
     {
       name: 'domain_regeneration_plan',
-      description: 'Plan regeneration targets after interpret based on changed source entities, dependency impact, stale prompts, and stale content unit selections.',
+      description: 'Plan downstream review targets after domain_interpret refreshes interpreted state. Reports affected or stale content units, prompt bundles, preview timelines, and selections; it does not require regeneration by itself.',
       inputSchema: projectSchema(workspaceLocator),
     },
   ]
@@ -378,6 +388,33 @@ function candidateWriteSchema(): Record<string, MCPJSONValue> {
     targetRecord: { type: 'object', additionalProperties: true },
     target_record: { type: 'object', additionalProperties: true },
     nonce: { type: 'string' },
+  }
+}
+
+function contentCandidateWriteProperties(): Record<string, MCPJSONValue> {
+  return {
+    contentUnitId: { type: ['string', 'number'] },
+    content_unit_id: { type: ['string', 'number'] },
+    candidateId: { type: ['string', 'number'] },
+    candidate_id: { type: ['string', 'number'] },
+    source: { type: 'string' },
+    status: {
+      type: 'string',
+      enum: [...contentCandidateStatuses],
+      description: 'Optional. Omit for completed generated resources; the backend defaults it to succeeded. Do not use completed, ready, done, selected, or accepted.',
+    },
+    producer: { type: 'object', additionalProperties: true },
+    outputs: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    promptSnapshot: { type: 'object', additionalProperties: true },
+    prompt_snapshot: { type: 'object', additionalProperties: true },
+  }
+}
+
+function contentCandidateWriteItemSchema(): MCPJSONValue {
+  return {
+    type: 'object',
+    properties: contentCandidateWriteProperties(),
+    additionalProperties: false,
   }
 }
 

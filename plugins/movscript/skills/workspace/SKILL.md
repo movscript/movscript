@@ -1,6 +1,6 @@
 ---
 name: workspace
-description: Compatibility guidance for older workspace prompts; prefer domain concepts, inspect/review diagnostics, and interpret for effective state.
+description: Compatibility guidance for older workspace prompts; prefer domain concepts, domain_inspect diagnostics, and domain_interpret read-model refresh.
 toolGrants:
   - mcp__movscript__domain_get_model
   - mcp__movscript__domain_overview
@@ -22,9 +22,9 @@ In MovScript, the project Git repository is the project workspace. Editable busi
 2. Use `domain_get_model` with the target `entityKind` and optional `entityId` before editing.
 3. Prefer structured domain APIs. Edit files only when no API covers the needed source structure.
 4. Edit only source paths in the returned domain model unless the user explicitly asks to create related entities.
-5. Use `domain_inspect` or `domain_review` to diagnose source versus `.interpret/current`.
+5. Use `domain_inspect` to diagnose current source changes and readiness.
 6. Fix schema, domain, or reference issues reported by diagnostics.
-7. Use `domain_interpret` after diagnostics are ready. Interpret success makes the edit state current and visible to the user.
+7. Use `domain_interpret` after diagnostics are ready. Interpret refreshes `.interpret/current`, indexes, and derived read models; it does not publish, approve, commit, or checkpoint user intent.
 8. Use `domain_regeneration_plan` when source changes may stale generated media or candidates.
 
 ## Rules
@@ -36,10 +36,10 @@ In MovScript, the project Git repository is the project workspace. Editable busi
 - Do not edit `.interpret/` directly.
 - Do not embed resource binaries or generation job runtime state in business files.
 - Reference stable ids such as `setting` ids and `resource_id` values.
-- Treat Git commit/push as persistence after a successful interpret, not as workspace semantics.
+- Treat Git commit/push as separate persistence, not as interpret semantics.
 
 ## Tool Notes
 
 - `domain_get_model` returns the domain workspace model for one editable entity.
-- `domain_inspect` and `domain_review` report changed files, changed entities, issues, and interpret readiness.
-- `domain_interpret` validates source and writes `.interpret/current`, `.interpret/indexes`, and `.interpret/manifests`.
+- `domain_inspect` reports changed files, changed entities, issues, and interpret readiness. `domain_review` is a compatibility diagnostic alias.
+- `domain_interpret` validates source and refreshes `.interpret/current`, `.interpret/indexes`, and `.interpret/manifests`.

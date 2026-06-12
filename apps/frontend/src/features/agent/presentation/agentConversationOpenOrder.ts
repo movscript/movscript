@@ -133,7 +133,7 @@ export function reorderAgentConversationOpenState(
   if (!dragged) return normalized
   const next = normalized.filter((record) => record.id !== draggedId)
   const targetIndex = next.findIndex((record) => record.id === targetId)
-  if (targetIndex < 0) return next
+  if (targetIndex < 0) return normalized
   next.splice(position === 'before' ? targetIndex : targetIndex + 1, 0, dragged)
   return next
 }

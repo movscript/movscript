@@ -353,6 +353,9 @@ importers:
       '@movscript/interpreter':
         specifier: workspace:*
         version: link:../interpreter
+      '@movscript/prompt':
+        specifier: workspace:*
+        version: link:../prompt
       '@movscript/workspace':
         specifier: workspace:*
         version: link:../workspace
@@ -368,6 +371,22 @@ importers:
         version: 5.9.3
 
   packages/language:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/prompt:
+    dependencies:
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../workspace
     devDependencies:
       '@types/node':
         specifier: 22.19.17

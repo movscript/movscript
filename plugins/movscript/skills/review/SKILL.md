@@ -25,8 +25,8 @@ Use this skill when a user asks what changed, whether the project is ready, what
 ## Rules
 
 - Start with `domain_overview` for interpret status and next actions.
-- Use `domain_inspect` for current source changes. Use `domain_review` when the user explicitly asks for review or an older workflow expects that name.
-- `domain_inspect` and `domain_review` are diagnostic only. They report pending files/entities/business changes, issues, and interpret readiness; they do not make source current.
+- Use `domain_inspect` for current source changes. Use `domain_review` only when the user explicitly asks for review or an older workflow expects that name.
+- `domain_inspect` is the primary diagnostic entrypoint. `domain_review` is a compatibility diagnostic alias. They report pending files/entities/business changes, issues, and interpret readiness; they do not write interpreted artifacts.
 - Full affected content unit review is post-interpret. Use `domain_regeneration_plan` after interpret to explain changed entities, affected content units, prompt bundles, preview timelines, and stale selections.
 - Affected does not mean regenerate. Affected means review the downstream target and choose keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept stale.
 - Missing upstream selection means downstream generation should stop until the user selects, confirms, or explicitly accepts an unstable draft path.
@@ -37,8 +37,8 @@ Use this skill when a user asks what changed, whether the project is ready, what
 
 1. Resolve focus with `system_focus_get` when the selected project, production, content unit, or entity matters.
 2. Call `domain_overview`.
-3. If source has pending edits, call `domain_inspect` or `domain_review` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
-4. If the user asks to make current state stable and inspect/review has no blocking errors, interpret only after confirming the review step is now an editing/checkpoint step.
+3. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
+4. If the user asks to refresh interpreted state and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as a read-model refresh, not a publish, approval, commit, or checkpoint.
 5. If explaining generated output readiness or staleness, read content unit artifacts in this order: dependency report, input version, selection validity, runtime panel.
 6. After interpret, call `domain_regeneration_plan` when downstream content may need review.
 7. Open `references/affected-vs-regenerate.md` when explaining stale or affected outputs.
@@ -48,7 +48,7 @@ Use this skill when a user asks what changed, whether the project is ready, what
 Summaries should say:
 
 - What source changed since the last successful interpret.
-- Whether inspect/review found blocking issues.
+- Whether `domain_inspect` found blocking issues.
 - Whether interpreted current state is missing, current, or stale.
 - Which content units or selections are affected or stale, and what decision options exist.
 - Which upstream selections are missing before downstream generation can start.

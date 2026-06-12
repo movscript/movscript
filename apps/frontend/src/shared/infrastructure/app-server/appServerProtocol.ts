@@ -75,6 +75,26 @@ export interface AppServerThreadTurnsListResponse {
   backwardsCursor: string | null
 }
 
+export interface AppServerThreadSettingsUpdateParams extends Record<string, unknown> {
+  threadId: string
+  cwd?: string | null
+  approvalPolicy?: unknown
+  approvalsReviewer?: unknown
+  sandboxPolicy?: unknown
+  permissions?: string | null
+  model?: string | null
+  modelProvider?: string | null
+  serviceTier?: string | null
+  effort?: unknown
+  summary?: unknown
+  collaborationMode?: AppServerJsonValue
+  personality?: unknown
+}
+
+export interface AppServerThreadSettingsUpdateResponse {
+  threadSettings?: unknown
+}
+
 export function appServerTextInput(text: string): import('@/shared/infrastructure/app-server/app-server-protocol/v2/UserInput').UserInput {
   return { type: 'text', text, text_elements: [] }
 }

@@ -81,10 +81,21 @@
   box-shadow: none;
 }
 
+.ms-agent-composer .ms-agent-composer__workspace-select,
+.ms-agent-composer .ai-agent-model-select {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ms-agent-composer .ms-agent-composer__workspace-select {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ms-color-muted-foreground);
+}
+
 .ai-agent-model-select {
   width: min(180px, 48vw);
-  border-color: var(--ms-agent-composer-control-border);
-  background: var(--ms-agent-composer-control-fill);
   padding-inline: 10px 8px;
 }
 

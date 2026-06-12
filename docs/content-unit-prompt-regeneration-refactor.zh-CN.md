@@ -324,6 +324,75 @@ Use upstream visual reference {{asset:wet_hair}}.
 
 这个判断不依赖 hash。它来自 prompt 引用解析和上游 selection 状态。
 
+## Backend Prompt 编译层
+
+新增 `@movscript/prompt` 包作为独立的提示词编译层，和 `interpreter` 保持边界清晰。
+
+`interpreter` 负责解释内容单元语义、依赖关系和可生成性；`@movscript/prompt` 负责把一个内容单元的 `edit_prompt` 编译成后端可以直接理解的提示词。
+
+编译入口应支持：
+
+```ts
+buildContentUnitBackendPromptById({
+  index,
+  contentUnitId,
+  decisionProvider,
+})
+```
+
+其中 `decisionProvider` 必须读取后端 decision context。`selection.json` 不是 source of truth，不能作为新编译链路的数据来源。
+
+编译规则：
+
+- 主 ref 保留为业务语义，例如 `shot_ref` 中的 `{{shot:phone}}` 不会被替换。
+- 上游 input ref 必须先解析到对应 content unit，再读取该 content unit 的后端 selection。
+- 如果后端 selection 能提供 `resource_id`，则把原始 ref 替换成 `[[resource::resource_id]]`。
+- 如果无法安全得到 `resource_id`，返回 `ok: false` 和稳定 blocker，不生成“看似可用”的后端 prompt。
+
+示例：
+
+```text
+Generate {{shot:phone}} using {{asset:wet_hair}}.
+```
+
+当 `asset:wet_hair` 对应的 `asset_ref` 内容单元在后端 decision context 中有：
+
+```json
+{
+  "selection": {
+    "candidate_id": "candidate_a",
+    "resource_id": 123
+  }
+}
+```
+
+编译结果应为：
+
+```text
+Generate {{shot:phone}} using [[resource::123]].
+```
+
+如果该后端 decision context 不存在，或存在但没有 selection/resource，则编译结果必须包含 blocker，例如：
+
+```json
+{
+  "ok": false,
+  "blockers": [
+    {
+      "code": "decision_context_missing",
+      "ref": "{{asset:wet_hair}}",
+      "content_unit_ref": "content_units/cu_wet_hair_ref"
+    }
+  ]
+}
+```
+
+上层调用面：
+
+- `@movscript/prompt` 暴露纯编译 API。
+- `@movscript/engine` 暴露 `buildContentUnitBackendPrompt(contentUnitId)`。
+- MCP/domain 暴露 `domain_build_content_unit_backend_prompt`，用于按项目和内容单元 ID 直接构造后端提示词。
+
 ## Adapter 规则
 
 `contentProductionAdapters.ts` 应从“读取顶层 ref 字段并展开实体上下文”改成“按 type 校验 edit_prompt refs 并构造 runtime_request”。
@@ -465,14 +534,15 @@ Use the selected wet hair reference {{asset:wet_hair}}.
 | `primary_ref_ambiguous` | 当前 type 的主 ref 出现多个 | 是 |
 | `ref_not_found` | prompt ref 无法解析到源实体 | 是 |
 | `upstream_content_unit_not_found` | 上游 input ref 有源实体，但没有对应 content unit | 是 |
-| `upstream_selection_missing` | 上游 content unit 没有 selection | 是 |
+| `upstream_selection_missing` | 上游 content unit 在 decision context 中没有 selection | 是 |
+| `upstream_candidate_missing` | 上游 selection 指向的候选不存在 | 是 |
 | `upstream_selection_stale` | 上游 content unit selection 已过期 | 是 |
 | `upstream_resource_missing` | selection 没有可用 `resource_id` | 是 |
 | `prompt_dependency_cycle` | prompt refs 形成循环依赖 | 是 |
 
 `validate()` 和 `derivePrompt()` 可以都报告 blocker，但最终写入 `runtime_panel.review.blockers` 和 `generation_prompt.blockers` 的结果应该去重。
 
-上游 selection stale 的判断应复用同一套 `selectionValidityFor()` 逻辑。也就是说，下游 Adapter 不能只检查上游 `selection.json` 是否存在，还需要检查该 selection 指向的候选 `prompt_snapshot` 是否仍匹配上游 content unit 的当前规范化提示词。若上游已经 stale，下游也必须 blocked，因为它消费的 resource 不再代表上游的当前提示词版本。
+上游 selection stale 的判断应复用同一套 `selectionValidityFor()` 逻辑。也就是说，下游 Adapter 不能只检查上游 decision context 是否存在 selection，还需要检查该 selection 指向的候选 `prompt_snapshot` 是否仍匹配上游 content unit 的当前规范化提示词。若上游已经 stale，下游也必须 blocked，因为它消费的 resource 不再代表上游的当前提示词版本。
 
 为了避免循环依赖，解释器应维护本轮 prompt ref 解析栈。遇到 `asset_ref -> shot_ref -> asset_ref` 这类环时，应报告 `prompt_dependency_cycle` blocker，而不是递归到栈溢出。
 
@@ -652,20 +722,21 @@ interface ContentUnitRuntimeRequest {
 
 ## Selection Validity
 
-`selection.json` 只负责表达当前选择：
+后端 decision context 负责表达当前选择：
 
 ```json
 {
-  "schema": "movscript.selection.v1",
-  "target": {
-    "kind": "content_unit",
-    "ref": "content_units/cu_phone_shot"
-  },
-  "candidate_id": "candidate_video_1",
-  "resource_id": "resource_video_1",
-  "stale_policy": "strict",
-  "reason": "selected",
-  "selected_at": "2026-06-07T00:03:00.000Z"
+  "schema": "movscript.decision_context.v1",
+  "target_kind": "content_unit",
+  "target_ref": "content_units/cu_phone_shot",
+  "candidates": [],
+  "selection": {
+    "candidate_id": "candidate_video_1",
+    "resource_id": "resource_video_1",
+    "stale_policy": "strict",
+    "reason": "selected",
+    "selected_at": "2026-06-07T00:03:00.000Z"
+  }
 }
 ```
 
@@ -695,6 +766,7 @@ interface ContentUnitSelectionValidity {
     | 'model_intent_changed'
     | 'refs_changed'
     | 'runtime_inputs_changed'
+    | 'candidate_missing'
     | 'candidate_prompt_missing'
     | 'prompt_dependency_missing'
   >

@@ -66,6 +66,16 @@ Show auth status:
 
 ```bash
 pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth status
+pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth info
+pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace whoami
+```
+
+Every command group and leaf command exposes local help:
+
+```bash
+movcli auth --help
+movcli auth status --help
+movcli project demo --help
 ```
 
 ## Workspace Commands
@@ -111,6 +121,7 @@ Interpreter shortcuts are also top-level commands:
 ```bash
 pnpm --filter @movscript/cli dev -- overview --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- inspect --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- inspect --workspace /path/to/project-repo --commit <ref>
 pnpm --filter @movscript/cli dev -- interpret --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- regen plan --workspace /path/to/project-repo
 pnpm --filter @movscript/cli dev -- interactive --workspace /path/to/project-repo

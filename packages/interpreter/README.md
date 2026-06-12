@@ -1,6 +1,6 @@
 # @movscript/interpreter
 
-Interpreter package for translating checkpoint git diffs into MovScript domain impact, reshoot plans, and deterministic artifacts.
+Interpreter package for translating source changes into MovScript diagnostics, impact plans, and deterministic read-model artifacts.
 
 The review/interpret path is intentionally layered:
 

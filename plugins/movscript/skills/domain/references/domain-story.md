@@ -5,13 +5,18 @@ MovScript is a film-production language, not a one-shot prompt system.
 The shared story is:
 
 ```text
-film/source structure
--> reusable continuity facts
--> shot visual/audio anchors
--> content unit production tasks
+request
+-> production granularity decision
+-> focused scene_moment or shot
+-> optional consistency evidence
+-> content unit production task
 -> candidates / selection
 -> interpreter review and stale checks
 ```
+
+MovScript planning should first ask what is being made: a single output, a shot, a scene moment, several scene moments, a segment, or a production. Most video work should then center on either a `scene_moment` or a `shot`.
+
+Settings, assets, keyframes, storyboards, expression units, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
 
 ## Structure Before Content Units
 

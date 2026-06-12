@@ -132,11 +132,26 @@ test('regeneration module returns V1 empty planning surfaces with review impact 
   assert.equal(plan.interpret?.interpretationId, 'interpret_1')
   assert.equal(plan.changedEntities[0]?.entityKind, 'keyframe')
   assert.equal(plan.changedEntities[0]?.affectedContentUnits[0]?.id, 'k41m')
-  assert.deepEqual(plan.affectedContentUnits, [])
-  assert.deepEqual(plan.promptBundles, [])
-  assert.deepEqual(plan.previewTimelines, [])
+  assert.deepEqual(plan.affectedContentUnits, [{
+    contentUnitId: 'k41m',
+    contentUnitPath: 'content_units/k41m',
+    reasons: ['downstream_reference_changed', 'selection_stale'],
+    staleReasons: [],
+  }])
+  assert.deepEqual(plan.promptBundles, [{
+    contentUnitId: 'k41m',
+    contentUnitPath: 'content_units/k41m',
+    reasons: ['downstream_reference_changed', 'selection_stale'],
+    staleReasons: [],
+  }])
+  assert.deepEqual(plan.previewTimelines, [{
+    productionId: 'p8f3',
+    path: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/scene_anchor/keyframe.json',
+    reasons: ['downstream_reference_changed'],
+  }])
   assert.equal(plan.summary.changedEntities, 1)
   assert.equal(plan.summary.staleContentUnits, 1)
+  assert.equal(plan.summary.previewTimelines, 1)
 })
 
 test('overview module summarizes source, interpretation, changes, and next actions', () => {

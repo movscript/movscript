@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -94,13 +95,14 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 	}
 
 	r, err := h.service.Upload(c.Request.Context(), appresource.UploadInput{
-		UserID:   user.ID,
-		OrgID:    currentOrgID(c),
-		FolderID: c.PostForm("folder_id"),
-		Filename: header.Filename,
-		MimeType: header.Header.Get("Content-Type"),
-		Size:     header.Size,
-		Data:     data,
+		UserID:     user.ID,
+		OrgID:      currentOrgID(c),
+		FolderID:   c.PostForm("folder_id"),
+		Filename:   header.Filename,
+		MimeType:   header.Header.Get("Content-Type"),
+		Size:       header.Size,
+		Data:       data,
+		Derivative: parseUploadDerivative(c.PostForm("derivative")),
 	})
 	if err != nil {
 		h.writeResourceError(c, err)
@@ -108,6 +110,28 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 	}
 	h.populateResourceURL(c, &r)
 	c.JSON(http.StatusCreated, r)
+}
+
+func parseUploadDerivative(value string) *appresource.UploadDerivativeInput {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	var body struct {
+		Operation        string          `json:"operation"`
+		Tool             string          `json:"tool"`
+		InputResourceIDs []uint          `json:"input_resource_ids"`
+		Params           json.RawMessage `json:"params"`
+	}
+	if err := json.Unmarshal([]byte(value), &body); err != nil {
+		return &appresource.UploadDerivativeInput{Params: json.RawMessage(`null`)}
+	}
+	return &appresource.UploadDerivativeInput{
+		Operation:        body.Operation,
+		Tool:             body.Tool,
+		InputResourceIDs: body.InputResourceIDs,
+		Params:           body.Params,
+	}
 }
 
 func uploadTooLarge(err error) bool {
@@ -312,6 +336,8 @@ func (h *ResourceHandler) writeResourceError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"code": "RESOURCE_NAME_CONFLICT", "error": "resource filename already exists"})
 	case errors.Is(err, appresource.ErrResourceInUse):
 		c.JSON(http.StatusConflict, gin.H{"code": "RESOURCE_IN_USE", "error": "resource is still referenced"})
+	case errors.Is(err, appresource.ErrInvalidDerivative):
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_RESOURCE_DERIVATIVE", "error": err.Error()})
 	case errors.Is(err, ai.ErrImageVerificationRequired):
 		c.JSON(http.StatusForbidden, gin.H{"error": "image verification required", "code": "IMAGE_VERIFICATION_REQUIRED"})
 	default:

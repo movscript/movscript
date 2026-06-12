@@ -35,6 +35,9 @@ import type {
   MOVSCRIPT_RELATION_GRAPH_PATH,
 } from '@movscript/workspace/layout'
 import type {
+  MovScriptProductionWorkPlan,
+} from '../artifacts/index.js'
+import type {
   MovScriptRegenerationPlanResult,
   MovScriptRegenerationPlanTarget,
 } from './regeneration.js'
@@ -86,7 +89,7 @@ export interface MovScriptWorkspaceReviewResult {
   schema: 'movscript.workspace-review.v1'
   operation: 'review'
   basePath: string
-  checkpoint: {
+  comparisonBase: {
     from?: string
     source: 'git' | 'snapshot' | 'empty'
     workspace: {
@@ -104,6 +107,7 @@ export interface MovScriptWorkspaceReviewResult {
   productionImpacts: MovScriptProductionImpact[]
   selectionValidity: ContentUnitSelectionValiditySnapshot[]
   staleSelections: ContentUnitSelectionValiditySnapshot[]
+  productionWorkPlan?: MovScriptProductionWorkPlan
   reshootTargets: []
   businessChanges: MovScriptWorkspaceBusinessChange[]
   issues: MovScriptWorkspaceReviewIssue[]
@@ -151,14 +155,11 @@ export interface MovScriptWorkspaceRegenerationPlanResult extends MovScriptRegen
 
 export interface MovScriptWorkspaceInterpretResult {
   schema: 'movscript.workspace-interpret-result.v1'
-  operation: 'interpret' | 'commitCheckpoint'
-  status: 'interpreted' | 'failed'
+  operation: 'interpret'
+  status: 'refreshed' | 'failed'
   review: MovScriptWorkspaceReviewResult
-  checkpoint?: {
-    id: string
-    source: 'git' | 'snapshot'
-  }
   index?: MovScriptWorkspaceDomainIndex
+  productionWorkPlan?: MovScriptProductionWorkPlan
   manifest?: MovScriptWorkspaceInterpretManifest
 }
 
@@ -166,8 +167,7 @@ export interface MovScriptWorkspaceInterpretInput {
   fileRepository: MovScriptWorkspaceFileRepository
   decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision'>
   now?: Date
+  commit?: string
   checkpointHash?: string
   debugArtifacts?: boolean
-  commitMessage?: string
-  initGitIfMissing?: boolean
 }

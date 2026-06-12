@@ -13,6 +13,7 @@ import {
   buildContentSourceWorkspaceCandidateCreatePlan,
   buildContentSourceWorkspaceData,
   buildContentSourceWorkspaceHierarchyNodeRecord,
+  createContentSourceWorkspaceRuntime,
   buildContentUnitReorderPatchTaskGraph,
   buildContentUnitTimelineMoveTaskGraph,
   contentUnitTimelineKindRank,
@@ -25,6 +26,7 @@ import {
   pickContentWorkbenchRowIdForDeepLink,
   previewTimelineItemRank,
   previewTimelineRank,
+  productionWorkItemsForTarget,
   reorderContentWorkbenchUnits,
 } from '../dist/content/index.js'
 
@@ -379,11 +381,13 @@ test('core content source workspace builds project workbench data without deskto
         },
       },
       {
-        path: 'content_units/cu_phone/selection.json',
+        path: '.movscript/decisions/content_units/cu_phone/decision_context.json',
         data: {
-          schema: 'movscript.selection.v1',
-          target: { kind: 'content_unit', ref: 'content_units/cu_phone' },
-          candidate_id: 'cand_a',
+          schema: 'movscript.decision_context.v1',
+          target_kind: 'content_unit',
+          target_ref: 'content_units/cu_phone',
+          candidates: [],
+          selection: { candidate_id: 'cand_a' },
         },
       },
     ],
@@ -408,9 +412,63 @@ test('core content source workspace builds project workbench data without deskto
         timelineItem('shot:phone', 'shot', shot, 2, 'scene_moment:rain_call'),
       ],
     }],
+    productionWorkPlan: {
+      schema: 'movscript.production_work_plan.v1',
+      generatedAt: '2026-06-12T00:00:00.000Z',
+      summary: {
+        open: 2,
+        blocking: 1,
+        human_recommended: 1,
+        agent_recommended: 1,
+        ready_to_generate: 1,
+        stale_selections: 0,
+      },
+      items: [
+        {
+          id: 'generate:cu_phone',
+          kind: 'generate_candidates',
+          target: {
+            entityKind: 'content_unit',
+            id: 'cu_phone',
+            path: 'content_units/cu_phone/content_unit.json',
+          },
+          status: 'ready',
+          severity: 'suggestion',
+          recommended_actor: 'agent',
+          priority: 20,
+          reason: 'Content unit can generate more candidates.',
+          actions: [{ type: 'generate_candidates' }],
+        },
+        {
+          id: 'fix:phone',
+          kind: 'fix_source',
+          target: {
+            entityKind: 'shot',
+            id: 'phone',
+            path: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/shot.json',
+          },
+          status: 'blocked',
+          severity: 'blocking',
+          recommended_actor: 'human',
+          priority: 5,
+          reason: 'Shot source needs a duration fix.',
+          actions: [{ type: 'open_editor' }],
+        },
+      ],
+    },
   })
 
   assert.equal(data.source, 'workspace')
+  assert.equal(data.productionWorkPlan?.summary.readyToGenerate, 1)
+  assert.equal(data.productionWorkPlan?.items[0].actionLabels[0], '生成候选')
+  assert.deepEqual(
+    productionWorkItemsForTarget(data.productionWorkPlan, { contentUnitId: 'cu_phone' }).map((item) => item.id),
+    ['generate:cu_phone'],
+  )
+  assert.deepEqual(
+    productionWorkItemsForTarget(data.productionWorkPlan, { path: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone' }).map((item) => item.id),
+    ['fix:phone'],
+  )
   assert.equal(data.previewMoments[0].shots[0].contentUnit.id, 'cu_phone')
   assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].selected, true)
   assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].inputHash, 'hash_live')
@@ -453,6 +511,84 @@ test('core content source workspace plans writes independently from desktop serv
   assert.equal(plan.candidateId, 'queued_test')
   assert.equal(plan.producer.kind, 'content_workbench')
   assert.equal(plan.promptSnapshot.input_hash, 'queued:cu_phone:2026-06-12T00:00:00.000Z')
+
+  const resourcePlan = buildContentSourceWorkspaceCandidateCreatePlan({
+    contentUnitId: 'cu_phone',
+    outputKind: 'video',
+    promptText: 'Use this clip.',
+    candidateId: 'resource_test',
+    createdAt: '2026-06-12T00:00:00.000Z',
+    resourceId: 42,
+    resourceName: 'Rain clip.mp4',
+    resourceType: 'video',
+    resourceMimeType: 'video/mp4',
+  })
+  assert.equal(resourcePlan.source, 'resource_library')
+  assert.equal(resourcePlan.status, 'imported')
+  assert.deepEqual(resourcePlan.outputs, [{ kind: 'video', resource_id: 42, mime_type: 'video/mp4' }])
+  assert.equal(resourcePlan.promptSnapshot.title, 'Rain clip.mp4')
+  assert.equal(resourcePlan.promptSnapshot.input_hash, 'resource:42')
+})
+
+test('content source workspace runtime owns project state without fixture fallback', async () => {
+  const calls = []
+  const runtime = createContentSourceWorkspaceRuntime({
+    port: contentSourceWorkspaceRuntimePort({
+      calls,
+      loadSnapshot: async (projectId) => {
+        calls.push(`load:${projectId}`)
+        return contentSourceWorkspaceSnapshot()
+      },
+    }),
+  })
+
+  await runtime.loadProject(7)
+  assert.equal(runtime.getState().status, 'ready')
+  assert.equal(runtime.getState().data?.source, 'workspace')
+
+  await runtime.selectCandidate({ contentUnitId: 'cu_phone', candidateId: 'cand_b', resourceId: 'res_b' })
+  assert.equal(runtime.getState().sourceSyncStatus, 'dirty')
+  assert.equal(calls.includes('select:cu_phone:cand_b:content_source_workspace_selection'), true)
+
+  const targetContentUnitId = runtime.getState().data?.previewMoments[0].shots[0].contentUnit.id ?? 'cu_phone'
+  await runtime.createCandidate({ contentUnitId: targetContentUnitId, outputKind: 'video', promptText: 'Make the shot.' })
+  assert.equal(runtime.getState().data?.previewMoments[0].shots[0].contentUnit.candidates.some((candidate) => candidate.id.startsWith('queued_')), true)
+
+  await runtime.updateEditPrompt({
+    contentUnitId: 'cu_phone',
+    targetPath: 'content_units/cu_phone/content_unit.json',
+    text: 'New prompt.',
+  })
+  assert.equal(calls.includes('prompt:content_units/cu_phone/content_unit.json:New prompt.'), true)
+
+  await runtime.sync()
+  assert.equal(runtime.getState().sourceSyncStatus, 'synced')
+  assert.equal(calls.includes('interpret:7'), true)
+
+  runtime.showDemo(buildContentSourceWorkspaceData(contentSourceWorkspaceSnapshot()))
+  assert.equal(runtime.getState().status, 'demo')
+  assert.equal(runtime.getState().projectId, undefined)
+
+  const emptyRuntime = createContentSourceWorkspaceRuntime({
+    port: contentSourceWorkspaceRuntimePort({
+      loadSnapshot: async () => contentSourceWorkspaceSnapshot({ empty: true }),
+    }),
+  })
+  await emptyRuntime.loadProject(8)
+  assert.equal(emptyRuntime.getState().status, 'empty')
+  assert.equal(emptyRuntime.getState().data?.previewMoments.length, 0)
+
+  const failingRuntime = createContentSourceWorkspaceRuntime({
+    port: contentSourceWorkspaceRuntimePort({
+      loadSnapshot: async () => {
+        throw new Error('boom')
+      },
+    }),
+  })
+  await failingRuntime.loadProject(9)
+  assert.equal(failingRuntime.getState().status, 'error')
+  assert.equal(failingRuntime.getState().data, undefined)
+  assert.equal(failingRuntime.getState().error, 'boom')
 })
 
 test('core content package publishes workbench data rules without frontend dependencies', () => {
@@ -490,6 +626,123 @@ function entity(entityKind, id, path, fields) {
       id,
       ...fields,
     },
+  }
+}
+
+function contentSourceWorkspaceRuntimePort({ calls = [], loadSnapshot }) {
+  return {
+    loadSnapshot,
+    async selectContentUnitCandidate(input) {
+      calls.push(`select:${input.contentUnitId}:${input.candidateId}:${input.reason}`)
+    },
+    async createContentCandidate(input) {
+      calls.push(`create:${input.contentUnitId}:${input.candidateId}`)
+      return {
+        id: input.candidateId,
+        producer: { model_id: 'queued-model' },
+        prompt_snapshot: input.promptSnapshot,
+        outputs: [{ kind: 'video', resource_id: 'res_queued' }],
+      }
+    },
+    async updateContentUnitEditPrompt(input) {
+      calls.push(`prompt:${input.targetPath}:${input.editPrompt.text}`)
+    },
+    async updateExpressionUnit(input) {
+      calls.push(`expression:${input.targetPath}:${input.patch.title}`)
+    },
+    async updateAudioCue(input) {
+      calls.push(`audio:${input.targetPath}:${input.patch.title}`)
+    },
+    async updateEntityTransition(input) {
+      calls.push(`transition:${input.targetPath}:${input.transition.in}`)
+    },
+    async updateStoryboardTimeline(input) {
+      calls.push(`timeline:${input.targetPath}:${input.timeline.caption}`)
+    },
+    async writeHierarchyNode(input) {
+      calls.push(`write:${input.targetPath}:${input.record.schema}`)
+    },
+    async interpretWorkspace(projectId) {
+      calls.push(`interpret:${projectId}`)
+    },
+  }
+}
+
+function contentSourceWorkspaceSnapshot(options = {}) {
+  if (options.empty) {
+    return {
+      indexDocuments: [],
+      settings: [],
+      settingStates: [],
+      assets: [],
+      productions: [],
+      segments: [],
+      sceneMoments: [],
+      shots: [],
+      storyboards: [],
+      keyframes: [],
+      expressionUnits: [],
+      audioCues: [],
+      contentUnits: [],
+      previewTimelines: [],
+    }
+  }
+  const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
+  const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', order: 1 })
+  const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
+  const shot = entity('shot', 'phone', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/shot.json', {
+    title: 'Phone closeup',
+    timing: { duration_sec: 3 },
+    reference_asset_refs: ['phone_screen'],
+  })
+  const storyboard = entity('storyboard', 'main', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main/storyboard.json', { title: 'Phone board' })
+  const setting = entity('setting', 'rain_rooftop', 'settings/rain_rooftop/setting.json', { title: 'Rain rooftop' })
+  const settingState = entity('setting_state', 'night', 'settings/rain_rooftop/states/night/setting_state.json', { title: 'Night rain' })
+  const asset = entity('asset', 'phone_screen', 'settings/rain_rooftop/states/night/assets/phone_screen/asset.json', { title: 'Phone screen' })
+  const contentUnit = entity('content_unit', 'cu_phone', 'content_units/cu_phone/content_unit.json', {
+    title: 'Phone shot unit',
+    content_unit_type: 'storyboard_ref',
+    output_kind: 'video',
+    edit_prompt: { text: 'Make {{storyboard:main}} with {{asset:phone_screen}}.' },
+  })
+  const entities = [production, segment, moment, shot, storyboard, setting, settingState, asset, contentUnit]
+  return {
+    indexDocuments: [
+      ...entities.map((item) => ({ path: item.path, data: item.record })),
+      {
+        path: 'content_units/cu_phone/candidates/cand_a/content_candidate.json',
+        data: {
+          schema: 'movscript.content_candidate.v1',
+          id: 'cand_a',
+          content_unit_ref: 'content_units/cu_phone',
+          status: 'succeeded',
+          producer: { model_id: 'video-i2v' },
+          outputs: [{ resource_id: 'res_video_1', mime_type: 'video/mp4' }],
+          prompt_snapshot: { input_hash: 'hash_live' },
+        },
+      },
+    ],
+    settings: [setting],
+    settingStates: [settingState],
+    assets: [asset],
+    productions: [production],
+    segments: [segment],
+    sceneMoments: [moment],
+    shots: [shot],
+    storyboards: [storyboard],
+    keyframes: [],
+    expressionUnits: [],
+    audioCues: [],
+    contentUnits: [contentUnit],
+    previewTimelines: [{
+      schema: 'movscript.preview_timeline.v1',
+      productionId: 'pilot',
+      productionPath: 'productions/pilot',
+      items: [
+        timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1),
+        timelineItem('shot:phone', 'shot', shot, 2, 'scene_moment:rain_call'),
+      ],
+    }],
   }
 }
 

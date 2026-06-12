@@ -18,7 +18,6 @@ import {
   MOVSCRIPT_RELATION_GRAPH_PATH,
 } from '@movscript/workspace/layout'
 import {
-  commitCheckpoint,
   resolveWorkspaceSource,
 } from './sourceStore.js'
 import {
@@ -75,7 +74,7 @@ export type {
 export async function overviewMovScriptWorkspace(input: MovScriptWorkspaceInterpretInput): Promise<MovScriptWorkspaceOverviewResult> {
   const now = input.now ?? new Date()
   const inspection = await inspectMovScriptWorkspace({ ...input, now })
-  const source = await resolveWorkspaceSource(input.fileRepository)
+  const source = await resolveWorkspaceSource(input.fileRepository, workspaceSourceOptions(input))
   const latestInterpretation = await loadLatestInterpretManifest(input.fileRepository)
   const regeneration = await planMovScriptWorkspaceRegeneration({ ...input, now })
   return interpretWorkspaceOverview({
@@ -99,7 +98,7 @@ export async function interpretMovScriptWorkspace(input: MovScriptWorkspaceInter
     }
   }
 
-  const source = await resolveWorkspaceSource(input.fileRepository)
+  const source = await resolveWorkspaceSource(input.fileRepository, workspaceSourceOptions(input))
   const editFiles = source.files
   const sourceDocuments = editFiles.map((file): MovScriptWorkspaceDocument => ({
     path: file.relativePath,
@@ -108,15 +107,11 @@ export async function interpretMovScriptWorkspace(input: MovScriptWorkspaceInter
   const documents = await overlayMovScriptDecisionDocuments(sourceDocuments, input.decisionStore)
   const index = deriveMovScriptWorkspaceDomainIndex(documents)
   const interpretationId = interpretationIdFor(now)
-  const checkpoint = await commitCheckpoint(input.fileRepository, editFiles, {
-    now,
-    message: input.commitMessage ?? `MovScript checkpoint ${interpretationId}`,
-    initGitIfMissing: input.initGitIfMissing,
-  })
   const artifacts = deriveMovScriptWorkspaceArtifacts({
     index,
     changedEntities: review.changedEntities,
     semanticChanges: review.semanticChanges,
+    sourceIssues: review.issues,
     interpretationId,
     createdAt: now.toISOString(),
   })
@@ -143,16 +138,16 @@ export async function interpretMovScriptWorkspace(input: MovScriptWorkspaceInter
   }
 
   if (input.debugArtifacts !== false) {
-    await writeDebugArtifacts(input.fileRepository, artifacts, index, manifest, impactReportPath)
+    await writeDebugArtifacts(input.fileRepository, artifacts, index, manifest, impactReportPath, source)
   }
 
   return {
     schema: 'movscript.workspace-interpret-result.v1',
-    operation: 'commitCheckpoint',
-    status: 'interpreted',
+    operation: 'interpret',
+    status: 'refreshed',
     review,
-    checkpoint,
     index,
+    productionWorkPlan: artifacts.productionWorkPlan,
     ...(input.debugArtifacts !== false ? { manifest } : {}),
   }
 }
@@ -174,6 +169,12 @@ function parseWorkspaceDocument(path: string, content: string): unknown {
     return JSON.parse(content) as unknown
   } catch {
     return undefined
+  }
+}
+
+function workspaceSourceOptions(input: MovScriptWorkspaceInterpretInput): { includeContentUnitDecisionDocuments?: boolean } {
+  return {
+    includeContentUnitDecisionDocuments: input.decisionStore ? false : true,
   }
 }
 

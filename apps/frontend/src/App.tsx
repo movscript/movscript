@@ -11,7 +11,7 @@ import {
   AccountSettingsPageSidebar,
   type AccountSettingsPageTab,
 } from './features/app-shell/components/AccountSettingsDialog'
-import { WorkspaceShell } from '@movscript/ui'
+import { WorkspaceShell, useResizablePanel } from '@movscript/ui'
 import { Toaster } from './shared/ui/Toaster'
 import { useProjectStore } from './shared/infrastructure/session/projectStore'
 import { useUserStore } from './shared/infrastructure/session/userStore'
@@ -36,6 +36,9 @@ import {
   APP_SHELL_AGENT_CONTENT_PANE_ID,
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_ASSISTANT_DOCK_PANE_ID,
+  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   appRouteViewportScrollForMode,
@@ -88,6 +91,10 @@ const GlobalHomePage = React.lazy(() => import('./pages/home/GlobalHomePage'))
 const ProjectStandardsPage = React.lazy(() => import('./pages/project/standards/ProjectStandardsPage'))
 const AgentModePage = React.lazy(() => import('./pages/agent-mode/AgentModePage'))
 const AgentModeCanvasListPage = React.lazy(() => import('./pages/agent-mode/AgentModeCanvasListPage'))
+
+function clampTerminalDockHeight(size: number): number {
+  return Math.min(APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT, Math.max(APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT, size))
+}
 const ScriptsPage = React.lazy(() => import('./pages/scripts/ScriptsPage'))
 const AgentConnectionsPage = React.lazy(() => import('./pages/agent/AgentConnectionsPage'))
 const MovScriptWorkspaceFilesPage = React.lazy(() => import('./pages/agent/MovScriptWorkspaceFilesPage'))
@@ -746,6 +753,8 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const terminalPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID,
+    fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+    clampSize: clampTerminalDockHeight,
     fallbackState: 'hidden',
   })
   const detailSidebarHidden = detailSidebarPane.hidden
@@ -797,6 +806,16 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
     }
   }, [currentProject?.ID, userId])
   const terminalPlacement = agentMode ? 'center-right' : 'center'
+  const terminalResize = useResizablePanel({
+    size: terminalPane.size,
+    onSizeChange: terminalPane.setSize,
+    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
+    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+    resizeEdge: 'top',
+    collapsed: !terminalOpen,
+    ariaLabel: '调整 Terminal 高度',
+  })
+  const { active: terminalResizeActive, ...terminalResizeHandleProps } = terminalResize.resizeHandleProps
   const terminalHeaderControl = (
     <AppWindowIconButton
       type="button"
@@ -822,18 +841,45 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       {agentContentPanelClosed ? <PanelRightOpen size={13} /> : <PanelRightClose size={13} />}
     </AppWindowIconButton>
   )
+  const detailAssistantPanelHeaderControl = (
+    <AppWindowIconButton
+      type="button"
+      className="app-window-agent-content-toggle"
+      onClick={detailAssistantPane.hide}
+      title={i18n.t('agents.chat.collapseAssistant')}
+      aria-label={i18n.t('agents.chat.collapseAssistant')}
+    >
+      <PanelRightClose size={13} />
+    </AppWindowIconButton>
+  )
   const terminalPanel = (
-    <React.Suspense fallback={null}>
-      <AgentTerminalPanel
-        open={terminalOpen}
-        onOpenChange={(open) => {
-          if (open) terminalPane.show()
-          else terminalPane.hide()
-        }}
-        shellPlacement={terminalPlacement}
-        workspaceContext={terminalWorkspaceContext}
+    <div
+      className="app-shell-terminal-panel-frame"
+      data-resizing={terminalResize.resizing ? 'true' : undefined}
+      style={{
+        height: terminalPane.size,
+        minHeight: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
+        maxHeight: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+        flexBasis: terminalPane.size,
+      }}
+    >
+      <div
+        className="app-shell-terminal-resize-handle"
+        data-active={terminalResizeActive ? 'true' : undefined}
+        {...terminalResizeHandleProps}
       />
-    </React.Suspense>
+      <React.Suspense fallback={null}>
+        <AgentTerminalPanel
+          open={terminalOpen}
+          onOpenChange={(open) => {
+            if (open) terminalPane.show()
+            else terminalPane.hide()
+          }}
+          shellPlacement={terminalPlacement}
+          workspaceContext={terminalWorkspaceContext}
+        />
+      </React.Suspense>
+    </div>
   )
   const showDetailSidebar = React.useCallback(() => {
     detailSidebarPane.show()
@@ -874,15 +920,6 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   )
   const agentSidebarHeaderControl = (
     <div className="agent-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle agent-sidebar-window-controls__sidebar"
-        onClick={agentSidebarPane.collapsed ? agentSidebarPane.show : agentSidebarPane.collapse}
-        title={agentSidebarPane.collapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
-        aria-label={agentSidebarPane.collapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
-      >
-        {agentSidebarPane.collapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
-      </AppWindowIconButton>
       <AppWindowIconButton
         type="button"
         className="app-window-sidebar-toggle agent-sidebar-window-controls__nav"
@@ -938,7 +975,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
-      appControls={<>{detailHeaderActions}{terminalHeaderControl}</>}
+      appControls={<>{detailAssistantPanelHeaderControl}{detailHeaderActions}{terminalHeaderControl}</>}
       showAssistantShortcut
     />
   ) : undefined

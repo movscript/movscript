@@ -94,6 +94,92 @@ test('interpreter derived artifacts are derived from canonical source only', () 
   assert.equal(artifacts.contentUnitArtifacts.length, 3)
   assert.equal(artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel.content_unit_type, 'shot_ref')
   assert.equal(artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'cu_scene_anchor_keyframe_ref')?.runtimePanel.content_unit_type, 'keyframe_ref')
+  assert.equal(artifacts.productionWorkPlan.schema, 'movscript.production_work_plan.v1')
+  assert.ok(artifacts.productionWorkPlan.items.some((item) => item.kind === 'edit_structure'
+    && item.status === 'blocked'
+    && item.target.id === 'k41m'
+    && item.blockers.some((blocker) => blocker.code === 'upstream_selection_missing')))
+  assert.ok(artifacts.productionWorkPlan.items.some((item) => item.kind === 'generate_candidates'
+    && item.status === 'ready'
+    && item.target.id === 'cu_wet_hair_ref'))
+})
+
+test('production work plan derives candidate selection and stale review items in memory', () => {
+  const documents = sourceDocuments()
+  documents.push({
+    path: '.movscript/decisions/content_units/cu_wet_hair_ref/decision_context.json',
+    data: {
+      schema: 'movscript.decision_context.v1',
+      target_kind: 'content_unit',
+      target_ref: 'content_units/cu_wet_hair_ref',
+      candidates: [{
+        schema: 'movscript.content_candidate.v1',
+        id: 'candidate_wet_hair_1',
+        content_unit_ref: 'content_units/cu_wet_hair_ref',
+        outputs: [{ kind: 'image', resource_id: 'resource_wet_hair_1' }],
+        prompt_snapshot: {
+          schema: 'movscript.content_unit_prompt.v1',
+          content_unit_ref: 'content_units/cu_wet_hair_ref',
+          content_unit_id: 'cu_wet_hair_ref',
+          content_unit_type: 'asset_ref',
+          output_kind: 'image',
+          adapter_version: 'asset_ref@1',
+          refs: [],
+          runtime_request: { capability: 'image', inputs: [] },
+          created_at: '2026-06-06T00:00:00.000Z',
+        },
+      }],
+    },
+  })
+  documents.push({
+    path: '.movscript/decisions/content_units/cu_scene_anchor_keyframe_ref/decision_context.json',
+    data: {
+      schema: 'movscript.decision_context.v1',
+      target_kind: 'content_unit',
+      target_ref: 'content_units/cu_scene_anchor_keyframe_ref',
+      candidates: [{
+        schema: 'movscript.content_candidate.v1',
+        id: 'candidate_anchor_1',
+        content_unit_ref: 'content_units/cu_scene_anchor_keyframe_ref',
+        outputs: [{ kind: 'image', resource_id: 'resource_anchor_1' }],
+        prompt_snapshot: {
+          schema: 'movscript.content_unit_prompt.v1',
+          content_unit_ref: 'content_units/cu_scene_anchor_keyframe_ref',
+          content_unit_id: 'cu_scene_anchor_keyframe_ref',
+          content_unit_type: 'keyframe_ref',
+          output_kind: 'image',
+          adapter_version: 'keyframe_ref@1',
+          edit_prompt: { text: 'Old prompt.' },
+          refs: [],
+          runtime_request: { capability: 'image', inputs: [] },
+          created_at: '2026-06-06T00:00:00.000Z',
+        },
+      }],
+      selection: {
+        candidate_id: 'candidate_anchor_1',
+        resource_id: 'resource_anchor_1',
+        stale_policy: 'strict',
+      },
+    },
+  })
+  const index = deriveMovScriptWorkspaceDomainIndex(documents)
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [],
+    interpretationId: 'interpret_test',
+    createdAt: '2026-06-07T00:00:00.000Z',
+  })
+
+  const selectItem = artifacts.productionWorkPlan.items.find((item) => item.kind === 'select_candidate' && item.target.id === 'cu_wet_hair_ref')
+  const staleItem = artifacts.productionWorkPlan.items.find((item) => item.kind === 'review_stale_selection' && item.target.id === 'cu_scene_anchor_keyframe_ref')
+
+  assert.equal(selectItem?.status, 'ready')
+  assert.equal(selectItem?.recommended_actor, 'human')
+  assert.equal(selectItem?.evidence?.candidateCount, 1)
+  assert.equal(staleItem?.status, 'open')
+  assert.equal(staleItem?.recommended_actor, 'human')
+  assert.ok(Array.isArray(staleItem?.evidence?.staleReasons))
+  assert.ok(staleItem?.actions.some((action) => action.type === 'accept_stale'))
 })
 
 test('interpreter impact report traces planning and asset changes to affected content units', () => {
@@ -128,12 +214,14 @@ test('interpreter impact report traces planning and asset changes to affected co
   const assetChange = artifacts.impactReport.changedEntities.find((entity) => entity.entityKind === 'asset')
   const keyframeChange = artifacts.impactReport.changedEntities.find((entity) => entity.entityKind === 'keyframe')
 
-  assert.equal(storyboardChange?.affectedContentUnits.some((entity) => entity.id === 'k41m'), false)
-  assert.equal(storyboardChange?.staleMarkers.includes('content_unit:k41m:planning_context_changed'), false)
-  assert.equal(assetChange?.affectedContentUnits.length, 0)
-  assert.equal(assetChange?.staleMarkers.length, 0)
-  assert.equal(keyframeChange?.affectedContentUnits.some((entity) => entity.id === 'k41m'), false)
-  assert.equal(keyframeChange?.staleMarkers.includes('content_unit:k41m:visual_anchor_changed'), false)
+  assert.equal(storyboardChange?.affectedContentUnits.some((entity) => entity.id === 'k41m'), true)
+  assert.equal(storyboardChange?.staleMarkers.includes('content_unit:k41m:planning_context_changed'), true)
+  assert.equal(assetChange?.affectedContentUnits.some((entity) => entity.id === 'k41m'), true)
+  assert.equal(assetChange?.affectedContentUnits.some((entity) => entity.id === 'cu_wet_hair_ref'), true)
+  assert.equal(assetChange?.staleMarkers.includes('content_unit:k41m:setting_context_changed'), true)
+  assert.equal(keyframeChange?.affectedContentUnits.some((entity) => entity.id === 'k41m'), true)
+  assert.equal(keyframeChange?.affectedContentUnits.some((entity) => entity.id === 'cu_scene_anchor_keyframe_ref'), true)
+  assert.equal(keyframeChange?.staleMarkers.includes('content_unit:k41m:visual_anchor_changed'), true)
 })
 
 test('content unit artifacts derive runtime panels from edit_prompt plus adapter context', () => {
@@ -164,4 +252,36 @@ test('content unit artifacts derive runtime panels from edit_prompt plus adapter
   assert.equal(video?.generationPrompt.refs.some((ref) => ref.kind === 'shot' && ref.id === 'phone' && ref.role === 'primary'), true)
   assert.equal(video?.generationPrompt.refs.some((ref) => ref.kind === 'asset' && ref.id === 'wet_hair' && ref.role === 'input'), true)
   assert.ok(video?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_missing'))
+})
+
+test('content unit runtime requests include project style reference images', () => {
+  const documents = sourceDocuments().map((document) => {
+    if (document.path !== 'project_standards.json') return document
+    return {
+      ...document,
+      data: {
+        ...document.data,
+        custom_rules: [{
+          key: 'style_reference_images',
+          label: 'Style references',
+          enabled: true,
+          value: '画风参考图片：resource#88；reference_resource_ids=[88, 99]。',
+        }],
+      },
+    }
+  })
+  const index = deriveMovScriptWorkspaceDomainIndex(documents)
+
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [],
+    interpretationId: 'interpret_test',
+    createdAt: '2026-06-07T00:00:00.000Z',
+  })
+  const video = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')
+  const styleInputs = video?.runtimePanel.runtime_request?.inputs.filter((input) => input.role === 'style_reference')
+
+  assert.deepEqual(styleInputs?.map((input) => input.resource_id), [88, 99])
+  assert.deepEqual(video?.runtimePanel.runtime_request?.metadata?.style_reference_resource_ids, [88, 99])
+  assert.equal(styleInputs?.every((input) => input.kind === 'image' && input.required === false), true)
 })

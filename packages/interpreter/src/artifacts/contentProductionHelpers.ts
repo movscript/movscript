@@ -52,6 +52,23 @@ export function resolveAssetRefSelections(
   })
 }
 
+export function projectStyleReferenceResourceIds(
+  index: MovScriptWorkspaceDomainIndex,
+): Array<string | number> {
+  const standards = firstEntity(index, 'project_standards')
+  if (!standards) return []
+  return uniqueIds([
+    ...resourceIdsFromValue(standards.record.style_reference_images),
+    ...resourceIdsFromValue(standards.record.style_references),
+    ...resourceIdsFromValue(standards.record.reference_resource_ids),
+    ...arrayField(standards.record.custom_rules)
+      .filter(isRecord)
+      .filter((rule) => rule.enabled !== false)
+      .filter((rule) => stringField(rule.key) === 'style_reference_images')
+      .flatMap((rule) => resourceIdsFromValue(rule.value)),
+  ])
+}
+
 const PROMPT_REF_PATTERN = /\{\{([a-z_]+):([^{}:\s][^{}]*)\}\}/g
 
 export function parseContentUnitEditPromptRefs(value: unknown): ContentUnitPromptRef[] {
@@ -229,9 +246,16 @@ export function readSelectedContentUnit(
   index: MovScriptWorkspaceDomainIndex,
   contentUnitRef: string,
 ): Record<string, unknown> | undefined {
-  return index.documents.find((document) => {
-    return document.path === `${contentUnitRef}/selection.json` && isRecord(document.data)
+  const context = index.documents.find((document) => {
+    if (!isRecord(document.data)) return false
+    if (document.data.schema !== 'movscript.decision_context.v1') return false
+    return document.data.target_kind === 'content_unit' && document.data.target_ref === contentUnitRef
   })?.data as Record<string, unknown> | undefined
+  const selection = recordField(context?.selection)
+  return selection ? {
+    ...selection,
+    stale_policy: selection.stale_policy === 'accept_stale' ? 'accept_stale' : 'strict',
+  } : undefined
 }
 
 export function findEntityByRef(
@@ -311,6 +335,46 @@ export function recordField(value: unknown): Record<string, unknown> | undefined
 
 export function arrayField(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
+}
+
+function resourceIdsFromValue(value: unknown): Array<string | number> {
+  if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue)
+  const text = stringField(value)
+  if (text) {
+    const ids: Array<string | number> = []
+    const patterns = [
+      /resource#([0-9]+)/gi,
+      /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi,
+      /style_reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi,
+    ]
+    for (const pattern of patterns) {
+      for (const match of text.matchAll(pattern)) {
+        for (const part of String(match[1] ?? '').split(',')) {
+          const parsed = Number(part.trim())
+          if (Number.isInteger(parsed) && parsed > 0) ids.push(parsed)
+        }
+      }
+    }
+    if (ids.length > 0) return ids
+    const parsed = Number(text)
+    return Number.isInteger(parsed) && parsed > 0 ? [parsed] : []
+  }
+  const id = idField(value)
+  if (id !== undefined) return [id]
+  if (isRecord(value)) return resourceIdsFromValue(value.resource_id ?? value.resourceId ?? value.id)
+  return []
+}
+
+function uniqueIds(values: Array<string | number>): Array<string | number> {
+  const seen = new Set<string>()
+  const output: Array<string | number> = []
+  for (const value of values) {
+    const key = String(value)
+    if (seen.has(key)) continue
+    seen.add(key)
+    output.push(value)
+  }
+  return output
 }
 
 export function stringField(value: unknown): string | undefined {

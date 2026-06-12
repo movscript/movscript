@@ -30,6 +30,10 @@ import {
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_ASSISTANT_DOCK_PANE_ID,
   APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
+  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
+  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
   routeLayoutSpecForPathname,
@@ -40,6 +44,8 @@ import {
 } from '@/features/agent/presentation/agentDetailAssistantPaneSizing'
 import {
   allowedRouteLayoutPaneState,
+  readRouteLayoutPaneSize,
+  readRouteLayoutPaneState,
   routeLayoutPaneById,
   routeLayoutPaneDefaultState,
   routeLayoutPaneStateStorageKey,
@@ -65,6 +71,10 @@ test('route layout pane controller derives terminal dock state contract from rou
   const pane = routeLayoutPaneById(routeLayout, APP_SHELL_TERMINAL_DOCK_PANE_ID)
 
   assert.equal(routeLayoutPaneStateStorageKey(pane), APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY)
+  assert.equal(pane?.storageKey, APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY)
+  assert.equal(pane?.defaultSize, APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT)
+  assert.equal(pane?.minSize, APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT)
+  assert.equal(pane?.maxSize, APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT)
   assert.equal(routeLayoutPaneDefaultState(pane), 'hidden')
   assert.equal(allowedRouteLayoutPaneState(pane, 'default'), 'default')
   assert.equal(allowedRouteLayoutPaneState(pane, 'collapsed'), 'default')
@@ -104,6 +114,114 @@ test('route layout pane controller derives agent shell pane state contract from 
   assert.notEqual(contentPane?.stateStorageKey, LEGACY_AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
 })
 
+test('route layout pane controller restores persisted agent shell pane sizes and states', () => {
+  const previousWindow = globalThis.window
+  const storage = new Map<string, string>()
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+    },
+  } as typeof window
+
+  try {
+    const routeLayout = routeLayoutSpecForPathname('/project/agent')
+    const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
+    const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
+
+    storage.set(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, '340')
+    storage.set(AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY, 'collapsed')
+    storage.set(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, '980')
+    storage.set(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY, 'default')
+
+    assert.equal(readRouteLayoutPaneSize(sidebarPane?.storageKey, sidebarPane?.defaultSize ?? 0), 340)
+    assert.equal(readRouteLayoutPaneState(sidebarPane, routeLayoutPaneStateStorageKey(sidebarPane)), 'collapsed')
+    assert.equal(readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0), 980)
+    assert.equal(readRouteLayoutPaneState(contentPane, routeLayoutPaneStateStorageKey(contentPane)), 'default')
+
+    storage.set(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, 'not-a-number')
+    storage.set(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY, 'hidden')
+
+    assert.equal(readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0), contentPane?.defaultSize)
+    assert.equal(readRouteLayoutPaneState(contentPane, routeLayoutPaneStateStorageKey(contentPane)), 'default')
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+test('route layout pane controller restores persisted terminal dock height', () => {
+  const previousWindow = globalThis.window
+  const storage = new Map<string, string>()
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+    },
+  } as typeof window
+
+  try {
+    const routeLayout = routeLayoutSpecForPathname('/project/agent')
+    const terminalPane = routeLayoutPaneById(routeLayout, APP_SHELL_TERMINAL_DOCK_PANE_ID)
+
+    storage.set(APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY, '420')
+    storage.set(APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY, 'default')
+
+    assert.equal(readRouteLayoutPaneSize(terminalPane?.storageKey, terminalPane?.defaultSize ?? 0), 420)
+    assert.equal(readRouteLayoutPaneState(terminalPane, routeLayoutPaneStateStorageKey(terminalPane)), 'default')
+
+    storage.set(APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY, '1200')
+    assert.equal(
+      readRouteLayoutPaneSize(terminalPane?.storageKey, terminalPane?.defaultSize ?? 0, (size) => {
+        return Math.min(terminalPane?.maxSize as number, Math.max(terminalPane?.minSize as number, size))
+      }),
+      APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+    )
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
+test('route layout pane controller clamps restored agent pane sizes', () => {
+  const previousWindow = globalThis.window
+  const storage = new Map<string, string>()
+  globalThis.window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+    },
+  } as typeof window
+
+  try {
+    const routeLayout = routeLayoutSpecForPathname('/project/agent')
+    const sidebarPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_SIDEBAR_PANE_ID)
+    const contentPane = routeLayoutPaneById(routeLayout, APP_SHELL_AGENT_CONTENT_PANE_ID)
+
+    storage.set(AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY, '80')
+    storage.set(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, '5000')
+
+    assert.equal(
+      readRouteLayoutPaneSize(sidebarPane?.storageKey, sidebarPane?.defaultSize ?? 0, (size) => {
+        return Math.min(sidebarPane?.maxSize as number, Math.max(sidebarPane?.minSize as number, size))
+      }),
+      sidebarPane?.minSize,
+    )
+    assert.equal(
+      readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0, (size) => {
+        return Math.min(contentPane?.maxSize as number, Math.max(contentPane?.minSize as number, size))
+      }),
+      contentPane?.maxSize,
+    )
+  } finally {
+    globalThis.window = previousWindow
+  }
+})
+
 test('shell layout consumes detail sidebar state through the route pane controller', () => {
   const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
   const projectAgentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
@@ -112,11 +230,15 @@ test('shell layout consumes detail sidebar state through the route pane controll
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_DETAIL_SIDEBAR_PANE_ID/)
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_ASSISTANT_DOCK_PANE_ID[\s\S]*clampSize: clampDetailAgentPanelWidth[\s\S]*controlledState: detailAgentPanelOpen \? 'default' : 'hidden'/)
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackState: 'hidden'/)
+  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT[\s\S]*clampSize: clampTerminalDockHeight[\s\S]*fallbackState: 'hidden'/)
+  assert.match(appSource, /useResizablePanel\(\{[\s\S]*size: terminalPane\.size[\s\S]*onSizeChange: terminalPane\.setSize[\s\S]*resizeEdge: 'top'/)
+  assert.match(appSource, /className="app-shell-terminal-resize-handle"[\s\S]*\{...terminalResizeHandleProps\}/)
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*clampSize: clampAgentModeSidebarWidth[\s\S]*\}\)/)
   assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*clampSize: clampAgentModeContentPanelWidth[\s\S]*fallbackState: 'default'[\s\S]*\}\)/)
   assert.match(appSource, /detailSidebarPane\.hidden/)
   assert.match(appSource, /detailSidebarPane\.setSize/)
   assert.match(appSource, /detailAssistantPane\.hidden/)
+  assert.match(appSource, /appControls=\{<>\{detailAssistantPanelHeaderControl\}\{detailHeaderActions\}\{terminalHeaderControl\}<\/>\}/)
   assert.match(appSource, /detailAssistantPane\.size/)
   assert.match(appSource, /onWidthChange=\{detailAssistantPane\.setSize\}/)
   assert.match(appSource, /const terminalOpen = !terminalPane\.hidden/)

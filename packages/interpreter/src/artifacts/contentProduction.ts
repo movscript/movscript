@@ -110,7 +110,11 @@ function selectionValidityFor(
   const candidatePromptRecord = recordField(candidate?.prompt_snapshot)
   const candidatePrompt = isNormalizedContentUnitPrompt(candidatePromptRecord) ? candidatePromptRecord : undefined
   const staleReasons = selection
-    ? staleReasonsFor(currentPrompt, candidatePrompt)
+    ? staleReasonsFor(currentPrompt, {
+      candidateId: selectedCandidateId,
+      candidate,
+      candidatePrompt,
+    })
     : []
   return {
     schema: 'movscript.content_unit_selection_validity.v2',
@@ -140,8 +144,14 @@ function readContentUnitCandidate(
 
 function staleReasonsFor(
   currentPrompt: NormalizedContentUnitPrompt,
-  candidatePrompt: NormalizedContentUnitPrompt | undefined,
+  input: {
+    candidateId: string | number | undefined
+    candidate: Record<string, unknown> | undefined
+    candidatePrompt: NormalizedContentUnitPrompt | undefined
+  },
 ): NonNullable<ContentUnitSelectionValidity['stale_reasons']> {
+  if (input.candidateId !== undefined && !input.candidate) return ['candidate_missing']
+  const candidatePrompt = input.candidatePrompt
   if (!candidatePrompt) return ['candidate_prompt_missing']
   const reasons = new Set<NonNullable<ContentUnitSelectionValidity['stale_reasons']>[number]>()
   if (!sameCanonical(currentPrompt.edit_prompt, candidatePrompt.edit_prompt)) reasons.add('edit_prompt_changed')

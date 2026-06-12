@@ -13,6 +13,8 @@ import {
   type AppServerThreadTurnsListResponse,
   type AppServerThreadResumeParams,
   type AppServerThreadResumeResponse,
+  type AppServerThreadSettingsUpdateParams,
+  type AppServerThreadSettingsUpdateResponse,
   type AppServerThreadStartParams,
   type AppServerThreadStartResponse,
   type AppServerTurnInterruptParams,
@@ -75,6 +77,7 @@ const APP_SERVER_RPC_DEBUG_METHODS = new Set([
   'thread/list',
   'thread/read',
   'thread/resume',
+  'thread/settings/update',
   'thread/goal/clear',
   'thread/goal/get',
   'thread/goal/set',
@@ -243,6 +246,11 @@ export class AppServerRpcClient {
   async resumeThread(params: AppServerThreadResumeParams) {
     await this.initialize()
     return this.request<AppServerThreadResumeResponse>('thread/resume', compactRecord(params))
+  }
+
+  async updateThreadSettings(params: AppServerThreadSettingsUpdateParams) {
+    await this.initialize()
+    return this.request<AppServerThreadSettingsUpdateResponse>('thread/settings/update', compactRecord(params))
   }
 
   async startTurn(params: AppServerTurnStartParams) {

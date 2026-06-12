@@ -619,8 +619,8 @@
 }
 
 .app-shell-terminal-region .agent-terminal-panel {
-  height: min(34vh, 320px);
-  max-height: min(42vh, 360px);
+  height: 100%;
+  max-height: none;
   flex: 1 1 auto;
   border: 1px solid var(--agent-terminal-border);
   border-radius: 0 0 var(--app-shell-slot-radius, var(--ms-radius-lg)) var(--app-shell-slot-radius, var(--ms-radius-lg));

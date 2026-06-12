@@ -10,11 +10,13 @@ import {
   createMovScriptWorkspaceService,
 } from '../../workspace/dist/index.js'
 import {
+  commitCheckpoint,
   interpretMovScriptWorkspace,
   inspectMovScriptWorkspace,
   overviewMovScriptWorkspace,
   planMovScriptWorkspaceRegeneration,
   reviewMovScriptWorkspace,
+  resolveWorkspaceSource,
 } from '../dist/node.js'
 import {
   createNodeMovScriptWorkspaceFileRepository,
@@ -48,7 +50,8 @@ test('workspace review carries json array order changes into entity and semantic
     now: new Date('2026-06-07T00:00:00.000Z'),
     debugArtifacts: false,
   })
-  assert.equal(interpretation.status, 'interpreted')
+  assert.equal(interpretation.status, 'refreshed')
+  await snapshotBaseline(repository, new Date('2026-06-07T00:00:30.000Z'))
 
   keyframe.reference_asset_refs = ['umbrella', 'wet_hair']
   files.set(keyframePath, JSON.stringify(keyframe))
@@ -92,13 +95,16 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
     model_intent: { capability: 'video', duration_sec: 6 },
   }))
   const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
   const service = createMovScriptWorkspaceService({
     fileRepository: repository,
+    decisionStore,
     now: () => new Date('2026-06-07T00:00:00.000Z'),
   })
 
   const review = await reviewMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
   assert.equal(review.readyToInterpret, true)
@@ -106,9 +112,10 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
 
   const initialInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
-  assert.equal(initialInterpretation.status, 'interpreted')
+  assert.equal(initialInterpretation.status, 'refreshed')
 
   const runtimePanel = await service.readContentUnitRuntimePanel('cu_scene_video_custom')
   const dependencyReport = await service.readContentUnitDependencyReport('cu_scene_video_custom')
@@ -139,9 +146,10 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
 
   const selectionInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:03:00.000Z'),
   })
-  assert.equal(selectionInterpretation.status, 'interpreted')
+  assert.equal(selectionInterpretation.status, 'refreshed')
   const selectedValidity = await service.readContentUnitSelectionValidity('cu_scene_video_custom')
   assert.equal(selectedValidity?.schema, 'movscript.content_unit_selection_validity.v2')
   assert.equal(selectedValidity?.stale, false)
@@ -153,9 +161,10 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
 
   const upstreamInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:00.000Z'),
   })
-  assert.equal(upstreamInterpretation.status, 'interpreted')
+  assert.equal(upstreamInterpretation.status, 'refreshed')
 
   const nextValidity = await service.readContentUnitSelectionValidity('cu_scene_video_custom')
   const impactReport = JSON.parse(files.get(upstreamInterpretation.manifest.output.impactReportPath))
@@ -166,6 +175,7 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
 
   const regenerationPlan = await planMovScriptWorkspaceRegeneration({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:30.000Z'),
   })
   assert.equal(regenerationPlan.affectedContentUnits.some((target) => target.contentUnitId === 'cu_scene_video_custom'), false)
@@ -192,7 +202,9 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
 
-  assert.equal(result.status, 'interpreted')
+  assert.equal(result.status, 'refreshed')
+  assert.equal(result.productionWorkPlan?.schema, 'movscript.production_work_plan.v1')
+  assert.ok(result.productionWorkPlan?.items.some((item) => item.kind === 'edit_structure' && item.target.id === 'k41m'))
   assert.equal(result.manifest?.source.sourceMode, 'source')
   assert.equal(files.has('.interpret/current/settings/hero/setting.json'), true)
   assert.equal(files.has('.interpret/current/content_units/k41m/content_unit.json'), true)
@@ -201,6 +213,7 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.equal(files.has('.interpret/indexes/relation-graph.json'), true)
   assert.equal(files.has('.interpret/current/domain-tree.json'), true)
   assert.equal(files.has('.interpret/current/editor-state.json'), true)
+  assert.equal(files.has('.interpret/current/production_work_plan.json'), false)
   assert.equal(files.has('.interpret/current/content_units/k41m/runtime_panel.json'), true)
   assert.equal(files.has('.interpret/current/content_units/k41m/generation_prompt.json'), true)
   assert.equal(files.has('.interpret/current/content_units/k41m/dependency_report.json'), true)
@@ -259,7 +272,7 @@ test('interpreter tracks scence_moment_ref content units as scene videos', async
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
 
-  assert.equal(result.status, 'interpreted')
+  assert.equal(result.status, 'refreshed')
   const runtimePanel = JSON.parse(files.get('.interpret/current/content_units/cu_r72k_scene_video/runtime_panel.json'))
   const generationPrompt = JSON.parse(files.get('.interpret/current/content_units/cu_r72k_scene_video/generation_prompt.json'))
   const previewTimeline = JSON.parse(files.get('.interpret/current/productions/p8f3/preview_timeline.json'))
@@ -271,7 +284,7 @@ test('interpreter tracks scence_moment_ref content units as scene videos', async
   assert.ok(previewTimeline.items.some((item) => item.itemType === 'content_unit' && item.entity.id === 'cu_r72k_scene_video' && item.parentId === 'scene_moment:r72k'))
 })
 
-test('workspace review maps git checkpoint text diff to entity, semantic, and production impact', async () => {
+test('workspace review maps git baseline text diff to entity, semantic, and production impact', async () => {
   const rootDir = join(tmpdir(), `movscript-git-${Date.now()}-${Math.random().toString(16).slice(2)}`)
   try {
     await mkdir(rootDir, { recursive: true })
@@ -284,7 +297,7 @@ test('workspace review maps git checkpoint text diff to entity, semantic, and pr
     await execFileAsync('git', ['-C', rootDir, 'config', 'user.name', 'MovScript Test'])
     await execFileAsync('git', ['-C', rootDir, 'config', 'user.email', 'movscript-test@example.invalid'])
     await execFileAsync('git', ['-C', rootDir, 'add', '.'])
-    await execFileAsync('git', ['-C', rootDir, 'commit', '-m', 'initial checkpoint'])
+    await execFileAsync('git', ['-C', rootDir, 'commit', '-m', 'initial baseline'])
     const { stdout: headStdout } = await execFileAsync('git', ['-C', rootDir, 'rev-parse', 'HEAD'])
     const head = headStdout.trim()
 
@@ -297,9 +310,17 @@ test('workspace review maps git checkpoint text diff to entity, semantic, and pr
       fileRepository: createNodeMovScriptWorkspaceFileRepository(rootDir),
       now: new Date('2026-06-07T00:00:00.000Z'),
     })
+    const inspectionFromCommit = await inspectMovScriptWorkspace({
+      fileRepository: createNodeMovScriptWorkspaceFileRepository(rootDir),
+      now: new Date('2026-06-07T00:00:00.000Z'),
+      commit: head,
+    })
 
-    assert.equal(review.checkpoint.source, 'git')
-    assert.equal(review.checkpoint.from, head)
+    assert.equal(review.comparisonBase.source, 'git')
+    assert.equal(review.comparisonBase.from, head)
+    assert.equal(inspectionFromCommit.comparisonBase.source, 'git')
+    assert.equal(inspectionFromCommit.comparisonBase.from, head)
+    assert.ok(inspectionFromCommit.changedFiles.some((file) => file.path === keyframePath && file.state === 'modified'))
     assert.ok(review.entityChanges.some((change) => {
       return change.entityKind === 'keyframe'
         && change.id === 'scene_anchor'
@@ -316,7 +337,12 @@ test('workspace review maps git checkpoint text diff to entity, semantic, and pr
         && impact.businessKinds.includes('keyframe_changed')
         && impact.businessImpacts.includes('Keyframe changed')
         && impact.contentUnit?.id === 'k41m'
-    }), false)
+    }), true)
+    assert.equal(review.productionWorkPlan?.items.some((item) => {
+      return item.kind === 'review_affected_output'
+        && item.target.id === 'k41m'
+        && item.upstream?.some((entity) => entity.entityKind === 'keyframe' && entity.id === 'scene_anchor')
+    }), true)
     assert.equal(review.issues.some((issue) => issue.message.includes('git diff reported source file changes not present')), false)
     assert.equal(review.reshootTargets.length, 0)
   } finally {
@@ -375,7 +401,7 @@ test('git source file change reader reports working tree changes from a checkpoi
   }
 })
 
-test('workspace interpret can explicitly initialize git and commit a checkpoint', async () => {
+test('workspace interpret refreshes read models without initializing git or committing source', async () => {
   const rootDir = join(tmpdir(), `movscript-git-init-${Date.now()}-${Math.random().toString(16).slice(2)}`)
   try {
     await mkdir(rootDir, { recursive: true })
@@ -388,28 +414,18 @@ test('workspace interpret can explicitly initialize git and commit a checkpoint'
     const result = await interpretMovScriptWorkspace({
       fileRepository: createNodeMovScriptWorkspaceFileRepository(rootDir),
       now: new Date('2026-06-07T00:00:00.000Z'),
-      initGitIfMissing: true,
       debugArtifacts: false,
     })
 
-    assert.equal(result.status, 'interpreted')
-    assert.equal(result.checkpoint?.source, 'git')
-    assert.ok(result.checkpoint?.id)
-    const { stdout } = await execFileAsync('git', ['-C', rootDir, 'rev-parse', '--verify', 'HEAD'])
-    assert.equal(stdout.trim(), result.checkpoint?.id)
-
-    const cleanReview = await reviewMovScriptWorkspace({
-      fileRepository: createNodeMovScriptWorkspaceFileRepository(rootDir),
-      now: new Date('2026-06-07T00:01:00.000Z'),
-    })
-    assert.equal(cleanReview.checkpoint.source, 'git')
-    assert.equal(cleanReview.summary.total, 0)
+    assert.equal(result.status, 'refreshed')
+    assert.equal(result.baseline, undefined)
+    await assert.rejects(() => execFileAsync('git', ['-C', rootDir, 'rev-parse', '--verify', 'HEAD']))
   } finally {
     await rm(rootDir, { recursive: true, force: true })
   }
 })
 
-test('workspace interpret can disable .interpret debug artifacts while keeping checkpoint review', async () => {
+test('workspace interpret can disable .interpret debug artifacts without writing a comparison baseline', async () => {
   const files = new Map(sourceFileEntries())
   const repository = memoryWorkspaceFileRepository(files)
 
@@ -418,17 +434,10 @@ test('workspace interpret can disable .interpret debug artifacts while keeping c
     now: new Date('2026-06-07T00:00:00.000Z'),
     debugArtifacts: false,
   })
-  assert.equal(result.status, 'interpreted')
+  assert.equal(result.status, 'refreshed')
   assert.equal(result.manifest, undefined)
   assert.equal([...files.keys()].some((path) => path.startsWith('.interpret/')), false)
-  assert.equal(files.has('checkpoints/current/source/project.json'), true)
-
-  const review = await reviewMovScriptWorkspace({
-    fileRepository: repository,
-    now: new Date('2026-06-07T00:01:00.000Z'),
-  })
-  assert.equal(review.checkpoint.source, 'snapshot')
-  assert.equal(review.summary.total, 0)
+  assert.equal(files.has('checkpoints/current/source/project.json'), false)
 })
 
 test('workspace inspect exposes edit-impact semantics', async () => {
@@ -439,6 +448,7 @@ test('workspace inspect exposes edit-impact semantics', async () => {
     now: new Date('2026-06-07T00:00:00.000Z'),
     debugArtifacts: false,
   })
+  await snapshotBaseline(repository, new Date('2026-06-07T00:00:30.000Z'))
   const project = JSON.parse(files.get('project.json'))
   project.title = 'Demo Revised'
   files.set('project.json', `${JSON.stringify(project, null, 2)}\n`)
@@ -452,7 +462,7 @@ test('workspace inspect exposes edit-impact semantics', async () => {
   assert.equal(inspection.operation, 'inspect')
   assert.equal(inspection.readyToInterpret, true)
   assert.ok(inspection.changedFiles.some((file) => file.path === 'project.json' && file.state === 'modified'))
-  assert.equal(inspection.checkpoint.source, 'snapshot')
+  assert.equal(inspection.comparisonBase.source, 'snapshot')
   assert.equal(inspection.summary.businessChanges, inspection.changedEntities.length)
   assert.ok(inspection.entityChanges.some((change) => change.entityKind === 'project' && change.fieldChanges?.some((field) => field.field === 'title')))
   assert.ok(inspection.semanticChanges.some((change) => change.entity.kind === 'project' && change.kind === 'metadata_changed'))
@@ -482,6 +492,7 @@ test('workspace inspect separates source document changes from business changes'
     now: new Date('2026-06-07T00:00:00.000Z'),
     debugArtifacts: false,
   })
+  await snapshotBaseline(repository, new Date('2026-06-07T00:00:30.000Z'))
   files.set('scripts/main/script.md', 'new script text\n')
 
   const inspection = await inspectMovScriptWorkspace({
@@ -513,6 +524,7 @@ test('workspace overview summarizes pending edits, interpretation state, regener
     fileRepository: repository,
     now: new Date('2026-06-07T00:01:00.000Z'),
   })
+  await snapshotBaseline(repository, new Date('2026-06-07T00:01:30.000Z'))
 
   const afterOverview = await overviewMovScriptWorkspace({
     fileRepository: repository,
@@ -542,6 +554,7 @@ test('workspace review treats script markdown as document source, not semantic e
     now: new Date('2026-06-07T00:00:00.000Z'),
     debugArtifacts: false,
   })
+  await snapshotBaseline(repository, new Date('2026-06-07T00:00:30.000Z'))
   files.set('scripts/main/script.md', 'new script text\n')
 
   const review = await reviewMovScriptWorkspace({
@@ -565,6 +578,7 @@ test('workspace interpret removes deleted source files from current interpreted 
     fileRepository: repository,
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
+  await snapshotBaseline(repository, new Date('2026-06-07T00:00:30.000Z'))
   files.delete('settings/removed/setting.json')
 
   const review = await reviewMovScriptWorkspace({
@@ -587,7 +601,7 @@ test('workspace interpret removes deleted source files from current interpreted 
     now: new Date('2026-06-07T00:02:00.000Z'),
   })
 
-  assert.equal(result.status, 'interpreted')
+  assert.equal(result.status, 'refreshed')
   assert.equal(files.has('.interpret/current/settings/removed/setting.json'), false)
 })
 
@@ -605,7 +619,7 @@ test('workspace interpret removes stale preview timelines for deleted production
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
 
-  assert.equal(result.status, 'interpreted')
+  assert.equal(result.status, 'refreshed')
   assert.equal(files.has('.interpret/current/productions/old/preview_timeline.json'), false)
   assert.equal(files.has('.interpret/current/productions/p8f3/preview_timeline.json'), true)
 })
@@ -624,7 +638,72 @@ test('workspace interpret removes stale content unit artifacts for deleted conte
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
 
-  assert.equal(result.status, 'interpreted')
+  assert.equal(result.status, 'refreshed')
   assert.equal(files.has('.interpret/current/content_units/old/runtime_panel.json'), false)
   assert.equal(files.has('.interpret/current/content_units/k41m/runtime_panel.json'), true)
 })
+
+function memoryDecisionStore() {
+  const contexts = new Map()
+  const targetRef = (contentUnitId) => `content_units/${String(contentUnitId)}`
+  const key = (contentUnitId) => `content_unit:${targetRef(contentUnitId)}`
+  const ensure = (contentUnitId) => {
+    const contextKey = key(contentUnitId)
+    const existing = contexts.get(contextKey)
+    if (existing) return existing
+    const context = {
+      target_kind: 'content_unit',
+      target_ref: targetRef(contentUnitId),
+      candidates: [],
+      status: 'open',
+    }
+    contexts.set(contextKey, context)
+    return context
+  }
+  return {
+    async getContentUnitDecision(input) {
+      return contexts.get(key(input.contentUnitId))
+    },
+    async replaceContentUnitCandidates(input) {
+      const context = ensure(input.contentUnitId)
+      context.candidates = input.candidates
+      return context
+    },
+    async upsertContentUnitCandidate(input) {
+      const context = ensure(input.contentUnitId)
+      const index = context.candidates.findIndex((candidate) => String(candidate.id) === String(input.candidate.id))
+      if (index >= 0) context.candidates[index] = input.candidate
+      else context.candidates.push(input.candidate)
+      return context
+    },
+    async selectContentUnitCandidate(input) {
+      const context = ensure(input.contentUnitId)
+      const candidate = context.candidates.find((item) => String(item.id) === String(input.candidateId))
+      if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`)
+      const firstOutput = Array.isArray(candidate.outputs) ? candidate.outputs[0] : undefined
+      context.selection = {
+        candidate_id: input.candidateId,
+        resource_id: input.resourceId ?? firstOutput?.resource_id,
+        stale_policy: input.stalePolicy ?? 'strict',
+        reason: input.reason,
+        selected_at: input.selectedAt,
+      }
+      context.status = 'selected'
+      return context
+    },
+    async clearContentUnitSelection(input) {
+      const context = ensure(input.contentUnitId)
+      delete context.selection
+      context.status = 'open'
+      return context
+    },
+  }
+}
+
+async function snapshotBaseline(repository, now) {
+  const source = await resolveWorkspaceSource(repository)
+  return commitCheckpoint(repository, source.files, {
+    now,
+    message: 'test comparison baseline',
+  })
+}

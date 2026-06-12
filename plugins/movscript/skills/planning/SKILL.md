@@ -38,29 +38,36 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 ## Rules
 
 - Use current `movscript-lang` entity names in tool calls and source edits. Chinese product terms are user-facing aliases only.
-- Planning decides the MovScript structure; domain tools perform the writes, inspect/review, interpret, and regeneration checks.
+- Planning decides the MovScript structure; domain tools perform the writes, `domain_inspect`, `domain_interpret`, and regeneration checks.
 - Open `references/planning-workflows.md` when deciding planning depth, project-vs-simple-video scope, prerequisite ordering, continuity structure, or reference-shot imitation prerequisites.
 - Open `../domain/references/entity-glossary.md` or `references/entity-mapping.md` when mapping user terms to source entities.
+- Start planning by deciding the production granularity: one output, one `shot`, one `scene_moment`, multiple scene moments, segments, or productions.
+- Treat `scene_moment` and `shot` as the main production centers. Add other entities only as evidence or scaffolding that helps make that center coherent.
 - Create or update canonical upstream source entities before creating downstream content units, but only create the prerequisite structure needed for the user's current goal.
 - Treat scene moments as narrative events, shots as camera units, keyframes/storyboards as shot-owned visual anchors/assets, and expression units/audio cues as scene-moment-owned planning objects.
-- Treat setting/state/asset as continuity structure only when reuse or consistency matters. Asset reference images should usually be low-background, multi-view, and weakly tied to plot.
+- Treat setting/state/asset as continuity evidence only when reuse or consistency matters. Asset reference images should usually be low-background, multi-view, and weakly tied to plot.
+- Treat keyframe/storyboard as visual evidence for a shot, not required ceremony for every generation.
 - Treat content units as top-level project production slots with flat refs. Do not nest content unit semantics under storyboard paths.
+- If the user wants a fast draft and consistency requirements are low, it is valid to create a `scence_moment_ref` or `shot_ref` content unit directly and generate without prior setting, asset, keyframe, or storyboard selection. State the consistency and stale-tracking tradeoff.
 - Prefer specialized content unit types only when interpreter tracking is needed: `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, or `shot_ref`. Unknown `content_unit_type` values are valid generic slots but untracked for upstream hash/stale checks.
-- Interpret after each coherent semantic planning step, not after every field. Skip interpret only for read-only planning, draft analysis, or blocking inspect/review issues.
+- Interpret after each coherent semantic planning step, not after every field. Skip interpret only for read-only planning, draft analysis, or blocking `domain_inspect` issues.
 - Affected downstream content units require review, not automatic regeneration.
 
 ## Workflow
 
 1. Resolve focus with `system_focus_get` when the selected project, production, or entity matters.
 2. Call `domain_overview`, then query existing settings, assets, scripts, and production context.
-3. Clarify scope when needed: simple one-off video or reusable project.
+3. Decide scope and granularity: simple one-off video or reusable project; one `shot`, one `scene_moment`, multiple scene moments, segments, or productions.
 4. Open `references/entity-mapping.md` when mapping product language or legacy terms to current entities.
 5. If using script text as source material, read the script and snapshot script versions/blocks before downstream planning when stable script refs are needed.
-6. Plan in dependency order when possible: project standards, settings, assets, production, segments, scene moments, shots, keyframes, expression units, audio cues, storyboards, content units.
-7. For reference-shot imitation, plan frame extraction, shot analysis, storyboard panels, and a storyboard-panel content unit before downstream video generation.
-8. Use `domain_get_model` before direct source fallback. Prefer `domain_upsert_*` tools for supported entities.
-9. After each coherent group of writes, run `domain_inspect` or `domain_review`, fix blocking issues, then run `domain_interpret`.
-10. After interpret, run `domain_regeneration_plan` when changed planning source may affect selected outputs or downstream content units.
+6. Choose the working center: `shot` for camera/blocking/motion output, or `scene_moment` for a complete narrative beat that may not need shot breakdown.
+7. Decide which evidence is needed for consistency: setting/state/asset for reuse, keyframe/storyboard for visual anchors, expression/audio for performance and sound.
+8. Choose the path: strong consistency through upstream candidates/selections, or fast exploration through a direct `scence_moment_ref` or `shot_ref` content unit.
+9. Plan in dependency order only for the layers the chosen path needs: project standards, settings, assets, production, segments, scene moments, shots, keyframes, expression units, audio cues, storyboards, content units.
+10. For reference-shot imitation, plan frame extraction for inspection, materialized reference frame/contact-sheet RawResources when they will condition generation, shot analysis, storyboard panels, and a storyboard-panel content unit before downstream video generation.
+11. Use `domain_get_model` before direct source fallback. Prefer `domain_upsert_*` tools for supported entities.
+12. After each coherent group of writes, run `domain_inspect`, fix blocking issues, then run `domain_interpret` to refresh interpreted read models.
+13. After interpret, run `domain_regeneration_plan` when changed planning source may affect selected outputs or downstream content units.
 
 ## Readiness
 

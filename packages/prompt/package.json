@@ -1,0 +1,39 @@
+{
+  "name": "@movscript/prompt",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Prompt compiler for turning MovScript content unit references into backend-ready resource prompts.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && find tests -name '*.test.mjs' -print | sort | xargs node --test"
+  },
+  "dependencies": {
+    "@movscript/workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

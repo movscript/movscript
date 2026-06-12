@@ -16,6 +16,9 @@ import {
   deriveMovScriptWorkspaceArtifacts,
 } from '@movscript/interpreter/artifacts'
 import {
+  buildContentUnitBackendPromptById,
+} from '@movscript/prompt'
+import {
   createMovScriptEngine,
   type MovScriptEngine,
   type MovScriptEngineOptions,
@@ -40,16 +43,26 @@ export function createNodeMovScriptEngine(input: NodeMovScriptEngineInput = {}):
       decisionStore: input.decisionStore,
       ...(input.now ? { now: input.now() } : {}),
     }),
-    inspectWorkspace: () => inspectMovScriptWorkspace({
+    inspectWorkspace: (inspectInput = {}) => inspectMovScriptWorkspace({
       fileRepository,
       decisionStore: input.decisionStore,
+      ...inspectInput,
       ...(input.now ? { now: input.now() } : {}),
     }),
-    reviewWorkspace: () => reviewMovScriptWorkspace({
+    reviewWorkspace: (inspectInput = {}) => reviewMovScriptWorkspace({
       fileRepository,
       decisionStore: input.decisionStore,
+      ...inspectInput,
       ...(input.now ? { now: input.now() } : {}),
     }),
+    productionWorkPlan: async () => {
+      const review = await reviewMovScriptWorkspace({
+        fileRepository,
+        decisionStore: input.decisionStore,
+        ...(input.now ? { now: input.now() } : {}),
+      })
+      return review.productionWorkPlan
+    },
     interpretWorkspace: () => interpretMovScriptWorkspace({
       fileRepository,
       decisionStore: input.decisionStore,
@@ -66,6 +79,17 @@ export function createNodeMovScriptEngine(input: NodeMovScriptEngineInput = {}):
       if (!contentUnit) throw new Error(`content_unit not found: ${String(contentUnitId)}`)
       const now = input.now?.() ?? new Date()
       return deriveContentUnitArtifact(index, contentUnit, { createdAt: now.toISOString() })
+    },
+    async buildContentUnitBackendPrompt(contentUnitId) {
+      return buildContentUnitBackendPromptById({
+        index: await workspaceService.loadIndex(),
+        contentUnitId,
+        decisionProvider: input.decisionStore ?? {
+          async getContentUnitDecision() {
+            return undefined
+          },
+        },
+      })
     },
     async deriveArtifacts(artifactInput = {}) {
       const now = input.now?.() ?? new Date()

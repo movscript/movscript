@@ -6,12 +6,13 @@ import {
   createMovScriptContentCandidate,
   createMovScriptWorkspaceService,
   lockMovScriptInlineCandidate,
-  selectMovScriptContentUnitCandidate,
   updateMovScriptContentUnitEditPrompt,
 } from '../../../workspace/dist/index.js'
 import {
+  commitCheckpoint,
   interpretMovScriptWorkspace,
   planMovScriptWorkspaceRegeneration,
+  resolveWorkspaceSource,
 } from '../../dist/node.js'
 
 import {
@@ -138,7 +139,7 @@ test('workspace asset writer requires assets to live under setting states', asyn
   assert.equal(JSON.parse(files.get(result.path)).setting_state_id, 'base')
 })
 
-test('workspace content candidate writer stores runtime candidates and selection outside content_unit source', async () => {
+test('workspace content candidate writer stores runtime candidates outside content_unit source', async () => {
   const files = new Map()
   const repository = memoryWorkspaceFileRepository(files)
 
@@ -150,36 +151,28 @@ test('workspace content candidate writer stores runtime candidates and selection
     promptSnapshot: { text: 'runtime prompt' },
     createdAt: '2026-06-07T00:00:00.000Z',
   })
-  const selected = await selectMovScriptContentUnitCandidate({
-    fileRepository: repository,
-    contentUnitId: 'k41m',
-    candidateId: 'candidate_video_2',
-    resourceId: 'resource_video_2',
-    reason: 'approved_by_director',
-    selectedAt: '2026-06-07T00:00:00.000Z',
-  })
 
   assert.equal(candidate.path, 'content_units/k41m/candidates/candidate_video_2/content_candidate.json')
   assert.equal(candidate.record.outputs[0].resource_id, 'resource_video_2')
   assert.equal(candidate.record.input_version, undefined)
-  assert.equal(selected.path, 'content_units/k41m/selection.json')
-  assert.deepEqual(selected.record.target, { kind: 'content_unit', ref: 'content_units/k41m' })
-  assert.equal(selected.record.accepted_input_hash, undefined)
 })
 
 test('workspace service captures content unit prompt snapshot for candidates and keeps stale regeneration across interpretations', async () => {
   const files = new Map(sourceFileEntries())
   const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
   const service = createMovScriptWorkspaceService({
     fileRepository: repository,
+    decisionStore,
     now: () => new Date('2026-06-07T00:00:00.000Z'),
   })
 
   const firstInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
-  assert.equal(firstInterpretation.status, 'interpreted')
+  assert.equal(firstInterpretation.status, 'refreshed')
   const firstPrompt = JSON.parse(files.get('.interpret/current/content_units/k41m/generation_prompt.json'))
   assert.equal(firstPrompt.schema, 'movscript.content_unit_prompt.v1')
 
@@ -189,7 +182,9 @@ test('workspace service captures content unit prompt snapshot for candidates and
     outputs: [{ kind: 'video', resource_id: 'resource_video_auto', duration_sec: 4 }],
     createdAt: '2026-06-07T00:01:00.000Z',
   })
-  const candidate = JSON.parse(files.get('content_units/k41m/candidates/candidate_auto_hash/content_candidate.json'))
+  const decisionContext = await decisionStore.getContentUnitDecision({ contentUnitId: 'k41m' })
+  const candidate = decisionContext?.candidates.find((item) => item.id === 'candidate_auto_hash')
+  assert.ok(candidate)
   assert.equal(candidate.input_version, undefined)
   assert.equal(candidate.prompt_snapshot.schema, 'movscript.content_unit_prompt.v1')
   assert.match(candidate.prompt_snapshot.edit_prompt.text, /Cold phone light/)
@@ -200,9 +195,10 @@ test('workspace service captures content unit prompt snapshot for candidates and
     reason: 'selected_without_manual_hash',
     selectedAt: '2026-06-07T00:02:00.000Z',
   })
-  const selection = JSON.parse(files.get('content_units/k41m/selection.json'))
+  const selection = (await decisionStore.getContentUnitDecision({ contentUnitId: 'k41m' }))?.selection
   assert.equal(selection.resource_id, 'resource_video_auto')
   assert.equal(selection.accepted_input_hash, undefined)
+  await snapshotBaseline(repository, new Date('2026-06-07T00:02:30.000Z'))
 
   const contentUnit = JSON.parse(files.get('content_units/k41m/content_unit.json'))
   contentUnit.edit_prompt = { text: 'Changed generation context after the first candidate. {{shot:phone}} {{asset:wet_hair}}' }
@@ -210,25 +206,30 @@ test('workspace service captures content unit prompt snapshot for candidates and
 
   const secondInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:03:00.000Z'),
   })
-  assert.equal(secondInterpretation.status, 'interpreted')
+  assert.equal(secondInterpretation.status, 'refreshed')
   const staleValidity = await service.readContentUnitSelectionValidity('k41m')
   assert.equal(staleValidity?.stale, true)
   assert.ok(staleValidity?.stale_reasons?.includes('edit_prompt_changed'))
 
   const thirdInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:00.000Z'),
   })
-  assert.equal(thirdInterpretation.status, 'interpreted')
+  assert.equal(thirdInterpretation.status, 'refreshed')
   const regenerationPlan = await planMovScriptWorkspaceRegeneration({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:30.000Z'),
   })
   assert.equal(regenerationPlan.summary.staleContentUnits, 1)
-  assert.equal(regenerationPlan.affectedContentUnits.length, 0)
-  assert.equal(regenerationPlan.promptBundles.length, 0)
+  assert.equal(regenerationPlan.affectedContentUnits.length, 1)
+  assert.equal(regenerationPlan.affectedContentUnits[0]?.contentUnitId, 'k41m')
+  assert.equal(regenerationPlan.affectedContentUnits[0]?.stale, true)
+  assert.equal(regenerationPlan.promptBundles.length, 1)
 })
 
 test('workspace content unit prompt updater only changes edit_prompt', async () => {
@@ -267,3 +268,68 @@ test('workspace content unit prompt updater only changes edit_prompt', async () 
   const saved = JSON.parse(files.get(result.path))
   assert.equal(saved.edit_prompt.text, 'New prompt')
 })
+
+function memoryDecisionStore() {
+  const contexts = new Map()
+  const targetRef = (contentUnitId) => `content_units/${String(contentUnitId)}`
+  const key = (contentUnitId) => `content_unit:${targetRef(contentUnitId)}`
+  const ensure = (contentUnitId) => {
+    const contextKey = key(contentUnitId)
+    const existing = contexts.get(contextKey)
+    if (existing) return existing
+    const context = {
+      target_kind: 'content_unit',
+      target_ref: targetRef(contentUnitId),
+      candidates: [],
+      status: 'open',
+    }
+    contexts.set(contextKey, context)
+    return context
+  }
+  return {
+    async getContentUnitDecision(input) {
+      return contexts.get(key(input.contentUnitId))
+    },
+    async replaceContentUnitCandidates(input) {
+      const context = ensure(input.contentUnitId)
+      context.candidates = input.candidates
+      return context
+    },
+    async upsertContentUnitCandidate(input) {
+      const context = ensure(input.contentUnitId)
+      const index = context.candidates.findIndex((candidate) => String(candidate.id) === String(input.candidate.id))
+      if (index >= 0) context.candidates[index] = input.candidate
+      else context.candidates.push(input.candidate)
+      return context
+    },
+    async selectContentUnitCandidate(input) {
+      const context = ensure(input.contentUnitId)
+      const candidate = context.candidates.find((item) => String(item.id) === String(input.candidateId))
+      if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`)
+      const firstOutput = Array.isArray(candidate.outputs) ? candidate.outputs[0] : undefined
+      context.selection = {
+        candidate_id: input.candidateId,
+        resource_id: input.resourceId ?? firstOutput?.resource_id,
+        stale_policy: input.stalePolicy ?? 'strict',
+        reason: input.reason,
+        selected_at: input.selectedAt,
+      }
+      context.status = 'selected'
+      return context
+    },
+    async clearContentUnitSelection(input) {
+      const context = ensure(input.contentUnitId)
+      delete context.selection
+      context.status = 'open'
+      return context
+    },
+  }
+}
+
+async function snapshotBaseline(repository, now) {
+  const source = await resolveWorkspaceSource(repository)
+  return commitCheckpoint(repository, source.files, {
+    now,
+    message: 'test comparison baseline',
+  })
+}

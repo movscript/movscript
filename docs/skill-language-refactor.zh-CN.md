@@ -295,7 +295,7 @@ project_standards
 - 先读 model 和 overview。
 - 源文件、interpreted state、runtime/candidate/selection 的边界。
 - 写操作优先用 domain API。
-- 修改后 inspect/review，再 interpret。
+- 修改后 `domain_inspect`，再用 `domain_interpret` 刷新解释态。
 
 建议把现在 `Core Concepts` 和 `Domain Graph` 压缩，只保留必要规则，并链接 `references/domain-story.md` 和 `references/entity-glossary.md`。
 
@@ -331,7 +331,7 @@ resolve focus
 -> check readiness
 -> generate resource
 -> write candidate
--> inspect/review
+-> domain_inspect
 -> interpret
 -> select only when user confirms
 ```

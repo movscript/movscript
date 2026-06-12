@@ -2,7 +2,7 @@
   "name": "@movscript/engine",
   "version": "0.1.1",
   "private": true,
-  "description": "Embeddable MovScript facade for workspace, checkpoint/review calculation, stores, and candidate workflows.",
+  "description": "Embeddable MovScript facade for workspace diagnostics, interpret refresh, stores, and candidate workflows.",
   "license": "MIT",
   "type": "module",
   "files": [
@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@movscript/interpreter": "workspace:*",
+    "@movscript/prompt": "workspace:*",
     "@movscript/workspace": "workspace:*"
   },
   "devDependencies": {

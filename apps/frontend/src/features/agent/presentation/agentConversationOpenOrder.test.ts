@@ -6,6 +6,7 @@ import {
   hasOpenAgentConversationRecords,
   mergeAgentConversationOpenState,
   openAgentConversationIds,
+  reorderAgentConversationOpenState,
   setAgentConversationOpen,
   visibleAgentConversationIds,
 } from '@/features/agent/presentation/agentConversationOpenOrder'
@@ -53,4 +54,38 @@ test('hasOpenAgentConversationRecords tracks persisted open tabs independently f
   assert.equal(hasOpenAgentConversationRecords([
     { id: 'thread_1', open: false },
   ]), false)
+})
+
+test('reorderAgentConversationOpenState moves a tab before the target and preserves open state', () => {
+  const reordered = reorderAgentConversationOpenState([
+    { id: 'thread_1', open: true },
+    { id: 'thread_2', open: false },
+    { id: 'thread_3', open: true },
+  ], 'thread_3', 'thread_1', 'before')
+
+  assert.deepEqual(reordered, [
+    { id: 'thread_3', open: true },
+    { id: 'thread_1', open: true },
+    { id: 'thread_2', open: false },
+  ])
+})
+
+test('reorderAgentConversationOpenState moves a tab after the target', () => {
+  const reordered = reorderAgentConversationOpenState([
+    { id: 'thread_1', open: true },
+    { id: 'thread_2', open: true },
+    { id: 'thread_3', open: true },
+  ], 'thread_1', 'thread_3', 'after')
+
+  assert.deepEqual(openAgentConversationIds(reordered), ['thread_2', 'thread_3', 'thread_1'])
+})
+
+test('reorderAgentConversationOpenState ignores unknown drag or drop ids without losing known records', () => {
+  const records = [
+    { id: 'thread_1', open: true },
+    { id: 'thread_2', open: false },
+  ]
+
+  assert.deepEqual(reorderAgentConversationOpenState(records, 'missing', 'thread_1', 'before'), records)
+  assert.deepEqual(reorderAgentConversationOpenState(records, 'thread_1', 'missing', 'after'), records)
 })

@@ -5,6 +5,9 @@ import {
   createNodeMovScriptEngine,
 } from '@movscript/engine/node'
 import {
+  resolveMovScriptBackendSession,
+} from '@movscript/core/backend/node'
+import {
   SEMANTIC_ENTITY_KIND_VALUES,
   SEMANTIC_ENTITY_SCHEMA_IDS,
   SEMANTIC_ENTITY_SCHEMA_REGISTRY,
@@ -22,6 +25,9 @@ import {
 import {
   createNodeMovScriptWorkspaceFileRepository,
 } from '@movscript/workspace/node'
+import {
+  createMovScriptBackendDecisionStore,
+} from '@movscript/workspace/repository'
 import type {
   MovScriptWorkspaceEntityQuery,
   MovScriptWorkspaceFileRepository,
@@ -31,10 +37,10 @@ import type {
 interface WorkspaceOptions {
   json?: boolean
   cwd?: string
+  commit?: string
 }
 
 interface InterpretOptions extends WorkspaceOptions {
-  initGit?: boolean
   debugArtifacts?: boolean
 }
 
@@ -1145,6 +1151,18 @@ Examples:
     })
 
   contentUnit
+    .command('backend-prompt <idOrPath>')
+    .description('Build the backend-ready prompt for a content unit from prompt refs and backend decisions')
+    .option('--json', 'Print JSON output')
+    .action(async (idOrPath: string, options: WorkspaceOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const engine = createCliEngine(merged)
+      const contentUnit = await findContentUnitForPanel(engine, idOrPath)
+      const result = await engine.buildContentUnitBackendPrompt(contentUnit.id ?? idOrPath)
+      printResult(result, merged)
+    })
+
+  contentUnit
     .command('add')
     .alias('create')
     .description('Create or update a project-level content unit with prompt refs')
@@ -1281,6 +1299,7 @@ Examples:
   interpreter
     .command('inspect')
     .description('Inspect source edits, diagnostics, and predicted impact')
+    .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return inspectWorkspaceFromCliOptions(options, command)
@@ -1289,6 +1308,7 @@ Examples:
   interpreter
     .command('review')
     .description('Review source edits, diagnostics, and predicted impact')
+    .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return inspectWorkspaceFromCliOptions(options, command)
@@ -1296,8 +1316,7 @@ Examples:
 
   interpreter
     .command('interpret')
-    .description('Commit the current source workspace as a MovScript checkpoint')
-    .option('--init-git', 'Initialize a git repository before committing if the workspace is not in git')
+    .description('Refresh interpreted read models from the current source workspace')
     .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
     .option('--json', 'Print JSON output')
     .action((options: InterpretOptions, command: Command) => {
@@ -1329,6 +1348,14 @@ Examples:
       printResult(result, merged)
     })
 
+  interpreter
+    .command('work-plan')
+    .description('Derive the in-memory production work plan from current source and decision state')
+    .option('--json', 'Print JSON output')
+    .action((options: WorkspaceOptions, command: Command) => {
+      return productionWorkPlanFromCliOptions(options, command)
+    })
+
   const interpreterRegen = interpreter
     .command('regen')
     .alias('regenerate')
@@ -1354,6 +1381,7 @@ Examples:
   program
     .command('inspect')
     .description('Inspect source edits, diagnostics, and predicted impact')
+    .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return inspectWorkspaceFromCliOptions(options, command)
@@ -1362,6 +1390,7 @@ Examples:
   program
     .command('review')
     .description('Review source edits, diagnostics, and predicted impact')
+    .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action((options: WorkspaceOptions, command: Command) => {
       return inspectWorkspaceFromCliOptions(options, command)
@@ -1369,12 +1398,19 @@ Examples:
 
   program
     .command('interpret')
-    .description('Commit the current source workspace as a MovScript checkpoint')
-    .option('--init-git', 'Initialize a git repository before committing if the workspace is not in git')
+    .description('Refresh interpreted read models from the current source workspace')
     .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
     .option('--json', 'Print JSON output')
     .action((options: InterpretOptions, command: Command) => {
       return interpretWorkspaceFromCliOptions(options, command)
+    })
+
+  program
+    .command('work-plan')
+    .description('Derive the in-memory production work plan from current source and decision state')
+    .option('--json', 'Print JSON output')
+    .action((options: WorkspaceOptions, command: Command) => {
+      return productionWorkPlanFromCliOptions(options, command)
     })
 
   const regen = program
@@ -1450,12 +1486,34 @@ function mergeGlobalOptions(options: WorkspaceOptions, command: Command): Worksp
     cwd: options.cwd
       ?? (typeof global.cwd === 'string' ? global.cwd : undefined)
       ?? (typeof global.workspace === 'string' ? global.workspace : undefined),
+    commit: options.commit ?? (typeof global.commit === 'string' ? global.commit : undefined),
   }
 }
 
 function createCliEngine(options: WorkspaceOptions) {
+  const envWorkspaceDir = stringValue(process.env.MOVSCRIPT_WORKSPACE_DIR)
+  const envProjectDir = stringValue(process.env.MOVSCRIPT_PROJECT_DIR)
+  const workspaceDir = options.cwd ?? envWorkspaceDir
+  const projectDir = options.cwd === undefined ? envProjectDir : undefined
+  const decisionStore = createCliBackendDecisionStore({ workspaceDir: envWorkspaceDir ?? options.cwd })
   return createNodeMovScriptEngine({
-    ...(options.cwd !== undefined ? { workspaceDir: options.cwd } : {}),
+    ...(projectDir !== undefined ? { projectDir } : workspaceDir !== undefined ? { workspaceDir } : {}),
+    ...(decisionStore ? { decisionStore } : {}),
+  })
+}
+
+function createCliBackendDecisionStore(input: { workspaceDir?: string }) {
+  const projectId = stringValue(process.env.MOVSCRIPT_PROJECT_ID)
+  if (!projectId) return undefined
+  const session = resolveMovScriptBackendSession({
+    workspaceDir: input.workspaceDir,
+    userId: stringValue(process.env.MOVCLI_USER_ID),
+  })
+  return createMovScriptBackendDecisionStore({
+    baseUrl: session.baseURL,
+    projectId,
+    ...(session.token ? { token: session.token } : {}),
+    ...(session.userId ? { headers: { 'X-User-ID': session.userId } } : {}),
   })
 }
 
@@ -2064,6 +2122,7 @@ async function inspectWorkspaceFromCliOptions(options: WorkspaceOptions, command
   const merged = mergeGlobalOptions(options, command)
   const result = await inspectMovScriptWorkspace({
     fileRepository: createCliFileRepository(merged),
+    ...(merged.commit ? { commit: merged.commit } : {}),
   })
   printResult(result, merged)
   if (isRecord(result) && result.readyToInterpret === false) process.exitCode = 2
@@ -2077,7 +2136,6 @@ async function interpretWorkspaceFromCliOptions(options: InterpretOptions, comma
   const merged = mergeGlobalOptions(options, command)
   const result = await interpretMovScriptWorkspace({
     fileRepository: createCliFileRepository(merged),
-    initGitIfMissing: Boolean(options.initGit),
     debugArtifacts: options.debugArtifacts,
   })
   printResult(result, merged)
@@ -2089,6 +2147,12 @@ async function regenerationPlanFromCliOptions(options: WorkspaceOptions, command
   const result = await planMovScriptWorkspaceRegeneration({
     fileRepository: createCliFileRepository(merged),
   })
+  printResult(result, merged)
+}
+
+async function productionWorkPlanFromCliOptions(options: WorkspaceOptions, command: Command): Promise<void> {
+  const merged = mergeGlobalOptions(options, command)
+  const result = await createCliEngine(merged).productionWorkPlan()
   printResult(result, merged)
 }
 
@@ -2253,15 +2317,19 @@ async function dispatchInteractiveSlashCommand(line: string, options: WorkspaceO
     return false
   }
   if (command === 'inspect') {
+    const parsed = parseSlashOptions(args)
     const result = await inspectMovScriptWorkspace({
       fileRepository: createCliFileRepositoryFromEngine(engine),
+      ...(parsed.options.commit ? { commit: parsed.options.commit } : {}),
     })
     printResult(result, options)
     return false
   }
   if (command === 'review') {
+    const parsed = parseSlashOptions(args)
     const result = await inspectMovScriptWorkspace({
       fileRepository: createCliFileRepositoryFromEngine(engine),
+      ...(parsed.options.commit ? { commit: parsed.options.commit } : {}),
     })
     printResult(result, options)
     return false
@@ -2312,6 +2380,7 @@ async function dispatchInteractiveInterpreterCommand(args: string[], options: Wo
   if (action === 'inspect' || action === 'review' || action === undefined) {
     const result = await inspectMovScriptWorkspace({
       fileRepository: createCliFileRepositoryFromEngine(engine),
+      ...(parsed.options.commit ? { commit: parsed.options.commit } : {}),
     })
     printResult(result, options)
     return
@@ -2680,6 +2749,14 @@ async function dispatchInteractiveContentUnitCommand(args: string[], options: Wo
     printContentUnitStatusPanel(result, options)
     return
   }
+  if (action === 'backend-prompt' || action === 'prompt') {
+    const idOrPath = parsed.positionals[0] ?? parsed.options.id
+    if (!idOrPath) throw new Error('usage: /content-unit backend-prompt <idOrPath>')
+    const contentUnit = await findContentUnitForPanel(engine, idOrPath)
+    const result = await engine.buildContentUnitBackendPrompt(contentUnit.id ?? idOrPath)
+    printResult(result, options)
+    return
+  }
   if (action === 'add' || action === 'create' || action === 'upsert') {
     const title = parsed.options.title ?? parsed.positionals[0]
     const sourceOptions: AddContentUnitOptions = {
@@ -2800,6 +2877,7 @@ function printInteractiveHelp(): void {
   /expression-unit add --scene-moment <id-or-path> [--id <id>] [--kind <kind>] [--speaker <text>] [--text <text>] [--storyboard <id-or-path>]
   /content-unit add --title <title> --type <asset_ref|keyframe_ref|storyboard_ref|scence_moment_ref|shot_ref> [--asset <id>] [--keyframe <id>] [--scene-moment <id>] [--shot <id>] [--storyboard <id>] [--output-kind <kind>] [--prompt <text>]
   /content-unit status <id-or-path>
+  /content-unit backend-prompt <id-or-path>
   /language kinds
   /language schemas [--kind <kind>]
   /language schema <schema-id-or-kind>
@@ -2807,14 +2885,14 @@ function printInteractiveHelp(): void {
   /candidate add <content-unit> <resource-id> [--kind <output-kind|content_unit_type>] [--id <id>] [--source <source>] [--notes <text>]
   /candidate select <content-unit> <candidate-id> [--reason <text>]
   /overview
-  /inspect
+  /inspect [--commit <ref>]
   /interpreter overview
-  /interpreter inspect
+  /interpreter inspect [--commit <ref>]
   /interpreter interpret
   /interpreter regen plan
   /interpreter prompt <contentUnitId>
   /interpreter artifacts [--interpretation-id <id>] [--created-at <iso>]
-  /review
+  /review [--commit <ref>]
   /interpret
   /regen plan
   /help
@@ -2831,8 +2909,11 @@ function printResult(result: unknown, options: WorkspaceOptions): void {
 
 function listLanguageSchemas(kind: string | undefined): SemanticEntitySchemaDefinition[] {
   if (kind !== undefined && !isSemanticEntityKind(kind)) throw new Error(`unknown entity kind: ${kind}`)
+  const registry = SEMANTIC_ENTITY_SCHEMA_REGISTRY as Record<string, SemanticEntitySchemaDefinition>
   return (SEMANTIC_ENTITY_SCHEMA_IDS
-    .map((schemaId) => SEMANTIC_ENTITY_SCHEMA_REGISTRY[schemaId]) as SemanticEntitySchemaDefinition[])
+    .map((schemaId) => registry[schemaId])
+    .filter((schema): schema is SemanticEntitySchemaDefinition => schema !== undefined)
+  )
     .filter((schema) => kind === undefined || schema.entityKind === kind)
 }
 
@@ -2881,14 +2962,14 @@ async function deriveContentUnitStatusPanel(
     dependencyReport,
     selectionValidity,
     candidates,
-    selection,
+    backendPrompt,
   ] = await Promise.all([
     engine.workspaceService.readContentUnitRuntimePanel(contentUnitId),
     engine.workspaceService.readContentUnitGenerationPrompt(contentUnitId),
     engine.workspaceService.readContentUnitDependencyReport(contentUnitId),
     engine.workspaceService.readContentUnitSelectionValidity(contentUnitId),
     listContentUnitCandidates(engine, contentUnit),
-    readContentUnitSelection(engine, contentUnit),
+    engine.buildContentUnitBackendPrompt(contentUnitId),
   ])
   return pruneUndefined({
     contentUnit: {
@@ -2913,8 +2994,8 @@ async function deriveContentUnitStatusPanel(
     dependencyReport,
     selectionValidity,
     candidates,
-    selection,
-    summary: summarizeContentUnitStatus(runtimePanel, inputVersion, dependencyReport, selectionValidity, candidates),
+    backendPrompt,
+    summary: summarizeContentUnitStatus(runtimePanel, inputVersion, dependencyReport, selectionValidity, candidates, backendPrompt),
   })
 }
 
@@ -2947,18 +3028,6 @@ async function findContentUnitCandidate(
   return candidates.find((candidate) => String(candidate.record.id ?? '') === candidateId)
 }
 
-async function readContentUnitSelection(
-  engine: CliEngine,
-  contentUnit: MovScriptWorkspaceIndexedEntity,
-): Promise<Record<string, unknown> | undefined> {
-  const repository = createNodeMovScriptWorkspaceFileRepository(engine.projectDir)
-  const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ''))
-  const file = await repository.read({ path: `${contentUnitDir}/selection.json` }).catch(() => undefined)
-  if (!file) return undefined
-  const parsed = JSON.parse(file.content) as unknown
-  return isRecord(parsed) ? parsed : undefined
-}
-
 function candidateResourceId(candidate: Record<string, unknown> | undefined): string | number | undefined {
   const firstOutput = arrayField(candidate?.outputs).filter(isRecord)[0]
   const resourceId = firstOutput?.resource_id
@@ -2982,7 +3051,10 @@ function summarizeContentUnitStatus(
   dependencyReport: Record<string, unknown> | undefined,
   selectionValidity: Record<string, unknown> | undefined,
   candidates: unknown[] = [],
+  backendPrompt?: unknown,
 ): Record<string, unknown> {
+  const backendPromptRecord = recordField(backendPrompt)
+  const compiledPrompt = recordField(backendPromptRecord?.prompt)
   return pruneUndefined({
     derived: Boolean(runtimePanel && inputVersion),
     status: runtimePanel?.status,
@@ -2996,6 +3068,9 @@ function summarizeContentUnitStatus(
     upstreamSelectionCount: arrayField(dependencyReport?.upstream_selections).length,
     runtimeInputCount: arrayField(recordField(runtimePanel?.runtime_request)?.inputs).length,
     issueCount: arrayField(dependencyReport?.issues).length,
+    backendPromptOk: backendPromptRecord?.ok,
+    backendPromptResourceCount: arrayField(compiledPrompt?.resource_ids).length,
+    backendPromptBlockerCount: arrayField(backendPromptRecord?.blockers ?? compiledPrompt?.blockers).length,
   })
 }
 
@@ -3011,6 +3086,8 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
   const dependencyReport = recordField(panel.dependencyReport)
   const selectionValidity = recordField(panel.selectionValidity)
   const selection = recordField(panel.selection)
+  const backendPrompt = recordField(panel.backendPrompt)
+  const compiledPrompt = recordField(backendPrompt?.prompt)
   const summary = recordField(panel.summary)
   const prompt = recordField(runtime?.prompt)
   const runtimeRequest = recordField(runtime?.runtime_request)
@@ -3019,6 +3096,7 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
   const upstreamSelections = arrayField(dependencyReport?.upstream_selections).filter(isRecord)
   const runtimeInputs = arrayField(runtimeRequest?.inputs).filter(isRecord)
   const issues = arrayField(dependencyReport?.issues).filter(isRecord)
+  const backendBlockers = arrayField(backendPrompt?.blockers ?? compiledPrompt?.blockers).filter(isRecord)
 
   const lines = [
     `Content Unit: ${scalarDisplayValue(contentUnit?.id)}  ${scalarDisplayValue(contentUnit?.title)}`,
@@ -3027,6 +3105,7 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
     `Derived: ${summary?.derived ? 'ready' : 'missing'}  Runtime: ${scalarDisplayValue(summary?.status)}  Hash: ${scalarDisplayValue(summary?.inputHash)}  Candidates: ${scalarDisplayValue(summary?.candidateCount)}`,
     `Selection: ${selectionLabel(selection, selectionValidity)}  Stale: ${selectionValidity?.stale === true ? 'yes' : 'no'}`,
     `Accepted Hash: ${shortHash(selectionValidity?.accepted_input_hash)}  Current Hash: ${shortHash(selectionValidity?.current_input_hash)}`,
+    `Backend Prompt: ${backendPrompt?.ok === true ? 'ready' : backendPrompt?.ok === false ? 'blocked' : 'unknown'}  Resources: ${scalarDisplayValue(summary?.backendPromptResourceCount)}  Blockers: ${scalarDisplayValue(summary?.backendPromptBlockerCount)}`,
     '',
     'Source Refs',
     `  scene_moment: ${scalarDisplayValue(source?.sceneMomentRef)}`,
@@ -3052,6 +3131,14 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
       return `  ${scalarDisplayValue(item.role)} ${scalarDisplayValue(item.kind)} ref=${scalarDisplayValue(item.ref)} resource=${scalarDisplayValue(item.resource_id)}`
     }) : ['  -']),
     '',
+    'Backend Prompt',
+    `  text:      ${formatCell(compiledPrompt?.text, 96)}`,
+    `  negative:  ${formatCell(compiledPrompt?.negative_text, 96)}`,
+    `  resources: ${scalarDisplayValue(compiledPrompt?.resource_ids)}`,
+    ...(backendBlockers.length ? backendBlockers.map((item) => {
+      return `  blocker ${scalarDisplayValue(item.code)} ref=${scalarDisplayValue(item.ref)} unit=${scalarDisplayValue(item.content_unit_ref)}`
+    }) : ['  blockers: -']),
+    '',
     'Upstream Selections',
     ...(upstreamSelections.length ? upstreamSelections.map((item) => {
       return `  ${scalarDisplayValue(item.content_unit_ref)} candidate=${scalarDisplayValue(item.candidate_id)} resource=${scalarDisplayValue(item.resource_id)} hash=${shortHash(item.accepted_input_hash)}`
@@ -3060,7 +3147,7 @@ function printContentUnitStatusPanel(panel: Record<string, unknown>, options: Wo
     'Candidates',
     ...(candidates.length ? candidates.map((item) => {
       const record = recordField(item.record) ?? {}
-      const selected = selection?.candidate_id !== undefined && String(selection.candidate_id) === String(record.id) ? '*' : ' '
+      const selected = selectionValidity?.candidate_id !== undefined && String(selectionValidity.candidate_id) === String(record.id) ? '*' : ' '
       const outputs = arrayField(record.outputs).filter(isRecord)
       const outputSummary = outputs.length
         ? outputs.map((output) => `${scalarDisplayValue(output.kind)}:${scalarDisplayValue(output.resource_id)}`).join(', ')

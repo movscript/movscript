@@ -2,7 +2,7 @@ import type { ClipboardEventHandler, ComponentProps, DragEventHandler, FormEvent
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { AtSign, Check, ChevronDown, CircleDot, CircleStop, Eye, Hand, Loader2, Mic, Paperclip, Plus, Send, Sparkles } from 'lucide-react'
+import { AtSign, Check, ChevronDown, ChevronUp, CircleDot, CircleStop, CornerDownLeft, Eye, Hand, Loader2, Mic, Paperclip, Pencil, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import {
   AgentComposer,
   AgentComposerAction,
@@ -28,7 +28,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
   IdentityMark,
 } from '@movscript/ui'
 import { attachmentKey } from '@/features/agent/domain/agentAttachments'
@@ -46,8 +45,14 @@ import {
   subscribeAgentComposerMentionMenuPlacement,
   type AgentComposerMentionMenuPosition,
 } from '@/features/agent/presentation/agentComposerMentionMenuPlacement'
-import { ProviderMark } from '@/features/agent/components/ProviderControls'
 import type { AgentPendingActiveRunInputQueueItem } from '@movscript/core/agent/protocol'
+import {
+  agentChatQueuedInputSummary,
+  agentThreadGoalStatusLabel,
+  type AgentChatQueuedInputPreviewItem,
+  type AgentChatQueuedInputStatus,
+  type AgentThreadGoalState,
+} from '@movscript/core/agent/chat'
 import {
   AGENT_RUN_PROFILE_PRESETS,
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
@@ -87,14 +92,20 @@ export interface AgentComposerSectionProps {
   mentionRangeActive: boolean
   collaborationMode?: 'default' | 'plan'
   goalModeEnabled?: boolean
+  goalState?: AgentThreadGoalState | null
   modelOptions?: PublicModel[]
   modelValue?: number | null
+  queuedInputs?: AgentChatQueuedInputPreviewItem[]
+  queuedInputsCollapsed?: boolean
+  queuedInputSteerEnabled?: boolean
   pendingActiveRunInputQueue: AgentPendingActiveRunInputQueueItem[]
+  profilePresetId?: AgentRunProfilePresetId
   stoppingActiveRun: boolean
   uploading: boolean
   uploadedFileCount: number
   uploadingFileNames: string[]
   workspaceProjectOptions?: WorkspaceContextOption[]
+  workspaceProjectLocked?: boolean
   workspaceProjectValue?: string
   workspaceProjectsLoading?: boolean
   onAcceptMention: () => boolean
@@ -111,6 +122,13 @@ export interface AgentComposerSectionProps {
   onCollaborationModeChange?: (mode: 'default' | 'plan') => void
   onGoalModeEnabledChange?: (enabled: boolean) => void
   onModelChange?: (modelId: number | null) => void
+  onProfilePresetChange?: (profilePresetId: AgentRunProfilePresetId) => void
+  onQueuedInputCollapseChange?: (collapsed: boolean) => void
+  onQueuedInputDelete?: (id: string) => void
+  onQueuedInputEdit?: (id: string) => void
+  onQueuedInputEditCancel?: (id: string) => void
+  onQueuedInputSteerNow?: (id: string) => void
+  onQueuedInputTextChange?: (id: string, text: string) => void
   onRemoveAttachment: (attachmentId: string) => void
   onSend: (profilePresetId?: AgentRunProfilePresetId) => void
   onStopActiveRun: () => void
@@ -143,14 +161,20 @@ export function AgentComposerSection({
   mentionRangeActive,
   collaborationMode = 'default',
   goalModeEnabled = false,
+  goalState = null,
   modelOptions = [],
   modelValue,
+  queuedInputs = [],
+  queuedInputsCollapsed = false,
+  queuedInputSteerEnabled = true,
   pendingActiveRunInputQueue,
+  profilePresetId: controlledProfilePresetId,
   stoppingActiveRun,
   uploading,
   uploadedFileCount,
   uploadingFileNames,
   workspaceProjectOptions = [],
+  workspaceProjectLocked = false,
   workspaceProjectValue,
   workspaceProjectsLoading = false,
   onAcceptMention,
@@ -167,6 +191,13 @@ export function AgentComposerSection({
   onCollaborationModeChange,
   onGoalModeEnabledChange,
   onModelChange,
+  onProfilePresetChange,
+  onQueuedInputCollapseChange,
+  onQueuedInputDelete,
+  onQueuedInputEdit,
+  onQueuedInputEditCancel,
+  onQueuedInputSteerNow,
+  onQueuedInputTextChange,
   onRemoveAttachment,
   onSend,
   onStopActiveRun,
@@ -180,8 +211,9 @@ export function AgentComposerSection({
   const { t } = useTranslation()
   const editorDisabled = buildingSendWorkspace || (answeringPendingInput && !canAnswerPendingInputWithText)
   const [mentionMenuPosition, setMentionMenuPosition] = useState<AgentComposerMentionMenuPosition | null>(null)
-  const [profilePresetId, setProfilePresetId] = useState<AgentRunProfilePresetId>(DEFAULT_AGENT_RUN_PROFILE_PRESET_ID)
+  const [localProfilePresetId, setLocalProfilePresetId] = useState<AgentRunProfilePresetId>(DEFAULT_AGENT_RUN_PROFILE_PRESET_ID)
   const [draftHasInput, setDraftHasInput] = useState(() => !!composerInput.trim())
+  const profilePresetId = controlledProfilePresetId ?? localProfilePresetId
   const runProfile = agentRunProfilePresetById(profilePresetId)
   const mentionMenuOpen = mentionRangeActive && mentionResults.length > 0
   const actionMenuDisabled = answeringPendingInput || uploading || loading || buildingSendWorkspace
@@ -218,6 +250,15 @@ export function AgentComposerSection({
   const showWorkspaceSelector = workspaceProjectOptions.length > 0
     && workspaceProjectValue !== undefined
     && !!onWorkspaceProjectChange
+  const selectedWorkspaceProjectOption = showWorkspaceSelector
+    ? workspaceProjectOptions.find((option) => option.value === workspaceProjectValue)
+    : undefined
+  const selectedWorkspaceProjectLabel = selectedWorkspaceProjectOption
+    ? selectedWorkspaceProjectOption.label
+    : workspaceProjectValue
+  const selectedWorkspaceProjectTitle = selectedWorkspaceProjectOption
+    ? [selectedWorkspaceProjectOption.label, selectedWorkspaceProjectOption.meta].filter(Boolean).join(' / ')
+    : workspaceProjectValue
   const showModelSelector = modelOptions.length > 0 && modelValue !== undefined && !!onModelChange
   const selectedModel = showModelSelector
     ? modelOptions.find((model) => model.id === modelValue) ?? modelOptions[0]
@@ -254,6 +295,11 @@ export function AgentComposerSection({
     const nextHasInput = !!nextInput.trim()
     setDraftHasInput((current) => current === nextHasInput ? current : nextHasInput)
     onInputChange(nextInput)
+  }
+
+  function handleProfilePresetChange(nextProfilePresetId: AgentRunProfilePresetId) {
+    if (controlledProfilePresetId === undefined) setLocalProfilePresetId(nextProfilePresetId)
+    onProfilePresetChange?.(nextProfilePresetId)
   }
 
   const uploadingFileCount = uploadingFileNames.length
@@ -301,28 +347,19 @@ export function AgentComposerSection({
             </div>
           </DialogContent>
         </Dialog>
-      {pendingActiveRunInputQueue.length > 0 && (
-        <div className="mb-2 space-y-1.5 px-2 py-1.5">
-          <div className="flex items-center justify-between gap-2 type-tiny text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Loader2 size={10} className="animate-spin" />
-              等待加入运行
-            </span>
-            <span>{pendingActiveRunInputQueue.length}</span>
-          </div>
-          <div className="space-y-1">
-            {pendingActiveRunInputQueue.map((item) => (
-              <div
-                key={item.id}
-                className="truncate border-t border-border px-0 py-1 type-tiny text-foreground first:border-t-0"
-                title={item.content}
-              >
-                {item.content || '空消息'}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <AgentQueuedInputPreview
+        goal={goalState}
+        items={queuedInputs}
+        legacyItems={pendingActiveRunInputQueue}
+        collapsed={queuedInputsCollapsed}
+        steerEnabled={queuedInputSteerEnabled}
+        onCollapsedChange={onQueuedInputCollapseChange}
+        onDelete={onQueuedInputDelete}
+        onEdit={onQueuedInputEdit}
+        onEditCancel={onQueuedInputEditCancel}
+        onSteerNow={onQueuedInputSteerNow}
+        onTextChange={onQueuedInputTextChange}
+      />
       <AgentComposer
         className={cn('ai-agent-panel-composer ms-agent-composer--panel', draggingFiles && 'ai-agent-panel-composer--dragging')}
         onDragEnter={onComposerDragEnter}
@@ -457,7 +494,7 @@ export function AgentComposerSection({
                   {AGENT_RUN_PROFILE_PRESETS.map((preset) => (
                     <DropdownMenuItem
                       key={preset.id}
-                      onSelect={() => setProfilePresetId(preset.id)}
+                      onSelect={() => handleProfilePresetChange(preset.id)}
                       className="items-start gap-2"
                     >
                       <span className="mt-0.5 flex w-3 justify-center text-muted-foreground">
@@ -472,31 +509,52 @@ export function AgentComposerSection({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
-            {(showApprovalPresetSelector && !answeringPendingInput) || onGoalModeEnabledChange ? (
+            {(showApprovalPresetSelector && !answeringPendingInput) || collaborationMode === 'plan' || goalModeEnabled ? (
               <span className="ms-agent-composer__toolbar-divider" aria-hidden="true" />
             ) : null}
-            {onGoalModeEnabledChange ? (
-              <button
-                type="button"
+            {collaborationMode === 'plan' ? (
+              <span
                 className="ms-control ms-agent-composer__goal-trigger"
-                data-active={goalModeEnabled ? 'true' : undefined}
-                onClick={() => onGoalModeEnabledChange(!goalModeEnabled)}
-                disabled={answeringPendingInput || loading || buildingSendWorkspace}
-                aria-pressed={goalModeEnabled}
-                title="追求目标"
+                data-active="true"
+                aria-label="计划模式已开启"
+                title="计划模式已开启"
+              >
+                <Sparkles size={15} />
+                <span>计划</span>
+              </span>
+            ) : null}
+            {goalModeEnabled ? (
+              <span
+                className="ms-control ms-agent-composer__goal-trigger"
+                data-active="true"
+                aria-label="目标模式已开启"
+                title="目标模式已开启"
               >
                 <CircleDot size={15} />
                 <span>目标</span>
-              </button>
+              </span>
             ) : null}
-            {showWorkspaceSelector ? (
+            {showWorkspaceSelector && workspaceProjectLocked ? (
+              <span
+                className="ms-agent-composer__workspace-select h-7 max-w-[128px] min-w-0 truncate px-2 type-tiny"
+                title={selectedWorkspaceProjectTitle || '选择范围'}
+              >
+                {selectedWorkspaceProjectLabel || '选择范围'}
+              </span>
+            ) : showWorkspaceSelector ? (
               <Select
                 value={workspaceProjectValue}
                 onValueChange={onWorkspaceProjectChange}
                 disabled={workspaceSelectorDisabled || workspaceProjectsLoading}
               >
-                <SelectTrigger size="sm" className="ms-agent-composer__workspace-select h-7 w-[min(178px,32vw)] min-w-0 type-tiny">
-                  <SelectValue placeholder={workspaceProjectsLoading ? '读取项目...' : '选择范围'} />
+                <SelectTrigger
+                  size="sm"
+                  className="ms-agent-composer__workspace-select h-7 max-w-[128px] min-w-0 type-tiny"
+                  title={selectedWorkspaceProjectTitle || (workspaceProjectsLoading ? '读取项目...' : '选择范围')}
+                >
+                  <span className="min-w-0 truncate">
+                    {workspaceProjectsLoading ? '读取项目...' : selectedWorkspaceProjectLabel || '选择范围'}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {workspaceProjectOptions.map((option) => (
@@ -510,7 +568,6 @@ export function AgentComposerSection({
                 </SelectContent>
               </Select>
             ) : null}
-            <ProviderMark />
             {composerAttachmentsCount > 0 && (
               <Badge className="max-w-24 truncate type-tiny">
                 {t('agents.chat.attachmentsCount', { count: composerAttachmentsCount })}
@@ -603,6 +660,203 @@ export function AgentComposerSection({
       </AgentComposer>
       </section>
     </AgentSurfaceBlock>
+  )
+}
+
+function AgentQueuedInputPreview({
+  goal,
+  items,
+  legacyItems,
+  collapsed,
+  steerEnabled,
+  onCollapsedChange,
+  onDelete,
+  onEdit,
+  onEditCancel,
+  onSteerNow,
+  onTextChange,
+}: {
+  goal: AgentThreadGoalState | null
+  items: AgentChatQueuedInputPreviewItem[]
+  legacyItems: AgentPendingActiveRunInputQueueItem[]
+  collapsed: boolean
+  steerEnabled: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
+  onDelete?: (id: string) => void
+  onEdit?: (id: string) => void
+  onEditCancel?: (id: string) => void
+  onSteerNow?: (id: string) => void
+  onTextChange?: (id: string, text: string) => void
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingText, setEditingText] = useState('')
+  const previewItems = items.length > 0
+    ? items
+    : legacyItems.map((item, index): AgentChatQueuedInputPreviewItem => ({
+        id: item.id,
+        text: item.content,
+        inputs: [],
+        status: 'draft' as AgentChatQueuedInputStatus,
+        createdAt: index,
+      }))
+  const editingItem = editingId ? previewItems.find((item) => item.id === editingId) : undefined
+  useEffect(() => {
+    if (!editingId || editingItem) return
+    setEditingId(null)
+    setEditingText('')
+  }, [editingId, editingItem])
+
+  if (previewItems.length === 0 && !goal) return null
+
+  function startEditing(item: AgentChatQueuedInputPreviewItem) {
+    if (item.status === 'sending') return
+    setEditingId(item.id)
+    setEditingText(item.text)
+    onEdit?.(item.id)
+  }
+
+  function commitEditing(item: AgentChatQueuedInputPreviewItem) {
+    if (editingId !== item.id) return
+    setEditingId(null)
+    onTextChange?.(item.id, editingText)
+  }
+
+  function cancelEditing(item: AgentChatQueuedInputPreviewItem) {
+    if (editingId !== item.id) return
+    setEditingId(null)
+    setEditingText(item.text)
+    onEditCancel?.(item.id)
+  }
+
+  const isCollapsed = collapsed && previewItems.length > 1
+  const visibleItems = isCollapsed ? previewItems.slice(0, 1) : previewItems
+  return (
+    <div className="mb-2 flex justify-center">
+      <div className="w-[calc(100%-32px)] max-w-[680px] space-y-1.5">
+        {goal ? <AgentGoalStatusPill goal={goal} /> : null}
+        {previewItems.length > 0 ? (
+          <div className="rounded-md border border-border bg-muted/45 px-2.5 py-2 shadow-sm">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 text-left type-tiny text-muted-foreground"
+              onClick={() => onCollapsedChange?.(!collapsed)}
+              aria-expanded={!isCollapsed}
+            >
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                {previewItems.some((item) => item.status === 'sending')
+                  ? <Loader2 size={10} className="shrink-0 animate-spin" />
+                  : <CornerDownLeft size={11} className="shrink-0" />}
+                <span className="truncate">等待进入会话</span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1.5">
+                <span>{previewItems.length}</span>
+                {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+              </span>
+            </button>
+            <div className="mt-1.5 space-y-1">
+              {visibleItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex min-h-8 items-center gap-2 border-t border-border/70 pt-1 first:border-t-0 first:pt-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    {editingId === item.id ? (
+                      <input
+                        autoFocus
+                        className="h-7 w-full rounded-sm border border-border bg-background px-2 type-tiny text-foreground outline-none focus:border-primary"
+                        value={editingText}
+                        aria-label="编辑等待消息内容"
+                        onChange={(event) => setEditingText(event.currentTarget.value)}
+                        onBlur={() => commitEditing(item)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            commitEditing(item)
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault()
+                            cancelEditing(item)
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="truncate type-tiny text-foreground" title={agentChatQueuedInputSummary(item)}>
+                        {agentChatQueuedInputSummary(item)}
+                      </div>
+                    )}
+                    {item.error ? (
+                      <div className="truncate type-tiny text-destructive" title={item.error}>{item.error}</div>
+                    ) : null}
+                  </div>
+                  {item.status === 'sending' ? (
+                    <Loader2 size={13} className="shrink-0 animate-spin text-muted-foreground" />
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button
+                        type="button"
+                        className="ms-control h-6 w-6 justify-center p-0"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => editingId === item.id ? commitEditing(item) : startEditing(item)}
+                        aria-label={editingId === item.id ? '保存等待消息' : '编辑等待消息'}
+                        title={editingId === item.id ? '保存等待消息' : '编辑等待消息'}
+                      >
+                        {editingId === item.id ? <Check size={12} /> : <Pencil size={12} />}
+                      </button>
+                      <button
+                        type="button"
+                        className="ms-control h-6 w-6 justify-center p-0"
+                        disabled={editingId === item.id || !steerEnabled}
+                        onClick={() => onSteerNow?.(item.id)}
+                        aria-label="立即插队"
+                        title={steerEnabled ? '立即插队' : '当前后端不支持运行中插队'}
+                      >
+                        <CornerDownLeft size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="ms-control h-6 w-6 justify-center p-0"
+                        disabled={editingId === item.id}
+                        onClick={() => onDelete?.(item.id)}
+                        aria-label="删除等待消息"
+                        title="删除等待消息"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function AgentGoalStatusPill({ goal }: { goal: AgentThreadGoalState }) {
+  const usage = goal.tokenBudget && goal.tokensUsed !== undefined
+    ? `${goal.tokensUsed}/${goal.tokenBudget}`
+    : goal.tokensUsed !== undefined
+      ? `${goal.tokensUsed} tokens`
+      : undefined
+  return (
+    <div className="flex min-h-8 items-center gap-2 rounded-md border border-border bg-background/80 px-2.5 py-1.5 shadow-sm">
+      <CircleDot size={12} className="shrink-0 text-primary" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate type-tiny font-medium text-foreground" title={goal.objective}>
+          {goal.objective}
+        </div>
+      </div>
+      <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">
+        {agentThreadGoalStatusLabel(goal.status)}
+      </span>
+      {usage ? (
+        <span className="hidden shrink-0 type-tiny text-muted-foreground sm:inline">
+          {usage}
+        </span>
+      ) : null}
+    </div>
   )
 }
 

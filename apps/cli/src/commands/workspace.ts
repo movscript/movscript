@@ -13,6 +13,7 @@ interface WorkspaceCommandOptions {
   org?: string
   project?: string
   projectId?: string
+  commit?: string
   json?: boolean
 }
 
@@ -49,9 +50,10 @@ export function registerWorkspaceCommands(program: Command): void {
     .option('--org <id>', 'Workspace organization id')
     .option('--project <id>', 'Project id')
     .option('--project-id <id>', 'Project id')
+    .option('--commit <ref>', 'Compare current source against a specific git commit/ref')
     .option('--json', 'Print JSON output')
     .action(async (options: WorkspaceCommandOptions, command: Command) => {
-      const result = await workspaceEngine(options, command).review() as MovScriptWorkspaceReviewResult
+      const result = await workspaceEngine(options, command).review(inspectInput(options)) as MovScriptWorkspaceReviewResult
       printResult(result, options)
       if (!result.readyToInterpret) process.exitCode = 2
     })
@@ -89,6 +91,12 @@ function workspaceEngine(options: WorkspaceCommandOptions, command: Command) {
 
 function projectId(options: WorkspaceCommandOptions): string | undefined {
   return options.projectId ?? options.project
+}
+
+function inspectInput(options: WorkspaceCommandOptions): { commit?: string } {
+  return {
+    ...(options.commit ? { commit: options.commit } : {}),
+  }
 }
 
 function commandGlobalOptions(command: Command): { workspace?: string } {

@@ -9,13 +9,17 @@ import {
   annotateResourceImage,
   buildMCPFrameSamplingPlan,
   addShotsToGroup,
+  composeResourceVideosToResource,
   createShotGroup,
+  extractResourceVideoFrameToResource,
+  generateImage,
   getMCPFocusSnapshot,
   getShotGroup,
   getImageGenerationJobs,
   handleJSONRPC,
   listTools,
   readResourceImageForVision,
+  transformResourceImageToResource,
   updateMCPContextSnapshot,
   uploadAgentImageResource,
   uploadAgentImageResources,
@@ -50,7 +54,11 @@ const args = process.argv.slice(2);
 if (process.env.MOVSCRIPT_TEST_FFMPEG_LOG) fs.appendFileSync(process.env.MOVSCRIPT_TEST_FFMPEG_LOG, JSON.stringify({ tool: 'ffprobe', args }) + '\\n');
 const width = Number(process.env.MOVSCRIPT_TEST_IMAGE_WIDTH || 2000);
 const height = Number(process.env.MOVSCRIPT_TEST_IMAGE_HEIGHT || 1000);
-process.stdout.write(JSON.stringify({ streams: [{ width, height }] }));
+const duration = Number(process.env.MOVSCRIPT_TEST_VIDEO_DURATION || 12);
+process.stdout.write(JSON.stringify({
+  format: { duration: String(duration) },
+  streams: [{ width, height, avg_frame_rate: '30/1', r_frame_rate: '30/1' }]
+}));
 `, 'utf8')
   await chmod(ffmpegPath, 0o755)
   await chmod(ffprobePath, 0o755)
@@ -123,7 +131,16 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_generate_video'))
   assert.ok(tools.includes('system_generate_video_job_get_batch'))
   assert.ok(tools.includes('system_resource_library_query'))
+  assert.ok(tools.includes('system_resource_image_transform_to_resource'))
   assert.ok(tools.includes('system_resource_video_extract_frames'))
+  assert.ok(tools.includes('system_resource_video_probe'))
+  assert.ok(tools.includes('system_resource_video_extract_frame_to_resource'))
+  assert.ok(tools.includes('system_resource_video_extract_frames_to_resources'))
+  assert.ok(tools.includes('system_resource_video_trim_to_resource'))
+  assert.ok(tools.includes('system_resource_video_compose_to_resource'))
+  assert.ok(tools.includes('system_resource_video_concat_to_resource'))
+  assert.ok(tools.includes('system_resource_video_contact_sheet_to_resource'))
+  assert.ok(tools.includes('system_resource_video_extract_audio_to_resource'))
   assert.ok(tools.includes('system_shot_library_query'))
   assert.ok(tools.includes('system_shot_group_create'))
   assert.ok(tools.includes('system_shot_group_get'))
@@ -135,8 +152,10 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_query_settings'))
   assert.ok(tools.includes('domain_query_assets'))
   assert.ok(tools.includes('domain_query_production_context'))
+  assert.ok(tools.includes('domain_build_content_unit_backend_prompt'))
   assert.ok(tools.includes('domain_read_content_unit_generation_prompt'))
   assert.ok(tools.includes('domain_read_content_unit_input_version'))
+  assert.ok(tools.includes('domain_read_production_work_plan'))
   assert.ok(tools.includes('domain_upsert_setting'))
   assert.ok(tools.includes('domain_upsert_production'))
   assert.ok(tools.includes('domain_upsert_segment'))
@@ -160,9 +179,9 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.equal(tools.includes('domain_update_scene_moment_timing'), false)
   assert.equal(tools.includes('domain_update_storyboard_timing'), false)
   assert.equal(tools.includes('domain_update_content_unit_generation_prompt'), false)
-  assert.ok(tools.includes('movscript_workspace_get_model'))
-  assert.ok(tools.includes('movscript_workspace_review'))
-  assert.ok(tools.includes('movscript_workspace_interpret'))
+  assert.equal(tools.includes('movscript_workspace_get_model'), false)
+  assert.equal(tools.includes('movscript_workspace_review'), false)
+  assert.equal(tools.includes('movscript_workspace_interpret'), false)
   assert.equal(tools.includes('workspace_fetch'), false)
   assert.equal(tools.includes('workspace_status'), false)
   assert.equal(tools.includes('workspace_review'), false)
@@ -171,6 +190,15 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.equal(tools.includes('movscript_script_locate'), false)
   assert.ok(tools.includes('movscript_resource_library_query'))
   assert.ok(tools.includes('movscript_resource_video_extract_frames'))
+  assert.ok(tools.includes('movscript_resource_image_transform_to_resource'))
+  assert.ok(tools.includes('movscript_resource_video_probe'))
+  assert.ok(tools.includes('movscript_resource_video_extract_frame_to_resource'))
+  assert.ok(tools.includes('movscript_resource_video_extract_frames_to_resources'))
+  assert.ok(tools.includes('movscript_resource_video_trim_to_resource'))
+  assert.ok(tools.includes('movscript_resource_video_compose_to_resource'))
+  assert.ok(tools.includes('movscript_resource_video_concat_to_resource'))
+  assert.ok(tools.includes('movscript_resource_video_contact_sheet_to_resource'))
+  assert.ok(tools.includes('movscript_resource_video_extract_audio_to_resource'))
   assert.ok(tools.includes('movscript_resource_image_annotate'))
   assert.ok(tools.includes('movscript_resource_upload'))
   assert.ok(tools.includes('movscript_resource_upload_batch'))
@@ -221,14 +249,28 @@ test('MCP upsert setting schema makes payload the unambiguous write body', () =>
   )
 })
 
+test('MCP content candidate schemas expose status enum and default guidance', () => {
+  const tools = listTools()
+  const expectedStatuses = ['queued', 'running', 'succeeded', 'failed', 'canceled', 'imported']
+
+  const createTool = tools.find((tool) => tool.name === 'domain_create_content_candidate')
+  assert.ok(createTool, 'domain_create_content_candidate schema should be exposed')
+  assert.deepEqual(createTool.inputSchema.properties?.status?.enum, expectedStatuses)
+  assert.match(createTool.inputSchema.properties?.status?.description ?? '', /Omit for completed generated resources/)
+  assert.match(createTool.description ?? '', /Omit status for completed generated resources/)
+
+  const batchTool = tools.find((tool) => tool.name === 'domain_create_content_candidate_batch')
+  assert.ok(batchTool, 'domain_create_content_candidate_batch schema should be exposed')
+  assert.deepEqual(batchTool.inputSchema.properties?.items?.items?.properties?.status?.enum, expectedStatuses)
+  assert.match(batchTool.inputSchema.properties?.items?.items?.properties?.status?.description ?? '', /Do not use completed/)
+})
+
 test('MCP project-scoped tool schemas expose explicit project id arguments', () => {
   const tools = listTools()
   for (const name of [
     'domain_overview',
     'domain_get_model',
     'domain_query_entities',
-    'movscript_workspace_get_model',
-    'movscript_workspace_review',
     'generation_image_generate',
     'generation_video_generate',
     'system_generate_image',
@@ -245,7 +287,7 @@ test('MCP project-scoped tool schemas expose explicit project id arguments', () 
   }
 })
 
-test('MCP domain tool aliases route through the domain workspace model', async () => {
+test('MCP domain model tool routes through the domain workspace model', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-domain-model-'))
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
@@ -277,21 +319,6 @@ test('MCP domain tool aliases route through the domain workspace model', async (
     assert.equal(response?.result?.data?.entityKind, 'scene_moment')
     assert.ok(response?.result?.data?.editablePaths?.[0].includes('scene_moment_r72k'))
 
-    const legacyResponse = await handleJSONRPC({
-      jsonrpc: '2.0',
-      id: 'legacy-workspace-model',
-      method: 'tools/call',
-      params: {
-        name: 'movscript_workspace_get_model',
-        arguments: {
-          projectId: 6,
-          entityKind: 'scene_moment',
-          entityId: 'scene_moment_r72k',
-        },
-      },
-    })
-
-    assert.equal(legacyResponse?.result?.data?.workspaceKind, 'scene_moment_workspace')
   } finally {
     updateMCPContextSnapshot(emptyMCPContextSnapshot())
     if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
@@ -375,6 +402,193 @@ test('MCP video frame sampling supports range and burst budgets', () => {
   assert.equal(burst.windowSec, 2)
 })
 
+test('MCP video frame extraction can materialize a frame as a RawResource', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'movscript-frame-resource-'))
+  const logPath = join(tempDir, 'ffmpeg.jsonl')
+  const originalFetch = globalThis.fetch
+  const originalFFmpegPath = process.env.FFMPEG_PATH
+  const originalLog = process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const requests = []
+  try {
+    process.env.FFMPEG_PATH = await writeFakeFFmpegTools(tempDir)
+    process.env.MOVSCRIPT_TEST_FFMPEG_LOG = logPath
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      requests.push({ url, method: init?.method ?? 'GET' })
+      if (url === 'http://movscript.test/api/v1/resources/42/file') {
+        return new Response(Buffer.from('fake-video'), {
+          status: 200,
+          headers: {
+            'content-type': 'video/mp4',
+            'content-length': '10',
+          },
+        })
+      }
+      if (url === 'http://movscript.test/api/v1/resources/upload') {
+        assert.equal(init?.method, 'POST')
+        assert.ok(init.body instanceof FormData)
+        const file = init.body.get('file')
+        assert.ok(file instanceof Blob)
+        assert.equal(file.type, 'image/jpeg')
+        assert.equal(file.name, 'resource-42-frame-2_500.jpg')
+        assert.deepEqual(JSON.parse(init.body.get('derivative')), {
+          operation: 'video_extract_frame',
+          tool: 'movscript_resource_video_extract_frames_to_resources',
+          input_resource_ids: [42],
+          params: {
+            timestamp_sec: 2.5,
+            max_width: 720,
+            image_format: 'jpeg',
+          },
+        })
+        return new Response(JSON.stringify({ ID: 501, name: file.name, mime_type: file.type }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await extractResourceVideoFrameToResource({
+      resource_id: 42,
+      timestamp_sec: 2.5,
+      max_width: 720,
+    })
+
+    assert.equal(result.status, 'created')
+    assert.equal(result.source_resource_id, 42)
+    assert.equal(result.image_resource_id, 501)
+    assert.equal(result.resource_id, 501)
+    assert.equal(result.timestamp_sec, 2.5)
+    assert.equal(result.frame.source.operation, 'video_extract_frame')
+    assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
+      'GET http://movscript.test/api/v1/resources/42/file',
+      'POST http://movscript.test/api/v1/resources/upload',
+    ])
+
+    const toolCalls = readFileSync(logPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffprobe' && call.args.includes('-show_entries')))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.includes('-ss') && call.args.includes('2.500')))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.some((arg) => String(arg).includes('scale=720:-2'))))
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = originalFFmpegPath
+    if (originalLog === undefined) delete process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+    else process.env.MOVSCRIPT_TEST_FFMPEG_LOG = originalLog
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP video composition creates a new video RawResource from ordered resource clips', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'movscript-compose-resource-'))
+  const logPath = join(tempDir, 'ffmpeg.jsonl')
+  const originalFetch = globalThis.fetch
+  const originalFFmpegPath = process.env.FFMPEG_PATH
+  const originalLog = process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const requests = []
+  try {
+    process.env.FFMPEG_PATH = await writeFakeFFmpegTools(tempDir)
+    process.env.MOVSCRIPT_TEST_FFMPEG_LOG = logPath
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      requests.push({ url, method: init?.method ?? 'GET' })
+      if (url === 'http://movscript.test/api/v1/resources/10/file' || url === 'http://movscript.test/api/v1/resources/11/file') {
+        return new Response(Buffer.from('fake-video'), {
+          status: 200,
+          headers: {
+            'content-type': 'video/mp4',
+            'content-length': '10',
+          },
+        })
+      }
+      if (url === 'http://movscript.test/api/v1/resources/upload') {
+        assert.equal(init?.method, 'POST')
+        assert.ok(init.body instanceof FormData)
+        const file = init.body.get('file')
+        assert.ok(file instanceof Blob)
+        assert.equal(file.type, 'video/mp4')
+        assert.equal(file.name, 'joined.mp4')
+        assert.deepEqual(JSON.parse(init.body.get('derivative')), {
+          operation: 'video_compose',
+          tool: 'movscript_resource_video_compose_to_resource',
+          input_resource_ids: [10, 11],
+          params: {
+            segments: [
+              {
+                index: 1,
+                source_resource_id: 10,
+                start_sec: 0,
+                end_sec: 5,
+                duration_sec: 5,
+                video: {
+                  duration_sec: 12,
+                  width: 2000,
+                  height: 1000,
+                  fps: 30,
+                },
+              },
+              {
+                index: 2,
+                source_resource_id: 11,
+                start_sec: 1,
+                end_sec: 5,
+                duration_sec: 4,
+                video: {
+                  duration_sec: 12,
+                  width: 2000,
+                  height: 1000,
+                  fps: 30,
+                },
+              },
+            ],
+          },
+        })
+        return new Response(JSON.stringify({ ID: 601, name: file.name, mime_type: file.type }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await composeResourceVideosToResource({
+      items: [
+        { resource_id: 10, start_sec: 0, end_sec: 5 },
+        { resource_id: 11, start_sec: 1, duration_sec: 4, muted: true },
+      ],
+      filename: 'joined.mp4',
+    })
+
+    assert.equal(result.status, 'created')
+    assert.equal(result.video_resource_id, 601)
+    assert.equal(result.resource_id, 601)
+    assert.equal(result.duration_sec, 9)
+    assert.deepEqual(result.input_resource_ids, [10, 11])
+    assert.equal(result.segments.length, 2)
+    assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
+      'GET http://movscript.test/api/v1/resources/10/file',
+      'GET http://movscript.test/api/v1/resources/11/file',
+      'POST http://movscript.test/api/v1/resources/upload',
+    ])
+
+    const toolCalls = readFileSync(logPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.includes('libx264')))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.includes('concat')))
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = originalFFmpegPath
+    if (originalLog === undefined) delete process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+    else process.env.MOVSCRIPT_TEST_FFMPEG_LOG = originalLog
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('MCP resource image read validates, resizes, and returns lean image content', async () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'movscript-image-read-'))
   const logPath = join(tempDir, 'ffmpeg.jsonl')
@@ -425,6 +639,102 @@ test('MCP resource image read validates, resizes, and returns lean image content
     assert.ok(toolCalls.some((call) => call.tool === 'ffprobe' && call.args.includes('-show_entries')))
     assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.includes('-f') && call.args.includes('null')))
     assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.some((arg) => String(arg).includes('scale=960:960'))))
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = originalFFmpegPath
+    if (originalLog === undefined) delete process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+    else process.env.MOVSCRIPT_TEST_FFMPEG_LOG = originalLog
+    if (originalWidth === undefined) delete process.env.MOVSCRIPT_TEST_IMAGE_WIDTH
+    else process.env.MOVSCRIPT_TEST_IMAGE_WIDTH = originalWidth
+    if (originalHeight === undefined) delete process.env.MOVSCRIPT_TEST_IMAGE_HEIGHT
+    else process.env.MOVSCRIPT_TEST_IMAGE_HEIGHT = originalHeight
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP image transform can materialize an edited image as a RawResource', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'movscript-image-transform-'))
+  const logPath = join(tempDir, 'ffmpeg.jsonl')
+  const originalFetch = globalThis.fetch
+  const originalFFmpegPath = process.env.FFMPEG_PATH
+  const originalLog = process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+  const originalWidth = process.env.MOVSCRIPT_TEST_IMAGE_WIDTH
+  const originalHeight = process.env.MOVSCRIPT_TEST_IMAGE_HEIGHT
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const requests = []
+  try {
+    process.env.FFMPEG_PATH = await writeFakeFFmpegTools(tempDir)
+    process.env.MOVSCRIPT_TEST_FFMPEG_LOG = logPath
+    process.env.MOVSCRIPT_TEST_IMAGE_WIDTH = '2000'
+    process.env.MOVSCRIPT_TEST_IMAGE_HEIGHT = '1000'
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      requests.push({ url, method: init?.method ?? 'GET' })
+      if (url === 'http://movscript.test/api/v1/resources/77/file') {
+        return new Response(onePixelPNGBytes, {
+          status: 200,
+          headers: {
+            'content-type': 'image/png',
+            'content-length': String(onePixelPNGBytes.length),
+          },
+        })
+      }
+      if (url === 'http://movscript.test/api/v1/resources/upload') {
+        assert.equal(init?.method, 'POST')
+        assert.ok(init.body instanceof FormData)
+        const file = init.body.get('file')
+        assert.ok(file instanceof Blob)
+        assert.equal(file.type, 'image/jpeg')
+        assert.equal(file.name, 'crop.jpg')
+        assert.deepEqual(JSON.parse(init.body.get('derivative')), {
+          operation: 'image_transform',
+          tool: 'movscript_resource_image_transform_to_resource',
+          input_resource_ids: [77],
+          params: {
+            source_width: 2000,
+            source_height: 1000,
+            output_width: 500,
+            output_height: 250,
+            crop: { x: 100, y: 50, width: 1000, height: 500 },
+            resize: { width: 500 },
+            output_format: 'jpeg',
+          },
+        })
+        return new Response(JSON.stringify({ ID: 701, name: file.name, mime_type: file.type }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await transformResourceImageToResource({
+      resource_id: 77,
+      crop_x: 100,
+      crop_y: 50,
+      crop_width: 1000,
+      crop_height: 500,
+      width: 500,
+      output_format: 'jpeg',
+      filename: 'crop.jpg',
+    })
+
+    assert.equal(result.status, 'created')
+    assert.equal(result.source_resource_id, 77)
+    assert.equal(result.image_resource_id, 701)
+    assert.equal(result.resource_id, 701)
+    assert.equal(result.width, 500)
+    assert.equal(result.height, 250)
+    assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
+      'GET http://movscript.test/api/v1/resources/77/file',
+      'POST http://movscript.test/api/v1/resources/upload',
+    ])
+
+    const toolCalls = readFileSync(logPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.includes('-f') && call.args.includes('null')))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.some((arg) => String(arg).includes('crop=1000:500:100:50,scale=500:-2'))))
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
@@ -627,6 +937,175 @@ test('MCP generation job get batch returns per-job state and output ids', async 
       'http://movscript.test/api/v1/jobs/11',
       'http://movscript.test/api/v1/jobs/12',
     ])
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('MCP image generation compatible mode maps unsupported aspect ratio to model image size', async () => {
+  const originalFetch = globalThis.fetch
+  const requests = []
+  let postedBody
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const seedream4 = {
+    id: 41,
+    model_id: 'volcengine:seedream-4-0',
+    display_name: 'Seedream 4.0',
+    capabilities: ['image'],
+    supported_params: [
+      {
+        key: 'image_size',
+        type: 'select',
+        options: ['2048x2048', '2848x1600', '1600x2848'],
+        default: '2048x2048',
+      },
+      { key: 'watermark', type: 'boolean', default: true },
+    ],
+  }
+
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      requests.push({ url, method: init?.method ?? 'GET' })
+      if (url === 'http://movscript.test/api/v1/models?capability=image') {
+        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/models?capability=image_edit') {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/jobs') {
+        assert.equal(init?.method, 'POST')
+        postedBody = JSON.parse(init.body)
+        return new Response(JSON.stringify({ ID: 91, status: 'pending' }), { status: 201, headers: { 'content-type': 'application/json' } })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await generateImage({
+      prompt: 'wide cinematic frame',
+      model_id: 'volcengine:seedream-4-0',
+      aspect_ratio: '16:9',
+      project_id: 7,
+    })
+
+    assert.equal(result.status, 'submitted')
+    assert.equal(result.job_id, 91)
+    assert.equal(postedBody.model_id, 'volcengine:seedream-4-0')
+    assert.equal(postedBody.project_id, 7)
+    assert.equal(postedBody.aspect_ratio, undefined)
+    assert.equal(postedBody.duration, undefined)
+    assert.deepEqual(JSON.parse(postedBody.extra_params), { image_size: '2848x1600' })
+    assert.ok(result.param_audit.some((item) => item.key === 'aspect_ratio' && item.reason === 'mapped_unsupported_aspect_ratio_to_image_size'))
+    assert.ok(result.param_audit.some((item) => item.key === 'aspect_ratio' && item.reason === 'dropped_unsupported_parameter'))
+    assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
+      'GET http://movscript.test/api/v1/models?capability=image',
+      'GET http://movscript.test/api/v1/models?capability=image_edit',
+      'POST http://movscript.test/api/v1/jobs',
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('MCP image generation strict mode rejects explicit unsupported params before submitting', async () => {
+  const originalFetch = globalThis.fetch
+  let posted = false
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const seedream4 = {
+    id: 41,
+    model_id: 'volcengine:seedream-4-0',
+    display_name: 'Seedream 4.0',
+    capabilities: ['image'],
+    supported_params: [
+      {
+        key: 'image_size',
+        type: 'select',
+        options: ['1024x1024', '2048x2048', '2848x1600'],
+        default: '2048x2048',
+      },
+    ],
+  }
+
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      if (url === 'http://movscript.test/api/v1/models?capability=image') {
+        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/models?capability=image_edit') {
+        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/jobs') {
+        posted = true
+        return new Response(JSON.stringify({ ID: 92 }), { status: 201, headers: { 'content-type': 'application/json' } })
+      }
+      throw new Error(`unexpected request: ${url} ${init?.method ?? 'GET'}`)
+    }
+
+    await assert.rejects(
+      generateImage({
+        prompt: 'wide cinematic frame',
+        model_id: 'volcengine:seedream-4-0',
+        aspect_ratio: '16:9',
+        parameter_mode: 'strict',
+        project_id: 7,
+      }),
+      /parameter "aspect_ratio" is not supported by model "Seedream 4.0"/,
+    )
+    assert.equal(posted, false)
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('MCP image generation drops unsupported defaults without treating them as strict errors', async () => {
+  const originalFetch = globalThis.fetch
+  let postedBody
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const seedream4 = {
+    id: 41,
+    model_id: 'volcengine:seedream-4-0',
+    display_name: 'Seedream 4.0',
+    capabilities: ['image'],
+    supported_params: [
+      {
+        key: 'image_size',
+        type: 'select',
+        options: ['1024x1024', '2048x2048', '2848x1600'],
+        default: '2048x2048',
+      },
+    ],
+  }
+
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      if (url === 'http://movscript.test/api/v1/models?capability=image') {
+        return new Response(JSON.stringify([seedream4]), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (url === 'http://movscript.test/api/v1/jobs') {
+        assert.equal(init?.method, 'POST')
+        postedBody = JSON.parse(init.body)
+        return new Response(JSON.stringify({ ID: 93, status: 'pending' }), { status: 201, headers: { 'content-type': 'application/json' } })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await generateImage({
+      prompt: 'square frame',
+      parameter_mode: 'strict',
+      project_id: 7,
+    })
+
+    assert.equal(result.status, 'submitted')
+    assert.equal(result.job_id, 93)
+    assert.equal(postedBody.model_id, 'volcengine:seedream-4-0')
+    assert.equal(postedBody.aspect_ratio, undefined)
+    assert.deepEqual(JSON.parse(postedBody.extra_params), { image_size: '1024x1024' })
+    assert.ok(result.param_audit.some((item) => item.key === 'aspect_ratio' && item.source === 'default' && item.reason === 'dropped_unsupported_parameter'))
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')
@@ -909,11 +1388,65 @@ test('MCP domain tools can create shot and keyframe source records', async () =>
   }
 })
 
-test('MCP content unit candidate flow writes source records and interprets checkpoint', async () => {
+test('MCP content unit candidate flow writes source records and refreshes interpreted state', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const originalFetch = globalThis.fetch
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-content-candidate-'))
   const projectDir = join(workspaceDir, 'local', 'projects', 'project_8')
+  const decisionContexts = new Map()
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(String(url))
+    const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
+    const json = (value, status = 200) => ({
+      status,
+      ok: status >= 200 && status < 300,
+      text: async () => JSON.stringify(value),
+      json: async () => value,
+    })
+    const notFound = () => ({
+      status: 404,
+      ok: false,
+      text: async () => '',
+      json: async () => ({}),
+    })
+
+    if (parsed.pathname.endsWith('/decisions') && (init.method ?? 'GET') === 'GET') {
+      return decisionContexts.has(parsed.searchParams.get('target_ref'))
+        ? json(decisionContexts.get(parsed.searchParams.get('target_ref')))
+        : notFound()
+    }
+    if (parsed.pathname.endsWith('/decisions/candidates') && init.method === 'POST') {
+      const context = decisionContexts.get(body.target_ref) ?? {
+        schema: 'movscript.decision_context.v1',
+        target_kind: body.target_kind,
+        target_ref: body.target_ref,
+        candidates: [],
+      }
+      const candidateId = body.candidate?.id
+      context.candidates = [
+        ...context.candidates.filter((candidate) => String(candidate.id) !== String(candidateId)),
+        body.candidate,
+      ]
+      decisionContexts.set(body.target_ref, context)
+      return json(context)
+    }
+    if (parsed.pathname.endsWith('/decisions/selection') && init.method === 'PUT') {
+      const targetRef = body.target_ref
+      const context = decisionContexts.get(targetRef)
+      if (!context) return notFound()
+      context.selection = {
+        candidate_id: body.candidate_id,
+        resource_id: body.resource_id,
+        stale_policy: body.stale_policy ?? 'strict',
+        reason: body.reason,
+        selected_at: body.selected_at,
+      }
+      decisionContexts.set(targetRef, context)
+      return json(context)
+    }
+    return notFound()
+  }
   try {
     updateMCPContextSnapshot(emptyMCPContextSnapshot())
 
@@ -978,9 +1511,9 @@ test('MCP content unit candidate flow writes source records and interprets check
     })
 
     assert.equal(selectionResponse.error, undefined)
-    assert.equal(selectionResponse.result.data.path, 'content_units/arrival_preview/selection.json')
-    assert.equal(selectionResponse.result.data.record.resource_id, 321)
-    assert.equal(selectionResponse.result.data.record.accepted_input_hash, undefined)
+    assert.equal(selectionResponse.result.data.path, '.movscript/decisions/content_units/arrival_preview/decision_context.json')
+    assert.equal(selectionResponse.result.data.record.selection.resource_id, 321)
+    assert.equal(selectionResponse.result.data.record.selection.accepted_input_hash, undefined)
 
     const inspectResponse = await handleJSONRPC({
       jsonrpc: '2.0',
@@ -1006,20 +1539,19 @@ test('MCP content unit candidate flow writes source records and interprets check
     })
 
     assert.equal(interpretResponse.error, undefined)
-    assert.equal(interpretResponse.result.data.status, 'interpreted')
+    assert.equal(interpretResponse.result.data.status, 'refreshed')
     const interpretText = interpretResponse.result.content?.[0]?.text ?? ''
-    assert.match(interpretText, /movscript\.workspace-interpret-agent-summary\.v1/)
+    assert.match(interpretText, /movscript\.workspace-interpret-refresh-agent-summary\.v1/)
     assert.doesNotMatch(interpretText, /basePath/)
     assert.doesNotMatch(interpretText, /currentPath/)
     assert.doesNotMatch(interpretText, /contentHash/)
     assert.equal(Boolean(interpretResponse.result.data.review?.changedFiles?.[0]?.currentPath), true)
     assert.equal(existsSync(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'content_unit.json')), true)
-    assert.equal(existsSync(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'candidates', 'candidate_a', 'content_candidate.json')), true)
-    const selection = JSON.parse(await readFile(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'selection.json'), 'utf8'))
-    assert.equal(selection.candidate_id, 'candidate_a')
-    assert.equal(selection.resource_id, 321)
-    assert.equal(selection.accepted_input_hash, undefined)
+    const selectionValidity = JSON.parse(await readFile(join(projectDir, '.interpret', 'current', 'content_units', 'arrival_preview', 'selection_validity.json'), 'utf8'))
+    assert.equal(selectionValidity.schema, 'movscript.content_unit_selection_validity.v2')
+    assert.equal(selectionValidity.content_unit_ref, 'content_units/arrival_preview')
   } finally {
+    globalThis.fetch = originalFetch
     updateMCPContextSnapshot(emptyMCPContextSnapshot())
     if (previousWorkspaceDir === undefined) {
       delete process.env.MOVSCRIPT_WORKSPACE_DIR
@@ -1030,7 +1562,110 @@ test('MCP content unit candidate flow writes source records and interprets check
   }
 })
 
-test('MCP workspace tools expose get_model review and interpret over source/.interpret', async () => {
+test('MCP backend prompt tool returns blockers from backend decision context', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const originalFetch = globalThis.fetch
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-backend-prompt-'))
+  const projectDir = join(workspaceDir, 'local', 'projects', 'project_9')
+  const requests = []
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url: String(url), method: init?.method ?? 'GET' })
+    return {
+      status: 404,
+      ok: false,
+      text: async () => '',
+      json: async () => ({}),
+    }
+  }
+  try {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    await mkdir(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair'), { recursive: true })
+    await writeFile(join(projectDir, 'settings', 'hero', 'states', 'rain', 'assets', 'wet_hair', 'asset.json'), JSON.stringify({
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'wet_hair',
+      title: 'Wet hair',
+      slot: 'hair',
+    }), 'utf8')
+    const upstreamResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'backend-prompt-upstream',
+      method: 'tools/call',
+      params: {
+        name: 'domain_upsert_content_unit',
+        arguments: {
+          projectId: 9,
+          unit: {
+            id: 'cu_wet_hair_ref',
+            title: 'Wet hair reference',
+            contentUnitType: 'asset_ref',
+            outputKind: 'image',
+            assetRef: 'wet_hair',
+            editPrompt: { text: 'Generate wet hair continuity reference.' },
+          },
+        },
+      },
+    })
+    assert.equal(upstreamResponse.error, undefined)
+    assert.equal(upstreamResponse.result.data.record.asset_ref, 'wet_hair')
+
+    const targetResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'backend-prompt-target',
+      method: 'tools/call',
+      params: {
+        name: 'domain_upsert_content_unit',
+        arguments: {
+          projectId: 9,
+          unit: {
+            id: 'cu_phone_video',
+            title: 'Phone video',
+            contentUnitType: 'shot_ref',
+            outputKind: 'video',
+            shotRef: 'phone',
+            editPrompt: { text: 'Use {{asset:wet_hair}} as continuity reference.' },
+          },
+        },
+      },
+    })
+    assert.equal(targetResponse.error, undefined)
+    assert.equal(targetResponse.result.data.record.shot_ref, 'phone')
+
+    const response = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'backend-prompt',
+      method: 'tools/call',
+      params: {
+        name: 'domain_build_content_unit_backend_prompt',
+        arguments: {
+          projectId: 9,
+          contentUnitId: 'cu_phone_video',
+        },
+      },
+    })
+
+    assert.equal(response.error, undefined)
+    const result = response.result.data
+    assert.equal(result.ok, false)
+    assert.equal(result.prompt.text, 'Use {{asset:wet_hair}} as continuity reference.')
+    assert.equal(result.blockers[0]?.code, 'decision_context_missing')
+    assert.equal(result.blockers[0]?.content_unit_id, 'cu_wet_hair_ref')
+    assert.equal(result.blockers[0]?.ref, '{{asset:wet_hair}}')
+    assert.ok(requests.some((request) => /\/api\/v1\/projects\/9\/decisions/.test(request.url)))
+  } finally {
+    globalThis.fetch = originalFetch
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (previousWorkspaceDir === undefined) {
+      delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    } else {
+      process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+    }
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP domain tools expose get_model inspect and interpret over source/.interpret', async () => {
   const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-tools-'))
   const projectDir = join(workspaceDir, 'user', '1', 'projects', 'project_6')
@@ -1058,12 +1693,12 @@ test('MCP workspace tools expose get_model review and interpret over source/.int
       id: 'initial-build',
       method: 'tools/call',
       params: {
-        name: 'movscript_workspace_interpret',
+        name: 'domain_interpret',
         arguments: { projectId: 6 },
       },
     })
     assert.equal(initialBuildResponse.error, undefined)
-    assert.equal(initialBuildResponse.result.data.status, 'interpreted')
+    assert.equal(initialBuildResponse.result.data.status, 'refreshed')
 
     await writeFile(join(projectDir, 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
       schema: 'movscript.setting.v1',
@@ -1078,7 +1713,7 @@ test('MCP workspace tools expose get_model review and interpret over source/.int
       id: 'get-model',
       method: 'tools/call',
       params: {
-        name: 'movscript_workspace_get_model',
+        name: 'domain_get_model',
         arguments: { projectId: 6, entityKind: 'setting', entityId: 'setting_hero' },
       },
     })
@@ -1091,14 +1726,14 @@ test('MCP workspace tools expose get_model review and interpret over source/.int
       id: 'review',
       method: 'tools/call',
       params: {
-        name: 'movscript_workspace_review',
+        name: 'domain_inspect',
         arguments: { projectId: 6 },
       },
     })
     const review = record(reviewResponse?.result?.data)
-    assert.equal(review.basePath, '.movscript/checkpoints/current/source')
+    assert.equal(review.basePath, 'empty')
     assert.equal(review.sourcePath, '')
-    assert.equal(review.summary.modified, 1)
+    assert.equal(review.summary.added, 1)
     assert.equal(review.readyToInterpret, true)
 
     const buildResponse = await handleJSONRPC({
@@ -1106,14 +1741,14 @@ test('MCP workspace tools expose get_model review and interpret over source/.int
       id: 'build',
       method: 'tools/call',
       params: {
-        name: 'movscript_workspace_interpret',
+        name: 'domain_interpret',
         arguments: { projectId: 6 },
       },
     })
     const build = record(buildResponse?.result?.data)
-    assert.equal(build.status, 'interpreted')
+    assert.equal(build.status, 'refreshed')
     const buildText = buildResponse.result.content?.[0]?.text ?? ''
-    assert.match(buildText, /movscript\.workspace-interpret-agent-summary\.v1/)
+    assert.match(buildText, /movscript\.workspace-interpret-refresh-agent-summary\.v1/)
     assert.doesNotMatch(buildText, /basePath/)
     assert.doesNotMatch(buildText, /currentPath/)
     assert.doesNotMatch(buildText, /contentHash/)

@@ -19,6 +19,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   currentProject: Project | null
   interaction: ReturnType<typeof useAgentChatInteractionController>
   timelineLoading: boolean
+  conversationEstablished: boolean
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
   presentation: ReturnType<typeof useAgentChatPresentationState>
@@ -49,6 +50,7 @@ export function buildAgentChatViewLayoutProps({
   currentProject,
   interaction,
   timelineLoading,
+  conversationEstablished,
   planActionBusy,
   planDispatchSettings,
   presentation,
@@ -163,6 +165,7 @@ export function buildAgentChatViewLayoutProps({
       uploadedFileCount: composer.uploadedFileCount,
       uploadingFileNames: composer.uploadingFileNames,
       workspaceProjectOptions: composer.workspaceProjectOptions,
+      workspaceProjectLocked: conversationEstablished,
       workspaceProjectValue: composer.workspaceProjectValue,
       workspaceProjectsLoading: composer.workspaceProjectsLoading,
       onAcceptMention: () => {

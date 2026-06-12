@@ -5,6 +5,7 @@ import type {
   AgentChatThread,
   AgentChatTurn,
 } from './agentChatProtocol.js'
+import { agentThreadGoalStateFromUnknown } from './agentChatGoalState.js'
 import type { AgentChatThreadItem } from './agentChatThreadItems.js'
 import {
   agentChatPendingServerRequestMatchesResolvedEvent,
@@ -115,6 +116,16 @@ export function dispatchAgentChatNotification<
     target.updateThreads((current) => current.map((thread) => thread.id === threadId ? { ...thread, name, updatedAt: Math.max(thread.updatedAt, unixSecondsNow()) } : thread))
     return
   }
+  if (notification.method === 'thread/goal/updated') {
+    const goal = agentThreadGoalStateFromUnknown(params.goal)
+    if (!goal) return
+    target.updateThreads((current) => current.map((thread) => thread.id === threadId ? { ...thread, goal, updatedAt: Math.max(thread.updatedAt, goal.updatedAt ?? unixSecondsNow()) } : thread))
+    return
+  }
+  if (notification.method === 'thread/goal/cleared') {
+    target.updateThreads((current) => current.map((thread) => thread.id === threadId ? { ...thread, goal: null, updatedAt: Math.max(thread.updatedAt, unixSecondsNow()) } : thread))
+    return
+  }
   if (notification.method === 'thread/settings/updated') {
     const settings = isRecord(params.threadSettings) ? params.threadSettings : {}
     target.updateThreads((current) => current.map((thread) => {
@@ -131,6 +142,7 @@ export function dispatchAgentChatNotification<
           ...(Object.prototype.hasOwnProperty.call(settings, 'approvalPolicy') ? { approvalPolicy: stringField(settings.approvalPolicy) ?? null } : {}),
           ...(Object.prototype.hasOwnProperty.call(settings, 'approvalsReviewer') ? { approvalsReviewer: stringField(settings.approvalsReviewer) ?? null } : {}),
           ...(Object.prototype.hasOwnProperty.call(settings, 'sandboxPolicy') ? { sandboxPolicy: settings.sandboxPolicy } : {}),
+          ...(Object.prototype.hasOwnProperty.call(settings, 'activePermissionProfile') ? { permissions: activePermissionProfileId(settings.activePermissionProfile) } : {}),
         },
       }
     }))
@@ -756,6 +768,7 @@ function normalizeAgentChatNotificationThread(value: Record<string, unknown>): A
     createdAt: numberField(value.createdAt) ?? unixSecondsNow(),
     updatedAt: numberField(value.updatedAt) ?? unixSecondsNow(),
     status: agentChatThreadStatusField(value.status) ?? 'unknown',
+    ...(Object.prototype.hasOwnProperty.call(value, 'goal') ? { goal: agentThreadGoalStateFromUnknown(value.goal) ?? null } : {}),
     ...(isRecord(value.executionSettings) ? { executionSettings: normalizeAgentThreadExecutionSettings(value.executionSettings) } : {}),
     turns: Array.isArray(value.turns)
       ? value.turns.flatMap((turn) => isRecord(turn) ? [normalizeAgentChatNotificationTurn(turn)].filter(Boolean) as AgentChatTurn[] : [])
@@ -775,6 +788,11 @@ function normalizeAgentThreadExecutionSettings(value: Record<string, unknown>): 
     ...(Object.prototype.hasOwnProperty.call(value, 'sandboxPolicy') ? { sandboxPolicy: value.sandboxPolicy } : {}),
     ...(Object.prototype.hasOwnProperty.call(value, 'permissions') ? { permissions: stringField(value.permissions) ?? null } : {}),
   }
+}
+
+function activePermissionProfileId(value: unknown): string | null {
+  if (value === null) return null
+  return isRecord(value) ? stringField(value.id) ?? null : null
 }
 
 function normalizeAgentChatNotificationTurn(value: Record<string, unknown>): AgentChatTurn | null {

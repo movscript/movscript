@@ -10,6 +10,7 @@ Create the necessary upstream structure first, then create the content unit. Do 
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a shot or storyboard.
 - `storyboard_ref`: video output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_refs`. Use for storyboard-level continuous visual expression.
 - `scence_moment_ref`: video output, uses a `{{scene_moment:id}}` primary prompt ref. Use when directly generating one complete scene moment video without committing to shot/storyboard breakdown first.
+- `shot_ref`: video output, uses a `{{shot:id}}` primary prompt ref. Use when generating one camera unit directly, with optional upstream assets, keyframes, or storyboard references when consistency matters.
 
 Unknown `content_unit_type` values are valid generic slots, but interpreter adapters do not collect upstream dependencies, hash source refs, mark selections stale, or include them in regeneration planning.
 
@@ -62,7 +63,11 @@ Do not start a downstream stage until the required upstream candidate has been s
 
 ## Fast Exploration Path
 
-For rapid exploration, create only the needed generic or specialized content unit and generate candidates quickly. Tell the user that generic slots and skipped asset/keyframe stages trade consistency and stale tracking for speed.
+For rapid exploration, create only the needed generic or specialized content unit and generate candidates quickly. A direct `scence_moment_ref` or `shot_ref` content unit is appropriate when the user wants a draft, a low-stakes one-off output, or a simple generation without reusable continuity.
+
+Do not create setting, asset, keyframe, or storyboard prerequisites just to satisfy a formal chain. Add them only when they protect identity, style, scene continuity, camera intent, or downstream reuse.
+
+Tell the user that generic slots and skipped asset/keyframe/storyboard stages trade consistency, reusable references, and stale tracking for speed.
 
 If the user explicitly accepts a draft path with missing upstream selection, state that the result is not a stable continuity dependency.
 

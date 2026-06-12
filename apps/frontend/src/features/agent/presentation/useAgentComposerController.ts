@@ -40,6 +40,7 @@ interface UseAgentComposerControllerInput {
   recentResources: RawResource[]
   fileRef: RefObject<HTMLInputElement>
   inputRef: RefObject<HTMLDivElement>
+  workspaceContextLocked?: boolean
 }
 
 export function useAgentComposerController({
@@ -49,6 +50,7 @@ export function useAgentComposerController({
   recentResources,
   fileRef,
   inputRef,
+  workspaceContextLocked = false,
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
@@ -173,6 +175,7 @@ export function useAgentComposerController({
   }
 
   function changeWorkspaceProject(value: string) {
+    if (workspaceContextLocked) return
     if (value === USER_WORKSPACE_VALUE) {
       updateWorkspace({ workspaceContext: { scope: 'global' } })
       return
@@ -438,6 +441,7 @@ export function useAgentComposerController({
     selectedWorkspaceContext: effectiveWorkspaceContext,
     workspaceProjectOptions,
     workspaceProjectValue: selectedProjectId === undefined ? USER_WORKSPACE_VALUE : String(selectedProjectId),
+    workspaceContextLocked,
     workspaceProjectsLoading: projectsLoading,
     uploading,
     uploadedFileCount,

@@ -420,6 +420,48 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   flex: 1 1 auto;
 }
 
+.app-shell-terminal-panel-frame {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.app-shell-terminal-resize-handle {
+  position: absolute;
+  top: -5px;
+  right: 0;
+  left: 0;
+  z-index: 35;
+  height: 10px;
+  cursor: row-resize;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.app-shell-terminal-resize-handle::after {
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  left: 12px;
+  height: 2px;
+  border-radius: 999px;
+  background: transparent;
+  content: "";
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.app-shell-terminal-resize-handle:hover::after,
+.app-shell-terminal-resize-handle:focus-visible::after,
+.app-shell-terminal-resize-handle[data-active="true"]::after {
+  background: var(--ms-color-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ms-color-primary) 18%, transparent);
+}
+
 .panel-resize-handle {
   position: absolute;
   top: 0;

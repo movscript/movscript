@@ -17,6 +17,7 @@ program
 registerAuthCommands(program)
 registerLangCommands(program)
 registerWorkspaceCommands(program)
+configureCommandHelp(program)
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error))
@@ -36,4 +37,18 @@ function normalizeMovcliArgv(argv: string[]): string[] {
   const maybeShimPath = argv[2]
   if (!maybeShimPath || basename(maybeShimPath) !== 'movcli.mjs') return argv
   return [argv[0]!, argv[1]!, ...argv.slice(3)]
+}
+
+function configureCommandHelp(command: Command): void {
+  command.showHelpAfterError()
+  command.showSuggestionAfterError()
+
+  for (const child of command.commands) {
+    configureCommandHelp(child)
+    if (child.commands.length > 0) {
+      child.action(() => {
+        child.outputHelp()
+      })
+    }
+  }
 }

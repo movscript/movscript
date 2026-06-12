@@ -17,6 +17,7 @@ import {
   idField,
   isRecord,
   parseContentUnitEditPromptRefs,
+  projectStyleReferenceResourceIds,
   readSelectedContentUnit,
   recordField,
   resolveContentUnitForPromptRef,
@@ -136,23 +137,35 @@ function basePrompt(
   const resolved = resolvePromptRefs(context.index, refs, options.primaryKind)
   const resolvedRefs = resolved.refs.map((ref) => annotateInputSelectionStatus(context, ref))
   const modelIntent = recordField(context.contentUnit.record.model_intent)
+  const styleReferenceResourceIds = usesVisualStyleReferences(options.outputKind)
+    ? projectStyleReferenceResourceIds(context.index)
+    : []
+  const semanticInputs = resolvedRefs
+    .filter((ref) => ref.role === 'input' && ref.selection?.resource_id !== undefined && ref.selection.stale !== true)
+    .map((ref) => ({
+      role: `${ref.kind}_ref`,
+      kind: inputKindForRef(context, ref),
+      ref: ref.raw,
+      source_content_unit_ref: ref.selection?.content_unit_ref,
+      candidate_id: ref.selection?.candidate_id,
+      resource_id: ref.selection?.resource_id,
+      required: true,
+    }))
   const blockers = [...options.blockers, ...inputBlockers(context, resolvedRefs)]
   const runtimeRequest = {
     capability: stringField(modelIntent?.capability) ?? capabilityForOutputKind(options.outputKind),
     model_intent: modelIntent,
-    inputs: resolvedRefs
-      .filter((ref) => ref.role === 'input' && ref.selection?.resource_id !== undefined && ref.selection.stale !== true)
-      .map((ref) => ({
-        role: `${ref.kind}_ref`,
-        kind: inputKindForRef(context, ref),
-        ref: ref.raw,
-        source_content_unit_ref: ref.selection?.content_unit_ref,
-        candidate_id: ref.selection?.candidate_id,
-        resource_id: ref.selection?.resource_id,
-        required: true,
+    inputs: [
+      ...semanticInputs,
+      ...styleReferenceResourceIds.map((resourceId) => ({
+        role: 'style_reference',
+        kind: 'image' as const,
+        resource_id: resourceId,
+        required: false,
       })),
+    ],
     params: recordField(modelIntent?.params),
-    metadata: metadataForOutputKind(options.outputKind, modelIntent),
+    metadata: metadataForOutputKind(options.outputKind, modelIntent, styleReferenceResourceIds),
   }
 
   return pruneUndefined({
@@ -348,6 +361,16 @@ function upstreamSelectionStatus(
   const selection = readSelectedContentUnit(context.index, upstreamRef)
   const candidateId = idField(selection?.candidate_id)
   const candidate = candidateId === undefined ? undefined : readContentUnitCandidate(context, upstreamRef, candidateId)
+  if (candidateId !== undefined && !candidate) {
+    return {
+      stale: true,
+      blocker: {
+        code: 'upstream_candidate_missing',
+        ref: ref.raw,
+        message: `prompt input selected candidate is missing: ${ref.raw}`,
+      },
+    }
+  }
   const candidatePrompt = recordField(candidate?.prompt_snapshot) as NormalizedContentUnitPrompt | undefined
   if (!candidatePrompt) return { stale: true }
 
@@ -437,12 +460,22 @@ function inputKindForRef(context: AdapterContext, ref: ContentUnitResolvedRef): 
   return contentUnitOutputKind(upstream?.record.output_kind)
 }
 
-function metadataForOutputKind(outputKind: ContentUnitOutputKind, modelIntent: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (outputKind !== 'video') return undefined
+function usesVisualStyleReferences(outputKind: ContentUnitOutputKind): boolean {
+  return outputKind === 'image' || outputKind === 'video'
+}
+
+function metadataForOutputKind(
+  outputKind: ContentUnitOutputKind,
+  modelIntent: Record<string, unknown> | undefined,
+  styleReferenceResourceIds: Array<string | number>,
+): Record<string, unknown> | undefined {
+  const metadata: Record<string, unknown> = {}
   const duration = typeof modelIntent?.duration_sec === 'number' && Number.isFinite(modelIntent.duration_sec)
     ? modelIntent.duration_sec
     : undefined
-  return duration === undefined ? undefined : { duration_sec: duration }
+  if (outputKind === 'video' && duration !== undefined) metadata.duration_sec = duration
+  if (styleReferenceResourceIds.length > 0) metadata.style_reference_resource_ids = styleReferenceResourceIds
+  return Object.keys(metadata).length > 0 ? metadata : undefined
 }
 
 function isDefined<T>(value: T | undefined): value is T {

@@ -353,6 +353,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.DecisionContext{})
 			},
 		},
+		{
+			Version: "000043",
+			Name:    "add_resource_derivatives",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ResourceDerivative{})
+			},
+		},
 	}
 	return core
 }
@@ -895,6 +902,7 @@ func allModels() []any {
 		&persistencemodel.ResourceFolderPermission{},
 		&persistencemodel.ResourceBlob{},
 		&persistencemodel.RawResource{},
+		&persistencemodel.ResourceDerivative{},
 		&persistencemodel.ExternalResourceSource{},
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
@@ -942,6 +950,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.ResourceFolderPermission{},
 		&persistencemodel.ResourceBlob{},
 		&persistencemodel.RawResource{},
+		&persistencemodel.ResourceDerivative{},
 		&persistencemodel.ExternalResourceSource{},
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},

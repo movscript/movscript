@@ -139,8 +139,11 @@ function affectedContentUnitsForChangedEntity(
       : []
   }
 
-  void relationGraph
-  return []
+  const changedRef = normalizeChangedEntityRef(changedEntity, index)
+  return canonicalEntities(index)
+    .filter((entity) => entity.entityKind === 'content_unit' && entity.id !== undefined && hasSpecializedContentUnitAdapter(entity.record.content_unit_type))
+    .filter((contentUnit) => contentUnitReferencesChangedEntity(entityRef(contentUnit), changedRef, relationGraph))
+    .map(entityRef)
 }
 
 function contentUnitReferencesChangedEntity(

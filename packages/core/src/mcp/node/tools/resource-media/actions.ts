@@ -19,6 +19,15 @@ type VideoFrameSourceMetadata = {
   fps?: number
 }
 
+type VideoComposeItem = {
+  resourceId: number
+  startSec?: number
+  endSec?: number
+  durationSec?: number
+  volume?: number
+  muted?: boolean
+}
+
 type VideoFrameSamplingPlan = {
   mode: VideoFrameExtractionMode
   timestampsSec: number[]
@@ -111,7 +120,7 @@ export async function extractResourceVideoFramesForVision(args: Record<string, u
   const mimeType = imageFormat === 'png' ? 'image/png' : 'image/jpeg'
   try {
     await writeFile(inputPath, file.bytes)
-    const video = await probeVideoMetadata(inputPath, ffmpeg).catch(() => ({}))
+    const video: VideoFrameSourceMetadata = await probeVideoMetadata(inputPath, ffmpeg).catch(() => ({}))
     const sampling = buildMCPFrameSamplingPlan({
       mode: modeParam(args.mode),
       count: numberParam(args.count) ?? numberParam(args.frame_count),
@@ -174,6 +183,541 @@ export async function extractResourceVideoFramesForVision(args: Record<string, u
       message: 'Video frames were extracted by MovScript MCP and returned as MCP image content. The original video was not sent to the model.',
     }
     return mcpToolResultWithImages(metadata, images)
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function probeResourceVideo(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const resourceId = resourceIdParam(args)
+  const maxVideoBytes = clampInteger(numberParam(args.max_video_bytes) ?? numberParam(args.maxVideoBytes) ?? DEFAULT_MAX_VIDEO_BYTES, 1, ABSOLUTE_MAX_VIDEO_BYTES)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_video_probe but was not found')
+
+  const file = await downloadResourceFile(resourceId, { maxBytes: maxVideoBytes })
+  const dir = await mkdtempStable('movscript-mcp-video-probe-')
+  const inputPath = join(dir, `resource-${resourceId}.video`)
+  try {
+    await writeFile(inputPath, file.bytes)
+    const video = await probeVideoMetadata(inputPath, ffmpeg)
+    return {
+      status: 'probed',
+      resource_id: resourceId,
+      source_mime_type: file.contentType ?? 'video/unknown',
+      source_size_bytes: file.bytes.length,
+      max_video_bytes: maxVideoBytes,
+      video: publicVideoMetadata(video),
+      message: `Video resource #${resourceId} probed.`,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function extractResourceVideoFrameToResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const result = await extractResourceVideoFramesToResources({
+    ...args,
+    mode: 'timestamps',
+    timestamps_sec: [numberParam(args.timestamp_sec) ?? numberParam(args.timestampSec) ?? 0],
+    max_frames: 1,
+  })
+  const item = Array.isArray(result.items) ? result.items[0] : undefined
+  if (!isRecord(item)) throw new Error('frame extraction did not create an image resource')
+  return {
+    status: 'created',
+    source_resource_id: result.resource_id,
+    image_resource_id: item.resource_id,
+    resource_id: item.resource_id,
+    timestamp_sec: item.timestamp_sec,
+    frame: item,
+    video: result.video,
+    message: `Extracted frame at ${item.timestamp_sec}s to image resource #${item.resource_id}.`,
+  }
+}
+
+export async function extractResourceVideoFramesToResources(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const resourceId = resourceIdParam(args)
+  const maxVideoBytes = clampInteger(numberParam(args.max_video_bytes) ?? numberParam(args.maxVideoBytes) ?? DEFAULT_MAX_VIDEO_BYTES, 1, ABSOLUTE_MAX_VIDEO_BYTES)
+  const maxWidth = clampInteger(numberParam(args.max_width) ?? numberParam(args.maxWidth) ?? DEFAULT_MAX_WIDTH, 128, 1920)
+  const imageFormat = stringParam(args.image_format) === 'png' || stringParam(args.imageFormat) === 'png' ? 'png' : 'jpeg'
+  const maxUploadBytes = clampInteger(numberParam(args.max_upload_bytes) ?? numberParam(args.maxUploadBytes) ?? DEFAULT_MAX_UPLOAD_BYTES, 1, ABSOLUTE_MAX_UPLOAD_BYTES)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_video_extract_frames_to_resources but was not found')
+
+  const file = await downloadResourceFile(resourceId, { maxBytes: maxVideoBytes })
+  const dir = await mkdtempStable('movscript-mcp-video-frames-')
+  const inputPath = join(dir, `resource-${resourceId}.video`)
+  const extension = imageFormat === 'png' ? 'png' : 'jpg'
+  const mimeType = imageFormat === 'png' ? 'image/png' : 'image/jpeg'
+  try {
+    await writeFile(inputPath, file.bytes)
+    const video: VideoFrameSourceMetadata = await probeVideoMetadata(inputPath, ffmpeg).catch(() => ({}))
+    const sampling = buildMCPFrameSamplingPlan({
+      mode: modeParam(args.mode),
+      count: numberParam(args.count) ?? numberParam(args.frame_count),
+      maxFrames: numberParam(args.max_frames) ?? numberParam(args.maxFrames),
+      timestampsSec: timestampsParam(args.timestamps_sec ?? args.timestampsSec),
+      startSec: numberParam(args.start_sec) ?? numberParam(args.startSec),
+      endSec: numberParam(args.end_sec) ?? numberParam(args.endSec),
+      centerSec: numberParam(args.center_sec) ?? numberParam(args.centerSec),
+      windowSec: numberParam(args.window_sec) ?? numberParam(args.windowSec),
+      fps: numberParam(args.fps),
+      intervalSec: numberParam(args.interval_sec) ?? numberParam(args.intervalSec),
+    }, video)
+    const items: Record<string, unknown>[] = []
+    for (let index = 0; index < sampling.timestampsSec.length; index += 1) {
+      const timestamp = sampling.timestampsSec[index] ?? 0
+      const outputPath = join(dir, `frame-${String(index + 1).padStart(3, '0')}.${extension}`)
+      await extractVideoFrame(ffmpeg, inputPath, outputPath, {
+        timestampSec: timestamp,
+        maxWidth,
+        imageFormat,
+      })
+      const bytes = await readFile(outputPath)
+      const filename = frameOutputFilename(args, resourceId, timestamp, extension, index)
+      const uploaded = await uploadGeneratedResourceBytes({
+        bytes,
+        mimeType,
+        filename,
+        folderId: stringParam(args.folder_id) ?? stringParam(args.folderId),
+        maxBytes: maxUploadBytes,
+        derivative: {
+          operation: 'video_extract_frame',
+          tool: 'movscript_resource_video_extract_frames_to_resources',
+          inputResourceIds: [resourceId],
+          params: {
+            timestamp_sec: timestamp,
+            max_width: maxWidth,
+            image_format: imageFormat,
+          },
+        },
+      })
+      items.push({
+        index: index + 1,
+        timestamp_sec: timestamp,
+        resource_id: uploaded.resource_id,
+        image_resource_id: uploaded.resource_id,
+        mime_type: mimeType,
+        size_bytes: bytes.length,
+        resource: uploaded.resource,
+        source: {
+          operation: 'video_extract_frame',
+          source_resource_id: resourceId,
+          timestamp_sec: timestamp,
+          max_width: maxWidth,
+          image_format: imageFormat,
+        },
+      })
+    }
+    const resourceIds = items
+      .map((item) => numberParam(item.resource_id))
+      .filter((item): item is number => item !== undefined)
+    return {
+      status: 'created',
+      resource_id: resourceId,
+      source_resource_id: resourceId,
+      source_mime_type: file.contentType ?? 'video/unknown',
+      source_size_bytes: file.bytes.length,
+      ...(Object.keys(video).length > 0 ? { video: publicVideoMetadata(video) } : {}),
+      sampling: publicSamplingPlan({ ...sampling, returnedFrameCount: items.length }),
+      max_width: maxWidth,
+      image_format: imageFormat,
+      count: items.length,
+      resource_ids: resourceIds,
+      image_resource_ids: resourceIds,
+      items,
+      ...(sampling.warnings.length > 0 ? { warnings: sampling.warnings } : {}),
+      message: `${items.length} frame resource(s) created from video resource #${resourceId}.`,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function trimResourceVideoToResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const resourceId = resourceIdParam(args)
+  const maxVideoBytes = clampInteger(numberParam(args.max_video_bytes) ?? numberParam(args.maxVideoBytes) ?? DEFAULT_MAX_VIDEO_BYTES, 1, ABSOLUTE_MAX_VIDEO_BYTES)
+  const maxUploadBytes = clampInteger(numberParam(args.max_upload_bytes) ?? numberParam(args.maxUploadBytes) ?? ABSOLUTE_MAX_UPLOAD_BYTES, 1, ABSOLUTE_MAX_UPLOAD_BYTES)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_video_trim_to_resource but was not found')
+
+  const file = await downloadResourceFile(resourceId, { maxBytes: maxVideoBytes })
+  const dir = await mkdtempStable('movscript-mcp-video-trim-')
+  const inputPath = join(dir, `resource-${resourceId}.video`)
+  const outputPath = join(dir, 'trimmed.mp4')
+  try {
+    await writeFile(inputPath, file.bytes)
+    const video: VideoFrameSourceMetadata = await probeVideoMetadata(inputPath, ffmpeg).catch(() => ({}))
+    const range = clipRangeFromArgs(args, video.durationSec)
+    await trimVideoFile(ffmpeg, inputPath, outputPath, range, {
+      mode: stringParam(args.mode) === 'fast' ? 'fast' : 'accurate',
+      volume: numberParam(args.volume),
+      muted: booleanParam(args.muted),
+    })
+    const bytes = await readFile(outputPath)
+    const filename = videoOutputFilename(args, `resource-${resourceId}-trim-${range.startSec}-${range.endSec}`)
+    const uploaded = await uploadGeneratedResourceBytes({
+      bytes,
+      mimeType: 'video/mp4',
+      filename,
+      folderId: stringParam(args.folder_id) ?? stringParam(args.folderId),
+      maxBytes: maxUploadBytes,
+      derivative: {
+        operation: 'video_trim',
+        tool: 'movscript_resource_video_trim_to_resource',
+        inputResourceIds: [resourceId],
+        params: {
+          start_sec: range.startSec,
+          end_sec: range.endSec,
+          mode: stringParam(args.mode) === 'fast' ? 'fast' : 'accurate',
+          ...(numberParam(args.volume) !== undefined ? { volume: numberParam(args.volume) } : {}),
+          ...(booleanParam(args.muted) !== undefined ? { muted: booleanParam(args.muted) } : {}),
+        },
+      },
+    })
+    return {
+      status: 'created',
+      source_resource_id: resourceId,
+      video_resource_id: uploaded.resource_id,
+      resource_id: uploaded.resource_id,
+      mime_type: 'video/mp4',
+      size_bytes: bytes.length,
+      duration_sec: roundTime(range.endSec - range.startSec),
+      start_sec: range.startSec,
+      end_sec: range.endSec,
+      resource: uploaded.resource,
+      source: {
+        operation: 'video_trim',
+        source_resource_id: resourceId,
+        start_sec: range.startSec,
+        end_sec: range.endSec,
+      },
+      message: `Trimmed video resource #${resourceId} to video resource #${uploaded.resource_id}.`,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function composeResourceVideosToResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const items = videoComposeItems(args.items)
+  const maxVideoBytes = clampInteger(numberParam(args.max_video_bytes) ?? numberParam(args.maxVideoBytes) ?? DEFAULT_MAX_VIDEO_BYTES, 1, ABSOLUTE_MAX_VIDEO_BYTES)
+  const maxUploadBytes = clampInteger(numberParam(args.max_upload_bytes) ?? numberParam(args.maxUploadBytes) ?? ABSOLUTE_MAX_UPLOAD_BYTES, 1, ABSOLUTE_MAX_UPLOAD_BYTES)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_video_compose_to_resource but was not found')
+
+  const dir = await mkdtempStable('movscript-mcp-video-compose-')
+  try {
+    const segmentPaths: string[] = []
+    const segments: Record<string, unknown>[] = []
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index]!
+      const file = await downloadResourceFile(item.resourceId, { maxBytes: maxVideoBytes })
+      const inputPath = join(dir, `input-${String(index + 1).padStart(3, '0')}.video`)
+      const segmentPath = join(dir, `segment-${String(index + 1).padStart(3, '0')}.mp4`)
+      await writeFile(inputPath, file.bytes)
+      const video: VideoFrameSourceMetadata = await probeVideoMetadata(inputPath, ffmpeg).catch(() => ({}))
+      const range = clipRangeFromItem(item, video.durationSec)
+      await trimVideoFile(ffmpeg, inputPath, segmentPath, range, {
+        mode: 'accurate',
+        volume: item.volume,
+        muted: item.muted,
+      })
+      segmentPaths.push(segmentPath)
+      segments.push({
+        index: index + 1,
+        source_resource_id: item.resourceId,
+        start_sec: range.startSec,
+        end_sec: range.endSec,
+        duration_sec: roundTime(range.endSec - range.startSec),
+        ...(Object.keys(video).length > 0 ? { video: publicVideoMetadata(video) } : {}),
+      })
+    }
+    const listPath = join(dir, 'concat-list.txt')
+    await writeFile(listPath, segmentPaths.map((path) => `file '${basename(path)}'`).join('\n'), 'utf8')
+    const outputPath = join(dir, 'composed.mp4')
+    await runFFmpeg(ffmpeg, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      listPath,
+      '-c',
+      'copy',
+      '-movflags',
+      '+faststart',
+      outputPath,
+    ])
+    const bytes = await readFile(outputPath)
+    const filename = videoOutputFilename(args, `composed-video-${randomUUID().slice(0, 8)}`)
+    const uploaded = await uploadGeneratedResourceBytes({
+      bytes,
+      mimeType: 'video/mp4',
+      filename,
+      folderId: stringParam(args.folder_id) ?? stringParam(args.folderId),
+      maxBytes: maxUploadBytes,
+      derivative: {
+        operation: 'video_compose',
+        tool: 'movscript_resource_video_compose_to_resource',
+        inputResourceIds: items.map((item) => item.resourceId),
+        params: { segments },
+      },
+    })
+    const durationSec = segments.reduce((total, item) => total + (numberParam(item.duration_sec) ?? 0), 0)
+    return {
+      status: 'created',
+      video_resource_id: uploaded.resource_id,
+      resource_id: uploaded.resource_id,
+      mime_type: 'video/mp4',
+      size_bytes: bytes.length,
+      duration_sec: roundTime(durationSec),
+      count: segments.length,
+      input_resource_ids: items.map((item) => item.resourceId),
+      segments,
+      resource: uploaded.resource,
+      source: {
+        operation: 'video_compose',
+        input_resource_ids: items.map((item) => item.resourceId),
+        segments,
+      },
+      message: `Composed ${segments.length} video segment(s) to video resource #${uploaded.resource_id}.`,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function createResourceVideoContactSheetToResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const resourceId = resourceIdParam(args)
+  const maxVideoBytes = clampInteger(numberParam(args.max_video_bytes) ?? numberParam(args.maxVideoBytes) ?? DEFAULT_MAX_VIDEO_BYTES, 1, ABSOLUTE_MAX_VIDEO_BYTES)
+  const maxUploadBytes = clampInteger(numberParam(args.max_upload_bytes) ?? numberParam(args.maxUploadBytes) ?? DEFAULT_MAX_UPLOAD_BYTES, 1, ABSOLUTE_MAX_UPLOAD_BYTES)
+  const columns = clampInteger(numberParam(args.columns) ?? 3, 1, 8)
+  const count = clampInteger(numberParam(args.count) ?? 9, 1, 64)
+  const rows = Math.max(1, Math.ceil(count / columns))
+  const thumbWidth = clampInteger(numberParam(args.thumb_width) ?? numberParam(args.thumbWidth) ?? 320, 64, 960)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_video_contact_sheet_to_resource but was not found')
+
+  const file = await downloadResourceFile(resourceId, { maxBytes: maxVideoBytes })
+  const dir = await mkdtempStable('movscript-mcp-video-sheet-')
+  const inputPath = join(dir, `resource-${resourceId}.video`)
+  const outputPath = join(dir, 'contact-sheet.jpg')
+  try {
+    await writeFile(inputPath, file.bytes)
+    const video = await probeVideoMetadata(inputPath, ffmpeg).catch((): VideoFrameSourceMetadata => ({}))
+    const durationSec = video.durationSec
+    const intervalSec = positiveNumber(numberParam(args.interval_sec) ?? numberParam(args.intervalSec))
+      ?? (durationSec ? Math.max(0.1, durationSec / count) : DEFAULT_VIDEO_FRAME_INTERVAL_SEC)
+    await runFFmpeg(ffmpeg, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      inputPath,
+      '-vf',
+      `fps=1/${intervalSec.toFixed(3)},scale=${thumbWidth}:-2:force_original_aspect_ratio=decrease,tile=${columns}x${rows}:padding=8:margin=8`,
+      '-frames:v',
+      '1',
+      '-q:v',
+      '3',
+      outputPath,
+    ])
+    const bytes = await readFile(outputPath)
+    const filename = ensureExtension(stringParam(args.filename) ?? stringParam(args.name) ?? `resource-${resourceId}-contact-sheet`, 'jpg')
+    const uploaded = await uploadGeneratedResourceBytes({
+      bytes,
+      mimeType: 'image/jpeg',
+      filename,
+      folderId: stringParam(args.folder_id) ?? stringParam(args.folderId),
+      maxBytes: maxUploadBytes,
+      derivative: {
+        operation: 'video_contact_sheet',
+        tool: 'movscript_resource_video_contact_sheet_to_resource',
+        inputResourceIds: [resourceId],
+        params: {
+          columns,
+          rows,
+          count,
+          thumb_width: thumbWidth,
+          interval_sec: roundTime(intervalSec),
+        },
+      },
+    })
+    return {
+      status: 'created',
+      source_resource_id: resourceId,
+      image_resource_id: uploaded.resource_id,
+      resource_id: uploaded.resource_id,
+      mime_type: 'image/jpeg',
+      size_bytes: bytes.length,
+      video: publicVideoMetadata(video),
+      sheet: {
+        columns,
+        rows,
+        count,
+        thumb_width: thumbWidth,
+        interval_sec: roundTime(intervalSec),
+      },
+      resource: uploaded.resource,
+      source: {
+        operation: 'video_contact_sheet',
+        source_resource_id: resourceId,
+        columns,
+        rows,
+        count,
+        thumb_width: thumbWidth,
+        interval_sec: roundTime(intervalSec),
+      },
+      message: `Created contact sheet image resource #${uploaded.resource_id} from video resource #${resourceId}.`,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function extractResourceVideoAudioToResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const resourceId = resourceIdParam(args)
+  const maxVideoBytes = clampInteger(numberParam(args.max_video_bytes) ?? numberParam(args.maxVideoBytes) ?? DEFAULT_MAX_VIDEO_BYTES, 1, ABSOLUTE_MAX_VIDEO_BYTES)
+  const maxUploadBytes = clampInteger(numberParam(args.max_upload_bytes) ?? numberParam(args.maxUploadBytes) ?? ABSOLUTE_MAX_UPLOAD_BYTES, 1, ABSOLUTE_MAX_UPLOAD_BYTES)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_video_extract_audio_to_resource but was not found')
+
+  const file = await downloadResourceFile(resourceId, { maxBytes: maxVideoBytes })
+  const dir = await mkdtempStable('movscript-mcp-video-audio-')
+  const inputPath = join(dir, `resource-${resourceId}.video`)
+  const outputPath = join(dir, 'audio.m4a')
+  try {
+    await writeFile(inputPath, file.bytes)
+    const range = optionalAudioRangeFromArgs(args)
+    await runFFmpeg(ffmpeg, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      ...(range ? ['-ss', range.startSec.toFixed(3)] : []),
+      '-i',
+      inputPath,
+      ...(range ? ['-t', (range.endSec - range.startSec).toFixed(3)] : []),
+      '-vn',
+      '-map',
+      '0:a:0?',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      outputPath,
+    ])
+    const bytes = await readFile(outputPath)
+    const filename = ensureExtension(stringParam(args.filename) ?? stringParam(args.name) ?? `resource-${resourceId}-audio`, 'm4a')
+    const uploaded = await uploadGeneratedResourceBytes({
+      bytes,
+      mimeType: 'audio/mp4',
+      filename,
+      folderId: stringParam(args.folder_id) ?? stringParam(args.folderId),
+      maxBytes: maxUploadBytes,
+      derivative: {
+        operation: 'video_extract_audio',
+        tool: 'movscript_resource_video_extract_audio_to_resource',
+        inputResourceIds: [resourceId],
+        params: {
+          ...(range ? { start_sec: range.startSec, end_sec: range.endSec } : {}),
+        },
+      },
+    })
+    return {
+      status: 'created',
+      source_resource_id: resourceId,
+      audio_resource_id: uploaded.resource_id,
+      resource_id: uploaded.resource_id,
+      mime_type: 'audio/mp4',
+      size_bytes: bytes.length,
+      ...(range ? { start_sec: range.startSec, end_sec: range.endSec, duration_sec: roundTime(range.endSec - range.startSec) } : {}),
+      resource: uploaded.resource,
+      source: {
+        operation: 'video_extract_audio',
+        source_resource_id: resourceId,
+        ...(range ? { start_sec: range.startSec, end_sec: range.endSec } : {}),
+      },
+      message: `Extracted audio resource #${uploaded.resource_id} from video resource #${resourceId}.`,
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export async function transformResourceImageToResource(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const resourceId = resourceIdParam(args)
+  const maxSourceBytes = clampInteger(numberParam(args.max_source_bytes) ?? numberParam(args.maxSourceBytes) ?? DEFAULT_MAX_IMAGE_BYTES, 1, ABSOLUTE_MAX_IMAGE_BYTES)
+  const maxUploadBytes = clampInteger(numberParam(args.max_upload_bytes) ?? numberParam(args.maxUploadBytes) ?? DEFAULT_MAX_UPLOAD_BYTES, 1, ABSOLUTE_MAX_UPLOAD_BYTES)
+  const ffmpeg = resolveFFmpegPath()
+  if (!ffmpeg) throw new Error('ffmpeg is required for movscript_resource_image_transform_to_resource but was not found')
+
+  const file = await downloadResourceFile(resourceId, { maxBytes: maxSourceBytes })
+  const sourceMimeType = normalizeImageMimeType(stringParam(args.mime_type) ?? stringParam(args.mimeType) ?? file.contentType)
+  const outputFormat = imageOutputFormat(args, sourceMimeType)
+  const outputMimeType = imageMimeTypeForFormat(outputFormat)
+  const outputExtension = imageExtensionForFormat(outputFormat)
+  const dir = await mkdtempStable('movscript-mcp-image-transform-')
+  const inputPath = join(dir, `resource-${resourceId}${extensionForMimeType(sourceMimeType) || '.image'}`)
+  const outputPath = join(dir, `transformed.${outputExtension}`)
+  try {
+    await writeFile(inputPath, file.bytes)
+    const source = await probeImageMetadata(inputPath, ffmpeg)
+    await decodeImageFrame(inputPath, ffmpeg)
+    const transform = imageTransformSpec(args, source)
+    const filters = imageTransformFilters(transform)
+    await runFFmpeg(ffmpeg, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      inputPath,
+      '-frames:v',
+      '1',
+      ...(filters.length > 0 ? ['-vf', filters.join(',')] : []),
+      ...(outputFormat === 'jpeg' ? ['-q:v', '2'] : []),
+      ...(outputFormat === 'webp' ? ['-lossless', '1'] : []),
+      outputPath,
+    ])
+    const bytes = await readFile(outputPath)
+    const filename = ensureExtension(stringParam(args.filename) ?? stringParam(args.name) ?? `resource-${resourceId}-transform`, outputExtension)
+    const uploaded = await uploadGeneratedResourceBytes({
+      bytes,
+      mimeType: outputMimeType,
+      filename,
+      folderId: stringParam(args.folder_id) ?? stringParam(args.folderId),
+      maxBytes: maxUploadBytes,
+      derivative: {
+        operation: 'image_transform',
+        tool: 'movscript_resource_image_transform_to_resource',
+        inputResourceIds: [resourceId],
+        params: { ...transform.public, output_format: outputFormat },
+      },
+    })
+    return {
+      status: 'created',
+      source_resource_id: resourceId,
+      image_resource_id: uploaded.resource_id,
+      resource_id: uploaded.resource_id,
+      source_mime_type: sourceMimeType,
+      source_size_bytes: file.bytes.length,
+      source_width: source.width,
+      source_height: source.height,
+      mime_type: outputMimeType,
+      size_bytes: bytes.length,
+      width: transform.output.width,
+      height: transform.output.height,
+      resource: uploaded.resource,
+      transform: { ...transform.public, output_format: outputFormat },
+      message: `Transformed image resource #${resourceId} to image resource #${uploaded.resource_id}.`,
+    }
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined)
   }
@@ -362,6 +906,339 @@ export function buildMCPFrameSamplingPlan(input: {
     maxFrames,
     warnings,
   }
+}
+
+async function extractVideoFrame(
+  ffmpeg: string,
+  inputPath: string,
+  outputPath: string,
+  input: { timestampSec: number; maxWidth: number; imageFormat: 'jpeg' | 'png' },
+): Promise<void> {
+  await runFFmpeg(ffmpeg, [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-ss',
+    input.timestampSec.toFixed(3),
+    '-i',
+    inputPath,
+    '-frames:v',
+    '1',
+    '-vf',
+    `scale=${input.maxWidth}:-2:force_original_aspect_ratio=decrease`,
+    ...(input.imageFormat === 'jpeg' ? ['-q:v', '3'] : []),
+    outputPath,
+  ])
+}
+
+async function trimVideoFile(
+  ffmpeg: string,
+  inputPath: string,
+  outputPath: string,
+  range: { startSec: number; endSec: number },
+  options: { mode: 'fast' | 'accurate'; volume?: number; muted?: boolean },
+): Promise<void> {
+  const durationSec = Math.max(0.1, range.endSec - range.startSec)
+  if (options.mode === 'fast' && !options.muted && options.volume === undefined) {
+    await runFFmpeg(ffmpeg, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-ss',
+      range.startSec.toFixed(3),
+      '-i',
+      inputPath,
+      '-t',
+      durationSec.toFixed(3),
+      '-map',
+      '0:v:0',
+      '-map',
+      '0:a?',
+      '-c',
+      'copy',
+      '-movflags',
+      '+faststart',
+      outputPath,
+    ])
+    return
+  }
+
+  const args = [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    inputPath,
+    '-ss',
+    range.startSec.toFixed(3),
+    '-t',
+    durationSec.toFixed(3),
+    '-map',
+    '0:v:0',
+    '-vf',
+    'setsar=1',
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-preset',
+    'veryfast',
+    '-movflags',
+    '+faststart',
+  ]
+  const volume = options.volume === undefined ? 100 : clampNumber(options.volume, 0, 200)
+  if (options.muted || volume <= 0) {
+    args.push('-an')
+  } else {
+    args.push('-map', '0:a?')
+    if (volume !== 100) args.push('-filter:a', `volume=${(volume / 100).toFixed(2)}`)
+    args.push('-c:a', 'aac', '-b:a', '128k')
+  }
+  args.push(outputPath)
+  await runFFmpeg(ffmpeg, args)
+}
+
+function clipRangeFromArgs(args: Record<string, unknown>, durationSec: number | undefined): { startSec: number; endSec: number } {
+  return normalizeClipRange({
+    startSec: numberParam(args.start_sec) ?? numberParam(args.startSec) ?? 0,
+    endSec: numberParam(args.end_sec) ?? numberParam(args.endSec),
+    durationSec: numberParam(args.duration_sec) ?? numberParam(args.durationSec),
+    sourceDurationSec: durationSec,
+  })
+}
+
+function optionalAudioRangeFromArgs(args: Record<string, unknown>): { startSec: number; endSec: number } | undefined {
+  const startSec = numberParam(args.start_sec) ?? numberParam(args.startSec)
+  const endSec = numberParam(args.end_sec) ?? numberParam(args.endSec)
+  const durationSec = numberParam(args.duration_sec) ?? numberParam(args.durationSec)
+  if (startSec === undefined && endSec === undefined && durationSec === undefined) return undefined
+  return normalizeClipRange({
+    startSec: startSec ?? 0,
+    endSec,
+    durationSec,
+  })
+}
+
+function clipRangeFromItem(item: VideoComposeItem, durationSec: number | undefined): { startSec: number; endSec: number } {
+  return normalizeClipRange({
+    startSec: item.startSec ?? 0,
+    endSec: item.endSec,
+    durationSec: item.durationSec,
+    sourceDurationSec: durationSec,
+  })
+}
+
+function normalizeClipRange(input: { startSec: number; endSec?: number; durationSec?: number; sourceDurationSec?: number }): { startSec: number; endSec: number } {
+  const startSec = roundTime(Math.max(0, input.startSec))
+  const endCandidate = input.endSec ?? (input.durationSec !== undefined ? startSec + Math.max(0, input.durationSec) : input.sourceDurationSec)
+  if (endCandidate === undefined) throw new Error('end_sec or duration_sec is required when video duration cannot be probed')
+  const endSec = roundTime(clampToDuration(Math.max(0, endCandidate), input.sourceDurationSec))
+  if (endSec <= startSec) throw new Error('video clip range must have end_sec greater than start_sec')
+  return { startSec, endSec }
+}
+
+function videoComposeItems(value: unknown): VideoComposeItem[] {
+  if (!Array.isArray(value) || value.length === 0) throw new Error('items must contain at least one video resource item')
+  return value.map((item, index) => {
+    if (!isRecord(item)) throw new Error(`items[${index}] must be an object`)
+    const resourceId = optionalResourceIdParam(item)
+    if (resourceId === undefined) throw new Error(`items[${index}].resource_id is required`)
+    const startSec = numberParam(item.start_sec) ?? numberParam(item.startSec)
+    const endSec = numberParam(item.end_sec) ?? numberParam(item.endSec)
+    const durationSec = numberParam(item.duration_sec) ?? numberParam(item.durationSec)
+    const volume = numberParam(item.volume)
+    const muted = booleanParam(item.muted)
+    const normalized: VideoComposeItem = {
+      resourceId,
+    }
+    if (startSec !== undefined) normalized.startSec = startSec
+    if (endSec !== undefined) normalized.endSec = endSec
+    if (durationSec !== undefined) normalized.durationSec = durationSec
+    if (volume !== undefined) normalized.volume = volume
+    if (muted !== undefined) normalized.muted = muted
+    return normalized
+  })
+}
+
+async function uploadGeneratedResourceBytes(input: {
+  bytes: Buffer
+  mimeType: string
+  filename: string
+  folderId?: string
+  maxBytes: number
+  derivative?: {
+    operation: string
+    tool?: string
+    inputResourceIds?: number[]
+    params?: Record<string, unknown>
+  }
+}): Promise<{ resource_id: number; resource: unknown }> {
+  if (input.bytes.length > input.maxBytes) {
+    throw new Error(`generated resource is ${input.bytes.length} bytes, above max_upload_bytes=${input.maxBytes}`)
+  }
+  const form = new FormData()
+  const blob = new Blob([new Uint8Array(input.bytes)], { type: input.mimeType })
+  form.append('file', blob, input.filename)
+  if (input.folderId) form.append('folder_id', input.folderId)
+  if (input.derivative) {
+    form.append('derivative', JSON.stringify({
+      operation: input.derivative.operation,
+      ...(input.derivative.tool ? { tool: input.derivative.tool } : {}),
+      input_resource_ids: input.derivative.inputResourceIds ?? [],
+      params: input.derivative.params ?? {},
+    }))
+  }
+  const resource = await backendPostMultipart('/resources/upload', form)
+  const resourceId = numericResourceId(resource)
+  if (resourceId === undefined) throw new Error('resource upload response did not include a valid resource ID')
+  return { resource_id: resourceId, resource }
+}
+
+function frameOutputFilename(args: Record<string, unknown>, resourceId: number, timestampSec: number, extension: string, index: number): string {
+  const explicit = stringParam(args.filename) ?? stringParam(args.name)
+  if (explicit) {
+    if (index === 0) return ensureExtension(explicit, extension)
+    return ensureExtension(`${safeFilename(basename(explicit, extname(explicit)))}-${String(index + 1).padStart(3, '0')}`, extension)
+  }
+  return `resource-${resourceId}-frame-${timestampSec.toFixed(3).replace('.', '_')}.${extension}`
+}
+
+function videoOutputFilename(args: Record<string, unknown>, fallbackBase: string): string {
+  const explicit = stringParam(args.filename) ?? stringParam(args.name)
+  return ensureExtension(explicit ?? safeFilename(fallbackBase), 'mp4')
+}
+
+function ensureExtension(value: string, extension: string): string {
+  const normalizedExtension = extension.startsWith('.') ? extension.slice(1) : extension
+  const currentExtension = extname(value)
+  if (currentExtension.toLowerCase() === `.${normalizedExtension.toLowerCase()}`) return value
+  const base = currentExtension ? value.slice(0, -currentExtension.length) : value
+  return `${safeFilename(base)}.${normalizedExtension}`
+}
+
+function imageOutputFormat(args: Record<string, unknown>, sourceMimeType: string): 'jpeg' | 'png' | 'webp' {
+  const explicit = stringParam(args.output_format) ?? stringParam(args.outputFormat) ?? stringParam(args.image_format) ?? stringParam(args.imageFormat)
+  switch ((explicit ?? '').toLowerCase()) {
+    case 'jpg':
+    case 'jpeg':
+      return 'jpeg'
+    case 'webp':
+      return 'webp'
+    case 'png':
+      return 'png'
+    case '':
+      if (sourceMimeType === 'image/jpeg' || sourceMimeType === 'image/jpg') return 'jpeg'
+      if (sourceMimeType === 'image/webp') return 'webp'
+      return 'png'
+    default:
+      throw new Error('output_format must be one of jpeg, png, or webp')
+  }
+}
+
+function imageMimeTypeForFormat(format: 'jpeg' | 'png' | 'webp'): string {
+  switch (format) {
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'webp':
+      return 'image/webp'
+    case 'png':
+    default:
+      return 'image/png'
+  }
+}
+
+function imageExtensionForFormat(format: 'jpeg' | 'png' | 'webp'): string {
+  return format === 'jpeg' ? 'jpg' : format
+}
+
+function imageTransformSpec(args: Record<string, unknown>, source: { width: number; height: number }): {
+  crop?: { x: number; y: number; width: number; height: number }
+  resize?: { width?: number; height?: number; maxWidth?: number; maxHeight?: number }
+  output: { width: number; height: number }
+  public: Record<string, unknown>
+} {
+  const cropX = clampInteger(numberParam(args.crop_x) ?? numberParam(args.cropX) ?? 0, 0, source.width)
+  const cropY = clampInteger(numberParam(args.crop_y) ?? numberParam(args.cropY) ?? 0, 0, source.height)
+  const cropWidth = positiveInteger(numberParam(args.crop_width) ?? numberParam(args.cropWidth))
+  const cropHeight = positiveInteger(numberParam(args.crop_height) ?? numberParam(args.cropHeight))
+  const crop = cropWidth !== undefined || cropHeight !== undefined
+    ? {
+        x: cropX,
+        y: cropY,
+        width: Math.min(cropWidth ?? (source.width - cropX), source.width - cropX),
+        height: Math.min(cropHeight ?? (source.height - cropY), source.height - cropY),
+      }
+    : undefined
+  if (crop && (crop.width <= 0 || crop.height <= 0)) throw new Error('crop rectangle must overlap the source image')
+
+  const base = crop ? { width: crop.width, height: crop.height } : source
+  const width = positiveInteger(numberParam(args.width))
+  const height = positiveInteger(numberParam(args.height))
+  const maxWidth = positiveInteger(numberParam(args.max_width) ?? numberParam(args.maxWidth))
+  const maxHeight = positiveInteger(numberParam(args.max_height) ?? numberParam(args.maxHeight))
+  const resize = width !== undefined || height !== undefined || maxWidth !== undefined || maxHeight !== undefined
+    ? { width, height, maxWidth, maxHeight }
+    : undefined
+  const output = computeImageTransformOutputDimensions(base, resize)
+  const publicSpec: Record<string, unknown> = {
+    source_width: source.width,
+    source_height: source.height,
+    output_width: output.width,
+    output_height: output.height,
+  }
+  if (crop) publicSpec.crop = { x: crop.x, y: crop.y, width: crop.width, height: crop.height }
+  if (resize) {
+    publicSpec.resize = {
+      ...(width !== undefined ? { width } : {}),
+      ...(height !== undefined ? { height } : {}),
+      ...(maxWidth !== undefined ? { max_width: maxWidth } : {}),
+      ...(maxHeight !== undefined ? { max_height: maxHeight } : {}),
+    }
+  }
+  return { crop, resize, output, public: publicSpec }
+}
+
+function computeImageTransformOutputDimensions(
+  source: { width: number; height: number },
+  resize?: { width?: number; height?: number; maxWidth?: number; maxHeight?: number },
+): { width: number; height: number } {
+  if (!resize) return source
+  if (resize.width !== undefined && resize.height !== undefined) {
+    return { width: resize.width, height: resize.height }
+  }
+  if (resize.width !== undefined) {
+    return { width: resize.width, height: Math.max(1, Math.round(source.height * (resize.width / source.width))) }
+  }
+  if (resize.height !== undefined) {
+    return { width: Math.max(1, Math.round(source.width * (resize.height / source.height))), height: resize.height }
+  }
+  return fitDimensions(source, resize.maxWidth ?? source.width, resize.maxHeight ?? source.height)
+}
+
+function imageTransformFilters(transform: {
+  crop?: { x: number; y: number; width: number; height: number }
+  resize?: { width?: number; height?: number; maxWidth?: number; maxHeight?: number }
+}): string[] {
+  const filters: string[] = []
+  if (transform.crop) {
+    filters.push(`crop=${transform.crop.width}:${transform.crop.height}:${transform.crop.x}:${transform.crop.y}`)
+  }
+  if (transform.resize) {
+    const resize = transform.resize
+    if (resize.width !== undefined && resize.height !== undefined) {
+      filters.push(`scale=${resize.width}:${resize.height}`)
+    } else if (resize.width !== undefined) {
+      filters.push(`scale=${resize.width}:-2`)
+    } else if (resize.height !== undefined) {
+      filters.push(`scale=-2:${resize.height}`)
+    } else {
+      filters.push(`scale=${resize.maxWidth ?? -2}:${resize.maxHeight ?? -2}:force_original_aspect_ratio=decrease`)
+    }
+  }
+  return filters
 }
 
 async function downloadResourceFile(resourceId: number, options: { maxBytes?: number } = {}): Promise<{ bytes: Buffer; contentType?: string; contentLength?: number }> {

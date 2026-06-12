@@ -101,12 +101,16 @@ test('content source workspace data maps live timeline, candidates, and selectio
           },
         },
         {
-          path: 'content_units/cu_phone/selection.json',
+          path: '.movscript/decisions/content_units/cu_phone/decision_context.json',
           data: {
-            schema: 'movscript.selection.v1',
-            target: { kind: 'content_unit', ref: 'content_units/cu_phone' },
-            candidate_id: 'cand_a',
-            resource_id: 'res_video_1',
+            schema: 'movscript.decision_context.v1',
+            target_kind: 'content_unit',
+            target_ref: 'content_units/cu_phone',
+            candidates: [],
+            selection: {
+              candidate_id: 'cand_a',
+              resource_id: 'res_video_1',
+            },
           },
         },
         {
@@ -173,10 +177,44 @@ test('content source workspace data maps live timeline, candidates, and selectio
       }),
     } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
   })
+  const restoreAction = __setElectronMovScriptWorkspaceActionFactoryForTest(async (action) => {
+    if (action !== 'review') return {}
+    return {
+      productionWorkPlan: {
+        summary: {
+          open: 1,
+          blocking: 0,
+          human_recommended: 0,
+          agent_recommended: 1,
+          ready_to_generate: 1,
+          stale_selections: 0,
+        },
+        items: [
+          {
+            id: 'generate:cu_phone',
+            kind: 'generate_candidates',
+            target: {
+              entityKind: 'content_unit',
+              id: 'cu_phone',
+              path: 'content_units/cu_phone/content_unit.json',
+            },
+            status: 'ready',
+            severity: 'suggestion',
+            recommended_actor: 'agent',
+            priority: 20,
+            reason: 'Content unit is ready for generation.',
+            actions: [{ type: 'generate_candidates' }],
+          },
+        ],
+      },
+    }
+  })
 
   try {
     const data = await loadContentSourceWorkspaceData(123)
     assert.equal(data.source, 'workspace')
+    assert.equal(data.productionWorkPlan?.summary.readyToGenerate, 1)
+    assert.equal(data.productionWorkPlan?.items[0].id, 'generate:cu_phone')
     assert.equal(data.previewMoments[0].shots[0].contentUnit.id, 'cu_phone')
     assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].id, 'cand_a')
     assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].selected, true)
@@ -200,6 +238,7 @@ test('content source workspace data maps live timeline, candidates, and selectio
     assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream[0].title, 'Phone shot unit')
     assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream[0].ownerNodeId, 'storyboard/main')
   } finally {
+    restoreAction()
     restore()
   }
 })
@@ -213,7 +252,7 @@ test('content source workspace selection writes content unit selection through w
       selectContentUnitCandidate: async (input) => {
         selections.push(input as unknown as Record<string, unknown>)
         return {
-          path: `content_units/${input.contentUnitId}/selection.json`,
+          path: `.movscript/decisions/content_units/${input.contentUnitId}/decision_context.json`,
           record: input as unknown as Record<string, unknown>,
         }
       },
@@ -281,6 +320,7 @@ test('content source workspace data keeps live ontology tree when preview shots 
       }),
     } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
   })
+  const restoreAction = __setElectronMovScriptWorkspaceActionFactoryForTest(async () => ({}))
 
   try {
     const data = await loadContentSourceWorkspaceData(123)
@@ -289,6 +329,7 @@ test('content source workspace data keeps live ontology tree when preview shots 
     assert.equal(data.previewMoments[0].id, 'rain_call')
     assert.equal(data.previewMoments[0].shots.length, 0)
   } finally {
+    restoreAction()
     restore()
   }
 })
@@ -318,6 +359,7 @@ test('content source workspace data treats an empty project as live empty worksp
       }),
     } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
   })
+  const restoreAction = __setElectronMovScriptWorkspaceActionFactoryForTest(async () => ({}))
 
   try {
     const data = await loadContentSourceWorkspaceData(124)
@@ -326,11 +368,12 @@ test('content source workspace data treats an empty project as live empty worksp
     assert.equal(data.hierarchyTree[1].id, 'productions_group')
     assert.equal(data.previewMoments.length, 0)
   } finally {
+    restoreAction()
     restore()
   }
 })
 
-test('content source workspace candidate generator creates queued content candidate through workspace service', async () => {
+test('content source workspace candidate creator can attach a resource library candidate through workspace service', async () => {
   const candidates: Array<Record<string, unknown>> = []
   const contexts: Array<Record<string, unknown>> = []
   const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
@@ -361,18 +404,24 @@ test('content source workspace candidate generator creates queued content candid
       contentUnitId: 'cu_phone',
       outputKind: 'video',
       promptText: 'Make the shot.',
+      resourceId: 81,
+      resourceName: 'Chosen resource.mp4',
+      resourceType: 'video',
+      resourceMimeType: 'video/mp4',
     })
     assert.equal(contexts[0].projectId, 457)
     assert.equal(candidates[0].contentUnitId, 'cu_phone')
-    assert.equal(candidates[0].source, 'ai_generate')
-    assert.equal(candidates[0].status, 'queued')
-    assert.deepEqual(candidates[0].outputs, [])
+    assert.equal(candidates[0].source, 'resource_library')
+    assert.equal(candidates[0].status, 'imported')
+    assert.deepEqual(candidates[0].outputs, [{ kind: 'video', resource_id: 81, mime_type: 'video/mp4' }])
     assert.equal((candidates[0].producer as Record<string, unknown>).kind, 'content_workbench')
+    assert.equal((candidates[0].producer as Record<string, unknown>).model_id, 'resource_library')
     assert.equal((candidates[0].promptSnapshot as Record<string, unknown>).output_kind, 'video')
     assert.equal((candidates[0].promptSnapshot as Record<string, unknown>).prompt_text, 'Make the shot.')
-    assert.match(candidate.id, /^queued_/)
-    assert.equal(candidate.model, 'pending_generation')
-    assert.equal(candidate.note, 'Queued from content-workbench for video.')
+    assert.match(candidate.id, /^resource_81_/)
+    assert.equal(candidate.model, 'resource_library')
+    assert.equal(candidate.note, 'Selected from resource library.')
+    assert.equal(candidate.resourceId, '81')
   } finally {
     restore()
   }

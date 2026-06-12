@@ -68,6 +68,10 @@ export async function domainInterpretContentUnitArtifact(args: Args): Promise<un
   return service(args).deriveContentUnitArtifact(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
 }
 
+export async function domainBuildContentUnitBackendPrompt(args: Args): Promise<unknown> {
+  return service(args).buildContentUnitBackendPrompt(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
+}
+
 export async function domainReadPreviewTimeline(args: Args): Promise<unknown> {
   return service(args).readPreviewTimeline(requiredId(args.productionId ?? args.production_id, 'productionId'))
 }
@@ -481,15 +485,19 @@ export async function domainDeleteEntity(args: Args): Promise<unknown> {
 }
 
 export async function domainReview(args: Args): Promise<unknown> {
-  return service(args).reviewWorkspace()
+  return service(args).reviewWorkspace(inspectInput(args))
 }
 
 export async function domainInspect(args: Args): Promise<unknown> {
-  return service(args).inspectWorkspace()
+  return service(args).inspectWorkspace(inspectInput(args))
 }
 
 export async function domainOverview(args: Args): Promise<unknown> {
   return service(args).overviewWorkspace()
+}
+
+export async function domainReadProductionWorkPlan(args: Args): Promise<unknown> {
+  return service(args).productionWorkPlan()
 }
 
 export async function domainInterpret(args: Args): Promise<unknown> {
@@ -638,6 +646,15 @@ function requiredTargetKind(args: Args): 'asset' | 'keyframe' | 'content_unit' {
 
 function semanticKind(value: unknown): SemanticEntityKind | undefined {
   return stringValue(value) as SemanticEntityKind | undefined
+}
+
+function inspectInput(args: Args): { commit?: string; checkpointHash?: string } {
+  const commit = stringValue(args.commit)
+  const checkpointHash = stringValue(args.checkpointHash ?? args.checkpoint_hash)
+  return {
+    ...(commit ? { commit } : {}),
+    ...(checkpointHash ? { checkpointHash } : {}),
+  }
 }
 
 function contentCandidateStatus(value: unknown): ContentCandidateStatus | undefined {

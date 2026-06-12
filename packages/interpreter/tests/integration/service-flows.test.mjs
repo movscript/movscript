@@ -11,9 +11,11 @@ import {
   deriveMovScriptWorkspaceArtifacts,
 } from '../../dist/index.js'
 import {
+  commitCheckpoint,
   interpretMovScriptWorkspace,
   planMovScriptWorkspaceRegeneration,
   reviewMovScriptWorkspace,
+  resolveWorkspaceSource,
 } from '../../dist/node.js'
 import {
   createNodeMovScriptWorkspaceFileRepository,
@@ -28,8 +30,10 @@ import {
 
 test('workspace service facade exposes frontend-oriented domain operations', async () => {
   const files = new Map(sourceFileEntries())
+  const decisionStore = memoryDecisionStore()
   const service = createMovScriptWorkspaceService({
     fileRepository: memoryWorkspaceFileRepository(files),
+    decisionStore,
     now: () => new Date('2026-06-07T00:00:00.000Z'),
   })
 
@@ -145,16 +149,19 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
 test('content unit integration flow writes, interprets, generates, impacts, and regenerates explicitly', async () => {
   const files = new Map(sourceFileEntries())
   const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
   const service = createMovScriptWorkspaceService({
     fileRepository: repository,
+    decisionStore,
     now: () => new Date('2026-06-07T00:00:00.000Z'),
   })
 
   const firstInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
-  assert.equal(firstInterpretation.status, 'interpreted')
+  assert.equal(firstInterpretation.status, 'refreshed')
   const firstAssetPanel = await service.readContentUnitRuntimePanel('cu_wet_hair_ref')
   const firstVideoPanel = await service.readContentUnitRuntimePanel('k41m')
   assert.equal(firstAssetPanel?.output_kind, 'image')
@@ -176,9 +183,10 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
 
   const secondInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:02:00.000Z'),
   })
-  assert.equal(secondInterpretation.status, 'interpreted')
+  assert.equal(secondInterpretation.status, 'refreshed')
   const secondVideoPanel = await service.readContentUnitRuntimePanel('k41m')
   const secondVideoPrompt = JSON.parse(files.get('.interpret/current/content_units/k41m/generation_prompt.json'))
   assert.equal(secondVideoPanel?.status, 'ready')
@@ -198,6 +206,7 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
     reason: 'initial_video_selection',
     selectedAt: '2026-06-07T00:03:00.000Z',
   })
+  await snapshotBaseline(repository, new Date('2026-06-07T00:03:30.000Z'))
 
   const assetContentUnit = JSON.parse(files.get('content_units/cu_wet_hair_ref/content_unit.json'))
   assetContentUnit.edit_prompt = {
@@ -208,9 +217,10 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
 
   const impactInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:00.000Z'),
   })
-  assert.equal(impactInterpretation.status, 'interpreted')
+  assert.equal(impactInterpretation.status, 'refreshed')
   const impactReport = JSON.parse(files.get(impactInterpretation.manifest.output.impactReportPath))
   const changedAssetContentUnit = impactReport.changedEntities.find((entity) => entity.entityKind === 'content_unit' && entity.id === 'cu_wet_hair_ref')
   const staleVideo = await service.readContentUnitSelectionValidity('k41m')
@@ -223,15 +233,18 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
 
   const regenerationPlan = await planMovScriptWorkspaceRegeneration({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:30.000Z'),
   })
   assert.equal(regenerationPlan.schema, 'movscript.workspace-regeneration-plan.v1')
   assert.equal(regenerationPlan.status, 'ready')
   assert.equal(regenerationPlan.interpret?.interpretationId, impactInterpretation.manifest.interpretationId)
   assert.equal(regenerationPlan.summary.staleContentUnits, 2)
-  assert.equal(regenerationPlan.affectedContentUnits.length, 0)
-  assert.equal(regenerationPlan.promptBundles.length, 0)
-  assert.equal(regenerationPlan.previewTimelines.length, 0)
+  assert.equal(regenerationPlan.affectedContentUnits.length, 2)
+  assert.ok(regenerationPlan.affectedContentUnits.some((target) => target.contentUnitId === 'cu_wet_hair_ref' && target.stale === true))
+  assert.ok(regenerationPlan.affectedContentUnits.some((target) => target.contentUnitId === 'k41m' && target.stale === true))
+  assert.equal(regenerationPlan.promptBundles.length, 2)
+  assert.equal(regenerationPlan.previewTimelines.length, 1)
 
   await service.createContentCandidate({
     contentUnitId: 'cu_wet_hair_ref',
@@ -248,6 +261,7 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   })
   await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:04:55.000Z'),
   })
   const regeneratedVideoPanel = await service.readContentUnitRuntimePanel('k41m')
@@ -270,9 +284,10 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
 
   const finalInterpretation = await interpretMovScriptWorkspace({
     fileRepository: repository,
+    decisionStore,
     now: new Date('2026-06-07T00:06:00.000Z'),
   })
-  assert.equal(finalInterpretation.status, 'interpreted')
+  assert.equal(finalInterpretation.status, 'refreshed')
   const finalValidity = await service.readContentUnitSelectionValidity('k41m')
   const finalPanel = await service.readContentUnitRuntimePanel('k41m')
   assert.equal(finalValidity?.candidate_id, 'candidate_video_2')
@@ -313,7 +328,6 @@ test('workspace service and interpreter can use backend decision store for conte
     selectedAt: '2026-06-07T00:01:00.000Z',
   })
 
-  assert.equal(files.has('content_units/cu_wet_hair_ref/selection.json'), false)
   assert.equal(files.has('content_units/cu_wet_hair_ref/candidates/candidate_backend_asset_1/content_candidate.json'), false)
 
   const index = await service.loadIndex()
@@ -333,6 +347,72 @@ test('workspace service and interpreter can use backend decision store for conte
   })
   const interpretedVideoPanel = await service.readContentUnitRuntimePanel('k41m')
   assert.equal(interpretedVideoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_backend_asset_1')
+})
+
+test('backend decision store is the sole content unit decision source when configured', async () => {
+  const files = new Map(sourceFileEntries())
+  files.set('content_units/cu_wet_hair_ref/candidates/local_asset/content_candidate.json', JSON.stringify({
+    schema: 'movscript.content_candidate.v1',
+    id: 'local_asset',
+    content_unit_ref: 'content_units/cu_wet_hair_ref',
+    outputs: [{ kind: 'image', resource_id: 'resource_local_asset' }],
+    prompt_snapshot: { schema: 'movscript.content_unit_prompt.v1', refs: [], runtime_request: { capability: 'image', inputs: [] } },
+  }))
+  const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    decisionStore,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  const index = await service.loadIndex()
+  assert.equal(index.documents.some((document) => document.path.endsWith('/decision_context.json')), false)
+  assert.equal(index.documents.some((document) => document.path.endsWith('/content_candidate.json')), false)
+
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [],
+    interpretationId: 'backend_decision_store_ignores_local_runtime',
+    createdAt: '2026-06-07T00:02:00.000Z',
+  })
+  const video = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')
+  assert.equal(video?.runtimePanel.status, 'blocked')
+  assert.equal(video?.runtimePanel.runtime_request?.inputs.length, 0)
+  assert.ok(video?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_missing'))
+
+  const interpretation = await interpretMovScriptWorkspace({
+    fileRepository: repository,
+    decisionStore,
+    now: new Date('2026-06-07T00:03:00.000Z'),
+  })
+  assert.equal(interpretation.status, 'refreshed')
+  assert.equal(files.has('.interpret/current/content_units/cu_wet_hair_ref/candidates/local_asset/content_candidate.json'), false)
+})
+
+test('interpreter reports selected upstream content unit candidate missing explicitly', async () => {
+  const files = new Map(sourceFileEntries())
+  const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = missingCandidateDecisionStore()
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    decisionStore,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index: await service.loadIndex(),
+    changedEntities: [],
+    interpretationId: 'missing_upstream_candidate',
+    createdAt: '2026-06-07T00:02:00.000Z',
+  })
+  const assetRef = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'cu_wet_hair_ref')
+  const video = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')
+
+  assert.equal(assetRef?.selectionValidity.stale, true)
+  assert.deepEqual(assetRef?.selectionValidity.stale_reasons, ['candidate_missing'])
+  assert.ok(video?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_candidate_missing'))
+  assert.equal(video?.runtimePanel.status, 'blocked')
 })
 
 test('workspace service snapshots script markdown into explicit version and blocks', async () => {
@@ -441,6 +521,36 @@ function memoryDecisionStore() {
   }
 }
 
+function missingCandidateDecisionStore() {
+  return {
+    async getContentUnitDecision(input) {
+      if (String(input.contentUnitId) !== 'cu_wet_hair_ref') return undefined
+      return {
+        target_kind: 'content_unit',
+        target_ref: 'content_units/cu_wet_hair_ref',
+        candidates: [],
+        selection: {
+          candidate_id: 'missing_asset_candidate',
+          resource_id: 'resource_missing_asset',
+          stale_policy: 'strict',
+        },
+      }
+    },
+    async replaceContentUnitCandidates() {
+      throw new Error('not implemented')
+    },
+    async upsertContentUnitCandidate() {
+      throw new Error('not implemented')
+    },
+    async selectContentUnitCandidate() {
+      throw new Error('not implemented')
+    },
+    async clearContentUnitSelection() {
+      throw new Error('not implemented')
+    },
+  }
+}
+
 test('node workspace service composes with interpreter review and interpret for adapters', async () => {
   const rootDir = join(tmpdir(), `movscript-node-workspace-service-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const paths = resolveMovScriptProjectWorkspacePaths({ workspaceDir: rootDir, userId: 1, projectId: 6 })
@@ -473,7 +583,7 @@ test('node workspace service composes with interpreter review and interpret for 
       fileRepository,
       now: new Date('2026-06-07T00:00:00.000Z'),
     })
-    assert.equal(interpretation.status, 'interpreted')
+    assert.equal(interpretation.status, 'refreshed')
     assert.equal(interpretation.manifest?.output.editorStatePath, '.interpret/current/editor-state.json')
     const editorState = await service.readEditorState()
     const previewTimeline = await service.readPreviewTimeline('p8f3')
@@ -520,7 +630,7 @@ test('initialized project source uses project_id and can interpret immediately',
     fileRepository: repository,
     now: new Date('2026-06-07T00:00:00.000Z'),
   })
-  assert.equal(interpretation.status, 'interpreted')
+  assert.equal(interpretation.status, 'refreshed')
   assert.equal(files.has('.interpret/current/project.json'), true)
   assert.equal(files.has('.interpret/current/project_standards.json'), true)
 })
@@ -552,3 +662,11 @@ test('initialized project preserves existing gitignore and ensures derived artif
   assert.ok(secondInitialize.files.some((file) => file.path === '.gitignore' && file.status === 'skipped'))
   assert.equal((secondGitignore.match(/^\.interpret\/$/gm) ?? []).length, 1)
 })
+
+async function snapshotBaseline(repository, now) {
+  const source = await resolveWorkspaceSource(repository)
+  return commitCheckpoint(repository, source.files, {
+    now,
+    message: 'test comparison baseline',
+  })
+}

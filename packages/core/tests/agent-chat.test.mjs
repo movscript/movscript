@@ -82,6 +82,51 @@ test('core agent chat entrypoint exports the provider-neutral runtime contract',
   )
 })
 
+test('core agent chat notification dispatcher records active permission profile settings', () => {
+  let threads = [{
+    provider: 'mova',
+    id: 'thread_1',
+    preview: '',
+    name: null,
+    createdAt: 1,
+    updatedAt: 1,
+    status: 'idle',
+    executionSettings: {
+      permissions: ':workspace',
+    },
+    turns: [],
+  }]
+
+  agentChat.dispatchAgentChatNotification({
+    method: 'thread/settings/updated',
+    params: {
+      threadId: 'thread_1',
+      threadSettings: {
+        approvalPolicy: 'on-request',
+        approvalsReviewer: 'user',
+        activePermissionProfile: { id: ':read-only' },
+      },
+    },
+  }, {
+    upsertThread: (thread) => {
+      threads = [thread]
+    },
+    updateThreads: (updater) => {
+      threads = updater(threads)
+    },
+    activeThreadId: 'thread_1',
+    setActiveThreadId: () => undefined,
+    updatePendingUserItems: () => undefined,
+    updatePendingServerRequests: () => undefined,
+    updateStreamingAgentItems: () => undefined,
+    readThread: () => undefined,
+  })
+
+  assert.equal(threads[0].executionSettings.permissions, ':read-only')
+  assert.equal(threads[0].executionSettings.approvalPolicy, 'on-request')
+  assert.equal(threads[0].executionSettings.approvalsReviewer, 'user')
+})
+
 test('core agent chat system item views summarize approval reviews and permission context', () => {
   const view = agentChat.agentChatSystemItemView({
     type: 'approvalReview',

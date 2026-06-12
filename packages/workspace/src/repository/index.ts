@@ -104,13 +104,16 @@ export {
 } from './contentUnits.js'
 
 export {
+  contentUnitDecisionContextPath,
   contentUnitDecisionTargetRef,
   createMovScriptBackendDecisionStore,
+  normalizeDecisionContext,
   overlayMovScriptDecisionDocuments,
   type MovScriptBackendDecisionStoreOptions,
   type MovScriptContentUnitDecisionCandidateInput,
   type MovScriptContentUnitDecisionCandidatesInput,
   type MovScriptContentUnitDecisionSelectionInput,
+  type MovScriptContentUnitDecisionSelectionResult,
   type MovScriptContentUnitDecisionTarget,
   type MovScriptDecisionContext,
   type MovScriptDecisionStore,
@@ -118,14 +121,10 @@ export {
 
 export {
   buildMovScriptContentCandidate,
-  clearMovScriptContentUnitSelection,
   createMovScriptContentCandidate,
-  selectMovScriptContentUnitCandidate,
   type MovScriptContentCandidateOutput,
   type MovScriptContentCandidateWriteInput,
   type MovScriptContentCandidateWriteResult,
-  type MovScriptContentUnitSelectionInput,
-  type MovScriptContentUnitSelectionResult,
 } from './contentCandidates.js'
 
 export {

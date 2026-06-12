@@ -5,16 +5,14 @@ export function summarizeWorkspaceInterpretForAgent(value: unknown): Record<stri
 
   const review = isRecord(value.review) ? value.review : {}
   const summary = isRecord(review.summary) ? review.summary : undefined
-  const checkpoint = isRecord(value.checkpoint) ? value.checkpoint : undefined
   const changedEntities = Array.isArray(review.changedEntities) ? review.changedEntities : []
   const semanticChanges = Array.isArray(review.semanticChanges) ? review.semanticChanges : []
   const issues = Array.isArray(review.issues) ? review.issues : []
 
   return {
-    schema: 'movscript.workspace-interpret-agent-summary.v1',
+    schema: 'movscript.workspace-interpret-refresh-agent-summary.v1',
     operation: value.operation,
     status: value.status,
-    ...(checkpoint ? { checkpoint: pick(checkpoint, ['id', 'source']) } : {}),
     ...(summary ? { summary } : {}),
     changedEntities: changedEntities.map(summarizeChangedEntity).filter(Boolean),
     semanticChanges: semanticChanges.map(summarizeSemanticChange).filter(Boolean),

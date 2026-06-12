@@ -143,7 +143,6 @@ function AppServerChatShellContent({
       providerLabel={providerLabel}
       threadListLabel={`${providerLabel} Threads`}
       emptyThreadListLabel={`No ${providerLabel} threads yet.`}
-      emptyThreadLabel={`Start a ${providerLabel} turn from the composer.`}
       unavailableLabel={`${providerLabel} app-server URL is not configured.`}
       composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}

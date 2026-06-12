@@ -111,56 +111,13 @@ import {
   subscribeAgentBrowserBoundsSync,
   type AgentBrowserBounds,
 } from '@/features/agent/presentation/agentBrowserBounds'
-
-type WebTabState = {
-  tabId: string
-  visible: boolean
-  url: string
-  title: string
-  loading: boolean
-  canGoBack: boolean
-  canGoForward: boolean
-  error?: string
-}
-
-type AgentBrowserTab =
-  | {
-    id: string
-    kind: 'project_home'
-    title: string
-    createdAt: number
-  }
-  | {
-    id: string
-    kind: 'web'
-    title: string
-    url?: string
-    createdAt: number
-  }
-  | {
-    id: string
-    kind: 'resources'
-    title: string
-    createdAt: number
-  }
-  | {
-    id: string
-    kind: 'external_resources'
-    title: string
-    createdAt: number
-  }
-  | {
-    id: string
-    kind: 'canvas_list'
-    title: string
-    createdAt: number
-  }
-  | {
-    id: string
-    kind: 'project_standards'
-    title: string
-    createdAt: number
-  }
+import {
+  createDefaultAgentBrowserContentState,
+  DEFAULT_AGENT_CONTENT_AREA_ID,
+  useAgentContentAreaStore,
+  type AgentBrowserContentTab,
+  type AgentBrowserWebTabState,
+} from '@/features/agent/state/agentContentAreaStore'
 
 interface ProjectNavigationGroup {
   key: string
@@ -181,7 +138,7 @@ interface ProjectNavigationLink {
   status?: string
 }
 
-const EMPTY_WEB_STATE: WebTabState = {
+const EMPTY_WEB_STATE: AgentBrowserWebTabState = {
   tabId: '',
   visible: false,
   url: '',
@@ -191,21 +148,31 @@ const EMPTY_WEB_STATE: WebTabState = {
   canGoForward: false,
 }
 
-function createTabId(prefix: string) {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
+function createTabId(prefix: string, scope = '') {
+  const scopeSegment = scope.trim().replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 36)
+  return [
+    prefix,
+    scopeSegment,
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2, 7),
+  ].filter(Boolean).join('_')
 }
 
-export function AgentBrowserPanel() {
+export interface AgentBrowserPanelProps {
+  contentAreaId?: string | null
+}
+
+export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}) {
+  const resolvedContentAreaId = contentAreaId?.trim() || DEFAULT_AGENT_CONTENT_AREA_ID
   const project = useProjectStore((state) => state.current)
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const [tabs, setTabs] = useState<AgentBrowserTab[]>(() => [{
-    id: 'project_home',
-    kind: 'project_home',
-    title: '内容导航',
-    createdAt: Date.now(),
-  }])
-  const [activeTabId, setActiveTabId] = useState('project_home')
-  const [webStates, setWebStates] = useState<Record<string, WebTabState>>({})
+  const ensureContentArea = useAgentContentAreaStore((state) => state.ensureContentArea)
+  const updateBrowserState = useAgentContentAreaStore((state) => state.updateBrowserState)
+  const browserState = useAgentContentAreaStore((state) => (
+    state.contentAreasByConversation[resolvedContentAreaId]?.browser
+  ))
+  const fallbackBrowserState = useMemo(() => createDefaultAgentBrowserContentState(), [])
+  const { tabs, activeTabId, webStates } = browserState ?? fallbackBrowserState
   const [launcherOpen, setLauncherOpen] = useState(false)
   const [addressWorkspace, setAddressWorkspace] = useState('')
   const [toolbarAddressWorkspace, setToolbarAddressWorkspace] = useState('')
@@ -214,6 +181,33 @@ export function AgentBrowserPanel() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
   const activeWebState = activeTab?.kind === 'web' ? webStates[activeTab.id] ?? { ...EMPTY_WEB_STATE, tabId: activeTab.id, url: activeTab.url ?? '' } : null
   const activeWebURL = activeTab?.kind === 'web' ? activeWebState?.url || activeTab.url || '' : ''
+
+  useEffect(() => {
+    ensureContentArea(resolvedContentAreaId)
+  }, [ensureContentArea, resolvedContentAreaId])
+
+  const setTabs = useCallback((nextTabs: AgentBrowserContentTab[] | ((current: AgentBrowserContentTab[]) => AgentBrowserContentTab[])) => {
+    updateBrowserState(resolvedContentAreaId, (current) => ({
+      ...current,
+      tabs: typeof nextTabs === 'function' ? nextTabs(current.tabs) : nextTabs,
+    }))
+  }, [resolvedContentAreaId, updateBrowserState])
+
+  const setActiveTabId = useCallback((nextActiveTabId: string) => {
+    updateBrowserState(resolvedContentAreaId, (current) => ({
+      ...current,
+      activeTabId: nextActiveTabId,
+    }))
+  }, [resolvedContentAreaId, updateBrowserState])
+
+  const setWebStates = useCallback((
+    updater: (current: Record<string, AgentBrowserWebTabState>) => Record<string, AgentBrowserWebTabState>,
+  ) => {
+    updateBrowserState(resolvedContentAreaId, (current) => ({
+      ...current,
+      webStates: updater(current.webStates),
+    }))
+  }, [resolvedContentAreaId, updateBrowserState])
 
   const readBounds = useCallback((): AgentBrowserBounds | null => (
     agentBrowserBoundsFromViewportElement(viewportRef.current)
@@ -242,7 +236,7 @@ export function AgentBrowserPanel() {
       if (next.error) setError(next.error)
     })
     return () => unsubscribe?.()
-  }, [available])
+  }, [available, setTabs, setWebStates])
 
   useEffect(() => {
     syncBounds()
@@ -301,7 +295,7 @@ export function AgentBrowserPanel() {
   }
 
   function openBlankWebTab() {
-    const id = createTabId('web')
+    const id = createTabId('web', resolvedContentAreaId)
     setTabs((current) => [...current, { id, kind: 'web', title: '空白页', createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
@@ -328,7 +322,7 @@ export function AgentBrowserPanel() {
       return
     }
 
-    const id = createTabId(kind)
+    const id = createTabId(kind, resolvedContentAreaId)
     setTabs((current) => [...current, { id, kind, title, createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
@@ -367,7 +361,7 @@ export function AgentBrowserPanel() {
     const url = addressWorkspace.trim()
     if (!url) return
     const existingBlank = activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url ? activeTab : null
-    const id = existingBlank?.id ?? createTabId('web')
+    const id = existingBlank?.id ?? createTabId('web', resolvedContentAreaId)
     if (!existingBlank) {
       setTabs((current) => [...current, { id, kind: 'web', title: url, url, createdAt: Date.now() }])
       setActiveTabId(id)
@@ -412,7 +406,7 @@ export function AgentBrowserPanel() {
       })
     }
     if (remaining.length === 0) {
-      const fallback: AgentBrowserTab = {
+      const fallback: AgentBrowserContentTab = {
         id: 'project_home',
         kind: 'project_home',
         title: '内容导航',
@@ -647,7 +641,7 @@ export function AgentBrowserPanel() {
   )
 }
 
-function tabTitle(tab: AgentBrowserTab, webState: WebTabState | undefined, projectName?: string) {
+function tabTitle(tab: AgentBrowserContentTab, webState: AgentBrowserWebTabState | undefined, projectName?: string) {
   if (tab.kind === 'project_home') return projectName ? `${projectName}` : '内容导航'
   if (tab.kind === 'resources') return tab.title
   if (tab.kind === 'external_resources') return tab.title

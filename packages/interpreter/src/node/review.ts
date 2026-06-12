@@ -51,9 +51,10 @@ import type {
 
 export async function reviewMovScriptWorkspace(input: MovScriptWorkspaceInterpretInput): Promise<MovScriptWorkspaceReviewResult> {
   const now = input.now ?? new Date()
-  const source = await resolveWorkspaceSource(input.fileRepository)
+  const sourceOptions = workspaceSourceOptions(input)
+  const source = await resolveWorkspaceSource(input.fileRepository, sourceOptions)
   const editFiles = source.files
-  const baseline = await loadCheckpointSourceSnapshots(input.fileRepository, input.checkpointHash)
+  const baseline = await loadCheckpointSourceSnapshots(input.fileRepository, input.commit ?? input.checkpointHash, sourceOptions)
   const currentFiles = baseline.files
   const changedFiles = diffWorkspaceFiles(editFiles, currentFiles, baseline.basePath)
   const sourceGraph = buildSourceDomainGraph(editFiles)
@@ -62,7 +63,7 @@ export async function reviewMovScriptWorkspace(input: MovScriptWorkspaceInterpre
   const issues = [
     ...validateEditableFiles(editFiles),
     ...validateSourceDomainGraph(sourceGraph),
-    ...await validateGitFileChangeCoverage(input.fileRepository, baseline, changedFiles),
+    ...await validateGitFileChangeCoverage(input.fileRepository, baseline, changedFiles, sourceOptions),
   ]
   const semanticChanges = semanticChangesFromEntityChanges(changedEntities)
   const sourceDocuments = editFiles.map((file): MovScriptWorkspaceDocument => ({
@@ -77,6 +78,7 @@ export async function reviewMovScriptWorkspace(input: MovScriptWorkspaceInterpre
     semanticChanges,
     interpretationId: `review_${now.toISOString().replace(/[-:.TZ]/g, '')}`,
     createdAt: now.toISOString(),
+    sourceIssues: issues,
   })
   const selectionValidity = artifacts.contentUnitArtifacts.map((artifact) => ({
     contentUnitId: artifact.contentUnitId,
@@ -95,7 +97,7 @@ export async function reviewMovScriptWorkspace(input: MovScriptWorkspaceInterpre
     schema: 'movscript.workspace-review.v1',
     operation: 'review',
     basePath: baseline.basePath,
-    checkpoint: {
+    comparisonBase: {
       ...(baseline.checkpointHash ? { from: baseline.checkpointHash } : {}),
       source: baseline.source,
       workspace: {
@@ -113,6 +115,7 @@ export async function reviewMovScriptWorkspace(input: MovScriptWorkspaceInterpre
     productionImpacts,
     selectionValidity,
     staleSelections,
+    productionWorkPlan: artifacts.productionWorkPlan,
     reshootTargets: [],
     businessChanges,
     issues,
@@ -132,6 +135,12 @@ export async function inspectMovScriptWorkspace(input: MovScriptWorkspaceInterpr
 
 function entityDir(path: string): string {
   return normalizeWorkspacePath(path).replace(/\/[^/]+$/, '')
+}
+
+function workspaceSourceOptions(input: MovScriptWorkspaceInterpretInput): { includeContentUnitDecisionDocuments?: boolean } {
+  return {
+    includeContentUnitDecisionDocuments: input.decisionStore ? false : true,
+  }
 }
 
 function diffWorkspaceFiles(

@@ -14,6 +14,9 @@ import type {
   ContentUnitDerivedArtifactBundle,
   MovScriptWorkspaceDerivedArtifacts,
 } from '@movscript/interpreter/artifacts'
+import type {
+  MovScriptContentUnitPromptBuildResult,
+} from '@movscript/prompt'
 
 export interface MovScriptEnginePublishInput {
   productionId?: string | number
@@ -150,11 +153,13 @@ export interface MovScriptEngineContentUnitInput {
 export interface MovScriptEngineOptions {
   workspaceService: MovScriptWorkspaceService
   overviewWorkspace?: () => Promise<unknown>
-  inspectWorkspace?: () => Promise<unknown>
-  reviewWorkspace?: () => Promise<unknown>
+  inspectWorkspace?: (input?: MovScriptEngineInspectInput) => Promise<unknown>
+  reviewWorkspace?: (input?: MovScriptEngineInspectInput) => Promise<unknown>
   interpretWorkspace?: () => Promise<unknown>
+  productionWorkPlan?: () => Promise<unknown>
   regenerationPlan?: () => Promise<unknown>
   deriveContentUnitArtifact?: (contentUnitId: string | number) => Promise<ContentUnitDerivedArtifactBundle>
+  buildContentUnitBackendPrompt?: (contentUnitId: string | number) => Promise<MovScriptContentUnitPromptBuildResult>
   deriveArtifacts?: (input?: { interpretationId?: string; createdAt?: string }) => Promise<MovScriptWorkspaceDerivedArtifacts>
   publish?: (input?: MovScriptEnginePublishInput) => Promise<unknown>
 }
@@ -207,11 +212,13 @@ export interface MovScriptEngine {
   updateContentUnit(input: MovScriptEngineContentUnitInput & { id: string | number }): ReturnType<MovScriptWorkspaceService['upsertContentUnit']>
   deleteContentUnit(input: MovScriptEngineDeleteInput): Promise<{ deleted: true; entity: MovScriptWorkspaceIndexedEntity }>
   deriveContentUnitArtifact(contentUnitId: string | number): Promise<ContentUnitDerivedArtifactBundle>
+  buildContentUnitBackendPrompt(contentUnitId: string | number): Promise<MovScriptContentUnitPromptBuildResult>
   deriveArtifacts(input?: { interpretationId?: string; createdAt?: string }): Promise<MovScriptWorkspaceDerivedArtifacts>
   overview(): Promise<unknown>
-  inspect(): Promise<unknown>
-  review(): Promise<unknown>
+  inspect(input?: MovScriptEngineInspectInput): Promise<unknown>
+  review(input?: MovScriptEngineInspectInput): Promise<unknown>
   interpret(): Promise<unknown>
+  productionWorkPlan(): Promise<unknown>
   regenerationPlan(): Promise<unknown>
   publish(input?: MovScriptEnginePublishInput): Promise<unknown>
   appendCandidate(input: Omit<MovScriptInlineCandidateWriteInput, 'fileRepository'>): Promise<MovScriptInlineCandidateWriteResult>
@@ -228,14 +235,21 @@ export interface MovScriptEngine {
   ): Promise<Omit<MovScriptInlineCandidateWriteResult, 'candidate'>>
 }
 
+export interface MovScriptEngineInspectInput {
+  commit?: string
+  checkpointHash?: string
+}
+
 export function createMovScriptEngine(options: MovScriptEngineOptions): MovScriptEngine {
   const workspaceService = options.workspaceService
   const overviewWorkspace = options.overviewWorkspace
   const inspectWorkspace = options.inspectWorkspace
   const reviewWorkspace = options.reviewWorkspace
   const interpretWorkspace = options.interpretWorkspace
+  const productionWorkPlan = options.productionWorkPlan
   const regenerationPlan = options.regenerationPlan
   const deriveContentUnitArtifact = options.deriveContentUnitArtifact
+  const buildContentUnitBackendPrompt = options.buildContentUnitBackendPrompt
   const deriveArtifacts = options.deriveArtifacts
 
   return {
@@ -355,6 +369,12 @@ export function createMovScriptEngine(options: MovScriptEngineOptions): MovScrip
         'deriveContentUnitArtifact',
       )
     },
+    buildContentUnitBackendPrompt(contentUnitId) {
+      return callRequiredOperation(
+        buildContentUnitBackendPrompt ? () => buildContentUnitBackendPrompt(contentUnitId) : undefined,
+        'buildContentUnitBackendPrompt',
+      )
+    },
     deriveArtifacts(input = {}) {
       return callRequiredOperation(
         deriveArtifacts ? () => deriveArtifacts(input) : undefined,
@@ -364,14 +384,19 @@ export function createMovScriptEngine(options: MovScriptEngineOptions): MovScrip
     overview() {
       return callRequiredOperation(overviewWorkspace, 'overview')
     },
-    inspect() {
-      return callRequiredOperation(inspectWorkspace ?? reviewWorkspace, 'inspect')
+    inspect(input = {}) {
+      const operation = inspectWorkspace ?? reviewWorkspace
+      return callRequiredOperation(operation ? () => operation(input) : undefined, 'inspect')
     },
-    review() {
-      return callRequiredOperation(inspectWorkspace ?? reviewWorkspace, 'review')
+    review(input = {}) {
+      const operation = inspectWorkspace ?? reviewWorkspace
+      return callRequiredOperation(operation ? () => operation(input) : undefined, 'review')
     },
     interpret() {
       return callRequiredOperation(interpretWorkspace, 'interpret')
+    },
+    productionWorkPlan() {
+      return callRequiredOperation(productionWorkPlan, 'productionWorkPlan')
     },
     regenerationPlan() {
       return callRequiredOperation(regenerationPlan, 'regenerationPlan')

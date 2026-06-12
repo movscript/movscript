@@ -31,6 +31,8 @@ export {
   MOVSCRIPT_SOURCE_ENTITY_FILES,
   MOVSCRIPT_SOURCE_ROOT_FILES,
   classifyMovScriptWorkspacePath,
+  isMovScriptContentUnitCandidatePath,
+  isMovScriptContentUnitDecisionPath,
   isMovScriptNonSourceRootDirectory,
   isMovScriptSourceDocumentPath,
   isMovScriptSourcePath,

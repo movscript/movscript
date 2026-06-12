@@ -2,7 +2,7 @@
   "name": "@movscript/interpreter",
   "version": "0.1.1",
   "private": true,
-  "description": "Interpreter package for translating checkpoint git diffs into MovScript domain impact, reshoot plans, and deterministic artifacts.",
+  "description": "Interpreter package for translating source changes into MovScript diagnostics, impact plans, and deterministic read-model artifacts.",
   "license": "MIT",
   "type": "module",
   "files": [

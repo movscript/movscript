@@ -11,7 +11,6 @@ export interface AgentChatGenerationProgressViewStateInput {
 }
 
 export interface AgentChatGenerationProgressViewState {
-  generationProgressKey?: string
   generationProgressState: GenerationProgressState | null
   generationProgressStates: GenerationProgressState[]
 }
@@ -26,12 +25,7 @@ export function buildAgentChatGenerationProgressViewState(input: AgentChatGenera
   const generationProgressState = generationProgressStates.at(-1) ?? null
 
   return {
-    generationProgressKey: generationProgressState ? generationProgressScrollKey(generationProgressState) : undefined,
     generationProgressState,
     generationProgressStates,
   }
-}
-
-function generationProgressScrollKey(state: GenerationProgressState): string {
-  return `${state.jobId ?? ''}:${state.outputResourceId ?? ''}:${state.status}:${state.stage ?? ''}`
 }

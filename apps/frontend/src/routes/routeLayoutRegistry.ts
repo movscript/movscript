@@ -61,6 +61,10 @@ export const APP_SHELL_AGENT_SIDEBAR_PANE_ID = 'app-shell.agent-sidebar'
 export const APP_SHELL_AGENT_CONTENT_PANE_ID = 'app-shell.agent-content-pane'
 export const APP_SHELL_TERMINAL_DOCK_PANE_ID = 'app-shell.terminal-dock'
 export const APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY = 'movscript.appShell.terminal.open'
+export const APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY = 'movscript.appShell.terminal.height'
+export const APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT = 300
+export const APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT = 236
+export const APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT = 520
 export const AGENT_CONNECTION_THREADS_PANE_ID = 'agent.connections.threads-pane'
 export const AGENT_CONNECTION_EVENTS_PANE_ID = 'agent.connections.events-pane'
 export const AGENT_CONNECTION_RAW_PANE_ID = 'agent.connections.raw-pane'
@@ -147,8 +151,12 @@ const APP_SHELL_DETAIL_PANES: RouteLayoutPaneSpec[] = [
     id: APP_SHELL_TERMINAL_DOCK_PANE_ID,
     side: 'bottom',
     owner: 'app-shell',
+    defaultSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
+    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
     defaultState: 'hidden',
     allowedStates: ['default', 'hidden'],
+    storageKey: APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
     stateStorageKey: APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
     persistState: true,
     collapsible: true,
@@ -193,8 +201,12 @@ const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec[] = [
     id: APP_SHELL_TERMINAL_DOCK_PANE_ID,
     side: 'bottom',
     owner: 'app-shell',
+    defaultSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
+    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
     defaultState: 'hidden',
     allowedStates: ['default', 'hidden'],
+    storageKey: APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
     stateStorageKey: APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
     persistState: true,
     collapsible: true,

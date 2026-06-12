@@ -61,6 +61,16 @@ func (*ResourceBlob) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+type ResourceDerivative struct {
+	gorm.Model
+	OutputResourceID uint        `gorm:"not null;uniqueIndex" json:"output_resource_id"`
+	OutputResource   RawResource `gorm:"foreignKey:OutputResourceID;constraint:OnDelete:CASCADE" json:"-"`
+	Operation        string      `gorm:"not null;index;size:128" json:"operation"`
+	Tool             string      `gorm:"default:'';size:128" json:"tool,omitempty"`
+	InputResourceIDs string      `gorm:"type:text;not null;default:'[]'" json:"input_resource_ids"`
+	Params           string      `gorm:"type:text;not null;default:'{}'" json:"params"`
+}
+
 type ResourceFolder struct {
 	gorm.Model
 	OwnerID        uint   `gorm:"not null" json:"owner_id"`

@@ -5,11 +5,14 @@ import { resolve } from 'node:path'
 
 test('agent browser opens resource library inside the agent content panel', () => {
   const agentBrowserPanelSource = readFileSync(resolve('src/features/agent/components/AgentBrowserPanel.tsx'), 'utf8')
+  const projectAgentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+  const agentContentAreaStoreSource = readFileSync(resolve('src/features/agent/state/agentContentAreaStore.ts'), 'utf8')
+  const agentBrowserFeatureSource = `${agentBrowserPanelSource}\n${agentContentAreaStoreSource}`
   const uiAgentBrowserCssSource = readFileSync(resolve('../../packages/ui/src/components/business/agent/browser/styles.css'), 'utf8')
 
-  assert.match(agentBrowserPanelSource, /kind: 'resources'/)
-  assert.match(agentBrowserPanelSource, /kind: 'external_resources'/)
-  assert.match(agentBrowserPanelSource, /kind: 'canvas_list'/)
+  assert.match(agentBrowserFeatureSource, /kind: 'resources'/)
+  assert.match(agentBrowserFeatureSource, /kind: 'external_resources'/)
+  assert.match(agentBrowserFeatureSource, /kind: 'canvas_list'/)
   assert.match(agentBrowserPanelSource, /function openResourceLibraryTab\(\)/)
   assert.match(agentBrowserPanelSource, /function openResourceLibraryInCurrentTab\(\)/)
   assert.match(agentBrowserPanelSource, /function openExternalResourceLibraryTab\(\)/)
@@ -22,6 +25,10 @@ test('agent browser opens resource library inside the agent content panel', () =
   assert.match(agentBrowserPanelSource, /onOpenResourceLibrary=\{openResourceLibraryInCurrentTab\}/)
   assert.match(agentBrowserPanelSource, /onOpenExternalResourceLibrary=\{openExternalResourceLibraryInCurrentTab\}/)
   assert.match(agentBrowserPanelSource, /onOpenCanvasList=\{openCanvasListInCurrentTab\}/)
+  assert.match(agentBrowserPanelSource, /contentAreaId\?: string \| null/)
+  assert.match(projectAgentModePageSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} \/>/)
+  assert.match(projectAgentModePageSource, /appServerActiveThreadId \?\? activeConversationId \?\? DEFAULT_AGENT_CONTENT_AREA_ID/)
+  assert.match(agentBrowserPanelSource, /createTabId\('web', resolvedContentAreaId\)/)
   assert.match(agentBrowserPanelSource, /title="打开资源库"/)
   assert.match(agentBrowserPanelSource, /title="打开外部资源"/)
   assert.doesNotMatch(agentBrowserPanelSource, /navigateInternalRoute\(ROUTES\.resources\)/)

@@ -325,6 +325,84 @@ test('app-server protocol data source preserves provider identity in thread noti
   assert.equal(thread?.provider, 'mova')
 })
 
+test('app-server protocol data source only dispatches notifications scoped to the subscribed thread', () => {
+  const notificationHandlers: Array<(notification: { method: string; params?: unknown }) => void> = []
+  const client = {
+    onNotification: (handler: (notification: { method: string; params?: unknown }) => void) => {
+      notificationHandlers.push(handler)
+      return () => undefined
+    },
+    onServerRequest: () => () => undefined,
+  } as unknown as AppServerRpcClient
+  const dataSource = createAppServerChatDataSource(client)
+  const notifications: unknown[] = []
+
+  dataSource.subscribeThread?.({
+    threadId: 'thread_1',
+    onNotification: (notification) => notifications.push(notification),
+  })
+
+  notificationHandlers[0]?.({
+    method: 'account/rateLimits/updated',
+    params: { rateLimits: { primary: { usedPercent: 10 } } },
+  })
+  notificationHandlers[0]?.({
+    method: 'mcpServer/startupStatus/updated',
+    params: { name: 'codex_apps', status: 'ready', error: null },
+  })
+  notificationHandlers[0]?.({
+    method: 'thread/status/changed',
+    params: { threadId: 'thread_2', status: 'running' },
+  })
+  notificationHandlers[0]?.({
+    method: 'thread/name/updated',
+    params: { thread_id: 'thread_1', name: 'Thread one' },
+  })
+  notificationHandlers[0]?.({
+    method: 'thread/started',
+    params: { thread: appServerThread({ id: 'thread_1' }) },
+  })
+
+  assert.deepEqual(notifications.map((notification) => (notification as { method?: string }).method), [
+    'thread/name/updated',
+    'thread/started',
+  ])
+})
+
+test('app-server protocol data source only dispatches realtime notifications scoped to the subscribed thread', () => {
+  const notificationHandlers: Array<(notification: { method: string; params?: unknown }) => void> = []
+  const client = {
+    onNotification: (handler: (notification: { method: string; params?: unknown }) => void) => {
+      notificationHandlers.push(handler)
+      return () => undefined
+    },
+  } as unknown as AppServerRpcClient
+  const dataSource = createAppServerChatDataSource(client)
+  const notifications: unknown[] = []
+
+  dataSource.capabilities.realtime?.subscribe({
+    threadId: 'thread_1',
+    onNotification: (notification) => notifications.push(notification),
+  })
+
+  notificationHandlers[0]?.({
+    method: 'thread/realtime/started',
+    params: { sessionId: 'global_session' },
+  })
+  notificationHandlers[0]?.({
+    method: 'thread/realtime/started',
+    params: { threadId: 'thread_2', sessionId: 'session_2' },
+  })
+  notificationHandlers[0]?.({
+    method: 'thread/realtime/started',
+    params: { threadId: 'thread_1', sessionId: 'session_1' },
+  })
+
+  assert.deepEqual(notifications.map((notification) => (notification as { method?: string }).method), [
+    'thread/realtime/started',
+  ])
+})
+
 test('app-server thread-turn-item data source forwards model selection to thread and turn requests', async () => {
   const calls: Array<{ method: string; params: Record<string, unknown> }> = []
   const client = {
@@ -495,6 +573,51 @@ test('app-server thread-turn-item data source forwards run profiles to thread an
       },
     },
   ])
+})
+
+test('app-server thread-turn-item data source updates active thread permissions profile', async () => {
+  const calls: Array<{ method: string; params: Record<string, unknown> }> = []
+  const client = {
+    requestProtocol: async (method: string, params: Record<string, unknown>) => {
+      calls.push({ method, params })
+      return {
+        threadSettings: {
+          cwd: '/repo',
+          approvalPolicy: 'on-request',
+          approvalsReviewer: 'user',
+          activePermissionProfile: { id: ':read-only' },
+          model: 'gpt-5',
+          modelProvider: 'openai',
+        },
+      }
+    },
+  } as unknown as AppServerRpcClient
+
+  const dataSource = createAppServerChatDataSource(client)
+  const settings = await dataSource.updateThreadSettings?.({
+    threadId: 'thread_1',
+    runProfile: agentRunProfilePresetById('read-only'),
+  })
+
+  assert.deepEqual(calls, [
+    {
+      method: 'thread/settings/update',
+      params: {
+        threadId: 'thread_1',
+        approvalPolicy: 'on-request',
+        approvalsReviewer: 'user',
+        permissions: ':read-only',
+      },
+    },
+  ])
+  assert.deepEqual(settings, {
+    cwd: '/repo',
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'user',
+    permissions: ':read-only',
+    model: 'gpt-5',
+    modelProvider: 'openai',
+  })
 })
 
 test('app-server thread-turn-item data source forwards thread controls and goals', async () => {
@@ -750,6 +873,10 @@ test('app-server thread-turn-item data source exposes global server request subs
     permissions: { network: null, fileSystem: null },
     scope: 'turn',
     strictAutoReview: false,
+  })
+  notificationHandlers[0]?.({
+    method: 'serverRequest/resolved',
+    params: { requestId: 'global_request' },
   })
   notificationHandlers[0]?.({
     method: 'serverRequest/resolved',

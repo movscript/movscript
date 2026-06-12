@@ -36,6 +36,10 @@ import {
   APP_SHELL_AGENT_CONTENT_PANE_ID,
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   APP_SHELL_ASSISTANT_DOCK_PANE_ID,
+  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
+  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
   appRouteViewportScrollForMode,
@@ -142,6 +146,10 @@ test('registered route layout specs expose pane ownership for app shell surfaces
   assert.equal(agentContentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
   assert.equal(agentContentPane?.stateStorageKey, AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY)
   const terminalPane = agentRoute.panes.find((pane) => pane.id === APP_SHELL_TERMINAL_DOCK_PANE_ID)
+  assert.equal(terminalPane?.defaultSize, APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT)
+  assert.equal(terminalPane?.minSize, APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT)
+  assert.equal(terminalPane?.maxSize, APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT)
+  assert.equal(terminalPane?.storageKey, APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY)
   assert.equal(terminalPane?.stateStorageKey, APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY)
 
   const canvasRoute = routeLayoutSpecForPathname('/canvases/42')

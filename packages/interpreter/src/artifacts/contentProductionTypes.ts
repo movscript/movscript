@@ -46,6 +46,7 @@ export interface ContentUnitPromptBlocker {
     | 'primary_ref_missing'
     | 'primary_ref_ambiguous'
     | 'upstream_content_unit_not_found'
+    | 'upstream_candidate_missing'
     | 'upstream_selection_missing'
     | 'upstream_selection_stale'
     | 'upstream_resource_missing'
@@ -84,7 +85,9 @@ export interface NormalizedContentUnitPrompt {
       required: boolean
     }>
     params?: Record<string, unknown>
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown> & {
+      style_reference_resource_ids?: Array<string | number>
+    }
   }
   blockers?: ContentUnitPromptBlocker[]
   created_at: string
@@ -119,7 +122,9 @@ export interface ContentUnitRuntimePanel {
       required: boolean
     }>
     params?: Record<string, unknown>
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown> & {
+      style_reference_resource_ids?: Array<string | number>
+    }
   }
   review?: {
     warnings?: string[]
@@ -161,6 +166,7 @@ export interface ContentUnitSelectionValidity {
     | 'model_intent_changed'
     | 'refs_changed'
     | 'runtime_inputs_changed'
+    | 'candidate_missing'
     | 'candidate_prompt_missing'
     | 'prompt_dependency_missing'
   >

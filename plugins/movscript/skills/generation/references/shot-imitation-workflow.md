@@ -8,7 +8,7 @@ Do not jump directly from "imitate this shot" to generation. First analyze the r
 
 1. Confirm whether the user wants a simple imitation video or wants the reference shot integrated into a reusable project.
 2. Resolve or upload the reference video as a MovScript RawResource when needed.
-3. Extract frames across the full reference clip. Do not rely only on the first and last frame.
+3. Extract frames across the full reference clip for visual inspection with `system_resource_video_extract_frames`. Do not rely only on the first and last frame.
 4. Analyze:
    - shot size and composition,
    - camera motion and rhythm,
@@ -16,12 +16,13 @@ Do not jump directly from "imitate this shot" to generation. First analyze the r
    - lighting and color,
    - key visual moments,
    - transitions or timing beats.
-5. Write the analysis into upstream structure: `shot`, `storyboard`, and `keyframe`.
-6. Generate or assemble storyboard panels from the frame analysis.
-7. Create a content unit for storyboard-panel upload/candidate/selection.
-8. Write the storyboard-panel candidate.
-9. Ask the user to select or confirm the storyboard-panel result.
-10. Only after selection, use the selected storyboard panels as stable dependency for downstream video generation.
+5. When the reference frames should condition downstream image/video generation, materialize them with `system_resource_video_extract_frame_to_resource` or `system_resource_video_extract_frames_to_resources`. Use `system_resource_video_contact_sheet_to_resource` when an overview image is useful.
+6. Write the analysis into upstream structure: `shot`, `storyboard`, and `keyframe`.
+7. Generate or assemble storyboard panels from the frame analysis and materialized RawResources.
+8. Create a content unit for storyboard-panel upload/candidate/selection.
+9. Write the storyboard-panel candidate.
+10. Ask the user to select or confirm the storyboard-panel result.
+11. Only after selection, use the selected storyboard panels as stable dependency for downstream video generation.
 
 ## Content Unit Type
 
@@ -35,5 +36,6 @@ Stop and explain the missing prerequisite when:
 
 - the reference video cannot be read or uploaded,
 - frame extraction is unavailable,
+- required reference frames or contact sheets were not materialized as RawResources for generation,
 - the user has not selected required storyboard-panel candidates,
 - downstream generation depends on unselected upstream content units.

@@ -32,6 +32,9 @@ export interface MovScriptBackendAuth {
     id?: string | number
     username?: string
     displayName?: string
+    primaryEmail?: string
+    locale?: string
+    systemRole?: string
   }
   expiresAt?: string
   updatedAt: string
@@ -268,11 +271,17 @@ function normalizeAuthUser(value: unknown): MovScriptBackendAuth['user'] | undef
   if (!isRecord(value)) return undefined
   const id = idField(value.id)
   const username = stringField(value.username)
-  const displayName = stringField(value.displayName)
+  const displayName = stringField(value.displayName) ?? stringField(value.display_name)
+  const primaryEmail = stringField(value.primaryEmail) ?? stringField(value.primary_email)
+  const locale = stringField(value.locale)
+  const systemRole = stringField(value.systemRole) ?? stringField(value.system_role)
   const user = {
     ...(id !== undefined ? { id } : {}),
     ...(username ? { username } : {}),
     ...(displayName ? { displayName } : {}),
+    ...(primaryEmail ? { primaryEmail } : {}),
+    ...(locale ? { locale } : {}),
+    ...(systemRole ? { systemRole } : {}),
   }
   return Object.keys(user).length > 0 ? user : undefined
 }

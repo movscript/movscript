@@ -13,6 +13,18 @@ For a simple video, use the smallest useful structure: a focused `scene_moment`,
 
 For a project, add reusable structure only where it helps: project standards, settings, states, assets, script blocks, scene moments, shots, keyframes, storyboards, expression units, audio cues, and content units.
 
+## Production Granularity Decision
+
+Before writing entities, decide what is actually being produced:
+
+1. Decide whether the request is one output, one `shot`, one `scene_moment`, multiple scene moments, segments, or productions.
+2. Choose the working center. Use `shot` when camera framing, blocking, motion, timing, or a single video clip is the main deliverable. Use `scene_moment` when the deliverable is a complete narrative beat that may contain one or more shots.
+3. Decide whether the working center needs evidence for consistency. Use `setting`, `setting_state`, and `asset` for reusable facts or references; `keyframe` and `storyboard` for shot visual anchors; `expression_unit` and `audio_cue` for performance, text, voice, sound, or ambience.
+4. If consistency requirements are low, do not force setting, asset, keyframe, or storyboard prerequisites. Create the focused `scence_moment_ref` or `shot_ref` content unit and generate a draft.
+5. After writing the content unit, derive or read its artifact bundle, dependency report, runtime panel, and selection validity before generation.
+
+Use this decision before dependency-order planning. Dependency order tells you how to write the chosen structure; it does not decide how much structure the user needs.
+
 ## Dependency Order
 
 Use this order when the requested scope needs it:
@@ -65,6 +77,7 @@ For sound or expression continuity:
 For reference-shot imitation:
 
 1. Analyze the whole reference clip through extracted frames.
-2. Convert composition, motion, rhythm, blocking, lighting, and key moments into `shot`, `storyboard`, and `keyframe` structure.
-3. Create a storyboard-panel upload content unit for the generated/assembled panels.
-4. Require selection of the storyboard-panel candidate before dependent video generation.
+2. Decide which frames or contact sheets must be materialized as RawResources for downstream generation references.
+3. Convert composition, motion, rhythm, blocking, lighting, and key moments into `shot`, `storyboard`, and `keyframe` structure.
+4. Create a storyboard-panel upload content unit for the generated/assembled panels.
+5. Require selection of the storyboard-panel candidate before dependent video generation.

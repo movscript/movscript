@@ -4,6 +4,7 @@ import type { MovScriptSemanticChange } from '../semanticChanges/index.js'
 import type { ContentUnitDerivedArtifactBundle } from './contentProduction.js'
 
 export type MovScriptDomainRelationType = 'owns' | 'contains' | 'references' | 'uses' | 'derives'
+export type MovScriptProductionActor = 'human' | 'agent' | 'workflow'
 
 export interface MovScriptDomainEntityRef {
   entityKind: SemanticEntityKind | string
@@ -89,6 +90,110 @@ export interface MovScriptPreviewTimelineArtifact {
   items: MovScriptPreviewTimelineItem[]
 }
 
+export interface MovScriptProductionWorkPlanSourceIssue {
+  path: string
+  severity: 'error' | 'warning'
+  message: string
+}
+
+export interface MovScriptProductionWorkPlan {
+  schema: 'movscript.production_work_plan.v1'
+  created_at: string
+  project?: MovScriptDomainEntityRef
+  scope?: {
+    production_id?: string | number
+    segment_id?: string | number
+    scene_moment_id?: string | number
+    shot_id?: string | number
+    content_unit_id?: string | number
+  }
+  source_status: {
+    ready_to_interpret: boolean
+    has_pending_edits: boolean
+    issue_count: number
+  }
+  interpret_status: {
+    status: 'missing' | 'current' | 'stale'
+    interpretation_id?: string
+    interpreted_at?: string
+  }
+  items: MovScriptProductionWorkItem[]
+  summary: {
+    open: number
+    blocking: number
+    human_recommended: number
+    agent_recommended: number
+    ready_to_generate: number
+    stale_selections: number
+  }
+}
+
+export interface MovScriptProductionWorkItem {
+  id: string
+  kind:
+    | 'fix_source'
+    | 'edit_structure'
+    | 'create_content_unit'
+    | 'generate_candidates'
+    | 'select_candidate'
+    | 'review_stale_selection'
+    | 'review_affected_output'
+  status: 'open' | 'blocked' | 'ready' | 'informational'
+  severity: 'blocking' | 'warning' | 'suggestion'
+  priority: number
+  reason: string
+  target: MovScriptDomainEntityRef
+  upstream?: MovScriptDomainEntityRef[]
+  downstream?: MovScriptDomainEntityRef[]
+  blockers?: MovScriptProductionWorkItemBlocker[]
+  allowed_actors: MovScriptProductionActor[]
+  recommended_actor: MovScriptProductionActor
+  actions: MovScriptProductionWorkAction[]
+  evidence?: Record<string, unknown>
+}
+
+export interface MovScriptProductionWorkItemBlocker {
+  code: string
+  message: string
+  ref?: string
+}
+
+export type MovScriptProductionWorkAction =
+  | {
+      type: 'open_editor'
+      entityKind: string
+      entityId?: string | number
+      path?: string
+      missingFields?: string[]
+    }
+  | {
+      type: 'upsert_entity'
+      entityKind: string
+      suggestedPatch?: Record<string, unknown>
+    }
+  | {
+      type: 'derive_content_unit_artifact'
+      contentUnitId: string | number
+    }
+  | {
+      type: 'generate_candidates'
+      contentUnitId: string | number
+      capability: 'image' | 'video' | 'audio' | 'text'
+      suggestedCandidateCount?: number
+    }
+  | {
+      type: 'open_candidate_picker'
+      contentUnitId: string | number
+    }
+  | {
+      type: 'agent_review_candidates'
+      contentUnitId: string | number
+    }
+  | {
+      type: 'accept_stale'
+      contentUnitId: string | number
+    }
+
 export interface MovScriptWorkspaceArtifactsInput {
   index: MovScriptWorkspaceDomainIndex
   changedEntities: Array<{
@@ -98,6 +203,7 @@ export interface MovScriptWorkspaceArtifactsInput {
     state: string
   }>
   semanticChanges?: readonly MovScriptSemanticChange[]
+  sourceIssues?: readonly MovScriptProductionWorkPlanSourceIssue[]
   interpretationId: string
   createdAt: string
 }
@@ -109,4 +215,5 @@ export interface MovScriptWorkspaceDerivedArtifacts {
   impactReport: MovScriptImpactReportArtifact
   previewTimelines: MovScriptPreviewTimelineArtifact[]
   contentUnitArtifacts: ContentUnitDerivedArtifactBundle[]
+  productionWorkPlan: MovScriptProductionWorkPlan
 }

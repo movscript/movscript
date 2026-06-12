@@ -81,6 +81,7 @@ export interface AgentChatThread {
   updatedAt: number
   status: AgentChatThreadStatus
   cwd?: string | null
+  goal?: AgentThreadGoalState | null
   executionSettings?: AgentThreadExecutionSettings
   turns: AgentChatTurn[]
   raw?: unknown
@@ -300,6 +301,7 @@ export interface AgentChatDataSource {
   unarchiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   deleteThread?(input: { threadId: string }): Promise<unknown>
   setThreadGoal?(input: { threadId: string; objective?: string | null; status?: AgentChatGoalStatus | null; tokenBudget?: number | null }): Promise<AgentThreadGoalState | unknown>
+  updateThreadSettings?(input: { threadId: string; cwd?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions & AgentChatThreadControlOptions): Promise<AgentThreadExecutionSettings | unknown>
   startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null } & AgentChatModelSelection & AgentChatRunProfileOptions & AgentChatThreadControlOptions): Promise<AgentChatTurn>
   steerTurn?(input: { threadId: string; turnId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null }): Promise<unknown>
   interruptTurn?(input: { threadId: string; turnId: string; reason?: string | null }): Promise<unknown>

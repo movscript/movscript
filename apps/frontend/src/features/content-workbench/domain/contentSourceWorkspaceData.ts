@@ -11,6 +11,8 @@ import {
   createdContentSourceCandidateFromRecord,
   type ContentCandidateRecord,
   type ContentSourceWorkspaceData,
+  type ContentSourceWorkspaceSnapshot,
+  type ContentSourceWorkspaceRuntimePort,
   type CreatedContentSourceCandidate,
   type HierarchyNode,
   type HierarchyNodeType,
@@ -23,6 +25,7 @@ import {
   createElectronMovScriptWorkspaceFileRepository,
   createElectronMovScriptWorkspaceService,
   interpretElectronMovScriptWorkspace,
+  reviewElectronMovScriptWorkspace,
 } from '@/shared/infrastructure/workspaceDomainRepository'
 
 import {
@@ -49,48 +52,127 @@ export const fixtureContentSourceWorkspaceData: ContentSourceWorkspaceData = {
   assetReferenceUnits: fixtureAssetReferenceUnits,
 }
 
+export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspaceRuntimePort {
+  return {
+    async loadSnapshot(projectId) {
+      const service = createElectronMovScriptWorkspaceService({ projectId })
+      const [
+        index,
+        settings,
+        settingStates,
+        assetsResult,
+        context,
+        review,
+      ] = await Promise.all([
+        service.loadIndex(),
+        service.querySettings({ limit: 500 }),
+        service.queryEntities({ entityKind: 'setting_state', limit: 500 }),
+        service.queryAssets({ limit: 500 }),
+        service.queryProductionContext({
+          include: ['productions', 'segments', 'scene_moments', 'shots', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
+          limit: 1000,
+        }),
+        reviewElectronMovScriptWorkspace({ projectId }),
+      ])
+
+      const productions = context.productions ?? []
+      const previewTimelines = (await Promise.all(
+        productions
+          .map((production) => String(production.id ?? production.record.id ?? production.record.ID ?? production.path))
+          .map((productionId) => service.readPreviewTimeline(productionId) as Promise<WorkspacePreviewTimelineArtifact | undefined>),
+      )).filter(isDefined)
+
+      return {
+        indexDocuments: index.documents,
+        settings,
+        settingStates,
+        assets: assetsResult.assets,
+        productions,
+        segments: context.segments ?? [],
+        sceneMoments: context.scene_moments ?? [],
+        shots: context.shots ?? [],
+        storyboards: context.storyboards ?? [],
+        keyframes: context.keyframes ?? [],
+        expressionUnits: context.expression_units ?? [],
+        audioCues: context.audio_cues ?? [],
+        contentUnits: context.content_units ?? [],
+        previewTimelines,
+        productionWorkPlan: productionWorkPlanFromReview(review),
+      }
+    },
+    async selectContentUnitCandidate(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      await service.selectContentUnitCandidate({
+        contentUnitId: input.contentUnitId,
+        candidateId: input.candidateId,
+        ...(input.resourceId ? { resourceId: input.resourceId } : {}),
+        reason: input.reason,
+      })
+    },
+    async createContentCandidate(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      const result = await service.createContentCandidate({
+        contentUnitId: input.contentUnitId,
+        candidateId: input.candidateId,
+        source: input.source,
+        status: input.status,
+        producer: input.producer,
+        outputs: input.outputs,
+        promptSnapshot: input.promptSnapshot,
+        createdAt: input.createdAt,
+      })
+      return result.record as ContentCandidateRecord
+    },
+    async updateContentUnitEditPrompt(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      await service.updateContentUnitEditPrompt({
+        targetPath: input.targetPath,
+        editPrompt: input.editPrompt,
+      })
+    },
+    async updateExpressionUnit(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      await service.updateExpressionUnitSource({
+        targetPath: input.targetPath,
+        patch: input.patch,
+      })
+    },
+    async updateAudioCue(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      await service.updateAudioCueSource({
+        targetPath: input.targetPath,
+        patch: input.patch,
+      })
+    },
+    async updateEntityTransition(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      await service.updateEntityTransition({
+        targetPath: input.targetPath,
+        transition: input.transition,
+      })
+    },
+    async updateStoryboardTimeline(input) {
+      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
+      await service.updateStoryboardTimeline({
+        targetPath: input.targetPath,
+        timeline: input.timeline,
+      })
+    },
+    async writeHierarchyNode(input) {
+      const repository = createElectronMovScriptWorkspaceFileRepository({ projectId: input.projectId })
+      await repository.write({
+        path: input.targetPath,
+        content: `${JSON.stringify(input.record, null, 2)}\n`,
+      })
+    },
+    async interpretWorkspace(projectId) {
+      await interpretElectronMovScriptWorkspace({ projectId })
+    },
+  }
+}
+
 export async function loadContentSourceWorkspaceData(projectId: number): Promise<ContentSourceWorkspaceData> {
-  const service = createElectronMovScriptWorkspaceService({ projectId })
-  const [
-    index,
-    settings,
-    settingStates,
-    assetsResult,
-    context,
-  ] = await Promise.all([
-    service.loadIndex(),
-    service.querySettings({ limit: 500 }),
-    service.queryEntities({ entityKind: 'setting_state', limit: 500 }),
-    service.queryAssets({ limit: 500 }),
-    service.queryProductionContext({
-      include: ['productions', 'segments', 'scene_moments', 'shots', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
-      limit: 1000,
-    }),
-  ])
-
-  const productions = context.productions ?? []
-  const previewTimelines = (await Promise.all(
-    productions
-      .map((production) => String(production.id ?? production.record.id ?? production.record.ID ?? production.path))
-      .map((productionId) => service.readPreviewTimeline(productionId) as Promise<WorkspacePreviewTimelineArtifact | undefined>),
-  )).filter(isDefined)
-
-  return buildContentSourceWorkspaceData({
-    indexDocuments: index.documents,
-    settings,
-    settingStates,
-    assets: assetsResult.assets,
-    productions,
-    segments: context.segments ?? [],
-    sceneMoments: context.scene_moments ?? [],
-    shots: context.shots ?? [],
-    storyboards: context.storyboards ?? [],
-    keyframes: context.keyframes ?? [],
-    expressionUnits: context.expression_units ?? [],
-    audioCues: context.audio_cues ?? [],
-    contentUnits: context.content_units ?? [],
-    previewTimelines,
-  })
+  return buildContentSourceWorkspaceData(await createContentSourceWorkspaceRuntimePort().loadSnapshot(projectId))
 }
 
 export async function selectContentSourceWorkspaceCandidate(input: {
@@ -108,6 +190,10 @@ export async function createContentSourceWorkspaceCandidate(input: {
   contentUnitId: string
   outputKind: 'image' | 'video' | 'audio' | 'text' | 'storyboard'
   promptText?: string
+  resourceId?: string | number
+  resourceName?: string
+  resourceType?: 'image' | 'video' | 'audio' | 'text' | 'file'
+  resourceMimeType?: string
 }): Promise<CreatedContentSourceCandidate> {
   const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
   const plan = buildContentSourceWorkspaceCandidateCreatePlan(input)
@@ -198,4 +284,13 @@ export async function syncContentSourceWorkspace(input: {
 
 function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined
+}
+
+function productionWorkPlanFromReview(value: unknown): ContentSourceWorkspaceSnapshot['productionWorkPlan'] {
+  if (!isRecord(value)) return undefined
+  return value.productionWorkPlan as ContentSourceWorkspaceSnapshot['productionWorkPlan']
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

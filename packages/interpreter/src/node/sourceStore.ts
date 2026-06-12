@@ -11,6 +11,7 @@ import {
 } from '@movscript/workspace/node'
 import {
   MOVSCRIPT_INTERPRET_CURRENT_DIR,
+  isMovScriptContentUnitDecisionPath,
   isMovScriptNonSourceRootDirectory,
   isMovScriptSourceDocumentPath,
   isMovScriptSourcePath,
@@ -34,6 +35,10 @@ export interface WorkspaceSourceSnapshot {
   files: WorkspaceFileSnapshot[]
 }
 
+export interface WorkspaceSourceOptions {
+  includeContentUnitDecisionDocuments?: boolean
+}
+
 export interface CheckpointSourceSnapshot {
   basePath: string
   checkpointHash?: string
@@ -45,6 +50,7 @@ export interface CheckpointCommitOptions {
   now: Date
   message: string
   initGitIfMissing?: boolean
+  pathspecs?: readonly string[]
 }
 
 export interface CheckpointCommitResult {
@@ -54,8 +60,12 @@ export interface CheckpointCommitResult {
 
 export async function resolveWorkspaceSource(
   fileRepository: MovScriptWorkspaceFileRepository,
+  options: WorkspaceSourceOptions = {},
 ): Promise<WorkspaceSourceSnapshot> {
-  const sourceFiles = await loadWorkspaceSourceFileSnapshots(fileRepository)
+  const sourceFiles = filterWorkspaceSourceFiles(
+    await loadWorkspaceSourceFileSnapshots(fileRepository),
+    options,
+  )
   return { rootPath: '', mode: 'source', files: sourceFiles }
 }
 
@@ -79,6 +89,7 @@ export async function loadInterpretedCurrentSourceSnapshots(
 export async function loadCheckpointSourceSnapshots(
   fileRepository: MovScriptWorkspaceFileRepository,
   checkpointHash?: string,
+  options: WorkspaceSourceOptions = {},
 ): Promise<CheckpointSourceSnapshot> {
   const rootDir = getNodeMovScriptWorkspaceFileRepositoryRoot(fileRepository)
   if (rootDir && (await inspectNodeMovScriptGitWorkspace(rootDir)).insideWorkTree) {
@@ -88,12 +99,12 @@ export async function loadCheckpointSourceSnapshots(
         basePath: gitRef,
         checkpointHash: gitRef,
         source: 'git',
-        files: (await readNodeMovScriptGitSourceFiles(rootDir, gitRef)).map((file) => ({
+        files: filterWorkspaceSourceFiles((await readNodeMovScriptGitSourceFiles(rootDir, gitRef)).map((file) => ({
           path: file.path,
           relativePath: file.path,
           content: file.content,
           hash: contentHash(file.content),
-        })),
+        })), options),
       }
     }
   }
@@ -106,7 +117,10 @@ export async function loadCheckpointSourceSnapshots(
       basePath: MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR,
       ...(manifest?.checkpointHash ? { checkpointHash: manifest.checkpointHash } : {}),
       source: 'snapshot',
-      files: normalizedSnapshotFiles.filter((file) => isMovScriptSourceRelativePath(file.relativePath)),
+      files: filterWorkspaceSourceFiles(
+        normalizedSnapshotFiles.filter((file) => isMovScriptSourceRelativePath(file.relativePath)),
+        options,
+      ),
     }
   }
 
@@ -129,6 +143,7 @@ export async function commitCheckpoint(
       const id = await commitNodeMovScriptGitCheckpoint(rootDir, {
         message: options.message,
         initIfMissing: options.initGitIfMissing,
+        pathspecs: options.pathspecs,
       })
       return { id, source: 'git' }
     }
@@ -153,6 +168,14 @@ function normalizeCheckpointSnapshotFiles(files: WorkspaceFileSnapshot[]): Works
       relativePath,
     }
   })
+}
+
+function filterWorkspaceSourceFiles(
+  files: WorkspaceFileSnapshot[],
+  options: WorkspaceSourceOptions,
+): WorkspaceFileSnapshot[] {
+  if (options.includeContentUnitDecisionDocuments !== false) return files
+  return files.filter((file) => !isMovScriptContentUnitDecisionPath(file.relativePath))
 }
 
 async function loadWorkspaceSourceFileSnapshots(

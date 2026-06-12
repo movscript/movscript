@@ -43,6 +43,7 @@ import {
   AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT,
   closedAgentConversationIds,
   readAgentConversationOpenState,
+  reorderAgentConversationOpenState,
   setAgentConversationOpen,
   writeAgentActiveConversationId,
   writeAgentConversationOpenState,
@@ -50,6 +51,8 @@ import {
 } from '@/features/agent/presentation/agentConversationOpenOrder'
 import {
   agentChatInputsFromTextAndAttachments,
+  agentChatQueuedInputSummary,
+  agentChatTextInput,
   buildAgentChatRuntimeThreadReadInput,
   legacySessionIdFromAgentChatThread,
   agentChatServerRequestResponseForAction,
@@ -59,9 +62,12 @@ import {
   type AgentChatNotification,
   type AgentChatServerRequest,
   type AgentChatServerRequestResponse,
+  type AgentThreadExecutionSettings,
   type AgentChatThread,
   type AgentChatThreadReadInput,
   type AgentChatThreadItem,
+  type AgentChatInput,
+  type AgentChatQueuedInputPreviewItem,
 } from '@movscript/core/agent/chat'
 import {
   agentChatRuntimeReducer,
@@ -82,6 +88,7 @@ import {
 } from '@/features/agent/presentation/agentActiveThreadStorage'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
+  AGENT_RUN_PROFILE_PRESETS,
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
   agentRunProfilePresetById,
   type AgentRunProfilePresetId,
@@ -93,6 +100,15 @@ import type { PublicModel, RawResource } from '@/types'
 const AGENT_CHAT_OLDER_ITEMS_SCROLL_THRESHOLD_PX = 96
 const AGENT_CHAT_THREAD_LIST_PAGE_SIZE = 20
 const persistentPendingServerRequests = new Map<string, AgentChatRuntimePendingServerRequest[]>()
+
+interface AgentComposerQueuedInput extends AgentChatQueuedInputPreviewItem {
+  threadId: string
+  inputs: AgentChatInput[]
+  attachments: ReturnType<typeof useAgentComposerController>['composerAttachments']
+  workspaceContext: ReturnType<typeof useAgentComposerController>['selectedWorkspaceContext']
+  profilePresetId: AgentRunProfilePresetId
+  clientUserMessageId: string
+}
 
 function persistentServerRequestScopeKey(activeThreadStorageKey: string): string {
   return activeThreadStorageKey
@@ -173,7 +189,7 @@ export interface AgentChatDataSourceShellProps {
   providerLabel: string
   threadListLabel: string
   emptyThreadListLabel: string
-  emptyThreadLabel: string
+  emptyThreadLabel?: string
   unavailableLabel: string
   composerPlaceholder: string
   newThreadLabel: string
@@ -223,12 +239,21 @@ export function AgentChatDataSourceShell({
     () => readActiveThreadId?.() ?? readStoredActiveThreadId(activeThreadStorageKey),
     [activeThreadStorageKey, readActiveThreadId],
   )
+  const readRestorableActiveThreadId = useCallback(() => {
+    const threadId = readCurrentActiveThreadId()
+    if (!threadId) return null
+    if (!closedAgentConversationIds(readAgentConversationOpenState(userId)).includes(threadId)) return threadId
+    if (readStoredActiveThreadId(activeThreadStorageKey) === threadId) {
+      writeStoredActiveThreadId(activeThreadStorageKey, null)
+    }
+    return null
+  }, [activeThreadStorageKey, readCurrentActiveThreadId, userId])
   const [dataSource, setDataSource] = useState<AgentChatDataSource | undefined>()
   const [endpoint, setEndpoint] = useState<string | undefined>()
   const [runtime, dispatchRuntime] = useReducer(
     agentChatRuntimeReducer,
     undefined,
-    () => createAgentChatRuntimeState(readCurrentActiveThreadId()),
+    () => createAgentChatRuntimeState(readRestorableActiveThreadId()),
   )
   const runtimeRef = useRef(runtime)
   useEffect(() => {
@@ -254,6 +279,7 @@ export function AgentChatDataSourceShell({
     () => selectAgentChatRuntimePendingThreadResumeRequests(runtime),
     [runtime],
   )
+  const [profilePresetId, setProfilePresetId] = useState<AgentRunProfilePresetId>(DEFAULT_AGENT_RUN_PROFILE_PRESET_ID)
   const [threadModelOverrides, setThreadModelOverrides] = useState<Record<string, string>>({})
   const [conversationOpenState, setConversationOpenState] = useState<AgentConversationOpenRecord[]>(() => readAgentConversationOpenState(userId))
   const recentCapabilityEventSequenceRef = useRef(0)
@@ -279,6 +305,8 @@ export function AgentChatDataSourceShell({
   }, [modelOptions, resolveModelForRequest, selectedModelId, threadModelOverrides])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [queuedInputs, setQueuedInputs] = useState<AgentComposerQueuedInput[]>([])
+  const [queuedInputsCollapsed, setQueuedInputsCollapsed] = useState(true)
   const [stoppingTurn, setStoppingTurn] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -290,6 +318,7 @@ export function AgentChatDataSourceShell({
   const [visibleThreadItemCount, setVisibleThreadItemCount] = useState(AGENT_CHAT_VISIBLE_ITEM_WINDOW_INITIAL_SIZE)
   const composerConversationId = agentChatComposerConversationId(activeThreadStorageKey, activeThreadId)
   const composerWorkspace = useAgentSessionStore((state) => state.getConversationWorkspace(userId, composerConversationId))
+  const composerWorkspaceContextLocked = Boolean(activeThreadId)
   const { data: resourcesData } = useQuery<RawResource[] | { items: RawResource[] }>({
     queryKey: ['resources', 'agent-panel'],
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((response) => response.data),
@@ -320,6 +349,7 @@ export function AgentChatDataSourceShell({
     recentResources,
     fileRef: composerFileRef,
     inputRef: composerInputRef,
+    workspaceContextLocked: composerWorkspaceContextLocked,
   })
 
   const setActiveThreadIdValue = useCallback((threadId: string | null) => {
@@ -375,10 +405,11 @@ export function AgentChatDataSourceShell({
     setEndpoint(undefined)
     recentCapabilityEventSequenceRef.current = 0
     setSending(false)
+    setQueuedInputs([])
     setStoppingTurn(false)
     setThreadListNextCursor(null)
     setThreadListLoadingMore(false)
-    const storedThreadId = readCurrentActiveThreadId()
+    const storedThreadId = readRestorableActiveThreadId()
     activeThreadIdRef.current = storedThreadId
     dispatchRuntime({ type: 'reset', activeThreadId: storedThreadId })
     void loadDataSourceRef.current()
@@ -396,7 +427,7 @@ export function AgentChatDataSourceShell({
     return () => {
       cancelled = true
     }
-  }, [activeThreadStorageKey, readCurrentActiveThreadId])
+  }, [activeThreadStorageKey, readRestorableActiveThreadId])
 
   const upsertThread = useCallback((thread: AgentChatThread) => {
     dispatchRuntime({ type: 'upsertThread', thread })
@@ -407,6 +438,10 @@ export function AgentChatDataSourceShell({
   }, [])
 
   const closedThreadIds = useMemo(() => new Set(closedAgentConversationIds(conversationOpenState)), [conversationOpenState])
+  const threadOrderIndex = useMemo(
+    () => new Map(conversationOpenState.map((record, index) => [record.id, index])),
+    [conversationOpenState],
+  )
 
   const markThreadOpen = useCallback((threadId: string) => {
     const next = setAgentConversationOpen(readAgentConversationOpenState(userId), [threadId], true)
@@ -417,8 +452,14 @@ export function AgentChatDataSourceShell({
   const markThreadClosed = useCallback((threadId: string, clearActive: boolean) => {
     const next = setAgentConversationOpen(readAgentConversationOpenState(userId), [threadId], false)
     writeAgentConversationOpenState(userId, next)
-    if (clearActive) writeAgentActiveConversationId(userId, null)
-  }, [userId])
+    const activeThreadClosed = readCurrentActiveThreadId() === threadId
+    if (clearActive || activeThreadClosed) {
+      writeAgentActiveConversationId(userId, null)
+      if (readStoredActiveThreadId(activeThreadStorageKey) === threadId) {
+        writeStoredActiveThreadId(activeThreadStorageKey, null)
+      }
+    }
+  }, [activeThreadStorageKey, readCurrentActiveThreadId, userId])
 
   const clearUnavailableActiveThread = useCallback((threadId: string) => {
     if (activeThreadIdRef.current === threadId) setActiveThreadIdValue(null)
@@ -443,7 +484,7 @@ export function AgentChatDataSourceShell({
       const response = await dataSource.listThreads({ limit: AGENT_CHAT_THREAD_LIST_PAGE_SIZE })
       setThreadListNextCursor(response.nextCursor ?? null)
       const nextThreads = response.threads
-      const stored = readCurrentActiveThreadId()
+      const stored = readRestorableActiveThreadId()
       const nextThreadsWithStored = stored && !nextThreads.some((thread) => thread.id === stored)
         ? [provisionalAgentChatThread(stored, dataSource), ...nextThreads]
         : nextThreads
@@ -480,7 +521,7 @@ export function AgentChatDataSourceShell({
     } finally {
       setLoading(false)
     }
-  }, [activeThreadStorageKey, clearUnavailableActiveThread, closedThreadIds, dataSource, readCurrentActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
+  }, [activeThreadStorageKey, clearUnavailableActiveThread, closedThreadIds, dataSource, readRestorableActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
   const loadMoreThreads = useCallback(async () => {
     if (!dataSource || !threadListNextCursor || threadListLoadingMore) return
@@ -505,7 +546,7 @@ export function AgentChatDataSourceShell({
 
   const restoreStoredThread = useCallback(async () => {
     if (!dataSource) return
-    const stored = readCurrentActiveThreadId()
+    const stored = readRestorableActiveThreadId()
     if (!stored) {
       setLoading(false)
       return
@@ -522,7 +563,7 @@ export function AgentChatDataSourceShell({
     } finally {
       setLoading(false)
     }
-  }, [dataSource, readCurrentActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
+  }, [dataSource, readRestorableActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
   useEffect(() => {
     loadThreadsRef.current = loadThreads
@@ -599,8 +640,10 @@ export function AgentChatDataSourceShell({
         }
       }
       const { workspaceContext: _workspaceContext, ...threadInput } = input
+      const runProfile = threadInput.runProfile ?? agentRunProfilePresetById(profilePresetId)
       const thread = await nextDataSource.startThread({
         ...threadInput,
+        runProfile,
         ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
         ...(goalModeEnabled ? { goalModeEnabled } : {}),
         ...selectedModelSelectionForRequest(),
@@ -615,14 +658,16 @@ export function AgentChatDataSourceShell({
       setError(errorMessage(nextError))
       return null
     }
-  }, [activeThreadStorageKey, collaborationMode, dataSource, goalModeEnabled, loadDataSourceForNewThread, markThreadOpen, selectedModelSelectionForRequest, setActiveThreadIdValue, upsertThread])
+  }, [activeThreadStorageKey, collaborationMode, dataSource, goalModeEnabled, loadDataSourceForNewThread, markThreadOpen, profilePresetId, selectedModelSelectionForRequest, setActiveThreadIdValue, upsertThread])
 
   const startWorkspaceTask = useCallback(async (payload: AgentPanelWorkspacePayload) => {
     if (!dataSource) return
     const normalizedTitle = payload.title?.trim()
+    const runProfile = agentRunProfilePresetById(profilePresetId)
     const thread = await startThread({
       ...(normalizedTitle ? { title: normalizedTitle } : {}),
       ...(typeof payload.projectId === 'number' ? { projectId: payload.projectId } : {}),
+      runProfile,
     })
     if (!thread) return
     const threadSessionId = legacySessionIdFromAgentChatThread(thread)
@@ -631,6 +676,7 @@ export function AgentChatDataSourceShell({
         ? await dataSource.startTextTurn({
             threadId: thread.id,
             text: payload.message,
+            runProfile,
             ...selectedModelSelectionForRequest(thread),
           })
         : undefined
@@ -667,7 +713,7 @@ export function AgentChatDataSourceShell({
       }
       throw nextError
     }
-  }, [dataSource, selectedModelSelectionForRequest, startThread])
+  }, [dataSource, profilePresetId, selectedModelSelectionForRequest, startThread])
 
   const handleServerRequest = useCallback((request: AgentChatServerRequest) => {
     if (request.method === 'attestation/generate') {
@@ -811,11 +857,16 @@ export function AgentChatDataSourceShell({
     if (!dataSource?.resumeThread || pendingThreadResumeRequests.length === 0) return
     for (const request of pendingThreadResumeRequests) {
       if (inFlightThreadResumeRequestIdsRef.current.has(request.id)) continue
+      if (closedThreadIds.has(request.threadId)) {
+        dispatchRuntime({ type: 'clearThreadResumeRequest', requestId: request.id })
+        continue
+      }
       inFlightThreadResumeRequestIdsRef.current.add(request.id)
       dispatchRuntime({ type: 'beginThreadResumeRequest', requestId: request.id })
       const thread = runtimeRef.current.threads.find((item) => item.id === request.threadId)
       void dataSource.resumeThread({
         threadId: request.threadId,
+        runProfile: agentRunProfilePresetById(profilePresetId),
         ...(thread?.cwd?.trim() ? { cwd: thread.cwd.trim() } : {}),
         ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
         ...(goalModeEnabled ? { goalModeEnabled } : {}),
@@ -833,7 +884,7 @@ export function AgentChatDataSourceShell({
           inFlightThreadResumeRequestIdsRef.current.delete(request.id)
         })
     }
-  }, [collaborationMode, dataSource, goalModeEnabled, pendingThreadResumeRequests, selectedModelSelectionForRequest])
+  }, [closedThreadIds, collaborationMode, dataSource, goalModeEnabled, pendingThreadResumeRequests, profilePresetId, selectedModelSelectionForRequest])
 
   useLayoutEffect(() => {
     const anchor = olderItemsScrollAnchorRef.current
@@ -916,6 +967,14 @@ export function AgentChatDataSourceShell({
     if (!model) return selectedModelId
     return modelOptions.find((option) => publicModelId(option) === model)?.id ?? selectedModelId
   }, [activeThread?.executionSettings?.model, activeThreadId, modelOptions, selectedModelId, threadModelOverrides])
+  useEffect(() => {
+    const nextProfilePresetId = agentRunProfilePresetIdFromExecutionSettings(activeThread?.executionSettings)
+    if (nextProfilePresetId) setProfilePresetId(nextProfilePresetId)
+  }, [
+    activeThread?.executionSettings?.approvalPolicy,
+    activeThread?.executionSettings?.approvalsReviewer,
+    activeThread?.executionSettings?.permissions,
+  ])
   const handleModelChange = useCallback((modelId: number | null) => {
     onSelectedModelChange?.(modelId)
     if (!activeThreadId) return
@@ -930,6 +989,42 @@ export function AgentChatDataSourceShell({
       return next
     })
   }, [activeThreadId, modelOptions, onSelectedModelChange])
+  const handleProfilePresetChange = useCallback((nextProfilePresetId: AgentRunProfilePresetId) => {
+    const previousProfilePresetId = profilePresetId
+    setProfilePresetId(nextProfilePresetId)
+    if (!dataSource?.updateThreadSettings || !activeThreadId || activeTurn) return
+    const thread = runtimeRef.current.threads.find((item) => item.id === activeThreadId)
+    if (!thread || thread.status === 'notLoaded') return
+    void dataSource.updateThreadSettings({
+      threadId: activeThreadId,
+      runProfile: agentRunProfilePresetById(nextProfilePresetId),
+      ...(thread?.cwd?.trim() ? { cwd: thread.cwd.trim() } : {}),
+      ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+      ...(goalModeEnabled ? { goalModeEnabled } : {}),
+      ...selectedModelSelectionForRequest(thread),
+    })
+      .then((settings) => {
+        const executionSettings = recordValue(settings)
+        if (!executionSettings) return
+        dispatchRuntime({
+          type: 'updateThreads',
+          update: (current) => current.map((item) => item.id === activeThreadId
+            ? {
+                ...item,
+                updatedAt: Math.max(item.updatedAt, Math.floor(Date.now() / 1000)),
+                executionSettings: {
+                  ...item.executionSettings,
+                  ...executionSettings,
+                },
+              }
+            : item),
+        })
+      })
+      .catch((nextError) => {
+        setProfilePresetId(previousProfilePresetId)
+        setError(errorMessage(nextError))
+      })
+  }, [activeThreadId, activeTurn, collaborationMode, dataSource, goalModeEnabled, profilePresetId, selectedModelSelectionForRequest])
   const hasComposerActionLayer = visiblePendingServerRequests.length > 0
   const hasThreadBodyContent = Boolean(
     visibleItems.length
@@ -943,22 +1038,78 @@ export function AgentChatDataSourceShell({
     dispatchRuntime({ type: 'requestThreadRead', threadId: activeThreadId })
   }, [activeThread, activeThreadId, dataSource, visiblePendingServerRequests.length])
 
-  const canSteerActiveTurn = Boolean(activeTurn && dataSource?.steerTurn)
   const canSend = Boolean(
     dataSource
     && (composer.input.trim() || composer.composerAttachments.length > 0)
     && !sending
     && !composer.uploading
-    && (!activeTurn || canSteerActiveTurn),
+    && (!activeTurn || dataSource.startTurn || dataSource.startTextTurn),
   )
   const canStopActiveTurn = Boolean(activeTurn && dataSource?.interruptTurn && !stoppingTurn)
   const resolvedHost = host ?? (surface === 'page' ? 'immersive' : 'dock-panel')
   const shellClassName = surface === 'page'
     ? 'ai-agent-panel-shell agent-page-chat-shell project-agent-chat-shell'
     : 'ai-agent-panel-shell'
-  const sendMessage = useCallback(async (profilePresetId: AgentRunProfilePresetId = DEFAULT_AGENT_RUN_PROFILE_PRESET_ID) => {
+  const deleteQueuedInput = useCallback((id: string) => {
+    const removed = queuedInputs.find((item) => item.id === id)
+    if (removed) composer.revokeAttachmentPreviewUrls(removed.attachments)
+    setQueuedInputs((current) => current.filter((item) => item.id !== id))
+  }, [composer, queuedInputs])
+  const editQueuedInput = useCallback((id: string) => {
+    const item = queuedInputs.find((candidate) => candidate.id === id)
+    if (!item || item.status === 'sending') return
+    setQueuedInputs((current) => current.map((candidate) => candidate.id === id
+      ? { ...candidate, status: 'editing', error: null }
+      : candidate))
+  }, [queuedInputs])
+  const updateQueuedInputText = useCallback((id: string, text: string) => {
+    setQueuedInputs((current) => current.map((candidate) => {
+      if (candidate.id !== id || candidate.status === 'sending') return candidate
+      return {
+        ...candidate,
+        text,
+        inputs: agentChatQueuedInputsWithText(candidate.inputs, text),
+        status: 'draft',
+        error: null,
+      }
+    }))
+  }, [])
+  const cancelQueuedInputEdit = useCallback((id: string) => {
+    setQueuedInputs((current) => current.map((candidate) => candidate.id === id && candidate.status === 'editing'
+      ? { ...candidate, status: 'draft' }
+      : candidate))
+  }, [])
+  const steerQueuedInputNow = useCallback(async (id: string) => {
+    if (!dataSource?.steerTurn || !activeThread || !activeTurn) return
+    const item = queuedInputs.find((candidate) => candidate.id === id)
+    if (!item || item.status === 'sending') return
+    if (item.threadId !== activeThread.id) {
+      setQueuedInputs((current) => current.map((candidate) => candidate.id === id
+        ? { ...candidate, status: 'failed', error: 'This queued message belongs to another thread.' }
+        : candidate))
+      return
+    }
+    setQueuedInputs((current) => current.map((candidate) => candidate.id === id
+      ? { ...candidate, status: 'sending', error: null }
+      : candidate))
+    try {
+      await dataSource.steerTurn({
+        threadId: item.threadId,
+        turnId: activeTurn.id,
+        clientUserMessageId: item.clientUserMessageId,
+        inputs: item.inputs,
+      })
+      composer.revokeAttachmentPreviewUrls(item.attachments)
+      setQueuedInputs((current) => current.filter((candidate) => candidate.id !== id))
+    } catch (nextError) {
+      setQueuedInputs((current) => current.map((candidate) => candidate.id === id
+        ? { ...candidate, status: 'failed', error: errorMessage(nextError) }
+        : candidate))
+    }
+  }, [activeThread, activeTurn, composer, dataSource, queuedInputs])
+  const sendMessage = useCallback(async (nextProfilePresetId: AgentRunProfilePresetId = profilePresetId) => {
     if (!dataSource || sending) return
-    const runProfile = agentRunProfilePresetById(profilePresetId)
+    const runProfile = agentRunProfilePresetById(nextProfilePresetId)
     const composerInput = composer.getInput()
     const text = composerInput.trim()
     const sentAttachments = composer.composerAttachments
@@ -1004,10 +1155,34 @@ export function AgentChatDataSourceShell({
         })
       }
       restoreConversationId = agentChatComposerConversationId(activeThreadStorageKey, thread.id)
-      useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, { input: '', attachments: [] })
+      useAgentSessionStore.getState().updateConversationWorkspace(userId, restoreConversationId, {
+        input: '',
+        attachments: [],
+        workspaceContext: composer.selectedWorkspaceContext,
+      })
       composer.updateWorkspace({ input: '', attachments: [] })
       clearAgentChatComposerEditor(composerInputRef.current)
       const clientUserMessageId = `agent_user_${Date.now()}`
+      if (activeTurn) {
+        setQueuedInputs((current) => [
+          ...current,
+          {
+            id: `queued_input_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+            threadId: thread.id,
+            text,
+            inputs,
+            attachments: sentAttachments,
+            workspaceContext: composer.selectedWorkspaceContext,
+            profilePresetId: nextProfilePresetId,
+            clientUserMessageId,
+            status: 'draft',
+            error: null,
+            createdAt: Date.now(),
+          },
+        ])
+        setQueuedInputsCollapsed(false)
+        return
+      }
       dispatchRuntime({
         type: 'appendPendingUserItem',
         item: {
@@ -1020,14 +1195,7 @@ export function AgentChatDataSourceShell({
           },
         },
       })
-      if (activeTurn && dataSource.steerTurn) {
-        await dataSource.steerTurn({
-          threadId: thread.id,
-          turnId: activeTurn.id,
-          clientUserMessageId,
-          inputs,
-        })
-      } else if (dataSource.startTurn) {
+      if (dataSource.startTurn) {
         await dataSource.startTurn({
           threadId: thread.id,
           clientUserMessageId,
@@ -1056,7 +1224,58 @@ export function AgentChatDataSourceShell({
     } finally {
       setSending(false)
     }
-  }, [activeThread, activeThreadStorageKey, activeTurn, collaborationMode, composer, composerConversationId, composerPlaceholder, dataSource, goalModeEnabled, selectedModelSelectionForRequest, sending, startThread, userId])
+  }, [activeThread, activeThreadStorageKey, activeTurn, collaborationMode, composer, composerConversationId, composerPlaceholder, dataSource, goalModeEnabled, profilePresetId, selectedModelSelectionForRequest, sending, startThread, userId])
+
+  const submitQueuedInputAsTurn = useCallback(async (id: string) => {
+    if (!dataSource || sending) return
+    const item = queuedInputs.find((candidate) => candidate.id === id)
+    if (!item || item.status === 'sending') return
+    const thread = runtimeRef.current.threads.find((candidate) => candidate.id === item.threadId)
+    if (!thread || thread.status === 'notLoaded') return
+    const runProfile = agentRunProfilePresetById(item.profilePresetId)
+    setSending(true)
+    setQueuedInputs((current) => current.map((candidate) => candidate.id === id
+      ? { ...candidate, status: 'sending', error: null }
+      : candidate))
+    try {
+      if (dataSource.startTurn) {
+        await dataSource.startTurn({
+          threadId: item.threadId,
+          clientUserMessageId: item.clientUserMessageId,
+          inputs: item.inputs,
+          runProfile,
+          ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+          ...(goalModeEnabled ? { goalModeEnabled } : {}),
+          ...selectedModelSelectionForRequest(thread),
+        })
+      } else {
+        await dataSource.startTextTurn({
+          threadId: item.threadId,
+          clientUserMessageId: item.clientUserMessageId,
+          text: item.text || agentChatQueuedInputSummary(item),
+          runProfile,
+          ...(collaborationMode === 'plan' ? { collaborationMode } : {}),
+          ...(goalModeEnabled ? { goalModeEnabled } : {}),
+          ...selectedModelSelectionForRequest(thread),
+        })
+      }
+      composer.revokeAttachmentPreviewUrls(item.attachments)
+      setQueuedInputs((current) => current.filter((candidate) => candidate.id !== id))
+    } catch (nextError) {
+      setQueuedInputs((current) => current.map((candidate) => candidate.id === id
+        ? { ...candidate, status: 'failed', error: errorMessage(nextError) }
+        : candidate))
+    } finally {
+      setSending(false)
+    }
+  }, [collaborationMode, composer, dataSource, goalModeEnabled, queuedInputs, selectedModelSelectionForRequest, sending])
+
+  useEffect(() => {
+    if (!activeThread || activeTurn || sending) return
+    const nextQueuedInput = queuedInputs.find((item) => item.threadId === activeThread.id && item.status === 'draft')
+    if (!nextQueuedInput) return
+    void submitQueuedInputAsTurn(nextQueuedInput.id)
+  }, [activeThread, activeTurn, queuedInputs, sending, submitQueuedInputAsTurn])
 
   const stopActiveTurn = useCallback(async () => {
     if (!dataSource?.interruptTurn || !activeThread || !activeTurn || stoppingTurn) return
@@ -1134,15 +1353,38 @@ export function AgentChatDataSourceShell({
     }
   }, [activeThreadId, activeThreadStorageKey, closedThreadIds, markThreadClosed, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
+  const reorderThreadTab = useCallback((draggedId: string, targetId: string, position: 'before' | 'after') => {
+    setConversationOpenState((current) => {
+      const currentClosedThreadIds = new Set(closedAgentConversationIds(current))
+      const visibleThreadIds = runtimeRef.current.threads
+        .map((thread) => thread.id)
+        .filter((threadId) => !currentClosedThreadIds.has(threadId))
+      const next = reorderAgentConversationOpenState(
+        setAgentConversationOpen(current, visibleThreadIds, true),
+        draggedId,
+        targetId,
+        position,
+      )
+      writeAgentConversationOpenState(userId, next)
+      return next
+    })
+  }, [userId])
+
   const threadTabs = useMemo(() => threads
     .filter((thread) => !closedThreadIds.has(thread.id))
-    .map((thread) => ({
+    .map((thread, index) => ({ thread, index }))
+    .sort((a, b) => {
+      const aOrder = threadOrderIndex.get(a.thread.id) ?? Number.MAX_SAFE_INTEGER
+      const bOrder = threadOrderIndex.get(b.thread.id) ?? Number.MAX_SAFE_INTEGER
+      return aOrder - bOrder || a.index - b.index
+    })
+    .map(({ thread }) => ({
       id: thread.id,
       title: thread.name || thread.preview || 'Untitled thread',
       messageCount: thread.turns.reduce((count, turn) => count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length, 0),
       sessionState: agentChatThreadProviderSessionState(thread),
       ...(dataSource?.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
-    })), [closedThreadIds, dataSource?.renameThread, renameThread, threads])
+    })), [closedThreadIds, dataSource?.renameThread, renameThread, threadOrderIndex, threads])
   const closedHistoryThreads = useMemo(() => {
     const closedIds = closedThreadIds
     return historyThreads.filter((thread) => closedIds.has(thread.id))
@@ -1188,7 +1430,7 @@ export function AgentChatDataSourceShell({
                       onCloseTabContextMenu={() => undefined}
                       onOpenKeyboardMenu={() => undefined}
                       onOpenMenu={() => undefined}
-                      onReorderConversation={() => undefined}
+                      onReorderConversation={reorderThreadTab}
                       onSelectConversation={(threadId) => void openThread(threadId)}
                       conversationTabsLabel={threadListLabel}
                       closeConversationLabel="Close conversation"
@@ -1213,7 +1455,7 @@ export function AgentChatDataSourceShell({
             </section>
           ) : (
             <section className={`agent-page-chat-thread-shell${!hasChatContent ? ' agent-page-chat-thread-shell--empty' : ''}`} aria-label={composerPlaceholder}>
-              {!hasChatContent ? (
+              {!hasChatContent && emptyThreadLabel ? (
                 <div className="agent-page-chat-empty">
                   <h1 className="agent-page-chat-empty-title">{emptyThreadLabel}</h1>
                 </div>
@@ -1263,12 +1505,18 @@ export function AgentChatDataSourceShell({
               modelValue={activeThreadModelValue}
               collaborationMode={collaborationMode}
               goalModeEnabled={goalModeEnabled}
+              goalState={activeThread?.goal ?? null}
+              queuedInputs={queuedInputs}
+              queuedInputsCollapsed={queuedInputsCollapsed}
+              queuedInputSteerEnabled={Boolean(activeTurn && dataSource.steerTurn)}
               pendingActiveRunInputQueue={[]}
+              profilePresetId={profilePresetId}
               stoppingActiveRun={stoppingTurn}
               uploadedFileCount={composer.uploadedFileCount}
               uploading={composer.uploading}
               uploadingFileNames={composer.uploadingFileNames}
               workspaceProjectOptions={composer.workspaceProjectOptions}
+              workspaceProjectLocked={composerWorkspaceContextLocked}
               workspaceProjectValue={composer.workspaceProjectValue}
               workspaceProjectsLoading={composer.workspaceProjectsLoading}
               onAcceptMention={() => {
@@ -1291,6 +1539,13 @@ export function AgentChatDataSourceShell({
               onCollaborationModeChange={onCollaborationModeChange}
               onGoalModeEnabledChange={onGoalModeEnabledChange}
               onModelChange={handleModelChange}
+              onProfilePresetChange={handleProfilePresetChange}
+              onQueuedInputCollapseChange={setQueuedInputsCollapsed}
+              onQueuedInputDelete={deleteQueuedInput}
+              onQueuedInputEdit={editQueuedInput}
+              onQueuedInputEditCancel={cancelQueuedInputEdit}
+              onQueuedInputSteerNow={(id) => void steerQueuedInputNow(id)}
+              onQueuedInputTextChange={updateQueuedInputText}
               onRemoveAttachment={composer.removeAttachment}
               onSend={(profilePresetId) => void sendMessage(profilePresetId)}
               onStopActiveRun={() => void stopActiveTurn()}
@@ -1345,6 +1600,13 @@ function agentChatThreadIsRunning(thread: AgentChatThread): boolean {
   return thread.status === 'running' || thread.turns.some((turn) => turn.status === 'inProgress')
 }
 
+function agentChatQueuedInputsWithText(inputs: AgentChatInput[], text: string): AgentChatInput[] {
+  const trimmedText = text.trim()
+  const nonTextInputs = inputs.filter((input) => input.type !== 'text')
+  if (!trimmedText) return nonTextInputs
+  return [agentChatTextInput(trimmedText), ...nonTextInputs]
+}
+
 function AgentChatDataSourceThreadBody({
   canLoadEarlierItems,
   emptyThreadLabel,
@@ -1358,7 +1620,7 @@ function AgentChatDataSourceThreadBody({
   onShowOlderItems,
 }: {
   canLoadEarlierItems: boolean
-  emptyThreadLabel: string
+  emptyThreadLabel?: string
   error: string | null
   hiddenItemCount: number
   recentCapabilityEvents: AgentChatRuntimeRecentCapabilityEvent[]
@@ -1393,7 +1655,7 @@ function AgentChatDataSourceThreadBody({
           {visibleItems.map((item) => (
             <AgentChatThreadItemView key={item.viewId} item={item.item} streaming={item.streaming} />
           ))}
-          {!visibleItems.length ? (
+          {!visibleItems.length && emptyThreadLabel ? (
             <AgentEmpty>
               <span>{emptyThreadLabel}</span>
             </AgentEmpty>
@@ -1567,6 +1829,19 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function agentRunProfilePresetIdFromExecutionSettings(settings: AgentThreadExecutionSettings | undefined): AgentRunProfilePresetId | undefined {
+  const permissions = stringValue(settings?.permissions)
+  if (!permissions) return undefined
+  const approvalPolicy = stringValue(settings?.approvalPolicy)
+  const approvalsReviewer = stringValue(settings?.approvalsReviewer)
+  const exactPreset = AGENT_RUN_PROFILE_PRESETS.find((preset) => (
+    preset.permissionProfileId === permissions
+    && (!approvalPolicy || preset.approvalPolicy === approvalPolicy)
+    && (!approvalsReviewer || preset.approvalsReviewer === approvalsReviewer)
+  ))
+  return exactPreset?.id ?? AGENT_RUN_PROFILE_PRESETS.find((preset) => preset.permissionProfileId === permissions)?.id
 }
 
 function isUnavailableThreadReadError(error: unknown): boolean {

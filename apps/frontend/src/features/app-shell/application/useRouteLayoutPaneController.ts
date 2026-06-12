@@ -76,39 +76,92 @@ export function useRouteLayoutPaneController({
   const pane = React.useMemo(() => routeLayoutPaneById(routeLayout, paneId), [paneId, routeLayout])
   const stateStorageKey = routeLayoutPaneStateStorageKey(pane)
   const sizeStorageKey = pane?.storageKey
-  const [uncontrolledState, setUncontrolledState] = React.useState<RouteLayoutPaneState>(() => {
-    const savedState = readStoredPaneState(stateStorageKey)
-    return allowedRouteLayoutPaneState(pane, savedState ?? routeLayoutPaneDefaultState(pane, fallbackState), fallbackState)
+  const defaultSize = pane?.defaultSize ?? fallbackSize
+  const [uncontrolledState, setUncontrolledState] = React.useState<{
+    storageKey: string | undefined
+    value: RouteLayoutPaneState
+  }>(() => {
+    return {
+      storageKey: stateStorageKey,
+      value: readRouteLayoutPaneState(pane, stateStorageKey, fallbackState),
+    }
   })
-  const state = allowedRouteLayoutPaneState(pane, controlledState ?? uncontrolledState, fallbackState)
-  const [size, setSizeValue] = React.useState(() => {
-    const defaultSize = pane?.defaultSize ?? fallbackSize
-    return clampSize(readStoredPaneSize(sizeStorageKey) ?? defaultSize)
+  const uncontrolledStateValue = uncontrolledState.storageKey === stateStorageKey
+    ? uncontrolledState.value
+    : readRouteLayoutPaneState(pane, stateStorageKey, fallbackState)
+  const state = allowedRouteLayoutPaneState(pane, controlledState ?? uncontrolledStateValue, fallbackState)
+  const [sizeState, setSizeValue] = React.useState<{
+    storageKey: string | undefined
+    defaultSize: number
+    value: number
+  }>(() => {
+    return {
+      storageKey: sizeStorageKey,
+      defaultSize,
+      value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize),
+    }
   })
+  const size = sizeState.storageKey === sizeStorageKey && sizeState.defaultSize === defaultSize
+    ? sizeState.value
+    : readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize)
 
   React.useEffect(() => {
     if (controlledState !== undefined) return
-    setUncontrolledState((current) => allowedRouteLayoutPaneState(pane, current, routeLayoutPaneDefaultState(pane, fallbackState)))
-  }, [controlledState, fallbackState, pane])
+    setUncontrolledState((current) => {
+      if (current.storageKey !== stateStorageKey) {
+        return {
+          storageKey: stateStorageKey,
+          value: readRouteLayoutPaneState(pane, stateStorageKey, fallbackState),
+        }
+      }
+      return {
+        storageKey: stateStorageKey,
+        value: allowedRouteLayoutPaneState(pane, current.value, routeLayoutPaneDefaultState(pane, fallbackState)),
+      }
+    })
+  }, [controlledState, fallbackState, pane, stateStorageKey])
+
+  React.useEffect(() => {
+    setSizeValue((current) => {
+      if (current.storageKey === sizeStorageKey && current.defaultSize === defaultSize) return current
+      return {
+        storageKey: sizeStorageKey,
+        defaultSize,
+        value: readRouteLayoutPaneSize(sizeStorageKey, defaultSize, clampSize),
+      }
+    })
+  }, [clampSize, defaultSize, sizeStorageKey])
 
   React.useEffect(() => {
     if (!stateStorageKey) return
-    window.localStorage.setItem(stateStorageKey, state)
+    writeStoredPaneState(stateStorageKey, state)
   }, [state, stateStorageKey])
 
   React.useEffect(() => {
     if (!sizeStorageKey || state === 'hidden') return
-    window.localStorage.setItem(sizeStorageKey, String(size))
+    writeStoredPaneSize(sizeStorageKey, size)
   }, [size, sizeStorageKey, state])
 
   const setSize = React.useCallback((nextSize: number) => {
-    setSizeValue(clampSize(nextSize))
-  }, [clampSize])
+    const nextValue = clampSize(nextSize)
+    setSizeValue({
+      storageKey: sizeStorageKey,
+      defaultSize,
+      value: nextValue,
+    })
+    if (state !== 'hidden') writeStoredPaneSize(sizeStorageKey, nextValue)
+  }, [clampSize, defaultSize, sizeStorageKey, state])
   const setAllowedState = React.useCallback((nextState: RouteLayoutPaneState) => {
     const allowedState = allowedRouteLayoutPaneState(pane, nextState, routeLayoutPaneDefaultState(pane, fallbackState))
-    if (controlledState === undefined) setUncontrolledState(allowedState)
+    if (controlledState === undefined) {
+      setUncontrolledState({
+        storageKey: stateStorageKey,
+        value: allowedState,
+      })
+    }
+    writeStoredPaneState(stateStorageKey, allowedState)
     onStateChange?.(allowedState)
-  }, [controlledState, fallbackState, onStateChange, pane])
+  }, [controlledState, fallbackState, onStateChange, pane, stateStorageKey])
 
   return {
     pane,
@@ -125,9 +178,31 @@ export function useRouteLayoutPaneController({
   }
 }
 
+export function readRouteLayoutPaneState(
+  pane: RouteLayoutPaneSpec | undefined,
+  storageKey: string | undefined,
+  fallbackState: RouteLayoutPaneState = 'default',
+): RouteLayoutPaneState {
+  const savedState = readStoredPaneState(storageKey)
+  return allowedRouteLayoutPaneState(pane, savedState ?? routeLayoutPaneDefaultState(pane, fallbackState), fallbackState)
+}
+
+export function readRouteLayoutPaneSize(
+  storageKey: string | undefined,
+  defaultSize: number,
+  clampSize: (size: number) => number = (size) => size,
+): number {
+  return clampSize(readStoredPaneSize(storageKey) ?? defaultSize)
+}
+
 function readStoredPaneState(storageKey: string | undefined): RouteLayoutPaneState | undefined {
   if (!storageKey || typeof window === 'undefined') return undefined
-  const value = window.localStorage.getItem(storageKey)
+  let value: string | null
+  try {
+    value = window.localStorage.getItem(storageKey)
+  } catch {
+    return undefined
+  }
   if (isRouteLayoutPaneState(value)) return value
   if (value === '1') return 'default'
   if (value === '0') return 'hidden'
@@ -138,10 +213,33 @@ function readStoredPaneState(storageKey: string | undefined): RouteLayoutPaneSta
 
 function readStoredPaneSize(storageKey: string | undefined): number | undefined {
   if (!storageKey || typeof window === 'undefined') return undefined
-  const storedValue = window.localStorage.getItem(storageKey)
+  let storedValue: string | null
+  try {
+    storedValue = window.localStorage.getItem(storageKey)
+  } catch {
+    return undefined
+  }
   if (storedValue === null) return undefined
   const value = Number(storedValue)
   return Number.isFinite(value) ? value : undefined
+}
+
+function writeStoredPaneState(storageKey: string | undefined, state: RouteLayoutPaneState): void {
+  if (!storageKey || typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, state)
+  } catch {
+    // localStorage can be unavailable in restricted browser contexts.
+  }
+}
+
+function writeStoredPaneSize(storageKey: string | undefined, size: number): void {
+  if (!storageKey || typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, String(size))
+  } catch {
+    // localStorage can be unavailable in restricted browser contexts.
+  }
 }
 
 function isRouteLayoutPaneState(value: unknown): value is RouteLayoutPaneState {

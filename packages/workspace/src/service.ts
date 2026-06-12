@@ -31,7 +31,6 @@ import {
   createMovScriptContentCandidate,
   createMovScriptWorkspaceDomainRepository,
   deleteMovScriptWorkspaceEntity,
-  selectMovScriptContentUnitCandidate,
   selectMovScriptInlineCandidate,
   snapshotMovScriptVersionFromMarkdown,
   unlockMovScriptInlineCandidate,
@@ -47,14 +46,16 @@ import {
   upsertMovScriptWorkspaceSetting,
   saveMovScriptProductionWorkspaceSnapshot,
   overlayMovScriptDecisionDocuments,
+  contentUnitDecisionContextPath,
+  normalizeDecisionContext,
   type MovScriptContentUnitEditPromptUpdateInput,
   type MovScriptContentUnitEditPromptUpdateResult,
   type MovScriptContentUnitWriteInput,
   type MovScriptContentUnitWriteResult,
   type MovScriptContentCandidateWriteInput,
   type MovScriptContentCandidateWriteResult,
-  type MovScriptContentUnitSelectionInput,
-  type MovScriptContentUnitSelectionResult,
+  type MovScriptContentUnitDecisionSelectionInput,
+  type MovScriptContentUnitDecisionSelectionResult,
   type MovScriptProjectStandardsWriteInput,
   type MovScriptProjectStandardsWriteResult,
   type MovScriptWorkspaceEntityDeleteInput,
@@ -195,8 +196,8 @@ export interface MovScriptWorkspaceService {
     input: Omit<MovScriptContentCandidateWriteInput, 'fileRepository'>,
   ): Promise<MovScriptContentCandidateWriteResult>
   selectContentUnitCandidate(
-    input: Omit<MovScriptContentUnitSelectionInput, 'fileRepository'>,
-  ): Promise<MovScriptContentUnitSelectionResult>
+    input: MovScriptContentUnitDecisionSelectionInput,
+  ): Promise<MovScriptContentUnitDecisionSelectionResult>
   createAssetSlotCandidate(
     input: Omit<MovScriptWorkspaceCandidateWriteInput, 'fileRepository' | 'projectPath'> & { projectPath?: string },
   ): Promise<MovScriptWorkspaceCandidateWriteResult>
@@ -407,29 +408,25 @@ export function createMovScriptWorkspaceService(
       })
     },
     async selectContentUnitCandidate(input) {
-      const candidate = options.decisionStore
-        ? await readBackendContentCandidateRecord(options.decisionStore, input.contentUnitId, input.candidateId)
-        : await readContentCandidateRecord(options.fileRepository, input.contentUnitId, input.candidateId)
-      const resourceId = input.resourceId ?? firstCandidateResourceId(candidate)
-      if (options.decisionStore) {
-        const context = await options.decisionStore.selectContentUnitCandidate({
-          contentUnitId: input.contentUnitId,
-          candidateId: input.candidateId,
-          ...(resourceId !== undefined ? { resourceId } : {}),
-          stalePolicy: input.stalePolicy,
-          reason: input.reason,
-          selectedAt: input.selectedAt,
-        })
-        return {
-          path: `content_units/${entityPathSlug(input.contentUnitId, 'content_unit')}/selection.json`,
-          record: context.selection ?? {},
-        }
+      const decisionStore = options.decisionStore
+      if (!decisionStore) {
+        throw new Error('content unit candidate selection requires a decisionStore')
       }
-      return selectMovScriptContentUnitCandidate({
-        fileRepository: options.fileRepository,
-        ...input,
+      const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId)
+      const resourceId = input.resourceId ?? firstCandidateResourceId(candidate)
+      const context = await decisionStore.selectContentUnitCandidate({
+        contentUnitId: input.contentUnitId,
+        candidateId: input.candidateId,
         ...(resourceId !== undefined ? { resourceId } : {}),
+        stalePolicy: input.stalePolicy,
+        reason: input.reason,
+        selectedAt: input.selectedAt,
       })
+      return {
+        path: contentUnitDecisionContextPath(input.contentUnitId),
+        record: normalizeDecisionContext(context),
+        context,
+      }
     },
     createAssetSlotCandidate(input) {
       return createMovScriptWorkspaceAssetSlotCandidate({
@@ -538,10 +535,6 @@ function contentUnitDerivedArtifactPath(contentUnitId: string | number, filename
   return `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/${filename}`
 }
 
-function contentCandidatePath(contentUnitId: string | number, candidateId: string | number): string {
-  return `content_units/${entityPathSlug(contentUnitId, 'content_unit')}/candidates/${entityPathSlug(candidateId, 'candidate')}/content_candidate.json`
-}
-
 async function readContentUnitGenerationPromptArtifact(
   fileRepository: MovScriptWorkspaceFileRepository,
   contentUnitId: string | number,
@@ -555,14 +548,6 @@ async function readContentUnitRuntimePrompt(
 ): Promise<Record<string, unknown> | undefined> {
   const runtimePanel = await readJSONArtifact(fileRepository, contentUnitDerivedArtifactPath(contentUnitId, 'runtime_panel.json'))
   return recordField(runtimePanel?.prompt)
-}
-
-async function readContentCandidateRecord(
-  fileRepository: MovScriptWorkspaceFileRepository,
-  contentUnitId: string | number,
-  candidateId: string | number,
-): Promise<Record<string, unknown> | undefined> {
-  return readJSONArtifact(fileRepository, contentCandidatePath(contentUnitId, candidateId))
 }
 
 async function readBackendContentCandidateRecord(

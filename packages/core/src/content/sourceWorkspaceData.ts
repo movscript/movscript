@@ -1,4 +1,5 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
+import type { MovScriptProductionWorkPlan } from '@movscript/interpreter'
 
 import type {
   AudioCue,
@@ -12,6 +13,11 @@ import type {
   PreviewAssetReferenceUnit,
   PreviewCandidate,
   PreviewContentUnit,
+  ProductionWorkItemKind,
+  ProductionWorkItemSeverity,
+  ProductionWorkItemStatus,
+  ProductionWorkItemView,
+  ProductionWorkPlanView,
   PreviewMoment,
   PreviewShot,
   SelectionState,
@@ -29,6 +35,7 @@ export interface ContentSourceWorkspaceData {
   audioCuesByMoment: Record<string, AudioCue[]>
   shotWorkspaceDetails: Record<string, ShotWorkspaceDetails>
   assetReferenceUnits: Record<string, PreviewAssetReferenceUnit>
+  productionWorkPlan?: ProductionWorkPlanView
 }
 
 export interface CreatedContentSourceCandidate {
@@ -99,13 +106,14 @@ export interface ContentSourceWorkspaceSnapshot {
   audioCues: MovScriptWorkspaceIndexedEntity[]
   contentUnits: MovScriptWorkspaceIndexedEntity[]
   previewTimelines: WorkspacePreviewTimelineArtifact[]
+  productionWorkPlan?: MovScriptProductionWorkPlan | ProductionWorkPlanView
 }
 
 export interface ContentSourceWorkspaceCandidateCreatePlan {
   contentUnitId: string
   candidateId: string
-  source: 'ai_generate'
-  status: 'queued'
+  source: 'ai_generate' | 'resource_library'
+  status: 'queued' | 'imported'
   producer: Record<string, unknown>
   outputs: ContentSourceWorkspaceCandidateOutput[]
   promptSnapshot: Record<string, unknown>
@@ -184,6 +192,7 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
   const settings = input.settings
   const settingStates = input.settingStates
   const previewTimelines = input.previewTimelines
+  const productionWorkPlan = normalizeProductionWorkPlanView(input.productionWorkPlan)
 
   const contentUnitsByPrimaryRef = groupContentUnitsByPrimaryRef(contentUnits)
   const candidateRecordsByContentUnitId = groupContentCandidateRecordsByContentUnitId(input.indexDocuments)
@@ -251,7 +260,142 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
     audioCuesByMoment,
     shotWorkspaceDetails,
     assetReferenceUnits,
+    productionWorkPlan,
   }
+}
+
+export function normalizeProductionWorkPlanView(
+  plan: MovScriptProductionWorkPlan | ProductionWorkPlanView | undefined,
+): ProductionWorkPlanView | undefined {
+  if (!plan) return undefined
+  if (isProductionWorkPlanView(plan)) {
+    return {
+      summary: {
+        open: optionalNumberField(plan.summary.open) ?? 0,
+        blocking: optionalNumberField(plan.summary.blocking) ?? 0,
+        humanRecommended: optionalNumberField(plan.summary.humanRecommended) ?? 0,
+        agentRecommended: optionalNumberField(plan.summary.agentRecommended) ?? 0,
+        readyToGenerate: optionalNumberField(plan.summary.readyToGenerate) ?? 0,
+        staleSelections: optionalNumberField(plan.summary.staleSelections) ?? 0,
+      },
+      items: plan.items.map(normalizeProductionWorkItemView).filter(isDefined),
+    }
+  }
+  const rawPlan = plan as MovScriptProductionWorkPlan
+  return {
+    summary: {
+      open: optionalNumberField(rawPlan.summary.open) ?? 0,
+      blocking: optionalNumberField(rawPlan.summary.blocking) ?? 0,
+      humanRecommended: optionalNumberField(rawPlan.summary.human_recommended) ?? 0,
+      agentRecommended: optionalNumberField(rawPlan.summary.agent_recommended) ?? 0,
+      readyToGenerate: optionalNumberField(rawPlan.summary.ready_to_generate) ?? 0,
+      staleSelections: optionalNumberField(rawPlan.summary.stale_selections) ?? 0,
+    },
+    items: rawPlan.items.map((item): ProductionWorkItemView => ({
+      id: item.id,
+      kind: item.kind,
+      status: item.status,
+      severity: item.severity,
+      priority: item.priority,
+      reason: item.reason,
+      targetKind: item.target.entityKind,
+      targetId: item.target.id !== undefined ? String(item.target.id) : undefined,
+      targetPath: item.target.path,
+      recommendedActor: item.recommended_actor,
+      actionLabels: item.actions.map((action) => productionWorkActionLabel(action.type)),
+    })),
+  }
+}
+
+function isProductionWorkPlanView(
+  plan: MovScriptProductionWorkPlan | ProductionWorkPlanView,
+): plan is ProductionWorkPlanView {
+  return 'humanRecommended' in plan.summary
+}
+
+export function productionWorkItemsForTarget(
+  plan: ProductionWorkPlanView | undefined,
+  target: { id?: string | number; path?: string; contentUnitId?: string | number },
+): ProductionWorkItemView[] {
+  if (!plan) return []
+  const ids = new Set(
+    [target.id, target.contentUnitId]
+      .filter((value) => value !== undefined)
+      .map((value) => String(value)),
+  )
+  const path = target.path ? normalizePath(target.path) : undefined
+  return plan.items.filter((item) => {
+    if (item.targetId && ids.has(item.targetId)) return true
+    if (path && item.targetPath && (normalizePath(item.targetPath) === path || normalizePath(item.targetPath).startsWith(`${path}/`))) return true
+    return false
+  })
+}
+
+function normalizeProductionWorkItemView(item: ProductionWorkItemView): ProductionWorkItemView | undefined {
+  if (!item.id || !item.kind || !item.status || !item.severity || !item.reason || !item.targetKind) return undefined
+  return {
+    id: item.id,
+    kind: normalizeProductionWorkItemKind(item.kind),
+    status: normalizeProductionWorkItemStatus(item.status),
+    severity: normalizeProductionWorkItemSeverity(item.severity),
+    priority: optionalNumberField(item.priority) ?? 100,
+    reason: item.reason,
+    targetKind: item.targetKind,
+    targetId: item.targetId,
+    targetPath: item.targetPath,
+    recommendedActor: item.recommendedActor === 'agent' || item.recommendedActor === 'workflow' ? item.recommendedActor : 'human',
+    actionLabels: Array.isArray(item.actionLabels) ? item.actionLabels.filter((label) => typeof label === 'string' && label.trim()) : [],
+  }
+}
+
+function normalizeProductionWorkItemKind(kind: string): ProductionWorkItemKind {
+  switch (kind) {
+    case 'fix_source':
+    case 'edit_structure':
+    case 'create_content_unit':
+    case 'generate_candidates':
+    case 'select_candidate':
+    case 'review_stale_selection':
+    case 'review_affected_output':
+      return kind
+    default:
+      return 'edit_structure'
+  }
+}
+
+function normalizeProductionWorkItemStatus(status: string): ProductionWorkItemStatus {
+  if (status === 'open' || status === 'blocked' || status === 'ready' || status === 'informational') return status
+  return 'open'
+}
+
+function normalizeProductionWorkItemSeverity(severity: string): ProductionWorkItemSeverity {
+  if (severity === 'blocking' || severity === 'warning' || severity === 'suggestion') return severity
+  return 'warning'
+}
+
+function productionWorkActionLabel(type: string): string {
+  switch (type) {
+    case 'open_editor':
+      return '打开编辑器'
+    case 'upsert_entity':
+      return '补结构'
+    case 'derive_content_unit_artifact':
+      return '刷新内容单元'
+    case 'generate_candidates':
+      return '生成候选'
+    case 'open_candidate_picker':
+      return '打开候选选择'
+    case 'agent_review_candidates':
+      return '辅助审阅候选'
+    case 'accept_stale':
+      return '接受 stale'
+    default:
+      return type
+  }
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/').replace(/\/$/, '')
 }
 
 export function buildContentSourceWorkspaceSelectionPatch(input: {
@@ -278,9 +422,42 @@ export function buildContentSourceWorkspaceCandidateCreatePlan(input: {
   promptText?: string
   createdAt?: string
   candidateId?: string
+  resourceId?: string | number
+  resourceName?: string
+  resourceType?: 'image' | 'video' | 'audio' | 'text' | 'file'
+  resourceMimeType?: string
 }): ContentSourceWorkspaceCandidateCreatePlan {
   const createdAt = input.createdAt ?? new Date().toISOString()
-  const candidateId = input.candidateId ?? `queued_${Date.now()}`
+  const candidateId = input.candidateId ?? (input.resourceId !== undefined ? `resource_${input.resourceId}_${Date.now()}` : `queued_${Date.now()}`)
+  if (input.resourceId !== undefined) {
+    const resourceTitle = input.resourceName?.trim() || `Resource #${String(input.resourceId)}`
+    const outputKind = contentCandidateOutputKindFromResource(input.resourceType, input.outputKind)
+    return {
+      contentUnitId: input.contentUnitId,
+      candidateId,
+      source: 'resource_library',
+      status: 'imported',
+      producer: {
+        kind: 'content_workbench',
+        model_id: 'resource_library',
+        title: resourceTitle,
+      },
+      outputs: [{
+        kind: outputKind,
+        resource_id: input.resourceId,
+        ...(input.resourceMimeType ? { mime_type: input.resourceMimeType } : {}),
+      }],
+      promptSnapshot: {
+        title: resourceTitle,
+        note: 'Selected from resource library.',
+        input_hash: `resource:${String(input.resourceId)}`,
+        content_unit_id: input.contentUnitId,
+        output_kind: input.outputKind,
+        prompt_text: input.promptText,
+      },
+      createdAt,
+    }
+  }
   return {
     contentUnitId: input.contentUnitId,
     candidateId,
@@ -302,6 +479,15 @@ export function buildContentSourceWorkspaceCandidateCreatePlan(input: {
     },
     createdAt,
   }
+}
+
+function contentCandidateOutputKindFromResource(
+  resourceType: 'image' | 'video' | 'audio' | 'text' | 'file' | undefined,
+  outputKind: 'image' | 'video' | 'audio' | 'text' | 'storyboard',
+): ContentSourceWorkspaceCandidateOutput['kind'] {
+  if (resourceType === 'image' || resourceType === 'video' || resourceType === 'audio' || resourceType === 'text') return resourceType
+  if (outputKind === 'image' || outputKind === 'video' || outputKind === 'audio' || outputKind === 'text') return outputKind
+  return 'metadata'
 }
 
 export function createdContentSourceCandidateFromRecord(
@@ -1263,11 +1449,12 @@ function groupContentCandidateRecordsByContentUnitId(documents: WorkspaceDocumen
 function groupSelectionRecordsByContentUnitId(documents: WorkspaceDocument[]): Map<string, ContentSelectionRecord> {
   const output = new Map<string, ContentSelectionRecord>()
   for (const document of documents) {
-    if (!document.path.endsWith('/selection.json') || !isContentSelectionRecord(document.data)) continue
-    const target = recordField(document.data.target)
-    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField(target?.ref))
+    if (!isDecisionContextRecord(document.data)) continue
+    const selection = recordField(document.data.selection)
+    if (!selection) continue
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringField(document.data.target_ref))
     if (!contentUnitId) continue
-    output.set(contentUnitId, document.data)
+    output.set(contentUnitId, normalizeContentSelectionRecord(selection))
   }
   return output
 }
@@ -1719,8 +1906,20 @@ function isContentCandidateRecord(value: unknown): value is ContentCandidateReco
   return isRecord(value) && value.schema === 'movscript.content_candidate.v1'
 }
 
-function isContentSelectionRecord(value: unknown): value is ContentSelectionRecord {
-  return isRecord(value) && value.schema === 'movscript.selection.v1'
+function isDecisionContextRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value)
+    && value.schema === 'movscript.decision_context.v1'
+    && value.target_kind === 'content_unit'
+}
+
+function normalizeContentSelectionRecord(value: Record<string, unknown>): ContentSelectionRecord {
+  return {
+    candidate_id: value.candidate_id as never,
+    resource_id: value.resource_id as never,
+    stale_policy: value.stale_policy as never,
+    reason: value.reason as never,
+    selected_at: value.selected_at as never,
+  }
 }
 
 function isDefined<T>(value: T | undefined): value is T {

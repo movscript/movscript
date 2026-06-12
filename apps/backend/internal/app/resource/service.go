@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -22,12 +23,13 @@ import (
 )
 
 var (
-	ErrNotFound       = errors.New("resource not found")
-	ErrFolderNotFound = errors.New("resource folder not found")
-	ErrForbidden      = errors.New("resource access denied")
-	ErrNoStorageKey   = errors.New("resource has no storage key")
-	ErrDuplicateName  = errors.New("resource filename already exists")
-	ErrResourceInUse  = errors.New("resource is still referenced")
+	ErrNotFound          = errors.New("resource not found")
+	ErrFolderNotFound    = errors.New("resource folder not found")
+	ErrForbidden         = errors.New("resource access denied")
+	ErrNoStorageKey      = errors.New("resource has no storage key")
+	ErrDuplicateName     = errors.New("resource filename already exists")
+	ErrResourceInUse     = errors.New("resource is still referenced")
+	ErrInvalidDerivative = errors.New("invalid resource derivative")
 )
 
 type Service struct {
@@ -69,13 +71,21 @@ type Page struct {
 }
 
 type UploadInput struct {
-	UserID   uint
-	OrgID    *uint
-	FolderID string
-	Filename string
-	MimeType string
-	Size     int64
-	Data     []byte
+	UserID     uint
+	OrgID      *uint
+	FolderID   string
+	Filename   string
+	MimeType   string
+	Size       int64
+	Data       []byte
+	Derivative *UploadDerivativeInput
+}
+
+type UploadDerivativeInput struct {
+	Operation        string
+	Tool             string
+	InputResourceIDs []uint
+	Params           json.RawMessage
 }
 
 type UpdateInput struct {
@@ -129,6 +139,10 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource
 	if err != nil {
 		return domainresource.RawResource{}, err
 	}
+	derivative, err := s.prepareUploadDerivative(ctx, input)
+	if err != nil {
+		return domainresource.RawResource{}, err
+	}
 
 	var r domainresource.RawResource
 	if err := s.repo.Transaction(ctx, func(repo repository) error {
@@ -155,12 +169,53 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource
 		if err := repo.CreateResource(ctx, &r); err != nil {
 			return err
 		}
+		if derivative != nil {
+			derivative.OutputResourceID = r.ID
+			if err := repo.CreateDerivative(ctx, *derivative); err != nil {
+				return err
+			}
+		}
 		return repo.IncrementBlobRef(ctx, blob.ID)
 	}); err != nil {
 		return domainresource.RawResource{}, err
 	}
 	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
+}
+
+func (s *Service) prepareUploadDerivative(ctx context.Context, input UploadInput) (*resourceDerivative, error) {
+	if input.Derivative == nil {
+		return nil, nil
+	}
+	operation := strings.TrimSpace(input.Derivative.Operation)
+	if operation == "" {
+		return nil, fmt.Errorf("%w: operation is required", ErrInvalidDerivative)
+	}
+	for _, resourceID := range input.Derivative.InputResourceIDs {
+		if resourceID == 0 {
+			return nil, fmt.Errorf("%w: input_resource_ids must be positive", ErrInvalidDerivative)
+		}
+		if _, err := s.repo.GetVisible(ctx, resourceID, input.UserID, input.OrgID); err != nil {
+			return nil, err
+		}
+	}
+	inputIDs, err := json.Marshal(input.Derivative.InputResourceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("%w: input_resource_ids", ErrInvalidDerivative)
+	}
+	params := input.Derivative.Params
+	if len(params) == 0 {
+		params = json.RawMessage(`{}`)
+	}
+	if !json.Valid(params) {
+		return nil, fmt.Errorf("%w: params must be valid JSON", ErrInvalidDerivative)
+	}
+	return &resourceDerivative{
+		Operation:        operation,
+		Tool:             strings.TrimSpace(input.Derivative.Tool),
+		InputResourceIDs: string(inputIDs),
+		Params:           string(params),
+	}, nil
 }
 
 func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {

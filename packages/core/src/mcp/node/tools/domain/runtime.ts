@@ -27,10 +27,11 @@ export type MovScriptDomainRuntime = NodeMovScriptEngine & NodeMovScriptWorkspac
   projectCwd: string
   projectDir: string
   decisionStore?: MovScriptDecisionStore
-  reviewWorkspace(): Promise<unknown>
-  inspectWorkspace(): Promise<unknown>
+  reviewWorkspace(input?: { commit?: string; checkpointHash?: string }): Promise<unknown>
+  inspectWorkspace(input?: { commit?: string; checkpointHash?: string }): Promise<unknown>
   interpretWorkspace(): ReturnType<NodeMovScriptEngine['interpret']>
   overviewWorkspace(): Promise<unknown>
+  productionWorkPlan(): Promise<unknown>
   regenerationPlan(): Promise<unknown>
 }
 
@@ -45,10 +46,11 @@ export function createMovScriptDomainRuntime(input: MovScriptDomainRuntimeInput)
     projectCwd,
     projectDir: projectCwd,
     decisionStore,
-    reviewWorkspace: () => engine.review(),
-    inspectWorkspace: () => inspectMovScriptWorkspace({ fileRepository, decisionStore }),
+    reviewWorkspace: (inspectInput = {}) => engine.review(inspectInput),
+    inspectWorkspace: (inspectInput = {}) => inspectMovScriptWorkspace({ fileRepository, decisionStore, ...inspectInput }),
     interpretWorkspace: () => engine.interpret(),
     overviewWorkspace: () => overviewMovScriptWorkspace({ fileRepository, decisionStore }),
+    productionWorkPlan: () => engine.productionWorkPlan(),
     regenerationPlan: () => planMovScriptWorkspaceRegeneration({ fileRepository, decisionStore }),
   }
 }

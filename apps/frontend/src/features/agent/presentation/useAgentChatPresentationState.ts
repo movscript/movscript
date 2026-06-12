@@ -1,7 +1,6 @@
 import { useAgentActivePlanSnapshot } from '@/features/agent/presentation/useAgentActivePlanSnapshot'
 import { useAgentChatDerivedState, type UseAgentChatDerivedStateOptions } from '@/features/agent/presentation/useAgentChatDerivedState'
 import { useAgentConversationAutoScroll } from '@/features/agent/presentation/useAgentConversationAutoScroll'
-import { projectionItemsScrollKey } from '@/features/agent/presentation/agentConversationProjectionScrollKey'
 import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 
 interface UseAgentChatPresentationStateInput extends Omit<UseAgentChatDerivedStateOptions, 'activePlanSnapshot' | 'run'> {
@@ -32,16 +31,9 @@ export function useAgentChatPresentationState({
     activePlanSnapshot,
     run: activeRun,
   })
-  const conversationProjectionScrollKey = projectionItemsScrollKey(derived.conversationProjection.items)
-  const pendingActiveRunInputQueueKey = derived.pendingActiveRunInputQueue
-    .map((item) => `${item.id}:${item.timestamp}:${item.content.length}`)
-    .join('|')
 
   const scroll = useAgentConversationAutoScroll({
     conversationId,
-    conversationProjectionScrollKey,
-    generationProgressKey: derived.generationProgressKey,
-    pendingActiveRunInputQueueKey,
   })
 
   return {

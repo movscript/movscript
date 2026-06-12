@@ -3,16 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Archive,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   Folder,
   History,
   MessageSquare,
   Plus,
-  Puzzle,
-  Search,
   Smartphone,
   SquarePen,
   Trash2,
@@ -34,6 +32,7 @@ import {
   AgentModeIconSlot,
   AgentModeLabel,
   AgentModeMeta,
+  AgentModeProjectMenuContent,
   AgentModePrimaryNavItem,
   AgentModeProjectGroup,
   AgentModeProjectGroupToggle,
@@ -42,6 +41,12 @@ import {
   AgentModeSidebar,
   AgentModeSidebarScroll,
   AgentModeSidebarTop,
+  AppTopMenuItemText,
+  AppTopMenuLabelPrimary,
+  AppTopMenuLabelSecondary,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   useResizablePanel,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
@@ -89,6 +94,7 @@ import {
   routeLayoutSpecForPathname,
 } from '@/routes/routeLayoutRegistry'
 import { useAgentConversationTabProviderSessionStatusLights } from '@/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights'
+import { DEFAULT_AGENT_CONTENT_AREA_ID, useAgentContentAreaStore } from '@/features/agent/state/agentContentAreaStore'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
@@ -235,6 +241,7 @@ export function ProjectAgentModeSidebar({
   const setConversationProviderSessionTreeId = useAgentSessionStore((s) => s.setConversationProviderSessionTreeId)
   const updateConversationRuntimeState = useAgentSessionStore((s) => s.updateConversationRuntimeState)
   const clearConversationProviderSessionState = useAgentSessionStore((s) => s.clearConversationProviderSessionState)
+  const removeContentArea = useAgentContentAreaStore((s) => s.removeContentArea)
   const [openProjectGroups, setOpenProjectGroups] = useState<Record<number, boolean>>({})
   const [expandedProjectThreadGroups, setExpandedProjectThreadGroups] = useState<Record<number, boolean>>({})
   const [conversationsOpen, setConversationsOpen] = useState(true)
@@ -664,6 +671,7 @@ export function ProjectAgentModeSidebar({
     for (const id of idsToRemove) {
       removeProviderSessionConversation(userId, id)
       clearConversationProviderSessionState(id)
+      removeContentArea(id)
     }
     setConversationOpenState((current) => {
       const next = removeAgentConversationOpenRecords(current, idsToRemove)
@@ -678,6 +686,7 @@ export function ProjectAgentModeSidebar({
       if (!providerThreadId) {
         removeProviderSessionConversation(userId, conversation.id)
         clearConversationProviderSessionState(conversation.id)
+        removeContentArea(conversation.id)
         return
       }
       const deletion = await providerSessionClientForConversation(conversation).deleteThread(providerThreadId)
@@ -744,48 +753,36 @@ export function ProjectAgentModeSidebar({
           <AgentModeIconSlot><SquarePen size={18} /></AgentModeIconSlot>
           <AgentModeLabel>新对话</AgentModeLabel>
         </AgentModePrimaryNavItem>
-        {!collapsed ? (
-          <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <AgentModePrimaryNavItem
-              onClick={() => navigate(ROUTES.project.agent)}
-              title={t('agents.chat.agentModeSidebar.conversations')}
+              title="选择新建会话使用的 Agent"
+              aria-label="选择新建会话使用的 Agent"
             >
-              <AgentModeIconSlot><MessageSquare size={14} /></AgentModeIconSlot>
-              <AgentModeLabel>{t('agents.chat.agentModeSidebar.conversations')}</AgentModeLabel>
-            </AgentModePrimaryNavItem>
-            <AgentModePrimaryNavItem
-              className="agent-mode-nav-item--search"
-              onClick={() => navigate(ROUTES.project.agent)}
-              title="搜索"
-            >
-              <AgentModeIconSlot><Search size={19} /></AgentModeIconSlot>
-              <AgentModeLabel>搜索</AgentModeLabel>
-              <AgentModeMeta>⌘G</AgentModeMeta>
-            </AgentModePrimaryNavItem>
-            <AgentModePrimaryNavItem onClick={() => navigate(ROUTES.tools.refImageGen)} title="插件">
-              <AgentModeIconSlot><Puzzle size={18} /></AgentModeIconSlot>
-              <AgentModeLabel>插件</AgentModeLabel>
-            </AgentModePrimaryNavItem>
-            <AgentModePrimaryNavItem onClick={() => navigate(ROUTES.jobs)} title="自动化">
-              <AgentModeIconSlot><Clock3 size={18} /></AgentModeIconSlot>
-              <AgentModeLabel>自动化</AgentModeLabel>
-            </AgentModePrimaryNavItem>
-            <div className="agent-mode-provider-row">
               <AgentModeIconSlot><Smartphone size={18} /></AgentModeIconSlot>
-              <select
-                value={newConversationProvider.id}
-                onChange={(event) => setNewConversationProviderId(event.currentTarget.value)}
-                aria-label="选择新建会话使用的 Agent"
+              {!collapsed ? (
+                <>
+                  <AgentModeLabel>{newConversationProvider.label}</AgentModeLabel>
+                  <AgentModeMeta>{newConversationProvider.kind}</AgentModeMeta>
+                </>
+              ) : null}
+            </AgentModePrimaryNavItem>
+          </DropdownMenuTrigger>
+          <AgentModeProjectMenuContent align="start">
+            {availableProviders.map((provider) => (
+              <DropdownMenuItem
+                key={provider.id}
+                onSelect={() => setNewConversationProviderId(provider.id)}
               >
-                {availableProviders.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.label} · {provider.kind}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        ) : null}
+                <AppTopMenuItemText>
+                  <AppTopMenuLabelPrimary>{provider.label}</AppTopMenuLabelPrimary>
+                  <AppTopMenuLabelSecondary>{provider.kind}</AppTopMenuLabelSecondary>
+                </AppTopMenuItemText>
+                {provider.id === newConversationProvider.id ? <Check size={14} /> : null}
+              </DropdownMenuItem>
+            ))}
+          </AgentModeProjectMenuContent>
+        </DropdownMenu>
       </AgentModeSidebarTop>
 
       <AgentModeSidebarScroll>
@@ -1348,6 +1345,12 @@ export function ProjectAgentContentPanel({
   width?: number
   onWidthChange?: (width: number) => void
 } = {}) {
+  const currentUser = useUserStore((s) => s.currentUser)
+  const userId = currentUser ? String(currentUser.ID) : ''
+  const providerSettings = useProviderConfigStore((s) => s.settings)
+  const activeProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
+  const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
+  const [appServerActiveThreadId, setAppServerActiveThreadId] = useState(() => readAppServerActiveThreadId(activeProvider))
   const panelWidth = clampAgentModeContentPanelWidth(width ?? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   const setPanelWidth = useCallback((nextWidth: number) => {
     onWidthChange?.(clampAgentModeContentPanelWidth(nextWidth))
@@ -1363,6 +1366,27 @@ export function ProjectAgentContentPanel({
     collapseMode: 'after-min',
     ariaLabel: '调整对话区宽度',
   })
+  useEffect(() => {
+    if (!usesAppServerProtocol(activeProvider)) {
+      setAppServerActiveThreadId(null)
+      return
+    }
+    const syncActiveThread = () => {
+      setAppServerActiveThreadId(readAppServerActiveThreadId(activeProvider))
+    }
+    syncActiveThread()
+    const openEventName = appServerThreadOpenEvent(activeProvider)
+    window.addEventListener(openEventName, syncActiveThread)
+    window.addEventListener('storage', syncActiveThread)
+    return () => {
+      window.removeEventListener(openEventName, syncActiveThread)
+      window.removeEventListener('storage', syncActiveThread)
+    }
+  }, [activeProvider])
+
+  const contentAreaId = usesAppServerProtocol(activeProvider)
+    ? appServerActiveThreadId ?? activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
+    : activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
 
   return (
     <AgentModeContentPanel
@@ -1373,7 +1397,7 @@ export function ProjectAgentContentPanel({
       aria-label="Agent 内容区"
       aria-hidden={collapsed ? true : undefined}
     >
-      <AgentBrowserPanel />
+      <AgentBrowserPanel contentAreaId={contentAreaId} />
       {!collapsed ? (
         <AgentModeResizeHandle
           {...panelResize.resizeHandleProps}

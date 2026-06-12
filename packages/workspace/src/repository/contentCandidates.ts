@@ -59,50 +59,6 @@ export async function createMovScriptContentCandidate(
   return { path, record }
 }
 
-export interface MovScriptContentUnitSelectionInput {
-  fileRepository: MovScriptWorkspaceFileRepository
-  contentUnitId: string | number
-  candidateId: string | number
-  resourceId?: string | number
-  stalePolicy?: 'strict' | 'accept_stale'
-  reason?: string
-  selectedAt?: string
-}
-
-export interface MovScriptContentUnitSelectionResult {
-  path: string
-  record: Record<string, unknown>
-}
-
-export async function selectMovScriptContentUnitCandidate(
-  input: MovScriptContentUnitSelectionInput,
-): Promise<MovScriptContentUnitSelectionResult> {
-  const contentUnitId = stableEntityId(input.contentUnitId, 'content_unit')
-  const path = `${contentUnitDirectory(contentUnitId)}/selection.json`
-  const record = pruneUndefined({
-    schema: 'movscript.selection.v1',
-    target: {
-      kind: 'content_unit',
-      ref: contentUnitDirectory(contentUnitId),
-    },
-    candidate_id: input.candidateId,
-    resource_id: input.resourceId,
-    stale_policy: input.stalePolicy ?? 'strict',
-    reason: input.reason ?? 'selected',
-    selected_at: input.selectedAt ?? new Date().toISOString(),
-  })
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
-  return { path, record }
-}
-
-export async function clearMovScriptContentUnitSelection(input: {
-  fileRepository: MovScriptWorkspaceFileRepository
-  contentUnitId: string | number
-}): Promise<void> {
-  const contentUnitId = stableEntityId(input.contentUnitId, 'content_unit')
-  await input.fileRepository.delete({ path: `${contentUnitDirectory(contentUnitId)}/selection.json` })
-}
-
 function contentUnitDirectory(id: string): string {
   return `content_units/${entityPathSlug(id, 'content_unit')}`
 }

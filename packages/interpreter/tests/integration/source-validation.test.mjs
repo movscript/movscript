@@ -323,7 +323,7 @@ test('workspace source review rejects unresolved keyframe reference assets', asy
   assert.ok(review.issues.some((issue) => issue.message.includes('keyframe reference_asset_refs[0] does not resolve: missing')))
 })
 
-test('workspace source review accepts runtime content candidate and selection documents outside content_unit source', async () => {
+test('workspace source review accepts runtime content candidate documents outside content_unit source', async () => {
   const files = new Map([
     ['settings/hero/setting.json', JSON.stringify({
       schema: 'movscript.setting.v1',
@@ -361,12 +361,6 @@ test('workspace source review accepts runtime content candidate and selection do
       content_unit_ref: 'content_units/k41m',
       outputs: [{ kind: 'image', resource_id: 'resource_a' }],
     })],
-    ['content_units/k41m/selection.json', JSON.stringify({
-      schema: 'movscript.selection.v1',
-      target: { kind: 'content_unit', ref: 'content_units/k41m' },
-      candidate_id: 'candidate_result',
-      resource_id: 'resource_a',
-    })],
   ])
   const repository = memoryWorkspaceFileRepository(files)
 
@@ -377,7 +371,6 @@ test('workspace source review accepts runtime content candidate and selection do
 
   assert.equal(review.readyToInterpret, true)
   assert.equal(review.issues.some((issue) => issue.message.includes('candidate')), false)
-  assert.equal(review.issues.some((issue) => issue.message.includes('selection')), false)
 })
 
 test('workspace interpret rejects invalid source JSON', async () => {

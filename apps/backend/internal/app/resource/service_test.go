@@ -2,7 +2,9 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
@@ -109,6 +111,59 @@ func TestUploadDeduplicatesBlobForSameContent(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("blob count = %d, want 1", count)
+	}
+}
+
+func TestUploadPersistsResourceDerivative(t *testing.T) {
+	db := newResourceTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	source, err := NewService(db.Session(&gorm.Session{SkipHooks: true}), store, nil).Upload(ctx, UploadInput{
+		UserID:   1,
+		Filename: "source.mp4",
+		MimeType: "video/mp4",
+		Size:     6,
+		Data:     []byte("source"),
+	})
+	if err != nil {
+		t.Fatalf("upload source: %v", err)
+	}
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), store, nil)
+	created, err := service.Upload(ctx, UploadInput{
+		UserID:   1,
+		Filename: "frame.jpg",
+		MimeType: "image/jpeg",
+		Size:     5,
+		Data:     []byte("frame"),
+		Derivative: &UploadDerivativeInput{
+			Operation:        "video_extract_frame",
+			Tool:             "movscript_resource_video_extract_frame_to_resource",
+			InputResourceIDs: []uint{source.ID},
+			Params:           json.RawMessage(`{"timestamp_sec":2.5}`),
+		},
+	})
+	if err != nil {
+		t.Fatalf("upload derived resource: %v", err)
+	}
+
+	var derivative model.ResourceDerivative
+	if err := db.Where("output_resource_id = ?", created.ID).First(&derivative).Error; err != nil {
+		t.Fatalf("load derivative: %v", err)
+	}
+	if derivative.Operation != "video_extract_frame" {
+		t.Fatalf("operation = %q, want video_extract_frame", derivative.Operation)
+	}
+	if derivative.InputResourceIDs != "["+strconv.FormatUint(uint64(source.ID), 10)+"]" {
+		t.Fatalf("input_resource_ids = %q, want [%d]", derivative.InputResourceIDs, source.ID)
+	}
+	if derivative.Params != `{"timestamp_sec":2.5}` {
+		t.Fatalf("params = %q", derivative.Params)
+	}
+	if err := service.Delete(ctx, source.ID, source.OwnerID, nil); !errors.Is(err, ErrResourceInUse) {
+		t.Fatalf("delete referenced source error = %v, want ErrResourceInUse", err)
 	}
 }
 
@@ -299,5 +354,5 @@ func newResourceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "resource.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &model.Organization{}, &model.Project{}, &model.ProjectMember{}, &model.ResourceBlob{}, &model.RawResource{}, &model.ShotReference{}, &model.CanvasTask{})
+	}, &model.Organization{}, &model.Project{}, &model.ProjectMember{}, &model.ResourceBlob{}, &model.RawResource{}, &model.ResourceDerivative{}, &model.ShotReference{}, &model.CanvasTask{})
 }

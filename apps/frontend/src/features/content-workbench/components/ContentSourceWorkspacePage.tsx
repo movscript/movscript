@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
   Boxes,
   Check,
   ChevronRight,
   Clapperboard,
+  Copy,
   FilePlus2,
   FilePenLine,
   Frame,
   GitCompareArrows,
   Image,
   Layers3,
+  Library,
   Link2,
   Search,
   Sparkles,
@@ -19,35 +22,30 @@ import {
 } from 'lucide-react'
 
 import {
-  appendContentSourceWorkspaceAssetCandidate,
-  appendContentSourceWorkspaceContentUnitCandidate,
-  updateContentSourceWorkspaceAssetPrompt,
-  updateContentSourceWorkspaceAudioCueState,
-  updateContentSourceWorkspaceContentUnitPrompt,
-  updateContentSourceWorkspaceContentUnitSelection,
-  updateContentSourceWorkspaceExpressionUnitState,
-  updateContentSourceWorkspaceHierarchyPlanning,
+  createContentSourceWorkspaceRuntime,
+  type ContentSourceWorkspaceRuntimeState,
+  type ContentSourceWorkspaceRuntimeStatus,
 } from '@movscript/core/content'
 import {
   Badge,
   Button,
+  Dialog,
   Input,
+  ResourceDialogContent,
+  ResourceDialogFooter,
+  ResourceDialogText,
+  ResourceDialogTitle,
 } from '@movscript/ui'
 
+import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/shared/ui/ResourceLibraryPicker'
+import { toast } from '@/shared/ui/toastStore'
+import type { PaginatedResponse, RawResource } from '@/types'
 
 import {
-  createContentSourceWorkspaceHierarchyNode,
-  createContentSourceWorkspaceCandidate,
+  createContentSourceWorkspaceRuntimePort,
   fixtureContentSourceWorkspaceData,
-  loadContentSourceWorkspaceData,
-  selectContentSourceWorkspaceCandidate,
-  syncContentSourceWorkspace,
-  updateContentSourceWorkspaceAudioCue,
-  updateContentSourceWorkspaceExpressionUnit,
-  updateContentSourceWorkspaceEditPrompt,
-  updateContentSourceWorkspaceStoryboardTimeline,
-  updateContentSourceWorkspaceTransition,
   type ContentSourceWorkspaceData,
 } from '../domain/contentSourceWorkspaceData'
 import {
@@ -55,7 +53,6 @@ import {
   appendChildNode,
   buildChildNodeId,
   buildChildNodePath,
-  countHierarchyNodes,
   filterHierarchyTree,
   findHierarchyNode,
   getExpandableNodeIds,
@@ -93,27 +90,60 @@ import type {
 import './ContentSourceWorkspacePage.css'
 
 const stillSheetUrl = new URL('../assets/production-stills-sheet.png', import.meta.url).href
-let activeWorkspaceData: ContentSourceWorkspaceData = fixtureContentSourceWorkspaceData
-type WorkspaceDataStatus = 'fixture' | 'loading' | 'workspace' | 'fallback'
-type SourceSyncStatus = 'clean' | 'dirty' | 'syncing' | 'synced' | 'error'
+const candidateResourcePageSize = 12
+
+interface CandidateResourceSelection {
+  resourceId: number
+  resourceName: string
+  resourceType: RawResource['type']
+  resourceMimeType?: string
+}
+
+const emptyContentSourceWorkspaceData: ContentSourceWorkspaceData = {
+  source: 'workspace',
+  hierarchyTree: [],
+  previewMoments: [],
+  expressionUnitsByMoment: {},
+  audioCuesByMoment: {},
+  shotWorkspaceDetails: {},
+  assetReferenceUnits: {},
+  productionWorkPlan: undefined,
+}
+const emptyHierarchyNode: HierarchyNode = {
+  id: 'empty',
+  type: 'group',
+  title: 'Empty workspace',
+  path: '',
+  children: [],
+}
 
 export default function ContentSourceWorkspacePage() {
   const projectId = useProjectStore((state) => state.current?.ID)
-  const [workspaceData, setWorkspaceData] = useState<ContentSourceWorkspaceData>(fixtureContentSourceWorkspaceData)
-  const [workspaceDataStatus, setWorkspaceDataStatus] = useState<WorkspaceDataStatus>('fixture')
-  const [workspaceDataError, setWorkspaceDataError] = useState<string | null>(null)
-  const [sourceSyncStatus, setSourceSyncStatus] = useState<SourceSyncStatus>('clean')
-  activeWorkspaceData = workspaceData
+  const runtime = useMemo(() => createContentSourceWorkspaceRuntime({ port: createContentSourceWorkspaceRuntimePort() }), [])
+  const [runtimeState, setRuntimeState] = useState<ContentSourceWorkspaceRuntimeState>(() => runtime.getState())
+
+  useEffect(() => runtime.subscribe(setRuntimeState), [runtime])
+
+  useEffect(() => {
+    if (!projectId) {
+      runtime.showDemo(fixtureContentSourceWorkspaceData)
+      return
+    }
+    runtime.loadProject(projectId).catch(() => undefined)
+  }, [projectId, runtime])
+
+  const workspaceData = runtimeState.data ?? emptyContentSourceWorkspaceData
+
   const previewMoments = workspaceData.previewMoments
-  const initialMoment = previewMoments[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0]
-  const initialShot = initialMoment.shots[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0].shots[0]
+  const initialMoment = previewMoments[0]
+  const initialShot = initialMoment?.shots[0]
 
   const [productionTree, setProductionTree] = useState<HierarchyNode[]>(workspaceData.hierarchyTree)
   const [newNodeTitle, setNewNodeTitle] = useState('')
   const [addTarget, setAddTarget] = useState<Pick<AddTarget, 'parentId' | 'type'> | null>(null)
-  const [selectedMomentId, setSelectedMomentId] = useState(initialMoment.id)
-  const [selectedShotId, setSelectedShotId] = useState(initialShot.id)
-  const [selectedNodeId, setSelectedNodeId] = useState(initialShot.id)
+  const [selectedMomentId, setSelectedMomentId] = useState(initialMoment?.id ?? '')
+  const [selectedShotId, setSelectedShotId] = useState(initialShot?.id ?? '')
+  const [selectedNodeId, setSelectedNodeId] = useState(initialShot?.id ?? workspaceData.hierarchyTree[0]?.id ?? '')
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(() => new Set(getExpandableNodeIds(workspaceData.hierarchyTree)))
   const [mode, setMode] = useState<PreviewMode>('structure')
   const [query, setQuery] = useState('')
@@ -121,37 +151,8 @@ export default function ContentSourceWorkspacePage() {
   const [selectionByAsset, setSelectionByAsset] = useState<Record<string, string>>(() => selectionByAssetFromUnits(workspaceData.assetReferenceUnits))
 
   useEffect(() => {
-    if (!projectId) {
-      setWorkspaceData(fixtureContentSourceWorkspaceData)
-      resetWorkspaceState(fixtureContentSourceWorkspaceData)
-      setWorkspaceDataStatus('fixture')
-      setWorkspaceDataError(null)
-      setSourceSyncStatus('clean')
-      return
-    }
-    let cancelled = false
-    setWorkspaceDataStatus('loading')
-    setWorkspaceDataError(null)
-    loadContentSourceWorkspaceData(projectId)
-      .then((data) => {
-        if (cancelled) return
-        setWorkspaceData(data)
-        resetWorkspaceState(data)
-        setWorkspaceDataStatus('workspace')
-        setSourceSyncStatus('clean')
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setWorkspaceData(fixtureContentSourceWorkspaceData)
-        resetWorkspaceState(fixtureContentSourceWorkspaceData)
-        setWorkspaceDataStatus('fallback')
-        setWorkspaceDataError(error instanceof Error ? error.message : 'workspace_data_load_failed')
-        setSourceSyncStatus('error')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [projectId])
+    resetWorkspaceState(workspaceData)
+  }, [workspaceData])
 
   const filteredMoments = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -174,7 +175,7 @@ export default function ContentSourceWorkspacePage() {
     })
   }, [previewMoments, query])
   const visibleTree = useMemo(() => filterHierarchyTree(productionTree, query), [productionTree, query])
-  const selectedNode = findHierarchyNode(productionTree, selectedNodeId) ?? productionTree[0]
+  const selectedNode = findHierarchyNode(productionTree, selectedNodeId) ?? productionTree[0] ?? emptyHierarchyNode
   const selectedAddTarget = useMemo(
     () => addTargetForSelectedNode(selectedNode),
     [selectedNode],
@@ -183,9 +184,8 @@ export default function ContentSourceWorkspacePage() {
   const selectedMoment = filteredMoments.find((moment) => moment.id === selectedMomentId)
     ?? filteredMoments[0]
     ?? previewMoments[0]
-    ?? fixtureContentSourceWorkspaceData.previewMoments[0]
-  const selectedShot = selectedMoment.shots.find((shot) => shot.id === selectedShotId) ?? selectedMoment.shots[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0].shots[0]
-  const selectedCandidateId = selectionByShot[selectedShot.id]
+  const selectedShot = selectedMoment?.shots.find((shot) => shot.id === selectedShotId) ?? selectedMoment?.shots[0]
+  const selectedCandidateId = selectedShot ? selectionByShot[selectedShot.id] : ''
 
   function selectMoment(moment: PreviewMoment) {
     setSelectedMomentId(moment.id)
@@ -199,74 +199,55 @@ export default function ContentSourceWorkspacePage() {
   }
 
   function selectContentUnitCandidate(contentUnitId: string, candidateId: string) {
-    setWorkspaceData((current) => updateContentSourceWorkspaceContentUnitSelection(current, contentUnitId, candidateId))
     setMode('select')
-    if (!projectId || workspaceData.source !== 'workspace') return
-    markSourceDirty()
-    selectContentSourceWorkspaceCandidate({
-      projectId,
+    runtime.selectCandidate({
       contentUnitId,
       candidateId,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_selection_failed')
+      console.error(error)
     })
   }
 
   function selectAssetCandidate(assetId: string, candidateId: string) {
     setSelectionByAsset((current) => ({ ...current, [assetId]: candidateId }))
     setMode('select')
-    if (!projectId || workspaceData.source !== 'workspace') return
-    markSourceDirty()
     const unit = workspaceData.assetReferenceUnits[assetId]
     const candidate = unit?.candidates.find((item) => item.id === candidateId)
     if (!unit) return
-    selectContentSourceWorkspaceCandidate({
-      projectId,
+    runtime.selectCandidate({
       contentUnitId: unit.contentUnitId,
       candidateId,
       resourceId: candidate?.resourceId,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_selection_failed')
+      console.error(error)
     })
   }
 
-  function createCandidateForContentUnit(contentUnit: PreviewContentUnit): Promise<void> {
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return createContentSourceWorkspaceCandidate({
-      projectId,
+  function createCandidateForContentUnit(contentUnit: PreviewContentUnit, resource?: CandidateResourceSelection): Promise<void> {
+    return runtime.createCandidate({
       contentUnitId: contentUnit.id,
       outputKind: contentUnit.outputKind,
       promptText: contentUnit.editPrompt,
+      ...resource,
     })
-      .then((candidate) => {
-        setWorkspaceData((current) => appendContentSourceWorkspaceContentUnitCandidate(current, contentUnit.id, candidate))
-      })
+      .then(() => undefined)
       .catch((error: unknown) => {
-        setWorkspaceDataStatus('fallback')
-        setWorkspaceDataError(error instanceof Error ? error.message : 'content_candidate_create_failed')
         throw error
       })
   }
 
-  function createCandidateForAsset(assetId: string): Promise<void> {
+  function createCandidateForAsset(assetId: string, resource?: CandidateResourceSelection): Promise<void> {
     const unit = workspaceData.assetReferenceUnits[assetId]
-    if (!unit || !projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return createContentSourceWorkspaceCandidate({
-      projectId,
+    if (!unit) return Promise.resolve()
+    return runtime.createCandidate({
       contentUnitId: unit.contentUnitId,
       outputKind: unit.outputKind,
       promptText: unit.editPrompt,
+      assetId,
+      ...resource,
     })
-      .then((candidate) => {
-        setWorkspaceData((current) => appendContentSourceWorkspaceAssetCandidate(current, assetId, candidate))
-      })
+      .then(() => undefined)
       .catch((error: unknown) => {
-        setWorkspaceDataStatus('fallback')
-        setWorkspaceDataError(error instanceof Error ? error.message : 'asset_candidate_create_failed')
         throw error
       })
   }
@@ -274,104 +255,54 @@ export default function ContentSourceWorkspacePage() {
   function updateAssetPrompt(assetId: string, text: string): Promise<void> {
     const unit = workspaceData.assetReferenceUnits[assetId]
     if (!unit) return Promise.resolve()
-    setWorkspaceData((current) => {
-      return updateContentSourceWorkspaceAssetPrompt(current, assetId, text)
-    })
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return updateContentSourceWorkspaceEditPrompt({
-      projectId,
+    return runtime.updateEditPrompt({
+      contentUnitId: unit.contentUnitId,
       targetPath: unit.path,
       text,
+      assetId,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_prompt_update_failed')
       throw error
     })
   }
 
   function updateContentUnitPrompt(contentUnitId: string, targetPath: string, text: string): Promise<void> {
-    setWorkspaceData((current) => updateContentSourceWorkspaceContentUnitPrompt(current, contentUnitId, text))
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return updateContentSourceWorkspaceEditPrompt({
-      projectId,
+    return runtime.updateEditPrompt({
+      contentUnitId,
       targetPath,
       text,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'content_unit_prompt_update_failed')
       throw error
     })
   }
 
   function updateExpressionUnit(unit: ExpressionUnit): Promise<void> {
-    setWorkspaceData((current) => updateContentSourceWorkspaceExpressionUnitState(current, unit))
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return updateContentSourceWorkspaceExpressionUnit({
-      projectId,
-      targetPath: unit.path,
-      title: unit.title,
-      kind: unit.kind,
-      text: unit.text,
-      summary: unit.summary,
-      speaker: unit.speaker,
-      note: unit.note,
-    }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'expression_unit_update_failed')
+    return runtime.updateExpressionUnit(unit).catch((error: unknown) => {
       throw error
     })
   }
 
   function updateAudioCue(cue: AudioCue): Promise<void> {
-    setWorkspaceData((current) => updateContentSourceWorkspaceAudioCueState(current, cue))
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return updateContentSourceWorkspaceAudioCue({
-      projectId,
-      targetPath: cue.path,
-      title: cue.title,
-      cueKind: cue.cueKind,
-      promptHint: cue.promptHint,
-      shotRef: cue.shotRef,
-      storyboardRef: cue.storyboardRef,
-      timing: cue.timing,
-      assetRefs: cue.assetRefs,
-    }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'audio_cue_update_failed')
+    return runtime.updateAudioCue(cue).catch((error: unknown) => {
       throw error
     })
   }
 
   function updateNodeTransition(nodeId: string, targetPath: string, transition: HierarchyTransition): Promise<void> {
-    setWorkspaceData((current) => updateContentSourceWorkspaceHierarchyPlanning(current, nodeId, { transition }))
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return updateContentSourceWorkspaceTransition({
-      projectId,
+    return runtime.updateTransition({
+      nodeId,
       targetPath,
       transition,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'entity_transition_update_failed')
       throw error
     })
   }
 
   function updateStoryboardTimeline(nodeId: string, targetPath: string, timeline: StoryboardTimeline): Promise<void> {
-    setWorkspaceData((current) => updateContentSourceWorkspaceHierarchyPlanning(current, nodeId, { storyboardTimeline: timeline }))
-    if (!projectId || workspaceData.source !== 'workspace') return Promise.resolve()
-    markSourceDirty()
-    return updateContentSourceWorkspaceStoryboardTimeline({
-      projectId,
+    return runtime.updateStoryboardTimeline({
+      nodeId,
       targetPath,
       timeline,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'storyboard_timeline_update_failed')
       throw error
     })
   }
@@ -430,41 +361,16 @@ export default function ContentSourceWorkspacePage() {
     setNewNodeTitle('')
     setAddTarget(null)
     setQuery('')
-    if (!projectId || workspaceData.source !== 'workspace') return
-    markSourceDirty()
-    createContentSourceWorkspaceHierarchyNode({
-      projectId,
+    runtime.createHierarchyNode({
       type: childType,
       id: pathSlug,
       title,
       targetPath: path,
       parentNode,
+      node,
     }).catch((error: unknown) => {
-      setWorkspaceDataStatus('fallback')
-      setWorkspaceDataError(error instanceof Error ? error.message : 'hierarchy_node_create_failed')
+      console.error(error)
     })
-  }
-
-  function markSourceDirty() {
-    setSourceSyncStatus((current) => current === 'syncing' ? current : 'dirty')
-  }
-
-  function syncWorkspaceSource() {
-    if (!projectId || workspaceData.source !== 'workspace' || sourceSyncStatus === 'syncing') return
-    setSourceSyncStatus('syncing')
-    setWorkspaceDataError(null)
-    syncContentSourceWorkspace({ projectId })
-      .then(() => loadContentSourceWorkspaceData(projectId))
-      .then((data) => {
-        setWorkspaceData(data)
-        resetWorkspaceState(data)
-        setWorkspaceDataStatus('workspace')
-        setSourceSyncStatus('synced')
-      })
-      .catch((error: unknown) => {
-        setSourceSyncStatus('error')
-        setWorkspaceDataError(error instanceof Error ? error.message : 'workspace_sync_failed')
-      })
   }
 
   function cancelChildNodeCreation() {
@@ -473,14 +379,14 @@ export default function ContentSourceWorkspacePage() {
   }
 
   function resetWorkspaceState(data: ContentSourceWorkspaceData) {
-    const nextMoment = data.previewMoments[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0]
-    const nextShot = nextMoment.shots[0] ?? fixtureContentSourceWorkspaceData.previewMoments[0].shots[0]
-    const nextTree = data.hierarchyTree.length > 0 ? data.hierarchyTree : fixtureContentSourceWorkspaceData.hierarchyTree
-    const nextSelectedNodeId = data.previewMoments[0]?.shots[0]?.id ?? nextTree[0]?.id ?? nextShot.id
+    const nextMoment = data.previewMoments[0]
+    const nextShot = nextMoment?.shots[0]
+    const nextTree = data.hierarchyTree
+    const nextSelectedNodeId = data.previewMoments[0]?.shots[0]?.id ?? nextTree[0]?.id ?? ''
     setProductionTree(nextTree)
     setExpandedNodeIds(new Set(getExpandableNodeIds(nextTree)))
-    setSelectedMomentId(nextMoment.id)
-    setSelectedShotId(nextShot.id)
+    setSelectedMomentId(nextMoment?.id ?? '')
+    setSelectedShotId(nextShot?.id ?? '')
     setSelectedNodeId(nextSelectedNodeId)
     setSelectionByShot(selectionByShotFromMoments(data.previewMoments))
     setSelectionByAsset(selectionByAssetFromUnits(data.assetReferenceUnits))
@@ -497,43 +403,38 @@ export default function ContentSourceWorkspacePage() {
     setQuery('')
   }
 
+  if (!runtimeState.data || runtimeState.status === 'loading' || runtimeState.status === 'idle' || runtimeState.status === 'error' || runtimeState.status === 'empty' || !selectedMoment || !selectedShot) {
+    return (
+      <ContentSourceWorkspaceStatusShell
+        status={runtimeState.status}
+        error={runtimeState.error}
+        projectId={projectId}
+        onRetry={() => {
+          if (projectId) runtime.loadProject(projectId).catch(() => undefined)
+          else runtime.showDemo(fixtureContentSourceWorkspaceData)
+        }}
+      />
+    )
+  }
+
+  const inspectorLinkedChild = findChildForNode(workspaceData, selectedNode, selectedShot)
+
   return (
     <main className="content-source-workspace content-source-workspace--source-workspace" data-testid="content-source-workspace-page">
       <aside className="content-source-workspace-nav">
-        <div className="content-source-workspace-nav__header">
-          <div>
-            <span className="content-source-workspace__eyebrow">Source Workspace</span>
-            <h2>Ontology Tree</h2>
-          </div>
-          <div className="content-source-workspace-nav__header-actions">
-            <Badge variant={workspaceDataStatus === 'workspace' ? 'outline' : 'soft'}>{workspaceDataStatusLabel(workspaceDataStatus)}</Badge>
-            <Badge variant={sourceSyncStatus === 'dirty' || sourceSyncStatus === 'error' ? 'soft' : 'outline'}>{sourceSyncStatusLabel(sourceSyncStatus)}</Badge>
-            <Badge variant="outline">{countHierarchyNodes(productionTree)} nodes</Badge>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!projectId || workspaceData.source !== 'workspace' || sourceSyncStatus === 'syncing'}
-              onClick={syncWorkspaceSource}
-            >
-              <GitCompareArrows size={13} />
-              {sourceSyncStatus === 'syncing' ? '同步中' : 'Interpret'}
-            </Button>
-            <button
-              type="button"
-              className="content-source-workspace-nav__add"
-              disabled={!selectedAddTarget}
-              title={selectedAddTarget ? `在 ${selectedAddTarget.parentTitle} 中添加 ${nodeTypeLabel(selectedAddTarget.type)}` : '当前层级不可添加'}
-              aria-label={selectedAddTarget ? `添加 ${nodeTypeLabel(selectedAddTarget.type)}` : '当前层级不可添加'}
-              onClick={startAddForSelection}
-            >
-              <FilePlus2 size={14} />
-            </button>
-          </div>
-        </div>
         <div className="content-source-workspace-nav__search">
           <Search size={14} />
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索层级节点或源文件" />
+          <button
+            type="button"
+            className="content-source-workspace-nav__add"
+            disabled={!selectedAddTarget}
+            title={selectedAddTarget ? `在 ${selectedAddTarget.parentTitle} 中添加 ${nodeTypeLabel(selectedAddTarget.type)}` : '当前层级不可添加'}
+            aria-label={selectedAddTarget ? `添加 ${nodeTypeLabel(selectedAddTarget.type)}` : '当前层级不可添加'}
+            onClick={startAddForSelection}
+          >
+            <FilePlus2 size={14} />
+          </button>
         </div>
         <div className="content-source-workspace-nav__tree">
           <HierarchyTree
@@ -552,18 +453,37 @@ export default function ContentSourceWorkspacePage() {
         <div className="content-source-workspace-nav__selection">
           <span>当前节点</span>
           <strong>{nodeTypeLabel(selectedNode.type)} · {selectedNode.title}</strong>
-          {workspaceDataError ? <small>{workspaceDataError}</small> : null}
+          {runtimeState.error ? <small>{runtimeState.error}</small> : null}
         </div>
       </aside>
 
       <section className="content-source-workspace__stage">
         <HierarchyContentView
           node={selectedNode}
+          workspaceData={workspaceData}
           moments={filteredMoments}
           selectedMoment={selectedMoment}
           selectedShot={selectedShot}
-          onSelectMoment={selectMoment}
           onSelectShot={selectShot}
+          onJumpToNode={jumpToNode}
+        />
+      </section>
+
+      <aside className="content-source-workspace-inspector" aria-label="内容单元控制台">
+        <div className="content-source-workspace-inspector__header">
+          <div>
+            <span className="content-source-workspace__eyebrow">Inspector</span>
+            <h2>编辑与选择</h2>
+            <p>{nodeTypeLabel(selectedNode.type)} · {selectedNode.title}</p>
+          </div>
+          {selectedNode.state ? <Badge variant={selectedNode.state === 'current' || selectedNode.state === 'selected' ? 'outline' : 'soft'}>{stateLabel(selectedNode.state)}</Badge> : null}
+        </div>
+        <NodeFocusDeck
+          node={selectedNode}
+          workspaceData={workspaceData}
+          currentMoment={selectedMoment}
+          selectedShot={selectedShot}
+          linkedContentUnit={inspectorLinkedChild?.contentUnit}
           selectedCandidateId={selectedCandidateId}
           selectedAssetCandidateId={selectionByAsset[selectedNode.id] ?? ''}
           onSelectCandidate={selectCandidate}
@@ -573,13 +493,8 @@ export default function ContentSourceWorkspacePage() {
           onCreateAssetCandidate={createCandidateForAsset}
           onUpdateAssetPrompt={updateAssetPrompt}
           onUpdateContentUnitPrompt={updateContentUnitPrompt}
-          onUpdateExpressionUnit={updateExpressionUnit}
-          onUpdateAudioCue={updateAudioCue}
-          onUpdateTransition={updateNodeTransition}
-          onUpdateStoryboardTimeline={updateStoryboardTimeline}
-          onJumpToNode={jumpToNode}
         />
-      </section>
+      </aside>
     </main>
   )
 }
@@ -604,8 +519,79 @@ function selectionByAssetFromUnits(units: Record<string, PreviewAssetReferenceUn
   )
 }
 
-function shotWorkspaceFor(shotId: string): ShotWorkspaceDetails {
-  return activeWorkspaceData.shotWorkspaceDetails[shotId] ?? {
+function ContentSourceWorkspaceStatusShell({
+  status,
+  error,
+  projectId,
+  onRetry,
+}: {
+  status: ContentSourceWorkspaceRuntimeStatus
+  error?: string
+  projectId?: number
+  onRetry: () => void
+}) {
+  return (
+    <main className="content-source-workspace content-source-workspace--source-workspace" data-testid="content-source-workspace-page">
+      <aside className="content-source-workspace-nav">
+        <div className="content-source-workspace-nav__header" />
+      </aside>
+      <section className="content-source-workspace__stage">
+        <div className="content-source-workspace-board">
+          <section className="content-source-workspace-entity-view">
+            <div className="content-source-workspace-entity-view__header">
+              <div>
+                <span className="content-source-workspace__eyebrow">{projectId ? `Project ${projectId}` : 'Demo mode'}</span>
+                <h3>{statusShellTitle(status)}</h3>
+                <p>{error ?? statusShellCopy(status)}</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+                <GitCompareArrows size={13} />
+                {status === 'loading' ? '加载中' : '重试'}
+              </Button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function statusShellTitle(status: ContentSourceWorkspaceRuntimeStatus): string {
+  switch (status) {
+    case 'loading':
+      return '正在读取真实内容编排数据'
+    case 'empty':
+      return '当前项目还没有内容编排数据'
+    case 'error':
+      return '内容编排数据读取失败'
+    case 'demo':
+      return '演示内容'
+    case 'ready':
+      return '内容编排已加载'
+    case 'idle':
+      return '等待项目上下文'
+  }
+}
+
+function statusShellCopy(status: ContentSourceWorkspaceRuntimeStatus): string {
+  switch (status) {
+    case 'loading':
+      return '正在从 workspace index 和 interpreted artifacts 组装当前项目视图。'
+    case 'empty':
+      return '没有找到 production、scene moment、shot 或 content unit。'
+    case 'error':
+      return '读取失败后不会回退到演示数据，避免把假内容当作真实项目。'
+    case 'demo':
+      return '当前没有打开项目，显示显式演示内容。'
+    case 'ready':
+      return '当前页面绑定的是真实 workspace 数据。'
+    case 'idle':
+      return '请选择或打开一个项目。'
+  }
+}
+
+function shotWorkspaceFor(data: ContentSourceWorkspaceData, shotId: string): ShotWorkspaceDetails {
+  return data.shotWorkspaceDetails[shotId] ?? {
     settings: [],
     assets: [],
     keyframes: [],
@@ -614,35 +600,7 @@ function shotWorkspaceFor(shotId: string): ShotWorkspaceDetails {
   }
 }
 
-function workspaceDataStatusLabel(status: WorkspaceDataStatus): string {
-  switch (status) {
-    case 'workspace':
-      return 'Live source'
-    case 'loading':
-      return 'Loading'
-    case 'fallback':
-      return 'Fixture fallback'
-    case 'fixture':
-      return 'Fixture'
-  }
-}
-
-function sourceSyncStatusLabel(status: SourceSyncStatus): string {
-  switch (status) {
-    case 'clean':
-      return 'Interpreted'
-    case 'dirty':
-      return 'Needs interpret'
-    case 'syncing':
-      return 'Interpreting'
-    case 'synced':
-      return 'Synced'
-    case 'error':
-      return 'Sync failed'
-  }
-}
-
-function PreviewMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
+function PreviewMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number | string }) {
   return (
     <div className="content-source-workspace-overview__metric">
       <Icon size={15} />
@@ -803,55 +761,29 @@ function HierarchyAddForm({
 
 function HierarchyContentView({
   node,
+  workspaceData,
   moments,
   selectedMoment,
   selectedShot,
-  onSelectMoment,
   onSelectShot,
-  selectedCandidateId,
-  selectedAssetCandidateId,
-  onSelectCandidate,
-  onSelectContentUnitCandidate,
-  onSelectAssetCandidate,
-  onCreateContentUnitCandidate,
-  onCreateAssetCandidate,
-  onUpdateAssetPrompt,
-  onUpdateContentUnitPrompt,
-  onUpdateExpressionUnit,
-  onUpdateAudioCue,
-  onUpdateTransition,
-  onUpdateStoryboardTimeline,
   onJumpToNode,
 }: {
   node: HierarchyNode
+  workspaceData: ContentSourceWorkspaceData
   moments: PreviewMoment[]
   selectedMoment: PreviewMoment
   selectedShot: PreviewShot
-  onSelectMoment: (moment: PreviewMoment) => void
   onSelectShot: (momentId: string, shotId: string) => void
-  selectedCandidateId: string
-  selectedAssetCandidateId: string
-  onSelectCandidate: (candidateId: string) => void
-  onSelectContentUnitCandidate: (contentUnitId: string, candidateId: string) => void
-  onSelectAssetCandidate: (assetId: string, candidateId: string) => void
-  onCreateContentUnitCandidate: (contentUnit: PreviewContentUnit) => Promise<void>
-  onCreateAssetCandidate: (assetId: string) => Promise<void>
-  onUpdateAssetPrompt: (assetId: string, text: string) => Promise<void>
-  onUpdateContentUnitPrompt: (contentUnitId: string, targetPath: string, text: string) => Promise<void>
-  onUpdateExpressionUnit: (unit: ExpressionUnit) => Promise<void>
-  onUpdateAudioCue: (cue: AudioCue) => Promise<void>
-  onUpdateTransition: (nodeId: string, targetPath: string, transition: HierarchyTransition) => Promise<void>
-  onUpdateStoryboardTimeline: (nodeId: string, targetPath: string, timeline: StoryboardTimeline) => Promise<void>
   onJumpToNode: (nodeId: string, momentId?: string, shotId?: string) => void
 }) {
-  const linkedChild = findChildForNode(node, selectedShot)
+  const linkedChild = findChildForNode(workspaceData, node, selectedShot)
   const linkedContentUnit = linkedChild?.contentUnit
-  const workspace = shotWorkspaceFor(selectedShot.id)
+  const workspace = shotWorkspaceFor(workspaceData, selectedShot.id)
   const currentMoment = node.type === 'scene_moment' || node.type === 'group'
     ? moments.find((moment) => moment.id === (node.momentId ?? node.id)) ?? selectedMoment
     : selectedMoment
-  const currentExpressionUnits = activeWorkspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
-  const currentAudioCues = activeWorkspaceData.audioCuesByMoment[currentMoment.id] ?? []
+  const currentExpressionUnits = workspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
+  const currentAudioCues = workspaceData.audioCuesByMoment[currentMoment.id] ?? []
   const selectedExpressionUnit = currentExpressionUnits.find((unit) => unit.id === node.id)
   const selectedAudioCue = currentAudioCues.find((cue) => cue.id === node.id)
 
@@ -862,49 +794,14 @@ function HierarchyContentView({
           <div>
             <span className="content-source-workspace__eyebrow">{nodeTypeLabel(node.type)} View</span>
             <h3>{node.title}</h3>
-            {node.type !== 'asset' ? <p>{node.path}</p> : null}
+            {node.type !== 'asset' ? <p>{nodeDisplayMeta(node)}</p> : null}
           </div>
-          {node.state ? <Badge variant={node.state === 'current' || node.state === 'selected' ? 'outline' : 'soft'}>{stateLabel(node.state)}</Badge> : null}
+          <div className="content-source-workspace-entity-view__badges">
+            {node.state ? <Badge variant={node.state === 'current' || node.state === 'selected' ? 'outline' : 'soft'}>{stateLabel(node.state)}</Badge> : null}
+          </div>
         </div>
 
-        {node.type !== 'asset' ? (
-          <section className="content-source-workspace-entity-preview">
-            <div className="content-source-workspace-entity-preview__visual">
-              <img src={stillSheetUrl} alt="" style={stillSheetStyle(selectedShot.stillPosition)} />
-              <Badge variant="outline">{previewKindLabel(node.type)}</Badge>
-            </div>
-            <div className="content-source-workspace-entity-preview__meta">
-              <span className="content-source-workspace__eyebrow">Preview</span>
-              <h4>{previewTitleForNode(node, selectedShot, linkedChild)}</h4>
-              <p>{previewCopyForNode(node, selectedShot, linkedChild)}</p>
-              <div className="content-source-workspace-view-jumps">
-                <Button type="button" size="sm">
-                  <Wand2 size={13} />
-                  生成预览
-                </Button>
-                <Button type="button" size="sm" variant="outline">
-                  <Check size={13} />
-                  设为选择
-                </Button>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        <NodeFocusDeck
-          node={node}
-          currentMoment={currentMoment}
-          selectedShot={selectedShot}
-          linkedContentUnit={linkedContentUnit}
-          selectedCandidateId={selectedCandidateId}
-          selectedAssetCandidateId={selectedAssetCandidateId}
-          onSelectCandidate={onSelectCandidate}
-          onSelectContentUnitCandidate={onSelectContentUnitCandidate}
-          onSelectAssetCandidate={onSelectAssetCandidate}
-          onUpdateAssetPrompt={onUpdateAssetPrompt}
-          onUpdateContentUnitPrompt={onUpdateContentUnitPrompt}
-          onJumpToNode={onJumpToNode}
-        />
+        <NodePreviewSelectionWorkspace node={node} workspaceData={workspaceData} selectedShot={selectedShot} linkedContentUnit={linkedContentUnit} linkedChild={linkedChild} />
 
         <section className="content-source-workspace-entity-section content-source-workspace-entity-section--supporting">
           <div className="content-source-workspace-entity-section__title">
@@ -913,13 +810,13 @@ function HierarchyContentView({
           </div>
           {node.type === 'production' || node.type === 'segment' ? (
             <PreviewPacket icon={Layers3} title="Scene Moments" meta={`${moments.length} moments`}>
-              <PreviewList items={moments.map((moment) => `${selectionStateText(moment.selectionState)} · ${moment.path}`)} />
+              <PreviewList items={moments.map((moment) => `${selectionStateText(moment.selectionState)} · ${moment.title}`)} />
             </PreviewPacket>
           ) : null}
           {node.type === 'scene_moment' ? (
             <div className="content-source-workspace-entity-split">
               <PreviewPacket icon={Clapperboard} title="Shots" meta={`${currentMoment.shots.length} shots`}>
-                <ShotCardRow moment={currentMoment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
+                <ShotCardRow workspaceData={workspaceData} moment={currentMoment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
               </PreviewPacket>
               <PreviewPacket icon={Sparkles} title="Expression Units" meta={`${currentExpressionUnits.length} units`}>
                 <ExpressionUnitList items={currentExpressionUnits} />
@@ -932,13 +829,14 @@ function HierarchyContentView({
           {node.type === 'group' ? (
             <GroupRelationView
               node={node}
+              workspaceData={workspaceData}
               currentMoment={currentMoment}
               selectedShot={selectedShot}
               onSelectShot={onSelectShot}
             />
           ) : null}
           {node.type === 'setting' || node.type === 'state' ? (
-            <SettingScopeDetail node={node} onJumpToNode={onJumpToNode} />
+            <SettingScopeDetail node={node} workspaceData={workspaceData} onJumpToNode={onJumpToNode} />
           ) : null}
           {node.type === 'shot' ? (
             <div className="content-source-workspace-entity-split">
@@ -956,23 +854,15 @@ function HierarchyContentView({
             </PreviewPacket>
           ) : null}
           {node.type === 'expression_unit' ? (
-            <PreviewPacket icon={Sparkles} title="Expression Unit" meta={node.id}>
+            <PreviewPacket icon={Sparkles} title="Expression Unit" meta={nodeDisplayMeta(node)}>
               {selectedExpressionUnit ? <ExpressionUnitList items={[selectedExpressionUnit]} /> : <PreviewList items={['未在当前 scene_moment 中找到 expression_unit source。']} />}
             </PreviewPacket>
           ) : null}
           {node.type === 'audio_cue' ? (
-            <PreviewPacket icon={Sparkles} title="Audio Cue" meta={node.id}>
+            <PreviewPacket icon={Sparkles} title="Audio Cue" meta={nodeDisplayMeta(node)}>
               {selectedAudioCue ? <AudioCueList items={[selectedAudioCue]} /> : <PreviewList items={['未在当前 scene_moment 中找到 audio_cue source。']} />}
             </PreviewPacket>
           ) : null}
-          <RelatedContentUnitModules
-            node={node}
-            moments={moments}
-            currentMoment={currentMoment}
-            selectedShot={selectedShot}
-            onUpdateAssetPrompt={onUpdateAssetPrompt}
-            onUpdateContentUnitPrompt={onUpdateContentUnitPrompt}
-          />
         </section>
 
       </section>
@@ -991,8 +881,104 @@ interface NodeFocusItem {
   shotId?: string
 }
 
+function NodePreviewSelectionWorkspace({
+  node,
+  workspaceData,
+  selectedShot,
+  linkedContentUnit,
+  linkedChild,
+}: {
+  node: HierarchyNode
+  workspaceData: ContentSourceWorkspaceData
+  selectedShot: PreviewShot
+  linkedContentUnit?: PreviewContentUnit
+  linkedChild?: ShotChildOption
+}) {
+  const assetUnit = node.type === 'asset' ? assetReferenceUnitForNode(workspaceData, node) : undefined
+  const contentUnit = node.type === 'shot' ? selectedShot.contentUnit : linkedContentUnit
+  const selectedId = assetUnit
+    ? assetUnit.candidates.find((candidate) => candidate.selected)?.id || ''
+    : contentUnit?.candidates.find((candidate) => candidate.selected)?.id ?? ''
+  const selectedCandidate = assetUnit?.candidates.find((candidate) => candidate.id === selectedId)
+    ?? contentUnit?.candidates.find((candidate) => candidate.id === selectedId)
+    ?? assetUnit?.candidates.find((candidate) => candidate.selected)
+    ?? contentUnit?.candidates.find((candidate) => candidate.selected)
+
+  return (
+    <section className="content-source-workspace-preview-selection">
+      <NodePreviewPane
+        node={node}
+        selectedShot={selectedShot}
+        linkedChild={linkedChild}
+        assetUnit={assetUnit}
+        contentUnit={contentUnit}
+        selectedCandidate={selectedCandidate}
+      />
+    </section>
+  )
+}
+
+function NodePreviewPane({
+  node,
+  selectedShot,
+  linkedChild,
+  assetUnit,
+  contentUnit,
+  selectedCandidate,
+}: {
+  node: HierarchyNode
+  selectedShot: PreviewShot
+  linkedChild?: ShotChildOption
+  assetUnit?: PreviewAssetReferenceUnit
+  contentUnit?: PreviewContentUnit
+  selectedCandidate?: PreviewAssetCandidate | PreviewCandidate
+}) {
+  const candidateCount = assetUnit?.candidates.length ?? contentUnit?.candidates.length ?? 0
+  const hasCandidateTarget = Boolean(assetUnit || contentUnit)
+  const showEmptyPreview = hasCandidateTarget && candidateCount === 0
+  const imagePosition = node.type === 'asset'
+    ? node.shotId === 'shot_headlights_back'
+      ? '100% 0%'
+      : node.shotId === 'shot_elevator_gap'
+        ? '0% 100%'
+        : '0% 0%'
+    : selectedShot.stillPosition
+  const title = selectedCandidate?.title ?? previewTitleForNode(node, selectedShot, linkedChild)
+  const copy = selectedCandidate
+    ? `${'resourceId' in selectedCandidate ? selectedCandidate.resourceId : selectedCandidate.id} · ${selectedCandidate.inputHash}`
+    : assetUnit
+      ? '选择候选后，下游会记录这个参考图确认态。'
+      : previewCopyForNode(node, selectedShot, linkedChild)
+
+  return (
+    <section className="content-source-workspace-entity-preview">
+      <div className="content-source-workspace-entity-preview__visual" data-empty={showEmptyPreview}>
+        {showEmptyPreview ? (
+          <span className="content-source-workspace-entity-preview__empty">
+            <Image size={22} />
+            <em>暂无候选预览</em>
+          </span>
+        ) : (
+          <img src={stillSheetUrl} alt="" style={stillSheetStyle(imagePosition)} />
+        )}
+        <Badge variant="outline">{previewKindLabel(node.type)}</Badge>
+      </div>
+      <div className="content-source-workspace-entity-preview__meta">
+        <span className="content-source-workspace__eyebrow">Preview</span>
+        <h4>{title}</h4>
+        <p>{copy}</p>
+        <div className="content-source-workspace-asset-impact-summary">
+          <PreviewMetric icon={Sparkles} label="Candidates" value={candidateCount} />
+          <PreviewMetric icon={Check} label="Selection" value={assetUnit || contentUnit ? selectionStateText(assetUnit?.selectionState ?? contentUnit?.selectionState ?? 'ready') : '不需要候选'} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function NodeFocusDeck({
   node,
+  workspaceData,
   currentMoment,
   selectedShot,
   linkedContentUnit,
@@ -1001,11 +987,13 @@ function NodeFocusDeck({
   onSelectCandidate,
   onSelectContentUnitCandidate,
   onSelectAssetCandidate,
+  onCreateContentUnitCandidate,
+  onCreateAssetCandidate,
   onUpdateAssetPrompt,
   onUpdateContentUnitPrompt,
-  onJumpToNode,
 }: {
   node: HierarchyNode
+  workspaceData: ContentSourceWorkspaceData
   currentMoment: PreviewMoment
   selectedShot: PreviewShot
   linkedContentUnit?: PreviewContentUnit
@@ -1014,36 +1002,100 @@ function NodeFocusDeck({
   onSelectCandidate: (candidateId: string) => void
   onSelectContentUnitCandidate: (contentUnitId: string, candidateId: string) => void
   onSelectAssetCandidate: (assetId: string, candidateId: string) => void
+  onCreateContentUnitCandidate: (contentUnit: PreviewContentUnit, resource?: CandidateResourceSelection) => Promise<void>
+  onCreateAssetCandidate: (assetId: string, resource?: CandidateResourceSelection) => Promise<void>
   onUpdateAssetPrompt: (assetId: string, text: string) => Promise<void>
   onUpdateContentUnitPrompt: (contentUnitId: string, targetPath: string, text: string) => Promise<void>
-  onJumpToNode: (nodeId: string, momentId?: string, shotId?: string) => void
 }) {
-  const assetUnit = node.type === 'asset' ? assetReferenceUnitForNode(node) : undefined
+  const assetUnit = node.type === 'asset' ? assetReferenceUnitForNode(workspaceData, node) : undefined
   const contentUnit = node.type === 'shot' ? selectedShot.contentUnit : linkedContentUnit
   const candidateState = assetUnit?.selectionState ?? contentUnit?.selectionState
   const candidates = assetUnit?.candidates ?? contentUnit?.candidates ?? []
+  const promptText = assetUnit?.editPrompt ?? contentUnit?.editPrompt ?? ''
+  const hasCandidateTarget = Boolean(assetUnit || contentUnit)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+  const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
+  const [resourceSearch, setResourceSearch] = useState('')
+  const [resourceType, setResourceType] = useState<ResourceTypeFilter>('all')
+  const [resourcePage, setResourcePage] = useState(1)
+  const [selectedResource, setSelectedResource] = useState<RawResource | null>(null)
+  const [creatingResourceCandidate, setCreatingResourceCandidate] = useState(false)
   const selectedId = assetUnit
     ? selectedAssetCandidateId || assetUnit.candidates.find((candidate) => candidate.selected)?.id || ''
     : node.type === 'shot'
       ? selectedCandidateId
       : contentUnit?.candidates.find((candidate) => candidate.selected)?.id ?? ''
-  const childItems = childFocusItemsForNode(node, currentMoment, selectedShot)
-  const referenceItems = referenceFocusItemsForNode(node, selectedShot, linkedContentUnit)
   const selectedLabel = candidates.find((candidate) => candidate.id === selectedId)?.title
+  const emptyCandidateSummary = hasCandidateTarget
+    ? '还没有候选，可从资源库选择已有资源，或拷贝提示词去外部生成。'
+    : '该层级没有独立候选槽。'
+  const resourceQuery = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['content-source-workspace-candidate-resources', resourceSearch, resourceType, resourcePage],
+    queryFn: () => api.get('/resources', {
+      params: {
+        page: resourcePage,
+        page_size: candidateResourcePageSize,
+        q: resourceSearch || undefined,
+        type: resourceType === 'all' ? undefined : resourceType,
+      },
+    }).then((response) => response.data),
+    enabled: resourcePickerOpen,
+  })
+  const resourcePageData = resourceQuery.data
+  const resourcePageCount = Math.max(1, Math.ceil((resourcePageData?.total ?? 0) / candidateResourcePageSize))
+
+  function copyPrompt() {
+    if (!promptText.trim()) {
+      toast.error('暂无可拷贝的提示词')
+      return
+    }
+    navigator.clipboard.writeText(promptText)
+      .then(() => {
+        setCopiedPrompt(true)
+        toast.success('提示词已拷贝')
+        window.setTimeout(() => setCopiedPrompt(false), 1400)
+      })
+      .catch(() => toast.error('拷贝提示词失败'))
+  }
+
+  function createCandidateFromSelectedResource() {
+    if (!selectedResource || creatingResourceCandidate) return
+    const resource: CandidateResourceSelection = {
+      resourceId: selectedResource.ID,
+      resourceName: selectedResource.name,
+      resourceType: selectedResource.type,
+      resourceMimeType: selectedResource.mime_type,
+    }
+    setCreatingResourceCandidate(true)
+    const create = assetUnit
+      ? onCreateAssetCandidate(assetUnit.assetId, resource)
+      : contentUnit
+        ? onCreateContentUnitCandidate(contentUnit, resource)
+        : Promise.resolve()
+    create
+      .then(() => {
+        toast.success('候选已加入', `${selectedResource.name} · 资源 #${selectedResource.ID}`)
+        setResourcePickerOpen(false)
+        setSelectedResource(null)
+      })
+      .catch(() => toast.error('加入候选失败'))
+      .finally(() => setCreatingResourceCandidate(false))
+  }
 
   return (
     <section className="content-source-workspace-focus">
       <FocusPanel
         icon={Sparkles}
         tone={candidateState === 'selected' ? 'good' : candidates.length ? 'warn' : 'quiet'}
-        title="候选与选择"
+        title="编辑与选择"
         value={candidates.length ? `${candidates.length} 个候选` : '无候选'}
         status={candidateState ? selectionStateText(candidateState) : '不需要候选'}
-        summary={selectedLabel ? `当前选择：${selectedLabel}` : candidates.length ? '已有候选，尚未确认选择。' : '该层级没有独立候选槽。'}
+        summary={selectedLabel ? `当前选择：${selectedLabel}` : candidates.length ? '已有候选，尚未确认选择。' : emptyCandidateSummary}
       >
         {assetUnit || contentUnit ? (
           <DependencyPromptEditor
             node={node}
+            workspaceData={workspaceData}
             currentMoment={currentMoment}
             selectedShot={selectedShot}
             assetUnit={assetUnit}
@@ -1051,6 +1103,18 @@ function NodeFocusDeck({
             onUpdateAssetPrompt={onUpdateAssetPrompt}
             onUpdateContentUnitPrompt={onUpdateContentUnitPrompt}
           />
+        ) : null}
+        {hasCandidateTarget && candidates.length === 0 ? (
+          <div className="content-source-workspace-empty-candidate-actions">
+            <Button type="button" size="sm" onClick={() => setResourcePickerOpen(true)}>
+              <Library size={13} />
+              选择资源候选
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={copyPrompt}>
+              {copiedPrompt ? <Check size={13} /> : <Copy size={13} />}
+              {copiedPrompt ? '已拷贝' : '拷贝提示词'}
+            </Button>
+          </div>
         ) : null}
         {assetUnit ? (
           <AssetReferenceCandidateList
@@ -1071,28 +1135,47 @@ function NodeFocusDeck({
         ) : (
           <FocusEmpty icon={Sparkles} text="结构层级本身不产出候选，候选通常挂在 asset、shot、keyframe 或 storyboard 对应的 content_unit 上。" />
         )}
-      </FocusPanel>
-
-      <FocusPanel
-        icon={Layers3}
-        tone={childItems.length ? 'info' : 'quiet'}
-        title="下级结构"
-        value={childItems.length ? `${childItems.length} 个下级` : '无下级'}
-        status={childItems.length ? '可展开' : '叶子节点'}
-        summary={childItems.length ? '当前层级下面已有可跳转的子节点。' : '当前节点已经是最小可观察单元。'}
-      >
-        <FocusItemList items={childItems} emptyText="暂无下级节点。" onJumpToNode={onJumpToNode} />
-      </FocusPanel>
-
-      <FocusPanel
-        icon={GitCompareArrows}
-        tone={referenceItems.some((item) => item.state === 'stale' || item.state === 'needs_candidate' || item.state === 'missing') ? 'warn' : referenceItems.length ? 'good' : 'quiet'}
-        title="被引用"
-        value={referenceItems.length ? `${referenceItems.length} 个引用` : '未被引用'}
-        status={referenceItems.length ? '有下游' : '无下游'}
-        summary={referenceItems.length ? '这些内容单元或制作对象依赖当前节点。' : '当前节点还没有被其他内容单元使用。'}
-      >
-        <FocusItemList items={referenceItems} emptyText="暂无引用记录。" onJumpToNode={onJumpToNode} />
+        <Dialog open={resourcePickerOpen} onOpenChange={(open) => {
+          setResourcePickerOpen(open)
+          if (!open) setSelectedResource(null)
+        }}>
+          <ResourceDialogContent size="md">
+            <ResourceDialogTitle>从资源库选择候选</ResourceDialogTitle>
+            <ResourceDialogText>
+              选择一个已有资源加入当前内容单元候选列表。
+            </ResourceDialogText>
+            <ResourceLibraryPicker
+              resources={resourcePageData?.items ?? []}
+              selectedResource={selectedResource}
+              search={resourceSearch}
+              type={resourceType}
+              page={resourcePage}
+              pageCount={resourcePageCount}
+              total={resourcePageData?.total ?? 0}
+              isLoading={resourceQuery.isLoading || resourceQuery.isFetching}
+              onSearch={(value) => {
+                setResourceSearch(value)
+                setResourcePage(1)
+              }}
+              onType={(value) => {
+                setResourceType(value)
+                setResourcePage(1)
+              }}
+              onPage={setResourcePage}
+              onSelect={setSelectedResource}
+              onClear={() => setSelectedResource(null)}
+              variant="prep-dialog"
+            />
+            <ResourceDialogFooter>
+              <Button type="button" variant="outline" onClick={() => setResourcePickerOpen(false)}>
+                取消
+              </Button>
+              <Button type="button" disabled={!selectedResource || creatingResourceCandidate} onClick={createCandidateFromSelectedResource}>
+                {creatingResourceCandidate ? '加入中' : '加入候选'}
+              </Button>
+            </ResourceDialogFooter>
+          </ResourceDialogContent>
+        </Dialog>
       </FocusPanel>
     </section>
   )
@@ -1149,6 +1232,7 @@ interface PromptDependencyRef {
 
 function DependencyPromptEditor({
   node,
+  workspaceData,
   currentMoment,
   selectedShot,
   assetUnit,
@@ -1157,6 +1241,7 @@ function DependencyPromptEditor({
   onUpdateContentUnitPrompt,
 }: {
   node: HierarchyNode
+  workspaceData: ContentSourceWorkspaceData
   currentMoment: PreviewMoment
   selectedShot: PreviewShot
   assetUnit?: PreviewAssetReferenceUnit
@@ -1170,7 +1255,7 @@ function DependencyPromptEditor({
   const [draftPrompt, setDraftPrompt] = useState(sourcePrompt)
   const [savingPrompt, setSavingPrompt] = useState(false)
   const promptDirty = draftPrompt !== sourcePrompt
-  const options = promptDependencyOptionsForNode(node, currentMoment, selectedShot, assetUnit, contentUnit)
+  const options = promptDependencyOptionsForNode(workspaceData, node, currentMoment, selectedShot, assetUnit, contentUnit)
   const refs = promptRefsFromText(draftPrompt)
 
   useEffect(() => {
@@ -1259,6 +1344,7 @@ function promptRefsFromText(value: string): Array<{ kind: string; id: string }> 
 }
 
 function promptDependencyOptionsForNode(
+  workspaceData: ContentSourceWorkspaceData,
   node: HierarchyNode,
   currentMoment: PreviewMoment,
   selectedShot: PreviewShot,
@@ -1295,7 +1381,7 @@ function promptDependencyOptionsForNode(
       state: asset.status,
     })
   }
-  for (const ref of findRefsForNode(node)) {
+  for (const ref of findRefsForNode(workspaceData, node)) {
     const [kind = 'ref', id = ref.id] = ref.id.split('/')
     options.push({ kind, id, title: ref.title, state: ref.status })
   }
@@ -1304,187 +1390,6 @@ function promptDependencyOptionsForNode(
 
 function uniquePromptDependencyRefs(items: PromptDependencyRef[]): PromptDependencyRef[] {
   return Array.from(new Map(items.map((item) => [`${item.kind}:${item.id}`, item])).values())
-}
-
-interface RelatedContentUnitModule {
-  key: string
-  title: string
-  meta: string
-  node: HierarchyNode
-  currentMoment: PreviewMoment
-  selectedShot: PreviewShot
-  assetUnit?: PreviewAssetReferenceUnit
-  contentUnit?: PreviewContentUnit
-}
-
-function RelatedContentUnitModules({
-  node,
-  moments,
-  currentMoment,
-  selectedShot,
-  onUpdateAssetPrompt,
-  onUpdateContentUnitPrompt,
-}: {
-  node: HierarchyNode
-  moments: PreviewMoment[]
-  currentMoment: PreviewMoment
-  selectedShot: PreviewShot
-  onUpdateAssetPrompt: (assetId: string, text: string) => Promise<void>
-  onUpdateContentUnitPrompt: (contentUnitId: string, targetPath: string, text: string) => Promise<void>
-}) {
-  const modules = relatedContentUnitModulesForNode(node, moments, currentMoment, selectedShot)
-
-  return (
-    <PreviewPacket icon={FilePenLine} title="关联内容单元" meta={`${modules.length} content_units`}>
-      {modules.length ? (
-        <div className="content-source-workspace-content-unit-modules">
-          {modules.map((module) => (
-            <article key={module.key} className="content-source-workspace-content-unit-module">
-              <div className="content-source-workspace-content-unit-module__header">
-                <span>
-                  <strong>{module.title}</strong>
-                  <small>{module.meta}</small>
-                </span>
-                <Badge variant={module.assetUnit?.selectionState === 'selected' || module.contentUnit?.selectionState === 'selected' ? 'outline' : 'soft'}>
-                  {module.assetUnit ? selectionStateText(module.assetUnit.selectionState) : module.contentUnit ? selectionStateText(module.contentUnit.selectionState) : '无内容单元'}
-                </Badge>
-              </div>
-              <DependencyPromptEditor
-                node={module.node}
-                currentMoment={module.currentMoment}
-                selectedShot={module.selectedShot}
-                assetUnit={module.assetUnit}
-                contentUnit={module.contentUnit}
-                onUpdateAssetPrompt={onUpdateAssetPrompt}
-                onUpdateContentUnitPrompt={onUpdateContentUnitPrompt}
-              />
-            </article>
-          ))}
-        </div>
-      ) : (
-        <FocusEmpty icon={FilePenLine} text="当前层级下没有可编辑提示词的内容单元。" />
-      )}
-    </PreviewPacket>
-  )
-}
-
-function relatedContentUnitModulesForNode(
-  node: HierarchyNode,
-  moments: PreviewMoment[],
-  currentMoment: PreviewMoment,
-  selectedShot: PreviewShot,
-): RelatedContentUnitModule[] {
-  const modules: RelatedContentUnitModule[] = []
-
-  function addContentUnit(contentUnit: PreviewContentUnit | undefined, ownerNode: HierarchyNode, moment: PreviewMoment, shot: PreviewShot, title: string) {
-    if (!contentUnit) return
-    modules.push({
-      key: `content_unit:${contentUnit.id}`,
-      title,
-      meta: `${contentUnit.id} · ${contentUnit.type} · ${contentUnit.outputKind}`,
-      node: ownerNode,
-      currentMoment: moment,
-      selectedShot: shot,
-      contentUnit,
-    })
-  }
-
-  function addAssetUnit(assetNode: HierarchyNode, unit: PreviewAssetReferenceUnit) {
-    modules.push({
-      key: `asset_ref:${unit.contentUnitId}`,
-      title: unit.title,
-      meta: `${unit.contentUnitId} · ${unit.contentUnitType} · ${unit.outputKind}`,
-      node: assetNode,
-      currentMoment,
-      selectedShot,
-      assetUnit: unit,
-    })
-  }
-
-  function addShotModules(moment: PreviewMoment, shot: PreviewShot) {
-    addContentUnit(shot.contentUnit, hierarchyNodeFromShot(shot), moment, shot, shot.title)
-    const workspace = shotWorkspaceFor(shot.id)
-    for (const storyboard of workspace.storyboards) {
-      addContentUnit(
-        storyboard.contentUnit,
-        hierarchyNodeFromShotChild(storyboard, 'storyboard', shot, moment.id),
-        moment,
-        shot,
-        storyboard.title,
-      )
-    }
-    for (const keyframe of workspace.keyframes) {
-      addContentUnit(
-        keyframe.contentUnit,
-        hierarchyNodeFromShotChild(keyframe, 'keyframe', shot, moment.id),
-        moment,
-        shot,
-        keyframe.title,
-      )
-    }
-  }
-
-  if (node.type === 'asset') addAssetUnit(node, assetReferenceUnitForNode(node))
-
-  if (node.type === 'setting' || node.type === 'state') {
-    for (const asset of buildSettingScopeDetails(node).assets) addAssetUnit(asset.node, asset.unit)
-  }
-
-  if (node.type === 'production' || node.type === 'segment') {
-    for (const moment of moments) {
-      for (const shot of moment.shots) addShotModules(moment, shot)
-    }
-  }
-
-  if (node.type === 'scene_moment') {
-    for (const shot of currentMoment.shots) addShotModules(currentMoment, shot)
-  }
-
-  if (node.type === 'group') {
-    if (node.title === 'Shots') {
-      for (const shot of currentMoment.shots) addShotModules(currentMoment, shot)
-    } else if (node.title === 'Storyboards') {
-      for (const storyboard of shotWorkspaceFor(selectedShot.id).storyboards) {
-        addContentUnit(storyboard.contentUnit, hierarchyNodeFromShotChild(storyboard, 'storyboard', selectedShot, currentMoment.id), currentMoment, selectedShot, storyboard.title)
-      }
-    } else if (node.title === 'Keyframes') {
-      for (const keyframe of shotWorkspaceFor(selectedShot.id).keyframes) {
-        addContentUnit(keyframe.contentUnit, hierarchyNodeFromShotChild(keyframe, 'keyframe', selectedShot, currentMoment.id), currentMoment, selectedShot, keyframe.title)
-      }
-    }
-  }
-
-  if (node.type === 'shot') addShotModules(currentMoment, selectedShot)
-
-  if (node.type === 'storyboard' || node.type === 'keyframe') {
-    const linkedChild = findChildForNode(node, selectedShot)
-    addContentUnit(linkedChild?.contentUnit, node, currentMoment, selectedShot, linkedChild?.title ?? node.title)
-  }
-
-  return Array.from(new Map(modules.map((module) => [module.key, module])).values())
-}
-
-function hierarchyNodeFromShot(shot: PreviewShot): HierarchyNode {
-  return {
-    id: shot.id,
-    type: 'shot',
-    title: shot.title,
-    path: shot.path,
-    state: shot.contentUnit.selectionState,
-    shotId: shot.id,
-  }
-}
-
-function hierarchyNodeFromShotChild(item: ShotChildOption, kind: 'storyboard' | 'keyframe', shot: PreviewShot, momentId: string): HierarchyNode {
-  return {
-    id: kind === 'storyboard' ? `storyboard/${item.id.replace(/^storyboard\//, '')}` : item.id,
-    type: kind,
-    title: item.title,
-    path: item.id,
-    state: item.contentUnit?.selectionState ?? item.status,
-    momentId,
-    shotId: shot.id,
-  }
 }
 
 function FocusItemList({
@@ -1522,10 +1427,10 @@ function FocusItemList({
   )
 }
 
-function childFocusItemsForNode(node: HierarchyNode, currentMoment: PreviewMoment, selectedShot: PreviewShot): NodeFocusItem[] {
+function childFocusItemsForNode(workspaceData: ContentSourceWorkspaceData, node: HierarchyNode, currentMoment: PreviewMoment, selectedShot: PreviewShot): NodeFocusItem[] {
   if (node.type === 'scene_moment') {
-    const expressions = activeWorkspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
-    const audioCues = activeWorkspaceData.audioCuesByMoment[currentMoment.id] ?? []
+    const expressions = workspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
+    const audioCues = workspaceData.audioCuesByMoment[currentMoment.id] ?? []
     return [
       ...currentMoment.shots.map((shot) => focusItemFromShot(shot, currentMoment.id)),
       ...expressions.map((unit) => ({
@@ -1549,7 +1454,7 @@ function childFocusItemsForNode(node: HierarchyNode, currentMoment: PreviewMomen
     ]
   }
   if (node.type === 'shot') {
-    const workspace = shotWorkspaceFor(selectedShot.id)
+    const workspace = shotWorkspaceFor(workspaceData, selectedShot.id)
     return [
       ...workspace.storyboards.map((item) => focusItemFromShotChild(item, 'storyboard', selectedShot)),
       ...workspace.keyframes.map((item) => focusItemFromShotChild(item, 'keyframe', selectedShot)),
@@ -1559,7 +1464,7 @@ function childFocusItemsForNode(node: HierarchyNode, currentMoment: PreviewMomen
     return node.children.map((child) => ({
       id: `child:${child.id}`,
       title: child.title,
-      meta: `${nodeTypeLabel(child.type)} · ${child.path}`,
+      meta: nodeDisplayMeta(child),
       description: child.children?.length ? `${child.children.length} 个下级节点` : '叶子节点',
       state: child.state ?? 'ready',
       ownerNodeId: child.id,
@@ -1570,8 +1475,8 @@ function childFocusItemsForNode(node: HierarchyNode, currentMoment: PreviewMomen
   return []
 }
 
-function referenceFocusItemsForNode(node: HierarchyNode, selectedShot: PreviewShot, linkedContentUnit?: PreviewContentUnit): NodeFocusItem[] {
-  const assetUnit = node.type === 'asset' ? assetReferenceUnitForNode(node) : undefined
+function referenceFocusItemsForNode(workspaceData: ContentSourceWorkspaceData, node: HierarchyNode, selectedShot: PreviewShot, linkedContentUnit?: PreviewContentUnit): NodeFocusItem[] {
+  const assetUnit = node.type === 'asset' ? assetReferenceUnitForNode(workspaceData, node) : undefined
   const assetReferences = assetUnit?.downstream.map((item) => ({
     id: item.id,
     title: item.title,
@@ -1582,7 +1487,7 @@ function referenceFocusItemsForNode(node: HierarchyNode, selectedShot: PreviewSh
     momentId: item.momentId,
     shotId: item.shotId,
   })) ?? []
-  const editableRefReferences = findRefsForNode(node).flatMap((ref) =>
+  const editableRefReferences = findRefsForNode(workspaceData, node).flatMap((ref) =>
     ref.downstream.map((target) => ({
       id: `ref:${node.id}:${ref.id}:${target}`,
       title: target,
@@ -1591,7 +1496,7 @@ function referenceFocusItemsForNode(node: HierarchyNode, selectedShot: PreviewSh
       state: ref.status,
     })),
   )
-  const workspace = shotWorkspaceFor(selectedShot.id)
+  const workspace = shotWorkspaceFor(workspaceData, selectedShot.id)
   const impactReferences = workspace.impacts
     .filter((impact) => hierarchyNodeMatchesRef(node, impact.source) || impact.affects.some((target) => hierarchyNodeMatchesRef(node, target)))
     .flatMap((impact) => impact.affects.map((target) => ({
@@ -1650,14 +1555,24 @@ function uniqueFocusItems(items: NodeFocusItem[]): NodeFocusItem[] {
   return Array.from(new Map(items.map((item) => [item.id, item])).values())
 }
 
+function nodeDisplayMeta(node: HierarchyNode): string {
+  return [
+    nodeTypeLabel(node.type),
+    node.state ? stateLabel(node.state) : undefined,
+    node.children?.length ? `${node.children.length} 个下级节点` : undefined,
+  ].filter(Boolean).join(' · ')
+}
+
 function SettingScopeDetail({
   node,
+  workspaceData,
   onJumpToNode,
 }: {
   node: HierarchyNode
+  workspaceData: ContentSourceWorkspaceData
   onJumpToNode: (nodeId: string, momentId?: string, shotId?: string) => void
 }) {
-  const details = buildSettingScopeDetails(node)
+  const details = buildSettingScopeDetails(workspaceData, node)
   const staleCount = details.dependencies.filter((item) => item.state === 'stale' || item.state === 'needs_candidate' || item.state === 'missing').length
 
   return (
@@ -1680,11 +1595,11 @@ function SettingScopeDetail({
                 </span>
                 {state.node.state ? <Badge variant={state.node.state === 'changed' || state.node.state === 'missing' ? 'soft' : 'outline'}>{stateLabel(state.node.state)}</Badge> : null}
               </div>
-              <p>{state.node.path}</p>
+              <p>{nodeDisplayMeta(state.node)}</p>
               {state.refs.length ? <EditableRefList items={state.refs} /> : null}
               <div className="content-source-workspace-setting-asset-row">
                 {state.assets.map((asset) => {
-                  const unit = assetReferenceUnitForNode(asset)
+                  const unit = assetReferenceUnitForNode(workspaceData, asset)
                   const selectedCandidate = unit.candidates.find((candidate) => candidate.selected)
                   return (
                     <button
@@ -2073,27 +1988,29 @@ function AssetDownstreamList({
 
 function GroupRelationView({
   node,
+  workspaceData,
   currentMoment,
   selectedShot,
   onSelectShot,
 }: {
   node: HierarchyNode
+  workspaceData: ContentSourceWorkspaceData
   currentMoment: PreviewMoment
   selectedShot: PreviewShot
   onSelectShot: (momentId: string, shotId: string) => void
 }) {
-  const workspace = shotWorkspaceFor(selectedShot.id)
+  const workspace = shotWorkspaceFor(workspaceData, selectedShot.id)
 
   if (node.title === 'Shots') {
     return (
       <PreviewPacket icon={Clapperboard} title="Shots" meta={`${currentMoment.shots.length} shots`}>
-        <ShotCardRow moment={currentMoment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
+        <ShotCardRow workspaceData={workspaceData} moment={currentMoment} selectedShot={selectedShot} onSelectShot={onSelectShot} />
       </PreviewPacket>
     )
   }
 
   if (node.title === 'Expression Units') {
-    const expressionUnits = activeWorkspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
+    const expressionUnits = workspaceData.expressionUnitsByMoment[currentMoment.id] ?? []
     return (
       <PreviewPacket icon={Sparkles} title="Expression Units" meta={`${expressionUnits.length} units`}>
         <ExpressionUnitList items={expressionUnits} />
@@ -2102,7 +2019,7 @@ function GroupRelationView({
   }
 
   if (node.title === 'Audio Cues') {
-    const audioCues = activeWorkspaceData.audioCuesByMoment[currentMoment.id] ?? []
+    const audioCues = workspaceData.audioCuesByMoment[currentMoment.id] ?? []
     return (
       <PreviewPacket icon={Sparkles} title="Audio Cues" meta={`${audioCues.length} cues`}>
         <AudioCueList items={audioCues} />
@@ -2134,10 +2051,12 @@ function GroupRelationView({
 }
 
 function ShotCardRow({
+  workspaceData,
   moment,
   selectedShot,
   onSelectShot,
 }: {
+  workspaceData: ContentSourceWorkspaceData
   moment: PreviewMoment
   selectedShot: PreviewShot
   onSelectShot: (momentId: string, shotId: string) => void
@@ -2145,7 +2064,7 @@ function ShotCardRow({
   return (
     <div className="content-source-workspace-shot-row">
       {moment.shots.map((shot, shotIndex) => {
-        const shotWorkspace = shotWorkspaceFor(shot.id)
+        const shotWorkspace = shotWorkspaceFor(workspaceData, shot.id)
         const refIssueCount = [...shotWorkspace.settings, ...shotWorkspace.assets].filter((ref) => ref.status === 'changed' || ref.status === 'missing').length
         const shotImpactCount = shotWorkspace.impacts.length
         return (
@@ -2261,7 +2180,7 @@ function TransitionEditor({
   }
 
   return (
-    <PreviewPacket icon={GitCompareArrows} title="Transition" meta={node.path}>
+    <PreviewPacket icon={GitCompareArrows} title="Transition" meta={nodeDisplayMeta(node)}>
       <div className="content-source-workspace-expression-editor">
         <label className="content-source-workspace-asset-unit__field">
           <span>in</span>
@@ -2747,7 +2666,7 @@ function ImpactList({ impacts }: { impacts: ShotImpact[] }) {
   )
 }
 
-function buildSettingScopeDetails(node: HierarchyNode): SettingScopeDetails {
+function buildSettingScopeDetails(workspaceData: ContentSourceWorkspaceData, node: HierarchyNode): SettingScopeDetails {
   const descendants = collectHierarchyDescendants(node)
   const stateNodes = node.type === 'state'
     ? [node]
@@ -2758,15 +2677,15 @@ function buildSettingScopeDetails(node: HierarchyNode): SettingScopeDetails {
   const states = stateNodes.map((stateNode) => ({
     node: stateNode,
     assets: (stateNode.children ?? []).filter((child) => child.type === 'asset'),
-    refs: findRefsForNode(stateNode),
+    refs: findRefsForNode(workspaceData, stateNode),
   }))
   const assets = assetNodes.map((assetNode) => ({
     node: assetNode,
-    unit: assetReferenceUnitForNode(assetNode),
-    refs: findRefsForNode(assetNode),
+    unit: assetReferenceUnitForNode(workspaceData, assetNode),
+    refs: findRefsForNode(workspaceData, assetNode),
   }))
   const dependencies = uniqueSettingDependencies([
-    ...buildRefDependencies([node, ...stateNodes]),
+    ...buildRefDependencies(workspaceData, [node, ...stateNodes]),
     ...assets.flatMap((asset) => buildAssetDependencies(asset)),
   ])
 
@@ -2781,9 +2700,9 @@ function uniqueHierarchyNodes(nodes: HierarchyNode[]): HierarchyNode[] {
   return Array.from(new Map(nodes.map((node) => [node.id, node])).values())
 }
 
-function buildRefDependencies(nodes: HierarchyNode[]): SettingScopeDependency[] {
+function buildRefDependencies(workspaceData: ContentSourceWorkspaceData, nodes: HierarchyNode[]): SettingScopeDependency[] {
   return nodes.flatMap((node) => {
-    const refDependencies = findRefsForNode(node).flatMap((ref) =>
+    const refDependencies = findRefsForNode(workspaceData, node).flatMap((ref) =>
       ref.downstream.map((target) => ({
         id: `ref:${node.id}:${ref.id}:${target}`,
         title: target,
@@ -2794,7 +2713,7 @@ function buildRefDependencies(nodes: HierarchyNode[]): SettingScopeDependency[] 
         action: `${ref.id} affects ${target}`,
       })),
     )
-    const impactDependencies = Object.values(activeWorkspaceData.shotWorkspaceDetails).flatMap((workspace) =>
+    const impactDependencies = Object.values(workspaceData.shotWorkspaceDetails).flatMap((workspace) =>
       workspace.impacts
         .filter((impact) => hierarchyNodeMatchesRef(node, impact.source))
         .flatMap((impact) =>
@@ -2833,8 +2752,8 @@ function uniqueSettingDependencies(items: SettingScopeDependency[]): SettingScop
   return Array.from(new Map(items.map((item) => [item.id, item])).values())
 }
 
-function findRefsForNode(node: HierarchyNode): EditableRef[] {
-  return Object.values(activeWorkspaceData.shotWorkspaceDetails).flatMap((workspace) => {
+function findRefsForNode(workspaceData: ContentSourceWorkspaceData, node: HierarchyNode): EditableRef[] {
+  return Object.values(workspaceData.shotWorkspaceDetails).flatMap((workspace) => {
     const refs = node.type === 'asset' ? workspace.assets : workspace.settings
     return refs.filter((ref) => hierarchyNodeMatchesRef(node, ref.id))
   })
@@ -2855,8 +2774,8 @@ function hierarchyNodeRefTokens(node: HierarchyNode): string[] {
   ].filter(Boolean)))
 }
 
-function assetReferenceUnitForNode(node: HierarchyNode): PreviewAssetReferenceUnit {
-  const existingUnit = activeWorkspaceData.assetReferenceUnits[node.id]
+function assetReferenceUnitForNode(workspaceData: ContentSourceWorkspaceData, node: HierarchyNode): PreviewAssetReferenceUnit {
+  const existingUnit = workspaceData.assetReferenceUnits[node.id]
   if (existingUnit) return existingUnit
   return {
     assetId: node.id,
@@ -2875,13 +2794,8 @@ function assetReferenceUnitForNode(node: HierarchyNode): PreviewAssetReferenceUn
   }
 }
 
-function collectEditableRefs(type: HierarchyNodeType): EditableRef[] {
-  const refs = Object.values(activeWorkspaceData.shotWorkspaceDetails).flatMap((workspace) => (type === 'asset' ? workspace.assets : workspace.settings))
-  return Array.from(new Map(refs.map((ref) => [ref.id, ref])).values())
-}
-
-function findChildForNode(node: HierarchyNode, shot: PreviewShot): ShotChildOption | undefined {
-  const workspace = shotWorkspaceFor(shot.id)
+function findChildForNode(workspaceData: ContentSourceWorkspaceData, node: HierarchyNode, shot: PreviewShot): ShotChildOption | undefined {
+  const workspace = shotWorkspaceFor(workspaceData, shot.id)
   return [...workspace.keyframes, ...workspace.storyboards].find((item) => item.id === node.id)
 }
 
