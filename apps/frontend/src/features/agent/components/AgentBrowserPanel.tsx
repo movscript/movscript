@@ -100,11 +100,10 @@ import { ProjectStandardsContent } from '@/features/project-standards/components
 import { ExternalResourceSearchPage, ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
-import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
-import type { Script } from '@/types'
+import type { Project, Script } from '@/types'
 import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
 import {
   agentBrowserBoundsFromViewportElement,
@@ -112,7 +111,11 @@ import {
   type AgentBrowserBounds,
 } from '@/features/agent/presentation/agentBrowserBounds'
 import {
+  AGENT_BLANK_TAB_ID,
+  AGENT_PROJECT_HOME_TAB_ID,
+  createBlankAgentBrowserTab,
   createDefaultAgentBrowserContentState,
+  createProjectHomeAgentBrowserTab,
   DEFAULT_AGENT_CONTENT_AREA_ID,
   useAgentContentAreaStore,
   type AgentBrowserContentTab,
@@ -160,18 +163,22 @@ function createTabId(prefix: string, scope = '') {
 
 export interface AgentBrowserPanelProps {
   contentAreaId?: string | null
+  project?: Project | null
 }
 
-export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}) {
+export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowserPanelProps = {}) {
   const resolvedContentAreaId = contentAreaId?.trim() || DEFAULT_AGENT_CONTENT_AREA_ID
-  const project = useProjectStore((state) => state.current)
+  const hasProject = typeof project?.ID === 'number' && project.ID > 0
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const ensureContentArea = useAgentContentAreaStore((state) => state.ensureContentArea)
   const updateBrowserState = useAgentContentAreaStore((state) => state.updateBrowserState)
   const browserState = useAgentContentAreaStore((state) => (
     state.contentAreasByConversation[resolvedContentAreaId]?.browser
   ))
-  const fallbackBrowserState = useMemo(() => createDefaultAgentBrowserContentState(), [])
+  const fallbackBrowserState = useMemo(
+    () => createDefaultAgentBrowserContentState(Date.now(), { defaultTab: hasProject ? 'project_home' : 'blank' }),
+    [hasProject],
+  )
   const { tabs, activeTabId, webStates } = browserState ?? fallbackBrowserState
   const [launcherOpen, setLauncherOpen] = useState(false)
   const [addressWorkspace, setAddressWorkspace] = useState('')
@@ -183,8 +190,20 @@ export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}
   const activeWebURL = activeTab?.kind === 'web' ? activeWebState?.url || activeTab.url || '' : ''
 
   useEffect(() => {
-    ensureContentArea(resolvedContentAreaId)
-  }, [ensureContentArea, resolvedContentAreaId])
+    ensureContentArea(resolvedContentAreaId, { defaultTab: hasProject ? 'project_home' : 'blank' })
+  }, [ensureContentArea, hasProject, resolvedContentAreaId])
+
+  useEffect(() => {
+    updateBrowserState(resolvedContentAreaId, (current) => {
+      if (hasProject && isSingleDefaultBlankBrowserState(current)) {
+        return createDefaultAgentBrowserContentState(Date.now(), { defaultTab: 'project_home' })
+      }
+      if (!hasProject && isSingleDefaultProjectHomeBrowserState(current)) {
+        return createDefaultAgentBrowserContentState(Date.now(), { defaultTab: 'blank' })
+      }
+      return current
+    })
+  }, [hasProject, resolvedContentAreaId, updateBrowserState])
 
   const setTabs = useCallback((nextTabs: AgentBrowserContentTab[] | ((current: AgentBrowserContentTab[]) => AgentBrowserContentTab[])) => {
     updateBrowserState(resolvedContentAreaId, (current) => ({
@@ -282,15 +301,14 @@ export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}
   }
 
   function openProjectHomeTab() {
-    if (!tabs.some((tab) => tab.id === 'project_home')) {
-      setTabs((current) => [{
-        id: 'project_home',
-        kind: 'project_home',
-        title: '内容导航',
-        createdAt: Date.now(),
-      }, ...current])
+    if (!hasProject) {
+      openBlankWebTab()
+      return
     }
-    setActiveTabId('project_home')
+    if (!tabs.some((tab) => tab.id === AGENT_PROJECT_HOME_TAB_ID)) {
+      setTabs((current) => [createProjectHomeAgentBrowserTab(), ...current])
+    }
+    setActiveTabId(AGENT_PROJECT_HOME_TAB_ID)
     setLauncherOpen(false)
   }
 
@@ -406,12 +424,9 @@ export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}
       })
     }
     if (remaining.length === 0) {
-      const fallback: AgentBrowserContentTab = {
-        id: 'project_home',
-        kind: 'project_home',
-        title: '内容导航',
-        createdAt: Date.now(),
-      }
+      const fallback: AgentBrowserContentTab = hasProject
+        ? createProjectHomeAgentBrowserTab()
+        : createBlankAgentBrowserTab()
       setTabs([fallback])
       setActiveTabId(fallback.id)
       return
@@ -506,10 +521,21 @@ export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}
                 打开网页
               </DropdownMenuItem>
               <DropdownMenuItem onClick={openProjectHomeTab}>
-                <AgentBrowserMenuItemIcon>
-                  <Home size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开内容导航
+                {hasProject ? (
+                  <>
+                    <AgentBrowserMenuItemIcon>
+                      <Home size={13} />
+                    </AgentBrowserMenuItemIcon>
+                    打开内容导航
+                  </>
+                ) : (
+                  <>
+                    <AgentBrowserMenuItemIcon>
+                      <Globe2 size={13} />
+                    </AgentBrowserMenuItemIcon>
+                    新建空白网页
+                  </>
+                )}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={openResourceLibraryTab}>
                 <AgentBrowserMenuItemIcon>
@@ -602,6 +628,7 @@ export function AgentBrowserPanel({ contentAreaId }: AgentBrowserPanelProps = {}
       <AgentBrowserViewport ref={viewportRef}>
         {activeTab?.kind === 'project_home' ? (
           <ProjectHomeBrowserPage
+            project={project}
             onOpenProjectStandards={openProjectStandardsTab}
             onOpenResourceLibrary={openResourceLibraryTab}
             onOpenExternalResourceLibrary={openExternalResourceLibraryTab}
@@ -650,6 +677,22 @@ function tabTitle(tab: AgentBrowserContentTab, webState: AgentBrowserWebTabState
   return webState?.title || tab.title || webState?.url || tab.url || '空白页'
 }
 
+function isSingleDefaultProjectHomeBrowserState(state: { tabs: AgentBrowserContentTab[]; activeTabId: string }) {
+  return state.tabs.length === 1
+    && state.activeTabId === AGENT_PROJECT_HOME_TAB_ID
+    && state.tabs[0]?.id === AGENT_PROJECT_HOME_TAB_ID
+    && state.tabs[0]?.kind === 'project_home'
+}
+
+function isSingleDefaultBlankBrowserState(state: { tabs: AgentBrowserContentTab[]; activeTabId: string }) {
+  const tab = state.tabs[0]
+  return state.tabs.length === 1
+    && state.activeTabId === AGENT_BLANK_TAB_ID
+    && tab?.id === AGENT_BLANK_TAB_ID
+    && tab.kind === 'web'
+    && !tab.url
+}
+
 function BlankWebTab({
   onOpenResourceLibrary,
   onOpenExternalResourceLibrary,
@@ -692,8 +735,8 @@ function BlankWebTab({
     >
       <AgentBrowserBlankContent>
         <AgentBrowserSectionIntro
-          title="内容导航"
-          description="从常用工作区开始，或在下方打开网页。"
+          title="空白页"
+          description="输入网址，或打开常用工作区。"
         />
         <AgentBrowserNavGrid>
           {navItems.map((item) => {
@@ -725,17 +768,18 @@ function BlankWebTab({
 }
 
 function ProjectHomeBrowserPage({
+  project,
   onOpenProjectStandards,
   onOpenResourceLibrary,
   onOpenExternalResourceLibrary,
   onOpenCanvasList,
 }: {
+  project: Project | null
   onOpenProjectStandards: () => void
   onOpenResourceLibrary: () => void
   onOpenExternalResourceLibrary: () => void
   onOpenCanvasList: () => void
 }) {
-  const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
   const currentUser = useUserStore((state) => state.currentUser)
   const currentOrgID = useUserStore((state) => state.currentOrgID)

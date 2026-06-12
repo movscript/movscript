@@ -48,7 +48,6 @@ import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeade
 import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
 import { clampDetailAgentPanelWidth } from './features/agent/presentation/agentDetailAssistantPaneSizing'
-import { useHasOpenAgentConversations } from './features/agent/presentation/useHasOpenAgentConversations'
 import { providerRoute, providerRouteForKey } from './features/agent/application/providerRoutes'
 import {
   enabledProviders,
@@ -744,7 +743,6 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const currentUser = useUserStore((s) => s.currentUser)
   const currentProject = useProjectStore((s) => s.current)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const hasOpenConversations = useHasOpenAgentConversations(userId)
   const detailSidebarPane = useRouteLayoutPaneController({
     routeLayout,
     paneId: APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
@@ -781,7 +779,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
     fallbackState: 'default',
   })
   const agentModeContentPanelOpen = !agentContentPane.collapsed && !agentContentPane.hidden
-  const agentSidebarVisible = !agentSidebarPane.collapsed && !agentSidebarPane.hidden
+  const agentSidebarVisible = !agentSidebarPane.hidden
   const detailHeaderActions = useAgentPanelUiStore((s) => s.detailHeaderActions)
   const detailRightPaneOpen = !detailAssistantPane.hidden
   const accountSettingsActiveTab = accountSettingsTabForLocation(pathname, search)
@@ -922,6 +920,15 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
     <div className="agent-sidebar-window-controls flex shrink-0 items-center gap-1">
       <AppWindowIconButton
         type="button"
+        className="app-window-sidebar-toggle"
+        onClick={agentSidebarVisible ? agentSidebarPane.hide : agentSidebarPane.show}
+        title={agentSidebarVisible ? '隐藏左侧栏' : '显示左侧栏'}
+        aria-label={agentSidebarVisible ? '隐藏左侧栏' : '显示左侧栏'}
+      >
+        {agentSidebarVisible ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+      </AppWindowIconButton>
+      <AppWindowIconButton
+        type="button"
         className="app-window-sidebar-toggle agent-sidebar-window-controls__nav"
         onClick={() => window.history.back()}
         title="后退"
@@ -993,6 +1000,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={!agentLeftHeader}
       showAppControls={!agentModeContentPanelOpen}
       showFallbackBrand={false}
+      showProjectControls={false}
       leftControls={!agentSidebarVisible ? agentSidebarHeaderControl : undefined}
       appControls={<>{agentContentPanelClosed ? agentContentPanelHeaderControl : null}{terminalHeaderControl}</>}
       showAgentContentPanelShortcut={false}
@@ -1003,6 +1011,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showWindowControls={false}
       showAppControls
       showFallbackBrand={false}
+      showProjectControls={false}
       appControls={<>{agentContentPanelHeaderControl}{terminalHeaderControl}</>}
       showAgentContentPanelShortcut={false}
     />
@@ -1042,11 +1051,6 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           sidebar={(
             <React.Suspense fallback={null}>
               <ProjectAgentModeSidebar
-                collapsed={agentSidebarPane.collapsed}
-                onCollapsedChange={(collapsed) => {
-                  if (collapsed) agentSidebarPane.collapse()
-                  else agentSidebarPane.show()
-                }}
                 width={agentSidebarPane.size}
                 onWidthChange={agentSidebarPane.setSize}
               />
@@ -1056,7 +1060,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           centerHeader={agentCenterHeader}
           rightHeader={agentRightHeader}
           leftSlotStyle={agentLeftSlotStyle}
-          sidebarCollapsed={agentSidebarPane.collapsed}
+          sidebarCollapsed={false}
           leftPaneHidden={!agentSidebarVisible}
           rightSlotStyle={agentRightSlotStyle}
           rightPaneCollapsed={agentContentPane.collapsed}
@@ -1111,7 +1115,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           terminalPanel={terminalPanel}
           terminalOpen={terminalOpen}
           terminalPlacement={terminalPlacement}
-          assistantPanel={detailAgentPanelOpen || hasOpenConversations ? (
+          assistantPanel={detailRightPaneOpen ? (
             <React.Suspense fallback={null}>
               <AIAgentPanel
                 width={detailAssistantPane.size}

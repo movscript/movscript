@@ -1,38 +1,15 @@
 import type { AppSettings } from '@/shared/infrastructure/config'
-import type { AgentConversationProviderSessionState, AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
+import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentSettings, Conversation, ConversationWorkspace } from '@/features/agent/state/agentStore'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore, type AuthSession } from '@/shared/infrastructure/session/userStore'
-import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import type { Project } from '@/types'
+import { normalizeAgentConversationRegistryRecord, type AgentConversationRegistryRecord } from '@movscript/core/agent'
 
 export const E2E_BOOTSTRAP_STORAGE_KEY = 'movscript-e2e-bootstrap'
-
-function normalizeConversationProviderSessionState(
-  conversationId: string,
-  providerSessionState: Partial<AgentConversationProviderSessionState> & { run?: AgentRun },
-): AgentConversationProviderSessionState {
-  const updatedAt = providerSessionState.updatedAt ?? Date.now()
-  return {
-    conversationId,
-    loading: providerSessionState.loading ?? false,
-    building: providerSessionState.building ?? false,
-    approving: providerSessionState.approving ?? false,
-    stopping: providerSessionState.stopping ?? false,
-    stopRequested: providerSessionState.stopRequested ?? false,
-    updatedAt,
-    requestId: providerSessionState.requestId,
-    sessionId: providerSessionState.sessionId,
-    threadId: providerSessionState.threadId,
-    runId: providerSessionState.runId,
-    run: providerSessionState.run,
-    status: providerSessionState.status,
-    error: providerSessionState.error,
-  }
-}
 
 export interface E2EBootstrapSeed {
   appSettings?: Partial<AppSettings>
@@ -47,10 +24,8 @@ export interface E2EBootstrapSeed {
     }>
   }
   session?: {
-    conversationProviderSessionStates?: Record<string, Partial<AgentConversationProviderSessionState> & { run?: AgentRun }>
-    conversationThreadBindings?: Record<string, Partial<AgentConversationThreadBinding>>
-    /** @deprecated Use conversationThreadBindings. */
-    providerThreadIdsByConversation?: Record<string, string>
+    conversationsById?: Record<string, Partial<AgentConversationRegistryRecord> & { providerThreadId: string }>
+    conversationRuntimeStates?: Record<string, Partial<AgentConversationRuntimeState>>
   }
 }
 
@@ -125,49 +100,61 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
   }
 
   if (seed.session) {
+    const userId = seed.agent?.userId
+      ?? String(useUserStore.getState().currentUser?.ID ?? '')
     useAgentSessionStore.setState((state) => {
-      const conversationProviderSessionStates: Record<string, AgentConversationProviderSessionState> = {
-        ...state.conversationProviderSessionStates,
-      }
-      const conversationThreadBindings: Record<string, AgentConversationThreadBinding> = {
-        ...state.conversationThreadBindings,
-      }
-      for (const [conversationId, providerSessionState] of Object.entries(seed.session?.conversationProviderSessionStates ?? {})) {
-        conversationProviderSessionStates[conversationId] = normalizeConversationProviderSessionState(conversationId, providerSessionState)
-        if (providerSessionState.threadId?.trim()) {
-          conversationThreadBindings[conversationId] = {
-            ...(conversationThreadBindings[conversationId] ?? {}),
-            conversationId,
-            providerThreadId: providerSessionState.threadId.trim(),
-            ...(providerSessionState.sessionId?.trim() ? { providerSessionTreeId: providerSessionState.sessionId.trim() } : {}),
-            updatedAt: providerSessionState.updatedAt ?? Date.now(),
-          }
-        }
-      }
-      for (const [conversationId, binding] of Object.entries(seed.session?.conversationThreadBindings ?? {})) {
-        const providerThreadId = binding.providerThreadId?.trim()
+      const conversationsById = { ...state.conversationsById }
+      const conversationRuntimeStates = { ...state.conversationRuntimeStates }
+
+      for (const [conversationId, record] of Object.entries(seed.session?.conversationsById ?? {})) {
+        const providerThreadId = record.providerThreadId?.trim()
         if (!providerThreadId) continue
-        conversationThreadBindings[conversationId] = {
-          ...(conversationThreadBindings[conversationId] ?? {}),
-          conversationId,
+        const id = record.id?.trim() || conversationId
+        conversationsById[id] = normalizeAgentConversationRegistryRecord({
+          id,
+          userId: record.userId?.trim() || userId || 'anonymous',
           providerThreadId,
-          ...(binding.providerSessionTreeId?.trim() ? { providerSessionTreeId: binding.providerSessionTreeId.trim() } : {}),
-          updatedAt: binding.updatedAt ?? Date.now(),
-        }
+          provider: record.provider,
+          providerId: record.providerId,
+          providerInstanceId: record.providerInstanceId,
+          providerProtocol: record.providerProtocol,
+          providerSessionId: record.providerSessionId,
+          providerThreadCwd: record.providerThreadCwd,
+          workspaceContext: record.workspaceContext,
+          projectId: record.projectId,
+          title: record.title,
+          status: record.status,
+          activeRunId: record.activeRunId,
+          lastRunId: record.lastRunId,
+          open: record.open ?? true,
+          archived: record.archived ?? false,
+          createdAt: record.createdAt ?? Date.now(),
+          updatedAt: record.updatedAt ?? Date.now(),
+        })
       }
-      for (const [conversationId, providerThreadId] of Object.entries(seed.session?.providerThreadIdsByConversation ?? {})) {
-        const trimmedThreadId = providerThreadId.trim()
-        if (!trimmedThreadId) continue
-        conversationThreadBindings[conversationId] = {
-          ...(conversationThreadBindings[conversationId] ?? {}),
+
+      for (const [conversationId, runtimeState] of Object.entries(seed.session?.conversationRuntimeStates ?? {})) {
+        conversationRuntimeStates[conversationId] = {
           conversationId,
-          providerThreadId: trimmedThreadId,
-          updatedAt: conversationThreadBindings[conversationId]?.updatedAt ?? Date.now(),
+          loading: runtimeState.loading ?? false,
+          building: runtimeState.building ?? false,
+          approving: runtimeState.approving ?? false,
+          stopping: runtimeState.stopping ?? false,
+          stopRequested: runtimeState.stopRequested ?? false,
+          updatedAt: runtimeState.updatedAt ?? Date.now(),
+          activeTurnId: runtimeState.activeTurnId,
+          turnStatus: runtimeState.turnStatus,
+          activeRunId: runtimeState.activeRunId,
+          threadControl: runtimeState.threadControl,
+          run: runtimeState.run,
+          status: runtimeState.status,
+          error: runtimeState.error,
         }
       }
+
       return {
-        conversationProviderSessionStates,
-        conversationThreadBindings,
+        conversationsById,
+        conversationRuntimeStates,
       }
     })
   }

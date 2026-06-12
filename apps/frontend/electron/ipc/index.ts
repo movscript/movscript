@@ -2,6 +2,7 @@ import type { BackendStatus } from '../services/backend'
 import { registerEmbeddedBrowserIpcHandlers } from './embeddedBrowserIpc'
 import { registerPluginCatalogPackStoreIpcHandlers } from './pluginCatalogPackStoreIpc'
 import { registerMovScriptWorkspaceFilesIpcHandlers } from './movscriptWorkspaceFilesIpc'
+import { registerMovScriptEngineIpcHandlers } from './movscriptEngineIpc'
 import { registerMovScriptWorkspaceRootIpcHandlers } from './movscriptWorkspaceRootIpc'
 import { registerBackendIpcHandlers } from './backendIpc'
 import { registerAppServerIpcHandlers } from './appServerIpc'
@@ -29,6 +30,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerPluginCatalogPackStoreIpcHandlers()
   registerSettingsIpcHandlers(deps)
   registerMovScriptWorkspaceConfigIpcHandlers()
+  registerMovScriptEngineIpcHandlers()
   registerMovScriptWorkspaceRootIpcHandlers()
   registerMovScriptWorkspaceFilesIpcHandlers()
   registerProjectGitIpcHandlers()

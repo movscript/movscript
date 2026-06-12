@@ -107,6 +107,16 @@ export function domainTools(): MCPTool[] {
       }),
     },
     {
+      name: 'domain_read_content_workspace',
+      description: 'Return the same content-source workspace view model used by the content workbench UI. Use this to inspect the page data source, selections, candidates, production hierarchy, preview timelines, and production work plan through the project engine.',
+      inputSchema: projectSchema(workspaceLocator),
+    },
+    {
+      name: 'domain_read_content_workspace_snapshot',
+      description: 'Return the raw content-source workspace snapshot before UI normalization. Use this when debugging whether source, decision, interpreted, or preview-timeline inputs match expectations.',
+      inputSchema: projectSchema(workspaceLocator),
+    },
+    {
       name: 'domain_derive_content_unit_artifact',
       description: 'Derive the interpreter artifact bundle for a content unit, including runtime panel, generation prompt, dependency report, and selection validity. Use before generation or candidate selection when content-unit context may be stale.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),

@@ -13,6 +13,7 @@ export interface BuildAgentChatInteractionControllerInputOptions {
   activeRun: AgentRun | null
   buildingSendWorkspace: boolean
   composer: ReturnType<typeof useAgentChatComposerState>
+  conversationEstablished: boolean
   context: ReturnType<typeof useAgentChatContextState>
   conv: Conversation
   externalTask?: AgentPageTaskState | null

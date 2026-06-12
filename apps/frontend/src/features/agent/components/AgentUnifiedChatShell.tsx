@@ -1,22 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import {
   AppServerChatShell,
-  appServerThreadOpenEvent,
-  readAppServerActiveThreadId,
 } from '@/features/agent/components/AppServerChatShell'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   enabledProviders,
+  providerInstanceId,
+  providerProtocol,
   resolveNewConversationProvider,
   usesAppServerProtocol,
   useProviderConfigStore,
   type ProviderConfig,
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
+import { selectActiveAgentConversationRegistryRecord, type AgentConversationRegistryState } from '@movscript/core/agent'
 
 export interface AgentUnifiedChatShellProps {
   userId: string
   onCollapse: () => void
+  emptyThreadLabel?: string
   showCollapse?: boolean
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
@@ -24,32 +27,16 @@ export interface AgentUnifiedChatShellProps {
 
 export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
   const providerSettings = useProviderConfigStore((s) => s.settings)
-  const [activeThreadVersion, setActiveThreadVersion] = useState(0)
+  const activeConversationIdsByUser = useAgentSessionStore((state) => state.activeConversationIdsByUser)
+  const conversationsById = useAgentSessionStore((state) => state.conversationsById)
+  const registryState = useMemo(() => ({
+    activeConversationIdsByUser,
+    conversationsById,
+  }), [activeConversationIdsByUser, conversationsById])
   const activeProvider = useMemo(
-    () => resolveAgentChatShellProvider(providerSettings),
-    [activeThreadVersion, providerSettings],
+    () => resolveAgentChatShellProvider(providerSettings, props.userId, registryState),
+    [providerSettings, props.userId, registryState],
   )
-
-  useEffect(() => {
-    const appServerProviders = enabledProviders(providerSettings).filter(usesAppServerProtocol)
-    const handleActiveThreadChanged = (event: Event) => {
-      const sourceId = event instanceof CustomEvent ? event.detail?.sourceId : undefined
-      if (typeof sourceId === 'string' && sourceId) return
-      setActiveThreadVersion((version) => version + 1)
-    }
-
-    window.addEventListener('storage', handleActiveThreadChanged)
-    for (const provider of appServerProviders) {
-      window.addEventListener(appServerThreadOpenEvent(provider), handleActiveThreadChanged)
-    }
-
-    return () => {
-      window.removeEventListener('storage', handleActiveThreadChanged)
-      for (const provider of appServerProviders) {
-        window.removeEventListener(appServerThreadOpenEvent(provider), handleActiveThreadChanged)
-      }
-    }
-  }, [providerSettings])
 
   if (!usesAppServerProtocol(activeProvider)) return null
 
@@ -57,6 +44,7 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
     <AppServerChatShell
       userId={props.userId}
       provider={activeProvider}
+      emptyThreadLabel={props.emptyThreadLabel}
       host={props.host}
       surface={props.surface}
       showCollapse={props.showCollapse}
@@ -65,12 +53,30 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
   )
 }
 
-function resolveAgentChatShellProvider(settings: ProviderSettings): ProviderConfig {
+function resolveAgentChatShellProvider(
+  settings: ProviderSettings,
+  userId: string,
+  registryState: AgentConversationRegistryState,
+): ProviderConfig {
   const selectedProvider = resolveNewConversationProvider(settings)
   if (!usesAppServerProtocol(selectedProvider)) return selectedProvider
-  if (readAppServerActiveThreadId(selectedProvider)) return selectedProvider
+  if (selectActiveProviderConversation(registryState, userId, selectedProvider)) return selectedProvider
   const activeProvider = enabledProviders(settings)
     .filter(usesAppServerProtocol)
-    .find((provider) => readAppServerActiveThreadId(provider))
+    .find((provider) => selectActiveProviderConversation(registryState, userId, provider))
   return activeProvider ?? selectedProvider
+}
+
+function selectActiveProviderConversation(
+  registryState: AgentConversationRegistryState,
+  userId: string,
+  provider: ProviderConfig,
+) {
+  return selectActiveAgentConversationRegistryRecord(registryState, {
+    userId,
+    provider: provider.kind,
+    providerId: provider.id,
+    providerInstanceId: providerInstanceId(provider),
+    providerProtocol: providerProtocol(provider),
+  })
 }

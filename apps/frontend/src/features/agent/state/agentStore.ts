@@ -177,12 +177,12 @@ export const useAgentStore = create<AgentStore>()(
         const persisted = persistedState as Partial<AgentStore> | undefined
         return {
           ...currentState,
-          settings: normalizeAgentSettings(persisted?.settings),
+          settings: normalizeAgentSettingsWithOptions(persisted?.settings, { resetDraftModeSettings: true }),
         }
       },
       onRehydrateStorage: () => (state) => {
         if (!state) return
-        state.settings = normalizeAgentSettings(state.settings)
+        state.settings = normalizeAgentSettingsWithOptions(state.settings, { resetDraftModeSettings: true })
       },
     }
   ),
@@ -199,7 +199,11 @@ function createAgentStorePartialize(): (state: AgentStore) => AgentStorePersiste
     }
     previousSettings = state.settings
     previousResult = {
-      settings: state.settings,
+      settings: {
+        ...state.settings,
+        collaborationMode: DEFAULT_AGENT_SETTINGS.collaborationMode,
+        goalModeEnabled: DEFAULT_AGENT_SETTINGS.goalModeEnabled,
+      },
     }
     return previousResult
   }
@@ -251,6 +255,13 @@ type PersistedAgentSettings = Partial<AgentSettings> & {
 }
 
 export function normalizeAgentSettings(settings?: PersistedAgentSettings | null): AgentSettings {
+  return normalizeAgentSettingsWithOptions(settings)
+}
+
+export function normalizeAgentSettingsWithOptions(
+  settings?: PersistedAgentSettings | null,
+  options: { resetDraftModeSettings?: boolean } = {},
+): AgentSettings {
   const merged = {
     ...DEFAULT_AGENT_SETTINGS,
     ...settings,
@@ -266,8 +277,12 @@ export function normalizeAgentSettings(settings?: PersistedAgentSettings | null)
     ...merged,
     activeProviderProfileConfigId: normalizeAgentSettingsProviderProfileConfigId(merged.activeProviderProfileConfigId),
     modelId: normalizePersistedModelId(merged.modelId),
-    collaborationMode: merged.collaborationMode === 'plan' ? 'plan' : DEFAULT_AGENT_SETTINGS.collaborationMode,
-    goalModeEnabled: typeof merged.goalModeEnabled === 'boolean' ? merged.goalModeEnabled : DEFAULT_AGENT_SETTINGS.goalModeEnabled,
+    collaborationMode: options.resetDraftModeSettings
+      ? DEFAULT_AGENT_SETTINGS.collaborationMode
+      : merged.collaborationMode === 'plan' ? 'plan' : DEFAULT_AGENT_SETTINGS.collaborationMode,
+    goalModeEnabled: options.resetDraftModeSettings
+      ? DEFAULT_AGENT_SETTINGS.goalModeEnabled
+      : typeof merged.goalModeEnabled === 'boolean' ? merged.goalModeEnabled : DEFAULT_AGENT_SETTINGS.goalModeEnabled,
     includeProjectContext: typeof merged.includeProjectContext === 'boolean' ? merged.includeProjectContext : DEFAULT_AGENT_SETTINGS.includeProjectContext,
     includeRecentResources: typeof merged.includeRecentResources === 'boolean' ? merged.includeRecentResources : DEFAULT_AGENT_SETTINGS.includeRecentResources,
     toolPermissionsFilterPresets: normalizeToolPermissionsFilterPresets(merged.toolPermissionsFilterPresets),

@@ -53,12 +53,24 @@ test('agent content areas are isolated by conversation id', () => {
 test('agent content area creation starts with a browser home tab per conversation', () => {
   resetContentAreaStore()
 
-  const area = useAgentContentAreaStore.getState().ensureContentArea('thread_1')
+  const area = useAgentContentAreaStore.getState().ensureContentArea('thread_1', { defaultTab: 'project_home' })
 
   assert.equal(area.conversationId, 'thread_1')
   assert.equal(area.activeSurface, 'browser')
   assert.deepEqual(area.browser.tabs.map((tab) => tab.id), ['project_home'])
   assert.equal(area.browser.activeTabId, 'project_home')
+})
+
+test('agent content area creation can start with a blank tab when the session has no project', () => {
+  resetContentAreaStore()
+
+  const area = useAgentContentAreaStore.getState().ensureContentArea('thread_without_project', { defaultTab: 'blank' })
+
+  assert.equal(area.conversationId, 'thread_without_project')
+  assert.equal(area.activeSurface, 'browser')
+  assert.deepEqual(area.browser.tabs.map((tab) => tab.id), ['blank_home'])
+  assert.equal(area.browser.tabs[0]?.kind, 'web')
+  assert.equal(area.browser.activeTabId, 'blank_home')
 })
 
 test('agent content area removal clears conversation-specific browser history', () => {

@@ -19,6 +19,7 @@ export function Header({
   showWindowControls = true,
   showAppControls = true,
   showFallbackBrand = true,
+  showProjectControls = true,
   showAssistantShortcut,
   showAgentContentPanelShortcut,
 }: {
@@ -30,6 +31,7 @@ export function Header({
   showWindowControls?: boolean
   showAppControls?: boolean
   showFallbackBrand?: boolean
+  showProjectControls?: boolean
   showAssistantShortcut?: boolean
   showAgentContentPanelShortcut?: boolean
 }) {
@@ -41,9 +43,10 @@ export function Header({
   const controls = (
     <AppWindowControls>
       {appControls}
-      <ProjectGitHeaderActions compact />
+      {showProjectControls ? <ProjectGitHeaderActions compact /> : null}
       <AppTopControls
         compact
+        showProjectSelector={showProjectControls}
         showAssistantShortcut={showAssistantShortcut}
         showAgentContentPanelShortcut={showAgentContentPanelShortcut}
       />

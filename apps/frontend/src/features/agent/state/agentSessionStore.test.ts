@@ -54,9 +54,21 @@ test('conversationIdForProviderThread returns undefined for unmapped provider-se
   }), undefined)
 })
 
-test('agent session persistence excludes provider-session thread mappings and projections', () => {
+test('agent session persistence stores registry state and excludes provider-session projections', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: { user_1: 'conv_1' },
+    conversationsById: {
+      conv_1: {
+        id: 'conv_1',
+        userId: 'user_1',
+        providerThreadId: 'thread_1',
+        providerSessionId: 'session_1',
+        open: true,
+        archived: false,
+        createdAt: 1000,
+        updatedAt: 2000,
+      },
+    },
     workspacesByUser: { user_1: { conv_1: { input: 'workspace check', attachments: [] } } },
     conversationThreadBindings: {
       conv_1: {
@@ -84,12 +96,28 @@ test('agent session persistence excludes provider-session thread mappings and pr
 
   const partialized = useAgentSessionStore.persist.getOptions().partialize?.(useAgentSessionStore.getState())
 
-  assert.deepEqual(partialized, {})
+  assert.deepEqual(partialized, {
+    activeConversationIdsByUser: { user_1: 'conv_1' },
+    conversationsById: {
+      conv_1: {
+        id: 'conv_1',
+        userId: 'user_1',
+        providerThreadId: 'thread_1',
+        providerSessionId: 'session_1',
+        open: true,
+        archived: false,
+        createdAt: 1000,
+        updatedAt: 2000,
+      },
+    },
+    workspacesByUser: { user_1: { conv_1: { input: 'workspace check', attachments: [] } } },
+  })
 })
 
 test('createProviderSessionConversation stores explicit conversation titles', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
+    conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
@@ -104,12 +132,14 @@ test('createProviderSessionConversation stores explicit conversation titles', ()
   })
 
   assert.equal(conversationId, 'thread_titled')
+  assert.equal(useAgentSessionStore.getState().conversationsById.thread_titled?.title, '上下文')
   assert.equal(useAgentSessionStore.getState().conversationProviderSessionStates.thread_titled?.title, '上下文')
 })
 
 test('createProviderSessionConversation writes conversation thread bindings', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
+    conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
@@ -123,7 +153,8 @@ test('createProviderSessionConversation writes conversation thread bindings', ()
     sessionId: 'session_tree_1',
   })
 
-  assert.equal(conversationId, 'session_tree_1')
+  assert.equal(conversationId, 'thread_1')
+  assert.equal(useAgentSessionStore.getState().conversationsById[conversationId]?.providerSessionId, 'session_tree_1')
   assert.deepEqual(useAgentSessionStore.getState().conversationThreadBindings[conversationId], {
     conversationId,
     providerThreadId: 'thread_1',
@@ -135,6 +166,7 @@ test('createProviderSessionConversation writes conversation thread bindings', ()
 test('legacy provider-session setters update conversation thread bindings', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
+    conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
@@ -155,6 +187,7 @@ test('legacy provider-session setters update conversation thread bindings', () =
 test('legacy provider-session runtime patches update conversation runtime states', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
+    conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
@@ -180,6 +213,7 @@ test('legacy provider-session runtime patches update conversation runtime states
 test('setActiveConversation ignores duplicate active conversation ids', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: { user_1: 'conv_1' },
+    conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},

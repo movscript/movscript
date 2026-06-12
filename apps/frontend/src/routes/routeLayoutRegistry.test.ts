@@ -135,7 +135,9 @@ test('registered route layout specs expose pane ownership for app shell surfaces
 
   const agentRoute = routeLayoutSpecForPathname('/project/agent')
   const agentSidebar = agentRoute.panes.find((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID)
-  assert.equal(agentSidebar?.collapsedSize, 44)
+  assert.equal(agentSidebar?.collapsedSize, 0)
+  assert.equal(agentSidebar?.defaultState, 'default')
+  assert.deepEqual(agentSidebar?.allowedStates, ['default', 'hidden'])
   assert.equal(agentSidebar?.defaultSize, AGENT_MODE_SIDEBAR_DEFAULT_WIDTH)
   assert.equal(agentSidebar?.storageKey, AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY)
   assert.equal(agentSidebar?.stateStorageKey, AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)

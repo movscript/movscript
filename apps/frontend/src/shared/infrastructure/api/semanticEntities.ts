@@ -4,7 +4,6 @@ import {
 } from '@movscript/workspace'
 import type { SemanticEntityKind as MovScriptCoreSemanticEntityKind } from '@movscript/language/domain'
 import {
-  createElectronMovScriptWorkspaceFileRepository,
   createElectronMovScriptWorkspaceService,
 } from '@/shared/infrastructure/workspaceDomainRepository'
 
@@ -429,7 +428,6 @@ async function upsertWorkspaceProduction(
 ): Promise<{ path: string; entityKind: 'production'; record: Record<string, unknown> }> {
   const current = stripWorkspacePrivateFields(record ?? {})
   const id = stableNumericEntityId(current, payload)
-  const path = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record) ?? `productions/${id}/production.json`
   const now = new Date().toISOString()
   const title = stringParam(payload.title ?? payload.name ?? current.title ?? current.name) ?? `制作 ${id}`
   const nextRecord = pruneUndefinedRecord({
@@ -447,11 +445,14 @@ async function upsertWorkspaceProduction(
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
-  await createElectronMovScriptWorkspaceFileRepository({ projectId }).write({
-    path,
-    content: `${JSON.stringify(nextRecord, null, 2)}\n`,
+  const result = await createElectronMovScriptWorkspaceService({ projectId }).saveProductionSnapshot({
+    productionId: id,
+    snapshot: {
+      production: nextRecord,
+      segments: [],
+    },
   })
-  return { path, entityKind: 'production', record: nextRecord }
+  return { path: result.productionPath, entityKind: 'production', record: nextRecord }
 }
 
 async function upsertWorkspaceSegment(
@@ -462,9 +463,6 @@ async function upsertWorkspaceSegment(
   const current = stripWorkspacePrivateFields(record ?? {})
   const productionId = requiredNumericRef(payload.production_id ?? current.production_id, 'production_id')
   const id = stableNumericEntityId(current, payload)
-  const path = workspaceRecordPath(current)
-    ?? workspaceEntityRecordPath(record)
-    ?? `productions/${productionId}/segments/${id}/segment.json`
   const now = new Date().toISOString()
   const title = stringParam(payload.title ?? current.title) ?? `段落 ${id}`
   const segmentKind = stringParam(payload.segment_kind ?? payload.kind ?? current.segment_kind ?? current.kind)
@@ -486,10 +484,16 @@ async function upsertWorkspaceSegment(
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
-  await createElectronMovScriptWorkspaceFileRepository({ projectId }).write({
-    path,
-    content: `${JSON.stringify(nextRecord, null, 2)}\n`,
+  const result = await createElectronMovScriptWorkspaceService({ projectId }).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      segments: [{
+        ...nextRecord,
+        order: numberParam(nextRecord.order),
+      }],
+    },
   })
+  const path = result.writtenPaths.find((path) => path.endsWith('/segment.json')) ?? result.productionPath
   return { path, entityKind: 'segment', record: nextRecord }
 }
 
@@ -502,17 +506,12 @@ async function upsertWorkspaceSceneMoment(
   const productionId = requiredNumericRef(payload.production_id ?? current.production_id, 'production_id')
   const segmentId = requiredNumericRef(payload.segment_id ?? current.segment_id, 'segment_id')
   const id = stableNumericEntityId(current, payload)
-  const momentDir = `productions/${productionId}/segments/${segmentId}/scene_moments/${id}`
-  const existingPath = workspaceRecordPath(current) ?? workspaceEntityRecordPath(record)
-  const path = existingPath
-    ?? `${momentDir}/scene_moment.json`
   const now = new Date().toISOString()
   const title = stringParam(payload.title ?? current.title) ?? `情节 ${id}`
   const timeText = stringParam(payload.time_text ?? payload.when ?? current.time_text ?? current.when)
   const locationText = stringParam(payload.location_text ?? payload.where ?? current.location_text ?? current.where)
   const actionText = stringParam(payload.action_text ?? payload.action ?? current.action_text ?? current.action)
   const mood = stringParam(payload.mood ?? payload.emotion ?? current.mood ?? current.emotion)
-  const storyboardId = stringParam(current.storyboard_id) ?? 'main'
   const nextRecord = pruneUndefinedRecord({
     ...current,
     ...payload,
@@ -540,22 +539,19 @@ async function upsertWorkspaceSceneMoment(
     CreatedAt: stringParam(current.CreatedAt ?? current.created_at) ?? now,
     UpdatedAt: now,
   })
-  const repository = createElectronMovScriptWorkspaceFileRepository({ projectId })
-  await repository.write({ path, content: `${JSON.stringify(nextRecord, null, 2)}\n` })
-  if (!existingPath) {
-    await repository.write({
-      path: `${momentDir}/storyboards/${storyboardId}/storyboard.json`,
-      content: `${JSON.stringify({
-        schema: 'movscript.storyboard.v1',
-        kind: 'storyboard',
-        ID: numericSuffix(storyboardId) ?? storyboardId,
-        id: storyboardId,
-        title: `${title} storyboard`,
-        order: 1,
-        setting_refs: [],
-      }, null, 2)}\n`,
-    })
-  }
+  const result = await createElectronMovScriptWorkspaceService({ projectId }).saveProductionSnapshot({
+    productionId,
+    snapshot: {
+      segments: [{
+        id: segmentId,
+        scene_moments: [{
+          ...nextRecord,
+          order: numberParam(nextRecord.order),
+        }],
+      }],
+    },
+  })
+  const path = result.writtenPaths.find((path) => path.endsWith('/scene_moment.json')) ?? result.productionPath
   return { path, entityKind: 'scene_moment', record: nextRecord }
 }
 
@@ -586,14 +582,6 @@ function requiredNumericRef(value: unknown, label: string): number {
   const id = numberParam(value) ?? numericSuffix(value)
   if (id === undefined || id <= 0) throw new Error(`${label} is required`)
   return id
-}
-
-function workspaceRecordPath(record: Record<string, unknown>): string | undefined {
-  return stringParam(record.__workspace_path ?? record.workspace_path ?? record.path)
-}
-
-function workspaceEntityRecordPath(record: SemanticEntityRecord | undefined): string | undefined {
-  return record ? workspaceEntityBySemanticRecord.get(record as Record<string, unknown>)?.path : undefined
 }
 
 function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<string, unknown> {

@@ -8,6 +8,7 @@ import type { Project, PublicModel, RawResource } from '@/types'
 import type { ProviderSessionClientInput, ProviderManifest, ProviderSessionLimitsOverride, AgentRunPreview } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
 import type { AgentThreadControlState } from '@movscript/core/agent/chat'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
 export type AgentSendRoute = 'provider-session'
 
@@ -89,6 +90,7 @@ export interface AgentSendWorkspaceOptions {
   runtimeLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
   threadControl?: Partial<AgentThreadControlState>
+  workspaceContext?: MovScriptWorkspaceContext
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
@@ -175,6 +177,15 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
   const providerSessionMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
   const diagnosticCommand = isDiagnosticAgentCommand(providerSessionMessage)
   const requestedManifest = options.providerManifest ?? input.activeConversationManifest
+  const providerSessionProjectId = resolveProviderSessionProjectId({
+    explicitProjectId: options.projectId,
+    taskProjectId: taskPayload?.projectId,
+    workspaceContext: options.workspaceContext,
+    fallbackProjectId: input.currentProject?.ID,
+  })
+  const contextProject = providerSessionProjectId !== undefined
+    ? input.currentProject?.ID === providerSessionProjectId ? input.currentProject : null
+    : options.workspaceContext === undefined ? input.currentProject : null
   const clientInput = options.clientInput
     ?? (taskPayload?.clientInput
       ? {
@@ -189,11 +200,11 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
       : buildProviderSessionClientInput({
           message: providerSessionMessage,
           attachmentRefs: clientAttachmentRefs,
-          projectId: options.projectId ?? input.currentProject?.ID,
+          projectId: providerSessionProjectId,
           labels: input.contextLabels,
         }))
   const agentContext = buildAgentContext({
-    project: input.currentProject,
+    project: contextProject,
     includeProjectContext: input.settings.includeProjectContext,
   })
   const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
@@ -205,7 +216,6 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
   const sessionId = options.providerSessionId?.trim() || undefined
   const threadId = sessionId ? undefined : input.providerThreadId || undefined
   const workspaceDir = options.providerSessionWorkspaceDir?.trim() || undefined
-  const providerSessionProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
   const providerSession: AgentSendProviderSessionScope = {
     ...(workspaceDir ? { workspaceDir } : {}),
     ...(sessionId ? { sessionId } : {}),
@@ -278,7 +288,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
     },
     contextLabels: input.contextLabels,
     context: {
-      ...(compactProject(input.currentProject) ? { project: compactProject(input.currentProject) } : {}),
+      ...(compactProject(contextProject) ? { project: compactProject(contextProject) } : {}),
       recentResources: [],
     },
     outbound: {
@@ -433,6 +443,19 @@ function normalizeSendThreadControl(threadControl: Partial<AgentThreadControlSta
   return Object.keys(next).length > 0 ? next : undefined
 }
 
+function resolveProviderSessionProjectId(input: {
+  explicitProjectId?: number
+  taskProjectId?: number
+  workspaceContext?: MovScriptWorkspaceContext
+  fallbackProjectId?: number
+}): number | undefined {
+  if (input.explicitProjectId !== undefined) return input.explicitProjectId
+  if (input.taskProjectId !== undefined) return input.taskProjectId
+  if (input.workspaceContext?.scope === 'project') return positiveInteger(input.workspaceContext.projectId)
+  if (input.workspaceContext) return undefined
+  return input.fallbackProjectId
+}
+
 function buildAgentContext(options: {
   project: Project | null
   includeProjectContext: boolean
@@ -442,6 +465,11 @@ function buildAgentContext(options: {
     lines.push(`[Current project] ${options.project.name}.`)
   }
   return lines.join('\n')
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
 }
 
 function compactProject(project: Project | null): AgentSendWorkspace['context']['project'] | undefined {

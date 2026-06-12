@@ -1,404 +1,89 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type {
-  MovScriptWorkspaceDomainIndex,
-  MovScriptWorkspaceFileRepository,
-  MovScriptWorkspaceIndexedEntity,
-  MovScriptWorkspaceService,
-} from '@movscript/workspace'
+import type { ContentSourceWorkspaceSnapshot } from '@movscript/core/content'
+import type { ElectronAPI } from '@/shared/contracts/electronApi'
 
 import {
-  __setElectronMovScriptWorkspaceActionFactoryForTest,
-  __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest,
-  __setElectronMovScriptWorkspaceServiceFactoryForTest,
-} from '@/shared/infrastructure/workspaceDomainRepository'
-
-import {
-  createContentSourceWorkspaceHierarchyNode,
   createContentSourceWorkspaceCandidate,
+  createContentSourceWorkspaceHierarchyNode,
+  createContentSourceWorkspaceRuntimePort,
+  fixtureContentSourceWorkspaceData,
   loadContentSourceWorkspaceData,
+  selectContentSourceWorkspaceCandidate,
   syncContentSourceWorkspace,
   updateContentSourceWorkspaceAudioCue,
+  updateContentSourceWorkspaceEditPrompt,
+  updateContentSourceWorkspaceExpressionUnit,
   updateContentSourceWorkspaceStoryboardTimeline,
   updateContentSourceWorkspaceTransition,
-  selectContentSourceWorkspaceCandidate,
-  updateContentSourceWorkspaceExpressionUnit,
-  updateContentSourceWorkspaceEditPrompt,
 } from './contentSourceWorkspaceData'
-import { findHierarchyNode } from './sourceWorkspaceTree'
 
-test('content source workspace data maps live timeline, candidates, and selection', async () => {
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => {
-    const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot', transition: { in: 'cold_open', out: 'title_card', notes: 'Keep it sharp.' } })
-    const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', order: 1, transition: { in: 'fade_in' } })
-    const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1, transition: { out: 'match_cut' } })
-    const shot = entity('shot', 'phone', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/shot.json', {
-      title: 'Phone closeup',
-      order: 1,
-      timing: { duration_sec: 3 },
-      transition: { in: 'insert_cut', out: 'sound_bridge' },
-      reference_asset_refs: ['phone_screen'],
-    })
-    const storyboard = entity('storyboard', 'main', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main/storyboard.json', {
-      title: 'Phone board',
-      transition: { in: 'hard_cut' },
-      timeline: { caption: 'Phone glow.', gap_after_sec: 0.2, duration_sec: 3 },
-    })
-    const keyframe = entity('keyframe', 'hero', 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/keyframes/hero/keyframe.json', {
-      title: 'Hero keyframe',
-    })
-    const setting = entity('setting', 'rain_rooftop', 'settings/rain_rooftop/setting.json', { title: 'Rain rooftop' })
-    const settingState = entity('setting_state', 'night', 'settings/rain_rooftop/states/night/setting_state.json', { title: 'Night rain' })
-    const asset = entity('asset', 'phone_screen', 'settings/rain_rooftop/states/night/assets/phone_screen/asset.json', {
-      title: 'Phone screen',
-    })
-    const expression = entity('expression_unit', 'expr_beat', 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/expr_beat/expression_unit.json', {
-      title: 'Hesitation beat',
-      expression_kind: 'micro_expression',
-      speaker: 'hero',
-      text: 'Do I answer?',
-      intent: 'The hand pauses before the call.',
-      note: 'Keep it tiny.',
-    })
-    const audioCue = entity('audio_cue', 'phone_buzz', 'productions/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_buzz/audio_cue.json', {
-      title: 'Phone buzz',
-      cue_kind: 'sound_effect',
-      shot_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone',
-      timing: { start: 'after_action', duration_sec: 1.2 },
-      prompt_hint: 'A sharp phone vibration.',
-      asset_refs: ['phone_screen'],
-    })
-    const contentUnit = entity('content_unit', 'cu_phone', 'content_units/cu_phone/content_unit.json', {
-      title: 'Phone shot unit',
-      content_unit_type: 'storyboard_ref',
-      output_kind: 'video',
-      edit_prompt: { text: 'Make the shot {{storyboard:main}} {{asset:phone_screen}}.' },
-      model_intent: { capability: 'video', duration_sec: 3 },
-    })
-    const assetContentUnit = entity('content_unit', 'cu_asset_phone', 'content_units/cu_asset_phone/content_unit.json', {
-      title: 'Phone asset unit',
-      content_unit_type: 'asset_ref',
-      output_kind: 'image',
-      edit_prompt: { text: 'Reference {{asset:phone_screen}}.' },
-    })
-    const entities = [production, segment, moment, shot, storyboard, keyframe, setting, settingState, asset, expression, audioCue, contentUnit, assetContentUnit]
-    const index: MovScriptWorkspaceDomainIndex = {
-      documents: [
-        ...entities.map((item) => ({ path: item.path, data: item.record })),
-        {
-          path: 'content_units/cu_phone/candidates/cand_a/content_candidate.json',
-          data: {
-            schema: 'movscript.content_candidate.v1',
-            id: 'cand_a',
-            content_unit_ref: 'content_units/cu_phone',
-            source: 'ai_generate',
-            status: 'succeeded',
-            producer: { model_id: 'video-i2v' },
-            outputs: [{ kind: 'video', resource_id: 'res_video_1', mime_type: 'video/mp4' }],
-            prompt_snapshot: { input_hash: 'hash_live', note: 'Clean take.' },
-            created_at: '2026-06-07T00:00:00.000Z',
-          },
-        },
-        {
-          path: '.movscript/decisions/content_units/cu_phone/decision_context.json',
-          data: {
-            schema: 'movscript.decision_context.v1',
-            target_kind: 'content_unit',
-            target_ref: 'content_units/cu_phone',
-            candidates: [],
-            selection: {
-              candidate_id: 'cand_a',
-              resource_id: 'res_video_1',
-            },
-          },
-        },
-        {
-          path: 'content_units/cu_asset_phone/candidates/asset_a/content_candidate.json',
-          data: {
-            schema: 'movscript.content_candidate.v1',
-            id: 'asset_a',
-            content_unit_ref: 'content_units/cu_asset_phone',
-            status: 'succeeded',
-            producer: { model_id: 'image-t2i' },
-            outputs: [{ kind: 'image', resource_id: 'res_asset_1', mime_type: 'image/png' }],
-            prompt_snapshot: { input_hash: 'asset_hash', note: 'Readable UI.' },
-          },
-        },
-      ],
-      entities,
-      byKind: new Map(),
-    }
-    index.byKind = new Map([
-      ['production', [production]],
-      ['segment', [segment]],
-      ['scene_moment', [moment]],
-      ['shot', [shot]],
-      ['storyboard', [storyboard]],
-      ['keyframe', [keyframe]],
-      ['setting', [setting]],
-      ['setting_state', [settingState]],
-      ['asset', [asset]],
-      ['expression_unit', [expression]],
-      ['audio_cue', [audioCue]],
-      ['content_unit', [contentUnit, assetContentUnit]],
-    ] as never)
-
-    return {
-      loadIndex: async () => index,
-      querySettings: async () => [setting],
-      queryEntities: async (query) => query?.entityKind === 'setting_state' ? [settingState] : [],
-      queryAssets: async () => ({ assets: [asset] }),
-      queryProductionContext: async () => ({
-        productions: [production],
-        segments: [segment],
-        scene_moments: [moment],
-        shots: [shot],
-        storyboards: [storyboard],
-        keyframes: [keyframe],
-        expression_units: [expression],
-        audio_cues: [audioCue],
-        content_units: [contentUnit, assetContentUnit],
-      }),
-      readPreviewTimeline: async () => ({
-        schema: 'movscript.preview_timeline.v1',
-        productionId: 'pilot',
-        productionPath: 'productions/pilot',
-        items: [
-          timelineItem('segment:opening', 'segment', segment, 0),
-          timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1, 'segment:opening'),
-          timelineItem('shot:phone', 'shot', shot, 2, 'scene_moment:rain_call'),
-          timelineItem('storyboard:main', 'storyboard', storyboard, 3, 'shot:phone'),
-          timelineItem('content_unit:cu_phone', 'content_unit', contentUnit, 4, 'storyboard:main'),
-          timelineItem('keyframe:hero', 'keyframe', keyframe, 5, 'shot:phone'),
-          timelineItem('expression_unit:expr_beat', 'expression_unit', expression, 6, 'scene_moment:rain_call'),
-          timelineItem('audio_cue:phone_buzz', 'audio_cue', audioCue, 7, 'scene_moment:rain_call'),
-        ],
-      }),
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
-  })
-  const restoreAction = __setElectronMovScriptWorkspaceActionFactoryForTest(async (action) => {
-    if (action !== 'review') return {}
-    return {
-      productionWorkPlan: {
-        summary: {
-          open: 1,
-          blocking: 0,
-          human_recommended: 0,
-          agent_recommended: 1,
-          ready_to_generate: 1,
-          stale_selections: 0,
-        },
-        items: [
-          {
-            id: 'generate:cu_phone',
-            kind: 'generate_candidates',
-            target: {
-              entityKind: 'content_unit',
-              id: 'cu_phone',
-              path: 'content_units/cu_phone/content_unit.json',
-            },
-            status: 'ready',
-            severity: 'suggestion',
-            recommended_actor: 'agent',
-            priority: 20,
-            reason: 'Content unit is ready for generation.',
-            actions: [{ type: 'generate_candidates' }],
-          },
-        ],
-      },
-    }
+test('content source workspace data loads through the Electron engine API', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const snapshot = emptySnapshot()
+  await withElectronAPI({
+    loadMovScriptEngineContentWorkspaceSnapshot: async (input) => {
+      calls.push({ method: 'snapshot', input })
+      return snapshot
+    },
+    loadMovScriptEngineContentWorkspace: async (input) => {
+      calls.push({ method: 'data', input })
+      return fixtureContentSourceWorkspaceData
+    },
+  }, async () => {
+    const port = createContentSourceWorkspaceRuntimePort()
+    assert.equal(await port.loadSnapshot(123), snapshot)
+    assert.equal(await loadContentSourceWorkspaceData(456), fixtureContentSourceWorkspaceData)
   })
 
-  try {
-    const data = await loadContentSourceWorkspaceData(123)
-    assert.equal(data.source, 'workspace')
-    assert.equal(data.productionWorkPlan?.summary.readyToGenerate, 1)
-    assert.equal(data.productionWorkPlan?.items[0].id, 'generate:cu_phone')
-    assert.equal(data.previewMoments[0].shots[0].contentUnit.id, 'cu_phone')
-    assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].id, 'cand_a')
-    assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].selected, true)
-    assert.equal(data.previewMoments[0].shots[0].contentUnit.candidates[0].inputHash, 'hash_live')
-    assert.equal(data.shotWorkspaceDetails.phone.storyboards[0].contentUnit?.id, 'cu_phone')
-    assert.equal(data.shotWorkspaceDetails.phone.storyboards[0].contentUnit?.editPrompt, 'Make the shot {{storyboard:main}} {{asset:phone_screen}}.')
-    assert.equal(data.shotWorkspaceDetails.phone.storyboards[0].contentUnit?.candidates[0].selected, true)
-    assert.equal(data.expressionUnitsByMoment.rain_call[0].path, 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/expr_beat/expression_unit.json')
-    assert.equal(data.expressionUnitsByMoment.rain_call[0].text, 'Do I answer?')
-    assert.equal(data.expressionUnitsByMoment.rain_call[0].summary, 'The hand pauses before the call.')
-    assert.equal(data.audioCuesByMoment.rain_call[0].path, 'productions/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_buzz/audio_cue.json')
-    assert.equal(data.audioCuesByMoment.rain_call[0].cueKind, 'sound_effect')
-    assert.equal(data.audioCuesByMoment.rain_call[0].timing.duration_sec, 1.2)
-    const productionNode = findHierarchyNode(data.hierarchyTree, 'pilot')
-    const storyboardNode = findHierarchyNode(data.hierarchyTree, 'storyboard/main')
-    assert.deepEqual(productionNode?.transition, { in: 'cold_open', out: 'title_card', notes: 'Keep it sharp.' })
-    assert.deepEqual(storyboardNode?.transition, { in: 'hard_cut', out: undefined, notes: undefined })
-    assert.deepEqual(storyboardNode?.storyboardTimeline, { caption: 'Phone glow.', gapAfterSec: 0.2, durationSec: 3 })
-    assert.equal(data.assetReferenceUnits['asset/phone_screen'].candidates[0].resourceId, 'res_asset_1')
-    assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream.length, 1)
-    assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream[0].title, 'Phone shot unit')
-    assert.equal(data.assetReferenceUnits['asset/phone_screen'].downstream[0].ownerNodeId, 'storyboard/main')
-  } finally {
-    restoreAction()
-    restore()
-  }
+  assert.deepEqual(calls, [
+    { method: 'snapshot', input: { projectId: 123 } },
+    { method: 'data', input: { projectId: 456 } },
+  ])
 })
 
-test('content source workspace selection writes content unit selection through workspace service', async () => {
-  const selections: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      selectContentUnitCandidate: async (input) => {
-        selections.push(input as unknown as Record<string, unknown>)
-        return {
-          path: `.movscript/decisions/content_units/${input.contentUnitId}/decision_context.json`,
-          record: input as unknown as Record<string, unknown>,
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
-  })
-
-  try {
+test('content source workspace selection writes through the Electron engine API', async () => {
+  const calls: unknown[] = []
+  await withElectronAPI({
+    selectMovScriptEngineContentUnitCandidate: async (input) => {
+      calls.push(input)
+    },
+  }, async () => {
     await selectContentSourceWorkspaceCandidate({
       projectId: 456,
       contentUnitId: 'cu_phone',
       candidateId: 'cand_a',
       resourceId: 'res_video_1',
     })
-    assert.equal(contexts[0].projectId, 456)
-    assert.deepEqual(selections[0], {
-      contentUnitId: 'cu_phone',
-      candidateId: 'cand_a',
-      resourceId: 'res_video_1',
-      reason: 'content_source_workspace_selection',
-    })
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace data keeps live ontology tree when preview shots are not planned yet', async () => {
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => {
-    const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
-    const segment = entity('segment', 'opening', 'productions/pilot/segments/opening/segment.json', { title: 'Opening', order: 1 })
-    const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
-    const entities = [production, segment, moment]
-    const index: MovScriptWorkspaceDomainIndex = {
-      documents: entities.map((item) => ({ path: item.path, data: item.record })),
-      entities,
-      byKind: new Map([
-        ['production', [production]],
-        ['segment', [segment]],
-        ['scene_moment', [moment]],
-      ] as never),
-    }
-    return {
-      loadIndex: async () => index,
-      querySettings: async () => [],
-      queryEntities: async () => [],
-      queryAssets: async () => ({ assets: [] }),
-      queryProductionContext: async () => ({
-        productions: [production],
-        segments: [segment],
-        scene_moments: [moment],
-        shots: [],
-        storyboards: [],
-        keyframes: [],
-        expression_units: [],
-        audio_cues: [],
-        content_units: [],
-      }),
-      readPreviewTimeline: async () => ({
-        schema: 'movscript.preview_timeline.v1',
-        productionId: 'pilot',
-        productionPath: 'productions/pilot',
-        items: [
-          timelineItem('segment:opening', 'segment', segment, 0),
-          timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1, 'segment:opening'),
-        ],
-      }),
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
-  })
-  const restoreAction = __setElectronMovScriptWorkspaceActionFactoryForTest(async () => ({}))
-
-  try {
-    const data = await loadContentSourceWorkspaceData(123)
-    assert.equal(data.source, 'workspace')
-    assert.equal(data.hierarchyTree[1].children?.[0].title, 'Pilot')
-    assert.equal(data.previewMoments[0].id, 'rain_call')
-    assert.equal(data.previewMoments[0].shots.length, 0)
-  } finally {
-    restoreAction()
-    restore()
-  }
-})
-
-test('content source workspace data treats an empty project as live empty workspace', async () => {
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest(() => {
-    const index: MovScriptWorkspaceDomainIndex = {
-      documents: [],
-      entities: [],
-      byKind: new Map(),
-    }
-    return {
-      loadIndex: async () => index,
-      querySettings: async () => [],
-      queryEntities: async () => [],
-      queryAssets: async () => ({ assets: [] }),
-      queryProductionContext: async () => ({
-        productions: [],
-        segments: [],
-        scene_moments: [],
-        shots: [],
-        storyboards: [],
-        keyframes: [],
-        expression_units: [],
-        audio_cues: [],
-        content_units: [],
-      }),
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
-  })
-  const restoreAction = __setElectronMovScriptWorkspaceActionFactoryForTest(async () => ({}))
-
-  try {
-    const data = await loadContentSourceWorkspaceData(124)
-    assert.equal(data.source, 'workspace')
-    assert.equal(data.hierarchyTree[0].id, 'settings_root')
-    assert.equal(data.hierarchyTree[1].id, 'productions_group')
-    assert.equal(data.previewMoments.length, 0)
-  } finally {
-    restoreAction()
-    restore()
-  }
-})
-
-test('content source workspace candidate creator can attach a resource library candidate through workspace service', async () => {
-  const candidates: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      createContentCandidate: async (input) => {
-        candidates.push(input as unknown as Record<string, unknown>)
-        return {
-          path: `content_units/${input.contentUnitId}/candidates/${input.candidateId}/content_candidate.json`,
-          record: {
-            schema: 'movscript.content_candidate.v1',
-            id: input.candidateId,
-            source: input.source,
-            status: input.status,
-            producer: input.producer,
-            outputs: input.outputs,
-            prompt_snapshot: input.promptSnapshot,
-            created_at: input.createdAt,
-          },
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
   })
 
-  try {
+  assert.deepEqual(calls[0], {
+    projectId: 456,
+    contentUnitId: 'cu_phone',
+    candidateId: 'cand_a',
+    resourceId: 'res_video_1',
+    reason: 'content_source_workspace_selection',
+  })
+})
+
+test('content source workspace candidate creator sends engine candidate plans', async () => {
+  const calls: unknown[] = []
+  await withElectronAPI({
+    createMovScriptEngineContentCandidate: async (input) => {
+      calls.push(input)
+      return {
+        schema: 'movscript.content_candidate.v1',
+        id: input.candidateId,
+        source: input.source,
+        status: input.status,
+        producer: input.producer,
+        outputs: input.outputs,
+        prompt_snapshot: input.promptSnapshot,
+        created_at: input.createdAt,
+      }
+    },
+  }, async () => {
     const candidate = await createContentSourceWorkspaceCandidate({
       projectId: 457,
       contentUnitId: 'cu_phone',
@@ -409,83 +94,52 @@ test('content source workspace candidate creator can attach a resource library c
       resourceType: 'video',
       resourceMimeType: 'video/mp4',
     })
-    assert.equal(contexts[0].projectId, 457)
-    assert.equal(candidates[0].contentUnitId, 'cu_phone')
-    assert.equal(candidates[0].source, 'resource_library')
-    assert.equal(candidates[0].status, 'imported')
-    assert.deepEqual(candidates[0].outputs, [{ kind: 'video', resource_id: 81, mime_type: 'video/mp4' }])
-    assert.equal((candidates[0].producer as Record<string, unknown>).kind, 'content_workbench')
-    assert.equal((candidates[0].producer as Record<string, unknown>).model_id, 'resource_library')
-    assert.equal((candidates[0].promptSnapshot as Record<string, unknown>).output_kind, 'video')
-    assert.equal((candidates[0].promptSnapshot as Record<string, unknown>).prompt_text, 'Make the shot.')
+
     assert.match(candidate.id, /^resource_81_/)
     assert.equal(candidate.model, 'resource_library')
     assert.equal(candidate.note, 'Selected from resource library.')
     assert.equal(candidate.resourceId, '81')
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace prompt editor writes edit_prompt through workspace service', async () => {
-  const updates: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      updateContentUnitEditPrompt: async (input) => {
-        updates.push(input as unknown as Record<string, unknown>)
-        return {
-          path: input.targetPath,
-          record: {
-            schema: 'movscript.content_unit.v1',
-            edit_prompt: input.editPrompt,
-          },
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
   })
 
-  try {
+  const plan = calls[0] as Record<string, unknown>
+  assert.equal(plan.projectId, 457)
+  assert.equal(plan.contentUnitId, 'cu_phone')
+  assert.equal(plan.source, 'resource_library')
+  assert.equal(plan.status, 'imported')
+  assert.deepEqual(plan.outputs, [{ kind: 'video', resource_id: 81, mime_type: 'video/mp4' }])
+  assert.equal((plan.producer as Record<string, unknown>).kind, 'content_workbench')
+  assert.equal((plan.producer as Record<string, unknown>).model_id, 'resource_library')
+  assert.equal((plan.promptSnapshot as Record<string, unknown>).output_kind, 'video')
+  assert.equal((plan.promptSnapshot as Record<string, unknown>).prompt_text, 'Make the shot.')
+})
+
+test('content source workspace editors write patches through the Electron engine API', async () => {
+  const calls: Record<string, unknown>[] = []
+  await withElectronAPI({
+    updateMovScriptEngineContentUnitEditPrompt: async (input) => {
+      calls.push({ method: 'prompt', input })
+    },
+    updateMovScriptEngineExpressionUnit: async (input) => {
+      calls.push({ method: 'expression', input })
+    },
+    updateMovScriptEngineAudioCue: async (input) => {
+      calls.push({ method: 'audio', input })
+    },
+    updateMovScriptEngineTransition: async (input) => {
+      calls.push({ method: 'transition', input })
+    },
+    updateMovScriptEngineStoryboardTimeline: async (input) => {
+      calls.push({ method: 'timeline', input })
+    },
+  }, async () => {
     await updateContentSourceWorkspaceEditPrompt({
       projectId: 789,
       targetPath: 'content_units/cu_asset_phone/content_unit.json',
       text: 'Updated {{asset:phone_screen}} reference prompt.',
     })
-    assert.equal(contexts[0].projectId, 789)
-    assert.deepEqual(updates[0], {
-      targetPath: 'content_units/cu_asset_phone/content_unit.json',
-      editPrompt: { text: 'Updated {{asset:phone_screen}} reference prompt.' },
-    })
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace expression editor writes expression_unit through workspace service', async () => {
-  const updates: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      updateExpressionUnitSource: async (input) => {
-        updates.push(input as unknown as Record<string, unknown>)
-        return {
-          path: input.targetPath,
-          record: {
-            schema: 'movscript.expression_unit.v1',
-            kind: 'expression_unit',
-            ...input.patch,
-          },
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
-  })
-
-  try {
     await updateContentSourceWorkspaceExpressionUnit({
       projectId: 321,
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/expr_beat/expression_unit.json',
+      targetPath: 'productions/pilot/expression_unit.json',
       title: 'Hesitation beat',
       kind: 'micro_expression',
       text: 'Do I answer?',
@@ -493,9 +147,49 @@ test('content source workspace expression editor writes expression_unit through 
       speaker: 'hero',
       note: 'Keep it tiny.',
     })
-    assert.equal(contexts[0].projectId, 321)
-    assert.deepEqual(updates[0], {
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/expression_units/expr_beat/expression_unit.json',
+    await updateContentSourceWorkspaceAudioCue({
+      projectId: 654,
+      targetPath: 'productions/pilot/audio_cue.json',
+      title: 'Phone buzz',
+      cueKind: 'sound_effect',
+      promptHint: 'A sharp phone vibration.',
+      shotRef: 'productions/pilot/shots/phone',
+      timing: { start: 'after_action', duration_sec: 1.2 },
+      assetRefs: ['phone_screen'],
+    })
+    await updateContentSourceWorkspaceTransition({
+      projectId: 987,
+      targetPath: 'productions/pilot/shot.json',
+      transition: {
+        in: 'insert_cut',
+        out: 'sound_bridge',
+        notes: 'Tie to audio cue.',
+      },
+    })
+    await updateContentSourceWorkspaceStoryboardTimeline({
+      projectId: 988,
+      targetPath: 'productions/pilot/storyboard.json',
+      timeline: {
+        caption: 'Phone glow.',
+        gapAfterSec: 0.2,
+        durationSec: 3,
+      },
+    })
+  })
+
+  assert.deepEqual(calls[0], {
+    method: 'prompt',
+    input: {
+      projectId: 789,
+      targetPath: 'content_units/cu_asset_phone/content_unit.json',
+      editPrompt: { text: 'Updated {{asset:phone_screen}} reference prompt.' },
+    },
+  })
+  assert.deepEqual(calls[1], {
+    method: 'expression',
+    input: {
+      projectId: 321,
+      targetPath: 'productions/pilot/expression_unit.json',
       patch: {
         title: 'Hesitation beat',
         expressionKind: 'micro_expression',
@@ -504,166 +198,60 @@ test('content source workspace expression editor writes expression_unit through 
         speaker: 'hero',
         note: 'Keep it tiny.',
       },
-    })
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace audio editor writes audio_cue through workspace service', async () => {
-  const updates: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      updateAudioCueSource: async (input) => {
-        updates.push(input as unknown as Record<string, unknown>)
-        return {
-          path: input.targetPath,
-          record: {
-            schema: 'movscript.audio_cue.v1',
-            kind: 'audio_cue',
-            ...input.patch,
-          },
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
+    },
   })
-
-  try {
-    await updateContentSourceWorkspaceAudioCue({
+  assert.deepEqual(calls[2], {
+    method: 'audio',
+    input: {
       projectId: 654,
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_buzz/audio_cue.json',
-      title: 'Phone buzz',
-      cueKind: 'sound_effect',
-      promptHint: 'A sharp phone vibration.',
-      shotRef: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone',
-      timing: { start: 'after_action', duration_sec: 1.2 },
-      assetRefs: ['phone_screen'],
-    })
-    assert.equal(contexts[0].projectId, 654)
-    assert.deepEqual(updates[0], {
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/audio_cues/phone_buzz/audio_cue.json',
+      targetPath: 'productions/pilot/audio_cue.json',
       patch: {
         title: 'Phone buzz',
         cueKind: 'sound_effect',
         promptHint: 'A sharp phone vibration.',
-        shotRef: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone',
+        shotRef: 'productions/pilot/shots/phone',
         storyboardRef: undefined,
         timing: { start: 'after_action', duration_sec: 1.2 },
         assetRefs: ['phone_screen'],
       },
-    })
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace transition editor writes entity transition through workspace service', async () => {
-  const updates: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      updateEntityTransition: async (input) => {
-        updates.push(input as unknown as Record<string, unknown>)
-        return {
-          path: input.targetPath,
-          record: {
-            schema: 'movscript.shot.v1',
-            transition: input.transition,
-          },
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
+    },
   })
-
-  try {
-    await updateContentSourceWorkspaceTransition({
+  assert.deepEqual(calls[3], {
+    method: 'transition',
+    input: {
       projectId: 987,
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/shot.json',
+      targetPath: 'productions/pilot/shot.json',
       transition: {
         in: 'insert_cut',
         out: 'sound_bridge',
         notes: 'Tie to audio cue.',
       },
-    })
-    assert.equal(contexts[0].projectId, 987)
-    assert.deepEqual(updates[0], {
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/shot.json',
-      transition: {
-        in: 'insert_cut',
-        out: 'sound_bridge',
-        notes: 'Tie to audio cue.',
-      },
-    })
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace storyboard timeline editor writes storyboard timeline through workspace service', async () => {
-  const updates: Array<Record<string, unknown>> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceServiceFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      updateStoryboardTimeline: async (input) => {
-        updates.push(input as unknown as Record<string, unknown>)
-        return {
-          path: input.targetPath,
-          record: {
-            schema: 'movscript.storyboard.v1',
-            timeline: input.timeline,
-          },
-        }
-      },
-    } as Partial<MovScriptWorkspaceService> as MovScriptWorkspaceService
+    },
   })
-
-  try {
-    await updateContentSourceWorkspaceStoryboardTimeline({
+  assert.deepEqual(calls[4], {
+    method: 'timeline',
+    input: {
       projectId: 988,
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main/storyboard.json',
-      timeline: {
-        caption: 'Phone glow.',
-        gapAfterSec: 0.2,
-        durationSec: 3,
-      },
-    })
-    assert.equal(contexts[0].projectId, 988)
-    assert.deepEqual(updates[0], {
-      targetPath: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main/storyboard.json',
+      targetPath: 'productions/pilot/storyboard.json',
       timeline: {
         caption: 'Phone glow.',
         gap_after_sec: 0.2,
         duration_sec: 3,
       },
-    })
-  } finally {
-    restore()
-  }
+    },
+  })
 })
 
-test('content source workspace hierarchy add writes new source node through workspace repository', async () => {
-  const writes: Array<{ path: string; content: string }> = []
-  const contexts: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest((context) => {
-    contexts.push(context as unknown as Record<string, unknown>)
-    return {
-      write: async (input) => {
-        writes.push(input)
-        return {
-          path: input.path,
-          content: input.content,
-          size: input.content.length,
-          updatedAt: '2026-06-11T00:00:00.000Z',
-        }
-      },
-    } as Partial<MovScriptWorkspaceFileRepository> as MovScriptWorkspaceFileRepository
-  })
-
-  try {
+test('content source workspace hierarchy add and sync use engine APIs', async () => {
+  const calls: Record<string, unknown>[] = []
+  await withElectronAPI({
+    writeMovScriptEngineHierarchyNode: async (input) => {
+      calls.push({ method: 'write', input })
+    },
+    syncMovScriptEngineContentWorkspace: async (input) => {
+      calls.push({ method: 'sync', input })
+    },
+  }, async () => {
     await createContentSourceWorkspaceHierarchyNode({
       projectId: 777,
       type: 'shot',
@@ -677,72 +265,59 @@ test('content source workspace hierarchy add writes new source node through work
         path: 'productions/pilot/segments/opening/scene_moments/rain_call/shots',
       },
     })
-    assert.equal(contexts[0].projectId, 777)
-    assert.equal(writes[0].path, 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json')
-    const record = JSON.parse(writes[0].content) as Record<string, unknown>
-    assert.equal(record.schema, 'movscript.shot.v1')
-    assert.equal(record.kind, 'shot')
-    assert.equal(record.id, 'phone_insert')
-    assert.equal(record.title, 'Phone insert')
-    assert.equal(record.production_id, 'pilot')
-    assert.equal(record.segment_id, 'opening')
-    assert.equal(record.scene_moment_id, 'rain_call')
-    assert.deepEqual(record.timing, {})
-    assert.deepEqual(record.reference_asset_refs, [])
-  } finally {
-    restore()
-  }
-})
-
-test('content source workspace sync interprets the workspace for the active project', async () => {
-  const actions: Array<Record<string, unknown>> = []
-  const restore = __setElectronMovScriptWorkspaceActionFactoryForTest(async (action, context) => {
-    actions.push({ action, ...context })
-    return { ok: true }
+    await syncContentSourceWorkspace({ projectId: 778 })
   })
 
-  try {
-    await syncContentSourceWorkspace({ projectId: 778 })
-    assert.deepEqual(actions[0], {
-      action: 'interpret',
-      projectId: 778,
-    })
-  } finally {
-    restore()
-  }
+  assert.equal(calls[0].method, 'write')
+  const writeInput = calls[0].input as Record<string, unknown>
+  assert.equal(writeInput.projectId, 777)
+  assert.equal(writeInput.targetPath, 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json')
+  const record = writeInput.record as Record<string, unknown>
+  assert.equal(record.schema, 'movscript.shot.v1')
+  assert.equal(record.kind, 'shot')
+  assert.equal(record.id, 'phone_insert')
+  assert.equal(record.title, 'Phone insert')
+  assert.equal(record.production_id, 'pilot')
+  assert.equal(record.segment_id, 'opening')
+  assert.equal(record.scene_moment_id, 'rain_call')
+  assert.deepEqual(record.timing, {})
+  assert.deepEqual(record.reference_asset_refs, [])
+  assert.deepEqual(calls[1], {
+    method: 'sync',
+    input: { projectId: 778 },
+  })
 })
 
-function entity(
-  entityKind: MovScriptWorkspaceIndexedEntity['entityKind'],
-  id: string,
-  path: string,
-  fields: Record<string, unknown>,
-): MovScriptWorkspaceIndexedEntity {
-  return {
-    entityKind,
-    id,
-    path,
-    index: 0,
-    record: {
-      schema: `movscript.${entityKind}.v1`,
-      id,
-      ...fields,
-    },
+async function withElectronAPI<T>(
+  api: Partial<ElectronAPI>,
+  run: () => Promise<T>,
+): Promise<T> {
+  const host = globalThis as typeof globalThis & { window?: { api?: Partial<ElectronAPI> } }
+  const previous = host.window
+  host.window = { api }
+  try {
+    return await run()
+  } finally {
+    if (previous === undefined) delete host.window
+    else host.window = previous
   }
 }
 
-function timelineItem(
-  id: string,
-  itemType: string,
-  entity: MovScriptWorkspaceIndexedEntity,
-  order: number,
-  parentId?: string,
-) {
+function emptySnapshot(): ContentSourceWorkspaceSnapshot {
   return {
-    id,
-    itemType,
-    entity: { entityKind: entity.entityKind, id: entity.id, path: entity.path },
-    order,
-    parentId,
+    indexDocuments: [],
+    settings: [],
+    settingStates: [],
+    assets: [],
+    productions: [],
+    segments: [],
+    sceneMoments: [],
+    shots: [],
+    storyboards: [],
+    keyframes: [],
+    expressionUnits: [],
+    audioCues: [],
+    contentUnits: [],
+    previewTimelines: [],
   }
 }

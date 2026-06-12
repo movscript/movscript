@@ -1,84 +1,26 @@
-import {
-  createMovScriptWorkspaceService,
-  type MovScriptWorkspaceFileRepository,
-  type MovScriptWorkspaceRepositoryReadResult,
-  type MovScriptWorkspaceRepositoryListResult,
-  type MovScriptWorkspaceRepositoryWriteInput,
-  type MovScriptWorkspaceService,
-} from '@movscript/workspace'
+import type { MovScriptWorkspaceService } from '@movscript/workspace'
 import type {
   ElectronAPI,
-  ElectronMovScriptWorkspaceRootResult,
 } from '@/shared/contracts/electronApi'
 import { currentWorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 
 type WorkspaceElectronAPI = Pick<
   ElectronAPI,
-  | 'getMovScriptWorkspaceRoot'
-  | 'listMovScriptWorkspaceFiles'
-  | 'readMovScriptWorkspaceFile'
-  | 'writeMovScriptWorkspaceFile'
-  | 'deleteMovScriptWorkspaceFile'
   | 'reviewMovScriptWorkspace'
   | 'interpretMovScriptWorkspace'
+  | 'queryMovScriptEngineWorkspaceEntities'
+  | 'queryMovScriptEngineWorkspaceSettings'
+  | 'queryMovScriptEngineWorkspaceAssets'
+  | 'upsertMovScriptEngineWorkspaceSetting'
+  | 'upsertMovScriptEngineWorkspaceAsset'
+  | 'upsertMovScriptEngineWorkspaceScript'
+  | 'readMovScriptEngineWorkspaceScriptSource'
+  | 'deleteMovScriptEngineWorkspaceEntity'
+  | 'saveMovScriptEngineWorkspaceProductionSnapshot'
+  | 'upsertMovScriptEngineWorkspaceProjectStandards'
+  | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
+  | 'createMovScriptEngineWorkspaceKeyframeCandidate'
 >
-
-export function createElectronMovScriptWorkspaceFileRepository(
-  api?: WorkspaceElectronAPI,
-): MovScriptWorkspaceFileRepository
-export function createElectronMovScriptWorkspaceFileRepository(
-  context?: ElectronMovScriptWorkspaceFileRepositoryContext,
-  api?: WorkspaceElectronAPI,
-): MovScriptWorkspaceFileRepository
-export function createElectronMovScriptWorkspaceFileRepository(
-  first?: WorkspaceElectronAPI | ElectronMovScriptWorkspaceFileRepositoryContext,
-  second?: WorkspaceElectronAPI,
-): MovScriptWorkspaceFileRepository {
-  if (movScriptWorkspaceFileRepositoryFactoryForTest) {
-    const context = isWorkspaceElectronAPI(first) ? defaultWorkspaceOwnerContext({}) : defaultWorkspaceOwnerContext(first ?? {})
-    const api = isWorkspaceElectronAPI(first) ? first : second ?? ({} as WorkspaceElectronAPI)
-    return movScriptWorkspaceFileRepositoryFactoryForTest(context, api)
-  }
-  const { context, api } = repositoryArgs(first, second)
-  return {
-    async list(input: { path?: string } = {}): Promise<MovScriptWorkspaceRepositoryListResult> {
-      const result = await api.listMovScriptWorkspaceFiles?.({ ...context, path: input.path })
-      if (!result) throw new Error('MovScript workspace file listing is unavailable')
-      return {
-        path: result.path,
-        entries: result.entries.map((entry) => ({
-          path: entry.path,
-          kind: entry.kind,
-          size: entry.size,
-          updatedAt: entry.updatedAt,
-        })),
-      }
-    },
-    async read(input: { path: string }): Promise<MovScriptWorkspaceRepositoryReadResult> {
-      const result = await api.readMovScriptWorkspaceFile?.({ ...context, path: input.path })
-      if (!result) throw new Error('MovScript workspace file reading is unavailable')
-      return {
-        path: result.path,
-        content: result.content,
-        size: result.size,
-        updatedAt: result.updatedAt,
-      }
-    },
-    async write(input: MovScriptWorkspaceRepositoryWriteInput): Promise<MovScriptWorkspaceRepositoryReadResult> {
-      const result = await api.writeMovScriptWorkspaceFile?.({ ...context, path: input.path, content: input.content })
-      if (!result) throw new Error('MovScript workspace file writing is unavailable')
-      return {
-        path: result.path,
-        content: result.content,
-        size: result.size,
-        updatedAt: result.updatedAt,
-      }
-    },
-    async delete(input: { path: string }): Promise<void> {
-      await api.deleteMovScriptWorkspaceFile?.({ ...context, path: input.path })
-    },
-  }
-}
 
 export function createElectronMovScriptWorkspaceService(
   api?: WorkspaceElectronAPI,
@@ -97,9 +39,10 @@ export function createElectronMovScriptWorkspaceService(
     return movScriptWorkspaceServiceFactoryForTest(context, api)
   }
   const { context, api } = repositoryArgs(first, second)
-  return createMovScriptWorkspaceService({
-    fileRepository: createElectronMovScriptWorkspaceFileRepository(context, api),
-  })
+  if (hasEngineWorkspaceAPI(api)) {
+    return createElectronMovScriptEngineWorkspaceService(context, api)
+  }
+  throw new Error('当前窗口没有 MovScript engine workspace 能力')
 }
 
 export async function reviewElectronMovScriptWorkspace(
@@ -138,16 +81,6 @@ export function __setElectronMovScriptWorkspaceServiceFactoryForTest(
   }
 }
 
-export function __setElectronMovScriptWorkspaceFileRepositoryFactoryForTest(
-  factory: ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceFileRepository) | undefined,
-): () => void {
-  const previous = movScriptWorkspaceFileRepositoryFactoryForTest
-  movScriptWorkspaceFileRepositoryFactoryForTest = factory
-  return () => {
-    movScriptWorkspaceFileRepositoryFactoryForTest = previous
-  }
-}
-
 export function __setElectronMovScriptWorkspaceActionFactoryForTest(
   factory: ((action: 'review' | 'interpret', context: ElectronMovScriptWorkspaceFileRepositoryContext) => Promise<unknown>) | undefined,
 ): () => void {
@@ -169,34 +102,83 @@ let movScriptWorkspaceServiceFactoryForTest:
   | ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceService)
   | undefined
 
-let movScriptWorkspaceFileRepositoryFactoryForTest:
-  | ((context: ElectronMovScriptWorkspaceFileRepositoryContext, api: WorkspaceElectronAPI) => MovScriptWorkspaceFileRepository)
-  | undefined
-
 let movScriptWorkspaceActionFactoryForTest:
   | ((action: 'review' | 'interpret', context: ElectronMovScriptWorkspaceFileRepositoryContext) => Promise<unknown>)
   | undefined
 
 function requireElectronMovScriptWorkspaceAPI(): WorkspaceElectronAPI {
   const api = window.api
-  if (
-    !api?.getMovScriptWorkspaceRoot
-    || !api.listMovScriptWorkspaceFiles
-    || !api.readMovScriptWorkspaceFile
-    || !api.writeMovScriptWorkspaceFile
-    || !api.deleteMovScriptWorkspaceFile
-  ) {
+  if (!api) {
     throw new Error('当前窗口没有 MovScript 工作区文件能力')
   }
   return api
 }
 
-async function requireWorkspaceRoot(
-  api: Pick<WorkspaceElectronAPI, 'getMovScriptWorkspaceRoot'>,
-): Promise<ElectronMovScriptWorkspaceRootResult> {
-  const root = await api.getMovScriptWorkspaceRoot?.()
-  if (!root) throw new Error('MovScript workspace root is unavailable')
-  return root
+function createElectronMovScriptEngineWorkspaceService(
+  context: ElectronMovScriptWorkspaceFileRepositoryContext,
+  api: Required<Pick<
+    WorkspaceElectronAPI,
+    | 'queryMovScriptEngineWorkspaceEntities'
+    | 'queryMovScriptEngineWorkspaceSettings'
+    | 'queryMovScriptEngineWorkspaceAssets'
+    | 'upsertMovScriptEngineWorkspaceSetting'
+    | 'upsertMovScriptEngineWorkspaceAsset'
+    | 'upsertMovScriptEngineWorkspaceScript'
+    | 'readMovScriptEngineWorkspaceScriptSource'
+    | 'deleteMovScriptEngineWorkspaceEntity'
+    | 'saveMovScriptEngineWorkspaceProductionSnapshot'
+    | 'upsertMovScriptEngineWorkspaceProjectStandards'
+    | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
+    | 'createMovScriptEngineWorkspaceKeyframeCandidate'
+  >>,
+): MovScriptWorkspaceService {
+  const service: Partial<MovScriptWorkspaceService> = {
+    async queryEntities(query) {
+      return api.queryMovScriptEngineWorkspaceEntities({ ...context, query })
+    },
+    async querySettings(query) {
+      return api.queryMovScriptEngineWorkspaceSettings({ ...context, query })
+    },
+    async queryAssets(query) {
+      return api.queryMovScriptEngineWorkspaceAssets({ ...context, query })
+    },
+    async upsertSetting(payload) {
+      return api.upsertMovScriptEngineWorkspaceSetting({ ...context, payload })
+    },
+    async upsertAsset(payload) {
+      return api.upsertMovScriptEngineWorkspaceAsset({ ...context, payload })
+    },
+    async upsertScript(payload) {
+      return api.upsertMovScriptEngineWorkspaceScript({ ...context, payload })
+    },
+    async readScriptSource(payload) {
+      return api.readMovScriptEngineWorkspaceScriptSource({ ...context, payload })
+    },
+    async deleteEntity(payload) {
+      return api.deleteMovScriptEngineWorkspaceEntity({ ...context, payload })
+    },
+    async saveProductionSnapshot(payload) {
+      return api.saveMovScriptEngineWorkspaceProductionSnapshot({ ...context, payload })
+    },
+    async upsertProjectStandards(payload) {
+      return api.upsertMovScriptEngineWorkspaceProjectStandards({ ...context, payload })
+    },
+    async createAssetSlotCandidate(payload) {
+      return api.createMovScriptEngineWorkspaceAssetSlotCandidate({ ...context, payload })
+    },
+    async createKeyframeCandidate(payload) {
+      return api.createMovScriptEngineWorkspaceKeyframeCandidate({ ...context, payload })
+    },
+  }
+  return new Proxy(service, {
+    get(target, property, receiver) {
+      if (property in target) return Reflect.get(target, property, receiver)
+      if (typeof property === 'string') {
+        throw new Error(`MovScript engine workspace API does not expose ${property}`)
+      }
+      return undefined
+    },
+  }) as MovScriptWorkspaceService
 }
 
 function repositoryArgs(
@@ -224,11 +206,40 @@ function defaultWorkspaceOwnerContext(
 
 function isWorkspaceElectronAPI(value: unknown): value is WorkspaceElectronAPI {
   return isRecord(value) && (
-    'getMovScriptWorkspaceRoot' in value
-    || 'listMovScriptWorkspaceFiles' in value
-    || 'readMovScriptWorkspaceFile' in value
-    || 'writeMovScriptWorkspaceFile' in value
-    || 'deleteMovScriptWorkspaceFile' in value
+    'reviewMovScriptWorkspace' in value
+    || 'interpretMovScriptWorkspace' in value
+    || 'queryMovScriptEngineWorkspaceEntities' in value
+  )
+}
+
+function hasEngineWorkspaceAPI(value: WorkspaceElectronAPI): value is Required<Pick<
+  WorkspaceElectronAPI,
+  | 'queryMovScriptEngineWorkspaceEntities'
+  | 'queryMovScriptEngineWorkspaceSettings'
+  | 'queryMovScriptEngineWorkspaceAssets'
+  | 'upsertMovScriptEngineWorkspaceSetting'
+  | 'upsertMovScriptEngineWorkspaceAsset'
+  | 'upsertMovScriptEngineWorkspaceScript'
+  | 'readMovScriptEngineWorkspaceScriptSource'
+  | 'deleteMovScriptEngineWorkspaceEntity'
+  | 'saveMovScriptEngineWorkspaceProductionSnapshot'
+  | 'upsertMovScriptEngineWorkspaceProjectStandards'
+  | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
+  | 'createMovScriptEngineWorkspaceKeyframeCandidate'
+>> {
+  return Boolean(
+    value.queryMovScriptEngineWorkspaceEntities
+    && value.queryMovScriptEngineWorkspaceSettings
+    && value.queryMovScriptEngineWorkspaceAssets
+    && value.upsertMovScriptEngineWorkspaceSetting
+    && value.upsertMovScriptEngineWorkspaceAsset
+    && value.upsertMovScriptEngineWorkspaceScript
+    && value.readMovScriptEngineWorkspaceScriptSource
+    && value.deleteMovScriptEngineWorkspaceEntity
+    && value.saveMovScriptEngineWorkspaceProductionSnapshot
+    && value.upsertMovScriptEngineWorkspaceProjectStandards
+    && value.createMovScriptEngineWorkspaceAssetSlotCandidate
+    && value.createMovScriptEngineWorkspaceKeyframeCandidate
   )
 }
 

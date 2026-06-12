@@ -9,6 +9,7 @@ export function buildAgentChatSendPipelineInput({
   activeRun,
   buildingSendWorkspace,
   composer,
+  conversationEstablished,
   context,
   conv,
   externalTask,
@@ -19,6 +20,23 @@ export function buildAgentChatSendPipelineInput({
   store,
   userId,
 }: BuildAgentChatInteractionControllerInputOptions): AgentChatSendPipelineInput {
+  const draftThreadControl = conversationEstablished
+    ? undefined
+    : {
+        ...(composer.collaborationMode === 'plan' ? { collaborationMode: 'plan' as const } : {}),
+        ...(composer.goalModeEnabled
+          ? {
+              goal: {
+                objective: composer.getInput().trim() || 'MovScript agent goal',
+                status: 'active' as const,
+              },
+            }
+          : {}),
+      }
+  const threadControl = draftThreadControl && Object.keys(draftThreadControl).length > 0
+    ? draftThreadControl
+    : undefined
+
   return {
     workspaceBuilder: {
       input: composer.input,
@@ -81,17 +99,8 @@ export function buildAgentChatSendPipelineInput({
         sessionId: store.providerSessionId,
       }),
       modelId: composer.modelId,
-      threadControl: {
-        ...(composer.collaborationMode === 'plan' ? { collaborationMode: 'plan' as const } : {}),
-        ...(composer.goalModeEnabled
-          ? {
-              goal: {
-                objective: composer.getInput().trim() || 'MovScript agent goal',
-                status: 'active' as const,
-              },
-            }
-          : {}),
-      },
+      workspaceContext: composer.selectedWorkspaceContext,
+      ...(threadControl ? { threadControl } : {}),
       debugBeforeSend: providerSessionState.debugBeforeSend,
       pendingSendWorkspace: providerSessionState.pendingSendWorkspace,
       externalTask,

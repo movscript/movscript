@@ -16,6 +16,8 @@ import {
   domainQueryEntities,
   domainQueryProductionContext,
   domainQuerySettings,
+  domainReadContentWorkspace,
+  domainReadContentWorkspaceSnapshot,
   domainReadContentUnitDependencyReport,
   domainReadContentUnitGenerationPrompt,
   domainReadContentUnitRuntimePanel,
@@ -195,6 +197,10 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainQueryAssets(args))
     case 'domain_query_production_context':
       return toolText(await domainQueryProductionContext(args))
+    case 'domain_read_content_workspace':
+      return toolText(await domainReadContentWorkspace(args))
+    case 'domain_read_content_workspace_snapshot':
+      return toolText(await domainReadContentWorkspaceSnapshot(args))
     case 'domain_derive_content_unit_artifact':
       return toolText(await domainInterpretContentUnitArtifact(args))
     case 'domain_build_content_unit_backend_prompt':

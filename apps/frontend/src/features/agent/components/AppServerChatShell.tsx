@@ -1,14 +1,9 @@
 import { useCallback, useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AgentChatDataSourceShell,
   type AgentChatDataSourceShellLoadResult,
 } from '@/features/agent/components/AgentChatDataSourceShell'
-import {
-  openAgentChatDataSourceThread,
-  readStoredActiveThreadId,
-} from '@/features/agent/presentation/agentActiveThreadStorage'
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import {
   appServerRpcClientForURL,
@@ -17,24 +12,27 @@ import {
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
+import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import { useAgentStore } from '@/features/agent/state/agentStore'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   providerInstanceId,
+  providerProtocol,
   resolveAppServerProfile,
   MOVA_PROVIDER_ID,
   type ProviderConfig,
   type MovScriptWorkspaceContext,
 } from '@/shared/infrastructure/providerConfigStore'
 import type { AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
-import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { publicModelId } from '@/shared/domain/modelDisplay'
+import { selectActiveAgentConversationRegistryRecord } from '@movscript/core/agent'
 
-export const ACTIVE_APP_SERVER_THREAD_STORAGE_KEY = 'movscript.appServer.activeThreadId'
 export const APP_SERVER_THREAD_OPEN_EVENT = 'movscript:app-server-thread-open'
 
 export interface AppServerChatShellProps {
   userId: string
   provider?: ProviderConfig
+  emptyThreadLabel?: string
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
   showCollapse?: boolean
@@ -45,48 +43,18 @@ export function AppServerChatShell({
   surface = 'panel',
   ...props
 }: AppServerChatShellProps) {
-  const project = useProjectStore((state) => state.current)
-
-  if (surface === 'page') {
-    return <RouteAwareAppServerChatShell {...props} surface={surface} projectId={project?.ID} />
-  }
-
-  return (
-    <AppServerChatShellContent
-      {...props}
-      surface={surface}
-      routeWorkspaceContext={appServerProjectWorkspaceContext(project?.ID)}
-    />
-  )
-}
-
-function RouteAwareAppServerChatShell({
-  projectId,
-  ...props
-}: AppServerChatShellProps & {
-  projectId?: number
-}) {
-  const location = useLocation()
-  const routeWorkspaceContext = useMemo(() => appServerWorkspaceContextFromRoute({
-    projectId,
-    pathname: location.pathname,
-    search: location.search,
-  }), [location.pathname, location.search, projectId])
-
-  return <AppServerChatShellContent {...props} routeWorkspaceContext={routeWorkspaceContext} />
+  return <AppServerChatShellContent {...props} surface={surface} />
 }
 
 function AppServerChatShellContent({
   userId,
   provider,
+  emptyThreadLabel,
   host,
   surface = 'panel',
   showCollapse,
   onCollapse,
-  routeWorkspaceContext,
-}: AppServerChatShellProps & {
-  routeWorkspaceContext: MovScriptWorkspaceContext
-}) {
+}: AppServerChatShellProps) {
   const settings = useAgentStore((state) => state.settings)
   const updateSettings = useAgentStore((state) => state.updateSettings)
   const { data: textModels = [] } = useQuery({
@@ -103,12 +71,6 @@ function AppServerChatShellContent({
   const providerLabel = provider?.label?.trim() || 'App-server Provider'
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
     if (provider) await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
-    if (provider && routeWorkspaceContext) return loadScopedAppServerDataSource({
-      provider,
-      providerLabel,
-      resolveModelForRequest,
-      workspaceContext: routeWorkspaceContext,
-    })
     const client = await ensureAppServerRpcClient(provider)
     return appServerDataSourceLoadResult({
       clientURL: client?.url,
@@ -116,7 +78,7 @@ function AppServerChatShellContent({
       providerLabel,
       resolveModelForRequest,
     })
-  }, [provider, providerLabel, resolveModelForRequest, routeWorkspaceContext, textModels])
+  }, [provider, providerLabel, resolveModelForRequest, textModels])
   const loadDataSourceForNewThread = useCallback(async (input: AgentPanelNewConversationPayload): Promise<AgentChatDataSourceShellLoadResult> => {
     if (!provider || !input.workspaceContext) return loadDataSource()
     await ensureDefaultAgentProviderFromBackend({ provider, ...(textModels.length > 0 ? { models: textModels } : {}) })
@@ -128,21 +90,40 @@ function AppServerChatShellContent({
     })
   }, [loadDataSource, provider, providerLabel, resolveModelForRequest, textModels])
 
-  const activeThreadStorageKey = appServerActiveThreadStorageKey(provider)
+  const threadScopeKey = appServerThreadScopeKey(provider)
   const openThreadEventName = appServerThreadOpenEvent(provider)
-  const readActiveThreadId = useCallback(() => readAppServerActiveThreadId(provider), [provider])
+  useAgentThreadRegistryHydration({
+    userId,
+    provider,
+    enabled: Boolean(provider),
+  })
+  const activeThreadId = useAgentSessionStore((state) => selectActiveAgentConversationRegistryRecord(state, {
+    userId,
+    ...(provider ? {
+      provider: provider.kind,
+      providerId: provider.id,
+      providerInstanceId: providerInstanceId(provider),
+      providerProtocol: providerProtocol(provider),
+    } : { providerProtocol: 'app-server' }),
+  })?.providerThreadId ?? null)
+  const readActiveThreadId = useCallback(() => activeThreadId, [activeThreadId])
 
   return (
     <AgentChatDataSourceShell
       userId={userId}
       loadDataSource={loadDataSource}
       loadDataSourceForNewThread={loadDataSourceForNewThread}
-      activeThreadStorageKey={activeThreadStorageKey}
+      provider={provider?.kind}
+      providerId={provider?.id}
+      providerInstanceId={provider ? providerInstanceId(provider) : undefined}
+      providerProtocol={provider ? providerProtocol(provider) : undefined}
+      threadScopeKey={threadScopeKey}
       readActiveThreadId={readActiveThreadId}
       openThreadEventName={openThreadEventName}
       providerLabel={providerLabel}
       threadListLabel={`${providerLabel} Threads`}
       emptyThreadListLabel={`No ${providerLabel} threads yet.`}
+      emptyThreadLabel={emptyThreadLabel}
       unavailableLabel={`${providerLabel} app-server URL is not configured.`}
       composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}
@@ -155,8 +136,8 @@ function AppServerChatShellContent({
       onGoalModeEnabledChange={(goalModeEnabled) => updateSettings({ goalModeEnabled })}
       host={host}
       surface={surface}
-      showThreadList={surface !== 'page'}
-      autoLoadThreads={surface !== 'page'}
+      showThreadList={false}
+      autoLoadThreads={false}
       showCollapse={showCollapse}
       onCollapse={onCollapse}
     />
@@ -225,14 +206,6 @@ export function appServerWorkspaceContextFromRoute(input: {
   }
 }
 
-function appServerProjectWorkspaceContext(projectId?: number): MovScriptWorkspaceContext {
-  if (!projectId) return { scope: 'global' }
-  return {
-    scope: 'project',
-    projectId,
-  }
-}
-
 function productionIdFromLocation(pathname: string, search: string): number | undefined {
   const queryValue = new URLSearchParams(search).get('productionId') ?? new URLSearchParams(search).get('production_id')
   const queryId = positiveInteger(queryValue)
@@ -251,30 +224,20 @@ export function openAppServerThread(input: {
   threadId: string
   provider?: ProviderConfig
 }): void {
-  openAgentChatDataSourceThread({
-    storageKey: appServerActiveThreadStorageKey(input.provider),
-    eventName: appServerThreadOpenEvent(input.provider),
-    threadId: input.threadId,
-  })
+  if (typeof window === 'undefined') return
+  const threadId = input.threadId.trim()
+  if (!threadId) return
+  window.dispatchEvent(new CustomEvent(appServerThreadOpenEvent(input.provider), { detail: { threadId } }))
 }
 
-export function appServerActiveThreadStorageKey(provider?: ProviderConfig): string {
-  if (!provider) return ACTIVE_APP_SERVER_THREAD_STORAGE_KEY
-  return appServerProviderScopedKey(provider, 'activeThreadId')
+export function appServerThreadScopeKey(provider?: ProviderConfig): string {
+  if (!provider) return 'movscript.appServer.threadScope'
+  return appServerProviderScopedKey(provider, 'threadScope')
 }
 
 export function appServerThreadOpenEvent(provider?: ProviderConfig): string {
   if (!provider) return APP_SERVER_THREAD_OPEN_EVENT
   return `movscript:${appServerProviderKeySegment(provider)}-thread-open`
-}
-
-export function readAppServerActiveThreadId(provider?: ProviderConfig): string | null {
-  const current = readStoredActiveThreadId(appServerActiveThreadStorageKey(provider))
-  if (current) return current
-  const compat = readStoredActiveThreadId(appServerActiveThreadCompatStorageKey(provider))
-  if (compat) return compat
-  if (provider) return readStoredActiveThreadId(ACTIVE_APP_SERVER_THREAD_STORAGE_KEY)
-  return null
 }
 
 function appServerProviderScopedKey(provider: ProviderConfig, suffix: string): string {
@@ -291,10 +254,4 @@ function appServerProviderKeySegment(provider: ProviderConfig): string {
 
 function appServerKeySegment(value: string): string {
   return value.trim().replace(/[^A-Za-z0-9_-]+/g, '_')
-}
-
-function appServerActiveThreadCompatStorageKey(provider?: ProviderConfig): string {
-  if (!provider) return ACTIVE_APP_SERVER_THREAD_STORAGE_KEY
-  const providerId = provider.id.trim() || provider.kind
-  return `movscript.${provider.kind}.${providerId}.activeThreadId`
 }

@@ -33,6 +33,41 @@ export type NodeMovScriptEngine = MovScriptEngine & {
   readonly workspaceService: NodeMovScriptWorkspaceService
 }
 
+export interface NodeMovScriptEngineRegistryInput extends NodeMovScriptEngineInput {
+  cacheKey?: string
+}
+
+export class NodeMovScriptEngineRegistry {
+  private readonly engines = new Map<string, NodeMovScriptEngine>()
+
+  constructor(
+    private readonly factory: (input: NodeMovScriptEngineRegistryInput) => NodeMovScriptEngine = createNodeMovScriptEngine,
+  ) {}
+
+  get(input: NodeMovScriptEngineRegistryInput = {}): NodeMovScriptEngine {
+    const key = nodeMovScriptEngineRegistryKey(input)
+    const existing = this.engines.get(key)
+    if (existing) return existing
+    const engine = this.factory(input)
+    this.engines.set(key, engine)
+    return engine
+  }
+
+  invalidate(input: NodeMovScriptEngineRegistryInput | string = {}): void {
+    this.engines.delete(typeof input === 'string' ? input : nodeMovScriptEngineRegistryKey(input))
+  }
+
+  clear(): void {
+    this.engines.clear()
+  }
+}
+
+export function nodeMovScriptEngineRegistryKey(input: NodeMovScriptEngineRegistryInput = {}): string {
+  return input.cacheKey ?? [
+    input.projectDir ?? '',
+  ].map((part) => String(part)).join('\u001f')
+}
+
 export function createNodeMovScriptEngine(input: NodeMovScriptEngineInput = {}): NodeMovScriptEngine {
   const workspaceService = createNodeMovScriptWorkspaceService(input)
   const fileRepository = createNodeMovScriptWorkspaceFileRepository(workspaceService.projectDir)

@@ -249,12 +249,30 @@ export function buildGenerationAppBootstrapScenario(
       }],
     },
     session: {
-      conversationProviderSessionStates: {
+      conversationsById: {
+        [conversation.id]: {
+          id: conversation.id,
+          userId: String(USER_ID),
+          provider: 'mova',
+          providerId: 'mova',
+          providerInstanceId: 'mova',
+          providerThreadId: THREAD_ID,
+          providerSessionId: THREAD_ID,
+          projectId: PROJECT_ID,
+          title: conversation.title,
+          status: outcome === 'success' ? 'running' : outcome === 'timeout' ? 'completed_with_warnings' : 'failed',
+          activeRunId: generationRun.id,
+          lastRunId: generationRun.id,
+          open: true,
+          archived: false,
+          createdAt: conversation.createdAt,
+          updatedAt: conversation.updatedAt,
+        },
+      },
+      conversationRuntimeStates: {
         [conversation.id]: {
           conversationId: conversation.id,
-          requestId: 'request-generation-e2e',
-          threadId: THREAD_ID,
-          runId: generationRun.id,
+          activeRunId: generationRun.id,
           run: generationRun,
           status: outcome === 'success' ? 'in_progress' : outcome === 'timeout' ? 'completed_with_warnings' : 'failed',
           loading: outcome === 'success',
@@ -264,9 +282,6 @@ export function buildGenerationAppBootstrapScenario(
           stopRequested: false,
           updatedAt: Date.now(),
         },
-      },
-      providerThreadIdsByConversation: {
-        [conversation.id]: THREAD_ID,
       },
     },
   }

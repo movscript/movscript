@@ -65,8 +65,7 @@ export function useAgentComposerController({
   const attachments = workspace.attachments
   const effectiveWorkspaceContext = useMemo(() => normalizeAgentWorkspaceContext(
     workspace.workspaceContext,
-    { projectId: currentProject?.ID },
-  ), [currentProject?.ID, workspace.workspaceContext])
+  ), [workspace.workspaceContext])
   const selectedProjectId = positiveInteger(effectiveWorkspaceContext.projectId)
   const { data: projectsData = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: ['agent-composer-workspace-projects'],
@@ -74,16 +73,18 @@ export function useAgentComposerController({
   })
   const projects = useMemo(() => mergeCurrentProject(projectsData, currentProject), [currentProject, projectsData])
   const workspaceProjectOptions = useMemo<AgentWorkspaceContextSelectOption[]>(() => [
-    { value: USER_WORKSPACE_VALUE, label: '全局', meta: '所有项目' },
+    { value: USER_WORKSPACE_VALUE, label: '全局', meta: '不绑定项目' },
     ...projects
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((project) => ({
         value: String(project.ID),
         label: project.name || `项目 #${project.ID}`,
-        meta: project.description || undefined,
+        meta: project.ID === currentProject?.ID
+          ? '当前项目'
+          : project.description || undefined,
       })),
-  ], [projects])
+  ], [currentProject?.ID, projects])
   const resourceAttachmentIndex = useMemo(() => {
     const map = new Map<number, AgentAttachment>()
     for (const attachment of attachments) {
@@ -478,19 +479,12 @@ function releaseLocalAttachmentSource(attachment: AgentAttachment | undefined) {
 
 function normalizeAgentWorkspaceContext(
   context: MovScriptWorkspaceContext | undefined,
-  fallback: { projectId?: number },
 ): MovScriptWorkspaceContext {
   const projectId = positiveInteger(context?.projectId)
   if ((context?.scope === 'project' || projectId !== undefined) && projectId !== undefined) {
     return {
       scope: 'project',
       projectId,
-    }
-  }
-  if (fallback.projectId !== undefined) {
-    return {
-      scope: 'project',
-      projectId: fallback.projectId,
     }
   }
   return {

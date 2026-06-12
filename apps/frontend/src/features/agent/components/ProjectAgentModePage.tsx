@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   Archive,
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Folder,
   History,
@@ -54,35 +53,15 @@ import { useTranslation } from 'react-i18next'
 import { AgentUnifiedChatShell } from '@/features/agent/components/AgentUnifiedChatShell'
 import { AgentBrowserPanel } from '@/features/agent/components/AgentBrowserPanel'
 import {
-  appServerThreadOpenEvent,
   openAppServerThread,
-  readAppServerActiveThreadId,
 } from '@/features/agent/components/AppServerChatShell'
-import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
-import { openAgentPanelThread } from '@/features/agent/application/agentPanelBridge'
+import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
+import { openAgentPanelNewConversation, openAgentPanelThread } from '@/features/agent/application/agentPanelBridge'
 import {
   listProviderSessionSummariesFromWorkspace,
   listProviderSessionThreadSummariesFromWorkspace,
-  providerSessionThreadSummaryFromThread,
-  startSharedProvisionalConversation,
-  upsertCachedProviderSessionThread,
 } from '@/features/agent/application/providerSessionThreadQueryCache'
 import { conversationDisplayTitle, formatAgentDate, formatAgentRelativeTime, providerThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
-import {
-  AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT,
-  agentConversationOpenRecordsEqual,
-  closedAgentConversationIds,
-  mergeAgentConversationOpenState,
-  readAgentActiveConversationId,
-  readAgentConversationOpenState,
-  removeAgentConversationOpenRecords,
-  setAgentConversationOpen,
-  visibleAgentConversationIds,
-  writeAgentActiveConversationId,
-  writeAgentConversationOpenState,
-  type AgentConversationOpenRecord,
-} from '@/features/agent/presentation/agentConversationOpenOrder'
-import { conversationFromProviderSessionThreadSummary } from '@/features/agent/presentation/providerSessionThreadConversation'
 import { api } from '@/shared/infrastructure/api'
 import { providerSessionClient, type AgentSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
@@ -93,13 +72,16 @@ import {
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
   routeLayoutSpecForPathname,
 } from '@/routes/routeLayoutRegistry'
-import { useAgentConversationTabProviderSessionStatusLights } from '@/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights'
+import {
+  providerSessionStatusLightFromConversationState,
+  useAgentConversationTabProviderSessionStatusLights,
+} from '@/features/agent/presentation/useAgentConversationTabProviderSessionStatusLights'
+import { STOPPED_PROVIDER_SESSION_STATUS_LIGHT } from '@/features/agent/presentation/providerSessionStatusLightFallback'
 import { DEFAULT_AGENT_CONTENT_AREA_ID, useAgentContentAreaStore } from '@/features/agent/state/agentContentAreaStore'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
   AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-  AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH,
   AGENT_MODE_SIDEBAR_DEFAULT_WIDTH,
   AGENT_MODE_SIDEBAR_MAX_WIDTH,
   AGENT_MODE_SIDEBAR_MIN_WIDTH,
@@ -111,12 +93,17 @@ import {
   scheduleAgentModePaintDiagnostics,
 } from '@/features/agent/presentation/agentModePaintDiagnostics'
 import type { ProviderSessionStatusLight } from '@movscript/core/agent'
-import type { AgentChatThread } from '@movscript/core/agent/chat'
+import {
+  selectActiveAgentConversationRegistryRecord,
+  selectAgentConversationRegistryRecords,
+  type AgentConversationRegistryRecord,
+} from '@movscript/core/agent'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore, type AgentConversationThreadBinding } from '@/features/agent/state/agentSessionStore'
 import {
   enabledProviders,
   providerInstanceId,
+  providerProtocol,
   resolveNewConversationProvider,
   usesAppServerProtocol,
   useProviderConfigStore,
@@ -128,20 +115,10 @@ import type { Project } from '@/types'
 
 const DEFAULT_VISIBLE_PROJECT_CONVERSATIONS = 5
 const DEFAULT_VISIBLE_CHAT_CONVERSATIONS = 5
-const APP_SERVER_THREAD_LIST_STALE_MS = 15_000
 const PROJECT_AGENT_ROUTE_LAYOUT = routeLayoutSpecForPathname(ROUTES.project.agent)
-const APP_SERVER_THREAD_LIST_REFRESH_MS = 30_000
-const APP_SERVER_THREAD_LIST_GC_MS = 5 * 60_000
-const APP_SERVER_THREAD_LIST_PAGE_SIZE = 20
-type AgentWorkspaceScopeSelection = 'global' | 'project'
-
-function readLastAgentModeActiveThreadId(userId: string) {
-  return readAgentActiveConversationId(userId)
-}
-
-function writeLastAgentModeActiveThreadId(userId: string, threadId: string | null) {
-  writeAgentActiveConversationId(userId, threadId)
-}
+type AgentWorkspaceScopeSelection =
+  | { scope: 'global' }
+  | { scope: 'project'; projectId: number }
 
 export default function ProjectAgentModePage({
   fullscreen = false,
@@ -186,11 +163,6 @@ function ProjectAgentModeFullscreen({ userId }: { userId: string }) {
   return (
     <AgentModeFullscreenLayout>
       <ProjectAgentModeSidebar
-        collapsed={agentSidebarPane.collapsed}
-        onCollapsedChange={(collapsed) => {
-          if (collapsed) agentSidebarPane.collapse()
-          else agentSidebarPane.show()
-        }}
         width={agentSidebarPane.size}
         onWidthChange={agentSidebarPane.setSize}
       />
@@ -211,20 +183,15 @@ function ProjectAgentModeFullscreen({ userId }: { userId: string }) {
 
 export function ProjectAgentModeSidebar({
   headerActions,
-  collapsed = false,
-  onCollapsedChange,
   width,
   onWidthChange,
 }: {
   headerActions?: ReactNode
-  collapsed?: boolean
-  onCollapsedChange?: (collapsed: boolean) => void
   width?: number
   onWidthChange?: (width: number) => void
 } = {}) {
   const navigate = useNavigate()
   const location = useLocation()
-  const queryClient = useQueryClient()
   const { t, i18n } = useTranslation()
   const project = useProjectStore((s) => s.current)
   const currentUser = useUserStore((s) => s.currentUser)
@@ -232,14 +199,13 @@ export function ProjectAgentModeSidebar({
   const userId = currentUser ? String(currentUser.ID) : ''
   const getActiveConversationId = useAgentSessionStore((s) => s.getActiveConversationId)
   const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
-  const createProviderSessionConversation = useAgentSessionStore((s) => s.createProviderSessionConversation)
+  const conversationsById = useAgentSessionStore((s) => s.conversationsById)
+  const upsertConversation = useAgentSessionStore((s) => s.upsertConversation)
   const removeProviderSessionConversation = useAgentSessionStore((s) => s.removeProviderSessionConversation)
   const setActiveConversation = useAgentSessionStore((s) => s.setActiveConversation)
+  const setConversationOpenInRegistry = useAgentSessionStore((s) => s.setConversationOpen)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
   const conversationThreadBindings = useAgentSessionStore((s) => s.conversationThreadBindings)
-  const setConversationProviderThreadBindingId = useAgentSessionStore((s) => s.setConversationProviderThreadBindingId)
-  const setConversationProviderSessionTreeId = useAgentSessionStore((s) => s.setConversationProviderSessionTreeId)
-  const updateConversationRuntimeState = useAgentSessionStore((s) => s.updateConversationRuntimeState)
   const clearConversationProviderSessionState = useAgentSessionStore((s) => s.clearConversationProviderSessionState)
   const removeContentArea = useAgentContentAreaStore((s) => s.removeContentArea)
   const [openProjectGroups, setOpenProjectGroups] = useState<Record<number, boolean>>({})
@@ -248,9 +214,10 @@ export function ProjectAgentModeSidebar({
   const [historyOpen, setHistoryOpen] = useState(true)
   const [showAllChatConversations, setShowAllChatConversations] = useState(false)
   const [showAllHistoryConversations, setShowAllHistoryConversations] = useState(false)
-  const [appServerActiveThreadId, setAppServerActiveThreadId] = useState(() => readAppServerActiveThreadId())
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
-  const [newConversationWorkspaceScope] = useState<AgentWorkspaceScopeSelection>('project')
+  const [newConversationWorkspaceScope, setNewConversationWorkspaceScope] = useState<AgentWorkspaceScopeSelection>(() => (
+    project?.ID ? { scope: 'project', projectId: project.ID } : { scope: 'global' }
+  ))
   const sidebarWidth = clampAgentModeSidebarWidth(width ?? AGENT_MODE_SIDEBAR_DEFAULT_WIDTH)
   const setSidebarWidth = useCallback((nextWidth: number) => {
     onWidthChange?.(clampAgentModeSidebarWidth(nextWidth))
@@ -261,28 +228,30 @@ export function ProjectAgentModeSidebar({
     minSize: AGENT_MODE_SIDEBAR_MIN_WIDTH,
     maxSize: AGENT_MODE_SIDEBAR_MAX_WIDTH,
     resizeEdge: 'right',
-    collapsed,
-    onCollapsedChange,
-    collapseMode: 'after-min',
     ariaLabel: '调整左侧栏宽度',
   })
-  const renderedSidebarWidth = collapsed ? AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
-  const sidebarToggleLabel = collapsed ? t('agents.chat.expandAgentSidebar') : t('agents.chat.collapseAgentSidebar')
   const providerSettings = useProviderConfigStore((s) => s.settings)
   const setNewConversationProviderId = useProviderConfigStore((s) => s.setNewConversationProviderId)
   const availableProviders = useMemo(() => enabledProviders(providerSettings), [providerSettings])
   const newConversationProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
   const appServerMode = usesAppServerProtocol(newConversationProvider)
-  const newConversationWorkspaceContext = useMemo(() => workspaceContextForNewConversation({
-    scope: newConversationWorkspaceScope,
-    projectId: project?.ID,
-  }), [newConversationWorkspaceScope, project?.ID])
+  const newConversationWorkspaceContext = useMemo(() => workspaceContextForNewConversation(newConversationWorkspaceScope), [newConversationWorkspaceScope])
   const effectiveNewConversationWorkspaceScope = newConversationWorkspaceContext.scope ?? 'global'
+  const selectedNewConversationProjectId = effectiveNewConversationWorkspaceScope === 'project'
+    ? positiveInteger(newConversationWorkspaceContext.projectId)
+    : undefined
 
   useEffect(() => {
     const interval = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000)
     return () => window.clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (!project?.ID) return
+    setNewConversationWorkspaceScope((scope) => (
+      scope.scope === 'global' ? { scope: 'project', projectId: project.ID } : scope
+    ))
+  }, [project?.ID])
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: projectListQueryKey(currentOrgID),
@@ -294,99 +263,71 @@ export function ProjectAgentModeSidebar({
     enabled: !appServerMode,
     retry: false,
   })
+  const appServerThreadHydration = useAgentThreadRegistryHydration({
+    userId,
+    provider: newConversationProvider,
+    enabled: appServerMode,
+  })
   const { data: providerSessions = [] } = useQuery<AgentSessionSummary[]>({
     queryKey: ['provider-sessions', providerSessionClient.baseURL, 'agent-mode-sidebar'],
     queryFn: () => listProviderSessionSummariesFromWorkspace(),
     enabled: !appServerMode,
     retry: false,
   })
-  const { data: appServerThreads = [], isLoading: appServerThreadsLoading, refetch: refetchAppServerThreads } = useQuery<AgentChatThread[]>({
-    queryKey: ['app-server-threads', newConversationProvider.id, providerInstanceId(newConversationProvider), 'agent-mode-sidebar'],
-    queryFn: async () => {
-      const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider, { appServerPolicy: 'status-only' })
-      const page = await dataSource.listThreads({ limit: APP_SERVER_THREAD_LIST_PAGE_SIZE })
-      return page.threads
-    },
-    enabled: appServerMode,
-    retry: false,
-    staleTime: APP_SERVER_THREAD_LIST_STALE_MS,
-    gcTime: APP_SERVER_THREAD_LIST_GC_MS,
-    refetchInterval: APP_SERVER_THREAD_LIST_REFRESH_MS,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
-  })
-
+  const sourceThreads = appServerMode ? appServerThreadHydration.sourceThreads : providerSessionThreads
+  const sourceThreadsLoading = appServerMode ? appServerThreadHydration.isLoading : providerSessionThreadsLoading
+  const refetchSourceThreads = appServerMode ? appServerThreadHydration.refetch : refetchProviderSessionThreads
   useEffect(() => {
-    if (!appServerMode) return undefined
-    const openThreadEventName = appServerThreadOpenEvent(newConversationProvider)
-    function handleAppServerThreadOpen(event: Event) {
-      const threadId = (event as CustomEvent<{ threadId?: string }>).detail?.threadId?.trim()
-      if (threadId) setAppServerActiveThreadId(threadId)
-      void refetchAppServerThreads()
+    if (appServerMode) return
+    const currentRecords = useAgentSessionStore.getState().conversationsById
+    for (const thread of sourceThreads) {
+      const existing = currentRecords[thread.id]
+      upsertConversation({
+        id: thread.id,
+        userId,
+        provider: newConversationProvider.kind,
+        providerId: newConversationProvider.id,
+        providerInstanceId: providerInstanceId(newConversationProvider),
+        providerProtocol: providerProtocol(newConversationProvider),
+        ...(thread.sessionId?.trim() ? { providerSessionId: thread.sessionId.trim() } : {}),
+        providerThreadId: thread.id,
+        ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
+        ...(typeof thread.projectId === 'number' ? { projectId: thread.projectId } : {}),
+        ...(thread.status ? { status: thread.status } : {}),
+        archived: thread.archived === true,
+        open: existing?.open ?? false,
+        createdAt: Date.parse(thread.createdAt) || undefined,
+        updatedAt: Date.parse(thread.updatedAt) || undefined,
+      })
     }
-    window.addEventListener(openThreadEventName, handleAppServerThreadOpen)
-    setAppServerActiveThreadId(readAppServerActiveThreadId(newConversationProvider))
-    return () => window.removeEventListener(openThreadEventName, handleAppServerThreadOpen)
-  }, [appServerMode, newConversationProvider, refetchAppServerThreads])
-
-  const conversations = useMemo(() => {
-    return providerSessionThreads.map((thread) => conversationFromProviderSessionThreadSummary(thread, t))
-  }, [providerSessionThreads, t])
+  }, [appServerMode, newConversationProvider, sourceThreads, upsertConversation, userId])
+  const conversations = useMemo(() => (
+    selectAgentConversationRegistryRecords(conversationsById, { userId, includeClosed: true, includeArchived: true })
+      .filter((record) => !appServerMode || record.providerProtocol === 'app-server')
+      .map(conversationFromRegistryRecord)
+  ), [appServerMode, conversationsById, userId])
+  const appServerActiveRecord = useMemo(() => selectActiveAgentConversationRegistryRecord({
+    activeConversationIdsByUser: { [userId]: activeConversationId },
+    conversationsById,
+  }, {
+    userId,
+    provider: newConversationProvider.kind,
+    providerId: newConversationProvider.id,
+    providerInstanceId: providerInstanceId(newConversationProvider),
+    providerProtocol: providerProtocol(newConversationProvider),
+  }), [activeConversationId, conversationsById, newConversationProvider, userId])
+  const appServerActiveThreadId = appServerMode ? appServerActiveRecord?.providerThreadId ?? null : null
+  const appServerActiveThreadStatusLight = appServerActiveRecord
+    ? providerSessionStatusLightFromConversationState(appServerActiveRecord, undefined)?.light ?? STOPPED_PROVIDER_SESSION_STATUS_LIGHT
+    : STOPPED_PROVIDER_SESSION_STATUS_LIGHT
   const rawOpenConversations = useMemo(
-    () => conversations.filter((conversation) => conversation.archived !== true),
-    [conversations],
-  )
-  const availableConversationIds = useMemo(() => rawOpenConversations.map((conversation) => conversation.id), [rawOpenConversations])
-  const [conversationOpenState, setConversationOpenState] = useState<AgentConversationOpenRecord[]>(() => readAgentConversationOpenState(userId))
-  useEffect(() => {
-    setConversationOpenState(readAgentConversationOpenState(userId))
-  }, [userId])
-  useEffect(() => {
-    function handleOpenStateChanged(event: Event) {
-      const detailUserId = (event as CustomEvent<{ userId?: string }>).detail?.userId
-      if (detailUserId !== undefined && detailUserId !== userId) return
-      setConversationOpenState(readAgentConversationOpenState(userId))
-    }
-    window.addEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleOpenStateChanged)
-    window.addEventListener('storage', handleOpenStateChanged)
-    return () => {
-      window.removeEventListener(AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT, handleOpenStateChanged)
-      window.removeEventListener('storage', handleOpenStateChanged)
-    }
-  }, [userId])
-  useEffect(() => {
-    if (providerSessionThreadsLoading) return
-    setConversationOpenState((current) => {
-      let merged = mergeAgentConversationOpenState(current, availableConversationIds, { defaultOpen: true })
-      const activeConversationExplicitlyClosed = merged.some((record) => record.id === activeConversationId && record.open === false)
-      if (activeConversationId && availableConversationIds.includes(activeConversationId) && !activeConversationExplicitlyClosed) {
-        merged = setAgentConversationOpen(merged, [activeConversationId], true)
-      }
-      if (agentConversationOpenRecordsEqual(current, merged)) return current
-      writeAgentConversationOpenState(userId, merged)
-      return merged
-    })
-  }, [activeConversationId, availableConversationIds, providerSessionThreadsLoading, userId])
-  const openConversationIds = useMemo(() => visibleAgentConversationIds(conversationOpenState, availableConversationIds), [availableConversationIds, conversationOpenState])
-  const appServerClosedThreadIds = useMemo(() => new Set(closedAgentConversationIds(conversationOpenState)), [conversationOpenState])
-  const visibleAppServerThreads = useMemo(
-    () => appServerThreads.filter((thread) => !appServerClosedThreadIds.has(thread.id)),
-    [appServerClosedThreadIds, appServerThreads],
-  )
-  const closedAppServerThreads = useMemo(
-    () => appServerThreads.filter((thread) => appServerClosedThreadIds.has(thread.id)),
-    [appServerClosedThreadIds, appServerThreads],
+    () => conversations.filter((conversation) => conversation.archived !== true && conversationsById[conversation.id]?.open !== false),
+    [conversations, conversationsById],
   )
   const openConversations = useMemo(() => {
-    const openIds = new Set(openConversationIds)
-    const orderIndex = new Map(conversationOpenState.map((record, index) => [record.id, index]))
     const sourceIndex = new Map(rawOpenConversations.map((conversation, index) => [conversation.id, index]))
-    return rawOpenConversations.filter((conversation) => openIds.has(conversation.id)).sort((a, b) => {
-      const aOrder = orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER
-      const bOrder = orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER
-      return aOrder - bOrder || (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0)
-    })
-  }, [conversationOpenState, openConversationIds, rawOpenConversations])
+    return rawOpenConversations.sort((a, b) => b.updatedAt - a.updatedAt || (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0))
+  }, [rawOpenConversations])
   const providerSessionStatusLights = useAgentConversationTabProviderSessionStatusLights(openConversations)
   const archivedConversations = useMemo(
     () => conversations
@@ -394,9 +335,19 @@ export function ProjectAgentModeSidebar({
       .sort((a, b) => b.updatedAt - a.updatedAt),
     [conversations],
   )
+  const closedConversations = useMemo(
+    () => conversations
+      .filter((conversation) => conversation.archived !== true && conversationsById[conversation.id]?.open === false)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+    [conversations, conversationsById],
+  )
   const archivedProviderThreadIds = useMemo(
     () => new Set(archivedConversations.flatMap((conversation) => conversation.providerThreadId ? [conversation.providerThreadId] : [])),
     [archivedConversations],
+  )
+  const closedProviderThreadIds = useMemo(
+    () => new Set(closedConversations.flatMap((conversation) => conversation.providerThreadId ? [conversation.providerThreadId] : [])),
+    [closedConversations],
   )
   const openProviderThreadIds = useMemo(
     () => new Set(openConversations.flatMap((conversation) => {
@@ -407,28 +358,27 @@ export function ProjectAgentModeSidebar({
     [openConversations],
   )
   const providerSessionsById = useMemo(() => new Map(providerSessions.map((session) => [session.id, session])), [providerSessions])
-  const providerSessionThreadsById = useMemo(() => new Map(providerSessionThreads.map((thread) => [thread.id, thread])), [providerSessionThreads])
-  const appServerThreadsByProjectId = useMemo(() => {
-    const groups = new Map<number, AgentChatThread[]>()
-    for (const thread of visibleAppServerThreads) {
-      const projectId = projectIdFromProviderSessionCwd(thread.cwd)
-      if (projectId === undefined) continue
-      const threads = groups.get(projectId) ?? []
-      threads.push(thread)
-      groups.set(projectId, threads)
-    }
-    return groups
-  }, [visibleAppServerThreads])
-  const appServerChatThreads = useMemo(
-    () => visibleAppServerThreads.filter((thread) => projectIdFromProviderSessionCwd(thread.cwd) === undefined),
-    [visibleAppServerThreads],
-  )
+  const providerSessionThreadsById = useMemo(() => new Map(sourceThreads.map((thread) => [thread.id, thread])), [sourceThreads])
   const projectNamesById = useMemo(() => {
     const names = new Map<number, string>()
     for (const item of projects) names.set(item.ID, item.name)
     if (project) names.set(project.ID, project.name)
     return names
   }, [project, projects])
+  const sortedProjectOptions = useMemo(
+    () => projects.slice().sort((a, b) => a.name.localeCompare(b.name, i18n.resolvedLanguage)),
+    [i18n.resolvedLanguage, projects],
+  )
+  const selectedNewConversationProject = selectedNewConversationProjectId !== undefined
+    ? sortedProjectOptions.find((item) => item.ID === selectedNewConversationProjectId)
+      ?? projectForAgentContentSession(selectedNewConversationProjectId, sortedProjectOptions)
+    : undefined
+  const newConversationWorkspaceScopeLabel = selectedNewConversationProject
+    ? selectedNewConversationProject.name || `项目 #${selectedNewConversationProject.ID}`
+    : '选择项目'
+  const newConversationWorkspaceScopeMeta = selectedNewConversationProject
+    ? selectedNewConversationProject.ID === project?.ID ? '当前项目' : selectedNewConversationProject.description || '绑定项目'
+    : '发送前可选择项目'
   const conversationsByScope = useMemo(() => {
     const projectGroupsById = new Map<number, { projectId: number; projectName: string; conversations: Conversation[] }>()
     const chatConversations: Conversation[] = []
@@ -456,46 +406,8 @@ export function ProjectAgentModeSidebar({
     return { projectGroups, chatConversations }
   }, [conversationThreadBindings, i18n.resolvedLanguage, providerSessionsById, providerSessionThreadsById, openConversations, pageTasks, projectNamesById, t])
   const { projectGroups, chatConversations } = conversationsByScope
-  const appServerProjectGroups = useMemo(() => Array.from(appServerThreadsByProjectId.entries())
-    .map(([projectId, threads]) => ({
-      projectId,
-      projectName: projectNamesById.get(projectId) ?? `${t('agents.chat.agentModeSidebar.currentProjectFallback')} #${projectId}`,
-      threads,
-    }))
-    .sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage)), [appServerThreadsByProjectId, i18n.resolvedLanguage, projectNamesById, t])
-  const sidebarProjects = useMemo(() => {
-    const itemsById = new Map<number, Pick<Project, 'ID' | 'name'>>()
-    for (const item of projects) itemsById.set(item.ID, item)
-    if (project) itemsById.set(project.ID, project)
-    return Array.from(itemsById.values()).sort((a, b) => a.name.localeCompare(b.name, i18n.resolvedLanguage))
-  }, [i18n.resolvedLanguage, project, projects])
-  const visibleProjectGroups = useMemo(() => {
-    const sourceGroups = new Map(projectGroups.map((group) => [group.projectId, group]))
-    const groupIds = new Set(sidebarProjects.map((item) => item.ID))
-    const groups = sidebarProjects.map((item) => sourceGroups.get(item.ID) ?? {
-      projectId: item.ID,
-      projectName: item.name,
-      conversations: [],
-    })
-    for (const group of projectGroups) {
-      if (!groupIds.has(group.projectId)) groups.push(group)
-    }
-    return groups.sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage))
-  }, [i18n.resolvedLanguage, projectGroups, sidebarProjects])
-  const visibleAppServerProjectGroups = useMemo(() => {
-    const sourceGroups = new Map(appServerProjectGroups.map((group) => [group.projectId, group]))
-    const groupIds = new Set(sidebarProjects.map((item) => item.ID))
-    const groups = sidebarProjects.map((item) => sourceGroups.get(item.ID) ?? {
-      projectId: item.ID,
-      projectName: item.name,
-      threads: [],
-    })
-    for (const group of appServerProjectGroups) {
-      if (!groupIds.has(group.projectId)) groups.push(group)
-    }
-    return groups.sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage))
-  }, [appServerProjectGroups, i18n.resolvedLanguage, sidebarProjects])
-  const projectConversationGroupsEmpty = appServerMode ? visibleAppServerProjectGroups.length === 0 : visibleProjectGroups.length === 0
+  const visibleProjectGroups = projectGroups
+  const projectConversationGroupsEmpty = appServerMode ? true : visibleProjectGroups.length === 0
   const sortedChatConversations = chatConversations
   const visibleChatConversations = showAllChatConversations
     ? sortedChatConversations
@@ -508,33 +420,29 @@ export function ProjectAgentModeSidebar({
       timestamp: conversation.updatedAt,
       conversation,
     })),
-    ...providerSessionThreads
-      .filter((thread) => !archivedProviderThreadIds.has(thread.id) && !openProviderThreadIds.has(thread.id))
+    ...closedConversations.map((conversation) => ({
+      type: 'conversation' as const,
+      id: conversation.id,
+      timestamp: conversation.updatedAt,
+      conversation,
+    })),
+    ...sourceThreads
+      .filter((thread) => !archivedProviderThreadIds.has(thread.id) && !closedProviderThreadIds.has(thread.id) && !openProviderThreadIds.has(thread.id))
       .map((thread) => ({
         type: 'provider-thread' as const,
         id: thread.id,
         timestamp: Date.parse(thread.updatedAt) || 0,
         thread,
       })),
-    ...closedAppServerThreads.map((thread) => ({
-      type: 'app-server-thread' as const,
-      id: thread.id,
-      timestamp: thread.updatedAt * 1000,
-      thread,
-    })),
-  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedProviderThreadIds, closedAppServerThreads, providerSessionThreads, openProviderThreadIds])
+  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedProviderThreadIds, closedConversations, closedProviderThreadIds, sourceThreads, openProviderThreadIds])
   const visibleHistoryItems = showAllHistoryConversations
     ? historyItems
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenHistoryItemCount = Math.max(0, historyItems.length - visibleHistoryItems.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   function selectAppServerThread(threadId: string) {
-    setConversationOpenState((current) => {
-      const next = setAgentConversationOpen(current, [threadId], true)
-      writeAgentConversationOpenState(userId, next)
-      return next
-    })
-    setAppServerActiveThreadId(threadId)
+    setConversationOpenInRegistry(userId, threadId, true)
+    setActiveConversation(userId, threadId)
     openAppServerThread({ threadId, provider: newConversationProvider })
     navigate(ROUTES.project.agent)
   }
@@ -557,56 +465,11 @@ export function ProjectAgentModeSidebar({
   }
 
   async function startNewConversation() {
-    if (appServerMode) {
-      try {
-        const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider, {
-          workspaceContext: newConversationWorkspaceContext,
-        })
-        const thread = await dataSource.startThread({
-          ...(effectiveNewConversationWorkspaceScope !== 'global' && project?.ID ? { projectId: project.ID } : {}),
-        })
-        openAppServerThread({ threadId: thread.id, provider: newConversationProvider })
-        navigate(ROUTES.project.agent)
-      } catch (error) {
-        console.error('[agent] failed to start app-server thread', error)
-      }
-      return
-    }
-
-    try {
-      const thread = await startSharedProvisionalConversation({
-        ...(project?.ID ? { projectId: project.ID } : {}),
-      })
-      const createdAt = Date.parse(thread.createdAt)
-      const updatedAt = Date.parse(thread.updatedAt)
-      const threadSummary = providerSessionThreadSummaryFromThread(thread)
-      const conversationId = createProviderSessionConversation(userId, {
-        threadId: thread.id,
-        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-        ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
-        createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
-        updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
-      })
-      upsertCachedProviderSessionThread(queryClient, threadSummary)
-      setConversationProviderThreadBindingId(conversationId, thread.id)
-      if (thread.sessionId) setConversationProviderSessionTreeId(conversationId, thread.sessionId)
-      setConversationOpenState((current) => {
-        const next = setAgentConversationOpen(current, [conversationId], true)
-        writeAgentConversationOpenState(userId, next)
-        return next
-      })
-      updateConversationRuntimeState(conversationId, {
-        loading: false,
-        building: false,
-        error: undefined,
-      })
-      writeLastAgentModeActiveThreadId(userId, thread.id)
-      void refetchProviderSessionThreads()
-      void queryClient.invalidateQueries({ queryKey: ['provider-sessions', providerSessionClient.baseURL] })
-      navigate(ROUTES.project.agent)
-    } catch (error) {
-      console.error('[agent] failed to start provisional conversation', error)
-    }
+    openAgentPanelNewConversation({
+      ...(selectedNewConversationProjectId !== undefined ? { projectId: selectedNewConversationProjectId } : {}),
+      workspaceContext: newConversationWorkspaceContext,
+    })
+    navigate(ROUTES.project.agent)
   }
 
   function selectConversation(id: string) {
@@ -614,15 +477,11 @@ export function ProjectAgentModeSidebar({
       const providerThreadId = id.startsWith('thread_') ? id : undefined
       if (providerThreadId) {
         await providerSessionClientForThread(providerThreadId).updateThread(providerThreadId, { archived: false })
-        void refetchProviderSessionThreads()
+        void refetchSourceThreads()
       }
       setActiveConversation(userId, id)
-      setConversationOpenState((current) => {
-        const next = setAgentConversationOpen(current, [id], true)
-        writeAgentConversationOpenState(userId, next)
-        return next
-      })
-      writeLastAgentModeActiveThreadId(userId, id)
+      setConversationOpenInRegistry(userId, id, true)
+      if (appServerMode) openAppServerThread({ threadId: id, provider: newConversationProvider })
       navigate(ROUTES.project.agent)
     })().catch((error) => {
       console.error('[agent] failed to restore provider-session conversation', error)
@@ -636,14 +495,9 @@ export function ProjectAgentModeSidebar({
         window.alert(t('agents.chat.stopBeforeClosingConversation'))
         return
       }
-      setConversationOpenState((current) => {
-        const next = setAgentConversationOpen(current, [conversation.id], false)
-        writeAgentConversationOpenState(userId, next)
-        return next
-      })
+      setConversationOpenInRegistry(userId, conversation.id, false)
       if (getActiveConversationId(userId) === conversation.id) {
         setActiveConversation(userId, null)
-        writeLastAgentModeActiveThreadId(userId, null)
       }
     })().catch((error) => {
       console.error('[agent] failed to archive provider-session conversation', error)
@@ -654,10 +508,10 @@ export function ProjectAgentModeSidebar({
     const deletedThreadIdSet = new Set(deletedThreadIds)
     const sessionState = useAgentSessionStore.getState()
     const idsToRemove = new Set<string>([conversationId])
-    const lastActiveThreadId = readLastAgentModeActiveThreadId(userId)
     const mappedConversationIds = new Set([
       ...Object.keys(sessionState.conversationThreadBindings),
       ...Object.keys(sessionState.conversationProviderSessionStates),
+      ...Object.keys(sessionState.conversationsById),
     ])
     for (const id of mappedConversationIds) {
       const providerThreadId = sessionState.conversationThreadBindings[id]?.providerThreadId
@@ -665,19 +519,11 @@ export function ProjectAgentModeSidebar({
         ?? (id.startsWith('thread_') ? id : undefined)
       if (providerThreadId && deletedThreadIdSet.has(providerThreadId)) idsToRemove.add(id)
     }
-    if (lastActiveThreadId && deletedThreadIdSet.has(lastActiveThreadId)) {
-      writeLastAgentModeActiveThreadId(userId, null)
-    }
     for (const id of idsToRemove) {
       removeProviderSessionConversation(userId, id)
       clearConversationProviderSessionState(id)
       removeContentArea(id)
     }
-    setConversationOpenState((current) => {
-      const next = removeAgentConversationOpenRecords(current, idsToRemove)
-      writeAgentConversationOpenState(userId, next)
-      return next
-    })
   }
 
   function deleteConversationFromSidebar(conversation: Conversation) {
@@ -691,7 +537,7 @@ export function ProjectAgentModeSidebar({
       }
       const deletion = await providerSessionClientForConversation(conversation).deleteThread(providerThreadId)
       cleanupDeletedProviderSessionConversations(conversation.id, [deletion.threadId])
-      void refetchProviderSessionThreads()
+      void refetchSourceThreads()
     })().catch((error) => {
       console.error('[agent] failed to delete provider-session conversation', error)
     })
@@ -701,7 +547,7 @@ export function ProjectAgentModeSidebar({
     void (async () => {
       const deletion = await providerSessionClientForThread(threadId).deleteThread(threadId)
       cleanupDeletedProviderSessionConversations(threadId, [deletion.threadId])
-      void refetchProviderSessionThreads()
+      void refetchSourceThreads()
     })().catch((error) => {
       console.error('[agent] failed to delete provider-session thread', error)
     })
@@ -716,36 +562,29 @@ export function ProjectAgentModeSidebar({
   }
 
   function restoreHistoryThread(threadId: string) {
-    setConversationOpenState((current) => {
-      const next = setAgentConversationOpen(current, [threadId], true)
-      writeAgentConversationOpenState(userId, next)
-      return next
-    })
-    writeLastAgentModeActiveThreadId(userId, threadId)
+    setConversationOpenInRegistry(userId, threadId, true)
+    setActiveConversation(userId, threadId)
     navigate(ROUTES.project.agent)
-    window.setTimeout(() => openAgentPanelThread(threadId, providerSessionThreadsById.get(threadId)?.sessionId), 0)
+    window.setTimeout(() => {
+      if (appServerMode) {
+        openAppServerThread({ threadId, provider: newConversationProvider })
+      } else {
+        openAgentPanelThread(threadId, providerSessionThreadsById.get(threadId)?.sessionId)
+      }
+    }, 0)
   }
 
   return (
     <AgentModeSidebar
       resizing={sidebarResize.resizing}
-      collapsed={collapsed}
-      width={renderedSidebarWidth}
+      width={sidebarWidth}
     >
       <AgentModeSidebarTop>
-        {!collapsed && headerActions ? (
+        {headerActions ? (
           <div className="agent-mode-sidebar__header-actions">
             {headerActions}
           </div>
         ) : null}
-        <AgentModePrimaryNavItem
-          onClick={() => onCollapsedChange?.(!collapsed)}
-          title={sidebarToggleLabel}
-          aria-label={sidebarToggleLabel}
-        >
-          <AgentModeIconSlot>{collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</AgentModeIconSlot>
-          {!collapsed ? <AgentModeLabel>{sidebarToggleLabel}</AgentModeLabel> : null}
-        </AgentModePrimaryNavItem>
         <AgentModePrimaryNavItem
           onClick={startNewConversation}
           title={t('agents.chat.agentModeSidebar.startConversation')}
@@ -760,12 +599,8 @@ export function ProjectAgentModeSidebar({
               aria-label="选择新建会话使用的 Agent"
             >
               <AgentModeIconSlot><Smartphone size={18} /></AgentModeIconSlot>
-              {!collapsed ? (
-                <>
-                  <AgentModeLabel>{newConversationProvider.label}</AgentModeLabel>
-                  <AgentModeMeta>{newConversationProvider.kind}</AgentModeMeta>
-                </>
-              ) : null}
+              <AgentModeLabel>{newConversationProvider.label}</AgentModeLabel>
+              <AgentModeMeta>{newConversationProvider.kind}</AgentModeMeta>
             </AgentModePrimaryNavItem>
           </DropdownMenuTrigger>
           <AgentModeProjectMenuContent align="start">
@@ -783,67 +618,40 @@ export function ProjectAgentModeSidebar({
             ))}
           </AgentModeProjectMenuContent>
         </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <AgentModePrimaryNavItem
+              title="选择新建会话范围"
+              aria-label="选择新建会话范围"
+            >
+              <AgentModeIconSlot><Folder size={18} /></AgentModeIconSlot>
+              <AgentModeLabel>{newConversationWorkspaceScopeLabel}</AgentModeLabel>
+              <AgentModeMeta>{newConversationWorkspaceScopeMeta}</AgentModeMeta>
+            </AgentModePrimaryNavItem>
+          </DropdownMenuTrigger>
+          <AgentModeProjectMenuContent align="start">
+            {sortedProjectOptions.map((item) => (
+              <DropdownMenuItem key={item.ID} onSelect={() => setNewConversationWorkspaceScope({ scope: 'project', projectId: item.ID })}>
+                <AppTopMenuItemText>
+                  <AppTopMenuLabelPrimary>{item.name || `项目 #${item.ID}`}</AppTopMenuLabelPrimary>
+                  <AppTopMenuLabelSecondary>{item.ID === project?.ID ? '当前项目' : item.description || `项目 #${item.ID}`}</AppTopMenuLabelSecondary>
+                </AppTopMenuItemText>
+                {selectedNewConversationProjectId === item.ID ? <Check size={14} /> : null}
+              </DropdownMenuItem>
+            ))}
+          </AgentModeProjectMenuContent>
+        </DropdownMenu>
       </AgentModeSidebarTop>
 
       <AgentModeSidebarScroll>
-        {!collapsed ? (
-          <div className="agent-mode-sidebar-project-heading">
-            <span>项目</span>
-          </div>
-        ) : null}
+        <div className="agent-mode-sidebar-project-heading">
+          <span>项目</span>
+        </div>
         {projectConversationGroupsEmpty ? (
           <AgentModeEmptyText>{t('agents.chat.agentModeSidebar.noProjectConversations')}</AgentModeEmptyText>
         ) : (
           <AgentModeGroupList>
-            {appServerMode ? visibleAppServerProjectGroups.map((group) => (
-              <AgentModeProjectGroup key={group.projectId}>
-                {(() => {
-                  const open = openProjectGroups[group.projectId] ?? false
-                  const expanded = expandedProjectThreadGroups[group.projectId] ?? false
-                  const visibleThreads = expanded ? group.threads : group.threads.slice(0, DEFAULT_VISIBLE_PROJECT_CONVERSATIONS)
-                  const hasHiddenThreads = group.threads.length > visibleThreads.length
-                  return (
-                    <>
-                      <AgentModeProjectGroupToggle
-                        onClick={() => toggleProjectGroup(group.projectId)}
-                        aria-expanded={open}
-                      >
-                        {open
-                          ? <AgentModeIconSlot><ChevronDown size={12} /></AgentModeIconSlot>
-                          : <AgentModeIconSlot><ChevronRight size={12} /></AgentModeIconSlot>}
-                        <AgentModeIconSlot><Folder size={14} /></AgentModeIconSlot>
-                        <AgentModeLabel>{group.projectName}</AgentModeLabel>
-                        <AgentModeMeta>{group.threads.length}</AgentModeMeta>
-                      </AgentModeProjectGroupToggle>
-                      {open ? (
-                        <AgentModeGroupList nested>
-                          {visibleThreads.length > 0 ? visibleThreads.map((thread) => (
-                            <AppServerSidebarThread
-                              key={thread.id}
-                              thread={thread}
-                              active={thread.id === appServerActiveThreadId}
-                              providerLabel={newConversationProvider.label}
-                              locale={locale}
-                              now={relativeTimeNow}
-                              onClick={() => selectAppServerThread(thread.id)}
-                            />
-                          )) : (
-                            <AgentModeEmptyText>{t('agents.chat.agentModeSidebar.noProjectConversations')}</AgentModeEmptyText>
-                          )}
-                          {hasHiddenThreads || expanded ? (
-                            <AgentModeCompactNavItem onClick={() => toggleProjectThreadGroup(group.projectId)}>
-                              {expanded
-                                ? t('agents.chat.agentModeSidebar.collapseProjectConversations')
-                                : t('agents.chat.agentModeSidebar.expandProjectConversations')}
-                            </AgentModeCompactNavItem>
-                          ) : null}
-                        </AgentModeGroupList>
-                      ) : null}
-                    </>
-                  )
-                })()}
-              </AgentModeProjectGroup>
-            )) : visibleProjectGroups.map((group) => (
+            {visibleProjectGroups.map((group) => (
               <AgentModeProjectGroup key={group.projectId}>
                 {(() => {
                   const open = openProjectGroups[group.projectId] ?? false
@@ -902,32 +710,28 @@ export function ProjectAgentModeSidebar({
         <AgentSidebarGroup
           title={t('agents.chat.agentModeSidebar.conversations')}
           icon={<MessageSquare size={13} />}
-          trailing={appServerMode ? appServerChatThreads.length > 0 ? `${appServerChatThreads.length}` : undefined : chatConversations.length > 0 ? `${chatConversations.length}` : undefined}
+          trailing={appServerMode ? appServerActiveThreadId ? '1' : undefined : chatConversations.length > 0 ? `${chatConversations.length}` : undefined}
           open={conversationsOpen}
           onOpenChange={setConversationsOpen}
         >
           {appServerMode ? (
-            appServerChatThreads.length === 0 ? (
+            appServerActiveThreadId ? (
+              <AgentModeGroupList nested>
+                <AppServerSidebarActiveThread
+                  threadId={appServerActiveThreadId}
+                  active
+                  providerLabel={newConversationProvider.label}
+                  statusLight={appServerActiveThreadStatusLight}
+                  onClick={() => selectAppServerThread(appServerActiveThreadId)}
+                />
+              </AgentModeGroupList>
+            ) : (
               <AgentModeCompactNavItem
                 onClick={startNewConversation}
               >
                 <AgentModeIconSlot><Plus size={12} /></AgentModeIconSlot>
-                {appServerThreadsLoading ? t('common.loadingShort') : t('agents.chat.agentModeSidebar.startConversation')}
+                {t('agents.chat.agentModeSidebar.startConversation')}
               </AgentModeCompactNavItem>
-            ) : (
-              <AgentModeGroupList nested>
-                {appServerChatThreads.map((thread) => (
-                  <AppServerSidebarThread
-                    key={thread.id}
-                    thread={thread}
-                    active={thread.id === appServerActiveThreadId}
-                    providerLabel={newConversationProvider.label}
-                    locale={locale}
-                    now={relativeTimeNow}
-                    onClick={() => selectAppServerThread(thread.id)}
-                  />
-                ))}
-              </AgentModeGroupList>
             )
           ) : sortedChatConversations.length === 0 ? (
             <AgentModeCompactNavItem
@@ -975,7 +779,7 @@ export function ProjectAgentModeSidebar({
         >
           {historyItems.length === 0 ? (
             <AgentModeEmptyText>
-              {providerSessionThreadsLoading ? t('common.loadingShort') : t('agents.chat.noHistoryConversations')}
+              {sourceThreadsLoading ? t('common.loadingShort') : t('agents.chat.noHistoryConversations')}
             </AgentModeEmptyText>
           ) : (
             <AgentModeGroupList nested>
@@ -995,24 +799,6 @@ export function ProjectAgentModeSidebar({
                       archiveLabel={t('agents.chat.archiveConversation')}
                       deleteLabel={t('agents.chat.deleteConversation')}
                     />
-                  )
-                }
-                if (item.type === 'app-server-thread') {
-                  const thread = item.thread
-                  const title = thread.name || thread.preview || `Untitled ${newConversationProvider.label} thread`
-                  const description = thread.name && thread.preview && thread.preview !== thread.name
-                    ? thread.preview
-                    : newConversationProvider.label
-                  return (
-                    <AgentModeConversationRow key={thread.id}>
-                      <AgentModeConversationItem
-                        icon={<History size={11} />}
-                        title={title}
-                        description={description}
-                        meta={formatAgentDate(thread.updatedAt * 1000, locale)}
-                        onClick={() => selectAppServerThread(thread.id)}
-                      />
-                    </AgentModeConversationRow>
                   )
                 }
                 const thread = item.thread
@@ -1055,12 +841,10 @@ export function ProjectAgentModeSidebar({
 
       </AgentModeSidebarScroll>
 
-      {!collapsed ? (
-        <AgentModeResizeHandle
-          {...sidebarResize.resizeHandleProps}
-          side="right"
-        />
-      ) : null}
+      <AgentModeResizeHandle
+        {...sidebarResize.resizeHandleProps}
+        side="right"
+      />
     </AgentModeSidebar>
   )
 }
@@ -1119,6 +903,19 @@ function conversationProjectId(
   const threadId = binding?.providerThreadId ?? conversation.providerThreadId
   const threadProjectId = threadId ? context.providerSessionThreadsById.get(threadId)?.projectId : undefined
   return typeof threadProjectId === 'number' ? threadProjectId : undefined
+}
+
+function conversationFromRegistryRecord(record: AgentConversationRegistryRecord): Conversation {
+  return {
+    id: record.id,
+    title: record.title ?? '',
+    transcriptMessages: [],
+    ...(record.providerSessionId ? { providerSessionId: record.providerSessionId } : {}),
+    providerThreadId: record.providerThreadId,
+    ...(record.archived ? { archived: true } : {}),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  }
 }
 
 function AgentSidebarConversation({
@@ -1195,26 +992,20 @@ function AgentSidebarConversation({
   )
 }
 
-function AppServerSidebarThread({
-  thread,
+function AppServerSidebarActiveThread({
+  threadId,
   active,
   providerLabel,
-  locale,
-  now,
+  statusLight,
   onClick,
 }: {
-  thread: AgentChatThread
+  threadId: string
   active: boolean
   providerLabel: string
-  locale: string
-  now: number
+  statusLight: ProviderSessionStatusLight
   onClick: () => void
 }) {
   const label = providerLabel.trim() || 'App-server'
-  const relativeTime = formatAgentRelativeTime(thread.updatedAt * 1000, locale, now)
-  const sessionState = thread.status === 'running' ? 'active' : thread.status === 'failed' ? 'error' : 'stopped'
-  const title = thread.name || thread.preview || `Untitled ${label} thread`
-  const description = thread.name && thread.preview && thread.preview !== thread.name ? thread.preview : undefined
   return (
     <AgentModeConversationRow>
       <AgentModeConversationItem
@@ -1224,15 +1015,14 @@ function AppServerSidebarThread({
           <span className="agent-mode-conversation__icon-stack">
             <span
               className="agent-mode-conversation-session-light"
-              data-session-state={sessionState}
+              data-session-state={statusLight.state}
               aria-hidden="true"
-              title={`${label} ${thread.status}`}
+              title={statusLight.detail || label}
             />
           </span>
         )}
-        title={title}
-        description={description}
-        meta={relativeTime}
+        title={label}
+        description={threadId}
       />
     </AgentModeConversationRow>
   )
@@ -1243,49 +1033,30 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
   const activeProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
   const appServerMode = usesAppServerProtocol(activeProvider)
   const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
+  const conversationsById = useAgentSessionStore((s) => s.conversationsById)
   const setActiveConversation = useAgentSessionStore((s) => s.setActiveConversation)
-  const { data: providerThreads = [], isLoading: providerThreadsLoading } = useQuery<AgentThreadSummary[]>({
-    queryKey: ['provider-session-threads', providerSessionClient.baseURL, 'project-agent-chat-surface'],
-    queryFn: () => listProviderSessionThreadSummariesFromWorkspace({ includeProvisional: true }),
-    enabled: !appServerMode,
-    retry: false,
-  })
-  const frontendOpenState = readAgentConversationOpenState(userId)
-  const availableThreadIds = providerThreads
-    .filter((thread) => thread.archived !== true && thread.lifecycle !== 'abandoned')
-    .map((thread) => thread.id)
-  const frontendOpenThreadIds = visibleAgentConversationIds(frontendOpenState, availableThreadIds)
+  const openConversations = useMemo(
+    () => selectAgentConversationRegistryRecords(conversationsById, { userId }),
+    [conversationsById, userId],
+  )
   const activeConversationOpen = !!activeConversationId
-    && !appServerMode
-    && providerThreads.some((thread) => thread.id === activeConversationId && thread.archived !== true)
-    && (frontendOpenState.length === 0 || frontendOpenThreadIds.includes(activeConversationId))
+    && openConversations.some((record) => record.id === activeConversationId)
+  const emptyThreadLabel = '我们做些什么'
 
   useEffect(() => {
     if (appServerMode) return
-    if (providerThreadsLoading) return
     if (activeConversationOpen) {
-      if (activeConversationId) writeLastAgentModeActiveThreadId(userId, activeConversationId)
       return
     }
-    if (activeConversationId && frontendOpenThreadIds.includes(activeConversationId)) return
-    const openProviderThreads = providerThreads
-      .filter((thread) => thread.archived !== true && thread.lifecycle !== 'abandoned')
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    if (frontendOpenState.length > 0 && frontendOpenThreadIds.length === 0) return
-    const lastActiveThreadId = readLastAgentModeActiveThreadId(userId)
-    const threadToOpen = openProviderThreads.find((thread) => thread.id === lastActiveThreadId && frontendOpenThreadIds.includes(thread.id))
-      ?? openProviderThreads.find((thread) => frontendOpenThreadIds.includes(thread.id))
-    if (threadToOpen) {
-      setActiveConversation(userId, threadToOpen.id)
-      writeLastAgentModeActiveThreadId(userId, threadToOpen.id)
-    }
-  }, [activeConversationId, activeConversationOpen, appServerMode, providerThreads, providerThreadsLoading, setActiveConversation, userId])
+    setActiveConversation(userId, openConversations[0]?.id ?? null)
+  }, [activeConversationOpen, appServerMode, openConversations, setActiveConversation, userId])
 
   return (
     <AgentModeChatSurface>
       <AgentModeChatSurfaceInner>
         <AgentUnifiedChatShell
           userId={userId}
+          emptyThreadLabel={emptyThreadLabel}
           onCollapse={() => { }}
           showCollapse={false}
           host="immersive"
@@ -1304,11 +1075,8 @@ function ProjectAgentModeWorkspace({ userId }: { userId: string }) {
   )
 }
 
-function workspaceContextForNewConversation(input: {
-  scope: AgentWorkspaceScopeSelection
-  projectId?: number
-}): MovScriptWorkspaceContext {
-  if (input.scope === 'global' || input.projectId === undefined) {
+function workspaceContextForNewConversation(input: AgentWorkspaceScopeSelection): MovScriptWorkspaceContext {
+  if (input.scope === 'global') {
     return { scope: 'global' }
   }
   return {
@@ -1326,10 +1094,24 @@ function projectIdFromProviderSessionCwd(cwd: string | null | undefined): number
   return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
 }
 
-function positiveInteger(value: string | null | undefined): number | undefined {
-  if (!value) return undefined
+function positiveInteger(value: string | number | null | undefined): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function projectForAgentContentSession(projectId: number, projects: Project[]): Project {
+  const existing = projects.find((project) => project.ID === projectId)
+  if (existing) return existing
+  const now = new Date(0).toISOString()
+  return {
+    ID: projectId,
+    name: `项目 #${projectId}`,
+    description: '',
+    owner_id: 0,
+    CreatedAt: now,
+    UpdatedAt: now,
+  }
 }
 
 export function ProjectAgentContentPanel({
@@ -1346,11 +1128,54 @@ export function ProjectAgentContentPanel({
   onWidthChange?: (width: number) => void
 } = {}) {
   const currentUser = useUserStore((s) => s.currentUser)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
   const userId = currentUser ? String(currentUser.ID) : ''
   const providerSettings = useProviderConfigStore((s) => s.settings)
   const activeProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
+  const appServerMode = usesAppServerProtocol(activeProvider)
   const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
-  const [appServerActiveThreadId, setAppServerActiveThreadId] = useState(() => readAppServerActiveThreadId(activeProvider))
+  const conversationsById = useAgentSessionStore((s) => s.conversationsById)
+  const appServerActiveRecord = useMemo(() => selectActiveAgentConversationRegistryRecord({
+    activeConversationIdsByUser: { [userId]: activeConversationId },
+    conversationsById,
+  }, {
+    userId,
+    provider: activeProvider.kind,
+    providerId: activeProvider.id,
+    providerInstanceId: providerInstanceId(activeProvider),
+    providerProtocol: providerProtocol(activeProvider),
+  }), [activeConversationId, activeProvider, conversationsById, userId])
+  const sessionConversationId = appServerMode
+    ? appServerActiveRecord?.id ?? activeConversationId
+    : activeConversationId
+  const sessionWorkspaceContext = useAgentSessionStore((s) => (
+    sessionConversationId ? s.workspacesByUser[userId]?.[sessionConversationId]?.workspaceContext : undefined
+  ))
+  const sessionThreadBinding = useAgentSessionStore((s) => (
+    sessionConversationId ? s.conversationThreadBindings[sessionConversationId] : undefined
+  ))
+  const { data: providerSessionThreads = [] } = useQuery<AgentThreadSummary[]>({
+    queryKey: ['provider-session-threads', providerSessionClient.baseURL, 'agent-content-panel'],
+    queryFn: () => listProviderSessionThreadSummariesFromWorkspace({ includeProvisional: true }),
+    enabled: !appServerMode,
+    retry: false,
+  })
+  const providerThreadProjectId = useMemo(() => {
+    if (!activeConversationId) return undefined
+    return providerSessionThreads.find((thread) => thread.id === activeConversationId)?.projectId
+  }, [activeConversationId, providerSessionThreads])
+  const sessionProjectId = positiveInteger(sessionWorkspaceContext?.projectId)
+    ?? positiveInteger(appServerActiveRecord?.projectId)
+    ?? positiveInteger(providerThreadProjectId)
+    ?? projectIdFromProviderSessionCwd(sessionThreadBinding?.providerThreadCwd)
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: projectListQueryKey(currentOrgID),
+    queryFn: () => api.get('/projects').then((response) => response.data),
+    enabled: sessionProjectId !== undefined,
+  })
+  const sessionProject = useMemo(() => (
+    sessionProjectId === undefined ? null : projectForAgentContentSession(sessionProjectId, projects)
+  ), [projects, sessionProjectId])
   const panelWidth = clampAgentModeContentPanelWidth(width ?? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   const setPanelWidth = useCallback((nextWidth: number) => {
     onWidthChange?.(clampAgentModeContentPanelWidth(nextWidth))
@@ -1366,26 +1191,8 @@ export function ProjectAgentContentPanel({
     collapseMode: 'after-min',
     ariaLabel: '调整对话区宽度',
   })
-  useEffect(() => {
-    if (!usesAppServerProtocol(activeProvider)) {
-      setAppServerActiveThreadId(null)
-      return
-    }
-    const syncActiveThread = () => {
-      setAppServerActiveThreadId(readAppServerActiveThreadId(activeProvider))
-    }
-    syncActiveThread()
-    const openEventName = appServerThreadOpenEvent(activeProvider)
-    window.addEventListener(openEventName, syncActiveThread)
-    window.addEventListener('storage', syncActiveThread)
-    return () => {
-      window.removeEventListener(openEventName, syncActiveThread)
-      window.removeEventListener('storage', syncActiveThread)
-    }
-  }, [activeProvider])
-
-  const contentAreaId = usesAppServerProtocol(activeProvider)
-    ? appServerActiveThreadId ?? activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
+  const contentAreaId = appServerMode
+    ? appServerActiveRecord?.providerThreadId ?? activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
     : activeConversationId ?? DEFAULT_AGENT_CONTENT_AREA_ID
 
   return (
@@ -1397,7 +1204,7 @@ export function ProjectAgentContentPanel({
       aria-label="Agent 内容区"
       aria-hidden={collapsed ? true : undefined}
     >
-      <AgentBrowserPanel contentAreaId={contentAreaId} />
+      <AgentBrowserPanel contentAreaId={contentAreaId} project={sessionProject} />
       {!collapsed ? (
         <AgentModeResizeHandle
           {...panelResize.resizeHandleProps}

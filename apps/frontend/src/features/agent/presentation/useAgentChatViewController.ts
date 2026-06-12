@@ -91,6 +91,9 @@ export function useAgentChatViewController({
     inputRef: providerSessionState.inputRef,
     workspaceContextLocked: conversationEstablished,
   })
+  const selectedWorkspaceProjectName = composer.selectedWorkspaceContext.scope === 'project'
+    ? composer.workspaceProjectOptions.find((option) => option.value === String(composer.selectedWorkspaceContext.projectId))?.label ?? null
+    : null
 
   const loading = store.conversationRuntimeState?.loading ?? false
   const buildingSendWorkspace = store.conversationRuntimeState?.building ?? false
@@ -99,7 +102,7 @@ export function useAgentChatViewController({
     agentContextConfig: store.agentContextConfig,
     composerAttachmentsCount: composer.composerAttachments.length,
     includeProjectContext: store.settings.includeProjectContext,
-    currentProject: store.currentProject,
+    selectedProjectName: selectedWorkspaceProjectName,
     providerSessionEnabled: store.providerSessionEnabled,
     providerSessionId: store.providerSessionId,
   })
@@ -131,6 +134,7 @@ export function useAgentChatViewController({
     activeRun,
     buildingSendWorkspace,
     composer,
+    conversationEstablished,
     context,
     conv: effectiveConversation,
     externalTask,
@@ -151,7 +155,6 @@ export function useAgentChatViewController({
     conversations,
     archivedConversations,
     timelineItems: timeline.timelineItems,
-    currentProject: store.currentProject,
     interaction,
     timelineLoading: timeline.initialLoading,
     conversationEstablished,

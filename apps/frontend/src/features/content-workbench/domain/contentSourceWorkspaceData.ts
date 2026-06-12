@@ -1,7 +1,6 @@
 import {
-  buildContentSourceWorkspaceAudioCuePatch,
   buildContentSourceWorkspaceCandidateCreatePlan,
-  buildContentSourceWorkspaceData,
+  buildContentSourceWorkspaceAudioCuePatch,
   buildContentSourceWorkspaceEditPromptPatch,
   buildContentSourceWorkspaceExpressionUnitPatch,
   buildContentSourceWorkspaceHierarchyNodeRecord,
@@ -11,22 +10,13 @@ import {
   createdContentSourceCandidateFromRecord,
   type ContentCandidateRecord,
   type ContentSourceWorkspaceData,
-  type ContentSourceWorkspaceSnapshot,
   type ContentSourceWorkspaceRuntimePort,
   type CreatedContentSourceCandidate,
   type HierarchyNode,
   type HierarchyNodeType,
   type HierarchyTransition,
   type StoryboardTimeline,
-  type WorkspacePreviewTimelineArtifact,
 } from '@movscript/core/content'
-
-import {
-  createElectronMovScriptWorkspaceFileRepository,
-  createElectronMovScriptWorkspaceService,
-  interpretElectronMovScriptWorkspace,
-  reviewElectronMovScriptWorkspace,
-} from '@/shared/infrastructure/workspaceDomainRepository'
 
 import {
   audioCuesByMoment as fixtureAudioCuesByMoment,
@@ -55,54 +45,11 @@ export const fixtureContentSourceWorkspaceData: ContentSourceWorkspaceData = {
 export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspaceRuntimePort {
   return {
     async loadSnapshot(projectId) {
-      const service = createElectronMovScriptWorkspaceService({ projectId })
-      const [
-        index,
-        settings,
-        settingStates,
-        assetsResult,
-        context,
-        review,
-      ] = await Promise.all([
-        service.loadIndex(),
-        service.querySettings({ limit: 500 }),
-        service.queryEntities({ entityKind: 'setting_state', limit: 500 }),
-        service.queryAssets({ limit: 500 }),
-        service.queryProductionContext({
-          include: ['productions', 'segments', 'scene_moments', 'shots', 'storyboards', 'audio_cues', 'expression_units', 'content_units', 'keyframes'],
-          limit: 1000,
-        }),
-        reviewElectronMovScriptWorkspace({ projectId }),
-      ])
-
-      const productions = context.productions ?? []
-      const previewTimelines = (await Promise.all(
-        productions
-          .map((production) => String(production.id ?? production.record.id ?? production.record.ID ?? production.path))
-          .map((productionId) => service.readPreviewTimeline(productionId) as Promise<WorkspacePreviewTimelineArtifact | undefined>),
-      )).filter(isDefined)
-
-      return {
-        indexDocuments: index.documents,
-        settings,
-        settingStates,
-        assets: assetsResult.assets,
-        productions,
-        segments: context.segments ?? [],
-        sceneMoments: context.scene_moments ?? [],
-        shots: context.shots ?? [],
-        storyboards: context.storyboards ?? [],
-        keyframes: context.keyframes ?? [],
-        expressionUnits: context.expression_units ?? [],
-        audioCues: context.audio_cues ?? [],
-        contentUnits: context.content_units ?? [],
-        previewTimelines,
-        productionWorkPlan: productionWorkPlanFromReview(review),
-      }
+      return requireContentWorkspaceEngineAPI('loadMovScriptEngineContentWorkspaceSnapshot')({ projectId })
     },
     async selectContentUnitCandidate(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      await service.selectContentUnitCandidate({
+      await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
+        projectId: input.projectId,
         contentUnitId: input.contentUnitId,
         candidateId: input.candidateId,
         ...(input.resourceId ? { resourceId: input.resourceId } : {}),
@@ -110,8 +57,8 @@ export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspac
       })
     },
     async createContentCandidate(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      const result = await service.createContentCandidate({
+      const result = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
+        projectId: input.projectId,
         contentUnitId: input.contentUnitId,
         candidateId: input.candidateId,
         source: input.source,
@@ -121,58 +68,58 @@ export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspac
         promptSnapshot: input.promptSnapshot,
         createdAt: input.createdAt,
       })
-      return result.record as ContentCandidateRecord
+      return result as ContentCandidateRecord
     },
     async updateContentUnitEditPrompt(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      await service.updateContentUnitEditPrompt({
+      await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
+        projectId: input.projectId,
         targetPath: input.targetPath,
         editPrompt: input.editPrompt,
       })
     },
     async updateExpressionUnit(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      await service.updateExpressionUnitSource({
+      await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
+        projectId: input.projectId,
         targetPath: input.targetPath,
         patch: input.patch,
       })
     },
     async updateAudioCue(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      await service.updateAudioCueSource({
+      await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
+        projectId: input.projectId,
         targetPath: input.targetPath,
         patch: input.patch,
       })
     },
     async updateEntityTransition(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      await service.updateEntityTransition({
+      await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
+        projectId: input.projectId,
         targetPath: input.targetPath,
         transition: input.transition,
       })
     },
     async updateStoryboardTimeline(input) {
-      const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-      await service.updateStoryboardTimeline({
+      await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
+        projectId: input.projectId,
         targetPath: input.targetPath,
         timeline: input.timeline,
       })
     },
     async writeHierarchyNode(input) {
-      const repository = createElectronMovScriptWorkspaceFileRepository({ projectId: input.projectId })
-      await repository.write({
-        path: input.targetPath,
-        content: `${JSON.stringify(input.record, null, 2)}\n`,
+      await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
+        projectId: input.projectId,
+        targetPath: input.targetPath,
+        record: input.record,
       })
     },
     async interpretWorkspace(projectId) {
-      await interpretElectronMovScriptWorkspace({ projectId })
+      await requireContentWorkspaceEngineAPI('syncMovScriptEngineContentWorkspace')({ projectId })
     },
   }
 }
 
 export async function loadContentSourceWorkspaceData(projectId: number): Promise<ContentSourceWorkspaceData> {
-  return buildContentSourceWorkspaceData(await createContentSourceWorkspaceRuntimePort().loadSnapshot(projectId))
+  return requireContentWorkspaceEngineAPI('loadMovScriptEngineContentWorkspace')({ projectId })
 }
 
 export async function selectContentSourceWorkspaceCandidate(input: {
@@ -181,8 +128,10 @@ export async function selectContentSourceWorkspaceCandidate(input: {
   candidateId: string
   resourceId?: string
 }): Promise<void> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-  await service.selectContentUnitCandidate(buildContentSourceWorkspaceSelectionPatch(input))
+  await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
+    projectId: input.projectId,
+    ...buildContentSourceWorkspaceSelectionPatch(input),
+  })
 }
 
 export async function createContentSourceWorkspaceCandidate(input: {
@@ -195,10 +144,12 @@ export async function createContentSourceWorkspaceCandidate(input: {
   resourceType?: 'image' | 'video' | 'audio' | 'text' | 'file'
   resourceMimeType?: string
 }): Promise<CreatedContentSourceCandidate> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
   const plan = buildContentSourceWorkspaceCandidateCreatePlan(input)
-  const result = await service.createContentCandidate(plan)
-  return createdContentSourceCandidateFromRecord(result.record as ContentCandidateRecord, {
+  const record = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
+    projectId: input.projectId,
+    ...plan,
+  })
+  return createdContentSourceCandidateFromRecord(record as ContentCandidateRecord, {
     candidateId: plan.candidateId,
     contentUnitId: plan.contentUnitId,
   })
@@ -209,8 +160,10 @@ export async function updateContentSourceWorkspaceEditPrompt(input: {
   targetPath: string
   text: string
 }): Promise<void> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-  await service.updateContentUnitEditPrompt(buildContentSourceWorkspaceEditPromptPatch(input))
+  await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
+    projectId: input.projectId,
+    ...buildContentSourceWorkspaceEditPromptPatch(input),
+  })
 }
 
 export async function updateContentSourceWorkspaceExpressionUnit(input: {
@@ -223,8 +176,10 @@ export async function updateContentSourceWorkspaceExpressionUnit(input: {
   speaker?: string
   note?: string
 }): Promise<void> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-  await service.updateExpressionUnitSource(buildContentSourceWorkspaceExpressionUnitPatch(input))
+  await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
+    projectId: input.projectId,
+    ...buildContentSourceWorkspaceExpressionUnitPatch(input),
+  })
 }
 
 export async function updateContentSourceWorkspaceAudioCue(input: {
@@ -238,8 +193,10 @@ export async function updateContentSourceWorkspaceAudioCue(input: {
   timing: Record<string, unknown>
   assetRefs: string[]
 }): Promise<void> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-  await service.updateAudioCueSource(buildContentSourceWorkspaceAudioCuePatch(input))
+  await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
+    projectId: input.projectId,
+    ...buildContentSourceWorkspaceAudioCuePatch(input),
+  })
 }
 
 export async function updateContentSourceWorkspaceTransition(input: {
@@ -247,8 +204,10 @@ export async function updateContentSourceWorkspaceTransition(input: {
   targetPath: string
   transition: HierarchyTransition
 }): Promise<void> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-  await service.updateEntityTransition(buildContentSourceWorkspaceTransitionPatch(input))
+  await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
+    projectId: input.projectId,
+    ...buildContentSourceWorkspaceTransitionPatch(input),
+  })
 }
 
 export async function updateContentSourceWorkspaceStoryboardTimeline(input: {
@@ -256,8 +215,10 @@ export async function updateContentSourceWorkspaceStoryboardTimeline(input: {
   targetPath: string
   timeline: StoryboardTimeline
 }): Promise<void> {
-  const service = createElectronMovScriptWorkspaceService({ projectId: input.projectId })
-  await service.updateStoryboardTimeline(buildContentSourceWorkspaceStoryboardTimelinePatch(input))
+  await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
+    projectId: input.projectId,
+    ...buildContentSourceWorkspaceStoryboardTimelinePatch(input),
+  })
 }
 
 export async function createContentSourceWorkspaceHierarchyNode(input: {
@@ -268,29 +229,35 @@ export async function createContentSourceWorkspaceHierarchyNode(input: {
   targetPath: string
   parentNode: HierarchyNode
 }): Promise<void> {
-  const repository = createElectronMovScriptWorkspaceFileRepository({ projectId: input.projectId })
   const record = buildContentSourceWorkspaceHierarchyNodeRecord(input)
-  await repository.write({
-    path: input.targetPath,
-    content: `${JSON.stringify(record, null, 2)}\n`,
+  await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
+    projectId: input.projectId,
+    targetPath: input.targetPath,
+    record,
   })
 }
 
 export async function syncContentSourceWorkspace(input: {
   projectId: number
 }): Promise<void> {
-  await interpretElectronMovScriptWorkspace({ projectId: input.projectId })
+  await requireContentWorkspaceEngineAPI('syncMovScriptEngineContentWorkspace')({ projectId: input.projectId })
 }
 
-function isDefined<T>(value: T | undefined): value is T {
-  return value !== undefined
-}
-
-function productionWorkPlanFromReview(value: unknown): ContentSourceWorkspaceSnapshot['productionWorkPlan'] {
-  if (!isRecord(value)) return undefined
-  return value.productionWorkPlan as ContentSourceWorkspaceSnapshot['productionWorkPlan']
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function requireContentWorkspaceEngineAPI<K extends keyof Required<Pick<
+  NonNullable<Window['api']>,
+  | 'loadMovScriptEngineContentWorkspaceSnapshot'
+  | 'loadMovScriptEngineContentWorkspace'
+  | 'createMovScriptEngineContentCandidate'
+  | 'selectMovScriptEngineContentUnitCandidate'
+  | 'updateMovScriptEngineContentUnitEditPrompt'
+  | 'updateMovScriptEngineExpressionUnit'
+  | 'updateMovScriptEngineAudioCue'
+  | 'updateMovScriptEngineTransition'
+  | 'updateMovScriptEngineStoryboardTimeline'
+  | 'writeMovScriptEngineHierarchyNode'
+  | 'syncMovScriptEngineContentWorkspace'
+>>>(key: K): Required<Pick<NonNullable<Window['api']>, K>>[K] {
+  const fn = window.api?.[key]
+  if (!fn) throw new Error(`MovScript engine API is unavailable: ${String(key)}`)
+  return fn as Required<Pick<NonNullable<Window['api']>, K>>[K]
 }

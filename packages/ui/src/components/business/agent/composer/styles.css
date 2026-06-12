@@ -91,79 +91,7 @@
 .ms-agent-composer .ms-agent-composer__workspace-select {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
   color: var(--ms-color-muted-foreground);
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] {
-  border-radius: 28px;
-  padding: 0 0 14px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer {
-  margin: 0;
-  padding: 0;
-  border-color: color-mix(in srgb, var(--ms-color-border) 78%, transparent);
-  border-radius: 28px;
-  background: var(--ms-color-background);
-  box-shadow: none;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer:focus-within {
-  border-color: color-mix(in srgb, var(--ms-color-focus) 32%, var(--ms-color-border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ms-color-focus) 10%, transparent);
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__toolbar {
-  min-height: 64px;
-  border-top: 0;
-  padding: 10px 16px 14px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__toolstrip {
-  gap: 8px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-control,
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__approval-trigger,
-.ai-agent-panel-input-card[data-chrome="hero"] .ai-agent-model-select {
-  color: color-mix(in srgb, var(--ms-color-muted-foreground) 88%, var(--ms-color-foreground));
-  font-size: 17px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ai-agent-model-select {
-  width: auto;
-  max-width: 190px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__voice-action {
-  width: 38px;
-  height: 38px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__submit-group {
-  gap: 10px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__submit-group button[type="submit"] {
-  width: 48px;
-  height: 48px;
-  border-radius: 999px;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__hero-project-row {
-  display: flex;
-  align-items: center;
-  min-height: 58px;
-  padding: 8px 20px 0;
-}
-
-.ai-agent-panel-input-card[data-chrome="hero"] .ms-agent-composer__hero-project-row .ms-agent-composer__workspace-select {
-  width: auto;
-  max-width: min(460px, calc(100vw - 96px));
-  padding-inline: 10px;
-  color: color-mix(in srgb, var(--ms-color-muted-foreground) 92%, var(--ms-color-foreground));
-  font-size: 18px;
 }
 
 .ai-agent-model-select {

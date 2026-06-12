@@ -7,7 +7,6 @@ import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui'
 import {
   AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
   AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH,
   AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
   AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
   LEGACY_AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
@@ -100,10 +99,10 @@ test('route layout pane controller derives agent shell pane state contract from 
 
   assert.equal(sidebarPane?.storageKey, AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY)
   assert.equal(sidebarPane?.stateStorageKey, AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
-  assert.equal(sidebarPane?.collapsedSize, AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH)
+  assert.equal(sidebarPane?.collapsedSize, 0)
   assert.equal(sidebarPane?.defaultState, 'default')
-  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'collapsed'), 'collapsed')
-  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'hidden'), 'default')
+  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'collapsed'), 'default')
+  assert.equal(allowedRouteLayoutPaneState(sidebarPane, 'hidden'), 'hidden')
   assert.notEqual(sidebarPane?.stateStorageKey, LEGACY_AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY)
 
   assert.equal(contentPane?.storageKey, AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY)
@@ -137,7 +136,7 @@ test('route layout pane controller restores persisted agent shell pane sizes and
     storage.set(AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY, 'default')
 
     assert.equal(readRouteLayoutPaneSize(sidebarPane?.storageKey, sidebarPane?.defaultSize ?? 0), 340)
-    assert.equal(readRouteLayoutPaneState(sidebarPane, routeLayoutPaneStateStorageKey(sidebarPane)), 'collapsed')
+    assert.equal(readRouteLayoutPaneState(sidebarPane, routeLayoutPaneStateStorageKey(sidebarPane)), 'default')
     assert.equal(readRouteLayoutPaneSize(contentPane?.storageKey, contentPane?.defaultSize ?? 0), 980)
     assert.equal(readRouteLayoutPaneState(contentPane, routeLayoutPaneStateStorageKey(contentPane)), 'default')
 
@@ -242,19 +241,20 @@ test('shell layout consumes detail sidebar state through the route pane controll
   assert.match(appSource, /detailAssistantPane\.size/)
   assert.match(appSource, /onWidthChange=\{detailAssistantPane\.setSize\}/)
   assert.match(appSource, /const terminalOpen = !terminalPane\.hidden/)
-  assert.match(appSource, /agentSidebarPane\.collapse/)
+  assert.doesNotMatch(appSource, /agentSidebarPane\.collapse/)
   assert.match(appSource, /agentContentPane\.collapsed/)
   assert.match(appSource, /fallbackState: 'default'/)
-  assert.match(appSource, /const agentSidebarVisible = !agentSidebarPane\.collapsed && !agentSidebarPane\.hidden/)
+  assert.match(appSource, /const agentSidebarVisible = !agentSidebarPane\.hidden/)
   assert.match(appSource, /const agentLeftSlotWidth = !agentSidebarVisible[\s\S]*agentSidebarPane\.size/)
   assert.match(appSource, /const agentLeftSlotStyle = \{[\s\S]*agentLeftSlotWidth/)
   assert.match(appSource, /const agentRightCollapsedWidth = agentContentPane\.pane\?\.collapsedSize \?\? 0/)
   assert.match(appSource, /const agentRightSlotStyle = \{[\s\S]*agentRightCollapsedWidth[\s\S]*agentContentPane\.size/)
   assert.match(appSource, /onClick=\{agentContentPanelClosed \? agentContentPane\.show : agentContentPane\.collapse\}/)
   assert.match(appSource, /showAgentContentPanelShortcut=\{false\}/)
-  assert.match(appSource, /sidebarCollapsed=\{agentSidebarPane\.collapsed\}/)
+  assert.match(appSource, /sidebarCollapsed=\{false\}/)
   assert.match(appSource, /leftPaneHidden=\{!agentSidebarVisible\}/)
-  assert.match(appSource, /<ProjectAgentModeSidebar[\s\S]*collapsed=\{agentSidebarPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentSidebarPane\.collapse\(\)[\s\S]*agentSidebarPane\.show\(\)[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
+  assert.match(appSource, /onClick=\{agentSidebarVisible \? agentSidebarPane\.hide : agentSidebarPane\.show\}/)
+  assert.match(appSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
   assert.match(appSource, /<ProjectAgentContentPanel[\s\S]*collapsed=\{agentContentPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentContentPane\.collapse\(\)[\s\S]*agentContentPane\.show\(\)[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
   assert.match(appSource, /<AgentTerminalPanel[\s\S]*open=\{terminalOpen\}[\s\S]*onOpenChange=\{\(open\) => \{[\s\S]*terminalPane\.show\(\)[\s\S]*terminalPane\.hide\(\)/)
   assert.doesNotMatch(agentTerminalPanelSource, /AGENT_TERMINAL_PANEL_OPEN_KEY/)
@@ -263,9 +263,10 @@ test('shell layout consumes detail sidebar state through the route pane controll
   assert.match(projectAgentModePageSource, /function ProjectAgentModeFullscreen\(\{ userId \}: \{ userId: string \}\)/)
   assert.match(projectAgentModePageSource, /useRouteLayoutPaneController\(\{[\s\S]*routeLayout: PROJECT_AGENT_ROUTE_LAYOUT[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*clampSize: clampAgentModeSidebarWidth/)
   assert.match(projectAgentModePageSource, /useRouteLayoutPaneController\(\{[\s\S]*routeLayout: PROJECT_AGENT_ROUTE_LAYOUT[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*clampSize: clampAgentModeContentPanelWidth/)
-  assert.match(projectAgentModePageSource, /<ProjectAgentModeSidebar[\s\S]*collapsed=\{agentSidebarPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentSidebarPane\.collapse\(\)[\s\S]*agentSidebarPane\.show\(\)[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
+  assert.match(projectAgentModePageSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
   assert.match(projectAgentModePageSource, /<ProjectAgentContentPanel[\s\S]*manageOwnWidth[\s\S]*collapsed=\{agentContentPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentContentPane\.collapse\(\)[\s\S]*agentContentPane\.show\(\)[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
-  assert.match(projectAgentModePageSource, /const renderedSidebarWidth = collapsed \? AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth/)
+  assert.doesNotMatch(projectAgentModePageSource, /AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH/)
+  assert.doesNotMatch(projectAgentModePageSource, /sidebarToggleLabel/)
   assert.match(projectAgentModePageSource, /const sidebarWidth = clampAgentModeSidebarWidth\(width \?\? AGENT_MODE_SIDEBAR_DEFAULT_WIDTH\)/)
   assert.match(projectAgentModePageSource, /const panelWidth = clampAgentModeContentPanelWidth\(width \?\? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH\)/)
   assert.doesNotMatch(projectAgentModePageSource, /AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY/)

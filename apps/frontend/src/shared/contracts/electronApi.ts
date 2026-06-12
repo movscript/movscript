@@ -2,6 +2,17 @@ import type { AppSettings } from './appSettings'
 import type { GenerationToolServer, GenerationToolsSettings } from './generationTools'
 import type { MCPContextUpdate } from './mcpContext'
 import type { MovScriptWorkspaceConfig, MovScriptWorkspaceRootManifest } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceService } from '@movscript/workspace'
+import type {
+  ContentCandidateRecord,
+  ContentSourceWorkspaceAudioCuePatch,
+  ContentSourceWorkspaceData,
+  ContentSourceWorkspaceEditPromptPatch,
+  ContentSourceWorkspaceExpressionUnitPatch,
+  ContentSourceWorkspaceSnapshot,
+  ContentSourceWorkspaceStoryboardTimelinePatch,
+  ContentSourceWorkspaceTransitionPatch,
+} from '@movscript/core/content'
 
 export type ElectronBackendStatus = {
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
@@ -489,6 +500,106 @@ export type ElectronMovScriptWorkspaceInterpretActionInput = {
   projectId?: number | string
 }
 
+export type ElectronMovScriptEngineProjectInput = ElectronMovScriptWorkspaceInterpretActionInput
+
+export type ElectronMovScriptEngineWorkspaceQueryEntitiesInput = ElectronMovScriptEngineProjectInput & {
+  query?: Parameters<MovScriptWorkspaceService['queryEntities']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceQuerySettingsInput = ElectronMovScriptEngineProjectInput & {
+  query?: Parameters<MovScriptWorkspaceService['querySettings']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceQueryAssetsInput = ElectronMovScriptEngineProjectInput & {
+  query?: Parameters<MovScriptWorkspaceService['queryAssets']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertSettingInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertSetting']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertAssetInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertAsset']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertScriptInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertScript']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceReadScriptSourceInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['readScriptSource']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceDeleteEntityInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['deleteEntity']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['saveProductionSnapshot']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertProjectStandards']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceCandidateCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['createAssetSlotCandidate']>[0]
+}
+
+export type ElectronMovScriptEngineContentCandidateCreateInput = {
+  projectId: number | string
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  contentUnitId: string | number
+  candidateId: string | number
+  source: 'ai_generate' | 'resource_library'
+  status: 'queued' | 'imported'
+  producer: Record<string, unknown>
+  outputs: Array<{
+    kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
+    resource_id: string | number
+    mime_type?: string
+    width?: number
+    height?: number
+    duration_sec?: number
+    metadata?: Record<string, unknown>
+  }>
+  promptSnapshot: Record<string, unknown>
+  createdAt: string
+}
+
+export type ElectronMovScriptEngineContentCandidateSelectInput = {
+  projectId: number | string
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  contentUnitId: string | number
+  candidateId: string | number
+  resourceId?: string | number
+  reason: 'content_source_workspace_selection'
+}
+
+export type ElectronMovScriptEngineContentUnitEditPromptInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceEditPromptPatch
+
+export type ElectronMovScriptEngineExpressionUnitInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceExpressionUnitPatch
+
+export type ElectronMovScriptEngineAudioCueInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceAudioCuePatch
+
+export type ElectronMovScriptEngineTransitionInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceTransitionPatch
+
+export type ElectronMovScriptEngineStoryboardTimelineInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceStoryboardTimelinePatch
+
+export type ElectronMovScriptEngineHierarchyNodeWriteInput = ElectronMovScriptEngineProjectInput & {
+  targetPath: string
+  record: Record<string, unknown>
+}
+
 export type ElectronProjectGitActionInput = {
   projectId: number | string
   workspaceDir?: string
@@ -616,6 +727,29 @@ export type ElectronAPI = {
   deleteMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<{ ok: true }>
   reviewMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceInterpretActionInput) => Promise<unknown>
   interpretMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceInterpretActionInput) => Promise<unknown>
+  queryMovScriptEngineWorkspaceEntities?: (input: ElectronMovScriptEngineWorkspaceQueryEntitiesInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['queryEntities']>>>
+  queryMovScriptEngineWorkspaceSettings?: (input: ElectronMovScriptEngineWorkspaceQuerySettingsInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['querySettings']>>>
+  queryMovScriptEngineWorkspaceAssets?: (input: ElectronMovScriptEngineWorkspaceQueryAssetsInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['queryAssets']>>>
+  upsertMovScriptEngineWorkspaceSetting?: (input: ElectronMovScriptEngineWorkspaceUpsertSettingInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertSetting']>>>
+  upsertMovScriptEngineWorkspaceAsset?: (input: ElectronMovScriptEngineWorkspaceUpsertAssetInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertAsset']>>>
+  upsertMovScriptEngineWorkspaceScript?: (input: ElectronMovScriptEngineWorkspaceUpsertScriptInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertScript']>>>
+  readMovScriptEngineWorkspaceScriptSource?: (input: ElectronMovScriptEngineWorkspaceReadScriptSourceInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['readScriptSource']>>>
+  deleteMovScriptEngineWorkspaceEntity?: (input: ElectronMovScriptEngineWorkspaceDeleteEntityInput) => Promise<void>
+  saveMovScriptEngineWorkspaceProductionSnapshot?: (input: ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['saveProductionSnapshot']>>>
+  upsertMovScriptEngineWorkspaceProjectStandards?: (input: ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['upsertProjectStandards']>>>
+  createMovScriptEngineWorkspaceAssetSlotCandidate?: (input: ElectronMovScriptEngineWorkspaceCandidateCreateInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['createAssetSlotCandidate']>>>
+  createMovScriptEngineWorkspaceKeyframeCandidate?: (input: ElectronMovScriptEngineWorkspaceCandidateCreateInput) => Promise<Awaited<ReturnType<MovScriptWorkspaceService['createKeyframeCandidate']>>>
+  loadMovScriptEngineContentWorkspaceSnapshot?: (input: ElectronMovScriptEngineProjectInput) => Promise<ContentSourceWorkspaceSnapshot>
+  loadMovScriptEngineContentWorkspace?: (input: ElectronMovScriptEngineProjectInput) => Promise<ContentSourceWorkspaceData>
+  createMovScriptEngineContentCandidate?: (input: ElectronMovScriptEngineContentCandidateCreateInput) => Promise<ContentCandidateRecord>
+  selectMovScriptEngineContentUnitCandidate?: (input: ElectronMovScriptEngineContentCandidateSelectInput) => Promise<void>
+  updateMovScriptEngineContentUnitEditPrompt?: (input: ElectronMovScriptEngineContentUnitEditPromptInput) => Promise<void>
+  updateMovScriptEngineExpressionUnit?: (input: ElectronMovScriptEngineExpressionUnitInput) => Promise<void>
+  updateMovScriptEngineAudioCue?: (input: ElectronMovScriptEngineAudioCueInput) => Promise<void>
+  updateMovScriptEngineTransition?: (input: ElectronMovScriptEngineTransitionInput) => Promise<void>
+  updateMovScriptEngineStoryboardTimeline?: (input: ElectronMovScriptEngineStoryboardTimelineInput) => Promise<void>
+  writeMovScriptEngineHierarchyNode?: (input: ElectronMovScriptEngineHierarchyNodeWriteInput) => Promise<void>
+  syncMovScriptEngineContentWorkspace?: (input: ElectronMovScriptEngineProjectInput) => Promise<void>
   initProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   commitProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   pullProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>

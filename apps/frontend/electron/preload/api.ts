@@ -6,6 +6,7 @@ import { createBackendAPI } from './api/backend'
 import { createAppServerAPI } from './api/appServer'
 import { createDialogAPI } from './api/dialog'
 import { createMCPAPI } from './api/mcp'
+import { createMovScriptEngineAPI } from './api/movscriptEngine'
 import { createMovScriptWorkspaceAPI } from './api/movscriptWorkspace'
 import { createSettingsAPI } from './api/settings'
 import { createVideoAPI } from './api/video'
@@ -22,6 +23,7 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createWindowAPI(ipcRenderer),
     ...createEmbeddedBrowserAPI(ipcRenderer),
     ...createPluginCatalogPackStoreAPI(ipcRenderer),
+    ...createMovScriptEngineAPI(ipcRenderer),
     ...createMovScriptWorkspaceAPI(ipcRenderer),
     ...createAppServerAPI(ipcRenderer),
     ...createLocalTerminalAPI(ipcRenderer),

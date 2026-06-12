@@ -3,7 +3,11 @@ import type { MovScriptContentCandidateWriteInput } from '@movscript/workspace'
 import { saveMovScriptProductionWorkspaceSnapshot } from '@movscript/workspace'
 import { createNodeMovScriptWorkspaceFileRepository } from '@movscript/workspace/node'
 import type { SemanticEntityKind } from '@movscript/language/domain'
-import { createMovScriptDomainRuntime } from './runtime.js'
+import {
+  createMovScriptDomainRuntime,
+  invalidateMovScriptDomainRuntime,
+  type MovScriptDomainRuntime,
+} from './runtime.js'
 import { resolveMCPProjectWorkspaceLocator } from '../workspace/locator.js'
 
 type Args = Record<string, unknown>
@@ -64,6 +68,14 @@ export async function domainQueryProductionContext(args: Args): Promise<unknown>
   })
 }
 
+export async function domainReadContentWorkspace(args: Args): Promise<unknown> {
+  return service(args).loadContentWorkspace()
+}
+
+export async function domainReadContentWorkspaceSnapshot(args: Args): Promise<unknown> {
+  return service(args).loadContentWorkspaceSnapshot()
+}
+
 export async function domainInterpretContentUnitArtifact(args: Args): Promise<unknown> {
   return service(args).deriveContentUnitArtifact(requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'))
 }
@@ -93,37 +105,37 @@ export async function domainReadContentUnitSelectionValidity(args: Args): Promis
 }
 
 export async function domainUpsertProjectStandards(args: Args): Promise<unknown> {
-  return service(args).upsertProjectStandards({
+  return runtimeMutation(args, (runtime) => runtime.upsertProjectStandards({
     record: optionalRecord(args.record),
     projectStyle: requiredRecord(args.projectStyle ?? args.project_style, 'projectStyle'),
-  })
+  }))
 }
 
 export async function domainUpsertSetting(args: Args): Promise<unknown> {
   const payload = upsertPayloadRecord(args)
-  return service(args).upsertSetting({
+  return runtimeMutation(args, (runtime) => runtime.upsertSetting({
     entity: optionalRecord(args.entity) as never,
     record: optionalRecord(args.record),
     payload,
-  })
+  }))
 }
 
 export async function domainUpsertAsset(args: Args): Promise<unknown> {
   const payload = upsertPayloadRecord(args)
-  return service(args).upsertAsset({
+  return runtimeMutation(args, (runtime) => runtime.upsertAsset({
     entity: optionalRecord(args.entity) as never,
     record: optionalRecord(args.record),
     payload,
-  })
+  }))
 }
 
 export async function domainUpsertScript(args: Args): Promise<unknown> {
-  return service(args).upsertScript({
+  return runtimeMutation(args, (runtime) => runtime.upsertScript({
     scriptId: requiredId(args.scriptId ?? args.script_id, 'scriptId'),
     record: optionalRecord(args.record),
     sourceText: requiredString(args.sourceText ?? args.source_text, 'sourceText'),
     ...(optionalRecord(args.metadata) ? { metadata: optionalRecord(args.metadata) } : {}),
-  })
+  }))
 }
 
 export async function domainReadScriptSource(args: Args): Promise<unknown> {
@@ -134,30 +146,30 @@ export async function domainReadScriptSource(args: Args): Promise<unknown> {
 }
 
 export async function domainSnapshotScriptVersion(args: Args): Promise<unknown> {
-  return service(args).snapshotScriptVersionFromMarkdown({
+  return runtimeMutation(args, (runtime) => runtime.snapshotScriptVersionFromMarkdown({
     scriptId: requiredId(args.scriptId ?? args.script_id, 'scriptId'),
     versionId: requiredId(args.versionId ?? args.version_id, 'versionId'),
     ...(stringValue(args.versionLabel ?? args.version_label) ? { versionLabel: stringValue(args.versionLabel ?? args.version_label) } : {}),
     ...(stringValue(args.sourcePath ?? args.source_path) ? { sourcePath: stringValue(args.sourcePath ?? args.source_path) } : {}),
-  })
+  }))
 }
 
 export async function domainUpsertContentUnit(args: Args): Promise<unknown> {
-  return service(args).upsertContentUnit({
+  return runtimeMutation(args, (runtime) => runtime.upsertContentUnit({
     unit: requiredRecord(args.unit, 'unit'),
-  })
+  }))
 }
 
 export async function domainUpsertProduction(args: Args): Promise<unknown> {
   const production = requiredRecord(args.production ?? args.payload ?? args.record, 'production')
   const productionId = productionIdFrom(args, production)
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot: {
       production,
       segments: [],
     },
-  })
+  }))
   return productionWriteResult('production', { productionId }, result)
 }
 
@@ -166,7 +178,7 @@ export async function domainUpsertSegment(args: Args): Promise<unknown> {
   const production = optionalRecord(args.production)
   const productionId = productionIdFrom(args, production)
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment.id ?? segment.client_id, 'segmentId')
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot: {
       ...(production ? { production } : {}),
@@ -175,7 +187,7 @@ export async function domainUpsertSegment(args: Args): Promise<unknown> {
         id: segmentId,
       }],
     },
-  })
+  }))
   return productionWriteResult('segment', { productionId, segmentId }, result)
 }
 
@@ -186,7 +198,7 @@ export async function domainUpsertSceneMoment(args: Args): Promise<unknown> {
   const productionId = productionIdFrom(args, production)
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment.id ?? sceneMoment.client_id, 'sceneMomentId')
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot: {
       ...(production ? { production } : {}),
@@ -199,7 +211,7 @@ export async function domainUpsertSceneMoment(args: Args): Promise<unknown> {
         }],
       }],
     },
-  })
+  }))
   return productionWriteResult('scene_moment', { productionId, segmentId, sceneMomentId }, result)
 }
 
@@ -212,7 +224,7 @@ export async function domainUpsertShot(args: Args): Promise<unknown> {
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
   const shotId = requiredId(args.shotId ?? args.shot_id ?? shot.id ?? shot.client_id, 'shotId')
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot: {
       ...(production ? { production } : {}),
@@ -229,7 +241,7 @@ export async function domainUpsertShot(args: Args): Promise<unknown> {
         }],
       }],
     },
-  })
+  }))
   return productionWriteResult('shot', { productionId, segmentId, sceneMomentId, shotId }, result)
 }
 
@@ -263,10 +275,10 @@ export async function domainUpsertKeyframe(args: Args): Promise<unknown> {
       }],
     }],
   }
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot,
-  })
+  }))
   return productionWriteResult('keyframe', { productionId, segmentId, sceneMomentId, shotId, keyframeId }, result)
 }
 
@@ -301,6 +313,7 @@ export async function domainUpsertStoryboard(args: Args): Promise<unknown> {
       }],
     },
   })
+  invalidateRuntimeForArgs(args)
   return {
     status: 'upserted',
     productionId,
@@ -322,7 +335,7 @@ export async function domainUpsertAudioCue(args: Args): Promise<unknown> {
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
   const audioCueId = requiredId(args.audioCueId ?? args.audio_cue_id ?? audioCue.id ?? audioCue.client_id, 'audioCueId')
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot: {
       ...(production ? { production } : {}),
@@ -339,7 +352,7 @@ export async function domainUpsertAudioCue(args: Args): Promise<unknown> {
         }],
       }],
     },
-  })
+  }))
   return productionWriteResult('audio_cue', { productionId, segmentId, sceneMomentId, audioCueId }, result)
 }
 
@@ -352,7 +365,7 @@ export async function domainUpsertExpressionUnit(args: Args): Promise<unknown> {
   const segmentId = requiredId(args.segmentId ?? args.segment_id ?? segment?.id ?? segment?.client_id, 'segmentId')
   const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id ?? sceneMoment?.id ?? sceneMoment?.client_id, 'sceneMomentId')
   const expressionUnitId = requiredId(args.expressionUnitId ?? args.expression_unit_id ?? expressionUnit.id ?? expressionUnit.client_id, 'expressionUnitId')
-  const result = await service(args).saveProductionSnapshot({
+  const result = await runtimeMutation(args, (runtime) => runtime.saveProductionSnapshot({
     productionId,
     snapshot: {
       ...(production ? { production } : {}),
@@ -369,44 +382,44 @@ export async function domainUpsertExpressionUnit(args: Args): Promise<unknown> {
         }],
       }],
     },
-  })
+  }))
   return productionWriteResult('expression_unit', { productionId, segmentId, sceneMomentId, expressionUnitId }, result)
 }
 
 export async function domainUpdateContentUnitPrompt(args: Args): Promise<unknown> {
-  return service(args).updateContentUnitEditPrompt({
+  return runtimeMutation(args, (runtime) => runtime.updateContentUnitEditPrompt({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     editPrompt: requiredRecord(args.editPrompt ?? args.edit_prompt, 'editPrompt') as never,
-  })
+  }))
 }
 
 export async function domainUpdateEntityTransition(args: Args): Promise<unknown> {
-  return service(args).updateEntityTransition({
+  return runtimeMutation(args, (runtime) => runtime.updateEntityTransition({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     ...(optionalRecord(args.transition) ? { transition: optionalRecord(args.transition) as never } : {}),
-  })
+  }))
 }
 
 export async function domainUpdateStoryboardTimeline(args: Args): Promise<unknown> {
-  return service(args).updateStoryboardTimeline({
+  return runtimeMutation(args, (runtime) => runtime.updateStoryboardTimeline({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     ...(optionalRecord(args.timeline) ? { timeline: optionalRecord(args.timeline) as never } : {}),
-  })
+  }))
 }
 
 export async function domainAppendCandidate(args: Args): Promise<unknown> {
-  return service(args).appendCandidate({
+  return runtimeMutation(args, (runtime) => runtime.appendCandidate({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     targetKind: requiredTargetKind(args),
     payload: requiredRecord(args.payload, 'payload') as never,
     ...(args.lock !== undefined ? { lock: args.lock as never } : {}),
     ...(stringValue(args.nonce) ? { nonce: stringValue(args.nonce) } : {}),
-  })
+  }))
 }
 
 export async function domainCreateContentCandidate(args: Args): Promise<unknown> {
   const status = contentCandidateStatus(args.status)
-  return service(args).createContentCandidate({
+  return runtimeMutation(args, (runtime) => runtime.createContentCandidate({
     contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
     ...(args.candidateId !== undefined || args.candidate_id !== undefined ? { candidateId: idValue(args.candidateId ?? args.candidate_id) } : {}),
     ...(stringValue(args.source) ? { source: stringValue(args.source) } : {}),
@@ -414,7 +427,7 @@ export async function domainCreateContentCandidate(args: Args): Promise<unknown>
     ...(optionalRecord(args.producer) ? { producer: optionalRecord(args.producer) } : {}),
     outputs: requiredArray(args.outputs, 'outputs').filter(isRecord) as never,
     ...(optionalRecord(args.promptSnapshot ?? args.prompt_snapshot) ? { promptSnapshot: optionalRecord(args.promptSnapshot ?? args.prompt_snapshot) } : {}),
-  })
+  }))
 }
 
 export async function domainCreateContentCandidateBatch(args: Args): Promise<unknown> {
@@ -422,29 +435,29 @@ export async function domainCreateContentCandidateBatch(args: Args): Promise<unk
 }
 
 export async function domainCreateAssetSlotCandidate(args: Args): Promise<unknown> {
-  return service(args).createAssetSlotCandidate({
+  return runtimeMutation(args, (runtime) => runtime.createAssetSlotCandidate({
     payload: requiredRecord(args.payload, 'payload'),
     ...(optionalRecord(args.targetRecord ?? args.target_record) ? { targetRecord: optionalRecord(args.targetRecord ?? args.target_record) } : {}),
     ...(stringValue(args.nonce) ? { nonce: stringValue(args.nonce) } : {}),
-  })
+  }))
 }
 
 export async function domainCreateKeyframeCandidate(args: Args): Promise<unknown> {
-  return service(args).createKeyframeCandidate({
+  return runtimeMutation(args, (runtime) => runtime.createKeyframeCandidate({
     payload: requiredRecord(args.payload, 'payload'),
     ...(optionalRecord(args.targetRecord ?? args.target_record) ? { targetRecord: optionalRecord(args.targetRecord ?? args.target_record) } : {}),
     ...(stringValue(args.nonce) ? { nonce: stringValue(args.nonce) } : {}),
-  })
+  }))
 }
 
 export async function domainSelectContentUnitCandidate(args: Args): Promise<unknown> {
-  return service(args).selectContentUnitCandidate({
+  return runtimeMutation(args, (runtime) => runtime.selectContentUnitCandidate({
     contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
     candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
     ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: idValue(args.resourceId ?? args.resource_id) } : {}),
     ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
-  })
+  }))
 }
 
 export async function domainSelectContentUnitCandidateBatch(args: Args): Promise<unknown> {
@@ -452,35 +465,35 @@ export async function domainSelectContentUnitCandidateBatch(args: Args): Promise
 }
 
 export async function domainSelectCandidate(args: Args): Promise<unknown> {
-  return service(args).selectCandidate({
+  return runtimeMutation(args, (runtime) => runtime.selectCandidate({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     targetKind: requiredTargetKind(args),
     candidateId: requiredString(args.candidateId ?? args.candidate_id, 'candidateId'),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
-  })
+  }))
 }
 
 export async function domainUpdateCandidate(args: Args): Promise<unknown> {
-  return service(args).updateCandidate({
+  return runtimeMutation(args, (runtime) => runtime.updateCandidate({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     targetKind: requiredTargetKind(args),
     candidateId: requiredString(args.candidateId ?? args.candidate_id, 'candidateId'),
     payload: requiredRecord(args.payload, 'payload') as never,
-  })
+  }))
 }
 
 export async function domainUnlockCandidate(args: Args): Promise<unknown> {
-  return service(args).unlockCandidate({
+  return runtimeMutation(args, (runtime) => runtime.unlockCandidate({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
     targetKind: requiredTargetKind(args),
-  })
+  }))
 }
 
 export async function domainDeleteEntity(args: Args): Promise<unknown> {
-  await service(args).deleteEntity({
+  await runtimeMutation(args, (runtime) => runtime.deleteEntity({
     entity: optionalRecord(args.entity) as never,
     record: optionalRecord(args.record) ?? {},
-  })
+  }))
   return { status: 'deleted' }
 }
 
@@ -501,7 +514,7 @@ export async function domainReadProductionWorkPlan(args: Args): Promise<unknown>
 }
 
 export async function domainInterpret(args: Args): Promise<unknown> {
-  return service(args).interpretWorkspace()
+  return runtimeMutation(args, (runtime) => runtime.interpretWorkspace())
 }
 
 export async function domainRegenerationPlan(args: Args): Promise<unknown> {
@@ -510,6 +523,22 @@ export async function domainRegenerationPlan(args: Args): Promise<unknown> {
 
 function service(args: Args) {
   return createMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator(args))
+}
+
+async function runtimeMutation<T>(
+  args: Args,
+  action: (runtime: MovScriptDomainRuntime) => Promise<T>,
+): Promise<T> {
+  const locator = resolveMCPProjectWorkspaceLocator(args)
+  try {
+    return await action(createMovScriptDomainRuntime(locator))
+  } finally {
+    invalidateMovScriptDomainRuntime(locator)
+  }
+}
+
+function invalidateRuntimeForArgs(args: Args): void {
+  invalidateMovScriptDomainRuntime(resolveMCPProjectWorkspaceLocator(args))
 }
 
 async function runDomainBatch(args: Args, action: (item: Args) => Promise<unknown>): Promise<Record<string, unknown>> {

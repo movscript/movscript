@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildAgentConversationTabProviderSessionTargets, providerSessionStatusLightForTargetKeys } from './useAgentConversationTabProviderSessionStatusLights'
+import {
+  buildAgentConversationTabProviderSessionTargets,
+  providerSessionStatusLightForTargetKeys,
+  providerSessionStatusLightFromConversationState,
+} from './useAgentConversationTabProviderSessionStatusLights'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationTabProviderSessionTargets prefers session anchors and keeps thread fallback', () => {
@@ -95,6 +99,57 @@ test('providerSessionStatusLightForTargetKeys prefers the highest-priority light
   }, ['session:session_1', 'thread:thread_1']).state, 'active')
 
   assert.equal(providerSessionStatusLightForTargetKeys({}, ['session:session_1']).state, 'stopped')
+})
+
+test('providerSessionStatusLightFromConversationState treats local terminal thread state as authoritative', () => {
+  assert.deepEqual(providerSessionStatusLightFromConversationState({
+    id: 'thread_done',
+    userId: 'user_1',
+    providerThreadId: 'thread_done',
+    status: 'completed',
+    open: true,
+    archived: false,
+    createdAt: 1,
+    updatedAt: 2,
+  }, undefined), {
+    terminal: true,
+    light: {
+      state: 'stopped',
+      label: '停止',
+      detail: 'Provider 会话当前不会自行触发新的 run，需要新的用户输入。',
+    },
+  })
+
+  assert.equal(providerSessionStatusLightFromConversationState(undefined, {
+    conversationId: 'thread_failed',
+    status: 'failed',
+    loading: false,
+    building: false,
+    approving: false,
+    stopping: false,
+    stopRequested: false,
+    updatedAt: 2,
+  })?.light.state, 'error')
+})
+
+test('providerSessionStatusLightFromConversationState does not mark queued drafts active', () => {
+  assert.deepEqual(providerSessionStatusLightFromConversationState({
+    id: 'thread_queued',
+    userId: 'user_1',
+    providerThreadId: 'thread_queued',
+    status: 'queued',
+    open: true,
+    archived: false,
+    createdAt: 1,
+    updatedAt: 2,
+  }, undefined), {
+    terminal: true,
+    light: {
+      state: 'stopped',
+      label: '停止',
+      detail: 'Provider 会话当前不会自行触发新的 run，需要新的用户输入。',
+    },
+  })
 })
 
 function conversation(overrides: Partial<Conversation>): Conversation {

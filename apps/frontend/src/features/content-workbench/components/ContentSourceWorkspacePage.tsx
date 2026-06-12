@@ -23,8 +23,10 @@ import {
 
 import {
   createContentSourceWorkspaceRuntime,
+  type ContentSourceWorkspaceRuntimePort,
   type ContentSourceWorkspaceRuntimeState,
   type ContentSourceWorkspaceRuntimeStatus,
+  type ContentSourceWorkspaceSnapshot,
 } from '@movscript/core/content'
 import {
   Badge,
@@ -91,6 +93,19 @@ import './ContentSourceWorkspacePage.css'
 
 const stillSheetUrl = new URL('../assets/production-stills-sheet.png', import.meta.url).href
 const candidateResourcePageSize = 12
+const contentSourceWorkspaceDebugStorageKey = 'movscript.debug.contentWorkbench'
+
+type ContentSourceWorkspaceDebugState = {
+  projectId?: number
+  runtimeState?: ContentSourceWorkspaceRuntimeState
+  rawSnapshot?: ContentSourceWorkspaceSnapshot
+  data?: ContentSourceWorkspaceData
+  updatedAt: string
+}
+
+type ContentSourceWorkspaceDebugWindow = Window & {
+  __MOVSCRIPT_CONTENT_WORKBENCH__?: ContentSourceWorkspaceDebugState
+}
 
 interface CandidateResourceSelection {
   resourceId: number
@@ -119,7 +134,7 @@ const emptyHierarchyNode: HierarchyNode = {
 
 export default function ContentSourceWorkspacePage() {
   const projectId = useProjectStore((state) => state.current?.ID)
-  const runtime = useMemo(() => createContentSourceWorkspaceRuntime({ port: createContentSourceWorkspaceRuntimePort() }), [])
+  const runtime = useMemo(() => createContentSourceWorkspaceRuntime({ port: createDebuggableContentSourceWorkspaceRuntimePort() }), [])
   const [runtimeState, setRuntimeState] = useState<ContentSourceWorkspaceRuntimeState>(() => runtime.getState())
 
   useEffect(() => runtime.subscribe(setRuntimeState), [runtime])
@@ -133,6 +148,14 @@ export default function ContentSourceWorkspacePage() {
   }, [projectId, runtime])
 
   const workspaceData = runtimeState.data ?? emptyContentSourceWorkspaceData
+
+  useEffect(() => {
+    writeContentSourceWorkspaceDebug('normalized data', {
+      projectId: runtimeState.projectId,
+      runtimeState,
+      data: workspaceData,
+    })
+  }, [runtimeState, workspaceData])
 
   const previewMoments = workspaceData.previewMoments
   const initialMoment = previewMoments[0]
@@ -497,6 +520,62 @@ export default function ContentSourceWorkspacePage() {
       </aside>
     </main>
   )
+}
+
+function createDebuggableContentSourceWorkspaceRuntimePort(): ContentSourceWorkspaceRuntimePort {
+  const port = createContentSourceWorkspaceRuntimePort()
+  return {
+    ...port,
+    async loadSnapshot(projectId) {
+      const snapshot = await port.loadSnapshot(projectId)
+      writeContentSourceWorkspaceDebug('raw snapshot', {
+        projectId,
+        rawSnapshot: snapshot,
+      })
+      return snapshot
+    },
+  }
+}
+
+function writeContentSourceWorkspaceDebug(
+  label: string,
+  patch: Partial<Omit<ContentSourceWorkspaceDebugState, 'updatedAt'>>,
+) {
+  if (!isContentSourceWorkspaceDebugEnabled()) return
+  const debugWindow = window as ContentSourceWorkspaceDebugWindow
+  const nextState: ContentSourceWorkspaceDebugState = {
+    ...debugWindow.__MOVSCRIPT_CONTENT_WORKBENCH__,
+    ...cloneDebugValue(patch),
+    updatedAt: new Date().toISOString(),
+  }
+  debugWindow.__MOVSCRIPT_CONTENT_WORKBENCH__ = nextState
+
+  console.groupCollapsed(`[content-workbench] ${label}`)
+  console.log(nextState)
+  console.groupEnd()
+}
+
+function isContentSourceWorkspaceDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const flag = window.localStorage.getItem(contentSourceWorkspaceDebugStorageKey)
+    return params.has('debugContentWorkbench') || flag === '1' || flag === 'true'
+  } catch {
+    return false
+  }
+}
+
+function cloneDebugValue<T>(value: T): T {
+  try {
+    return structuredClone(value)
+  } catch {
+    try {
+      return JSON.parse(JSON.stringify(value)) as T
+    } catch {
+      return value
+    }
+  }
 }
 
 function selectionByShotFromMoments(moments: PreviewMoment[]): Record<string, string> {

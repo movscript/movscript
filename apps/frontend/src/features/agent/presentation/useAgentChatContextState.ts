@@ -3,12 +3,11 @@ import { useAgentContextSummary } from '@/features/agent/presentation/useAgentCo
 import { useProviderSessionContextController } from '@/features/agent/presentation/useProviderSessionContextController'
 import type { ConversationAgentContextConfig } from '@/features/agent/domain/agentContextConfig'
 import type { AgentSettings } from '@/features/agent/state/agentStore'
-import type { Project } from '@/types'
 
 interface UseAgentChatContextStateInput {
   agentContextConfig: ConversationAgentContextConfig
   composerAttachmentsCount: number
-  currentProject: Project | null
+  selectedProjectName?: string | null
   includeProjectContext: AgentSettings['includeProjectContext']
   providerSessionEnabled: boolean
   providerSessionId?: string
@@ -17,7 +16,7 @@ interface UseAgentChatContextStateInput {
 export function useAgentChatContextState({
   agentContextConfig,
   composerAttachmentsCount,
-  currentProject,
+  selectedProjectName,
   includeProjectContext,
   providerSessionEnabled,
   providerSessionId,
@@ -29,7 +28,7 @@ export function useAgentChatContextState({
   })
   const summary = useAgentContextSummary({
     agentContextConfig,
-    currentProjectName: currentProject?.name,
+    currentProjectName: selectedProjectName,
     composerAttachmentsCount,
     includeProjectContext,
     labels: {

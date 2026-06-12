@@ -63,6 +63,7 @@ import type { Project } from '@/types'
 interface AppTopControlsProps {
   className?: string
   compact?: boolean
+  showProjectSelector?: boolean
   showAssistantShortcut?: boolean
   showAgentContentPanelShortcut?: boolean
 }
@@ -70,6 +71,7 @@ interface AppTopControlsProps {
 export function AppTopControls({
   className = '',
   compact = false,
+  showProjectSelector = true,
   showAssistantShortcut: showAssistantShortcutProp = true,
   showAgentContentPanelShortcut: _showAgentContentPanelShortcutProp = true,
 }: AppTopControlsProps) {
@@ -102,7 +104,7 @@ export function AppTopControls({
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: projectListQueryKey(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
-    enabled: projectMenuOpen,
+    enabled: showProjectSelector && projectMenuOpen,
   })
   const createProject = useMutation({
     mutationFn: (input: { name: string; description: string }) => api.post('/projects', input).then((response) => response.data as Project),
@@ -197,46 +199,48 @@ export function AppTopControls({
           <AssistantShortcutIcon size={iconSize} />
         </AppTopControlButton>
       )}
-      <DropdownMenu open={projectMenuOpen} onOpenChange={(open) => {
-        setProjectMenuOpen(open)
-        if (open) {
-          setLanguageMenuOpen(false)
-          setThemeMenuOpen(false)
-        }
-      }}>
-        <DropdownMenuTrigger asChild>
-          <AppTopControlButton
-            type="button"
-            variant="ghost"
-            density={density}
-            title={current?.name ?? t('header.titles.projects')}
-            aria-label={current?.name ?? t('header.titles.projects')}
-          >
-            <FolderOpen size={iconSize} />
-          </AppTopControlButton>
-        </DropdownMenuTrigger>
-        {projectMenuVariant === 'enterprise' ? (
-          <EnterpriseProjectMenuContent
-            current={current}
-            projects={projects}
-            projectsLoading={projectsLoading}
-            onProjectSelect={selectProject}
-            onManageProjects={() => navigate(ROUTES.projects)}
-            onCreateProject={startCreateProject}
-            t={t}
-          />
-        ) : (
-          <CommunityProjectMenuContent
-            current={current}
-            projects={projects}
-            projectsLoading={projectsLoading}
-            onProjectSelect={selectProject}
-            onClearProject={clearProject}
-            onCreateProject={startCreateProject}
-            t={t}
-          />
-        )}
-      </DropdownMenu>
+      {showProjectSelector ? (
+        <DropdownMenu open={projectMenuOpen} onOpenChange={(open) => {
+          setProjectMenuOpen(open)
+          if (open) {
+            setLanguageMenuOpen(false)
+            setThemeMenuOpen(false)
+          }
+        }}>
+          <DropdownMenuTrigger asChild>
+            <AppTopControlButton
+              type="button"
+              variant="ghost"
+              density={density}
+              title={current?.name ?? t('header.titles.projects')}
+              aria-label={current?.name ?? t('header.titles.projects')}
+            >
+              <FolderOpen size={iconSize} />
+            </AppTopControlButton>
+          </DropdownMenuTrigger>
+          {projectMenuVariant === 'enterprise' ? (
+            <EnterpriseProjectMenuContent
+              current={current}
+              projects={projects}
+              projectsLoading={projectsLoading}
+              onProjectSelect={selectProject}
+              onManageProjects={() => navigate(ROUTES.projects)}
+              onCreateProject={startCreateProject}
+              t={t}
+            />
+          ) : (
+            <CommunityProjectMenuContent
+              current={current}
+              projects={projects}
+              projectsLoading={projectsLoading}
+              onProjectSelect={selectProject}
+              onClearProject={clearProject}
+              onCreateProject={startCreateProject}
+              t={t}
+            />
+          )}
+        </DropdownMenu>
+      ) : null}
       {languageControl === 'menu' ? (
         <DropdownMenu open={languageMenuOpen} onOpenChange={(open) => {
           setLanguageMenuOpen(open)

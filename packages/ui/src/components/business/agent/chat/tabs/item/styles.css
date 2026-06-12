@@ -4,8 +4,9 @@
   display: flex;
   min-width: var(--ai-agent-conversation-tab-min-width);
   height: 100%;
-  width: auto;
-  flex: 1 1 0;
+  width: clamp(var(--ai-agent-conversation-tab-min-width), 32%, 168px);
+  max-width: 168px;
+  flex: 0 0 clamp(var(--ai-agent-conversation-tab-min-width), 32%, 168px);
   align-items: center;
   overflow: hidden;
   border: 0;
@@ -34,10 +35,10 @@
 }
 
 .ai-agent-panel-conversation-tabs[data-density="scroll"] .ai-agent-panel-conversation-tab {
-  width: clamp(var(--ai-agent-conversation-tab-min-width), 42%, 168px);
+  width: clamp(var(--ai-agent-conversation-tab-min-width), 32%, 168px);
   min-width: var(--ai-agent-conversation-tab-min-width);
   max-width: 168px;
-  flex: 0 0 clamp(var(--ai-agent-conversation-tab-min-width), 42%, 168px);
+  flex: 0 0 clamp(var(--ai-agent-conversation-tab-min-width), 32%, 168px);
 }
 
 .ai-agent-panel-conversation-tab:hover {

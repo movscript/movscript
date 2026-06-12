@@ -5,9 +5,8 @@ import {
   readMovScriptWorkspaceFile,
   writeMovScriptWorkspaceFile,
 } from '../services/movscriptWorkspaceFiles'
-import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
-import { createNodeMovScriptEngine } from '@movscript/engine/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
+import { projectEngineRegistry } from '../services/projectEngineRegistry'
 import type {
   ElectronMovScriptWorkspaceInterpretActionInput,
   ElectronMovScriptWorkspaceFileWriteInput,
@@ -30,11 +29,11 @@ export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
   })
   ipcMain.handle('movscript:workspace-review', (_event, input?: ElectronMovScriptWorkspaceInterpretActionInput) => {
     const action = actionInput(input)
-    return createNodeMovScriptEngine({ projectDir: resolveMovScriptProjectCwd(action) }).review()
+    return projectEngineRegistry.get(action).review()
   })
   ipcMain.handle('movscript:workspace-interpret', (_event, input?: ElectronMovScriptWorkspaceInterpretActionInput) => {
     const action = actionInput(input)
-    return createNodeMovScriptEngine({ projectDir: resolveMovScriptProjectCwd(action) }).interpret()
+    return projectEngineRegistry.get(action).interpret()
   })
 }
 

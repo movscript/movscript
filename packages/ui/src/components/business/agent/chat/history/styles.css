@@ -2,7 +2,7 @@
   position: relative;
   display: flex;
   order: 3;
-  flex: 0 0 calc(100% / 3);
+  flex: 0 0 min(260px, 42%);
   min-height: 120px;
   flex-direction: column;
   overflow: hidden;
@@ -67,7 +67,8 @@
 }
 
 .ai-agent-panel-empty-history-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1 1 auto;
   gap: 2px;
@@ -77,6 +78,7 @@
 }
 
 .ai-agent-panel-empty-history-item {
+  flex: 0 0 auto;
   min-height: 44px;
 }
 

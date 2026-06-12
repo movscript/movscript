@@ -215,8 +215,8 @@ export function AgentChatPanelLayout({
           onPinnedStatusExpandedChange={setPinnedStatusExpanded}
         />
       </section>
-      <AgentComposerSection {...composer} chrome="flush" />
       {historyPanel}
+      <AgentComposerSection {...composer} chrome="flush" />
     </AgentMain>
   )
 }

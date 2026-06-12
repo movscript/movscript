@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { appendSettingsAuditEntry, normalizeAgentSettings, useAgentStore } from './agentStore'
+import { appendSettingsAuditEntry, normalizeAgentSettings, normalizeAgentSettingsWithOptions, useAgentStore } from './agentStore'
 
 test('agent store persistence excludes conversations and workspaces', () => {
   const partialized = useAgentStore.persist.getOptions().partialize?.(useAgentStore.getState()) as Record<string, unknown>
@@ -43,6 +43,18 @@ test('normalizeAgentSettings falls back from invalid persisted base settings', (
   assert.equal(settings.modelId, null)
   assert.equal(settings.includeProjectContext, true)
   assert.equal(settings.includeRecentResources, true)
+})
+
+test('normalizeAgentSettingsWithOptions resets draft-only mode settings when restoring persistence', () => {
+  const settings = normalizeAgentSettingsWithOptions({
+    collaborationMode: 'plan',
+    goalModeEnabled: true,
+    includeProjectContext: false,
+  }, { resetDraftModeSettings: true })
+
+  assert.equal(settings.collaborationMode, 'default')
+  assert.equal(settings.goalModeEnabled, false)
+  assert.equal(settings.includeProjectContext, false)
 })
 
 test('normalizeAgentSettings defaults the active provider profile config to Mova', () => {

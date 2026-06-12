@@ -20,6 +20,9 @@
       "@movscript/core/backend/node": [
         "../../packages/core/src/backend/node/index.ts"
       ],
+      "@movscript/core/content": [
+        "../../packages/core/src/content/index.ts"
+      ],
       "@movscript/core/generation": [
         "../../packages/core/src/generation/index.ts"
       ],
@@ -64,6 +67,9 @@
       ],
       "@movscript/interpreter/node": [
         "../../packages/interpreter/src/node.ts"
+      ],
+      "@movscript/workspace/repository": [
+        "../../packages/workspace/src/repository/index.ts"
       ]
     }
   },

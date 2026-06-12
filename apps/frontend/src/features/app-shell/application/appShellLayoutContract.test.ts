@@ -49,6 +49,17 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
   assert.doesNotMatch(agentHistoryStyles, /cursor: row-resize !important/)
 })
 
+test('agent chat tabs and history keep fixed rows with scroll overflow', () => {
+  const agentHistoryStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/chat/history/styles.css'), 'utf8')
+  const agentTabItemStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/chat/tabs/item/styles.css'), 'utf8')
+
+  assert.match(agentHistoryStyles, /\.ai-agent-panel-empty-history \{[\s\S]*flex: 0 0 min\(260px, 42%\);/)
+  assert.match(agentHistoryStyles, /\.ai-agent-panel-empty-history-list \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*overflow-y: auto;/)
+  assert.match(agentHistoryStyles, /\.ai-agent-panel-empty-history-item \{[\s\S]*flex: 0 0 auto;[\s\S]*min-height: 44px;/)
+  assert.match(agentTabItemStyles, /\.ai-agent-panel-conversation-tab \{[\s\S]*width: clamp\(var\(--ai-agent-conversation-tab-min-width\), 32%, 168px\);[\s\S]*flex: 0 0 clamp\(var\(--ai-agent-conversation-tab-min-width\), 32%, 168px\);/)
+  assert.doesNotMatch(agentTabItemStyles, /\.ai-agent-panel-conversation-tab \{[\s\S]*flex: 1 1 0;/)
+})
+
 test('app window header exposes explicit left control fill layout', () => {
   const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
   const headerSource = readFileSync(resolve('src/features/app-shell/components/Header.tsx'), 'utf8')

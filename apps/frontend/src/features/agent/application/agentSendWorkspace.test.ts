@@ -56,6 +56,31 @@ test('buildProviderSessionSendWorkspace binds composer input, attachments, and p
   assert.equal(workspace.httpRequests.some((request) => request.id === 'provider-create-thread'), false)
 })
 
+test('buildProviderSessionSendWorkspace respects a global workspace context without current project fallback', async () => {
+  const workspace = await buildProviderSessionSendWorkspace({
+    options: { workspaceContext: { scope: 'global' } },
+    workspaceInput: 'Ask without project context',
+    attachments: [],
+    composerAttachments: [],
+    resourceAttachmentIndex: new Map(),
+    settings: settings(),
+    currentProject: project(),
+    systemPrompt: '',
+    contextLabels: ['Project Alpha'],
+    providerThreadId: '',
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    providerSessionBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+  })
+
+  assert.equal(workspace.providerSession?.projectId, undefined)
+  assert.equal(workspace.providerSession?.clientInput?.uiSnapshot?.project, undefined)
+  assert.equal(workspace.outbound.agentContext, '')
+  assert.equal(workspace.context.project, undefined)
+})
+
 test('buildProviderSessionSendWorkspace carries thread controls to preview and debug run bodies', async () => {
   const previewCalls: Array<{ threadControl?: unknown }> = []
   const workspace = await buildProviderSessionSendWorkspace({

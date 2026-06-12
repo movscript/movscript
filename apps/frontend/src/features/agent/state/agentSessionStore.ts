@@ -4,6 +4,16 @@ import type { ProviderSessionClientInput, ProviderManifest, AgentRun, AgentThrea
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 import type { ConversationWorkspace } from '@/features/agent/state/agentStore'
+import {
+  activeAgentConversationIdForUser,
+  agentConversationIdForRegistryInput,
+  removeAgentConversationRegistryRecord,
+  setAgentConversationRegistryOpen,
+  upsertAgentConversationRegistryRecord,
+  type AgentConversationRegistryInput,
+  type AgentConversationRegistryRecord,
+  type AgentSessionWorkspaceContext,
+} from '@movscript/core/agent'
 import type { AgentChatProviderKind, AgentChatTurnStatus, AgentThreadControlState } from '@movscript/core/agent/chat'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
@@ -132,6 +142,7 @@ export interface AgentStandaloneTaskState {
 
 interface AgentSessionStore {
   activeConversationIdsByUser: Record<string, string | null>
+  conversationsById: Record<string, AgentConversationRegistryRecord>
   workspacesByUser: Record<string, Record<string, ConversationWorkspace>>
   pageTasks: Record<string, AgentPageTaskState>
   conversationThreadBindings: Record<string, AgentConversationThreadBinding>
@@ -141,7 +152,9 @@ interface AgentSessionStore {
   standaloneTasks: Record<string, AgentStandaloneTaskState>
 
   enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
-  createProviderSessionConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number }) => string
+  upsertConversation: (input: AgentConversationRegistryInput) => string
+  setConversationOpen: (userId: string, conversationId: string, open: boolean) => void
+  createProviderSessionConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number; projectId?: number; provider?: AgentChatProviderKind | string; providerId?: string; providerInstanceId?: string; providerProtocol?: string; providerThreadCwd?: string; workspaceContext?: AgentSessionWorkspaceContext }) => string
   removeProviderSessionConversation: (userId: string, conversationId: string) => void
   setActiveConversation: (userId: string, conversationId: string | null) => void
   getActiveConversationId: (userId: string) => string | null
@@ -244,13 +257,24 @@ function defaultConversationRuntimeState(conversationId: string): AgentConversat
 }
 
 function activeConversationIdForUser(state: Pick<AgentSessionStore, 'activeConversationIdsByUser'>, userId: string): string | null {
-  return state.activeConversationIdsByUser?.[userId] ?? null
+  return activeAgentConversationIdForUser(state, userId)
 }
+
+function persistedAgentSessionState(state: AgentSessionStore): PersistedAgentSessionStore {
+  return {
+    activeConversationIdsByUser: state.activeConversationIdsByUser,
+    conversationsById: state.conversationsById,
+    workspacesByUser: state.workspacesByUser,
+  }
+}
+
+type PersistedAgentSessionStore = Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'conversationsById' | 'workspacesByUser'>
 
 export const useAgentSessionStore = create<AgentSessionStore>()(
   persist(
     (set, get) => ({
       activeConversationIdsByUser: {},
+      conversationsById: {},
       workspacesByUser: {},
       pageTasks: {},
       conversationThreadBindings: {},
@@ -288,8 +312,32 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         return normalized
       },
 
+      upsertConversation: (input) => {
+        const conversationId = agentConversationIdForRegistryInput(input)
+        set((state) => ({
+          conversationsById: upsertAgentConversationRegistryRecord(state.conversationsById, input),
+          activeConversationIdsByUser: {
+            ...(state.activeConversationIdsByUser ?? {}),
+            [input.userId]: state.activeConversationIdsByUser[input.userId] ?? conversationId,
+          },
+        }))
+        return conversationId
+      },
+
+      setConversationOpen: (userId, conversationId, open) => set((state) => {
+        return {
+          conversationsById: setAgentConversationRegistryOpen(state.conversationsById, conversationId, open),
+          activeConversationIdsByUser: {
+            ...(state.activeConversationIdsByUser ?? {}),
+            [userId]: !open && activeConversationIdForUser(state, userId) === conversationId
+              ? null
+              : activeConversationIdForUser(state, userId),
+          },
+        }
+      }),
+
       createProviderSessionConversation: (userId, input) => {
-        const conversationId = input.sessionId?.trim() || input.threadId.trim()
+        const conversationId = input.threadId.trim()
         if (!conversationId) return activeConversationIdForUser(get(), userId) ?? ''
         const title = input.title?.trim()
         const threadId = input.threadId.trim()
@@ -298,6 +346,24 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
             ...(state.activeConversationIdsByUser ?? {}),
             [userId]: conversationId,
           },
+          conversationsById: upsertAgentConversationRegistryRecord(state.conversationsById, {
+            id: conversationId,
+            userId,
+            providerThreadId: threadId,
+            ...(input.sessionId?.trim() ? { providerSessionId: input.sessionId.trim() } : {}),
+            ...(input.provider ? { provider: input.provider } : {}),
+            ...(input.providerId?.trim() ? { providerId: input.providerId.trim() } : {}),
+            ...(input.providerInstanceId?.trim() ? { providerInstanceId: input.providerInstanceId.trim() } : {}),
+            ...(input.providerProtocol?.trim() ? { providerProtocol: input.providerProtocol } : {}),
+            ...(input.providerThreadCwd?.trim() ? { providerThreadCwd: input.providerThreadCwd.trim() } : {}),
+            ...(input.workspaceContext ? { workspaceContext: input.workspaceContext } : {}),
+            ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+            ...(title ? { title } : {}),
+            createdAt: input.createdAt,
+            updatedAt: input.updatedAt,
+            open: true,
+            archived: false,
+          }),
           ...(threadId
             ? {
               conversationThreadBindings: {
@@ -333,6 +399,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         get().clearConversationProviderSessionState(conversationId)
         set((state) => {
           const workspacesByUser = { ...state.workspacesByUser }
+          const conversationsById = removeAgentConversationRegistryRecord(state.conversationsById, conversationId)
           if (workspacesByUser[userId]?.[conversationId]) {
             workspacesByUser[userId] = { ...workspacesByUser[userId] }
             delete workspacesByUser[userId][conversationId]
@@ -342,6 +409,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               ...(state.activeConversationIdsByUser ?? {}),
               [userId]: activeConversationIdForUser(state, userId) === conversationId ? null : activeConversationIdForUser(state, userId),
             },
+            conversationsById,
             workspacesByUser,
           }
         })
@@ -363,6 +431,16 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         const trimmed = title.trim()
         if (!trimmed) return
         set((state) => ({
+          conversationsById: state.conversationsById[conversationId]
+            ? {
+              ...state.conversationsById,
+              [conversationId]: {
+                ...state.conversationsById[conversationId],
+                title: trimmed,
+                updatedAt: Date.now(),
+              },
+            }
+            : state.conversationsById,
           conversationProviderSessionStates: {
             ...state.conversationProviderSessionStates,
             [conversationId]: {
@@ -507,6 +585,17 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         const providerSessionTreeId = input.providerSessionTreeId?.trim()
         const now = input.updatedAt ?? Date.now()
         return {
+          conversationsById: upsertAgentConversationRegistryRecord(state.conversationsById, {
+            id: conversationId,
+            userId: state.conversationsById[conversationId]?.userId ?? 'anonymous',
+            ...(input.provider ? { provider: input.provider } : {}),
+            ...(input.providerId ? { providerId: input.providerId } : {}),
+            ...(input.providerInstanceId ? { providerInstanceId: input.providerInstanceId } : {}),
+            providerThreadId,
+            ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
+            ...(input.providerThreadCwd ? { providerThreadCwd: input.providerThreadCwd } : {}),
+            updatedAt: now,
+          }),
           conversationThreadBindings: {
             ...state.conversationThreadBindings,
             [conversationId]: {
@@ -542,6 +631,17 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       updateConversationRuntimeState: (conversationId, patch) => set((state) => {
         const now = Date.now()
         return {
+          conversationsById: state.conversationsById[conversationId]
+            ? {
+              ...state.conversationsById,
+              [conversationId]: {
+                ...state.conversationsById[conversationId],
+                ...(patch.status !== undefined ? { status: patch.status } : {}),
+                ...(patch.activeRunId ? { activeRunId: patch.activeRunId } : {}),
+                updatedAt: now,
+              },
+            }
+            : state.conversationsById,
           conversationRuntimeStates: {
             ...state.conversationRuntimeStates,
             [conversationId]: {
@@ -571,7 +671,9 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         delete conversationProviderSessionStates[conversationId]
         delete conversationThreadBindings[conversationId]
         delete conversationRuntimeStates[conversationId]
+        const conversationsById = removeAgentConversationRegistryRecord(state.conversationsById, conversationId)
         return {
+          conversationsById,
           conversationProviderSessionStates,
           conversationThreadBindings,
           conversationRuntimeStates,
@@ -640,6 +742,20 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         const sessionId = patch.sessionId ?? run.sessionId ?? state.conversationProviderSessionStates[conversationId]?.sessionId
         const now = Date.now()
         return {
+          conversationsById: state.conversationsById[conversationId]
+            ? {
+              ...state.conversationsById,
+              [conversationId]: {
+                ...state.conversationsById[conversationId],
+                providerThreadId: run.threadId || state.conversationsById[conversationId].providerThreadId,
+                ...(sessionId ? { providerSessionId: sessionId } : {}),
+                activeRunId: run.id,
+                lastRunId: run.id,
+                status: run.status,
+                updatedAt: now,
+              },
+            }
+            : state.conversationsById,
           conversationThreadBindings: run.threadId
             ? {
               ...state.conversationThreadBindings,
@@ -790,8 +906,16 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
     {
       name: 'agent-session-store-v2',
       storage: createJSONStorage(() => createInstrumentedAgentStateStorage('agent_session_store')),
-      partialize: () => ({}),
-      merge: (_persistedState, currentState) => currentState,
+      partialize: persistedAgentSessionState,
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<PersistedAgentSessionStore> | undefined
+        return {
+          ...currentState,
+          activeConversationIdsByUser: persisted?.activeConversationIdsByUser ?? {},
+          conversationsById: persisted?.conversationsById ?? {},
+          workspacesByUser: persisted?.workspacesByUser ?? {},
+        }
+      },
     },
   ),
 )

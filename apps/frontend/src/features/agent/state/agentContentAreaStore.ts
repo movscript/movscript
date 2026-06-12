@@ -4,6 +4,9 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 
 export const DEFAULT_AGENT_CONTENT_AREA_ID = 'agent-content-empty'
+export const AGENT_PROJECT_HOME_TAB_ID = 'project_home'
+export const AGENT_BLANK_TAB_ID = 'blank_home'
+export type AgentBrowserDefaultTabKind = 'project_home' | 'blank'
 
 export type AgentBrowserWebTabState = {
   tabId: string
@@ -71,31 +74,67 @@ export interface AgentContentAreaState {
 
 interface AgentContentAreaStore {
   contentAreasByConversation: Record<string, AgentContentAreaState>
-  ensureContentArea: (conversationId: string) => AgentContentAreaState
+  ensureContentArea: (conversationId: string, options?: { defaultTab?: AgentBrowserDefaultTabKind }) => AgentContentAreaState
   patchBrowserState: (conversationId: string, patch: Partial<AgentBrowserContentState>) => void
   updateBrowserState: (conversationId: string, updater: (current: AgentBrowserContentState) => AgentBrowserContentState) => void
   removeContentArea: (conversationId: string) => void
   resetContentArea: (conversationId: string) => void
 }
 
-export function createDefaultAgentBrowserContentState(now = Date.now()): AgentBrowserContentState {
+export function createProjectHomeAgentBrowserContentState(now = Date.now()): AgentBrowserContentState {
+  const tab = createProjectHomeAgentBrowserTab(now)
   return {
-    tabs: [{
-      id: 'project_home',
-      kind: 'project_home',
-      title: '内容导航',
-      createdAt: now,
-    }],
-    activeTabId: 'project_home',
+    tabs: [tab],
+    activeTabId: tab.id,
     webStates: {},
   }
 }
 
-export function createDefaultAgentContentArea(conversationId: string, now = Date.now()): AgentContentAreaState {
+export function createBlankAgentBrowserContentState(now = Date.now()): AgentBrowserContentState {
+  const tab = createBlankAgentBrowserTab(now)
+  return {
+    tabs: [tab],
+    activeTabId: tab.id,
+    webStates: {},
+  }
+}
+
+export function createDefaultAgentBrowserContentState(
+  now = Date.now(),
+  options: { defaultTab?: AgentBrowserDefaultTabKind } = {},
+): AgentBrowserContentState {
+  return options.defaultTab === 'blank'
+    ? createBlankAgentBrowserContentState(now)
+    : createProjectHomeAgentBrowserContentState(now)
+}
+
+export function createProjectHomeAgentBrowserTab(now = Date.now()): Extract<AgentBrowserContentTab, { kind: 'project_home' }> {
+  return {
+    id: AGENT_PROJECT_HOME_TAB_ID,
+    kind: 'project_home',
+    title: '内容导航',
+    createdAt: now,
+  }
+}
+
+export function createBlankAgentBrowserTab(now = Date.now()): Extract<AgentBrowserContentTab, { kind: 'web' }> {
+  return {
+    id: AGENT_BLANK_TAB_ID,
+    kind: 'web',
+    title: '空白页',
+    createdAt: now,
+  }
+}
+
+export function createDefaultAgentContentArea(
+  conversationId: string,
+  now = Date.now(),
+  options: { defaultTab?: AgentBrowserDefaultTabKind } = {},
+): AgentContentAreaState {
   return {
     conversationId,
     activeSurface: 'browser',
-    browser: createDefaultAgentBrowserContentState(now),
+    browser: createDefaultAgentBrowserContentState(now, options),
     createdAt: now,
     updatedAt: now,
   }
@@ -132,11 +171,11 @@ export const useAgentContentAreaStore = create<AgentContentAreaStore>()(
     (set, get) => ({
       contentAreasByConversation: {},
 
-      ensureContentArea: (conversationId) => {
+      ensureContentArea: (conversationId, options) => {
         const id = normalizeContentAreaId(conversationId)
         const existing = get().contentAreasByConversation[id]
         if (existing) return existing
-        const next = createDefaultAgentContentArea(id)
+        const next = createDefaultAgentContentArea(id, Date.now(), options)
         set((state) => ({
           contentAreasByConversation: {
             ...state.contentAreasByConversation,

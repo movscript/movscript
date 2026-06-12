@@ -5,7 +5,6 @@ import type { useAgentChatProviderSessionState } from '@/features/agent/presenta
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { Project } from '@/types'
 import { buildAgentChatThreadViewState } from '@/features/agent/presentation/agentChatThreadViewState'
 import { conversationHasTranscriptMessages } from '@/features/agent/domain/agentConversationTranscript'
 
@@ -16,7 +15,6 @@ interface BuildAgentChatViewLayoutPropsInput {
   conversations: Conversation[]
   archivedConversations: Conversation[]
   timelineItems: AgentTimelineItem[]
-  currentProject: Project | null
   interaction: ReturnType<typeof useAgentChatInteractionController>
   timelineLoading: boolean
   conversationEstablished: boolean
@@ -47,7 +45,6 @@ export function buildAgentChatViewLayoutProps({
   conversations,
   archivedConversations,
   timelineItems,
-  currentProject,
   interaction,
   timelineLoading,
   conversationEstablished,
@@ -70,6 +67,9 @@ export function buildAgentChatViewLayoutProps({
   updateWorkspace,
   updateTaskGraphDispatchSettings,
 }: BuildAgentChatViewLayoutPropsInput) {
+  const selectedWorkspaceProjectId = typeof composer.selectedWorkspaceContext.projectId === 'number'
+    ? composer.selectedWorkspaceContext.projectId
+    : undefined
   const threadViewState = buildAgentChatThreadViewState({
     activeRun: activeRun,
     conversationProjection: presentation.conversationProjection,
@@ -121,7 +121,7 @@ export function buildAgentChatViewLayoutProps({
       showTimelineLoading: threadViewState.showTimelineLoading,
       planActionBusy,
       planDispatchSettings,
-      projectId: currentProject?.ID,
+      projectId: selectedWorkspaceProjectId,
       statusItems: threadViewState.statusItems,
       threadRef: presentation.threadRef,
       onAcceptPlanReview: interaction.acceptPlanTaskReview,

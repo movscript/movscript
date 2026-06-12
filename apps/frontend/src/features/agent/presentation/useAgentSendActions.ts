@@ -7,6 +7,7 @@ import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { AgentThreadControlState } from '@movscript/core/agent/chat'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import {
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
   agentRunProfilePresetById,
@@ -38,6 +39,7 @@ export interface UseAgentSendActionsInput {
   canSendActiveRunInput: boolean
   modelId: number | null
   threadControl?: Partial<AgentThreadControlState>
+  workspaceContext?: MovScriptWorkspaceContext
   debugBeforeSend: boolean
   pendingSendWorkspace: AgentSendWorkspace | null
   externalTask?: AgentPageTaskState | null
@@ -73,6 +75,7 @@ export function useAgentSendActions({
   canSendActiveRunInput,
   modelId,
   threadControl,
+  workspaceContext,
   debugBeforeSend,
   pendingSendWorkspace,
   externalTask,
@@ -197,6 +200,7 @@ export function useAgentSendActions({
         includeProviderSessionPreview: debugBeforeSend,
         performanceOperationId: operationId,
         runProfile: agentRunProfilePresetById(profilePresetId),
+        ...(workspaceContext ? { workspaceContext } : {}),
         ...(resolvedThreadControl ? { threadControl: resolvedThreadControl } : {}),
       })
       markAgentPerformancePhase(operationId, 'build_workspace_done', {
@@ -233,6 +237,7 @@ export function useAgentSendActions({
     sendActiveRunInput,
     modelId,
     threadControl,
+    workspaceContext,
     labels,
     setConversationBuilding,
     buildSendWorkspace,

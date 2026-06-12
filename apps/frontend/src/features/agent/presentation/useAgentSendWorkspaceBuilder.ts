@@ -14,6 +14,7 @@ import type { AgentAttachment, AgentSettings } from '@/features/agent/state/agen
 import type { AgentRunProfileSelection } from '@/features/agent/domain/agentRunProfilePreset'
 import type { AgentThreadControlState } from '@movscript/core/agent/chat'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
+import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import type { Project, PublicModel } from '@/types'
 
 export interface BuildAgentSendWorkspaceOptions {
@@ -29,6 +30,7 @@ export interface BuildAgentSendWorkspaceOptions {
   runtimeLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
   threadControl?: Partial<AgentThreadControlState>
+  workspaceContext?: MovScriptWorkspaceContext
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
