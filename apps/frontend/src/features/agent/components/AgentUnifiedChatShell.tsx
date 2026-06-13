@@ -15,6 +15,7 @@ import {
   type ProviderSettings,
 } from '@/shared/infrastructure/providerConfigStore'
 import { selectActiveAgentConversationRegistryRecord, type AgentConversationRegistryState } from '@movscript/core/agent'
+import type { Project } from '@/types'
 
 export interface AgentUnifiedChatShellProps {
   userId: string
@@ -23,6 +24,7 @@ export interface AgentUnifiedChatShellProps {
   showCollapse?: boolean
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
+  currentProject?: Project | null
 }
 
 export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
@@ -47,24 +49,27 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
       emptyThreadLabel={props.emptyThreadLabel}
       host={props.host}
       surface={props.surface}
+      currentProject={props.currentProject}
       showCollapse={props.showCollapse}
       onCollapse={props.onCollapse}
     />
   )
 }
 
-function resolveAgentChatShellProvider(
+export function resolveAgentChatShellProvider(
   settings: ProviderSettings,
   userId: string,
   registryState: AgentConversationRegistryState,
 ): ProviderConfig {
   const selectedProvider = resolveNewConversationProvider(settings)
-  if (!usesAppServerProtocol(selectedProvider)) return selectedProvider
   if (selectActiveProviderConversation(registryState, userId, selectedProvider)) return selectedProvider
-  const activeProvider = enabledProviders(settings)
-    .filter(usesAppServerProtocol)
+  const appServerProviders = enabledProviders(settings).filter(usesAppServerProtocol)
+  const activeProvider = appServerProviders
     .find((provider) => selectActiveProviderConversation(registryState, userId, provider))
-  return activeProvider ?? selectedProvider
+  if (activeProvider) return activeProvider
+  return usesAppServerProtocol(selectedProvider)
+    ? selectedProvider
+    : appServerProviders[0] ?? selectedProvider
 }
 
 function selectActiveProviderConversation(

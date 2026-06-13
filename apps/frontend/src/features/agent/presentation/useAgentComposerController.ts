@@ -16,7 +16,6 @@ import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 import { registerAgentLocalFile, releaseAgentLocalFile } from '@/features/agent/application/agentLocalFileRegistry'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import type { Project, RawResource } from '@/types'
 import {
@@ -38,6 +37,7 @@ interface UseAgentComposerControllerInput {
   conversationId: string
   workspace: { input: string; attachments: AgentAttachment[]; workspaceContext?: MovScriptWorkspaceContext }
   recentResources: RawResource[]
+  currentProject?: Project | null
   fileRef: RefObject<HTMLInputElement>
   inputRef: RefObject<HTMLDivElement>
   workspaceContextLocked?: boolean
@@ -48,12 +48,12 @@ export function useAgentComposerController({
   conversationId,
   workspace,
   recentResources,
+  currentProject = null,
   fileRef,
   inputRef,
   workspaceContextLocked = false,
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
-  const currentProject = useProjectStore((s) => s.current)
   const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)

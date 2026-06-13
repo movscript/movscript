@@ -34,6 +34,6 @@ export function formatAgentRelativeTime(value: string | number, locale: string, 
   return formatter.format(Math.round(diffMs / (365 * 24 * 60 * 60_000)), 'year')
 }
 
-export function providerThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id'>, t: TranslationFn) {
-  return thread.title || t('agents.chat.panel.providerSession.providerThreadTitle', { id: thread.id.slice(-6) })
+export function providerThreadTitle(thread: Pick<AgentThreadSummary, 'title'>, t: TranslationFn) {
+  return thread.title || t('agents.chat.panel.providerSession.providerThreadTitle')
 }

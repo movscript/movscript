@@ -620,7 +620,7 @@ function saveContentUnit(
       content_unit_type: input.contentUnitType ?? input.kind ?? 'storyboard_ref',
       output_kind: input.outputKind ?? defaultContentUnitOutputKind(input.contentUnitType ?? input.kind ?? 'storyboard_ref'),
       edit_prompt: pruneUndefined({
-        text: contentUnitPromptText(input),
+        text: input.prompt?.trim() || undefined,
         negative_text: input.negativePrompt,
       }),
       model_intent: pruneUndefined({
@@ -633,6 +633,13 @@ function saveContentUnit(
       }),
       description: input.description,
       order: input.order,
+      asset_ref: input.assetRef,
+      production_ref: input.productionId,
+      segment_ref: input.segmentId,
+      scene_moment_ref: input.sceneMomentId,
+      shot_ref: input.shotId,
+      storyboard_ref: input.storyboardId,
+      audio_cue_ref: input.audioCueId,
     }),
   })
 }
@@ -649,31 +656,6 @@ function defaultContentUnitOutputKind(contentUnitType: string): string {
       return 'video'
     default:
       return 'metadata'
-  }
-}
-
-function contentUnitPromptText(input: MovScriptEngineContentUnitInput): string | undefined {
-  const contentUnitType = input.contentUnitType ?? input.kind ?? 'storyboard_ref'
-  const primaryRef = contentUnitPrimaryRef(contentUnitType, input)
-  const text = input.prompt?.trim()
-  if (!primaryRef) return text
-  if (text?.includes(primaryRef)) return text
-  return [text, primaryRef].filter((item) => item && item.trim()).join('\n')
-}
-
-function contentUnitPrimaryRef(contentUnitType: string, input: MovScriptEngineContentUnitInput): string | undefined {
-  switch (contentUnitType) {
-    case 'asset_ref':
-      return input.assetRef === undefined ? undefined : `{{asset:${String(input.assetRef)}}}`
-    case 'storyboard_ref':
-      return input.storyboardId === undefined ? undefined : `{{storyboard:${String(input.storyboardId)}}}`
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-      return input.sceneMomentId === undefined ? undefined : `{{scene_moment:${String(input.sceneMomentId)}}}`
-    case 'shot_ref':
-      return input.shotId === undefined ? undefined : `{{shot:${String(input.shotId)}}}`
-    default:
-      return undefined
   }
 }
 

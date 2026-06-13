@@ -844,7 +844,7 @@ function ProjectHomeBrowserPage({
           recordField(project, 'visual_style'),
           recordField(project, 'project_style'),
           project.description,
-          '查看和维护当前项目规范',
+          '查看和维护会话项目规范',
         ),
         status: firstText(recordField(project, 'aspect_ratio'), '规范'),
         onClick: onOpenProjectStandards,
@@ -985,7 +985,7 @@ function ProjectHomeBrowserPage({
           </AgentBrowserContentToolButton>
         </AgentBrowserContentToolbar>
       </AgentBrowserProjectHeader>
-      <AgentBrowserContentSummary aria-label="当前项目内容概览">
+      <AgentBrowserContentSummary aria-label="会话项目内容概览">
         <AgentBrowserContentSummaryMain label="内容对象" value={totalItems} />
         <AgentBrowserContentSummaryGrid>
           {rows.map(([label, value]) => (
@@ -1041,7 +1041,7 @@ function ProjectNavigationGroupSection({
       </AgentBrowserContentGroupHeader>
       <AgentBrowserContentGroupItems>
         {group.loading ? (
-          <AgentBrowserContentGroupState>正在读取当前项目数据...</AgentBrowserContentGroupState>
+          <AgentBrowserContentGroupState>正在读取会话项目数据...</AgentBrowserContentGroupState>
         ) : group.items.length === 0 ? (
           <AgentBrowserContentGroupState>暂无数据</AgentBrowserContentGroupState>
         ) : (

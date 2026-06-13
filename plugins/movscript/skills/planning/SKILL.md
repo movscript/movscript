@@ -46,9 +46,12 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 - Create or update canonical upstream source entities before creating downstream content units, but only create the prerequisite structure needed for the user's current goal.
 - Treat scene moments as narrative events, shots as camera units, keyframes/storyboards as shot-owned visual anchors/assets, and expression units/audio cues as scene-moment-owned planning objects.
 - Treat setting/state/asset as continuity evidence only when reuse or consistency matters. Asset reference images should usually be low-background, multi-view, and weakly tied to plot.
-- Treat keyframe/storyboard as visual evidence for a shot, not required ceremony for every generation.
+- When a character, location, prop, style, or contextual state will appear in more than one generation task, or when the user is dissatisfied with its appearance, stop downstream generation and stabilize it first as `setting` / `setting_state` / `asset` plus an `asset_ref` content unit with an adopted/selected candidate.
+- Treat setting, asset, keyframe, and storyboard as auxiliary evidence produced on demand. Do not create or generate them just because a production exists; create them when the current output needs continuity, reusable identity, visual anchoring, or downstream dependency tracking.
+- Treat keyframe/storyboard as visual evidence for a shot, not required ceremony for every generation. Their generated outputs still enter candidate/decision flow before becoming stable dependencies.
+- When composition, blocking, camera movement, subject placement, or shot rhythm matters but the user's request is underspecified, plan storyboard panels first and require user/workflow confirmation before generating keyframes or downstream video.
 - Treat content units as top-level project production slots with flat refs. Do not nest content unit semantics under storyboard paths.
-- If the user wants a fast draft and consistency requirements are low, it is valid to create a `scence_moment_ref` or `shot_ref` content unit directly and generate without prior setting, asset, keyframe, or storyboard selection. State the consistency and stale-tracking tradeoff.
+- If the user wants a fast draft and consistency requirements are low, it is valid to create a `scence_moment_ref` or `shot_ref` content unit directly and generate without prior setting, asset, keyframe, or storyboard selection. State the consistency and stale-tracking tradeoff, and avoid inventing auxiliary entities that the draft path does not need.
 - Prefer specialized content unit types only when interpreter tracking is needed: `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, or `shot_ref`. Unknown `content_unit_type` values are valid generic slots but untracked for upstream hash/stale checks.
 - Interpret after each coherent semantic planning step, not after every field. Skip interpret only for read-only planning, draft analysis, or blocking `domain_inspect` issues.
 - Affected downstream content units require review, not automatic regeneration.
@@ -61,13 +64,36 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 4. Open `references/entity-mapping.md` when mapping product language or legacy terms to current entities.
 5. If using script text as source material, read the script and snapshot script versions/blocks before downstream planning when stable script refs are needed.
 6. Choose the working center: `shot` for camera/blocking/motion output, or `scene_moment` for a complete narrative beat that may not need shot breakdown.
-7. Decide which evidence is needed for consistency: setting/state/asset for reuse, keyframe/storyboard for visual anchors, expression/audio for performance and sound.
+7. Decide which evidence is needed for consistency: setting/state/asset for reuse, keyframe/storyboard for visual anchors, expression/audio for performance and sound. If an evidence item is not needed for the current goal, leave it uncreated.
 8. Choose the path: strong consistency through upstream candidates/selections, or fast exploration through a direct `scence_moment_ref` or `shot_ref` content unit.
 9. Plan in dependency order only for the layers the chosen path needs: project standards, settings, assets, production, segments, scene moments, shots, keyframes, expression units, audio cues, storyboards, content units.
-10. For reference-shot imitation, plan frame extraction for inspection, materialized reference frame/contact-sheet RawResources when they will condition generation, shot analysis, storyboard panels, and a storyboard-panel content unit before downstream video generation.
-11. Use `domain_get_model` before direct source fallback. Prefer `domain_upsert_*` tools for supported entities.
-12. After each coherent group of writes, run `domain_inspect`, fix blocking issues, then run `domain_interpret` to refresh interpreted read models.
-13. After interpret, run `domain_regeneration_plan` when changed planning source may affect selected outputs or downstream content units.
+10. For continuity asset work, plan from the simplest stable identity/state asset toward more specific variants; each more complex asset should reference the user's selected simpler asset candidate.
+11. For visual anchoring, plan storyboard panels before keyframes when composition is not fully specified; then plan start/end keyframes only after the storyboard candidate is adopted/selected.
+12. For reference-shot imitation, plan frame extraction for inspection, materialized reference frame/contact-sheet RawResources when they will condition generation, shot analysis, storyboard panels, and a storyboard-panel content unit before downstream video generation.
+13. Use `domain_get_model` before direct source fallback. Prefer `domain_upsert_*` tools for supported entities.
+14. After each coherent group of writes, run `domain_inspect`, fix blocking issues, then run `domain_interpret` to refresh interpreted read models.
+15. After interpret, run `domain_regeneration_plan` when changed planning source may affect selected outputs or downstream content units.
+
+## Continuity Asset Gate
+
+Use this gate before downstream image/video generation when identity consistency matters.
+
+- Trigger it when a person, location, prop, style, costume, makeup, environmental state, or recurring visual detail will be reused across shots, scene moments, productions, or later edits.
+- Trigger it when the user rejects, questions, or wants to refine the look of a character, scene, prop, or state. Treat the refinement as asset stabilization, not as another direct downstream generation attempt.
+- Create or update the smallest needed `setting`, optional `setting_state`, and `asset` first; then create an `asset_ref` content unit for the reusable reference image.
+- Generate/import asset candidates, record them as content-unit candidates, and wait for `adopt` or selection before using the asset as a stable dependency.
+- Build asset complexity in layers: base identity or shape, neutral multi-view/reference sheet, state/costume/material variants, then scene-specific references. Later layers should use the selected earlier layer as a reference image.
+- Do not use an unselected asset candidate as a stable reference for keyframes, storyboards, or video. Continue only as an explicit unstable draft path.
+
+## Visual Anchor Gate
+
+Use this gate before video generation when the shot's visual arrangement is still ambiguous.
+
+- Trigger it when the user cares about composition, framing, blocking, camera motion, subject placement, timing, or shot rhythm but has not described enough detail to make the output unambiguous.
+- Create or update the `shot` intent first, then create `storyboard` structure and a `storyboard_ref` content unit for storyboard panels/images.
+- Ask for or wait for adoption/selection of the storyboard candidate before generating keyframe candidates.
+- After storyboard selection, create `keyframe_ref` content units for required visual anchors such as the start frame and end frame; require adoption/selection for each keyframe that downstream video depends on.
+- Generate the final video through `shot_ref` or `scence_moment_ref` only after required selected storyboards/keyframes/assets are available, unless the user explicitly accepts an unstable draft.
 
 ## Readiness
 
@@ -75,7 +101,7 @@ When reporting planning state, briefly classify the focused scene_moment or shot
 
 - `缺规划`: missing narrative, expression, camera intent, continuity, references, or content unit anchors.
 - `可补图`: story/shot direction is clear, but keyframes, storyboards, reference assets, or audio anchors are insufficient for stable generation.
-- `缺选择`: upstream asset/keyframe/storyboard-panel/reference candidates exist or are required, but no stable selection exists yet.
+- `缺选择`: upstream asset/keyframe/storyboard-panel/reference candidates exist or are required, but no stable adoption/selection exists yet. `待定` and `放弃` candidates do not satisfy this gate.
 - `可生成`: scene_moment, shot, keyframes/storyboards/audio cues, and content unit inputs are clear enough to generate or select candidates.
 
 Tie the recommendation to the user's intent: continue planning for story/camera questions, supplement keyframes/storyboards for visual anchoring, supplement audio cues for sound continuity, or generate only when the relevant content unit artifacts are ready.

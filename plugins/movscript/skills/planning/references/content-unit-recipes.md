@@ -8,7 +8,7 @@ Create the necessary upstream structure first, then create the content unit. Do 
 
 - `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable character, location, prop, style, or state asset.
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a shot or storyboard.
-- `storyboard_ref`: video output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_refs`. Use for storyboard-level continuous visual expression.
+- `storyboard_ref`: image output, requires `storyboard_ref`. Use to stabilize storyboard panels/images for composition, blocking, timing, and shot rhythm before keyframes or final video.
 - `scence_moment_ref`: video output, uses a `{{scene_moment:id}}` primary prompt ref. Use when directly generating one complete scene moment video without committing to shot/storyboard breakdown first.
 - `shot_ref`: video output, uses a `{{shot:id}}` primary prompt ref. Use when generating one camera unit directly, with optional upstream assets, keyframes, or storyboard references when consistency matters.
 
@@ -26,6 +26,33 @@ For storyboard-panel upload after reference-shot imitation, use a clearly named 
 - avoid complex scene lighting, one-off action, specific plot blocking, or final-shot composition.
 
 Put story lighting, camera composition, action, and scene-specific mood in `keyframe` or `storyboard`, not in `asset`.
+
+When a reusable visual entity appears in multiple generation tasks, or when the user is dissatisfied with its appearance, treat asset stabilization as a gate:
+
+```text
+setting / setting_state / asset
+-> asset_ref content unit
+-> generated/imported asset candidates
+-> user/workflow adopts or selects a stable candidate
+-> downstream keyframe/storyboard/video references
+```
+
+Build asset candidates from simple to complex. Start with base identity, neutral shape, material, or layout; then use the selected base asset to generate multi-view/reference-sheet versions and state variants such as costume, makeup, weather, damage, wet hair, or prop wear. Do not use unselected asset candidates as stable downstream references.
+
+## Storyboards and Keyframes
+
+Use storyboard panels before keyframes when the user has composition, blocking, camera, placement, or rhythm expectations but has not specified enough detail.
+
+```text
+shot intent
+-> storyboard_ref content unit for panels/images
+-> user/workflow adopts or selects storyboard candidate
+-> keyframe_ref content units for start/end or other required anchors
+-> user/workflow adopts or selects required keyframe candidates
+-> shot_ref or scence_moment_ref video content unit
+```
+
+`storyboard_ref` is for storyboard panels/images, not the final video output. Final video should normally be a `shot_ref` or `scence_moment_ref` content unit that references selected storyboard/keyframe/asset outputs when those are required for stable continuity.
 
 ## Flat Refs
 
@@ -49,12 +76,15 @@ For generic untracked content units, these refs are source context only. They do
 asset_ref content unit
 -> generated/imported asset candidates
 -> user/workflow selects stable asset candidate
+-> storyboard_ref content unit when composition or rhythm must be confirmed
+-> generated/imported storyboard panel candidates
+-> user/workflow selects stable storyboard candidate
 -> keyframe_ref content unit
 -> generated/imported keyframe candidates
 -> user/workflow selects stable keyframe candidate
--> storyboard_ref content unit
--> generated/imported storyboard/video candidates
--> user/workflow selects final candidate
+-> shot_ref or scence_moment_ref content unit
+-> generated/imported video candidates
+-> user/workflow selects final video candidate
 ```
 
 Use this path when cross-shot or cross-scene continuity matters.

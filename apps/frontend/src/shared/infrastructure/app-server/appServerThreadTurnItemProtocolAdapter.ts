@@ -11,7 +11,7 @@ import type {
   AgentChatTurnItemsView,
   AgentChatTurnStatus,
 } from '@movscript/core/agent/chat'
-import { agentThreadGoalStateFromUnknown, isModelReachableRemoteUrl } from '@movscript/core/agent/chat'
+import { MOVSCRIPT_DECISION_REQUEST_METHOD, agentThreadGoalStateFromUnknown, isModelReachableRemoteUrl } from '@movscript/core/agent/chat'
 import { agentChatThreadItemFromAppServerThreadTurnItem } from '@/shared/infrastructure/app-server/appServerThreadTurnItemItems'
 import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
 import type {
@@ -68,6 +68,15 @@ export function appServerThreadTurnItemServerRequestResponseFromAgentChat(
     return {
       answers: response.action === 'answer' ? appServerThreadTurnItemToolRequestUserInputAnswers(request, response) : {},
     }
+  }
+  if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) {
+    return response.action === 'decision'
+      ? {
+          decision: response.decision,
+          ...(response.reason ? { reason: response.reason } : {}),
+          ...(response.metadata ? { metadata: response.metadata } : {}),
+        }
+      : { decision: 'defer' }
   }
   if (request.method === 'item/tool/call') {
     return {

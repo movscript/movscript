@@ -41,6 +41,8 @@ import {
 
 import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { currentWorkspaceOwnerContext, workspaceOwnerContext, type WorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/shared/ui/ResourceLibraryPicker'
 import { toast } from '@/shared/ui/toastStore'
 import type { PaginatedResponse, RawResource } from '@/types'
@@ -97,6 +99,7 @@ const contentSourceWorkspaceDebugStorageKey = 'movscript.debug.contentWorkbench'
 
 type ContentSourceWorkspaceDebugState = {
   projectId?: number
+  ownerContext?: WorkspaceOwnerContext
   runtimeState?: ContentSourceWorkspaceRuntimeState
   rawSnapshot?: ContentSourceWorkspaceSnapshot
   data?: ContentSourceWorkspaceData
@@ -134,28 +137,39 @@ const emptyHierarchyNode: HierarchyNode = {
 
 export default function ContentSourceWorkspacePage() {
   const projectId = useProjectStore((state) => state.current?.ID)
+  const currentUser = useUserStore((state) => state.currentUser)
+  const currentOrgID = useUserStore((state) => state.currentOrgID)
+  const orgMemberships = useUserStore((state) => state.orgMemberships)
+  const userHydrated = useUserStore((state) => state.hydrated)
+  const ownerContext = useMemo(
+    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+    [currentOrgID, currentUser?.ID, orgMemberships],
+  )
+  const ownerContextKey = `${ownerContext.orgId ?? ''}:${ownerContext.userId ?? ''}`
   const runtime = useMemo(() => createContentSourceWorkspaceRuntime({ port: createDebuggableContentSourceWorkspaceRuntimePort() }), [])
   const [runtimeState, setRuntimeState] = useState<ContentSourceWorkspaceRuntimeState>(() => runtime.getState())
 
   useEffect(() => runtime.subscribe(setRuntimeState), [runtime])
 
   useEffect(() => {
+    if (!userHydrated) return
     if (!projectId) {
       runtime.showDemo(fixtureContentSourceWorkspaceData)
       return
     }
     runtime.loadProject(projectId).catch(() => undefined)
-  }, [projectId, runtime])
+  }, [ownerContextKey, projectId, runtime, userHydrated])
 
   const workspaceData = runtimeState.data ?? emptyContentSourceWorkspaceData
 
   useEffect(() => {
     writeContentSourceWorkspaceDebug('normalized data', {
       projectId: runtimeState.projectId,
+      ownerContext,
       runtimeState,
       data: workspaceData,
     })
-  }, [runtimeState, workspaceData])
+  }, [ownerContext, runtimeState, workspaceData])
 
   const previewMoments = workspaceData.previewMoments
   const initialMoment = previewMoments[0]
@@ -523,13 +537,14 @@ export default function ContentSourceWorkspacePage() {
 }
 
 function createDebuggableContentSourceWorkspaceRuntimePort(): ContentSourceWorkspaceRuntimePort {
-  const port = createContentSourceWorkspaceRuntimePort()
+  const port = createContentSourceWorkspaceRuntimePort(currentWorkspaceOwnerContext)
   return {
     ...port,
     async loadSnapshot(projectId) {
       const snapshot = await port.loadSnapshot(projectId)
       writeContentSourceWorkspaceDebug('raw snapshot', {
         projectId,
+        ownerContext: currentWorkspaceOwnerContext(),
         rawSnapshot: snapshot,
       })
       return snapshot

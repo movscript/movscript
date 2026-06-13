@@ -261,7 +261,6 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     }
     stopShell(id)
     const runtime = agentTerminalRuntimes.get(id)
-    runtime?.terminal?.dispose()
     runtime?.unsubscribe?.()
     agentTerminalRuntimes.delete(id)
     updateAgentTerminalStore((current) => {
@@ -277,7 +276,6 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
   const resetShells = useCallback(() => {
     for (const session of sessions) stopShell(session.id)
     for (const runtime of agentTerminalRuntimes.values()) {
-      runtime.terminal?.dispose()
       runtime.unsubscribe?.()
     }
     agentTerminalRuntimes.clear()
@@ -507,7 +505,7 @@ function ShellTerminalViewport({
       resizeObserver.disconnect()
       if (runtime.terminal === terminal) runtime.terminal = null
       if (runtime.fitAddon === fitAddon) runtime.fitAddon = null
-      terminal.dispose()
+      disposeTerminal(terminal)
     }
   }, [disabled, resizeShell, runtimeFor, sendShellData, sessionId])
 
@@ -551,6 +549,14 @@ function canFitTerminal(terminal: Terminal): boolean {
   const host = element?.parentElement
   if (!element || !host || !element.isConnected || !host.isConnected) return false
   return host.clientWidth > 0 && host.clientHeight > 0
+}
+
+function disposeTerminal(terminal: Terminal): void {
+  try {
+    terminal.dispose()
+  } catch (disposeError) {
+    console.warn('[agent-terminal] failed to dispose terminal', disposeError)
+  }
 }
 
 function terminalStatusLabel(status: TerminalStatus, disabled: boolean): string {

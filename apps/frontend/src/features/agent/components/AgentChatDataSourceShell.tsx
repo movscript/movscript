@@ -29,12 +29,15 @@ import {
 } from '@movscript/core/agent/chat'
 import {
   AGENT_PANEL_WORKSPACE_EVENT,
+  AGENT_PANEL_DECISION_REQUEST_EVENT,
   AGENT_PANEL_NEW_CONVERSATION_EVENT,
   AGENT_PANEL_THREAD_EVENT,
+  consumeAgentPanelDecisionRequest,
   consumeAgentPanelWorkspace,
   consumeAgentPanelNewConversation,
   consumeAgentPanelThread,
   notifyAgentPanelRunSettled,
+  type AgentPanelDecisionRequestPayload,
   type AgentPanelThreadPayload,
   type AgentPanelWorkspacePayload,
   type AgentPanelNewConversationPayload,
@@ -81,7 +84,10 @@ import {
   performanceNow,
   recordAgentPerformanceMetric,
 } from '@/features/agent/state/agentPerformanceStore'
-import { agentConversationRegistryRecordFromChatThread } from '@movscript/core/agent'
+import {
+  agentConversationRegistryRecordFromChatThread,
+  type AgentConversationRegistryRecord,
+} from '@movscript/core/agent'
 import {
   AGENT_RUN_PROFILE_PRESETS,
   DEFAULT_AGENT_RUN_PROFILE_PRESET_ID,
@@ -91,11 +97,16 @@ import {
 } from '@/features/agent/domain/agentRunProfilePreset'
 import { api } from '@/shared/infrastructure/api'
 import type { MovScriptWorkspaceContext, ProviderKind, ProviderProtocol } from '@/shared/infrastructure/providerConfigStore'
-import type { PublicModel, RawResource } from '@/types'
+import type { Project, PublicModel, RawResource } from '@/types'
 
 const AGENT_CHAT_OLDER_ITEMS_SCROLL_THRESHOLD_PX = 96
 const AGENT_CHAT_THREAD_LIST_PAGE_SIZE = 20
 const persistentPendingServerRequests = new Map<string, AgentChatRuntimePendingServerRequest[]>()
+const sourceThreadListCache = new Map<string, {
+  loaded: boolean
+  nextCursor: string | null
+  threads: AgentChatThread[]
+}>()
 
 interface AgentComposerQueuedInput extends AgentChatQueuedInputPreviewItem {
   threadId: string
@@ -195,6 +206,7 @@ export interface AgentChatDataSourceShellProps {
   newThreadLabel: string
   resolveModelForRequest?: () => AgentChatModelSelection
   modelOptions?: PublicModel[]
+  currentProject?: Project | null
   selectedModelId?: number | null
   onSelectedModelChange?: (modelId: number | null) => void
   collaborationMode?: AgentChatCollaborationMode
@@ -247,6 +259,7 @@ export function AgentChatDataSourceShell({
   composerPlaceholder,
   resolveModelForRequest = () => ({}),
   modelOptions = [],
+  currentProject = null,
   selectedModelId,
   onSelectedModelChange,
   collaborationMode = 'default',
@@ -303,7 +316,7 @@ export function AgentChatDataSourceShell({
     () => selectAgentChatRuntimePendingThreadReadRequests(runtime),
     [runtime],
   )
-  const inFlightThreadResumeRequestIdsRef = useRef(new Set<number>())
+  const inFlightThreadResumeIdsRef = useRef(new Set<string>())
   const pendingThreadResumeRequests = useMemo(
     () => selectAgentChatRuntimePendingThreadResumeRequests(runtime),
     [runtime],
@@ -339,7 +352,9 @@ export function AgentChatDataSourceShell({
   const [stoppingTurn, setStoppingTurn] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [threadListNextCursor, setThreadListNextCursor] = useState<string | null>(null)
+  const [sourceThreadList, setSourceThreadList] = useState<AgentChatThread[]>(() => readSourceThreadListCache(threadScopeKey).threads)
+  const [sourceThreadListLoaded, setSourceThreadListLoaded] = useState(() => readSourceThreadListCache(threadScopeKey).loaded)
+  const [threadListNextCursor, setThreadListNextCursor] = useState<string | null>(() => readSourceThreadListCache(threadScopeKey).nextCursor)
   const [threadListLoadingMore, setThreadListLoadingMore] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const olderItemsScrollAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null)
@@ -363,6 +378,7 @@ export function AgentChatDataSourceShell({
     conversationId: composerConversationId,
     workspace: composerWorkspace,
     recentResources,
+    currentProject,
     fileRef: composerFileRef,
     inputRef: composerInputRef,
     workspaceContextLocked: composerWorkspaceContextLocked,
@@ -429,7 +445,10 @@ export function AgentChatDataSourceShell({
     setSending(false)
     setQueuedInputs([])
     setStoppingTurn(false)
-    setThreadListNextCursor(null)
+    const cachedThreadList = readSourceThreadListCache(threadScopeKey)
+    setSourceThreadList(cachedThreadList.threads)
+    setSourceThreadListLoaded(cachedThreadList.loaded)
+    setThreadListNextCursor(cachedThreadList.nextCursor)
     setThreadListLoadingMore(false)
     const storedThreadId = readRestorableActiveThreadId()
     activeThreadIdRef.current = storedThreadId
@@ -459,17 +478,41 @@ export function AgentChatDataSourceShell({
     dispatchRuntime({ type: 'upsertThreadReadResult', thread, input })
   }, [])
 
+  const conversationPatchInputForThread = useCallback((threadId: string, open: boolean) => ({
+    userId,
+    ...(provider ? { provider } : {}),
+    ...(providerId?.trim() ? { providerId: providerId.trim() } : {}),
+    ...(providerInstanceId?.trim() ? { providerInstanceId: providerInstanceId.trim() } : {}),
+    ...(providerProtocol?.trim() ? { providerProtocol } : {}),
+    providerThreadId: threadId,
+    open,
+    archived: false,
+    updatedAt: Date.now(),
+  }), [provider, providerId, providerInstanceId, providerProtocol, userId])
+
+  const providerIdentity = useMemo(() => ({
+    provider,
+    providerId: providerId?.trim(),
+    providerInstanceId: providerInstanceId?.trim(),
+    providerProtocol,
+  }), [provider, providerId, providerInstanceId, providerProtocol])
+
   const closedThreadIds = useMemo(() => new Set(
     Object.values(conversationsById)
-      .filter((record) => record.userId === userId && record.open === false)
+      .filter((record) => record.userId === userId && record.open === false && agentConversationRecordMatchesProviderIdentity(record, providerIdentity))
       .map((record) => record.providerThreadId),
-  ), [conversationsById, userId])
+  ), [conversationsById, providerIdentity, userId])
+  const openThreadIds = useMemo(() => new Set(
+    Object.values(conversationsById)
+      .filter((record) => record.userId === userId && record.open !== false && agentConversationRecordMatchesProviderIdentity(record, providerIdentity))
+      .map((record) => record.providerThreadId),
+  ), [conversationsById, providerIdentity, userId])
   const threadOrderIndex = useMemo(
     () => new Map(Object.values(conversationsById)
-      .filter((record) => record.userId === userId && record.open !== false)
+      .filter((record) => record.userId === userId && record.open !== false && agentConversationRecordMatchesProviderIdentity(record, providerIdentity))
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((record, index) => [record.providerThreadId, index])),
-    [conversationsById, userId],
+    [conversationsById, providerIdentity, userId],
   )
 
   const registerThreadConversation = useCallback((thread: Pick<AgentChatThread, 'id' | 'name' | 'preview' | 'status' | 'createdAt' | 'updatedAt' | 'cwd'>, input?: {
@@ -493,17 +536,21 @@ export function AgentChatDataSourceShell({
   }, [provider, providerId, providerInstanceId, providerProtocol, userId])
 
   const markThreadOpen = useCallback((threadId: string) => {
-    useAgentSessionStore.getState().setActiveConversation(userId, threadId)
-    useAgentSessionStore.getState().setConversationOpen(userId, threadId, true)
-  }, [userId])
+    const store = useAgentSessionStore.getState()
+    const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, true))
+    store.setConversationOpen(userId, conversationId, true)
+    store.setActiveConversation(userId, conversationId)
+  }, [conversationPatchInputForThread, userId])
 
   const markThreadClosed = useCallback((threadId: string, clearActive: boolean) => {
     const activeThreadClosed = readCurrentActiveThreadId() === threadId
-    useAgentSessionStore.getState().setConversationOpen(userId, threadId, false)
+    const store = useAgentSessionStore.getState()
+    const conversationId = store.upsertConversation(conversationPatchInputForThread(threadId, false))
+    store.setConversationOpen(userId, conversationId, false)
     if (clearActive || activeThreadClosed) {
-      useAgentSessionStore.getState().setActiveConversation(userId, null)
+      store.setActiveConversation(userId, null)
     }
-  }, [readCurrentActiveThreadId, userId])
+  }, [conversationPatchInputForThread, readCurrentActiveThreadId, userId])
 
   const clearUnavailableActiveThread = useCallback((threadId: string) => {
     if (activeThreadIdRef.current === threadId) setActiveThreadIdValue(null)
@@ -534,53 +581,79 @@ export function AgentChatDataSourceShell({
     return { thread, input }
   }, [dataSource])
 
+  const writeSourceThreadList = useCallback((threads: AgentChatThread[], nextCursor: string | null) => {
+    setSourceThreadList(threads)
+    setSourceThreadListLoaded(true)
+    setThreadListNextCursor(nextCursor)
+    sourceThreadListCache.set(threadScopeKey, {
+      loaded: true,
+      nextCursor,
+      threads,
+    })
+  }, [threadScopeKey])
+
+  const fetchFirstThreadListPage = useCallback(async () => {
+    if (!dataSource) return []
+    const response = await dataSource.listThreads({ limit: AGENT_CHAT_THREAD_LIST_PAGE_SIZE })
+    writeSourceThreadList(response.threads, response.nextCursor ?? null)
+    return response.threads
+  }, [dataSource, writeSourceThreadList])
+
   const loadThreads = useCallback(async () => {
     if (!dataSource) return
     setLoading(true)
     setError(null)
     try {
-      const response = await dataSource.listThreads({ limit: AGENT_CHAT_THREAD_LIST_PAGE_SIZE })
-      setThreadListNextCursor(response.nextCursor ?? null)
-      const nextThreads = response.threads
+      const nextThreads = await fetchFirstThreadListPage()
       const stored = readRestorableActiveThreadId()
-      const nextThreadsWithStored = stored && !nextThreads.some((thread) => thread.id === stored)
-        ? [provisionalAgentChatThread(stored, dataSource), ...nextThreads]
-        : nextThreads
-      dispatchRuntime({ type: 'setThreads', threads: nextThreadsWithStored })
-      const candidateIds = uniqueAgentChatThreadIds([
-        stored,
-        ...nextThreads.filter((thread) => !closedThreadIds.has(thread.id)).map((thread) => thread.id),
-      ])
-      let lastMissingThreadError: unknown
-      for (const candidateId of candidateIds) {
-        setActiveThreadIdValue(candidateId)
-        markThreadOpen(candidateId)
-        try {
-          const { thread, input } = await readHistoryThread(candidateId)
-          upsertThreadReadResult(thread, input)
+      if (!stored) {
+        const firstOpenThread = nextThreads.find((thread) => agentChatSourceThreadHasContent(thread) && !closedThreadIds.has(thread.id))
+        if (!firstOpenThread) {
+          setActiveThreadIdValue(null)
           return
+        }
+        setActiveThreadIdValue(firstOpenThread.id)
+        markThreadOpen(firstOpenThread.id)
+        try {
+          const { thread, input } = await readHistoryThread(firstOpenThread.id)
+          registerThreadConversation(thread)
+          upsertThreadReadResult(thread, input)
         } catch (readError) {
           if (!isUnavailableThreadReadError(readError)) throw readError
-          lastMissingThreadError = readError
-          if (candidateId === stored) {
-            const removedEmptyConversation = clearUnavailableStoredThread(candidateId)
-            if (!removedEmptyConversation) return
-            lastMissingThreadError = undefined
-            continue
-          }
-          clearUnavailableActiveThread(candidateId)
+          const removedEmptyConversation = clearUnavailableStoredThread(firstOpenThread.id)
+          if (removedEmptyConversation) setError(errorMessage(readError))
         }
+        return
       }
-      if (!stored) {
-        setActiveThreadIdValue(null)
+      setActiveThreadIdValue(stored)
+      markThreadOpen(stored)
+      try {
+        const { thread, input } = await readHistoryThread(stored)
+        upsertThreadReadResult(thread, input)
+      } catch (readError) {
+        if (!isUnavailableThreadReadError(readError)) throw readError
+        const removedEmptyConversation = clearUnavailableStoredThread(stored)
+        if (removedEmptyConversation) setError(errorMessage(readError))
       }
-      if (lastMissingThreadError) setError(errorMessage(lastMissingThreadError))
     } catch (nextError) {
       setError(errorMessage(nextError))
     } finally {
       setLoading(false)
     }
-  }, [clearUnavailableActiveThread, clearUnavailableStoredThread, closedThreadIds, dataSource, markThreadOpen, readRestorableActiveThreadId, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
+  }, [clearUnavailableStoredThread, closedThreadIds, dataSource, fetchFirstThreadListPage, markThreadOpen, readRestorableActiveThreadId, readHistoryThread, registerThreadConversation, setActiveThreadIdValue, upsertThreadReadResult])
+
+  const refreshThreadList = useCallback(async () => {
+    if (!dataSource) return
+    setLoading(true)
+    setError(null)
+    try {
+      await fetchFirstThreadListPage()
+    } catch (nextError) {
+      setError(errorMessage(nextError))
+    } finally {
+      setLoading(false)
+    }
+  }, [dataSource, fetchFirstThreadListPage])
 
   const loadMoreThreads = useCallback(async () => {
     if (!dataSource || !threadListNextCursor || threadListLoadingMore) return
@@ -592,16 +665,22 @@ export function AgentChatDataSourceShell({
         cursor: threadListNextCursor,
       })
       setThreadListNextCursor(response.nextCursor ?? null)
-      dispatchRuntime({
-        type: 'updateThreads',
-        update: (current) => mergeAgentChatThreadListPage(current, response.threads),
+      setSourceThreadList((current) => {
+        const next = mergeAgentChatThreadListPage(current, response.threads)
+        sourceThreadListCache.set(threadScopeKey, {
+          loaded: true,
+          nextCursor: response.nextCursor ?? null,
+          threads: next,
+        })
+        return next
       })
+      setSourceThreadListLoaded(true)
     } catch (nextError) {
       setError(errorMessage(nextError))
     } finally {
       setThreadListLoadingMore(false)
     }
-  }, [dataSource, threadListLoadingMore, threadListNextCursor])
+  }, [dataSource, threadListLoadingMore, threadListNextCursor, threadScopeKey])
 
   const restoreStoredThread = useCallback(async () => {
     if (!dataSource) return
@@ -636,6 +715,11 @@ export function AgentChatDataSourceShell({
   useEffect(() => {
     restoreStoredThreadRef.current = restoreStoredThread
   }, [restoreStoredThread])
+
+  useEffect(() => {
+    if (!dataSource || surface !== 'panel' || !historyOpen || sourceThreadListLoaded || loading) return
+    void refreshThreadList()
+  }, [dataSource, historyOpen, loading, refreshThreadList, sourceThreadListLoaded, surface])
 
   const openThread = useCallback(async (threadId: string) => {
     if (!dataSource) return
@@ -861,6 +945,40 @@ export function AgentChatDataSourceShell({
     })
   }, [markThreadOpen, persistentRequestScopeKey, setActiveThreadIdValue])
 
+  const handleLocalDecisionRequest = useCallback((payload: AgentPanelDecisionRequestPayload | undefined) => {
+    if (!payload?.request) return
+    const request = payload.request
+    const requestThreadId = agentChatThreadIdForServerRequest(activeThreadIdRef.current, request)
+    if (requestThreadId) {
+      setActiveThreadIdValue(requestThreadId)
+      markThreadOpen(requestThreadId)
+    }
+    const resolve = (response: AgentChatServerRequestResponse | undefined) => {
+      void Promise.resolve(payload.onResolve?.(response)).catch((error) => {
+        console.error('[agent-panel] decision request resolver failed', error)
+      })
+    }
+    const persistentResolve = storePersistentServerRequest(persistentRequestScopeKey, request, resolve)
+    dispatchRuntime({ type: 'enqueueServerRequest', request, resolve: persistentResolve })
+  }, [markThreadOpen, persistentRequestScopeKey, setActiveThreadIdValue])
+
+  useEffect(() => {
+    function replayPendingDecisionRequests() {
+      for (let payload = consumeAgentPanelDecisionRequest(); payload; payload = consumeAgentPanelDecisionRequest()) {
+        handleLocalDecisionRequest(payload)
+      }
+    }
+
+    function handleDecisionRequestEvent(event: Event) {
+      const detail = (event as CustomEvent<AgentPanelDecisionRequestPayload>).detail
+      handleLocalDecisionRequest(consumeAgentPanelDecisionRequest() ?? detail)
+    }
+
+    replayPendingDecisionRequests()
+    window.addEventListener(AGENT_PANEL_DECISION_REQUEST_EVENT, handleDecisionRequestEvent)
+    return () => window.removeEventListener(AGENT_PANEL_DECISION_REQUEST_EVENT, handleDecisionRequestEvent)
+  }, [handleLocalDecisionRequest])
+
   useEffect(() => {
     replayPersistentServerRequests()
   }, [activeThreadId, dataSource, replayPersistentServerRequests])
@@ -988,12 +1106,12 @@ export function AgentChatDataSourceShell({
   useEffect(() => {
     if (!dataSource?.resumeThread || pendingThreadResumeRequests.length === 0) return
     for (const request of pendingThreadResumeRequests) {
-      if (inFlightThreadResumeRequestIdsRef.current.has(request.id)) continue
+      if (inFlightThreadResumeIdsRef.current.has(request.threadId)) continue
       if (closedThreadIds.has(request.threadId)) {
         dispatchRuntime({ type: 'clearThreadResumeRequest', requestId: request.id })
         continue
       }
-      inFlightThreadResumeRequestIdsRef.current.add(request.id)
+      inFlightThreadResumeIdsRef.current.add(request.threadId)
       dispatchRuntime({ type: 'beginThreadResumeRequest', requestId: request.id })
       const thread = runtimeRef.current.threads.find((item) => item.id === request.threadId)
       void dataSource.resumeThread({
@@ -1011,7 +1129,7 @@ export function AgentChatDataSourceShell({
           dispatchRuntime({ type: 'completeThreadResumeRequest', requestId: request.id, error: message })
         })
         .finally(() => {
-          inFlightThreadResumeRequestIdsRef.current.delete(request.id)
+          inFlightThreadResumeIdsRef.current.delete(request.threadId)
         })
     }
   }, [closedThreadIds, dataSource, pendingThreadResumeRequests, profilePresetId, selectedModelSelectionForRequest])
@@ -1036,7 +1154,6 @@ export function AgentChatDataSourceShell({
   const {
     activeThread,
     activeTurn,
-    historyThreads,
     visibleItems: runtimeVisibleItems,
     visiblePendingServerRequests,
     visibleStatusItems,
@@ -1476,6 +1593,19 @@ export function AgentChatDataSourceShell({
     }
   }, [dataSource, upsertThread])
 
+  const sourceOpenThreads = useMemo(() => (
+    sourceThreadList.filter((thread) => agentChatSourceThreadHasContent(thread) && !closedThreadIds.has(thread.id))
+  ), [closedThreadIds, sourceThreadList])
+  const openThreadCandidates = useMemo(() => {
+    const next = new Map<string, AgentChatThread>()
+    for (const thread of sourceOpenThreads) next.set(thread.id, thread)
+    for (const thread of threads) {
+      if (closedThreadIds.has(thread.id)) continue
+      if (thread.id === activeThreadId || openThreadIds.has(thread.id)) next.set(thread.id, thread)
+    }
+    return Array.from(next.values())
+  }, [activeThreadId, closedThreadIds, openThreadIds, sourceOpenThreads, threads])
+
   const closeThreadTab = useCallback(async (threadId: string) => {
     const thread = runtimeRef.current.threads.find((item) => item.id === threadId)
     if (thread && agentChatThreadIsRunning(thread)) {
@@ -1487,7 +1617,7 @@ export function AgentChatDataSourceShell({
       return
     }
 
-    const openThreads = runtimeRef.current.threads.filter((item) => !closedThreadIds.has(item.id))
+    const openThreads = openThreadCandidates
     const closingIndex = openThreads.findIndex((item) => item.id === threadId)
     const remainingThreads = openThreads.filter((item) => item.id !== threadId)
     const nextThread = remainingThreads[Math.max(0, closingIndex - 1)] ?? remainingThreads[0]
@@ -1507,14 +1637,13 @@ export function AgentChatDataSourceShell({
     } catch (nextError) {
       setError(errorMessage(nextError))
     }
-  }, [activeThreadId, closedThreadIds, markThreadClosed, markThreadOpen, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
+  }, [activeThreadId, markThreadClosed, markThreadOpen, openThreadCandidates, readHistoryThread, setActiveThreadIdValue, upsertThreadReadResult])
 
   const reorderThreadTab = useCallback((_draggedId: string, _targetId: string, _position: 'before' | 'after') => {
     // Tab order is registry-derived. Drag persistence belongs in the core registry once product sorting rules are finalized.
   }, [])
 
-  const threadTabs = useMemo(() => threads
-    .filter((thread) => !closedThreadIds.has(thread.id))
+  const threadTabs = useMemo(() => openThreadCandidates
     .map((thread, index) => ({ thread, index }))
     .sort((a, b) => {
       const aOrder = threadOrderIndex.get(a.thread.id) ?? Number.MAX_SAFE_INTEGER
@@ -1527,11 +1656,11 @@ export function AgentChatDataSourceShell({
       messageCount: thread.turns.reduce((count, turn) => count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length, 0),
       sessionState: agentChatThreadProviderSessionState(thread),
       ...(dataSource?.renameThread ? { onRename: (name: string) => void renameThread(thread.id, name) } : {}),
-    })), [closedThreadIds, dataSource?.renameThread, renameThread, threadOrderIndex, threads])
+    })), [dataSource?.renameThread, openThreadCandidates, renameThread, threadOrderIndex])
   const closedHistoryThreads = useMemo(() => {
     const closedIds = closedThreadIds
-    return historyThreads.filter((thread) => closedIds.has(thread.id))
-  }, [closedThreadIds, historyThreads])
+    return sourceThreadList.filter((thread) => agentChatSourceThreadHasContent(thread) && closedIds.has(thread.id))
+  }, [closedThreadIds, sourceThreadList])
   if (!dataSource) {
     return (
       <AgentShell density="compact" className={shellClassName}>
@@ -1722,7 +1851,7 @@ export function AgentChatDataSourceShell({
               loadingMore={threadListLoadingMore}
               threadListLabel={threadListLabel}
               onLoadMoreThreads={loadMoreThreads}
-              onLoadThreads={loadThreads}
+              onLoadThreads={refreshThreadList}
               onOpenThread={openThread}
             />
           ) : null}
@@ -1760,6 +1889,41 @@ function isAgentChatThread(value: unknown): value is AgentChatThread {
 
 function agentChatThreadIsRunning(thread: AgentChatThread): boolean {
   return thread.status === 'running' || thread.turns.some((turn) => turn.status === 'inProgress')
+}
+
+function readSourceThreadListCache(threadScopeKey: string): {
+  loaded: boolean
+  nextCursor: string | null
+  threads: AgentChatThread[]
+} {
+  return sourceThreadListCache.get(threadScopeKey) ?? {
+    loaded: false,
+    nextCursor: null,
+    threads: [],
+  }
+}
+
+function agentChatSourceThreadHasContent(thread: Pick<AgentChatThread, 'name' | 'preview' | 'turns'>): boolean {
+  if (thread.name?.trim() || thread.preview?.trim()) return true
+  return thread.turns.some((turn) => turn.items.some((item) => item.type === 'userMessage' || item.type === 'agentMessage'))
+}
+
+function agentConversationRecordMatchesProviderIdentity(
+  record: AgentConversationRegistryRecord,
+  identity: {
+    provider?: string
+    providerId?: string
+    providerInstanceId?: string
+    providerProtocol?: string
+  },
+): boolean {
+  const recordHasProviderIdentity = Boolean(record.provider || record.providerId || record.providerInstanceId || record.providerProtocol)
+  if (!recordHasProviderIdentity) return true
+  if (record.provider && identity.provider && record.provider !== identity.provider) return false
+  if (record.providerId && identity.providerId && record.providerId !== identity.providerId) return false
+  if (record.providerInstanceId && identity.providerInstanceId && record.providerInstanceId !== identity.providerInstanceId) return false
+  if (record.providerProtocol && identity.providerProtocol && record.providerProtocol !== identity.providerProtocol) return false
+  return true
 }
 
 function agentChatQueuedInputsWithText(inputs: AgentChatInput[], text: string): AgentChatInput[] {
@@ -2027,18 +2191,6 @@ function isUnavailableThreadReadError(error: unknown): boolean {
   return /\bthread not found:/i.test(message)
     || /\bthread not loaded:/i.test(message)
     || /\bno rollout found for thread id\b/i.test(message)
-}
-
-function uniqueAgentChatThreadIds(values: Array<string | null | undefined>): string[] {
-  const seen = new Set<string>()
-  const ids: string[] = []
-  for (const value of values) {
-    const id = value?.trim()
-    if (!id || seen.has(id)) continue
-    seen.add(id)
-    ids.push(id)
-  }
-  return ids
 }
 
 function mergeAgentChatThreadListPage(current: AgentChatThread[], page: AgentChatThread[]): AgentChatThread[] {

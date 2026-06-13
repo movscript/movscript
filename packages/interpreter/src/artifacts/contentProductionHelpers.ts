@@ -119,6 +119,53 @@ export function primaryRefKindForContentUnitType(contentUnitType: string): Conte
   }
 }
 
+export interface ContentUnitPrimaryRef {
+  kind: ContentUnitPromptRefKind
+  id: string
+}
+
+export function primaryRefIdsForContentUnitRecord(
+  record: Record<string, unknown>,
+  kind: ContentUnitPromptRefKind,
+): string[] {
+  switch (kind) {
+    case 'asset':
+      return compactStrings(record.asset_ref)
+    case 'keyframe':
+      return compactStrings(record.keyframe_ref)
+    case 'storyboard':
+      return compactStrings(record.storyboard_ref)
+    case 'scene_moment':
+      return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
+    case 'shot':
+      return compactStrings(record.shot_ref)
+    case 'content_unit':
+      return compactStrings(record.content_unit_ref)
+    default:
+      return []
+  }
+}
+
+export function primaryRefFieldNameForKind(kind: ContentUnitPromptRefKind): string {
+  return kind === 'scene_moment' ? 'scene_moment_ref' : `${kind}_ref`
+}
+
+export function primaryContentUnitRefs(
+  contentUnit: MovScriptWorkspaceIndexedEntity,
+  kind: ContentUnitPromptRefKind,
+): ContentUnitPrimaryRef[] {
+  return primaryRefIdsForContentUnitRecord(contentUnit.record, kind).map((id) => ({ kind, id }))
+}
+
+export function hasAmbiguousPrimaryRefs(refs: ContentUnitPrimaryRef[], kind: ContentUnitPromptRefKind): boolean {
+  const unique: ContentUnitPrimaryRef[] = []
+  for (const ref of refs) {
+    if (unique.some((item) => samePromptRefId(item.id, ref.id, kind))) continue
+    unique.push(ref)
+  }
+  return unique.length > 1
+}
+
 export function outputKindForContentUnitType(contentUnitType: string, value: unknown): ContentUnitOutputKind {
   const explicit = contentUnitOutputKind(value)
   if (explicit !== 'metadata') return explicit
@@ -171,9 +218,8 @@ export function resolveContentUnitForPromptRef(
   return queryMovScriptWorkspaceEntities(index, { entityKind: 'content_unit' })
     .find((entity) => {
       if (!expectedTypes.includes(String(entity.record.content_unit_type ?? ''))) return false
-      return parseContentUnitEditPromptRefs(entity.record.edit_prompt)
-        .some((candidate) => candidate.kind === ref.kind
-          && (String(candidate.id) === String(ref.id) || sameEntityRef(candidate.id, ref.id, ref.kind)))
+      return primaryContentUnitRefs(entity, ref.kind)
+        .some((candidate) => samePromptRefId(candidate.id, ref.id, ref.kind))
     })
 }
 
@@ -199,13 +245,13 @@ export function resolveUpstreamSelectionForPromptRef(
 export function resolvePromptRefs(
   index: MovScriptWorkspaceDomainIndex,
   refs: ContentUnitPromptRef[],
-  primaryKind: ContentUnitPromptRefKind | undefined,
+  _primaryKind: ContentUnitPromptRefKind | undefined,
 ): { refs: ContentUnitResolvedRef[]; upstreamSelections: ContentUnitUpstreamSelection[] } {
   const upstreamSelections: ContentUnitUpstreamSelection[] = []
   const resolvedRefs = refs.map((ref): ContentUnitResolvedRef => {
-    const role = primaryKind && ref.kind === primaryKind ? 'primary' : 'input'
+    const role = 'input'
     const entity = resolvePromptRefEntity(index, ref)
-    const selection = role === 'input' ? resolveUpstreamSelectionForPromptRef(index, ref) : undefined
+    const selection = resolveUpstreamSelectionForPromptRef(index, ref)
     if (selection) upstreamSelections.push(selection)
     return {
       ...ref,
@@ -240,6 +286,18 @@ function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | un
 function contentUnitTypesForPromptRefKind(kind: ContentUnitPromptRefKind): string[] {
   if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
   return [`${kind}_ref`]
+}
+
+function samePromptRefId(left: unknown, right: unknown, kind: ContentUnitPromptRefKind): boolean {
+  return String(left) === String(right)
+    || lastPathSegment(left) === String(right)
+    || lastPathSegment(right) === String(left)
+    || sameEntityRef(left, right, kind)
+}
+
+function lastPathSegment(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.includes('/')) return undefined
+  return value.split('/').filter(Boolean).at(-1)
 }
 
 export function readSelectedContentUnit(
@@ -379,6 +437,13 @@ function uniqueIds(values: Array<string | number>): Array<string | number> {
 
 export function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function compactStrings(...values: unknown[]): string[] {
+  return values.flatMap((value) => {
+    const id = idField(value)
+    return id === undefined ? [] : [String(id)]
+  })
 }
 
 export function contentUnitOutputKind(value: unknown): ContentUnitOutputKind {

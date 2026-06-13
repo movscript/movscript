@@ -3,12 +3,14 @@ import { useAgentChatDataSources } from '@/features/agent/presentation/useAgentC
 import { useAgentComposerController } from '@/features/agent/presentation/useAgentComposerController'
 import { useAgentMentionEditorSync } from '@/features/agent/presentation/useAgentMentionEditorSync'
 import type { AgentSettings, ConversationWorkspace } from '@/features/agent/state/agentStore'
+import type { Project } from '@/types'
 
 interface UseAgentChatComposerStateInput {
   conversationId: string
   workspace: ConversationWorkspace
   fileRef: RefObject<HTMLInputElement>
   inputRef: RefObject<HTMLDivElement>
+  currentProject?: Project | null
   settings: AgentSettings
   updateSettings: (settings: Partial<AgentSettings>) => void
   userId: string
@@ -20,6 +22,7 @@ export function useAgentChatComposerState({
   workspace,
   fileRef,
   inputRef,
+  currentProject,
   settings,
   updateSettings,
   userId,
@@ -39,6 +42,7 @@ export function useAgentChatComposerState({
     conversationId,
     workspace,
     recentResources,
+    currentProject,
     fileRef,
     inputRef,
     workspaceContextLocked,

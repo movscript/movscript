@@ -58,6 +58,40 @@ test('buildAgentConversationTabProviderSessionTargets leaves unanchored conversa
   ])
 })
 
+test('buildAgentConversationTabProviderSessionTargets skips app-server conversations', () => {
+  const targets = buildAgentConversationTabProviderSessionTargets({
+    conversations: [
+      conversation({
+        id: 'conv_app_server',
+        providerThreadId: 'thread_app_server',
+      }),
+      conversation({
+        id: 'conv_provider_session',
+        providerThreadId: 'thread_provider_session',
+      }),
+    ],
+    conversationsById: {
+      conv_app_server: {
+        id: 'conv_app_server',
+        userId: 'user_1',
+        providerProtocol: 'app-server',
+        providerThreadId: 'thread_app_server',
+        open: true,
+        archived: false,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    },
+  })
+
+  assert.deepEqual(targets, [
+    {
+      conversationId: 'conv_provider_session',
+      threadId: 'thread_provider_session',
+    },
+  ])
+})
+
 test('providerSessionStatusLightForTargetKeys prefers the highest-priority light across session and thread targets', () => {
   assert.equal(providerSessionStatusLightForTargetKeys({
     'session:session_1': {

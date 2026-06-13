@@ -1,10 +1,9 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { AgentConversationRegistryInput, AgentConversationRegistryRecord } from '@movscript/core/agent'
+import { agentConversationIdForRegistryInput, type AgentConversationRegistryInput, type AgentConversationRegistryRecord } from '@movscript/core/agent'
 import type { AgentChatThread, AgentChatThreadStatus } from '@movscript/core/agent/chat'
 
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 import {
   providerInstanceId,
@@ -27,7 +26,6 @@ export function useAgentThreadRegistryHydration({
   provider?: ProviderConfig
   userId: string
 }) {
-  const upsertConversation = useAgentSessionStore((state) => state.upsertConversation)
   const providerIdentity = useMemo(() => {
     if (!provider) return null
     return {
@@ -56,29 +54,14 @@ export function useAgentThreadRegistryHydration({
     retry: false,
   })
 
-  useEffect(() => {
-    if (!providerIdentity || !userId || !query.data) return
-    const currentRecords = useAgentSessionStore.getState().conversationsById
-    for (const thread of query.data) {
-      const existing = currentRecords[thread.id]
-      const input = agentConversationRegistryInputFromThreadSummary({
-        thread,
-        userId,
-        providerIdentity,
-        open: existing?.open ?? false,
-      })
-      if (existing && agentConversationRegistryRecordMatchesInput(existing, input)) continue
-      upsertConversation(input)
-    }
-  }, [providerIdentity, query.data, upsertConversation, userId])
-
   return {
     ...query,
+    providerIdentity,
     sourceThreads: query.data ?? [],
   }
 }
 
-function agentConversationRegistryInputFromThreadSummary(input: {
+export function agentConversationRegistryInputFromThreadSummary(input: {
   thread: AgentThreadSummary
   userId: string
   providerIdentity: {
@@ -91,7 +74,6 @@ function agentConversationRegistryInputFromThreadSummary(input: {
 }): AgentConversationRegistryInput {
   const { providerIdentity, thread } = input
   return {
-    id: thread.id,
     userId: input.userId,
     provider: providerIdentity.provider,
     providerId: providerIdentity.providerId,
@@ -109,11 +91,33 @@ function agentConversationRegistryInputFromThreadSummary(input: {
   }
 }
 
-function agentConversationRegistryRecordMatchesInput(
+export function shouldHydrateAgentThreadSummary(
+  thread: Pick<AgentThreadSummary, 'messageCount' | 'title' | 'archived'>,
+  existing?: AgentConversationRegistryRecord,
+): boolean {
+  return Boolean(existing) || agentThreadSummaryHasContent(thread)
+}
+
+export function agentThreadSummaryRegistryOpenState(
+  thread: Pick<AgentThreadSummary, 'messageCount' | 'title' | 'archived'>,
+  existing?: Pick<AgentConversationRegistryRecord, 'open'>,
+): boolean {
+  if (existing) return existing.open
+  if (thread.archived === true) return false
+  return agentThreadSummaryHasContent(thread)
+}
+
+export function agentThreadSummaryHasContent(
+  thread: Pick<AgentThreadSummary, 'messageCount' | 'title'>,
+): boolean {
+  return thread.messageCount > 0 || Boolean(thread.title?.trim())
+}
+
+export function agentConversationRegistryRecordMatchesInput(
   record: AgentConversationRegistryRecord,
   input: AgentConversationRegistryInput,
 ): boolean {
-  return record.id === (input.id ?? input.providerThreadId)
+  return record.id === agentConversationIdForRegistryInput(input)
     && record.userId === input.userId
     && record.provider === input.provider
     && record.providerId === input.providerId
@@ -132,19 +136,21 @@ function agentConversationRegistryRecordMatchesInput(
 
 function agentThreadSummaryFromAgentChatThread(thread: AgentChatThread): AgentThreadSummary {
   const status = agentThreadSummaryStatusFromAgentChatThreadStatus(thread.status)
+  const transcriptMessageCount = thread.turns.reduce((count, turn) => (
+    count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length
+  ), 0)
+  const preview = thread.preview?.trim()
   return {
     id: thread.id,
     ...(thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
       ? { sessionId: thread.providerSessionTreeId?.trim() || thread.sessionId?.trim() }
       : {}),
-    title: thread.name?.trim() || thread.preview?.trim() || undefined,
+    title: thread.name?.trim() || preview || undefined,
     archived: false,
     ...(status ? { status } : {}),
     createdAt: agentChatThreadTimestampIso(thread.createdAt),
     updatedAt: agentChatThreadTimestampIso(thread.updatedAt),
-    messageCount: thread.turns.reduce((count, turn) => (
-      count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length
-    ), 0),
+    messageCount: transcriptMessageCount > 0 ? transcriptMessageCount : preview ? 1 : 0,
   }
 }
 

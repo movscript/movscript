@@ -2,6 +2,9 @@ import type { MovScriptWorkspaceDomainIndex } from '@movscript/workspace/indexer
 import { hasSpecializedContentUnitAdapter } from './contentProduction.js'
 import {
   parseContentUnitEditPromptRefs,
+  primaryContentUnitRefs,
+  primaryRefFieldNameForKind,
+  primaryRefKindForContentUnitType,
 } from './contentProductionHelpers.js'
 import type { MovScriptDomainRelation, MovScriptRelationGraphArtifact } from './derivedArtifactTypes.js'
 import {
@@ -37,6 +40,23 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
     }
 
     if (entity.entityKind === 'content_unit' && hasSpecializedContentUnitAdapter(entity.record.content_unit_type)) {
+      const contentUnitType = String(entity.record.content_unit_type ?? '')
+      const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
+      if (primaryKind) {
+        for (const ref of primaryContentUnitRefs(entity, primaryKind)) {
+          const target = ref.kind === 'content_unit'
+            ? entities.find((candidate) => candidate.entityKind === 'content_unit' && String(candidate.id ?? '') === ref.id)
+            : findEntityByRef(entities, ref.kind, ref.id) ?? entityByPathDir.get(normalizedRefDir(ref.id))
+          if (target) {
+            relations.push({
+              type: ref.kind === 'content_unit' ? 'references' : 'uses',
+              from: entityRef(entity),
+              to: entityRef(target),
+              field: primaryRefFieldNameForKind(primaryKind),
+            })
+          }
+        }
+      }
       for (const ref of parseContentUnitEditPromptRefs(entity.record.edit_prompt)) {
         const target = ref.kind === 'content_unit'
           ? entities.find((candidate) => candidate.entityKind === 'content_unit' && String(candidate.id ?? '') === ref.id)

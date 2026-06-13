@@ -1314,7 +1314,7 @@ function buildAssetDownstreamUnits(
       const promptRefs = editPromptRefs(contentUnit)
       const referencesAsset = promptRefs.some((ref) => ref.kind === 'asset' && refs.has(ref.id))
       const isOwnAssetRef = stringField(contentUnit.record.content_unit_type) === 'asset_ref'
-        && promptRefs.some((ref) => ref.kind === 'asset' && refs.has(ref.id))
+        && primaryRefIdsForContentUnitRecord(contentUnit.record, 'asset').some((ref) => refs.has(ref))
       return referencesAsset && !isOwnAssetRef
     })
     .map((contentUnit): PreviewAssetDownstream => {
@@ -1349,30 +1349,29 @@ function primaryOwnerForContentUnit(
     keyframes: MovScriptWorkspaceIndexedEntity[]
   },
 ): { nodeId: string; momentId: string; shotId: string } | undefined {
-  const refs = editPromptRefs(contentUnit)
-  const shotRef = refs.find((ref) => ref.kind === 'shot')
+  const shotRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'shot')[0]
   if (shotRef) {
-    const shot = input.shots.find((item) => String(item.id ?? '') === shotRef.id)
+    const shot = input.shots.find((item) => entityMatchesRef(item, shotRef, 'shot'))
     return {
-      nodeId: shotRef.id,
+      nodeId: shot ? idText(shot) : shotRef,
       momentId: shot ? pathSegmentAfter(shot.path, 'scene_moments') ?? '' : '',
-      shotId: shotRef.id,
+      shotId: shot ? idText(shot) : shotRef,
     }
   }
-  const storyboardRef = refs.find((ref) => ref.kind === 'storyboard')
+  const storyboardRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'storyboard')[0]
   if (storyboardRef) {
-    const storyboard = input.storyboards.find((item) => String(item.id ?? '') === storyboardRef.id)
+    const storyboard = input.storyboards.find((item) => entityMatchesRef(item, storyboardRef, 'storyboard'))
     return {
-      nodeId: `storyboard/${storyboardRef.id}`,
+      nodeId: storyboard ? nodeId(storyboard, 'storyboard') : `storyboard/${storyboardRef}`,
       momentId: storyboard ? pathSegmentAfter(storyboard.path, 'scene_moments') ?? '' : '',
       shotId: storyboard ? pathSegmentAfter(storyboard.path, 'shots') ?? '' : '',
     }
   }
-  const keyframeRef = refs.find((ref) => ref.kind === 'keyframe')
+  const keyframeRef = primaryRefIdsForContentUnitRecord(contentUnit.record, 'keyframe')[0]
   if (keyframeRef) {
-    const keyframe = input.keyframes.find((item) => String(item.id ?? '') === keyframeRef.id)
+    const keyframe = input.keyframes.find((item) => entityMatchesRef(item, keyframeRef, 'keyframe'))
     return {
-      nodeId: keyframeRef.id,
+      nodeId: keyframe ? idText(keyframe) : keyframeRef,
       momentId: keyframe ? pathSegmentAfter(keyframe.path, 'scene_moments') ?? '' : '',
       shotId: keyframe ? pathSegmentAfter(keyframe.path, 'shots') ?? '' : '',
     }
@@ -1424,9 +1423,10 @@ function groupContentUnitsByPrimaryRef(contentUnits: MovScriptWorkspaceIndexedEn
     const type = stringField(contentUnit.record.content_unit_type)
     const primaryKind = primaryKindForContentUnitType(type)
     if (!primaryKind) continue
-    for (const ref of editPromptRefs(contentUnit).filter((item) => item.kind === primaryKind)) {
-      const key = primaryRefKey(ref.kind, ref.id)
-      output.set(key, [...(output.get(key) ?? []), contentUnit])
+    for (const ref of primaryRefIdsForContentUnitRecord(contentUnit.record, primaryKind)) {
+      for (const key of primaryRefKeys(primaryKind, ref)) {
+        output.set(key, [...(output.get(key) ?? []), contentUnit])
+      }
     }
   }
   return output
@@ -1536,6 +1536,31 @@ function primaryKindForContentUnitType(type: string | undefined): 'asset' | 'key
   return undefined
 }
 
+function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind: string): string[] {
+  switch (kind) {
+    case 'asset':
+      return compactStrings(record.asset_ref)
+    case 'keyframe':
+      return compactStrings(record.keyframe_ref)
+    case 'storyboard':
+      return compactStrings(record.storyboard_ref)
+    case 'scene_moment':
+      return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
+    case 'shot':
+      return compactStrings(record.shot_ref)
+    default:
+      return []
+  }
+}
+
+function compactStrings(...values: unknown[]): string[] {
+  return values.flatMap((value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return [String(value)]
+    if (typeof value === 'string' && value.trim()) return [value.trim()]
+    return []
+  })
+}
+
 function editPromptRefs(contentUnit: MovScriptWorkspaceIndexedEntity): Array<{ kind: string; id: string }> {
   const text = editPromptText(contentUnit) ?? ''
   const refs: Array<{ kind: string; id: string }> = []
@@ -1591,6 +1616,14 @@ function idText(entity: MovScriptWorkspaceIndexedEntity): string {
   return String(entity.id ?? entity.record.id ?? entity.record.ID ?? entity.path)
 }
 
+function entityMatchesRef(entity: MovScriptWorkspaceIndexedEntity, ref: string, kind: string): boolean {
+  const normalized = ref.replace(/\/+$/, '')
+  const dir = entity.path.replace(/\/[^/]+$/, '')
+  return String(entity.id ?? '') === ref
+    || dir === normalized
+    || entity.path === `${normalized}/${kind}.json`
+}
+
 function sortEntities<T extends MovScriptWorkspaceIndexedEntity>(entities: T[]): T[] {
   return [...entities].sort((left, right) => numberField(left.record.order) - numberField(right.record.order) || left.path.localeCompare(right.path))
 }
@@ -1617,6 +1650,14 @@ function pathSegmentAfter(path: string, segment: string): string | undefined {
 
 function primaryRefKey(kind: string, id: unknown): string {
   return `${kind}:${String(id ?? '')}`
+}
+
+function primaryRefKeys(kind: string, ref: string | number): string[] {
+  const value = String(ref)
+  const keys = [primaryRefKey(kind, value)]
+  const lastSegment = value.split('/').filter(Boolean).at(-1)
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment))
+  return keys
 }
 
 function shotCameraText(shot: MovScriptWorkspaceIndexedEntity): string {

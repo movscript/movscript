@@ -200,6 +200,7 @@ export type AgentChatServerRequestMethod =
   | 'item/permissions/requestApproval'
   | 'item/tool/requestUserInput'
   | 'mcpServer/elicitation/request'
+  | 'movscript/decision/request'
   | 'item/tool/call'
   | 'account/chatgptAuthTokens/refresh'
   | 'attestation/generate'
@@ -231,6 +232,7 @@ export type AgentChatServerRequestResponse =
   | { action: 'answer'; answers?: Record<string, unknown>; choiceIds?: string[]; text?: string }
   | { action: 'toolResult'; success: boolean; contentItems?: unknown[] }
   | { action: 'elicitation'; accepted: boolean; content?: unknown; meta?: unknown }
+  | { action: 'decision'; decision: 'adopt' | 'reject' | 'defer'; reason?: string; metadata?: Record<string, unknown> }
 
 export type AgentChatServerRequestHandler = (request: AgentChatServerRequest) => AgentChatServerRequestResponse | undefined | Promise<AgentChatServerRequestResponse | undefined>
 

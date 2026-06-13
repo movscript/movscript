@@ -32,6 +32,11 @@ export type {
   CreatedContentSourceCandidate,
 } from '@movscript/core/content'
 
+type ContentWorkspaceOwnerContext = {
+  userId?: number | string
+  orgId?: number | string
+}
+
 export const fixtureContentSourceWorkspaceData: ContentSourceWorkspaceData = {
   source: 'fixture',
   hierarchyTree: fixtureHierarchyTree,
@@ -42,14 +47,21 @@ export const fixtureContentSourceWorkspaceData: ContentSourceWorkspaceData = {
   assetReferenceUnits: fixtureAssetReferenceUnits,
 }
 
-export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspaceRuntimePort {
+export function createContentSourceWorkspaceRuntimePort(
+  ownerContext: () => ContentWorkspaceOwnerContext = () => ({}),
+): ContentSourceWorkspaceRuntimePort {
+  const projectInput = (projectId: number) => ({
+    ...ownerContext(),
+    projectId,
+  })
+
   return {
     async loadSnapshot(projectId) {
-      return requireContentWorkspaceEngineAPI('loadMovScriptEngineContentWorkspaceSnapshot')({ projectId })
+      return requireContentWorkspaceEngineAPI('loadMovScriptEngineContentWorkspaceSnapshot')(projectInput(projectId))
     },
     async selectContentUnitCandidate(input) {
       await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         contentUnitId: input.contentUnitId,
         candidateId: input.candidateId,
         ...(input.resourceId ? { resourceId: input.resourceId } : {}),
@@ -58,7 +70,7 @@ export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspac
     },
     async createContentCandidate(input) {
       const result = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         contentUnitId: input.contentUnitId,
         candidateId: input.candidateId,
         source: input.source,
@@ -72,48 +84,48 @@ export function createContentSourceWorkspaceRuntimePort(): ContentSourceWorkspac
     },
     async updateContentUnitEditPrompt(input) {
       await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         targetPath: input.targetPath,
         editPrompt: input.editPrompt,
       })
     },
     async updateExpressionUnit(input) {
       await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         targetPath: input.targetPath,
         patch: input.patch,
       })
     },
     async updateAudioCue(input) {
       await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         targetPath: input.targetPath,
         patch: input.patch,
       })
     },
     async updateEntityTransition(input) {
       await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         targetPath: input.targetPath,
         transition: input.transition,
       })
     },
     async updateStoryboardTimeline(input) {
       await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         targetPath: input.targetPath,
         timeline: input.timeline,
       })
     },
     async writeHierarchyNode(input) {
       await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
-        projectId: input.projectId,
+        ...projectInput(input.projectId),
         targetPath: input.targetPath,
         record: input.record,
       })
     },
     async interpretWorkspace(projectId) {
-      await requireContentWorkspaceEngineAPI('syncMovScriptEngineContentWorkspace')({ projectId })
+      await requireContentWorkspaceEngineAPI('syncMovScriptEngineContentWorkspace')(projectInput(projectId))
     },
   }
 }

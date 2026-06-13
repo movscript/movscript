@@ -10,7 +10,7 @@ import {
 
 export type MovScriptPromptOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
 export type MovScriptPromptRefKind = 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | 'content_unit'
-export type MovScriptPromptRefRole = 'primary' | 'input'
+export type MovScriptPromptRefRole = 'input'
 
 export interface MovScriptPromptRef {
   kind: MovScriptPromptRefKind
@@ -191,7 +191,7 @@ export async function buildContentUnitBackendPrompt(
 
   const resolvedRefs: MovScriptResolvedPromptRef[] = []
   for (const ref of refs) {
-    const role: MovScriptPromptRefRole = isPrimaryPromptRef(ref, primaryKind, primaryRefs) ? 'primary' : 'input'
+    const role: MovScriptPromptRefRole = 'input'
     const entity = resolvePromptRefEntity(input.index, ref)
     const base: MovScriptResolvedPromptRef = {
       ...ref,
@@ -214,11 +214,6 @@ export async function buildContentUnitBackendPrompt(
       resolvedRefs.push({ ...base, blocker })
       continue
     }
-    if (role === 'primary') {
-      resolvedRefs.push(base)
-      continue
-    }
-
     const upstream = resolveContentUnitForPromptRef(input.index, ref)
     if (!upstream || upstream.id === undefined) {
       const blocker: MovScriptPromptBuildBlocker = {
@@ -530,12 +525,7 @@ function primaryContentUnitRefs(
   contentUnit: MovScriptWorkspaceIndexedEntity,
   kind: MovScriptPromptRefKind,
 ): PrimaryContentUnitRef[] {
-  return [
-    ...flatPrimaryRefIds(contentUnit.record, kind).map((id) => ({ kind, id })),
-    ...parseContentUnitEditPromptRefs(contentUnit.record.edit_prompt)
-      .filter((ref) => ref.kind === kind)
-      .map((ref) => ({ kind, id: ref.id })),
-  ]
+  return flatPrimaryRefIds(contentUnit.record, kind).map((id) => ({ kind, id }))
 }
 
 function flatPrimaryRefIds(record: Record<string, unknown>, kind: MovScriptPromptRefKind): string[] {
@@ -557,16 +547,6 @@ function flatPrimaryRefIds(record: Record<string, unknown>, kind: MovScriptPromp
   }
 }
 
-function isPrimaryPromptRef(
-  ref: MovScriptPromptRef,
-  primaryKind: MovScriptPromptRefKind | undefined,
-  primaryRefs: PrimaryContentUnitRef[],
-): boolean {
-  if (!primaryKind || ref.kind !== primaryKind) return false
-  if (primaryRefs.length === 0) return true
-  return primaryRefs.some((primaryRef) => samePromptRefId(primaryRef.id, ref.id, ref.kind))
-}
-
 function hasAmbiguousPrimaryRefs(refs: PrimaryContentUnitRef[], kind: MovScriptPromptRefKind): boolean {
   const unique: PrimaryContentUnitRef[] = []
   for (const ref of refs) {
@@ -577,7 +557,15 @@ function hasAmbiguousPrimaryRefs(refs: PrimaryContentUnitRef[], kind: MovScriptP
 }
 
 function samePromptRefId(left: unknown, right: unknown, kind: MovScriptPromptRefKind): boolean {
-  return String(left) === String(right) || sameEntityRef(left, right, kind)
+  return String(left) === String(right)
+    || lastPathSegment(left) === String(right)
+    || lastPathSegment(right) === String(left)
+    || sameEntityRef(left, right, kind)
+}
+
+function lastPathSegment(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.includes('/')) return undefined
+  return value.split('/').filter(Boolean).at(-1)
 }
 
 function findEntityByRef(

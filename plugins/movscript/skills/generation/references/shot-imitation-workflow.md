@@ -18,15 +18,15 @@ Do not jump directly from "imitate this shot" to generation. First analyze the r
    - transitions or timing beats.
 5. When the reference frames should condition downstream image/video generation, materialize them with `system_resource_video_extract_frame_to_resource` or `system_resource_video_extract_frames_to_resources`. Use `system_resource_video_contact_sheet_to_resource` when an overview image is useful.
 6. Write the analysis into upstream structure: `shot`, `storyboard`, and `keyframe`.
-7. Generate or assemble storyboard panels from the frame analysis and materialized RawResources.
-8. Create a content unit for storyboard-panel upload/candidate/selection.
+7. Generate or assemble storyboard panels/images from the frame analysis and materialized RawResources.
+8. Create a `storyboard_ref` content unit for storyboard panels/images when possible, or a storyboard-panel upload content unit when a generic slot is needed.
 9. Write the storyboard-panel candidate.
 10. Ask the user to select or confirm the storyboard-panel result.
 11. Only after selection, use the selected storyboard panels as stable dependency for downstream video generation.
 
 ## Content Unit Type
 
-If no specialized adapter exists yet, use a clearly named generic type such as `storyboard_panel_ref` or `storyboard_upload_ref`.
+Prefer `storyboard_ref` for storyboard panels/images. If a workflow needs a looser upload/selection slot that the specialized adapter does not cover, use a clearly named generic type such as `storyboard_panel_ref` or `storyboard_upload_ref`.
 
 When using a generic type, state that it is a storyboard-panel upload/selection slot, not the final video-generation slot. Generic slots may not have full interpreter dependency tracking until a specialized adapter exists.
 

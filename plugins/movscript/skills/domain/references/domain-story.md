@@ -18,6 +18,8 @@ MovScript planning should first ask what is being made: a single output, a shot,
 
 Settings, assets, keyframes, storyboards, expression units, and audio cues are evidence or scaffolding for that center. Add them when they protect consistency, reuse, or generation quality; skip them when the user wants a quick low-stakes draft.
 
+When a reusable character, location, prop, style, or state will appear across generation tasks, or when the user is dissatisfied with its appearance, stabilize it through `setting` / `setting_state` / `asset` and an adopted/selected `asset_ref` content unit before downstream keyframe, storyboard, or video work. When composition or camera intent is important but underspecified, stabilize storyboard panels/images before keyframes and video.
+
 ## Structure Before Content Units
 
 Everything except `content_unit` is production structure or a prerequisite for generation:
@@ -37,8 +39,9 @@ The current tracked specialized types are:
 
 - `asset_ref`: image output for reusable asset reference candidates.
 - `keyframe_ref`: image output for shot/keyframe visual anchor candidates.
-- `storyboard_ref`: video output for storyboard or shot video candidates.
+- `storyboard_ref`: image output for storyboard panel/image candidates.
 - `scence_moment_ref`: video output for directly generating one complete scene moment.
+- `shot_ref`: video output for directly generating one camera unit.
 
 Unknown content unit types may be valid generic slots, but they are not fully tracked by interpreter dependency, hash, stale-selection, or regeneration artifacts.
 

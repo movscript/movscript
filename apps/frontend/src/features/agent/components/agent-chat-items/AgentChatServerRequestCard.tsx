@@ -17,15 +17,18 @@ import {
   agentChatInputRequestAnswerPayload,
   agentChatInputRequestFormCanSubmit,
   agentChatInputRequestFormModel,
+  agentChatMovScriptDecisionResponse,
   agentChatServerRequestView,
   agentChatToolResultContentItems,
   agentChatToolResultResponse,
+  MOVSCRIPT_DECISION_REQUEST_METHOD,
   nextAgentChatInputAnswerValues,
   type AgentChatElicitationField,
   type AgentChatElicitationValue,
   type AgentChatInputAnswerDraft,
   type AgentChatServerRequest,
   type AgentChatServerRequestResponse,
+  type MovScriptAgentDecision,
 } from '@movscript/core/agent/chat'
 import {
   AgentChatInspectBlock,
@@ -136,10 +139,17 @@ export function AgentChatServerRequestCard({
           {view.summary.length > 0 ? <AgentChatInlineList label="Summary" values={view.summary} /> : null}
           {view.argumentDetails !== undefined ? <AgentChatPreviewBlock label="Arguments" value={view.argumentDetails} contentKind="arguments" /> : null}
           {view.canAnswer ? (
-            <AgentChatServerRequestAnswerForm
-              request={request}
-              onAnswer={(response) => onAnswer?.(response)}
-            />
+            request.method === MOVSCRIPT_DECISION_REQUEST_METHOD ? (
+              <AgentChatMovScriptDecisionForm
+                request={request}
+                onAnswer={(response) => onAnswer?.(response)}
+              />
+            ) : (
+              <AgentChatServerRequestAnswerForm
+                request={request}
+                onAnswer={(response) => onAnswer?.(response)}
+              />
+            )
           ) : null}
           {view.canElicit ? (
             <AgentChatServerRequestElicitationForm
@@ -169,6 +179,45 @@ export function AgentChatServerRequestCard({
         </AgentChatContentStack>
       </AgentMessageSection>
     </AgentChatMessage>
+  )
+}
+
+function AgentChatMovScriptDecisionForm({
+  request,
+  onAnswer,
+}: {
+  request: AgentChatServerRequest
+  onAnswer: (response: AgentChatServerRequestResponse) => void
+}) {
+  const params = isRecord(request.params) ? request.params : {}
+  const question = stringField(params.question) ?? 'Choose how to handle this generated candidate.'
+  const choices: Array<{ decision: MovScriptAgentDecision; label: string; description: string }> = [
+    { decision: 'adopt', label: '采纳', description: '写入 selection，并让依赖它的下游节点继续推进。' },
+    { decision: 'reject', label: '放弃', description: '标记候选不可用，不作为稳定依赖。' },
+    { decision: 'defer', label: '待定', description: '保留候选，但不解除下游阻塞。' },
+  ]
+  return (
+    <div className="ms-agent-chat-request-form" data-testid="agent-chat-movscript-decision-form">
+      <div className="ms-agent-chat-request-field">
+        <div className="ms-agent-chat-request-label">{stringField(params.title) ?? '候选产物决策'}</div>
+        <div className="ms-agent-chat-request-help">{question}</div>
+        <div className="ms-agent-chat-request-options">
+          {choices.map((choice) => (
+            <button
+              key={choice.decision}
+              type="button"
+              className="ms-agent-chat-request-option"
+              onClick={() => onAnswer(agentChatMovScriptDecisionResponse(request, choice.decision))}
+            >
+              <span>
+                <span className="ms-agent-chat-request-option-label">{choice.label}</span>
+                <span className="ms-agent-chat-request-option-description">{choice.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -515,4 +564,12 @@ function AgentChatServerRequestAnswerForm({
       </div>
     </div>
   )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

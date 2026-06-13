@@ -57,9 +57,14 @@ export interface AgentConversationRegistrySelectorInput {
 }
 
 export function agentConversationIdForRegistryInput(
-  input: Pick<AgentConversationRegistryInput, 'id' | 'providerThreadId'>,
+  input: Pick<AgentConversationRegistryInput, 'id' | 'providerThreadId' | 'provider' | 'providerId' | 'providerInstanceId' | 'providerProtocol'>,
 ): string {
-  return input.id?.trim() || input.providerThreadId.trim()
+  const explicitId = input.id?.trim()
+  const providerThreadId = input.providerThreadId.trim()
+  if (explicitId && explicitId !== providerThreadId) return explicitId
+  const providerScopeKey = agentConversationProviderScopeKey(input)
+  if (providerScopeKey && providerThreadId) return `${providerScopeKey}:thread:${encodeURIComponent(providerThreadId)}`
+  return explicitId || providerThreadId
 }
 
 export function upsertAgentConversationRegistryRecord(
@@ -70,12 +75,22 @@ export function upsertAgentConversationRegistryRecord(
   const providerThreadId = input.providerThreadId.trim()
   const userId = input.userId.trim()
   if (!id || !providerThreadId || !userId) return records
-  const existing = records[id]
+  const legacyId = input.id?.trim() || providerThreadId
+  const legacyRecord = legacyId !== id ? records[legacyId] : undefined
+  const existing = records[id] ?? (
+    legacyRecord
+    && legacyRecord.providerThreadId === providerThreadId
+    && agentConversationRegistryRecordMatchesProvider(legacyRecord, input)
+      ? legacyRecord
+      : undefined
+  )
   const now = Date.now()
   const createdAt = normalizedTimestamp(input.createdAt, existing?.createdAt ?? now)
   const updatedAt = normalizedTimestamp(input.updatedAt, now)
+  const next = { ...records }
+  if (legacyId !== id && existing === legacyRecord) delete next[legacyId]
   return {
-    ...records,
+    ...next,
     [id]: normalizeAgentConversationRegistryRecord({
       ...(existing ?? {
         id,
@@ -94,6 +109,23 @@ export function upsertAgentConversationRegistryRecord(
       updatedAt,
     }),
   }
+}
+
+function agentConversationProviderScopeKey(
+  input: Pick<AgentConversationRegistryInput, 'provider' | 'providerId' | 'providerInstanceId' | 'providerProtocol'>,
+): string {
+  const provider = input.provider?.trim()
+  const providerId = input.providerId?.trim()
+  const providerInstanceId = input.providerInstanceId?.trim()
+  const providerProtocol = input.providerProtocol?.trim()
+  if (!provider && !providerId && !providerInstanceId && !providerProtocol) return ''
+  return [
+    'provider',
+    providerProtocol || 'unknown-protocol',
+    provider || 'unknown-provider',
+    providerId || provider || 'unknown-id',
+    providerInstanceId || providerId || provider || 'default',
+  ].map(encodeURIComponent).join(':')
 }
 
 export function removeAgentConversationRegistryRecord(

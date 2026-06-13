@@ -151,12 +151,13 @@ function groupContentUnitsByPrimaryRef(index: MovScriptWorkspaceDomainIndex): Ma
     if (!contentUnitType || !hasSpecializedContentUnitAdapter(contentUnitType)) continue
     const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
     if (!primaryKind) continue
-    const primaryRefs = parseContentUnitEditPromptRefs(entity.record.edit_prompt).filter((ref) => ref.kind === primaryKind)
+    const primaryRefs = primaryRefIdsForContentUnitRecord(entity.record, primaryKind)
     if (primaryRefs.length !== 1) continue
     const primaryRef = primaryRefs[0]
     if (!primaryRef) continue
-    const key = primaryRefKey(primaryKind, primaryRef.id)
-    out.set(key, [...(out.get(key) ?? []), entity])
+    for (const key of primaryRefKeys(primaryKind, primaryRef)) {
+      out.set(key, [...(out.get(key) ?? []), entity])
+    }
   }
   return out
 }
@@ -192,31 +193,41 @@ function primaryRefKindForContentUnitType(contentUnitType: string): 'asset' | 'k
   }
 }
 
-function parseContentUnitEditPromptRefs(value: unknown): Array<{ kind: string; id: string }> {
-  const editPrompt = recordField(value)
-  return [
-    ...parsePromptRefsFromText(stringField(editPrompt?.text)),
-    ...parsePromptRefsFromText(stringField(editPrompt?.negative_text)),
-    ...parsePromptRefsFromText(stringField(editPrompt?.notes)),
-  ]
-}
-
-const PROMPT_REF_PATTERN = /\{\{([a-z_]+):([^{}:\s][^{}]*)\}\}/g
-
-function parsePromptRefsFromText(text: string | undefined): Array<{ kind: string; id: string }> {
-  if (!text) return []
-  const refs: Array<{ kind: string; id: string }> = []
-  for (const match of text.matchAll(PROMPT_REF_PATTERN)) {
-    const kind = match[1]?.trim()
-    const id = match[2]?.trim()
-    if (!kind || !id) continue
-    refs.push({ kind, id })
-  }
-  return refs
-}
-
 function primaryRefKey(kind: string, id: string | number): string {
   return `${kind}:${String(id)}`
+}
+
+function primaryRefKeys(kind: string, ref: string | number): string[] {
+  const value = String(ref)
+  const keys = [primaryRefKey(kind, value)]
+  const lastSegment = value.split('/').filter(Boolean).at(-1)
+  if (lastSegment && lastSegment !== value) keys.push(primaryRefKey(kind, lastSegment))
+  return keys
+}
+
+function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind: string): string[] {
+  switch (kind) {
+    case 'asset':
+      return compactStrings(record.asset_ref)
+    case 'keyframe':
+      return compactStrings(record.keyframe_ref)
+    case 'storyboard':
+      return compactStrings(record.storyboard_ref)
+    case 'scene_moment':
+      return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
+    case 'shot':
+      return compactStrings(record.shot_ref)
+    default:
+      return []
+  }
+}
+
+function compactStrings(...values: unknown[]): string[] {
+  return values.flatMap((value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return [String(value)]
+    if (typeof value === 'string' && value.trim()) return [value.trim()]
+    return []
+  })
 }
 
 function timelineItem(

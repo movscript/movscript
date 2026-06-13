@@ -521,6 +521,41 @@ test('app-server protocol adapter keeps local dynamic tool images out of inputIm
   })
 })
 
+test('app-server protocol adapter maps MovScript decision responses', () => {
+  const response = appServerThreadTurnItemServerRequestResponseFromAgentChat(
+    {
+      id: 'decision_1',
+      method: 'movscript/decision/request',
+      params: {
+        projectId: 'demo',
+        contentUnitId: 'cu_character_front',
+        candidateId: 'candidate_front_1',
+      },
+      raw: {},
+    } as never,
+    {
+      action: 'decision',
+      decision: 'adopt',
+      reason: 'The front portrait matches the character setting.',
+      metadata: {
+        projectId: 'demo',
+        contentUnitId: 'cu_character_front',
+        candidateId: 'candidate_front_1',
+      },
+    },
+  )
+
+  assert.deepEqual(response, {
+    decision: 'adopt',
+    reason: 'The front portrait matches the character setting.',
+    metadata: {
+      projectId: 'demo',
+      contentUnitId: 'cu_character_front',
+      candidateId: 'candidate_front_1',
+    },
+  })
+})
+
 test('app-server thread-turn-item data source forwards run profiles to thread and turn requests', async () => {
   const calls: Array<{ method: string; params: Record<string, unknown> }> = []
   const client = {

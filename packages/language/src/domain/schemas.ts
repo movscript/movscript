@@ -463,7 +463,7 @@ export const contentUnitEntitySchema = {
       params: { type: 'object', additionalProperties: true },
     }),
   }),
-  promptSummary: 'Content unit is a project-level stable prompt entity. It declares content_unit_type, output_kind, edit_prompt, and model_intent. References are written inside edit_prompt with {{type:id}} syntax. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
+  promptSummary: 'Content unit is a project-level stable prompt entity. It declares content_unit_type, output_kind, structured target refs such as shot_ref or asset_ref, edit_prompt, and model_intent. References written inside edit_prompt with {{type:id}} syntax are upstream inputs. Candidates copy the normalized prompt snapshot at generation time; selections and runtime candidates are stored outside content_unit.json.',
   examples: [{
     title: 'shot_ref',
     content: {
@@ -473,7 +473,8 @@ export const contentUnitEntitySchema = {
       content_unit_type: 'shot_ref',
       output_kind: 'video',
       title: 'Hero watches the vibrating phone',
-      edit_prompt: { text: 'Generate {{shot:phone}} using selected storyboard {{storyboard:main}}.' },
+      shot_ref: 'phone',
+      edit_prompt: { text: 'Generate the phone shot using selected storyboard {{storyboard:main}}.' },
     },
   }],
 } satisfies SemanticEntitySchemaDefinition

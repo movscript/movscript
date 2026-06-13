@@ -39,6 +39,16 @@ export interface MovScriptContentUnitDecisionSelectionInput extends MovScriptCon
   metadata?: Record<string, unknown>
 }
 
+export interface MovScriptContentUnitCandidateDecisionInput extends MovScriptContentUnitDecisionTarget {
+  candidateId: string | number
+  decision: 'adopt' | 'reject' | 'defer'
+  resourceId?: string | number
+  stalePolicy?: 'strict' | 'accept_stale'
+  reason?: string
+  decidedAt?: string
+  metadata?: Record<string, unknown>
+}
+
 export interface MovScriptContentUnitDecisionSelectionResult {
   path: string
   record: Record<string, unknown>

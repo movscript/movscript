@@ -914,7 +914,7 @@ test('core does not queue managed resume for inactive completed history', () => 
   assert.deepEqual(state.managedThreadResumes, {})
 })
 
-test('core dedupes managed resume requests and records refresh-after-in-flight', () => {
+test('core dedupes managed resume requests and clears refresh-after-in-flight on success', () => {
   let state = agentChat.createAgentChatRuntimeState('thread_1')
   state = agentChat.queueAgentChatRuntimeThreadResumeRequest(state, 'thread_1')
   state = agentChat.queueAgentChatRuntimeThreadResumeRequest(state, ' thread_1 ')
@@ -946,12 +946,8 @@ test('core dedupes managed resume requests and records refresh-after-in-flight',
     thread: testThread({ status: 'running', updatedAt: 2 }),
   })
 
-  assert.deepEqual(state.threadResumeRequests, [{
-    id: 1,
-    threadId: 'thread_1',
-    status: 'pending',
-    refreshAfterInFlight: false,
-  }])
+  assert.deepEqual(state.threadResumeRequests, [])
+  assert.deepEqual(agentChat.selectAgentChatRuntimePendingThreadResumeRequests(state), [])
   assert.deepEqual(state.managedThreadResumes.thread_1, {
     threadId: 'thread_1',
     status: 'resumed',

@@ -362,7 +362,8 @@ test('core content source workspace builds project workbench data without deskto
     title: 'Phone shot unit',
     content_unit_type: 'storyboard_ref',
     output_kind: 'video',
-    edit_prompt: { text: 'Make {{storyboard:main}} with {{asset:phone_screen}}.' },
+    storyboard_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main',
+    edit_prompt: { text: 'Make the storyboard with {{asset:phone_screen}}.' },
   })
 
   const data = buildContentSourceWorkspaceData({
@@ -703,7 +704,8 @@ function contentSourceWorkspaceSnapshot(options = {}) {
     title: 'Phone shot unit',
     content_unit_type: 'storyboard_ref',
     output_kind: 'video',
-    edit_prompt: { text: 'Make {{storyboard:main}} with {{asset:phone_screen}}.' },
+    storyboard_ref: 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone/storyboards/main',
+    edit_prompt: { text: 'Make the storyboard with {{asset:phone_screen}}.' },
   })
   const entities = [production, segment, moment, shot, storyboard, setting, settingState, asset, contentUnit]
   return {

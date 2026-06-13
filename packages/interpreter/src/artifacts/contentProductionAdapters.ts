@@ -14,14 +14,17 @@ import {
   contentUnitOutputKind,
   entityDir,
   expectedOutputKindForContentUnitType,
+  findEntityByRef,
+  hasAmbiguousPrimaryRefs,
   idField,
   isRecord,
   parseContentUnitEditPromptRefs,
+  primaryContentUnitRefs,
+  primaryRefFieldNameForKind,
   projectStyleReferenceResourceIds,
   readSelectedContentUnit,
   recordField,
   resolveContentUnitForPromptRef,
-  resolvePromptRefEntity,
   resolvePromptRefs,
   stableJsonValue,
   stringField,
@@ -84,13 +87,18 @@ function refAdapter(
       if (expectedOutputKind && context.contentUnit.record.output_kind !== expectedOutputKind) {
         issues.push({ severity: 'error', message: `${type} output_kind must be ${expectedOutputKind}` })
       }
-      const refs = parseContentUnitEditPromptRefs(context.contentUnit.record.edit_prompt)
-      const primaryRefs = refs.filter((ref) => ref.kind === primaryKind)
+      const primaryRefs = primaryContentUnitRefs(context.contentUnit, primaryKind)
+      const primaryFieldName = primaryRefFieldNameForKind(primaryKind)
       if (primaryRefs.length === 0) {
-        issues.push({ severity: 'error', message: `${type} requires {{${primaryKind}:id}} in edit_prompt` })
+        issues.push({ severity: 'error', message: `${type} requires ${primaryFieldName}` })
       }
-      if (primaryRefs.length > 1) {
-        issues.push({ severity: 'error', message: `${type} accepts only one {{${primaryKind}:id}} primary ref` })
+      if (hasAmbiguousPrimaryRefs(primaryRefs, primaryKind)) {
+        issues.push({ severity: 'error', message: `${type} accepts only one ${primaryFieldName}` })
+      }
+      for (const ref of primaryRefs) {
+        if (ref.kind !== 'content_unit' && !findEntityByRef(context.index, ref.kind, ref.id)) {
+          issues.push({ severity: 'error', message: `${type} ${primaryFieldName} does not resolve: ${ref.id}` })
+        }
       }
       return issues
     },
@@ -226,29 +234,30 @@ function runtimePanelFor(
 
 function promptBlockers(
   context: AdapterContext,
-  refs: ContentUnitResolvedRef[],
+  _refs: ContentUnitResolvedRef[],
   primaryKind: ContentUnitPromptRefKind,
 ): ContentUnitPromptBlocker[] {
   const blockers: ContentUnitPromptBlocker[] = []
-  const primaryRefs = refs.filter((ref) => ref.kind === primaryKind)
+  const primaryRefs = primaryContentUnitRefs(context.contentUnit, primaryKind)
+  const primaryFieldName = primaryRefFieldNameForKind(primaryKind)
   if (primaryRefs.length === 0) {
     blockers.push({
       code: 'primary_ref_missing',
-      message: `${context.contentUnit.record.content_unit_type} requires {{${primaryKind}:id}} in edit_prompt`,
+      message: `${context.contentUnit.record.content_unit_type} requires ${primaryFieldName}`,
     })
   }
-  if (primaryRefs.length > 1) {
+  if (hasAmbiguousPrimaryRefs(primaryRefs, primaryKind)) {
     blockers.push({
       code: 'primary_ref_ambiguous',
-      message: `${context.contentUnit.record.content_unit_type} accepts only one {{${primaryKind}:id}} primary ref`,
+      message: `${context.contentUnit.record.content_unit_type} accepts only one ${primaryFieldName}`,
     })
   }
   for (const ref of primaryRefs) {
-    if (!resolvePromptRefEntity(context.index, ref)) {
+    if (ref.kind !== 'content_unit' && !findEntityByRef(context.index, ref.kind, ref.id)) {
       blockers.push({
         code: 'ref_not_found',
-        ref: ref.raw,
-        message: `primary ref does not resolve: ${ref.raw}`,
+        ref: ref.id,
+        message: `primary ref does not resolve: ${ref.id}`,
       })
     }
   }

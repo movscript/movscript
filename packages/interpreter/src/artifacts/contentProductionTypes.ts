@@ -20,7 +20,7 @@ export interface ContentUnitPromptRef {
 }
 
 export interface ContentUnitResolvedRef extends ContentUnitPromptRef {
-  role: 'primary' | 'input'
+  role: 'input'
   resolved?: {
     entityKind: string
     id?: string | number

@@ -26,6 +26,7 @@ import {
 import type { AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { selectActiveAgentConversationRegistryRecord } from '@movscript/core/agent'
+import type { Project } from '@/types'
 
 export const APP_SERVER_THREAD_OPEN_EVENT = 'movscript:app-server-thread-open'
 
@@ -35,6 +36,7 @@ export interface AppServerChatShellProps {
   emptyThreadLabel?: string
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
+  currentProject?: Project | null
   showCollapse?: boolean
   onCollapse?: () => void
 }
@@ -52,6 +54,7 @@ function AppServerChatShellContent({
   emptyThreadLabel,
   host,
   surface = 'panel',
+  currentProject,
   showCollapse,
   onCollapse,
 }: AppServerChatShellProps) {
@@ -128,6 +131,7 @@ function AppServerChatShellContent({
       composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}
       modelOptions={textModels}
+      currentProject={currentProject}
       selectedModelId={settings.modelId}
       onSelectedModelChange={(modelId) => updateSettings({ modelId })}
       collaborationMode={settings.collaborationMode}

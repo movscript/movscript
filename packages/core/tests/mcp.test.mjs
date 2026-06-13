@@ -174,6 +174,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_create_content_candidate'))
   assert.ok(tools.includes('domain_create_content_candidate_batch'))
   assert.ok(tools.includes('domain_select_content_unit_candidate_batch'))
+  assert.ok(tools.includes('domain_decide_content_unit_candidate'))
   assert.ok(tools.includes('domain_review'))
   assert.ok(tools.includes('domain_interpret'))
   assert.equal(tools.includes('domain_update_scene_moment_timing'), false)
@@ -1495,16 +1496,39 @@ test('MCP content unit candidate flow writes source records and refreshes interp
     assert.equal(candidateResponse.error, undefined)
     assert.equal(candidateResponse.result.data.path, 'content_units/arrival_preview/candidates/candidate_a/content_candidate.json')
 
+    const deferredResponse = await handleJSONRPC({
+      jsonrpc: '2.0',
+      id: 'content-candidate-defer',
+      method: 'tools/call',
+      params: {
+        name: 'domain_decide_content_unit_candidate',
+        arguments: {
+          projectId: 8,
+          contentUnitId: 'arrival_preview',
+          candidateId: 'candidate_a',
+          decision: 'defer',
+          reason: 'waiting for user comparison',
+          decidedAt: '2026-06-13T08:00:00.000Z',
+        },
+      },
+    })
+
+    assert.equal(deferredResponse.error, undefined)
+    assert.equal(deferredResponse.result.data.record.candidates[0].decision_status, 'defer')
+    assert.equal(deferredResponse.result.data.record.candidates[0].decision_reason, 'waiting for user comparison')
+    assert.equal(deferredResponse.result.data.record.selection, undefined)
+
     const selectionResponse = await handleJSONRPC({
       jsonrpc: '2.0',
       id: 'content-candidate-select',
       method: 'tools/call',
       params: {
-        name: 'domain_select_content_unit_candidate',
+        name: 'domain_decide_content_unit_candidate',
         arguments: {
           projectId: 8,
           contentUnitId: 'arrival_preview',
           candidateId: 'candidate_a',
+          decision: 'adopt',
           reason: 'user confirmed preview frame',
         },
       },

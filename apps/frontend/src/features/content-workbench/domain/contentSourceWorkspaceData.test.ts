@@ -43,6 +43,48 @@ test('content source workspace data loads through the Electron engine API', asyn
   ])
 })
 
+test('content source workspace runtime port includes workspace owner context', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const snapshot = emptySnapshot()
+  await withElectronAPI({
+    loadMovScriptEngineContentWorkspaceSnapshot: async (input) => {
+      calls.push({ method: 'snapshot', input })
+      return snapshot
+    },
+    selectMovScriptEngineContentUnitCandidate: async (input) => {
+      calls.push({ method: 'select', input })
+    },
+    syncMovScriptEngineContentWorkspace: async (input) => {
+      calls.push({ method: 'sync', input })
+    },
+  }, async () => {
+    const port = createContentSourceWorkspaceRuntimePort(() => ({ userId: 1 }))
+    await port.loadSnapshot(13)
+    await port.selectContentUnitCandidate({
+      projectId: 13,
+      contentUnitId: 'cu-video',
+      candidateId: 'cand-a',
+      reason: 'content_source_workspace_selection',
+    })
+    await port.interpretWorkspace(13)
+  })
+
+  assert.deepEqual(calls, [
+    { method: 'snapshot', input: { userId: 1, projectId: 13 } },
+    {
+      method: 'select',
+      input: {
+        userId: 1,
+        projectId: 13,
+        contentUnitId: 'cu-video',
+        candidateId: 'cand-a',
+        reason: 'content_source_workspace_selection',
+      },
+    },
+    { method: 'sync', input: { userId: 1, projectId: 13 } },
+  ])
+})
+
 test('content source workspace selection writes through the Electron engine API', async () => {
   const calls: unknown[] = []
   await withElectronAPI({

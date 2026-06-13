@@ -8,6 +8,7 @@ import {
   generatedAttachmentResourceId,
   generatedCandidateAttachPayload,
   generatedCandidateAttachSummary,
+  generatedContentUnitCandidateDecisionRef,
   generatedKeyframeCandidatePayload,
   generatedBindingErrorMessage,
   generatedBindingTargetLabel,
@@ -101,11 +102,47 @@ test('candidate status helper only treats unresolved statuses as adoptable', () 
 
 test('generatedAttachmentResourceId only accepts positive integer ids', () => {
   assert.equal(generatedAttachmentResourceId({ resourceId: 9101 }), 9101)
+  assert.equal(generatedAttachmentResourceId({ resourceId: undefined, generated: { resourceId: 9102 } }), 9102)
   assert.equal(generatedAttachmentResourceId({ resourceId: undefined }), undefined)
   assert.equal(generatedAttachmentResourceId({ resourceId: 0 }), undefined)
   assert.equal(generatedAttachmentResourceId({ resourceId: -1 }), undefined)
   assert.equal(generatedAttachmentResourceId({ resourceId: 1.2 }), undefined)
   assert.equal(generatedAttachmentResourceId({ resourceId: Number.NaN }), undefined)
+})
+
+test('generatedContentUnitCandidateDecisionRef requires content unit, candidate, and resource ids', () => {
+  assert.deepEqual(generatedContentUnitCandidateDecisionRef({
+    ...generatedAttachment,
+    resourceId: undefined,
+    generated: {
+      ...generatedAttachment.generated,
+      contentUnitId: 'asset.hero.base',
+      candidateId: 'candidate.fire.v1',
+      resourceId: 9102,
+    },
+  }), {
+    contentUnitId: 'asset.hero.base',
+    candidateId: 'candidate.fire.v1',
+    resourceId: 9102,
+  })
+
+  assert.equal(generatedContentUnitCandidateDecisionRef({
+    ...generatedAttachment,
+    generated: {
+      ...generatedAttachment.generated,
+      contentUnitId: 'asset.hero.base',
+    },
+  }), undefined)
+  assert.equal(generatedContentUnitCandidateDecisionRef({
+    ...generatedAttachment,
+    resourceId: undefined,
+    generated: {
+      ...generatedAttachment.generated,
+      contentUnitId: 'asset.hero.base',
+      candidateId: 'candidate.fire.v1',
+      resourceId: 0,
+    },
+  }), undefined)
 })
 
 test('generated candidate target filter hides internal candidate asset slots', () => {

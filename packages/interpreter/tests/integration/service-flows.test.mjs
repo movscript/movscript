@@ -50,7 +50,7 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
   await service.updateContentUnitEditPrompt({
     targetPath: 'content_units/k41m/content_unit.json',
     editPrompt: {
-      text: 'Service prompt {{shot:phone}} {{asset:wet_hair}}',
+      text: 'Service prompt {{asset:wet_hair}}',
       negative_text: 'flat lighting',
     },
   })
@@ -211,7 +211,7 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   const assetContentUnit = JSON.parse(files.get('content_units/cu_wet_hair_ref/content_unit.json'))
   assetContentUnit.edit_prompt = {
     ...assetContentUnit.edit_prompt,
-    text: 'Updated wet hair reference prompt. {{asset:wet_hair}}',
+    text: 'Updated wet hair reference prompt.',
   }
   files.set('content_units/cu_wet_hair_ref/content_unit.json', `${JSON.stringify(assetContentUnit, null, 2)}\n`)
 
@@ -576,7 +576,7 @@ test('node workspace service composes with interpreter review and interpret for 
 
     await service.updateContentUnitEditPrompt({
       targetPath: 'content_units/k41m/content_unit.json',
-      editPrompt: { text: 'Node service prompt {{shot:phone}} {{asset:wet_hair}}' },
+      editPrompt: { text: 'Node service prompt {{asset:wet_hair}}' },
     })
 
     const interpretation = await interpretMovScriptWorkspace({

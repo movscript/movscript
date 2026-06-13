@@ -87,6 +87,7 @@ export function useAgentChatViewController({
     workspace: store.workspace,
     settings: store.settings,
     updateSettings: store.updateSettings,
+    currentProject: store.currentProject,
     fileRef: providerSessionState.fileRef,
     inputRef: providerSessionState.inputRef,
     workspaceContextLocked: conversationEstablished,

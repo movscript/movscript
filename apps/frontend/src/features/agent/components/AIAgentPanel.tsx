@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import { AgentUnifiedChatShell } from '@/features/agent/components/AgentUnifiedChatShell'
 import { useAIAgentPanelDockController } from '@/features/agent/presentation/useAIAgentPanelDockController'
+import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { AgentPanelShell } from '@movscript/ui'
 
@@ -12,6 +13,7 @@ export const AIAgentPanel = memo(function AIAgentPanel({
   onWidthChange: (width: number) => void
 }) {
   const currentUser = useUserStore((s) => s.currentUser)
+  const currentProject = useProjectStore((s) => s.current)
   const userId = currentUser ? String(currentUser.ID) : ''
   const {
     dockLayout,
@@ -62,6 +64,7 @@ export const AIAgentPanel = memo(function AIAgentPanel({
         onCollapse={toggleOpen}
         showCollapse={false}
         host={dockLayout ? 'dock-panel' : 'floating-panel'}
+        currentProject={currentProject}
       />
     </AgentPanelShell>
   )

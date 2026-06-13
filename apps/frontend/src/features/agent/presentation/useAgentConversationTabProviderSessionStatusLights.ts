@@ -25,7 +25,8 @@ export function useAgentConversationTabProviderSessionStatusLights(conversations
   const tabProviderSessionTargets = useMemo(() => buildAgentConversationTabProviderSessionTargets({
     conversations,
     conversationThreadBindings,
-  }), [conversationThreadBindings, conversations])
+    conversationsById,
+  }), [conversationThreadBindings, conversations, conversationsById])
   const targetSignature = useMemo(() => providerSessionStatusLightTargetsSignature(tabProviderSessionTargets), [tabProviderSessionTargets])
   const targetsRef = useRef(tabProviderSessionTargets)
   targetsRef.current = tabProviderSessionTargets
@@ -139,15 +140,27 @@ export interface AgentConversationTabProviderSessionTarget extends ProviderSessi
 export function buildAgentConversationTabProviderSessionTargets(input: {
   conversations: Conversation[]
   conversationThreadBindings?: Record<string, AgentConversationThreadBinding>
+  conversationsById?: Record<string, AgentConversationRegistryRecord>
 }): AgentConversationTabProviderSessionTarget[] {
-  return input.conversations.map((conversation) => {
+  return input.conversations.flatMap((conversation) => {
+    if (conversationProviderProtocol(conversation, input.conversationsById) === 'app-server') return []
     const binding = input.conversationThreadBindings?.[conversation.id]
     const sessionId = (binding?.providerSessionTreeId ?? conversation.providerSessionId ?? '').trim()
     const threadId = (binding?.providerThreadId ?? conversation.providerThreadId ?? '').trim()
-    return {
+    return [{
       conversationId: conversation.id,
       ...(sessionId ? { sessionId } : {}),
       threadId,
-    }
+    }]
   })
+}
+
+function conversationProviderProtocol(
+  conversation: Conversation,
+  conversationsById: Record<string, AgentConversationRegistryRecord> | undefined,
+): string | undefined {
+  const recordProtocol = conversationsById?.[conversation.id]?.providerProtocol?.trim()
+  if (recordProtocol) return recordProtocol
+  const conversationProtocol = (conversation as Conversation & { providerProtocol?: unknown }).providerProtocol
+  return typeof conversationProtocol === 'string' ? conversationProtocol.trim() || undefined : undefined
 }

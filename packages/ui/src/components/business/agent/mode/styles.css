@@ -97,6 +97,48 @@
   margin-top: 2px;
 }
 
+.agent-mode-provider-switch {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 2px;
+  min-height: 34px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--agent-mode-sidebar-border) 78%, transparent);
+  border-radius: var(--ms-radius-control);
+  background: color-mix(in srgb, var(--ms-color-background) 72%, transparent);
+}
+
+.agent-mode-provider-switch__item {
+  display: inline-flex;
+  min-width: 0;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: calc(var(--ms-radius-control) - 2px);
+  background: transparent;
+  color: var(--agent-mode-sidebar-muted);
+  cursor: pointer;
+}
+
+.agent-mode-provider-switch__item:hover {
+  background: color-mix(in srgb, var(--ms-color-surface) 48%, transparent);
+  color: var(--agent-mode-sidebar-text);
+}
+
+.agent-mode-provider-switch__item[data-active="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-border-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--ms-color-surface) 92%, var(--ms-color-background));
+  color: var(--ms-color-foreground);
+  box-shadow: var(--ms-shadow-xs);
+}
+
+.agent-mode-provider-switch__item .ms-identity-mark {
+  width: 18px;
+  height: 18px;
+}
+
 .agent-mode-sidebar[data-collapsed="true"] .agent-mode-sidebar__top,
 .agent-mode-sidebar[data-collapsed="true"] .agent-mode-sidebar__scroll,
 .agent-mode-sidebar[data-collapsed="true"] .agent-mode-sidebar__footer {
@@ -175,6 +217,11 @@
 
 .agent-mode-sidebar[data-collapsed="true"] .agent-mode-sidebar__separator {
   margin-block: 8px;
+}
+
+.agent-mode-sidebar[data-collapsed="true"] .agent-mode-provider-switch {
+  grid-auto-flow: row;
+  grid-auto-rows: 28px;
 }
 
 .agent-mode-nav-item--compact {

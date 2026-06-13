@@ -38,6 +38,7 @@ toolGrants:
   - mcp__movscript__domain_create_content_candidate_batch
   - mcp__movscript__domain_create_asset_slot_candidate
   - mcp__movscript__domain_create_keyframe_candidate
+  - mcp__movscript__domain_decide_content_unit_candidate
   - mcp__movscript__domain_select_content_unit_candidate
   - mcp__movscript__domain_select_content_unit_candidate_batch
   - mcp__movscript__domain_select_candidate
@@ -72,6 +73,7 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
 - Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
 - Generated/imported resources become effective domain state only through backend-stored candidates and selections. A candidate is not a stable dependency until selected.
+- Content-unit candidate decisions are `adopt`, `reject`, or `defer`. `adopt` selects the candidate as stable output/reference, while `reject` and `defer` only annotate the candidate and must not unblock downstream stable generation.
 - Affected does not mean regenerate. Affected means the downstream target needs an explicit keep, relink, re-prompt, regenerate, re-shoot, deprecate, or accept-stale decision.
 
 ## Tool Map
@@ -80,7 +82,8 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - Model discovery: `domain_get_model`.
 - Query/read: `domain_query_entities`, `domain_query_settings`, `domain_query_assets`, `domain_query_production_context`, `domain_read_*`.
 - Structured writes: `domain_upsert_*`, `domain_update_*`, `domain_delete_entity`. Use production-chain upserts for production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, and expression_unit records when available.
-- Candidate writes: `domain_create_content_candidate`, batch content-candidate tools, and content-unit selection tools write backend decision metadata. Inline candidate tools remain compatibility APIs for asset/keyframe/source-entity candidates.
+- Candidate writes: `domain_create_content_candidate`, batch content-candidate tools, `domain_decide_content_unit_candidate`, and content-unit selection tools write backend decision metadata. Inline candidate tools remain compatibility APIs for asset/keyframe/source-entity candidates.
+- Prefer `domain_decide_content_unit_candidate` when recording a user-facing generated-candidate choice. Use `decision: "adopt"` for 采纳, `decision: "reject"` for 放弃, and `decision: "defer"` for 待定. Use direct selection tools only for legacy or explicitly confirmed selection flows.
 - For completed generated content-unit candidates, omit `status`; the backend defaults it to `succeeded`. If status is needed, use only `queued`, `running`, `succeeded`, `failed`, `canceled`, or `imported`; do not use workflow words such as `completed`, `ready`, `selected`, or `accepted`.
 - Interpreter steps: `domain_inspect`, `domain_interpret`, `domain_regeneration_plan`. `domain_review` is compatibility-only.
 
@@ -119,9 +122,9 @@ Do not directly edit:
 - Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
 - For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
 - If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
-- After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and interpreted read models should be refreshed. After content candidate or selection writes, run `domain_interpret` when `.interpret/current` must include the backend decision metadata.
+- After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and interpreted read models should be refreshed. After content candidate, decision, or selection writes, run `domain_interpret` when `.interpret/current` must include the backend decision metadata.
 - Do not interpret for read-only review, draft-only analysis, or source states with blocking issues; state the reason when interpret is intentionally skipped.
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
 - Use stable ids and MovScript `resource_id` references for generated or uploaded media.
-- Preserve user-facing review boundaries. Generated or edited data is not stable product state until the relevant source or backend decision metadata has been interpreted successfully.
+- Preserve user-facing review boundaries. Generated or edited data is not stable product state until the relevant source or backend decision metadata records adoption/selection and has been interpreted successfully.
 - Current specialized `content_unit_type` adapters are `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, and `shot_ref`. Unknown types are valid generic production slots, but the interpreter does not track their upstream dependencies or stale state.

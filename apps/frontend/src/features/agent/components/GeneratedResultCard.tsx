@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  MOVSCRIPT_DECISION_REQUEST_METHOD,
+  type AgentChatServerRequestResponse,
+} from '@movscript/core/agent/chat'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
@@ -8,6 +12,8 @@ import {
   createWorkspaceAssetSlotCandidate,
   createWorkspaceKeyframeCandidate,
 } from '@/shared/infrastructure/workspaceCandidateRepository'
+import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
+import { openAgentPanelDecisionRequest } from '@/features/agent/application/agentPanelBridge'
 import { attachmentToResource } from '@/features/agent/domain/agentAttachments'
 import { AgentAttachmentIcon, AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
@@ -18,6 +24,7 @@ import {
   generatedBindingTargetLabel,
   generatedCandidateAttachPayload,
   generatedCandidateAttachSummary,
+  generatedContentUnitCandidateDecisionRef,
   generatedKeyframeCandidatePayload,
   attachedGeneratedCandidateIdsAfterResults,
   invalidateGeneratedCandidateQueries,
@@ -100,7 +107,9 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
   const [expandedResults, setExpandedResults] = useState(false)
   const [candidateDialogAttachments, setCandidateDialogAttachments] = useState<AgentAttachment[] | null>(null)
   const [viewerAttachment, setViewerAttachment] = useState<AgentAttachment | null>(null)
+  const [requestedDecisionKeys, setRequestedDecisionKeys] = useState<Set<string>>(() => new Set())
   const generated = attachments.filter(isGeneratedResultAttachment)
+  const queryClient = useQueryClient()
   if (generated.length === 0) return null
   const hasUsableGeneratedResource = generated.some((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
   const candidateAttachments = generated.filter((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
@@ -112,6 +121,26 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
     setCopiedResourceId(resourceId)
     setTimeout(() => setCopiedResourceId(null), 1500)
   }
+
+  useEffect(() => {
+    if (!projectId) return
+    const requests = generated.flatMap((attachment) => {
+      const request = generatedContentUnitDecisionRequest(projectId, attachment)
+      if (!request || requestedDecisionKeys.has(request.key)) return []
+      return [request]
+    })
+    if (requests.length === 0) return
+    setRequestedDecisionKeys((current) => new Set([...current, ...requests.map((request) => request.key)]))
+    for (const request of requests) {
+      openAgentPanelDecisionRequest({
+        request: request.request,
+        onResolve: async (response) => {
+          await handleGeneratedContentUnitDecision(projectId, request, response)
+          await queryClient.invalidateQueries({ queryKey: ['agent-generated-candidate-targets', projectId] })
+        },
+      })
+    }
+  }, [generated, projectId, queryClient, requestedDecisionKeys])
 
   return (
     <AgentGeneratedResultCardShell data-testid="agent-generated-result-card">
@@ -213,6 +242,65 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
       />
     </AgentGeneratedResultCardShell>
   )
+}
+
+interface GeneratedContentUnitDecisionRequest {
+  key: string
+  contentUnitId: string | number
+  candidateId: string | number
+  resourceId: number
+  request: {
+    id: string
+    method: typeof MOVSCRIPT_DECISION_REQUEST_METHOD
+    params: Record<string, unknown>
+  }
+}
+
+function generatedContentUnitDecisionRequest(projectId: number, attachment: AgentAttachment): GeneratedContentUnitDecisionRequest | undefined {
+  const decisionRef = generatedContentUnitCandidateDecisionRef(attachment)
+  if (!decisionRef) return undefined
+  const { contentUnitId, candidateId, resourceId } = decisionRef
+  const key = `${projectId}:${String(contentUnitId)}:${String(candidateId)}:${resourceId}`
+  return {
+    key,
+    contentUnitId,
+    candidateId,
+    resourceId,
+    request: {
+      id: `movscript-decision:${key}`,
+      method: MOVSCRIPT_DECISION_REQUEST_METHOD,
+      params: {
+        title: `${attachment.name} 已生成`,
+        summary: '请选择是否采纳该候选作为后续生产的稳定依赖。',
+        question: `如何处理 content unit ${String(contentUnitId)} 的候选 ${String(candidateId)}?`,
+        projectId,
+        contentUnitId,
+        candidateId,
+        resourceId,
+        targetKind: 'content_unit',
+      },
+    },
+  }
+}
+
+async function handleGeneratedContentUnitDecision(
+  projectId: number,
+  request: GeneratedContentUnitDecisionRequest,
+  response: AgentChatServerRequestResponse | undefined,
+) {
+  if (response?.action !== 'decision') return
+  await createElectronMovScriptWorkspaceService({ projectId }).decideContentUnitCandidate({
+    contentUnitId: request.contentUnitId,
+    candidateId: request.candidateId,
+    decision: response.decision,
+    resourceId: request.resourceId,
+    reason: response.reason ?? `agent_panel_${response.decision}`,
+    metadata: {
+      source: 'agent_panel_decision_request',
+      request_id: request.request.id,
+      ...(response.metadata ?? {}),
+    },
+  })
 }
 
 function GeneratedMediaPreview({ attachment, onPreview }: { attachment: AgentAttachment; onPreview: () => void }) {

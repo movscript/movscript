@@ -23,7 +23,7 @@ export default function AgentModeCanvasListPage() {
             </AgentPageEyebrowRow>
             <h1 className="type-title font-semibold text-foreground">画布列表</h1>
             <AgentPageDescription>
-              管理当前项目可供 Agent 参考和执行的画布。
+              管理会话项目可供 Agent 参考和执行的画布。
             </AgentPageDescription>
           </AgentPageHeaderCopy>
         </AgentPageHeaderContent>

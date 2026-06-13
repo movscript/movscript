@@ -110,6 +110,7 @@ export {
   normalizeDecisionContext,
   overlayMovScriptDecisionDocuments,
   type MovScriptBackendDecisionStoreOptions,
+  type MovScriptContentUnitCandidateDecisionInput,
   type MovScriptContentUnitDecisionCandidateInput,
   type MovScriptContentUnitDecisionCandidatesInput,
   type MovScriptContentUnitDecisionSelectionInput,

@@ -163,6 +163,42 @@ test('createProviderSessionConversation writes conversation thread bindings', ()
   })
 })
 
+test('createProviderSessionConversation scopes identical thread ids by provider identity', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    conversationsById: {},
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    conversationProviderSessionStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  const codexConversationId = useAgentSessionStore.getState().createProviderSessionConversation('user_1', {
+    threadId: 'thread_shared',
+    provider: 'codex',
+    providerId: 'codex',
+    providerInstanceId: 'codex-home',
+    providerProtocol: 'app-server',
+    title: 'Codex thread',
+  })
+  const movaConversationId = useAgentSessionStore.getState().createProviderSessionConversation('user_1', {
+    threadId: 'thread_shared',
+    provider: 'mova',
+    providerId: 'mova',
+    providerInstanceId: 'mova-home',
+    providerProtocol: 'app-server',
+    title: 'Mova thread',
+  })
+
+  assert.notEqual(codexConversationId, movaConversationId)
+  assert.equal(useAgentSessionStore.getState().conversationsById[codexConversationId]?.title, 'Codex thread')
+  assert.equal(useAgentSessionStore.getState().conversationsById[movaConversationId]?.title, 'Mova thread')
+  assert.equal(useAgentSessionStore.getState().conversationsById[codexConversationId]?.providerThreadId, 'thread_shared')
+  assert.equal(useAgentSessionStore.getState().conversationsById[movaConversationId]?.providerThreadId, 'thread_shared')
+})
+
 test('legacy provider-session setters update conversation thread bindings', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},

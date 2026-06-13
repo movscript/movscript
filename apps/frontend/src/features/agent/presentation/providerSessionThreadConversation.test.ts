@@ -23,6 +23,13 @@ test('conversationFromProviderSessionThreadSummary falls back to persisted threa
   assert.equal(conversation.title, 'Edited title')
 })
 
+test('conversationFromProviderSessionThreadSummary fallback does not expose thread id', () => {
+  const conversation = conversationFromProviderSessionThreadSummary(makeThread(), translate)
+
+  assert.equal(conversation.title, '未命名会话')
+  assert.equal(conversation.title.includes('thread_123456'), false)
+})
+
 function makeThread(overrides: Partial<AgentThreadSummary> = {}): AgentThreadSummary {
   return {
     id: 'thread_123456',
@@ -35,6 +42,6 @@ function makeThread(overrides: Partial<AgentThreadSummary> = {}): AgentThreadSum
 }
 
 function translate(key: string, options?: Record<string, unknown>) {
-  if (key === 'agents.chat.panel.providerSession.providerThreadTitle') return `Provider 线程 ${String(options?.id ?? '')}`
+  if (key === 'agents.chat.panel.providerSession.providerThreadTitle') return '未命名会话'
   return key
 }

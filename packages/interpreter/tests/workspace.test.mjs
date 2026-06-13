@@ -238,9 +238,8 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.equal(runtimePanel.hash_rule, undefined)
   assert.equal(runtimePanel.upstream_selections, undefined)
   assert.match(runtimePanel.prompt.text, /Cold phone light on frightened face/)
-  assert.match(runtimePanel.prompt.text, /\{\{shot:phone\}\}/)
   assert.equal(generationPrompt.schema, 'movscript.content_unit_prompt.v1')
-  assert.equal(generationPrompt.refs.some((ref) => ref.kind === 'shot' && ref.role === 'primary'), true)
+  assert.equal(generationPrompt.refs.every((ref) => ref.role === 'input'), true)
   assert.equal(generationPrompt.refs.some((ref) => ref.kind === 'asset' && ref.role === 'input'), true)
   const dependencyReport = JSON.parse(files.get('.interpret/current/content_units/k41m/dependency_report.json'))
   assert.equal(dependencyReport.hash_inputs, undefined)
@@ -260,8 +259,9 @@ test('interpreter tracks scence_moment_ref content units as scene videos', async
     title: 'Phone call scene video',
     content_unit_type: 'scence_moment_ref',
     output_kind: 'video',
+    scene_moment_ref: 'r72k',
     edit_prompt: {
-      text: 'Generate the complete dramatic beat as one video. {{scene_moment:r72k}}',
+      text: 'Generate the complete dramatic beat as one video.',
     },
     model_intent: { capability: 'video', duration_sec: 8 },
   }))
@@ -279,7 +279,7 @@ test('interpreter tracks scence_moment_ref content units as scene videos', async
   assert.equal(runtimePanel.content_unit_type, 'scence_moment_ref')
   assert.equal(runtimePanel.output_kind, 'video')
   assert.equal(runtimePanel.status, 'ready')
-  assert.equal(generationPrompt.refs.some((ref) => ref.kind === 'scene_moment' && ref.role === 'primary' && ref.resolved?.id === 'r72k'), true)
+  assert.equal(generationPrompt.refs.every((ref) => ref.role === 'input'), true)
   assert.ok(previewTimeline.items.some((item) => item.itemType === 'scene_moment' && item.entity.id === 'r72k' && item.contentUnitIds.includes('cu_r72k_scene_video')))
   assert.ok(previewTimeline.items.some((item) => item.itemType === 'content_unit' && item.entity.id === 'cu_r72k_scene_video' && item.parentId === 'scene_moment:r72k'))
 })

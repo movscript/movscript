@@ -3,6 +3,10 @@ import type {
   AgentChatServerRequestResponse,
 } from './agentChatProtocol.js'
 
+export const MOVSCRIPT_DECISION_REQUEST_METHOD = 'movscript/decision/request'
+
+export type MovScriptAgentDecision = 'adopt' | 'reject' | 'defer'
+
 export type AgentChatServerRequestView = {
   title: string
   meta: string[]
@@ -58,6 +62,7 @@ export function agentChatServerRequestTitle(request: AgentChatServerRequest): st
   if (request.method === 'item/permissions/requestApproval') return 'Permission approval required'
   if (request.method === 'item/tool/requestUserInput') return 'Input required'
   if (request.method === 'mcpServer/elicitation/request') return 'MCP input required'
+  if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) return 'MovScript decision required'
   if (request.method === 'item/tool/call') return 'Tool call requested'
   if (request.method === 'applyPatchApproval') return 'Patch approval required'
   if (request.method === 'execCommandApproval') return 'Command approval required'
@@ -76,7 +81,7 @@ export function agentChatServerRequestCanApprove(request: AgentChatServerRequest
 
 export function agentChatServerRequestCanReject(request: AgentChatServerRequest): boolean {
   return agentChatServerRequestCanApprove(request)
-    || agentChatServerRequestCanAnswer(request)
+    || (agentChatServerRequestCanAnswer(request) && request.method !== MOVSCRIPT_DECISION_REQUEST_METHOD)
     || request.method === 'mcpServer/elicitation/request'
     || agentChatServerRequestCanSubmitToolResult(request)
     || request.method === 'account/chatgptAuthTokens/refresh'
@@ -85,6 +90,7 @@ export function agentChatServerRequestCanReject(request: AgentChatServerRequest)
 
 export function agentChatServerRequestCanAnswer(request: AgentChatServerRequest): boolean {
   return request.method === 'item/tool/requestUserInput'
+    || request.method === MOVSCRIPT_DECISION_REQUEST_METHOD
 }
 
 export function agentChatServerRequestCanElicit(request: AgentChatServerRequest): boolean {
@@ -247,6 +253,9 @@ export function agentChatAnswerResponse(
   request: AgentChatServerRequest,
   input: { answers?: Record<string, unknown>; choiceIds?: string[]; text?: string },
 ): AgentChatServerRequestResponse {
+  if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) {
+    return agentChatMovScriptDecisionResponse(request, movScriptDecisionFromAnswerInput(input))
+  }
   if (request.method !== 'item/tool/requestUserInput') return { action: 'answer', answers: input.answers ?? {} }
   return {
     action: 'answer',
@@ -258,6 +267,7 @@ export function agentChatAnswerResponse(
 
 export function agentChatRejectResponse(request: AgentChatServerRequest): AgentChatServerRequestResponse {
   if (request.method === 'mcpServer/elicitation/request') return { action: 'elicitation', accepted: false, content: null, meta: null }
+  if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) return agentChatMovScriptDecisionResponse(request, 'reject')
   if (request.method === 'item/tool/requestUserInput') return { action: 'answer', answers: {}, text: 'Rejected.' }
   if (request.method === 'item/tool/call') return { action: 'toolResult', success: false, contentItems: [] }
   return { action: 'reject' }
@@ -350,6 +360,19 @@ export function agentChatServerRequestSummary(request: AgentChatServerRequest): 
       params.allowCustomAnswer === true ? 'custom answer allowed' : '',
     ])
   }
+  if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) {
+    return compactStrings([
+      stringField(params.title),
+      stringField(params.summary) ? `summary: ${stringField(params.summary)}` : '',
+      stringField(params.question),
+      stringField(params.projectId ?? params.project_id) ? `project: ${stringField(params.projectId ?? params.project_id)}` : '',
+      stringField(params.contentUnitId ?? params.content_unit_id) ? `content unit: ${stringField(params.contentUnitId ?? params.content_unit_id)}` : '',
+      stringField(params.candidateId ?? params.candidate_id) ? `candidate: ${stringField(params.candidateId ?? params.candidate_id)}` : '',
+      stringField(params.resourceId ?? params.resource_id) ? `resource: ${stringField(params.resourceId ?? params.resource_id)}` : '',
+      stringField(params.targetKind ?? params.target_kind) ? `target: ${stringField(params.targetKind ?? params.target_kind)}` : '',
+      stringField(params.targetPath ?? params.target_path) ? `path: ${stringField(params.targetPath ?? params.target_path)}` : '',
+    ])
+  }
   if (request.method === 'mcpServer/elicitation/request') {
     return compactStrings([
       stringField(params.serverName) ? `server: ${stringField(params.serverName)}` : stringField(params.server) ? `server: ${stringField(params.server)}` : '',
@@ -388,8 +411,41 @@ export function agentChatServerRequestSummary(request: AgentChatServerRequest): 
 export function agentChatServerRequestArgumentDetails(request: AgentChatServerRequest): unknown | undefined {
   const params = isRecord(request.params) ? request.params : {}
   if (request.method === 'item/permissions/requestApproval') return params.args
+  if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) return params
   if (request.method !== 'item/tool/call') return undefined
   return params.arguments
+}
+
+export function agentChatMovScriptDecisionResponse(
+  request: AgentChatServerRequest,
+  decision: MovScriptAgentDecision,
+  reason?: string,
+): AgentChatServerRequestResponse {
+  const params = isRecord(request.params) ? request.params : {}
+  return {
+    action: 'decision',
+    decision,
+    ...(reason?.trim() ? { reason: reason.trim() } : {}),
+    metadata: {
+      requestId: request.id,
+      ...(stringField(params.projectId ?? params.project_id) ? { projectId: stringField(params.projectId ?? params.project_id) } : {}),
+      ...(stringField(params.contentUnitId ?? params.content_unit_id) ? { contentUnitId: stringField(params.contentUnitId ?? params.content_unit_id) } : {}),
+      ...(stringField(params.candidateId ?? params.candidate_id) ? { candidateId: stringField(params.candidateId ?? params.candidate_id) } : {}),
+      ...(stringField(params.resourceId ?? params.resource_id) ? { resourceId: stringField(params.resourceId ?? params.resource_id) } : {}),
+      ...(stringField(params.targetKind ?? params.target_kind) ? { targetKind: stringField(params.targetKind ?? params.target_kind) } : {}),
+      ...(stringField(params.targetPath ?? params.target_path) ? { targetPath: stringField(params.targetPath ?? params.target_path) } : {}),
+    },
+  }
+}
+
+function movScriptDecisionFromAnswerInput(input: { choiceIds?: string[]; text?: string }): MovScriptAgentDecision {
+  const value = [...(input.choiceIds ?? []), input.text]
+    .find((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    ?.trim()
+    .toLowerCase()
+  if (value === 'adopt' || value === 'accept' || value === 'select' || value === '采纳') return 'adopt'
+  if (value === 'defer' || value === 'pending' || value === '待定') return 'defer'
+  return 'reject'
 }
 
 function compactStrings(values: Array<string | undefined | null | false>): string[] {

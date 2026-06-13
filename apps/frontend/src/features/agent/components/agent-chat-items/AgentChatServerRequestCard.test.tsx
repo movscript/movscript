@@ -435,6 +435,47 @@ test('AgentChatServerRequestCard renders question-form input requests as answer 
   assert.match(html, /Submit/)
 })
 
+test('AgentChatServerRequestCard renders MovScript candidate decision requests as inline choices', () => {
+  const html = renderToStaticMarkup(
+    <AgentChatServerRequestCard
+      request={{
+        id: 'movscript_decision_1',
+        method: 'movscript/decision/request',
+        threadId: 'thread_1',
+        turnId: 'turn_1',
+        params: {
+          title: '基础正面照候选已生成',
+          summary: '请选择是否采纳该候选作为后续镜头稳定依赖。',
+          question: '如何处理 candidate_front_1?',
+          projectId: 'demo',
+          contentUnitId: 'cu_character_front',
+          candidateId: 'candidate_front_1',
+          resourceId: 'resource_42',
+          targetKind: 'content_unit',
+        },
+      }}
+      onApprove={() => undefined}
+      onAnswer={() => undefined}
+      onReject={() => undefined}
+    />,
+  )
+
+  assert.match(html, /MovScript decision required/)
+  assert.match(html, /基础正面照候选已生成/)
+  assert.match(html, /summary: 请选择是否采纳该候选作为后续镜头稳定依赖。/)
+  assert.match(html, /project: demo/)
+  assert.match(html, /content unit: cu_character_front/)
+  assert.match(html, /candidate: candidate_front_1/)
+  assert.match(html, /resource: resource_42/)
+  assert.match(html, /agent-chat-movscript-decision-form/)
+  assert.match(html, /采纳/)
+  assert.match(html, /放弃/)
+  assert.match(html, /待定/)
+  assert.match(html, /写入 selection/)
+  assert.doesNotMatch(html, /Allow once/)
+  assert.doesNotMatch(html, />Reject</)
+})
+
 test('AgentChatServerRequestCard renders MCP elicitation form schemas as answer controls', () => {
   const html = renderToStaticMarkup(
     <AgentChatServerRequestCard

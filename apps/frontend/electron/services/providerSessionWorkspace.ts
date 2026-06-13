@@ -81,6 +81,9 @@ export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspace
   const now = (input.now ?? new Date()).toISOString()
   const createdAt = previous?.session.createdAt ?? now
   const title = input.label?.trim() || previous?.session.title || input.providerProfileId
+  const previousStateTitle = previous?.state?.title?.trim()
+  const previousSessionTitle = previous?.session.title?.trim()
+  const preservedThreadTitle = previousStateTitle && previousStateTitle !== previousSessionTitle ? previousStateTitle : undefined
   const home = input.home?.trim() || previous?.home
   const workspaceContext = input.workspaceContext ?? previous?.workspaceContext
   const providerSessionCwd = input.providerSessionCwd?.trim() || previous?.providerSessionCwd
@@ -109,7 +112,7 @@ export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspace
       updatedAt: now,
     },
     state: {
-      title,
+      ...(preservedThreadTitle ? { title: preservedThreadTitle } : {}),
       status: input.status,
       ...(projectId !== undefined ? { projectId } : {}),
       messageCount: previous?.state?.messageCount ?? 0,

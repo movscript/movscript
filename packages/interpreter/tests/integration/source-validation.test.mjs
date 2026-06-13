@@ -39,7 +39,7 @@ test('workspace source review rejects path schema mismatch and unresolved conten
   assert.equal(review.readyToInterpret, false)
   assert.ok(review.issues.some((issue) => issue.message.includes('schema kind asset does not match source path entity setting')))
   assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit output_kind must be image')))
-  assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit requires {{storyboard:id}} in edit_prompt')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit requires storyboard_ref')))
 })
 
 test('workspace source review rejects ambiguous content unit primary refs', async () => {
@@ -75,9 +75,11 @@ test('workspace source review rejects ambiguous content unit primary refs', asyn
       kind: 'content_unit',
       id: 'k41m',
       title: 'Phone close-up',
-      content_unit_type: 'storyboard_ref',
-      output_kind: 'image',
-      edit_prompt: { text: 'Ambiguous storyboard refs {{storyboard:a}} {{storyboard:b}}.' },
+      content_unit_type: 'scence_moment_ref',
+      output_kind: 'video',
+      scene_moment_ref: 'a',
+      scence_moment_ref: 'b',
+      edit_prompt: { text: 'Ambiguous scene moment refs.' },
     })],
   ])
   const repository = memoryWorkspaceFileRepository(files)
@@ -88,7 +90,7 @@ test('workspace source review rejects ambiguous content unit primary refs', asyn
   })
 
   assert.equal(review.readyToInterpret, false)
-  assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit accepts only one {{storyboard:id}} primary ref')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit accepts only one scene_moment_ref')))
 })
 
 test('workspace source review rejects unresolved storyboard setting refs', async () => {
@@ -214,7 +216,7 @@ test('workspace source review validates min length in source references', async 
 
   assert.equal(review.readyToInterpret, false)
   assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit output_kind must be image')))
-  assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit requires {{storyboard:id}} in edit_prompt')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('storyboard_ref content_unit requires storyboard_ref')))
 })
 
 test('workspace source review validates scence_moment_ref primary refs', async () => {
@@ -240,7 +242,7 @@ test('workspace source review validates scence_moment_ref primary refs', async (
 
   assert.equal(review.readyToInterpret, false)
   assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit output_kind must be video')))
-  assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit requires {{scene_moment:id}} in edit_prompt')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit requires scene_moment_ref')))
 })
 
 test('workspace source review rejects unresolved content unit prompt refs', async () => {
@@ -265,7 +267,8 @@ test('workspace source review rejects unresolved content unit prompt refs', asyn
       title: 'Phone vibration sound',
       content_unit_type: 'storyboard_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Storyboard {{storyboard:main}} with missing keyframe {{keyframe:missing_keyframe}}.' },
+      storyboard_ref: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/storyboards/main',
+      edit_prompt: { text: 'Storyboard with missing keyframe {{keyframe:missing_keyframe}}.' },
     })],
   ])
   const repository = memoryWorkspaceFileRepository(files)
@@ -353,7 +356,8 @@ test('workspace source review accepts runtime content candidate documents outsid
       title: 'Phone close-up',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Generate portrait {{asset:portrait}}.' },
+      asset_ref: 'portrait',
+      edit_prompt: { text: 'Generate portrait.' },
     })],
     ['content_units/k41m/candidates/candidate_result/content_candidate.json', JSON.stringify({
       schema: 'movscript.content_candidate.v1',

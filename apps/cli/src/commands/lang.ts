@@ -1677,7 +1677,6 @@ async function saveContentUnitFromCliOptions(
   const preliminaryPrompt = buildContentUnitEditPrompt({
     text: options.prompt,
     negativeText: options.negativePrompt,
-    primaryRef: requestedType !== undefined ? contentUnitPrimaryPromptRef(requestedType, source) : undefined,
   })
   const preliminaryModelIntent = buildContentUnitModelIntent(options, requestedOutputKind, { defaultCapability: shouldDefaultCapability })
   const preliminary = await engine.workspaceService.upsertContentUnit({
@@ -1698,7 +1697,6 @@ async function saveContentUnitFromCliOptions(
   const outputKind = parseOptionalContentUnitOutputKind(record.output_kind)
     ?? requestedOutputKind
     ?? defaultCliContentUnitOutputKind(contentUnitType)
-  const primaryRef = contentUnitPrimaryPromptRef(contentUnitType, source)
   const finalRecord = pruneUndefined({
     ...record,
     content_unit_type: contentUnitType,
@@ -1706,7 +1704,6 @@ async function saveContentUnitFromCliOptions(
     edit_prompt: buildContentUnitEditPrompt({
       text: options.prompt ?? stringValue(recordField(record.edit_prompt)?.text),
       negativeText: options.negativePrompt ?? stringValue(recordField(record.edit_prompt)?.negative_text),
-      primaryRef,
     }),
     model_intent: buildContentUnitModelIntent(options, outputKind, { defaultCapability: shouldDefaultCapability }) ?? record.model_intent,
     production_ref: source.productionId,
@@ -1772,24 +1769,6 @@ function defaultCliContentUnitOutputKind(contentUnitType: string): CliContentUni
   }
 }
 
-function contentUnitPrimaryPromptRef(contentUnitType: string, source: ContentUnitSourceRefs): string | undefined {
-  switch (contentUnitType) {
-    case 'asset_ref':
-      return source.assetRef === undefined ? undefined : `{{asset:${source.assetRef}}}`
-    case 'keyframe_ref':
-      return source.keyframeId === undefined ? undefined : `{{keyframe:${source.keyframeId}}}`
-    case 'storyboard_ref':
-      return source.storyboardId === undefined ? undefined : `{{storyboard:${source.storyboardId}}}`
-    case 'scence_moment_ref':
-    case 'scene_moment_ref':
-      return source.sceneMomentId === undefined ? undefined : `{{scene_moment:${source.sceneMomentId}}}`
-    case 'shot_ref':
-      return source.shotId === undefined ? undefined : `{{shot:${source.shotId}}}`
-    default:
-      return undefined
-  }
-}
-
 function validateContentUnitSourceForType(
   contentUnitType: string,
   source: ContentUnitSourceRefs,
@@ -1808,20 +1787,12 @@ function validateContentUnitSourceForType(
 function buildContentUnitEditPrompt(input: {
   text?: string
   negativeText?: string
-  primaryRef?: string
 }): Record<string, unknown> | undefined {
-  const text = appendPromptRef(input.text, input.primaryRef)
+  const text = input.text?.trim() || undefined
   return pruneUndefined({
     text,
     negative_text: input.negativeText,
   })
-}
-
-function appendPromptRef(text: string | undefined, primaryRef: string | undefined): string | undefined {
-  const trimmed = text?.trim()
-  if (!primaryRef) return trimmed || undefined
-  if (trimmed?.includes(primaryRef)) return trimmed
-  return [trimmed, primaryRef].filter((item) => item && item.trim()).join('\n')
 }
 
 function buildContentUnitModelIntent(

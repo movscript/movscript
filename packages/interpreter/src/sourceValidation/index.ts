@@ -15,6 +15,8 @@ import {
 import {
   expectedOutputKindForContentUnitType,
   parseContentUnitEditPromptRefs,
+  primaryRefFieldNameForKind,
+  primaryRefIdsForContentUnitRecord,
   primaryRefKindForContentUnitType,
 } from '../artifacts/contentProductionHelpers.js'
 
@@ -178,22 +180,32 @@ function validateContentUnitRefs(
   }
   const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
   if (!primaryKind) return
-  const refs = parseContentUnitEditPromptRefs(record.edit_prompt)
-  const primaryRefs = refs.filter((ref) => ref.kind === primaryKind)
+  const primaryRefs = primaryRefIdsForContentUnitRecord(record, primaryKind)
+  const primaryFieldName = primaryRefFieldNameForKind(primaryKind)
   if (primaryRefs.length === 0) {
     issues.push({
       path: file.path,
       severity: 'error',
-      message: `${contentUnitType} content_unit requires {{${primaryKind}:id}} in edit_prompt`,
+      message: `${contentUnitType} content_unit requires ${primaryFieldName}`,
     })
   }
   if (primaryRefs.length > 1) {
     issues.push({
       path: file.path,
       severity: 'error',
-      message: `${contentUnitType} content_unit accepts only one {{${primaryKind}:id}} primary ref`,
+      message: `${contentUnitType} content_unit accepts only one ${primaryFieldName}`,
     })
   }
+  for (const ref of primaryRefs) {
+    if (!sourceRecordByPathOrId(graph, primaryKind, ref)) {
+      issues.push({
+        path: file.path,
+        severity: 'error',
+        message: `${contentUnitType} content_unit ${primaryFieldName} does not resolve: ${ref}`,
+      })
+    }
+  }
+  const refs = parseContentUnitEditPromptRefs(record.edit_prompt)
   for (const ref of refs) {
     const resolved = sourceRecordByPathOrId(graph, ref.kind, ref.id)
     if (!resolved && ref.kind !== 'content_unit') {

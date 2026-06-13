@@ -337,33 +337,33 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       }),
 
       createProviderSessionConversation: (userId, input) => {
-        const conversationId = input.threadId.trim()
-        if (!conversationId) return activeConversationIdForUser(get(), userId) ?? ''
         const title = input.title?.trim()
         const threadId = input.threadId.trim()
+        const conversationInput = {
+          userId,
+          providerThreadId: threadId,
+          ...(input.sessionId?.trim() ? { providerSessionId: input.sessionId.trim() } : {}),
+          ...(input.provider ? { provider: input.provider } : {}),
+          ...(input.providerId?.trim() ? { providerId: input.providerId.trim() } : {}),
+          ...(input.providerInstanceId?.trim() ? { providerInstanceId: input.providerInstanceId.trim() } : {}),
+          ...(input.providerProtocol?.trim() ? { providerProtocol: input.providerProtocol } : {}),
+          ...(input.providerThreadCwd?.trim() ? { providerThreadCwd: input.providerThreadCwd.trim() } : {}),
+          ...(input.workspaceContext ? { workspaceContext: input.workspaceContext } : {}),
+          ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+          ...(title ? { title } : {}),
+          createdAt: input.createdAt,
+          updatedAt: input.updatedAt,
+          open: true,
+          archived: false,
+        }
+        const conversationId = agentConversationIdForRegistryInput(conversationInput)
+        if (!conversationId) return activeConversationIdForUser(get(), userId) ?? ''
         set((state) => ({
           activeConversationIdsByUser: {
             ...(state.activeConversationIdsByUser ?? {}),
             [userId]: conversationId,
           },
-          conversationsById: upsertAgentConversationRegistryRecord(state.conversationsById, {
-            id: conversationId,
-            userId,
-            providerThreadId: threadId,
-            ...(input.sessionId?.trim() ? { providerSessionId: input.sessionId.trim() } : {}),
-            ...(input.provider ? { provider: input.provider } : {}),
-            ...(input.providerId?.trim() ? { providerId: input.providerId.trim() } : {}),
-            ...(input.providerInstanceId?.trim() ? { providerInstanceId: input.providerInstanceId.trim() } : {}),
-            ...(input.providerProtocol?.trim() ? { providerProtocol: input.providerProtocol } : {}),
-            ...(input.providerThreadCwd?.trim() ? { providerThreadCwd: input.providerThreadCwd.trim() } : {}),
-            ...(input.workspaceContext ? { workspaceContext: input.workspaceContext } : {}),
-            ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
-            ...(title ? { title } : {}),
-            createdAt: input.createdAt,
-            updatedAt: input.updatedAt,
-            open: true,
-            archived: false,
-          }),
+          conversationsById: upsertAgentConversationRegistryRecord(state.conversationsById, conversationInput),
           ...(threadId
             ? {
               conversationThreadBindings: {

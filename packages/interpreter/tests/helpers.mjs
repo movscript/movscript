@@ -45,8 +45,9 @@ export function sourceFileEntries() {
       title: 'Scene anchor keyframe',
       content_unit_type: 'keyframe_ref',
       output_kind: 'image',
+      keyframe_ref: 'scene_anchor',
       edit_prompt: {
-        text: 'Create the scene anchor keyframe {{keyframe:scene_anchor}}.',
+        text: 'Create the scene anchor keyframe.',
         negative_text: 'cartoon',
       },
       model_intent: { capability: 'image', aspect_ratio: '16:9' },
@@ -98,8 +99,9 @@ export function sourceFileEntries() {
       title: 'Phone close-up',
       content_unit_type: 'shot_ref',
       output_kind: 'video',
+      shot_ref: 'phone',
       edit_prompt: {
-        text: 'Cold phone light on frightened face. {{shot:phone}} Use selected visual reference {{asset:wet_hair}}.',
+        text: 'Cold phone light on frightened face. Use selected visual reference {{asset:wet_hair}}.',
         negative_text: 'cartoon',
       },
       model_intent: { capability: 'video', duration_sec: 4 },
@@ -111,8 +113,9 @@ export function sourceFileEntries() {
       title: 'Wet hair visual reference',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
+      asset_ref: 'wet_hair',
       edit_prompt: {
-        text: 'Cold phone light reference for wet hair continuity. {{asset:wet_hair}}',
+        text: 'Cold phone light reference for wet hair continuity.',
         negative_text: 'cartoon',
       },
       model_intent: { capability: 'image', aspect_ratio: '1:1' },

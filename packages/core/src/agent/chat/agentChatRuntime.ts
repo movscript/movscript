@@ -601,12 +601,7 @@ function completeAgentChatRuntimeThreadResumeRequest(
 
   let next: AgentChatRuntimeState = {
     ...state,
-    threadResumeRequests: state.threadResumeRequests.flatMap((item) => {
-      if (item.id !== requestId) return [item]
-      return item.refreshAfterInFlight
-        ? [{ ...item, status: 'pending', refreshAfterInFlight: false }]
-        : []
-    }),
+    threadResumeRequests: state.threadResumeRequests.filter((item) => item.id !== requestId),
     managedThreadResumes: {
       ...state.managedThreadResumes,
       [request.threadId]: input.error

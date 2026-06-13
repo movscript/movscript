@@ -50,10 +50,11 @@ export function providerSessionThreadSummaryFromProviderSession(summary: Provide
     ?? summary.state?.rootThreadId
     ?? summary.state?.activeThreadId
   if (!threadId?.trim()) return undefined
+  const title = providerSessionThreadTitleFromSummary(summary)
   return {
     id: threadId.trim(),
     sessionId: summary.session.id,
-    ...(summary.state?.title?.trim() || summary.session.title?.trim() ? { title: summary.state?.title?.trim() || summary.session.title?.trim() } : {}),
+    ...(title ? { title } : {}),
     ...(typeof summary.state?.projectId === 'number' ? { projectId: summary.state.projectId } : typeof summary.session.projectId === 'number' ? { projectId: summary.session.projectId } : {}),
     archived: summary.state?.archived === true || summary.session.archived === true,
     ...(summary.state?.status === 'idle' || summary.state?.status === 'running' || summary.state?.status === 'requires_action' || summary.state?.status === 'completed' || summary.state?.status === 'failed' || summary.state?.status === 'cancelled' ? { status: summary.state.status } : {}),
@@ -79,19 +80,28 @@ export function providerSessionSummaryFromProviderSession(summary: ProviderSessi
   }
 }
 
-export async function listProviderSessionThreadSummariesFromWorkspace(_input: { includeProvisional?: boolean; signal?: AbortSignal } = {}): Promise<AgentThreadSummary[]> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace()
-  return providerSessions.sessions.flatMap((summary) => providerSessionThreadSummaryFromProviderSession(summary) ?? [])
+export async function listProviderSessionThreadSummariesFromWorkspace(input: { includeProvisional?: boolean; providerProfileKey?: string; signal?: AbortSignal } = {}): Promise<AgentThreadSummary[]> {
+  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+    ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
+  })
+  const sessionThreads = providerSessions.sessions.flatMap((summary) => providerSessionThreadSummaryFromProviderSession(summary) ?? [])
+  return mergeWorkspaceThreadSummariesWithLiveThreads(sessionThreads, input)
 }
 
 export async function listProviderSessionThreadPageFromWorkspace(input: {
   includeProvisional?: boolean
+  providerProfileKey?: string
   limit?: number
   cursor?: string
   signal?: AbortSignal
 } = {}): Promise<AgentThreadListPage> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace()
-  const sessionThreads = providerSessions.sessions.flatMap((summary) => providerSessionThreadSummaryFromProviderSession(summary) ?? [])
+  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+    ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
+  })
+  const sessionThreads = await mergeWorkspaceThreadSummariesWithLiveThreads(
+    providerSessions.sessions.flatMap((summary) => providerSessionThreadSummaryFromProviderSession(summary) ?? []),
+    input,
+  )
   const limit = typeof input.limit === 'number' && input.limit > 0 ? input.limit : sessionThreads.length
   const offset = workspaceCursorOffset(input.cursor)
   const threads = sessionThreads.slice(offset, offset + limit)
@@ -105,8 +115,49 @@ export async function listProviderSessionThreadPageFromWorkspace(input: {
   }
 }
 
-export async function listProviderSessionSummariesFromWorkspace(): Promise<AgentSessionSummary[]> {
-  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace()
+async function mergeWorkspaceThreadSummariesWithLiveThreads(threads: AgentThreadSummary[], input: { includeProvisional?: boolean; signal?: AbortSignal } = {}): Promise<AgentThreadSummary[]> {
+  if (threads.length === 0) return threads
+  try {
+    const livePage = await providerSessionClient.listThreads({
+      limit: Math.max(threads.length, 100),
+      includeProvisional: input.includeProvisional,
+    }, input.signal)
+    const liveThreadsById = new Map(livePage.threads.map((thread) => [thread.id, thread]))
+    return threads.map((thread) => {
+      const liveThread = liveThreadsById.get(thread.id)
+      return liveThread ? { ...thread, ...liveThread, sessionId: liveThread.sessionId ?? thread.sessionId } : thread
+    })
+  } catch {
+    return threads
+  }
+}
+
+function providerSessionThreadTitleFromSummary(summary: ProviderSessionSummary): string | undefined {
+  const state = summary.state as (ProviderSessionSummary['state'] & Record<string, unknown>) | undefined
+  const explicitTitle = firstTrimmedString(
+    state?.threadTitle,
+    state?.threadName,
+    state?.name,
+    state?.title,
+  )
+  const sessionTitle = summary.session.title?.trim()
+  if (!explicitTitle) return undefined
+  return explicitTitle === sessionTitle ? undefined : explicitTitle
+}
+
+function firstTrimmedString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (trimmed) return trimmed
+  }
+  return undefined
+}
+
+export async function listProviderSessionSummariesFromWorkspace(input: { providerProfileKey?: string } = {}): Promise<AgentSessionSummary[]> {
+  const providerSessions = await providerSessionClient.listProviderSessionsFromWorkspace({
+    ...(input.providerProfileKey?.trim() ? { providerProfileKey: input.providerProfileKey.trim() } : {}),
+  })
   return providerSessions.sessions.map(providerSessionSummaryFromProviderSession)
 }
 

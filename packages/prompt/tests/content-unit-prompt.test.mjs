@@ -54,7 +54,8 @@ test('builds backend prompt by replacing selected upstream refs with resource to
       title: 'Wet hair reference',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Generate {{asset:wet_hair}}.' },
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
     }),
     document('content_units/cu_phone_video/content_unit.json', {
       schema: 'movscript.content_unit.v1',
@@ -63,8 +64,9 @@ test('builds backend prompt by replacing selected upstream refs with resource to
       title: 'Phone video',
       content_unit_type: 'shot_ref',
       output_kind: 'video',
+      shot_ref: 'phone',
       edit_prompt: {
-        text: 'Generate {{shot:phone}} using {{asset:wet_hair}} as continuity reference.',
+        text: 'Generate the phone shot using {{asset:wet_hair}} as continuity reference.',
         negative_text: 'Do not change {{asset:wet_hair}}.',
       },
     }),
@@ -90,7 +92,7 @@ test('builds backend prompt by replacing selected upstream refs with resource to
   })
 
   assert.equal(result.ok, true)
-  assert.equal(result.prompt.text, 'Generate {{shot:phone}} using [[resource::123]] as continuity reference.')
+  assert.equal(result.prompt.text, 'Generate the phone shot using [[resource::123]] as continuity reference.')
   assert.equal(result.prompt.negative_text, 'Do not change [[resource::123]].')
   assert.deepEqual(result.prompt.style_reference_resource_ids, [88, 99])
   assert.deepEqual(result.prompt.resource_ids, [123, 88, 99])
@@ -160,7 +162,8 @@ test('returns a blocker when an upstream ref has not been produced in backend de
       title: 'Wet hair reference',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Generate {{asset:wet_hair}}.' },
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
     }),
     document('content_units/cu_phone_video/content_unit.json', {
       schema: 'movscript.content_unit.v1',
@@ -203,7 +206,8 @@ test('returns a blocker when backend selection exists without resource id', asyn
       title: 'Wet hair reference',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Generate {{asset:wet_hair}}.' },
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
     }),
     document('content_units/cu_phone_video/content_unit.json', {
       schema: 'movscript.content_unit.v1',
@@ -248,7 +252,8 @@ test('returns a blocker when backend selection points to a missing candidate', a
       title: 'Wet hair reference',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Generate {{asset:wet_hair}}.' },
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
     }),
     document('content_units/cu_phone_video/content_unit.json', {
       schema: 'movscript.content_unit.v1',
@@ -293,7 +298,8 @@ test('returns a blocker when a specialized content unit is missing its primary r
       title: 'Wet hair reference',
       content_unit_type: 'asset_ref',
       output_kind: 'image',
-      edit_prompt: { text: 'Generate {{asset:wet_hair}}.' },
+      asset_ref: 'wet_hair',
+      edit_prompt: { text: 'Generate wet hair reference.' },
     }),
     document('content_units/cu_phone_video/content_unit.json', {
       schema: 'movscript.content_unit.v1',

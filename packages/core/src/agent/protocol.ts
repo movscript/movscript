@@ -1919,6 +1919,9 @@ export interface AgentAttachment {
   generated?: {
     jobId?: number
     jobType?: string
+    contentUnitId?: string | number
+    candidateId?: string | number
+    resourceId?: number
     providerName?: string
     modelDisplay?: string
     modelIdentifier?: string

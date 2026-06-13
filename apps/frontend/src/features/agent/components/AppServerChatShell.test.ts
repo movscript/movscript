@@ -8,7 +8,8 @@ import {
   appServerThreadScopeKey,
   appServerWorkspaceContextFromRoute,
 } from '@/features/agent/components/AppServerChatShell'
-import type { ProviderConfig } from '@/shared/infrastructure/providerConfigStore'
+import { resolveAgentChatShellProvider } from '@/features/agent/components/AgentUnifiedChatShell'
+import type { ProviderConfig, ProviderSettings } from '@/shared/infrastructure/providerConfigStore'
 
 test('app-server chat shell maps routes to MovScript workspace contexts', () => {
   assert.deepEqual(appServerWorkspaceContextFromRoute({
@@ -79,6 +80,50 @@ test('app-server chat shell scopes thread workspace keys and events by provider 
   )
 })
 
+test('agent chat provider resolution preserves active app-server conversations across mode switches', () => {
+  const codex = appServerProvider({
+    id: 'codex',
+    kind: 'codex',
+    profileId: 'codex-home',
+  })
+  const claude: ProviderConfig = {
+    id: 'claude',
+    kind: 'claude',
+    protocol: 'claude-code',
+    label: 'Claude',
+    enabled: true,
+  }
+  const settings: ProviderSettings = {
+    providers: [claude, codex],
+    defaultProviderId: 'claude',
+    newConversationProviderId: 'claude',
+  }
+
+  const resolved = resolveAgentChatShellProvider(settings, 'user_1', {
+    activeConversationIdsByUser: { user_1: 'thread_1' },
+    conversationsById: {
+      thread_1: {
+        id: 'thread_1',
+        userId: 'user_1',
+        provider: codex.kind,
+        providerId: codex.id,
+        providerInstanceId: 'codex-home',
+        providerProtocol: 'app-server',
+        providerThreadId: 'thread_1',
+        open: true,
+        archived: false,
+        createdAt: 1000,
+        updatedAt: 2000,
+      },
+    },
+  })
+
+  assert.equal(resolved.id, codex.id)
+  assert.equal(resolved.kind, codex.kind)
+  assert.equal(resolved.protocol, 'app-server')
+  assert.equal(resolved.appServerProfile?.id, 'codex-home')
+})
+
 test('agent chat active thread state is owned by the session registry', () => {
   const appServerShellSource = readFileSync(resolve('src/features/agent/components/AppServerChatShell.tsx'), 'utf8')
   const unifiedShellSource = readFileSync(resolve('src/features/agent/components/AgentUnifiedChatShell.tsx'), 'utf8')
@@ -94,24 +139,40 @@ test('agent chat active thread state is owned by the session registry', () => {
   assert.match(dataSourceShellSource, /readActiveThreadId\?: \(\) => string \| null/)
   assert.match(dataSourceShellSource, /const readCurrentActiveThreadId = useCallback/)
   assert.match(dataSourceShellSource, /const readRestorableActiveThreadId = useCallback/)
-  assert.match(dataSourceShellSource, /useAgentSessionStore\.getState\(\)\.setActiveConversation\(userId, threadId\)/)
-  assert.match(dataSourceShellSource, /useAgentSessionStore\.getState\(\)\.setConversationOpen\(userId, threadId, true\)/)
+  assert.match(dataSourceShellSource, /const conversationId = store\.upsertConversation\(conversationPatchInputForThread\(threadId, true\)\)/)
+  assert.match(dataSourceShellSource, /store\.setConversationOpen\(userId, conversationId, true\)/)
+  assert.match(dataSourceShellSource, /store\.setActiveConversation\(userId, conversationId\)/)
+  assert.match(dataSourceShellSource, /const conversationId = store\.upsertConversation\(conversationPatchInputForThread\(threadId, false\)\)/)
+  assert.match(dataSourceShellSource, /store\.setConversationOpen\(userId, conversationId, false\)/)
   assert.match(dataSourceShellSource, /Object\.values\(conversationsById\)[\s\S]*record\.open === false/)
+  assert.match(dataSourceShellSource, /const sourceThreadListCache = new Map<string/)
+  assert.match(dataSourceShellSource, /function readSourceThreadListCache\(threadScopeKey: string\)/)
+  assert.match(dataSourceShellSource, /writeSourceThreadList\(response\.threads, response\.nextCursor \?\? null\)/)
+  assert.match(dataSourceShellSource, /setSourceThreadList\(\(current\) => \{[\s\S]*mergeAgentChatThreadListPage\(current, response\.threads\)[\s\S]*sourceThreadListCache\.set\(threadScopeKey/)
+  assert.match(dataSourceShellSource, /if \(!dataSource \|\| surface !== 'panel' \|\| !historyOpen \|\| sourceThreadListLoaded \|\| loading\) return[\s\S]*void refreshThreadList\(\)/)
+  assert.match(dataSourceShellSource, /onLoadThreads=\{refreshThreadList\}/)
+  assert.doesNotMatch(dataSourceShellSource, /onLoadThreads=\{loadThreads\}/)
+  assert.doesNotMatch(dataSourceShellSource, /dispatchRuntime\(\{\s*type: 'setThreads'/)
   assert.match(dataSourceShellSource, /createAgentChatRuntimeState\(readRestorableActiveThreadId\(\)\)/)
   assert.match(dataSourceShellSource, /const storedThreadId = readRestorableActiveThreadId\(\)/)
   assert.match(dataSourceShellSource, /const stored = readRestorableActiveThreadId\(\)/)
   assert.match(dataSourceShellSource, /const activeThreadClosed = readCurrentActiveThreadId\(\) === threadId/)
   assert.match(dataSourceShellSource, /if \(closedThreadIds\.has\(request\.threadId\)\) \{[\s\S]*type: 'clearThreadResumeRequest'/)
+  assert.match(dataSourceShellSource, /inFlightThreadResumeIdsRef\.current\.has\(request\.threadId\)/)
+  assert.doesNotMatch(dataSourceShellSource, /inFlightThreadResumeRequestIdsRef|has\(request\.id\)/)
   assert.match(dataSourceShellSource, /notifyAgentChatDataSourceActiveThread\(\{[\s\S]*eventName: openThreadEventName,[\s\S]*sourceId: shellInstanceIdRef\.current,[\s\S]*threadId: activeThreadId,[\s\S]*\}\)/)
   assert.match(dataSourceShellSource, /if \(detail\?\.sourceId === shellInstanceIdRef\.current\) return/)
-  assert.match(dataSourceShellSource, /const candidateIds = uniqueAgentChatThreadIds\(\[[\s\S]*stored,[\s\S]*\.\.\.nextThreads\.filter\(\(thread\) => !closedThreadIds\.has\(thread\.id\)\)\.map\(\(thread\) => thread\.id\),[\s\S]*\]\)/)
+  assert.doesNotMatch(dataSourceShellSource, /const candidateIds = uniqueAgentChatThreadIds/)
+  assert.doesNotMatch(dataSourceShellSource, /\.\.\.nextThreads\.filter\(\(thread\) => !closedThreadIds\.has\(thread\.id\)\)\.map\(\(thread\) => thread\.id\)/)
+  assert.match(dataSourceShellSource, /if \(!stored\) \{[\s\S]*setActiveThreadIdValue\(null\)[\s\S]*return[\s\S]*\}/)
+  assert.match(dataSourceShellSource, /setActiveThreadIdValue\(stored\)[\s\S]*markThreadOpen\(stored\)[\s\S]*readHistoryThread\(stored\)/)
   assert.match(dataSourceShellSource, /provisionalAgentChatThread\(stored, dataSource\)/)
   assert.match(dataSourceShellSource, /const clearUnavailableStoredThread = useCallback/)
   assert.match(dataSourceShellSource, /const workspace = store\.getConversationWorkspace\(userId, conversationId\)/)
   assert.match(dataSourceShellSource, /const emptyWorkspace = agentChatConversationWorkspaceIsEmpty\(workspace\)/)
   assert.match(dataSourceShellSource, /store\.updateConversationWorkspace\(userId, draftConversationId, workspace\)/)
-  assert.match(dataSourceShellSource, /const removedEmptyConversation = clearUnavailableStoredThread\(candidateId\)/)
-  assert.match(dataSourceShellSource, /if \(!removedEmptyConversation\) return/)
+  assert.match(dataSourceShellSource, /const removedEmptyConversation = clearUnavailableStoredThread\(stored\)/)
+  assert.match(dataSourceShellSource, /if \(removedEmptyConversation\) setError\(errorMessage\(readError\)\)/)
   assert.match(dataSourceShellSource, /function agentChatConversationWorkspaceIsEmpty/)
   assert.doesNotMatch(dataSourceShellSource, /clearUnavailableActiveThread\(stored\)/)
   assert.doesNotMatch(appServerShellSource, /readAppServerActiveThreadId|ACTIVE_APP_SERVER_THREAD_STORAGE_KEY|appServerActiveThreadStorageKey/)
@@ -125,7 +186,8 @@ test('project agent chat surface respects registry-open restored conversations',
   const projectAgentSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
   const chatSurfaceSource = projectAgentSource.match(/function ProjectAgentChatSurface[\s\S]*?return \(/)?.[0] ?? ''
 
-  assert.match(chatSurfaceSource, /selectAgentConversationRegistryRecords\(conversationsById, \{ userId \}\)/)
+  assert.match(chatSurfaceSource, /resolveAgentChatShellProvider\(providerSettings, userId, activeRegistryState\)/)
+  assert.match(chatSurfaceSource, /selectAgentConversationRegistryRecords\(conversationsById, \{ userId, \.\.\.activeProviderIdentity \}\)/)
   assert.match(chatSurfaceSource, /const activeConversationOpen = !!activeConversationId[\s\S]*&& openConversations\.some\(\(record\) => record\.id === activeConversationId\)/)
   assert.match(chatSurfaceSource, /setActiveConversation\(userId, openConversations\[0\]\?\.id \?\? null\)/)
   assert.doesNotMatch(chatSurfaceSource, /readAgentConversationOpenState|writeLastAgentModeActiveThreadId/)
@@ -174,6 +236,22 @@ test('agent chat pending server requests survive shell remounts without stale re
   assert.match(dataSourceShellSource, /notification\.method !== 'turn\/completed'/)
   assert.match(dataSourceShellSource, /applyPersistentServerRequestNotification\(persistentRequestScopeKey, notification\)/)
   assert.doesNotMatch(dataSourceShellSource, /setPendingServerRequests\(\(current\) => removeAgentChatPendingServerRequests\(current, \(\) => true\)\)/)
+})
+
+test('agent chat shell accepts local MovScript decision requests from generated artifacts', () => {
+  const bridgeSource = readFileSync(resolve('src/features/agent/application/agentPanelBridge.ts'), 'utf8')
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+
+  assert.match(bridgeSource, /AGENT_PANEL_DECISION_REQUEST_EVENT = 'movscript:agent-panel-decision-request'/)
+  assert.match(bridgeSource, /pendingDecisionRequestPayloads/)
+  assert.match(bridgeSource, /function openAgentPanelDecisionRequest/)
+  assert.match(bridgeSource, /function consumeAgentPanelDecisionRequest/)
+  assert.match(dataSourceShellSource, /AGENT_PANEL_DECISION_REQUEST_EVENT/)
+  assert.match(dataSourceShellSource, /consumeAgentPanelDecisionRequest/)
+  assert.match(dataSourceShellSource, /const handleLocalDecisionRequest = useCallback/)
+  assert.match(dataSourceShellSource, /storePersistentServerRequest\(persistentRequestScopeKey, request, resolve\)/)
+  assert.match(dataSourceShellSource, /dispatchRuntime\(\{ type: 'enqueueServerRequest', request, resolve: persistentResolve \}\)/)
+  assert.match(dataSourceShellSource, /window\.addEventListener\(AGENT_PANEL_DECISION_REQUEST_EVENT, handleDecisionRequestEvent\)/)
 })
 
 test('agent chat first draft turn uses the data source that created the thread', () => {

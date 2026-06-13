@@ -7,6 +7,7 @@ import {
   domainCreateAssetSlotCandidate,
   domainCreateContentCandidate,
   domainCreateContentCandidateBatch,
+  domainDecideContentUnitCandidate,
   domainCreateKeyframeCandidate,
   domainDeleteEntity,
   domainGetModel,
@@ -266,6 +267,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainSelectContentUnitCandidate(args))
     case 'domain_select_content_unit_candidate_batch':
       return toolText(await domainSelectContentUnitCandidateBatch(args))
+    case 'domain_decide_content_unit_candidate':
+      return toolText(await domainDecideContentUnitCandidate(args))
     case 'domain_select_candidate':
       return toolText(await domainSelectCandidate(args))
     case 'domain_update_candidate':

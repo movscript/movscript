@@ -88,6 +88,81 @@ test('provider session thread cache maps provider session summaries to thread su
   assert.equal(summary?.lastMessageAt, '2026-06-03T00:00:02.000Z')
 })
 
+test('provider session thread cache does not use provider session title as thread title', () => {
+  const summary = providerSessionThreadSummaryFromProviderSession({
+    session: {
+      id: 'session_1',
+      title: 'MovscriptCodex',
+      createdAt: '2026-06-03T00:00:00.000Z',
+      updatedAt: '2026-06-03T00:00:01.000Z',
+    },
+    state: {
+      interactiveThreadId: 'thread_interactive',
+      title: 'MovscriptCodex',
+      status: 'running',
+      threadUpdatedAt: '2026-06-03T00:00:03.000Z',
+      messageCount: 4,
+    },
+  } satisfies ProviderSessionSummary)
+
+  assert.equal(summary?.id, 'thread_interactive')
+  assert.equal(summary?.title, undefined)
+})
+
+test('provider session thread list overlays workspace index with live thread titles', async () => {
+  const client = providerSessionClient as typeof providerSessionClient & {
+    listProviderSessionsFromWorkspace: typeof providerSessionClient.listProviderSessionsFromWorkspace
+    listThreads: typeof providerSessionClient.listThreads
+  }
+  const original = {
+    listProviderSessionsFromWorkspace: client.listProviderSessionsFromWorkspace,
+    listThreads: client.listThreads,
+  }
+  try {
+    client.listProviderSessionsFromWorkspace = async () => ({
+      sessions: [{
+        session: {
+          id: 'session_1',
+          title: 'MovscriptCodex',
+          createdAt: '2026-06-03T00:00:00.000Z',
+          updatedAt: '2026-06-03T00:00:01.000Z',
+        },
+        state: {
+          interactiveThreadId: 'thread_interactive',
+          title: 'MovscriptCodex',
+          status: 'running',
+          threadUpdatedAt: '2026-06-03T00:00:03.000Z',
+          messageCount: 4,
+        },
+      }],
+    })
+    client.listThreads = async () => ({
+      threads: [{
+        id: 'thread_interactive',
+        sessionId: 'session_1',
+        title: '真正的 Thread 标题',
+        archived: false,
+        status: 'running',
+        createdAt: '2026-06-03T00:00:00.000Z',
+        updatedAt: '2026-06-03T00:00:03.000Z',
+        messageCount: 5,
+      }],
+      total: 1,
+      limit: 100,
+      hasMore: false,
+    })
+
+    const summaries = await listProviderSessionThreadSummariesFromWorkspace({ includeProvisional: true })
+
+    assert.equal(summaries.length, 1)
+    assert.equal(summaries[0]?.title, '真正的 Thread 标题')
+    assert.equal(summaries[0]?.messageCount, 5)
+  } finally {
+    client.listProviderSessionsFromWorkspace = original.listProviderSessionsFromWorkspace
+    client.listThreads = original.listThreads
+  }
+})
+
 test('provider session run cache maps provider session summaries to run list items', () => {
   const runs = providerSessionRunSummariesFromProviderSession({
     session: {

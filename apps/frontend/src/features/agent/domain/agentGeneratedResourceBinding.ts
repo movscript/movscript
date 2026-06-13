@@ -120,9 +120,23 @@ export interface GeneratedKeyframeCandidatePayload {
   metadata_json: string
 }
 
-export function generatedAttachmentResourceId(attachment: Pick<AgentAttachment, 'resourceId'>): number | undefined {
-  const resourceId = attachment.resourceId
+export interface GeneratedContentUnitCandidateDecisionRef {
+  contentUnitId: string | number
+  candidateId: string | number
+  resourceId: number
+}
+
+export function generatedAttachmentResourceId(attachment: Pick<AgentAttachment, 'resourceId' | 'generated'>): number | undefined {
+  const resourceId = attachment.resourceId ?? attachment.generated?.resourceId
   return typeof resourceId === 'number' && Number.isFinite(resourceId) && Number.isInteger(resourceId) && resourceId > 0 ? resourceId : undefined
+}
+
+export function generatedContentUnitCandidateDecisionRef(attachment: AgentAttachment): GeneratedContentUnitCandidateDecisionRef | undefined {
+  const contentUnitId = generatedStringOrNumberId(attachment.generated?.contentUnitId)
+  const candidateId = generatedStringOrNumberId(attachment.generated?.candidateId)
+  const resourceId = generatedAttachmentResourceId(attachment)
+  if (contentUnitId === undefined || candidateId === undefined || resourceId === undefined) return undefined
+  return { contentUnitId, candidateId, resourceId }
 }
 
 export function generatedCandidateAttachPayload(assetSlotId: number, attachment: AgentAttachment): GeneratedCandidateAttachPayload {
@@ -256,6 +270,13 @@ function stringField(value: unknown) {
 function numberField(value: unknown) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0
+}
+
+function generatedStringOrNumberId(value: unknown): string | number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 function positiveInteger(value: unknown) {

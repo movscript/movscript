@@ -28,16 +28,16 @@ if (result.ok) {
 For a prompt like:
 
 ```text
-Generate {{shot:phone}} using {{asset:wet_hair}}.
+Generate the phone shot using {{asset:wet_hair}}.
 ```
 
 if the upstream `asset_ref` content unit for `wet_hair` has backend selection `{ resource_id: 123 }`, the compiled prompt is:
 
 ```text
-Generate {{shot:phone}} using [[resource::123]].
+Generate the phone shot using [[resource::123]].
 ```
 
-Primary refs such as `{{shot:phone}}` remain business context refs. Input refs that point to produced upstream content are replaced with backend resource tokens.
+Structured fields such as `shot_ref` define the content unit target. Prompt refs such as `{{asset:wet_hair}}` are treated as upstream inputs and replaced with backend resource tokens when selected resources exist.
 
 ## Blockers
 

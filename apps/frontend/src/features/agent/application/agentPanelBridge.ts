@@ -2,11 +2,13 @@ import type { AgentRun, AgentThread } from '@/shared/infrastructure/providerSess
 import { useAgentSessionStore, type AgentPageTaskPayload } from '@/features/agent/state/agentSessionStore'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
+import type { AgentChatServerRequest, AgentChatServerRequestResponse } from '@movscript/core/agent/chat'
 
 export const AGENT_PANEL_WORKSPACE_EVENT = 'movscript:agent-panel-workspace'
 export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
 export const AGENT_PANEL_THREAD_EVENT = 'movscript:agent-panel-thread'
 export const AGENT_PANEL_NEW_CONVERSATION_EVENT = 'movscript:agent-panel-new-conversation'
+export const AGENT_PANEL_DECISION_REQUEST_EVENT = 'movscript:agent-panel-decision-request'
 
 export type AgentPanelSettledRun = AgentRun | {
   id: string
@@ -35,6 +37,7 @@ export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void 
 const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
 const pendingNewConversationPayloads: AgentPanelNewConversationPayload[] = []
 const pendingThreadPayloads: AgentPanelThreadPayload[] = []
+const pendingDecisionRequestPayloads: AgentPanelDecisionRequestPayload[] = []
 
 export type AgentPanelWorkspacePayload = AgentPageTaskPayload
 
@@ -47,6 +50,11 @@ export interface AgentPanelNewConversationPayload {
   projectId?: number
   workspaceContext?: MovScriptWorkspaceContext
   title?: string
+}
+
+export interface AgentPanelDecisionRequestPayload {
+  request: AgentChatServerRequest
+  onResolve?: (response: AgentChatServerRequestResponse | undefined) => void | Promise<void>
 }
 
 export function openAgentPanelWorkspace(payload: AgentPanelWorkspacePayload) {
@@ -75,6 +83,11 @@ export function openAgentPanelThread(input: string | AgentPanelThreadPayload, se
   }))
 }
 
+export function openAgentPanelDecisionRequest(payload: AgentPanelDecisionRequestPayload) {
+  pendingDecisionRequestPayloads.push(payload)
+  window.dispatchEvent(new CustomEvent<AgentPanelDecisionRequestPayload>(AGENT_PANEL_DECISION_REQUEST_EVENT, { detail: payload }))
+}
+
 export function consumeAgentPanelWorkspace() {
   return useAgentSessionStore.getState().claimNextQueuedPageTask()
 }
@@ -85,6 +98,10 @@ export function consumeAgentPanelNewConversation() {
 
 export function consumeAgentPanelThread() {
   return pendingThreadPayloads.shift()
+}
+
+export function consumeAgentPanelDecisionRequest() {
+  return pendingDecisionRequestPayloads.shift()
 }
 
 export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPageTool) {

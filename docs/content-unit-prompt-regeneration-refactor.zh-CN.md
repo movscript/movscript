@@ -57,23 +57,23 @@ expression_unit_refs
 asset_ref
 ```
 
-引用统一写入 `edit_prompt`，由标准语法解析。
+归属目标统一写入结构化字段，例如 `asset_ref`、`shot_ref`。`edit_prompt` 中的 `{{type:id}}` 只表示上游输入引用，由标准语法解析。
 
 ### 3. 一种 `content_unit_type` 对应一种主引用规则
 
 第一阶段固定五种 content unit。
 
-每个 `content_unit_type` 只声明一种主 ref 规则。主 ref 表达“这个内容单元归属于哪个源实体”，不是把该实体内容动态展开进提示词。
+每个 `content_unit_type` 只声明一种主 ref 字段规则。主 ref 表达“这个内容单元归属于哪个源实体”，不是把该实体内容动态展开进提示词，也不写入 `edit_prompt`。
 
 示例：
 
 | `content_unit_type` | 默认 `output_kind` | 主引用规则 | 含义 |
 | --- | --- | --- |
-| `asset_ref` | `image` | 必须且只能引用 1 个 `asset` | 这个内容单元生成某个 asset 的当前提示词版本 |
-| `keyframe_ref` | `image` | 必须且只能引用 1 个 `keyframe` | 这个内容单元生成某个关键帧的当前提示词版本 |
-| `storyboard_ref` | `image` | 必须且只能引用 1 个 `storyboard` | 这个内容单元生成某个分镜图的当前提示词版本 |
-| `scence_moment_ref` | `video` | 必须且只能引用 1 个 `scene_moment` | 这个内容单元直接生成某个情节的当前提示词版本 |
-| `shot_ref` | `video` | 必须且只能引用 1 个 `shot` | 这个内容单元生成某个镜头的当前提示词版本 |
+| `asset_ref` | `image` | 必须且只能有 1 个 `asset_ref` 字段 | 这个内容单元生成某个 asset 的当前提示词版本 |
+| `keyframe_ref` | `image` | 必须且只能有 1 个 `keyframe_ref` 字段 | 这个内容单元生成某个关键帧的当前提示词版本 |
+| `storyboard_ref` | `image` | 必须且只能有 1 个 `storyboard_ref` 字段 | 这个内容单元生成某个分镜图的当前提示词版本 |
+| `scence_moment_ref` | `video` | 必须且只能有 1 个 `scene_moment_ref`/`scence_moment_ref` 字段 | 这个内容单元直接生成某个情节的当前提示词版本 |
+| `shot_ref` | `video` | 必须且只能有 1 个 `shot_ref` 字段 | 这个内容单元生成某个镜头的当前提示词版本 |
 
 如果未来确实需要多种引用，不应继续往同一个 content unit 顶层加字段，而应新增明确类型，例如：
 
@@ -344,7 +344,7 @@ buildContentUnitBackendPromptById({
 
 编译规则：
 
-- 主 ref 保留为业务语义，例如 `shot_ref` 中的 `{{shot:phone}}` 不会被替换。
+- 主 ref 来自结构化字段，例如 `shot_ref: "phone"`，不写入 `edit_prompt`。
 - 上游 input ref 必须先解析到对应 content unit，再读取该 content unit 的后端 selection。
 - 如果后端 selection 能提供 `resource_id`，则把原始 ref 替换成 `[[resource::resource_id]]`。
 - 如果无法安全得到 `resource_id`，返回 `ok: false` 和稳定 blocker，不生成“看似可用”的后端 prompt。
@@ -352,7 +352,7 @@ buildContentUnitBackendPromptById({
 示例：
 
 ```text
-Generate {{shot:phone}} using {{asset:wet_hair}}.
+Generate the phone shot using {{asset:wet_hair}}.
 ```
 
 当 `asset:wet_hair` 对应的 `asset_ref` 内容单元在后端 decision context 中有：
@@ -369,7 +369,7 @@ Generate {{shot:phone}} using {{asset:wet_hair}}.
 编译结果应为：
 
 ```text
-Generate {{shot:phone}} using [[resource::123]].
+Generate the phone shot using [[resource::123]].
 ```
 
 如果该后端 decision context 不存在，或存在但没有 selection/resource，则编译结果必须包含 blocker，例如：
@@ -463,49 +463,46 @@ interface ContentUnitAdapter {
 
 ### 主 ref 和上游 input ref
 
-同一种语法可以承担两类含义：
+结构化字段和 prompt ref 分别承担两类含义：
 
-1. **主 ref**：由当前 `content_unit_type` 规定，表示本内容单元归属于哪个实体。
-2. **上游 input ref**：表示生成当前内容时需要消费某个已经选择的资源。
+1. **主 ref 字段**：由当前 `content_unit_type` 规定，表示本内容单元归属于哪个实体。
+2. **上游 input ref**：写在 `edit_prompt` 中，表示生成当前内容时需要消费某个已经选择的资源。
 
 示例：
 
 ```text
-Create a rainy close-up for {{shot:phone}}.
+Create a rainy close-up for the phone shot.
 Use the selected wet hair reference {{asset:wet_hair}}.
 ```
 
 在 `shot_ref` 内容单元中：
 
-- `{{shot:phone}}` 是主 ref。
+- `shot_ref: "phone"` 是主 ref 字段。
 - `{{asset:wet_hair}}` 是上游 input ref，需要解析到 `asset_ref + selection.resource_id`。
 
 如果上游 input ref 没有 selected candidate，则当前内容单元不能生成。
 
 ### Ref 角色判定
 
-角色判定必须由当前 content unit 的类型决定，而不是由 ref 的 kind 自己决定。
+主目标判定必须由当前 content unit 的结构化字段决定，而不是由 prompt ref 的 kind 自己决定。
 
 规则：
 
 1. 先根据 `content_unit_type` 得到 `primaryRefKind`。
-2. 解析 `edit_prompt` 得到所有 refs。
-3. `ref.kind === primaryRefKind` 的 refs 是主 ref 候选。
-4. 主 ref 必须恰好 1 个；0 个是 missing，多个是 ambiguous。
-5. 其他 refs 默认都是上游 input ref。
+2. 从对应结构化字段读取主 ref，例如 `asset_ref`、`shot_ref`。
+3. 主 ref 字段必须恰好 1 个；0 个是 missing，多个是 ambiguous。
+4. 解析 `edit_prompt` 得到的 refs 默认都是上游 input ref。
 6. 上游 input ref 必须解析到“同 kind 主 ref 的内容单元 + 当前 selection + resource_id”。
 
 示例：
 
 | 当前 type | Prompt ref | 角色 |
 | --- | --- | --- |
-| `asset_ref` | `{{asset:wet_hair}}` | 主 ref |
-| `shot_ref` | `{{shot:phone}}` | 主 ref |
 | `shot_ref` | `{{asset:wet_hair}}` | 上游 input ref |
 | `shot_ref` | `{{storyboard:main}}` | 上游 input ref |
 | `storyboard_ref` | `{{keyframe:scene_anchor}}` | 上游 input ref |
 
-如果一个 `shot_ref` prompt 里出现两个 `{{shot:*}}`，不应解释为两个输入 shot，而应报主 ref ambiguous。需要多 shot 输入时，应新增明确语法或新增新的 content unit type，而不是复用第一阶段规则。
+如果一个 `shot_ref` prompt 里出现 `{{shot:*}}`，它会按上游 input ref 解析；如果解析到自身内容单元，应报告依赖循环 blocker。
 
 ### 上游 content unit 查找规则
 
@@ -515,10 +512,10 @@ Use the selected wet hair reference {{asset:wet_hair}}.
 
 | Prompt ref | 期望上游 content unit type | 匹配条件 |
 | --- | --- | --- |
-| `{{asset:id}}` | `asset_ref` | 上游 content unit 的主 ref 是同一个 `asset:id` |
-| `{{keyframe:id}}` | `keyframe_ref` | 上游 content unit 的主 ref 是同一个 `keyframe:id` |
-| `{{storyboard:id}}` | `storyboard_ref` | 上游 content unit 的主 ref 是同一个 `storyboard:id` |
-| `{{shot:id}}` | `shot_ref` | 上游 content unit 的主 ref 是同一个 `shot:id` |
+| `{{asset:id}}` | `asset_ref` | 上游 content unit 的 `asset_ref` 字段匹配 `id` |
+| `{{keyframe:id}}` | `keyframe_ref` | 上游 content unit 的 `keyframe_ref` 字段匹配 `id` |
+| `{{storyboard:id}}` | `storyboard_ref` | 上游 content unit 的 `storyboard_ref` 字段匹配 `id` |
+| `{{shot:id}}` | `shot_ref` | 上游 content unit 的 `shot_ref` 字段匹配 `id` |
 
 不能用源实体自己的候选、lock 或旧 inline candidate 直接替代 content unit selection。新的再生成语义以 content unit 为边界，只有 content unit 的已选候选才代表“这个引用当前可用于生成”。
 
@@ -584,9 +581,8 @@ interface ContentUnitRuntimeRequest {
 规则：
 
 - `output_kind` 必须为 `image`。
-- `edit_prompt` 中必须且只能出现 1 个 `{{asset:id}}`。
+- record 中必须且只能有 1 个 `asset_ref` 字段。
 - adapter 可以校验 asset 是否存在，但不能把 asset record 动态展开到 prompt 文本。
-- 对 `asset_ref` 自身而言，这个 `{{asset:id}}` 是主 ref，不要求该 asset 已有 selection。
 
 生成输入：
 
@@ -599,7 +595,7 @@ interface ContentUnitRuntimeRequest {
 规则：
 
 - `output_kind` 必须为 `image`。
-- `edit_prompt` 中必须且只能出现 1 个 `{{keyframe:id}}`。
+- record 中必须且只能有 1 个 `keyframe_ref` 字段。
 - adapter 可以校验 keyframe 是否存在，但不能把 keyframe record 动态展开到 prompt 文本。
 - 如果 prompt 额外引用了上游 media ref，例如 `{{asset:wet_hair}}`，则必须解析到已选择的上游 content unit resource，否则 blocked。
 
@@ -610,7 +606,7 @@ interface ContentUnitRuntimeRequest {
 规则：
 
 - `output_kind` 必须为 `image`。
-- `edit_prompt` 中必须且只能出现 1 个 `{{storyboard:id}}`。
+- record 中必须且只能有 1 个 `storyboard_ref` 字段。
 - adapter 可以校验 storyboard 是否存在，但不能把 storyboard record 动态展开到 prompt 文本。
 - 如果 prompt 额外引用了上游 media ref，例如 `{{asset:wet_hair}}` 或 `{{keyframe:scene_anchor}}`，则必须解析到已选择的上游 content unit resource，否则 blocked。
 
@@ -619,7 +615,7 @@ interface ContentUnitRuntimeRequest {
 规则：
 
 - `output_kind` 必须为 `video`。
-- `edit_prompt` 中必须且只能出现 1 个 `{{shot:id}}`。
+- record 中必须且只能有 1 个 `shot_ref` 字段。
 - adapter 可以校验 shot 是否存在，但不能把 shot record 动态展开到 prompt 文本。
 - `shot_ref` 通常会消费上游分镜图、关键帧或 asset reference，例如 `{{storyboard:main}}`、`{{keyframe:scene_anchor}}`、`{{asset:wet_hair}}`。
 - 这些上游 input refs 必须解析到已选择的上游 content unit resource，否则 blocked。
@@ -634,8 +630,9 @@ interface ContentUnitRuntimeRequest {
   "title": "Phone close-up shot",
   "content_unit_type": "shot_ref",
   "output_kind": "video",
+  "shot_ref": "phone",
   "edit_prompt": {
-    "text": "Generate the shot {{shot:phone}} using storyboard {{storyboard:main}} and visual reference {{asset:wet_hair}}.",
+    "text": "Generate the phone shot using storyboard {{storyboard:main}} and visual reference {{asset:wet_hair}}.",
     "negative_text": "cartoon, jump cut"
   },
   "model_intent": {
@@ -675,8 +672,9 @@ interface ContentUnitRuntimeRequest {
     "content_unit_ref": "content_units/cu_phone_shot",
     "content_unit_type": "shot_ref",
     "output_kind": "video",
+    "shot_ref": "phone",
     "edit_prompt": {
-      "text": "Create a slow push-in for {{shot:phone}} from selected storyboard {{storyboard:main}}.",
+      "text": "Create a slow push-in for the phone shot from selected storyboard {{storyboard:main}}.",
       "negative_text": "cartoon"
     },
     "model_intent": {
@@ -684,11 +682,6 @@ interface ContentUnitRuntimeRequest {
       "duration_sec": 4
     },
     "refs": [
-      {
-        "kind": "shot",
-        "id": "phone",
-        "raw": "{{shot:phone}}"
-      },
       {
         "kind": "storyboard",
         "id": "main",
@@ -1014,7 +1007,7 @@ compareContentUnitPromptSnapshot(current: unknown, snapshot: unknown): ContentUn
 }
 ```
 
-迁移后：
+迁移前：
 
 ```json
 {
@@ -1025,13 +1018,25 @@ compareContentUnitPromptSnapshot(current: unknown, snapshot: unknown): ContentUn
 }
 ```
 
+迁移后：
+
+```json
+{
+  "content_unit_type": "asset_ref",
+  "asset_ref": "wet_hair",
+  "edit_prompt": {
+    "text": "Create the visual reference."
+  }
+}
+```
+
 迁移工具可以做机械转换：
 
-| 旧字段 | 新文本追加 |
+| 旧文本主 token | 新结构化字段 |
 | --- | --- |
-| `asset_ref: "x"` | `{{asset:x}}` |
-| `keyframe_ref: "x"` | `{{keyframe:x}}` |
-| `storyboard_ref: ".../storyboards/main"` | `{{storyboard:main}}` |
+| `{{asset:x}}` | `asset_ref: "x"` |
+| `{{keyframe:x}}` | `keyframe_ref: "x"` |
+| `{{storyboard:main}}` | `storyboard_ref: ".../storyboards/main"` |
 
 数组字段如 `keyframe_refs` 不建议自动保留为同一 type 下的多个 ref，除非对应 `content_unit_type` 明确允许多引用。否则迁移工具应输出 warning，让用户选择新的 content unit 类型。
 

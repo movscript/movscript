@@ -54,6 +54,7 @@ import {
   type MovScriptContentUnitWriteResult,
   type MovScriptContentCandidateWriteInput,
   type MovScriptContentCandidateWriteResult,
+  type MovScriptContentUnitCandidateDecisionInput,
   type MovScriptContentUnitDecisionSelectionInput,
   type MovScriptContentUnitDecisionSelectionResult,
   type MovScriptProjectStandardsWriteInput,
@@ -197,6 +198,9 @@ export interface MovScriptWorkspaceService {
   ): Promise<MovScriptContentCandidateWriteResult>
   selectContentUnitCandidate(
     input: MovScriptContentUnitDecisionSelectionInput,
+  ): Promise<MovScriptContentUnitDecisionSelectionResult>
+  decideContentUnitCandidate(
+    input: MovScriptContentUnitCandidateDecisionInput,
   ): Promise<MovScriptContentUnitDecisionSelectionResult>
   createAssetSlotCandidate(
     input: Omit<MovScriptWorkspaceCandidateWriteInput, 'fileRepository' | 'projectPath'> & { projectPath?: string },
@@ -421,6 +425,48 @@ export function createMovScriptWorkspaceService(
         stalePolicy: input.stalePolicy,
         reason: input.reason,
         selectedAt: input.selectedAt,
+      })
+      return {
+        path: contentUnitDecisionContextPath(input.contentUnitId),
+        record: normalizeDecisionContext(context),
+        context,
+      }
+    },
+    async decideContentUnitCandidate(input) {
+      const decisionStore = options.decisionStore
+      if (!decisionStore) {
+        throw new Error('content unit candidate decision requires a decisionStore')
+      }
+      if (input.decision === 'adopt') {
+        const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId)
+        const resourceId = input.resourceId ?? firstCandidateResourceId(candidate)
+        const context = await decisionStore.selectContentUnitCandidate({
+          contentUnitId: input.contentUnitId,
+          candidateId: input.candidateId,
+          ...(resourceId !== undefined ? { resourceId } : {}),
+          stalePolicy: input.stalePolicy,
+          reason: input.reason,
+          selectedAt: input.decidedAt,
+          metadata: input.metadata,
+        })
+        return {
+          path: contentUnitDecisionContextPath(input.contentUnitId),
+          record: normalizeDecisionContext(context),
+          context,
+        }
+      }
+      const candidate = await readBackendContentCandidateRecord(decisionStore, input.contentUnitId, input.candidateId)
+      if (!candidate) throw new Error(`candidate not found: ${String(input.candidateId)}`)
+      const decidedAt = input.decidedAt ?? options.now?.().toISOString()
+      const context = await decisionStore.upsertContentUnitCandidate({
+        contentUnitId: input.contentUnitId,
+        candidate: pruneUndefined({
+          ...candidate,
+          decision_status: input.decision,
+          decision_reason: input.reason,
+          decided_at: decidedAt,
+          decision_metadata: input.metadata,
+        }),
       })
       return {
         path: contentUnitDecisionContextPath(input.contentUnitId),

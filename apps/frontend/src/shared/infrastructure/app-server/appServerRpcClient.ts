@@ -688,6 +688,7 @@ function fallbackServerRequestResult(method: string): unknown {
   if (method === 'item/tool/requestUserInput') return { answers: {} }
   if (method === 'item/tool/call') return { contentItems: [], success: false }
   if (method === 'mcpServer/elicitation/request') return { action: 'decline', content: null, _meta: null }
+  if (method === 'movscript/decision/request') return { decision: 'defer' }
   if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') return { decision: 'decline' }
   if (method === 'applyPatchApproval' || method === 'execCommandApproval') return { decision: 'denied' }
   if (method === 'account/chatgptAuthTokens/refresh' || method === 'attestation/generate') {

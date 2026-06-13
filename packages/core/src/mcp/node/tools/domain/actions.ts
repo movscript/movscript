@@ -464,6 +464,19 @@ export async function domainSelectContentUnitCandidateBatch(args: Args): Promise
   return runDomainBatch(args, domainSelectContentUnitCandidate)
 }
 
+export async function domainDecideContentUnitCandidate(args: Args): Promise<unknown> {
+  return runtimeMutation(args, (runtime) => runtime.decideContentUnitCandidate({
+    contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
+    candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
+    decision: requiredDecision(args.decision),
+    ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: idValue(args.resourceId ?? args.resource_id) } : {}),
+    ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
+    ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
+    ...(stringValue(args.decidedAt ?? args.decided_at) ? { decidedAt: stringValue(args.decidedAt ?? args.decided_at) } : {}),
+    ...(optionalRecord(args.metadata) ? { metadata: optionalRecord(args.metadata) } : {}),
+  }))
+}
+
 export async function domainSelectCandidate(args: Args): Promise<unknown> {
   return runtimeMutation(args, (runtime) => runtime.selectCandidate({
     targetPath: requiredString(args.targetPath ?? args.target_path, 'targetPath'),
@@ -691,6 +704,12 @@ function contentCandidateStatus(value: unknown): ContentCandidateStatus | undefi
   if (!status) return undefined
   if (CONTENT_CANDIDATE_STATUSES.has(status as ContentCandidateStatus)) return status as ContentCandidateStatus
   throw new Error('status must be queued, running, succeeded, failed, canceled, or imported')
+}
+
+function requiredDecision(value: unknown): 'adopt' | 'reject' | 'defer' {
+  const decision = stringValue(value)
+  if (decision === 'adopt' || decision === 'reject' || decision === 'defer') return decision
+  throw new Error('decision must be adopt, reject, or defer')
 }
 
 function optionalRecord(value: unknown): Record<string, unknown> | undefined {

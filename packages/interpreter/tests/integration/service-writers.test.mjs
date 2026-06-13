@@ -201,7 +201,7 @@ test('workspace service captures content unit prompt snapshot for candidates and
   await snapshotBaseline(repository, new Date('2026-06-07T00:02:30.000Z'))
 
   const contentUnit = JSON.parse(files.get('content_units/k41m/content_unit.json'))
-  contentUnit.edit_prompt = { text: 'Changed generation context after the first candidate. {{shot:phone}} {{asset:wet_hair}}' }
+  contentUnit.edit_prompt = { text: 'Changed generation context after the first candidate. {{asset:wet_hair}}' }
   files.set('content_units/k41m/content_unit.json', `${JSON.stringify(contentUnit, null, 2)}\n`)
 
   const secondInterpretation = await interpretMovScriptWorkspace({
