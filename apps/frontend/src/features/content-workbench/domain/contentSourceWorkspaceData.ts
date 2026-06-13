@@ -138,7 +138,7 @@ export async function selectContentSourceWorkspaceCandidate(input: {
   projectId: number
   contentUnitId: string
   candidateId: string
-  resourceId?: string
+  resourceId?: number
 }): Promise<void> {
   await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
     projectId: input.projectId,
@@ -151,7 +151,7 @@ export async function createContentSourceWorkspaceCandidate(input: {
   contentUnitId: string
   outputKind: 'image' | 'video' | 'audio' | 'text' | 'storyboard'
   promptText?: string
-  resourceId?: string | number
+  resourceId?: number
   resourceName?: string
   resourceType?: 'image' | 'video' | 'audio' | 'text' | 'file'
   resourceMimeType?: string

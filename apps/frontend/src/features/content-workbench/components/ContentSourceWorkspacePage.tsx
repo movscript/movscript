@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -33,10 +33,12 @@ import {
   Button,
   Dialog,
   Input,
+  PanelResizeHandle,
   ResourceDialogContent,
   ResourceDialogFooter,
   ResourceDialogText,
   ResourceDialogTitle,
+  useResizablePanel,
 } from '@movscript/ui'
 
 import { api } from '@/shared/infrastructure/api'
@@ -44,6 +46,7 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { currentWorkspaceOwnerContext, workspaceOwnerContext, type WorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/shared/ui/ResourceLibraryPicker'
+import { UrlImage } from '@/shared/ui/UrlMedia'
 import { toast } from '@/shared/ui/toastStore'
 import type { PaginatedResponse, RawResource } from '@/types'
 
@@ -96,6 +99,11 @@ import './ContentSourceWorkspacePage.css'
 const stillSheetUrl = new URL('../assets/production-stills-sheet.png', import.meta.url).href
 const candidateResourcePageSize = 12
 const contentSourceWorkspaceDebugStorageKey = 'movscript.debug.contentWorkbench'
+const contentSourceWorkspaceNavWidthStorageKey = 'movscript.contentSourceWorkspace.navWidth'
+const contentSourceWorkspaceInspectorWidthStorageKey = 'movscript.contentSourceWorkspace.inspectorWidth'
+const contentSourceWorkspaceNavWidthLimits = { min: 240, default: 320, max: 420 }
+const contentSourceWorkspaceInspectorWidthLimits = { min: 300, default: 372, max: 480 }
+const contentSourceWorkspaceStageMinWidth = 360
 
 type ContentSourceWorkspaceDebugState = {
   projectId?: number
@@ -135,6 +143,31 @@ const emptyHierarchyNode: HierarchyNode = {
   children: [],
 }
 
+function clampContentSourceWorkspacePanelWidth(width: number, minWidth: number, maxWidth: number): number {
+  return Math.min(Math.max(Math.round(width), minWidth), maxWidth)
+}
+
+function readStoredContentSourceWorkspacePanelWidth(storageKey: string, defaultWidth: number, minWidth: number, maxWidth: number): number {
+  if (typeof window === 'undefined') return clampContentSourceWorkspacePanelWidth(defaultWidth, minWidth, maxWidth)
+  try {
+    const storedWidth = Number(window.localStorage.getItem(storageKey))
+    return Number.isFinite(storedWidth)
+      ? clampContentSourceWorkspacePanelWidth(storedWidth, minWidth, maxWidth)
+      : clampContentSourceWorkspacePanelWidth(defaultWidth, minWidth, maxWidth)
+  } catch {
+    return clampContentSourceWorkspacePanelWidth(defaultWidth, minWidth, maxWidth)
+  }
+}
+
+function writeStoredContentSourceWorkspacePanelWidth(storageKey: string, width: number): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, String(Math.round(width)))
+  } catch {
+    // localStorage can be unavailable in restricted browser contexts.
+  }
+}
+
 export default function ContentSourceWorkspacePage() {
   const projectId = useProjectStore((state) => state.current?.ID)
   const currentUser = useUserStore((state) => state.currentUser)
@@ -148,6 +181,77 @@ export default function ContentSourceWorkspacePage() {
   const ownerContextKey = `${ownerContext.orgId ?? ''}:${ownerContext.userId ?? ''}`
   const runtime = useMemo(() => createContentSourceWorkspaceRuntime({ port: createDebuggableContentSourceWorkspaceRuntimePort() }), [])
   const [runtimeState, setRuntimeState] = useState<ContentSourceWorkspaceRuntimeState>(() => runtime.getState())
+  const [navWidth, setNavWidthState] = useState(() => readStoredContentSourceWorkspacePanelWidth(
+    contentSourceWorkspaceNavWidthStorageKey,
+    contentSourceWorkspaceNavWidthLimits.default,
+    contentSourceWorkspaceNavWidthLimits.min,
+    contentSourceWorkspaceNavWidthLimits.max,
+  ))
+  const [inspectorWidth, setInspectorWidthState] = useState(() => readStoredContentSourceWorkspacePanelWidth(
+    contentSourceWorkspaceInspectorWidthStorageKey,
+    contentSourceWorkspaceInspectorWidthLimits.default,
+    contentSourceWorkspaceInspectorWidthLimits.min,
+    contentSourceWorkspaceInspectorWidthLimits.max,
+  ))
+  const getWorkspaceResizeContainer = useCallback((handle: HTMLElement) => handle.closest('.content-source-workspace') as HTMLElement | null, [])
+  const maxNavWidth = useCallback((rect: DOMRectReadOnly) => (
+    Math.min(
+      contentSourceWorkspaceNavWidthLimits.max,
+      Math.max(
+        contentSourceWorkspaceNavWidthLimits.min,
+        rect.width - contentSourceWorkspaceInspectorWidthLimits.min - contentSourceWorkspaceStageMinWidth,
+      ),
+    )
+  ), [])
+  const maxInspectorWidth = useCallback((rect: DOMRectReadOnly) => (
+    Math.min(
+      contentSourceWorkspaceInspectorWidthLimits.max,
+      Math.max(
+        contentSourceWorkspaceInspectorWidthLimits.min,
+        rect.width - contentSourceWorkspaceNavWidthLimits.min - contentSourceWorkspaceStageMinWidth,
+      ),
+    )
+  ), [])
+  const previewNavWidth = useCallback((nextWidth: number) => {
+    setNavWidthState(nextWidth)
+  }, [])
+  const commitNavWidth = useCallback((nextWidth: number) => {
+    const clampedWidth = clampContentSourceWorkspacePanelWidth(nextWidth, contentSourceWorkspaceNavWidthLimits.min, contentSourceWorkspaceNavWidthLimits.max)
+    setNavWidthState(clampedWidth)
+    writeStoredContentSourceWorkspacePanelWidth(contentSourceWorkspaceNavWidthStorageKey, clampedWidth)
+  }, [])
+  const previewInspectorWidth = useCallback((nextWidth: number) => {
+    setInspectorWidthState(nextWidth)
+  }, [])
+  const commitInspectorWidth = useCallback((nextWidth: number) => {
+    const clampedWidth = clampContentSourceWorkspacePanelWidth(nextWidth, contentSourceWorkspaceInspectorWidthLimits.min, contentSourceWorkspaceInspectorWidthLimits.max)
+    setInspectorWidthState(clampedWidth)
+    writeStoredContentSourceWorkspacePanelWidth(contentSourceWorkspaceInspectorWidthStorageKey, clampedWidth)
+  }, [])
+  const navResize = useResizablePanel({
+    size: navWidth,
+    onSizeChange: previewNavWidth,
+    onSizeCommit: commitNavWidth,
+    minSize: contentSourceWorkspaceNavWidthLimits.min,
+    maxSize: maxNavWidth,
+    resizeEdge: 'right',
+    ariaLabel: '调整内容结构栏宽度',
+    getContainer: getWorkspaceResizeContainer,
+  })
+  const inspectorResize = useResizablePanel({
+    size: inspectorWidth,
+    onSizeChange: previewInspectorWidth,
+    onSizeCommit: commitInspectorWidth,
+    minSize: contentSourceWorkspaceInspectorWidthLimits.min,
+    maxSize: maxInspectorWidth,
+    resizeEdge: 'left',
+    ariaLabel: '调整内容控制台宽度',
+    getContainer: getWorkspaceResizeContainer,
+  })
+  const workspaceLayoutStyle = useMemo(() => ({
+    '--content-source-workspace-nav-width': `${navWidth}px`,
+    '--content-source-workspace-inspector-width': `${inspectorWidth}px`,
+  }) as CSSProperties, [inspectorWidth, navWidth])
 
   useEffect(() => runtime.subscribe(setRuntimeState), [runtime])
 
@@ -457,7 +561,12 @@ export default function ContentSourceWorkspacePage() {
   const inspectorLinkedChild = findChildForNode(workspaceData, selectedNode, selectedShot)
 
   return (
-    <main className="content-source-workspace content-source-workspace--source-workspace" data-testid="content-source-workspace-page">
+    <main
+      className="content-source-workspace content-source-workspace--source-workspace"
+      data-layout-resizing={navResize.resizing || inspectorResize.resizing ? 'true' : undefined}
+      data-testid="content-source-workspace-page"
+      style={workspaceLayoutStyle}
+    >
       <aside className="content-source-workspace-nav">
         <div className="content-source-workspace-nav__search">
           <Search size={14} />
@@ -492,6 +601,11 @@ export default function ContentSourceWorkspacePage() {
           <strong>{nodeTypeLabel(selectedNode.type)} · {selectedNode.title}</strong>
           {runtimeState.error ? <small>{runtimeState.error}</small> : null}
         </div>
+        <PanelResizeHandle
+          className="content-source-workspace__resize-handle content-source-workspace__resize-handle--nav"
+          side="right"
+          {...navResize.resizeHandleProps}
+        />
       </aside>
 
       <section className="content-source-workspace__stage">
@@ -507,6 +621,11 @@ export default function ContentSourceWorkspacePage() {
       </section>
 
       <aside className="content-source-workspace-inspector" aria-label="内容单元控制台">
+        <PanelResizeHandle
+          className="content-source-workspace__resize-handle content-source-workspace__resize-handle--inspector"
+          side="left"
+          {...inspectorResize.resizeHandleProps}
+        />
         <div className="content-source-workspace-inspector__header">
           <div>
             <span className="content-source-workspace__eyebrow">Inspector</span>
@@ -761,11 +880,12 @@ function HierarchyTree({
               >
                 {hasChildren ? <ChevronRight size={12} /> : null}
               </span>
-              <span className="content-source-workspace-hierarchy-node__kind">{nodeTypeBadge(node.type)}</span>
+              <span className="content-source-workspace-hierarchy-node__badge" data-type={node.type}>{nodeTypeCode(node.type)}</span>
               <span className="content-source-workspace-hierarchy-node__copy">
                 <strong>{node.title}</strong>
+                <small>{hierarchyNodeTreeMeta(node)}</small>
               </span>
-              {shouldShowTreeState(node.state) ? <em data-status={node.state}>{stateLabel(node.state)}</em> : null}
+              {node.state ? <em data-status={node.state}>{stateLabel(node.state)}</em> : null}
             </div>
             {isAddingHere ? (
               <HierarchyAddForm
@@ -896,12 +1016,16 @@ function HierarchyContentView({
         </div>
 
         <NodePreviewSelectionWorkspace node={node} workspaceData={workspaceData} selectedShot={selectedShot} linkedContentUnit={linkedContentUnit} linkedChild={linkedChild} />
+      </section>
 
-        <section className="content-source-workspace-entity-section content-source-workspace-entity-section--supporting">
-          <div className="content-source-workspace-entity-section__title">
+      <section className="content-source-workspace-entity-section content-source-workspace-entity-section--supporting">
+        <div className="content-source-workspace-entity-section__title">
+          <div>
             <span className="content-source-workspace__eyebrow">Supporting Detail</span>
             <strong>结构上下文</strong>
           </div>
+          <Badge variant="outline">{node.type === 'scene_moment' ? `${currentMoment.shots.length} shots` : node.children?.length ? `${node.children.length} children` : nodeTypeLabel(node.type)}</Badge>
+        </div>
           {node.type === 'production' || node.type === 'segment' ? (
             <PreviewPacket icon={Layers3} title="Scene Moments" meta={`${moments.length} moments`}>
               <PreviewList items={moments.map((moment) => `${selectionStateText(moment.selectionState)} · ${moment.title}`)} />
@@ -957,8 +1081,6 @@ function HierarchyContentView({
               {selectedAudioCue ? <AudioCueList items={[selectedAudioCue]} /> : <PreviewList items={['未在当前 scene_moment 中找到 audio_cue source。']} />}
             </PreviewPacket>
           ) : null}
-        </section>
-
       </section>
     </div>
   )
@@ -1043,30 +1165,73 @@ function NodePreviewPane({
     : assetUnit
       ? '选择候选后，下游会记录这个参考图确认态。'
       : previewCopyForNode(node, selectedShot, linkedChild)
+  const selectionState = assetUnit?.selectionState ?? contentUnit?.selectionState
+  const contentUnitLabel = assetUnit?.contentUnitId ?? contentUnit?.id ?? '结构层级'
+  const dependencySummary = assetUnit
+    ? [
+      ...assetUnit.upstream.map((item) => item.title),
+      ...assetUnit.downstream.map((item) => item.title),
+    ].slice(0, 3).join(' + ') || assetUnit.acceptedInputHash || '暂无依赖记录'
+    : contentUnit
+      ? [
+        contentUnit.storyboardRef,
+        ...contentUnit.keyframeRefs,
+        contentUnit.sceneMomentRef,
+      ].filter(Boolean).slice(0, 3).join(' + ') || contentUnit.path
+      : node.children?.length ? `${node.children.length} 个下级节点` : node.path || node.id
+  const referenceCount = assetUnit
+    ? assetUnit.upstream.length + assetUnit.downstream.length
+    : contentUnit
+      ? contentUnit.keyframeRefs.length + (contentUnit.storyboardRef ? 1 : 0)
+      : node.children?.length ?? 0
 
   return (
     <section className="content-source-workspace-entity-preview">
-      <div className="content-source-workspace-entity-preview__visual" data-empty={showEmptyPreview}>
-        {showEmptyPreview ? (
-          <span className="content-source-workspace-entity-preview__empty">
-            <Image size={22} />
-            <em>暂无候选预览</em>
-          </span>
-        ) : (
-          <img src={stillSheetUrl} alt="" style={stillSheetStyle(imagePosition)} />
-        )}
-        <Badge variant="outline">{previewKindLabel(node.type)}</Badge>
-      </div>
-      <div className="content-source-workspace-entity-preview__meta">
-        <span className="content-source-workspace__eyebrow">Preview</span>
-        <h4>{title}</h4>
-        <p>{copy}</p>
-        <div className="content-source-workspace-asset-impact-summary">
-          <PreviewMetric icon={Sparkles} label="Candidates" value={candidateCount} />
-          <PreviewMetric icon={Check} label="Selection" value={assetUnit || contentUnit ? selectionStateText(assetUnit?.selectionState ?? contentUnit?.selectionState ?? 'ready') : '不需要候选'} />
+      <div className="content-source-workspace-entity-preview__visual-card">
+        <div className="content-source-workspace-entity-preview__visual" data-empty={showEmptyPreview}>
+          {showEmptyPreview ? (
+            <span className="content-source-workspace-entity-preview__empty">
+              <Image size={22} />
+              <em>暂无候选预览</em>
+            </span>
+          ) : (
+            <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(imagePosition)} />
+          )}
+          <Badge variant="outline">{previewKindLabel(node.type)}</Badge>
+        </div>
+        <div className="content-source-workspace-entity-preview__meta">
+          <span className="content-source-workspace__eyebrow">Preview</span>
+          <h4>{title}</h4>
+          <p>{copy}</p>
         </div>
       </div>
+      <div className="content-source-workspace-entity-preview__facts">
+        <div className="content-source-workspace-asset-impact-summary">
+          <PreviewMetric icon={Sparkles} label="Candidates" value={candidateCount} />
+          <PreviewMetric icon={Check} label="Selection" value={selectionState ? selectionStateText(selectionState) : '不需要候选'} />
+          <PreviewMetric icon={Layers3} label="Children" value={node.children?.length ?? 0} />
+          <PreviewMetric icon={Link2} label="Refs" value={referenceCount} />
+        </div>
+        <PreviewFactCard title="Content Unit" status={selectionState ? selectionStateText(selectionState) : previewKindLabel(node.type)}>
+          {contentUnitLabel} · {assetUnit?.outputKind ?? contentUnit?.outputKind ?? nodeTypeLabel(node.type)}
+        </PreviewFactCard>
+        <PreviewFactCard title="Dependency Hash" status={assetUnit?.acceptedInputHash ? 'accepted' : referenceCount > 0 ? 'linked' : 'structure'}>
+          {dependencySummary}
+        </PreviewFactCard>
+      </div>
     </section>
+  )
+}
+
+function PreviewFactCard({ title, status, children }: { title: string; status: string; children: ReactNode }) {
+  return (
+    <article className="content-source-workspace-preview-fact">
+      <div className="content-source-workspace-preview-fact__header">
+        <strong>{title}</strong>
+        <Badge variant="outline">{status}</Badge>
+      </div>
+      <p>{children}</p>
+    </article>
   )
 }
 
@@ -1301,8 +1466,10 @@ function FocusPanel({
         <span className="content-source-workspace-focus-card__title">{title}</span>
         <Badge variant={tone === 'quiet' ? 'outline' : 'soft'}>{status}</Badge>
       </header>
-      <strong>{value}</strong>
-      <p>{summary}</p>
+      <div className="content-source-workspace-focus-card__summary">
+        <strong>{value}</strong>
+        <p>{summary}</p>
+      </div>
       <div className="content-source-workspace-focus-card__body">{children}</div>
     </article>
   )
@@ -1704,7 +1871,7 @@ function SettingScopeDetail({
                       onClick={() => onJumpToNode(asset.id, asset.momentId, asset.shotId)}
                     >
                       <span className="content-source-workspace-setting-asset-card__thumb">
-                        <img src={stillSheetUrl} alt="" style={stillSheetStyle(asset.shotId === 'shot_headlights_back' ? '100% 0%' : asset.shotId === 'shot_elevator_gap' ? '0% 100%' : '0% 0%')} />
+                        <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(asset.shotId === 'shot_headlights_back' ? '100% 0%' : asset.shotId === 'shot_elevator_gap' ? '0% 100%' : '0% 0%')} />
                       </span>
                       <span className="content-source-workspace-setting-asset-card__body">
                         <strong>{asset.title}</strong>
@@ -1888,7 +2055,7 @@ function AssetReferenceDetail({
           <div className="content-source-workspace-asset-selected">
             <span className="content-source-workspace__eyebrow">{selectedCandidate ? 'Candidate Preview' : 'Current Reference'}</span>
             <div className="content-source-workspace-asset-selected__thumb">
-              <img src={stillSheetUrl} alt="" style={stillSheetStyle(node.shotId === 'shot_headlights_back' ? '100% 0%' : node.shotId === 'shot_elevator_gap' ? '0% 100%' : '0% 0%')} />
+              <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(node.shotId === 'shot_headlights_back' ? '100% 0%' : node.shotId === 'shot_elevator_gap' ? '0% 100%' : '0% 0%')} />
             </div>
             <strong>{selectedCandidate?.title ?? '尚未确认参考图'}</strong>
             <p>{selectedCandidate ? `${selectedCandidate.resourceId} · ${selectedCandidate.inputHash}` : '选择候选后，下游会记录这个参考图确认态。'}</p>
@@ -2010,7 +2177,7 @@ function AssetReferenceCandidateList({
             }}
           >
             <span className="content-source-workspace-asset-candidate__thumb">
-              <img src={stillSheetUrl} alt="" style={stillSheetStyle(unit.assetId === 'asset/headlight_beam' ? '100% 0%' : unit.assetId === 'asset/evening_dress' ? '0% 100%' : '0% 0%')} />
+              <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(unit.assetId === 'asset/headlight_beam' ? '100% 0%' : unit.assetId === 'asset/evening_dress' ? '0% 100%' : '0% 0%')} />
             </span>
             <span className="content-source-workspace-asset-candidate__body">
               <strong>{candidate.title}</strong>
@@ -2173,7 +2340,7 @@ function ShotCardRow({
             }}
           >
             <span className="content-source-workspace-shot-card__frame">
-              <img src={stillSheetUrl} alt="" style={stillSheetStyle(shot.stillPosition)} />
+              <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(shot.stillPosition)} />
               <small>{String(shotIndex + 1).padStart(2, '0')}</small>
             </span>
             <span className="content-source-workspace-shot-card__body">
@@ -2460,7 +2627,7 @@ function ShotChildList({ items, stillPosition }: { items: ShotChildOption[]; sti
       {items.map((item, index) => (
         <button key={item.id} type="button" className="content-source-workspace-child-card" data-status={item.status}>
           <span className="content-source-workspace-child-card__thumb">
-            <img src={stillSheetUrl} alt="" style={stillSheetStyle(stillPosition)} />
+            <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(stillPosition)} />
             <small>{String(index + 1).padStart(2, '0')}</small>
           </span>
           <span className="content-source-workspace-child-card__body">
@@ -2709,7 +2876,7 @@ function CandidateList({
             onClick={() => onSelect(candidate.id)}
           >
             <span className="content-source-workspace-candidate__thumb">
-              <img src={stillSheetUrl} alt="" style={stillSheetStyle(stillPosition)} />
+              <UrlImage src={stillSheetUrl} alt="" style={stillSheetStyle(stillPosition)} />
             </span>
             <span className="content-source-workspace-candidate__body">
               <strong>{candidate.title}</strong>
@@ -2893,6 +3060,43 @@ function findChildForNode(workspaceData: ContentSourceWorkspaceData, node: Hiera
   return [...workspace.keyframes, ...workspace.storyboards].find((item) => item.id === node.id)
 }
 
+function nodeTypeCode(type: HierarchyNodeType): string {
+  switch (type) {
+    case 'production':
+      return 'PROD'
+    case 'segment':
+      return 'SEG'
+    case 'scene_moment':
+      return 'MOM'
+    case 'shot':
+      return 'SHOT'
+    case 'storyboard':
+      return 'STB'
+    case 'keyframe':
+      return 'KEY'
+    case 'asset':
+      return 'ASSET'
+    case 'setting':
+      return 'SET'
+    case 'state':
+      return 'STATE'
+    case 'expression_unit':
+      return 'EXP'
+    case 'audio_cue':
+      return 'AUD'
+    case 'group':
+      return 'GRP'
+  }
+}
+
+function hierarchyNodeTreeMeta(node: HierarchyNode): string {
+  return [
+    nodeTypeLabel(node.type),
+    node.state ? stateLabel(node.state) : undefined,
+    node.children?.length ? `${node.children.length} children` : undefined,
+  ].filter(Boolean).join(' · ')
+}
+
 function nodeTypeLabel(type: HierarchyNodeType) {
   switch (type) {
     case 'production':
@@ -2919,33 +3123,6 @@ function nodeTypeLabel(type: HierarchyNodeType) {
       return 'storyboard'
     case 'keyframe':
       return 'keyframe'
-  }
-}
-
-function nodeTypeBadge(type: HierarchyNodeType) {
-  switch (type) {
-    case 'production':
-      return 'Prod'
-    case 'setting':
-      return 'Setting'
-    case 'state':
-      return 'State'
-    case 'asset':
-      return 'Asset'
-    case 'segment':
-      return 'Segment'
-    case 'scene_moment':
-      return 'Scene'
-    case 'group':
-      return 'Group'
-    case 'shot':
-      return 'Shot'
-    case 'expression_unit':
-      return 'Expr'
-    case 'storyboard':
-      return 'Story'
-    case 'keyframe':
-      return 'Key'
   }
 }
 

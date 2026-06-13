@@ -40,7 +40,7 @@ export function resolveAssetRefSelections(
     const selection = readSelectedContentUnit(index, entityDir(entity.path))
     if (!selection) return []
     const candidateId = idField(selection.candidate_id)
-    const resourceId = idField(selection.resource_id)
+    const resourceId = resourceIdField(selection.resource_id)
     return [{
       content_unit_ref: entityDir(entity.path),
       ...(candidateId !== undefined ? { candidate_id: candidateId } : {}),
@@ -54,7 +54,7 @@ export function resolveAssetRefSelections(
 
 export function projectStyleReferenceResourceIds(
   index: MovScriptWorkspaceDomainIndex,
-): Array<string | number> {
+): number[] {
   const standards = firstEntity(index, 'project_standards')
   if (!standards) return []
   return uniqueIds([
@@ -232,7 +232,7 @@ export function resolveUpstreamSelectionForPromptRef(
   const selection = readSelectedContentUnit(index, entityDir(contentUnit.path))
   if (!selection) return undefined
   const candidateId = idField(selection.candidate_id)
-  const resourceId = idField(selection.resource_id)
+  const resourceId = resourceIdField(selection.resource_id)
   return {
     content_unit_ref: entityDir(contentUnit.path),
     ...(candidateId !== undefined ? { candidate_id: candidateId } : {}),
@@ -395,11 +395,11 @@ export function arrayField(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-function resourceIdsFromValue(value: unknown): Array<string | number> {
+function resourceIdsFromValue(value: unknown): number[] {
   if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue)
   const text = stringField(value)
   if (text) {
-    const ids: Array<string | number> = []
+    const ids: number[] = []
     const patterns = [
       /resource#([0-9]+)/gi,
       /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi,
@@ -417,15 +417,15 @@ function resourceIdsFromValue(value: unknown): Array<string | number> {
     const parsed = Number(text)
     return Number.isInteger(parsed) && parsed > 0 ? [parsed] : []
   }
-  const id = idField(value)
+  const id = resourceIdField(value)
   if (id !== undefined) return [id]
   if (isRecord(value)) return resourceIdsFromValue(value.resource_id ?? value.resourceId ?? value.id)
   return []
 }
 
-function uniqueIds(values: Array<string | number>): Array<string | number> {
+function uniqueIds<T extends string | number>(values: T[]): T[] {
   const seen = new Set<string>()
-  const output: Array<string | number> = []
+  const output: T[] = []
   for (const value of values) {
     const key = String(value)
     if (seen.has(key)) continue
@@ -458,6 +458,15 @@ export function numberField(value: unknown): number | undefined {
 export function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
+}
+
+export function resourceIdField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
   return undefined
 }
 

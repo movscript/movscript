@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import {
   agentThreadSummaryHasContent,
@@ -30,6 +32,17 @@ test('agent thread registry hydration preserves explicit closed records as histo
 
   assert.equal(shouldHydrateAgentThreadSummary(thread, existing), true)
   assert.equal(agentThreadSummaryRegistryOpenState(thread, existing), false)
+})
+
+test('agent thread registry hydration writes source threads into the shared registry', () => {
+  const source = readFileSync(resolve('src/features/agent/application/useAgentThreadRegistryHydration.ts'), 'utf8')
+  const hydrationEffectSource = source.match(/useEffect\(\(\) => \{[\s\S]*?\}, \[providerIdentity, sourceThreads, upsertConversation, userId\]\)/)?.[0] ?? ''
+
+  assert.match(hydrationEffectSource, /const currentRecords = useAgentSessionStore\.getState\(\)\.conversationsById/)
+  assert.match(hydrationEffectSource, /agentConversationRegistryRecordForThread\(currentRecords/)
+  assert.match(hydrationEffectSource, /shouldHydrateAgentThreadSummary\(thread, existing\)/)
+  assert.match(hydrationEffectSource, /upsertConversation\(agentConversationRegistryInputFromThreadSummary\(\{/)
+  assert.match(hydrationEffectSource, /open: agentThreadSummaryRegistryOpenState\(thread, existing\)/)
 })
 
 function threadSummary(input: Partial<AgentThreadSummary> = {}): AgentThreadSummary {

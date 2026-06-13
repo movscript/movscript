@@ -26,7 +26,7 @@ type Context struct {
 
 type CandidateSelection struct {
 	CandidateID       string          `json:"candidate_id,omitempty"`
-	ResourceID        string          `json:"resource_id,omitempty"`
+	ResourceID        *uint           `json:"resource_id,omitempty"`
 	AcceptedInputHash string          `json:"accepted_input_hash,omitempty"`
 	StalePolicy       string          `json:"stale_policy,omitempty"`
 	Reason            string          `json:"reason,omitempty"`

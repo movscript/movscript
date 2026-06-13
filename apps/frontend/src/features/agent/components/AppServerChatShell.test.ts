@@ -11,6 +11,31 @@ import {
 import { resolveAgentChatShellProvider } from '@/features/agent/components/AgentUnifiedChatShell'
 import type { ProviderConfig, ProviderSettings } from '@/shared/infrastructure/providerConfigStore'
 
+function sourceFunctionBlock(source: string, functionName: string): string {
+  const start = source.indexOf(`function ${functionName}(`)
+  assert.ok(start >= 0, `missing function ${functionName}`)
+  const bodyStart = source.indexOf('{', start)
+  assert.ok(bodyStart >= 0, `missing function body for ${functionName}`)
+  let depth = 0
+  for (let index = bodyStart; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === '{') depth += 1
+    if (character === '}') {
+      depth -= 1
+      if (depth === 0) return source.slice(bodyStart, index + 1)
+    }
+  }
+  assert.fail(`unterminated function ${functionName}`)
+}
+
+function sourceBetween(source: string, startNeedle: string, endNeedle: string): string {
+  const start = source.indexOf(startNeedle)
+  assert.ok(start >= 0, `missing source marker ${startNeedle}`)
+  const end = source.indexOf(endNeedle, start)
+  assert.ok(end >= 0, `missing source marker ${endNeedle}`)
+  return source.slice(start, end)
+}
+
 test('app-server chat shell maps routes to MovScript workspace contexts', () => {
   assert.deepEqual(appServerWorkspaceContextFromRoute({
     pathname: '/project/agent',
@@ -216,9 +241,57 @@ test('project agent mode project groups only render groups with open conversatio
   const projectAgentSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
 
   assert.match(projectAgentSource, /const visibleProjectGroups = projectGroups/)
+  assert.match(projectAgentSource, /const projectConversationGroupsEmpty = visibleProjectGroups\.length === 0/)
   assert.doesNotMatch(projectAgentSource, /const visibleAppServerProjectGroups = appServerProjectGroups/)
+  assert.doesNotMatch(projectAgentSource, /projectConversationGroupsEmpty = appServerMode \? true/)
   assert.doesNotMatch(projectAgentSource, /sourceGroups\.get\(item\.ID\) \?\? \{[\s\S]*conversations: \[\]/)
   assert.doesNotMatch(projectAgentSource, /sourceGroups\.get\(item\.ID\) \?\? \{[\s\S]*threads: \[\]/)
+})
+
+test('project agent mode app-server conversations use thread titles and project ids', () => {
+  const projectAgentSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+  const hydrationSource = readFileSync(resolve('src/features/agent/application/useAgentThreadRegistryHydration.ts'), 'utf8')
+  const activeThreadSource = sourceBetween(projectAgentSource, 'function AppServerSidebarActiveThread(', 'function ProjectAgentChatSurface')
+  const selectConversationSource = projectAgentSource.match(/function selectConversation\(id: string\)[\s\S]*?function archiveConversationFromSidebar/)?.[0] ?? ''
+  const projectIdSource = sourceBetween(projectAgentSource, 'function conversationProjectId(', 'function appServerConversationIdForThread')
+  const cwdProjectIdSource = sourceFunctionBlock(projectAgentSource, 'projectIdFromProviderSessionCwd')
+
+  assert.match(hydrationSource, /const projectId = projectIdFromProviderSessionCwd\(thread\.cwd\)/)
+  assert.match(hydrationSource, /\.\.\.\(projectId !== undefined \? \{ projectId \} : \{\}\)/)
+  assert.match(hydrationSource, /function projectIdFromProviderSessionCwd/)
+  assert.ok(cwdProjectIdSource.includes('\\.movscript\\/'))
+  assert.ok(cwdProjectIdSource.includes('local|user\\/[^/]+|org\\/[^/]+'))
+  assert.ok(cwdProjectIdSource.includes('?? /(?:^|\\/)'))
+  assert.match(projectIdSource, /conversationsById: Record<string, AgentConversationRegistryRecord>/)
+  assert.match(projectIdSource, /const recordProjectId = conversation\.id \? context\.conversationsById\[conversation\.id\]\?\.projectId : undefined/)
+  assert.match(projectAgentSource, /title=\{appServerActiveRecord\?\.title \?\? providerSessionThreadsById\.get\(appServerActiveThreadId\)\?\.title\}/)
+  assert.match(activeThreadSource, /const label = title\?\.trim\(\) \|\| fallbackLabel/)
+  assert.doesNotMatch(activeThreadSource, /description=\{threadId\}/)
+  assert.match(selectConversationSource, /const conversation = conversations\.find\(\(item\) => item\.id === id\)/)
+  assert.match(selectConversationSource, /conversation\?\.providerThreadId[\s\S]*conversationsById\[id\]\?\.providerThreadId/)
+  assert.match(selectConversationSource, /if \(appServerMode && providerThreadId\) openAppServerThread\(\{ threadId: providerThreadId, provider: activeAgentProvider \}\)/)
+})
+
+test('agent chat detailed tabs and agent mode groups share registry-open conversations', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const projectAgentSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+  const registryOpenThreadsSource = sourceBetween(dataSourceShellSource, 'const registryOpenThreads = useMemo', 'const closeThreadTab = useCallback')
+  const agentModeOpenConversationsSource = sourceBetween(projectAgentSource, 'const rawOpenConversations = useMemo', 'const providerSessionStatusLights')
+  const conversationsByScopeSource = sourceBetween(projectAgentSource, 'const conversationsByScope = useMemo', 'const { projectGroups, chatConversations } = conversationsByScope')
+
+  assert.match(registryOpenThreadsSource, /Object\.values\(conversationsById\)/)
+  assert.match(registryOpenThreadsSource, /record\.open !== false/)
+  assert.match(registryOpenThreadsSource, /!record\.archived/)
+  assert.match(registryOpenThreadsSource, /agentConversationRecordMatchesProviderIdentity\(record, providerIdentity\)/)
+  assert.match(registryOpenThreadsSource, /agentChatThreadFromRegistryRecord\(record, dataSource\)/)
+  assert.match(registryOpenThreadsSource, /for \(const thread of registryOpenThreads\) next\.set\(thread\.id, thread\)/)
+  assert.match(registryOpenThreadsSource, /for \(const thread of sourceOpenThreads\) \{[\s\S]*if \(thread\.id === activeThreadId \|\| openThreadIds\.has\(thread\.id\)\) next\.set\(thread\.id, thread\)/)
+  assert.doesNotMatch(registryOpenThreadsSource, /for \(const thread of sourceOpenThreads\) next\.set\(thread\.id, thread\)/)
+  assert.match(dataSourceShellSource, /function agentChatThreadFromRegistryRecord/)
+  assert.match(agentModeOpenConversationsSource, /conversation\.archived !== true && conversationsById\[conversation\.id\]\?\.open !== false/)
+  assert.match(conversationsByScopeSource, /for \(const conversation of openConversations\)/)
+  assert.match(conversationsByScopeSource, /const projectId = conversationProjectId\(conversation, \{[\s\S]*conversationsById/)
+  assert.match(conversationsByScopeSource, /\}, \[conversationThreadBindings, conversationsById,/)
 })
 
 test('agent chat pending server requests survive shell remounts without stale replay', () => {
@@ -279,6 +352,25 @@ test('agent chat permission profile updates wait until a thread is loaded', () =
   assert.match(profileChangeSource, /const thread = runtimeRef\.current\.threads\.find\(\(item\) => item\.id === activeThreadId\)/)
   assert.match(profileChangeSource, /if \(!thread \|\| thread\.status === 'notLoaded'\) return/)
   assert.match(profileChangeSource, /dataSource\.updateThreadSettings/)
+})
+
+test('agent chat sends active run profile settings before starting an existing thread turn', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const sendMessageSource = dataSourceShellSource.match(/const sendMessage = useCallback[\s\S]*?const submitQueuedInputsAsTurn = useCallback/)?.[0] ?? ''
+  const queuedTurnSource = dataSourceShellSource.match(/const submitQueuedInputsAsTurn = useCallback[\s\S]*?const submitQueuedInputAsTurn = useCallback/)?.[0] ?? ''
+
+  assert.match(sendMessageSource, /await syncThreadRunProfileSettingsForTurn\(turnDataSource, thread, runProfile\)/)
+  assert.match(sendMessageSource, /await turnDataSource\.startTurn\(/)
+  assert.match(queuedTurnSource, /await syncThreadRunProfileSettingsForTurn\(dataSource, thread, runProfile\)/)
+  assert.match(queuedTurnSource, /await dataSource\.startTurn\(/)
+})
+
+test('agent chat run profile selector remains visible during an active turn', () => {
+  const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const composerPropsSource = dataSourceShellSource.match(/<AgentComposerSection[\s\S]*?showMentionTools/)?.[0] ?? ''
+
+  assert.match(composerPropsSource, /\bshowApprovalPresetSelector\b/)
+  assert.doesNotMatch(composerPropsSource, /showApprovalPresetSelector=\{!activeTurn\}/)
 })
 
 test('agent chat queued composer inputs stay editable until sent or steered', () => {

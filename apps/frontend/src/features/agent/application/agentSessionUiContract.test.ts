@@ -107,6 +107,24 @@ test('agent chat composer uses the same chrome in page and detail surfaces', () 
   assert.doesNotMatch(dataSourceShellSource, /chrome=\{surface === 'page' \? 'flush' : 'bottom-bar'\}/)
 })
 
+test('agent mode sidebar keeps conversations scoped to unbound chats', () => {
+  const agentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+  const conversationGroupSource = sourceBetween(
+    agentModePageSource,
+    "<AgentSidebarGroup\n          title={t('agents.chat.agentModeSidebar.conversations')}",
+    "<AgentSidebarGroup\n          title={t('agents.chat.conversationHistory')}",
+  )
+
+  assert.match(agentModePageSource, /const \{ projectGroups, chatConversations \} = conversationsByScope/)
+  assert.match(agentModePageSource, /const sortedChatConversations = chatConversations/)
+  assert.match(conversationGroupSource, /trailing=\{chatConversations\.length > 0 \? `\$\{chatConversations\.length\}` : undefined\}/)
+  assert.match(conversationGroupSource, /sortedChatConversations\.length === 0/)
+  assert.match(conversationGroupSource, /visibleChatConversations\.map/)
+  assert.doesNotMatch(conversationGroupSource, /appServerMode \?/)
+  assert.doesNotMatch(agentModePageSource, /appServerActiveThreadId/)
+  assert.doesNotMatch(agentModePageSource, /AppServerSidebarActiveThread/)
+})
+
 test('agent composer locks workspace context after a session starts', () => {
   const composerControllerSource = readFileSync(resolve('src/features/agent/presentation/useAgentComposerController.ts'), 'utf8')
   const composerSectionSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
@@ -214,7 +232,7 @@ test('agent new conversation drafts bind selected project without starting a thr
   assert.match(topControlsSource, /showProjectSelector \? \(/)
   assert.match(agentModePageSource, /sessionWorkspaceContext/)
   assert.match(agentModePageSource, /sessionProjectId = positiveInteger\(sessionWorkspaceContext\?\.projectId\)/)
-  assert.match(agentModePageSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} project=\{sessionProject\} \/>/)
+  assert.match(agentModePageSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} conversationId=\{sessionConversationId\} project=\{sessionProject\} \/>/)
   assert.doesNotMatch(agentBrowserPanelSource, /useProjectStore/)
   assert.match(aiAgentPanelSource, /useProjectStore/)
   assert.match(aiAgentPanelSource, /currentProject=\{currentProject\}/)

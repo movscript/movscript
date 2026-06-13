@@ -2,7 +2,8 @@ export type MovScriptDecisionTargetKind = 'asset' | 'storyboard' | 'keyframe' | 
 
 export interface MovScriptCandidateSelectionRecord {
   candidate_id?: string | number
-  resource_id?: string | number
+  resource_id?: number
+  artifact_ref?: string
   reason?: string
   selected_at?: string
   selected_by?: string | number
@@ -19,7 +20,8 @@ export interface MovScriptCandidateSelectionInput {
 
 export interface MovScriptResourceSelectionInput {
   candidateId?: string | number
-  resourceId: string | number
+  resourceId: number
+  artifactRef?: string
   reason?: string
   selectedAt?: string
   selectedBy?: string | number
@@ -34,7 +36,8 @@ export interface MovScriptCandidateSelectionResolution {
   selection: MovScriptCandidateSelectionRecord
   candidate?: Record<string, unknown>
   candidateId?: string | number
-  resourceId?: string | number
+  resourceId?: number
+  artifactRef?: string
 }
 
 export interface MovScriptCandidateRecordSelectionResult {
@@ -50,13 +53,15 @@ export function buildMovScriptCandidateSelectionRecord(
   input: Partial<Omit<MovScriptCandidateSelectionInput, 'candidateId'>> = {},
 ): MovScriptCandidateSelectionRecord {
   const candidateId = idField(candidate.id)
-  const resourceId = idField(candidate.resource_id ?? candidate.resourceId)
+  const resourceId = resourceIdField(candidate.resource_id ?? candidate.resourceId)
+  const artifactRef = stringField(candidate.artifact_ref ?? candidate.artifactRef)
   if (candidateId === undefined && resourceId === undefined) {
     throw new Error('candidate selection requires candidate id or resource_id')
   }
   return pruneUndefined({
     candidate_id: candidateId,
     resource_id: resourceId,
+    artifact_ref: artifactRef,
     reason: input.reason ?? 'selected',
     selected_at: input.selectedAt,
     selected_by: input.selectedBy,
@@ -67,11 +72,12 @@ export function buildMovScriptCandidateSelectionRecord(
 export function buildMovScriptResourceSelectionRecord(
   input: MovScriptResourceSelectionInput,
 ): MovScriptCandidateSelectionRecord {
-  const resourceId = idField(input.resourceId)
+  const resourceId = resourceIdField(input.resourceId)
   if (resourceId === undefined) throw new Error('resource selection requires resource_id')
   return pruneUndefined({
     candidate_id: idField(input.candidateId),
     resource_id: resourceId,
+    artifact_ref: stringField(input.artifactRef),
     reason: input.reason ?? 'selected',
     selected_at: input.selectedAt,
     selected_by: input.selectedBy,
@@ -113,13 +119,15 @@ export function resolveMovScriptCandidateSelection(
   if (!selection) return undefined
   const candidateId = idField(selection.candidate_id)
   const candidate = candidateId === undefined ? undefined : findCandidate(record, candidateId)
-  const resourceId = idField(selection.resource_id) ?? idField(candidate?.resource_id ?? candidate?.resourceId)
+  const resourceId = resourceIdField(selection.resource_id) ?? resourceIdField(candidate?.resource_id ?? candidate?.resourceId)
+  const artifactRef = stringField(selection.artifact_ref) ?? stringField(candidate?.artifact_ref ?? candidate?.artifactRef)
   if (candidateId === undefined && resourceId === undefined) return undefined
   return pruneUndefined({
     selection,
     candidate,
     candidateId,
     resourceId,
+    artifactRef,
   })
 }
 
@@ -135,11 +143,12 @@ function selectionField(options: MovScriptCandidateSelectionFieldOptions): strin
 function selectionRecord(value: unknown): MovScriptCandidateSelectionRecord | undefined {
   if (!isRecord(value)) return undefined
   const candidateId = idField(value.candidate_id)
-  const resourceId = idField(value.resource_id)
+  const resourceId = resourceIdField(value.resource_id)
   if (candidateId === undefined && resourceId === undefined) return undefined
   return pruneUndefined({
     candidate_id: candidateId,
     resource_id: resourceId,
+    artifact_ref: stringField(value.artifact_ref),
     reason: stringField(value.reason),
     selected_at: stringField(value.selected_at),
     selected_by: idField(value.selected_by),
@@ -155,6 +164,15 @@ function sameId(left: unknown, right: unknown): boolean {
 function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
+}
+
+function resourceIdField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
   return undefined
 }
 

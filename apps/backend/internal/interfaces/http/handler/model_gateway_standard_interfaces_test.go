@@ -63,7 +63,7 @@ func TestResponsesInputMessagesPreservesStandardImageParts(t *testing.T) {
 func TestGatewayMessageContentAndPartsRejectsNonStandardResourceParts(t *testing.T) {
 	_, _, err := gatewayMessageContentAndParts(json.RawMessage(`[
 		{"type":"text","text":"describe"},
-		{"type":"resource_id","resource_id":"asset_1"}
+			{"type":"resource_id","resource_id":1}
 	]`))
 	if err == nil {
 		t.Fatalf("expected non-standard resource part to be rejected")

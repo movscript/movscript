@@ -189,7 +189,8 @@ function AgentChatMovScriptDecisionForm({
   request: AgentChatServerRequest
   onAnswer: (response: AgentChatServerRequestResponse) => void
 }) {
-  const params = isRecord(request.params) ? request.params : {}
+  const { params: rawParams } = request
+  const params = isRecord(rawParams) ? rawParams : {}
   const question = stringField(params.question) ?? 'Choose how to handle this generated candidate.'
   const choices: Array<{ decision: MovScriptAgentDecision; label: string; description: string }> = [
     { decision: 'adopt', label: '采纳', description: '写入 selection，并让依赖它的下游节点继续推进。' },

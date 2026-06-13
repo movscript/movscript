@@ -614,10 +614,19 @@ function mergePromptSnapshots(
   return pruneUndefined({ ...runtimePrompt, ...promptSnapshot })
 }
 
-function firstCandidateResourceId(candidate: Record<string, unknown> | undefined): string | number | undefined {
+function firstCandidateResourceId(candidate: Record<string, unknown> | undefined): number | undefined {
   const firstOutput = arrayField(candidate?.outputs).filter(isRecord)[0]
   const resourceId = firstOutput?.resource_id
-  return typeof resourceId === 'string' || typeof resourceId === 'number' ? resourceId : undefined
+  return resourceIdField(resourceId)
+}
+
+function resourceIdField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  return undefined
 }
 
 function recordField(value: unknown): Record<string, unknown> | undefined {

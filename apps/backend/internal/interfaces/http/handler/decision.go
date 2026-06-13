@@ -90,7 +90,7 @@ func (h *DecisionHandler) Select(c *gin.Context) {
 		TargetKind        string          `json:"target_kind" binding:"required"`
 		TargetRef         string          `json:"target_ref" binding:"required"`
 		CandidateID       string          `json:"candidate_id"`
-		ResourceID        string          `json:"resource_id"`
+		ResourceID        *uint           `json:"resource_id"`
 		AcceptedInputHash string          `json:"accepted_input_hash"`
 		StalePolicy       string          `json:"stale_policy"`
 		Reason            string          `json:"reason"`

@@ -472,7 +472,7 @@ Examples:
           slot: options.slot,
           asset_kind: options.kind,
           prompt_hint: options.prompt,
-          resource_id: options.resourceId,
+          resource_id: resourceIdOption(options.resourceId),
         }),
       })
       printResult(result, merged)
@@ -1533,6 +1533,8 @@ async function addCandidateFromCliOptions(
   options: AddCandidateOptions,
 ): Promise<unknown> {
   if (!options.resourceId) throw new Error('--resource-id is required')
+  const resourceId = resourceIdOption(options.resourceId)
+  if (resourceId === undefined) throw new Error('--resource-id is required')
   const targetKind = parseTargetKindOption(options.targetKind, target, { defaultContentUnit: true })
   if (targetKind === 'content_unit') {
     const contentUnit = await resolveContentUnitTarget(engine, target)
@@ -1544,7 +1546,7 @@ async function addCandidateFromCliOptions(
       source: options.source,
       outputs: [{
         kind: parseContentCandidateOutputKind(options.outputKind ?? options.kind, contentUnit.record),
-        resource_id: options.resourceId,
+        resource_id: resourceId,
         metadata: parseOptionalKeyValueOptions(options.metadata ?? []),
       }],
       promptSnapshot: options.notes !== undefined ? { notes: options.notes } : undefined,
@@ -1555,7 +1557,7 @@ async function addCandidateFromCliOptions(
     targetKind,
     payload: pruneUndefined({
       id: options.id,
-      resource_id: options.resourceId,
+      resource_id: resourceId,
       source: options.source,
       notes: options.notes,
       metadata: parseOptionalKeyValueOptions(options.metadata ?? []),
@@ -2497,7 +2499,7 @@ async function dispatchInteractiveAssetCommand(args: string[], options: Workspac
         slot: parsed.options.slot,
         asset_kind: parsed.options.kind ?? 'image',
         prompt_hint: parsed.options.prompt,
-        resource_id: parsed.options.resourceId ?? parsed.options['resource-id'],
+        resource_id: resourceIdOption(parsed.options.resourceId ?? parsed.options['resource-id']),
       }),
     })
     printResult(result, options)
@@ -2999,10 +3001,20 @@ async function findContentUnitCandidate(
   return candidates.find((candidate) => String(candidate.record.id ?? '') === candidateId)
 }
 
-function candidateResourceId(candidate: Record<string, unknown> | undefined): string | number | undefined {
+function candidateResourceId(candidate: Record<string, unknown> | undefined): number | undefined {
   const firstOutput = arrayField(candidate?.outputs).filter(isRecord)[0]
   const resourceId = firstOutput?.resource_id
-  return typeof resourceId === 'string' || typeof resourceId === 'number' ? resourceId : undefined
+  return resourceIdOption(resourceId)
+}
+
+function resourceIdOption(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  throw new Error('resource_id must be a positive integer RawResource ID')
 }
 
 async function findContentUnitForPanel(engine: CliEngine, idOrPath: string): Promise<MovScriptWorkspaceIndexedEntity> {

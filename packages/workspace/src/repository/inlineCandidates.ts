@@ -10,8 +10,10 @@ export type MovScriptInlineCandidateTargetKind = MovScriptDecisionTargetKind
 
 export interface MovScriptInlineCandidatePayload {
   id?: string
-  resource_id?: string | number
-  resourceId?: string | number
+  resource_id?: number
+  resourceId?: number
+  artifact_ref?: string
+  artifactRef?: string
   source?: string
   notes?: string
   metadata?: Record<string, unknown>
@@ -100,7 +102,8 @@ export async function updateMovScriptInlineCandidate(
   const currentCandidate = candidates[candidateIndex]!
   const candidate = pruneUndefined({
     ...currentCandidate,
-    ...(input.payload.resource_id !== undefined || input.payload.resourceId !== undefined ? { resource_id: input.payload.resource_id ?? input.payload.resourceId } : {}),
+    ...(input.payload.resource_id !== undefined || input.payload.resourceId !== undefined ? { resource_id: requiredResourceId(input.payload.resource_id ?? input.payload.resourceId) } : {}),
+    ...(input.payload.artifact_ref !== undefined || input.payload.artifactRef !== undefined ? { artifact_ref: stringField(input.payload.artifact_ref ?? input.payload.artifactRef) } : {}),
     ...(input.payload.source !== undefined ? { source: input.payload.source } : {}),
     ...(input.payload.notes !== undefined ? { notes: input.payload.notes } : {}),
     ...(input.payload.metadata !== undefined ? { metadata: input.payload.metadata } : {}),
@@ -159,14 +162,15 @@ function validateTargetKind(targetKind: MovScriptInlineCandidateTargetKind, reco
 }
 
 function buildInlineCandidate(payload: MovScriptInlineCandidatePayload, nonce?: string): Record<string, unknown> {
-  const resourceId = payload.resource_id ?? payload.resourceId
-  if (resourceId === undefined || resourceId === null || String(resourceId).trim() === '') {
+  const resourceId = requiredResourceId(payload.resource_id ?? payload.resourceId)
+  if (resourceId === undefined) {
     throw new Error('resource_id required')
   }
   const id = payload.id ?? `candidate_${safeFileToken(String(resourceId))}_${safeFileToken(nonce ?? randomNonce())}`
   return pruneUndefined({
     id,
     resource_id: resourceId,
+    artifact_ref: stringField(payload.artifact_ref ?? payload.artifactRef),
     source: payload.source ?? 'manual',
     notes: payload.notes,
     metadata: payload.metadata,
@@ -183,6 +187,20 @@ function normalizeWorkspacePath(value: string): string {
 
 function safeFileToken(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_-]+/g, '_')
+}
+
+function requiredResourceId(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  throw new Error('resource_id must be a positive integer RawResource ID')
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function randomNonce(): string {

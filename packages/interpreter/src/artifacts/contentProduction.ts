@@ -9,6 +9,7 @@ import {
   idField,
   readSelectedContentUnit,
   requiredString,
+  resourceIdField,
   stableJsonValue,
   stringField,
 } from './contentProductionHelpers.js'
@@ -103,7 +104,7 @@ function selectionValidityFor(
   const selection = readSelectedContentUnit(index, entityDir(contentUnit.path))
   const stalePolicy = selection?.stale_policy === 'accept_stale' ? 'accept_stale' : 'strict'
   const selectedCandidateId = idField(selection?.candidate_id)
-  const selectedResourceId = idField(selection?.resource_id)
+  const selectedResourceId = resourceIdField(selection?.resource_id)
   const candidate = selectedCandidateId === undefined
     ? undefined
     : readContentUnitCandidate(index, entityDir(contentUnit.path), selectedCandidateId)

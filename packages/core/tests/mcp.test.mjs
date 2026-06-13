@@ -1395,6 +1395,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-content-candidate-'))
   const projectDir = join(workspaceDir, 'local', 'projects', 'project_8')
   const decisionContexts = new Map()
+  const selectionRequests = []
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   globalThis.fetch = async (url, init = {}) => {
     const parsed = new URL(String(url))
@@ -1436,6 +1437,7 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       const targetRef = body.target_ref
       const context = decisionContexts.get(targetRef)
       if (!context) return notFound()
+      selectionRequests.push(body)
       context.selection = {
         candidate_id: body.candidate_id,
         resource_id: body.resource_id,
@@ -1536,6 +1538,8 @@ test('MCP content unit candidate flow writes source records and refreshes interp
 
     assert.equal(selectionResponse.error, undefined)
     assert.equal(selectionResponse.result.data.path, '.movscript/decisions/content_units/arrival_preview/decision_context.json')
+    assert.equal(selectionRequests.at(-1)?.candidate_id, 'candidate_a')
+    assert.equal(selectionRequests.at(-1)?.resource_id, 321)
     assert.equal(selectionResponse.result.data.record.selection.resource_id, 321)
     assert.equal(selectionResponse.result.data.record.selection.accepted_input_hash, undefined)
 

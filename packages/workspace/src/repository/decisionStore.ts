@@ -32,7 +32,7 @@ export interface MovScriptContentUnitDecisionCandidatesInput extends MovScriptCo
 
 export interface MovScriptContentUnitDecisionSelectionInput extends MovScriptContentUnitDecisionTarget {
   candidateId: string | number
-  resourceId?: string | number
+  resourceId?: number
   stalePolicy?: 'strict' | 'accept_stale'
   reason?: string
   selectedAt?: string
@@ -42,7 +42,7 @@ export interface MovScriptContentUnitDecisionSelectionInput extends MovScriptCon
 export interface MovScriptContentUnitCandidateDecisionInput extends MovScriptContentUnitDecisionTarget {
   candidateId: string | number
   decision: 'adopt' | 'reject' | 'defer'
-  resourceId?: string | number
+  resourceId?: number
   stalePolicy?: 'strict' | 'accept_stale'
   reason?: string
   decidedAt?: string
@@ -130,8 +130,8 @@ export function createMovScriptBackendDecisionStore(
         body: JSON.stringify({
           target_kind: 'content_unit',
           target_ref: contentUnitDecisionTargetRef(input.contentUnitId),
-          candidate_id: input.candidateId,
-          resource_id: input.resourceId,
+          candidate_id: stringIdField(input.candidateId),
+          resource_id: input.resourceId === undefined ? undefined : requiredResourceId(input.resourceId),
           stale_policy: input.stalePolicy,
           reason: input.reason,
           selected_at: input.selectedAt,
@@ -245,6 +245,16 @@ function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
+}
+
+function stringIdField(value: unknown): string | undefined {
+  const id = idField(value)
+  return id === undefined ? undefined : String(id)
+}
+
+function requiredResourceId(value: unknown): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  throw new Error('resource_id must be a positive integer RawResource ID')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

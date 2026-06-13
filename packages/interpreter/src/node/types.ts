@@ -81,7 +81,7 @@ export interface ContentUnitSelectionValiditySnapshot {
   selected: boolean
   stale: boolean
   candidateId?: string | number
-  resourceId?: string | number
+  resourceId?: number
   staleReasons?: string[]
 }
 

@@ -450,7 +450,7 @@ test('AgentChatServerRequestCard renders MovScript candidate decision requests a
           projectId: 'demo',
           contentUnitId: 'cu_character_front',
           candidateId: 'candidate_front_1',
-          resourceId: 'resource_42',
+          resourceId: 42,
           targetKind: 'content_unit',
         },
       }}
@@ -466,7 +466,7 @@ test('AgentChatServerRequestCard renders MovScript candidate decision requests a
   assert.match(html, /project: demo/)
   assert.match(html, /content unit: cu_character_front/)
   assert.match(html, /candidate: candidate_front_1/)
-  assert.match(html, /resource: resource_42/)
+  assert.match(html, /resource: 42/)
   assert.match(html, /agent-chat-movscript-decision-form/)
   assert.match(html, /采纳/)
   assert.match(html, /放弃/)

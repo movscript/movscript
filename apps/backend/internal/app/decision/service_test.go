@@ -28,8 +28,8 @@ func TestServiceStoresCandidatesAndSelectionInBackend(t *testing.T) {
 	stored, err := service.ReplaceCandidates(context.Background(), ReplaceCandidatesInput{
 		TargetInput: target,
 		Candidates: []json.RawMessage{
-			json.RawMessage(`{"id":"candidate_a","resource_id":"resource_a","source":"ai_generate"}`),
-			json.RawMessage(`{"id":"candidate_b","resource_id":"resource_b","source":"upload"}`),
+			json.RawMessage(`{"id":"candidate_a","resource_id":101,"source":"ai_generate"}`),
+			json.RawMessage(`{"id":"candidate_b","resource_id":102,"source":"upload"}`),
 		},
 		ActorID: &actorID,
 	})
@@ -99,7 +99,7 @@ func TestServiceRejectsSelectionForMissingCandidate(t *testing.T) {
 	target := TargetInput{ProjectID: project.ID, TargetKind: "content_unit", TargetRef: "content_units/cu_storyboard_ref"}
 	if _, err := service.ReplaceCandidates(context.Background(), ReplaceCandidatesInput{
 		TargetInput: target,
-		Candidates:  []json.RawMessage{json.RawMessage(`{"id":"candidate_a","resource_id":"resource_a"}`)},
+		Candidates:  []json.RawMessage{json.RawMessage(`{"id":"candidate_a","resource_id":101}`)},
 	}); err != nil {
 		t.Fatalf("replace candidates: %v", err)
 	}

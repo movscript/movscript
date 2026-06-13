@@ -377,7 +377,7 @@ test('core content source workspace builds project workbench data without deskto
           content_unit_ref: 'content_units/cu_phone',
           status: 'succeeded',
           producer: { model_id: 'video-i2v' },
-          outputs: [{ resource_id: 'res_video_1', mime_type: 'video/mp4' }],
+          outputs: [{ resource_id: 301, artifact_ref: 'res_video_1', mime_type: 'video/mp4' }],
           prompt_snapshot: { input_hash: 'hash_live' },
         },
       },
@@ -642,7 +642,7 @@ function contentSourceWorkspaceRuntimePort({ calls = [], loadSnapshot }) {
         id: input.candidateId,
         producer: { model_id: 'queued-model' },
         prompt_snapshot: input.promptSnapshot,
-        outputs: [{ kind: 'video', resource_id: 'res_queued' }],
+        outputs: [{ kind: 'video', resource_id: 302, artifact_ref: 'res_queued' }],
       }
     },
     async updateContentUnitEditPrompt(input) {
@@ -719,7 +719,7 @@ function contentSourceWorkspaceSnapshot(options = {}) {
           content_unit_ref: 'content_units/cu_phone',
           status: 'succeeded',
           producer: { model_id: 'video-i2v' },
-          outputs: [{ resource_id: 'res_video_1', mime_type: 'video/mp4' }],
+          outputs: [{ resource_id: 301, artifact_ref: 'res_video_1', mime_type: 'video/mp4' }],
           prompt_snapshot: { input_hash: 'hash_live' },
         },
       },

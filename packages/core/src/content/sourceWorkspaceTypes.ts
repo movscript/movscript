@@ -36,7 +36,7 @@ export interface PreviewCandidate {
 }
 
 export interface PreviewAssetCandidate extends PreviewCandidate {
-  resourceId: string
+  resourceId?: number
   confirmation: 'confirmed' | 'review' | 'stale'
 }
 

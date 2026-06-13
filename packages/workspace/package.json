@@ -43,7 +43,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm build"
+    "test": "pnpm --filter @movscript/decision build && pnpm build"
   },
   "dependencies": {
     "@movscript/decision": "workspace:*",

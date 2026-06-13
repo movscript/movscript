@@ -133,13 +133,13 @@ test('unknown content unit types are valid but untracked for regeneration', asyn
   await service.createContentCandidate({
     contentUnitId: 'cu_scene_video_custom',
     candidateId: 'candidate_custom_1',
-    outputs: [{ kind: 'video', resource_id: 'resource_custom_1', duration_sec: 6 }],
+    outputs: [{ kind: 'video', resource_id: 301, artifact_ref: 'resource_custom_1', duration_sec: 6 }],
     createdAt: '2026-06-07T00:01:00.000Z',
   })
   await service.selectContentUnitCandidate({
     contentUnitId: 'cu_scene_video_custom',
     candidateId: 'candidate_custom_1',
-    resourceId: 'resource_custom_1',
+    resourceId: 301,
     reason: 'custom_scene_video_selection',
     selectedAt: '2026-06-07T00:02:00.000Z',
   })

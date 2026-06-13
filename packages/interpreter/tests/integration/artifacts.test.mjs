@@ -116,7 +116,7 @@ test('production work plan derives candidate selection and stale review items in
         schema: 'movscript.content_candidate.v1',
         id: 'candidate_wet_hair_1',
         content_unit_ref: 'content_units/cu_wet_hair_ref',
-        outputs: [{ kind: 'image', resource_id: 'resource_wet_hair_1' }],
+	        outputs: [{ kind: 'image', resource_id: 101, artifact_ref: 'resource_wet_hair_1' }],
         prompt_snapshot: {
           schema: 'movscript.content_unit_prompt.v1',
           content_unit_ref: 'content_units/cu_wet_hair_ref',
@@ -141,7 +141,7 @@ test('production work plan derives candidate selection and stale review items in
         schema: 'movscript.content_candidate.v1',
         id: 'candidate_anchor_1',
         content_unit_ref: 'content_units/cu_scene_anchor_keyframe_ref',
-        outputs: [{ kind: 'image', resource_id: 'resource_anchor_1' }],
+	        outputs: [{ kind: 'image', resource_id: 102, artifact_ref: 'resource_anchor_1' }],
         prompt_snapshot: {
           schema: 'movscript.content_unit_prompt.v1',
           content_unit_ref: 'content_units/cu_scene_anchor_keyframe_ref',
@@ -157,7 +157,8 @@ test('production work plan derives candidate selection and stale review items in
       }],
       selection: {
         candidate_id: 'candidate_anchor_1',
-        resource_id: 'resource_anchor_1',
+	        resource_id: 102,
+	        artifact_ref: 'resource_anchor_1',
         stale_policy: 'strict',
       },
     },

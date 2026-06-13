@@ -239,7 +239,7 @@ interface NormalizedContentUnitPrompt {
       ref?: string
       source_content_unit_ref?: string
       candidate_id?: string | number
-      resource_id?: string | number
+      resource_id?: number
       required: boolean
     }>
     params?: Record<string, unknown>
@@ -558,7 +558,7 @@ interface ContentUnitRuntimeRequest {
     ref: string
     source_content_unit_ref: string
     candidate_id: string | number
-    resource_id: string | number
+    resource_id: number
     required: true
   }>
   params?: Record<string, unknown>
@@ -663,7 +663,8 @@ interface ContentUnitRuntimeRequest {
   "outputs": [
     {
       "kind": "video",
-      "resource_id": "resource_video_1",
+      "resource_id": 201,
+      "artifact_ref": "resource_video_1",
       "duration_sec": 4
     }
   ],
@@ -696,7 +697,8 @@ interface ContentUnitRuntimeRequest {
           "kind": "image",
           "source_content_unit_ref": "content_units/cu_storyboard_main_ref",
           "candidate_id": "candidate_storyboard_1",
-          "resource_id": "resource_storyboard_1",
+          "resource_id": 101,
+          "artifact_ref": "resource_storyboard_1",
           "required": true
         }
       ],
@@ -725,7 +727,8 @@ interface ContentUnitRuntimeRequest {
   "candidates": [],
   "selection": {
     "candidate_id": "candidate_video_1",
-    "resource_id": "resource_video_1",
+    "resource_id": 201,
+    "artifact_ref": "resource_video_1",
     "stale_policy": "strict",
     "reason": "selected",
     "selected_at": "2026-06-07T00:03:00.000Z"
@@ -750,7 +753,7 @@ interface ContentUnitSelectionValidity {
   content_unit_ref: string
   selected: boolean
   candidate_id?: string | number
-  resource_id?: string | number
+  resource_id?: number
   stale: boolean
   stale_policy: 'strict' | 'accept_stale'
   reason?: string
@@ -826,7 +829,7 @@ function canonicalContentUnitPrompt(prompt: NormalizedContentUnitPrompt): unknow
       selection: ref.selection && {
         content_unit_ref: ref.selection.content_unit_ref,
         candidate_id: String(ref.selection.candidate_id),
-        resource_id: String(ref.selection.resource_id),
+        resource_id: ref.selection.resource_id,
       },
     })),
     runtime_request: canonicalJson(prompt.runtime_request),

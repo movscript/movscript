@@ -401,9 +401,9 @@ export const assetReferenceUnits: Record<string, PreviewAssetReferenceUnit> = {
       { id: 'up_phone_shot', title: '女主手指停在拨号键上', kind: 'shot', ownerNodeId: 'shot_phone_press', state: 'selected', summary: '该镜头读取确认后的屏幕 UI 作为视频生成输入。' },
     ],
     candidates: [
-      { id: 'asset_phone_a', title: '雨滴屏幕确认版', model: 'image-t2i', inputHash: 'sha256:asset-91a4e2', resourceId: 'res_phone_103', confirmation: 'confirmed', selected: true, note: 'UI 可读、雨滴层次稳定，适合作为下游稳定依赖。' },
-      { id: 'asset_phone_b', title: '反光更强版本', model: 'image-t2i', inputHash: 'sha256:asset-91a4e2', resourceId: 'res_phone_117', confirmation: 'review', note: '屏幕更戏剧化，但会影响 keyframe 的消息可读性。' },
-      { id: 'asset_phone_c', title: '旧版低亮度屏幕', model: 'upload', inputHash: 'sha256:asset-665f10', resourceId: 'res_phone_088', confirmation: 'stale', note: '旧输入生成，和当前雨滴遮挡规则不完全匹配。' },
+      { id: 'asset_phone_a', title: '雨滴屏幕确认版', model: 'image-t2i', inputHash: 'sha256:asset-91a4e2', resourceId: 103, confirmation: 'confirmed', selected: true, note: 'UI 可读、雨滴层次稳定，适合作为下游稳定依赖。' },
+      { id: 'asset_phone_b', title: '反光更强版本', model: 'image-t2i', inputHash: 'sha256:asset-91a4e2', resourceId: 117, confirmation: 'review', note: '屏幕更戏剧化，但会影响 keyframe 的消息可读性。' },
+      { id: 'asset_phone_c', title: '旧版低亮度屏幕', model: 'upload', inputHash: 'sha256:asset-665f10', resourceId: 88, confirmation: 'stale', note: '旧输入生成，和当前雨滴遮挡规则不完全匹配。' },
     ],
     downstream: [
       { id: 'dep_phone_kf_rain', title: '雨滴落在屏幕', kind: 'keyframe', ownerNodeId: 'kf_rain_on_screen', momentId: 'm1', shotId: 'shot_phone_press', dependencyHash: 'sha256:asset-91a4e2', state: 'selected', action: '保持当前关键帧选择', preview: '依赖已确认屏幕 UI，雨滴遮挡位置可以继续沿用。' },
@@ -428,8 +428,8 @@ export const assetReferenceUnits: Record<string, PreviewAssetReferenceUnit> = {
       { id: 'up_headlight_shot', title: '车灯扫过背影', kind: 'shot', ownerNodeId: 'shot_headlights_back', state: 'needs_candidate', summary: '下游关键帧和分镜都等待这个参考图进入确认态。' },
     ],
     candidates: [
-      { id: 'asset_headlight_a', title: '远车灯雾化版', model: 'image-t2i', inputHash: 'sha256:asset-22a901', resourceId: 'res_headlight_021', confirmation: 'review', note: '光束方向成立，人物边缘光还需要压暗。' },
-      { id: 'asset_headlight_b', title: '湿街高反射版', model: 'image-t2i', inputHash: 'sha256:asset-22a901', resourceId: 'res_headlight_024', confirmation: 'review', note: '地面反射更强，适合横移镜头。' },
+      { id: 'asset_headlight_a', title: '远车灯雾化版', model: 'image-t2i', inputHash: 'sha256:asset-22a901', resourceId: 21, confirmation: 'review', note: '光束方向成立，人物边缘光还需要压暗。' },
+      { id: 'asset_headlight_b', title: '湿街高反射版', model: 'image-t2i', inputHash: 'sha256:asset-22a901', resourceId: 24, confirmation: 'review', note: '地面反射更强，适合横移镜头。' },
     ],
     downstream: [
       { id: 'dep_headlight_kf', title: '车灯扫过', kind: 'keyframe', ownerNodeId: 'kf_headlight_sweep', momentId: 'm1', shotId: 'shot_headlights_back', dependencyHash: 'missing', state: 'needs_candidate', action: '确认参考图后重生成', preview: '关键帧只能使用文字约束，灯束边界不稳定。' },
@@ -453,7 +453,7 @@ export const assetReferenceUnits: Record<string, PreviewAssetReferenceUnit> = {
       { id: 'up_dress_shot', title: '电梯缝隙里的双人对视', kind: 'shot', ownerNodeId: 'shot_elevator_gap', state: 'stale', summary: '旧视频候选无法证明使用了当前礼服材质标识。' },
     ],
     candidates: [
-      { id: 'asset_dress_a', title: '深色缎面候选', model: 'image-t2i', inputHash: 'sha256:asset-9c11aa', resourceId: 'res_dress_044', confirmation: 'review', note: '材质克制，暖光边缘较清楚。' },
+      { id: 'asset_dress_a', title: '深色缎面候选', model: 'image-t2i', inputHash: 'sha256:asset-9c11aa', resourceId: 44, confirmation: 'review', note: '材质克制，暖光边缘较清楚。' },
     ],
     downstream: [
       { id: 'dep_dress_kf_wide', title: '门缝较宽', kind: 'keyframe', ownerNodeId: 'kf_gap_wide', momentId: 'm2', shotId: 'shot_elevator_gap', dependencyHash: 'missing', state: 'needs_candidate', action: '确认参考图后重选关键帧', preview: '衣料边缘不稳定，人物轮廓容易变形。' },

@@ -26,7 +26,7 @@ test('agent browser opens resource library inside the agent content panel', () =
   assert.match(agentBrowserPanelSource, /onOpenExternalResourceLibrary=\{openExternalResourceLibraryInCurrentTab\}/)
   assert.match(agentBrowserPanelSource, /onOpenCanvasList=\{openCanvasListInCurrentTab\}/)
   assert.match(agentBrowserPanelSource, /contentAreaId\?: string \| null/)
-  assert.match(projectAgentModePageSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} project=\{sessionProject\} \/>/)
+  assert.match(projectAgentModePageSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} conversationId=\{sessionConversationId\} project=\{sessionProject\} \/>/)
   assert.match(projectAgentModePageSource, /appServerActiveRecord\?\.providerThreadId \?\? activeConversationId \?\? DEFAULT_AGENT_CONTENT_AREA_ID/)
   assert.match(agentBrowserPanelSource, /createTabId\('web', resolvedContentAreaId\)/)
   assert.match(agentBrowserPanelSource, /title="打开资源库"/)

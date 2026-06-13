@@ -96,7 +96,7 @@ test('content source workspace selection writes through the Electron engine API'
       projectId: 456,
       contentUnitId: 'cu_phone',
       candidateId: 'cand_a',
-      resourceId: 'res_video_1',
+      resourceId: 81,
     })
   })
 
@@ -104,7 +104,7 @@ test('content source workspace selection writes through the Electron engine API'
     projectId: 456,
     contentUnitId: 'cu_phone',
     candidateId: 'cand_a',
-    resourceId: 'res_video_1',
+    resourceId: 81,
     reason: 'content_source_workspace_selection',
   })
 })
@@ -140,7 +140,7 @@ test('content source workspace candidate creator sends engine candidate plans', 
     assert.match(candidate.id, /^resource_81_/)
     assert.equal(candidate.model, 'resource_library')
     assert.equal(candidate.note, 'Selected from resource library.')
-    assert.equal(candidate.resourceId, '81')
+    assert.equal(candidate.resourceId, 81)
   })
 
   const plan = calls[0] as Record<string, unknown>

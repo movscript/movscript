@@ -105,14 +105,14 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
   await service.createContentCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_asset_1',
-    outputs: [{ kind: 'image', resource_id: 'resource_asset_1' }],
+    outputs: [{ kind: 'image', resource_id: 101, artifact_ref: 'resource_asset_1' }],
     promptSnapshot: assetRefPrompt,
     createdAt: '2026-06-07T00:00:00.000Z',
   })
   await service.selectContentUnitCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_asset_1',
-    resourceId: 'resource_asset_1',
+    resourceId: 101,
     reason: 'selected_from_frontend',
     selectedAt: '2026-06-07T00:00:00.000Z',
   })
@@ -125,7 +125,7 @@ test('workspace service facade exposes frontend-oriented domain operations', asy
   const videoPanel = secondArtifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel
   assert.match(videoPanel?.prompt?.text ?? '', /Service prompt/)
   assert.equal(videoPanel?.prompt?.negative_text, 'flat lighting')
-  assert.equal(videoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_asset_1')
+  assert.equal(videoPanel?.runtime_request?.inputs[0]?.resource_id, 101)
 
   const artifacts = deriveMovScriptWorkspaceArtifacts({
     index: await service.loadIndex(),
@@ -170,13 +170,13 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   await service.createContentCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_asset_1',
-    outputs: [{ kind: 'image', resource_id: 'resource_asset_1' }],
+    outputs: [{ kind: 'image', resource_id: 101, artifact_ref: 'resource_asset_1' }],
     createdAt: '2026-06-07T00:01:00.000Z',
   })
   await service.selectContentUnitCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_asset_1',
-    resourceId: 'resource_asset_1',
+    resourceId: 101,
     reason: 'initial_asset_reference',
     selectedAt: '2026-06-07T00:01:00.000Z',
   })
@@ -190,19 +190,19 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   const secondVideoPanel = await service.readContentUnitRuntimePanel('k41m')
   const secondVideoPrompt = JSON.parse(files.get('.interpret/current/content_units/k41m/generation_prompt.json'))
   assert.equal(secondVideoPanel?.status, 'ready')
-  assert.equal(secondVideoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_asset_1')
+  assert.equal(secondVideoPanel?.runtime_request?.inputs[0]?.resource_id, 101)
 
   await service.createContentCandidate({
     contentUnitId: 'k41m',
     candidateId: 'candidate_video_1',
-    outputs: [{ kind: 'video', resource_id: 'resource_video_1', duration_sec: 4 }],
+    outputs: [{ kind: 'video', resource_id: 201, artifact_ref: 'resource_video_1', duration_sec: 4 }],
     promptSnapshot: secondVideoPrompt,
     createdAt: '2026-06-07T00:03:00.000Z',
   })
   await service.selectContentUnitCandidate({
     contentUnitId: 'k41m',
     candidateId: 'candidate_video_1',
-    resourceId: 'resource_video_1',
+    resourceId: 201,
     reason: 'initial_video_selection',
     selectedAt: '2026-06-07T00:03:00.000Z',
   })
@@ -249,13 +249,13 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   await service.createContentCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_asset_2',
-    outputs: [{ kind: 'image', resource_id: 'resource_asset_2' }],
+    outputs: [{ kind: 'image', resource_id: 102, artifact_ref: 'resource_asset_2' }],
     createdAt: '2026-06-07T00:04:45.000Z',
   })
   await service.selectContentUnitCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_asset_2',
-    resourceId: 'resource_asset_2',
+    resourceId: 102,
     reason: 'regenerated_asset_reference',
     selectedAt: '2026-06-07T00:04:50.000Z',
   })
@@ -266,18 +266,18 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   })
   const regeneratedVideoPanel = await service.readContentUnitRuntimePanel('k41m')
   const regeneratedVideoPrompt = JSON.parse(files.get('.interpret/current/content_units/k41m/generation_prompt.json'))
-  assert.equal(regeneratedVideoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_asset_2')
+  assert.equal(regeneratedVideoPanel?.runtime_request?.inputs[0]?.resource_id, 102)
   await service.createContentCandidate({
     contentUnitId: 'k41m',
     candidateId: 'candidate_video_2',
-    outputs: [{ kind: 'video', resource_id: 'resource_video_2', duration_sec: 4 }],
+    outputs: [{ kind: 'video', resource_id: 202, artifact_ref: 'resource_video_2', duration_sec: 4 }],
     promptSnapshot: regeneratedVideoPrompt,
     createdAt: '2026-06-07T00:05:00.000Z',
   })
   await service.selectContentUnitCandidate({
     contentUnitId: 'k41m',
     candidateId: 'candidate_video_2',
-    resourceId: 'resource_video_2',
+    resourceId: 202,
     reason: 'regenerated_after_asset_reference_change',
     selectedAt: '2026-06-07T00:05:00.000Z',
   })
@@ -291,9 +291,9 @@ test('content unit integration flow writes, interprets, generates, impacts, and 
   const finalValidity = await service.readContentUnitSelectionValidity('k41m')
   const finalPanel = await service.readContentUnitRuntimePanel('k41m')
   assert.equal(finalValidity?.candidate_id, 'candidate_video_2')
-  assert.equal(finalValidity?.resource_id, 'resource_video_2')
+  assert.equal(finalValidity?.resource_id, 202)
   assert.equal(finalValidity?.stale, false)
-  assert.equal(finalPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_asset_2')
+  assert.equal(finalPanel?.runtime_request?.inputs[0]?.resource_id, 102)
 })
 
 test('workspace service and interpreter can use backend decision store for content unit choices', async () => {
@@ -317,7 +317,7 @@ test('workspace service and interpreter can use backend decision store for conte
   await service.createContentCandidate({
     contentUnitId: 'cu_wet_hair_ref',
     candidateId: 'candidate_backend_asset_1',
-    outputs: [{ kind: 'image', resource_id: 'resource_backend_asset_1' }],
+    outputs: [{ kind: 'image', resource_id: 103, artifact_ref: 'resource_backend_asset_1' }],
     promptSnapshot: assetPrompt,
     createdAt: '2026-06-07T00:01:00.000Z',
   })
@@ -338,7 +338,7 @@ test('workspace service and interpreter can use backend decision store for conte
     createdAt: '2026-06-07T00:02:00.000Z',
   })
   const videoPanel = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'k41m')?.runtimePanel
-  assert.equal(videoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_backend_asset_1')
+  assert.equal(videoPanel?.runtime_request?.inputs[0]?.resource_id, 103)
 
   await interpretMovScriptWorkspace({
     fileRepository: repository,
@@ -346,7 +346,7 @@ test('workspace service and interpreter can use backend decision store for conte
     now: new Date('2026-06-07T00:02:00.000Z'),
   })
   const interpretedVideoPanel = await service.readContentUnitRuntimePanel('k41m')
-  assert.equal(interpretedVideoPanel?.runtime_request?.inputs[0]?.resource_id, 'resource_backend_asset_1')
+  assert.equal(interpretedVideoPanel?.runtime_request?.inputs[0]?.resource_id, 103)
 })
 
 test('backend decision store is the sole content unit decision source when configured', async () => {
@@ -355,7 +355,7 @@ test('backend decision store is the sole content unit decision source when confi
     schema: 'movscript.content_candidate.v1',
     id: 'local_asset',
     content_unit_ref: 'content_units/cu_wet_hair_ref',
-    outputs: [{ kind: 'image', resource_id: 'resource_local_asset' }],
+    outputs: [{ kind: 'image', resource_id: 104, artifact_ref: 'resource_local_asset' }],
     prompt_snapshot: { schema: 'movscript.content_unit_prompt.v1', refs: [], runtime_request: { capability: 'image', inputs: [] } },
   }))
   const repository = memoryWorkspaceFileRepository(files)
@@ -531,7 +531,8 @@ function missingCandidateDecisionStore() {
         candidates: [],
         selection: {
           candidate_id: 'missing_asset_candidate',
-          resource_id: 'resource_missing_asset',
+          resource_id: 105,
+          artifact_ref: 'resource_missing_asset',
           stale_policy: 'strict',
         },
       }

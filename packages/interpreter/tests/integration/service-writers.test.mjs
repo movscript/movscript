@@ -37,7 +37,8 @@ test('workspace inline candidate writer updates asset json candidates and locks 
     targetKind: 'asset',
     nonce: 'fixed',
     payload: {
-      resource_id: 'resource_99',
+      resource_id: 99,
+      artifact_ref: 'resource_99',
       source: 'uploaded',
       status: 'accepted',
       notes: 'Uploaded portrait',
@@ -45,7 +46,7 @@ test('workspace inline candidate writer updates asset json candidates and locks 
   })
 
   assert.equal(result.path, 'settings/hero/states/base/assets/portrait/asset.json')
-  assert.equal(result.candidate.id, 'candidate_resource_99_fixed')
+  assert.equal(result.candidate.id, 'candidate_99_fixed')
   assert.equal(result.record.candidates.length, 1)
   assert.equal(result.record.lock, undefined)
 
@@ -53,18 +54,20 @@ test('workspace inline candidate writer updates asset json candidates and locks 
     fileRepository: repository,
     targetPath: 'settings/hero/states/base/assets/portrait/asset.json',
     targetKind: 'asset',
-    candidateId: 'candidate_resource_99_fixed',
+    candidateId: 'candidate_99_fixed',
     reason: 'confirmed_by_user',
   })
 
   assert.deepEqual(locked.record.lock, {
-    candidate_id: 'candidate_resource_99_fixed',
-    resource_id: 'resource_99',
+    candidate_id: 'candidate_99_fixed',
+    resource_id: 99,
+    artifact_ref: 'resource_99',
     reason: 'confirmed_by_user',
   })
   const saved = JSON.parse(files.get(result.path))
-  assert.equal(saved.candidates[0].resource_id, 'resource_99')
-  assert.equal(saved.lock.candidate_id, 'candidate_resource_99_fixed')
+  assert.equal(saved.candidates[0].resource_id, 99)
+  assert.equal(saved.candidates[0].artifact_ref, 'resource_99')
+  assert.equal(saved.lock.candidate_id, 'candidate_99_fixed')
 })
 
 test('workspace inline candidate writer locks existing keyframe candidate', async () => {
@@ -83,7 +86,8 @@ test('workspace inline candidate writer locks existing keyframe candidate', asyn
     targetKind: 'keyframe',
     nonce: 'fixed',
     payload: {
-      resource_id: 'resource_keyframe_1',
+      resource_id: 101,
+      artifact_ref: 'resource_keyframe_1',
       source: 'generated',
       status: 'draft',
     },
@@ -92,18 +96,19 @@ test('workspace inline candidate writer locks existing keyframe candidate', asyn
     fileRepository: repository,
     targetPath: 'productions/p8f3/segments/a19d/scene_moments/r72k/shots/phone/keyframes/c83x/keyframe.json',
     targetKind: 'keyframe',
-    candidateId: 'candidate_resource_keyframe_1_fixed',
+    candidateId: 'candidate_101_fixed',
     reason: 'selected_for_generation_reference',
   })
 
   assert.deepEqual(locked.record.lock, {
-    candidate_id: 'candidate_resource_keyframe_1_fixed',
-    resource_id: 'resource_keyframe_1',
+    candidate_id: 'candidate_101_fixed',
+    resource_id: 101,
+    artifact_ref: 'resource_keyframe_1',
     reason: 'selected_for_generation_reference',
   })
   const saved = JSON.parse(files.get(locked.path))
   assert.equal(saved.candidates.length, 1)
-  assert.equal(saved.lock.resource_id, 'resource_keyframe_1')
+  assert.equal(saved.lock.resource_id, 101)
 })
 
 test('workspace asset writer requires assets to live under setting states', async () => {
@@ -147,13 +152,14 @@ test('workspace content candidate writer stores runtime candidates outside conte
     fileRepository: repository,
     contentUnitId: 'k41m',
     candidateId: 'candidate_video_2',
-    outputs: [{ kind: 'video', resource_id: 'resource_video_2', duration_sec: 4 }],
+    outputs: [{ kind: 'video', resource_id: 202, artifact_ref: 'resource_video_2', duration_sec: 4 }],
     promptSnapshot: { text: 'runtime prompt' },
     createdAt: '2026-06-07T00:00:00.000Z',
   })
 
   assert.equal(candidate.path, 'content_units/k41m/candidates/candidate_video_2/content_candidate.json')
-  assert.equal(candidate.record.outputs[0].resource_id, 'resource_video_2')
+  assert.equal(candidate.record.outputs[0].resource_id, 202)
+  assert.equal(candidate.record.outputs[0].artifact_ref, 'resource_video_2')
   assert.equal(candidate.record.input_version, undefined)
 })
 
@@ -179,7 +185,7 @@ test('workspace service captures content unit prompt snapshot for candidates and
   await service.createContentCandidate({
     contentUnitId: 'k41m',
     candidateId: 'candidate_auto_hash',
-    outputs: [{ kind: 'video', resource_id: 'resource_video_auto', duration_sec: 4 }],
+    outputs: [{ kind: 'video', resource_id: 203, artifact_ref: 'resource_video_auto', duration_sec: 4 }],
     createdAt: '2026-06-07T00:01:00.000Z',
   })
   const decisionContext = await decisionStore.getContentUnitDecision({ contentUnitId: 'k41m' })
@@ -196,7 +202,7 @@ test('workspace service captures content unit prompt snapshot for candidates and
     selectedAt: '2026-06-07T00:02:00.000Z',
   })
   const selection = (await decisionStore.getContentUnitDecision({ contentUnitId: 'k41m' }))?.selection
-  assert.equal(selection.resource_id, 'resource_video_auto')
+  assert.equal(selection.resource_id, 203)
   assert.equal(selection.accepted_input_hash, undefined)
   await snapshotBaseline(repository, new Date('2026-06-07T00:02:30.000Z'))
 

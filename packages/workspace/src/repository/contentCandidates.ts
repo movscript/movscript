@@ -6,7 +6,8 @@ import type { MovScriptWorkspaceFileRepository } from './types.js'
 
 export interface MovScriptContentCandidateOutput {
   kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
-  resource_id: string | number
+  resource_id: number
+  artifact_ref?: string
   mime_type?: string
   width?: number
   height?: number
@@ -44,7 +45,7 @@ export function buildMovScriptContentCandidate(
     source: input.source ?? 'ai_generate',
     status: input.status ?? 'succeeded',
     producer: input.producer ?? { kind: 'runtime' },
-    outputs: input.outputs,
+    outputs: normalizeOutputs(input.outputs),
     prompt_snapshot: input.promptSnapshot,
     created_at: input.createdAt ?? new Date().toISOString(),
   })
@@ -65,6 +66,26 @@ function contentUnitDirectory(id: string): string {
 
 function stableEntityId(value: unknown, prefix: string): string {
   return semanticEntityId(value, prefix)
+}
+
+function normalizeOutputs(outputs: MovScriptContentCandidateOutput[]): MovScriptContentCandidateOutput[] {
+  return outputs.map((output, index) => {
+    const resourceId = requiredResourceId(output.resource_id, `outputs[${index}].resource_id`)
+    return pruneUndefined({
+      ...output,
+      resource_id: resourceId,
+      artifact_ref: stringField(output.artifact_ref),
+    })
+  })
+}
+
+function requiredResourceId(value: unknown, name: string): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  throw new Error(`${name} must be a positive integer RawResource ID`)
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function serializeWorkspaceRecord(value: Record<string, unknown>): string {

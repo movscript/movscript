@@ -33,7 +33,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm --filter @movscript/language build && pnpm --filter @movscript/workspace build && pnpm build && find tests -name '*.test.mjs' -print | sort | xargs node --test"
+    "test": "pnpm --filter @movscript/decision build && pnpm --filter @movscript/language build && pnpm --filter @movscript/workspace build && pnpm build && find tests -name '*.test.mjs' -print | sort | xargs node --test"
   },
   "dependencies": {
     "@movscript/decision": "workspace:*",

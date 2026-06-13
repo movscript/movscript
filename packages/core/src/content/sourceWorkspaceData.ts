@@ -44,7 +44,7 @@ export interface CreatedContentSourceCandidate {
   model: string
   inputHash: string
   note: string
-  resourceId: string
+  resourceId?: number
 }
 
 export interface WorkspacePreviewTimelineArtifact {
@@ -84,7 +84,8 @@ export interface ContentCandidateRecord {
 
 export interface ContentSelectionRecord {
   candidate_id?: string | number
-  resource_id?: string | number
+  resource_id?: number
+  artifact_ref?: string
   stale_policy?: string
   reason?: string
   selected_at?: string
@@ -122,7 +123,8 @@ export interface ContentSourceWorkspaceCandidateCreatePlan {
 
 export interface ContentSourceWorkspaceCandidateOutput {
   kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
-  resource_id: string | number
+  resource_id: number
+  artifact_ref?: string
   mime_type?: string
   width?: number
   height?: number
@@ -401,11 +403,11 @@ function normalizePath(path: string): string {
 export function buildContentSourceWorkspaceSelectionPatch(input: {
   contentUnitId: string
   candidateId: string
-  resourceId?: string
+  resourceId?: number
 }): {
   contentUnitId: string
   candidateId: string
-  resourceId?: string
+  resourceId?: number
   reason: 'content_source_workspace_selection'
 } {
   return {
@@ -422,7 +424,7 @@ export function buildContentSourceWorkspaceCandidateCreatePlan(input: {
   promptText?: string
   createdAt?: string
   candidateId?: string
-  resourceId?: string | number
+  resourceId?: number
   resourceName?: string
   resourceType?: 'image' | 'video' | 'audio' | 'text' | 'file'
   resourceMimeType?: string
@@ -501,7 +503,7 @@ export function createdContentSourceCandidateFromRecord(
     model: candidateModel(record),
     inputHash: candidateInputHash(record, fallback.contentUnitId),
     note: candidateNote(record),
-    resourceId: idValue(firstCandidateOutput(record)?.resource_id) ?? '',
+    resourceId: resourceIdValue(firstCandidateOutput(record)?.resource_id),
   }
 }
 
@@ -1491,7 +1493,7 @@ function previewAssetCandidatesForContentUnit(
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
-      resourceId: idValue(firstCandidateOutput(candidate)?.resource_id) ?? '',
+      resourceId: resourceIdValue(firstCandidateOutput(candidate)?.resource_id),
       confirmation: assetCandidateConfirmation(candidate, selection, id),
     }
   })
@@ -1956,11 +1958,21 @@ function isDecisionContextRecord(value: unknown): value is Record<string, unknow
 function normalizeContentSelectionRecord(value: Record<string, unknown>): ContentSelectionRecord {
   return {
     candidate_id: value.candidate_id as never,
-    resource_id: value.resource_id as never,
+    resource_id: resourceIdValue(value.resource_id),
+    artifact_ref: stringField(value.artifact_ref),
     stale_policy: value.stale_policy as never,
     reason: value.reason as never,
     selected_at: value.selected_at as never,
   }
+}
+
+function resourceIdValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  return undefined
 }
 
 function isDefined<T>(value: T | undefined): value is T {

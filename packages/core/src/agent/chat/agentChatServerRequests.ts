@@ -361,6 +361,7 @@ export function agentChatServerRequestSummary(request: AgentChatServerRequest): 
     ])
   }
   if (request.method === MOVSCRIPT_DECISION_REQUEST_METHOD) {
+    const resourceId = resourceIdField(params.resourceId ?? params.resource_id)
     return compactStrings([
       stringField(params.title),
       stringField(params.summary) ? `summary: ${stringField(params.summary)}` : '',
@@ -368,7 +369,7 @@ export function agentChatServerRequestSummary(request: AgentChatServerRequest): 
       stringField(params.projectId ?? params.project_id) ? `project: ${stringField(params.projectId ?? params.project_id)}` : '',
       stringField(params.contentUnitId ?? params.content_unit_id) ? `content unit: ${stringField(params.contentUnitId ?? params.content_unit_id)}` : '',
       stringField(params.candidateId ?? params.candidate_id) ? `candidate: ${stringField(params.candidateId ?? params.candidate_id)}` : '',
-      stringField(params.resourceId ?? params.resource_id) ? `resource: ${stringField(params.resourceId ?? params.resource_id)}` : '',
+      resourceId !== undefined ? `resource: ${resourceId}` : '',
       stringField(params.targetKind ?? params.target_kind) ? `target: ${stringField(params.targetKind ?? params.target_kind)}` : '',
       stringField(params.targetPath ?? params.target_path) ? `path: ${stringField(params.targetPath ?? params.target_path)}` : '',
     ])
@@ -422,6 +423,7 @@ export function agentChatMovScriptDecisionResponse(
   reason?: string,
 ): AgentChatServerRequestResponse {
   const params = isRecord(request.params) ? request.params : {}
+  const resourceId = resourceIdField(params.resourceId ?? params.resource_id)
   return {
     action: 'decision',
     decision,
@@ -431,7 +433,7 @@ export function agentChatMovScriptDecisionResponse(
       ...(stringField(params.projectId ?? params.project_id) ? { projectId: stringField(params.projectId ?? params.project_id) } : {}),
       ...(stringField(params.contentUnitId ?? params.content_unit_id) ? { contentUnitId: stringField(params.contentUnitId ?? params.content_unit_id) } : {}),
       ...(stringField(params.candidateId ?? params.candidate_id) ? { candidateId: stringField(params.candidateId ?? params.candidate_id) } : {}),
-      ...(stringField(params.resourceId ?? params.resource_id) ? { resourceId: stringField(params.resourceId ?? params.resource_id) } : {}),
+      ...(resourceId !== undefined ? { resourceId } : {}),
       ...(stringField(params.targetKind ?? params.target_kind) ? { targetKind: stringField(params.targetKind ?? params.target_kind) } : {}),
       ...(stringField(params.targetPath ?? params.target_path) ? { targetPath: stringField(params.targetPath ?? params.target_path) } : {}),
     },
@@ -658,6 +660,15 @@ function agentChatServerRequestFileSystemEntrySummaries(value: unknown): string[
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function resourceIdField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
+  return undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

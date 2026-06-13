@@ -48,7 +48,7 @@ type UpsertCandidateInput struct {
 type SelectInput struct {
 	TargetInput
 	CandidateID       string
-	ResourceID        string
+	ResourceID        *uint
 	AcceptedInputHash string
 	StalePolicy       string
 	Reason            string
@@ -129,7 +129,10 @@ func (s *Service) Select(ctx context.Context, input SelectInput) (domaindecision
 	if err != nil {
 		return domaindecision.Context{}, err
 	}
-	if strings.TrimSpace(input.CandidateID) == "" && strings.TrimSpace(input.ResourceID) == "" {
+	if input.ResourceID != nil && *input.ResourceID == 0 {
+		return domaindecision.Context{}, ErrInvalidSelection
+	}
+	if strings.TrimSpace(input.CandidateID) == "" && input.ResourceID == nil {
 		return domaindecision.Context{}, ErrInvalidSelection
 	}
 	current, err := s.repo.Get(ctx, target)
@@ -236,7 +239,7 @@ func buildSelection(input SelectInput) (json.RawMessage, error) {
 	}
 	selection := domaindecision.CandidateSelection{
 		CandidateID:       strings.TrimSpace(input.CandidateID),
-		ResourceID:        strings.TrimSpace(input.ResourceID),
+		ResourceID:        input.ResourceID,
 		AcceptedInputHash: strings.TrimSpace(input.AcceptedInputHash),
 		StalePolicy:       strings.TrimSpace(input.StalePolicy),
 		Reason:            strings.TrimSpace(input.Reason),

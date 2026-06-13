@@ -32,7 +32,7 @@ export interface MovScriptResolvedPromptRef extends MovScriptPromptRef {
   }
   upstream_content_unit_ref?: string
   upstream_content_unit_id?: string | number
-  resource_id?: string | number
+  resource_id?: number
   replacement?: string
   blocker?: MovScriptPromptBuildBlocker
 }
@@ -78,7 +78,7 @@ export interface MovScriptPromptBuildBlocker {
 export interface MovScriptPromptReplacement {
   ref: string
   field: MovScriptPromptRef['source']['field']
-  resource_id: string | number
+  resource_id: number
   token: string
 }
 
@@ -91,8 +91,8 @@ export interface MovScriptCompiledContentUnitPrompt {
   text?: string
   negative_text?: string
   notes?: string
-  style_reference_resource_ids?: Array<string | number>
-  resource_ids: Array<string | number>
+  style_reference_resource_ids?: number[]
+  resource_ids: number[]
   replacements: MovScriptPromptReplacement[]
   refs: MovScriptResolvedPromptRef[]
   blockers?: MovScriptPromptBuildBlocker[]
@@ -455,9 +455,9 @@ function selectedDecision(decision: MovScriptPromptDecisionContext): Record<stri
   return selection && Object.keys(selection).length > 0 ? selection : undefined
 }
 
-function selectedResourceId(decision: MovScriptPromptDecisionContext | undefined): string | number | undefined {
+function selectedResourceId(decision: MovScriptPromptDecisionContext | undefined): number | undefined {
   const selection = decision ? selectedDecision(decision) : undefined
-  const direct = idField(selection?.resource_id)
+  const direct = resourceIdField(selection?.resource_id)
   if (direct !== undefined) return direct
   const candidateId = idField(selection?.candidate_id)
   if (candidateId === undefined || !Array.isArray(decision?.candidates)) return undefined
@@ -465,9 +465,9 @@ function selectedResourceId(decision: MovScriptPromptDecisionContext | undefined
   return firstCandidateResourceId(candidate)
 }
 
-function firstCandidateResourceId(candidate: Record<string, unknown> | undefined): string | number | undefined {
+function firstCandidateResourceId(candidate: Record<string, unknown> | undefined): number | undefined {
   const output = arrayField(candidate?.outputs).filter(isRecord)[0]
-  return idField(output?.resource_id)
+  return resourceIdField(output?.resource_id)
 }
 
 function compilePromptText(
@@ -629,7 +629,7 @@ function usesVisualStyleReferences(outputKind: MovScriptPromptOutputKind): boole
   return outputKind === 'image' || outputKind === 'video'
 }
 
-function projectStyleReferenceResourceIds(index: MovScriptWorkspaceDomainIndex): Array<string | number> {
+function projectStyleReferenceResourceIds(index: MovScriptWorkspaceDomainIndex): number[] {
   const standards = queryMovScriptWorkspaceEntities(index, { entityKind: 'project_standards', limit: 1 })[0]
   if (!standards) return []
   return uniqueIds([
@@ -644,11 +644,11 @@ function projectStyleReferenceResourceIds(index: MovScriptWorkspaceDomainIndex):
   ])
 }
 
-function resourceIdsFromValue(value: unknown): Array<string | number> {
+function resourceIdsFromValue(value: unknown): number[] {
   if (Array.isArray(value)) return value.flatMap(resourceIdsFromValue)
   const text = stringField(value)
   if (text) {
-    const ids: Array<string | number> = []
+    const ids: number[] = []
     const patterns = [
       /resource#([0-9]+)/gi,
       /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi,
@@ -666,13 +666,13 @@ function resourceIdsFromValue(value: unknown): Array<string | number> {
     const parsed = Number(text)
     return Number.isInteger(parsed) && parsed > 0 ? [parsed] : []
   }
-  const id = idField(value)
+  const id = resourceIdField(value)
   if (id !== undefined) return [id]
   if (isRecord(value)) return resourceIdsFromValue(value.resource_id ?? value.resourceId ?? value.id)
   return []
 }
 
-function resourceToken(resourceId: string | number): string {
+function resourceToken(resourceId: number): string {
   return `[[resource::${String(resourceId)}]]`
 }
 
@@ -690,9 +690,9 @@ function sameId(left: unknown, right: unknown): boolean {
   return leftId !== undefined && rightId !== undefined && String(leftId) === String(rightId)
 }
 
-function uniqueIds(values: Array<string | number>): Array<string | number> {
+function uniqueIds<T extends string | number>(values: T[]): T[] {
   const seen = new Set<string>()
-  const output: Array<string | number> = []
+  const output: T[] = []
   for (const value of values) {
     const key = String(value)
     if (seen.has(key)) continue
@@ -736,6 +736,15 @@ function compactStrings(...values: unknown[]): string[] {
 function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
+}
+
+function resourceIdField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
   return undefined
 }
 

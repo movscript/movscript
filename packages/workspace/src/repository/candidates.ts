@@ -176,7 +176,8 @@ export function workspaceCandidateSemanticRecord(
 
 function inlineCandidatePayload(payload: Record<string, unknown>): {
   id?: string
-  resource_id?: string | number
+  resource_id?: number
+  artifact_ref?: string
   source?: string
   notes?: string
   metadata?: Record<string, unknown>
@@ -184,7 +185,8 @@ function inlineCandidatePayload(payload: Record<string, unknown>): {
   const resourceId = payload.resource_id ?? payload.resourceId
   return pruneUndefined({
     id: stringValue(payload.id ?? payload.client_id ?? payload.clientId),
-    resource_id: typeof resourceId === 'string' || typeof resourceId === 'number' ? resourceId : undefined,
+    resource_id: resourceId === undefined ? undefined : requiredResourceId(resourceId),
+    artifact_ref: stringValue(payload.artifact_ref ?? payload.artifactRef),
     source: stringValue(payload.source ?? payload.source_type ?? payload.sourceType),
     notes: stringValue(payload.notes ?? payload.note ?? payload.description),
     metadata: pruneUndefined({
@@ -213,7 +215,8 @@ function workspaceCandidateRecordFromInline(input: {
     target: { type: input.targetKind, id: targetId },
     asset_slot_id: input.targetKind === 'asset' ? numericId(targetId) : undefined,
     keyframe_id: input.targetKind === 'keyframe' ? numericId(targetId) : undefined,
-    resource_id: numericOrStringCandidate(input.candidate.resource_id),
+    resource_id: resourceIdValue(input.candidate.resource_id),
+    artifact_ref: stringValue(input.candidate.artifact_ref),
     source_type: input.candidate.source,
     note: input.candidate.notes,
     metadata_json: JSON.stringify(pruneUndefined({
@@ -290,9 +293,15 @@ function numericId(value: unknown): number | undefined {
   return numberValue(value)
 }
 
-function numericOrStringCandidate(value: unknown): string | number | undefined {
-  if (typeof value === 'number' || typeof value === 'string') return numberValue(value) ?? value
-  return undefined
+function resourceIdValue(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  return requiredResourceId(value)
+}
+
+function requiredResourceId(value: unknown): number {
+  const id = positiveNumber(value)
+  if (id) return id
+  throw new Error('resource_id must be a positive integer RawResource ID')
 }
 
 function stringValue(value: unknown): string | undefined {

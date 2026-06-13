@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { agentConversationIdForRegistryInput, type AgentConversationRegistryInput, type AgentConversationRegistryRecord } from '@movscript/core/agent'
 import type { AgentChatThread, AgentChatThreadStatus } from '@movscript/core/agent/chat'
 
 import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 import {
   providerInstanceId,
@@ -12,6 +13,7 @@ import {
 } from '@/shared/infrastructure/providerConfigStore'
 
 export const AGENT_THREAD_REGISTRY_HYDRATION_PAGE_SIZE = 80
+const EMPTY_AGENT_THREAD_SUMMARIES: AgentThreadSummary[] = []
 
 export function appServerThreadRegistryHydrationQueryKey(provider: ProviderConfig) {
   return ['app-server-threads', provider.id, providerInstanceId(provider), 'agent-thread-registry-hydration'] as const
@@ -35,6 +37,7 @@ export function useAgentThreadRegistryHydration({
       providerProtocol: providerProtocol(provider),
     }
   }, [provider?.id, provider?.kind, provider?.protocol, provider?.appServerProfile?.id])
+  const upsertConversation = useAgentSessionStore((state) => state.upsertConversation)
 
   const query = useQuery<AgentThreadSummary[]>({
     queryKey: provider
@@ -53,11 +56,31 @@ export function useAgentThreadRegistryHydration({
     refetchOnWindowFocus: false,
     retry: false,
   })
+  const sourceThreads = query.data ?? EMPTY_AGENT_THREAD_SUMMARIES
+
+  useEffect(() => {
+    if (!providerIdentity || sourceThreads.length === 0) return
+    const currentRecords = useAgentSessionStore.getState().conversationsById
+    for (const thread of sourceThreads) {
+      const existing = agentConversationRegistryRecordForThread(currentRecords, {
+        providerIdentity,
+        threadId: thread.id,
+        userId,
+      })
+      if (!shouldHydrateAgentThreadSummary(thread, existing)) continue
+      upsertConversation(agentConversationRegistryInputFromThreadSummary({
+        thread,
+        userId,
+        providerIdentity,
+        open: agentThreadSummaryRegistryOpenState(thread, existing),
+      }))
+    }
+  }, [providerIdentity, sourceThreads, upsertConversation, userId])
 
   return {
     ...query,
     providerIdentity,
-    sourceThreads: query.data ?? [],
+    sourceThreads,
   }
 }
 
@@ -134,18 +157,40 @@ export function agentConversationRegistryRecordMatchesInput(
     && record.updatedAt === input.updatedAt
 }
 
+function agentConversationRegistryRecordForThread(
+  records: Record<string, AgentConversationRegistryRecord>,
+  input: {
+    providerIdentity: {
+      provider: string
+      providerId: string
+      providerInstanceId: string
+      providerProtocol: string
+    }
+    threadId: string
+    userId: string
+  },
+): AgentConversationRegistryRecord | undefined {
+  const id = agentConversationIdForRegistryInput({
+    providerThreadId: input.threadId,
+    ...input.providerIdentity,
+  })
+  return records[id] ?? records[input.threadId]
+}
+
 function agentThreadSummaryFromAgentChatThread(thread: AgentChatThread): AgentThreadSummary {
   const status = agentThreadSummaryStatusFromAgentChatThreadStatus(thread.status)
   const transcriptMessageCount = thread.turns.reduce((count, turn) => (
     count + turn.items.filter((item) => item.type === 'userMessage' || item.type === 'agentMessage').length
   ), 0)
   const preview = thread.preview?.trim()
+  const projectId = projectIdFromProviderSessionCwd(thread.cwd)
   return {
     id: thread.id,
     ...(thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
       ? { sessionId: thread.providerSessionTreeId?.trim() || thread.sessionId?.trim() }
       : {}),
     title: thread.name?.trim() || preview || undefined,
+    ...(projectId !== undefined ? { projectId } : {}),
     archived: false,
     ...(status ? { status } : {}),
     createdAt: agentChatThreadTimestampIso(thread.createdAt),
@@ -164,4 +209,14 @@ function agentThreadSummaryStatusFromAgentChatThreadStatus(status: AgentChatThre
 function agentChatThreadTimestampIso(timestampSeconds: number): string {
   const timestampMs = Number.isFinite(timestampSeconds) ? timestampSeconds * 1000 : Date.now()
   return new Date(timestampMs).toISOString()
+}
+
+function projectIdFromProviderSessionCwd(cwd: string | null | undefined): number | undefined {
+  const normalized = cwd?.replace(/\\/g, '/')
+  if (!normalized) return undefined
+  const match = /(?:^|\/)\.movscript\/(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+    ?? /(?:^|\/)(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+  if (!match?.[1]) return undefined
+  const projectId = Number(match[1])
+  return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined
 }

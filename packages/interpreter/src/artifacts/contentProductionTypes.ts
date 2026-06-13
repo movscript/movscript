@@ -33,7 +33,8 @@ export interface ContentUnitResolvedRef extends ContentUnitPromptRef {
 export interface ContentUnitUpstreamSelection {
   content_unit_ref: string
   candidate_id?: string | number
-  resource_id?: string | number
+  resource_id?: number
+  artifact_ref?: string
   stale?: boolean
   stale_policy?: string
   role?: string
@@ -80,13 +81,13 @@ export interface NormalizedContentUnitPrompt {
       ref?: string
       source_content_unit_ref?: string
       candidate_id?: string | number
-      resource_id?: string | number
+      resource_id?: number
       mime_type?: string
       required: boolean
     }>
     params?: Record<string, unknown>
     metadata?: Record<string, unknown> & {
-      style_reference_resource_ids?: Array<string | number>
+      style_reference_resource_ids?: number[]
     }
   }
   blockers?: ContentUnitPromptBlocker[]
@@ -117,13 +118,13 @@ export interface ContentUnitRuntimePanel {
       ref?: string
       source_content_unit_ref?: string
       candidate_id?: string | number
-      resource_id?: string | number
+      resource_id?: number
       mime_type?: string
       required: boolean
     }>
     params?: Record<string, unknown>
     metadata?: Record<string, unknown> & {
-      style_reference_resource_ids?: Array<string | number>
+      style_reference_resource_ids?: number[]
     }
   }
   review?: {
@@ -157,7 +158,7 @@ export interface ContentUnitSelectionValidity {
   content_unit_ref: string
   selected: boolean
   candidate_id?: string | number
-  resource_id?: string | number
+  resource_id?: number
   stale: boolean
   stale_policy: 'strict' | 'accept_stale'
   reason?: string

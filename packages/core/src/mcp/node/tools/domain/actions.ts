@@ -454,7 +454,7 @@ export async function domainSelectContentUnitCandidate(args: Args): Promise<unkn
   return runtimeMutation(args, (runtime) => runtime.selectContentUnitCandidate({
     contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
     candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
-    ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: idValue(args.resourceId ?? args.resource_id) } : {}),
+    ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: requiredResourceId(args.resourceId ?? args.resource_id) } : {}),
     ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
   }))
@@ -469,7 +469,7 @@ export async function domainDecideContentUnitCandidate(args: Args): Promise<unkn
     contentUnitId: requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId'),
     candidateId: requiredId(args.candidateId ?? args.candidate_id, 'candidateId'),
     decision: requiredDecision(args.decision),
-    ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: idValue(args.resourceId ?? args.resource_id) } : {}),
+    ...(args.resourceId !== undefined || args.resource_id !== undefined ? { resourceId: requiredResourceId(args.resourceId ?? args.resource_id) } : {}),
     ...(stringValue(args.stalePolicy ?? args.stale_policy) ? { stalePolicy: stringValue(args.stalePolicy ?? args.stale_policy) as never } : {}),
     ...(stringValue(args.reason) ? { reason: stringValue(args.reason) } : {}),
     ...(stringValue(args.decidedAt ?? args.decided_at) ? { decidedAt: stringValue(args.decidedAt ?? args.decided_at) } : {}),
@@ -744,6 +744,11 @@ function requiredId(value: unknown, name: string): string | number {
 function idValue(value: unknown): string | number {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   return String(value)
+}
+
+function requiredResourceId(value: unknown): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  throw new Error('resource_id must be a positive integer RawResource ID')
 }
 
 function numberValue(value: unknown): number | undefined {

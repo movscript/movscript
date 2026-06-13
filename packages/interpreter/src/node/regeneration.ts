@@ -46,7 +46,7 @@ export interface MovScriptRegenerationPlanTarget {
   selected?: boolean
   stale?: boolean
   candidateId?: string | number
-  resourceId?: string | number
+  resourceId?: number
   staleReasons?: string[]
 }
 
@@ -249,7 +249,7 @@ function selectionRecord(value: unknown): {
   selected?: boolean
   stale?: boolean
   candidateId?: string | number
-  resourceId?: string | number
+  resourceId?: number
   staleReasons?: string[]
 } | undefined {
   if (!isRecord(value)) return undefined
@@ -259,7 +259,7 @@ function selectionRecord(value: unknown): {
     selected: typeof value.selected === 'boolean' ? value.selected : undefined,
     stale: typeof value.stale === 'boolean' ? value.stale : undefined,
     candidateId: idField(value.candidateId),
-    resourceId: idField(value.resourceId),
+    resourceId: resourceIdField(value.resourceId),
     staleReasons: Array.isArray(value.staleReasons) ? value.staleReasons.filter(isString) : undefined,
   })
 }
@@ -282,6 +282,15 @@ function sameOptionalPath(left: unknown, right: unknown): boolean {
 function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
+}
+
+function resourceIdField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isInteger(parsed) && parsed > 0) return parsed
+  }
   return undefined
 }
 

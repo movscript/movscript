@@ -558,7 +558,8 @@ export type ElectronMovScriptEngineContentCandidateCreateInput = {
   producer: Record<string, unknown>
   outputs: Array<{
     kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
-    resource_id: string | number
+    resource_id: number
+    artifact_ref?: string
     mime_type?: string
     width?: number
     height?: number
@@ -576,7 +577,7 @@ export type ElectronMovScriptEngineContentCandidateSelectInput = {
   orgId?: number | string
   contentUnitId: string | number
   candidateId: string | number
-  resourceId?: string | number
+  resourceId?: number
   reason: 'content_source_workspace_selection'
 }
 

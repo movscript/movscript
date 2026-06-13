@@ -55,7 +55,7 @@ export interface ContentSourceWorkspaceRuntimePort {
     projectId: number
     contentUnitId: string
     candidateId: string
-    resourceId?: string
+    resourceId?: number
     reason: 'content_source_workspace_selection'
   }): Promise<void>
   createContentCandidate(input: {
@@ -90,14 +90,14 @@ export interface ContentSourceWorkspaceRuntime {
   selectCandidate(input: {
     contentUnitId: string
     candidateId: string
-    resourceId?: string
+    resourceId?: number
   }): Promise<void>
   createCandidate(input: {
     contentUnitId: string
     outputKind: 'image' | 'video' | 'audio' | 'text' | 'storyboard'
     promptText?: string
     assetId?: string
-    resourceId?: string | number
+    resourceId?: number
     resourceName?: string
     resourceType?: 'image' | 'video' | 'audio' | 'text' | 'file'
     resourceMimeType?: string

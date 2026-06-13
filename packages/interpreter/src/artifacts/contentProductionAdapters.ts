@@ -428,6 +428,7 @@ function canonicalPromptComparisonValue(prompt: NormalizedContentUnitPrompt): un
         content_unit_ref: ref.selection.content_unit_ref,
         candidate_id: ref.selection.candidate_id,
         resource_id: ref.selection.resource_id,
+        artifact_ref: ref.selection.artifact_ref,
       } : undefined,
     })),
     runtime_request: prompt.runtime_request,
@@ -476,7 +477,7 @@ function usesVisualStyleReferences(outputKind: ContentUnitOutputKind): boolean {
 function metadataForOutputKind(
   outputKind: ContentUnitOutputKind,
   modelIntent: Record<string, unknown> | undefined,
-  styleReferenceResourceIds: Array<string | number>,
+  styleReferenceResourceIds: number[],
 ): Record<string, unknown> | undefined {
   const metadata: Record<string, unknown> = {}
   const duration = typeof modelIntent?.duration_sec === 'number' && Number.isFinite(modelIntent.duration_sec)

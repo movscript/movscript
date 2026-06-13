@@ -6,6 +6,7 @@ import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agen
 export const DEFAULT_AGENT_CONTENT_AREA_ID = 'agent-content-empty'
 export const AGENT_PROJECT_HOME_TAB_ID = 'project_home'
 export const AGENT_BLANK_TAB_ID = 'blank_home'
+export const AGENT_SESSION_OUTPUT_TAB_ID = 'session_output'
 export type AgentBrowserDefaultTabKind = 'project_home' | 'blank'
 
 export type AgentBrowserWebTabState = {
@@ -54,6 +55,12 @@ export type AgentBrowserContentTab =
   | {
     id: string
     kind: 'project_standards'
+    title: string
+    createdAt: number
+  }
+  | {
+    id: string
+    kind: 'session_output'
     title: string
     createdAt: number
   }

@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Boxes,
   Clapperboard,
+  ClipboardList,
   FileText,
   FolderOpen,
   Globe2,
@@ -113,6 +114,7 @@ import {
 import {
   AGENT_BLANK_TAB_ID,
   AGENT_PROJECT_HOME_TAB_ID,
+  AGENT_SESSION_OUTPUT_TAB_ID,
   createBlankAgentBrowserTab,
   createDefaultAgentBrowserContentState,
   createProjectHomeAgentBrowserTab,
@@ -121,6 +123,7 @@ import {
   type AgentBrowserContentTab,
   type AgentBrowserWebTabState,
 } from '@/features/agent/state/agentContentAreaStore'
+import { AgentSessionOutputPane } from '@/features/agent/components/AgentSessionOutputPane'
 
 interface ProjectNavigationGroup {
   key: string
@@ -163,11 +166,13 @@ function createTabId(prefix: string, scope = '') {
 
 export interface AgentBrowserPanelProps {
   contentAreaId?: string | null
+  conversationId?: string | null
   project?: Project | null
 }
 
-export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowserPanelProps = {}) {
+export function AgentBrowserPanel({ contentAreaId, conversationId, project = null }: AgentBrowserPanelProps = {}) {
   const resolvedContentAreaId = contentAreaId?.trim() || DEFAULT_AGENT_CONTENT_AREA_ID
+  const sessionConversationId = conversationId?.trim() || resolvedContentAreaId
   const hasProject = typeof project?.ID === 'number' && project.ID > 0
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const ensureContentArea = useAgentContentAreaStore((state) => state.ensureContentArea)
@@ -320,7 +325,7 @@ export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowse
     setAddressWorkspace('')
   }
 
-  function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'project_standards', title: string, options?: { replaceActiveBlank?: boolean }) {
+  function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'project_standards' | 'session_output', title: string, options?: { replaceActiveBlank?: boolean }) {
     const replaceActiveBlank = options?.replaceActiveBlank && activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url
     if (replaceActiveBlank && activeTab?.kind === 'web') {
       setTabs((current) => current.map((tab) => (
@@ -372,6 +377,23 @@ export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowse
 
   function openProjectStandardsTab() {
     openInternalTab('project_standards', '项目规范')
+  }
+
+  function openSessionOutputTab() {
+    const existing = tabs.find((tab) => tab.kind === 'session_output')
+    if (existing) {
+      setActiveTabId(existing.id)
+      setLauncherOpen(false)
+      return
+    }
+    setTabs((current) => [...current, {
+      id: AGENT_SESSION_OUTPUT_TAB_ID,
+      kind: 'session_output',
+      title: '会话产出',
+      createdAt: Date.now(),
+    }])
+    setActiveTabId(AGENT_SESSION_OUTPUT_TAB_ID)
+    setLauncherOpen(false)
   }
 
   async function openWebFromLauncher(event: FormEvent<HTMLFormElement>) {
@@ -472,7 +494,7 @@ export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowse
             {tabs.map((tab) => {
               const active = tab.id === activeTabId
               const webState = tab.kind === 'web' ? webStates[tab.id] : undefined
-              const Icon = tab.kind === 'project_home' ? Home : tab.kind === 'resources' ? HardDrive : tab.kind === 'external_resources' ? ScanSearch : tab.kind === 'canvas_list' ? LayoutTemplate : tab.kind === 'project_standards' ? PenLine : Globe2
+              const Icon = tab.kind === 'project_home' ? Home : tab.kind === 'resources' ? HardDrive : tab.kind === 'external_resources' ? ScanSearch : tab.kind === 'canvas_list' ? LayoutTemplate : tab.kind === 'project_standards' ? PenLine : tab.kind === 'session_output' ? ClipboardList : Globe2
               return (
                 <AgentBrowserTabSurface
                   key={tab.id}
@@ -506,6 +528,9 @@ export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowse
           </AgentBrowserIconButton>
           <AgentBrowserIconButton title="打开外部资源" aria-label="打开外部资源" onClick={openExternalResourceLibraryTab}>
             <ScanSearch size={14} />
+          </AgentBrowserIconButton>
+          <AgentBrowserIconButton title="打开会话产出" aria-label="打开会话产出" onClick={openSessionOutputTab}>
+            <ClipboardList size={14} />
           </AgentBrowserIconButton>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -560,6 +585,12 @@ export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowse
                   <PenLine size={13} />
                 </AgentBrowserMenuItemIcon>
                 打开项目规范
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openSessionOutputTab}>
+                <AgentBrowserMenuItemIcon>
+                  <ClipboardList size={13} />
+                </AgentBrowserMenuItemIcon>
+                打开会话产出
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={openBlankWebTab}>
@@ -650,6 +681,10 @@ export function AgentBrowserPanel({ contentAreaId, project = null }: AgentBrowse
           <AgentBrowserInternalPane>
             <ProjectStandardsContent />
           </AgentBrowserInternalPane>
+        ) : activeTab?.kind === 'session_output' ? (
+          <AgentBrowserInternalPane>
+            <AgentSessionOutputPane conversationId={sessionConversationId} projectId={project?.ID} />
+          </AgentBrowserInternalPane>
         ) : activeTab?.kind === 'web' && !(activeWebState?.url || activeTab.url) ? (
           <BlankWebTab
             onOpenResourceLibrary={openResourceLibraryInCurrentTab}
@@ -674,6 +709,7 @@ function tabTitle(tab: AgentBrowserContentTab, webState: AgentBrowserWebTabState
   if (tab.kind === 'external_resources') return tab.title
   if (tab.kind === 'canvas_list') return tab.title
   if (tab.kind === 'project_standards') return tab.title
+  if (tab.kind === 'session_output') return tab.title
   return webState?.title || tab.title || webState?.url || tab.url || '空白页'
 }
 

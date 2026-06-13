@@ -346,8 +346,8 @@ test('workspace source review accepts runtime content candidate documents outsid
       kind: 'asset',
       id: 'portrait',
       slot: 'character_base_portrait',
-      candidates: [{ id: 'candidate_a', resource_id: 'resource_a' }],
-      lock: { candidate_id: 'candidate_missing', resource_id: 'resource_a' },
+      candidates: [{ id: 'candidate_a', resource_id: 101, artifact_ref: 'resource_a' }],
+      lock: { candidate_id: 'candidate_missing', resource_id: 101, artifact_ref: 'resource_a' },
     })],
     ['content_units/k41m/content_unit.json', JSON.stringify({
       schema: 'movscript.content_unit.v1',
@@ -363,7 +363,7 @@ test('workspace source review accepts runtime content candidate documents outsid
       schema: 'movscript.content_candidate.v1',
       id: 'candidate_result',
       content_unit_ref: 'content_units/k41m',
-      outputs: [{ kind: 'image', resource_id: 'resource_a' }],
+      outputs: [{ kind: 'image', resource_id: 101, artifact_ref: 'resource_a' }],
     })],
   ])
   const repository = memoryWorkspaceFileRepository(files)

@@ -118,7 +118,7 @@ test('content candidate mutations invalidate cached project engines', async () =
       source: 'ai_generate',
       status: 'queued',
       producer: { model_id: 'video' },
-      outputs: [{ kind: 'video', resource_id: 'res_a' }],
+      outputs: [{ kind: 'video', resource_id: 901, artifact_ref: 'res_a' }],
       promptSnapshot: { input_hash: 'hash_a' },
       createdAt: '2026-06-12T00:00:00.000Z',
     })
