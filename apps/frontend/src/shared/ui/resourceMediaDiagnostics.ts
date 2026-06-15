@@ -1,3 +1,5 @@
+import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+
 export interface ResourceMediaDiagnosticEnvironment {
   dev: boolean
   renderDiagnostics?: string
@@ -67,9 +69,5 @@ export function compactResourceMediaDiagnosticElementRect(
 }
 
 function readResourceMediaDiagnosticStorageValue(key: string) {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
+  return readBrowserStorageItem('local', key)
 }

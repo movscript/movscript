@@ -39,7 +39,7 @@ Use this skill when a user asks what changed, whether the project is ready, what
 1. Resolve focus with `system_focus_get` when the selected project, production, content unit, or entity matters.
 2. Call `domain_overview`.
 3. If source has pending edits, call `domain_inspect` and explain changed files, changed entities, business changes, blocking issues, and `readyToInterpret`.
-4. If the user asks to refresh interpreted state and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as a read-model refresh, not a publish, approval, commit, or checkpoint.
+4. If the user asks to validate/refresh diagnostics and `domain_inspect` has no blocking errors, run `domain_interpret`; describe it as diagnostic/artifact refresh, not a publish, approval, commit, checkpoint, or product-state transition.
 5. If explaining generated output readiness or staleness, read content unit artifacts in this order: dependency report, input version, selection validity, runtime panel.
 6. After interpret, call `domain_regeneration_plan` when downstream content may need review.
 7. Open `references/affected-vs-regenerate.md` when explaining stale or affected outputs.
@@ -50,7 +50,7 @@ Summaries should say:
 
 - What source changed since the last successful interpret.
 - Whether `domain_inspect` found blocking issues.
-- Whether interpreted current state is missing, current, or stale.
+- Whether diagnostic/artifact context is missing, current, or stale.
 - Which content units or selections are affected or stale, and what decision options exist.
 - Which upstream adoptions/selections are missing before downstream generation can start, including candidates that are only deferred.
 - The focused scene_moment/shot readiness when the user is deciding whether to keep planning, supplement keyframes/storyboards, generate, or review generated candidates.

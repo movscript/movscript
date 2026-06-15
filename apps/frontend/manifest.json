@@ -1,0 +1,9 @@
+{
+  "schema": "movscript.project-workspace.v1",
+  "workspaceId": "fa1d0f9d-2e83-4bbc-8f31-44738625ea8c",
+  "createdAt": "2026-06-15T14:01:01.578Z",
+  "updatedAt": "2026-06-15T14:01:01.578Z",
+  "layout": {
+    "providerConfigRoot": "providers"
+  }
+}

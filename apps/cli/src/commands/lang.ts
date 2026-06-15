@@ -220,6 +220,20 @@ interface SelectOptions extends WorkspaceOptions {
   reason?: string
 }
 
+interface ListCandidateOptions extends WorkspaceOptions {
+  kind?: string
+  targetKind?: string
+  source?: string
+  status?: string
+  resourceId?: string
+  outputKind?: string
+  selected?: boolean
+  unselected?: boolean
+  stale?: boolean
+  query?: string
+  limit?: string
+}
+
 interface AddCandidateOptions extends WorkspaceOptions {
   id?: string
   kind?: string
@@ -1316,7 +1330,7 @@ Examples:
 
   interpreter
     .command('interpret')
-    .description('Refresh interpreted read models from the current source workspace')
+    .description('Validate the current source workspace and optionally write interpreter debug artifacts')
     .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
     .option('--json', 'Print JSON output')
     .action((options: InterpretOptions, command: Command) => {
@@ -1398,7 +1412,7 @@ Examples:
 
   program
     .command('interpret')
-    .description('Refresh interpreted read models from the current source workspace')
+    .description('Validate the current source workspace and optionally write interpreter debug artifacts')
     .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
     .option('--json', 'Print JSON output')
     .action((options: InterpretOptions, command: Command) => {
@@ -1429,6 +1443,27 @@ Examples:
   const candidate = program
     .command('candidate')
     .description('Manage generated and external candidates')
+
+  candidate
+    .command('list [target]')
+    .description('List candidates for a target or across the workspace')
+    .option('--kind <kind>', 'Target kind filter: asset, storyboard, keyframe, or content_unit')
+    .option('--target-kind <kind>', 'Target kind filter; overrides --kind')
+    .option('--source <source>', 'Filter by candidate source')
+    .option('--status <status>', 'Filter by candidate status')
+    .option('--resource-id <id>', 'Filter by resource id')
+    .option('--output-kind <kind>', 'Filter by content candidate output kind')
+    .option('--selected', 'Only show selected candidates')
+    .option('--unselected', 'Only show unselected candidates')
+    .option('--stale', 'Only show selected candidates whose selection is stale')
+    .option('--query <text>', 'Search candidate id, target id/path, source, status, or resource id')
+    .option('--limit <number>', 'Maximum rows to print')
+    .option('--json', 'Print JSON output')
+    .action(async (target: string | undefined, options: ListCandidateOptions, command: Command) => {
+      const merged = mergeGlobalOptions(options, command)
+      const result = await listCandidatesFromCliOptions(createCliEngine(merged), target, options)
+      printCandidateList(result, merged)
+    })
 
   candidate
     .command('add <target>')
@@ -1518,6 +1553,25 @@ function createCliBackendDecisionStore(input: { workspaceDir?: string }) {
 }
 
 type CliEngine = ReturnType<typeof createCliEngine>
+type CandidateTargetKind = 'asset' | 'storyboard' | 'keyframe' | 'content_unit'
+
+interface CandidateListItem {
+  targetKind: CandidateTargetKind
+  targetId?: string | number
+  targetPath: string
+  path?: string
+  selected: boolean
+  stale?: boolean
+  id?: string | number
+  source?: string
+  status?: string
+  resourceIds: Array<string | number>
+  outputs: string[]
+  hash?: string
+  createdAt?: string
+  notes?: string
+  record: Record<string, unknown>
+}
 
 function createCliFileRepository(options: WorkspaceOptions): MovScriptWorkspaceFileRepository {
   return createCliFileRepositoryFromEngine(createCliEngine(options))
@@ -1590,6 +1644,225 @@ async function selectCandidateFromCliOptions(
     candidateId,
     ...(options.reason !== undefined ? { reason: options.reason } : {}),
   })
+}
+
+async function listCandidatesFromCliOptions(
+  engine: CliEngine,
+  target: string | undefined,
+  options: ListCandidateOptions,
+): Promise<CandidateListItem[]> {
+  const targetKind = parseOptionalTargetKindOption(options.targetKind ?? options.kind)
+  const items = target !== undefined
+    ? await listCandidatesForTarget(engine, target, targetKind)
+    : await listWorkspaceCandidates(engine, targetKind)
+  if (options.selected && options.unselected) throw new Error('--selected and --unselected cannot be used together')
+  const query = options.query?.trim().toLowerCase()
+  const filtered = items.filter((item) => candidateMatchesListOptions(item, options, query))
+  const limit = options.limit !== undefined ? parsePositiveIntegerOption(options.limit, 'limit') : undefined
+  return limit === undefined ? filtered : filtered.slice(0, limit)
+}
+
+async function listCandidatesForTarget(
+  engine: CliEngine,
+  target: string,
+  targetKind: CandidateTargetKind | undefined,
+): Promise<CandidateListItem[]> {
+  const resolvedTargetKind = targetKind ?? parseTargetKindOption(undefined, target, { defaultContentUnit: true })
+  if (resolvedTargetKind === 'content_unit') {
+    const contentUnit = await resolveContentUnitTarget(engine, target)
+    return listContentUnitCandidateItems(engine, contentUnit)
+  }
+  const entity = await readInlineCandidateTarget(engine, target, resolvedTargetKind)
+  return inlineCandidateItemsFromEntity(entity, resolvedTargetKind)
+}
+
+async function listWorkspaceCandidates(
+  engine: CliEngine,
+  targetKind: CandidateTargetKind | undefined,
+): Promise<CandidateListItem[]> {
+  const kinds: CandidateTargetKind[] = targetKind === undefined
+    ? ['content_unit', 'asset', 'storyboard', 'keyframe']
+    : [targetKind]
+  const groups = await Promise.all(kinds.map(async (kind) => {
+    if (kind === 'content_unit') {
+      const contentUnits = await engine.queryEntities({ entityKind: 'content_unit' })
+      const candidates = await Promise.all(contentUnits.map((contentUnit) => listContentUnitCandidateItems(engine, contentUnit)))
+      return candidates.flat()
+    }
+    const entities = await engine.queryEntities({ entityKind: kind })
+    return entities.flatMap((entity) => inlineCandidateItemsFromEntity(entity, kind))
+  }))
+  return groups.flat().sort((left, right) => {
+    const byTarget = left.targetPath.localeCompare(right.targetPath)
+    if (byTarget !== 0) return byTarget
+    return String(left.id ?? '').localeCompare(String(right.id ?? ''))
+  })
+}
+
+async function listContentUnitCandidateItems(
+  engine: CliEngine,
+  contentUnit: MovScriptWorkspaceIndexedEntity,
+): Promise<CandidateListItem[]> {
+  const contentUnitId = stringValue(contentUnit.id ?? contentUnit.record.id) ?? String(contentUnit.id ?? contentUnit.record.id ?? '')
+  const [candidates, selectionValidity, selection] = await Promise.all([
+    listContentUnitCandidates(engine, contentUnit),
+    contentUnitId ? engine.workspaceService.readContentUnitSelectionValidity(contentUnitId).catch(() => undefined) : undefined,
+    readContentUnitSelectionForList(engine, contentUnit),
+  ])
+  const selectedCandidateId = selectionValidity?.candidate_id ?? selection?.candidate_id
+  return candidates.map((candidate) => contentUnitCandidateListItem(contentUnit, candidate, selectionValidity, selectedCandidateId))
+}
+
+async function readContentUnitSelectionForList(
+  engine: CliEngine,
+  contentUnit: MovScriptWorkspaceIndexedEntity,
+): Promise<Record<string, unknown> | undefined> {
+  const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ''))
+  const index = await engine.loadIndex().catch(() => undefined)
+  const decisionContext = index?.documents.find((document) => {
+    if (!isRecord(document.data)) return false
+    return document.data.schema === 'movscript.decision_context.v1'
+      && document.data.target_kind === 'content_unit'
+      && document.data.target_ref === contentUnitDir
+  })?.data
+  const overlaySelection = recordField(recordField(decisionContext)?.selection)
+  if (overlaySelection) return overlaySelection
+
+  const repository = createCliFileRepositoryFromEngine(engine)
+  const file = await repository.read({ path: `${contentUnitDir}/selection.json` }).catch(() => undefined)
+  if (!file) return undefined
+  const parsed = JSON.parse(file.content) as unknown
+  return recordField(parsed)
+}
+
+function contentUnitCandidateListItem(
+  contentUnit: MovScriptWorkspaceIndexedEntity,
+  candidate: { path: string; record: Record<string, unknown> },
+  selectionValidity: Record<string, unknown> | undefined,
+  selectedCandidateId: unknown,
+): CandidateListItem {
+  const record = candidate.record
+  const outputs = arrayField(record.outputs).filter(isRecord)
+  const id = record.id as string | number | undefined
+  const selected = selectedCandidateId !== undefined && String(selectedCandidateId) === String(id)
+  return {
+    targetKind: 'content_unit',
+    targetId: candidateIdValue(contentUnit.id ?? contentUnit.record.id),
+    targetPath: contentUnit.path,
+    path: candidate.path,
+    selected,
+    stale: selected ? selectionValidity?.stale === true : undefined,
+    id,
+    source: stringValue(record.source),
+    status: stringValue(record.status),
+    resourceIds: outputs.map((output) => output.resource_id).filter((value): value is string | number => typeof value === 'string' || typeof value === 'number'),
+    outputs: outputs.map((output) => `${scalarDisplayValue(output.kind)}:${scalarDisplayValue(output.resource_id)}`),
+    hash: shortHash(recordField(record.input_version ?? record.prompt_snapshot)?.hash),
+    createdAt: stringValue(record.created_at),
+    notes: stringValue(record.notes),
+    record,
+  }
+}
+
+async function readInlineCandidateTarget(
+  engine: CliEngine,
+  target: string,
+  targetKind: CandidateTargetKind,
+): Promise<MovScriptWorkspaceIndexedEntity> {
+  const targetPath = normalizeCliPath(targetPathFromSelectionTarget(target))
+  const repository = createCliFileRepositoryFromEngine(engine)
+  const file = await repository.read({ path: targetPath })
+  const parsed = JSON.parse(file.content) as unknown
+  if (!isRecord(parsed)) throw new Error(`target JSON must be an object: ${targetPath}`)
+  return {
+    entityKind: targetKind,
+    id: parsed.id as string | number | undefined,
+    record: parsed,
+    path: file.path,
+  } as MovScriptWorkspaceIndexedEntity
+}
+
+function inlineCandidateItemsFromEntity(
+  entity: MovScriptWorkspaceIndexedEntity,
+  targetKind: CandidateTargetKind,
+): CandidateListItem[] {
+  const selection = recordField(entity.record.lock)
+  const selectedCandidateId = selection?.candidate_id
+  return arrayField(entity.record.candidates).filter(isRecord).map((candidate) => {
+    const id = candidate.id as string | number | undefined
+    const resourceId = candidate.resource_id
+    const selected = selectedCandidateId !== undefined && String(selectedCandidateId) === String(id)
+    return {
+      targetKind,
+      targetId: candidateIdValue(entity.id ?? entity.record.id),
+      targetPath: entity.path,
+      selected,
+      id,
+      source: stringValue(candidate.source),
+      resourceIds: typeof resourceId === 'string' || typeof resourceId === 'number' ? [resourceId] : [],
+      outputs: typeof resourceId === 'string' || typeof resourceId === 'number' ? [`resource:${resourceId}`] : [],
+      notes: stringValue(candidate.notes),
+      record: candidate,
+    }
+  })
+}
+
+function candidateListSearchText(item: CandidateListItem): string {
+  return [
+    item.targetKind,
+    item.targetId,
+    item.targetPath,
+    item.path,
+    item.id,
+    item.source,
+    item.status,
+    item.resourceIds.join(' '),
+    item.outputs.join(' '),
+    item.notes,
+  ].map((value) => scalarDisplayValue(value).toLowerCase()).join(' ')
+}
+
+function candidateMatchesListOptions(
+  item: CandidateListItem,
+  options: ListCandidateOptions,
+  query: string | undefined,
+): boolean {
+  if (options.source !== undefined && item.source !== options.source) return false
+  if (options.status !== undefined && item.status !== options.status) return false
+  if (options.resourceId !== undefined && !item.resourceIds.some((resourceId) => String(resourceId) === options.resourceId)) return false
+  if (options.outputKind !== undefined && !item.outputs.some((output) => output.startsWith(`${options.outputKind}:`))) return false
+  if (options.selected && !item.selected) return false
+  if (options.unselected && item.selected) return false
+  if (options.stale && item.stale !== true) return false
+  if (query !== undefined && !candidateListSearchText(item).includes(query)) return false
+  return true
+}
+
+function candidateIdValue(value: unknown): string | number | undefined {
+  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return undefined
+}
+
+function printCandidateList(candidates: CandidateListItem[], options: WorkspaceOptions): void {
+  if (options.json) {
+    printResult(candidates, options)
+    return
+  }
+  if (candidates.length === 0) {
+    console.log('Candidates: no candidates found')
+    return
+  }
+  console.log(renderTable([
+    { header: 'Sel', value: (item) => item.selected ? (item.stale ? 'stale' : '*') : '' },
+    { header: 'Target', value: (item) => `${item.targetKind}:${scalarDisplayValue(item.targetId)}`, maxWidth: 36 },
+    { header: 'Candidate', value: (item) => item.id, maxWidth: 36 },
+    { header: 'Source', value: (item) => item.source },
+    { header: 'Status', value: (item) => item.status },
+    { header: 'Resources', value: (item) => item.outputs.length ? item.outputs.join(', ') : item.resourceIds.join(', '), maxWidth: 40 },
+    { header: 'Hash', value: (item) => item.hash },
+    { header: 'Path', value: (item) => item.path ?? item.targetPath, maxWidth: 64 },
+  ], candidates))
 }
 
 async function createKeyframeFromCliOptions(
@@ -2977,6 +3250,16 @@ async function listContentUnitCandidates(
   contentUnit: MovScriptWorkspaceIndexedEntity,
 ): Promise<Array<{ path: string; record: Record<string, unknown> }>> {
   const contentUnitDir = normalizeCliPath(contentUnit.path.replace(/\/content_unit\.json$/, ''))
+  const index = await engine.loadIndex().catch(() => undefined)
+  const indexedCandidates = index?.documents
+    .filter((document) => document.path.startsWith(`${contentUnitDir}/candidates/`) && document.path.endsWith('/content_candidate.json'))
+    .map((document) => {
+      if (!isRecord(document.data)) return undefined
+      return { path: document.path, record: document.data }
+    })
+    .filter((candidate): candidate is { path: string; record: Record<string, unknown> } => candidate !== undefined) ?? []
+  if (indexedCandidates.length > 0) return indexedCandidates
+
   const candidateRoot = `${contentUnitDir}/candidates`
   const repository = createNodeMovScriptWorkspaceFileRepository(engine.projectDir)
   const listed = await repository.list({ path: candidateRoot }).catch(() => undefined)
@@ -3730,5 +4013,11 @@ function parseTargetKindOption(
   }
   if (kind === 'asset' || kind === 'storyboard' || kind === 'keyframe' || kind === 'content_unit') return kind
   if (options?.defaultContentUnit) return 'content_unit'
+  throw new Error('target kind must be asset, storyboard, keyframe, or content_unit')
+}
+
+function parseOptionalTargetKindOption(kind: string | undefined): CandidateTargetKind | undefined {
+  if (kind === undefined) return undefined
+  if (kind === 'asset' || kind === 'storyboard' || kind === 'keyframe' || kind === 'content_unit') return kind
   throw new Error('target kind must be asset, storyboard, keyframe, or content_unit')
 }

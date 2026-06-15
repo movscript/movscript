@@ -60,16 +60,16 @@
 }
 
 .ms-agent-chat-thread-fill {
-  padding: var(--ms-space-5) var(--ms-space-4);
+  padding: var(--ms-space-4) var(--ms-space-4);
 }
 
 .ms-agent-chat-thread-error {
   margin-bottom: var(--ms-space-3);
-  border: 1px solid color-mix(in srgb, var(--ms-color-destructive) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ms-color-danger) 30%, transparent);
   border-radius: var(--ms-radius-sm);
-  background: color-mix(in srgb, var(--ms-color-destructive) 10%, transparent);
+  background: color-mix(in srgb, var(--ms-color-danger) 10%, transparent);
   padding: var(--ms-space-2) var(--ms-space-3);
-  color: var(--ms-color-destructive);
+  color: var(--ms-color-danger);
   font-size: var(--ms-text-caption);
   line-height: var(--ms-leading-caption);
 }
@@ -217,9 +217,9 @@
   margin-top: var(--ms-space-1);
   border: 1px solid var(--ms-color-border);
   border-radius: var(--ms-radius-sm);
-  background: var(--ms-color-popover);
+  background: var(--ms-surface-overlay-background);
   padding: var(--ms-space-1);
-  color: var(--ms-color-popover-foreground);
+  color: var(--ms-color-foreground);
   box-shadow: var(--ms-shadow-md);
 }
 
@@ -255,7 +255,7 @@
 }
 
 .ms-agent-chat-request-link:hover {
-  border-color: var(--ms-color-ring);
+  border-color: var(--ms-color-primary);
   background: var(--ms-color-accent);
 }
 
@@ -296,7 +296,7 @@
 
 .ms-agent-chat-request-required {
   margin-left: var(--ms-space-1);
-  color: var(--ms-color-destructive);
+  color: var(--ms-color-danger);
 }
 
 .ms-agent-chat-request-check,
@@ -326,7 +326,7 @@
 .ms-agent-chat-request-input,
 .ms-agent-chat-request-textarea {
   width: 100%;
-  border: 1px solid var(--ms-color-input);
+  border: 1px solid var(--ms-color-border);
   border-radius: var(--ms-radius-sm);
   background: var(--ms-color-background);
   color: var(--ms-color-foreground);
@@ -348,8 +348,8 @@
 
 .ms-agent-chat-request-input:focus,
 .ms-agent-chat-request-textarea:focus {
-  border-color: var(--ms-color-ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-ring) 18%, transparent);
+  border-color: var(--ms-color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-primary) 18%, transparent);
 }
 
 .ms-agent-chat-request-footer {
@@ -534,7 +534,7 @@
 
 .ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section--diagnostic,
 .ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section--diagnostic {
-  border-left-color: color-mix(in srgb, var(--ms-color-destructive) 56%, var(--ms-color-border));
+  border-left-color: color-mix(in srgb, var(--ms-color-danger) 56%, var(--ms-color-border));
 }
 
 .ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section__title,

@@ -12,17 +12,21 @@ import type {
   ElectronMovScriptEngineTransitionInput,
   ElectronMovScriptEngineWorkspaceCandidateCreateInput,
   ElectronMovScriptEngineWorkspaceDeleteEntityInput,
+  ElectronMovScriptEngineWorkspaceAppendCandidateInput,
   ElectronMovScriptEngineWorkspaceQueryAssetsInput,
   ElectronMovScriptEngineWorkspaceQueryEntitiesInput,
   ElectronMovScriptEngineWorkspaceQuerySettingsInput,
   ElectronMovScriptEngineWorkspaceReadScriptSourceInput,
   ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput,
+  ElectronMovScriptEngineWorkspaceSelectCandidateInput,
   ElectronMovScriptEngineWorkspaceUpsertAssetInput,
+  ElectronMovScriptEngineWorkspaceUpsertContentUnitInput,
   ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput,
   ElectronMovScriptEngineWorkspaceUpsertScriptInput,
   ElectronMovScriptEngineWorkspaceUpsertSettingInput,
 } from '../../src/shared/contracts/electronApi'
 import {
+  appendMovScriptEngineWorkspaceCandidate,
   createMovScriptEngineWorkspaceAssetSlotCandidate,
   createMovScriptEngineContentCandidate,
   createMovScriptEngineWorkspaceKeyframeCandidate,
@@ -34,6 +38,7 @@ import {
   queryMovScriptEngineWorkspaceSettings,
   readMovScriptEngineWorkspaceScriptSource,
   saveMovScriptEngineWorkspaceProductionSnapshot,
+  selectMovScriptEngineWorkspaceCandidate,
   selectMovScriptEngineContentUnitCandidate,
   syncMovScriptEngineContentWorkspace,
   updateMovScriptEngineAudioCue,
@@ -42,6 +47,7 @@ import {
   updateMovScriptEngineStoryboardTimeline,
   updateMovScriptEngineTransition,
   upsertMovScriptEngineWorkspaceAsset,
+  upsertMovScriptEngineWorkspaceContentUnit,
   upsertMovScriptEngineWorkspaceProjectStandards,
   upsertMovScriptEngineWorkspaceScript,
   upsertMovScriptEngineWorkspaceSetting,
@@ -84,6 +90,15 @@ export function registerMovScriptEngineIpcHandlers(): void {
   })
   ipcMain.handle('movscript:engine-workspace-project-standards-upsert', (_event, input: ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput) => {
     return upsertMovScriptEngineWorkspaceProjectStandards(input)
+  })
+  ipcMain.handle('movscript:engine-workspace-content-unit-upsert', (_event, input: ElectronMovScriptEngineWorkspaceUpsertContentUnitInput) => {
+    return upsertMovScriptEngineWorkspaceContentUnit(input)
+  })
+  ipcMain.handle('movscript:engine-workspace-candidate-select', (_event, input: ElectronMovScriptEngineWorkspaceSelectCandidateInput) => {
+    return selectMovScriptEngineWorkspaceCandidate(input)
+  })
+  ipcMain.handle('movscript:engine-workspace-candidate-append', (_event, input: ElectronMovScriptEngineWorkspaceAppendCandidateInput) => {
+    return appendMovScriptEngineWorkspaceCandidate(input)
   })
   ipcMain.handle('movscript:engine-workspace-asset-slot-candidate-create', (_event, input: ElectronMovScriptEngineWorkspaceCandidateCreateInput) => {
     return createMovScriptEngineWorkspaceAssetSlotCandidate(input)

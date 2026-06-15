@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Lightbulb, Pencil, Plus, Search, Trash2, Workflow, X, Zap } from 'lucide-react'
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Clock3, Layers3, Lightbulb, Pencil, Plus, Search, Trash2, Workflow, X, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   CanvasListCreateActionButton,
@@ -43,10 +43,12 @@ import {
   CanvasListSummary,
   CanvasListTitle,
   CanvasListToolbar,
-  CanvasListTypeBadge,
-} from '@movscript/ui'
+  CanvasListTypeBadge
+} from './CanvasListUi'
 
 import { canvasEditorPath, type CanvasRouteSource } from '@/routes/appRouteModel'
+import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
+import { canvasListChangedResult, invalidateCanvasMutationResult } from '@/features/canvas/application/canvasMutationInvalidation'
 import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { Canvas, CanvasType } from '@/types'
@@ -90,7 +92,7 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
   const [page, setPage] = useState(1)
 
   const canvasesQuery = useQuery<Canvas[]>({
-    queryKey: ['canvases', currentProject?.ID],
+    queryKey: canvasKeys.list(currentProject?.ID),
     queryFn: () => {
       const params: Record<string, string> = {}
       if (currentProject?.ID) params.project_id = String(currentProject.ID)
@@ -102,7 +104,7 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
     mutationFn: (payload: { name: string; canvas_type: CanvasType; project_id?: number }) =>
       api.post('/canvases', payload).then((response) => response.data as Canvas),
     onSuccess: (canvas) => {
-      queryClient.invalidateQueries({ queryKey: ['canvases'] })
+      invalidateCanvasMutationResult(queryClient, canvasListChangedResult({ changedIds: [canvas.ID] }))
       resetCreate()
       navigate(canvasEditorPath(canvas.ID, { source }))
     },
@@ -110,14 +112,14 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
 
   const removeCanvas = useMutation({
     mutationFn: (id: number) => api.delete(`/canvases/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['canvases'] }),
+    onSuccess: (_, id) => invalidateCanvasMutationResult(queryClient, canvasListChangedResult({ changedIds: [id] })),
   })
 
   const renameCanvas = useMutation({
     mutationFn: ({ id, name }: { id: number; name: string }) =>
       api.patch(`/canvases/${id}`, { name }).then((response) => response.data as Canvas),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['canvases'] })
+    onSuccess: (canvas) => {
+      invalidateCanvasMutationResult(queryClient, canvasListChangedResult({ changedIds: [canvas.ID] }))
       setEditingCanvasId(null)
       setEditingName('')
     },
@@ -139,6 +141,8 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
   const currentPage = Math.min(page, pageCount)
   const pagedCanvases = filteredCanvases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const hasFilters = search.trim().length > 0 || typeFilter !== 'all'
+  const inspirationCount = canvases.filter((canvas) => (canvas.canvas_type ?? 'inspiration') === 'inspiration').length
+  const workflowCount = canvases.filter((canvas) => (canvas.canvas_type ?? 'inspiration') === 'workflow').length
 
   function resetCreate() {
     setShowCreate(false)
@@ -189,6 +193,35 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
           <Plus size={14} /> {t('pages.canvases.newCanvas')}
         </CanvasListCreateButton>
       </CanvasListHeader>
+
+      <div className="canvas-list-program-strip" aria-label={t('pages.canvases.workspaceSummary', { defaultValue: '画布工作区概览' })}>
+        <div className="canvas-list-program-strip__item">
+          <span className="canvas-list-program-strip__icon"><Layers3 size={14} /></span>
+          <span className="canvas-list-program-strip__label">{t('common.all')}</span>
+          <strong className="canvas-list-program-strip__value">{canvases.length}</strong>
+        </div>
+        <div className="canvas-list-program-strip__item">
+          <span className="canvas-list-program-strip__icon" data-canvas-type="inspiration"><Lightbulb size={14} /></span>
+          <span className="canvas-list-program-strip__label">{t(TYPE_META.inspiration.labelKey)}</span>
+          <strong className="canvas-list-program-strip__value">{inspirationCount}</strong>
+        </div>
+        <div className="canvas-list-program-strip__item">
+          <span className="canvas-list-program-strip__icon" data-canvas-type="workflow"><Workflow size={14} /></span>
+          <span className="canvas-list-program-strip__label">{t(TYPE_META.workflow.labelKey)}</span>
+          <strong className="canvas-list-program-strip__value">{workflowCount}</strong>
+        </div>
+        <div className="canvas-list-program-strip__item canvas-list-program-strip__item--wide">
+          <span className="canvas-list-program-strip__icon"><Clock3 size={14} /></span>
+          <span className="canvas-list-program-strip__label">
+            {currentProject?.name
+              ? t('pages.canvases.currentProject', { defaultValue: '当前项目' })
+              : t('pages.canvases.globalLibrary', { defaultValue: '全局画布库' })}
+          </span>
+          <strong className="canvas-list-program-strip__value canvas-list-program-strip__value--text">
+            {currentProject?.name ?? t('pages.canvases.allProjects', { defaultValue: 'All projects' })}
+          </strong>
+        </div>
+      </div>
 
       {canvasesQuery.isLoading ? (
         <CanvasListLoading>{t('common.loadingShort')}</CanvasListLoading>

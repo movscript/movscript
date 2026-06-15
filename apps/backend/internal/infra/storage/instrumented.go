@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/infra/observability"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type instrumentedStorage struct {
@@ -49,6 +50,10 @@ func (s *instrumentedStorage) GetObject(ctx context.Context, key string, start, 
 
 func (s *instrumentedStorage) Backend() string {
 	return s.inner.Backend()
+}
+
+func (s *instrumentedStorage) Health(ctx context.Context) providercontract.ProviderHealth {
+	return s.inner.Health(ctx)
 }
 
 func (s *instrumentedStorage) record(operation string, startedAt time.Time, err error, bytes int64) {

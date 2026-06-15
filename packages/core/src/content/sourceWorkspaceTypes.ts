@@ -33,10 +33,12 @@ export interface PreviewCandidate {
   inputHash: string
   selected?: boolean
   note: string
+  resourceId?: number
+  resourceKind?: string
+  artifactRef?: string
 }
 
 export interface PreviewAssetCandidate extends PreviewCandidate {
-  resourceId?: number
   confirmation: 'confirmed' | 'review' | 'stale'
 }
 

@@ -1,3 +1,5 @@
+import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+
 export const CANVAS_DEBUG_STORAGE_KEY = 'movscript.canvasDebug'
 
 export type CanvasDebugBooleanKey =
@@ -69,7 +71,7 @@ export function parseCanvasDebugOptions(
   readStorage: (key: string) => string | null | undefined = readCanvasDebugStorageValue,
 ): CanvasDebugOptions {
   const options: CanvasDebugOptions = { ...DEFAULT_CANVAS_DEBUG_OPTIONS }
-  applyCanvasDebugSpec(options, readStorage(CANVAS_DEBUG_STORAGE_KEY), 'localStorage')
+  applyCanvasDebugSpec(options, readStorage(CANVAS_DEBUG_STORAGE_KEY), 'browserStorage')
   const params = new URLSearchParams(search)
   if (params.has('canvasDebug')) {
     applyCanvasDebugSpec(options, params.get('canvasDebug'), 'query')
@@ -103,11 +105,7 @@ export function compactCanvasDebugOptions(options: CanvasDebugOptions) {
 }
 
 function readCanvasDebugStorageValue(key: string) {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
+  return readBrowserStorageItem('local', key)
 }
 
 function parseCanvasDebugBool(value: string | null | undefined, fallback: boolean) {

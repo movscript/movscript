@@ -33,13 +33,6 @@ export function resolveBackendCwd(binaryPath: string): string {
   return resolve(process.cwd(), '../backend')
 }
 
-export function resolveAdminDir(): string {
-  const envPath = process.env.MOVSCRIPT_ADMIN_DIR?.trim()
-  if (envPath) return envPath
-  if (app.isPackaged) return join(process.resourcesPath, 'backend', 'admin')
-  return resolve(process.cwd(), '../admin/dist')
-}
-
 export function resolveLocalDataDir(): string {
   return process.env.MOVSCRIPT_DATA_DIR?.trim() || join(app.getPath('userData'), 'local-backend')
 }

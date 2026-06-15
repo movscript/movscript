@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import {
+  useMemo,
+  type ReactNode } from 'react'
+import { Link,
+  NavLink,
+  useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Cable, Play, Power, RefreshCw, RotateCw, Save, Square } from 'lucide-react'
+import { Cable,
+  RefreshCw } from 'lucide-react'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
-  AgentConsoleCallout,
   AgentConsoleDocumentBody,
-  AgentConsoleDescription,
-  AgentConsoleDivider,
   AgentConsoleHeader,
   AgentConsoleHeaderActions,
   AgentConsoleHeaderCopy,
@@ -15,81 +21,38 @@ import {
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
   AgentConsoleInlineError,
-  AgentConsoleIntroRow,
-  AgentConsoleLocalToolActions,
-  AgentConsoleLocalToolCard,
-  AgentConsoleLocalToolControls,
-  AgentConsoleLocalToolCopy,
-  AgentConsoleLocalToolDetail,
-  AgentConsoleLocalToolFields,
-  AgentConsoleLocalToolHeader,
-  AgentConsoleLocalToolTitle,
-  AgentConsolePanel,
-  AgentConsolePanelActions,
-  AgentConsoleSavedText,
-  AgentConsoleSelectField,
   AgentConsoleStack,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
   AgentConsoleTabButton,
   AgentConsoleTabList,
-  AgentConsoleToolbar,
-  AgentPageShell,
-  AgentPageShellHeader,
-  IdentityBadge,
-  IdentityMark,
-} from '@movscript/ui'
+} from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
-import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
+import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
 import {
-  providerRouteForKey,
-  providerTitle,
+  activeProviderKeyFromPath,
+  AppServerPanel,
+  buildProviderOptions,
+  providerMatchesRouteKey,
+  providerRoute,
+} from '@/features/agent/components/AgentsPageAppServerPanel'
+import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
+import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
+import {
   appServerKey,
   providerRouteKey,
-  normalizedProviderKey,
 } from '@/features/agent/application/providerRoutes'
 import {
   DEFAULT_PROVIDER_SETTINGS,
   MOVA_PROVIDER_ID,
   enabledProviders,
   normalizeProviderSettings,
-  resolveAppServerProfile,
   usesAppServerProtocol,
   useProviderConfigStore,
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
-import { publicModelId } from '@/shared/domain/modelDisplay'
-import { getAPIBaseURL } from '@/shared/infrastructure/config'
-import { ProviderSessionClient, providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
-import {
-  distributeAppServerConfig,
-  ensureAppServer as ensureAppServerService,
-  getAppServerStatus,
-  stopAppServer as stopAppServerService,
-} from '@/shared/infrastructure/app-server/appServerRpcClient'
+import { ProviderSessionClient, providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import { ROUTES } from '@/routes/projectRoutes'
-import type { PublicModel } from '@/types'
-
-type AppServerAuthSource = 'model-provider' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
-
-const PROVIDER_LOCAL_HOME_COMPAT_MODE = ['local', 'Codex'].join('')
-
-type ProviderOption = {
-  id: string
-  label: string
-  source: 'backend' | 'local'
-  detail: string
-  apiKey?: string
-  baseURL?: string
-  defaultModel?: string
-  apiKind?: string
-}
-
-type ProviderConfigDraft = {
-  providerRef: string
-  authSource: AppServerAuthSource
-}
 
 export default function AgentsPage() {
   const location = useLocation()
@@ -104,18 +67,18 @@ export default function AgentsPage() {
   const activeAppServerKey = activeProvider ? appServerKey(activeProvider) : activeProviderKey
   const enabledCount = enabledProviders(settings).length
   const defaultWorkspaceConfigQuery = useQuery({
-    queryKey: ['agents-workspace-config', 'default'],
+    queryKey: agentProviderKeys.workspaceConfig('default'),
     queryFn: () => providerSessionClient.getWorkspaceConfig(),
     retry: false,
   })
   const activeProfileSessionClient = useMemo(() => new ProviderSessionClient(undefined, { providerProfileKey: activeAppServerKey }), [activeAppServerKey])
   const workspaceConfigQuery = useQuery({
-    queryKey: ['agents-workspace-config', activeAppServerKey],
+    queryKey: agentProviderKeys.workspaceConfig(activeAppServerKey),
     queryFn: () => activeProfileSessionClient.getWorkspaceConfig(),
     retry: false,
   })
   const backendModelsQuery = useQuery({
-    queryKey: ['agents-backend-models'],
+    queryKey: agentProviderKeys.backendModels,
     queryFn: () => fetchAgentBackendModels(),
     retry: false,
   })
@@ -208,7 +171,7 @@ export default function AgentsPage() {
   )
 }
 
-function AgentTabButton({ to, active, icon, children }: { to: string; active: boolean; icon: React.ReactNode; children: React.ReactNode }) {
+function AgentTabButton({ to, active, icon, children }: { to: string; active: boolean; icon: ReactNode; children: ReactNode }) {
   return (
     <AgentConsoleTabButton asChild active={active}>
       <NavLink to={to}>
@@ -217,503 +180,6 @@ function AgentTabButton({ to, active, icon, children }: { to: string; active: bo
       </NavLink>
     </AgentConsoleTabButton>
   )
-}
-
-function activeProviderKeyFromPath(pathname: string, providers: ProviderConfig[]): string | undefined {
-  const key = pathname.match(/^\/agents\/([^/?#]+)/)?.[1]
-  if (!key) return undefined
-  const decoded = normalizedProviderKey(safeDecodeURIComponent(key))
-  return providers.some((provider) => providerMatchesRouteKey(provider, decoded))
-    ? decoded
-    : undefined
-}
-
-function providerMatchesRouteKey(provider: ProviderConfig, key: string): boolean {
-  const decoded = normalizedProviderKey(key)
-  return providerRouteKey(provider) === decoded
-    || appServerKey(provider) === decoded
-    || normalizedProviderKey(provider.kind) === decoded
-}
-
-function providerRoute(providerKey: string): string {
-  return providerRouteForKey(providerKey)
-}
-
-function safeDecodeURIComponent(value: string): string {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
-  }
-}
-
-function providerDisplayTitle(providerKey: string): string {
-  return providerTitle(providerKey)
-}
-
-function defaultProviderConfigDraft(): ProviderConfigDraft {
-  return {
-    providerRef: '',
-    authSource: 'local-home',
-  }
-}
-
-function fallbackAppServerProvider(providerKey: string): ProviderConfig {
-  const key = normalizedProviderKey(providerKey)
-  const title = providerDisplayTitle(key)
-  return {
-    id: key,
-    kind: key,
-    protocol: 'app-server',
-    messageAdapter: 'thread-turn-item',
-    label: `MovScript ${title}`,
-    enabled: true,
-    appServerProfile: {
-      id: `${key}-movscript-home`,
-      label: `MovScript ${title}`,
-      providerKey: key,
-      home: `.movscript/.${key}`,
-      lifecycle: 'movscript-owned',
-    },
-  }
-}
-
-function AppServerPanel({
-  providerKey,
-  provider,
-  providerOptions,
-  backendModels,
-  workspaceConfig,
-  onConfigSaved,
-  providerSessionClient,
-  onPatch,
-}: {
-  providerKey: string
-  provider?: ProviderConfig
-  providerOptions: ProviderOption[]
-  backendModels: PublicModel[]
-  workspaceConfig?: MovScriptWorkspaceConfig
-  onConfigSaved: () => void
-  providerSessionClient: ProviderSessionClient
-  onPatch: (id: string, patch: Partial<ProviderConfig>) => void
-}) {
-  const title = provider?.label || providerDisplayTitle(providerKey)
-  const defaultConfig = useMemo(() => defaultProviderConfigDraft(), [])
-  const resolved = provider
-    ?? DEFAULT_PROVIDER_SETTINGS.providers.find((item) => appServerKey(item) === normalizedProviderKey(providerKey) || item.kind === normalizedProviderKey(providerKey))
-    ?? fallbackAppServerProvider(providerKey)
-  const profile = resolveAppServerProfile(resolved)
-  const [draft, setDraft] = useState<ProviderConfigDraft>(() => providerConfigDraftFromWorkspaceConfig(workspaceConfig, providerKey, defaultConfig, providerOptions))
-  const [saving, setSaving] = useState(false)
-  const [restarting, setRestarting] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const statusQuery = useQuery({
-    queryKey: ['agents-app-server-status', providerKey, profile.id],
-    queryFn: async () => {
-      const status = await getAppServerStatus({ profileId: profile.id })
-      return status ?? {
-        ok: false,
-        running: false,
-        managed: false,
-        profileId: profile.id,
-        error: `当前运行环境不支持 ${title} app-server 管理。`,
-      }
-    },
-    enabled: resolved.enabled,
-    retry: false,
-  })
-  const status = statusQuery.data
-  const running = Boolean(status?.ok && status.running)
-  const statusConfig = status?.config
-  const configLocked = running
-
-  useEffect(() => {
-    if (!workspaceConfig) return
-    setDraft(providerConfigDraftFromWorkspaceConfig(workspaceConfig, providerKey, defaultConfig, providerOptions))
-  }, [providerKey, defaultConfig, workspaceConfig, providerOptions])
-
-  async function ensureAppServer() {
-    setError(null)
-    try {
-      await ensureDefaultAgentProviderFromBackend({ provider: resolved, client: providerSessionClient, ...(backendModels.length > 0 ? { models: backendModels } : {}) })
-      const status = await ensureAppServerService({
-        profile,
-      })
-      if (!status?.ok) throw new Error(status?.error || `${title} app-server 启动失败。`)
-      await statusQuery.refetch()
-    } catch (appServerError) {
-      setError(errorMessage(appServerError))
-    }
-  }
-
-  async function stopAppServer() {
-    setError(null)
-    try {
-      await stopAppServerService({ profileId: profile.id })
-      await statusQuery.refetch()
-    } catch (appServerError) {
-      setError(errorMessage(appServerError))
-    }
-  }
-
-  async function restartAppServer() {
-    setRestarting(true)
-    setError(null)
-    try {
-      if (running) await stopAppServerService({ profileId: profile.id })
-      await ensureDefaultAgentProviderFromBackend({ provider: resolved, client: providerSessionClient, ...(backendModels.length > 0 ? { models: backendModels } : {}) })
-      const status = await ensureAppServerService({
-        profile,
-      })
-      if (!status?.ok) throw new Error(status?.error || `${title} app-server 重启失败。`)
-      await statusQuery.refetch()
-    } catch (appServerError) {
-      setError(errorMessage(appServerError))
-    } finally {
-      setRestarting(false)
-    }
-  }
-
-  async function saveConfig() {
-    if (configLocked || saving) return
-    setSaving(true)
-    setError(null)
-    try {
-      const providerOption = providerOptions.find((option) => option.id === draft.providerRef)
-      await saveProviderConfig(providerSessionClient, providerKey, buildAppServerRecord(draft, providerOption, resolved.enabled, resolved.appServerProfile), workspaceConfig)
-      onConfigSaved()
-      await distributeAppServerConfig({
-        profile,
-      })
-      await statusQuery.refetch()
-      setSaved(true)
-      window.setTimeout(() => setSaved(false), 1800)
-    } catch (saveError) {
-      setError(errorMessage(saveError))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <AgentConsolePanel
-      title={title}
-      icon={<IdentityMark kind="agent" id={providerKey} />}
-      action={(
-        <AgentConsolePanelActions>
-          {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
-          {statusQuery.isFetching && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleStatusBadge intent={running ? 'success' : resolved.enabled ? 'warning' : 'neutral'} emphasis="soft">
-            {running ? '运行中' : resolved.enabled ? '未启动' : '停用'}
-          </AgentConsoleStatusBadge>
-          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void statusQuery.refetch()} disabled={statusQuery.isFetching}>
-            <RefreshCw size={14} />
-            刷新状态
-          </AgentConsoleActionButton>
-        </AgentConsolePanelActions>
-      )}
-    >
-      <AgentConsoleStack spacing="loose">
-        {configLocked ? (
-          <AgentConsoleCallout compact tone="warning">
-            {title} 运行中：停止 app-server 后才能修改 provider 和账号来源。
-          </AgentConsoleCallout>
-        ) : null}
-        {draft.authSource === 'model-provider' && providerOptions.find((option) => option.id === draft.providerRef)?.source === 'backend' ? (
-          <AgentConsoleCallout compact tone="warning">
-            Backend Provider 会作为引用保存；当前 {title} 启动链路不能直接读取后端 API Key，如需立即启动请使用本机 app-server 账号文件或 Local Provider。
-          </AgentConsoleCallout>
-        ) : null}
-
-        <AgentConsoleLocalToolCard invalid={resolved.enabled && Boolean(status?.error)}>
-          <AgentConsoleLocalToolHeader>
-            <AgentConsoleLocalToolCopy>
-              <AgentConsoleLocalToolTitle>{resolved.label}</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>
-                <IdentityBadge kind="agent" id={providerKey} label={title} size="xs" /> app-server
-              </AgentConsoleLocalToolDetail>
-            </AgentConsoleLocalToolCopy>
-            <AgentConsoleLocalToolControls>
-              <AgentConsoleStatusBadge intent={resolved.enabled ? 'success' : 'neutral'} emphasis="soft">
-                {resolved.enabled ? '启用' : '停用'}
-              </AgentConsoleStatusBadge>
-              <input
-                type="checkbox"
-                checked={resolved.enabled}
-                disabled={configLocked}
-                onChange={(event) => onPatch(resolved.id, { enabled: event.target.checked })}
-                aria-label={`${title} enabled`}
-              />
-            </AgentConsoleLocalToolControls>
-          </AgentConsoleLocalToolHeader>
-          <AgentConsoleLocalToolFields disabled={!resolved.enabled || configLocked}>
-            <ProviderSelect value={providerSelectionValue(draft)} options={providerOptions} disabled={!resolved.enabled || configLocked} onChange={(nextDraft) => setDraft((current) => ({ ...current, ...nextDraft }))} />
-            <AgentConsoleCallout compact tone={running ? 'success' : status?.error ? 'warning' : 'neutral'}>
-              {running ? `运行中：${status?.endpoint ?? '-'}` : status?.error ?? `${title} app-server 尚未启动。`}
-            </AgentConsoleCallout>
-            {statusConfig ? (
-              <AgentConsoleCallout compact tone={statusConfig.accountConfigured ? 'success' : 'warning'}>
-                {statusConfig.baseURL} / provider={statusConfig.accountSource} / account={statusConfig.accountConfigured ? 'configured' : 'missing'}
-              </AgentConsoleCallout>
-            ) : null}
-          </AgentConsoleLocalToolFields>
-          <AgentConsoleLocalToolActions>
-            <AgentConsoleActionButton type="button" size="sm" onClick={() => void saveConfig()} disabled={configLocked || saving}>
-              <Save size={14} />
-              {saving ? '保存中...' : '保存配置'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void ensureAppServer()} disabled={!resolved.enabled || statusQuery.isFetching}>
-              <Play size={14} />
-              {running ? '重连 / 确认运行' : '启动'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void stopAppServer()} disabled={!running || statusQuery.isFetching}>
-              <Square size={14} />
-              停止
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void restartAppServer()} disabled={!resolved.enabled || !running || statusQuery.isFetching || restarting}>
-              <RotateCw size={14} />
-              {restarting ? '重启中...' : '重启'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={ROUTES.modelProviders}>
-                <Power size={14} />
-                Model Providers
-              </Link>
-            </AgentConsoleActionButton>
-          </AgentConsoleLocalToolActions>
-        </AgentConsoleLocalToolCard>
-
-        {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
-
-        <AgentConsoleDivider>
-          <AgentConsoleIntroRow>
-            <AgentConsoleDescription>
-              {title} 的 app-server 生命周期由 MovScript 托管；账号和 Base URL 从 workspace 的 provider 配置投影到托管 home，并在启动时传给 app-server 进程。
-            </AgentConsoleDescription>
-            <AgentConsoleToolbar>
-              <AgentConsoleStatusBadge intent="neutral" emphasis="soft">profile={profile.id}</AgentConsoleStatusBadge>
-              <AgentConsoleStatusBadge intent="neutral" emphasis="soft">lifecycle={profile.lifecycle}</AgentConsoleStatusBadge>
-            </AgentConsoleToolbar>
-          </AgentConsoleIntroRow>
-        </AgentConsoleDivider>
-      </AgentConsoleStack>
-    </AgentConsolePanel>
-  )
-}
-
-function ProviderSelect({
-  value,
-  options,
-  disabled,
-  onChange,
-}: {
-  value: string
-  options: ProviderOption[]
-  disabled: boolean
-  onChange: (value: Pick<ProviderConfigDraft, 'authSource' | 'providerRef'>) => void
-}) {
-  const selectedProviderRef = value.startsWith('provider:') ? value.slice('provider:'.length) : ''
-  const selectedProviderMissing = Boolean(selectedProviderRef) && !options.some((option) => option.id === selectedProviderRef)
-  return (
-    <AgentConsoleSelectField label="Provider" value={value} disabled={disabled} onChange={(event) => onChange(providerSelectionDraft(event.target.value, options))}>
-      <option value="auth:local-home">复用本机 app-server 账号文件</option>
-      <option value="auth:managed-home">复用 MovScript 托管账号文件</option>
-      {selectedProviderMissing ? <option value={value}>已保存的 Model Provider：{selectedProviderRef}</option> : null}
-      {options.map((option) => (
-        <option key={option.id} value={`provider:${option.id}`}>
-          {option.label} - {option.detail}
-        </option>
-      ))}
-      <option value="auth:custom-config">手动维护 config.toml / auth.json</option>
-      <option value="auth:none">不配置账号</option>
-    </AgentConsoleSelectField>
-  )
-}
-
-function providerSelectionValue(draft: ProviderConfigDraft): string {
-  return draft.authSource === 'model-provider' && draft.providerRef
-    ? `provider:${draft.providerRef}`
-    : `auth:${draft.authSource}`
-}
-
-function providerSelectionDraft(value: string, options: ProviderOption[]): Pick<ProviderConfigDraft, 'authSource' | 'providerRef'> {
-  if (value.startsWith('provider:')) {
-    const providerRef = value.slice('provider:'.length)
-    return {
-      authSource: 'model-provider',
-      providerRef: options.some((option) => option.id === providerRef) ? providerRef : options[0]?.id ?? '',
-    }
-  }
-  const authSource = value.slice('auth:'.length)
-  if (authSource === 'local-home' || authSource === 'managed-home' || authSource === 'custom-config' || authSource === 'none') {
-    return { authSource, providerRef: options[0]?.id ?? '' }
-  }
-  return { authSource: 'local-home', providerRef: options[0]?.id ?? '' }
-}
-
-function buildProviderOptions(config: MovScriptWorkspaceConfig | undefined, backendModels: PublicModel[]): ProviderOption[] {
-  const options: ProviderOption[] = []
-  for (const provider of groupBackendProviders(backendModels)) options.push(provider)
-  const localProviders = Array.isArray(config?.modelProviders) ? config.modelProviders : []
-  for (const record of localProviders) {
-    const id = stringField(record.id)
-    if (!id || record.enabled === false) continue
-    const baseURL = stringField(record.baseURL)
-    const defaultModel = stringField(record.defaultModel)
-    const apiKind = stringField(record.apiKind)
-    options.push({
-      id: `local:${id}`,
-      label: stringField(record.label) ?? id,
-      source: 'local',
-      detail: `${apiKind ?? 'api'} / ${baseURL ?? '未设置 Base URL'}`,
-      ...(stringField(record.apiKey) ? { apiKey: stringField(record.apiKey) } : {}),
-      ...(baseURL ? { baseURL } : {}),
-      ...(defaultModel ? { defaultModel } : {}),
-      ...(apiKind ? { apiKind } : {}),
-    })
-  }
-  return options
-}
-
-function groupBackendProviders(models: PublicModel[]): ProviderOption[] {
-  const groups = new Map<string, { label: string; models: PublicModel[]; capabilities: Set<string> }>()
-  for (const model of models) {
-    const key = `backend:${model.credential_id}`
-    const group = groups.get(key) ?? {
-      label: model.provider_name?.trim() || 'Backend Provider',
-      models: [],
-      capabilities: new Set<string>(),
-    }
-    group.models.push(model)
-    for (const capability of model.capabilities ?? []) group.capabilities.add(capability)
-    groups.set(key, group)
-  }
-  return Array.from(groups.entries()).map(([id, group]) => {
-    const defaultModel = group.models.find((model) => model.is_default) ?? group.models[0]
-    return {
-      id,
-      label: group.label,
-      source: 'backend',
-      detail: `${group.models.length} models / ${Array.from(group.capabilities).join(', ') || 'capability pending'}`,
-      ...(defaultModel ? { defaultModel: publicModelId(defaultModel) } : {}),
-    }
-  })
-}
-
-async function saveProviderConfig(client: ProviderSessionClient, key: string, record: Record<string, unknown>, currentConfig: MovScriptWorkspaceConfig | undefined): Promise<void> {
-  const config = currentConfig ?? await client.getWorkspaceConfig()
-  const currentProvider = isRecord(config.providers?.[key]) ? { ...config.providers[key] } : {}
-  delete currentProvider.providerRef
-  delete currentProvider.baseURL
-  delete currentProvider.baseUrl
-  delete currentProvider.home
-  delete currentProvider.workspaceDir
-  await client.saveWorkspaceConfig({
-    providers: {
-      ...(isRecord(config.providers) ? config.providers : {}),
-      [key]: {
-        ...currentProvider,
-        ...record,
-      },
-    },
-  })
-}
-
-function providerConfigDraftFromWorkspaceConfig(
-  config: MovScriptWorkspaceConfig | undefined,
-  key: string,
-  fallback: ProviderConfigDraft,
-  providerOptions: ProviderOption[],
-): ProviderConfigDraft {
-  const record = isRecord(config?.providers?.[key]) ? config.providers[key] : {}
-  return {
-    providerRef: stringField(record.providerRef) ?? providerOptions[0]?.id ?? fallback.providerRef,
-    authSource: appServerAuthSourceFromRecord(record),
-  }
-}
-
-function buildAppServerRecord(draft: ProviderConfigDraft, provider: ProviderOption | undefined, enabled: boolean, profile?: ProviderConfig['appServerProfile']): Record<string, unknown> {
-  const base = {
-    enabled,
-    authSource: draft.authSource,
-    ...(draft.authSource === 'model-provider' && draft.providerRef ? { providerRef: draft.providerRef } : {}),
-    ...(profile?.compatibilityHomeEnvNames?.length ? { appServer: { compatibilityHomeEnvNames: profile.compatibilityHomeEnvNames } } : {}),
-  }
-  switch (draft.authSource) {
-    case 'local-home':
-      return {
-        ...base,
-        config: { mode: 'local-home' },
-        auth: { mode: 'local-home' },
-      }
-    case 'managed-home':
-      return {
-        ...base,
-        config: { mode: 'auto' },
-        auth: { mode: 'auto' },
-      }
-    case 'model-provider':
-      if (provider?.source === 'local' && provider.apiKey) {
-        return {
-          ...base,
-          config: { mode: 'customApiKey' },
-          auth: {
-            mode: 'apiKey',
-            apiKey: provider.apiKey,
-            ...(provider.baseURL ? { baseURL: provider.baseURL } : {}),
-          },
-        }
-      }
-      return {
-        ...base,
-        baseURL: resolveBackendProviderBaseURL(),
-        config: { mode: 'backendKey', modelProviderRef: draft.providerRef },
-        auth: { mode: 'backendKey', modelProviderRef: draft.providerRef },
-      }
-    case 'custom-config':
-      return {
-        ...base,
-        config: { mode: 'customConfig' },
-        auth: { mode: 'customConfig' },
-      }
-    case 'none':
-      return {
-        ...base,
-        config: { mode: 'none' },
-        auth: { mode: 'none' },
-      }
-  }
-}
-
-function resolveBackendProviderBaseURL(): string {
-  return `${getAPIBaseURL()}/v1`
-}
-
-function appServerAuthSourceFromRecord(record: Record<string, unknown>): AppServerAuthSource {
-  const explicit = stringField(record.authSource)
-  if (explicit === 'model-provider' || explicit === 'local-home' || explicit === 'managed-home' || explicit === 'custom-config' || explicit === 'none') {
-    return explicit
-  }
-  const mode = stringField(recordField(record, 'config')?.mode) ?? stringField(recordField(record, 'auth')?.mode)
-  if (mode === PROVIDER_LOCAL_HOME_COMPAT_MODE || mode === 'local-home') return 'local-home'
-  if (mode === 'customApiKey' || mode === 'apiKey' || mode === 'backendKey' || mode === 'backend-api-key') return 'model-provider'
-  if (mode === 'customConfig' || mode === 'custom-config' || mode === 'manual') return 'custom-config'
-  if (mode === 'none') return 'none'
-  return 'managed-home'
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function recordField(value: unknown, key: string): Record<string, unknown> | undefined {
-  if (!isRecord(value)) return undefined
-  return isRecord(value[key]) ? value[key] : undefined
-}
-
-function stringField(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function errorMessage(error: unknown): string {

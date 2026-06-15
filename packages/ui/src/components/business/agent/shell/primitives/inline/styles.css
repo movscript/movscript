@@ -37,3 +37,14 @@
 .ms-agent-media-thumb > video {
   object-fit: cover;
 }
+
+.ms-agent-inline-resource {
+  gap: 4px;
+  margin: 0 2px;
+  padding: 2px 6px;
+  vertical-align: middle;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+  white-space: nowrap;
+}

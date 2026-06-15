@@ -1,8 +1,4 @@
-import {
-  AgentChatContentStack,
-  AgentChatMessage,
-  AgentMessageSection,
-} from '@movscript/ui'
+import { AgentChatContentStack, AgentChatMessage, AgentMessageSection } from '@movscript/ui/business/agent'
 import type { AgentChatNotificationEvent } from '@movscript/core/agent/chat'
 import { agentChatContentDefaultOpen } from '@movscript/core/agent/chat'
 import { agentChatRecentCapabilityEventView } from '@movscript/core/agent/chat'

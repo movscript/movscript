@@ -51,7 +51,7 @@
 
 .app-settings-intro__title {
   color: var(--ms-color-foreground);
-  font-size: 20px;
+  font-size: var(--app-settings-intro-title-font-size, 20px);
   font-weight: 600;
   line-height: 28px;
 }
@@ -59,7 +59,7 @@
 .app-settings-intro__description {
   margin-top: var(--ms-space-2);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-body);
+  font-size: var(--app-settings-intro-description-font-size, var(--ms-text-body));
   line-height: var(--ms-leading-body);
 }
 
@@ -78,7 +78,7 @@
   align-items: center;
   gap: var(--ms-space-2);
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-body);
+  font-size: var(--app-settings-choice-title-font-size, var(--ms-text-body));
   font-weight: 500;
   line-height: var(--ms-leading-body);
 }
@@ -87,7 +87,7 @@
   display: block;
   margin-top: var(--ms-space-1);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-label);
+  font-size: var(--app-settings-choice-detail-font-size, var(--ms-text-label));
   line-height: var(--ms-leading-label);
 }
 
@@ -111,7 +111,7 @@
 .app-settings-info-surface,
 .app-settings-footer-text {
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-label);
+  font-size: var(--app-settings-supporting-font-size, var(--ms-text-label));
   line-height: var(--ms-leading-label);
 }
 

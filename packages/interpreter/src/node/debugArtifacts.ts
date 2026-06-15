@@ -67,6 +67,15 @@ export async function writeDebugArtifacts(
       content: `${JSON.stringify(previewTimeline, null, 2)}\n`,
     })
   }
+  await deleteStaleDerivedArtifacts(fileRepository, artifacts.editPlans.map((editPlan) => {
+    return `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${editPlan.sceneMomentPath}/edit_plan.json`
+  }), isEditPlanDerivedArtifact)
+  for (const editPlan of artifacts.editPlans) {
+    await fileRepository.write({
+      path: `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${editPlan.sceneMomentPath}/edit_plan.json`,
+      content: `${JSON.stringify(editPlan, null, 2)}\n`,
+    })
+  }
   const contentUnitArtifactPaths = artifacts.contentUnitArtifacts.flatMap((artifact) => {
     const dir = `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(artifact.contentUnitId, 'content_unit')}`
     return [
@@ -136,6 +145,10 @@ function isPreviewTimelineDerivedArtifact(relativePath: string): boolean {
   return relativePath.startsWith('productions/') && relativePath.endsWith('/preview_timeline.json')
 }
 
+function isEditPlanDerivedArtifact(relativePath: string): boolean {
+  return relativePath.startsWith('productions/') && relativePath.endsWith('/scene_moment.json') === false && relativePath.endsWith('/edit_plan.json')
+}
+
 function isContentUnitDerivedArtifact(relativePath: string): boolean {
   return relativePath.startsWith('content_units/')
     && (relativePath.endsWith('/runtime_panel.json')
@@ -180,6 +193,13 @@ function editorStateFromArtifacts(artifacts: MovScriptWorkspaceDerivedArtifacts)
       productionId: timeline.productionId,
       productionPath: timeline.productionPath,
       itemCount: timeline.items.length,
+    })),
+    editPlans: artifacts.editPlans.map((editPlan) => ({
+      productionId: editPlan.productionId,
+      sceneMomentId: editPlan.sceneMomentId,
+      status: editPlan.status,
+      trackCount: editPlan.tracks.length,
+      composeInputCount: editPlan.compose_inputs.length,
     })),
     contentUnitRuntimePanels: artifacts.contentUnitArtifacts.map((artifact) => ({
       contentUnitId: artifact.contentUnitId,

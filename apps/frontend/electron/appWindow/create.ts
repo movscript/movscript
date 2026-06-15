@@ -1,14 +1,22 @@
 import { BrowserWindow } from 'electron'
+import type { ElectronAppWindowContext } from '../../src/shared/contracts/electronApi'
 import { bindWindowRenderDiagnostics } from '../diagnostics/rendering'
 import { bindDevtoolsShortcut } from './devtools'
 import { loadRenderer } from './loadRenderer'
 import { resolveAppIconPath, resolvePreloadPath } from './paths'
 import { bindTitlebarChromeToZoom, titleBarOptionsForPlatform } from './titlebar'
 
-export function createWindow(): void {
+export interface CreateWindowOptions {
+  context?: ElectronAppWindowContext
+}
+
+export function createWindow(options: CreateWindowOptions = {}): BrowserWindow {
+  const context = options.context ?? { kind: 'home', route: '/' }
+  const windowSize = context.kind === 'home'
+    ? { width: 760, height: 620, minWidth: 560, minHeight: 460 }
+    : { width: 1280, height: 800, minWidth: 900, minHeight: 620 }
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    ...windowSize,
     icon: resolveAppIconPath(),
     ...titleBarOptionsForPlatform(process.platform),
     webPreferences: {
@@ -19,6 +27,7 @@ export function createWindow(): void {
 
   bindTitlebarChromeToZoom(win, process.platform)
   bindWindowRenderDiagnostics(win)
-  loadRenderer(win)
+  loadRenderer(win, { route: context.route, search: context.search })
   bindDevtoolsShortcut(win)
+  return win
 }

@@ -592,6 +592,43 @@ test('content source workspace runtime owns project state without fixture fallba
   assert.equal(failingRuntime.getState().error, 'boom')
 })
 
+test('content source workspace runtime rolls back optimistic edits when port commit fails', async () => {
+  const runtime = createContentSourceWorkspaceRuntime({
+    port: contentSourceWorkspaceRuntimePort({
+      loadSnapshot: async () => contentSourceWorkspaceSnapshot(),
+    }),
+  })
+
+  await runtime.loadProject(10)
+  const originalPrompt = runtime.getState().data?.previewMoments[0].shots[0].contentUnit.editPrompt
+  assert.equal(originalPrompt, 'Make the storyboard with {{asset:phone_screen}}.')
+
+  const failingPort = contentSourceWorkspaceRuntimePort({
+    loadSnapshot: async () => contentSourceWorkspaceSnapshot(),
+  })
+  failingPort.updateContentUnitEditPrompt = async () => {
+    throw new Error('write failed')
+  }
+  const failingRuntime = createContentSourceWorkspaceRuntime({ port: failingPort })
+  await failingRuntime.loadProject(10)
+
+  await assert.rejects(
+    failingRuntime.updateEditPrompt({
+      contentUnitId: 'cu_phone',
+      targetPath: 'content_units/cu_phone/content_unit.json',
+      text: 'Optimistic prompt.',
+    }),
+    /write failed/,
+  )
+
+  assert.equal(failingRuntime.getState().sourceSyncStatus, 'error')
+  assert.equal(failingRuntime.getState().error, 'write failed')
+  assert.equal(
+    failingRuntime.getState().data?.previewMoments[0].shots[0].contentUnit.editPrompt,
+    originalPrompt,
+  )
+})
+
 test('core content package publishes workbench data rules without frontend dependencies', () => {
   const packageSource = readFileSync(new URL('../package.json', import.meta.url), 'utf8')
   const tsupSource = readFileSync(new URL('../tsup.config.ts', import.meta.url), 'utf8')

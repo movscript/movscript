@@ -11,15 +11,11 @@ export interface CompleteSendRunResultDeps {
   liveEvents: () => ChatRunActivityEvent[]
   setLiveEventsRef: (events: ChatRunActivityEvent[]) => void
   getRun: (runId: string) => Promise<AgentRun>
-  setProviderThreadId?: (conversationId: string, threadId: string) => void
-  setConversationSessionId?: (conversationId: string, sessionId: string) => void
   setConversationProviderSessionTreeId?: (conversationId: string, providerSessionTreeId: string) => void
-  setConversationProviderSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationProviderThreadBindingId?: (conversationId: string, providerThreadId: string) => void
-  setConversationProviderThreadId?: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
-  setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
+  setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean; providerSessionTreeId?: string }) => void
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
   setPendingAssistantState: (state: AgentThinkingState | null) => void
   setLiveTraceEvents: (events: ChatRunActivityEvent[]) => void
@@ -43,22 +39,25 @@ export async function completeSendRunResult(input: {
     ? await deps.getRun(runResult.run.id).catch(() => runResult.run)
     : runResult.run
   const artifacts = extractAgentTaskArtifacts(run)
-  const sessionId = thread.sessionId ?? run.sessionId
+  const sessionId = thread.sessionId
   if (sessionId) {
-    if (deps.setConversationProviderSessionTreeId) deps.setConversationProviderSessionTreeId(deps.conversationId, sessionId)
-    else deps.setConversationSessionId?.(deps.conversationId, sessionId)
-    deps.setConversationProviderSessionId?.(deps.userId, deps.conversationId, sessionId)
+    deps.setConversationProviderSessionTreeId?.(deps.conversationId, sessionId)
   }
-  if (deps.setConversationProviderThreadBindingId) deps.setConversationProviderThreadBindingId(deps.conversationId, thread.id)
-  else deps.setProviderThreadId?.(deps.conversationId, thread.id)
-  deps.setConversationProviderThreadId?.(deps.userId, deps.conversationId, thread.id)
+  deps.setConversationProviderThreadBindingId?.(deps.conversationId, thread.id)
   if (thread.title?.trim()) {
     deps.updateConversationTitle(deps.userId, deps.conversationId, thread.title.trim())
   }
   if (workspace.providerSession?.requestId) {
     deps.setPageTaskRunning(workspace.providerSession.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
   }
-  deps.setConversationRun(deps.conversationId, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
+  deps.setConversationRun(deps.conversationId, run, {
+    loading: false,
+    building: false,
+    approving: false,
+    stopping: false,
+    stopRequested: false,
+    ...(sessionId ? { providerSessionTreeId: sessionId } : {}),
+  })
   deps.setPendingHttpEvents(settledBridgeActivityEvents(deps.liveEvents()))
   deps.setPendingAssistantState(null)
   const resolutionEvent = threadResolutionActivityEvent(runResult.threadResolution)

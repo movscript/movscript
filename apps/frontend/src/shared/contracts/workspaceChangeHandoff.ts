@@ -85,7 +85,7 @@ export function buildWorkspaceBusinessReviewPath(input: {
     })
   }
   if (input.workspaceKind === 'asset_workspace') {
-    return withRouteParams('/project/content-units/editor', {
+    return withRouteParams('/project/content-orchestration/canvas', {
       workspaceId: input.workspaceId,
       asset_slot_id: entityType === 'asset_slot' ? entityId : undefined,
     })
@@ -102,7 +102,7 @@ export function buildWorkspaceBusinessReviewPath(input: {
   if (input.workspaceKind === 'content_unit_workspace') {
     const sceneMomentId = target.sceneMomentId ?? target.scene_moment_id ?? (entityType === 'scene_moment' ? entityId : undefined)
     const contentUnitId = target.contentUnitId ?? target.content_unit_id ?? (entityType === 'content_unit' ? entityId : undefined)
-    return withRouteParams('/project/content-units/editor', {
+    return withRouteParams('/project/content-orchestration/canvas', {
       view: 'review',
       workspaceId: input.workspaceId,
       scene_moment_id: sceneMomentId,

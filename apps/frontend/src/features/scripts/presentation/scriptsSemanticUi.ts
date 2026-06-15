@@ -16,6 +16,10 @@ export function scriptStageRecipe(versionCount: number): ScriptsStatusRecipe {
   return scriptsReadinessStatus.recipe(versionCount > 0 ? 'ready' : 'missing')
 }
 
+export function scriptVersionStatusRecipe(saved: boolean): ScriptsStatusRecipe {
+  return scriptsVersionStatus.recipe(saved ? 'saved' : 'draft')
+}
+
 export function scriptReadinessItemRecipe(done: boolean): ScriptsStatusRecipe {
   return scriptsReadinessStatus.recipe(done ? 'ready' : 'missing')
 }
@@ -29,5 +33,11 @@ const scriptsLibraryStatus = defineFeatureStatusRecipeGroup('scripts.library.sta
 const scriptsReadinessStatus = defineFeatureStatusRecipeGroup('scripts.readiness.status', {
   ready: 'success',
   missing: 'warning',
+  default: 'neutral',
+})
+
+const scriptsVersionStatus = defineFeatureStatusRecipeGroup('scripts.version.status', {
+  saved: 'success',
+  draft: 'warning',
   default: 'neutral',
 })

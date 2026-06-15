@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/shared/infrastructure/api'
+import { modelKeys } from '@/shared/application/modelQueryKeys'
 import { publicModelLabel } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
-import { GenerationModelSelector } from '@movscript/ui'
+import { GenerationModelSelector } from '@movscript/ui/business/generation'
 
 interface ModelSelectorProps {
   capability: 'image' | 'video' | 'text'
@@ -17,11 +18,10 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ capability, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
   const { t } = useTranslation()
-  const queryKey = ['models', capability]
   const queryUrl = `/models?capability=${capability}`
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
-    queryKey,
+    queryKey: modelKeys.capability(capability),
     queryFn: () => api.get(queryUrl).then((r) => r.data),
     staleTime: 0,
   })

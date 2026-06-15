@@ -1,0 +1,25 @@
+{
+  "schema": "movscript.binary-deps.v1",
+  "dependencies": [
+    {
+      "id": "codex-app-server",
+      "provider": "codex",
+      "repository": "movscript/codex",
+      "ref": "127224cacce1bc08922f21a5ff3e3ddd33246474",
+      "workdir": "codex-rs",
+      "package": "codex-app-server",
+      "binary": "codex-app-server",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "mova-app-server",
+      "provider": "mova",
+      "repository": "movscript/mova",
+      "ref": "a933ccd7f6fed104fe6de318ea8cc3f9b2aa8851",
+      "workdir": "codex-rs",
+      "package": "codex-app-server",
+      "binary": "codex-app-server",
+      "license": "Apache-2.0"
+    }
+  ]
+}

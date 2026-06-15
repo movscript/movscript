@@ -1,0 +1,173 @@
+.ms-agent-generated-result-card {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
+  margin-top: 8px;
+  min-width: 0;
+  background: transparent;
+  padding: 8px;
+}
+
+.ms-agent-generated-result-card__list > * + * {
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 38%, transparent);
+}
+
+.ms-agent-generated-result-card__header {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ms-agent-generated-result-card__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.ms-agent-generated-result-card__title-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  color: var(--ms-color-primary);
+}
+
+.ms-agent-generated-result-card__title-text {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-generated-result-card__actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.ms-agent-generated-result-card__count {
+  padding: 0 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.ms-agent-generated-result-card__action {
+  height: 24px;
+  padding-inline: 8px;
+  font-size: var(--ms-text-tiny);
+}
+
+.ms-agent-generated-result-item {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+  min-width: 0;
+  padding: 6px 0;
+  background: transparent;
+}
+
+.ms-agent-generated-result-item__row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ms-agent-generated-result-item__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-agent-generated-result-item__body {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.ms-agent-generated-result-item__name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-generated-result-item__meta {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-generated-result-missing-notice {
+  margin-top: 6px;
+  border-left: 2px solid color-mix(in srgb, var(--ms-color-warning) 55%, transparent);
+  background: color-mix(in srgb, var(--ms-color-warning) 9%, transparent);
+  padding: 4px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-body);
+}
+
+.ms-agent-generated-result-card__helper {
+  margin-top: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-body);
+}
+
+.ms-agent-generated-media-preview {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-muted) 76%, transparent);
+}
+
+.ms-agent-generated-media-preview[data-surface="dark"] {
+  background: #000;
+}
+
+.ms-agent-generated-media-preview--button {
+  height: auto;
+  justify-content: flex-start;
+  padding: 0;
+  text-align: left;
+}
+
+.ms-agent-generated-media-preview--button > .ms-button__content {
+  display: block;
+  width: 100%;
+}
+
+.ms-agent-generated-media-preview > img,
+.ms-agent-generated-media-preview > video,
+.ms-agent-generated-media-preview > .resource-media-thumb,
+.ms-agent-generated-media-preview > .ms-button__content > img,
+.ms-agent-generated-media-preview > .ms-button__content > video,
+.ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb {
+  width: 100%;
+  height: 14rem;
+  max-height: 45vh;
+  object-fit: contain;
+}

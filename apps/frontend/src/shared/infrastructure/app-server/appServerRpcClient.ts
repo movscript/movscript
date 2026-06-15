@@ -24,6 +24,7 @@ import {
   type AppServerTurnSteerParams,
   type AppServerTurnSteerResponse,
 } from '@/shared/infrastructure/app-server/appServerProtocol'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import {
   resolveAppServerProfile,
   resolveDefaultProvider,
@@ -31,6 +32,22 @@ import {
   useProviderConfigStore,
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
+import {
+  appServerURL,
+  debugAppServerRpc,
+  shouldDebugAppServerRpcMethod,
+  shouldDebugAppServerRpcNotification,
+} from '@/shared/infrastructure/app-server/appServerRpcClientConfig'
+import {
+  AppServerRpcError,
+  compactProtocolParams,
+  compactRecord,
+  fallbackServerRequestResult,
+  hasOwn,
+  isAlreadyInitializedError,
+  isJsonRpcId,
+  isRecord,
+} from '@/shared/infrastructure/app-server/appServerRpcProtocolUtils'
 import type {
   ElectronAppServerEnsureInput as ElectronAppServerEnsureInputContract,
   ElectronAppServerProfile as ElectronAppServerProfileContract,
@@ -43,6 +60,8 @@ import {
   recordAgentConnectionDebugEvent,
 } from '@/shared/infrastructure/agentConnectionDebugStore'
 import type { AgentChatThreadReadInput } from '@movscript/core/agent/chat'
+
+export { appServerScopedEnvURLKeys, appServerURL } from '@/shared/infrastructure/app-server/appServerRpcClientConfig'
 
 export type ElectronAppServerProfile = ElectronAppServerProfileContract
 export type ElectronAppServerEnsureInput = ElectronAppServerEnsureInputContract
@@ -70,24 +89,6 @@ type AppServerTransport = {
 }
 
 let configuredClient: AppServerRpcClient | undefined
-const APP_SERVER_WS_URL_STORAGE_KEY = 'movscript.appServerWsUrl'
-const APP_SERVER_WS_URL_STORAGE_KEY_PREFIX = 'movscript.appServerWsUrl'
-const APP_SERVER_RPC_DEBUG_STORAGE_KEY = 'movscript.debugAppServerRpc'
-const APP_SERVER_RPC_DEBUG_METHODS = new Set([
-  'thread/list',
-  'thread/read',
-  'thread/resume',
-  'thread/settings/update',
-  'thread/goal/clear',
-  'thread/goal/get',
-  'thread/goal/set',
-])
-const APP_SERVER_RPC_DEBUG_NOTIFICATIONS = new Set([
-  'thread/goal/cleared',
-  'thread/goal/updated',
-  'thread/started',
-  'thread/status/changed',
-])
 const APP_SERVER_THREAD_LIST_SOURCE_KINDS: AppServerThreadSourceKind[] = [
   'cli',
   'vscode',
@@ -97,14 +98,6 @@ const APP_SERVER_THREAD_LIST_SOURCE_KINDS: AppServerThreadSourceKind[] = [
   'unknown',
 ]
 
-export function appServerURL(provider?: ProviderConfig): string | undefined {
-  const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-  const value = providerScopedEnvURL(env, provider)
-    || unscopedEnvURL(env)
-    || configuredAppServerURL(provider)
-  return value || undefined
-}
-
 export function appServerRpcClientForURL(url: string): AppServerRpcClient {
   if (!configuredClient || configuredClient.url !== url) configuredClient = new AppServerRpcClient(url)
   return configuredClient
@@ -113,7 +106,7 @@ export function appServerRpcClientForURL(url: string): AppServerRpcClient {
 export async function ensureAppServerURL(provider?: ProviderConfig): Promise<string | undefined> {
   const activeProvider = provider ?? resolveDefaultProvider(useProviderConfigStore.getState().settings)
   const explicitURL = appServerURL(activeProvider)
-  const electronApi = typeof window === 'undefined' ? undefined : window.api
+  const electronApi = readElectronApi()
   const ensureAppServer = electronApi?.ensureAppServer
   if (ensureAppServer && activeProvider && usesAppServerProtocol(activeProvider)) {
     const profile = resolveAppServerProfile(activeProvider)
@@ -133,19 +126,19 @@ export async function ensureAppServerRpcClient(provider?: ProviderConfig): Promi
 }
 
 export function getAppServerStatus(input?: ElectronAppServerStatusInput): Promise<ElectronAppServerStatus | undefined> {
-  return window.api?.getAppServerStatus?.(input) ?? Promise.resolve(undefined)
+  return readElectronApi()?.getAppServerStatus?.(input) ?? Promise.resolve(undefined)
 }
 
 export function distributeAppServerConfig(input: ElectronAppServerEnsureInput): Promise<ElectronAppServerStatus | undefined> {
-  return window.api?.distributeAppServerConfig?.(input) ?? Promise.resolve(undefined)
+  return readElectronApi()?.distributeAppServerConfig?.(input) ?? Promise.resolve(undefined)
 }
 
 export function ensureAppServer(input: ElectronAppServerEnsureInput): Promise<ElectronAppServerStatus | undefined> {
-  return window.api?.ensureAppServer?.(input) ?? Promise.resolve(undefined)
+  return readElectronApi()?.ensureAppServer?.(input) ?? Promise.resolve(undefined)
 }
 
 export function stopAppServer(input?: ElectronAppServerStopInput): Promise<ElectronAppServerStatus | undefined> {
-  return window.api?.stopAppServer?.(input) ?? Promise.resolve(undefined)
+  return readElectronApi()?.stopAppServer?.(input) ?? Promise.resolve(undefined)
 }
 
 export class AppServerRpcClient {
@@ -326,7 +319,7 @@ export class AppServerRpcClient {
   }
 
   private async createTransport(): Promise<AppServerTransport> {
-    const electronApi = typeof window === 'undefined' ? undefined : window.api
+    const electronApi = readElectronApi()
     if (electronApi?.appServerConnect
       && electronApi.appServerSend
       && electronApi.onAppServerMessage) {
@@ -335,7 +328,7 @@ export class AppServerRpcClient {
     return this.createBrowserWebSocketTransport()
   }
 
-  private async createElectronRelayTransport(electronApi: NonNullable<typeof window.api>): Promise<AppServerTransport> {
+  private async createElectronRelayTransport(electronApi: NonNullable<ReturnType<typeof readElectronApi>>): Promise<AppServerTransport> {
     const connect = electronApi.appServerConnect
     const send = electronApi.appServerSend
     const close = electronApi.appServerClose
@@ -580,159 +573,4 @@ export class AppServerRpcClient {
     this.pending.clear()
     this.pendingDebugRequests.clear()
   }
-}
-
-class AppServerRpcError extends Error {
-  constructor(
-    message: string,
-    readonly code?: number,
-    readonly data?: unknown,
-  ) {
-    super(message)
-    this.name = 'AppServerRpcError'
-  }
-}
-
-function isAlreadyInitializedError(error: unknown): boolean {
-  return error instanceof AppServerRpcError
-    && error.code === -32600
-    && error.message === 'Already initialized'
-}
-
-function configuredAppServerURL(provider?: ProviderConfig): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const searchParams = new URLSearchParams(window.location.search)
-  const queryValue = searchParams.get('appServerWsUrl')?.trim()
-  if (queryValue) {
-    window.localStorage.setItem(appServerURLStorageKey(provider), queryValue)
-    return queryValue
-  }
-  const scopedValue = window.localStorage.getItem(appServerURLStorageKey(provider))?.trim()
-  if (scopedValue) return scopedValue
-  if (!provider) return window.localStorage.getItem(APP_SERVER_WS_URL_STORAGE_KEY)?.trim() || undefined
-  return undefined
-}
-
-function appServerURLStorageKey(provider?: ProviderConfig): string {
-  if (!provider) return APP_SERVER_WS_URL_STORAGE_KEY
-  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
-  return `${APP_SERVER_WS_URL_STORAGE_KEY_PREFIX}.${provider.kind}.${profile?.id ?? provider.id}`
-}
-
-function providerScopedEnvURL(
-  env: Record<string, string | undefined> | undefined,
-  provider: ProviderConfig | undefined,
-): string | undefined {
-  if (!env || !provider) return undefined
-  for (const key of appServerScopedEnvURLKeys(provider)) {
-    const value = env[key]?.trim()
-    if (value) return value
-  }
-  return undefined
-}
-
-export function appServerScopedEnvURLKeys(provider: ProviderConfig): string[] {
-  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
-  const tokens = uniqueStrings([
-    profile?.providerKey,
-    profile?.id,
-    provider.id,
-    provider.kind,
-  ].map(appServerEnvToken))
-  return tokens.flatMap((token) => [
-    `VITE_${token}_APP_SERVER_WS_URL`,
-    `VITE_MOVSCRIPT_${token}_APP_SERVER_WS_URL`,
-  ])
-}
-
-function appServerEnvToken(value: string | undefined): string | undefined {
-  const token = value?.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-  return token || undefined
-}
-
-function uniqueStrings(values: Array<string | undefined>): string[] {
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const value of values) {
-    if (!value || seen.has(value)) continue
-    seen.add(value)
-    result.push(value)
-  }
-  return result
-}
-
-function unscopedEnvURL(
-  env: Record<string, string | undefined> | undefined,
-): string | undefined {
-  return env?.VITE_APP_SERVER_WS_URL?.trim()
-    || env?.VITE_MOVSCRIPT_APP_SERVER_WS_URL?.trim()
-    || undefined
-}
-
-function compactRecord<T extends Record<string, unknown>>(input: T): T {
-  const output: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined) output[key] = value
-  }
-  return output as T
-}
-
-function compactProtocolParams(params: unknown): unknown {
-  if (params === undefined) return undefined
-  if (!isRecord(params) || Array.isArray(params)) return params
-  return compactRecord(params)
-}
-
-function fallbackServerRequestResult(method: string): unknown {
-  if (method === 'item/permissions/requestApproval') return { permissions: {}, scope: 'turn', strictAutoReview: true }
-  if (method === 'item/tool/requestUserInput') return { answers: {} }
-  if (method === 'item/tool/call') return { contentItems: [], success: false }
-  if (method === 'mcpServer/elicitation/request') return { action: 'decline', content: null, _meta: null }
-  if (method === 'movscript/decision/request') return { decision: 'defer' }
-  if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') return { decision: 'decline' }
-  if (method === 'applyPatchApproval' || method === 'execCommandApproval') return { decision: 'denied' }
-  if (method === 'account/chatgptAuthTokens/refresh' || method === 'attestation/generate') {
-    return { action: 'decline', reason: 'No Agent Chat request handler is available.' }
-  }
-  return null
-}
-
-function shouldDebugAppServerRpcMethod(method: string): boolean {
-  return appServerRpcDebugEnabled() || APP_SERVER_RPC_DEBUG_METHODS.has(method)
-}
-
-function shouldDebugAppServerRpcNotification(method: string): boolean {
-  return appServerRpcDebugEnabled() || APP_SERVER_RPC_DEBUG_NOTIFICATIONS.has(method)
-}
-
-function appServerRpcDebugEnabled(): boolean {
-  try {
-    return typeof window !== 'undefined'
-      && window.localStorage?.getItem(APP_SERVER_RPC_DEBUG_STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function debugAppServerRpc(label: string, payload: Record<string, unknown>, options: { trace?: boolean } = {}): void {
-  const method = typeof payload.method === 'string' ? payload.method : undefined
-  const shouldLog = appServerRpcDebugEnabled()
-    || (label === 'request' && method ? APP_SERVER_RPC_DEBUG_METHODS.has(method) : false)
-    || (label === 'notification' && method ? APP_SERVER_RPC_DEBUG_NOTIFICATIONS.has(method) : false)
-    || label.startsWith('relay:')
-  if (!shouldLog) return
-  const logger = options.trace && typeof console.trace === 'function' ? console.trace : console.debug
-  logger(`[app-server rpc ${label}]`, payload)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key)
-}
-
-function isJsonRpcId(value: unknown): value is AppServerJsonRpcId {
-  return typeof value === 'number' || typeof value === 'string'
 }

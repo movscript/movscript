@@ -12,6 +12,7 @@ import (
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -300,4 +301,13 @@ func (s *handlerFakeStorage) GetObject(_ context.Context, key string, _, _ int64
 
 func (s *handlerFakeStorage) Backend() string {
 	return "fake"
+}
+
+func (s *handlerFakeStorage) Health(context.Context) providercontract.ProviderHealth {
+	return providercontract.ProviderHealth{
+		Type:     providercontract.TypeBlobStorage,
+		Adapter:  s.Backend(),
+		Assembly: providercontract.AssemblyStartup,
+		Status:   providercontract.HealthStatusOK,
+	}
 }

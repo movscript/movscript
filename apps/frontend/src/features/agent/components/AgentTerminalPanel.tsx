@@ -1,51 +1,40 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { ChevronDown, Play, Plus, Terminal as TerminalIcon, X } from 'lucide-react'
-import { Button } from '@movscript/ui'
-import { FitAddon } from '@xterm/addon-fit'
-import { Terminal } from '@xterm/xterm'
-import '@xterm/xterm/css/xterm.css'
+import { Button } from '@movscript/ui/primitives'
 
+import {
+  createLocalTerminal,
+  killLocalTerminal,
+  localTerminalAvailable,
+  resizeLocalTerminal,
+  subscribeLocalTerminalEvents,
+  writeLocalTerminal,
+} from '@/features/agent/application/localTerminalElectron'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
-
-const AGENT_TERMINAL_DEFAULT_ROWS = 12
-const AGENT_TERMINAL_DEFAULT_COLS = 100
-const AGENT_TERMINAL_OUTPUT_BUFFER_LIMIT = 200_000
-const FIRST_SHELL_ID = 'shell_1'
+import {
+  AGENT_TERMINAL_DEFAULT_COLS,
+  AGENT_TERMINAL_DEFAULT_ROWS,
+  FIRST_SHELL_ID,
+  appendShellOutput,
+  compactPath,
+  createInitialAgentTerminalStore,
+  createShellSession,
+  terminalStatusLabel,
+  type AgentTerminalStoreState,
+  type ShellRuntime,
+  type ShellSession,
+  type TerminalStatus,
+} from '@/features/agent/components/AgentTerminalRuntimeModel'
+import {
+  ShellTerminalViewport,
+  canFitTerminal,
+} from '@/features/agent/components/AgentTerminalViewport'
 
 export interface AgentTerminalPanelProps {
   workspaceContext: MovScriptWorkspaceContext
   open?: boolean
   onOpenChange?: (open: boolean) => void
   shellPlacement?: 'center' | 'center-right'
-}
-
-type TerminalStatus = 'idle' | 'starting' | 'running' | 'exited' | 'error'
-
-type ShellSession = {
-  id: string
-  index: number
-  title: string
-  status: TerminalStatus
-  cwd: string
-  error: string
-}
-
-type ShellRuntime = {
-  terminal: Terminal | null
-  fitAddon: FitAddon | null
-  terminalSessionId: string | null
-  status: TerminalStatus
-  outputBuffer: string
-  writeChain: Promise<unknown>
-  runToken: number
-  unsubscribe: (() => void) | null
-}
-
-type AgentTerminalStoreState = {
-  sessions: ShellSession[]
-  activeShellId: string
-  shellResetNonce: number
-  nextShellIndex: number
 }
 
 const agentTerminalRuntimes = new Map<string, ShellRuntime>()
@@ -75,15 +64,6 @@ function updateAgentTerminalStore(updater: (current: AgentTerminalStoreState) =>
   for (const listener of Array.from(agentTerminalListeners)) listener()
 }
 
-function createInitialAgentTerminalStore(): AgentTerminalStoreState {
-  return {
-    sessions: [createShellSession(1)],
-    activeShellId: FIRST_SHELL_ID,
-    shellResetNonce: 0,
-    nextShellIndex: 1,
-  }
-}
-
 export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onOpenChange, shellPlacement = 'center' }: AgentTerminalPanelProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
@@ -94,7 +74,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
 
   const workspaceContextKey = JSON.stringify(workspaceContext)
   const controlled = controlledOpen !== undefined
-  const disabled = typeof window === 'undefined' || !window.api?.createLocalTerminal
+  const disabled = !localTerminalAvailable()
   const activeSession = sessions.find((session) => session.id === activeShellId) ?? sessions[0]
   const statusLabel = terminalStatusLabel(activeSession?.status ?? 'idle', disabled)
   const shortCwd = activeSession?.cwd
@@ -128,6 +108,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
       runtime = {
         terminal: null,
         fitAddon: null,
+        host: null,
         terminalSessionId: null,
         status: 'idle',
         outputBuffer: '',
@@ -151,7 +132,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     const terminal = runtime?.terminal
     const fitAddon = runtime?.fitAddon
     if (!runtime || !terminal || !fitAddon) return
-    if (!canFitTerminal(terminal)) return
+    if (!canFitTerminal(runtime, terminal)) return
     try {
       fitAddon.fit()
     } catch (fitError) {
@@ -159,7 +140,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
       return
     }
     if (!runtime.terminalSessionId) return
-    void window.api?.resizeLocalTerminal?.({
+    void resizeLocalTerminal({
       sessionId: runtime.terminalSessionId,
       size: {
         rows: terminal.rows,
@@ -175,7 +156,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     if (!runtime || runtime.status !== 'running' || !runtime.terminalSessionId) return
     runtime.writeChain = runtime.writeChain
       .catch(() => undefined)
-      .then(() => window.api?.writeLocalTerminal?.({
+      .then(() => writeLocalTerminal({
         sessionId: runtime.terminalSessionId ?? id,
         data,
       }))
@@ -192,13 +173,13 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     runtime.runToken += 1
     runtime.unsubscribe?.()
     runtime.unsubscribe = null
-    if (runtime.terminalSessionId) void window.api?.killLocalTerminal?.({ sessionId: runtime.terminalSessionId })
+    if (runtime.terminalSessionId) void killLocalTerminal({ sessionId: runtime.terminalSessionId })
     runtime.terminalSessionId = null
     setShellStatus(id, 'exited')
   }, [setShellStatus])
 
   const startShell = useCallback(async (id: string) => {
-    if (!window.api?.createLocalTerminal) {
+    if (!localTerminalAvailable()) {
       setShellStatus(id, 'error', { error: 'Local terminal is not available in this runtime.' })
       return
     }
@@ -215,11 +196,11 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
     runtime.outputBuffer = ''
     runtime.terminalSessionId = id
     setShellStatus(id, 'starting', { error: '', cwd: '' })
-    terminal.reset()
+    terminal.clear()
     appendShellOutput(runtime, 'Starting host shell...\r\n')
 
     try {
-      const result = await window.api.createLocalTerminal({
+      const result = await createLocalTerminal({
         sessionId: id,
         workspaceContext,
         size: {
@@ -228,6 +209,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
         },
       })
       if (runtime.runToken !== token) return
+      if (!result) throw new Error('Local terminal is not available in this runtime.')
       runtime.terminalSessionId = result.sessionId
       updateSession(id, { cwd: result.cwd })
       setShellStatus(id, 'running')
@@ -296,7 +278,7 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
   }, [resetShells, workspaceContextKey])
 
   useEffect(() => {
-    return window.api?.onLocalTerminalEvent?.((event) => {
+    return subscribeLocalTerminalEvents((event) => {
       const runtime = agentTerminalRuntimes.get(event.sessionId)
       if (!runtime) return
       if (event.kind === 'output') {
@@ -442,183 +424,4 @@ export function AgentTerminalPanel({ workspaceContext, open: controlledOpen, onO
       </div>
     </section>
   )
-}
-
-function ShellTerminalViewport({
-  active,
-  disabled,
-  sessionId,
-  runtimeFor,
-  resizeShell,
-  sendShellData,
-  startShell,
-}: {
-  active: boolean
-  disabled: boolean
-  sessionId: string
-  runtimeFor: (id: string) => ShellRuntime
-  resizeShell: (id: string) => void
-  sendShellData: (id: string, data: string) => void
-  startShell: (id: string) => Promise<void>
-}) {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return undefined
-    const runtime = runtimeFor(sessionId)
-    if (runtime.terminal) return undefined
-
-    const terminal = new Terminal({
-      allowProposedApi: false,
-      convertEol: true,
-      cursorBlink: true,
-      disableStdin: disabled,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-      fontSize: 12,
-      lineHeight: 1.42,
-      rows: AGENT_TERMINAL_DEFAULT_ROWS,
-      cols: AGENT_TERMINAL_DEFAULT_COLS,
-      scrollback: 5000,
-      theme: terminalTheme(host),
-    })
-    const fitAddon = new FitAddon()
-    terminal.loadAddon(fitAddon)
-    terminal.open(host)
-    const disposeThemeObserver = observeTerminalTheme(host, terminal)
-    runtime.terminal = terminal
-    runtime.fitAddon = fitAddon
-    if (runtime.outputBuffer) terminal.write(runtime.outputBuffer)
-
-    const inputDisposable = terminal.onData((data) => sendShellData(sessionId, data))
-    const resizeObserver = new ResizeObserver(() => resizeShell(sessionId))
-    resizeObserver.observe(host)
-    const frame = window.requestAnimationFrame(() => {
-      resizeShell(sessionId)
-      if (active) void startShell(sessionId)
-    })
-
-    return () => {
-      window.cancelAnimationFrame(frame)
-      disposeThemeObserver()
-      inputDisposable.dispose()
-      resizeObserver.disconnect()
-      if (runtime.terminal === terminal) runtime.terminal = null
-      if (runtime.fitAddon === fitAddon) runtime.fitAddon = null
-      disposeTerminal(terminal)
-    }
-  }, [disabled, resizeShell, runtimeFor, sendShellData, sessionId])
-
-  useEffect(() => {
-    if (!active) return
-    runtimeFor(sessionId).terminal?.focus()
-    resizeShell(sessionId)
-  }, [active, resizeShell, runtimeFor, sessionId])
-
-  return (
-    <div
-      ref={hostRef}
-      className="agent-terminal-panel__xterm"
-      data-active={active ? 'true' : undefined}
-      aria-hidden={active ? undefined : true}
-    />
-  )
-}
-
-function createShellSession(index: number): ShellSession {
-  return {
-    id: `shell_${index}`,
-    index,
-    title: `Shell ${index}`,
-    status: 'idle',
-    cwd: '',
-    error: '',
-  }
-}
-
-function appendShellOutput(runtime: ShellRuntime, data: string): void {
-  runtime.outputBuffer += data
-  if (runtime.outputBuffer.length > AGENT_TERMINAL_OUTPUT_BUFFER_LIMIT) {
-    runtime.outputBuffer = runtime.outputBuffer.slice(-AGENT_TERMINAL_OUTPUT_BUFFER_LIMIT)
-  }
-  runtime.terminal?.write(data)
-}
-
-function canFitTerminal(terminal: Terminal): boolean {
-  const element = terminal.element
-  const host = element?.parentElement
-  if (!element || !host || !element.isConnected || !host.isConnected) return false
-  return host.clientWidth > 0 && host.clientHeight > 0
-}
-
-function disposeTerminal(terminal: Terminal): void {
-  try {
-    terminal.dispose()
-  } catch (disposeError) {
-    console.warn('[agent-terminal] failed to dispose terminal', disposeError)
-  }
-}
-
-function terminalStatusLabel(status: TerminalStatus, disabled: boolean): string {
-  if (disabled) return 'unavailable'
-  if (status === 'starting') return 'starting'
-  if (status === 'running') return 'running'
-  if (status === 'exited') return 'exited'
-  if (status === 'error') return 'error'
-  return 'idle'
-}
-
-function compactPath(path: string): string {
-  const parts = path.replace(/\\/g, '/').split('/').filter(Boolean)
-  if (parts.length <= 3) return path
-  return `.../${parts.slice(-3).join('/')}`
-}
-
-function terminalTheme(host: HTMLElement) {
-  const style = window.getComputedStyle(host)
-  const value = (name: string, fallback: string) => cssColorValue(style.getPropertyValue(name), fallback)
-  const primary = value('--agent-terminal-primary', '#38bdf8')
-  const accent = value('--agent-terminal-accent', '#f5c542')
-  return {
-    background: value('--agent-terminal-background', '#14161a'),
-    foreground: value('--agent-terminal-text', '#e5e7eb'),
-    cursor: accent,
-    selectionBackground: value('--agent-terminal-selection', '#334155'),
-    black: '#0b0d10',
-    red: '#ef4444',
-    green: '#22c55e',
-    yellow: '#eab308',
-    blue: primary,
-    magenta: '#d946ef',
-    cyan: '#2dd4bf',
-    white: '#e5e7eb',
-    brightBlack: '#64748b',
-    brightRed: '#f87171',
-    brightGreen: '#4ade80',
-    brightYellow: '#facc15',
-    brightBlue: primary,
-    brightMagenta: '#e879f9',
-    brightCyan: '#67e8f9',
-    brightWhite: '#ffffff',
-  }
-}
-
-function cssColorValue(value: string, fallback: string): string {
-  const trimmed = value.trim()
-  return trimmed || fallback
-}
-
-function observeTerminalTheme(host: HTMLElement, terminal: Terminal): () => void {
-  const applyTheme = () => {
-    terminal.options.theme = { ...terminalTheme(host) }
-  }
-  applyTheme()
-
-  const root = document.documentElement
-  const shell = host.closest('.app-shell')
-  const observer = new MutationObserver(() => applyTheme())
-  observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] })
-  if (shell) observer.observe(shell, { attributes: true, attributeFilter: ['data-surface', 'data-chrome', 'data-layout', 'style'] })
-
-  return () => observer.disconnect()
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useResizablePanel } from '@movscript/ui'
+import { useResizablePanel } from '@movscript/ui/layout'
 
 const AGENT_CHAT_HISTORY_MIN_RATIO = 1 / 3
 const AGENT_CHAT_HISTORY_MAX_RATIO = 0.78

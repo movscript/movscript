@@ -9,9 +9,12 @@ import (
 
 	domainshotreference "github.com/movscript/movscript/internal/domain/shotreference"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
+
+var _ providercontract.VectorIndexProvider = (*LocalVectorIndexProvider)(nil)
 
 func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
 	db := testutil.OpenSQLite(t, "shot-reference.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
@@ -157,6 +160,52 @@ func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != created.ID {
 		t.Fatalf("localized alias search page = %+v, want created reference", page)
+	}
+}
+
+func TestLocalVectorIndexProviderAdaptsProviderContract(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-provider-vector-index.db", &model.ShotVectorDocument{})
+	provider := NewLocalVectorIndexProvider(db)
+
+	if err := provider.Upsert(context.Background(), providercontract.VectorDocument{
+		ID:        "default:42:zh-CN:combined",
+		Namespace: "default",
+		SourceID:  "default",
+		Locale:    "zh-CN",
+		Kind:      "combined",
+		Text:      "slow push delayed reveal",
+		Metadata:  map[string]any{"reference_id": float64(42), "visual_facets": []any{"push_in"}},
+	}); err != nil {
+		t.Fatalf("provider upsert: %v", err)
+	}
+
+	results, err := provider.Search(context.Background(), providercontract.VectorSearchRequest{
+		Query:  "delayed reveal",
+		Locale: "zh-CN",
+		TopK:   1,
+	})
+	if err != nil {
+		t.Fatalf("provider search: %v", err)
+	}
+	if len(results) != 1 || results[0].Document.ID != "default:42:zh-CN:combined" || results[0].Document.SourceID != "default" {
+		t.Fatalf("provider search results = %+v, want adapted vector document", results)
+	}
+	stats, err := provider.Stats(context.Background())
+	if err != nil {
+		t.Fatalf("provider stats: %v", err)
+	}
+	if stats.Documents != 1 || stats.EmbeddingModels[localEmbeddingModel] != 1 {
+		t.Fatalf("provider stats = %+v, want one local embedded document", stats)
+	}
+	if err := provider.Delete(context.Background(), providercontract.VectorDocumentRef{ID: "default:42:zh-CN:combined"}); err != nil {
+		t.Fatalf("provider delete: %v", err)
+	}
+	results, err = provider.Search(context.Background(), providercontract.VectorSearchRequest{Query: "delayed reveal", Locale: "zh-CN"})
+	if err != nil {
+		t.Fatalf("provider search after delete: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("provider search after delete = %+v, want empty", results)
 	}
 }
 
@@ -541,6 +590,15 @@ func (fakeShotStorage) GetObject(context.Context, string, int64, int64) (io.Read
 
 func (fakeShotStorage) Backend() string {
 	return "fake"
+}
+
+func (fakeShotStorage) Health(context.Context) providercontract.ProviderHealth {
+	return providercontract.ProviderHealth{
+		Type:     providercontract.TypeBlobStorage,
+		Adapter:  "fake",
+		Assembly: providercontract.AssemblyStartup,
+		Status:   providercontract.HealthStatusOK,
+	}
 }
 
 func containsString(values []string, target string) bool {

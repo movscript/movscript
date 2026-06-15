@@ -15,7 +15,7 @@ export function WorkModeCard({
   action,
   mode,
   agentIcon,
-  detailIcon,
+  projectIcon,
   onSelect,
 }: {
   icon: IconComponent;
@@ -24,7 +24,7 @@ export function WorkModeCard({
   action: ReactNode;
   mode: WorkModeChoice;
   agentIcon: IconComponent;
-  detailIcon: IconComponent;
+  projectIcon: IconComponent;
   onSelect: (mode: WorkModeChoice) => void;
 }) {
   return (
@@ -39,7 +39,7 @@ export function WorkModeCard({
           <AppIconFrame className="work-mode-card__icon">
             <Icon size={18} />
           </AppIconFrame>
-          <WorkModeSwitchGuide activeMode={mode} compact agentIcon={agentIcon} detailIcon={detailIcon} />
+          <WorkModeSwitchGuide activeMode={mode} compact agentIcon={agentIcon} projectIcon={projectIcon} />
         </div>
         <h2 className="work-mode-card__title">{title}</h2>
         <p className="work-mode-card__description">{description}</p>

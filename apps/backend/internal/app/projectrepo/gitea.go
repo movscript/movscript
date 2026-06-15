@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type GiteaAdapter struct {
@@ -21,19 +23,6 @@ type GiteaAdapter struct {
 	adminUsername string
 	adminPassword string
 	httpClient    *http.Client
-}
-
-type EnsureUserInput struct {
-	Username  string
-	Email     string
-	Password  string
-	TokenName string
-}
-
-type EnsureUserResult struct {
-	ProviderUserID string
-	Username       string
-	Token          string
 }
 
 func NewGiteaAdapter(baseURL string, token string) *GiteaAdapter {
@@ -81,6 +70,68 @@ func (a *GiteaAdapter) EnsureRepository(ctx context.Context, input EnsureReposit
 	return EnsureRepositoryResult{ProviderRepoID: repo.IDString(), HeadCommit: head}, nil
 }
 
+func (a *GiteaAdapter) GetCloneURL(_ context.Context, request providercontract.RepositoryCloneURLRequest) (providercontract.RepositoryCloneURLResult, error) {
+	strategy := strings.TrimSpace(request.PreferredStrategy)
+	if strategy == "" {
+		strategy = providercontract.RepositoryCloneURLStrategyProxy
+	}
+	if strategy == providercontract.RepositoryCloneURLStrategyTemporary {
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("gitea temporary clone URL is not supported")
+	}
+	if strategy != providercontract.RepositoryCloneURLStrategyProxy && strategy != providercontract.RepositoryCloneURLStrategyDirect {
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("gitea clone URL strategy %q is not supported", request.PreferredStrategy)
+	}
+	if strategy == providercontract.RepositoryCloneURLStrategyProxy && strings.TrimSpace(request.PublicURL) != "" {
+		return providercontract.RepositoryCloneURLResult{URL: strings.TrimSpace(request.PublicURL), Strategy: providercontract.RepositoryCloneURLStrategyProxy}, nil
+	}
+	if a == nil || strings.TrimSpace(a.baseURL) == "" {
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("gitea adapter is not configured")
+	}
+	return providercontract.RepositoryCloneURLResult{
+		URL:      strings.TrimRight(a.baseURL, "/") + "/" + url.PathEscape(request.Ref.Owner) + "/" + url.PathEscape(request.Ref.Repo) + ".git",
+		Strategy: providercontract.RepositoryCloneURLStrategyDirect,
+	}, nil
+}
+
+func (a *GiteaAdapter) GetGitHTTPProxyTarget(_ context.Context, request providercontract.GitHTTPProxyTargetRequest) (providercontract.GitHTTPProxyTarget, error) {
+	if a == nil || strings.TrimSpace(a.baseURL) == "" {
+		return providercontract.GitHTTPProxyTarget{}, fmt.Errorf("gitea adapter is not configured")
+	}
+	return providercontract.GitHTTPProxyTarget{
+		Provider:      ProviderGitea,
+		Owner:         request.Ref.Owner,
+		Repo:          request.Ref.Repo,
+		DefaultBranch: request.Ref.DefaultBranch,
+		BaseURL:       a.baseURL,
+	}, nil
+}
+
+func (a *GiteaAdapter) Health(ctx context.Context) providercontract.ProviderHealth {
+	health := providercontract.ProviderHealth{
+		Type:         providercontract.TypeWorkspaceRepository,
+		Adapter:      providercontract.AdapterGitea,
+		Assembly:     providercontract.AssemblyStartup,
+		Status:       providercontract.HealthStatusOK,
+		Message:      "gitea authentication succeeded",
+		Capabilities: []string{"repository.ensure", "repository.clone_url", "git.http_proxy", "identity.ensure_user", "collaborator.ensure", "health.probe"},
+	}
+	if a == nil || strings.TrimSpace(a.baseURL) == "" {
+		health.Status = providercontract.HealthStatusMissingConfig
+		health.Message = "gitea base url and credentials are required"
+		return health
+	}
+	user, err := a.currentUser(ctx)
+	if err != nil {
+		health.Status = providercontract.HealthStatusError
+		health.Message = err.Error()
+		return health
+	}
+	if strings.TrimSpace(user.UserName) != "" {
+		health.Message = "gitea authentication succeeded as " + user.UserName
+	}
+	return health
+}
+
 func (a *GiteaAdapter) EnsureUser(ctx context.Context, input EnsureUserInput) (EnsureUserResult, error) {
 	if a == nil {
 		return EnsureUserResult{}, fmt.Errorf("gitea adapter is not configured")
@@ -119,6 +170,25 @@ func (a *GiteaAdapter) EnsureRepoCollaborator(ctx context.Context, owner string,
 	}
 	payload := map[string]any{"permission": permission}
 	return a.doJSON(ctx, http.MethodPut, "/api/v1/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(repo)+"/collaborators/"+url.PathEscape(username), payload, nil)
+}
+
+func (a *GiteaAdapter) CheckRepoAccess(ctx context.Context, request RepositoryAccessRequest) (RepositoryAccessResult, error) {
+	if a == nil {
+		return RepositoryAccessResult{}, fmt.Errorf("gitea adapter is not configured")
+	}
+	var out giteaCollaboratorPermission
+	err := a.doJSON(ctx, http.MethodGet, "/api/v1/repos/"+url.PathEscape(request.Owner)+"/"+url.PathEscape(request.Repo)+"/collaborators/"+url.PathEscape(request.Username)+"/permission", nil, &out)
+	if err != nil {
+		if errorsIsNotFound(err) {
+			return RepositoryAccessResult{Allowed: false}, nil
+		}
+		return RepositoryAccessResult{}, err
+	}
+	permission := strings.TrimSpace(out.Permission)
+	return RepositoryAccessResult{
+		Allowed:    permissionSatisfies(permission, request.Permission),
+		Permission: permission,
+	}, nil
 }
 
 func (a *GiteaAdapter) ensureOwner(ctx context.Context, input EnsureRepositoryInput) error {
@@ -400,6 +470,10 @@ type giteaAccessToken struct {
 	Token string `json:"token"`
 }
 
+type giteaCollaboratorPermission struct {
+	Permission string `json:"permission"`
+}
+
 func (r giteaRepo) IDString() string {
 	if r.ID == 0 {
 		return ""
@@ -429,6 +503,28 @@ func (e giteaHTTPError) Error() string {
 func errorsIsNotFound(err error) bool {
 	httpErr, ok := err.(giteaHTTPError)
 	return ok && httpErr.StatusCode == http.StatusNotFound
+}
+
+func permissionSatisfies(actual string, required string) bool {
+	actualRank := repositoryPermissionRank(actual)
+	requiredRank := repositoryPermissionRank(required)
+	if requiredRank == 0 {
+		requiredRank = repositoryPermissionRank("read")
+	}
+	return actualRank >= requiredRank
+}
+
+func repositoryPermissionRank(permission string) int {
+	switch strings.ToLower(strings.TrimSpace(permission)) {
+	case "owner", "admin":
+		return 3
+	case "write":
+		return 2
+	case "read":
+		return 1
+	default:
+		return 0
+	}
 }
 
 func randomGiteaOwnerSecret() (string, error) {

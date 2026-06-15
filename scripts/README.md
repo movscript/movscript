@@ -4,6 +4,10 @@ Root scripts are workspace automation. App-only scripts should live under the ap
 
 Release automation lives in `scripts/release/`. App-only automation belongs in the owning package's `scripts/` directory.
 
+Desktop package resources are governed by `package-resources.manifest.json`.
+Run `pnpm run verify:package-resources` after changing `apps/frontend/electron-builder.yml`,
+desktop runtime binaries, plugin bundle layout, or release staging paths.
+
 Only cross-workspace runners, shared verifier helpers, and provider-neutral app-server integration entrypoints may live directly under `scripts/`:
 
 - `run-node-tests.mjs`

@@ -7,10 +7,12 @@ import {
   CanvasNodeApprovalActionButton,
   CanvasNodeApprovalActions,
   CanvasNodeApprovalStatus,
+} from '@movscript/ui/business/canvas'
+import {
   CanvasNodeCard,
   CanvasNodeCardBody,
-  CanvasNodeCardHeader,
-} from '@movscript/ui'
+  CanvasNodeCardHeader
+} from './CanvasNodeCardUi'
 import {
   ioStateFromStatus,
   nodeStatusLabel,

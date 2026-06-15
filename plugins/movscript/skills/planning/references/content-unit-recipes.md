@@ -2,6 +2,13 @@
 
 Content units are top-level project production tasks. They are not generated resources, candidates, selections, or production hierarchy nodes.
 
+Final-shape production centers on `scene_moment`:
+
+- `scene_moment` is the final expression aggregation unit and can be generated directly.
+- `expression_unit` is multimodal material intent inside a scene moment: visual shot material, dialogue, narration, subtitle, sfx, music, ambience, interaction, or metadata.
+- `content_unit` generates candidates for either a complete `scene_moment` or one `expression_unit` material.
+- `edit_plan` composes selected content-unit candidates back into the scene moment output.
+
 Create the necessary upstream structure first, then create the content unit. Do not invent all shots, storyboards, keyframes, assets, expression units, or audio cues just to fill a content unit. Use the smallest structure that supports the user's current goal.
 
 ## Specialized Types
@@ -9,8 +16,9 @@ Create the necessary upstream structure first, then create the content unit. Do 
 - `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable character, location, prop, style, or state asset.
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a shot or storyboard.
 - `storyboard_ref`: image output, requires `storyboard_ref`. Use to stabilize storyboard panels/images for composition, blocking, timing, and shot rhythm before keyframes or final video.
-- `scence_moment_ref`: video output, uses a `{{scene_moment:id}}` primary prompt ref. Use when directly generating one complete scene moment video without committing to shot/storyboard breakdown first.
-- `shot_ref`: video output, uses a `{{shot:id}}` primary prompt ref. Use when generating one camera unit directly, with optional upstream assets, keyframes, or storyboard references when consistency matters.
+- `scene_moment_ref` / legacy `scence_moment_ref`: video output, targets one complete scene moment. Prefer `target_kind: scene_moment` and `target_ref` for new records. Use when directly generating one complete scene moment video without material breakdown first.
+- `expression_unit_ref`: output kind may be video, audio, text, image, or metadata. Prefer `target_kind: expression_unit` and `target_ref` for new records. Use for visual material, voice material, subtitle text, sfx/music/ambience, or interaction metadata that will later be composed by an edit plan.
+- `shot_ref`: legacy video output for one camera unit. Do not use for new final-shape plans unless interacting with old data.
 
 Unknown `content_unit_type` values are valid generic slots, but interpreter adapters do not collect upstream dependencies, hash source refs, mark selections stale, or include them in regeneration planning.
 
@@ -39,6 +47,33 @@ setting / setting_state / asset
 
 Build asset candidates from simple to complex. Start with base identity, neutral shape, material, or layout; then use the selected base asset to generate multi-view/reference-sheet versions and state variants such as costume, makeup, weather, damage, wet hair, or prop wear. Do not use unselected asset candidates as stable downstream references.
 
+## Scene Moments and Expression Units
+
+Fast direct scene generation:
+
+```text
+scene_moment
+-> scene_moment_ref content unit with target_kind=scene_moment
+-> generated/imported video candidates
+-> user/workflow selects final scene-moment video candidate
+```
+
+Composed scene generation:
+
+```text
+scene_moment
+-> expression_unit(modality=visual, role=shot)
+-> expression_unit(modality=verbal, role=dialogue/narration)
+-> expression_unit(modality=audio, role=sfx/music/ambience)
+-> expression_unit_ref content units for each needed material
+-> generated/imported material candidates
+-> user/workflow selects material candidates
+-> interpreted edit_plan groups selected resources into tracks
+-> domain_compose_scene_moment_from_edit_plan writes a scene-moment-level video candidate
+```
+
+Use the composed path when cross-shot voice, subtitles, sound design, visual consistency, or local regeneration matters.
+
 ## Storyboards and Keyframes
 
 Use storyboard panels before keyframes when the user has composition, blocking, camera, placement, or rhythm expectations but has not specified enough detail.
@@ -49,16 +84,17 @@ shot intent
 -> user/workflow adopts or selects storyboard candidate
 -> keyframe_ref content units for start/end or other required anchors
 -> user/workflow adopts or selects required keyframe candidates
--> shot_ref or scence_moment_ref video content unit
+-> expression_unit_ref visual-material content unit, or direct scene_moment_ref content unit
 ```
 
-`storyboard_ref` is for storyboard panels/images, not the final video output. Final video should normally be a `shot_ref` or `scence_moment_ref` content unit that references selected storyboard/keyframe/asset outputs when those are required for stable continuity.
+`storyboard_ref` is for storyboard panels/images, not the final video output. Final video should normally be a scene-moment content unit or an expression-unit visual-material content unit that references selected storyboard/keyframe/asset outputs when those are required for stable continuity.
 
 ## Flat Refs
 
 Current source supports these flat refs on content units:
 
 - `scene_moment_ref`
+- `expression_unit_ref`
 - `shot_ref`
 - `storyboard_ref`
 - `keyframe_ref`
@@ -82,7 +118,7 @@ asset_ref content unit
 -> keyframe_ref content unit
 -> generated/imported keyframe candidates
 -> user/workflow selects stable keyframe candidate
--> shot_ref or scence_moment_ref content unit
+-> expression_unit_ref visual-material content unit or scene_moment_ref content unit
 -> generated/imported video candidates
 -> user/workflow selects final video candidate
 ```
@@ -93,7 +129,7 @@ Do not start a downstream stage until the required upstream candidate has been s
 
 ## Fast Exploration Path
 
-For rapid exploration, create only the needed generic or specialized content unit and generate candidates quickly. A direct `scence_moment_ref` or `shot_ref` content unit is appropriate when the user wants a draft, a low-stakes one-off output, or a simple generation without reusable continuity.
+For rapid exploration, create only the needed generic or specialized content unit and generate candidates quickly. A direct `scene_moment_ref` content unit is appropriate when the user wants a draft, a low-stakes one-off output, or a simple generation without reusable continuity.
 
 Do not create setting, asset, keyframe, or storyboard prerequisites just to satisfy a formal chain. Add them only when they protect identity, style, scene continuity, camera intent, or downstream reuse.
 

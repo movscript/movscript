@@ -1,225 +1,224 @@
-import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { ArrowRight, Bot, FolderOpen, LayoutGrid, Loader2, Plus, Sparkles, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  ArrowRight,
-  Camera,
-  Clapperboard,
-  Film,
-  FolderOpen,
-  Loader2,
-  Megaphone,
-  Music2,
-  PanelsTopLeft,
-  Plus,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
-import { projectListQueryKey } from '@/features/project/application/projectQueries'
-import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
-import { startSharedProvisionalConversation } from '@/features/agent/application/providerSessionThreadQueryCache'
-import { openAppServerThread } from '@/features/agent/components/AppServerChatShell'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { api } from '@/shared/infrastructure/api'
-import {
-  resolveNewConversationProvider,
-  usesAppServerProtocol,
-  useProviderConfigStore,
-} from '@/shared/infrastructure/providerConfigStore'
-import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
-import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { projectKeys } from '@/features/project/application/projectQueries'
 import { routeForWorkMode } from '@/routes/appRouteModel'
 import { ROUTES } from '@/routes/projectRoutes'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { openAgentWindow, openProjectWindow } from '@/shared/infrastructure/appWindowContext'
+import { api } from '@/shared/infrastructure/api'
+import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { useLastWorkspaceStore } from '@/shared/infrastructure/session/lastWorkspaceStore'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
 
-type InspirationKey = 'shortDrama' | 'ad' | 'mv' | 'storyboard' | 'shotReference'
-
-interface InspirationOption {
-  key: InspirationKey
-  icon: LucideIcon
-}
-
-const inspirationOptions: InspirationOption[] = [
-  { key: 'shortDrama', icon: Clapperboard },
-  { key: 'ad', icon: Megaphone },
-  { key: 'mv', icon: Music2 },
-  { key: 'storyboard', icon: PanelsTopLeft },
-  { key: 'shotReference', icon: Camera },
-]
-
 export default function GlobalHomePage() {
-  const navigate = useNavigate()
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const currentOrgID = useUserStore((s) => s.currentOrgID)
-  const currentUser = useUserStore((s) => s.currentUser)
-  const userId = currentUser ? String(currentUser.ID) : ''
-  const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
-  const createProviderSessionConversation = useAgentSessionStore((s) => s.createProviderSessionConversation)
-  const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
-  const updateConversationTitle = useAgentSessionStore((s) => s.updateConversationTitle)
-  const setConversationProviderThreadId = useAgentSessionStore((s) => s.setConversationProviderThreadId)
-  const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
-  const setConversationProviderSessionState = useAgentSessionStore((s) => s.setConversationProviderSessionState)
+  const lastWorkspace = useLastWorkspaceStore((s) => s.last)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
-  const providerSettings = useProviderConfigStore((s) => s.settings)
-  const activeProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
-  const appServerMode = usesAppServerProtocol(activeProvider)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: projectListQueryKey(currentOrgID),
+    queryKey: projectKeys.list(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
   })
 
-  const recentProjects = useMemo(() => {
+  const projects = useMemo(() => {
     return [...(projectsQuery.data ?? [])]
       .sort((a, b) => Date.parse(b.UpdatedAt || b.CreatedAt) - Date.parse(a.UpdatedAt || a.CreatedAt))
-      .slice(0, 3)
   }, [projectsQuery.data])
+  const lastProject = useMemo(() => {
+    if (!lastWorkspace?.projectId) return null
+    return projects.find((project) => project.ID === lastWorkspace.projectId)
+      ?? lastWorkspace.project
+      ?? null
+  }, [lastWorkspace, projects])
+  const recentProjects = useMemo(() => {
+    return projects
+      .filter((project) => project.ID !== lastProject?.ID)
+      .slice(0, lastProject ? 3 : 4)
+  }, [lastProject?.ID, projects])
 
-  function startInAgent(option: InspirationOption) {
+  function enterAgentMode() {
     setWorkMode('agent')
-    void (async () => {
-      const label = String(t(`home.inspiration.${option.key}`))
-      const prompt = String(t(`home.inspirationPrompts.${option.key}`))
-      try {
-        if (appServerMode) {
-          const dataSource = await createAgentChatDataSourceForProvider(activeProvider, {
-            workspaceContext: {
-              scope: 'global',
-              ...(userId ? { userId } : {}),
-            },
-          })
-          const thread = await dataSource.startThread({ title: label })
-          openAppServerThread({ threadId: thread.id, provider: activeProvider })
-          navigate(ROUTES.project.agent)
-          return
-        }
-
-        const thread = await startSharedProvisionalConversation({ title: label })
-        const createdAt = Date.parse(thread.createdAt)
-        const updatedAt = Date.parse(thread.updatedAt)
-        const conversationId = createProviderSessionConversation(userId, {
-          threadId: thread.id,
-          ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-          ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
-          createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
-          updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
-        })
-        setConversationProviderThreadId(userId, conversationId, thread.id)
-        if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
-        setConversationProviderSessionState(conversationId, {
-          ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-          threadId: thread.id,
-          loading: false,
-          building: false,
-          error: undefined,
-        })
-        updateConversationTitle(userId, conversationId, label)
-        updateConversationWorkspace(userId, conversationId, {
-          input: prompt,
-        })
-        navigate(ROUTES.project.agent)
-      } catch (error) {
-        console.error('[agent] failed to start provisional conversation', error)
-      }
-    })()
+    void openAgentWindow()
   }
 
-  function openProject(project: Project) {
+  function enterProject(project: Project) {
     setCurrentProject(project)
-    navigate(routeForWorkMode(workMode, true))
+    setWorkMode('project')
+    void openProjectWindow({ projectId: project.ID, project, route: ROUTES.project.home })
+  }
+
+  function enterCanvasMode() {
+    navigate(ROUTES.canvases)
+  }
+
+  function enterToolMode() {
+    setWorkMode('tool')
+    navigate(routeForWorkMode('tool', Boolean(projects[0])))
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-8 md:px-8">
-      <section className="flex flex-col gap-5">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-foreground">
+    <main className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-4 overflow-y-auto px-5 py-5">
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground shadow-sm">
             <Sparkles size={16} />
           </span>
-          <span className="type-label">{t('home.label')}</span>
-        </div>
-        <div className="space-y-4">
-          <h1 className="max-w-2xl text-3xl font-semibold leading-tight text-foreground md:text-4xl">
-            {t('home.title')}
-          </h1>
-          <div className="flex flex-wrap gap-2">
-            {inspirationOptions.map((option) => {
-              const Icon = option.icon
-              return (
-                <button
-                  key={option.key}
-                  type="button"
-                  className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-background px-4 type-label font-medium text-foreground shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => startInAgent(option)}
-                >
-                  <Icon size={15} />
-                  {t(`home.inspiration.${option.key}`)}
-                </button>
-              )
-            })}
+          <div className="min-w-0">
+            <h1 className="truncate text-[20px] font-semibold leading-6 text-foreground">MovScript</h1>
+            <p className="truncate type-caption text-muted-foreground">
+              {t('home.launcher.subtitle', { defaultValue: '选择一个工作入口' })}
+            </p>
           </div>
         </div>
-      </section>
+        {projectsQuery.isFetching ? (
+          <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2 type-caption text-muted-foreground">
+            <Loader2 size={12} className="animate-spin" />
+            {t('common.loadingShort')}
+          </span>
+        ) : null}
+      </header>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
-        <section className="overflow-hidden rounded-lg border border-border bg-background">
-          <div className="flex h-12 items-center justify-between border-b border-border px-4">
-            <div className="flex items-center gap-2 type-label font-semibold text-foreground">
-              <FolderOpen size={15} />
-              {t('home.recentProjects')}
+      <section className="grid min-h-0 flex-1 gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <button
+          type="button"
+          onClick={enterAgentMode}
+          className="group flex min-h-[172px] flex-col justify-between rounded-lg border border-border bg-background p-4 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="flex items-start justify-between gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-muted text-foreground">
+              <Bot size={20} />
+            </span>
+            <ArrowRight size={17} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
+          </span>
+          <span className="mt-5 block min-w-0">
+            <span className="block type-caption font-medium text-muted-foreground">Primary</span>
+            <span className="mt-1 block text-[26px] font-semibold leading-8 text-foreground">Agent</span>
+            <span className="mt-2 block type-label leading-5 text-muted-foreground">
+              {t('home.mode.agent', { defaultValue: '把注意力交给 Agent 的工作流、计划、产物和执行状态。' })}
+            </span>
+          </span>
+        </button>
+
+        <section className="flex min-h-[260px] flex-col rounded-lg border border-border bg-background p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <FolderOpen size={15} className="shrink-0 text-muted-foreground" />
+              <h2 className="truncate type-body font-semibold text-foreground">Project</h2>
             </div>
-            {projectsQuery.isFetching ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : null}
+            <button
+              type="button"
+              onClick={openProjectDialog}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 type-caption font-medium text-foreground transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Plus size={13} />
+              {t('pages.projects.newProject', { defaultValue: '新建项目' })}
+            </button>
           </div>
-          <div className="divide-y divide-border">
+
+          {lastProject ? (
+            <button
+              type="button"
+              className="mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-left transition hover:border-primary/45 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => enterProject(lastProject)}
+            >
+              <span className="min-w-0">
+                <span className="block type-caption text-muted-foreground">
+                  {t('home.launcher.continueProject', { defaultValue: '继续上次项目' })}
+                </span>
+                <span className="block truncate type-body font-semibold text-foreground">{lastProject.name}</span>
+              </span>
+              <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+            </button>
+          ) : null}
+
+          <div className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5">
             {recentProjects.map((project) => (
               <button
                 key={project.ID}
                 type="button"
-                className="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                onClick={() => openProject(project)}
+                className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-muted/25 px-3 py-2 text-left transition hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => enterProject(project)}
               >
                 <span className="min-w-0">
-                  <span className="block truncate type-body font-medium text-foreground">{project.name}</span>
+                  <span className="block truncate type-label font-medium text-foreground">{project.name}</span>
                   <span className="block truncate type-caption text-muted-foreground">
                     {formatProjectTime(project.UpdatedAt || project.CreatedAt, locale)}
                   </span>
                 </span>
-                <ArrowRight size={15} className="shrink-0 text-muted-foreground" />
+                <ArrowRight size={13} className="shrink-0 text-muted-foreground" />
               </button>
             ))}
-            {!projectsQuery.isLoading && recentProjects.length === 0 ? (
-              <div className="px-4 py-5 type-body text-muted-foreground">{t('home.emptyProjects')}</div>
+            {!projectsQuery.isLoading && projects.length === 0 ? (
+              <button
+                type="button"
+                onClick={openProjectDialog}
+                className="flex min-h-24 items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-3 text-center type-label text-muted-foreground transition hover:border-foreground/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus size={14} />
+                {t('home.emptyProjects', { defaultValue: '还没有项目' })}
+              </button>
             ) : null}
           </div>
         </section>
+      </section>
 
-        <section className="overflow-hidden rounded-lg border border-border bg-background">
-          <div className="flex h-12 items-center gap-2 border-b border-border px-4 type-label font-semibold text-foreground">
-            <Film size={15} />
-            {t('home.new')}
-          </div>
-          <button
-            type="button"
-            className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-            onClick={openProjectDialog}
-          >
-            <span className="flex items-center gap-2 type-body font-medium text-foreground">
-              <Plus size={16} />
-              {t('home.newProject')}
-            </span>
-            <ArrowRight size={15} className="shrink-0 text-muted-foreground" />
-          </button>
-        </section>
-      </div>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <ModeEntry
+          icon={<LayoutGrid size={16} />}
+          label="Canvas"
+          description={t('home.mode.canvas', { defaultValue: '管理全局画布、素材组织和跨项目的可视化灵感板。' })}
+          onClick={enterCanvasMode}
+        />
+        <ModeEntry
+          icon={<Wrench size={16} />}
+          label="Tool"
+          description={t('home.mode.tool', { defaultValue: '进入参考图生成等工具能力，不绑定到某个项目窗口。' })}
+          onClick={enterToolMode}
+        />
+      </section>
     </main>
+  )
+}
+
+function ModeEntry({
+  icon,
+  label,
+  description,
+  onClick,
+}: {
+  icon: ReactNode
+  label: string
+  description: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex min-h-[86px] items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 text-left shadow-sm transition hover:border-foreground/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-foreground">
+          {icon}
+        </span>
+        <span className="min-w-0">
+          <span className="block type-body font-semibold text-foreground">{label}</span>
+          <span className="mt-1 line-clamp-2 block type-caption leading-4 text-muted-foreground">{description}</span>
+        </span>
+      </span>
+      <ArrowRight size={14} className="shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
+    </button>
   )
 }
 

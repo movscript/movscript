@@ -90,6 +90,55 @@ func TestModelPresetsIncludeGPT52(t *testing.T) {
 	t.Fatal("expected GPT-5.2 preset")
 }
 
+func TestModelPresetsIncludeElevenLabsAudioModels(t *testing.T) {
+	wantTTSModels := map[string]string{
+		"elevenlabs:eleven-v3-tts":              "eleven_v3",
+		"elevenlabs:eleven-multilingual-v2-tts": "eleven_multilingual_v2",
+		"elevenlabs:eleven-flash-v2-5-tts":      "eleven_flash_v2_5",
+		"elevenlabs:eleven-flash-v2-tts":        "eleven_flash_v2",
+	}
+	seenTTSModels := map[string]bool{}
+	seenSTT := false
+
+	for _, preset := range ModelPresets() {
+		if modelID, ok := wantTTSModels[preset.ID]; ok {
+			seenTTSModels[preset.ID] = true
+			if preset.ModelID != modelID {
+				t.Fatalf("%s model_id = %q, want %q", preset.ID, preset.ModelID, modelID)
+			}
+			if preset.AdapterType != AdapterElevenLabs {
+				t.Fatalf("%s adapter_type = %q, want %q", preset.ID, preset.AdapterType, AdapterElevenLabs)
+			}
+			if !hasString(preset.Capabilities, CapabilityAudioTTS) {
+				t.Fatalf("%s capabilities = %#v, want audio_tts", preset.ID, preset.Capabilities)
+			}
+			if preset.PricingMode != PricingPerCall {
+				t.Fatalf("%s pricing_mode = %q, want %q", preset.ID, preset.PricingMode, PricingPerCall)
+			}
+			if !hasParam(preset.SupportedParams, "output_format") || !hasParam(preset.SupportedParams, "stability") {
+				t.Fatalf("%s supported_params = %#v", preset.ID, preset.SupportedParams)
+			}
+		}
+		if preset.ID == "elevenlabs:scribe-v2" {
+			seenSTT = true
+			if preset.ModelID != "scribe_v2" || preset.AdapterType != AdapterElevenLabs ||
+				!hasString(preset.Capabilities, CapabilityAudioSTT) ||
+				!hasParam(preset.SupportedParams, "diarize") {
+				t.Fatalf("scribe preset = %#v", preset)
+			}
+		}
+	}
+
+	for id := range wantTTSModels {
+		if !seenTTSModels[id] {
+			t.Fatalf("expected ElevenLabs TTS preset %s", id)
+		}
+	}
+	if !seenSTT {
+		t.Fatal("expected ElevenLabs Scribe v2 preset")
+	}
+}
+
 func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {
 	aliasKeys := map[string]bool{}
 	for alias := range generationParamAliasMap() {

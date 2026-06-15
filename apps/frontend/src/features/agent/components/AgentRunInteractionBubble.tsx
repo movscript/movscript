@@ -17,8 +17,8 @@ import {
   AgentRunInteractionApprovalText,
   AgentRunInteractionApprovalThumbnail,
   AgentRunInteractionApprovalThumbnailFallback,
-  AgentRunInteractionApprovalTitle,
-} from '@movscript/ui'
+  AgentRunInteractionApprovalTitle
+} from '@movscript/ui/business/agent'
 import {
   WorkspaceDiff,
   isWorkspaceApplyPreview,

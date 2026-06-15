@@ -16,12 +16,12 @@ import {
   OnboardingShell,
   OnboardingWorkModeSummary,
   WorkModePrompt,
-  type WorkModeChoice,
-} from '@movscript/ui'
+  type WorkModeChoice
+} from '@movscript/ui/business/app'
 import { api } from '@/shared/infrastructure/api'
 import { getDefaultAPIBaseURL, getLocalAPIBaseURL, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { translateApiError } from '@/shared/infrastructure/apiError'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { saveElectronAppSettings, useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 
@@ -64,14 +64,14 @@ export default function OnboardingPage() {
       setOnboardingSettings({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
-        workMode: workMode ?? 'detail',
+        workMode: workMode ?? 'project',
         localDisplayName: displayName.trim(),
         onboardingCompleted: false,
       })
-      await window.api?.setAppSettings?.({
+      await saveElectronAppSettings({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
-        workMode: workMode ?? 'detail',
+        workMode: workMode ?? 'project',
         onboardingCompleted: false,
         localDisplayName: displayName.trim(),
       })
@@ -84,7 +84,7 @@ export default function OnboardingPage() {
       completeOnboarding({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
-        workMode: workMode ?? 'detail',
+        workMode: workMode ?? 'project',
         localDisplayName: displayName.trim(),
       })
       navigate(ROUTES.projects, { replace: true })
@@ -100,7 +100,7 @@ export default function OnboardingPage() {
     completeOnboarding({
       launchMode: 'cloud',
       apiBaseURL: normalizedCloudURL,
-      workMode: workMode ?? 'detail',
+      workMode: workMode ?? 'project',
     })
     navigate(ROUTES.root, { replace: true })
     window.location.reload()
@@ -118,13 +118,13 @@ export default function OnboardingPage() {
         {!workMode && (
           <WorkModePrompt
             agentIcon={Bot}
-            detailIcon={LayoutDashboard}
+            projectIcon={LayoutDashboard}
             agentTitle={t('appSettings.agentWorkMode')}
             agentDescription={t('onboarding.workMode.agentDescription')}
             agentAction={t('onboarding.workMode.agentAction')}
-            detailTitle={t('appSettings.detailWorkMode')}
-            detailDescription={t('onboarding.workMode.detailDescription')}
-            detailAction={t('onboarding.workMode.detailAction')}
+            projectTitle={t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
+            projectDescription={t('onboarding.workMode.projectDescription')}
+            projectAction={t('onboarding.workMode.projectAction')}
             onSelect={setWorkMode}
           />
         )}
@@ -132,11 +132,11 @@ export default function OnboardingPage() {
         {workMode && !mode && (
           <>
             <OnboardingWorkModeSummary
-              selectedLabel={t('onboarding.workMode.selected', { mode: workMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode') })}
+              selectedLabel={t('onboarding.workMode.selected', { mode: workMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.projectWorkMode', { defaultValue: '项目模式' }) })}
               hint={t('onboarding.workMode.switchHint')}
               activeMode={workMode}
               agentIcon={Bot}
-              detailIcon={LayoutDashboard}
+              projectIcon={LayoutDashboard}
             />
             <OnboardingLaunchGrid>
               <OnboardingLaunchTile

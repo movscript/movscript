@@ -16,9 +16,11 @@ type PublicModel struct {
 	DisplayName       string         `json:"display_name"`
 	ShortName         string         `json:"short_name,omitempty"`
 	ProviderName      string         `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
-	Capabilities      []string       `json:"capabilities"`            // e.g. ["text"], ["image"], ["video_i2v"]
-	AcceptsImageInput bool           `json:"accepts_image_input"`     // true for image_edit and i2v models
-	IsDefault         bool           `json:"is_default,omitempty"`    // true when this is the admin-pinned default for this capability
+	AdapterType       string         `json:"adapter_type,omitempty"`
+	Capabilities      []string       `json:"capabilities"` // e.g. ["text"], ["image"], ["video_i2v"]
+	PricingMode       PricingMode    `json:"pricing_mode,omitempty"`
+	AcceptsImageInput bool           `json:"accepts_image_input"`  // true for image_edit and i2v models
+	IsDefault         bool           `json:"is_default,omitempty"` // true when this is the admin-pinned default for this capability
 	LogicalModelID    string         `json:"logical_model_id,omitempty"`
 	ProviderVariants  int            `json:"provider_variant_count,omitempty"`
 	ModelDefID        string         `json:"model_def_id"`
@@ -303,13 +305,7 @@ func (s *AIService) getModelsByAnyCapability(capabilities []string, providerVari
 			return nil, err
 		}
 		for _, model := range models {
-			key := model.LogicalModelID
-			if key == "" {
-				key = model.ModelID
-			}
-			if key == "" {
-				key = fmt.Sprintf("config:%d", model.ID)
-			}
+			key := publicModelDedupKey(model, providerVariants)
 			key += "\x00" + publicModelContractSignature(model)
 			if idx, ok := index[key]; ok {
 				result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, model.Capabilities)
@@ -350,7 +346,9 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 			ModelID:           logicalModelID(row.AIModelConfig, def),
 			DisplayName:       def.DisplayName,
 			ShortName:         row.ShortName,
+			AdapterType:       row.AdapterType,
 			Capabilities:      def.Capabilities,
+			PricingMode:       def.PricingMode,
 			AcceptsImageInput: def.AcceptsImageInput,
 			LogicalModelID:    logicalModelID(row.AIModelConfig, def),
 			ModelDefID:        def.ID,

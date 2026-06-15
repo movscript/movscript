@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ScriptCreateFormShell } from '@movscript/ui'
+import { AppFeedbackText } from '@movscript/ui/business/app'
+import { ScriptCreateFormShell } from '@movscript/ui/business/scripts'
 import { useTranslation } from 'react-i18next'
 import { Upload } from 'lucide-react'
-import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/features/resources/domain/scriptDocuments'
+import { readScriptDocument } from '@/features/resources/application/scriptDocumentReader'
+import { SCRIPT_DOCUMENT_ACCEPT, scriptDocumentTitleFromName } from '@/features/resources/domain/scriptDocuments'
 import { createWorkspaceScript, type ScriptWorkspaceRepositoryContext } from '@/features/scripts/application/scriptWorkspaceRepository'
+import { invalidateScriptMutationResult, scriptCreatedResult } from '@/features/scripts/application/scriptMutationInvalidation'
 
 export interface EntityFormProps {
   projectId: number
@@ -47,9 +50,8 @@ export function ScriptCreateForm({ projectId, workspaceContext, onSuccess, onCan
         raw_source: body,
         script_type: category.trim() || 'uncategorized',
       }, workspaceContext),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['scripts', projectId] })
-      qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
+    onSuccess: (created) => {
+      invalidateScriptMutationResult(qc, scriptCreatedResult({ projectId, changedIds: [created.ID] }))
       onSuccess()
     },
   })
@@ -95,7 +97,7 @@ export function ScriptCreateForm({ projectId, workspaceContext, onSuccess, onCan
         </>
       )}
       uploadMeta={fileName ? <span className="text-xs text-muted-foreground">{fileName}</span> : null}
-      uploadError={fileError ? <span className="text-xs text-destructive">{fileError}</span> : null}
+      uploadError={fileError ? <AppFeedbackText as="span" className="text-xs">{fileError}</AppFeedbackText> : null}
       createLabel={t('common.create')}
       creatingLabel={t('common.creating')}
       cancelLabel={t('common.cancel')}

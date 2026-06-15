@@ -18,7 +18,7 @@ test('workspace stacked layout keeps page shell overlap and content safe area al
 
   assert.match(
     css,
-    /\.app-shell\[data-layout="stacked"\] \.app-shell__slot:has\(\+ \.app-shell__slot\) \{[\s\S]*?padding-right:\s*var\(--app-shell-stack-overlap\);[\s\S]*?\}/m,
+    /\.app-shell\[data-layout="stacked"\] \.app-shell__slot\[data-has-next-slot="true"\] \{[\s\S]*?padding-right:\s*var\(--app-shell-stack-overlap\);[\s\S]*?\}/m,
   )
   assert.doesNotMatch(css, /padding-left:\s*var\(--app-shell-stack-overlap\);/)
 

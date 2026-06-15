@@ -1,8 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, FileText, Folder, HardDrive, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { useMutation,
+  useQuery,
+  useQueryClient } from '@tanstack/react-query'
+import { ChevronLeft,
+  FileText,
+  Folder,
+  HardDrive,
+  Image as ImageIcon,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2 } from 'lucide-react'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
   AgentConsoleHeader,
@@ -12,8 +29,8 @@ import {
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
   AgentConsoleStatusBadge,
-  AgentPageShell,
-  AgentPageShellHeader,
+} from '@/features/agent/components/AgentConsoleUi'
+import {
   AgentWorkspaceEditorActions,
   AgentWorkspaceEditorBody,
   AgentWorkspaceEditorFooter,
@@ -36,15 +53,19 @@ import {
   AgentWorkspacesPageList,
   AgentWorkspacesPageMain,
   AgentWorkspacesPageSidebar,
-  AgentWorkspacesPageSidebarControls,
-  AppFeedbackText,
-  Button,
-} from '@movscript/ui'
+  AgentWorkspacesPageSidebarControls
+} from '@/features/agent/components/AgentPageWorkspaceUi'
+import { AppFeedbackText } from '@movscript/ui/business/app'
+import { Button } from '@movscript/ui/primitives'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
+import { requireWorkspaceFilesAPI, requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
+import { movScriptWorkspaceKeys } from '@/features/agent/application/movScriptWorkspaceQueryKeys'
+import { invalidateMovScriptWorkspaceMutationResult, workspaceFileChangedResult, workspaceFilesChangedResult } from '@/features/agent/application/movScriptWorkspaceMutationInvalidation'
 import type {
   ElectronMovScriptWorkspaceFileEntry,
   ElectronMovScriptWorkspaceFileReadResult,
   ElectronMovScriptWorkspaceFilesListResult,
+  ElectronMovScriptWorkspaceMediaFileReadResult,
   ElectronMovScriptWorkspaceRootResult,
 } from '@/shared/contracts/electronApi'
 
@@ -52,26 +73,33 @@ export default function MovScriptWorkspaceFilesPage() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const initialPath = useMemo(() => normalizeRelativePath(searchParams.get('path')), [searchParams])
-  const [currentPath, setCurrentPath] = useState(() => initialPath && !initialPath.endsWith('.json') ? initialPath : '')
-  const [selectedPath, setSelectedPath] = useState<string | null>(() => initialPath && initialPath.endsWith('.json') ? initialPath : null)
+  const [currentPath, setCurrentPath] = useState(() => initialPath && !looksLikeFilePath(initialPath) ? initialPath : parentRelativePath(initialPath))
+  const [selectedPath, setSelectedPath] = useState<string | null>(() => initialPath && looksLikeFilePath(initialPath) ? initialPath : null)
   const [draft, setDraft] = useState('')
   const [deleteConfirmPath, setDeleteConfirmPath] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const rootQuery = useQuery<ElectronMovScriptWorkspaceRootResult>({
-    queryKey: ['movscript-workspace-root'],
+    queryKey: movScriptWorkspaceKeys.root,
     queryFn: () => requireWorkspaceRootAPI().getRoot(),
     retry: false,
   })
   const filesQuery = useQuery<ElectronMovScriptWorkspaceFilesListResult>({
-    queryKey: ['movscript-workspace-files', currentPath],
+    queryKey: movScriptWorkspaceKeys.files(currentPath),
     queryFn: () => requireWorkspaceFilesAPI().list({ path: currentPath }),
     retry: false,
   })
+  const isSelectedImage = Boolean(selectedPath && isPreviewableImagePath(selectedPath))
   const readQuery = useQuery<ElectronMovScriptWorkspaceFileReadResult>({
-    queryKey: ['movscript-workspace-file', selectedPath],
+    queryKey: movScriptWorkspaceKeys.file(selectedPath),
     queryFn: () => requireWorkspaceFilesAPI().read({ path: selectedPath ?? '' }),
-    enabled: Boolean(selectedPath),
+    enabled: Boolean(selectedPath && !isSelectedImage),
+    retry: false,
+  })
+  const mediaQuery = useQuery<ElectronMovScriptWorkspaceMediaFileReadResult>({
+    queryKey: [...movScriptWorkspaceKeys.file(selectedPath), 'media-preview'],
+    queryFn: () => requireWorkspaceFilesAPI().readMedia({ path: selectedPath ?? '' }),
+    enabled: Boolean(selectedPath && isSelectedImage),
     retry: false,
   })
   const writeMutation = useMutation({
@@ -80,8 +108,8 @@ export default function MovScriptWorkspaceFilesPage() {
       setSelectedPath(file.path)
       setDraft(file.content)
       setActionError(null)
-      void queryClient.invalidateQueries({ queryKey: ['movscript-workspace-files'] })
-      void queryClient.invalidateQueries({ queryKey: ['movscript-workspace-file', file.path] })
+      invalidateMovScriptWorkspaceMutationResult(queryClient, workspaceFilesChangedResult({ changedPaths: [file.path] }))
+      invalidateMovScriptWorkspaceMutationResult(queryClient, workspaceFileChangedResult({ path: file.path }))
     },
     onError: (error) => setActionError(errorMessage(error)),
   })
@@ -94,15 +122,16 @@ export default function MovScriptWorkspaceFilesPage() {
         setSelectedPath(null)
         setDraft('')
       }
-      void queryClient.invalidateQueries({ queryKey: ['movscript-workspace-files'] })
+      invalidateMovScriptWorkspaceMutationResult(queryClient, workspaceFilesChangedResult({ changedPaths: [path] }))
     },
     onError: (error) => setActionError(errorMessage(error)),
   })
 
   const entries = filesQuery.data?.entries ?? []
+  const selectedEntry = entries.find((entry) => entry.path === selectedPath)
   const selectedFile = readQuery.data
   const selectedName = selectedPath?.split('/').at(-1) || '未选择文件'
-  const dirty = selectedFile ? draft !== selectedFile.content : false
+  const dirty = !isSelectedImage && selectedFile ? draft !== selectedFile.content : false
   const parentPath = useMemo(() => parentRelativePath(currentPath), [currentPath])
   useEffect(() => {
     if (readQuery.data) setDraft(readQuery.data.content)
@@ -112,7 +141,7 @@ export default function MovScriptWorkspaceFilesPage() {
     if (!initialPath) return
     setActionError(null)
     setDeleteConfirmPath(null)
-    if (initialPath.endsWith('.json')) {
+    if (looksLikeFilePath(initialPath)) {
       setCurrentPath(parentRelativePath(initialPath))
       setSelectedPath(initialPath)
       return
@@ -158,7 +187,7 @@ export default function MovScriptWorkspaceFilesPage() {
   function refreshWorkspace() {
     void rootQuery.refetch()
     void filesQuery.refetch()
-    if (selectedPath) void queryClient.invalidateQueries({ queryKey: ['movscript-workspace-file', selectedPath] })
+    if (selectedPath) invalidateMovScriptWorkspaceMutationResult(queryClient, workspaceFileChangedResult({ path: selectedPath }))
   }
 
   return (
@@ -220,7 +249,7 @@ export default function MovScriptWorkspaceFilesPage() {
                     onClick={() => openEntry(entry)}
                   >
                     <AgentWorkspaceListItemContent>
-                      {entry.kind === 'directory' ? <Folder size={14} /> : <FileText size={14} />}
+                      {entry.kind === 'directory' ? <Folder size={14} /> : isPreviewableImagePath(entry.path) ? <ImageIcon size={14} /> : <FileText size={14} />}
                       <AgentWorkspaceListItemTitle>{entry.name}</AgentWorkspaceListItemTitle>
                       <AgentWorkspaceListItemMeta>{entry.kind === 'file' ? formatBytes(entry.size) : ''}</AgentWorkspaceListItemMeta>
                     </AgentWorkspaceListItemContent>
@@ -243,14 +272,26 @@ export default function MovScriptWorkspaceFilesPage() {
                   <Trash2 size={14} />
                   {deleteConfirmPath === selectedPath ? '确认删除' : '删除'}
                 </Button>
-                <Button type="button" size="sm" onClick={saveSelectedFile} disabled={!selectedPath || !dirty || writeMutation.isPending}>
+                <Button type="button" size="sm" onClick={saveSelectedFile} disabled={!selectedPath || isSelectedImage || !dirty || writeMutation.isPending}>
                   <Save size={14} />
                   保存
                 </Button>
               </AgentWorkspaceEditorActions>
             </AgentWorkspaceEditorHeader>
             <AgentWorkspaceEditorBody>
-              {readQuery.isLoading ? (
+              {isSelectedImage ? (
+                mediaQuery.isLoading ? (
+                  <StateRow icon={<AgentWorkspaceStateSpinner />} text="读取图片中" />
+                ) : mediaQuery.error ? (
+                  <StateRow text={errorMessage(mediaQuery.error)} tone="danger" />
+                ) : mediaQuery.data ? (
+                  <div className="agent-workspace-image-preview">
+                    <img src={mediaQuery.data.dataUrl} alt={selectedName} />
+                  </div>
+                ) : (
+                  <StateRow text="无法预览图片" tone="danger" />
+                )
+              ) : readQuery.isLoading ? (
                 <StateRow icon={<AgentWorkspaceStateSpinner />} text="读取中" />
               ) : readQuery.error ? (
                 <StateRow text={errorMessage(readQuery.error)} tone="danger" />
@@ -264,12 +305,22 @@ export default function MovScriptWorkspaceFilesPage() {
                 <StateRow text="未选择文件" />
               )}
             </AgentWorkspaceEditorBody>
-            {(actionError || dirty || selectedFile) && (
+            {(actionError || dirty || selectedFile || mediaQuery.data || selectedEntry) && (
               <AgentWorkspaceEditorFooter>
                 {actionError ? (
                   <AppFeedbackText as="span">{actionError}</AppFeedbackText>
                 ) : (
-                  <span>{dirty ? '有未保存修改' : selectedFile ? `${formatBytes(selectedFile.size)} · ${formatTime(selectedFile.updatedAt)}` : ''}</span>
+                  <span>
+                    {dirty
+                      ? '有未保存修改'
+                      : selectedFile
+                        ? `${formatBytes(selectedFile.size)} · ${formatTime(selectedFile.updatedAt)}`
+                        : mediaQuery.data
+                          ? `${mediaQuery.data.mimeType} · ${formatBytes(mediaQuery.data.size)} · ${formatTime(mediaQuery.data.updatedAt)}`
+                          : selectedEntry
+                            ? `${formatBytes(selectedEntry.size)} · ${formatTime(selectedEntry.updatedAt)}`
+                            : ''}
+                  </span>
                 )}
                 {writeMutation.isPending && <span>保存中</span>}
               </AgentWorkspaceEditorFooter>
@@ -288,29 +339,6 @@ function StateRow({ icon, text, tone = 'muted' }: { icon?: ReactNode; text: stri
       {tone === 'danger' ? <AppFeedbackText as="span">{text}</AppFeedbackText> : <span>{text}</span>}
     </AgentWorkspaceStateRow>
   )
-}
-
-function requireWorkspaceFilesAPI() {
-  const api = window.api
-  if (!api?.listMovScriptWorkspaceFiles || !api.readMovScriptWorkspaceFile || !api.writeMovScriptWorkspaceFile || !api.deleteMovScriptWorkspaceFile) {
-    throw new Error('当前窗口没有 MovScript Workspace 文件管理能力')
-  }
-  return {
-    list: api.listMovScriptWorkspaceFiles,
-    read: api.readMovScriptWorkspaceFile,
-    write: api.writeMovScriptWorkspaceFile,
-    delete: api.deleteMovScriptWorkspaceFile,
-  }
-}
-
-function requireWorkspaceRootAPI() {
-  const api = window.api
-  if (!api?.getMovScriptWorkspaceRoot) {
-    throw new Error('当前窗口没有 MovScript Workspace Root 能力')
-  }
-  return {
-    getRoot: api.getMovScriptWorkspaceRoot,
-  }
 }
 
 function workspacePathSummary(root?: ElectronMovScriptWorkspaceRootResult, error?: unknown): string {
@@ -338,6 +366,14 @@ function normalizeRelativePath(value: string | null): string {
 
 function defaultFileContent(path: string): string {
   return path.endsWith('.json') ? '{\n  \n}\n' : ''
+}
+
+function looksLikeFilePath(path: string): boolean {
+  return /(^|\/)[^/]+\.[a-z0-9]+$/i.test(path)
+}
+
+function isPreviewableImagePath(path: string): boolean {
+  return /\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(path)
 }
 
 function formatBytes(bytes: number): string {

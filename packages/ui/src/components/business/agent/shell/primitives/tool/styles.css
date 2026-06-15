@@ -1,33 +1,28 @@
 .ms-agent-status--ready .ms-agent-status__icon,
 .ms-agent-step--done::before,
-.ms-agent-tool--done .ms-agent-tool__state,
-.ms-agent-tool-step--done {
+.ms-agent-tool--done .ms-agent-tool__state {
   color: var(--ms-color-success);
 }
 
 .ms-agent-status--running .ms-agent-status__icon,
 .ms-agent-step--running::before,
-.ms-agent-tool--running .ms-agent-tool__state,
-.ms-agent-tool-step--running {
+.ms-agent-tool--running .ms-agent-tool__state {
   color: var(--ms-color-accent);
 }
 
 .ms-agent-status--paused .ms-agent-status__icon,
 .ms-agent-step--pending::before,
-.ms-agent-tool--pending .ms-agent-tool__state,
-.ms-agent-tool-step--pending {
+.ms-agent-tool--pending .ms-agent-tool__state {
   color: var(--ms-color-warning);
 }
 
 .ms-agent-status--error .ms-agent-status__icon,
 .ms-agent-step--error::before,
-.ms-agent-tool--error .ms-agent-tool__state,
-.ms-agent-tool-step--error {
+.ms-agent-tool--error .ms-agent-tool__state {
   color: var(--ms-color-danger);
 }
 
 .ms-agent-status--running .ms-agent-status__icon,
-.ms-agent-tool--running .ms-agent-tool__state,
-.ms-agent-tool-step--running::before {
+.ms-agent-tool--running .ms-agent-tool__state {
   animation: ms-agent-pulse 1.1s ease-in-out infinite;
 }

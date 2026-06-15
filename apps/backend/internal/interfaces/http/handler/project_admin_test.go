@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	projectrepoapp "github.com/movscript/movscript/internal/app/projectrepo"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"github.com/movscript/movscript/internal/infra/config"
@@ -903,16 +904,139 @@ func TestProjectGitProxyAllowsSmartHTTPAndInjectsServerToken(t *testing.T) {
 	}
 }
 
+func TestProjectGitProxySupportsEnterpriseGitProviders(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		provider     string
+		baseURL      string
+		token        string
+		authUsername string
+		configure    func(*ProjectHandler, string, string)
+	}{
+		{
+			name:         "github enterprise",
+			provider:     projectrepoapp.ProviderGitHubEnterprise,
+			baseURL:      "https://github.example.com",
+			token:        "github-token",
+			authUsername: "x-access-token",
+			configure: func(h *ProjectHandler, baseURL string, token string) {
+				h.gitHubBaseURL = baseURL
+				h.gitHubToken = token
+			},
+		},
+		{
+			name:         "gitlab",
+			provider:     projectrepoapp.ProviderGitLab,
+			baseURL:      "https://gitlab.example.com",
+			token:        "gitlab-token",
+			authUsername: "oauth2",
+			configure: func(h *ProjectHandler, baseURL string, token string) {
+				h.gitLabBaseURL = baseURL
+				h.gitLabToken = token
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			db := testutil.OpenSQLite(t, "handler-project-git-proxy-"+strings.ReplaceAll(tt.provider, "-", "_")+".db",
+				&persistencemodel.User{},
+				&persistencemodel.Organization{},
+				&persistencemodel.OrganizationMember{},
+				&persistencemodel.Project{},
+				&persistencemodel.ProjectMember{},
+				&persistencemodel.ProjectRepository{},
+			)
+			owner := persistencemodel.User{Username: "enterprise-owner", Status: "active"}
+			if err := db.Create(&owner).Error; err != nil {
+				t.Fatalf("create owner: %v", err)
+			}
+			org := persistencemodel.Organization{Name: "Enterprise Org", Slug: "enterprise-org", Plan: "team", Status: "active", CreatedBy: owner.ID}
+			if err := db.Create(&org).Error; err != nil {
+				t.Fatalf("create org: %v", err)
+			}
+			orgMember := persistencemodel.OrganizationMember{OrgID: org.ID, UserID: owner.ID, Role: "owner"}
+			if err := db.Create(&orgMember).Error; err != nil {
+				t.Fatalf("create org member: %v", err)
+			}
+			project := persistencemodel.Project{Name: "Enterprise Git Proxy Project", OwnerID: owner.ID, OrgID: &org.ID}
+			if err := db.Create(&project).Error; err != nil {
+				t.Fatalf("create project: %v", err)
+			}
+			if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: "owner"}).Error; err != nil {
+				t.Fatalf("create project owner member: %v", err)
+			}
+			if err := db.Create(&persistencemodel.ProjectRepository{
+				ProjectID:     project.ID,
+				Provider:      tt.provider,
+				Owner:         "movscript-org",
+				Repo:          "project-1",
+				DefaultBranch: "main",
+				Status:        "active",
+			}).Error; err != nil {
+				t.Fatalf("create project repository: %v", err)
+			}
+
+			upstream := &captureRoundTripper{}
+			h := NewProjectHandler(db.Session(&gorm.Session{SkipHooks: true}))
+			h.repositories = projectrepoapp.NewService(db.Session(&gorm.Session{SkipHooks: true}), projectrepoapp.Config{Provider: tt.provider, RepoPrefix: "project-"}, nil)
+			h.httpClient = &http.Client{Transport: upstream}
+			tt.configure(h, tt.baseURL, tt.token)
+
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set(middleware.ContextUserKey, domainauth.UserProfile{
+					ID:         owner.ID,
+					Username:   owner.Username,
+					SystemRole: domainauth.SystemRoleUser,
+					Status:     domainauth.UserStatusActive,
+				})
+				c.Set(middleware.ContextOrgMemberKey, domainorg.OrganizationMember{
+					ID:     orgMember.ID,
+					OrgID:  org.ID,
+					UserID: owner.ID,
+					Role:   orgMember.Role,
+				})
+				c.Next()
+			})
+			router.Any("/projects/:id/git/*gitPath", h.GitProxy)
+
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/projects/"+strconv.FormatUint(uint64(project.ID), 10)+"/git/project-1.git/info/refs?service=git-upload-pack&git_token=temporary-secret",
+				nil,
+			)
+			res := httptest.NewRecorder()
+			router.ServeHTTP(res, req)
+
+			if res.Code != http.StatusOK {
+				t.Fatalf("expected enterprise provider git proxy response, got %d: %s", res.Code, res.Body.String())
+			}
+			if upstream.path != "/movscript-org-enterprise-org/project-1.git/info/refs" {
+				t.Fatalf("upstream path = %q", upstream.path)
+			}
+			if upstream.query != "service=git-upload-pack" {
+				t.Fatalf("upstream query = %q, want git_token stripped", upstream.query)
+			}
+			wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(tt.authUsername+":"+tt.token))
+			if upstream.auth != wantAuth {
+				t.Fatalf("upstream auth = %q, want provider token auth", upstream.auth)
+			}
+		})
+	}
+}
+
 type captureRoundTripper struct {
 	calls int
 	auth  string
 	path  string
+	query string
 }
 
 func (t *captureRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.calls++
 	t.auth = req.Header.Get("Authorization")
 	t.path = req.URL.Path
+	t.query = req.URL.RawQuery
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/x-git-receive-pack-result"}},

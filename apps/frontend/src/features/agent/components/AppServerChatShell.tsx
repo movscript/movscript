@@ -1,18 +1,18 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AgentChatDataSourceShell,
-  type AgentChatDataSourceShellLoadResult,
-} from '@/features/agent/components/AgentChatDataSourceShell'
+import { AgentChatDataSourceShell } from '@/features/agent/components/AgentChatDataSourceShell'
+import type { AgentChatDataSourceShellLoadResult } from '@/features/agent/application/agentChatDataSourceShellTypes'
 import { createAppServerChatDataSource } from '@/shared/infrastructure/app-server/appServerChatDataSource'
 import {
   appServerRpcClientForURL,
   ensureAppServer,
   ensureAppServerRpcClient,
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
-import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
+import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
 import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
 import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
+import { publishAgentChatThreadOpen } from '@/features/agent/application/agentChatThreadBridge'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
@@ -37,6 +37,8 @@ export interface AppServerChatShellProps {
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
   currentProject?: Project | null
+  composerWorkspaceContextLocked?: boolean
+  hideComposerWorkspaceProjectSelector?: boolean
   showCollapse?: boolean
   onCollapse?: () => void
 }
@@ -55,13 +57,15 @@ function AppServerChatShellContent({
   host,
   surface = 'panel',
   currentProject,
+  composerWorkspaceContextLocked,
+  hideComposerWorkspaceProjectSelector,
   showCollapse,
   onCollapse,
 }: AppServerChatShellProps) {
   const settings = useAgentStore((state) => state.settings)
   const updateSettings = useAgentStore((state) => state.updateSettings)
   const { data: textModels = [] } = useQuery({
-    queryKey: ['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY],
+    queryKey: agentModelKeys.backendCatalog(),
     queryFn: () => fetchAgentBackendModels(),
   })
   const selectedModel = useMemo(() => {
@@ -130,8 +134,10 @@ function AppServerChatShellContent({
       unavailableLabel={`${providerLabel} app-server URL is not configured.`}
       composerPlaceholder="随心输入"
       newThreadLabel={`New ${providerLabel} thread`}
+      composerWorkspaceContextLocked={composerWorkspaceContextLocked}
       modelOptions={textModels}
       currentProject={currentProject}
+      hideComposerWorkspaceProjectSelector={hideComposerWorkspaceProjectSelector}
       selectedModelId={settings.modelId}
       onSelectedModelChange={(modelId) => updateSettings({ modelId })}
       collaborationMode={settings.collaborationMode}
@@ -228,10 +234,10 @@ export function openAppServerThread(input: {
   threadId: string
   provider?: ProviderConfig
 }): void {
-  if (typeof window === 'undefined') return
-  const threadId = input.threadId.trim()
-  if (!threadId) return
-  window.dispatchEvent(new CustomEvent(appServerThreadOpenEvent(input.provider), { detail: { threadId } }))
+  publishAgentChatThreadOpen({
+    channel: appServerThreadOpenEvent(input.provider),
+    threadId: input.threadId,
+  })
 }
 
 export function appServerThreadScopeKey(provider?: ProviderConfig): string {

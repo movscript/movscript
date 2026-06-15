@@ -323,10 +323,10 @@ test('provider session client lists thread messages with cursor query', async ()
   })
 })
 
-test('createSessionMessageRun normalizes provider-session compatibility input refs', async () => {
+test('createSessionMessageRun keeps provider-session input refs on the current field', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
   const run = runFixture('run_input', 'thread_active', 'in_progress')
-  const runtimeInput = {
+  const providerSessionInput = {
     accepted: true,
     runId: 'run_input',
     messageId: 'msg_input',
@@ -343,7 +343,7 @@ test('createSessionMessageRun normalizes provider-session compatibility input re
       return jsonResponse({
         run,
         message: messageFixture('msg_input', 'thread_active', 'continue'),
-        runtimeInput,
+        providerSessionInput,
       })
     }
     return new Response('not found', { status: 404 })
@@ -354,7 +354,7 @@ test('createSessionMessageRun normalizes provider-session compatibility input re
     })
 
     assert.equal(result.run.id, 'run_input')
-    assert.deepEqual(result.providerSessionInput, runtimeInput)
+    assert.deepEqual(result.providerSessionInput, providerSessionInput)
     assert.deepEqual(requests, [{
       method: 'POST',
       path: '/sessions/session_1/runs',
@@ -367,7 +367,7 @@ test('createSessionMessageRun normalizes provider-session compatibility input re
   })
 })
 
-test('createSessionMessageRun maps provider-session input mode to the provider wire key', async () => {
+test('createSessionMessageRun sends provider-session input mode without legacy wire keys', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
@@ -390,12 +390,11 @@ test('createSessionMessageRun maps provider-session input mode to the provider w
       providerSessionInputMode: 'soft',
     })
 
-    assert.equal(requests[0]?.body.providerSessionInputMode, undefined)
-    assert.equal(requests[0]?.body.runtimeInputMode, 'soft')
+    assert.equal(requests[0]?.body.providerSessionInputMode, 'soft')
   })
 })
 
-test('createSessionMessageRun maps provider-session limits to the provider wire key', async () => {
+test('createSessionMessageRun sends provider-session limits without legacy wire keys', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
@@ -417,8 +416,7 @@ test('createSessionMessageRun maps provider-session limits to the provider wire 
       providerSessionLimits: { approvalMode: 'interactive', maxToolCalls: 3 },
     })
 
-    assert.equal(requests[0]?.body.providerSessionLimits, undefined)
-    assert.deepEqual(requests[0]?.body.runtimeLimits, { approvalMode: 'interactive', maxToolCalls: 3 })
+    assert.deepEqual(requests[0]?.body.providerSessionLimits, { approvalMode: 'interactive', maxToolCalls: 3 })
   })
 })
 
@@ -447,7 +445,7 @@ test('runMessageStream sends messages through the scoped provider session', asyn
       return jsonResponse({
         run,
         message: messageFixture('msg_1', 'thread_active', 'continue'),
-        runtimeInput: {
+        providerSessionInput: {
           accepted: false,
           runId: 'run_1',
           messageId: 'msg_1',
@@ -499,7 +497,6 @@ test('runMessageStream sends messages through the scoped provider session', asyn
     assert.equal(runBodies[0]?.projectId, 7)
     const createDonePhase = phases.find((phase) => phase.name === 'create_session_message_run_done')
     assert.equal(createDonePhase?.details?.providerSessionInputAccepted, false)
-    assert.equal('runtimeInputAccepted' in (createDonePhase?.details ?? {}), false)
     assert.deepEqual(sourceMessages, [{ messageId: 'msg_1', runId: 'run_1' }])
   })
 })
@@ -614,7 +611,7 @@ test('provider session JSON requests time out instead of hanging forever', async
   })
 })
 
-test('provider manifests use neutral client fields with wire compatibility', async () => {
+test('provider manifests use neutral client fields without legacy wire keys', async () => {
   const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
   const manifest: ProviderManifest = {
     schema: 'movscript.agent.current',
@@ -638,7 +635,7 @@ test('provider manifests use neutral client fields with wire compatibility', asy
         warnings: [],
         memoryIds: [],
         memoryCount: 0,
-        runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 8 },
+        providerSessionLimits: { approvalMode: 'interactive', maxToolCalls: 8 },
         createdAt: '2026-06-06T00:00:00.000Z',
       })
     }
@@ -742,8 +739,7 @@ test('listRunsByThread reads the thread-scoped run projection endpoint', async (
         threadId: 'thread_1',
         runs: [{
           ...runFixture('run_1', 'thread_1', 'completed'),
-          providerSessionLimits: undefined,
-          runtimeLimits: {
+          providerSessionLimits: {
             approvalMode: 'interactive',
             maxToolCalls: 4,
             maxIterations: 3,
@@ -771,7 +767,7 @@ test('getThreadProviderSessionSnapshot reads the combined thread provider-sessio
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.pathname === '/threads/thread_1/runtime') {
       return jsonResponse({
-        schema: 'movscript.agent.runtime-snapshot.v2',
+        schema: 'movscript.agent.provider-session-snapshot.v2',
         protocolVersion: 'movscript.agent.protocol.v1',
         scope: { type: 'thread', id: 'thread_1' },
         cursor: 'snapshot:thread_1:0',
@@ -895,7 +891,7 @@ test('runMessageStream falls back to run stream when thread stream is unavailabl
   })
 })
 
-test('streamThread reads thread-scoped runtime stream events', async () => {
+test('streamThread reads thread-scoped provider-session stream events', async () => {
   const requests: string[] = []
   const run = runFixture('run_stream', 'thread_stream', 'completed')
   await withFetch(async (input, init) => {
@@ -919,7 +915,7 @@ test('streamThread reads thread-scoped runtime stream events', async () => {
   })
 })
 
-test('streamSession reads session-scoped runtime stream events', async () => {
+test('streamSession reads session-scoped provider-session stream events', async () => {
   const requests: string[] = []
   const run = { ...runFixture('run_stream', 'thread_stream', 'completed'), sessionId: 'session_stream' }
   await withFetch(async (input, init) => {
@@ -958,7 +954,7 @@ test('streamThreadTimeline accepts only concrete timeline upserts and reset even
     updatedAt: '2026-05-19T00:00:01.000Z',
     revision: 1,
     cursor: '1779148801000:10:message%3Amsg_1',
-    runtimeRefs: { threadId: 'thread_1', messageId: 'msg_1' },
+    providerSessionRefs: { threadId: 'thread_1', messageId: 'msg_1' },
   }
   const transport: ProviderSessionTransport = {
     kind: 'http',
@@ -979,33 +975,32 @@ test('streamThreadTimeline accepts only concrete timeline upserts and reset even
       }
     },
   }
-  const events: Array<{ type: string; itemId?: string; messageId?: string; hasCompatRefs?: boolean; reason?: string }> = []
+  const events: Array<{ type: string; itemId?: string; messageId?: string; reason?: string }> = []
 
   await new ProviderSessionClient(transport).streamThreadTimeline('thread_1', {
     onTimelineEvent: (event) => events.push({
       type: event.type,
       ...(event.type !== 'timeline.reset_required' ? { itemId: event.item.id } : {}),
       ...(event.type !== 'timeline.reset_required' ? { messageId: event.item.providerSessionRefs.messageId } : {}),
-      ...(event.type !== 'timeline.reset_required' ? { hasCompatRefs: Boolean(event.item.runtimeRefs) } : {}),
       ...(event.type === 'timeline.reset_required' ? { reason: event.reason } : {}),
     }),
   })
 
   assert.deepEqual(requests, ['/threads/thread_1/timeline/stream'])
   assert.deepEqual(events, [
-    { type: 'timeline.item.created', itemId: 'message:msg_1', messageId: 'msg_1', hasCompatRefs: false },
+    { type: 'timeline.item.created', itemId: 'message:msg_1', messageId: 'msg_1' },
     { type: 'timeline.reset_required', reason: 'gap' },
   ])
 })
 
-test('streamPlan reads plan-scoped runtime stream events', async () => {
+test('streamPlan reads plan-scoped provider-session stream events', async () => {
   const requests: string[] = []
   const snapshot = taskGraphSnapshotFixture('task_graph_stream', 'thread_stream')
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.pathname === '/plans/task_graph_stream/stream') {
-      return new Response(`data: ${JSON.stringify(runtimeTaskGraphEvent(snapshot, 1))}\n\n`, {
+      return new Response(`data: ${JSON.stringify(providerSessionTaskGraphEvent(snapshot, 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -1141,7 +1136,7 @@ test('trace reads preserve pagination and kind filters', async () => {
           issues: [],
         },
         readinessChecklist: [],
-        runtimeSummary: {
+        providerSessionSummary: {
           skills: {
             activeSkillIds: [],
             loadedSkillIds: [],
@@ -1165,7 +1160,7 @@ test('trace reads preserve pagination and kind filters', async () => {
             contextProjectionCount: 0,
           },
         },
-        runtimeFrames: [],
+        providerSessionFrames: [],
         attentionEvents: [],
         pendingActions: [],
         fieldGuide: [],
@@ -1320,12 +1315,12 @@ function traceEvent(id: string) {
 
 function providerSessionRunEvent(run: AgentRun, ordinal: number, options: { scope?: ProviderSessionEventV2['scope'] } = {}): ProviderSessionEventV2 {
   return {
-    schema: 'movscript.agent.runtime-event.v2',
+    schema: 'movscript.agent.provider-session-event.v2',
     protocolVersion: 'movscript.agent.protocol.v1',
-    id: `runtime-event:${run.id}:${ordinal}`,
+    id: `provider-session-event:${run.id}:${ordinal}`,
     scope: options.scope ?? { type: 'thread', id: run.threadId },
     ordinal,
-    cursor: `runtime-event:${run.id}:${ordinal}`,
+    cursor: `provider-session-event:${run.id}:${ordinal}`,
     emittedAt: run.updatedAt,
     kind: 'run.upserted',
     causality: { threadId: run.threadId, runId: run.id },
@@ -1333,14 +1328,14 @@ function providerSessionRunEvent(run: AgentRun, ordinal: number, options: { scop
   }
 }
 
-function runtimeTaskGraphEvent(snapshot: AgentTaskGraphSnapshot, ordinal: number): ProviderSessionEventV2 {
+function providerSessionTaskGraphEvent(snapshot: AgentTaskGraphSnapshot, ordinal: number): ProviderSessionEventV2 {
   return {
-    schema: 'movscript.agent.runtime-event.v2',
+    schema: 'movscript.agent.provider-session-event.v2',
     protocolVersion: 'movscript.agent.protocol.v1',
-    id: `runtime-event:${snapshot.taskGraph.id}:${ordinal}`,
+    id: `provider-session-event:${snapshot.taskGraph.id}:${ordinal}`,
     scope: { type: 'plan', id: snapshot.taskGraph.id },
     ordinal,
-    cursor: `runtime-event:${snapshot.taskGraph.id}:${ordinal}`,
+    cursor: `provider-session-event:${snapshot.taskGraph.id}:${ordinal}`,
     emittedAt: snapshot.taskGraph.updatedAt,
     kind: 'task_graph.upserted',
     causality: { taskGraphId: snapshot.taskGraph.id },

@@ -24,7 +24,7 @@ test('hiddenActivityActionItemIdsFromProjectionItems reads projected interaction
         id: 'trigger',
         role: 'user',
         timestamp: 1,
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_action' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_action' } },
       }),
     ],
   })

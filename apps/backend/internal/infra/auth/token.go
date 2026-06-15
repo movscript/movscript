@@ -14,6 +14,8 @@ import (
 
 const tokenVersion = "mv1"
 
+const GitProxyTokenPurpose = "git_proxy"
+
 var (
 	ErrInvalidToken = errors.New("invalid auth token")
 	ErrExpiredToken = errors.New("expired auth token")
@@ -25,12 +27,18 @@ type Claims struct {
 	SystemRole string `json:"system_role"`
 	ExpiresAt  int64  `json:"exp"`
 	IssuedAt   int64  `json:"iat"`
+	Purpose    string `json:"purpose,omitempty"`
+	ProjectID  uint   `json:"project_id,omitempty"`
+	OrgID      uint   `json:"org_id,omitempty"`
 }
 
 type Subject struct {
 	UserID     uint
 	Username   string
 	SystemRole string
+	Purpose    string
+	ProjectID  uint
+	OrgID      uint
 }
 
 type Manager struct {
@@ -51,14 +59,28 @@ func NewManager(secret string, ttl time.Duration) (*Manager, error) {
 }
 
 func (m *Manager) Issue(subject Subject) (string, time.Time, error) {
+	return m.issue(subject, m.ttl)
+}
+
+func (m *Manager) IssueWithTTL(subject Subject, ttl time.Duration) (string, time.Time, error) {
+	if ttl <= 0 {
+		return "", time.Time{}, fmt.Errorf("auth token ttl must be positive")
+	}
+	return m.issue(subject, ttl)
+}
+
+func (m *Manager) issue(subject Subject, ttl time.Duration) (string, time.Time, error) {
 	now := m.now().UTC()
-	expiresAt := now.Add(m.ttl)
+	expiresAt := now.Add(ttl)
 	claims := Claims{
 		UserID:     subject.UserID,
 		Username:   subject.Username,
 		SystemRole: subject.SystemRole,
 		IssuedAt:   now.Unix(),
 		ExpiresAt:  expiresAt.Unix(),
+		Purpose:    strings.TrimSpace(subject.Purpose),
+		ProjectID:  subject.ProjectID,
+		OrgID:      subject.OrgID,
 	}
 	payload, err := json.Marshal(claims)
 	if err != nil {

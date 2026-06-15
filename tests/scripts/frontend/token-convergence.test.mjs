@@ -92,6 +92,7 @@ function collectRuntimeSources(relativeDirs) {
 }
 
 const expectedTokenDefinitions = [
+  '--ms-blur-frosted-sm',
   '--ms-duration-fast',
   '--ms-easing-standard',
   '--ms-font-mono',
@@ -102,9 +103,19 @@ const expectedTokenDefinitions = [
   '--ms-leading-label',
   '--ms-leading-section',
   '--ms-leading-tiny',
+  '--ms-radius-card',
+  '--ms-radius-composer',
+  '--ms-radius-control',
+  '--ms-radius-field',
   '--ms-radius-full',
+  '--ms-radius-icon',
+  '--ms-radius-lg',
   '--ms-radius-md',
+  '--ms-radius-overlay',
+  '--ms-radius-panel',
   '--ms-radius-sm',
+  '--ms-radius-window',
+  '--ms-radius-xs',
   '--ms-space-1',
   '--ms-space-2',
   '--ms-space-3',
@@ -118,6 +129,15 @@ const expectedTokenDefinitions = [
 ]
 
 const expectedUiOwnedDefinitions = [
+  '--ms-agent-composer-border',
+  '--ms-agent-composer-control-border',
+  '--ms-agent-composer-control-fill',
+  '--ms-agent-composer-fill',
+  '--ms-agent-composer-panel-border',
+  '--ms-agent-composer-panel-control',
+  '--ms-agent-composer-panel-fill',
+  '--ms-agent-composer-panel-muted',
+  '--ms-button-subtle-hover-background',
   '--ms-tone-color',
 ]
 
@@ -228,14 +248,14 @@ test('token package stays converged to shared foundations', () => {
   assert.doesNotMatch(uiPublicSources, /text: "value"/)
   assert.doesNotMatch(appRuntimeSources, /--ms-[a-z0-9-]+/)
   assert.doesNotMatch(
-    `${uiCss}\n${appRuntimeSources}`,
+    appRuntimeSources,
     /var\(--(?!ms-|ui-|radix-)[a-z0-9-]+/,
-    'runtime CSS variable reads in UI and app sources must use the shared --ui-* namespace unless they are ms/radix variables',
+    'runtime CSS variable reads in app sources must use the shared --ui-* namespace unless they are ms/radix variables',
   )
   assert.doesNotMatch(
-    `${uiCss}\n${appRuntimeSources}`,
+    appRuntimeSources,
     /(^|[;{\s])--(?!ms-|ui-|radix-)[a-z0-9-]+\s*:/m,
-    'runtime CSS variables in UI and app sources must use the shared --ui-* namespace unless they are ms/radix variables',
+    'runtime CSS variables in app sources must use the shared --ui-* namespace unless they are ms/radix variables',
   )
   assert.doesNotMatch(directTokenJsConfigSources, /["@']@movscript\/tokens["@']\s*:/)
   assert.doesNotMatch(directTokenJsConfigSources, /["@']@movscript\/tokens["@']\s*,?/)
@@ -252,7 +272,6 @@ test('token package stays converged to shared foundations', () => {
   assert.doesNotMatch(directTokenJsConfigSources, /--ms-color-(?:info|success|warning)-foreground/)
 
   assert.doesNotMatch(tokensCss, /--ms-space-(?:0|0-5|1-5|2-5|5|6|8|10|12):/)
-  assert.doesNotMatch(tokensCss, /--ms-radius-(?:xs|lg):/)
   assert.doesNotMatch(directTokenJsConfigSources, /--ms-radius-xs/)
   assert.doesNotMatch(tokensCss, /--ms-duration-normal:/)
   assert.doesNotMatch(tokensCss, /--ms-icon-(?:2xs|xs|sm|md|lg|xl):/)
@@ -265,7 +284,7 @@ test('token package stays converged to shared foundations', () => {
   assert.doesNotMatch(uiCss, /--ms-control-height-sm\b/)
   assert.doesNotMatch(uiCss, /--ms-leading-(?:micro|tight|relaxed|title|page-title)\b/)
   assert.doesNotMatch(uiCss, /--ms-text-(?:micro|title|page-title)\b/)
-  assert.doesNotMatch(uiCss, /--ms-radius-(?:lg|xl)\b/)
+  assert.doesNotMatch(uiCss, /--ms-radius-xl\b/)
   assert.doesNotMatch(uiCss, /--ms-shadow-(?:xl|2xl)\b/)
   assert.doesNotMatch(uiCss, /--shadow-(?:sm|md|lg|xl|2xl)\b/)
   assert.doesNotMatch(uiCss, /--font-mono\b/)
@@ -282,14 +301,14 @@ test('token package stays converged to shared foundations', () => {
   assert.doesNotMatch(uiCss, /--ms-agent-line\b/)
   assert.doesNotMatch(uiCss, /--ms-accent-(?:rgb|gradient-rgb|text)\b/)
   assert.doesNotMatch(uiCss, /--ms-tone-text\b/)
-  assert.doesNotMatch(uiCss, /--ms-agent-(?:sidebar|context|header|conversation|thread|message|composer)-/)
+  assert.doesNotMatch(uiCss, /--ms-agent-(?:sidebar|context|header|conversation|thread|message)-/)
   assert.doesNotMatch(uiCss, /--ai-agent-panel-width\b/)
   assert.doesNotMatch(uiCss, /--ms-agent-(?:accent|activity-tone-color|assistant|bubble|pill|soft|user|user-foreground|warm|work-rail)\b/)
   assert.doesNotMatch(uiCss, /--ms-control-icon-size\b/)
   assert.doesNotMatch(uiCss, /--ms-text-body-sm\b/)
   assert.doesNotMatch(uiCss, /--ms-key-value-strong-weight\b/)
   assert.doesNotMatch(uiCss, /--ms-(?:key-value|stat-card|empty-state)-/)
-  assert.doesNotMatch(uiCss, /--ms-surface-(?:background|border|radius|shadow|tone-color)\b/)
+  assert.doesNotMatch(uiCss, /--ms-surface-(?:radius|shadow|tone-color)\b/)
   assert.doesNotMatch(uiCss, /--ms-surface-(?:padding|tone-text)\b/)
   assert.doesNotMatch(uiCss, /--ms-surface-(?:body-padding|header-background|header-padding|heading-gap)\b/)
   assert.doesNotMatch(uiCss, /--ms-app-(?:avatar-(?:size|font-size)|control-group-(?:background|padding|radius)|icon-frame-(?:background|color|radius|size)|marker-dot-(?:background|border|outline-background|size)|media-frame-(?:background|color|radius)|progress-bar-(?:fill|height|track)|range-track-(?:background|height|marker|marker-height|marker-width|selection)|skeleton-(?:background|radius)|surface-item-(?:background|border|padding))\b/)

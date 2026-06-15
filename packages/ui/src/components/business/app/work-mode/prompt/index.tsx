@@ -8,11 +8,11 @@ export function WorkModePrompt({
   agentTitle,
   agentDescription,
   agentAction,
-  detailTitle,
-  detailDescription,
-  detailAction,
+  projectTitle,
+  projectDescription,
+  projectAction,
   agentIcon,
-  detailIcon,
+  projectIcon,
   onSelect,
 }: {
   title?: string;
@@ -20,11 +20,11 @@ export function WorkModePrompt({
   agentTitle: string;
   agentDescription: string;
   agentAction: string;
-  detailTitle: string;
-  detailDescription: string;
-  detailAction: string;
+  projectTitle: string;
+  projectDescription: string;
+  projectAction: string;
   agentIcon: IconComponent;
-  detailIcon: IconComponent;
+  projectIcon: IconComponent;
   onSelect: (mode: WorkModeChoice) => void;
 }) {
   return (
@@ -43,17 +43,17 @@ export function WorkModePrompt({
           action={agentAction}
           mode="agent"
           agentIcon={agentIcon}
-          detailIcon={detailIcon}
+          projectIcon={projectIcon}
           onSelect={onSelect}
         />
         <WorkModeCard
-          icon={detailIcon}
-          title={detailTitle}
-          description={detailDescription}
-          action={detailAction}
-          mode="detail"
+          icon={projectIcon}
+          title={projectTitle}
+          description={projectDescription}
+          action={projectAction}
+          mode="project"
           agentIcon={agentIcon}
-          detailIcon={detailIcon}
+          projectIcon={projectIcon}
           onSelect={onSelect}
         />
       </div>

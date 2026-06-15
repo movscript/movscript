@@ -1,15 +1,23 @@
 import { agentTimelineStatusFromRunStatus } from '@movscript/core/agent/protocol'
 import type { AgentTimelineItem, AgentMessage, AgentRun } from '@/shared/infrastructure/providerSessionClient'
+import { createEventBus } from '@/shared/application/eventBus'
 
 export const AGENT_TIMELINE_LOCAL_EVENT = 'movscript:agent-timeline-local'
 
+type AgentTimelineEventMap = {
+  [AGENT_TIMELINE_LOCAL_EVENT]: AgentTimelineItem
+}
+
+const agentTimelineEventBus = createEventBus<AgentTimelineEventMap>()
+
 export function notifyAgentTimelineAcceptedSource(message: AgentMessage, run: AgentRun): void {
-  if (typeof window === 'undefined') return
   const item = timelineItemFromAcceptedSource(message, run)
   if (!item) return
-  window.dispatchEvent(new CustomEvent<AgentTimelineItem>(AGENT_TIMELINE_LOCAL_EVENT, {
-    detail: item,
-  }))
+  agentTimelineEventBus.publish(AGENT_TIMELINE_LOCAL_EVENT, item)
+}
+
+export function subscribeAgentTimelineAcceptedSource(handler: (item: AgentTimelineItem) => void) {
+  return agentTimelineEventBus.subscribe(AGENT_TIMELINE_LOCAL_EVENT, handler)
 }
 
 export function timelineItemFromAcceptedSource(message: AgentMessage, run: AgentRun): AgentTimelineItem | undefined {

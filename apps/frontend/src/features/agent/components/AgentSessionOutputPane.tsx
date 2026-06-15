@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, CircleDot, ClipboardList, Loader2, Sparkles } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button } from '@movscript/ui/primitives'
 
-import { loadContentSourceWorkspaceData, selectContentSourceWorkspaceCandidate, type ContentSourceWorkspaceData } from '@/features/content-workbench/domain/contentSourceWorkspaceData'
-import type { PreviewAssetCandidate, PreviewAssetReferenceUnit, PreviewCandidate, PreviewContentUnit, SelectionState } from '@/features/content-workbench/domain/sourceWorkspaceTypes'
+import { loadContentSourceWorkspaceData, selectContentSourceWorkspaceCandidate } from '@/features/content-source-workspace/application/contentSourceWorkspaceElectron'
+import type { ContentSourceWorkspaceData } from '@/features/content-source-workspace/domain/contentSourceWorkspaceData'
+import type { PreviewAssetCandidate, PreviewAssetReferenceUnit, PreviewCandidate, PreviewContentUnit, SelectionState } from '@/features/content-source-workspace/domain/sourceWorkspaceTypes'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   buildAgentSessionGenerationProjection,
@@ -12,6 +13,8 @@ import {
   type AgentSessionGenerationRecord,
 } from '@/features/agent/domain/agentSessionGenerationProjection'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { agentSessionOutputKeys } from '@/features/agent/application/agentSessionOutputQueryKeys'
+import { agentSessionOutputContentWorkspaceChangedResult, invalidateAgentSessionOutputMutationResult } from '@/features/agent/application/agentSessionOutputMutationInvalidation'
 
 interface AgentSessionOutputPaneProps {
   conversationId: string
@@ -53,7 +56,7 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
   const providerThreadId = threadBinding?.providerThreadId?.trim()
   const providerSessionTreeId = threadBinding?.providerSessionTreeId?.trim()
   const providerThreadRunsQuery = useQuery({
-    queryKey: ['agent-session-output-thread-runs', providerSessionClient.baseURL, providerSessionTreeId, providerThreadId],
+    queryKey: agentSessionOutputKeys.threadRuns(providerSessionClient.baseURL, providerSessionTreeId, providerThreadId),
     queryFn: () => {
       const client = providerSessionTreeId
         ? providerSessionClient.forSession({ sessionId: providerSessionTreeId })
@@ -70,9 +73,8 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
     providerThreadId: threadBinding?.providerThreadId,
     externalRuns: providerThreadRunsQuery.data?.runs,
   }), [conversationId, pageTasks, providerThreadRunsQuery.data?.runs, runtimeState, threadBinding?.providerThreadId])
-  const contentWorkspaceQueryKey = ['agent-session-output-content-workspace', projectId]
   const contentWorkspaceQuery = useQuery<ContentSourceWorkspaceData>({
-    queryKey: contentWorkspaceQueryKey,
+    queryKey: agentSessionOutputKeys.contentWorkspace(projectId),
     queryFn: () => loadContentSourceWorkspaceData(projectId!),
     enabled: projectId !== undefined,
   })
@@ -92,7 +94,7 @@ export function AgentSessionOutputPane({ conversationId, projectId }: AgentSessi
         candidateId: candidate.id,
         ...(candidate.resourceId !== undefined ? { resourceId: candidate.resourceId } : {}),
       })
-      await queryClient.invalidateQueries({ queryKey: contentWorkspaceQueryKey })
+      await invalidateAgentSessionOutputMutationResult(queryClient, agentSessionOutputContentWorkspaceChangedResult({ projectId, changedIds: [contentUnit.id, candidate.id] }))
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error))
     } finally {

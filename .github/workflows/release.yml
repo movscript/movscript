@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref_name || inputs.tag }}
@@ -92,17 +94,101 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Use latest movscript-lang packages
-        run: node scripts/movscript-lang-deps.mjs latest
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release readiness
+        run: pnpm run release -- verify-release-readiness --tag="$RELEASE_TAG" --platform=${{ matrix.package-platform }}
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          MOVSCRIPT_RELEASE_REQUIRE_SIGNING: ${{ vars.MOVSCRIPT_RELEASE_REQUIRE_SIGNING || '0' }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Verify package resource contract
+        run: pnpm run verify:package-resources
+
+      - name: Resolve binary dependency refs
+        id: binary-deps
+        run: pnpm run release -- resolve-binary-deps
+
+      - name: Create binary dependency token
+        id: deps-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.MOVSCRIPT_DEPS_APP_ID || secrets.MOVSCRIPT_DEPS_APP_ID }}
+          private-key: ${{ secrets.MOVSCRIPT_DEPS_APP_PRIVATE_KEY }}
+          owner: movscript
+          repositories: |
+            mova
+            codex
+
+      - name: Checkout Mova app-server dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.binary-deps.outputs.mova_repository }}
+          ref: ${{ steps.binary-deps.outputs.mova_ref }}
+          path: deps/mova
+          token: ${{ steps.deps-token.outputs.token }}
+
+      - name: Checkout Codex app-server dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.binary-deps.outputs.codex_repository }}
+          ref: ${{ steps.binary-deps.outputs.codex_ref }}
+          path: deps/codex
+          token: ${{ steps.deps-token.outputs.token }}
+
+      - name: Cache app-server Rust builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            deps/mova/codex-rs/target
+            deps/codex/codex-rs/target
+          key: app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-${{ steps.binary-deps.outputs.mova_ref }}-${{ steps.binary-deps.outputs.codex_ref }}-${{ hashFiles('deps/mova/codex-rs/Cargo.lock', 'deps/codex/codex-rs/Cargo.lock') }}
+          restore-keys: |
+            app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-${{ steps.binary-deps.outputs.mova_ref }}-${{ steps.binary-deps.outputs.codex_ref }}-
+            app-server-${{ runner.os }}-${{ matrix.package-platform }}-${{ matrix.package-arch }}-
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Install Linux ARM64 app-server cross toolchain
+        if: matrix.package-platform == 'linux' && matrix.package-arch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build app-server binary dependencies
+        run: pnpm run release -- build-app-server-deps --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
       - name: Download ffmpeg-static release binary
         run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
 
       - name: Build desktop package
         run: pnpm run release -- package-desktop --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Install Linux smoke test display dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Smoke test desktop package
+        run: pnpm run release -- smoke-desktop-package --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
       - name: Collect release artifacts
         run: pnpm run release -- collect
@@ -139,11 +225,13 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Use latest movscript-lang packages
-        run: node scripts/movscript-lang-deps.mjs latest
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release readiness
+        run: pnpm run release -- verify-release-readiness --tag="$RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
       - name: Build plugin packages
         run: pnpm --filter "./packages/*" build && pnpm --filter @movscript/cli build && pnpm --filter "./plugins/*" build
@@ -189,14 +277,19 @@ jobs:
           find downloaded-artifacts -maxdepth 1 -type f -name '*SHA256SUMS.txt' -delete
           find downloaded-artifacts -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > downloaded-artifacts/SHA256SUMS.txt
 
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: downloaded-artifacts/*
+
       - name: Create or update draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file .github/release-draft-notes.md
+            gh release edit "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file .github/release-workspace-notes.md
           else
-            gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file .github/release-draft-notes.md
+            gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file .github/release-workspace-notes.md
           fi
           gh release upload "$RELEASE_TAG" downloaded-artifacts/* --clobber

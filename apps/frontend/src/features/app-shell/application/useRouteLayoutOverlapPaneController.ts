@@ -4,8 +4,8 @@ import {
   type OverlapPaneCollapseMode,
   type OverlapPaneExpandMode,
   type OverlapPaneResizeEdge,
-  type PersistentOverlapPaneControllerOptions,
-} from '@movscript/ui'
+  type PersistentOverlapPaneControllerOptions
+} from '@movscript/ui/layout'
 
 import type {
   RouteLayoutPaneCollapseMode,

@@ -1,9 +1,9 @@
 import { ROUTES } from './projectRoutes'
 import { routeLayoutSpecForPathname, type RouteLayoutSpec } from './routeLayoutRegistry'
 
-export type AppRouteSurface = 'agent' | 'detail' | 'canvas'
-export type AppWorkMode = 'agent' | 'detail'
-export type CanvasRouteSource = 'agent' | 'detail'
+export type AppRouteSurface = 'home' | 'agent' | 'project' | 'tool' | 'canvas' | 'settings'
+export type AppWorkMode = 'agent' | 'project' | 'tool'
+export type CanvasRouteSource = 'agent' | 'project' | 'tool'
 
 export const CANVAS_SOURCE_PARAM = 'from'
 
@@ -20,31 +20,38 @@ export function getAppRouteLayoutSpec(pathname: string): RouteLayoutSpec {
 }
 
 export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWorkMode {
-  const surface = routeLayoutSpecForPathname(pathname).surface
+  const routeLayout = routeLayoutSpecForPathname(pathname)
+  if (routeLayout.preserveWorkMode) return fallback
+  const surface = routeLayout.surface
   if (surface === 'agent') return 'agent'
-  if (surface === 'detail') return 'detail'
+  if (surface === 'project') return 'project'
+  if (surface === 'tool') return 'tool'
   return fallback
 }
 
 export function routeForWorkMode(workMode: AppWorkMode, hasProject: boolean): string {
   if (workMode === 'agent') return ROUTES.project.agent
-  return hasProject ? ROUTES.project.scripts : ROUTES.root
+  if (workMode === 'project') return hasProject ? ROUTES.project.home : ROUTES.projects
+  return ROUTES.tools.refImageGen
 }
 
 export function canvasEditorPath(canvasId: string | number, options?: { source?: CanvasRouteSource }): string {
   const pathname = `/canvases/${encodeURIComponent(String(canvasId))}`
-  if (options?.source !== 'agent') return pathname
-  const search = new URLSearchParams({ [CANVAS_SOURCE_PARAM]: 'agent' })
+  if (!options?.source || options.source === 'tool') return pathname
+  const search = new URLSearchParams({ [CANVAS_SOURCE_PARAM]: options.source })
   return `${pathname}?${search.toString()}`
 }
 
 export function canvasRouteSourceFromSearch(search: string): CanvasRouteSource {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-  return params.get(CANVAS_SOURCE_PARAM) === 'agent' ? 'agent' : 'detail'
+  const source = params.get(CANVAS_SOURCE_PARAM)
+  return source === 'agent' || source === 'project' ? source : 'tool'
 }
 
 export function canvasListPathForSource(source: CanvasRouteSource): string {
-  return source === 'agent' ? ROUTES.project.agentCanvases : ROUTES.canvases
+  if (source === 'agent') return ROUTES.project.agentCanvases
+  if (source === 'project') return ROUTES.project.home
+  return ROUTES.canvases
 }
 
 export function canvasBackPath(search: string): string {

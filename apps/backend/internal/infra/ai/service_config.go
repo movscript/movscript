@@ -1,18 +1,16 @@
 package ai
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
-	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
-var priorityRoundRobinCounters sync.Map
 var runtimeProviderHealth sync.Map
 
 const runtimeProviderFailureCooldown = 30 * time.Second
@@ -60,16 +58,24 @@ func (s *AIService) loadTextConfig(modelConfigID uint) (persistencemodel.AIModel
 // ResolveRuntimeModelConfig expands a public logical model ID into the concrete
 // provider-backed model config to use for this request.
 func (s *AIService) ResolveRuntimeModelConfig(modelConfigID uint, requiredCap string) (uint, error) {
-	candidates, err := s.runtimeModelCandidates(modelConfigID, requiredCap)
+	chosen, _, err := s.resolveRuntimeModelCandidate(modelConfigID, requiredCap, nil)
 	if err != nil {
 		return 0, err
 	}
-	if len(candidates) == 0 {
-		return 0, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, requiredCap)
-	}
-	ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, requiredCap), candidates)
-	chosen := ordered[0]
 	return chosen.cfg.ID, nil
+}
+
+func (s *AIService) resolveRuntimeModelCandidate(modelConfigID uint, requiredCap string, preferredAdapterTypes []string) (runtimeModelCandidate, bool, error) {
+	candidates, err := s.runtimeModelCandidates(modelConfigID, requiredCap)
+	if err != nil {
+		return runtimeModelCandidate{}, false, err
+	}
+	if len(candidates) == 0 {
+		return runtimeModelCandidate{}, false, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, requiredCap)
+	}
+	candidates, preferred := filterPreferredRuntimeCandidates(candidates, preferredAdapterTypes)
+	ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, requiredCap), candidates)
+	return ordered[0], preferred, nil
 }
 
 func (s *AIService) ResolveRuntimeTextModel(modelConfigID uint) (uint, error) {
@@ -111,15 +117,26 @@ type runtimeModelCandidate struct {
 }
 
 type ModelRouteRequest struct {
-	ModelID       string
-	ModelConfigID uint
-	Capability    string
+	ModelID               string
+	ModelConfigID         uint
+	Capability            string
+	PreferredAdapterTypes []string
+	EstimatedUsage        UsageEstimate
+	MaxEstimatedCost      float64
 }
 
 type ModelRoute struct {
 	ModelID         string
 	ModelConfigID   uint
 	ProviderModelID string
+	SelectionReason string
+	EstimatedCost   float64
+}
+
+type ModelRoutePlan struct {
+	ModelID         string
+	Capability      string
+	Routes          []ModelRoute
 	SelectionReason string
 }
 
@@ -130,64 +147,117 @@ type OpenAIProxyTarget struct {
 	APIKey          string
 }
 
-func (s *AIService) OpenAIProxyTarget(modelConfigID uint) (OpenAIProxyTarget, error) {
+func (s *AIService) OpenAIProxyTarget(ctx context.Context, userID uint, modelConfigID uint) (OpenAIProxyTarget, error) {
+	ctx = withProviderUserID(ctx, userID)
 	cfg, provider, def, _, err := s.loadTextConfig(modelConfigID)
 	if err != nil {
 		return OpenAIProxyTarget{}, err
 	}
-	adapter, ok := provider.(*OpenAIAdapter)
-	if !ok {
+	baseURL := ""
+	apiKey := ""
+	switch adapter := provider.(type) {
+	case *OpenAIAdapter:
+		baseURL = adapter.BaseURL
+		apiKey = adapter.APIKey
+	case interface {
+		ProxyTarget(context.Context) (string, string, error)
+	}:
+		baseURL, apiKey, err = adapter.ProxyTarget(ctx)
+		if err != nil {
+			return OpenAIProxyTarget{}, err
+		}
+	default:
 		return OpenAIProxyTarget{}, fmt.Errorf("model config id=%d is not backed by an OpenAI-compatible provider", modelConfigID)
 	}
 	return OpenAIProxyTarget{
 		ModelConfigID:   cfg.ID,
 		ProviderModelID: resolveModelID(cfg, def),
-		BaseURL:         adapter.BaseURL,
-		APIKey:          adapter.APIKey,
+		BaseURL:         baseURL,
+		APIKey:          apiKey,
 	}, nil
 }
 
 func (s *AIService) ResolveModelRoute(req ModelRouteRequest) (ModelRoute, error) {
+	plan, err := s.ResolveModelRoutePlan(req)
+	if err != nil {
+		return ModelRoute{}, err
+	}
+	if len(plan.Routes) == 0 {
+		return ModelRoute{}, fmt.Errorf("no available provider route for capability %s", plan.Capability)
+	}
+	return plan.Routes[0], nil
+}
+
+func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan, error) {
 	capability := strings.TrimSpace(req.Capability)
 	if capability == "" {
-		return ModelRoute{}, fmt.Errorf("model capability is required")
+		return ModelRoutePlan{}, fmt.Errorf("model capability is required")
 	}
 	modelID := strings.TrimSpace(req.ModelID)
 	if modelID != "" {
 		candidates, err := s.runtimeModelCandidatesByModelID(modelID, capability)
 		if err != nil {
-			return ModelRoute{}, err
+			return ModelRoutePlan{}, err
 		}
 		if len(candidates) == 0 {
-			return ModelRoute{}, fmt.Errorf("model %q not found for capability %s", modelID, capability)
+			return ModelRoutePlan{}, fmt.Errorf("model %q not found for capability %s", modelID, capability)
+		}
+		candidates, preferred := filterPreferredRuntimeCandidates(candidates, req.PreferredAdapterTypes)
+		candidates, budgetAware, err := filterBudgetRuntimeCandidates(candidates, capability, req.EstimatedUsage, req.MaxEstimatedCost)
+		if err != nil {
+			return ModelRoutePlan{}, err
 		}
 		ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-		chosen := ordered[0]
-		def := resolveDefFromConfig(chosen.cfg, chosen.adapterType)
-		return ModelRoute{
-			ModelID:         candidates[0].logicalID,
-			ModelConfigID:   chosen.cfg.ID,
-			ProviderModelID: resolveModelID(chosen.cfg, def),
-			SelectionReason: "model_id_capacity_round_robin",
+		selectionReason := modelIDRouteSelectionReason(preferred, budgetAware)
+		return ModelRoutePlan{
+			ModelID:         ordered[0].logicalID,
+			Capability:      capability,
+			Routes:          modelRoutesFromCandidates(ordered, capability, req.EstimatedUsage, selectionReason),
+			SelectionReason: selectionReason,
 		}, nil
 	}
 	if req.ModelConfigID == 0 {
-		return ModelRoute{}, fmt.Errorf("model_id is required")
+		return ModelRoutePlan{}, fmt.Errorf("model_id is required")
 	}
-	runtimeID, err := s.ResolveRuntimeModelConfig(req.ModelConfigID, capability)
+	candidates, err := s.runtimeModelCandidates(req.ModelConfigID, capability)
 	if err != nil {
-		return ModelRoute{}, err
+		return ModelRoutePlan{}, err
 	}
-	cfg, _, def, err := s.loadConfig(runtimeID, capability)
+	if len(candidates) == 0 {
+		return ModelRoutePlan{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", req.ModelConfigID, capability)
+	}
+	candidates, preferred := filterPreferredRuntimeCandidates(candidates, req.PreferredAdapterTypes)
+	candidates, budgetAware, err := filterBudgetRuntimeCandidates(candidates, capability, req.EstimatedUsage, req.MaxEstimatedCost)
 	if err != nil {
-		return ModelRoute{}, err
+		return ModelRoutePlan{}, err
 	}
-	return ModelRoute{
-		ModelID:         logicalModelID(cfg, def),
-		ModelConfigID:   runtimeID,
-		ProviderModelID: resolveModelID(cfg, def),
-		SelectionReason: "legacy_model_config_id",
+	ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
+	selectionReason := legacyConfigRouteSelectionReason(preferred, budgetAware)
+	return ModelRoutePlan{
+		ModelID:         ordered[0].logicalID,
+		Capability:      capability,
+		Routes:          modelRoutesFromCandidates(ordered, capability, req.EstimatedUsage, selectionReason),
+		SelectionReason: selectionReason,
 	}, nil
+}
+
+func modelRoutesFromCandidates(candidates []runtimeModelCandidate, capability string, estimate UsageEstimate, selectionReason string) []ModelRoute {
+	routes := make([]ModelRoute, 0, len(candidates))
+	for i, candidate := range candidates {
+		def := resolveDefFromConfig(candidate.cfg, candidate.adapterType)
+		reason := selectionReason
+		if i > 0 {
+			reason = "fallback_candidate"
+		}
+		routes = append(routes, ModelRoute{
+			ModelID:         candidate.logicalID,
+			ModelConfigID:   candidate.cfg.ID,
+			ProviderModelID: resolveModelID(candidate.cfg, def),
+			SelectionReason: reason,
+			EstimatedCost:   estimatedRuntimeCandidateCost(candidate, capability, estimate),
+		})
+	}
+	return routes
 }
 
 func (s *AIService) ResolveTextModelRoute(modelID string) (ModelRoute, error) {
@@ -345,89 +415,6 @@ func (s *AIService) runtimeModelCandidatesByModelID(modelID, requiredCap string)
 		}
 	}
 	return candidates, nil
-}
-
-func runtimeModelRoundRobinKey(logicalID, capability string) string {
-	return "service.runtime_model:" + capability + ":" + logicalID
-}
-
-func runtimeModelAttemptOrder(key string, candidates []runtimeModelCandidate) []runtimeModelCandidate {
-	if len(candidates) <= 1 {
-		return append([]runtimeModelCandidate(nil), candidates...)
-	}
-	byPriority := map[int][]runtimeModelCandidate{}
-	var priorities []int
-	for _, candidate := range candidates {
-		if _, ok := byPriority[candidate.priority]; !ok {
-			priorities = append(priorities, candidate.priority)
-		}
-		byPriority[candidate.priority] = append(byPriority[candidate.priority], candidate)
-	}
-	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
-	ordered := make([]runtimeModelCandidate, 0, len(candidates))
-	for _, priority := range priorities {
-		group := byPriority[priority]
-		if len(group) > 1 {
-			weighted := weightedRuntimeCandidateGroup(group)
-			counterAny, _ := priorityRoundRobinCounters.LoadOrStore(key+":attempts:"+fmt.Sprint(priority), new(uint64))
-			counter := counterAny.(*uint64)
-			offset := int((atomic.AddUint64(counter, 1) - 1) % uint64(len(weighted)))
-			group = dedupeRuntimeCandidateGroup(append(append([]runtimeModelCandidate(nil), weighted[offset:]...), weighted[:offset]...))
-			sort.SliceStable(group, func(i, j int) bool {
-				left := runtimeProviderHealthSnapshot(group[i].cfg.ID)
-				right := runtimeProviderHealthSnapshot(group[j].cfg.ID)
-				if leftSaturated, rightSaturated := runtimeCandidateSaturated(group[i], left), runtimeCandidateSaturated(group[j], right); leftSaturated != rightSaturated {
-					return !leftSaturated
-				}
-				if left.open != right.open {
-					return !left.open
-				}
-				if left.inFlight != right.inFlight {
-					return left.inFlight < right.inFlight
-				}
-				if left.failureRate != right.failureRate {
-					return left.failureRate < right.failureRate
-				}
-				return false
-			})
-		}
-		ordered = append(ordered, group...)
-	}
-	return ordered
-}
-
-func weightedRuntimeCandidateGroup(group []runtimeModelCandidate) []runtimeModelCandidate {
-	weighted := make([]runtimeModelCandidate, 0, len(group))
-	for _, candidate := range group {
-		for range runtimeCandidateCapacityWeight(candidate) {
-			weighted = append(weighted, candidate)
-		}
-	}
-	return weighted
-}
-
-func dedupeRuntimeCandidateGroup(group []runtimeModelCandidate) []runtimeModelCandidate {
-	seen := make(map[uint]bool, len(group))
-	out := make([]runtimeModelCandidate, 0, len(group))
-	for _, candidate := range group {
-		if seen[candidate.cfg.ID] {
-			continue
-		}
-		seen[candidate.cfg.ID] = true
-		out = append(out, candidate)
-	}
-	return out
-}
-
-func runtimeCandidateCapacityWeight(candidate runtimeModelCandidate) int {
-	if candidate.cfg.CapacityWeight > 0 {
-		return candidate.cfg.CapacityWeight
-	}
-	return 1
-}
-
-func runtimeCandidateSaturated(candidate runtimeModelCandidate, view runtimeProviderHealthView) bool {
-	return candidate.cfg.MaxConcurrency > 0 && view.inFlight >= candidate.cfg.MaxConcurrency
 }
 
 type runtimeProviderHealthState struct {
@@ -605,32 +592,4 @@ func calcCost(cfg persistencemodel.AIModelConfig, def *ModelDef, inputTokens, ou
 	default:
 		return 0
 	}
-}
-
-// pickByPriority selects one item from a slice by priority.
-// All items with the maximum priority value are collected, then one is chosen in round-robin order.
-func pickByPriority[T any](key string, items []T, priority func(T) int) T {
-	if len(items) == 0 {
-		var zero T
-		return zero
-	}
-	maxP := priority(items[0])
-	for _, item := range items[1:] {
-		if p := priority(item); p > maxP {
-			maxP = p
-		}
-	}
-	var top []T
-	for _, item := range items {
-		if priority(item) == maxP {
-			top = append(top, item)
-		}
-	}
-	if len(top) == 1 {
-		return top[0]
-	}
-	counterAny, _ := priorityRoundRobinCounters.LoadOrStore(key, new(uint64))
-	counter := counterAny.(*uint64)
-	index := atomic.AddUint64(counter, 1) - 1
-	return top[int(index%uint64(len(top)))]
 }

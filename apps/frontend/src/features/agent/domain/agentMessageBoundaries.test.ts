@@ -38,12 +38,12 @@ test('transcript assistant run helpers read provider-session message ids only', 
   assert.equal(transcriptAssistantRelatedRunId(messageWithoutProviderSession), undefined)
 })
 
-test('transcript assistant run helpers accept compatibility message refs through the provider-session helper', () => {
+test('transcript assistant run helpers read provider-session message refs through the provider-session helper', () => {
   assert.equal(transcriptAssistantProviderSessionRunId(message({
     meta: {
-      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_compat' },
+      providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_provider_session' },
     },
-  })), 'run_compat')
+  })), 'run_provider_session')
 })
 
 test('assistantMessageCompletesStreamingRun only accepts final assistant messages for the matching run', () => {
@@ -92,7 +92,7 @@ test('visibleStreamingAssistantTextForTranscript hides streaming text after fina
     id: 'assistant_run_1',
     content: '最终回复',
     meta: {
-      runtimeMessage: {
+      providerSessionMessage: {
         threadId: 'thread_1',
         messageId: 'assistant_run_1',
         runId: 'run_1',
@@ -123,29 +123,29 @@ test('visibleStreamingAssistantTextForTranscript hides streaming text after fina
 })
 
 test('transcript user run helpers prefer active run input ids before provider-session message ids', () => {
-  const runtimeInputMessage = message({
+  const providerSessionInputMessage = message({
     role: 'user',
     meta: {
-      runtimeInput: { threadId: 'thread_1', runId: ' run_input ', deliveryStatus: 'accepted' },
-      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_runtime' },
+      providerSessionInput: { threadId: 'thread_1', runId: ' run_input ', deliveryStatus: 'accepted' },
+      providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_provider_message' },
     },
   })
-  const runtimeMessageOnly = message({
+  const providerSessionMessageOnly = message({
     role: 'user',
     meta: {
-      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: ' run_runtime ' },
+      providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: ' run_provider_message ' },
     },
   })
 
-  assert.equal(transcriptUserRelatedRunId(runtimeInputMessage), 'run_input')
-  assert.equal(transcriptUserRelatedRunId(runtimeMessageOnly), 'run_runtime')
+  assert.equal(transcriptUserRelatedRunId(providerSessionInputMessage), 'run_input')
+  assert.equal(transcriptUserRelatedRunId(providerSessionMessageOnly), 'run_provider_message')
   assert.equal(transcriptUserRelatedRunId(message()), undefined)
 })
 
-test('transcriptMessageItemRelatedRunId prefers assistant runtime ids and falls back to activity ids', () => {
-  const runtimeMessage = message({
+test('transcriptMessageItemRelatedRunId prefers assistant provider-session ids and falls back to activity ids', () => {
+  const providerSessionMessage = message({
     meta: {
-      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: ' run_runtime ' },
+      providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: ' run_provider_message ' },
     },
   })
   const userActivityMessage = message({
@@ -153,11 +153,11 @@ test('transcriptMessageItemRelatedRunId prefers assistant runtime ids and falls 
   })
 
   assert.equal(transcriptMessageItemRelatedRunId({
-    message: runtimeMessage,
+    message: providerSessionMessage,
     timelineActivity: {
       runId: 'run_activity',
     },
-  }), 'run_runtime')
+  }), 'run_provider_message')
   assert.equal(transcriptMessageItemRelatedRunId({
     message: userActivityMessage,
     timelineActivity: {
@@ -172,14 +172,14 @@ test('transcriptMessageItemThreadRunId resolves user and assistant grouping run 
     message: message({
       role: 'user',
       meta: {
-        runtimeInput: { threadId: 'thread_1', runId: 'run_user', deliveryStatus: 'accepted' },
+        providerSessionInput: { threadId: 'thread_1', runId: 'run_user', deliveryStatus: 'accepted' },
       },
     }),
   }), 'run_user')
   assert.equal(transcriptMessageItemThreadRunId({
     message: message({
       meta: {
-        runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_assistant' },
+        providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_assistant' },
       },
     }),
   }), 'run_assistant')

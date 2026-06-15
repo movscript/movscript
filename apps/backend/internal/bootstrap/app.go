@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,8 @@ import (
 	"github.com/movscript/movscript/internal/infra/runner"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/router"
+	providerassembly "github.com/movscript/movscript/internal/providers/assembly"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +36,7 @@ type App struct {
 	AIService     *ai.AIService
 	ImageVerifier ai.ImageVerificationClient
 	Cache         cache.Cache
+	VectorIndex   providercontract.VectorIndexProvider
 	Entitlements  entitlement.EntitlementService
 	Worker        *runner.Worker
 	Router        *gin.Engine
@@ -48,26 +53,14 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect database: %w", err)
 	}
-	if cfg.AppMode == "local" && cfg.DBDriver == "sqlite" {
+	if shouldRunStartupMigrations() || cfg.AppMode == "local" && cfg.DBDriver == "sqlite" {
 		if err := db.RunMigrations(database); err != nil {
-			return nil, fmt.Errorf("run local database migrations: %w", err)
+			return nil, fmt.Errorf("run database migrations: %w", err)
 		}
 	} else {
 		if err := db.EnsureMigrationsCurrent(database); err != nil {
 			return nil, fmt.Errorf("check database migrations: %w", err)
 		}
-	}
-
-	store, err := storage.New(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("initialize object storage: %w", err)
-	}
-	observability.Logger().Info(
-		"storage_initialized",
-		slog.String("backend", store.Backend()),
-	)
-	if err := hubapp.NewService(database, store).Seed(context.Background()); err != nil {
-		return nil, fmt.Errorf("seed hub packages: %w", err)
 	}
 
 	tokens, err := auth.NewManager(cfg.AuthTokenSecret, time.Duration(cfg.AuthTokenTTLHours)*time.Hour)
@@ -80,18 +73,31 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("decode encryption key: %w", err)
 	}
 
-	if err := ai.ConfigureLocalGatewayDefaults(context.Background(), database, cfg.AIGatewayProvider == "local"); err != nil {
-		return nil, fmt.Errorf("configure local AI gateway defaults: %w", err)
+	providers, err := providerassembly.BuildRuntimeProviders(context.Background(), database, cfg, encKey)
+	if err != nil {
+		return nil, fmt.Errorf("build runtime providers: %w", err)
 	}
-	registry := ai.NewRegistryWithProviderMode(database, encKey, cfg.AIGatewayProvider)
-	aiService := ai.NewAIService(database, registry)
+	store := providers.Store
+	registry := providers.Registry
+	aiService := providers.AIService
+	cacheStore := providers.Cache
+	vectorIndex := providers.VectorIndex
+	observability.Logger().Info(
+		"storage_initialized",
+		slog.String("backend", store.Backend()),
+	)
+	if err := hubapp.NewService(database, store).Seed(context.Background()); err != nil {
+		return nil, fmt.Errorf("seed hub packages: %w", err)
+	}
+	if err := migrateEditionModules(context.Background(), database, cfg); err != nil {
+		return nil, fmt.Errorf("migrate edition modules: %w", err)
+	}
+	if err := seedEditionData(context.Background(), database, cfg); err != nil {
+		return nil, fmt.Errorf("seed edition data: %w", err)
+	}
 	var imageVerifier ai.ImageVerificationClient
 	if cfg.ImageVerifyBaseURL != "" {
 		imageVerifier = ai.NewHTTPImageVerificationClient(cfg.ImageVerifyBaseURL, cfg.ImageVerifyAPIKey)
-	}
-	cacheStore, err := cache.New(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("initialize cache: %w", err)
 	}
 	entitlements := entitlementapp.NewService(database, cfg)
 	worker := runner.NewWorker(database, aiService, store, encKey)
@@ -105,6 +111,7 @@ func New() (*App, error) {
 		AIService:     aiService,
 		ImageVerifier: imageVerifier,
 		Cache:         cacheStore,
+		VectorIndex:   vectorIndex,
 		Entitlements:  entitlements,
 		EncryptionKey: encKey,
 	})
@@ -117,6 +124,7 @@ func New() (*App, error) {
 		Registry:     registry,
 		AIService:    aiService,
 		Cache:        cacheStore,
+		VectorIndex:  vectorIndex,
 		Entitlements: entitlements,
 		Worker:       worker,
 		Router:       engine,
@@ -128,4 +136,13 @@ func (a *App) StartWorkers(ctx context.Context, workers int) {
 		return
 	}
 	a.Worker.Start(ctx, workers)
+}
+
+func shouldRunStartupMigrations() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MOVSCRIPT_AUTO_MIGRATE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

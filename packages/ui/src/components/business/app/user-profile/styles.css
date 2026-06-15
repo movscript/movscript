@@ -37,7 +37,7 @@
 .user-profile-identity__name {
   overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-section);
+  font-size: var(--user-profile-identity-name-font-size, var(--ms-text-section));
   font-weight: 600;
   line-height: var(--ms-leading-section);
   text-overflow: ellipsis;
@@ -46,7 +46,7 @@
 
 .user-profile-identity__role {
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-body);
+  font-size: var(--user-profile-identity-role-font-size, var(--ms-text-body));
   line-height: var(--ms-leading-body);
 }
 
@@ -57,7 +57,7 @@
 
 .user-profile-logout-button {
   gap: var(--ms-space-2);
-  font-size: var(--ms-text-body);
+  font-size: var(--user-profile-logout-button-font-size, var(--ms-text-body));
   line-height: var(--ms-leading-body);
 }
 

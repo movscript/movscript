@@ -30,6 +30,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   variant?: ButtonVariant;
   tone?: ButtonTone;
   size?: ButtonSize;
+  fullWidth?: boolean;
+  align?: "center" | "start" | "end";
   loading?: boolean;
   asChild?: boolean;
 }
@@ -43,6 +45,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       variant,
       tone,
       size = "md",
+      fullWidth = false,
+      align = "center",
       loading = false,
       disabled,
       asChild = false,
@@ -69,6 +73,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           `ms-button--${visualVariant}`,
           `ms-button--tone-${visualTone}`,
           `ms-button--${size}`,
+          fullWidth && "ms-button--full-width",
           loading && "ms-button--loading",
           className
         )}
@@ -82,6 +87,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         data-ms-intent={intent ?? visualTone}
         data-ms-emphasis={emphasis ?? (visualVariant === "ghost" || visualVariant === "link" ? "plain" : visualVariant)}
         data-ms-size={size}
+        data-ms-full-width={fullWidth ? "true" : undefined}
+        data-ms-align={align}
         {...(asChild ? { fallback: "button" } : {})}
         {...props}
       >

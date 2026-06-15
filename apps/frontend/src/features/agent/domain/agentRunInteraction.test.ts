@@ -65,8 +65,8 @@ test('run interaction echo helpers hide accepted active run input answer echoes'
     content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
     timestamp: 1,
     meta: {
-      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1' },
-      runtimeInput: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1', deliveryStatus: 'accepted' },
+      providerSessionMessage: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1' },
+      providerSessionInput: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1', deliveryStatus: 'accepted' },
     },
   }
   const echoes = new Set([message.content.trim()])
@@ -81,14 +81,14 @@ test('run interaction echo helpers hide local input answer workspaces before ech
     content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
     timestamp: 1,
     meta: {
-      runtimeInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
+      providerSessionInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
     },
   }
 
   assert.equal(isRunInteractionAnswerEchoMessage(message, new Set()), true)
 })
 
-test('run interaction echo helpers keep hiding provider answer compatibility echoes', () => {
+test('run interaction echo helpers keep hiding provider answer echoes', () => {
   const message: ChatMessage = {
     id: 'msg_echo',
     role: 'user',

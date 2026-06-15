@@ -1,7 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  AlertCircle, Blocks, Download, Loader2, Plus, RefreshCw, Search, Store, Trash2, ExternalLink, Upload,
-} from 'lucide-react'
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from 'react'
+import {
+  AlertCircle,
+  Blocks,
+  Download,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  Store,
+  Trash2,
+  ExternalLink,
+  Upload,
+  } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   loadClientPlugins,
@@ -10,7 +25,7 @@ import {
   migrateFromLocalStorage,
   installPluginFromFile,
   type ClientPluginManifest,
-} from '@/features/plugins/application/clientPlugins'
+  } from '@/features/plugins/application/clientPlugins'
 import { ensureBundledClientPluginsInstalled } from '@/features/plugins/application/builtinClientPlugins'
 import {
   installProviderMarketplacePlugin,
@@ -18,7 +33,17 @@ import {
   uninstallProviderMarketplacePlugin,
   type ProviderPluginMarketplaceItem,
   type ProviderPluginMarketplaceState,
-} from '@/features/plugins/application/providerPluginMarketplace'
+  } from '@/features/plugins/application/providerPluginMarketplace'
+import {
+  installProviderMarketplacePluginToProject,
+  loadProjectPluginSnapshot,
+  type ProjectPluginSnapshot,
+  } from '@/features/plugins/application/projectPlugins'
+import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
   AgentConsoleHeader,
@@ -27,9 +52,8 @@ import {
   AgentConsoleHeaderDescription,
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
-  AgentPageShell,
-  AgentPageShellHeader,
-  Button,
+} from '@/features/agent/components/AgentConsoleUi'
+import {
   PluginBannerDismissAction,
   PluginButtonIcon,
   PluginCardActions,
@@ -65,7 +89,9 @@ import {
   PluginTabCount,
   PluginTabGroup,
   PluginTagMeta,
-} from '@movscript/ui'
+  PluginToneText
+} from '@/features/plugins/components/PluginsPageUi'
+import { Button } from '@movscript/ui/primitives'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 
 type Tab = 'installed' | 'marketplace'
@@ -161,17 +187,19 @@ function ProviderPluginCard({ item, onUninstall }: {
 
 // ── Marketplace view ──────────────────────────────────────────────────────────
 
-function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRefresh }: {
+function MarketplaceView({ items, errors, loading, onInstall, onInstallProject, onUninstall, onRefresh }: {
   items: ProviderPluginMarketplaceItem[]
   errors: ProviderPluginMarketplaceState['errors']
   loading: boolean
   onInstall: (item: ProviderPluginMarketplaceItem) => Promise<void>
+  onInstallProject: (item: ProviderPluginMarketplaceItem) => Promise<void>
   onUninstall: (item: ProviderPluginMarketplaceItem) => Promise<void>
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [installing, setInstalling] = useState<string>()
+  const [projectInstalling, setProjectInstalling] = useState<string>()
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items
@@ -202,6 +230,15 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
       await onUninstall(item)
     } finally {
       setInstalling(undefined)
+    }
+  }
+
+  async function handleInstallProject(item: ProviderPluginMarketplaceItem) {
+    setProjectInstalling(item.key)
+    try {
+      await onInstallProject(item)
+    } finally {
+      setProjectInstalling(undefined)
     }
   }
 
@@ -246,6 +283,7 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
         <PluginPageCardGrid>
           {filtered.map((entry) => {
             const isInstalling = installing === entry.key
+            const isProjectInstalling = projectInstalling === entry.key
             const installBlocked = entry.installPolicy === 'NOT_AVAILABLE' || entry.availability === 'DISABLED_BY_ADMIN'
             return (
               <PluginCardSurface key={entry.key} spacing="compact">
@@ -264,12 +302,18 @@ function MarketplaceView({ items, errors, loading, onInstall, onUninstall, onRef
                       </Button>
                     </PluginCardActions>
                   ) : (
-                    <Button size="sm" onClick={() => void handleInstall(entry)} disabled={isInstalling || installBlocked} loading={isInstalling}>
-                      {isInstalling
-                        ? t('plugins.install')
-                        : <><PluginButtonIcon><Download size={12} /></PluginButtonIcon>{t('plugins.install')}</>
-                      }
-                    </Button>
+                    <PluginCardActions>
+                      <Button size="sm" variant="outline" onClick={() => void handleInstallProject(entry)} disabled={isProjectInstalling || installBlocked} loading={isProjectInstalling}>
+                        {!isProjectInstalling ? <PluginButtonIcon><Download size={12} /></PluginButtonIcon> : null}
+                        安装到项目
+                      </Button>
+                      <Button size="sm" onClick={() => void handleInstall(entry)} disabled={isInstalling || installBlocked} loading={isInstalling}>
+                        {isInstalling
+                          ? t('plugins.install')
+                          : <><PluginButtonIcon><Download size={12} /></PluginButtonIcon>{t('plugins.install')}</>
+                        }
+                      </Button>
+                    </PluginCardActions>
                   )}
                 </PluginCardHeader>
                 <PluginCardDescription>{entry.description ?? t('plugins.noDescription')}</PluginCardDescription>
@@ -299,12 +343,20 @@ export default function ClientPluginsPage() {
   const [tab, setTab] = useState<Tab>('installed')
   const [plugins, setPlugins] = useState<ClientPluginManifest[]>([])
   const [providerPluginState, setProviderPluginState] = useState<ProviderPluginMarketplaceState>(EMPTY_PROVIDER_PLUGIN_MARKETPLACE_STATE)
+  const [projectPluginSnapshot, setProjectPluginSnapshot] = useState<ProjectPluginSnapshot>()
+  const [workspaceDir, setWorkspaceDir] = useState<string>()
   const [providerPluginLoading, setProviderPluginLoading] = useState(false)
   const [providerPluginError, setProviderPluginError] = useState<string>()
   const [migrationNote, setMigrationNote] = useState<string>()
   const [fileInstalling, setFileInstalling] = useState(false)
   const [fileError, setFileError] = useState<string>()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const refreshProjectPlugins = useCallback((nextWorkspaceDir?: string) => {
+    loadProjectPluginSnapshot(nextWorkspaceDir ?? workspaceDir)
+      .then(setProjectPluginSnapshot)
+      .catch((error) => console.warn('[plugins] failed to refresh project plugins', error))
+  }, [workspaceDir])
 
   const refreshProviderPlugins = useCallback(() => {
     setProviderPluginLoading(true)
@@ -347,6 +399,20 @@ export default function ClientPluginsPage() {
     refreshProviderPlugins()
   }, [refreshProviderPlugins])
 
+  useEffect(() => {
+    let cancelled = false
+    requireWorkspaceRootAPI().getRoot()
+      .then((root) => {
+        if (cancelled) return
+        setWorkspaceDir(root.workspaceDir)
+        refreshProjectPlugins(root.workspaceDir)
+      })
+      .catch((error) => console.warn('[plugins] failed to resolve workspace root', error))
+    return () => {
+      cancelled = true
+    }
+  }, [refreshProjectPlugins])
+
   const installedProviderPlugins = useMemo(() => providerPluginState.items.filter((item) => item.installed), [providerPluginState.items])
   const installedCount = plugins.length + installedProviderPlugins.length
 
@@ -360,6 +426,11 @@ export default function ClientPluginsPage() {
   async function handleProviderPluginInstall(item: ProviderPluginMarketplaceItem) {
     await installProviderMarketplacePlugin(item)
     refreshProviderPlugins()
+  }
+
+  async function handleProviderPluginInstallProject(item: ProviderPluginMarketplaceItem) {
+    const snapshot = await installProviderMarketplacePluginToProject(item, workspaceDir)
+    setProjectPluginSnapshot(snapshot)
   }
 
   async function handleProviderPluginUninstall(item: ProviderPluginMarketplaceItem) {
@@ -393,7 +464,7 @@ export default function ClientPluginsPage() {
               <AgentConsoleHeaderTitle>{t('plugins.title')}</AgentConsoleHeaderTitle>
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理全局插件、Pack 安装来源以及贡献给 provider、工具页和工作区的扩展能力。
+              管理全局插件、项目插件以及贡献给 provider、工具页和工作区的扩展能力。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -419,7 +490,7 @@ export default function ClientPluginsPage() {
             tone="danger"
             icon={<AlertCircle size={12} />}
           >
-            {fileError}
+            <PluginToneText tone="danger" as="span">{fileError}</PluginToneText>
             <PluginBannerDismissAction onClick={() => setFileError(undefined)}>{t('common.close')}</PluginBannerDismissAction>
           </PluginStateBanner>
         )}
@@ -456,12 +527,18 @@ export default function ClientPluginsPage() {
           </PluginStateBanner>
         )}
 
+        {projectPluginSnapshot && projectPluginSnapshot.plugins.length > 0 ? (
+          <PluginStateBanner icon={<Blocks size={12} />}>
+            当前项目已声明 {projectPluginSnapshot.plugins.length} 个插件；安装会写入 .movscript/plugins 与项目 .codex 配置。
+          </PluginStateBanner>
+        ) : null}
+
         {providerPluginError && (
           <PluginStateBanner
             tone="danger"
             icon={<AlertCircle size={12} />}
           >
-            {providerPluginError}
+            <PluginToneText tone="danger" as="span">{providerPluginError}</PluginToneText>
             <PluginBannerDismissAction onClick={() => setProviderPluginError(undefined)}>{t('common.close')}</PluginBannerDismissAction>
           </PluginStateBanner>
         )}
@@ -472,6 +549,7 @@ export default function ClientPluginsPage() {
             errors={providerPluginState.errors}
             loading={providerPluginLoading}
             onInstall={handleProviderPluginInstall}
+            onInstallProject={handleProviderPluginInstallProject}
             onUninstall={handleProviderPluginUninstall}
             onRefresh={refreshProviderPlugins}
           />

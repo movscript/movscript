@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui'
+import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
@@ -10,17 +10,6 @@ import {
   AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
   AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
 } from '@/features/agent/presentation/agentModePanelSizing'
-import {
-  DETAIL_AGENT_PANEL_DEFAULT_WIDTH,
-  DETAIL_AGENT_PANEL_MIN_WIDTH,
-  DETAIL_AGENT_PANEL_WIDTH_STORAGE_KEY,
-} from '@/features/agent/presentation/agentDetailAssistantPaneSizing'
-import {
-  SCRIPT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
-  SCRIPT_WORKBENCH_DETAIL_PANE_ID,
-  SCRIPT_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
-  SCRIPT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-} from '@/features/scripts/presentation/scriptsWorkbenchLayoutSpec'
 import {
   TOOL_WORKBENCH_RESOURCE_PANE_DEFAULT_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_ID,
@@ -35,13 +24,35 @@ import {
   AGENT_CONNECTION_THREADS_PANE_ID,
   APP_SHELL_AGENT_CONTENT_PANE_ID,
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
-  APP_SHELL_ASSISTANT_DOCK_PANE_ID,
+  APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
+  APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY,
   APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
   APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
+  APP_SHELL_TOOL_SIDEBAR_PANE_ID,
+  CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH,
+  CONTENT_CANVAS_INSPECTOR_MAX_WIDTH,
+  CONTENT_CANVAS_INSPECTOR_MIN_WIDTH,
+  CONTENT_CANVAS_INSPECTOR_PANE_ID,
+  CONTENT_CANVAS_INSPECTOR_WIDTH_STORAGE_KEY,
+  CONTENT_CANVAS_SETTING_CATALOG_DEFAULT_HEIGHT,
+  CONTENT_CANVAS_SETTING_CATALOG_HEIGHT_STORAGE_KEY,
+  CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT,
+  CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT,
+  CONTENT_CANVAS_SETTING_CATALOG_PANE_ID,
+  CONTENT_CANVAS_STRUCTURE_DEFAULT_WIDTH,
+  CONTENT_CANVAS_STRUCTURE_MAX_WIDTH,
+  CONTENT_CANVAS_STRUCTURE_MIN_WIDTH,
+  CONTENT_CANVAS_STRUCTURE_PANE_ID,
+  CONTENT_CANVAS_STRUCTURE_WIDTH_STORAGE_KEY,
+  CONTENT_CANVAS_TIMELINE_DEFAULT_HEIGHT,
+  CONTENT_CANVAS_TIMELINE_HEIGHT_STORAGE_KEY,
+  CONTENT_CANVAS_TIMELINE_MAX_HEIGHT,
+  CONTENT_CANVAS_TIMELINE_MIN_HEIGHT,
+  CONTENT_CANVAS_TIMELINE_PANE_ID,
   appRouteViewportScrollForMode,
   registeredRouteLayoutSpecs,
   routeLayoutSpecForPathname,
@@ -68,10 +79,10 @@ test('route layout registry declares current high-density workbench routes', () 
     scrollMode: 'workspace',
     viewportScroll: 'owned',
   })
-  assert.deepEqual(workbenchRoute('/project/content-units/editor'), {
-    routeId: 'project.sourceWorkspace',
+  assert.deepEqual(workbenchRoute('/project/content-orchestration/canvas'), {
+    routeId: 'project.contentCanvas',
     workbenchId: 'content_orchestration',
-    scrollMode: 'workspace',
+    scrollMode: 'canvas',
     viewportScroll: 'owned',
   })
 })
@@ -80,17 +91,29 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/canvases/42').surface, 'canvas')
   assert.equal(routeLayoutSpecForPathname('/canvases/42').scrollMode, 'canvas')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/canvases/42').scrollMode), 'owned')
+  assert.equal(routeLayoutSpecForPathname('/project/content-orchestration/canvas').surface, 'project')
+  assert.equal(routeLayoutSpecForPathname('/project/content-orchestration/canvas').scrollMode, 'canvas')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
   assert.equal(routeLayoutSpecForPathname('/project/agent/canvases').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent/canvases').scrollMode, 'document')
 
-  assert.equal(routeLayoutSpecForPathname('/resources').surface, 'detail')
+  assert.equal(routeLayoutSpecForPathname('/').surface, 'home')
+  assert.equal(routeLayoutSpecForPathname('/').scrollMode, 'document')
+
+  assert.equal(routeLayoutSpecForPathname('/project').kind, 'redirect')
+  assert.equal(routeLayoutSpecForPathname('/project').scrollMode, 'hidden')
+  assert.equal(routeLayoutSpecForPathname('/project/scripts/workbench').surface, 'project')
+
+  assert.equal(routeLayoutSpecForPathname('/canvases').surface, 'canvas')
+  assert.equal(routeLayoutSpecForPathname('/canvases').scrollMode, 'document')
+
+  assert.equal(routeLayoutSpecForPathname('/resources').surface, 'tool')
   assert.equal(routeLayoutSpecForPathname('/resources').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
   assert.match(routeLayoutSpecForPathname('/resources').notes ?? '', /shared resource drag contract/)
-  assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'detail')
+  assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'tool')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/agents/mova').scrollMode), 'auto')
 
@@ -100,39 +123,33 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   for (const pathname of ['/app/settings', '/user', '/org/settings', '/agent']) {
     const settingsRoute = routeLayoutSpecForPathname(pathname)
     assert.equal(settingsRoute.kind, 'page')
-    assert.equal(settingsRoute.surface, 'detail')
+    assert.equal(settingsRoute.surface, 'settings')
+    assert.equal(settingsRoute.chrome, 'settings')
+    assert.equal(settingsRoute.preserveWorkMode, true)
     assert.equal(settingsRoute.scrollMode, 'workspace')
     assert.equal(appRouteViewportScrollForMode(settingsRoute.scrollMode), 'owned')
-    assert.ok(settingsRoute.panes.some((pane) => pane.id === 'app-shell.detail-sidebar'))
-    assert.ok(settingsRoute.panes.some((pane) => pane.id === APP_SHELL_ASSISTANT_DOCK_PANE_ID))
+    const settingsSidebar = settingsRoute.panes.find((pane) => pane.id === APP_SHELL_SETTINGS_SIDEBAR_PANE_ID)
+    assert.equal(settingsSidebar?.owner, 'app-shell')
+    assert.equal(settingsSidebar?.storageKey, APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY)
+    assert.ok(!settingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+    assert.ok(!settingsRoute.panes.some((pane) => pane.id === 'app-shell.assistant-dock'))
   }
+
+  const agentSettingsRoute = routeLayoutSpecForPathname('/agent/settings')
+  assert.equal(agentSettingsRoute.surface, 'settings')
+  assert.equal(agentSettingsRoute.chrome, 'agent')
+  assert.equal(agentSettingsRoute.preserveWorkMode, true)
+  assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
+  assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
 })
 
 test('registered route layout specs expose pane ownership for app shell surfaces', () => {
-  const detailRoute = routeLayoutSpecForPathname('/project/scripts/workbench')
-  assert.ok(detailRoute.panes.some((pane) => pane.id === 'app-shell.detail-sidebar' && pane.owner === 'app-shell'))
-  assert.ok(detailRoute.panes.some((pane) => pane.id === 'app-shell.detail-sidebar' && pane.storageKey === APP_SIDEBAR_WIDTH_STORAGE_KEY))
-  assert.ok(detailRoute.panes.some((pane) => pane.id === 'app-shell.assistant-dock' && pane.overlapMode === 'offset-stack'))
-  assert.ok(detailRoute.panes.some((pane) => pane.id === 'app-shell.terminal-dock' && pane.side === 'bottom'))
-  const assistantDockPane = detailRoute.panes.find((pane) => pane.id === APP_SHELL_ASSISTANT_DOCK_PANE_ID)
-  assert.equal(assistantDockPane?.defaultSize, DETAIL_AGENT_PANEL_DEFAULT_WIDTH)
-  assert.equal(assistantDockPane?.minSize, DETAIL_AGENT_PANEL_MIN_WIDTH)
-  assert.equal(assistantDockPane?.storageKey, DETAIL_AGENT_PANEL_WIDTH_STORAGE_KEY)
-  assert.equal(assistantDockPane?.defaultState, 'hidden')
-  const scriptDetailPane = detailRoute.panes.find((pane) => pane.id === SCRIPT_WORKBENCH_DETAIL_PANE_ID)
-  assert.equal(scriptDetailPane?.owner, 'workbench')
-  assert.equal(scriptDetailPane?.side, 'right')
-  assert.equal(scriptDetailPane?.defaultSize, SCRIPT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH)
-  assert.equal(scriptDetailPane?.minSize, SCRIPT_WORKBENCH_DETAIL_PANE_MIN_WIDTH)
-  assert.equal(scriptDetailPane?.storageKey, SCRIPT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY)
-  assert.equal(scriptDetailPane?.collapseMode, 'after-min')
-  assert.equal(scriptDetailPane?.expandMode, 'after-max')
-  assert.equal(scriptDetailPane?.overlapMode, 'pane-surface')
-
-  const sourceWorkspaceRoute = routeLayoutSpecForPathname('/project/content-units/editor')
-  assert.equal(sourceWorkspaceRoute.workbenchId, 'content_orchestration')
-  assert.ok(sourceWorkspaceRoute.panes.every((pane) => pane.owner === 'app-shell'))
-
+  const projectRoute = routeLayoutSpecForPathname('/project/scripts/workbench')
+  assert.equal(projectRoute.surface, 'project')
+  assert.ok(!projectRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+  assert.ok(!projectRoute.panes.some((pane) => pane.id === 'app-shell.assistant-dock'))
+  assert.ok(projectRoute.panes.some((pane) => pane.id === 'app-shell.terminal-dock' && pane.side === 'bottom'))
+  assert.ok(!projectRoute.panes.some((pane) => pane.owner === 'workbench'))
   const agentRoute = routeLayoutSpecForPathname('/project/agent')
   const agentSidebar = agentRoute.panes.find((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID)
   assert.equal(agentSidebar?.collapsedSize, 0)
@@ -168,7 +185,12 @@ test('route layout registry declares shared tool workbench resource panes', () =
     '/tools/multi-angle',
   ]) {
     const route = routeLayoutSpecForPathname(pathname)
+    assert.equal(route.surface, 'tool')
     assert.equal(route.scrollMode, 'workspace')
+    const toolSidebarPane = route.panes.find((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID)
+    assert.equal(toolSidebarPane?.owner, 'app-shell')
+    assert.equal(toolSidebarPane?.storageKey, APP_SIDEBAR_WIDTH_STORAGE_KEY)
+    assert.ok(!route.panes.some((pane) => pane.id === 'app-shell.assistant-dock'))
     const resourcePane = route.panes.find((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID)
     assert.equal(resourcePane?.owner, 'workbench')
     assert.equal(resourcePane?.side, 'right')
@@ -179,6 +201,50 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.expandMode, 'after-max')
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
+})
+
+test('route layout registry declares content canvas managed panes', () => {
+  const route = routeLayoutSpecForPathname('/project/content-orchestration/canvas-next')
+  assert.equal(route.routeId, 'project.contentCanvasNext')
+  assert.equal(route.surface, 'project')
+  assert.equal(route.scrollMode, 'canvas')
+  assert.equal(route.workbenchId, 'content_orchestration')
+
+  const settingCatalogPane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_SETTING_CATALOG_PANE_ID)
+  assert.equal(settingCatalogPane?.owner, 'workbench')
+  assert.equal(settingCatalogPane?.side, 'top')
+  assert.equal(settingCatalogPane?.defaultSize, CONTENT_CANVAS_SETTING_CATALOG_DEFAULT_HEIGHT)
+  assert.equal(settingCatalogPane?.minSize, CONTENT_CANVAS_SETTING_CATALOG_MIN_HEIGHT)
+  assert.equal(settingCatalogPane?.maxSize, CONTENT_CANVAS_SETTING_CATALOG_MAX_HEIGHT)
+  assert.equal(settingCatalogPane?.storageKey, CONTENT_CANVAS_SETTING_CATALOG_HEIGHT_STORAGE_KEY)
+  assert.equal(settingCatalogPane?.persistState, true)
+
+  const structurePane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_STRUCTURE_PANE_ID)
+  assert.equal(structurePane?.owner, 'workbench')
+  assert.equal(structurePane?.side, 'left')
+  assert.equal(structurePane?.defaultSize, CONTENT_CANVAS_STRUCTURE_DEFAULT_WIDTH)
+  assert.equal(structurePane?.minSize, CONTENT_CANVAS_STRUCTURE_MIN_WIDTH)
+  assert.equal(structurePane?.maxSize, CONTENT_CANVAS_STRUCTURE_MAX_WIDTH)
+  assert.equal(structurePane?.storageKey, CONTENT_CANVAS_STRUCTURE_WIDTH_STORAGE_KEY)
+  assert.equal(structurePane?.persistState, true)
+
+  const inspectorPane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_INSPECTOR_PANE_ID)
+  assert.equal(inspectorPane?.owner, 'workbench')
+  assert.equal(inspectorPane?.side, 'right')
+  assert.equal(inspectorPane?.defaultSize, CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH)
+  assert.equal(inspectorPane?.minSize, CONTENT_CANVAS_INSPECTOR_MIN_WIDTH)
+  assert.equal(inspectorPane?.maxSize, CONTENT_CANVAS_INSPECTOR_MAX_WIDTH)
+  assert.equal(inspectorPane?.storageKey, CONTENT_CANVAS_INSPECTOR_WIDTH_STORAGE_KEY)
+  assert.equal(inspectorPane?.persistState, true)
+
+  const timelinePane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_TIMELINE_PANE_ID)
+  assert.equal(timelinePane?.owner, 'workbench')
+  assert.equal(timelinePane?.side, 'bottom')
+  assert.equal(timelinePane?.defaultSize, CONTENT_CANVAS_TIMELINE_DEFAULT_HEIGHT)
+  assert.equal(timelinePane?.minSize, CONTENT_CANVAS_TIMELINE_MIN_HEIGHT)
+  assert.equal(timelinePane?.maxSize, CONTENT_CANVAS_TIMELINE_MAX_HEIGHT)
+  assert.equal(timelinePane?.storageKey, CONTENT_CANVAS_TIMELINE_HEIGHT_STORAGE_KEY)
+  assert.equal(timelinePane?.persistState, true)
 })
 
 test('route layout registry declares plugin tool native host pane', () => {
@@ -211,6 +277,7 @@ test('route layout registry has one exported spec per registered route id', () =
   const routeIds = registeredRouteLayoutSpecs.map((spec) => spec.routeId)
   assert.equal(new Set(routeIds).size, routeIds.length)
   assert.ok(routeIds.includes('project.scripts'))
+  assert.ok(routeIds.includes('project.contentCanvas'))
   assert.ok(!routeIds.includes('project.production.redirect'))
   assert.ok(!routeIds.includes('project.productionOrchestration.redirect'))
   assert.ok(routeIds.includes('canvas.editor'))
@@ -254,7 +321,6 @@ test('route layout inventory declares high-risk drag surfaces and coordinate ada
       coordinateAdapter: 'existing',
     },
   ])
-  assert.deepEqual(routeLayoutInventoryItemForRouteId('project.sourceWorkspace')?.dragSurfaces, [])
   assert.deepEqual(routeLayoutInventoryItemForRouteId('tools.refImageGen')?.dragSurfaces, [
     {
       id: 'tools.resource-pane',
@@ -276,7 +342,7 @@ function workbenchRoute(pathname: string) {
 
 function assertWorkspacePanes(pathname: string, paneIds: string[]) {
   const spec = routeLayoutSpecForPathname(pathname)
-  assert.equal(spec.surface, 'detail')
+  assert.equal(spec.surface, 'tool')
   assert.equal(spec.scrollMode, 'workspace')
   assert.equal(appRouteViewportScrollForMode(spec.scrollMode), 'owned')
   for (const paneId of paneIds) {

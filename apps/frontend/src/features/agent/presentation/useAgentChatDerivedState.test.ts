@@ -32,7 +32,7 @@ test('buildAgentChatConversationProjectionState suppresses streaming text after 
         id: 'assistant_run_1',
         content: '最终回复',
         meta: {
-          runtimeMessage: {
+          providerSessionMessage: {
             threadId: 'thread_1',
             messageId: 'assistant_run_1',
             runId: 'run_1',
@@ -80,15 +80,15 @@ test('buildAgentChatConversationProjectionState filters run interaction answer e
         id: 'trigger',
         role: 'user',
         content: '开始',
-        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' } },
+        meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' } },
       }),
       message({
         id: 'answer_echo',
         role: 'user',
         content: '回答：需要补充信息\n补充：你好',
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'answer_echo', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'answer_echo', runId: 'run_1', deliveryStatus: 'accepted' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'answer_echo', runId: 'run_1' },
+          providerSessionInput: { threadId: 'thread_1', messageId: 'answer_echo', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
     ],

@@ -1,18 +1,8 @@
-import { forwardRef, type ComponentPropsWithoutRef, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
 import {
   Button,
-  DialogContent,
-  DropdownMenuContent,
-  Input,
-  Label,
-  NativeSelect,
-  Textarea,
   type ButtonProps,
-  type InputProps,
-  type LabelProps,
-  type NativeSelectProps,
-  type TextareaProps,
 } from "../../../primitives";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../../primitives/icons";
 import type { IconComponent } from "../../../primitives/types";
@@ -119,28 +109,6 @@ export const AppTopControlButton = forwardRef<HTMLButtonElement, ButtonProps & {
 
 AppTopControlButton.displayName = "AppTopControlButton";
 
-export function AppTopLanguageLabel({ className, ...props }: LabelProps) {
-  return <Label className={cn("app-top-controls__sr-label", className)} {...props} />;
-}
-
-export function AppTopLanguageSelect({
-  density = "default",
-  className,
-  ...props
-}: NativeSelectProps & {
-  density?: "default" | "compact";
-}) {
-  return <NativeSelect data-density={density} className={cn("app-top-language-select", className)} {...props} />;
-}
-
-export function AppTopProjectMenuContent({ className, ...props }: ComponentPropsWithoutRef<typeof DropdownMenuContent>) {
-  return <DropdownMenuContent align="end" className={cn("app-top-project-menu", className)} {...props} />;
-}
-
-export function AppTopUserMenuContent({ className, ...props }: ComponentPropsWithoutRef<typeof DropdownMenuContent>) {
-  return <DropdownMenuContent align="end" className={cn("app-top-user-menu", className)} {...props} />;
-}
-
 export function AppTopMenuLabelPrimary({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn("app-top-menu-label__primary", className)} {...props} />;
 }
@@ -155,40 +123,4 @@ export function AppTopMenuItemText({ className, ...props }: HTMLAttributes<HTMLS
 
 export function AppTopMenuLeadingIcon({ icon: Icon }: { icon: IconComponent }) {
   return <Icon size={14} className="app-top-menu-item__leading-icon" />;
-}
-
-export function AppTopMenuSelectedIcon({ icon: Icon }: { icon: IconComponent }) {
-  return <Icon size={14} className="app-top-menu-item__selected-icon" />;
-}
-
-export function AppTopCreateProjectDialogContent(props: ComponentPropsWithoutRef<typeof DialogContent>) {
-  return <DialogContent className="app-top-create-project-dialog" {...props} />;
-}
-
-export function AppTopCreateProjectForm({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("app-top-create-project-form", className)} {...props} />;
-}
-
-export function AppTopCreateProjectField({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("app-top-create-project-field", className)} {...props} />;
-}
-
-export function AppTopCreateProjectLabel(props: LabelProps) {
-  return <Label {...props} />;
-}
-
-export function AppTopCreateProjectInput(props: InputProps) {
-  return <Input {...props} />;
-}
-
-export function AppTopCreateProjectTextarea(props: TextareaProps) {
-  return <Textarea {...props} />;
-}
-
-export function AppTopCreateProjectActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("app-top-create-project-actions", className)} {...props} />;
-}
-
-export function AppTopCreateProjectActionButton({ className, ...props }: ButtonProps) {
-  return <Button className={cn("app-top-create-project-action", className)} {...props} />;
 }

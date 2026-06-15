@@ -5,7 +5,7 @@ import {
   getProjectWorkbenchDefinition,
   type ProjectWorkbenchId,
 } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
-import type { WorkbenchProjectHeaderProps } from '@movscript/ui'
+import type { WorkbenchProjectHeaderProps } from '@movscript/ui/business/workbench'
 
 export interface ProjectWorkbenchShellInput {
   workbenchId: ProjectWorkbenchId

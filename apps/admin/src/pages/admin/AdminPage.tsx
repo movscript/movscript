@@ -2,26 +2,26 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Label } from '@movscript/ui'
-import { Badge } from '@movscript/ui'
-import { AppDataTableRow } from '@movscript/ui'
-import { AppFeedbackText } from '@movscript/ui'
-import { AppIconFrame } from '@movscript/ui'
-import { AppInlineError } from '@movscript/ui'
-import { AppMarkerDot } from '@movscript/ui'
-import { AppRequiredMark } from '@movscript/ui'
-import { AppStateMessage } from '@movscript/ui'
-import { AppStatusSurface } from '@movscript/ui'
-import { AppStatusToggleButton } from '@movscript/ui'
-import { StatusBadge, type StatusBadgeProps } from '@movscript/ui'
-import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
+import { Button } from '@movscript/ui/primitives'
+import { Input } from '@movscript/ui/primitives'
+import { Label } from '@movscript/ui/primitives'
+import { Badge } from '@movscript/ui/primitives'
+import { AppDataTableRow } from '@movscript/ui/business/app'
+import { AppFeedbackText } from '@movscript/ui/business/app'
+import { AppIconFrame } from '@movscript/ui/business/app'
+import { AppInlineError } from '@movscript/ui/business/app'
+import { AppMarkerDot } from '@movscript/ui/business/app'
+import { AppRequiredMark } from '@movscript/ui/business/app'
+import { AppStateMessage } from '@movscript/ui/business/app'
+import { AppStatusSurface } from '@movscript/ui/business/app'
+import { AppStatusToggleButton } from '@movscript/ui/business/app'
+import { StatusBadge, type StatusBadgeProps } from '@movscript/ui/primitives'
+import { Tabs, TabsList, TabsTrigger } from '@movscript/ui/primitives'
 import { ActiveOrgSelect } from '@/components/admin/ActiveOrgSelect'
 import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
 import { runtimeCapabilities, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
@@ -547,6 +547,7 @@ function CredentialForm({
       api.post('/admin/credentials', data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
       onSuccess(adapter.adapter_type)
     },
   })
@@ -570,6 +571,7 @@ function CredentialForm({
     try {
       await api.post('/admin/credentials', { ...buildPayload(), require_test_success: true }).then((r) => r.data)
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
       setTestState({ loading: false, result: { success: true, message: '连接正常', latency_ms: 0 } })
       onSuccess(adapter.adapter_type)
     } catch (e: any) {
@@ -794,6 +796,7 @@ function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; 
 function inferPricingMode(caps: string[]) {
   if (caps.some((c) => c === 'image' || c === 'image_edit')) return 'per_image'
   if (caps.some((c) => c.startsWith('video'))) return 'per_second'
+  if (caps.some((c) => c === 'audio' || c.startsWith('audio_') || c === 'subtitle_align' || c === 'render_video')) return 'per_call'
   return 'per_token'
 }
 
@@ -1198,6 +1201,186 @@ function formatParamRuleTypeSummary(summary: ParamRuleTypeSummary, t: (key: stri
   return parts.join(' · ')
 }
 
+function ProviderInstanceConfigDraftPanel({ instance }: { instance: ProviderInstance }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [config, setConfig] = useState<Record<string, string>>({})
+  const [secrets, setSecrets] = useState<Record<string, string>>({})
+  const [applyResult, setApplyResult] = useState<ProviderInstanceConfigApplyResult | null>(null)
+  const [activationResult, setActivationResult] = useState<ProviderInstanceConfigActivationResult | null>(null)
+
+  const draftQuery = useQuery<ProviderInstanceConfigDraft>({
+    queryKey: ['admin', 'provider-instance-config', instance.id],
+    queryFn: () => api.get(`/admin/provider-instances/${instance.id}/config`).then((r) => r.data),
+  })
+
+  useEffect(() => {
+    if (!draftQuery.data) return
+    const nextConfig: Record<string, string> = {}
+    draftQuery.data.config_fields.forEach((field) => {
+      nextConfig[field.key] = draftQuery.data?.config[field.key] ?? ''
+    })
+    setConfig(nextConfig)
+    setSecrets({})
+  }, [draftQuery.data, instance.id])
+
+  const saveDraft = useMutation({
+    mutationFn: () => api.put(`/admin/provider-instances/${instance.id}/config`, { config, secrets }),
+    onSuccess: () => {
+      setSecrets({})
+      setApplyResult(null)
+      setActivationResult(null)
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instance-config', instance.id] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
+    },
+  })
+
+  const applyDraft = useMutation({
+    mutationFn: () => api.post(`/admin/provider-instances/${instance.id}/config/apply`, {}).then((r) => r.data as ProviderInstanceConfigApplyResult),
+    onSuccess: (result) => {
+      setApplyResult(result)
+      setActivationResult(null)
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instance-config', instance.id] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
+    },
+  })
+
+  const activateDraft = useMutation({
+    mutationFn: (endpoint: string) => api.post(endpoint).then((r) => r.data as ProviderInstanceConfigActivationResult),
+    onSuccess: (result) => {
+      setActivationResult(result)
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
+    },
+  })
+
+  if (draftQuery.isLoading) {
+    return <p className="text-xs text-muted-foreground">{t('common.loading')}</p>
+  }
+  if (draftQuery.isError) {
+    return <AppInlineError>{translateAPIRequestError(draftQuery.error)}</AppInlineError>
+  }
+
+  const draft = draftQuery.data
+  const configFields = draft?.config_fields ?? instance.config_fields
+  const secretFields = draft?.secret_fields ?? instance.secret_fields
+  const activationPlan = applyResult?.activation_plan
+  const canOpenActivationURL = Boolean(activationPlan?.can_auto_apply && activationPlan.auto_apply_url)
+  const canTriggerActivationEndpoint = Boolean(activationPlan?.can_auto_apply && activationPlan.auto_apply_endpoint)
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-2">
+        {configFields.map((field) => (
+          <div key={field.key} className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              {field.key}
+              {field.required && <AppRequiredMark />}
+            </Label>
+            <Input
+              className="h-8 text-xs font-mono"
+              value={config[field.key] ?? ''}
+              onChange={(e) => setConfig((current) => ({ ...current, [field.key]: e.target.value }))}
+            />
+          </div>
+        ))}
+        {secretFields.map((field) => (
+          <div key={field.key} className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              {field.key}
+              {field.required && <AppRequiredMark />}
+              {field.configured && (
+                <StatusBadge intent="success" className="ml-1 text-[11px]">
+                  {t('admin.models.secretConfigured')}
+                </StatusBadge>
+              )}
+            </Label>
+            <Input
+              type="password"
+              className="h-8 text-xs font-mono"
+              value={secrets[field.key] ?? ''}
+              placeholder={field.configured ? t('admin.models.secretKeepPlaceholder') : ''}
+              onChange={(e) => setSecrets((current) => ({ ...current, [field.key]: e.target.value }))}
+            />
+          </div>
+        ))}
+      </div>
+      {saveDraft.isError && <AppInlineError>{translateAPIRequestError(saveDraft.error)}</AppInlineError>}
+      {applyDraft.isError && <AppInlineError>{translateAPIRequestError(applyDraft.error)}</AppInlineError>}
+      {activateDraft.isError && <AppInlineError>{translateAPIRequestError(activateDraft.error)}</AppInlineError>}
+      {applyResult && (
+        <AppStatusSurface tone="neutral" className="space-y-1">
+          <div>{t('admin.models.providerConfigApplied')}</div>
+          <div>{t(`admin.models.providerActivationModes.${applyResult.activation_mode}`, { defaultValue: t('admin.models.providerActivationModes.manual_restart') })}</div>
+          {activationPlan && (
+            <>
+              <div>{t(`admin.models.providerActivationActions.${activationPlan.action}`, { defaultValue: activationPlan.action })}</div>
+              <div>{t('admin.models.providerActivationHost', { host: activationPlan.host })}</div>
+              <div>
+                {canOpenActivationURL || canTriggerActivationEndpoint
+                  ? t('admin.models.providerActivationAutoApplyAvailable')
+                  : t('admin.models.providerActivationAutoApplyUnavailable')}
+              </div>
+              {activationResult && (
+                <AppFeedbackText as="div" tone={activationResult.success ? 'success' : 'danger'} className="text-xs">
+                  {activationResult.message || t('admin.models.providerActivationAutoApplyDone')}
+                </AppFeedbackText>
+              )}
+              {canOpenActivationURL && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-fit"
+                  onClick={() => {
+                    window.location.href = activationPlan.auto_apply_url ?? ''
+                  }}
+                >
+                  <RefreshCw size={14} />
+                  {t('admin.models.providerActivationAutoApplyOpen')}
+                </Button>
+              )}
+              {canTriggerActivationEndpoint && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-fit"
+                  onClick={() => {
+                    if (activationPlan.auto_apply_endpoint) activateDraft.mutate(activationPlan.auto_apply_endpoint)
+                  }}
+                  disabled={activateDraft.isPending}
+                >
+                  <RefreshCw size={14} />
+                  {activateDraft.isPending
+                    ? t('admin.models.providerActivationAutoApplying')
+                    : t('admin.models.providerActivationAutoApplyRun')}
+                </Button>
+              )}
+            </>
+          )}
+          <div className="font-mono break-all">{applyResult.env_path}</div>
+          <div className="font-mono break-all">{applyResult.env_keys.join(', ')}</div>
+        </AppStatusSurface>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        {draft?.requires_restart ? (
+          <StatusBadge intent="warning" className="text-xs">
+            {t('admin.models.requiresRestart')}
+          </StatusBadge>
+        ) : <span />}
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => saveDraft.mutate()} disabled={saveDraft.isPending || applyDraft.isPending || activateDraft.isPending}>
+            {saveDraft.isPending ? t('common.saving') : t('common.save')}
+          </Button>
+          <Button size="sm" onClick={() => applyDraft.mutate()} disabled={saveDraft.isPending || applyDraft.isPending || activateDraft.isPending}>
+            {applyDraft.isPending ? t('admin.models.applyingConfig') : t('admin.models.applyConfig')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Model Management Tab ──────────────────────────────────────────────────────
 
 export function ModelManagementPage() {
@@ -1208,6 +1391,7 @@ export function ModelManagementPage() {
   const [selectedAdapter, setSelectedAdapter] = useState<AdapterDef | null>(null)
   const [relayHint, setRelayHint] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [expandedProviderInstanceId, setExpandedProviderInstanceId] = useState<string | null>(null)
   const [showKey, setShowKey] = useState<Record<number, boolean>>({})
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [testingId, setTestingId] = useState<string | null>(null)
@@ -1266,6 +1450,19 @@ export function ModelManagementPage() {
     queryFn: () => api.get('/admin/credentials').then((r) => r.data),
   })
 
+  const { data: providerInstancesData, error: providerInstancesQueryError } = useQuery<ProviderInstancesResponse>({
+    queryKey: ['admin', 'provider-instances'],
+    queryFn: () => api.get('/admin/provider-instances').then((r) => r.data),
+    enabled: viewMode === 'providers',
+  })
+  const providerInstances = providerInstancesData?.items ?? []
+  const startupProviderInstances = providerInstances.filter((item) => !item.legacy_ref)
+  const providerInstanceByCredentialId = new Map(
+    providerInstances
+      .filter((item) => item.legacy_ref?.kind === 'ai_credential')
+      .map((item) => [item.legacy_ref?.id, item] as const),
+  )
+
   const runtimeHealthQuery = useQuery<RuntimeProviderHealthResponse>({
     queryKey: ['admin', 'model-runtime-health'],
     queryFn: () => api.get('/admin/debug/model-runtime-health').then((r) => r.data),
@@ -1279,6 +1476,7 @@ export function ModelManagementPage() {
     onSuccess: () => {
       setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
     },
     onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
@@ -1290,6 +1488,7 @@ export function ModelManagementPage() {
     onSuccess: () => {
       setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
     },
     onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
@@ -1301,6 +1500,7 @@ export function ModelManagementPage() {
     onSuccess: () => {
       setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
       setEditingNameId(null)
     },
     onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
@@ -1318,6 +1518,7 @@ export function ModelManagementPage() {
     onSuccess: () => {
       setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
       setCredentialEditFor(null)
       setCredentialEditFields({})
     },
@@ -1419,7 +1620,7 @@ export function ModelManagementPage() {
 
   const addEffectivePricingMode = canUseCustomPricingMode ? addPricingMode : inferPricingMode(addCapabilities)
   const editEffectivePricingMode = canUseCustomPricingMode ? editForm.pricing_mode : inferPricingMode(editForm.capabilities)
-  const modelQueryError = adaptersQueryError || presetsQueryError || credentialsQueryError
+  const modelQueryError = adaptersQueryError || presetsQueryError || credentialsQueryError || providerInstancesQueryError
 
   function closeAddPanel() {
     setAddingFor(null)
@@ -1573,10 +1774,82 @@ export function ModelManagementPage() {
 
       {viewMode === 'providers' && (
         <div className="space-y-3">
+          {startupProviderInstances.length > 0 && (
+            <div className="border border-border rounded-lg bg-background overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Settings2 size={15} className="text-muted-foreground" />
+                  <p className="text-sm font-medium">{t('admin.models.startupAssemblyTitle')}</p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('admin.models.startupAssemblyHint')}</p>
+              </div>
+              <div className="divide-y divide-border">
+                {startupProviderInstances.map((instance) => {
+                  const testKey = `provider-instance-${instance.id}`
+                  const testRes = testResults[testKey]
+                  const configuredConfig = instance.config_fields.filter((field) => field.configured).length
+                  const totalConfig = instance.config_fields.length
+                  const configuredSecrets = instance.secret_fields.filter((field) => field.configured).length
+                  const totalSecrets = instance.secret_fields.length
+                  return (
+                    <div key={instance.id}>
+                      <div className="px-4 py-3 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium">{instance.display_name || instance.label}</p>
+                            <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{instance.type}</span>
+                            <span className="text-xs text-muted-foreground">{instance.adapter}</span>
+                            {instance.requires_restart && (
+                              <StatusBadge intent="warning" className="text-xs">
+                                {t('admin.models.requiresRestart')}
+                              </StatusBadge>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span>{t('admin.models.providerInstanceConfig', { configured: configuredConfig, total: totalConfig })}</span>
+                            <span>{t('admin.models.providerInstanceSecrets', { configured: configuredSecrets, total: totalSecrets })}</span>
+                            <span>{t('admin.models.managedBy', { managedBy: instance.managed_by })}</span>
+                          </div>
+                        </div>
+                        {instance.config_editable && (
+                          <button
+                            onClick={() => setExpandedProviderInstanceId(expandedProviderInstanceId === instance.id ? null : instance.id)}
+                            className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5"
+                          >
+                            {expandedProviderInstanceId === instance.id ? t('admin.models.collapseConfig') : t('admin.models.configure')}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => runTest(testKey, () => api.post(`/admin/provider-instances/${instance.id}/test`, {}).then((r) => r.data))}
+                          disabled={testingId === testKey}
+                          className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5"
+                        >
+                          {testingId === testKey ? t('admin.credentials.testing') : t('admin.models.connectionTest')}
+                        </button>
+                        {testRes && (
+                          <AppFeedbackText as="span" tone={testRes.success ? 'neutral' : 'danger'}>
+                            {testRes.success ? `✓ ${testRes.latency_ms}ms` : t('admin.models.testFailedMark')}
+                          </AppFeedbackText>
+                        )}
+                      </div>
+                      {expandedProviderInstanceId === instance.id && (
+                        <div className="border-t border-border bg-card px-4 py-3">
+                          <ProviderInstanceConfigDraftPanel instance={instance} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {credentials.map((cred) => {
-          const testKey = `cred-${cred.ID}`
+          const providerInstance = providerInstanceByCredentialId.get(cred.ID)
+          const testKey = providerInstance ? `provider-instance-${providerInstance.id}` : `cred-${cred.ID}`
           const testRes = testResults[testKey]
           const adapter = adapters.find((a) => a.adapter_type === cred.adapter_type)
+          const configuredSecrets = providerInstance?.secret_fields.filter((field) => field.configured).length ?? 0
+          const totalSecrets = providerInstance?.secret_fields.length ?? 0
 
           return (
             <div key={cred.ID} className="border border-border rounded-lg bg-background overflow-hidden">
@@ -1631,6 +1904,11 @@ export function ModelManagementPage() {
                     {cred.models && cred.models.length > 0 && (
                       <span className="text-xs text-muted-foreground">{t('admin.models.modelsCount', { count: cred.models.length })}</span>
                     )}
+                    {providerInstance && (
+                      <span className="text-xs text-muted-foreground">
+                        {t('admin.models.providerInstanceSecrets', { configured: configuredSecrets, total: totalSecrets })}
+                      </span>
+                    )}
                   </div>
                   {cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
                 </div>
@@ -1645,7 +1923,11 @@ export function ModelManagementPage() {
                 )}
 
                 <button
-                  onClick={() => runTest(testKey, () => api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data))}
+                  onClick={() => runTest(testKey, () => (
+                    providerInstance
+                      ? api.post(`/admin/provider-instances/${providerInstance.id}/test`, {}).then((r) => r.data)
+                      : api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
+                  ))}
                   disabled={testingId === testKey}
                   className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5"
                 >
@@ -1755,10 +2037,9 @@ export function ModelManagementPage() {
 
                   {/* Add model panel */}
                   {addingFor === cred.ID && (() => {
-                    const capLabels: Record<string, string> = {
-                      text: t('admin.capabilities.text'), reasoning: t('admin.capabilities.reasoning'), image: t('admin.capabilities.image'), image_edit: t('admin.capabilities.imageEdit'),
-                      video: t('admin.capabilities.video'), video_i2v: t('admin.capabilities.videoI2V'), video_v2v: t('admin.capabilities.videoV2V'),
-                    }
+                    const capLabels: Record<string, string> = Object.fromEntries(
+                      MODEL_CAPABILITIES.map((cap) => [cap, t(CAPABILITY_TRANSLATION_KEYS[cap] ?? cap)])
+                    )
                     // Filter presets to this credential's adapter type.
                     const credAdapter = cred.adapter_type
                     const currentAdapter = adapters.find((a) => a.adapter_type === credAdapter)
@@ -2230,8 +2511,8 @@ export function ModelManagementPage() {
                             <div>
                               <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capabilitiesLabel')}</Label>
                               <div className="flex flex-wrap gap-1.5">
-                                {(['text', 'reasoning', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v'] as const).map((cap) => {
-                                  const labelKey = { text: 'admin.capabilities.text', reasoning: 'admin.capabilities.reasoning', image: 'admin.capabilities.image', image_edit: 'admin.capabilities.imageEdit', video: 'admin.capabilities.video', video_i2v: 'admin.capabilities.videoI2V', video_v2v: 'admin.capabilities.videoV2V' }[cap]
+                                {MODEL_CAPABILITIES.map((cap) => {
+                                  const labelKey = CAPABILITY_TRANSLATION_KEYS[cap] ?? cap
                                   const active = editForm.capabilities.includes(cap)
                                   return (
                                     <button
@@ -2450,6 +2731,7 @@ export function ModelManagementPage() {
                                     if (filesAPIEditKey) body.files_api_key = filesAPIEditKey
                                     await api.put(`/admin/credentials/${cred.ID}`, body)
                                     qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+                                    qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
                                     setFilesAPIEditFor(null)
                                   } finally {
                                     setFilesAPIEditSaving(false)
@@ -3363,7 +3645,25 @@ const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
   video: 'admin.capabilities.video',
   video_i2v: 'admin.capabilities.videoI2V',
   video_v2v: 'admin.capabilities.videoV2V',
+  audio: 'admin.capabilities.audio',
+  audio_tts: 'admin.capabilities.audioTTS',
+  audio_transcribe: 'admin.capabilities.audioTranscribe',
+  subtitle_align: 'admin.capabilities.subtitleAlign',
+  render_video: 'admin.capabilities.renderVideo',
 }
+
+const MODEL_CAPABILITIES = [
+  'text',
+  'reasoning',
+  'image',
+  'image_edit',
+  'video',
+  'video_i2v',
+  'video_v2v',
+  'audio_tts',
+  'audio_transcribe',
+] as const
+
 const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
   text: 'info',
   reasoning: 'warning',
@@ -3372,6 +3672,11 @@ const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
   video: 'neutral',
   video_i2v: 'neutral',
   video_v2v: 'neutral',
+  audio: 'info',
+  audio_tts: 'info',
+  audio_transcribe: 'info',
+  subtitle_align: 'info',
+  render_video: 'neutral',
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────

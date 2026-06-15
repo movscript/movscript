@@ -3,8 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { ClipboardCheck, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { AgentSurfaceBlock, Badge, StatusBadge, Button } from '@movscript/ui'
+import { AgentSurfaceBlock } from '@movscript/ui/business/agent'
+import { Badge, StatusBadge, Button } from '@movscript/ui/primitives'
 import { providerSessionClient, type WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
+import { agentArtifactKeys } from '@/features/agent/application/agentQueryKeys'
 import { buildWorkspaceArtifactReviewPath, buildWorkspaceReviewPath } from '@/features/agent/domain/workspaceDomainModel'
 import { workspaceArtifactStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -21,7 +23,7 @@ export function AgentArtifactResultCards({ artifacts }: { artifacts?: AgentTaskA
     return map
   }, [artifacts])
   const workspacesQuery = useQuery({
-    queryKey: ['agent-message-workspace-artifacts', providerSessionClient.baseURL, workspaceIds],
+    queryKey: agentArtifactKeys.messageWorkspaceArtifacts(providerSessionClient.baseURL, workspaceIds),
     queryFn: async () => Promise.all(workspaceIds.map(async (workspaceId) => {
       try {
         return await providerSessionClient.getWorkspaceArtifact(workspaceId)

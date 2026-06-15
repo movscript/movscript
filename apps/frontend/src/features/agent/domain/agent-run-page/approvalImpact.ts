@@ -164,9 +164,9 @@ function approvalEventToolMeta(event: AgentTraceEvent, toolName: string): { reas
 }
 
 function providerSessionApprovalImpactLabel(status: string): string {
-  if (status === 'approved') return '用户已批准；Provider 会话会带着已批准的工具调用继续执行。'
-  if (status === 'rejected') return '用户已拒绝；这次工具调用不会执行，Provider 会话继续处理拒绝结果或以警告完成。'
-  return 'Provider 会话暂停等待审批；同意后会继续执行该工具，拒绝会阻止这次工具调用。'
+  if (status === 'approved') return '用户已批准；Runtime 会话会带着已批准的工具调用继续执行。'
+  if (status === 'rejected') return '用户已拒绝；这次工具调用不会执行，Runtime 会话继续处理拒绝结果或以警告完成。'
+  return 'Runtime 会话暂停等待审批；同意后会继续执行该工具，拒绝会阻止这次工具调用。'
 }
 
 function pushMapValue(map: Map<string, string[]>, key: string, value: string) {

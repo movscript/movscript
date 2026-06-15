@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,9 @@ import (
 )
 
 const ContextUserKey = "currentUser"
+const ContextPreferredOrgIDKey = "preferredOrgID"
 const SessionCookieName = "movscript_session"
+const GitProxyTokenQueryParam = "git_token"
 
 // Identity reads a self-hosted session cookie, signed Bearer token, or Git BasicAuth token and loads the user into gin context.
 func Identity(db *gorm.DB, tokens *auth.Manager, encryptionKey ...[]byte) gin.HandlerFunc {
@@ -31,6 +34,11 @@ func Identity(db *gorm.DB, tokens *auth.Manager, encryptionKey ...[]byte) gin.Ha
 			if profile, ok := gitBasicAuthUser(c.Request, db, authService, gitCredentialKey); ok {
 				c.Set(ContextUserKey, profile)
 				c.Next()
+				return
+			}
+		}
+		if isGitProxyRequest(c.Request) && tokens != nil {
+			if handled := identityFromGitProxyToken(c, db, authService, tokens); handled {
 				return
 			}
 		}
@@ -65,6 +73,57 @@ func Identity(db *gorm.DB, tokens *auth.Manager, encryptionKey ...[]byte) gin.Ha
 		}
 		c.Next()
 	}
+}
+
+func identityFromGitProxyToken(c *gin.Context, db *gorm.DB, authService *authapp.Service, tokens *auth.Manager) bool {
+	raw := strings.TrimSpace(c.Query(GitProxyTokenQueryParam))
+	if raw == "" {
+		return false
+	}
+	claims, err := tokens.Verify(raw)
+	if err != nil {
+		status := http.StatusUnauthorized
+		msg := "Git clone 凭证无效"
+		if errors.Is(err, auth.ErrExpiredToken) {
+			msg = "Git clone 凭证已过期"
+		}
+		c.AbortWithStatusJSON(status, api.Response{Code: api.CodeAuthRequired, Message: msg})
+		return true
+	}
+	if claims.Purpose != auth.GitProxyTokenPurpose || claims.ProjectID == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, api.Response{Code: api.CodeAuthRequired, Message: "Git clone 凭证无效"})
+		return true
+	}
+	if projectIDFromGitProxyPath(c.Request.URL.Path) != claims.ProjectID {
+		c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("Git clone 凭证不匹配当前项目"))
+		return true
+	}
+	profile, err := authService.CurrentUser(c.Request.Context(), claims.UserID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, api.AuthRequired())
+		return true
+	}
+	c.Set(ContextUserKey, profile)
+	if claims.OrgID != 0 {
+		c.Set(ContextPreferredOrgIDKey, claims.OrgID)
+	}
+	c.Next()
+	return true
+}
+
+func projectIDFromGitProxyPath(path string) uint {
+	path = strings.TrimSpace(path)
+	const prefix = "/api/v1/projects/"
+	if !strings.HasPrefix(path, prefix) {
+		return 0
+	}
+	rest := strings.TrimPrefix(path, prefix)
+	segment, _, _ := strings.Cut(rest, "/")
+	id, err := strconv.ParseUint(segment, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return uint(id)
 }
 
 func isGitProxyRequest(req *http.Request) bool {

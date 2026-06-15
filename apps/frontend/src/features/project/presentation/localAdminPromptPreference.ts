@@ -1,3 +1,5 @@
+import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
+
 export const LOCAL_ADMIN_PROMPT_DISMISSED_KEY = 'movscript-local-admin-prompt-dismissed'
 
 export interface LocalAdminPromptPreferenceStorage {
@@ -26,6 +28,8 @@ export function saveLocalAdminPromptDismissed(
 }
 
 function browserLocalAdminPromptPreferenceStorage(): LocalAdminPromptPreferenceStorage | null {
-  if (typeof window === 'undefined') return null
-  return window.localStorage
+  return {
+    getItem: (key) => readBrowserStorageItem('local', key),
+    setItem: (key, value) => writeBrowserStorageItem('local', key, value),
+  }
 }

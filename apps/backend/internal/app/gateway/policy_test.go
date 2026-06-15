@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
-	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
@@ -42,7 +41,7 @@ func TestUsageContextIncludesAPIKeyAndProject(t *testing.T) {
 }
 
 func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
-	models := []ai.PublicModel{
+	models := []ChatModel{
 		{ID: 4, ModelDefID: "gpt-like", ModelIDOverride: "public-name"},
 		{ID: 5, ModelDefID: "provider-hidden", LogicalModelID: "logical-name"},
 	}

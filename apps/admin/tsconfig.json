@@ -39,8 +39,20 @@
       "@movscript/ui/style-system": [
         "../../packages/ui/src/style-system.ts"
       ],
+      "@movscript/ui/primitives": [
+        "../../packages/ui/src/primitives.ts"
+      ],
+      "@movscript/ui/layout": [
+        "../../packages/ui/src/layout.ts"
+      ],
+      "@movscript/ui/debug": [
+        "../../packages/ui/src/debug-entry.ts"
+      ],
       "@movscript/ui": [
         "../../packages/ui/src/index.ts"
+      ],
+      "@movscript/ui/*": [
+        "../../packages/ui/src/*"
       ],
       "@/*": [
         "./src/*"

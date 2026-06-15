@@ -6,9 +6,12 @@ import test from 'node:test'
 
 import {
   findUnpackedResourceDirs,
+  requiredDesktopPackagePrerequisites,
   resolveDesktopAppServerPath,
+  verifyBundledPackageResources,
   verifyBundledDesktopAppServers,
   verifyDesktopAppServerBinary,
+  verifyDesktopPackage,
   verifyBundledDesktopFFmpeg,
   verifyDesktopFFmpeg,
   verifyDesktopFFmpegFilters,
@@ -330,6 +333,174 @@ test('findUnpackedResourceDirs discovers platform-specific Electron resources', 
     assert.deepEqual(findUnpackedResourceDirs(dir, 'linux'), [linuxArm64Resources, linuxResources])
   } finally {
     await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('requiredDesktopPackagePrerequisites follows the package resource manifest', () => {
+  const root = resolve('/repo')
+  const communityManifest = {
+    resources: [
+      { id: 'backend' },
+      { id: 'renderer-admin' },
+      { id: 'ffmpeg' },
+      { id: 'app-server' },
+    ],
+  }
+  assert.deepEqual(requiredDesktopPackagePrerequisites(root, communityManifest, 'linux', 'x64'), [
+    resolve(root, 'apps/backend/bin/server'),
+    resolve(root, 'apps/backend/bin/admin/index.html'),
+    resolve(root, 'apps/frontend/vendor/ffmpeg/linux/x64/ffmpeg'),
+    resolve(root, 'apps/frontend/vendor/app-server/codex/linux/x64/app-server'),
+    resolve(root, 'apps/frontend/vendor/app-server/mova/linux/x64/app-server'),
+  ])
+
+  const enterpriseManifest = {
+    resources: [
+      { id: 'backend', filter: ['server', 'server.exe', 'admin/**'] },
+      { id: 'ffmpeg' },
+      { id: 'movscript-agent' },
+    ],
+  }
+  assert.deepEqual(requiredDesktopPackagePrerequisites(root, enterpriseManifest, 'win32', 'x64'), [
+    resolve(root, 'apps/backend/bin/server.exe'),
+    resolve(root, 'apps/backend/bin/admin/index.html'),
+    resolve(root, 'apps/frontend/vendor/ffmpeg/win32/x64/ffmpeg.exe'),
+  ])
+})
+
+test('verifyBundledPackageResources checks every required manifest target', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-package-manifest-'))
+  try {
+    const resources = join(dir, 'linux-unpacked/resources')
+    await mkdir(resources, { recursive: true })
+    const manifest = {
+      resources: [
+        { id: 'logo', to: 'logo.png', required: true },
+        { id: 'agent', to: 'movscript-agent', required: true },
+        { id: 'optional-docs', to: 'docs', required: false },
+      ],
+    }
+
+    assert.match(verifyBundledPackageResources(dir, 'linux', manifest), /logo/)
+    assert.match(verifyBundledPackageResources(dir, 'linux', manifest), /agent/)
+
+    await writeFile(join(resources, 'logo.png'), 'fake logo', 'utf8')
+    await mkdir(join(resources, 'movscript-agent'), { recursive: true })
+    assert.equal(verifyBundledPackageResources(dir, 'linux', manifest), '')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('verifyDesktopPackage accepts enterprise manifest resources without app-server', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'movscript-verify-enterprise-package-'))
+  try {
+    await mkdir(join(root, 'apps/frontend'), { recursive: true })
+    await mkdir(join(root, 'apps/backend/bin/admin'), { recursive: true })
+    await mkdir(join(root, 'apps/frontend/vendor/ffmpeg/linux/x64'), { recursive: true })
+    await mkdir(join(root, 'apps/frontend/release/linux-unpacked/resources/backend'), { recursive: true })
+    await mkdir(join(root, 'apps/frontend/release/linux-unpacked/resources/ffmpeg/linux/x64'), { recursive: true })
+    await mkdir(join(root, 'apps/frontend/release/linux-unpacked/resources/movscript-agent'), { recursive: true })
+
+    await writeFile(join(root, 'apps/frontend/electron-builder.yml'), [
+      'files:',
+      '  - out/**',
+      '  - package.json',
+      '',
+      'extraResources:',
+      '  - from: ../backend/bin',
+      '    to: backend',
+      '    filter:',
+      '      - server',
+      '      - server.exe',
+      '      - admin/**',
+      '  - from: vendor/ffmpeg',
+      '    to: ffmpeg',
+      '    filter:',
+      '      - "**/ffmpeg"',
+      '      - "**/ffmpeg.exe"',
+      '      - "**/METADATA.json"',
+      '  - from: movscript-agent',
+      '    to: movscript-agent',
+      '    filter:',
+      '      - dist/**',
+      '      - catalog/**',
+      '      - package.json',
+    ].join('\n'), 'utf8')
+    await writeFile(join(root, 'package-resources.manifest.json'), `${JSON.stringify({
+      schema: 'movscript.package-resources.v1',
+      product: 'movscript-enterprise-desktop',
+      edition: 'enterprise',
+      owner: 'enterprise-release',
+      builderConfig: 'apps/frontend/electron-builder.yml',
+      packageFiles: ['out/**', 'package.json'],
+      resources: [
+        {
+          id: 'backend',
+          category: 'managed-binary',
+          from: '../backend/bin',
+          to: 'backend',
+          filter: ['server', 'server.exe', 'admin/**'],
+          source: 'enterprise-build-artifact',
+          required: true,
+          owner: 'enterprise-backend',
+          license: 'LicenseRef-proprietary',
+          updatePolicy: 'bundled-with-app',
+          verification: ['test'],
+        },
+        {
+          id: 'ffmpeg',
+          category: 'third-party-binary',
+          from: 'vendor/ffmpeg',
+          to: 'ffmpeg',
+          filter: ['**/ffmpeg', '**/ffmpeg.exe', '**/METADATA.json'],
+          source: 'downloaded-release-artifact',
+          required: true,
+          owner: 'media-runtime',
+          license: 'GPL-3.0-or-later',
+          updatePolicy: 'bundled-with-app',
+          verification: ['test'],
+        },
+        {
+          id: 'movscript-agent',
+          category: 'managed-agent',
+          from: 'movscript-agent',
+          to: 'movscript-agent',
+          filter: ['dist/**', 'catalog/**', 'package.json'],
+          source: 'enterprise-build-artifact',
+          required: true,
+          owner: 'enterprise-agent',
+          license: 'LicenseRef-proprietary',
+          updatePolicy: 'bundled-with-app',
+          verification: ['test'],
+        },
+      ],
+      forbiddenPackagePaths: ['node_modules/**'],
+    }, null, 2)}\n`, 'utf8')
+
+    await writeFile(join(root, 'apps/backend/bin/server'), 'fake server', 'utf8')
+    await writeFile(join(root, 'apps/backend/bin/admin/index.html'), '<html></html>', 'utf8')
+    await writeFile(join(root, 'apps/frontend/release/app.AppImage'), 'fake app image', 'utf8')
+    await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/backend/server'), 'fake server', 'utf8')
+    await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/movscript-agent/package.json'), '{}\n', 'utf8')
+    await writeFile(join(root, 'apps/frontend/vendor/ffmpeg/linux/x64/ffmpeg'), 'fake ffmpeg', 'utf8')
+    await writeFile(join(root, 'apps/frontend/release/linux-unpacked/resources/ffmpeg/linux/x64/ffmpeg'), 'fake ffmpeg', 'utf8')
+    await writeMetadata(join(root, 'apps/frontend/vendor/ffmpeg/linux/x64'))
+    await writeMetadata(join(root, 'apps/frontend/release/linux-unpacked/resources/ffmpeg/linux/x64'))
+
+    const errors = []
+    assert.equal(verifyDesktopPackage(root, {
+      platform: 'linux',
+      arch: 'x64',
+      currentPlatform: 'darwin',
+      currentArch: 'arm64',
+      log: () => undefined,
+      logError: (message) => errors.push(message),
+      exit: (code) => errors.push(`exit ${code}`),
+    }), true)
+    assert.deepEqual(errors, [])
+  } finally {
+    await rm(root, { recursive: true, force: true })
   }
 })
 

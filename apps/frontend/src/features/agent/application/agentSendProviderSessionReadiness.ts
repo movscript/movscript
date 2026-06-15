@@ -28,7 +28,7 @@ export async function prepareSendProviderSession(input: PrepareSendProviderSessi
     deps.startActivityEvent({
       id: 'provider-session-ensure-running',
       kind: 'provider_session',
-      title: '准备 Provider 会话',
+      title: '准备 Runtime 会话',
       summary: providerSessionBaseURL,
     })
     await deps.ensureRunning()

@@ -33,30 +33,6 @@ export function AppRangeTrack({
   );
 }
 
-export interface AppWaveformBarsProps extends HTMLAttributes<HTMLDivElement> {
-  peaks: number[];
-  maxBars?: number;
-}
-
-export function AppWaveformBars({
-  peaks,
-  maxBars = 64,
-  className,
-  ...props
-}: AppWaveformBarsProps) {
-  return (
-    <div className={cn("app-waveform-bars", className)} {...props}>
-      {peaks.slice(0, maxBars).map((peak, index) => (
-        <span
-          key={index}
-          className="app-waveform-bars__bar"
-          style={{ height: `${Math.max(10, Math.min(92, peak * 90))}%` }}
-        />
-      ))}
-    </div>
-  );
-}
-
 function clampPercent(value: number) {
   return Math.min(100, Math.max(0, value));
 }

@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Bot, LayoutDashboard, Settings } from 'lucide-react'
 import { api } from '@/shared/infrastructure/api'
+import { authKeys } from '@/features/auth/application/authQueryKeys'
 import { getAPIBaseURL, isLocalLaunchMode } from '@/shared/infrastructure/config'
 import { translateApiError } from '@/shared/infrastructure/apiError'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -34,8 +35,8 @@ import {
   AuthWorkModePanel,
   AuthWorkModeRoot,
   WorkModePrompt,
-  type WorkModeChoice,
-} from '@movscript/ui'
+  type WorkModeChoice
+} from '@movscript/ui/business/app'
 
 type Tab = 'login' | 'register'
 
@@ -63,7 +64,7 @@ export default function AuthPage() {
   const [pendingSession, setPendingSession] = useState<AuthSession | null>(null)
 
   const authConfig = useQuery<AuthConfig>({
-    queryKey: ['auth', 'config'],
+    queryKey: authKeys.config,
     queryFn: () => api.get('/auth/config').then((r) => r.data),
   })
   const config = authConfig.data
@@ -115,7 +116,7 @@ export default function AuthPage() {
   const loading = login.isPending || register.isPending
   const onEnter = (e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSubmit()
 
-  function finishAuth(session: AuthSession) {
+  async function finishAuth(session: AuthSession) {
     if (settings.onboardingCompleted) {
       setSession(session)
       return
@@ -123,7 +124,7 @@ export default function AuthPage() {
     setPendingSession(session)
   }
 
-  function completeLogin(mode: WorkModeChoice) {
+  async function completeLogin(mode: WorkModeChoice) {
     if (!pendingSession) return
     setWorkMode(mode)
     setSession(pendingSession)
@@ -136,15 +137,15 @@ export default function AuthPage() {
           <AuthBrandMark>Movscript</AuthBrandMark>
           <WorkModePrompt
             agentIcon={Bot}
-            detailIcon={LayoutDashboard}
+            projectIcon={LayoutDashboard}
             title={t('auth.workModeTitle')}
             description={t('auth.workModeDescription')}
             agentTitle={t('appSettings.agentWorkMode')}
             agentDescription={t('onboarding.workMode.agentDescription')}
             agentAction={t('onboarding.workMode.agentAction')}
-            detailTitle={t('appSettings.detailWorkMode')}
-            detailDescription={t('onboarding.workMode.detailDescription')}
-            detailAction={t('onboarding.workMode.detailAction')}
+            projectTitle={t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
+            projectDescription={t('onboarding.workMode.projectDescription')}
+            projectAction={t('onboarding.workMode.projectAction')}
             onSelect={completeLogin}
           />
         </AuthWorkModePanel>

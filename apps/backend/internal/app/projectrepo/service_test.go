@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	domainorg "github.com/movscript/movscript/internal/domain/org"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 )
 
@@ -86,6 +88,42 @@ func TestLocalGitAdapterCreatesBareRepository(t *testing.T) {
 	}
 	if string(head) != "ref: refs/heads/main\n" {
 		t.Fatalf("HEAD = %q, want main symbolic ref", string(head))
+	}
+}
+
+func TestLocalGitAdapterCloneURLStrategies(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git binary not available: %v", err)
+	}
+	root := t.TempDir()
+	adapter := NewLocalGitAdapter(root, "git")
+	if _, err := adapter.EnsureRepository(context.Background(), EnsureRepositoryInput{
+		Owner:         "alice",
+		Repo:          "project-1",
+		DefaultBranch: "main",
+	}); err != nil {
+		t.Fatalf("EnsureRepository returned error: %v", err)
+	}
+
+	proxy, err := adapter.GetCloneURL(context.Background(), providercontract.RepositoryCloneURLRequest{
+		Ref:       providercontract.RepositoryRef{Owner: "alice", Repo: "project-1"},
+		PublicURL: "/api/v1/projects/1/git/project-1.git",
+	})
+	if err != nil {
+		t.Fatalf("GetCloneURL proxy returned error: %v", err)
+	}
+	if proxy.Strategy != providercontract.RepositoryCloneURLStrategyProxy || proxy.URL != "/api/v1/projects/1/git/project-1.git" {
+		t.Fatalf("proxy clone = %+v, want proxy public URL", proxy)
+	}
+	direct, err := adapter.GetCloneURL(context.Background(), providercontract.RepositoryCloneURLRequest{
+		Ref:               providercontract.RepositoryRef{Owner: "alice", Repo: "project-1"},
+		PreferredStrategy: providercontract.RepositoryCloneURLStrategyDirect,
+	})
+	if err != nil {
+		t.Fatalf("GetCloneURL direct returned error: %v", err)
+	}
+	if direct.Strategy != providercontract.RepositoryCloneURLStrategyDirect || !strings.HasPrefix(direct.URL, "file://") {
+		t.Fatalf("direct clone = %+v, want file direct URL", direct)
 	}
 }
 
@@ -357,15 +395,144 @@ func TestEnsureProjectRepositoryUsesOrganizationGiteaOwner(t *testing.T) {
 	}
 }
 
+func TestWorkspaceMetadataPassesActorToCloneURLStrategy(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-workspace-actor.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "alice"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{result: EnsureRepositoryResult{ProviderRepoID: "remote-1"}}
+	service := NewService(db, Config{RepoPrefix: "project-", DefaultBranch: "main"}, adapter)
+
+	metadata, err := service.WorkspaceMetadata(context.Background(), project.ID, nil, RepositoryActor{UserID: 9, Username: "viewer"})
+	if err != nil {
+		t.Fatalf("WorkspaceMetadata returned error: %v", err)
+	}
+	if metadata.GitRemoteURL == "" {
+		t.Fatalf("metadata git remote URL is empty: %+v", metadata)
+	}
+	if adapter.cloneRequest.Actor.UserID != 9 || adapter.cloneRequest.Actor.Username != "viewer" {
+		t.Fatalf("clone actor = %+v, want current user actor", adapter.cloneRequest.Actor)
+	}
+}
+
+func TestWorkspaceMetadataPassesConfiguredCloneURLStrategy(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-workspace-clone-strategy.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "alice"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{
+		result:        EnsureRepositoryResult{ProviderRepoID: "remote-1"},
+		cloneStrategy: providercontract.RepositoryCloneURLStrategyDirect,
+	}
+	service := NewService(db, Config{
+		RepoPrefix:       "project-",
+		DefaultBranch:    "main",
+		CloneURLStrategy: providercontract.RepositoryCloneURLStrategyDirect,
+	}, adapter)
+
+	metadata, err := service.WorkspaceMetadata(context.Background(), project.ID, nil, RepositoryActor{UserID: 9, Username: "viewer"})
+	if err != nil {
+		t.Fatalf("WorkspaceMetadata returned error: %v", err)
+	}
+	if adapter.cloneRequest.PreferredStrategy != providercontract.RepositoryCloneURLStrategyDirect {
+		t.Fatalf("clone strategy = %q, want direct", adapter.cloneRequest.PreferredStrategy)
+	}
+	if metadata.GitRemoteStrategy != providercontract.RepositoryCloneURLStrategyDirect {
+		t.Fatalf("metadata clone strategy = %q, want direct", metadata.GitRemoteStrategy)
+	}
+}
+
+func TestWorkspaceMetadataUsesProxyURLForTemporaryCloneStrategy(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-repository-workspace-clone-strategy-error.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectRepository{},
+	)
+	owner := persistencemodel.User{Username: "alice"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Pilot", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	adapter := &fakeGitRepositoryAdapter{
+		result: EnsureRepositoryResult{ProviderRepoID: "remote-1"},
+	}
+	service := NewService(db, Config{
+		RepoPrefix:       "project-",
+		DefaultBranch:    "main",
+		CloneURLStrategy: providercontract.RepositoryCloneURLStrategyTemporary,
+	}, adapter)
+
+	metadata, err := service.WorkspaceMetadata(context.Background(), project.ID, nil, RepositoryActor{UserID: 9, Username: "viewer"})
+
+	if err != nil {
+		t.Fatalf("WorkspaceMetadata returned error: %v", err)
+	}
+	if metadata.GitRemoteStrategy != providercontract.RepositoryCloneURLStrategyTemporary {
+		t.Fatalf("metadata clone strategy = %q, want temporary", metadata.GitRemoteStrategy)
+	}
+	if metadata.GitRemoteURL != "/api/v1/projects/1/git/project-1.git" {
+		t.Fatalf("metadata clone URL = %q", metadata.GitRemoteURL)
+	}
+	if adapter.cloneRequest.PreferredStrategy != "" {
+		t.Fatalf("adapter clone request = %+v, want no provider clone URL call", adapter.cloneRequest)
+	}
+}
+
 type fakeGitRepositoryAdapter struct {
-	calls  int
-	result EnsureRepositoryResult
-	err    error
-	input  EnsureRepositoryInput
+	calls         int
+	result        EnsureRepositoryResult
+	err           error
+	input         EnsureRepositoryInput
+	cloneRequest  providercontract.RepositoryCloneURLRequest
+	cloneStrategy string
+	cloneErr      error
 }
 
 func (a *fakeGitRepositoryAdapter) EnsureRepository(_ context.Context, input EnsureRepositoryInput) (EnsureRepositoryResult, error) {
 	a.calls++
 	a.input = input
 	return a.result, a.err
+}
+
+func (a *fakeGitRepositoryAdapter) GetCloneURL(_ context.Context, request providercontract.RepositoryCloneURLRequest) (providercontract.RepositoryCloneURLResult, error) {
+	a.cloneRequest = request
+	if a.cloneErr != nil {
+		return providercontract.RepositoryCloneURLResult{}, a.cloneErr
+	}
+	strategy := a.cloneStrategy
+	if strategy == "" {
+		strategy = providercontract.RepositoryCloneURLStrategyProxy
+	}
+	return providercontract.RepositoryCloneURLResult{URL: request.PublicURL, Strategy: strategy}, nil
+}
+
+func (a *fakeGitRepositoryAdapter) GetGitHTTPProxyTarget(_ context.Context, request providercontract.GitHTTPProxyTargetRequest) (providercontract.GitHTTPProxyTarget, error) {
+	return providercontract.GitHTTPProxyTarget{
+		Provider:      ProviderGitea,
+		Owner:         request.Ref.Owner,
+		Repo:          request.Ref.Repo,
+		DefaultBranch: request.Ref.DefaultBranch,
+		BaseURL:       "http://gitea.local",
+	}, nil
 }

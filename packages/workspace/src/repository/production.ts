@@ -143,11 +143,20 @@ export interface MovScriptProductionWorkspaceSettingRefNode {
 export interface MovScriptProductionWorkspaceExpressionUnitNode {
   id?: string | number
   client_id?: string
+  title?: string
+  modality?: string
+  role?: string
   kind?: string
+  visual_kind?: string
   speaker?: string
+  speaker_ref?: string
+  source_expression_ref?: string
   text?: string
   note?: string
   intent?: string
+  content?: Record<string, unknown>
+  timing_intent?: Record<string, unknown>
+  voice_profile_ref?: string
   order?: number
   span?: Record<string, unknown>
   script_block_id?: string | number | null
@@ -344,12 +353,20 @@ export async function saveMovScriptProductionWorkspaceSnapshot(
           schema: 'movscript.expression_unit.v1',
           kind: 'expression_unit',
           id: expressionId,
-          title: stringValue(existingExpression.title) ?? stringValue(expression.text) ?? `Expression Unit ${displayId(expressionId, 'expression_unit')}`,
+          title: stringValue(expression.title ?? existingExpression.title) ?? stringValue(expression.text) ?? `Expression Unit ${displayId(expressionId, 'expression_unit')}`,
+          modality: stringValue(expression.modality ?? existingExpression.modality),
+          role: stringValue(expression.role ?? existingExpression.role),
           expression_kind: normalizeExpressionKind(expression.kind ?? existingExpression.expression_kind),
+          visual_kind: stringValue(expression.visual_kind ?? existingExpression.visual_kind),
           speaker: stringValue(expression.speaker ?? existingExpression.speaker),
+          speaker_ref: stringValue(expression.speaker_ref ?? existingExpression.speaker_ref),
+          source_expression_ref: stringValue(expression.source_expression_ref ?? existingExpression.source_expression_ref),
           text: stringValue(expression.text ?? existingExpression.text) ?? '',
           note: stringValue(expression.note ?? existingExpression.note),
           intent: stringValue(expression.intent ?? existingExpression.intent),
+          content: isRecord(expression.content) ? expression.content : (isRecord(existingExpression.content) ? existingExpression.content : undefined),
+          timing_intent: isRecord(expression.timing_intent) ? expression.timing_intent : (isRecord(existingExpression.timing_intent) ? existingExpression.timing_intent : undefined),
+          voice_profile_ref: stringValue(expression.voice_profile_ref ?? existingExpression.voice_profile_ref),
           order: finiteNumber(expression.order) ?? finiteNumber(existingExpression.order),
           span: isRecord(expression.span) ? expression.span : (isRecord(existingExpression.span) ? existingExpression.span : undefined),
           script_block_id: nullableRef(expression.script_block_id ?? existingExpression.script_block_id, 'script_block'),

@@ -22,11 +22,14 @@ export const ROUTES = {
   agentConnections: '/agent/connections',
   agentSettings: '/agent/settings',
   project: {
+    root: '/project',
+    home: '/project/home',
     agent: '/project/agent',
     agentCanvases: '/project/agent/canvases',
     standards: '/project/standards',
     scripts: '/project/scripts/workbench',
-    sourceWorkspace: '/project/content-units/editor',
+    contentCanvas: '/project/content-orchestration/canvas',
+    contentCanvasNext: '/project/content-orchestration/canvas-next',
   },
   tools: {
     refImageGen: '/tools/ref-image-gen',

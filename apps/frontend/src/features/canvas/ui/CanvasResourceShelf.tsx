@@ -7,18 +7,21 @@ import { api } from '@/shared/infrastructure/api'
 import {
   CanvasMediaEmptyIcon,
   CanvasMediaFill,
+} from '@movscript/ui/business/canvas'
+import {
   CanvasResourceShelfLazyFrame,
   CanvasResourceShelfMetadataProbe,
   CanvasResourceShelfMetadataText,
   CanvasResourceShelfView,
-  type CanvasResourceShelfItem,
-} from '@movscript/ui'
+  type CanvasResourceShelfItem
+} from './CanvasResourceShelfUi'
 import type { PaginatedResponse, RawResource } from '@/types'
 import { resourceMatchesSearch, resourceToNodeType } from '@/features/canvas/integrations/resources'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceImage } from '@/shared/ui/ResourceImage'
 import { resourceMediaDiagnosticsEnabled } from '@/shared/ui/resourceMediaDiagnostics'
 import { startResourceDragSource } from '@/features/resources/domain/resourceInteraction'
+import { canvasResourceKeys } from '@/features/resources/application/resourceQueryKeys'
 
 const RESOURCE_SHELF_THUMB_MAX_SIZE = 160
 
@@ -32,7 +35,7 @@ export function CanvasResourceShelf({
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const { data: resourcePage } = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['canvas-resource-shelf', 'resources'],
+    queryKey: canvasResourceKeys.shelf,
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 48, type: 'image,video,text' } }).then((r) => r.data),
   })
   const resources = (resourcePage?.items ?? []).filter((resource) => resourceToNodeType(resource))

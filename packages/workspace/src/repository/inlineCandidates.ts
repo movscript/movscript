@@ -6,7 +6,7 @@ import {
   type MovScriptDecisionTargetKind,
 } from '@movscript/decision'
 
-export type MovScriptInlineCandidateTargetKind = MovScriptDecisionTargetKind
+export type MovScriptInlineCandidateTargetKind = Exclude<MovScriptDecisionTargetKind, 'content_unit'>
 
 export interface MovScriptInlineCandidatePayload {
   id?: string
@@ -153,6 +153,9 @@ function readTargetRecord(
 }
 
 function validateTargetKind(targetKind: MovScriptInlineCandidateTargetKind, record: Record<string, unknown>): void {
+  if ((targetKind as string) === 'content_unit') {
+    throw new Error('content_unit candidates are backend decision records; use createContentCandidate/selectContentUnitCandidate')
+  }
   if (record.kind === targetKind) return
   const schemaKind = typeof record.schema === 'string'
     ? record.schema.replace(/^movscript\./, '').replace(/\.v\d+$/, '')

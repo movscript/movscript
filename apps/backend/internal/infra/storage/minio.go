@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type MinIOStorage struct {
@@ -16,11 +18,25 @@ type MinIOStorage struct {
 	bucket string
 }
 
+var minioTransportOverride http.RoundTripper
+
+func SetMinIOTransportForTest(transport http.RoundTripper) func() {
+	previous := minioTransportOverride
+	minioTransportOverride = transport
+	return func() {
+		minioTransportOverride = previous
+	}
+}
+
 func NewMinIOStorage(endpoint, accessKey, secretKey, bucket string, useSSL bool) (*MinIOStorage, error) {
-	client, err := minio.New(endpoint, &minio.Options{
+	options := &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
-	})
+	}
+	if minioTransportOverride != nil {
+		options.Transport = minioTransportOverride
+	}
+	client, err := minio.New(endpoint, options)
 	if err != nil {
 		return nil, fmt.Errorf("minio client: %w", err)
 	}
@@ -75,3 +91,30 @@ func (s *MinIOStorage) GetObject(ctx context.Context, key string, start, end int
 }
 
 func (s *MinIOStorage) Backend() string { return "minio" }
+
+func (s *MinIOStorage) Health(ctx context.Context) providercontract.ProviderHealth {
+	health := providercontract.ProviderHealth{
+		Type:     providercontract.TypeBlobStorage,
+		Adapter:  providercontract.AdapterMinIO,
+		Assembly: providercontract.AssemblyStartup,
+		Status:   providercontract.HealthStatusOK,
+		Message:  "MinIO bucket health probe succeeded",
+	}
+	if s == nil || s.client == nil || s.bucket == "" {
+		health.Status = providercontract.HealthStatusMissingConfig
+		health.Message = "MinIO endpoint, credentials, and bucket are required"
+		return health
+	}
+	ok, err := s.client.BucketExists(ctx, s.bucket)
+	if err != nil {
+		health.Status = providercontract.HealthStatusError
+		health.Message = fmt.Sprintf("MinIO bucket health probe failed: %v", err)
+		return health
+	}
+	if !ok {
+		health.Status = providercontract.HealthStatusError
+		health.Message = fmt.Sprintf("MinIO bucket %q does not exist or is not accessible", s.bucket)
+		return health
+	}
+	return health
+}

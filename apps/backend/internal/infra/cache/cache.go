@@ -1,26 +1,18 @@
 package cache
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/movscript/movscript/internal/infra/config"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 var ErrInvalidBackend = errors.New("invalid cache backend")
 
-type Cache interface {
-	GetJSON(ctx context.Context, key string, dst any) (bool, error)
-	SetJSON(ctx context.Context, key string, value any, ttl time.Duration) error
-	Delete(ctx context.Context, keys ...string) error
-	GetVersion(ctx context.Context, namespace string) (int64, error)
-	BumpVersion(ctx context.Context, namespace string) (int64, error)
-	Close() error
-}
+type Cache = providercontract.Cache
 
 func New(cfg *config.Config) (Cache, error) {
 	if cfg == nil {

@@ -47,7 +47,7 @@ export interface AgentConversationRegistryState {
 export interface AgentConversationRegistrySelectorInput {
   userId?: string
   projectId?: number
-  surface?: 'agent' | 'detail'
+  surface?: 'agent' | 'project'
   provider?: string
   providerId?: string
   providerInstanceId?: string
@@ -187,7 +187,7 @@ export function selectAgentConversationRegistryRecords(
       if (!agentConversationRegistryRecordMatchesProvider(record, input)) return false
       if (!input.includeArchived && record.archived) return false
       if (!input.includeClosed && !record.open) return false
-      if (input.surface === 'detail' && input.projectId !== undefined && record.projectId !== input.projectId) return false
+      if (input.surface === 'project' && input.projectId !== undefined && record.projectId !== input.projectId) return false
       return true
     })
     .sort((left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id))
@@ -270,7 +270,7 @@ function agentConversationRegistryRecordMatchesSelector(
   if (!agentConversationRegistryRecordMatchesProvider(record, input)) return false
   if (!input.includeArchived && record.archived) return false
   if (!input.includeClosed && !record.open) return false
-  if (input.surface === 'detail' && input.projectId !== undefined && record.projectId !== input.projectId) return false
+  if (input.surface === 'project' && input.projectId !== undefined && record.projectId !== input.projectId) return false
   return true
 }
 

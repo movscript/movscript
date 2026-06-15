@@ -22,14 +22,14 @@ test('overlap pane resizing is owned by the shared layout controller', () => {
   assert.doesNotMatch(expandBranch, /startSize >= resolvedMaxSize/)
 
   assert.match(routeOverlapControllerSource, /usePersistentOverlapPaneController\(routeLayoutOverlapPaneControllerOptionsForPane/)
-  for (const pageSource of [toolDialogSource, scriptsSource]) {
-    assert.match(pageSource, /useRouteLayoutOverlapPaneController/)
-    assert.match(pageSource, /\.groupProps/)
-    assert.doesNotMatch(pageSource, /usePersistentOverlapPaneController/)
-    assert.doesNotMatch(pageSource, /useOverlapPaneDisclosure/)
-    assert.doesNotMatch(pageSource, /useResizableOverlapPane/)
-    assert.doesNotMatch(pageSource, /useOverlapPaneController/)
-  }
+  assert.match(toolDialogSource, /useRouteLayoutOverlapPaneController/)
+  assert.match(toolDialogSource, /\.groupProps/)
+  assert.doesNotMatch(toolDialogSource, /usePersistentOverlapPaneController/)
+  assert.doesNotMatch(toolDialogSource, /useOverlapPaneDisclosure/)
+  assert.doesNotMatch(toolDialogSource, /useResizableOverlapPane/)
+  assert.doesNotMatch(toolDialogSource, /useOverlapPaneController/)
+  assert.doesNotMatch(scriptsSource, /useRouteLayoutOverlapPaneController/)
+  assert.doesNotMatch(scriptsSource, /\.groupProps/)
 
   assert.doesNotMatch(toolDialogSource, /function startResourcePaneResize/)
   assert.doesNotMatch(scriptsSource, /railResizeStart|setIsResizingRail|function startRailResize/)
@@ -38,22 +38,16 @@ test('overlap pane resizing is owned by the shared layout controller', () => {
 test('overlap pane pages follow the reference workbench direction and nesting contract', () => {
   const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
   const scriptsSource = readFileSync(resolve('src/features/scripts/components/ScriptsPage.tsx'), 'utf8')
-  const toolDialogLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/tools/dialog/index.tsx'), 'utf8')
-  const scriptLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/scripts/page/index.tsx'), 'utf8')
-  const resourceLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/resource/page/index.tsx'), 'utf8')
+  const toolDialogLayoutSource = readFileSync(resolve('src/features/tools/components/ToolDialogUi.tsx'), 'utf8')
+  const scriptLayoutSource = readFileSync(resolve('src/features/scripts/components/ScriptsPageUi.tsx'), 'utf8')
+  const resourcePagePackageDir = resolve('../../packages/ui/src/components/business/resource/page')
 
-  for (const source of [
-    toolDialogSource,
-    scriptsSource,
-    toolDialogLayoutSource,
-    scriptLayoutSource,
-    resourceLayoutSource,
-  ]) {
+  for (const source of [toolDialogSource, toolDialogLayoutSource, scriptLayoutSource]) {
     assert.doesNotMatch(source, /side=["']right["']/)
   }
 
   assert.match(toolDialogLayoutSource, /side="left"[\s\S]*resizeHandleSide=\{resizeHandleSide\}/)
-  assert.match(resourceLayoutSource, /<OverlapPane as="main" side="left"/)
+  assert.equal(existsSync(resourcePagePackageDir), false)
 })
 
 test('overlap pane geometry and user width history use the shared contract', () => {
@@ -61,10 +55,8 @@ test('overlap pane geometry and user width history use the shared contract', () 
   const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
   const scriptsSource = readFileSync(resolve('src/features/scripts/components/ScriptsPage.tsx'), 'utf8')
   const routeOverlapControllerSource = readFileSync(resolve('src/features/app-shell/application/useRouteLayoutOverlapPaneController.ts'), 'utf8')
-  const toolDialogStyles = readFileSync(resolve('../../packages/ui/src/components/business/tools/dialog/styles.css'), 'utf8')
-  const scriptStyles = readFileSync(resolve('../../packages/ui/src/components/business/scripts/page/styles.css'), 'utf8')
-  const resourceStyles = readFileSync(resolve('../../packages/ui/src/components/business/resource/page/styles.css'), 'utf8')
-  const contentStyles = readFileSync(resolve('../../packages/ui/src/components/business/content/workbench/styles.css'), 'utf8')
+  const toolDialogStyles = readFileSync(resolve('src/features/tools/components/ToolDialogUi.css'), 'utf8')
+  const scriptStyles = readFileSync(resolve('src/features/scripts/components/ScriptsPageUi.css'), 'utf8')
 
   assert.match(workspaceSource, /window\.localStorage\.getItem\(storageKey\)/)
   assert.match(workspaceSource, /window\.localStorage\.setItem\(storageKey, String\(size\)\)/)
@@ -76,35 +68,33 @@ test('overlap pane geometry and user width history use the shared contract', () 
   assert.match(routeOverlapControllerSource, /storageKey: pane\.storageKey/)
   assert.match(routeOverlapControllerSource, /defaultSize: pane\.defaultSize/)
   assert.match(routeOverlapControllerSource, /export function routeLayoutOverlapPaneGroupPropsForVisibility/)
-  for (const pageSource of [toolDialogSource, scriptsSource]) {
+  for (const pageSource of [toolDialogSource]) {
     assert.match(pageSource, /useRouteLayoutOverlapPaneController\(\{/)
     assert.match(pageSource, /\w+\.groupProps/)
     assert.doesNotMatch(pageSource, /storageKey:/)
     assert.doesNotMatch(pageSource, /defaultSize:/)
     assert.doesNotMatch(pageSource, /data-(resource|script-detail|detail|asset)-pane-(collapsed|expanded|resized)=/)
-    assert.doesNotMatch(pageSource, /--(tool-dialog-resource-pane-width|script-workbench-detail-pane-width|resource-prep-detail-pane-width|resource-prep-setting-asset-pane-width|production-orchestration-detail-pane-width|content-workbench-detail-pane-width)/)
+    assert.doesNotMatch(pageSource, /--(tool-dialog-resource-pane-width|script-workbench-inspector-pane-width|resource-prep-detail-pane-width|resource-prep-setting-asset-pane-width|production-orchestration-detail-pane-width|content-workbench-detail-pane-width)/)
   }
+  assert.doesNotMatch(scriptsSource, /useRouteLayoutOverlapPaneController/)
+  assert.doesNotMatch(scriptsSource, /\w+\.groupProps/)
 
-  assert.match(scriptsSource, /from '@\/features\/scripts\/presentation\/scriptsWorkbenchLayoutSpec'/)
-  assert.match(scriptsSource, /paneId: SCRIPT_WORKBENCH_DETAIL_PANE_ID/)
-  assert.doesNotMatch(scriptsSource, /const SCRIPT_DETAIL_PANE_WIDTH_STORAGE_KEY/)
+  assert.doesNotMatch(scriptsSource, /from '@\/features\/scripts\/presentation\/scriptsWorkbenchLayoutSpec'/)
+  assert.doesNotMatch(scriptsSource, /SCRIPT_WORKBENCH_INSPECTOR_PANE_ID/)
+  assert.doesNotMatch(scriptsSource, /SCRIPT_WORKBENCH_DETAIL|SCRIPT_DETAIL_PANE_WIDTH_STORAGE_KEY/)
 
-  for (const businessStyles of [toolDialogStyles, scriptStyles, resourceStyles, contentStyles]) {
-    assert.match(businessStyles, /--overlap-pane-size/)
-    assert.match(businessStyles, /data-overlap-pane-(collapsed|expanded|resized)/)
-    assert.doesNotMatch(businessStyles, /data-(resource|script-detail|detail|asset)-pane/)
-    assert.doesNotMatch(businessStyles, /--(tool-dialog-resource-pane-width|script-workbench-detail-pane-width|resource-prep-detail-pane-width|resource-prep-setting-asset-pane-width|production-orchestration-detail-pane-width|content-workbench-detail-pane-width)/)
-  }
+  assert.match(toolDialogStyles, /--overlap-pane-size/)
+  assert.match(toolDialogStyles, /data-overlap-pane-(collapsed|expanded|resized)/)
+  assert.doesNotMatch(scriptStyles, /--overlap-pane-size/)
+  assert.doesNotMatch(scriptStyles, /data-overlap-pane-(collapsed|expanded|resized)/)
 
-  assert.doesNotMatch(contentStyles, /\.workbench-project-(body|viewport|pane):has\(\.?content-workbench-workspace-shell/)
   assert.equal(existsSync(resolve('../../packages/ui/src/components/business/production/orchestration')), false)
 })
 
 test('business overlap wrappers use the scoped group primitive', () => {
-  const scriptLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/scripts/page/index.tsx'), 'utf8')
-  const toolDialogLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/tools/dialog/index.tsx'), 'utf8')
-  const resourceLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/resource/page/index.tsx'), 'utf8')
-  const contentLayoutSource = readFileSync(resolve('../../packages/ui/src/components/business/content/workbench/index.tsx'), 'utf8')
+  const scriptLayoutSource = readFileSync(resolve('src/features/scripts/components/ScriptsPageUi.tsx'), 'utf8')
+  const toolDialogLayoutSource = readFileSync(resolve('src/features/tools/components/ToolDialogUi.tsx'), 'utf8')
+  const resourcePagePackageDir = resolve('../../packages/ui/src/components/business/resource/page')
   const workspaceSource = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/index.tsx'), 'utf8')
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
 
@@ -112,11 +102,9 @@ test('business overlap wrappers use the scoped group primitive', () => {
   assert.match(workspaceSource, /data-overlap-side=\{overlapSide\}/)
   assert.match(workspaceStyles, /\.overlap-pane-layout\[data-overlap-side="left"\] > :first-child:not\(\.overlap-pane\) \{[\s\S]*--overlap-pane-reserve-inline-end: var\(--overlap-pane-offset\);/)
   assert.doesNotMatch(workspaceStyles, /\.overlap-pane-layout:has/)
-  assert.match(scriptLayoutSource, /<OverlapPaneGroup overlapSide="left" className=\{cn\("script-workbench-layout"/)
+  assert.doesNotMatch(scriptLayoutSource, /<OverlapPaneGroup/)
   assert.match(toolDialogLayoutSource, /<OverlapPaneGroup overlapSide="left" className=\{cn\("tool-dialog-body"/)
-  assert.match(resourceLayoutSource, /<OverlapPaneGroup overlapSide="left" className=\{cn\("resource-prep-workbench-layout"/)
-  assert.match(contentLayoutSource, /<OverlapPaneGroup[\s\S]*overlapSide="left"[\s\S]*className="content-workbench-command-center"/)
-  assert.match(contentLayoutSource, /<OverlapPaneGroup[\s\S]*as="section"[\s\S]*overlapSide="left"[\s\S]*className=\{cn\("content-workbench-production-grid"/)
+  assert.equal(existsSync(resourcePagePackageDir), false)
 })
 
 test('overlap pane owns default block-axis fill behavior', () => {
@@ -128,15 +116,12 @@ test('overlap pane owns default block-axis fill behavior', () => {
 
 test('overlap pane owns the shared pane padding', () => {
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
-  const toolDialogStyles = readFileSync(resolve('../../packages/ui/src/components/business/tools/dialog/styles.css'), 'utf8')
-  const scriptStyles = readFileSync(resolve('../../packages/ui/src/components/business/scripts/page/styles.css'), 'utf8')
+  const toolDialogStyles = readFileSync(resolve('src/features/tools/components/ToolDialogUi.css'), 'utf8')
+  const scriptStyles = readFileSync(resolve('src/features/scripts/components/ScriptsPageUi.css'), 'utf8')
   const scriptHeaderStyles = readFileSync(resolve('../../packages/ui/src/components/business/scripts/detail-header/styles.css'), 'utf8')
   const scriptTabsStyles = readFileSync(resolve('../../packages/ui/src/components/business/scripts/tabs/styles.css'), 'utf8')
-  const resourceStyles = readFileSync(resolve('../../packages/ui/src/components/business/resource/page/styles.css'), 'utf8')
-  const contentStyles = readFileSync(resolve('../../packages/ui/src/components/business/content/workbench/styles.css'), 'utf8')
-  const contentUnitTrackStyles = readFileSync(resolve('../../packages/ui/src/components/business/content/workbench/unit-track/styles.css'), 'utf8')
+  const resourcePagePackageDir = resolve('../../packages/ui/src/components/business/resource/page')
   const overlapRule = workspaceStyles.match(/\.overlap-pane \{[\s\S]*?\}/)?.[0] ?? ''
-  const contentUnitInspectorRule = contentUnitTrackStyles.match(/\.content-workbench-unit-inspector \{[\s\S]*?\}/)?.[0] ?? ''
 
   assert.match(overlapRule, /--overlap-pane-padding: var\(--ms-space-4\);/)
   assert.match(overlapRule, /padding: var\(--overlap-pane-padding\);/)
@@ -147,13 +132,7 @@ test('overlap pane owns the shared pane padding', () => {
   assert.match(scriptStyles, /\.script-version-history-panel,[\s\S]*\.script-production-panel \{[\s\S]*padding: var\(--script-workbench-content-y\) 0 0;/)
   assert.match(scriptHeaderStyles, /\.script-detail-header \{[\s\S]*padding: 0 0 calc\(var\(--script-workbench-content-y, 12px\) \* 0\.5\);/)
   assert.match(scriptTabsStyles, /\.script-detail-tabs \{[\s\S]*padding: 0 0 calc\(var\(--script-workbench-content-y, 12px\) \* 0\.65\);/)
-  assert.match(resourceStyles, /\.resource-prep-workbench-detail \{[\s\S]*padding: 0;/)
-  assert.match(resourceStyles, /\.resource-prep-workbench-detail > \.resource-prep-inspector > \.resource-prep-inspector__panel \{[\s\S]*padding: 0;/)
-  assert.match(resourceStyles, /\.resource-prep-inspector__panel--nested-pane \{[\s\S]*padding: 0;/)
-  assert.match(resourceStyles, /\.resource-prep-setting-assets__detail \.resource-prep-inspector__panel \{[\s\S]*padding: 0;/)
-  assert.match(contentStyles, /\.content-workbench-detail-content \{[\s\S]*padding: 0;/)
-  assert.match(contentUnitInspectorRule, /overflow-y: auto;/)
-  assert.doesNotMatch(contentUnitInspectorRule, /padding:/)
+  assert.equal(existsSync(resourcePagePackageDir), false)
 })
 
 test('overlap pane owns the global three-edge border', () => {
@@ -179,9 +158,8 @@ test('overlap pane owns expanded geometry and chrome', () => {
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
   const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
   const scriptsSource = readFileSync(resolve('src/features/scripts/components/ScriptsPage.tsx'), 'utf8')
-  const toolDialogStyles = readFileSync(resolve('../../packages/ui/src/components/business/tools/dialog/styles.css'), 'utf8')
-  const scriptStyles = readFileSync(resolve('../../packages/ui/src/components/business/scripts/page/styles.css'), 'utf8')
-  const resourceStyles = readFileSync(resolve('../../packages/ui/src/components/business/resource/page/styles.css'), 'utf8')
+  const toolDialogStyles = readFileSync(resolve('src/features/tools/components/ToolDialogUi.css'), 'utf8')
+  const scriptStyles = readFileSync(resolve('src/features/scripts/components/ScriptsPageUi.css'), 'utf8')
 
   assert.match(workspaceSource, /export type OverlapPaneState = "default" \| "expanded"/)
   assert.match(workspaceSource, /export function useOverlapPaneController/)
@@ -193,7 +171,8 @@ test('overlap pane owns expanded geometry and chrome', () => {
   assert.match(workspaceStyles, /\.overlap-pane\[data-overlap-state="expanded"\]\[data-overlap-side="right"\],[\s\S]*border-radius: 0 var\(--overlap-pane-radius\) var\(--overlap-pane-radius\) 0;/)
 
   assert.match(toolDialogSource, /overlapState=\{resourcePaneController\.overlapState\}/)
-  assert.match(scriptsSource, /overlapState=\{detailPane\.overlapState\}/)
+  assert.doesNotMatch(scriptsSource, /overlapState=\{detailPane\.overlapState\}/)
+  assert.doesNotMatch(scriptsSource, /overlapState=/)
   assert.doesNotMatch(toolDialogSource, /const \[resourcePaneCollapsed|const \[resourcePaneExpanded/)
   assert.doesNotMatch(scriptsSource, /const \[detailPaneCollapsed|const \[detailPaneExpanded/)
   for (const pageSource of [toolDialogSource, scriptsSource]) {
@@ -201,7 +180,7 @@ test('overlap pane owns expanded geometry and chrome', () => {
     assert.doesNotMatch(pageSource, /data-overlap-chrome/)
   }
 
-  for (const businessStyles of [toolDialogStyles, scriptStyles, resourceStyles]) {
+  for (const businessStyles of [toolDialogStyles, scriptStyles]) {
     assert.doesNotMatch(businessStyles, /\.overlap-pane/)
     assert.doesNotMatch(businessStyles, /--overlap-pane-border/)
     assert.doesNotMatch(businessStyles, /--overlap-pane-radius/)
@@ -213,7 +192,7 @@ test('overlap pane owns expanded geometry and chrome', () => {
 test('reference workbench panes expose full and collapsed affordance states', () => {
   const workspaceSource = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/index.tsx'), 'utf8')
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
-  const toolDialogStyles = readFileSync(resolve('../../packages/ui/src/components/business/tools/dialog/styles.css'), 'utf8')
+  const toolDialogStyles = readFileSync(resolve('src/features/tools/components/ToolDialogUi.css'), 'utf8')
   const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
   const scriptsSource = readFileSync(resolve('src/features/scripts/components/ScriptsPage.tsx'), 'utf8')
 
@@ -228,9 +207,9 @@ test('reference workbench panes expose full and collapsed affordance states', ()
   assert.match(toolDialogSource, /<OverlapPaneRevealButton[\s\S]*action="show"[\s\S]*action="restore"/)
   assert.match(toolDialogSource, /paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID/)
 
-  assert.match(scriptsSource, /routeLayoutOverlapPaneGroupPropsForVisibility\(detailPane\.groupProps,/)
-  assert.match(scriptsSource, /\{\.{3}detailPaneLayoutProps\}/)
-  assert.match(scriptsSource, /<OverlapPaneRevealButton[\s\S]*action="show"[\s\S]*action="restore"/)
+  assert.doesNotMatch(scriptsSource, /routeLayoutOverlapPaneGroupPropsForVisibility/)
+  assert.doesNotMatch(scriptsSource, /detailPaneLayoutProps/)
+  assert.doesNotMatch(scriptsSource, /<OverlapPaneRevealButton/)
   for (const pageSource of [toolDialogSource, scriptsSource]) {
     assert.doesNotMatch(pageSource, /className="overlap-pane-reveal-button/)
   }

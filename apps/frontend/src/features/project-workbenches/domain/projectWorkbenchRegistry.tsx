@@ -82,9 +82,9 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
   },
   {
     id: 'content_orchestration',
-    title: '内容编排工作台',
+    title: '新版编排画布',
     shortTitle: '编排',
-    route: ROUTES.project.sourceWorkspace,
+    route: ROUTES.project.contentCanvas,
     sidebarTitleKey: 'sidebar.items.workbenchContentGeneration',
     headerTitleKey: 'header.titles.workbenchContentGeneration',
     stage: 'content_orchestration',

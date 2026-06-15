@@ -7,7 +7,7 @@ import { Button, type ButtonProps } from "../../primitives";
 import type { LayoutChrome } from "../chrome";
 
 export type WorkspaceShellChrome = Extract<LayoutChrome, "workspace" | "immersive" | "canvas">;
-export type WorkspaceShellSurface = "agent" | "detail" | "canvas";
+export type WorkspaceShellSurface = "home" | "agent" | "project" | "tool" | "canvas" | "settings";
 export type MasterDetailChrome = "split" | "flush";
 export type PanelResizeHandleSide = "left" | "right";
 export type OverlapPaneSide = "left" | "right";
@@ -123,7 +123,7 @@ export function WorkspaceShell({
   terminalPanel,
   terminalOpen = Boolean(terminalPanel),
   terminalPlacement = "center",
-  surface = "detail",
+  surface = "tool",
   chrome,
   layout,
   sidebarCollapsed = false,

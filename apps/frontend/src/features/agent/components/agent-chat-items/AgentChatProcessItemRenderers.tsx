@@ -7,8 +7,8 @@ import {
   AgentPlanOverviewTaskBody,
   AgentPlanOverviewTaskCard,
   AgentPlanOverviewTaskHeader,
-  AgentPlanOverviewTaskTitle,
-} from '@movscript/ui'
+  AgentPlanOverviewTaskTitle
+} from '@movscript/ui/business/agent'
 import {
   type AgentChatThreadItem,
   agentChatPlanItemView,

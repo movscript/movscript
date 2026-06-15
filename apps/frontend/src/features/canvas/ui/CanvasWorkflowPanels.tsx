@@ -22,8 +22,9 @@ import {
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
 import { api } from '@/shared/infrastructure/api'
+import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
+import { CanvasMediaFill } from '@movscript/ui/business/canvas'
 import {
-  CanvasMediaFill,
   CanvasRunStatusBadge,
   CanvasWorkflowHistoryDuration,
   CanvasWorkflowHistoryView,
@@ -50,9 +51,9 @@ import {
   CanvasWorkflowSideRail,
   type CanvasWorkflowHistoryItem,
   type CanvasWorkflowHistoryStatusFilter,
-  type CanvasWorkflowRunResultsItem,
-  useResizablePanel,
-} from '@movscript/ui'
+  type CanvasWorkflowRunResultsItem
+} from '@/features/canvas/ui/CanvasWorkflowUi'
+import { useResizablePanel } from '@movscript/ui/layout'
 import type { Canvas, CanvasRunStatus } from '@/types'
 import type { CanvasRuntimeRun } from '@/features/canvas/runtime/runHistoryStore'
 import { canvasPortValuePreviewText, workflowRunOutputItems } from '@/features/canvas/runtime/runtimeValues'
@@ -202,7 +203,7 @@ function WorkflowReferencePicker({
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const { data: canvases = [], isLoading } = useQuery<Canvas[]>({
-    queryKey: ['canvas-reference-workflows', projectId],
+    queryKey: canvasKeys.referenceWorkflows(projectId),
     queryFn: () => {
       const params: Record<string, string> = { type: 'workflow' }
       if (projectId) params.project_id = String(projectId)
@@ -213,7 +214,7 @@ function WorkflowReferencePicker({
     queries: canvases
       .filter((canvas) => canvas.ID !== currentCanvasId)
       .map((canvas) => ({
-        queryKey: ['canvas', canvas.ID],
+        queryKey: canvasKeys.detail(canvas.ID),
         queryFn: () => api.get(`/canvases/${canvas.ID}`).then((r) => r.data as Canvas),
         enabled: !!canvas.ID,
       })),

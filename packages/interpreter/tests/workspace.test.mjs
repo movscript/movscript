@@ -36,6 +36,8 @@ test('workspace review carries json array order changes into entity and semantic
     schema: 'movscript.asset.v1',
     kind: 'asset',
     id: 'umbrella',
+    setting_id: 'hero',
+    setting_state_id: 'rain',
     slot: 'character_state_reference',
     prompt_hint: 'Umbrella beads with rain.',
   }))
@@ -208,9 +210,9 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.equal(result.manifest?.source.sourceMode, 'source')
   assert.equal(files.has('.interpret/current/settings/hero/setting.json'), true)
   assert.equal(files.has('.interpret/current/content_units/k41m/content_unit.json'), true)
-  assert.equal(files.has('.interpret/indexes/domain-index.json'), true)
-  assert.equal(files.has('.interpret/indexes/asset-index.json'), true)
-  assert.equal(files.has('.interpret/indexes/relation-graph.json'), true)
+  assert.equal(files.has('.interpret/current/domain-index.json'), true)
+  assert.equal(files.has('.interpret/current/asset-index.json'), true)
+  assert.equal(files.has('.interpret/current/relation-graph.json'), true)
   assert.equal(files.has('.interpret/current/domain-tree.json'), true)
   assert.equal(files.has('.interpret/current/editor-state.json'), true)
   assert.equal(files.has('.interpret/current/production_work_plan.json'), false)
@@ -219,7 +221,7 @@ test('interpreter interpret reads hierarchical source root and writes derived ar
   assert.equal(files.has('.interpret/current/content_units/k41m/dependency_report.json'), true)
   assert.equal(files.has('.interpret/current/content_units/k41m/selection_validity.json'), true)
 
-  const domainIndex = JSON.parse(files.get('.interpret/indexes/domain-index.json'))
+  const domainIndex = JSON.parse(files.get('.interpret/current/domain-index.json'))
   const previewTimeline = JSON.parse(files.get('.interpret/current/productions/p8f3/preview_timeline.json'))
   const runtimePanel = JSON.parse(files.get('.interpret/current/content_units/k41m/runtime_panel.json'))
   const generationPrompt = JSON.parse(files.get('.interpret/current/content_units/k41m/generation_prompt.json'))
@@ -282,6 +284,110 @@ test('interpreter tracks scence_moment_ref content units as scene videos', async
   assert.equal(generationPrompt.refs.every((ref) => ref.role === 'input'), true)
   assert.ok(previewTimeline.items.some((item) => item.itemType === 'scene_moment' && item.entity.id === 'r72k' && item.contentUnitIds.includes('cu_r72k_scene_video')))
   assert.ok(previewTimeline.items.some((item) => item.itemType === 'content_unit' && item.entity.id === 'cu_r72k_scene_video' && item.parentId === 'scene_moment:r72k'))
+})
+
+test('interpreter derives scene moment edit plan from selected expression-unit content units', async () => {
+  const files = new Map(sourceFileEntries())
+  files.set('productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/eu_phone_visual/expression_unit.json', JSON.stringify({
+    schema: 'movscript.expression_unit.v1',
+    kind: 'expression_unit',
+    id: 'eu_phone_visual',
+    modality: 'visual',
+    role: 'shot',
+    title: 'Phone visual material',
+    intent: 'Phone screen lights up in close-up.',
+    content: { shot_size: 'close_up', camera: { movement: 'slow_push_in' } },
+    timing_intent: { duration_sec: 2.4 },
+    order: 1,
+  }))
+  files.set('productions/p8f3/segments/a19d/scene_moments/r72k/expression_units/eu_line_001/expression_unit.json', JSON.stringify({
+    schema: 'movscript.expression_unit.v1',
+    kind: 'expression_unit',
+    id: 'eu_line_001',
+    modality: 'verbal',
+    role: 'dialogue',
+    speaker_ref: 'settings/hero',
+    text: '你到底是谁？',
+    intent: '低声、克制、害怕但不崩溃。',
+    timing_intent: { span_refs: ['eu_phone_visual'] },
+    order: 2,
+  }))
+  files.set('content_units/cu_phone_visual/content_unit.json', JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_phone_visual',
+    title: 'Phone visual material',
+    content_unit_type: 'expression_unit_ref',
+    output_kind: 'video',
+    target_kind: 'expression_unit',
+    target_ref: 'eu_phone_visual',
+    generation_role: 'visual_material',
+    edit_prompt: { text: 'Generate the visual expression material.' },
+    model_intent: { capability: 'video', duration_sec: 2.4 },
+  }))
+  files.set('content_units/cu_line_001_audio/content_unit.json', JSON.stringify({
+    schema: 'movscript.content_unit.v1',
+    kind: 'content_unit',
+    id: 'cu_line_001_audio',
+    title: 'Line 001 voice',
+    content_unit_type: 'expression_unit_ref',
+    output_kind: 'audio',
+    target_kind: 'expression_unit',
+    target_ref: 'eu_line_001',
+    generation_role: 'voice_material',
+    edit_prompt: { text: 'Generate restrained dialogue audio.' },
+    model_intent: { capability: 'audio' },
+  }))
+
+  const repository = memoryWorkspaceFileRepository(files)
+  const decisionStore = memoryDecisionStore()
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    decisionStore,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  await interpretMovScriptWorkspace({ fileRepository: repository, decisionStore, now: new Date('2026-06-07T00:00:00.000Z') })
+
+  const visualPrompt = JSON.parse(files.get('.interpret/current/content_units/cu_phone_visual/generation_prompt.json'))
+  const voicePrompt = JSON.parse(files.get('.interpret/current/content_units/cu_line_001_audio/generation_prompt.json'))
+  await service.createContentCandidate({
+    contentUnitId: 'cu_phone_visual',
+    candidateId: 'candidate_visual_1',
+    outputs: [{ kind: 'video', resource_id: 501, duration_sec: 2.4 }],
+    promptSnapshot: visualPrompt,
+    createdAt: '2026-06-07T00:01:00.000Z',
+  })
+  await service.selectContentUnitCandidate({
+    contentUnitId: 'cu_phone_visual',
+    candidateId: 'candidate_visual_1',
+    resourceId: 501,
+    reason: 'edit_plan_test',
+    selectedAt: '2026-06-07T00:02:00.000Z',
+  })
+  await service.createContentCandidate({
+    contentUnitId: 'cu_line_001_audio',
+    candidateId: 'candidate_voice_1',
+    outputs: [{ kind: 'audio', resource_id: 601, duration_sec: 1.8 }],
+    promptSnapshot: voicePrompt,
+    createdAt: '2026-06-07T00:01:30.000Z',
+  })
+  await service.selectContentUnitCandidate({
+    contentUnitId: 'cu_line_001_audio',
+    candidateId: 'candidate_voice_1',
+    resourceId: 601,
+    reason: 'edit_plan_test',
+    selectedAt: '2026-06-07T00:02:30.000Z',
+  })
+
+  await interpretMovScriptWorkspace({ fileRepository: repository, decisionStore, now: new Date('2026-06-07T00:03:00.000Z') })
+  const editPlan = await service.readSceneMomentEditPlan('r72k')
+  assert.equal(editPlan?.schema, 'movscript.edit_plan.v1')
+  assert.equal(editPlan?.sceneMomentId, 'r72k')
+  assert.equal(editPlan?.status, 'ready_to_compose')
+  assert.deepEqual(editPlan?.compose_inputs.map((input) => input.resource_id).sort(), [501, 601])
+  assert.ok(editPlan?.tracks.some((track) => track.type === 'video' && track.items.some((item) => item.content_unit_id === 'cu_phone_visual')))
+  assert.ok(editPlan?.tracks.some((track) => track.type === 'voice' && track.items.some((item) => item.content_unit_id === 'cu_line_001_audio')))
 })
 
 test('workspace review maps git baseline text diff to entity, semantic, and production impact', async () => {

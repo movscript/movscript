@@ -24,8 +24,8 @@ import {
   ResourcePanelTabButton,
   ResourcePanelTabs,
   ResourcePanelThumb,
-  ResourcePanelThumbFallback,
-} from '@movscript/ui'
+  ResourcePanelThumbFallback
+} from '@movscript/ui/business/resource'
 import { api } from '@/shared/infrastructure/api'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import type { AssetSlot, RawResource, PaginatedResponse } from '@/types'
@@ -34,6 +34,7 @@ import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/shared/ui/ResourceCandidateAttachPanel'
 import { FileAudio, FileText, Package, Search } from 'lucide-react'
 import { startResourceDragSource } from '@/features/resources/domain/resourceInteraction'
+import { resourceKeys } from '@/features/resources/application/resourceQueryKeys'
 
 type AssetSlotPanelRecord = SemanticEntityRecord & AssetSlot
 
@@ -296,7 +297,12 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
     : ['all', 'image', 'video']
 
   const { data: resourcesPageData } = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['resources', 'panel', inputType, resourceTypeParam, keyword, resourcePage],
+    queryKey: resourceKeys.panel({
+      inputType,
+      resourceType: resourceTypeParam,
+      keyword,
+      page: resourcePage,
+    }),
     queryFn: () => api.get('/resources', {
       params: { page: resourcePage, page_size: pageSize, type: resourceTypeParam, q: keyword || undefined },
     }).then(r => r.data),
@@ -306,7 +312,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   const resourcePageCount = Math.max(1, Math.ceil(resourceTotal / pageSize))
 
   const { data: slotRecords = [] } = useQuery<AssetSlotPanelRecord[]>({
-    queryKey: ['asset-slots', 'panel', current?.ID],
+    queryKey: resourceKeys.assetSlotsPanel(current?.ID),
     queryFn: () => listSemanticEntities(current!.ID, slotConfig) as Promise<AssetSlotPanelRecord[]>,
     enabled: !!current,
   })

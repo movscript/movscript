@@ -10,6 +10,7 @@ import {
 	  Workflow,
 	} from 'lucide-react'
 import { api } from '@/shared/infrastructure/api'
+import { modelKeys } from '@/shared/application/modelQueryKeys'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import { useTranslation } from 'react-i18next'
 import { canvasNodeStatusRecipe } from '@/features/canvas/presentation/canvasSemanticUi'
@@ -34,24 +35,24 @@ import {
   CanvasMediaFill,
   CanvasMentionAttachmentThumb,
   CanvasMentionMenuThumb,
-  CanvasNodeFooterText,
   CanvasNodeParamControlsView,
   CanvasNodePromptInputView,
   CanvasNodeMediaResultView,
   CanvasNodeTextResultView,
-  CanvasWorkflowReferenceCard,
   CanvasToolActionCard,
+  CanvasWorkflowReferenceCard,
   canvasMentionChipClassNames,
-  type CanvasNodePromptAttachmentItem,
   type CanvasNodeMentionItem,
   type CanvasNodeParamControlItem,
-} from '@movscript/ui'
+  type CanvasNodePromptAttachmentItem
+} from '@movscript/ui/business/canvas'
+import { CanvasNodeFooterText } from './CanvasNodeCardUi'
 
 const CANVAS_NODE_IMAGE_THUMB_MAX_SIZE = 320
 
 function useCanvasGenerationModels(capability?: 'text' | 'image' | 'video') {
   const { data = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', capability],
+    queryKey: modelKeys.capability(capability),
     queryFn: () => capability
       ? api.get(`/models?capability=${capability}`).then((r) => r.data)
       : Promise.resolve([]),

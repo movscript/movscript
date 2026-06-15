@@ -1,0 +1,290 @@
+@import "./AgentPinnedStatusUi.css";
+
+.agent-page-chat-main {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: inherit;
+}
+
+.agent-page-chat-main--empty {
+  justify-content: center;
+}
+
+.agent-page-chat-actions {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 30;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.agent-page-chat-actions__trigger {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--ms-color-background) 88%, transparent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ms-color-foreground) 8%, transparent);
+}
+
+.agent-page-chat-status-menu {
+  min-width: 160px;
+}
+
+.project-agent-chat-shell .agent-page-chat-main {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: inherit;
+}
+
+.project-agent-chat-shell.ai-agent-panel-shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.agent-page-chat-empty {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 clamp(18px, 5vw, 72px);
+}
+
+.agent-page-chat-empty-title {
+  margin: 0 0 48px;
+  max-width: min(100%, 980px);
+  color: var(--ms-color-foreground);
+  text-align: center;
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 500;
+  line-height: 1.18;
+}
+
+.agent-page-chat-empty-accessory {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.agent-page-project-select-card {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: 0;
+  background: var(--ms-color-background);
+  color: var(--ms-color-foreground);
+  padding: 9px 12px;
+  box-shadow: 0 8px 26px color-mix(in srgb, var(--ms-color-foreground) 6%, transparent);
+  font-size: var(--ms-text-caption);
+  line-height: 18px;
+  transition:
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard),
+    background-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-page-project-select-card:hover {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--ms-color-muted) 28%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--ms-color-foreground) 8%, transparent);
+}
+
+.agent-page-chat-thread-shell {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.agent-page-chat-thread-shell--empty {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.agent-page-chat-thread {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.agent-page-chat-thread > .ms-agent-body {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.agent-page-chat-composer {
+  width: 100%;
+  flex: 0 0 auto;
+  padding: 8px 0 12px;
+}
+
+.agent-page-chat-empty-composer {
+  width: 90%;
+  margin-inline: auto;
+  padding: 0 0 12px;
+}
+
+.agent-page-chat-composer .ai-agent-panel-input-card[data-chrome="card"] {
+  width: 100%;
+  margin: 0;
+  border-radius: var(--ms-radius-md);
+}
+
+.agent-page-chat-composer .ai-agent-panel-input-card[data-chrome="bottom-bar"] {
+  width: 100%;
+  margin: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+}
+
+.agent-page-chat-composer .ai-agent-panel-input-card[data-chrome="flush"] {
+  width: 100%;
+  margin: 0;
+}
+
+.agent-page-chat-thread-shell--empty .agent-page-chat-composer .ai-agent-panel-input-card {
+  overflow: visible;
+  box-shadow: none;
+}
+
+.agent-page-chat-thread-shell--empty .agent-page-chat-composer .ai-agent-panel-composer {
+  border-radius: 24px;
+  padding: 0;
+}
+
+.agent-page-chat-thread-shell--empty .agent-page-chat-composer .ai-agent-panel-mention-editor {
+  min-height: 92px;
+  font-size: var(--ms-text-label);
+  font-weight: 400;
+  line-height: var(--ms-leading-label);
+}
+
+.project-agent-chat-shell .ai-agent-panel-input-card[data-chrome="card"] {
+  border-radius: 0;
+}
+
+.project-agent-chat-shell .ai-agent-panel-main {
+  gap: 0;
+  padding: 0;
+}
+
+.project-agent-chat-shell .ai-agent-panel-chat-header {
+  min-height: 38px;
+}
+
+.project-agent-chat-shell .agent-pinned-status-root {
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+.project-agent-chat-shell .ai-agent-panel-chat-header .ai-agent-panel-title-row {
+  padding-right: 56px;
+}
+
+.project-agent-chat-shell .ms-agent-thread {
+  --ai-agent-panel-message-inline-margin: 5%;
+  --ai-agent-panel-user-message-max-width: min(78%, 680px);
+
+  padding: 10px var(--ai-agent-panel-message-inline-margin) 14px;
+}
+
+.project-agent-chat-shell.ms-agent-shell--compact .ms-agent-thread {
+  padding: 10px var(--ai-agent-panel-message-inline-margin) 14px;
+}
+
+.project-agent-chat-shell .agent-page-chat-composer {
+  width: 90%;
+  margin-inline: auto;
+}
+
+.project-agent-chat-shell .ms-agent-message {
+  contain: none;
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+  gap: 0;
+}
+
+.project-agent-chat-shell.ms-agent-shell--compact .ms-agent-message {
+  gap: 0;
+}
+
+.project-agent-chat-shell .ms-agent-message__body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+.project-agent-chat-shell.ms-agent-shell--compact .ms-agent-message__body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+.project-agent-chat-shell .ms-agent-message--user .ms-agent-message__body {
+  width: fit-content;
+  max-width: var(--ai-agent-panel-user-message-max-width);
+  flex: 0 1 auto;
+  align-items: flex-end;
+  margin-left: auto;
+}
+
+.project-agent-chat-shell.ms-agent-shell--compact .ms-agent-message--user .ms-agent-message__body {
+  width: fit-content;
+  max-width: var(--ai-agent-panel-user-message-max-width);
+  flex: 0 1 auto;
+  align-items: flex-end;
+  margin-left: auto;
+}
+
+.project-agent-chat-shell .ms-agent-message__content {
+  width: 100%;
+  max-width: 100%;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.project-agent-chat-shell.ms-agent-shell--compact .ms-agent-message__content {
+  width: 100%;
+  max-width: 100%;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.project-agent-chat-shell .ms-agent-message--user .ms-agent-message__content {
+  width: auto;
+  padding: 7px 10px;
+}
+
+.project-agent-chat-shell .ai-agent-panel-input-card[data-chrome="flush"] .ai-agent-panel-composer {
+  width: 100%;
+}
+
+.project-agent-chat-shell .ai-agent-panel-mention-editor {
+  min-height: 92px;
+  border-radius: 0;
+  padding: 18px 16px 12px;
+  font-size: var(--ms-text-label);
+  font-weight: 400;
+  line-height: var(--ms-leading-label);
+}

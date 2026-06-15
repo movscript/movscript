@@ -58,21 +58,4 @@
     margin: 0 10px 10px;
   }
 
-  .ms-agent-run-card__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .ms-agent-work-surface {
-    min-height: 100dvh;
-    border-radius: 0;
-  }
-
-  .ms-agent-work-header,
-  .ms-agent-commandbar {
-    padding-inline: 10px;
-  }
-
-  .ms-agent-work-lane {
-    padding: 10px;
-  }
 }

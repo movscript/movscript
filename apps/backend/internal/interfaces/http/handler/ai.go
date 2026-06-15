@@ -7,17 +7,23 @@ import (
 	"github.com/gin-gonic/gin"
 	adminai "github.com/movscript/movscript/internal/app/admin/ai"
 	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/config"
 	"gorm.io/gorm"
 )
 
 type AIHandler struct {
 	db      *gorm.DB
+	cfg     *config.Config
 	service *adminai.Service
 }
 
 func NewAIHandler(db *gorm.DB, encryptionKeyHex string, registry *ai.Registry) *AIHandler {
+	return NewAIHandlerWithConfig(db, nil, encryptionKeyHex, registry)
+}
+
+func NewAIHandlerWithConfig(db *gorm.DB, cfg *config.Config, encryptionKeyHex string, registry *ai.Registry) *AIHandler {
 	key, _ := hex.DecodeString(encryptionKeyHex)
-	return &AIHandler{db: db, service: adminai.NewService(db, key, registry)}
+	return &AIHandler{db: db, cfg: cfg, service: adminai.NewService(db, key, registry)}
 }
 
 // ── Adapter & Model Presets ───────────────────────────────────────────────────

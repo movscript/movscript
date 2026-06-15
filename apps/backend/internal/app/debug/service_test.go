@@ -4,11 +4,66 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 )
+
+func TestServiceUsesGatewayAuditLogReaderContract(t *testing.T) {
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	reader := &fakeAuditLogReader{
+		page: providercontract.AIGatewayCallLogPage{
+			Items: []providercontract.AIGatewayCallLog{{
+				ID:              1,
+				UserID:          7,
+				AIModelConfigID: 9,
+				CredentialID:    11,
+				OperationType:   "text",
+				Status:          "success",
+				InputTokens:     3,
+				OutputTokens:    2,
+				CreatedAt:       now,
+				AIModelConfig: &providercontract.AIGatewayCallLogModelConfigRef{
+					ID:         9,
+					ModelDefID: "gpt-5.2",
+				},
+			}},
+			Total:    1,
+			Page:     2,
+			PageSize: 10,
+		},
+		summary: providercontract.AIGatewayCallLogSummary{
+			Total:        1,
+			Success:      1,
+			InputTokens:  3,
+			OutputTokens: 2,
+			GeneratedAt:  now,
+		},
+	}
+	service := NewServiceWithAuditLogReader(nil, reader, nil)
+	filter := LLMCallLogFilter{CredentialID: "11", Status: "success", Page: 2, PageSize: 10}
+
+	page, err := service.ListLLMCallLogs(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("ListLLMCallLogs() error = %v", err)
+	}
+	if page.Total != 1 || page.Page != 2 || len(page.Items) != 1 || page.Items[0].AIModelConfig.ModelDefID != "gpt-5.2" {
+		t.Fatalf("page = %#v, want reader data mapped to debug shape", page)
+	}
+	summary, err := service.LLMCallLogSummary(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("LLMCallLogSummary() error = %v", err)
+	}
+	if summary.Total != 1 || summary.Success != 1 || !summary.GeneratedAt.Equal(now) {
+		t.Fatalf("summary = %#v, want reader summary", summary)
+	}
+	if len(reader.filters) != 2 || reader.filters[0].CredentialID != "11" || reader.filters[0].Status != "success" || reader.filters[0].Page != 2 {
+		t.Fatalf("reader filters = %#v, want mapped filters", reader.filters)
+	}
+}
 
 func TestDoRawHTTPBlocksUnsafeURLs(t *testing.T) {
 	tests := []string{
@@ -111,4 +166,20 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 
 func uintPtr(value uint) *uint {
 	return &value
+}
+
+type fakeAuditLogReader struct {
+	page    providercontract.AIGatewayCallLogPage
+	summary providercontract.AIGatewayCallLogSummary
+	filters []providercontract.AIGatewayCallLogFilter
+}
+
+func (f *fakeAuditLogReader) ListGatewayCallLogs(_ context.Context, filter providercontract.AIGatewayCallLogFilter) (providercontract.AIGatewayCallLogPage, error) {
+	f.filters = append(f.filters, filter)
+	return f.page, nil
+}
+
+func (f *fakeAuditLogReader) SummarizeGatewayCallLogs(_ context.Context, filter providercontract.AIGatewayCallLogFilter) (providercontract.AIGatewayCallLogSummary, error) {
+	f.filters = append(f.filters, filter)
+	return f.summary, nil
 }

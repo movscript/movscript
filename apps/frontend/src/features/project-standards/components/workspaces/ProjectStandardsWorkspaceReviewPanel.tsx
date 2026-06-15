@@ -8,14 +8,16 @@ import {
   ProjectWorkspaceReviewEmptyText,
   ProjectWorkspaceReviewLoadingState,
   ProjectWorkspaceReviewNoteList,
-  ProjectWorkspaceReviewStatusBadge,
+  ProjectWorkspaceReviewStatusBadge
+} from '../ProjectStandardsUi'
+import {
   ReviewWorkspaceArtifactList,
   ReviewWorkspaceArtifactPanel,
   ReviewWorkspaceFieldDiffList,
   ReviewWorkspaceFieldDiffRow,
   ReviewWorkspaceShell,
-  ReviewWorkspaceSummaryCallout,
-} from '@movscript/ui'
+  ReviewWorkspaceSummaryCallout
+} from '@movscript/ui/business/review'
 
 import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import type { ProjectStandardsReviewWorkspace } from '@/features/project-standards/application/projectStandardsModel'

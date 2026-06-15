@@ -1,5 +1,6 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import enUS from './locales/en-US.json' assert { type: 'json' }
 import zhCN from './locales/zh-CN.json' assert { type: 'json' }
 
@@ -9,7 +10,7 @@ export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
 const LANGUAGE_STORAGE_KEY = 'movscript.language'
 
 function detectLanguage(): SupportedLanguage {
-  const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(LANGUAGE_STORAGE_KEY) : null
+  const stored = readBrowserStorageItem('local', LANGUAGE_STORAGE_KEY)
   if (stored === 'zh-CN' || stored === 'en-US') return stored
 
   const preferred = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : 'en-US'
@@ -32,7 +33,7 @@ i18n
 
 i18n.on('languageChanged', (language) => {
   if (language === 'zh-CN' || language === 'en-US') {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(LANGUAGE_STORAGE_KEY, language)
+    writeBrowserStorageItem('local', LANGUAGE_STORAGE_KEY, language)
   }
 })
 

@@ -2,16 +2,47 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  applyProviderSessionThreadMutationResult,
   listProviderSessionRunSummariesFromProviderSessions,
   listProviderSessionSummariesFromWorkspace,
   listProviderSessionThreadPageFromWorkspace,
   listProviderSessionThreadSummariesFromWorkspace,
+  providerThreadUpdatedResult,
   providerSessionRunSummariesFromProviderSession,
   providerSessionThreadSummaryFromProviderSession,
   providerSessionThreadSummaryFromThread,
 } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { isProviderSessionThreadListQueryKey, providerSessionKeys, providerSessionRunKeys, providerSessionThreadKeys } from '@/features/agent/application/providerSessionQueryKeys'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import type { ProviderSessionSummary, AgentThread } from '@/shared/infrastructure/providerSessionClient'
+
+test('provider session query keys own thread and console cache prefixes', () => {
+  const identity = {
+    provider: 'openai',
+    providerId: 'codex',
+    providerInstanceId: 'codex:http://localhost:4123',
+    providerProtocol: 'provider-session',
+  }
+
+  assert.deepEqual(providerSessionThreadKeys.list('http://localhost:4123', identity, 'agent-mode-sidebar'), [
+    'provider-session-threads',
+    'http://localhost:4123',
+    identity,
+    'agent-mode-sidebar',
+  ])
+  assert.deepEqual(providerSessionKeys.list('http://localhost:4123', identity, 'agent-mode-sidebar'), [
+    'provider-sessions',
+    'http://localhost:4123',
+    identity,
+    'agent-mode-sidebar',
+  ])
+  assert.deepEqual(providerSessionThreadKeys.panelHistory('http://localhost:4123'), ['provider-session-panel-thread-history', 'http://localhost:4123'])
+  assert.deepEqual(providerSessionKeys.workspace, ['agent-console-provider-sessions', 'workspace'])
+  assert.deepEqual(providerSessionRunKeys.console, ['agent-console-runs', 'provider-sessions'])
+  assert.deepEqual(providerSessionThreadKeys.console, ['agent-console-threads', 'provider-sessions'])
+  assert.equal(isProviderSessionThreadListQueryKey(providerSessionThreadKeys.list('http://localhost:4123', identity, 'agent-mode-sidebar'), 'http://localhost:4123'), true)
+  assert.equal(isProviderSessionThreadListQueryKey(providerSessionThreadKeys.panelHistory('http://localhost:4123'), 'http://localhost:4123'), false)
+})
 
 test('provider session thread cache summaries count only projected transcript messages', () => {
   const summary = providerSessionThreadSummaryFromThread({
@@ -86,6 +117,36 @@ test('provider session thread cache maps provider session summaries to thread su
   assert.equal(summary?.status, 'running')
   assert.equal(summary?.messageCount, 4)
   assert.equal(summary?.lastMessageAt, '2026-06-03T00:00:02.000Z')
+})
+
+test('provider thread updated result owns list cache updates', () => {
+  const writes: unknown[] = []
+  const queryClient = {
+    setQueriesData: (filters: unknown, updater: (threads?: unknown[]) => unknown[]) => {
+      writes.push(filters)
+      writes.push(updater([{ id: 'thread_1', title: 'Old' }]))
+      writes.push(updater([{ id: 'thread_2', title: 'Other' }]))
+    },
+  }
+  const result = providerThreadUpdatedResult({
+    baseURL: 'http://localhost:4123',
+    thread: {
+      id: 'thread_1',
+      title: 'New',
+      archived: false,
+      createdAt: '2026-06-03T00:00:00.000Z',
+      updatedAt: '2026-06-03T00:00:01.000Z',
+      messageCount: 1,
+    },
+  })
+
+  applyProviderSessionThreadMutationResult(queryClient as never, result)
+
+  assert.equal(result.event.type, 'ProviderThreadUpdated')
+  assert.deepEqual(result.changedIds, ['thread_1'])
+  assert.equal(typeof (writes[0] as { predicate?: unknown }).predicate, 'function')
+  assert.deepEqual(writes[1], [{ id: 'thread_1', title: 'New', archived: false, createdAt: '2026-06-03T00:00:00.000Z', updatedAt: '2026-06-03T00:00:01.000Z', messageCount: 1 }])
+  assert.deepEqual((writes[2] as Array<{ id: string }>).map(item => item.id), ['thread_1', 'thread_2'])
 })
 
 test('provider session thread cache does not use provider session title as thread title', () => {

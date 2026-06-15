@@ -14,6 +14,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/observability"
 	"github.com/movscript/movscript/internal/infra/storage"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -23,8 +24,12 @@ type ShotReferenceHandler struct {
 }
 
 func NewShotReferenceHandler(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, maxUploadBytes int64, cacheStore ...cache.Cache) *ShotReferenceHandler {
+	return NewShotReferenceHandlerWithVectorIndex(db, store, verifier, nil, maxUploadBytes, cacheStore...)
+}
+
+func NewShotReferenceHandlerWithVectorIndex(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, vectors providercontract.VectorIndexProvider, maxUploadBytes int64, cacheStore ...cache.Cache) *ShotReferenceHandler {
 	return &ShotReferenceHandler{
-		service:        appshotreference.NewService(db, store, verifier, cacheStore...),
+		service:        appshotreference.NewServiceWithVectorIndex(db, store, verifier, vectors, cacheStore...),
 		maxUploadBytes: maxUploadBytes,
 	}
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 
 import type { ProjectWorkbenchId } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
+import { readBrowserStorageItem, removeBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 
 export const WORKBENCH_SESSION_STORAGE_KEY = 'movscript-workbench-session-v1'
 export const WORKBENCH_SESSION_SCHEMA_VERSION = 1
@@ -75,7 +76,11 @@ const memoryWorkbenchSessionStorage: StateStorage = (() => {
 })()
 
 function getWorkbenchSessionStorage(): StateStorage {
-  return typeof localStorage === 'undefined' ? memoryWorkbenchSessionStorage : localStorage
+  return typeof window === 'undefined' ? memoryWorkbenchSessionStorage : {
+    getItem: (name) => readBrowserStorageItem('local', name),
+    setItem: (name, value) => writeBrowserStorageItem('local', name, value),
+    removeItem: (name) => removeBrowserStorageItem('local', name),
+  }
 }
 
 function normalizeWorkbenchSessionSnapshot(input: unknown): WorkbenchSessionSnapshot | null {

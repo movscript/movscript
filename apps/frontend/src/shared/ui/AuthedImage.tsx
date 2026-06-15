@@ -4,7 +4,7 @@ import {
   acquireCachedInlineImageMediaUrl,
   acquireCachedResourceMediaUrl,
 } from '@/shared/ui/resourceMediaCache'
-import { ResourceAuthAudio, ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui'
+import { ResourceAuthAudio, ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui/business/resource'
 import {
   compactResourceMediaDiagnosticElementRect,
   compactResourceMediaDiagnosticSrc,

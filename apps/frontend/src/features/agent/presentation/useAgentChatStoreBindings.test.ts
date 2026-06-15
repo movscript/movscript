@@ -2,21 +2,18 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveAgentChatProviderSessionBindingIds } from '@/features/agent/presentation/useAgentChatStoreBindings'
 
-test('resolveAgentChatProviderSessionBindingIds falls back to live provider-session thread before session-level aggregation', () => {
+test('resolveAgentChatProviderSessionBindingIds reads conversation registry bindings', () => {
   const ids = resolveAgentChatProviderSessionBindingIds({
     conversation: {
       id: 'conv_1',
       providerSessionId: 'session_1',
-    },
-    conversationProviderSessionState: {
-      sessionId: 'session_runtime',
-      threadId: 'thread_runtime',
+      providerThreadId: 'thread_1',
     },
   })
 
   assert.deepEqual(ids, {
     providerSessionId: 'session_1',
-    providerThreadId: 'thread_runtime',
+    providerThreadId: 'thread_1',
   })
 })
 
@@ -31,10 +28,6 @@ test('resolveAgentChatProviderSessionBindingIds keeps conversation thread bindin
       providerSessionTreeId: ' session_tree_binding ',
       providerThreadId: ' thread_binding ',
     },
-    conversationProviderSessionState: {
-      sessionId: 'session_runtime',
-      threadId: 'thread_runtime',
-    },
     providerSessionId: ' session_local ',
     providerThreadId: ' thread_local ',
   })
@@ -45,16 +38,12 @@ test('resolveAgentChatProviderSessionBindingIds keeps conversation thread bindin
   })
 })
 
-test('resolveAgentChatProviderSessionBindingIds falls back to explicit legacy input after bindings', () => {
+test('resolveAgentChatProviderSessionBindingIds falls back to explicit input after bindings', () => {
   const ids = resolveAgentChatProviderSessionBindingIds({
     conversation: {
       id: 'conv_1',
       providerSessionId: 'session_conversation',
       providerThreadId: 'thread_conversation',
-    },
-    conversationProviderSessionState: {
-      sessionId: 'session_runtime',
-      threadId: 'thread_runtime',
     },
     providerSessionId: ' session_local ',
     providerThreadId: ' thread_local ',

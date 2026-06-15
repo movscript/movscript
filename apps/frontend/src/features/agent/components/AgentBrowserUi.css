@@ -1,0 +1,290 @@
+.agent-browser-root {
+  --agent-browser-background: var(--agent-content-panel-background, var(--app-shell-slot-right-background, var(--ms-app-shell-slot-right-background, var(--ms-color-app-background))));
+  --agent-browser-card-radius: var(--ms-radius-card);
+  --agent-browser-control-radius: var(--ms-radius-control);
+  --agent-browser-card-border: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
+  --agent-browser-card-background: color-mix(in srgb, var(--ms-color-background) 76%, var(--agent-browser-background));
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--agent-browser-background);
+}
+
+.agent-browser-header {
+  flex-shrink: 0;
+  border-top-left-radius: var(--ms-radius-window);
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--agent-browser-background);
+  overflow: hidden;
+}
+
+.agent-browser-tab-bar {
+  display: flex;
+  min-height: 40px;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ms-space-1);
+  padding: 6px var(--ms-space-2);
+}
+
+.agent-browser-tab-list {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--ms-space-1);
+  overflow: hidden;
+}
+
+.agent-browser-tab-surface {
+  --agent-browser-tab-hover-background: color-mix(in srgb, var(--ms-color-muted) 34%, var(--agent-browser-background));
+  --agent-browser-tab-hover-border: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
+  --ms-button-subtle-hover-background: transparent;
+  --ui-surface-radius: var(--agent-browser-control-radius);
+  position: relative;
+  display: flex;
+  height: 32px;
+  min-width: 0;
+  flex: 1 1 0;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0;
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-browser-tab-surface:hover {
+  --ui-surface-background: var(--agent-browser-tab-hover-background);
+  --ui-surface-border: var(--agent-browser-tab-hover-border);
+}
+
+.agent-browser-tab-surface[data-variant="subtle"] {
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 90%, var(--ms-color-foreground) 10%);
+}
+
+.agent-browser-tab-button {
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: 6px;
+  border-radius: inherit;
+  background: transparent;
+  padding-inline: var(--ms-space-2);
+  text-align: left;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.agent-browser-tab-surface:hover .agent-browser-tab-button,
+.agent-browser-tab-button:hover {
+  background: transparent;
+  color: var(--ms-color-foreground);
+}
+
+.agent-browser-tab-button:hover:not(:disabled),
+.agent-browser-tab-button:active:not(:disabled) {
+  transform: none;
+}
+
+.agent-browser-tab-button .ms-button__content {
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+
+.agent-browser-tab-icon {
+  flex-shrink: 0;
+}
+
+.agent-browser-tab-icon--loading svg {
+  animation: agent-browser-spin 1s linear infinite;
+}
+
+.agent-browser-tab-button svg {
+  flex-shrink: 0;
+}
+
+.agent-browser-tab-button span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-browser-tab-close {
+  margin-right: var(--ms-space-1);
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    color var(--ms-duration-fast) var(--ms-easing-standard),
+    opacity var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-browser-tab-surface:hover .agent-browser-tab-close,
+.agent-browser-tab-close:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.agent-browser-tab-close:hover:not(:disabled),
+.agent-browser-tab-close:active:not(:disabled) {
+  transform: none;
+}
+
+.agent-browser-icon-button {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.agent-browser-menu-item-icon {
+  margin-right: var(--ms-space-2);
+  display: inline-flex;
+}
+
+.agent-browser-menu-content {
+  width: 176px;
+}
+
+.agent-browser-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 60%, transparent);
+  padding: var(--ms-space-1) var(--ms-space-2);
+}
+
+.agent-browser-url-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.agent-browser-address-form {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+}
+
+.agent-browser-address-form .agent-browser-input {
+  height: 28px;
+  flex: 1 1 auto;
+}
+
+.agent-browser-address-form .agent-browser-launcher-submit {
+  height: 28px;
+}
+
+.agent-browser-launcher-form {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 60%, transparent);
+  padding: var(--ms-space-2);
+}
+
+.agent-browser-launcher-icon {
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-browser-input {
+  height: 32px;
+  min-width: 0;
+  flex: 1 1 auto;
+  border-radius: var(--ms-radius-field);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.agent-browser-launcher-submit {
+  height: 32px;
+  flex-shrink: 0;
+  padding-inline: 10px;
+}
+
+.agent-browser-inline-error {
+  margin: 0 var(--ms-space-2) var(--ms-space-2);
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px var(--ms-space-2);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.agent-browser-inline-error__icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.agent-browser-inline-error__text {
+  min-width: 0;
+}
+
+.agent-browser-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+}
+
+.agent-browser-web-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 60%, transparent);
+  background: transparent;
+}
+
+.agent-browser-web-overlay--loading {
+  background: color-mix(in srgb, var(--ms-color-background) 10%, transparent);
+}
+
+.agent-browser-resource-pane {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--agent-browser-background);
+}
+
+.agent-browser-internal-pane {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--agent-browser-background);
+  padding: var(--ms-space-4);
+}
+
+@keyframes agent-browser-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

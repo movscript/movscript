@@ -1,8 +1,15 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import type {
+  ElectronOpenProjectWindowInput,
   ElectronWindowControlAction,
   ElectronWindowState,
 } from '../../src/shared/contracts/electronApi'
+import {
+  contextForWebContents,
+  openAgentWindow,
+  openHomeWindow,
+  openProjectWindow,
+} from '../services/appWindowRegistry'
 
 const trackedWindows = new WeakSet<BrowserWindow>()
 
@@ -35,6 +42,23 @@ export function registerWindowIpcHandlers(): void {
     if (!win) throw new Error('No browser window for window state')
     trackWindowState(win)
     return windowState(win)
+  })
+
+  ipcMain.handle('window:get-context', (event) => {
+    return contextForWebContents(event.sender)
+  })
+
+  ipcMain.handle('window:open-home', () => {
+    return openHomeWindow()
+  })
+
+  ipcMain.handle('window:open-agent', () => {
+    return openAgentWindow()
+  })
+
+  ipcMain.handle('window:open-project', (_event, input?: ElectronOpenProjectWindowInput) => {
+    if (!input) throw new Error('Project window input is required')
+    return openProjectWindow(input)
   })
 }
 

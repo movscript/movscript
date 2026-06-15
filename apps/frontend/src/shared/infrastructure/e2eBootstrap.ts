@@ -4,6 +4,7 @@ import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { AgentSettings, Conversation, ConversationWorkspace } from '@/features/agent/state/agentStore'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { readBrowserStorageItem, removeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore, type AuthSession } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
@@ -30,12 +31,11 @@ export interface E2EBootstrapSeed {
 }
 
 export function applyE2EBootstrapSeedFromStorage(): void {
-  if (typeof window === 'undefined') return
-  const raw = window.localStorage.getItem(E2E_BOOTSTRAP_STORAGE_KEY)
+  const raw = readBrowserStorageItem('local', E2E_BOOTSTRAP_STORAGE_KEY)
   if (!raw) return
 
   try {
-    window.localStorage.removeItem(E2E_BOOTSTRAP_STORAGE_KEY)
+    removeBrowserStorageItem('local', E2E_BOOTSTRAP_STORAGE_KEY)
     const parsed = JSON.parse(raw) as E2EBootstrapSeed
     applyE2EBootstrapSeed(parsed)
   } catch (error) {

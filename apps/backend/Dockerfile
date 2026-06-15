@@ -33,7 +33,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM alpine:3.20
 WORKDIR /app
-RUN apk add --no-cache ffmpeg
 COPY --from=builder /src/apps/backend/server .
 COPY --from=builder /src/apps/backend/migrate .
 COPY --from=admin-builder /repo/apps/admin/dist ./admin

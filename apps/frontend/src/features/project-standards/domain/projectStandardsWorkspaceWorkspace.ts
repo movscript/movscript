@@ -41,9 +41,6 @@ export interface ProjectStandardsWorkspaceArtifactShellContent {
   createdAt: string
 }
 
-/** @deprecated Use ProjectStandardsWorkspaceArtifactShellContent. */
-export type ProjectStandardsWorkspaceWorkspaceContent = ProjectStandardsWorkspaceArtifactShellContent
-
 export function buildEmptyProjectStandardsWorkspaceArtifactShellContent(input: {
   projectId?: number
   productionId?: number
@@ -66,9 +63,6 @@ export function buildEmptyProjectStandardsWorkspaceArtifactShellContent(input: {
     createdAt: input.createdAt ?? new Date().toISOString(),
   }
 }
-
-/** @deprecated Use buildEmptyProjectStandardsWorkspaceArtifactShellContent. */
-export const buildEmptyProjectStandardsWorkspaceWorkspaceContent = buildEmptyProjectStandardsWorkspaceArtifactShellContent
 
 export function buildDefaultProjectStylePatch(): ProjectStylePatch {
   return {

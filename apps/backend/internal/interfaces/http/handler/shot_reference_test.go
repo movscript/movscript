@@ -15,6 +15,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 )
 
@@ -172,3 +173,12 @@ func (fakeShotStorage) GetObject(context.Context, string, int64, int64) (io.Read
 }
 
 func (fakeShotStorage) Backend() string { return "fake" }
+
+func (fakeShotStorage) Health(context.Context) providercontract.ProviderHealth {
+	return providercontract.ProviderHealth{
+		Type:     providercontract.TypeBlobStorage,
+		Adapter:  "fake",
+		Assembly: providercontract.AssemblyStartup,
+		Status:   providercontract.HealthStatusOK,
+	}
+}

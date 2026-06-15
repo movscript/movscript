@@ -1,11 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Database, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { Database,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2 } from 'lucide-react'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
   AgentConsoleCallout,
-  AgentConsoleDocumentBody,
   AgentConsoleDescription,
+  AgentConsoleDocumentBody,
   AgentConsoleFormField,
   AgentConsoleGrid,
   AgentConsoleHeader,
@@ -32,13 +43,11 @@ import {
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
   AgentConsoleToolbar,
-  AgentPageShell,
-  AgentPageShellHeader,
-  IdentityBadge,
-  IdentityMark,
-} from '@movscript/ui'
+} from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
-import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
+import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
+import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import { providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
 import type { PublicModel } from '@/types'
@@ -82,12 +91,12 @@ const API_KIND_OPTIONS: Array<{ value: ModelProviderAPIKind; label: string }> = 
 
 export default function ModelProvidersPage() {
   const workspaceConfigQuery = useQuery({
-    queryKey: ['workspace-model-providers-config'],
+    queryKey: agentProviderKeys.modelProvidersConfig,
     queryFn: () => providerSessionClient.getWorkspaceConfig(),
     retry: false,
   })
   const backendModelsQuery = useQuery({
-    queryKey: ['workspace-model-providers-backend-models'],
+    queryKey: agentProviderKeys.modelProvidersBackendModels,
     queryFn: () => fetchAgentBackendModels(),
     retry: false,
   })
@@ -96,13 +105,15 @@ export default function ModelProvidersPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, string>>({})
+  const [showLocalOverrides, setShowLocalOverrides] = useState(false)
 
   useEffect(() => {
     if (workspaceConfigQuery.data) setProviders(normalizeWorkspaceModelProviders(workspaceConfigQuery.data))
   }, [workspaceConfigQuery.data])
 
   const backendProviders = useMemo(() => groupBackendModelProviders(backendModelsQuery.data ?? []), [backendModelsQuery.data])
-  const enabledCount = backendProviders.length + providers.filter((provider) => provider.enabled).length
+  const localOverrideCount = providers.filter((provider) => provider.enabled).length
+  const enabledCount = backendProviders.length + localOverrideCount
   const invalidCount = providers.filter((provider) => provider.enabled && !modelProviderIsValid(provider)).length
   const canSave = invalidCount === 0
 
@@ -169,7 +180,7 @@ export default function ModelProvidersPage() {
               {(workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              展示后端已提供的模型供应商，并管理当前 workspace 额外保存的本地 Base URL、API Key 和默认模型路由。
+              展示后端 AI Gateway 已提供的模型路由。普通使用只需要选择模型；供应商凭证、Base URL 和 API Key 由后台统一管理。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -177,11 +188,10 @@ export default function ModelProvidersPage() {
               <RefreshCw size={14} />
               刷新
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={addProvider}>
-              <Plus size={14} />
-              添加 Provider
+            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => setShowLocalOverrides((value) => !value)}>
+              {showLocalOverrides ? '隐藏高级覆盖' : '高级本地覆盖'}
             </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" onClick={() => void save()} disabled={!canSave || saving}>
+            <AgentConsoleActionButton type="button" size="sm" onClick={() => void save()} disabled={!showLocalOverrides || !canSave || saving}>
               <Save size={14} />
               {saving ? '保存中...' : '保存'}
             </AgentConsoleActionButton>
@@ -218,7 +228,7 @@ export default function ModelProvidersPage() {
             {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
             {!backendModelsQuery.error && backendProviders.length === 0 ? (
               <AgentConsoleCallout tone="warning" compact>
-                后端当前没有返回可用模型。可以先添加 Local Provider，或回到后台配置模型凭证。
+                后端当前没有返回可用模型。请先在 Admin 的模型供应商中配置 AI Gateway 凭证和模型路由。
               </AgentConsoleCallout>
             ) : null}
 
@@ -231,7 +241,7 @@ export default function ModelProvidersPage() {
                         <IdentityBadge kind="model" id={provider.defaultModel ?? provider.models[0]} label={provider.label} detail={provider.defaultModel} size="sm" variant="stack" />
                       </AgentConsoleLocalToolTitle>
                       <AgentConsoleLocalToolDetail>
-                        {provider.modelCount} 个模型{provider.credentialId ? ` / credential #${provider.credentialId}` : ''}
+                        {provider.modelCount} 个模型
                       </AgentConsoleLocalToolDetail>
                     </AgentConsoleLocalToolCopy>
                     <AgentConsoleLocalToolControls>
@@ -256,85 +266,91 @@ export default function ModelProvidersPage() {
           </AgentConsoleStack>
         </AgentConsolePanel>
 
-        <AgentConsolePanel
-          title="Local Providers"
-          icon={<Database size={14} />}
-          action={(
-            <AgentConsolePanelActions>
-              {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
-              <AgentConsoleStatusBadge intent={invalidCount > 0 ? 'warning' : 'success'} emphasis="soft">
-                {invalidCount > 0 ? `${invalidCount} 项需补全` : `${providers.filter((provider) => provider.enabled).length} 个启用`}
-              </AgentConsoleStatusBadge>
-            </AgentConsolePanelActions>
-          )}
-        >
-          <AgentConsoleStack spacing="loose">
-            <AgentConsoleIntroRow>
-              <AgentConsoleDescription>
-                Local Providers 只保存在当前 provider profile config 中，用于接入后端目录之外的模型服务。
-              </AgentConsoleDescription>
-              <AgentConsoleToolbar>
-                <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                  provider profile config / modelProviders
+        {showLocalOverrides ? (
+          <AgentConsolePanel
+            title="Local Providers"
+            icon={<Database size={14} />}
+            action={(
+              <AgentConsolePanelActions>
+                {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
+                <AgentConsoleStatusBadge intent={invalidCount > 0 ? 'warning' : 'success'} emphasis="soft">
+                  {invalidCount > 0 ? `${invalidCount} 项需补全` : `${providers.filter((provider) => provider.enabled).length} 个启用`}
                 </AgentConsoleStatusBadge>
-              </AgentConsoleToolbar>
-            </AgentConsoleIntroRow>
+              </AgentConsolePanelActions>
+            )}
+          >
+            <AgentConsoleStack spacing="loose">
+              <AgentConsoleIntroRow>
+                <AgentConsoleDescription>
+                  高级本地覆盖只保存在当前 runtime profile config 中，用于临时接入后端 AI Gateway 之外的模型服务。团队和正式环境应优先使用 Admin 统一配置的 Backend Providers。
+                </AgentConsoleDescription>
+                <AgentConsoleToolbar>
+                  <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={addProvider}>
+                    <Plus size={14} />
+                    添加本地覆盖
+                  </AgentConsoleActionButton>
+                  <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
+                    advanced / local override
+                  </AgentConsoleStatusBadge>
+                </AgentConsoleToolbar>
+              </AgentConsoleIntroRow>
 
-            {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
-            {saveError ? <AgentConsoleCallout tone="danger" compact>保存失败：{saveError}</AgentConsoleCallout> : null}
-            {invalidCount > 0 ? <AgentConsoleCallout tone="warning" compact>启用的 Local Provider 需要有效 Base URL 和 API Key。</AgentConsoleCallout> : null}
-            {providers.length === 0 ? (
-              <AgentConsoleCallout compact>
-                当前 workspace 没有本地 provider；Agent 仍可以选择后端提供的 Backend Provider。
-              </AgentConsoleCallout>
-            ) : null}
+              {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
+              {saveError ? <AgentConsoleCallout tone="danger" compact>保存失败：{saveError}</AgentConsoleCallout> : null}
+              {invalidCount > 0 ? <AgentConsoleCallout tone="warning" compact>启用的本地覆盖需要有效 Base URL 和 API Key。</AgentConsoleCallout> : null}
+              {providers.length === 0 ? (
+                <AgentConsoleCallout compact>
+                  当前 workspace 没有本地覆盖；Agent 会使用后端 AI Gateway 提供的模型路由。
+                </AgentConsoleCallout>
+              ) : null}
 
-            <AgentConsoleGrid columns="server">
-              {providers.map((provider) => (
-                <AgentConsoleLocalToolCard key={provider.id} invalid={provider.enabled && !modelProviderIsValid(provider)}>
-                  <AgentConsoleLocalToolHeader>
-                    <AgentConsoleLocalToolCopy>
-                      <AgentConsoleLocalToolTitle>
-                        <IdentityBadge kind="model" id={provider.defaultModel} label={provider.label || provider.id} detail={provider.defaultModel} size="sm" variant="stack" />
-                      </AgentConsoleLocalToolTitle>
-                      <AgentConsoleLocalToolDetail>{provider.apiKind} / {provider.baseURL || '未设置 Base URL'}</AgentConsoleLocalToolDetail>
-                    </AgentConsoleLocalToolCopy>
-                    <AgentConsoleLocalToolControls>
-                      <AgentConsoleStatusBadge intent={provider.enabled ? 'success' : 'neutral'} emphasis="soft">
-                        {provider.enabled ? '启用' : '停用'}
-                      </AgentConsoleStatusBadge>
-                      <input
-                        type="checkbox"
-                        checked={provider.enabled}
-                        onChange={(event) => patchProvider(provider.id, { enabled: event.target.checked })}
-                        aria-label={`${provider.label} enabled`}
-                      />
-                    </AgentConsoleLocalToolControls>
-                  </AgentConsoleLocalToolHeader>
-                  <AgentConsoleLocalToolFields disabled={!provider.enabled}>
-                    <AgentConsoleFormField label="显示名称" value={provider.label} onChange={(event) => patchProvider(provider.id, { label: event.target.value })} />
-                    <AgentConsoleFormField label="Base URL" value={provider.baseURL} onChange={(event) => patchProvider(provider.id, { baseURL: event.target.value })} placeholder="https://api.openai.com/v1" />
-                    <AgentConsoleFormField label="API Key" type="password" value={provider.apiKey ?? ''} onChange={(event) => patchProvider(provider.id, { apiKey: event.target.value })} placeholder="sk-..." />
-                    <AgentConsoleFormField label="默认模型" value={provider.defaultModel ?? ''} onChange={(event) => patchProvider(provider.id, { defaultModel: event.target.value })} placeholder="gpt-5" />
-                    <AgentConsoleSelectField label="API Mode" value={provider.apiKind} onChange={(event) => patchProvider(provider.id, { apiKind: event.target.value as ModelProviderAPIKind })}>
-                      {API_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </AgentConsoleSelectField>
-                    {testResults[provider.id] ? <AgentConsoleCallout compact>{testResults[provider.id]}</AgentConsoleCallout> : null}
-                  </AgentConsoleLocalToolFields>
-                  <AgentConsoleLocalToolActions>
-                    <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => testProvider(provider)}>
-                      验证配置
-                    </AgentConsoleActionButton>
-                    <AgentConsoleActionButton type="button" size="sm" variant="outline" intent="danger" onClick={() => removeProvider(provider.id)}>
-                      <Trash2 size={14} />
-                      删除
-                    </AgentConsoleActionButton>
-                  </AgentConsoleLocalToolActions>
-                </AgentConsoleLocalToolCard>
-              ))}
-            </AgentConsoleGrid>
-          </AgentConsoleStack>
-        </AgentConsolePanel>
+              <AgentConsoleGrid columns="server">
+                {providers.map((provider) => (
+                  <AgentConsoleLocalToolCard key={provider.id} invalid={provider.enabled && !modelProviderIsValid(provider)}>
+                    <AgentConsoleLocalToolHeader>
+                      <AgentConsoleLocalToolCopy>
+                        <AgentConsoleLocalToolTitle>
+                          <IdentityBadge kind="model" id={provider.defaultModel} label={provider.label || provider.id} detail={provider.defaultModel} size="sm" variant="stack" />
+                        </AgentConsoleLocalToolTitle>
+                        <AgentConsoleLocalToolDetail>{provider.apiKind} / {provider.baseURL || '未设置 Base URL'}</AgentConsoleLocalToolDetail>
+                      </AgentConsoleLocalToolCopy>
+                      <AgentConsoleLocalToolControls>
+                        <AgentConsoleStatusBadge intent={provider.enabled ? 'success' : 'neutral'} emphasis="soft">
+                          {provider.enabled ? '启用' : '停用'}
+                        </AgentConsoleStatusBadge>
+                        <input
+                          type="checkbox"
+                          checked={provider.enabled}
+                          onChange={(event) => patchProvider(provider.id, { enabled: event.target.checked })}
+                          aria-label={`${provider.label} enabled`}
+                        />
+                      </AgentConsoleLocalToolControls>
+                    </AgentConsoleLocalToolHeader>
+                    <AgentConsoleLocalToolFields disabled={!provider.enabled}>
+                      <AgentConsoleFormField label="显示名称" value={provider.label} onChange={(event) => patchProvider(provider.id, { label: event.target.value })} />
+                      <AgentConsoleFormField label="Base URL" value={provider.baseURL} onChange={(event) => patchProvider(provider.id, { baseURL: event.target.value })} placeholder="https://api.openai.com/v1" />
+                      <AgentConsoleFormField label="API Key" type="password" value={provider.apiKey ?? ''} onChange={(event) => patchProvider(provider.id, { apiKey: event.target.value })} placeholder="sk-..." />
+                      <AgentConsoleFormField label="默认模型" value={provider.defaultModel ?? ''} onChange={(event) => patchProvider(provider.id, { defaultModel: event.target.value })} placeholder="gpt-5" />
+                      <AgentConsoleSelectField label="API Mode" value={provider.apiKind} onChange={(event) => patchProvider(provider.id, { apiKind: event.target.value as ModelProviderAPIKind })}>
+                        {API_KIND_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </AgentConsoleSelectField>
+                      {testResults[provider.id] ? <AgentConsoleCallout compact>{testResults[provider.id]}</AgentConsoleCallout> : null}
+                    </AgentConsoleLocalToolFields>
+                    <AgentConsoleLocalToolActions>
+                      <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => testProvider(provider)}>
+                        验证配置
+                      </AgentConsoleActionButton>
+                      <AgentConsoleActionButton type="button" size="sm" variant="outline" intent="danger" onClick={() => removeProvider(provider.id)}>
+                        <Trash2 size={14} />
+                        删除
+                      </AgentConsoleActionButton>
+                    </AgentConsoleLocalToolActions>
+                  </AgentConsoleLocalToolCard>
+                ))}
+              </AgentConsoleGrid>
+            </AgentConsoleStack>
+          </AgentConsolePanel>
+        ) : null}
       </AgentConsoleDocumentBody>
     </AgentPageShell>
   )

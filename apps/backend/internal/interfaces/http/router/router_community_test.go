@@ -53,6 +53,12 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 	expected := []string{
 		"GET /api/v1/admin/adapters",
 		"GET /api/v1/admin/model-presets",
+		"GET /api/v1/admin/provider-instances",
+		"GET /api/v1/admin/provider-instances/:id/config",
+		"PUT /api/v1/admin/provider-instances/:id/config",
+		"POST /api/v1/admin/provider-instances/:id/config/apply",
+		"POST /api/v1/admin/provider-instances/:id/config/activate",
+		"POST /api/v1/admin/provider-instances/:id/test",
 		"GET /api/v1/admin/credentials",
 		"POST /api/v1/admin/credentials",
 		"PUT /api/v1/admin/credentials/:id",

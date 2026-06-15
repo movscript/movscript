@@ -1,0 +1,145 @@
+.agent-mode-project-menu {
+  width: 288px;
+}
+
+.agent-sidebar-window-controls {
+  width: 100%;
+  gap: 18px;
+}
+
+.agent-sidebar-window-controls--collapsed {
+  width: 100%;
+  gap: 0;
+}
+
+.agent-sidebar-window-controls .app-window-sidebar-toggle {
+  color: color-mix(in srgb, var(--ms-color-foreground) 50%, transparent);
+}
+
+.agent-sidebar-window-controls__sidebar {
+  margin-left: 10px;
+}
+
+.agent-sidebar-window-controls--collapsed .agent-sidebar-window-controls__sidebar {
+  margin-left: 0;
+}
+
+.agent-sidebar-window-controls__nav {
+  opacity: 0.62;
+}
+
+.agent-sidebar-window-controls__update {
+  width: auto;
+  min-width: 58px;
+  height: 26px;
+  margin-left: auto;
+  border-radius: var(--ms-radius-full);
+  padding-inline: 12px;
+  background: #0a84ff;
+  color: #fff;
+  font-size: var(--ms-text-label);
+  font-weight: 700;
+  line-height: var(--ms-leading-label);
+  gap: 5px;
+  box-shadow: none;
+}
+
+.agent-sidebar-window-controls__update:hover {
+  background: #2997ff;
+  color: #fff;
+}
+
+.agent-mode-provider-row {
+  position: relative;
+  display: flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--ms-radius-control);
+  padding: 6px 10px;
+  color: var(--agent-mode-sidebar-text);
+}
+
+.agent-mode-provider-row select {
+  min-width: 0;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+  outline: 0;
+}
+
+.agent-mode-sidebar-project-heading {
+  margin: 14px 0 8px;
+  padding-inline: 10px;
+  color: var(--agent-mode-sidebar-muted);
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: var(--ms-leading-label);
+  letter-spacing: 0;
+}
+
+.agent-page-project-select-card {
+  min-height: 31px;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--ms-radius-control);
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--agent-mode-sidebar-muted);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.agent-page-project-select-card:hover {
+  background: color-mix(in srgb, var(--ms-color-muted) 40%, transparent);
+  color: var(--agent-mode-sidebar-text);
+}
+
+.agent-mode-content-panel {
+  --agent-content-panel-background: var(--app-shell-slot-right-background, var(--ms-app-shell-slot-right-background, var(--ms-color-app-background)));
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: inherit;
+  background: var(--agent-content-panel-background);
+  transition:
+    width 0.26s var(--ms-easing-standard),
+    min-width 0.26s var(--ms-easing-standard),
+    flex-basis 0.26s var(--ms-easing-standard),
+    opacity 0.26s var(--ms-easing-standard);
+}
+
+.agent-mode-content-panel--resizing {
+  transition: none;
+}
+
+.agent-mode-content-panel[data-collapsed="true"] {
+  width: 0;
+  min-width: 0;
+  flex-basis: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-mode-content-panel::before {
+  left: 0;
+}

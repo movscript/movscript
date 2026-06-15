@@ -1,0 +1,232 @@
+import type { MovScriptWorkspaceConfig, MovScriptWorkspaceRootManifest } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceService } from '@movscript/workspace'
+import type {
+  ContentCandidateRecord,
+  ContentSourceWorkspaceAudioCuePatch,
+  ContentSourceWorkspaceData,
+  ContentSourceWorkspaceEditPromptPatch,
+  ContentSourceWorkspaceExpressionUnitPatch,
+  ContentSourceWorkspaceSnapshot,
+  ContentSourceWorkspaceStoryboardTimelinePatch,
+  ContentSourceWorkspaceTransitionPatch,
+} from '@movscript/core/content'
+import type { ElectronMovScriptWorkspaceContext } from './electronApiWorkspaceContext'
+
+export type ElectronMovScriptWorkspaceConfig = {
+  schema: MovScriptWorkspaceConfig['schema']
+  updatedAt: string
+  modelConfig?: Record<string, unknown>
+  toolProviders?: Array<Record<string, unknown>>
+  modelProviders?: Array<Record<string, unknown>>
+  permissions?: Record<string, unknown>
+  environment?: Record<string, string>
+  providers?: Record<string, Record<string, unknown>>
+}
+
+export type ElectronMovScriptWorkspaceConfigSaveInput = {
+  providerProfileKey?: string
+  workspaceDir?: string
+  modelConfig?: Record<string, unknown> | null
+  toolProviders?: Array<Record<string, unknown>> | null
+  modelProviders?: Array<Record<string, unknown>> | null
+  permissions?: Record<string, unknown> | null
+  environment?: Record<string, string> | null
+  providers?: Record<string, Record<string, unknown>> | null
+}
+
+export type ElectronMovScriptWorkspaceRootManifest = MovScriptWorkspaceRootManifest
+
+export type ElectronMovScriptWorkspaceRootResult = {
+  workspaceDir: string
+  rootDir: string
+  controlDir: string
+  configTomlPath: string
+  manifestPath: string
+  providersDir: string
+  backendDir: string
+  binDir: string
+  manifest: ElectronMovScriptWorkspaceRootManifest
+}
+
+export type ElectronMovScriptWorkspaceFileEntry = {
+  name: string
+  path: string
+  kind: 'file' | 'directory'
+  size: number
+  updatedAt: string
+}
+
+export type ElectronMovScriptWorkspaceFilesInput = {
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  projectId?: number | string
+  path?: string
+}
+
+export type ElectronMovScriptWorkspaceFilesListResult = {
+  rootPath: string
+  path: string
+  entries: ElectronMovScriptWorkspaceFileEntry[]
+}
+
+export type ElectronMovScriptWorkspaceFileReadResult = {
+  rootPath: string
+  path: string
+  content: string
+  size: number
+  updatedAt: string
+}
+
+export type ElectronMovScriptWorkspaceMediaFileReadResult = {
+  rootPath: string
+  path: string
+  dataUrl: string
+  mimeType: string
+  size: number
+  updatedAt: string
+}
+
+export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspaceFilesInput & {
+  content: string
+}
+
+export type ElectronMovScriptWorkspaceInterpretActionInput = {
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  projectId?: number | string
+}
+
+export type ElectronMovScriptEngineProjectInput = ElectronMovScriptWorkspaceInterpretActionInput
+
+export type ElectronMovScriptEngineWorkspaceQueryEntitiesInput = ElectronMovScriptEngineProjectInput & {
+  query?: Parameters<MovScriptWorkspaceService['queryEntities']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceQuerySettingsInput = ElectronMovScriptEngineProjectInput & {
+  query?: Parameters<MovScriptWorkspaceService['querySettings']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceQueryAssetsInput = ElectronMovScriptEngineProjectInput & {
+  query?: Parameters<MovScriptWorkspaceService['queryAssets']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertSettingInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertSetting']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertAssetInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertAsset']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertScriptInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertScript']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceReadScriptSourceInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['readScriptSource']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceDeleteEntityInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['deleteEntity']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['saveProductionSnapshot']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertProjectStandards']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceUpsertContentUnitInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['upsertContentUnit']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceSelectCandidateInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['selectCandidate']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceAppendCandidateInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['appendCandidate']>[0]
+}
+
+export type ElectronMovScriptEngineWorkspaceCandidateCreateInput = ElectronMovScriptEngineProjectInput & {
+  payload: Parameters<MovScriptWorkspaceService['createAssetSlotCandidate']>[0]
+}
+
+export type ElectronMovScriptEngineContentCandidateCreateInput = {
+  projectId: number | string
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  contentUnitId: string | number
+  candidateId: string | number
+  source: 'ai_generate' | 'resource_library'
+  status: 'queued' | 'imported'
+  producer: Record<string, unknown>
+  outputs: Array<{
+    kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
+    resource_id: number
+    artifact_ref?: string
+    mime_type?: string
+    width?: number
+    height?: number
+    duration_sec?: number
+    metadata?: Record<string, unknown>
+  }>
+  promptSnapshot: Record<string, unknown>
+  createdAt: string
+}
+
+export type ElectronMovScriptEngineContentCandidateSelectInput = {
+  projectId: number | string
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+  contentUnitId: string | number
+  candidateId: string | number
+  resourceId?: number
+  reason: 'content_source_workspace_selection'
+}
+
+export type ElectronMovScriptEngineContentUnitEditPromptInput =
+  ElectronMovScriptEngineProjectInput & Parameters<MovScriptWorkspaceService['updateContentUnitEditPrompt']>[0]
+
+export type ElectronMovScriptEngineExpressionUnitInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceExpressionUnitPatch
+
+export type ElectronMovScriptEngineAudioCueInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceAudioCuePatch
+
+export type ElectronMovScriptEngineTransitionInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceTransitionPatch
+
+export type ElectronMovScriptEngineStoryboardTimelineInput =
+  ElectronMovScriptEngineProjectInput & ContentSourceWorkspaceStoryboardTimelinePatch
+
+export type ElectronMovScriptEngineHierarchyNodeWriteInput = ElectronMovScriptEngineProjectInput & {
+  targetPath: string
+  record: Record<string, unknown>
+}
+
+export type ElectronProjectGitActionInput = {
+  projectId: number | string
+  workspaceDir?: string
+  userId?: number | string
+  orgId?: number | string
+}
+
+export type ElectronProjectGitActionResult = {
+  ok: boolean
+  operation: 'commit' | 'init' | 'pull' | 'push'
+  projectId: number
+  workspaceDir: string
+  path: string
+  remoteURL?: string
+  branch?: string
+  stdout?: string
+  stderr?: string
+  error?: string
+}

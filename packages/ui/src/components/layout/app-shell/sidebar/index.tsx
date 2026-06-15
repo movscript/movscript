@@ -169,6 +169,8 @@ export function AppSidebarActionItem({
       title={collapsed && typeof label === "string" ? label : undefined}
       variant="ghost"
       size="sm"
+      fullWidth
+      align="start"
       className={appSidebarNavItemClassName({ collapsed, className })}
       {...props}
     >

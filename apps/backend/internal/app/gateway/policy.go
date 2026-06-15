@@ -11,6 +11,14 @@ import (
 
 const DefaultChatModel = domaingateway.DefaultChatModel
 
+type ChatModel struct {
+	ID              uint
+	ModelID         string
+	ModelDefID      string
+	ModelIDOverride string
+	LogicalModelID  string
+}
+
 func KeyAllowsScope(key *domaingateway.APIKey, scope string) bool {
 	if key == nil {
 		return false
@@ -41,7 +49,7 @@ func UsageContext(key *domaingateway.APIKey, projectID *uint) ai.UsageContext {
 	return ctx
 }
 
-func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID uint, defaultErr error) (uint, string, error) {
+func ResolveTextModel(models []ChatModel, requestedModel string, defaultID uint, defaultErr error) (uint, string, error) {
 	requested := strings.TrimSpace(requestedModel)
 	if requested == "" || requested == DefaultChatModel {
 		return defaultID, DefaultChatModel, defaultErr
@@ -69,7 +77,7 @@ func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID 
 	return 0, requested, fmt.Errorf("model %q not found", requested)
 }
 
-func ModelID(m ai.PublicModel) string {
+func ModelID(m ChatModel) string {
 	if m.ModelID != "" {
 		return m.ModelID
 	}

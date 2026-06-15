@@ -17,10 +17,15 @@ export interface FrontendRouteItem {
 }
 
 export interface FrontendAppTopControls {
-  modeButtonVariant?: 'ghost' | 'outline'
-  projectMenuVariant?: 'community' | 'enterprise'
-  languageControl?: 'select' | 'menu'
   settingsAction?: 'accountDialog' | 'appSettingsRoute'
+  globalMenuItems?: FrontendAppTopControlsMenuItem[]
+}
+
+export interface FrontendAppTopControlsMenuItem {
+  id: string
+  label: string
+  icon: LucideIcon
+  to: string
 }
 
 export type FrontendRuntimeEdition = 'community' | 'enterprise'

@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
-import { AppInlineError, Button } from '@movscript/ui'
+import { AppInlineError } from '@movscript/ui/business/app'
+import { Button } from '@movscript/ui/primitives'
 
 type VectorStats = {
   documents: number

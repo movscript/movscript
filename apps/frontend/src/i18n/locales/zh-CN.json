@@ -89,8 +89,8 @@
     "missingCredentialField": "缺少必要凭据字段：{{detail}}",
     "modelConfigNotFound": "模型配置不存在",
     "modelListingUnsupported": "该服务商不支持拉取模型列表",
-    "noAIProviderAvailable": "暂无可用 AI 服务商：{{detail}}",
-    "noAIProviderConfigured": "暂无可用的 AI 提供商，请先在 AI 配置中添加并启用提供商",
+    "noAIProviderAvailable": "暂无可用的后端模型路由：{{detail}}",
+    "noAIProviderConfigured": "暂无可用的后端模型路由，请让 Admin 启用 AI Gateway provider 和模型路由。",
     "noStorageKey": "缺少存储键",
     "noTask": "任务不存在",
     "nodeNotFound": "节点不存在",
@@ -137,7 +137,7 @@
     "loginFailed": "登录失败",
     "registerFailed": "注册失败",
     "workModeTitle": "选择本次登录的工作模式",
-    "workModeDescription": "每次登录都可以重新选择入口。之后需要切换时，使用右上角的模式图标。",
+    "workModeDescription": "每次登录都可以重新选择入口。之后也可以在应用设置里调整默认入口。",
     "passwordMismatch": "两次密码不一致",
     "email": "邮箱",
     "sendCode": "发送验证码",
@@ -177,13 +177,13 @@
     "localFailed": "本地工作区创建失败",
     "workMode": {
       "title": "先选择工作模式",
-      "description": "你可以先选一个更适合自己的入口。之后需要切换时，使用右上角的模式图标。",
+      "description": "你可以先选一个更适合自己的入口。之后也可以在应用设置里调整默认入口。",
       "agentDescription": "从目标出发，让 Agent 读取项目上下文、提出计划并推进工作区、工作区和生成任务。",
-      "detailDescription": "使用完整侧栏、项目对象页和专业工作台，适合手动检查、精修和批量管理。",
+      "projectDescription": "进入项目后只关注剧本编辑、内容编排和项目规范，适合围绕一个作品持续推进。",
       "agentAction": "先用 Agent 模式",
-      "detailAction": "先用详细模式",
+      "projectAction": "先用项目模式",
       "selected": "已选择：{{mode}}",
-      "switchHint": "进入项目后，右上角的模式图标会保留。需要时可以随时在 Agent 与详细工作台之间切换。"
+      "switchHint": "进入项目后，仍可以在应用设置里调整默认入口。"
     },
     "local": {
       "title": "本地使用",
@@ -219,9 +219,11 @@
     "launchModeTitle": "启动方式",
     "launchModeHint": "本地启动会在注册时请求初始化系统管理员；云端启动只连接远程服务。",
     "workModeTitle": "工作模式",
-    "workModeHint": "选择进入项目后的主界面形态",
-    "detailWorkMode": "详细模式",
-    "detailWorkModeHelp": "保留现有侧栏、对象页和工作台。",
+    "workModeHint": "选择默认进入的工作入口。首页仍然可以直接进入全部模式。",
+    "projectWorkMode": "项目模式",
+    "projectWorkModeHelp": "选择项目后进入项目总览，再进入剧本、编排和项目规范。",
+    "toolWorkMode": "工具模式",
+    "toolWorkModeHelp": "进入独立工具、资源和任务，不显示右侧 AI 会话面板。",
     "agentWorkMode": "Agent 模式",
     "agentWorkModeHelp": "进入项目后全屏显示 Agent 工作入口",
     "cloudMode": "云端启动",
@@ -244,7 +246,7 @@
     "savedReloading": "已保存，正在重新加载客户端…",
     "saved": "已保存。",
     "movScriptWorkspaceTitle": "MovScript 工作区",
-    "movScriptWorkspaceHint": "选择本机 MovScript 项目仓库根目录；源文件在 productions/、scripts/、content_units/ 和 settings/，解释结果在 .interpret/，本机配置在 .movscript/。",
+    "movScriptWorkspaceHint": "选择本机 MovScript 项目仓库根目录；源文件在 productions/、scripts/、content_units/ 和 settings/，本机配置在 .movscript/。",
     "movScriptWorkspaceDir": "工作区目录",
     "movScriptWorkspaceDirHelp": "留空时使用桌面端默认目录；填写后，该目录本身就是工作区根，.movscript 会在其中创建。",
     "movScriptWorkspaceDirPlaceholder": "/Users/me/Projects/story-workspace",
@@ -253,8 +255,17 @@
     "movScriptWorkspaceUseDefault": "使用默认目录",
     "returnToLogin": "返回登录",
     "adminConsole": "管理后台",
+    "adminConsoleHost": "桌面端独立窗口",
     "openAdminConsole": "打开管理后台",
     "adminConsoleHelp": "本地模式下请在管理后台配置供应商凭据、启用模型、设置模型能力并调试生成任务。",
+    "externalResourcesTitle": "外部资源",
+    "externalResourcesHint": "可搜索的外部素材来源由 Admin 作为 External Resource Provider Instance 统一配置；当前客户端只显示就绪状态并打开资源浏览。",
+    "externalResourceSourceEnabled": "{{name}} 已启用。",
+    "externalResourceSourceDisabled": "{{name}} 已配置但未启用。",
+    "externalResourceSourceMissing": "尚未在 Admin 配置。",
+    "externalResourceAdmin": "外部资源 Provider 设置",
+    "externalResourceAdminHelp": "Pexels、Pixabay 以及 API Key 请在 Admin Provider Instances 中管理；普通应用设置不再编辑密钥。",
+    "openExternalResources": "打开外部资源",
     "resourceStorageTitle": "资源存储维护",
     "resourceStorageHint": "清理已无资源记录引用的物理文件对象。建议先预检查，再执行清理。",
     "resourceBlobGCEndpoint": "清理接口",
@@ -1159,7 +1170,7 @@
   },
   "agents": {
     "myAgents": "我的 Agent",
-    "description": "管理 provider 配置文件、已安装能力、Skills、工具和运行记录。",
+    "description": "管理 Agent runtime 配置文件、已安装能力、Skills、工具和运行记录。",
     "tools": {
       "names": {
         "workspace_fetch": "拉取工作区",
@@ -1270,9 +1281,9 @@
     "debug": {
       "shortTitle": "调试",
       "title": "Agent 调试控制台",
-      "description": "用于观测 Provider 会话在线状态、当前上下文、Prompt Preview、最近运行和原始诊断数据；持久配置请在 Agent 设置中管理。",
+      "description": "用于观测 Runtime 会话在线状态、当前上下文、Prompt Preview、最近运行和原始诊断数据；持久配置请在 Agent 设置中管理。",
       "scope": {
-        "observabilityPlane": "观测面：只读查看 Provider 会话状态",
+        "observabilityPlane": "观测面：只读查看 Runtime 会话状态",
         "noPersistentWrites": "不修改模型、Skills、配置文件或工具权限",
         "runDiagnosticsInDetails": "单次运行诊断从对话详情进入"
       },
@@ -1305,8 +1316,8 @@
         "evidenceCopied": "证据已复制"
       },
       "status": {
-        "providerSessionOnline": "Provider 会话在线",
-        "providerSessionOffline": "Provider 会话离线",
+        "providerSessionOnline": "Runtime 会话在线",
+        "providerSessionOffline": "Runtime 会话离线",
         "checking": "检查中",
         "online": "在线",
         "offline": "离线",
@@ -1316,8 +1327,8 @@
         "blocked": "受限"
       },
       "panels": {
-        "runtime": "Provider 会话",
-        "providerModelConfig": "Provider 模型配置",
+        "runtime": "Runtime 会话",
+        "providerModelConfig": "模型路由配置",
         "previewInput": "Preview 输入",
         "warnings": "警告",
         "mcpResources": "MCP 资源",
@@ -1377,7 +1388,7 @@
         "notRequired": "当前调用模式不需要直连密钥"
       },
       "metrics": {
-        "runtime": "Provider 会话",
+        "runtime": "Runtime 会话",
         "mcpTools": "MCP 工具",
         "resources": "MCP 资源",
         "runs": "运行",
@@ -1400,8 +1411,8 @@
         "status": "状态"
       },
       "toolConsole": {
-        "warning": "这里仅列出 source=mcp 的外部 MCP 工具。Provider 会话调用不会显示本地 workspace / memory / taskGraph 工具。",
-        "runtimeBoundary": "Workspace 相关能力由 frontend MCP/文件管理边界提供。Provider 会话不拥有 workspace_open、workspace_validate、workspace_submit 这些本地工具。",
+        "warning": "这里仅列出 source=mcp 的外部 MCP 工具。Runtime 会话调用不会显示本地 workspace / memory / taskGraph 工具。",
+        "runtimeBoundary": "Workspace 相关能力由 frontend MCP/文件管理边界提供。Runtime 会话不拥有 workspace_open、workspace_validate、workspace_submit 这些本地工具。",
         "tool": "MCP 工具",
         "args": "JSON 参数",
         "run": "执行工具",
@@ -1424,8 +1435,8 @@
         "action": "不可用"
       },
       "observation": {
-        "runtime": "Provider 会话连接",
-        "modelConfig": "Provider 模型配置",
+        "runtime": "Runtime 会话连接",
+        "modelConfig": "模型路由配置",
         "mcp": "MCP 状态",
         "context": "项目上下文",
         "preview": "Prompt Preview",
@@ -1433,17 +1444,17 @@
         "warnings": "告警信号"
       },
       "observationDetails": {
-        "runtimeReady": "已读取 Provider 会话 health、catalog 和 capabilities。",
-        "runtimeMissing": "Provider 会话未连接，无法观测状态。",
-        "modelConfigReady": "Provider 模型配置已保存为 {{model}}，凭证状态正常。",
-        "modelConfigUnavailable": "Provider 会话未连接，无法观测模型配置。",
-        "modelConfigReadFailed": "Provider 会话在线，但模型配置读取失败：{{reason}}。",
-        "modelConfigMissing": "尚未保存 Provider 模型配置。请到 Agent 设置配置默认模型。",
-        "modelCredentialMissing": "Provider 模型配置已保存，但直连 Provider 凭证缺失：{{env}}。",
+        "runtimeReady": "已读取 Runtime 会话 health、catalog 和 capabilities。",
+        "runtimeMissing": "Runtime 会话未连接，无法观测状态。",
+        "modelConfigReady": "模型路由配置已保存为 {{model}}，凭证状态正常。",
+        "modelConfigUnavailable": "Runtime 会话未连接，无法观测模型配置。",
+        "modelConfigReadFailed": "Runtime 会话在线，但模型配置读取失败：{{reason}}。",
+        "modelConfigMissing": "尚未保存模型路由配置。请到 Agent 设置配置默认模型。",
+        "modelCredentialMissing": "模型路由配置已保存，但直连凭证缺失：{{env}}。",
         "mcpReady": "MCP 已连接，可观测资源和工具能力。",
         "mcpMissing": "MCP 未连接或资源不可用。",
         "contextReady": "会话项目：{{project}}。",
-        "contextMissing": "未选择项目，只能观测全局 Provider 会话。",
+        "contextMissing": "未选择项目，只能观测全局 Runtime 会话。",
         "previewReady": "已生成 Preview，可检查 prompt、context 和计划。",
         "previewMissing": "尚未运行 Preview。",
         "runsReady": "已读取 {{count}} 条运行记录。",
@@ -1453,7 +1464,7 @@
       },
       "evidenceChecklist": {
         "title": "Agent Debug 证据完整性清单",
-        "runtime": "Provider 会话快照",
+        "runtime": "Runtime 会话快照",
         "observations": "观测覆盖",
         "triage": "分诊结果",
         "remediation": "下一步路由",
@@ -1462,8 +1473,8 @@
         "redaction": "脱敏状态"
       },
       "evidenceChecklistDetails": {
-        "runtimeReady": "已包含 Provider 会话 health、catalog、capabilities 和运行列表。",
-        "runtimeMissing": "Provider 会话不可用，该 Bundle 无法证明当前 Provider 会话状态。",
+        "runtimeReady": "已包含 Runtime 会话 health、catalog、capabilities 和运行列表。",
+        "runtimeMissing": "Runtime 会话不可用，该 Bundle 无法证明当前 Runtime 会话状态。",
         "observations": "已完成 {{total}} 项观测检查；其中 {{actions}} 项不可用、{{warnings}} 项待补充，涉及 {{warningSources}} 个警告来源。",
         "triage": "已生成 {{total}} 个分诊项，其中 {{actions}} 个需处理。",
         "remediation": "已包含 {{count}} 个只读下一步建议。",
@@ -1503,7 +1514,7 @@
         "requiresAction": "{{count}} 个运行正在等待确认，代表原因：{{reason}}。",
         "modelConfig": "Debug 只观测问题；持久模型、凭证和路由修复归 Agent 设置负责。",
         "preview": "运行 Preview 会生成 prompt、context、taskGraph 和审批证据，不会修改已保存设置。",
-        "mcp": "这里的 MCP 状态是只读信号。根据分组信号判断 Provider 会话或连接器配置是否需要处理。",
+        "mcp": "这里的 MCP 状态是只读信号。根据分组信号判断 Runtime 会话或连接器配置是否需要处理。",
         "warningSignals": "{{sources}} 个来源共有 {{count}} 条警告。修改配置前先查看分组警告。"
       },
       "redactionNotice": {
@@ -1515,19 +1526,19 @@
         "requiresAction": "代表原因：{{reason}}。单次运行处理入口仍在对话详情中。",
         "warningSignals": "来自 {{sources}} 个来源。Debug 只聚合信号；持久化配置修复请回到 Agent Settings。",
         "observation": {
-          "runtime": "Provider 会话未连接时无法读取 health、catalog、capabilities 或运行记录。",
-          "model-config": "Provider 模型配置缺失或直连 Provider 凭证未加载。请到 Agent Settings 修复持久模型配置。",
+          "runtime": "Runtime 会话未连接时无法读取 health、catalog、capabilities 或运行记录。",
+          "model-config": "模型路由配置缺失或直连凭证未加载。请到 Agent Settings 修复持久模型配置。",
           "mcp": "MCP 未连接或资源不可用，工具/资源观测不完整。",
-          "context": "未选择项目时只能观测全局 Provider 会话，项目上下文为空。",
+          "context": "未选择项目时只能观测全局 Runtime 会话，项目上下文为空。",
           "preview": "尚未运行 Preview，无法检查本次 prompt、context 和 taskGraph。",
           "runs": "暂无运行记录，无法做运行态趋势判断。",
           "warnings": "存在 warning 信号，需要查看来源分组。"
         }
       },
       "warningSources": {
-        "capabilities": "Provider 会话 capabilities",
+        "capabilities": "Runtime 会话 capabilities",
         "catalog": "Plugin catalog",
-        "model": "Provider 模型配置",
+        "model": "模型路由配置",
         "preview": "Prompt Preview"
       },
       "runIssueGroups": {
@@ -1545,11 +1556,11 @@
         "observationCoverage": "诊断包覆盖了哪些观测信号，以及每项是否缺失。",
         "evidenceChecklist": "面向排障升级的证据完整性清单，说明该 Bundle 是否已有足够脱敏证据。",
         "runIssueGroups": "按状态聚合的运行问题数量和代表原因。",
-        "warningGroups": "按来源分组的 Provider 会话、目录和 Preview 警告。",
+        "warningGroups": "按来源分组的 Runtime 会话、目录和 Preview 警告。",
         "redacted": "标记该 Debug Bundle 已对密钥、令牌、Cookie 和签名 URL 参数做脱敏处理。",
         "preview": "最近一次 Preview 的 prompt、context、计划和审批信息，导出时会做脱敏。",
-        "runtime": "Provider 会话 health、catalog、capabilities 和最近运行快照，导出时会做脱敏。",
-        "modelConfig": "生效的 Provider 模型配置、路由和凭证状态，导出时会做脱敏。",
+        "runtime": "Runtime 会话 health、catalog、capabilities 和最近运行快照，导出时会做脱敏。",
+        "modelConfig": "生效的模型路由配置、路由和凭证状态，导出时会做脱敏。",
         "modelConfigError": "模型配置读取失败时的脱敏错误信息。"
       },
       "empty": {
@@ -1591,11 +1602,11 @@
     },
     "settings": {
       "title": "Agent 设置",
-      "description": "管理 provider 配置文件、已安装能力、Skills、工具权限、模型、运行限制和配置快照。",
+      "description": "管理 Agent runtime 配置文件、已安装能力、Skills、工具权限、模型、运行限制和配置快照。",
       "scope": {
         "controlPlane": "控制面：配置后续新 Run",
         "futureRuns": "不展示单次运行诊断",
-        "debugReadOnly": "Provider 会话观测保持只读"
+        "debugReadOnly": "Runtime 会话观测保持只读"
       },
       "settingsStatusSummaryTitle": "Agent Settings 状态摘要",
       "settingsStatusSummaryReadiness": "配置就绪度",
@@ -1611,28 +1622,28 @@
         "codex": "Codex"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "配置 .movscript/providers/mova 下的 Mova provider profile；托管 app-server home 使用 .movscript/.mova。",
-        "codex": "配置 .movscript/providers/codex 下的 Codex provider profile；托管 app-server home 使用 .movscript/.codex。"
+        "mova": "配置 .movscript/providers/mova 下的 Mova runtime profile；托管 app-server home 使用 .movscript/.mova。",
+        "codex": "配置 .movscript/providers/codex 下的 Codex runtime profile；托管 app-server home 使用 .movscript/.codex。"
       },
-      "modelPanel": "Provider 模型",
-      "modelLabel": "Provider 文本模型",
-      "modelHelp": "Base URL 留空或指向 MovScript 后端时，可从后端已启用的 text/reasoning 能力模型中选择，并保存为 Provider 模型设置。",
-      "providerModelIdLabel": "Provider 模型 ID",
-      "providerModelIdHelp": "直连 OpenAI 或 Anthropic 时直接填写 Provider 的模型 ID；不需要后端模型目录存在对应项。",
+      "modelPanel": "模型路由",
+      "modelLabel": "后端文本模型",
+      "modelHelp": "默认使用后端 AI Gateway 已启用的 text/reasoning 模型；供应商凭证、Base URL 和路由策略由 Admin 后台管理。",
+      "providerModelIdLabel": "直连模型 ID",
+      "providerModelIdHelp": "仅高级直连覆盖使用：直连 OpenAI 或 Anthropic 时填写该服务的模型 ID；不需要后端模型目录存在对应项。",
       "providerModelIdPlaceholder": "填写已配置的模型 ID",
-      "providerModelPanel": "Provider 模型",
-      "providerModelPanelHelp": "填写模型 ID。Base URL 留空或指向 MovScript 后端时会使用后端登录凭证；只有指向外部 Provider 时才需要在本页填写 API key。",
-      "modelRequired": "请先选择模型或填写 Provider 模型 ID。",
-      "modelIdSecretsBlocked": "Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请只填写模型 ID，并在 API key 字段填写密钥。",
-      "providerApiKeyLabel": "API key",
-      "providerApiKeyPlaceholder": "输入外部 Provider API key",
+      "providerModelPanel": "模型路由",
+      "providerModelPanelHelp": "优先使用后端 AI Gateway 模型目录；只有临时连接后端目录之外的模型服务时，才填写直连地址、模型 ID 和 API key。",
+      "modelRequired": "请先选择模型或填写直连模型 ID。",
+      "modelIdSecretsBlocked": "直连模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请只填写模型 ID，并在 API key 字段填写密钥。",
+      "providerApiKeyLabel": "直连 API key",
+      "providerApiKeyPlaceholder": "输入直连服务 API key",
       "providerApiKeyConfiguredPlaceholder": "已保存 API key；留空则继续沿用",
-      "providerCredentialNotice": "外部 Provider 需要 API key",
-      "providerCredentialHelp": "只有 Base URL 指向外部 Provider 时才需要填写；不要把密钥写入 Base URL。",
+      "providerCredentialNotice": "直连模型服务需要 API key",
+      "providerCredentialHelp": "只有使用高级直连覆盖时才需要填写；日常模型凭证由 Admin 后台管理，不要把密钥写入 Base URL。",
       "apiKindLabel": "调用模式",
       "selectApiKind": "选择调用模式",
-      "baseUrlLabel": "模型 Base URL",
-      "baseUrlHelp": "留空时使用 MovScript 后端 /v1 兼容接口；只有填写外部 Provider 地址时才需要 API key。",
+      "baseUrlLabel": "直连 Base URL",
+      "baseUrlHelp": "留空时使用后端 AI Gateway 模型路由；只有临时直连后端目录之外的模型服务时才填写。",
       "baseUrlSecretsBlocked": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段。请移除 URL 密钥，并改用 API key 字段保存模型凭证。",
       "apiKinds": {
         "backendChatCompletions": "Backend Gateway / Chat Completions",
@@ -1649,7 +1660,7 @@
       "apiModeCapabilityPanel": "调用模式能力矩阵",
       "apiModeCapabilityHelp": "这里决定未来运行使用哪种模型接口；调试页只展示生效结果，不修改调用模式。",
       "apiModeCapabilityBadges": {
-        "recommended": "推荐新 Provider Session",
+        "recommended": "推荐新 Runtime Session",
         "managed": "托管网关",
         "compatibility": "兼容模式",
         "providerNative": "Provider 原生"
@@ -1657,7 +1668,7 @@
       "apiModeCapabilityItems": {
         "centralizedCredentials": {
           "label": "集中凭证",
-          "detail": "沿用后端模型网关凭证，不要求 Provider 会话直连密钥。"
+          "detail": "沿用后端模型网关凭证，不要求 Runtime 会话直连密钥。"
         },
         "backendRouting": {
           "label": "后端路由",
@@ -1673,7 +1684,7 @@
         },
         "agenticPrimitive": {
           "label": "Agentic 原语",
-          "detail": "Responses 是新 provider-session run 的默认优先模式，适合工具和多轮任务。"
+          "detail": "Responses 是新 runtime-session run 的默认优先模式，适合工具和多轮任务。"
         },
         "structuredOutputs": {
           "label": "结构化输出",
@@ -1705,7 +1716,7 @@
         },
         "toolUse": {
           "label": "Tool Use",
-          "detail": "保留 Anthropic 的工具调用语义，并统一归一化到 provider session trace。"
+          "detail": "保留 Anthropic 的工具调用语义，并统一归一化到 runtime session trace。"
         },
         "directCredential": {
           "label": "直连凭证",
@@ -1736,11 +1747,11 @@
         "modelIdReady": "{{model}} 与当前 Provider 路径匹配。",
         "modelIdMissing": "保存前需要选择或填写模型 ID。",
         "modelIdSecret": "模型 ID 包含疑似密钥内容；凭证应放在 API key 字段中。",
-        "modelIdBackendReference": "直连 Provider 模式需要填写 Provider 模型 ID，不能使用 backend model_config 引用。",
-        "modelIdProviderMismatch": "{{model}} 看起来属于另一个 Provider 模型族。",
-        "credentialsBackendManaged": "后端网关凭证由 Provider 会话直连 Provider 配置之外的链路托管。",
-        "credentialsMissing": "Provider 会话尚未载入该 Provider 的 {{env}}。",
-        "credentialsReady": "Provider 会话报告该 Provider 的 {{env}} 已配置。",
+        "modelIdBackendReference": "直连模式需要填写模型服务自己的模型 ID，不能使用 backend model_config 引用。",
+        "modelIdProviderMismatch": "{{model}} 看起来属于另一个模型服务家族。",
+        "credentialsBackendManaged": "后端网关凭证由 Runtime 会话直连 Provider 配置之外的链路托管。",
+        "credentialsMissing": "Runtime 会话尚未载入该 Provider 的 {{env}}。",
+        "credentialsReady": "Runtime 会话报告该 Provider 的 {{env}} 已配置。",
         "credentialsUnchecked": "保存当前 Provider 模式并运行测试后，才能确认凭证状态。",
         "baseURLDefault": "将使用 MovScript 后端 /v1 兼容接口。",
         "baseURLCustom": "已配置自定义 endpoint：{{baseURL}}。",
@@ -1757,7 +1768,7 @@
           "detail": "当前已经选择 Responses，这是新增 provider 能力的推荐路径。"
         },
         "openai_chat_completions": {
-          "detail": "Chat Completions 是兼容模式，适合旧流程；新增 provider-session run 建议迁移到 Responses。"
+          "detail": "Chat Completions 是兼容模式，适合旧流程；新增 runtime-session run 建议迁移到 Responses。"
         },
         "anthropic_messages": {
           "detail": "Anthropic Messages 是 Provider 原生路径，不属于 OpenAI 迁移步骤；适合单独评估 Claude 模型族。"
@@ -1767,11 +1778,11 @@
         "centralize": "继续通过后端网关统一团队凭证、路由和审计。",
         "evaluate": "评估该运行路径是否需要 Provider 原生响应状态或内置工具。",
         "switchWhenReady": "直连凭证和模型 ID 准备好后，再将选定流程切到 Responses。",
-        "recommended": "新增 OpenAI provider-session run 默认优先使用 Responses。",
+        "recommended": "新增 OpenAI runtime-session run 默认优先使用 Responses。",
         "stateful": "当后续运行需要响应状态或更长连续推理时，优先使用 Responses。",
         "futureTools": "为后续接入 Provider 侧内置工具保留空间，同时不改变设置页边界。",
         "preserveCompatibility": "迁移期只为旧 message/choice 集成保留 Chat Completions。",
-        "verifyModel": "确认直连 Provider 模型 ID 和 Base URL 适用于 Responses API。",
+        "verifyModel": "确认直连模型 ID 和 Base URL 适用于 Responses API。",
         "switchResponses": "将工作区调用模式切到 Responses，保存后执行连通性测试。",
         "providerNative": "评估 Claude 模型族 Provider 原生行为时使用 Anthropic Messages。",
         "compare": "通过运行结果和只读调试观测对比 OpenAI 模式差异。",
@@ -1848,10 +1859,10 @@
       "saveSkillConfig": "保存 Skill 配置",
       "skillConfigSaved": "Skill 配置已保存",
       "resetSkillConfig": "重置",
-      "skillConfigEditHelp": "这里只管理选中配置文件包含哪些 Skills；Skill 触发和加载策略由 Skill 本身与Provider 会话决定。",
+      "skillConfigEditHelp": "这里只管理选中配置文件包含哪些 Skills；Skill 触发和加载策略由 Skill 本身与Runtime 会话决定。",
       "skillConfigSelected": "配置已选择",
       "skillConfigCoreLocked": "核心 Skill 由系统自动加载，不能在这里停用。",
-      "skillConfigToggleHelp": "保存后会写入选中配置文件，并影响后续新 provider-session run。",
+      "skillConfigToggleHelp": "保存后会写入选中配置文件，并影响后续新 runtime-session run。",
       "skillInstructionLabel": "Instruction",
       "skillInstructionHelp": "Skill 内容编辑放在 Plugins；配置文件只保存激活选择。",
       "skillConfigIssues": "当前配置文件的 Skill 选择存在依赖或冲突问题",
@@ -1902,7 +1913,7 @@
       "configFilesPanel": "配置文件",
       "noConfigFiles": "暂无配置文件",
       "activeConfigFileLabel": "选中配置文件",
-      "activeConfigFileHelp": "选择只切换正在查看和编辑的配置文件；点击设为激活后，后续新 provider-session run 才会使用它。",
+      "activeConfigFileHelp": "选择只切换正在查看和编辑的配置文件；点击设为激活后，后续新 runtime-session run 才会使用它。",
       "configFileScopeHelp": "配置文件只是后续新 Run 的运行配置，不是 Agent 身份；已存在 Run 仍使用创建时保存的配置快照。",
       "selectConfigFile": "选择配置文件",
       "configFileNameLabel": "名称",
@@ -1986,7 +1997,7 @@
       "deleteToolPermissionsFilterPreset": "删除筛选",
       "toolPermissionsFilterPresetsHelp": "保存写入风险、当前不可用工具等常用工具审查视图。",
       "toolPermissionsFilterPresetsEmpty": "暂无已保存筛选。",
-      "toolPermissionsAllowDisabled": "只有当前配置文件授权且 Provider 会话可用的工具才能保存为允许。",
+      "toolPermissionsAllowDisabled": "只有当前配置文件授权且 Runtime 会话可用的工具才能保存为允许。",
       "toolPermissionsWorkspaceIssues": "工具权限工作区存在不可保存项",
       "toolPermissionsWorkspaceInvalid": "工具权限工作区有 {{count}} 个不可保存项。",
       "fixToolPermissionsWorkspaceIssues": "修复工作区",
@@ -2008,7 +2019,7 @@
         "none": "不存在",
         "grant": "{{mode}} / {{approval}}"
       },
-      "currentProviderSession": "当前 Provider 会话",
+      "currentProviderSession": "当前 Runtime 会话",
       "sectionDescriptions": {
         "model": "选择调用模式、模型和用途路由。",
         "installedCapabilities": "管理 packs、插件来源和本地目录重载。",
@@ -2061,9 +2072,9 @@
         "settings_operation_failed": "操作失败"
       },
       "auditSummaries": {
-        "modelSaved": "已保存 Provider 模型配置：{{model}}（{{apiKind}} / {{routes}}）",
-        "modelTested": "已保存并测试 Provider 模型配置：{{model}}（{{apiKind}} / {{routes}}）",
-        "modelCleared": "已清除 Provider 模型配置",
+        "modelSaved": "已保存模型路由配置：{{model}}（{{apiKind}} / {{routes}}）",
+        "modelTested": "已保存并测试模型路由配置：{{model}}（{{apiKind}} / {{routes}}）",
+        "modelCleared": "已清除模型路由配置",
         "configFileSaved": "已设为激活配置文件：{{configFileId}}",
         "configFileDetailsSaved": "已保存配置文件详情：{{name}}（{{configFileId}}）",
         "configFileCreated": "已新建并激活配置文件：{{configFileId}}",
@@ -2108,12 +2119,12 @@
         "applied": "本地修复已应用，请检查后保存需要持久化的配置。"
       },
       "actionItems": {
-        "modelMissing": "Provider 模型尚未配置",
-        "modelUnsaved": "Provider 模型配置有未保存变更",
+        "modelMissing": "模型路由尚未配置",
+        "modelUnsaved": "模型路由配置有未保存变更",
         "modelIdSensitive": "已保存模型 ID 可能包含密钥",
         "apiModeCompatibility": "调用模式仍是兼容模式",
         "modelCredentialsMissing": "直连模型凭证未加载",
-        "modelBaseURLSensitive": "模型 Base URL 可能包含密钥",
+        "modelBaseURLSensitive": "直连 Base URL 可能包含密钥",
         "routesInvalid": "模型路由不可用",
         "routesMissing": "没有生效模型路由",
         "configFileMissing": "激活配置文件缺失",
@@ -2125,10 +2136,10 @@
         "toolsBlocked": "工具全部不可用"
       },
       "actionItemDetails": {
-        "modelMissing": "选择模型、调用模式和用途路由后保存到 Provider 模型设置。",
-        "modelUnsaved": "保存或重置 Provider 模型配置，否则后续新 Run 仍使用旧配置。",
-        "modelIdSensitive": "已保存的直连 Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请清除该配置，并只保存模型 ID；密钥应放在 API key 字段中。",
-        "apiModeCompatibility": "Chat Completions 可用于兼容旧流程；如果不是迁移期，新 provider-session run 建议切到 OpenAI Responses。",
+        "modelMissing": "选择模型、调用模式和用途路由后保存到模型路由设置。",
+        "modelUnsaved": "保存或重置模型路由配置，否则后续新 Run 仍使用旧配置。",
+        "modelIdSensitive": "已保存的直连模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请清除该配置，并只保存模型 ID；密钥应放在 API key 字段中。",
+        "apiModeCompatibility": "Chat Completions 可用于兼容旧流程；如果不是迁移期，新 runtime-session run 建议切到 OpenAI Responses。",
         "modelCredentialsMissing": "API key 设置中未检测到 {{env}}；直连 Provider 调用会失败。",
         "modelBaseURLSensitive": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段；模型密钥应放在 API key 字段中。",
         "routesInvalid": "至少启用对话或规划中的一个用途路由。",
@@ -2182,7 +2193,7 @@
         "apiModeAnthropicProvider": "当前直连 Anthropic Messages，适合 Claude 模型族和 Provider 原生评估。",
         "modelCredentialsReady": "API key 设置已通过 {{env}} 加载模型凭证。",
         "modelCredentialsMissing": "API key 设置未检测到 {{env}}。",
-        "modelCredentialsNotRequired": "当前调用模式不需要 Provider 会话侧直连模型密钥。",
+        "modelCredentialsNotRequired": "当前调用模式不需要 Runtime 会话侧直连模型密钥。",
         "routesReady": "{{count}} 条模型路由可用。",
         "routesInvalid": "模型路由配置无效，请先修复用途开关。",
         "routesMissing": "当前没有可用模型路由。",
@@ -2198,7 +2209,7 @@
         "noPendingChanges": "当前配置已保存。"
       },
       "settingsSnapshotPanel": "配置导入 / 导出",
-      "settingsSnapshotHelp": "导出会包含 Provider 模型、激活配置文件、运行限制、Skill 启用选择与 instruction、工具权限，并会移除 Base URL 中的 URL 密钥凭据；导入只会应用选中的配置段，并按模型、配置文件、运行限制、Skills、Tools 的顺序执行，且会拒绝包含 URL 密钥凭据的 Base URL。",
+      "settingsSnapshotHelp": "导出会包含模型路由、激活配置文件、运行限制、Skill 启用选择与 instruction、工具权限，并会移除 Base URL 中的 URL 密钥凭据；导入只会应用选中的配置段，并按模型、配置文件、运行限制、Skills、Tools 的顺序执行，且会拒绝包含 URL 密钥凭据的 Base URL。",
       "settingsSnapshotPlaceholder": "在这里生成或粘贴 Agent Settings Snapshot JSON。",
       "settingsSnapshotSummary": "快照摘要",
       "settingsSnapshotFields": {
@@ -2206,8 +2217,7 @@
         "model": "模型",
         "configFile": "配置文件",
         "configFiles": "配置文件数",
-        "providerSessionLimits": "Provider 会话限制",
-        "runtimeLimits": "运行限制",
+        "providerSessionLimits": "Runtime 会话限制",
         "skills": "Skills",
         "tools": "工具权限"
       },
@@ -2221,15 +2231,15 @@
         "skipped": "不变更"
       },
       "settingsSnapshotImpact": {
-        "model": "Provider 模型",
+        "model": "模型路由",
         "configFile": "激活配置文件",
         "limits": "运行限制",
         "skills": "Skill 启用与 instruction",
         "tools": "工具权限"
       },
       "settingsSnapshotImpactDetails": {
-        "model": "导入时会把模型 {{model}} 写入 Provider 模型设置，不会改写配置文件。",
-        "modelSkipped": "快照不包含模型配置，当前 Provider 模型设置保持不变。",
+        "model": "导入时会把模型 {{model}} 写入模型路由设置，不会改写配置文件。",
+        "modelSkipped": "快照不包含模型配置，当前模型路由设置保持不变。",
         "configFile": "导入时会保存 {{count}} 个配置文件，并在存在时激活 {{configFileId}}。",
         "configFileSkipped": "快照不包含配置文件或激活配置文件，当前能力配置保持不变。",
         "limits": "导入时会把 {{count}} 项运行限制写入目标配置文件。",
@@ -2251,7 +2261,7 @@
         "limits": "仅运行限制"
       },
       "settingsSnapshotImportScopeDetails": {
-        "model": "Provider 模型和 Provider API 模式。",
+        "model": "模型路由和直连 API 模式。",
         "configFile": "可保存的配置文件，以及后续运行使用的激活配置文件。",
         "limits": "当前配置文件上的上下文、系统提示词、历史消息和引用预算。",
         "skills": "Skill 启用和禁用规则。",
@@ -2280,7 +2290,7 @@
       "settingsSnapshotTooLarge": "快照超过 {{size}} 上限。",
       "settingsSnapshotModelCatalogUnavailable": "快照引用了后端模型配置，但当前模型目录尚不可用。",
       "settingsSnapshotCatalogUnavailable": "快照引用了配置文件、Skill 或工具权限，但当前目录尚不可用。",
-      "settingsSnapshotCapabilitiesUnavailable": "快照引用了工具权限，但当前 Provider 会话能力目录尚不可用。",
+      "settingsSnapshotCapabilitiesUnavailable": "快照引用了工具权限，但当前 Runtime 会话能力目录尚不可用。",
       "settingsSnapshotModelTargetMissing": "快照包含模型配置，但当前模型设置不可写入。",
       "settingsSnapshotLimitsTargetMissing": "快照包含运行限制，但当前没有可写入的配置文件。",
       "settingsSnapshotSkillsTargetMissing": "快照包含 Skill 启用或 instruction，但当前没有可写入的配置文件。",
@@ -2459,9 +2469,10 @@
       "modelLockedByAgent": "当前 Agent 已指定模型",
       "myAgents": "我的 Agent",
       "newConversation": "新对话",
-      "selectNewConversationProvider": "选择新建会话使用的 provider",
       "expandAgentContentPanel": "展开右侧内容区",
       "collapseAgentContentPanel": "缩略右侧内容区",
+      "expandProjectAgentPanel": "展开 AI 会话面板",
+      "collapseProjectAgentPanel": "收起 AI 会话面板",
       "agentModeEmptyTitle": "你希望做什么影片？",
       "agentModeProjectPicker": {
         "title": "选择项目",
@@ -2510,7 +2521,6 @@
       "loadingConversationTimeline": "正在读取会话内容…",
       "loadMoreHistory": "加载更多",
       "platformTemplates": "平台模板",
-      "selectAgent": "选择 Agent",
       "selectModelFirst": "请先选择一个模型。",
       "modelSetupAction": {
         "title": "需要先配置模型",
@@ -2615,7 +2625,7 @@
       "preview": "预览",
       "stop": "停止",
       "restoring": "恢复中",
-      "providerSession": "Provider 会话",
+      "providerSession": "Runtime 会话",
       "messageCountLabel": "{{count}} 字符",
       "messageSections": {
         "result": "结果",
@@ -2646,16 +2656,16 @@
           "online": "在线",
           "offline": "离线",
           "newThread": "新线程",
-          "autoStartHint": "MovScript 会通过桌面客户端启动 Provider 会话。"
+          "autoStartHint": "MovScript 会通过桌面客户端启动 Runtime 会话。"
         },
         "context": {
           "noSelection": "未选择上下文",
-          "noSnapshot": "先开启调试预览，才能查看发送给 Provider 会话的页面快照。",
+          "noSnapshot": "先开启调试预览，才能查看发送给 Runtime 会话的页面快照。",
           "snapshot": "uiSnapshot",
           "project": "项目",
           "resources": "资源",
           "attachments": "附件",
-          "runtime": "Provider 会话",
+          "runtime": "Runtime 会话",
           "conversation": "对话",
           "customContext": "自定义上下文",
           "providerDefault": "Provider 默认",
@@ -2684,10 +2694,10 @@
           "title": "能力",
           "custom": "自定义",
           "providerDefault": "Provider 默认",
-          "activeHint": "这里只展示当前对话实际启用的 Provider 会话 skills 和 tools。",
-          "selectHint": "这里只展示当前对话实际启用的 Provider 会话 skills 和 tools。",
+          "activeHint": "这里只展示当前对话实际启用的 Runtime 会话 skills 和 tools。",
+          "selectHint": "这里只展示当前对话实际启用的 Runtime 会话 skills 和 tools。",
           "refresh": "刷新",
-          "startHint": "先启动 Provider 会话，才能查看已加载的 skills 和 tools。",
+          "startHint": "先启动 Runtime 会话，才能查看已加载的 skills 和 tools。",
           "loadingCatalog": "正在加载 Provider 目录…",
           "notLoaded": "Provider 目录尚未加载。",
           "importCurrentCatalog": "导入当前目录",
@@ -2759,7 +2769,7 @@
           "currentThreadTitle": "当前 thread 草案",
           "history": "历史草案",
           "refresh": "刷新",
-          "noOnline": "先启动 Provider 会话，才能查看 Agent 草案。",
+          "noOnline": "先启动 Runtime 会话，才能查看 Agent 草案。",
           "noThread": "当前对话还没有绑定 provider thread，发送一次消息后这里会显示本 thread 的草案。",
           "emptyFilter": "没有草案符合当前筛选条件。",
           "projectBadge": "项目 #{{id}}",
@@ -2800,17 +2810,17 @@
           "project": "项目",
           "memories": "记忆",
           "skills": "技能",
-          "providerSessionLimits": "Provider 会话限制",
+          "providerSessionLimits": "Runtime 会话限制",
           "tools": "工具",
           "previewMessage": "Agent 循环预览"
         },
         "providerSession": {
-          "limits": "Provider 会话限制",
+          "limits": "Runtime 会话限制",
           "approvalMode": "审批模式",
           "maxToolCalls": "最大工具调用",
           "maxIterations": "最大迭代",
           "fileBytes": "文件字节",
-          "sessionBoundaries": "Provider 会话边界",
+          "sessionBoundaries": "Runtime 会话边界",
           "manifestGrants": "Manifest 授权",
           "available": "可用",
           "blocked": "已阻止",
@@ -2854,12 +2864,12 @@
           "callingTool": "调用工具"
         },
         "http": {
-          "syncModelConfig": "同步 Provider 模型配置",
+          "syncModelConfig": "同步模型路由配置",
           "loadExistingThread": "加载已有Provider 线程",
           "missingThreadFallback": "如果保存的线程不存在，客户端会改为创建新的Provider 线程。",
           "createThread": "创建Provider 线程",
           "appendUserMessage": "追加用户消息",
-          "createRun": "创建 Provider 会话运行",
+          "createRun": "创建 Runtime 会话运行",
           "pollRun": "轮询运行状态",
           "pollRunNote": "持续轮询，直到 completed、completed_with_warnings、requires_action 或 failed。",
           "fetchFinalThread": "获取最终Provider 线程"
@@ -2887,8 +2897,8 @@
             "scriptCreate": "通过后会把剧本保存为会话项目的正式剧本记录。",
             "workspaceApply": "通过后会把已审核的工作区变更应用到会话项目。",
             "workspaceWrite": "通过后 Agent 可以更新用于审核的本地工作区数据。",
-            "memoryWrite": "通过后会修改 provider session 记忆，可能影响之后的建议。",
-            "memoryDelete": "通过后会删除选中的 provider session 记忆。",
+            "memoryWrite": "通过后会修改 runtime session 记忆，可能影响之后的建议。",
+            "memoryDelete": "通过后会删除选中的 runtime session 记忆。",
             "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和配置文件。",
             "workStart": "通过后会提交异步 Provider 工作；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
             "workCancel": "通过后会取消异步 Provider 工作；未完成输出或 worker 后续执行可能不再产生。",
@@ -2903,7 +2913,7 @@
           "needsInput": "执行前需要补充信息：\n{{items}}",
           "needsApproval": "执行前需要确认：\n{{items}}",
           "waitingForToolCallConfirmation": "- 等待工具调用确认",
-          "noAssistantMessage": "Provider 会话没有返回 assistant 消息。",
+          "noAssistantMessage": "Runtime 会话没有返回 assistant 消息。",
           "warnings": "警告",
           "unknownError": "未知错误"
         }
@@ -2974,8 +2984,8 @@
           "scriptCreate": "通过后会把剧本保存为会话项目的正式剧本记录。",
           "workspaceApply": "通过后会把已审核的工作区变更应用到会话项目。",
           "workspaceWrite": "通过后 Agent 可以更新用于审核的本地工作区数据。",
-          "memoryWrite": "通过后会修改 provider session 记忆，可能影响之后的建议。",
-          "memoryDelete": "通过后会删除选中的 provider session 记忆。",
+          "memoryWrite": "通过后会修改 runtime session 记忆，可能影响之后的建议。",
+          "memoryDelete": "通过后会删除选中的 runtime session 记忆。",
           "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和配置文件。",
           "workStart": "通过后会提交异步 Provider 工作；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
           "workCancel": "通过后会取消异步 Provider 工作；未完成输出或 worker 后续执行可能不再产生。",
@@ -2990,7 +3000,7 @@
         "needsInput": "执行前需要补充信息：\n{{items}}",
         "needsApproval": "执行前需要确认：\n{{items}}",
         "waitingForToolCallConfirmation": "- 等待工具调用确认",
-        "noAssistantMessage": "Provider 会话没有返回 assistant 消息。",
+        "noAssistantMessage": "Runtime 会话没有返回 assistant 消息。",
         "warnings": "警告",
         "unknownError": "未知错误"
       }
@@ -3411,7 +3421,7 @@
       "download": "下载"
     },
     "modelSelector": {
-      "noModels": "暂无可用模型",
+      "noModels": "暂无后端路由模型",
       "refresh": "刷新模型列表"
     },
     "resourcePanel": {
@@ -4111,6 +4121,7 @@
       "workbenchReferenceRelations": "关系校正",
       "workbenchAssetPreparation": "素材工作台",
       "workbenchContentGeneration": "内容编排",
+      "contentCanvas": "编排模式",
       "shotEditWorkbench": "内容编辑",
       "user": "用户资料",
       "admin": "管理后台",

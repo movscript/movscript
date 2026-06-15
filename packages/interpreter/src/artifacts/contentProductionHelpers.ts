@@ -112,6 +112,8 @@ export function primaryRefKindForContentUnitType(contentUnitType: string): Conte
     case 'scence_moment_ref':
     case 'scene_moment_ref':
       return 'scene_moment'
+    case 'expression_unit_ref':
+      return 'expression_unit'
     case 'shot_ref':
       return 'shot'
     default:
@@ -136,7 +138,9 @@ export function primaryRefIdsForContentUnitRecord(
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
     case 'scene_moment':
-      return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
+      return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
+    case 'expression_unit':
+      return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
     case 'shot':
       return compactStrings(record.shot_ref)
     case 'content_unit':
@@ -178,6 +182,8 @@ export function outputKindForContentUnitType(contentUnitType: string, value: unk
     case 'scene_moment_ref':
     case 'shot_ref':
       return 'video'
+    case 'expression_unit_ref':
+      return contentUnitOutputKind(value)
     default:
       return 'metadata'
   }
@@ -193,6 +199,8 @@ export function expectedOutputKindForContentUnitType(contentUnitType: string): C
     case 'scene_moment_ref':
     case 'shot_ref':
       return 'video'
+    case 'expression_unit_ref':
+      return undefined
     default:
       return undefined
   }
@@ -275,6 +283,7 @@ function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | un
     case 'keyframe':
     case 'storyboard':
     case 'scene_moment':
+    case 'expression_unit':
     case 'shot':
     case 'content_unit':
       return value
@@ -285,6 +294,7 @@ function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | un
 
 function contentUnitTypesForPromptRefKind(kind: ContentUnitPromptRefKind): string[] {
   if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
+  if (kind === 'expression_unit') return ['expression_unit_ref']
   return [`${kind}_ref`]
 }
 
@@ -318,7 +328,7 @@ export function readSelectedContentUnit(
 
 export function findEntityByRef(
   index: MovScriptWorkspaceDomainIndex,
-  entityKind: 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'shot' | 'storyboard' | 'keyframe',
+  entityKind: 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'shot' | 'storyboard' | 'keyframe',
   ref: unknown,
 ): MovScriptWorkspaceIndexedEntity | undefined {
   const value = idField(ref)

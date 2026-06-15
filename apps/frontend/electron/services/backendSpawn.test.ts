@@ -4,7 +4,6 @@ import { buildBackendSpawnEnv } from './backend/env'
 
 test('backend spawn env defaults to local dependency providers', () => {
   const env = buildBackendSpawnEnv({
-    adminDir: '/tmp/admin',
     dataDir: '/tmp/data',
     localSecret: 'secret',
     inheritedEnv: {},
@@ -22,11 +21,11 @@ test('backend spawn env defaults to local dependency providers', () => {
   assert.equal(env.MOVSCRIPT_GITEA_BASE_URL, '')
   assert.equal(env.MOVSCRIPT_GITEA_ADMIN_USERNAME, '')
   assert.equal(env.MOVSCRIPT_GITEA_ADMIN_PASSWORD, '')
+  assert.equal(Object.keys(env).some((key) => key.includes('ADMIN_DIR')), false)
 })
 
 test('backend spawn env can select external dependency providers', () => {
   const env = buildBackendSpawnEnv({
-    adminDir: '/tmp/admin',
     dataDir: '/tmp/data',
     localSecret: 'secret',
     inheritedEnv: {
@@ -52,7 +51,6 @@ test('backend spawn env can select external dependency providers', () => {
 
 test('backend spawn env preserves explicit gitea configuration', () => {
   const env = buildBackendSpawnEnv({
-    adminDir: '/tmp/admin',
     dataDir: '/tmp/data',
     localSecret: 'secret',
     inheritedEnv: {

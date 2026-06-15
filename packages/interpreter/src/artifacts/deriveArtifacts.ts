@@ -3,6 +3,7 @@ import {
 } from './contentProduction.js'
 import { deriveAssetIndex } from './assetIndex.js'
 import { deriveDomainTree } from './domainTree.js'
+import { deriveEditPlans } from './editPlans.js'
 import { deriveImpactReport } from './impactReport.js'
 import { derivePreviewTimelines } from './previewTimelines.js'
 import { deriveProductionWorkPlan } from './productionWorkPlan.js'
@@ -15,6 +16,7 @@ import type {
 export {
   deriveAssetIndex,
   deriveDomainTree,
+  deriveEditPlans,
   deriveImpactReport,
   derivePreviewTimelines,
   deriveProductionWorkPlan,
@@ -29,6 +31,9 @@ export type {
   MovScriptDomainRelationType,
   MovScriptDomainTreeArtifact,
   MovScriptDomainTreeNode,
+  MovScriptEditPlanArtifact,
+  MovScriptEditPlanTrack,
+  MovScriptEditPlanTrackItem,
   MovScriptImpactReportArtifact,
   MovScriptImpactReportChangedEntity,
   MovScriptPreviewTimelineArtifact,
@@ -48,12 +53,14 @@ export function deriveMovScriptWorkspaceArtifacts(input: MovScriptWorkspaceArtif
   const relationGraph = deriveRelationGraph(input.index)
   const impactReport = deriveImpactReport(input.changedEntities, input.interpretationId, input.createdAt, input.index, relationGraph, input.semanticChanges)
   const contentUnitArtifacts = deriveContentUnitArtifacts(input.index, { createdAt: input.createdAt })
+  const editPlans = deriveEditPlans(input.index, contentUnitArtifacts)
   return {
     domainTree: deriveDomainTree(input.index),
     relationGraph,
     assetIndex: deriveAssetIndex(input.index),
     impactReport,
     previewTimelines: derivePreviewTimelines(input.index),
+    editPlans,
     contentUnitArtifacts,
     productionWorkPlan: deriveProductionWorkPlan({
       index: input.index,

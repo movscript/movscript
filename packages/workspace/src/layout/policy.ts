@@ -21,7 +21,6 @@ export function classifyMovScriptWorkspacePath(path: string): MovScriptWorkspace
 export function isMovScriptSourcePath(path: string): boolean {
   const normalized = normalizeWorkspacePath(path)
   if (MOVSCRIPT_SOURCE_ROOT_FILES.has(normalized)) return true
-  if (isMovScriptContentUnitCandidatePath(normalized)) return true
   const [first] = normalized.split('/')
   const fileName = normalized.split('/').pop()
   return first !== undefined

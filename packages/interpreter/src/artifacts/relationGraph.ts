@@ -19,6 +19,7 @@ import {
   nearestParentEntity,
   normalizedRefDir,
   parentShotForEntity,
+  recordField,
   relationTypeForParent,
 } from './derivedArtifactHelpers.js'
 
@@ -40,6 +41,21 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
     }
 
     if (entity.entityKind === 'content_unit' && hasSpecializedContentUnitAdapter(entity.record.content_unit_type)) {
+      const targetKind = typeof entity.record.target_kind === 'string' ? entity.record.target_kind : undefined
+      const targetRef = entity.record.target_ref
+      if (targetKind && targetRef !== undefined) {
+        const target = targetKind === 'content_unit'
+          ? entities.find((candidate) => candidate.entityKind === 'content_unit' && String(candidate.id ?? '') === String(targetRef))
+          : findEntityByRef(entities, targetKind, targetRef) ?? entityByPathDir.get(normalizedRefDir(targetRef))
+        if (target) {
+          relations.push({
+            type: targetKind === 'content_unit' ? 'references' : 'uses',
+            from: entityRef(entity),
+            to: entityRef(target),
+            field: 'target_ref',
+          })
+        }
+      }
       const contentUnitType = String(entity.record.content_unit_type ?? '')
       const primaryKind = primaryRefKindForContentUnitType(contentUnitType)
       if (primaryKind) {
@@ -69,6 +85,19 @@ export function deriveRelationGraph(index: MovScriptWorkspaceDomainIndex): MovSc
             field: ref.source.field,
           })
         }
+      }
+    }
+
+    if (entity.entityKind === 'expression_unit') {
+      const sourceExpression = findEntityByRef(entities, 'expression_unit', entity.record.source_expression_ref)
+        ?? entityByPathDir.get(normalizedRefDir(entity.record.source_expression_ref))
+      const speaker = findEntityByRef(entities, 'setting', entity.record.speaker_ref)
+        ?? entityByPathDir.get(normalizedRefDir(entity.record.speaker_ref))
+      if (sourceExpression) relations.push({ type: 'references', from: entityRef(entity), to: entityRef(sourceExpression), field: 'source_expression_ref' })
+      if (speaker) relations.push({ type: 'uses', from: entityRef(entity), to: entityRef(speaker), field: 'speaker_ref' })
+      for (const expressionRef of arrayField(recordField(entity.record.span)?.expression_refs)) {
+        const expression = findEntityByRef(entities, 'expression_unit', expressionRef) ?? entityByPathDir.get(normalizedRefDir(expressionRef))
+        if (expression) relations.push({ type: 'references', from: entityRef(entity), to: entityRef(expression), field: 'span.expression_refs' })
       }
     }
 

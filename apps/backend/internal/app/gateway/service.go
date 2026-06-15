@@ -14,6 +14,7 @@ import (
 
 	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
 	"github.com/movscript/movscript/internal/infra/ai"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -32,9 +33,11 @@ var (
 )
 
 type Service struct {
-	repo   repository
-	ai     *ai.AIService
-	policy *PolicyService
+	repo    repository
+	ai      *ai.AIService
+	catalog providercontract.AIGatewayModelCatalog
+	routing providercontract.AIGatewayRoutingPolicy
+	policy  *PolicyService
 }
 
 func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
@@ -43,7 +46,12 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 		svc = aiService[0]
 	}
 	repo := &gormRepository{db: db}
-	return &Service{repo: repo, ai: svc, policy: &PolicyService{repo: repo}}
+	service := &Service{repo: repo, ai: svc, policy: &PolicyService{repo: repo}}
+	if svc != nil {
+		service.catalog = svc
+		service.routing = svc
+	}
+	return service
 }
 
 type CreateAPIKeyInput struct {
@@ -225,11 +233,24 @@ func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Princi
 	return Principal{UserID: key.OwnerUserID, Key: &key}, true, nil
 }
 
-func (s *Service) ListChatModels(_ context.Context, principal Principal) ([]ai.PublicModel, error) {
+func (s *Service) ListChatModels(ctx context.Context, principal Principal) ([]ChatModel, error) {
 	if err := s.policy.CanListChatModels(principal); err != nil {
 		return nil, err
 	}
-	return s.ai.GetModelsByAnyCapability([]string{ai.CapabilityText, ai.CapabilityReasoning})
+	if s.catalog == nil {
+		return nil, ErrModelUnavailable
+	}
+	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
+		Capabilities: []string{ai.CapabilityText, ai.CapabilityReasoning},
+	})
+	if err != nil {
+		return nil, err
+	}
+	models := make([]ChatModel, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		models = append(models, chatModelFromDescriptor(descriptor))
+	}
+	return models, nil
 }
 
 func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, error) {
@@ -283,7 +304,7 @@ func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput
 	if err != nil {
 		return OpenAIProxyRoute{}, err
 	}
-	runtimeModelConfigID, err := s.ai.ResolveRuntimeTextModel(modelConfigID)
+	route, err := s.resolveRuntimeTextRoute(ctx, modelConfigID)
 	if err != nil {
 		return OpenAIProxyRoute{}, err
 	}
@@ -292,11 +313,11 @@ func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput
 			return OpenAIProxyRoute{}, err
 		}
 	}
-	target, err := s.ai.OpenAIProxyTarget(runtimeModelConfigID)
+	target, err := s.ai.OpenAIProxyTarget(ctx, input.Principal.UserID, route.ModelConfigID)
 	if err != nil {
 		return OpenAIProxyRoute{}, fmt.Errorf("%w: %v", ErrModelUnavailable, err)
 	}
-	return OpenAIProxyRoute{ModelConfigID: runtimeModelConfigID, ResponseModel: responseModel, Target: target}, nil
+	return OpenAIProxyRoute{ModelConfigID: route.ModelConfigID, ResponseModel: responseModel, Target: target}, nil
 }
 
 func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, string, ai.TextRequest, error) {
@@ -304,17 +325,17 @@ func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, strin
 	if err != nil {
 		return 0, responseModel, ai.TextRequest{}, err
 	}
-	runtimeModelConfigID, err := s.ai.ResolveRuntimeTextModel(modelConfigID)
+	route, err := s.resolveRuntimeTextRoute(ctx, modelConfigID)
 	if err != nil {
 		return 0, responseModel, ai.TextRequest{}, err
 	}
 
 	textReq := input.Text
-	if _, err := s.ai.PreflightText(runtimeModelConfigID, &textReq); err != nil {
+	if _, err := s.ai.PreflightText(route.ModelConfigID, &textReq); err != nil {
 		return 0, responseModel, ai.TextRequest{}, wrapErr(ErrUnsupportedParameter, err)
 	}
 	if input.Principal.Key != nil {
-		estimate, err := s.ai.EstimateTextCost(runtimeModelConfigID, textReq)
+		estimate, err := s.ai.EstimateTextCost(route.ModelConfigID, textReq)
 		if err != nil {
 			return 0, responseModel, ai.TextRequest{}, err
 		}
@@ -322,20 +343,71 @@ func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, strin
 			return 0, responseModel, ai.TextRequest{}, err
 		}
 	}
-	return runtimeModelConfigID, responseModel, textReq, nil
+	return route.ModelConfigID, responseModel, textReq, nil
 }
 
-func (s *Service) ResolveTextModel(_ context.Context, modelID string) (uint, string, error) {
-	models, err := s.ai.GetModelsByAnyCapability([]string{ai.CapabilityText, ai.CapabilityReasoning})
+func (s *Service) resolveRuntimeTextRoute(ctx context.Context, modelConfigID uint) (providercontract.AIGatewayModelRoute, error) {
+	if s.routing == nil {
+		return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
+	}
+	var lastErr error
+	for _, capability := range []string{ai.CapabilityText, ai.CapabilityReasoning} {
+		route, err := s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
+			ModelConfigID: modelConfigID,
+			Capability:    capability,
+		})
+		if err == nil {
+			return route, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return providercontract.AIGatewayModelRoute{}, lastErr
+	}
+	return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
+}
+
+func (s *Service) ResolveTextModel(ctx context.Context, modelID string) (uint, string, error) {
+	if s.catalog == nil {
+		return 0, strings.TrimSpace(modelID), ErrModelUnavailable
+	}
+	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{
+		Capabilities: []string{ai.CapabilityText, ai.CapabilityReasoning},
+	})
 	if err != nil {
 		return 0, strings.TrimSpace(modelID), err
 	}
-	defaultID, _, defaultErr := s.ai.GetAnyTextModel()
+	models := make([]ChatModel, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		models = append(models, chatModelFromDescriptor(descriptor))
+	}
+	var defaultID uint
+	var defaultErr error
+	if s.routing == nil {
+		defaultErr = ErrModelUnavailable
+	} else {
+		route, err := s.routing.ResolveGatewayTextModelRoute(ctx, "")
+		if err != nil {
+			defaultErr = err
+		} else {
+			defaultID = route.ModelConfigID
+		}
+	}
 	id, responseModel, err := ResolveTextModel(models, modelID, defaultID, defaultErr)
 	if err != nil {
 		return id, responseModel, ModelNotFoundError{Message: err.Error()}
 	}
 	return id, responseModel, nil
+}
+
+func chatModelFromDescriptor(descriptor providercontract.AIModelDescriptor) ChatModel {
+	return ChatModel{
+		ID:              descriptor.ModelConfigID,
+		ModelID:         descriptor.ModelID,
+		ModelDefID:      descriptor.ModelDefID,
+		ModelIDOverride: descriptor.ModelIDOverride,
+		LogicalModelID:  descriptor.LogicalModelID,
+	}
 }
 
 func sameOrg(a, b *uint) bool {

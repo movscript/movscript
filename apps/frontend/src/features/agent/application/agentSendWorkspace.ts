@@ -86,8 +86,6 @@ export interface AgentSendWorkspaceOptions {
   clientInput?: ProviderSessionClientInput
   providerManifest?: ProviderManifest
   providerSessionLimits?: ProviderSessionLimitsOverride
-  /** Legacy provider wire key. New client code should use providerSessionLimits. */
-  runtimeLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
   threadControl?: Partial<AgentThreadControlState>
   workspaceContext?: MovScriptWorkspaceContext
@@ -159,7 +157,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
     && !input.externalTask.settledAt
     && (input.externalTask.status === 'queued' || input.externalTask.status === 'claimed')
   const taskPayload = canUseExternalTask && !options.clientInput && options.message === undefined ? input.externalTask?.payload : undefined
-  const providerSessionLimits = options.providerSessionLimits ?? options.runtimeLimits
+  const providerSessionLimits = options.providerSessionLimits
   const runProfile = options.runProfile
   const threadControl = normalizeSendThreadControl(options.threadControl)
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined
@@ -250,7 +248,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
         })
       } catch (error) {
         if (!threadId || !input.previewDeps.isProviderSessionNotFoundError(error)) throw error
-        warnings.push('Saved provider session thread was not found; retried preview as a new thread.')
+        warnings.push('Saved runtime session thread was not found; retried preview as a new thread.')
         providerSession.preview = await input.previewDeps.previewRun({
           clientInput,
           ...(requestedManifest ? { providerManifest: requestedManifest } : {}),

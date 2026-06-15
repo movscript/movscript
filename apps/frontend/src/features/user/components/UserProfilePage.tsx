@@ -1,4 +1,5 @@
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { syncElectronBackendAuthSession } from '@/shared/infrastructure/session/backendAuthSessionSync'
 import { LogOut } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,13 +8,17 @@ import {
   UserProfileHeader,
   UserProfileIdentity,
   UserProfileLogoutButton,
-  UserProfileShell,
-} from '@movscript/ui'
+  UserProfileShell
+} from '@movscript/ui/business/app'
 
 export function UserProfilePanel() {
   const { t } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
+  const logout = () => {
+    void syncElectronBackendAuthSession(null)
+    setCurrentUser(null)
+  }
 
   return (
     <UserProfileCard>
@@ -24,7 +29,7 @@ export function UserProfilePanel() {
 
       <UserProfileActions>
         <UserProfileLogoutButton
-          onClick={() => setCurrentUser(null)}
+          onClick={logout}
           icon={<LogOut size={14} />}
         >
           {t('sidebar.logout')}

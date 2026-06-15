@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Bot, CircleStop, ClipboardCheck, FileText, History, ListChecks, Loader2, PlayIcon, RefreshCw, Route } from 'lucide-react'
+import { Bot, ClipboardCheck, History, ListChecks, Loader2, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  AgentPlanOverviewActionBar,
   AgentPlanOverviewActionButton,
   AgentPlanOverviewBadge,
-  AgentPlanOverviewCodeDisclosure,
   AgentPlanOverviewDescription,
   AgentPlanOverviewDisclosure,
   AgentPlanOverviewDisclosureBody,
@@ -23,10 +21,7 @@ import {
   AgentPlanOverviewList,
   AgentPlanOverviewMetaRow,
   AgentPlanOverviewMetaText,
-  AgentPlanOverviewNotice,
-  AgentPlanOverviewNoticeTitle,
   AgentPlanOverviewProgress,
-  AgentPlanOverviewSettingsGrid,
   AgentPlanOverviewShell,
   AgentPlanOverviewStats,
   AgentPlanOverviewStatusBadge,
@@ -39,13 +34,15 @@ import {
   AgentPlanOverviewTaskTitle,
   AgentPlanOverviewText,
   AgentPlanOverviewTitle,
-  AgentPlanOverviewWarningText,
+  AgentPlanOverviewWarningText
+} from '@movscript/ui/business/agent'
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-} from '@movscript/ui'
+  SelectValue
+} from '@movscript/ui/primitives'
 import {
   agentTaskStatusLabel,
   buildPlanArtifactSummary,
@@ -56,28 +53,28 @@ import {
 } from '@/features/agent/domain/agentPlanUi'
 import { isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import { agentPlanStatusLabel, agentTraceView, inputTypeLabel, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
-import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
+import { agentPlanStatusLabel, agentTraceView, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
+import {
+  agentPlanDurationLabel,
+  agentStepStatusLabel,
+  agentStepTypeLabel,
+  formatAgentPlanDate,
+  formatAgentPlanDurationLabel,
+  runInteractionInputTypeLabel,
+} from '@/features/agent/presentation/AgentPlanOverviewPanelModel'
 import { providerSessionApprovalImpactText, providerSessionApprovalPermissionText, providerSessionApprovalRiskText } from '@/features/agent/components/providerSessionInteractions'
+import {
+  AgentPlanActivityJSONBlock,
+  AgentPlanArtifactSummarySection,
+  AgentPlanDispatchSettingsGrid,
+  AgentPlanGraphActions,
+  AgentPlanNameConflictsNotice,
+  DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS,
+} from '@/features/agent/components/AgentPlanOverviewPanelSections'
 import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
-
-const DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS: PlanDispatchSettings = {
-  maxWorkers: 2,
-  maxTaskAttempts: 2,
-  workerTimeoutMs: 15 * 60_000,
-}
-
-const TASK_GRAPH_MAX_WORKER_OPTIONS = [1, 2, 3, 4]
-const TASK_GRAPH_MAX_TASK_ATTEMPT_OPTIONS = [1, 2, 3]
-const TASK_GRAPH_WORKER_TIMEOUT_OPTIONS = [
-  { label: '5m', value: 5 * 60_000 },
-  { label: '15m', value: 15 * 60_000 },
-  { label: '30m', value: 30 * 60_000 },
-  { label: '1h', value: 60 * 60_000 },
-]
 
 export function AgentPlanOverviewPanel({
   id,
@@ -142,9 +139,6 @@ export function AgentPlanOverviewPanel({
   const canRetaskGraph = tasks.some((task) => task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled')
   const canCancel = activeRuns > 0 || (rootRun && !isTerminalAgentRun(rootRun))
   const settings = dispatchSettings ?? DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS
-  const updateSettings = (patch: Partial<PlanDispatchSettings>) => {
-    onDispatchSettingsChange?.({ ...settings, ...patch })
-  }
   const scrollToTask = (taskId: string | undefined) => {
     if (!taskId || typeof document === 'undefined') return
     document.getElementById(`agent-taskGraph-task-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -213,167 +207,34 @@ export function AgentPlanOverviewPanel({
           {agentPlanStatusLabel(snapshot.taskGraph.status)}
         </AgentPlanOverviewStatusBadge>
       </AgentPlanOverviewHeader>
-      {nameConflicts.length > 0 && (
-        <AgentPlanOverviewNotice data-testid="agent-taskGraph-name-conflicts">
-          {nameConflicts.map((conflict) => (
-            <div key={conflict.subagentName} className="min-w-0">
-              <AgentPlanOverviewNoticeTitle>子 agent 重名 · {conflict.subagentName}</AgentPlanOverviewNoticeTitle>
-              <div className="mt-1 space-y-0.5">
-                {conflict.entries.map((entry) => (
-                  <AgentPlanOverviewItemCard key={entry.taskId}>
-                    <AgentPlanOverviewItemHeader>
-                    <div className="min-w-0">
-                      <AgentPlanOverviewItemTitle>{entry.taskTitle}</AgentPlanOverviewItemTitle>
-                      <AgentPlanOverviewMetaRow>
-                        <AgentPlanOverviewMetaText data-truncate="true">任务 {entry.taskId}</AgentPlanOverviewMetaText>
-                        {entry.taskStatus && <AgentPlanOverviewMetaText>{agentTaskStatusLabel(entry.taskStatus)}</AgentPlanOverviewMetaText>}
-                        {entry.ownerRunId && <AgentPlanOverviewMetaText data-truncate="true">run {entry.ownerRunId}</AgentPlanOverviewMetaText>}
-                        {entry.ownerRunStatus && <AgentPlanOverviewMetaText>{runStatusLabel(entry.ownerRunStatus)}</AgentPlanOverviewMetaText>}
-                      </AgentPlanOverviewMetaRow>
-                    </div>
-                    <AgentPlanOverviewItemActions>
-                      <AgentPlanOverviewActionButton type="button" variant="ghost" onClick={() => scrollToTask(entry.taskId)}>
-                        任务
-                      </AgentPlanOverviewActionButton>
-                      {entry.ownerRunId && (
-                        <AgentPlanOverviewActionButton type="button" variant="ghost" onClick={() => openRun(entry.ownerRunId)}>
-                          <Route size={10} />
-                          运行
-                        </AgentPlanOverviewActionButton>
-                      )}
-                    </AgentPlanOverviewItemActions>
-                    </AgentPlanOverviewItemHeader>
-                  </AgentPlanOverviewItemCard>
-                ))}
-              </div>
-            </div>
-          ))}
-        </AgentPlanOverviewNotice>
-      )}
-      {(onDispatch || onRetaskGraph || onCancelTree) && (
-        <AgentPlanOverviewActionBar>
-          {onDispatch && (
-            <AgentPlanOverviewActionButton type="button" variant="outline" disabled={busy || !canDispatch} onClick={onDispatch}>
-              {busy ? <Loader2 size={10} className="animate-spin" /> : <PlayIcon size={10} />}
-              分派
-            </AgentPlanOverviewActionButton>
-          )}
-          {onRetaskGraph && (
-            <AgentPlanOverviewActionButton type="button" variant="outline" disabled={busy || !canRetaskGraph} onClick={onRetaskGraph}>
-              {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-              重新规划
-            </AgentPlanOverviewActionButton>
-          )}
-          {onCancelTree && (
-            <AgentPlanOverviewActionButton type="button" variant="ghost" tone="danger" disabled={busy || !canCancel} onClick={onCancelTree}>
-              {busy ? <Loader2 size={10} className="animate-spin" /> : <CircleStop size={10} />}
-              取消树
-            </AgentPlanOverviewActionButton>
-          )}
-        </AgentPlanOverviewActionBar>
-      )}
-      {onDispatchSettingsChange && (
-        <AgentPlanOverviewSettingsGrid>
-          <Select value={String(settings.maxWorkers)} onValueChange={(next) => updateSettings({ maxWorkers: Number(next) })}>
-            <SelectTrigger size="sm" className="h-6 min-w-0 type-tiny" disabled={busy}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TASK_GRAPH_MAX_WORKER_OPTIONS.map((value) => (
-                <SelectItem key={value} value={String(value)}>{value} 个 worker</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={String(settings.maxTaskAttempts)} onValueChange={(next) => updateSettings({ maxTaskAttempts: Number(next) })}>
-            <SelectTrigger size="sm" className="h-6 min-w-0 type-tiny" disabled={busy}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TASK_GRAPH_MAX_TASK_ATTEMPT_OPTIONS.map((value) => (
-                <SelectItem key={value} value={String(value)}>{value} attempt{value === 1 ? '' : 's'}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={String(settings.workerTimeoutMs)} onValueChange={(next) => updateSettings({ workerTimeoutMs: Number(next) })}>
-            <SelectTrigger size="sm" className="h-6 min-w-0 type-tiny" disabled={busy}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TASK_GRAPH_WORKER_TIMEOUT_OPTIONS.map((item) => (
-                <SelectItem key={item.value} value={String(item.value)}>{item.label} timeout</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </AgentPlanOverviewSettingsGrid>
-      )}
+      <AgentPlanNameConflictsNotice
+        nameConflicts={nameConflicts}
+        onOpenRun={openRun}
+        onScrollToTask={scrollToTask}
+      />
+      <AgentPlanGraphActions
+        busy={busy}
+        canCancel={Boolean(canCancel)}
+        canDispatch={canDispatch}
+        canRetaskGraph={canRetaskGraph}
+        onCancelTree={onCancelTree}
+        onDispatch={onDispatch}
+        onRetaskGraph={onRetaskGraph}
+      />
+      <AgentPlanDispatchSettingsGrid
+        busy={busy}
+        onSettingsChange={onDispatchSettingsChange}
+        settings={settings}
+      />
       <AgentPlanOverviewProgress value={snapshot.taskGraph.progress} />
-      {artifactSummary.totalCount > 0 && (
-        <AgentPlanOverviewDisclosure data-testid="agent-taskGraph-artifact-summary">
-          <AgentPlanOverviewDisclosureSummary>
-            <FileText size={10} />
-            <span>{artifactSummary.totalCount} 个计划产物</span>
-            {artifactSummary.byType.slice(0, 3).map((item) => (
-              <AgentPlanOverviewBadge key={item.type}>
-                {item.type} {item.count}
-              </AgentPlanOverviewBadge>
-            ))}
-          </AgentPlanOverviewDisclosureSummary>
-          <AgentPlanOverviewDisclosureBody>
-            <AgentPlanOverviewFilterRow>
-              <AgentPlanOverviewMetaText>
-                显示 {Math.min(visiblePlanArtifacts.length, 6)}/{visiblePlanArtifacts.length}
-              </AgentPlanOverviewMetaText>
-              <Select value={activeArtifactTypeFilter} onValueChange={(next) => setArtifactTypeFilter(next)}>
-                <SelectTrigger size="sm" className="h-6 w-32 max-w-full type-tiny">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部类型</SelectItem>
-                  {artifactSummary.byType.map((item) => (
-                    <SelectItem key={item.type} value={item.type}>{item.type} ({item.count})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AgentPlanOverviewFilterRow>
-            {visiblePlanArtifacts.slice(0, 6).map((artifact) => (
-              <AgentPlanOverviewItemCard key={artifact.id}>
-                <AgentPlanOverviewItemHeader>
-                  <AgentPlanOverviewItemTitle>{artifact.label}</AgentPlanOverviewItemTitle>
-                  <AgentPlanOverviewItemActions>
-                    {artifact.taskId && (
-                      <AgentPlanOverviewActionButton type="button" variant="ghost" onClick={() => scrollToTask(artifact.taskId)}>
-                        定位
-                      </AgentPlanOverviewActionButton>
-                    )}
-                    {artifact.sourceRunId && (
-                      <AgentPlanOverviewActionButton type="button" variant="ghost" onClick={() => openRun(artifact.sourceRunId)}>
-                        <Route size={10} />
-                        运行
-                      </AgentPlanOverviewActionButton>
-                    )}
-                    {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
-                      <AgentPlanOverviewActionButton type="button" variant="ghost" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
-                        来源
-                      </AgentPlanOverviewActionButton>
-                    )}
-                    <AgentPlanOverviewMetaText>{artifact.type}</AgentPlanOverviewMetaText>
-                  </AgentPlanOverviewItemActions>
-                </AgentPlanOverviewItemHeader>
-                <AgentPlanOverviewMetaRow>
-                  {artifact.uri && <AgentPlanOverviewMetaText data-truncate="true">URI {artifact.uri}</AgentPlanOverviewMetaText>}
-                  {artifact.taskTitle && <AgentPlanOverviewMetaText data-truncate="true">任务 {artifact.taskTitle}</AgentPlanOverviewMetaText>}
-                  {artifact.sourceRunId && <AgentPlanOverviewMetaText data-truncate="true">运行 {artifact.sourceRunId}</AgentPlanOverviewMetaText>}
-                  {artifact.sourceTaskId && <AgentPlanOverviewMetaText data-truncate="true">来源任务 {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</AgentPlanOverviewMetaText>}
-                  {artifact.sourceTaskStatus && <AgentPlanOverviewMetaText>{agentTaskStatusLabel(artifact.sourceTaskStatus)}</AgentPlanOverviewMetaText>}
-                  {artifact.subagentName && <AgentPlanOverviewMetaText data-truncate="true">子 agent {artifact.subagentName}</AgentPlanOverviewMetaText>}
-                  {artifact.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {artifact.toolName}</AgentPlanOverviewMetaText>}
-                  {artifact.policy && <AgentPlanOverviewMetaText data-truncate="true">回滚规则 {artifact.policy}</AgentPlanOverviewMetaText>}
-                </AgentPlanOverviewMetaRow>
-              </AgentPlanOverviewItemCard>
-            ))}
-          </AgentPlanOverviewDisclosureBody>
-        </AgentPlanOverviewDisclosure>
-      )}
+      <AgentPlanArtifactSummarySection
+        activeArtifactTypeFilter={activeArtifactTypeFilter}
+        artifactSummary={artifactSummary}
+        onArtifactTypeFilterChange={setArtifactTypeFilter}
+        onOpenRun={openRun}
+        onScrollToTask={scrollToTask}
+        visiblePlanArtifacts={visiblePlanArtifacts}
+      />
       {tasks.length > 0 && (
         <AgentPlanOverviewList>
           {taskViews.map((view) => {
@@ -401,7 +262,7 @@ export function AgentPlanOverviewPanel({
                     {view.retryAttempt && <AgentPlanOverviewMetaText>第 {view.retryAttempt}{view.maxTaskAttempts ? `/${view.maxTaskAttempts}` : ''} 次尝试</AgentPlanOverviewMetaText>}
                     {!view.retryAttempt && view.maxTaskAttempts && <AgentPlanOverviewMetaText>最多 {view.maxTaskAttempts} 次尝试</AgentPlanOverviewMetaText>}
                     {view.previousStatus && <AgentPlanOverviewMetaText>来自 {agentPlanStatusLabel(view.previousStatus)}</AgentPlanOverviewMetaText>}
-                    {view.workerTimeoutMs && <AgentPlanOverviewMetaText>超时 {formatDurationLabel(view.workerTimeoutMs)}</AgentPlanOverviewMetaText>}
+                    {view.workerTimeoutMs && <AgentPlanOverviewMetaText>超时 {formatAgentPlanDurationLabel(view.workerTimeoutMs)}</AgentPlanOverviewMetaText>}
                     {view.timedOutRunId && <AgentPlanOverviewMetaText data-truncate="true">超时运行 {view.timedOutRunId}</AgentPlanOverviewMetaText>}
                     {view.previousOwnerRunId && <AgentPlanOverviewMetaText data-truncate="true">上次运行 {view.previousOwnerRunId}</AgentPlanOverviewMetaText>}
                     {view.artifactCount > 0 && <AgentPlanOverviewMetaText>{view.artifactCount} 个产物</AgentPlanOverviewMetaText>}
@@ -428,13 +289,13 @@ export function AgentPlanOverviewPanel({
                           <AgentPlanOverviewMetaText>{view.worker.stepCount} 个步骤</AgentPlanOverviewMetaText>
                         </AgentPlanOverviewMetaRow>
                         <AgentPlanOverviewMetaRow>
-                          {view.worker.startedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.startedAt}>开始 {formatAgentDate(view.worker.startedAt, locale)}</AgentPlanOverviewMetaText>}
-                          {view.worker.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.completedAt}>完成 {formatAgentDate(view.worker.completedAt, locale)}</AgentPlanOverviewMetaText>}
-                          {view.worker.failedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.failedAt}>失败 {formatAgentDate(view.worker.failedAt, locale)}</AgentPlanOverviewMetaText>}
-                          {view.worker.cancelledAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.cancelledAt}>取消 {formatAgentDate(view.worker.cancelledAt, locale)}</AgentPlanOverviewMetaText>}
-                          <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.updatedAt}>更新 {formatAgentDate(view.worker.updatedAt, locale)}</AgentPlanOverviewMetaText>
-                          {durationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt) && (
-                            <AgentPlanOverviewMetaText>耗时 {durationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt)}</AgentPlanOverviewMetaText>
+                          {view.worker.startedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.startedAt}>开始 {formatAgentPlanDate(view.worker.startedAt, locale)}</AgentPlanOverviewMetaText>}
+                          {view.worker.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.completedAt}>完成 {formatAgentPlanDate(view.worker.completedAt, locale)}</AgentPlanOverviewMetaText>}
+                          {view.worker.failedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.failedAt}>失败 {formatAgentPlanDate(view.worker.failedAt, locale)}</AgentPlanOverviewMetaText>}
+                          {view.worker.cancelledAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.cancelledAt}>取消 {formatAgentPlanDate(view.worker.cancelledAt, locale)}</AgentPlanOverviewMetaText>}
+                          <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.updatedAt}>更新 {formatAgentPlanDate(view.worker.updatedAt, locale)}</AgentPlanOverviewMetaText>
+                          {agentPlanDurationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt) && (
+                            <AgentPlanOverviewMetaText>耗时 {agentPlanDurationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt)}</AgentPlanOverviewMetaText>
                           )}
                         </AgentPlanOverviewMetaRow>
                         {view.worker.error && (
@@ -457,9 +318,9 @@ export function AgentPlanOverviewPanel({
                                   <AgentPlanOverviewMetaText>{agentStepTypeLabel(step.type)}</AgentPlanOverviewMetaText>
                                   {step.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {step.toolName}</AgentPlanOverviewMetaText>}
                                   {step.sandboxed && <AgentPlanOverviewMetaText>沙盒</AgentPlanOverviewMetaText>}
-                                  <AgentPlanOverviewMetaText data-truncate="true" title={step.createdAt}>创建 {formatAgentDate(step.createdAt, locale)}</AgentPlanOverviewMetaText>
-                                  {step.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={step.completedAt}>完成 {formatAgentDate(step.completedAt, locale)}</AgentPlanOverviewMetaText>}
-                                  {durationLabel(step.createdAt, step.completedAt) && <AgentPlanOverviewMetaText>耗时 {durationLabel(step.createdAt, step.completedAt)}</AgentPlanOverviewMetaText>}
+                                  <AgentPlanOverviewMetaText data-truncate="true" title={step.createdAt}>创建 {formatAgentPlanDate(step.createdAt, locale)}</AgentPlanOverviewMetaText>
+                                  {step.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={step.completedAt}>完成 {formatAgentPlanDate(step.completedAt, locale)}</AgentPlanOverviewMetaText>}
+                                  {agentPlanDurationLabel(step.createdAt, step.completedAt) && <AgentPlanOverviewMetaText>耗时 {agentPlanDurationLabel(step.createdAt, step.completedAt)}</AgentPlanOverviewMetaText>}
                                 </AgentPlanOverviewMetaRow>
                                 {step.error && <AgentPlanOverviewErrorText>{step.error}</AgentPlanOverviewErrorText>}
                               </AgentPlanOverviewItemCard>
@@ -570,9 +431,9 @@ export function AgentPlanOverviewPanel({
                                       <AgentPlanOverviewMetaText>{traceKindLabel(event.kind)}</AgentPlanOverviewMetaText>
                                       {event.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {event.toolName}</AgentPlanOverviewMetaText>}
                                       {event.stepId && <AgentPlanOverviewMetaText data-truncate="true">步骤 {event.stepId}</AgentPlanOverviewMetaText>}
-                                      <AgentPlanOverviewMetaText data-truncate="true" title={event.createdAt}>创建 {formatAgentDate(event.createdAt, locale)}</AgentPlanOverviewMetaText>
-                                      {event.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={event.completedAt}>完成 {formatAgentDate(event.completedAt, locale)}</AgentPlanOverviewMetaText>}
-                                      {durationLabel(event.createdAt, event.completedAt) && <AgentPlanOverviewMetaText>耗时 {durationLabel(event.createdAt, event.completedAt)}</AgentPlanOverviewMetaText>}
+                                      <AgentPlanOverviewMetaText data-truncate="true" title={event.createdAt}>创建 {formatAgentPlanDate(event.createdAt, locale)}</AgentPlanOverviewMetaText>
+                                      {event.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={event.completedAt}>完成 {formatAgentPlanDate(event.completedAt, locale)}</AgentPlanOverviewMetaText>}
+                                      {agentPlanDurationLabel(event.createdAt, event.completedAt) && <AgentPlanOverviewMetaText>耗时 {agentPlanDurationLabel(event.createdAt, event.completedAt)}</AgentPlanOverviewMetaText>}
                                     </AgentPlanOverviewMetaRow>
                                     {eventView.behavior && <AgentPlanOverviewText>行为：{eventView.behavior}</AgentPlanOverviewText>}
                                     {eventView.impact && <AgentPlanOverviewText>影响：{eventView.impact}</AgentPlanOverviewText>}
@@ -700,7 +561,7 @@ export function AgentPlanOverviewPanel({
                               {artifact.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {artifact.toolName}</AgentPlanOverviewMetaText>}
                               {artifact.policy && <AgentPlanOverviewMetaText data-truncate="true">回滚规则 {artifact.policy}</AgentPlanOverviewMetaText>}
                             </AgentPlanOverviewMetaRow>
-                            {artifact.metadata && <ActivityJSONBlock label="元数据" value={artifact.metadata} />}
+                            {artifact.metadata && <AgentPlanActivityJSONBlock label="元数据" value={artifact.metadata} />}
                           </AgentPlanOverviewItemCard>
                         ))}
                       </AgentPlanOverviewDisclosureBody>
@@ -714,58 +575,4 @@ export function AgentPlanOverviewPanel({
       )}
     </AgentPlanOverviewShell>
   )
-}
-
-function runInteractionInputTypeLabel(type: string, t: ReturnType<typeof useTranslation>['t']): string {
-  switch (type) {
-    case 'choice':
-      return t('agents.chat.task.inputTypeChoice')
-    case 'text':
-      return t('agents.chat.task.inputTypeText')
-    case 'confirmation':
-      return t('agents.chat.task.inputTypeConfirmation')
-    default:
-      return inputTypeLabel(type)
-  }
-}
-
-function agentStepStatusLabel(status: string): string {
-  if (status === 'completed') return '已完成'
-  if (status === 'failed') return '失败'
-  if (status === 'in_progress') return '进行中'
-  if (status === 'cancelled') return '已取消'
-  if (status === 'pending') return '待处理'
-  if (status === 'blocked') return '已阻塞'
-  return `未知状态 (${status})`
-}
-
-function agentStepTypeLabel(type: string): string {
-  if (type === 'tool_call') return '工具调用'
-  if (type === 'message') return '消息'
-  return `未知步骤 (${type})`
-}
-
-function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) {
-  const text = safeJSONStringify(value)
-  return (
-    <AgentPlanOverviewCodeDisclosure title={label}>
-      {text}
-    </AgentPlanOverviewCodeDisclosure>
-  )
-}
-
-function formatAgentDate(value: string | number, locale: string) {
-  return formatAgentCompactTimestamp(value, locale)
-}
-
-function durationLabel(start: string | undefined, end: string | undefined) {
-  return formatAgentDuration(start, end)
-}
-
-function formatDurationLabel(ms: number) {
-  return ms > 0 ? formatAgentDurationMs(ms) : ''
-}
-
-function safeJSONStringify(value: unknown) {
-  return JSON.stringify(value, null, 2)
 }

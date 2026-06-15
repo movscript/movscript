@@ -9,6 +9,7 @@ import (
 
 	"github.com/movscript/movscript/internal/infra/observability"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 const (
@@ -37,18 +38,49 @@ type llmCallLogInput struct {
 }
 
 func (s *AIService) logLLMCall(ctx context.Context, input llmCallLogInput) {
-	if s == nil || s.db == nil || input.Config.ID == 0 || input.UserID == 0 {
-		return
+	errText := ""
+	if input.Err != nil {
+		errText = input.Err.Error()
 	}
-	retentionDays := s.llmLogRetentionDays(ctx)
+	if err := s.RecordGatewayCall(ctx, providercontract.AIGatewayCallAuditInput{
+		UserID:         input.UserID,
+		Context:        usageContextToContract(input.Usage),
+		ModelConfigID:  input.Config.ID,
+		CredentialID:   input.Config.CredentialID,
+		Provider:       input.Provider,
+		OperationType:  input.OperationType,
+		PromptName:     input.PromptName,
+		RequestModel:   input.RequestModel,
+		ResponseModel:  input.ResponseModel,
+		RequestPayload: input.RequestPayload,
+		Response:       input.Response,
+		StartedAt:      input.Start,
+		Error:          errText,
+	}); err != nil {
+		observability.WithRequest(ctx).Warn("llm_call_log_write_failed", slog.String("error", err.Error()))
+	}
+}
+
+func (s *AIService) RecordGatewayCall(ctx context.Context, input providercontract.AIGatewayCallAuditInput) error {
+	if s == nil || s.db == nil || input.ModelConfigID == 0 || input.UserID == 0 {
+		return nil
+	}
+	retentionDays := input.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = s.llmLogRetentionDays(ctx)
+	}
+	if retentionDays > 365 {
+		retentionDays = 365
+	}
 	expiresAt := time.Now().UTC().Add(time.Duration(retentionDays) * 24 * time.Hour)
 	requestJSON, requestTruncated := boundedJSON(input.RequestPayload)
 	responseJSON, responseTruncated := boundedJSON(input.Response)
-	status := "success"
-	errText := ""
-	if input.Err != nil {
+	status := input.Status
+	if status == "" {
+		status = "success"
+	}
+	if input.Error != "" {
 		status = "error"
-		errText = input.Err.Error()
 		responseJSON = ""
 	}
 	inputTokens := 0
@@ -60,39 +92,41 @@ func (s *AIService) logLLMCall(ctx context.Context, input llmCallLogInput) {
 		outputTokens = input.Response.Usage.OutputTokens
 		cachedInputTokens = input.Response.Usage.CachedInputTokens
 		reasoningTokens = input.Response.Usage.ReasoningTokens
-		if input.ResponseModel == "" {
-			input.ResponseModel = input.ResponseModelFromResponse()
+		if input.ResponseModel == "" && input.Response.Debug != nil {
+			input.ResponseModel = input.Response.Debug.ModelID
 		}
+	}
+	latencyMs := input.LatencyMs
+	if latencyMs == 0 && !input.StartedAt.IsZero() {
+		latencyMs = time.Since(input.StartedAt).Milliseconds()
 	}
 	entry := persistencemodel.LLMCallLog{
 		RequestID:         observability.RequestIDFromContext(ctx),
 		UserID:            input.UserID,
-		OrgID:             input.Usage.OrgID,
-		ProjectID:         input.Usage.ProjectID,
-		GatewayAPIKeyID:   input.Usage.GatewayAPIKeyID,
-		AIModelConfigID:   input.Config.ID,
-		CredentialID:      input.Config.CredentialID,
+		OrgID:             input.Context.OrgID,
+		ProjectID:         input.Context.ProjectID,
+		GatewayAPIKeyID:   input.Context.GatewayAPIKeyID,
+		AIModelConfigID:   input.ModelConfigID,
+		CredentialID:      input.CredentialID,
 		OperationType:     input.OperationType,
 		PromptName:        input.PromptName,
 		Provider:          input.Provider,
 		RequestModel:      input.RequestModel,
 		ResponseModel:     input.ResponseModel,
 		Status:            status,
-		Error:             errText,
-		LatencyMs:         time.Since(input.Start).Milliseconds(),
+		Error:             input.Error,
+		LatencyMs:         latencyMs,
 		InputTokens:       inputTokens,
 		OutputTokens:      outputTokens,
 		CachedInputTokens: cachedInputTokens,
 		ReasoningTokens:   reasoningTokens,
 		RequestJSON:       requestJSON,
 		ResponseJSON:      responseJSON,
-		PayloadTruncated:  requestTruncated || responseTruncated,
+		PayloadTruncated:  input.PayloadTruncated || requestTruncated || responseTruncated,
 		ExpiresAt:         &expiresAt,
 		RetentionDays:     retentionDays,
 	}
-	if err := s.db.WithContext(ctx).Create(&entry).Error; err != nil {
-		observability.WithRequest(ctx).Warn("llm_call_log_write_failed", slog.String("error", err.Error()))
-	}
+	return s.db.WithContext(ctx).Create(&entry).Error
 }
 
 func (input llmCallLogInput) ResponseModelFromResponse() string {

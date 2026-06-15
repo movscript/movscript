@@ -91,45 +91,90 @@ export function createMovScriptBackendDecisionStore(
         ...(init.headers ?? {}),
       },
     })
-    if (response.status === 404) return undefined
+    if (response.status === 404) {
+      console.info('[movscript-decision-store] backend decision request not found', {
+        projectId: options.projectId,
+        method: init.method ?? 'GET',
+        path,
+        status: response.status,
+      })
+      return undefined
+    }
     if (!response.ok) {
       const body = await response.text().catch(() => '')
+      console.warn('[movscript-decision-store] backend decision request failed', {
+        projectId: options.projectId,
+        method: init.method ?? 'GET',
+        path,
+        status: response.status,
+        body,
+      })
       throw new Error(`backend decision request failed: ${response.status}${body ? ` ${body}` : ''}`)
     }
     if (response.status === 204) return undefined
     return await response.json() as T
   }
   return {
-    getContentUnitDecision(input) {
+    async getContentUnitDecision(input) {
       const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
-      return request<MovScriptDecisionContext>(`/decisions?target_kind=content_unit&target_ref=${encodeURIComponent(targetRef)}`)
+      const context = await request<MovScriptDecisionContext>(`/decisions?target_kind=content_unit&target_ref=${encodeURIComponent(targetRef)}`)
+      console.info('[movscript-decision-store] get content unit decision', {
+        projectId: options.projectId,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        found: Boolean(context),
+        candidateCount: context?.candidates.length ?? 0,
+        candidateIds: decisionCandidateIds(context?.candidates ?? []),
+        hasSelection: Boolean(context?.selection),
+      })
+      return context
     },
-    replaceContentUnitCandidates(input) {
-      return requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/candidates', {
+    async replaceContentUnitCandidates(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/candidates', {
         method: 'PUT',
         body: JSON.stringify({
           target_kind: 'content_unit',
-          target_ref: contentUnitDecisionTargetRef(input.contentUnitId),
+          target_ref: targetRef,
           candidates: input.candidates,
         }),
       }))
+      console.info('[movscript-decision-store] replace content unit candidates', {
+        projectId: options.projectId,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateCount: context.candidates.length,
+        candidateIds: decisionCandidateIds(context.candidates),
+      })
+      return context
     },
-    upsertContentUnitCandidate(input) {
-      return requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/candidates', {
+    async upsertContentUnitCandidate(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/candidates', {
         method: 'POST',
         body: JSON.stringify({
           target_kind: 'content_unit',
-          target_ref: contentUnitDecisionTargetRef(input.contentUnitId),
+          target_ref: targetRef,
           candidate: input.candidate,
         }),
       }))
+      console.info('[movscript-decision-store] upsert content unit candidate', {
+        projectId: options.projectId,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateId: idField(input.candidate.id),
+        candidateCount: context.candidates.length,
+        candidateIds: decisionCandidateIds(context.candidates),
+      })
+      return context
     },
-    selectContentUnitCandidate(input) {
-      return requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/selection', {
+    async selectContentUnitCandidate(input) {
+      const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
+      const context = await requiredDecisionContext(request<MovScriptDecisionContext>('/decisions/selection', {
         method: 'PUT',
         body: JSON.stringify({
           target_kind: 'content_unit',
-          target_ref: contentUnitDecisionTargetRef(input.contentUnitId),
+          target_ref: targetRef,
           candidate_id: stringIdField(input.candidateId),
           resource_id: input.resourceId === undefined ? undefined : requiredResourceId(input.resourceId),
           stale_policy: input.stalePolicy,
@@ -138,6 +183,16 @@ export function createMovScriptBackendDecisionStore(
           metadata: input.metadata,
         }),
       }))
+      console.info('[movscript-decision-store] select content unit candidate', {
+        projectId: options.projectId,
+        contentUnitId: input.contentUnitId,
+        targetRef,
+        candidateId: stringIdField(input.candidateId),
+        candidateCount: context.candidates.length,
+        candidateIds: decisionCandidateIds(context.candidates),
+        hasSelection: Boolean(context.selection),
+      })
+      return context
     },
     clearContentUnitSelection(input) {
       const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
@@ -157,11 +212,18 @@ export async function overlayMovScriptDecisionDocuments(
   const baseIndex = deriveMovScriptWorkspaceDomainIndex(sourceDocuments)
   const contentUnits = baseIndex.byKind.get('content_unit') ?? []
   const overlays: MovScriptWorkspaceDocument[] = []
+  const rows: Array<{ contentUnitId: string | number; targetRef: string; candidateCount: number; candidateIds: Array<string | number> }> = []
   for (const contentUnit of contentUnits) {
     if (contentUnit.id === undefined) continue
     const context = await decisionStore.getContentUnitDecision({ contentUnitId: contentUnit.id })
     if (!context) continue
     const contentUnitRef = entityDir(contentUnit.path)
+    rows.push({
+      contentUnitId: contentUnit.id,
+      targetRef: context.target_ref,
+      candidateCount: context.candidates.length,
+      candidateIds: decisionCandidateIds(context.candidates),
+    })
     overlays.push({
       path: contentUnitDecisionContextPath(contentUnit.id),
       data: normalizeDecisionContext(context, contentUnitRef),
@@ -174,6 +236,12 @@ export async function overlayMovScriptDecisionDocuments(
         data: normalizeContentUnitCandidate(candidate, contentUnitRef),
       })
     }
+  }
+  if (rows.length > 0) {
+    console.info('[movscript-decision-store] overlay content unit decisions', {
+      contentUnitCount: contentUnits.length,
+      rows,
+    })
   }
   const overlayPaths = new Set(overlays.map((document) => document.path))
   return [
@@ -245,6 +313,12 @@ function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
+}
+
+function decisionCandidateIds(candidates: Record<string, unknown>[]): Array<string | number> {
+  return candidates
+    .map((candidate) => idField(candidate.id))
+    .filter((id): id is string | number => id !== undefined)
 }
 
 function stringIdField(value: unknown): string | undefined {

@@ -10,7 +10,7 @@ import type {
   CanvasToolSlot,
   CanvasToolSlotState,
   CanvasToolSlotType,
-} from '@movscript/ui'
+} from '@movscript/ui/business/canvas'
 
 type CanvasTranslator = (key: string, options?: any) => string
 

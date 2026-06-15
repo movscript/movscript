@@ -5,7 +5,7 @@ import {
   selectDefaultAgentProviderModel,
   type DefaultAgentProviderSyncResult,
 } from '@movscript/core/agent'
-import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { getAPIBaseURL } from '@/shared/infrastructure/config'
 import { ProviderSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
 import { resolveAppServerProfile, type ProviderConfig } from '@/shared/infrastructure/providerConfigStore'

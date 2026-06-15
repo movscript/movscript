@@ -43,6 +43,7 @@ type Service struct {
 type giteaAdapter interface {
 	EnsureUser(ctx context.Context, input projectrepoapp.EnsureUserInput) (projectrepoapp.EnsureUserResult, error)
 	EnsureRepoCollaborator(ctx context.Context, owner string, repo string, username string, permission string) error
+	CheckRepoAccess(ctx context.Context, request projectrepoapp.RepositoryAccessRequest) (projectrepoapp.RepositoryAccessResult, error)
 }
 
 func NewService(db *gorm.DB, adapter giteaAdapter, cfg Config, encryptionKey []byte) *Service {
@@ -140,6 +141,18 @@ func (s *Service) EnsureRepoAccess(ctx context.Context, userID uint, owner strin
 	if s.adapter != nil {
 		if err := s.adapter.EnsureRepoCollaborator(ctx, owner, repo, credential.Username, "write"); err != nil {
 			return Credential{}, err
+		}
+		access, err := s.adapter.CheckRepoAccess(ctx, projectrepoapp.RepositoryAccessRequest{
+			Owner:      owner,
+			Repo:       repo,
+			Username:   credential.Username,
+			Permission: "write",
+		})
+		if err != nil {
+			return Credential{}, err
+		}
+		if !access.Allowed {
+			return Credential{}, fmt.Errorf("gitea collaborator %q does not have write access to %s/%s", credential.Username, owner, repo)
 		}
 	}
 	return credential, nil

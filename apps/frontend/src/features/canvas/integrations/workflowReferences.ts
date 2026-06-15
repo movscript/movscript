@@ -2,6 +2,7 @@ import { useEffect, useMemo, type Dispatch, type SetStateAction } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import type { Node } from '@xyflow/react'
 import { api } from '@/shared/infrastructure/api'
+import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
 import type { Canvas, CanvasNodeData } from '@/types'
 import {
   deriveCanvasReferencePorts,
@@ -34,7 +35,7 @@ export function useCanvasWorkflowReferencePorts({
 
   const referencedWorkflowCanvasQueries = useQueries({
     queries: referencedWorkflowCanvasIds.map((canvasId) => ({
-      queryKey: ['canvas', canvasId],
+      queryKey: canvasKeys.detail(canvasId),
       queryFn: () => api.get(`/canvases/${canvasId}`).then((response) => response.data as Canvas),
       enabled: !!canvasId,
     })),

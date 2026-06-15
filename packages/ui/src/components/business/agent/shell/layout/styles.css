@@ -67,9 +67,7 @@
   line-height: var(--ms-leading-section);
 }
 
-.ms-agent-subtitle,
-.ms-agent-run-card__title,
-.ms-agent-instruction__title {
+.ms-agent-subtitle {
   font-size: var(--ms-text-item);
   line-height: var(--ms-leading-item);
 }
@@ -96,14 +94,6 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-}
-
-.ms-agent-scrollarea {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  align-content: start;
-  overflow: auto;
 }
 
 .ms-agent-thread--fill {

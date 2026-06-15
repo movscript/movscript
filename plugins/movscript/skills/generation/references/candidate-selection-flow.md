@@ -13,7 +13,7 @@ Use this when writing or selecting generated, uploaded, imported, or manually re
    - `decision: "defer"` for 待定. This keeps the candidate available without selecting it.
 7. Use `domain_select_content_unit_candidate` or its batch variant only for legacy or explicitly confirmed selection flows that do not need reject/defer status.
 8. Run `domain_inspect` or `domain_review`.
-9. Run `domain_interpret` when the effective interpreted state must include the backend candidate/decision/selection metadata.
+9. Run `domain_interpret` when downstream artifact tools need refreshed backend candidate/decision/selection metadata.
 10. Run `domain_regeneration_plan` when selected outputs may affect downstream content.
 
 Inline candidate APIs are compatibility paths for asset/keyframe/source-entity candidate workflows. Prefer content unit candidates for production outputs.

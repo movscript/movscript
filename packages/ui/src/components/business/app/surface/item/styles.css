@@ -1,10 +1,10 @@
 .app-surface-item {
   min-width: 0;
-  padding: 10px 12px;
+  padding: 10px var(--ms-space-3);
 }
 
 .app-surface-item[data-density="compact"] {
-  padding: 6px 8px;
+  padding: 6px var(--ms-space-2);
 }
 
 .app-surface-item[data-variant="overlay"] {

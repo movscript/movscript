@@ -13,6 +13,7 @@ func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, r
 }
 
 func (s *AIService) CallImageWithUsage(ctx context.Context, userID, modelConfigID uint, req ImageRequest, usage UsageContext) (ImageResponse, error) {
+	ctx = withProviderUserID(ctx, userID)
 	candidates, capability, err := s.runtimeImageModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return ImageResponse{}, err
@@ -82,6 +83,7 @@ func (s *AIService) GetVideoModelDef(modelConfigID uint) (*ModelDef, error) {
 }
 
 func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
+	ctx = withProviderUserID(ctx, userID)
 	candidates, capability, err := s.runtimeVideoModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
@@ -151,6 +153,7 @@ func (s *AIService) CallVideoStart(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallVideoStartWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
+	ctx = withProviderUserID(ctx, userID)
 	candidates, capability, err := s.runtimeVideoModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
@@ -239,6 +242,7 @@ func (s *AIService) CallVideoPoll(ctx context.Context, userID, modelConfigID uin
 }
 
 func (s *AIService) CallVideoPollWithUsage(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
+	ctx = withProviderUserID(ctx, userID)
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err

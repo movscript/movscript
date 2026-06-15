@@ -14,6 +14,7 @@ import (
 	domainshotreference "github.com/movscript/movscript/internal/domain/shotreference"
 	"github.com/movscript/movscript/internal/infra/observability"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -43,6 +44,95 @@ type VectorStoreStats struct {
 
 func NewLocalVectorStore(db *gorm.DB) *LocalVectorStore {
 	return &LocalVectorStore{db: db}
+}
+
+type LocalVectorIndexProvider struct {
+	store *LocalVectorStore
+}
+
+func NewLocalVectorIndexProvider(db *gorm.DB) *LocalVectorIndexProvider {
+	return &LocalVectorIndexProvider{store: NewLocalVectorStore(db)}
+}
+
+func (p *LocalVectorIndexProvider) Upsert(ctx context.Context, document providercontract.VectorDocument) error {
+	return p.store.Upsert(ctx, vectorDocumentFromProviderContract(document))
+}
+
+func (p *LocalVectorIndexProvider) Delete(ctx context.Context, ref providercontract.VectorDocumentRef) error {
+	if ref.ID == "" && ref.ReferenceID == 0 && ref.SourceID == "" && ref.Namespace == "" {
+		return errors.New("vector document ref requires id, reference_id, source_id, or namespace")
+	}
+	start := time.Now()
+	q := p.store.db.WithContext(ctx).Unscoped()
+	switch {
+	case ref.ID != "":
+		q = q.Where("document_id = ?", ref.ID)
+	case ref.ReferenceID > 0:
+		q = q.Where("reference_id = ?", ref.ReferenceID)
+	case ref.SourceID != "":
+		q = q.Where("source_id = ?", ref.SourceID)
+	default:
+		q = q.Where("source_id = ?", ref.Namespace)
+	}
+	result := q.Delete(&persistencemodel.ShotVectorDocument{})
+	err := result.Error
+	recordVectorStoreOperation("delete", start, int(result.RowsAffected), err)
+	return err
+}
+
+func (p *LocalVectorIndexProvider) Search(ctx context.Context, request providercontract.VectorSearchRequest) ([]providercontract.VectorSearchResult, error) {
+	results, err := p.store.Search(ctx, domainshotreference.VectorSearchRequest{
+		Query:     request.Query,
+		Locale:    request.Locale,
+		SourceIDs: request.SourceIDs,
+		Filters:   request.Filters,
+		TopK:      request.TopK,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]providercontract.VectorSearchResult, 0, len(results))
+	for _, result := range results {
+		out = append(out, providercontract.VectorSearchResult{
+			Document: vectorDocumentToProviderContract(result.Document),
+			Score:    result.Score,
+		})
+	}
+	return out, nil
+}
+
+func (p *LocalVectorIndexProvider) Stats(ctx context.Context) (providercontract.VectorIndexStats, error) {
+	stats, err := p.store.Stats(ctx)
+	if err != nil {
+		return providercontract.VectorIndexStats{}, err
+	}
+	return providercontract.VectorIndexStats{
+		Documents:          stats.Documents,
+		Namespaces:         stats.ByLocale,
+		EmbeddingModels:    stats.ByEmbeddingModel,
+		LastIndexedUnixSec: vectorStatsLastIndexedUnix(stats.LastUpdatedAt),
+	}, nil
+}
+
+func (p *LocalVectorIndexProvider) LocalStats(ctx context.Context) (VectorStoreStats, error) {
+	return p.store.Stats(ctx)
+}
+
+func (p *LocalVectorIndexProvider) ReferenceIDs(ctx context.Context) ([]uint, error) {
+	return p.store.ReferenceIDs(ctx)
+}
+
+func (p *LocalVectorIndexProvider) Rebuild(ctx context.Context, request providercontract.VectorRebuildRequest) (providercontract.VectorRebuildResult, error) {
+	if request.Reset {
+		if err := p.store.DeleteAll(ctx); err != nil {
+			return providercontract.VectorRebuildResult{}, err
+		}
+		return providercontract.VectorRebuildResult{Accepted: true}, nil
+	}
+	if err := p.store.Reindex(ctx, domainshotreference.VectorReindexScope{SourceIDs: request.SourceIDs}); err != nil {
+		return providercontract.VectorRebuildResult{}, err
+	}
+	return providercontract.VectorRebuildResult{Accepted: true}, nil
 }
 
 func (s *LocalVectorStore) Upsert(ctx context.Context, document domainshotreference.VectorDocument) error {
@@ -274,6 +364,80 @@ func vectorDocumentFromModel(row persistencemodel.ShotVectorDocument) (domainsho
 		Text:        row.Text,
 		Metadata:    metadata,
 	}, nil
+}
+
+func vectorDocumentFromProviderContract(document providercontract.VectorDocument) domainshotreference.VectorDocument {
+	return domainshotreference.VectorDocument{
+		ID:          document.ID,
+		ReferenceID: vectorMetadataReferenceID(document.Metadata),
+		SourceID:    firstNonEmpty(document.SourceID, document.Namespace),
+		Locale:      document.Locale,
+		Kind:        domainshotreference.VectorDocumentKind(document.Kind),
+		Text:        document.Text,
+		Metadata:    document.Metadata,
+	}
+}
+
+func vectorDocumentToProviderContract(document domainshotreference.VectorDocument) providercontract.VectorDocument {
+	metadata := map[string]any{}
+	for key, value := range document.Metadata {
+		metadata[key] = value
+	}
+	metadata["reference_id"] = document.ReferenceID
+	return providercontract.VectorDocument{
+		ID:        document.ID,
+		Namespace: document.SourceID,
+		SourceID:  document.SourceID,
+		Locale:    document.Locale,
+		Kind:      string(document.Kind),
+		Text:      document.Text,
+		Metadata:  metadata,
+	}
+}
+
+func vectorMetadataReferenceID(metadata map[string]any) uint {
+	switch value := metadata["reference_id"].(type) {
+	case uint:
+		return value
+	case int:
+		if value > 0 {
+			return uint(value)
+		}
+	case int64:
+		if value > 0 {
+			return uint(value)
+		}
+	case float64:
+		if value > 0 {
+			return uint(value)
+		}
+	case json.Number:
+		parsed, _ := value.Int64()
+		if parsed > 0 {
+			return uint(parsed)
+		}
+	}
+	return 0
+}
+
+func vectorStatsLastIndexedUnix(value string) int64 {
+	if strings.TrimSpace(value) == "" {
+		return 0
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return 0
+	}
+	return parsed.Unix()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func vectorSearchTerms(query string) []string {

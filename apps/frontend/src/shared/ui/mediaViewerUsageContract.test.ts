@@ -297,9 +297,9 @@ test('MediaViewer uses resource-level primitives for audio playback', () => {
 test('resource file URL synthesis is limited to data normalization and shared resource primitives', () => {
   const allowed = new Set([
     'src/features/agent/domain/agentAttachments.ts',
-    'src/features/agent/domain/agentConversation.ts',
+    'src/features/agent/domain/agentConversationNormalize.ts',
     'src/features/agent/domain/agentGenerationMedia.ts',
-    'src/features/agent/domain/agentResourceLookup.ts',
+    'src/features/agent/application/agentResourceLookup.ts',
     'src/features/canvas/runtime/runtimeValues.ts',
     'src/features/shot-library/domain/shotReferenceLibrary.ts',
     'src/shared/infrastructure/app-server/appServerThreadTurnItemItems.ts',

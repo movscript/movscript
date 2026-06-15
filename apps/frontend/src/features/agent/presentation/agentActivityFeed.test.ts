@@ -692,7 +692,7 @@ test('buildAgentActivityFeed shows interrupted provider-session recovery as a sy
   const item = feed?.items[0]
   assert.equal(item?.type, 'line')
   assert.equal(item?.kind, 'system')
-  assert.equal(item?.type === 'line' ? item.text : '', '运行中断：provider session 重启时这个 run 尚未结束，已暂停等待继续或取消。')
+  assert.equal(item?.type === 'line' ? item.text : '', '运行中断：runtime session 重启时这个 run 尚未结束，已暂停等待继续或取消。')
 })
 
 test('buildAgentActivityFeed shows resumed recovery without duplicating the same run history', () => {

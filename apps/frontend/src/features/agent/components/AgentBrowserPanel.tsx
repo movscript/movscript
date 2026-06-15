@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
   ArrowLeft,
-  Boxes,
-  Clapperboard,
   ClipboardList,
-  FileText,
-  FolderOpen,
   Globe2,
   HardDrive,
   Home,
   LayoutTemplate,
   Loader2,
-  PackageSearch,
   PenLine,
   MoreHorizontal,
   Plus,
@@ -26,60 +19,17 @@ import {
   XCircle,
 } from 'lucide-react'
 import {
-  AgentBrowserBadge,
   AgentBrowserAddressForm,
-  AgentBrowserBlankContent,
-  AgentBrowserBlankForm,
-  AgentBrowserContentFlow,
-  AgentBrowserContentGroup,
-  AgentBrowserContentGroupCopy,
-  AgentBrowserContentGroupDescription,
-  AgentBrowserContentGroupHeader,
-  AgentBrowserContentGroupIcon,
-  AgentBrowserContentGroupIndex,
-  AgentBrowserContentGroupItems,
-  AgentBrowserContentGroupOverflow,
-  AgentBrowserContentGroupState,
-  AgentBrowserContentGroupTitle,
-  AgentBrowserContentGroupTitleRow,
-  AgentBrowserContentItem,
-  AgentBrowserContentItemCopy,
-  AgentBrowserContentItemDescription,
-  AgentBrowserContentItemMeta,
-  AgentBrowserContentItemTitle,
-  AgentBrowserContentMatrix,
-  AgentBrowserContentSummary,
-  AgentBrowserContentSummaryGrid,
-  AgentBrowserContentSummaryMain,
-  AgentBrowserContentToolbar,
-  AgentBrowserContentToolButton,
-  AgentBrowserDividerSection,
   AgentBrowserHeader,
   AgentBrowserIconButton,
-  AgentBrowserInternalPane,
   AgentBrowserInlineError,
   AgentBrowserInput,
-  AgentBrowserInputRow,
-  AgentBrowserKeyValue,
   AgentBrowserLauncherForm,
   AgentBrowserLauncherIcon,
   AgentBrowserLauncherSubmitButton,
   AgentBrowserMenuItemIcon,
   AgentBrowserMenuContent,
-  AgentBrowserNavButton,
-  AgentBrowserNavGrid,
-  AgentBrowserProjectDescription,
-  AgentBrowserProjectEmpty,
-  AgentBrowserProjectHeader,
-  AgentBrowserProjectHeaderCopy,
-  AgentBrowserProjectMetaLabel,
-  AgentBrowserProjectNavigationPage,
-  AgentBrowserProjectPage,
-  AgentBrowserProjectTitle,
-  AgentBrowserResourcePane,
   AgentBrowserRoot,
-  AgentBrowserSectionIntro,
-  AgentBrowserSectionLabel,
   AgentBrowserTabBar,
   AgentBrowserTabButton,
   AgentBrowserTabCloseButton,
@@ -89,30 +39,12 @@ import {
   AgentBrowserToolbar,
   AgentBrowserUrlMeta,
   AgentBrowserViewport,
-  AgentBrowserWebOverlay,
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@movscript/ui'
-import type { LucideIcon } from 'lucide-react'
-import { CanvasListView } from '@/features/canvas/components/CanvasListView'
-import { ProjectStandardsContent } from '@/features/project-standards/components/ProjectStandardsPage'
-import { ExternalResourceSearchPage, ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
-import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
-import { useUserStore } from '@/shared/infrastructure/session/userStore'
-import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
-import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
-import type { Project, Script } from '@/types'
-import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
+} from '@/features/agent/components/AgentBrowserUi'
+import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui/primitives'
+import type { Project } from '@/types'
+import { activateEmbeddedBrowser, closeEmbeddedBrowser, embeddedBrowserAvailable, goBackEmbeddedBrowser, goForwardEmbeddedBrowser, hideEmbeddedBrowser, navigateEmbeddedBrowser, reloadEmbeddedBrowser, stopEmbeddedBrowser, subscribeEmbeddedBrowserState } from '@/features/agent/application/embeddedBrowserElectron'
+import { agentBrowserBoundsFromViewportElement, subscribeAgentBrowserBoundsSync, type AgentBrowserBounds } from '@/features/agent/presentation/agentBrowserBounds'
 import {
-  agentBrowserBoundsFromViewportElement,
-  subscribeAgentBrowserBoundsSync,
-  type AgentBrowserBounds,
-} from '@/features/agent/presentation/agentBrowserBounds'
-import {
-  AGENT_BLANK_TAB_ID,
   AGENT_PROJECT_HOME_TAB_ID,
   AGENT_SESSION_OUTPUT_TAB_ID,
   createBlankAgentBrowserTab,
@@ -123,46 +55,14 @@ import {
   type AgentBrowserContentTab,
   type AgentBrowserWebTabState,
 } from '@/features/agent/state/agentContentAreaStore'
-import { AgentSessionOutputPane } from '@/features/agent/components/AgentSessionOutputPane'
-
-interface ProjectNavigationGroup {
-  key: string
-  title: string
-  description: string
-  icon: LucideIcon
-  tone: 'plan' | 'script' | 'asset' | 'production' | 'content'
-  items: ProjectNavigationLink[]
-  loading: boolean
-}
-
-interface ProjectNavigationLink {
-  id: string
-  title: string
-  description: string
-  to?: string
-  onClick?: () => void
-  status?: string
-}
-
-const EMPTY_WEB_STATE: AgentBrowserWebTabState = {
-  tabId: '',
-  visible: false,
-  url: '',
-  title: '',
-  loading: false,
-  canGoBack: false,
-  canGoForward: false,
-}
-
-function createTabId(prefix: string, scope = '') {
-  const scopeSegment = scope.trim().replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 36)
-  return [
-    prefix,
-    scopeSegment,
-    Date.now().toString(36),
-    Math.random().toString(36).slice(2, 7),
-  ].filter(Boolean).join('_')
-}
+import { AgentBrowserTabContent } from '@/features/agent/components/AgentBrowserTabContent'
+import {
+  EMPTY_AGENT_BROWSER_WEB_STATE,
+  agentBrowserTabTitle,
+  createAgentBrowserTabId,
+  isSingleDefaultBlankBrowserState,
+  isSingleDefaultProjectHomeBrowserState,
+} from '@/features/agent/components/AgentBrowserPanelModel'
 
 export interface AgentBrowserPanelProps {
   contentAreaId?: string | null
@@ -189,9 +89,9 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
   const [addressWorkspace, setAddressWorkspace] = useState('')
   const [toolbarAddressWorkspace, setToolbarAddressWorkspace] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const available = typeof window !== 'undefined' && typeof window.api?.embeddedBrowserNavigate === 'function'
+  const available = embeddedBrowserAvailable()
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
-  const activeWebState = activeTab?.kind === 'web' ? webStates[activeTab.id] ?? { ...EMPTY_WEB_STATE, tabId: activeTab.id, url: activeTab.url ?? '' } : null
+  const activeWebState = activeTab?.kind === 'web' ? webStates[activeTab.id] ?? { ...EMPTY_AGENT_BROWSER_WEB_STATE, tabId: activeTab.id, url: activeTab.url ?? '' } : null
   const activeWebURL = activeTab?.kind === 'web' ? activeWebState?.url || activeTab.url || '' : ''
 
   useEffect(() => {
@@ -240,15 +140,15 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
   const syncBounds = useCallback(() => {
     if (!available) return
     if (!activeTab || activeTab.kind !== 'web' || !(activeWebState?.url || activeTab.url)) {
-      void window.api?.embeddedBrowserHide?.()
+      void hideEmbeddedBrowser()
       return
     }
-    void window.api?.embeddedBrowserActivate?.({ tabId: activeTab.id, bounds: readBounds() })
+    void activateEmbeddedBrowser({ tabId: activeTab.id, bounds: readBounds() })
   }, [activeTab, activeWebState?.url, available, readBounds])
 
   useEffect(() => {
     if (!available) return
-    const unsubscribe = window.api?.onEmbeddedBrowserState?.((next) => {
+    const unsubscribe = subscribeEmbeddedBrowserState((next) => {
       setWebStates((current) => ({ ...current, [next.tabId]: next }))
       if (next.title || next.url) {
         setTabs((current) => current.map((tab) => (
@@ -269,7 +169,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
 
   useEffect(() => {
     return () => {
-      void window.api?.embeddedBrowserHide?.()
+      void hideEmbeddedBrowser()
     }
   }, [])
 
@@ -287,10 +187,10 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
     setError(null)
     setWebStates((current) => ({
       ...current,
-      [tabId]: { ...(current[tabId] ?? EMPTY_WEB_STATE), tabId, url, loading: true, error: undefined },
+      [tabId]: { ...(current[tabId] ?? EMPTY_AGENT_BROWSER_WEB_STATE), tabId, url, loading: true, error: undefined },
     }))
     try {
-      const next = await window.api?.embeddedBrowserNavigate?.({
+      const next = await navigateEmbeddedBrowser({
         tabId,
         url,
         bounds: readBounds(),
@@ -300,7 +200,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
       setError(caught instanceof Error ? caught.message : String(caught))
       setWebStates((current) => ({
         ...current,
-        [tabId]: { ...(current[tabId] ?? EMPTY_WEB_STATE), tabId, loading: false, error: caught instanceof Error ? caught.message : String(caught) },
+        [tabId]: { ...(current[tabId] ?? EMPTY_AGENT_BROWSER_WEB_STATE), tabId, loading: false, error: caught instanceof Error ? caught.message : String(caught) },
       }))
     }
   }
@@ -318,7 +218,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
   }
 
   function openBlankWebTab() {
-    const id = createTabId('web', resolvedContentAreaId)
+    const id = createAgentBrowserTabId('web', resolvedContentAreaId)
     setTabs((current) => [...current, { id, kind: 'web', title: '空白页', createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
@@ -345,7 +245,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
       return
     }
 
-    const id = createTabId(kind, resolvedContentAreaId)
+    const id = createAgentBrowserTabId(kind, resolvedContentAreaId)
     setTabs((current) => [...current, { id, kind, title, createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
@@ -401,7 +301,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
     const url = addressWorkspace.trim()
     if (!url) return
     const existingBlank = activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url ? activeTab : null
-    const id = existingBlank?.id ?? createTabId('web', resolvedContentAreaId)
+    const id = existingBlank?.id ?? createAgentBrowserTabId('web', resolvedContentAreaId)
     if (!existingBlank) {
       setTabs((current) => [...current, { id, kind: 'web', title: url, url, createdAt: Date.now() }])
       setActiveTabId(id)
@@ -436,9 +336,9 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
       : activeTab
     if (closingTab.kind === 'web') {
       if (activeTabId === tabId && nextActiveTab?.kind === 'web' && (webStates[nextActiveTab.id]?.url || nextActiveTab.url)) {
-        void window.api?.embeddedBrowserActivate?.({ tabId: nextActiveTab.id, bounds: readBounds() })
+        void activateEmbeddedBrowser({ tabId: nextActiveTab.id, bounds: readBounds() })
       }
-      void window.api?.embeddedBrowserClose?.({ tabId })
+      void closeEmbeddedBrowser({ tabId })
       setWebStates((current) => {
         const next = { ...current }
         delete next[tabId]
@@ -465,13 +365,13 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
       label: '后退',
       icon: ArrowLeft,
       disabled: webNavigationDisabled || !activeWebState?.canGoBack,
-      action: () => { if (activeTab?.kind === 'web') void window.api?.embeddedBrowserGoBack?.({ tabId: activeTab.id }) },
+      action: () => { if (activeTab?.kind === 'web') void goBackEmbeddedBrowser({ tabId: activeTab.id }) },
     },
     {
       label: '前进',
       icon: ArrowRight,
       disabled: webNavigationDisabled || !activeWebState?.canGoForward,
-      action: () => { if (activeTab?.kind === 'web') void window.api?.embeddedBrowserGoForward?.({ tabId: activeTab.id }) },
+      action: () => { if (activeTab?.kind === 'web') void goForwardEmbeddedBrowser({ tabId: activeTab.id }) },
     },
     {
       label: activeWebState?.loading ? '停止加载' : '刷新',
@@ -480,8 +380,8 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
       action: () => {
         if (activeTab?.kind !== 'web') return
         void (activeWebState?.loading
-          ? window.api?.embeddedBrowserStop?.({ tabId: activeTab.id })
-          : window.api?.embeddedBrowserReload?.({ tabId: activeTab.id }))
+          ? stopEmbeddedBrowser({ tabId: activeTab.id })
+          : reloadEmbeddedBrowser({ tabId: activeTab.id }))
       },
     },
   ], [activeTab, activeWebState?.canGoBack, activeWebState?.canGoForward, activeWebState?.loading, webNavigationDisabled])
@@ -507,7 +407,7 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
                     <AgentBrowserTabIcon loading={webState?.loading}>
                       {webState?.loading ? <Loader2 size={12} /> : <Icon size={12} />}
                     </AgentBrowserTabIcon>
-                    <span>{tabTitle(tab, webState, project?.name)}</span>
+                    <span>{agentBrowserTabTitle(tab, webState, project?.name)}</span>
                   </AgentBrowserTabButton>
                   <AgentBrowserTabCloseButton
                     aria-label="关闭标签"
@@ -657,529 +557,24 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
         ) : null}
       </AgentBrowserHeader>
       <AgentBrowserViewport ref={viewportRef}>
-        {activeTab?.kind === 'project_home' ? (
-          <ProjectHomeBrowserPage
-            project={project}
-            onOpenProjectStandards={openProjectStandardsTab}
-            onOpenResourceLibrary={openResourceLibraryTab}
-            onOpenExternalResourceLibrary={openExternalResourceLibraryTab}
-            onOpenCanvasList={openCanvasListTab}
-          />
-        ) : activeTab?.kind === 'resources' ? (
-          <AgentBrowserResourcePane>
-            <ResourceLibraryView variant="pane" />
-          </AgentBrowserResourcePane>
-        ) : activeTab?.kind === 'external_resources' ? (
-          <AgentBrowserResourcePane>
-            <ExternalResourceSearchPage variant="pane" />
-          </AgentBrowserResourcePane>
-        ) : activeTab?.kind === 'canvas_list' ? (
-          <AgentBrowserInternalPane>
-            <CanvasListView source="agent" />
-          </AgentBrowserInternalPane>
-        ) : activeTab?.kind === 'project_standards' ? (
-          <AgentBrowserInternalPane>
-            <ProjectStandardsContent />
-          </AgentBrowserInternalPane>
-        ) : activeTab?.kind === 'session_output' ? (
-          <AgentBrowserInternalPane>
-            <AgentSessionOutputPane conversationId={sessionConversationId} projectId={project?.ID} />
-          </AgentBrowserInternalPane>
-        ) : activeTab?.kind === 'web' && !(activeWebState?.url || activeTab.url) ? (
-          <BlankWebTab
-            onOpenResourceLibrary={openResourceLibraryInCurrentTab}
-            onOpenExternalResourceLibrary={openExternalResourceLibraryInCurrentTab}
-            onOpenCanvasList={openCanvasListInCurrentTab}
-            onSubmit={(url) => {
-              setAddressWorkspace(url)
-              void navigateWebTab(activeTab.id, url)
-            }}
-          />
-        ) : (
-          <AgentBrowserWebOverlay loading={activeWebState?.loading} aria-hidden="true" />
-        )}
+        <AgentBrowserTabContent
+          activeTab={activeTab}
+          activeWebState={activeWebState}
+          project={project}
+          sessionConversationId={sessionConversationId}
+          onOpenProjectStandards={openProjectStandardsTab}
+          onOpenResourceLibrary={openResourceLibraryTab}
+          onOpenExternalResourceLibrary={openExternalResourceLibraryTab}
+          onOpenCanvasList={openCanvasListTab}
+          onOpenResourceLibraryInCurrentTab={openResourceLibraryInCurrentTab}
+          onOpenExternalResourceLibraryInCurrentTab={openExternalResourceLibraryInCurrentTab}
+          onOpenCanvasListInCurrentTab={openCanvasListInCurrentTab}
+          onNavigateBlankWebTab={(tabId, url) => {
+            setAddressWorkspace(url)
+            void navigateWebTab(tabId, url)
+          }}
+        />
       </AgentBrowserViewport>
     </AgentBrowserRoot>
   )
-}
-
-function tabTitle(tab: AgentBrowserContentTab, webState: AgentBrowserWebTabState | undefined, projectName?: string) {
-  if (tab.kind === 'project_home') return projectName ? `${projectName}` : '内容导航'
-  if (tab.kind === 'resources') return tab.title
-  if (tab.kind === 'external_resources') return tab.title
-  if (tab.kind === 'canvas_list') return tab.title
-  if (tab.kind === 'project_standards') return tab.title
-  if (tab.kind === 'session_output') return tab.title
-  return webState?.title || tab.title || webState?.url || tab.url || '空白页'
-}
-
-function isSingleDefaultProjectHomeBrowserState(state: { tabs: AgentBrowserContentTab[]; activeTabId: string }) {
-  return state.tabs.length === 1
-    && state.activeTabId === AGENT_PROJECT_HOME_TAB_ID
-    && state.tabs[0]?.id === AGENT_PROJECT_HOME_TAB_ID
-    && state.tabs[0]?.kind === 'project_home'
-}
-
-function isSingleDefaultBlankBrowserState(state: { tabs: AgentBrowserContentTab[]; activeTabId: string }) {
-  const tab = state.tabs[0]
-  return state.tabs.length === 1
-    && state.activeTabId === AGENT_BLANK_TAB_ID
-    && tab?.id === AGENT_BLANK_TAB_ID
-    && tab.kind === 'web'
-    && !tab.url
-}
-
-function BlankWebTab({
-  onOpenResourceLibrary,
-  onOpenExternalResourceLibrary,
-  onOpenCanvasList,
-  onSubmit,
-}: {
-  onOpenResourceLibrary: () => void
-  onOpenExternalResourceLibrary: () => void
-  onOpenCanvasList: () => void
-  onSubmit: (url: string) => void
-}) {
-  const [value, setValue] = useState('')
-  const navItems = [
-    {
-      title: '资源库',
-      description: '搜索、上传和预览可引用资源',
-      icon: HardDrive,
-      action: onOpenResourceLibrary,
-    },
-    {
-      title: '外部资源',
-      description: '搜索外部图片和视频并加入素材库',
-      icon: ScanSearch,
-      action: onOpenExternalResourceLibrary,
-    },
-    {
-      title: '画布列表',
-      description: '查看、创建和打开项目画布',
-      icon: LayoutTemplate,
-      action: onOpenCanvasList,
-    },
-  ]
-
-  return (
-    <AgentBrowserBlankForm
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (value.trim()) onSubmit(value.trim())
-      }}
-    >
-      <AgentBrowserBlankContent>
-        <AgentBrowserSectionIntro
-          title="空白页"
-          description="输入网址，或打开常用工作区。"
-        />
-        <AgentBrowserNavGrid>
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <AgentBrowserNavButton
-                key={item.title}
-                icon={<Icon size={18} />}
-                title={item.title}
-                description={item.description}
-                trailing={<ArrowRight size={14} />}
-                onClick={item.action}
-              />
-            )
-          })}
-        </AgentBrowserNavGrid>
-        <AgentBrowserDividerSection>
-          <AgentBrowserSectionLabel icon={<Globe2 size={13} />}>
-            打开网页
-          </AgentBrowserSectionLabel>
-          <AgentBrowserInputRow>
-            <AgentBrowserInput value={value} onChange={(event) => setValue(event.target.value)} placeholder="网址或搜索" />
-            <AgentBrowserLauncherSubmitButton disabled={!value.trim()}>打开</AgentBrowserLauncherSubmitButton>
-          </AgentBrowserInputRow>
-        </AgentBrowserDividerSection>
-      </AgentBrowserBlankContent>
-    </AgentBrowserBlankForm>
-  )
-}
-
-function ProjectHomeBrowserPage({
-  project,
-  onOpenProjectStandards,
-  onOpenResourceLibrary,
-  onOpenExternalResourceLibrary,
-  onOpenCanvasList,
-}: {
-  project: Project | null
-  onOpenProjectStandards: () => void
-  onOpenResourceLibrary: () => void
-  onOpenExternalResourceLibrary: () => void
-  onOpenCanvasList: () => void
-}) {
-  const projectId = project?.ID
-  const currentUser = useUserStore((state) => state.currentUser)
-  const currentOrgID = useUserStore((state) => state.currentOrgID)
-  const orgMemberships = useUserStore((state) => state.orgMemberships)
-  const workspaceContext = useMemo(
-    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
-    [currentOrgID, currentUser?.ID, orgMemberships],
-  )
-  const scriptsQuery = useQuery<Script[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'scripts', workspaceContext.userId ?? 'local', workspaceContext.orgId ?? 'personal'],
-    queryFn: () => listWorkspaceScripts(projectId!, workspaceContext),
-    enabled: !!projectId,
-  })
-  const referencesQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'settings'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('settings')),
-    enabled: !!projectId,
-  })
-  const assetSlotsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'assetSlots'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')),
-    enabled: !!projectId,
-  })
-  const productionsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'productions'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')),
-    enabled: !!projectId,
-  })
-  const sceneMomentsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'sceneMoments'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')),
-    enabled: !!projectId,
-  })
-  const contentUnitsQuery = useQuery<SemanticEntityRecord[]>({
-    queryKey: ['embedded-browser-navigation', projectId, 'contentUnits'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')),
-    enabled: !!projectId,
-  })
-
-  if (!project) {
-    return (
-      <AgentBrowserProjectEmpty
-        icon={<FolderOpen size={21} />}
-        title="内容导航"
-        description="当前还没有选中的项目。选择项目后可从这里进入剧本、设定、素材、制作、情节和内容。"
-      />
-    )
-  }
-
-  const groups: ProjectNavigationGroup[] = [
-    {
-      key: 'standards',
-      title: '项目规范',
-      description: '项目级画幅、视觉风格、镜头语言、节奏和负面约束。',
-      icon: Home,
-      tone: 'plan',
-      loading: false,
-      items: [{
-        id: String(project.ID),
-        title: '项目规范',
-        description: firstText(
-          recordField(project, 'visual_style'),
-          recordField(project, 'project_style'),
-          project.description,
-          '查看和维护会话项目规范',
-        ),
-        status: firstText(recordField(project, 'aspect_ratio'), '规范'),
-        onClick: onOpenProjectStandards,
-      }],
-    },
-    {
-      key: 'scripts',
-      title: '剧本列表',
-      description: '剧本文本、分块和后续编排引用。',
-      icon: FileText,
-      tone: 'script',
-      loading: scriptsQuery.isLoading,
-      items: (scriptsQuery.data ?? [])
-        .slice()
-        .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
-        .map((script) => ({
-          id: String(script.ID),
-          title: script.title || `剧本 #${script.ID}`,
-          description: firstText(script.summary, script.description, script.script_type, '暂无摘要'),
-          status: script.script_type,
-          to: withRouteParams(ROUTES.project.scripts, { script_id: script.ID }),
-        })),
-    },
-    {
-      key: 'references',
-      title: '设定列表',
-      description: '角色、世界观、风格和可复用创作约束。',
-      icon: PenLine,
-      tone: 'plan',
-      loading: referencesQuery.isLoading,
-      items: visibleRecords(referencesQuery.data).map((record, recordIndex) => ({
-        id: recordStableId(record, 'reference', recordIndex),
-        title: titleOfRecord(record, '设定'),
-        description: firstText(record.description, record.content, record.kind, '暂无描述'),
-        status: stringField(record.status ?? record.kind),
-        to: ROUTES.project.scripts,
-      })),
-    },
-    {
-      key: 'assets',
-      title: '素材列表',
-      description: '素材需求、候选资源和锁定状态。',
-      icon: PackageSearch,
-      tone: 'asset',
-      loading: assetSlotsQuery.isLoading,
-      items: visibleRecords(assetSlotsQuery.data).map((record, recordIndex) => ({
-        id: recordStableId(record, 'asset', recordIndex),
-        title: titleOfRecord(record, '素材'),
-        description: firstText(record.description, record.prompt_hint, record.kind, '暂无描述'),
-        status: stringField(record.status ?? record.kind),
-        to: ROUTES.project.sourceWorkspace,
-      })),
-    },
-    {
-      key: 'productions',
-      title: '制作列表',
-      description: '制作方案、制作任务和整体进度。',
-      icon: Clapperboard,
-      tone: 'production',
-      loading: productionsQuery.isLoading,
-      items: visibleRecords(productionsQuery.data).map((record, recordIndex) => ({
-        id: recordStableId(record, 'production', recordIndex),
-        title: titleOfRecord(record, '制作'),
-        description: firstText(record.description, record.summary, record.kind, '暂无描述'),
-        status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.scripts, { productionId: recordRouteId(record) }),
-      })),
-    },
-    {
-      key: 'moments',
-      title: '情节列表',
-      description: '编排段、情节点和上下游引用关系。',
-      icon: Boxes,
-      tone: 'production',
-      loading: sceneMomentsQuery.isLoading,
-      items: visibleRecords(sceneMomentsQuery.data).map((record, recordIndex) => ({
-        id: recordStableId(record, 'moment', recordIndex),
-        title: titleOfRecord(record, '情节'),
-        description: firstText(record.description, record.action_text, record.location_text, record.mood, '暂无描述'),
-        status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.sourceWorkspace, {
-          scene_moment_id: recordRouteId(record),
-        }),
-      })),
-    },
-    {
-      key: 'content',
-      title: '内容列表',
-      description: '内容单元、关键帧、生成上下文和预览挂载。',
-      icon: LayoutTemplate,
-      tone: 'content',
-      loading: contentUnitsQuery.isLoading,
-      items: visibleRecords(contentUnitsQuery.data).map((record, recordIndex) => ({
-        id: recordStableId(record, 'content', recordIndex),
-        title: titleOfRecord(record, '内容'),
-        description: firstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
-        status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.sourceWorkspace, {
-          scene_moment_id: numberField(record.scene_moment_id),
-          content_unit_id: recordRouteId(record),
-        }),
-      })),
-    },
-  ]
-  const topGroups = groups.slice(0, 4)
-  const productionGroups = groups.slice(4)
-  const totalItems = groups.reduce((sum, group) => sum + group.items.length, 0)
-  const loadingGroups = groups.filter((group) => group.loading).length
-  const rows = groups.map((group): [string, string | number] => [
-    group.title.replace('列表', ''),
-    group.loading ? '...' : group.items.length,
-  ])
-
-  return (
-    <AgentBrowserProjectNavigationPage>
-      <AgentBrowserProjectHeader>
-        <AgentBrowserProjectHeaderCopy>
-          <AgentBrowserProjectMetaLabel icon={<Home size={14} />}>
-            内部页面
-          </AgentBrowserProjectMetaLabel>
-          <AgentBrowserProjectTitle>内容导航</AgentBrowserProjectTitle>
-          <AgentBrowserProjectDescription>
-            {project.name}
-          </AgentBrowserProjectDescription>
-        </AgentBrowserProjectHeaderCopy>
-        <AgentBrowserContentToolbar aria-label="常用内容入口">
-          <AgentBrowserContentToolButton icon={<PenLine size={13} />} onClick={onOpenProjectStandards}>
-            规范
-          </AgentBrowserContentToolButton>
-          <AgentBrowserContentToolButton icon={<HardDrive size={13} />} onClick={onOpenResourceLibrary}>
-            资源库
-          </AgentBrowserContentToolButton>
-          <AgentBrowserContentToolButton icon={<ScanSearch size={13} />} onClick={onOpenExternalResourceLibrary}>
-            外部资源
-          </AgentBrowserContentToolButton>
-          <AgentBrowserContentToolButton icon={<LayoutTemplate size={13} />} onClick={onOpenCanvasList}>
-            画布
-          </AgentBrowserContentToolButton>
-        </AgentBrowserContentToolbar>
-      </AgentBrowserProjectHeader>
-      <AgentBrowserContentSummary aria-label="会话项目内容概览">
-        <AgentBrowserContentSummaryMain label="内容对象" value={totalItems} />
-        <AgentBrowserContentSummaryGrid>
-          {rows.map(([label, value]) => (
-            <AgentBrowserKeyValue key={label} label={label} value={value} strong />
-          ))}
-        </AgentBrowserContentSummaryGrid>
-        {loadingGroups > 0 ? (
-          <AgentBrowserBadge>{loadingGroups} 项读取中</AgentBrowserBadge>
-        ) : null}
-      </AgentBrowserContentSummary>
-
-      <AgentBrowserContentMatrix aria-label="核心内容入口">
-        {topGroups.map((group, index) => (
-          <ProjectNavigationGroupSection key={group.key} group={group} index={index} variant="featured" />
-        ))}
-      </AgentBrowserContentMatrix>
-
-      <AgentBrowserContentFlow aria-label="生产链路内容">
-        {productionGroups.map((group, index) => (
-          <ProjectNavigationGroupSection key={group.key} group={group} index={index + topGroups.length} variant="lane" />
-        ))}
-      </AgentBrowserContentFlow>
-    </AgentBrowserProjectNavigationPage>
-  )
-}
-
-function ProjectNavigationGroupSection({
-  group,
-  index,
-  variant,
-}: {
-  group: ProjectNavigationGroup
-  index: number
-  variant: 'featured' | 'lane'
-}) {
-  const Icon = group.icon
-  const previewItems = group.items.slice(0, variant === 'featured' ? 3 : 4)
-
-  return (
-    <AgentBrowserContentGroup tone={group.tone} variant={variant}>
-      <AgentBrowserContentGroupHeader>
-        <AgentBrowserContentGroupIcon>
-          <Icon size={17} />
-        </AgentBrowserContentGroupIcon>
-        <AgentBrowserContentGroupCopy>
-          <AgentBrowserContentGroupTitleRow>
-            <AgentBrowserContentGroupIndex>{String(index + 1).padStart(2, '0')}</AgentBrowserContentGroupIndex>
-            <AgentBrowserContentGroupTitle>{group.title}</AgentBrowserContentGroupTitle>
-          </AgentBrowserContentGroupTitleRow>
-          <AgentBrowserContentGroupDescription>{group.description}</AgentBrowserContentGroupDescription>
-        </AgentBrowserContentGroupCopy>
-        <AgentBrowserBadge>{group.loading ? '读取中' : `${group.items.length}`}</AgentBrowserBadge>
-      </AgentBrowserContentGroupHeader>
-      <AgentBrowserContentGroupItems>
-        {group.loading ? (
-          <AgentBrowserContentGroupState>正在读取会话项目数据...</AgentBrowserContentGroupState>
-        ) : group.items.length === 0 ? (
-          <AgentBrowserContentGroupState>暂无数据</AgentBrowserContentGroupState>
-        ) : (
-          previewItems.map((item) => (
-            item.to ? (
-              <AgentBrowserContentItem asChild key={`${group.key}-${item.id}`}>
-                <Link
-                  to={item.to}
-                >
-                  <ProjectNavigationItemContent item={item} />
-                </Link>
-              </AgentBrowserContentItem>
-            ) : (
-              <AgentBrowserContentItem
-                key={`${group.key}-${item.id}`}
-                onClick={item.onClick}
-              >
-                <ProjectNavigationItemContent item={item} />
-              </AgentBrowserContentItem>
-            )
-          ))
-        )}
-        {!group.loading && group.items.length > previewItems.length ? (
-          <AgentBrowserContentGroupOverflow>
-            另有 {group.items.length - previewItems.length} 项
-          </AgentBrowserContentGroupOverflow>
-        ) : null}
-      </AgentBrowserContentGroupItems>
-    </AgentBrowserContentGroup>
-  )
-}
-
-function ProjectNavigationItemContent({ item }: { item: ProjectNavigationLink }) {
-  return (
-    <>
-      <AgentBrowserContentItemCopy>
-        <AgentBrowserContentItemTitle>{item.title}</AgentBrowserContentItemTitle>
-        <AgentBrowserContentItemDescription>{item.description}</AgentBrowserContentItemDescription>
-      </AgentBrowserContentItemCopy>
-      <AgentBrowserContentItemMeta>
-        {item.status ? <span>{item.status}</span> : null}
-        <ArrowRight size={14} />
-      </AgentBrowserContentItemMeta>
-    </>
-  )
-}
-
-function visibleRecords(records?: SemanticEntityRecord[]) {
-  return (records ?? [])
-    .filter(isActiveSemanticEntityRecord)
-    .slice()
-    .sort(compareRecordOrder)
-}
-
-function compareRecordOrder(a: SemanticEntityRecord, b: SemanticEntityRecord) {
-  const orderDelta = (numberField(a.order) ?? recordNumericId(a) ?? 0) - (numberField(b.order) ?? recordNumericId(b) ?? 0)
-  if (orderDelta !== 0) return orderDelta
-  return recordSortKey(a).localeCompare(recordSortKey(b))
-}
-
-function titleOfRecord(record: SemanticEntityRecord, fallback: string) {
-  return firstText(record.title, record.name, record.label, `${fallback} #${recordDisplayId(record)}`)
-}
-
-function recordRouteId(record: SemanticEntityRecord) {
-  return numberField(record.ID) ?? numberField(record.id) ?? stringField(record.id)
-}
-
-function recordNumericId(record: SemanticEntityRecord) {
-  return numberField(record.ID) ?? numberField(record.id)
-}
-
-function recordDisplayId(record: SemanticEntityRecord) {
-  return firstText(record.ID, record.id, record.title, record.name, record.label, '未编号')
-}
-
-function recordStableId(record: SemanticEntityRecord, fallback: string, index: number) {
-  return firstText(record.ID, record.id, record.uuid, record.key, record.path, `${fallback}-${index}`)
-}
-
-function recordSortKey(record: SemanticEntityRecord) {
-  return firstText(record.ID, record.id, record.title, record.name, record.label)
-}
-
-function firstText(...values: unknown[]) {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim()
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  }
-  return ''
-}
-
-function stringField(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function numberField(value: unknown) {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined
-}
-
-function recordField(record: unknown, key: string) {
-  if (!record || typeof record !== 'object') return undefined
-  return (record as Record<string, unknown>)[key]
 }

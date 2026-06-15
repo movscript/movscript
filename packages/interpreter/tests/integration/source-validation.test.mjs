@@ -165,6 +165,60 @@ test('workspace source review rejects wrong hierarchy and id directory mismatch'
   assert.ok(review.issues.some((issue) => issue.path.includes('c83x') && issue.message.includes('source directory id c83x')))
 })
 
+test('workspace source review rejects inconsistent asset ownership and direct primary prompt self refs', async () => {
+  const files = new Map([
+    ['settings/hero/setting.json', JSON.stringify({
+      schema: 'movscript.setting.v1',
+      kind: 'setting',
+      id: 'hero',
+      title: 'Hero',
+      setting_kind: 'character',
+    })],
+    ['settings/other/setting.json', JSON.stringify({
+      schema: 'movscript.setting.v1',
+      kind: 'setting',
+      id: 'other',
+      title: 'Other',
+      setting_kind: 'character',
+    })],
+    ['settings/hero/states/base/setting_state.json', JSON.stringify({
+      schema: 'movscript.setting_state.v1',
+      kind: 'setting_state',
+      id: 'base',
+      title: 'Base',
+    })],
+    ['settings/hero/states/base/assets/portrait/asset.json', JSON.stringify({
+      schema: 'movscript.asset.v1',
+      kind: 'asset',
+      id: 'portrait',
+      setting_id: 'other',
+      setting_state_id: 'missing',
+      slot: 'character_base_portrait',
+    })],
+    ['content_units/portrait_task/content_unit.json', JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'portrait_task',
+      title: 'Portrait task',
+      content_unit_type: 'asset_ref',
+      output_kind: 'image',
+      asset_ref: 'portrait',
+      edit_prompt: { text: '{{asset:portrait}}\nGenerate portrait.' },
+    })],
+  ])
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const review = await reviewMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  assert.equal(review.readyToInterpret, false)
+  assert.ok(review.issues.some((issue) => issue.message.includes('asset setting_id other does not match source path setting hero')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('asset setting_state_id missing does not match source path state base')))
+  assert.ok(review.issues.some((issue) => issue.message.includes('asset_ref content_unit edit_prompt must not reference its own asset_ref')))
+})
+
 test('workspace source review validates semantic entity schemas', async () => {
   const files = new Map([
     ['settings/hero/setting.json', JSON.stringify({
@@ -345,6 +399,8 @@ test('workspace source review accepts runtime content candidate documents outsid
       schema: 'movscript.asset.v1',
       kind: 'asset',
       id: 'portrait',
+      setting_id: 'hero',
+      setting_state_id: 'base',
       slot: 'character_base_portrait',
       candidates: [{ id: 'candidate_a', resource_id: 101, artifact_ref: 'resource_a' }],
       lock: { candidate_id: 'candidate_missing', resource_id: 101, artifact_ref: 'resource_a' },

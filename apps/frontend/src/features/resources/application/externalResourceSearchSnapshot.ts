@@ -1,4 +1,5 @@
 import type { ExternalResourceSearchResult } from '@/types'
+import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import {
   externalResourceSearchInitialData as coreExternalResourceSearchInitialData,
   normalizeExternalMediaTypes,
@@ -25,18 +26,12 @@ export interface ExternalResourceSearchSnapshot extends CoreExternalResourceSear
 export const EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY = 'movscript.externalResourceSearch.last'
 
 export function loadExternalResourceSearchSnapshot(): ExternalResourceSearchSnapshot | null {
-  if (typeof window === 'undefined') return null
-  try {
-    return parseExternalResourceSearchSnapshot(window.localStorage.getItem(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY))
-  } catch {
-    return null
-  }
+  return parseExternalResourceSearchSnapshot(readBrowserStorageItem('local', EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY))
 }
 
 export function saveExternalResourceSearchSnapshot(snapshot: ExternalResourceSearchSnapshot) {
-  if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(snapshot))
+    writeBrowserStorageItem('local', EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(snapshot))
   } catch {
     // Best-effort UI state persistence; search remains fully usable without storage.
   }

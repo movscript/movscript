@@ -77,7 +77,7 @@ test('debug artifact sink writes interpreted outputs and removes stale cache fil
     },
     output: {
       currentPath: '.interpret/current',
-      domainIndexPath: '.interpret/indexes/domain-index.json',
+      domainIndexPath: '.interpret/current/domain-index.json',
       domainTreePath: '.interpret/current/domain-tree.json',
       editorStatePath: '.interpret/current/editor-state.json',
       assetIndexPath: '.interpret/current/asset-index.json',
@@ -93,7 +93,7 @@ test('debug artifact sink writes interpreted outputs and removes stale cache fil
   assert.equal(files.has('.interpret/current/productions/old/preview_timeline.json'), false)
   assert.equal(files.has('.interpret/current/project.json'), true)
   assert.equal(files.has('.interpret/current/editor-state.json'), true)
-  assert.equal(files.has('.interpret/indexes/domain-index.json'), true)
+  assert.equal(files.has('.interpret/current/domain-index.json'), true)
   assert.equal(files.has('.interpret/manifests/interpret_debug_sink.json'), true)
 })
 

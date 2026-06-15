@@ -2,12 +2,15 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Palette, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, Palette, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
-import { useUserStore } from '@/store/userStore'
+import { useUserStore, type AuthSession } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { AppFeedbackText, Button, UiDebugInspector } from '@movscript/ui'
+import { AppFeedbackText } from '@movscript/ui/business/app'
+import { UiDebugInspector } from '@movscript/ui/debug'
+import { AppWindowControls, AppWindowHeader, AppWindowMacTrafficLights } from '@movscript/ui/layout'
+import { Button } from '@movscript/ui/primitives'
 import AdminPage, { CloudFileConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
 import { AuditLogsPage } from '@admin/pages/admin/AuditLogsPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
@@ -19,11 +22,87 @@ import { SystemSettingsPage } from '@admin/pages/admin/SystemSettingsPage'
 import { runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
+import { APP_SETTINGS_STORAGE_KEY, normalizeAPIBaseURL } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
-import '@/i18n'
+import i18n, { type SupportedLanguage } from '@/i18n'
+import { isMovScriptThemeName, setMovScriptTheme, type MovScriptThemeName } from '@movscript/theme'
 import './styles.css'
 
+const adminLaunchContext = readAdminLaunchContextFromHash()
+applyAdminLaunchContext(adminLaunchContext)
 initTheme()
+bootstrapElectronAdminSession(adminLaunchContext)
+
+type AdminLaunchContext = (AuthSession & {
+  current_org_id?: number | null
+  api_base_url?: string | null
+  theme?: MovScriptThemeName | null
+  language?: SupportedLanguage | null
+}) | null
+
+function bootstrapElectronAdminSession(session: AdminLaunchContext) {
+  if (typeof window === 'undefined') return
+  if (!session?.token || !session.user) return
+  const store = useUserStore.getState()
+  store.setSession(session)
+  if (typeof session.current_org_id === 'number') {
+    store.setCurrentOrg(session.current_org_id)
+  }
+  const url = new URL(window.location.href)
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
+  hash.delete('authSession')
+  url.hash = hash.toString()
+  window.history.replaceState(null, '', url.toString())
+}
+
+function applyAdminLaunchContext(session: AdminLaunchContext) {
+  if (!session) return
+  if (isMovScriptThemeName(session.theme)) {
+    setMovScriptTheme(session.theme)
+  }
+  if (session.language === 'zh-CN' || session.language === 'en-US') {
+    void i18n.changeLanguage(session.language)
+  }
+  persistLaunchContextAPIBaseURL(session.api_base_url)
+}
+
+function persistLaunchContextAPIBaseURL(apiBaseURL: unknown) {
+  if (typeof window === 'undefined' || typeof apiBaseURL !== 'string' || !apiBaseURL.trim()) return
+  try {
+    const normalized = normalizeAPIBaseURL(apiBaseURL)
+    const raw = window.localStorage.getItem(APP_SETTINGS_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    const state = parsed && typeof parsed === 'object' && 'state' in parsed
+      ? {
+          ...(parsed as { state?: { settings?: Record<string, unknown> } }).state,
+          settings: {
+            ...((parsed as { state?: { settings?: Record<string, unknown> } }).state?.settings ?? {}),
+            apiBaseURL: normalized,
+          },
+        }
+      : undefined
+    const next = state
+      ? { ...(parsed as Record<string, unknown>), state }
+      : { ...(parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {}), apiBaseURL: normalized }
+    window.localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(next))
+  } catch {
+    window.localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify({ apiBaseURL: normalizeAPIBaseURL(apiBaseURL) }))
+  }
+}
+
+function readAdminLaunchContextFromHash(): AdminLaunchContext {
+  try {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const encoded = hash.get('authSession')
+    if (!encoded) return null
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const json = decodeURIComponent(Array.from(atob(padded), (char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''))
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
 
 function LoginPage() {
   const { t } = useTranslation()
@@ -171,6 +250,19 @@ const ADMIN_SIDEBAR_WIDTH_STORAGE_KEY = 'movscript-admin-sidebar-width'
 const ADMIN_SIDEBAR_DEFAULT_WIDTH = 224
 const ADMIN_SIDEBAR_MIN_WIDTH = 184
 const ADMIN_SIDEBAR_MAX_WIDTH = 340
+const DEFAULT_WINDOW_STATE: ElectronWindowState = { fullscreen: false, focused: true }
+
+type ElectronWindowControlAction = 'close' | 'minimize' | 'toggleFullscreen'
+type ElectronWindowState = {
+  fullscreen: boolean
+  focused: boolean
+}
+type ElectronAPI = {
+  platform?: string
+  windowControl?: (action: ElectronWindowControlAction) => Promise<ElectronWindowState | undefined>
+  getWindowState?: () => Promise<ElectronWindowState>
+  onWindowState?: (handler: (state: ElectronWindowState) => void) => () => void
+}
 
 function clampAdminSidebarWidth(width: number) {
   return Math.min(ADMIN_SIDEBAR_MAX_WIDTH, Math.max(ADMIN_SIDEBAR_MIN_WIDTH, width))
@@ -211,9 +303,67 @@ function ThemeToggleButton() {
   )
 }
 
+function useAdminWindowController() {
+  const electronApi = readElectronApi()
+  const platform = electronApi?.platform
+  const isMacOS = platform === undefined || platform === 'darwin'
+  const [windowState, setWindowState] = React.useState<ElectronWindowState>(DEFAULT_WINDOW_STATE)
+
+  const windowControl = React.useCallback((action: ElectronWindowControlAction) => {
+    void electronApi?.windowControl?.(action).then((state) => {
+      if (state) setWindowState(state)
+    })
+  }, [electronApi])
+
+  React.useEffect(() => {
+    if (!isMacOS || !electronApi) return undefined
+    void electronApi.getWindowState?.().then((state) => {
+      if (state) setWindowState(state)
+    })
+    return electronApi.onWindowState?.((state) => setWindowState(state))
+  }, [electronApi, isMacOS])
+
+  return { isMacOS, windowControl, windowState }
+}
+
+function readElectronApi() {
+  if (typeof window === 'undefined') return undefined
+  return (window as typeof window & { api?: ElectronAPI }).api
+}
+
+function AdminWindowHeader() {
+  const { t } = useTranslation()
+  const { isMacOS, windowControl, windowState } = useAdminWindowController()
+  return (
+    <AppWindowHeader
+      isMacOS={isMacOS}
+      windowControls={isMacOS ? (
+        <AppWindowMacTrafficLights
+          focused={windowState.focused}
+          fullscreen={windowState.fullscreen}
+          closeLabel={t('common.close')}
+          minimizeLabel={t('admin.shell.minimizeWindow', { defaultValue: '最小化' })}
+          fullscreenLabel={t('admin.shell.fullscreenWindow', { defaultValue: '进入全屏' })}
+          restoreLabel={t('admin.shell.restoreWindow', { defaultValue: '退出全屏' })}
+          onClose={() => windowControl('close')}
+          onMinimize={() => windowControl('minimize')}
+          onToggleFullscreen={() => windowControl('toggleFullscreen')}
+        />
+      ) : undefined}
+      controls={!isMacOS ? (
+        <AppWindowControls>
+          <Button type="button" variant="ghost" size="sm" onClick={() => windowControl('close')}>
+            {t('common.close')}
+          </Button>
+        </AppWindowControls>
+      ) : undefined}
+      centerContent={<div className="text-xs font-medium text-muted-foreground">Movscript Admin</div>}
+    />
+  )
+}
+
 function AdminShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
-  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const user = useUserStore((s) => s.currentUser)
   const location = useLocation()
   const [collapsed, setCollapsed] = React.useState(() => {
@@ -279,10 +429,11 @@ function AdminShell({ children }: { children: React.ReactNode }) {
     ...runtimeNavItems,
   ]
   const sidebarToggleLabel = collapsed ? t('admin.shell.expandSidebar') : t('admin.shell.collapseSidebar')
-  const logoutLabel = t('admin.shell.logout')
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
+    <div className="flex h-screen flex-col bg-background text-foreground">
+      <AdminWindowHeader />
+      <div className="flex min-h-0 flex-1">
       <aside className={cn(
         'relative flex shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar',
         resizing ? '' : 'transition-[width] duration-200',
@@ -333,24 +484,11 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className={cn('border-t border-border', collapsed ? 'p-1.5' : 'p-2')}>
           {!collapsed && (
-            <div className="mb-2 flex items-center gap-2 px-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2 px-2 py-2 text-[11px] text-muted-foreground">
               <FileText size={12} className="shrink-0" />
               <span className="truncate">{user.username}</span>
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => setCurrentUser(null)}
-            className={cn(
-              'flex w-full items-center rounded-md text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
-              collapsed ? 'h-10 justify-center px-0' : 'gap-2 px-3 py-2',
-            )}
-            title={collapsed ? logoutLabel : undefined}
-            aria-label={logoutLabel}
-          >
-            <LogOut size={14} className="shrink-0" />
-            {!collapsed && logoutLabel}
-          </button>
         </div>
         {!collapsed && (
           <div
@@ -384,6 +522,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 flex-1 overflow-auto p-6">
         {children}
       </main>
+      </div>
     </div>
   )
 }

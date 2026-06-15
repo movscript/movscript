@@ -1,7 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import {
+  useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Blocks, Bot, Cable, ClipboardList, MessageSquare, Network, Play, PlugZap, Power, RefreshCw, RotateCw, Settings, Square, Terminal, Trash2 } from 'lucide-react'
+import { AlertTriangle,
+  Blocks,
+  Bot,
+  Cable,
+  ClipboardList,
+  Play,
+  Power,
+  RefreshCw,
+  RotateCw,
+  Settings,
+  Square,
+  Terminal,
+  Trash2 } from 'lucide-react'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
   AgentConsoleBoundaryCard,
@@ -27,16 +43,7 @@ import {
   AgentConsoleInlineError,
   AgentConsoleIntroRow,
   AgentConsoleIssueRowSurface,
-  AgentConsoleLogEmpty,
-  AgentConsoleLogLine,
-  AgentConsoleLogLineStream,
-  AgentConsoleLogLineText,
-  AgentConsoleLogLineTime,
-  AgentConsoleLogStream,
-  AgentConsoleLogSummary,
-  AgentConsoleLogSummaryItem,
-  AgentConsoleLogSummaryLabel,
-  AgentConsoleLogSummaryValue,
+  type AgentConsoleIssueTone,
   AgentConsoleLocalToolActions,
   AgentConsoleLocalToolCard,
   AgentConsoleLocalToolControls,
@@ -60,68 +67,35 @@ import {
   AgentConsoleSyncBadge,
   AgentConsoleTestResult,
   AgentConsoleToolbar,
-  AgentPageShell,
-  AgentPageShellHeader,
-  type AgentConsoleIssueTone,
-} from '@movscript/ui'
+} from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { ROUTES } from '@/routes/projectRoutes'
-import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { useAgentControlCenter } from '@/features/agent/presentation/useAgentControlCenter'
 import { providerRoute } from '@/features/agent/application/providerRoutes'
 import {
-  failedAgentChatCapabilityProbeResult,
-  probeAgentChatDataSourceCapabilities,
-  type AgentChatCapabilityProbeItem,
-  type AgentChatCapabilityProbeResult,
-} from '@movscript/core/agent/chat'
-import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
-import {
-  agentReadinessStatusRecipe,
-  agentRunStatusRecipe,
   agentSeverityStatusRecipe,
 } from '@/features/agent/presentation/agentSemanticUi'
-import { type ProviderSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
-import type {
-  ElectronAppServerConfigStatus,
-  ElectronAppServerLogEvent,
-  ElectronAppServerStatus,
-  ElectronMovScriptWorkspaceContext,
-} from '@/shared/contracts/electronApi'
-import { type ProviderSessionRunListItem } from '@/features/agent/application/providerSessionThreadQueryCache'
 import {
   errorMessage,
   modelDisplay,
-  sortAgentControlRuns,
-  summarizeAgentControlThreads,
   type AgentControlIssue,
 } from '@/features/agent/application/agentControlCenter'
 import {
-  enabledProviders,
-  normalizeProviderSettings,
   resolveAppServerProfile,
   usesAppServerProtocol,
-  useProviderConfigStore,
-  type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
+import {
+  AgentCapabilityHealthPanel,
+  AgentCapabilityProbePanel,
+} from '@/features/agent/components/AgentConsoleCapabilityPanels'
+import {
+  AppServerRealtimeLogPanel,
+  useAppServerRealtimeLogs,
+} from '@/features/agent/components/AgentConsoleRealtimeLogPanel'
+import { AgentSessionIntegrationPanel } from '@/features/agent/components/AgentConsoleSessionIntegrationPanel'
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 type ConsoleIssue = AgentControlIssue
-const APP_SERVER_LOG_LINE_LIMIT = 500
-
-type AppServerLogLine = ElectronAppServerLogEvent & {
-  id: string
-  text: string
-  providerLabel?: string
-}
-
-type AppServerLogProfile = {
-  profileId: string
-  providerLabel: string
-}
-
-const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g
-const ANSI_SGR_FRAGMENT_PATTERN = /\[(?:\d{1,3}(?:;\d{1,3})*)m/g
 
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
@@ -242,13 +216,13 @@ export default function AgentConsolePage() {
             tone={enabledProvidersForConsole.length > 0 ? 'ready' : 'action'}
           />
           <ConsoleMetricCard
-            title="Provider Sessions"
+            title="Agent Runtime Sessions"
             value={providerSessionsQuery.error ? '索引不可用' : `${onlineProviderSessionCount}/${providerSessions.length} 在线`}
-            detail="按 provider/profile 聚合会话实例；不同 provider 通过各自 adapter 接入"
+            detail="按 runtime/profile 聚合会话实例；不同 runtime adapter 接入统一 registry"
             tone={providerSessionsQuery.error ? 'action' : 'ready'}
           />
           <ConsoleMetricCard
-            title="Provider Profile"
+            title="Runtime Profile"
             value={modelQuery.data?.configured ? modelDisplay(modelQuery.data.model) : '模型未配置'}
             detail={modelQuery.error ? errorMessage(modelQuery.error) : `${modelQuery.data?.apiKind ?? '模型'} / Skills / Tools / Limits 属于 profile 层`}
             tone={modelQuery.data?.configured ? 'ready' : 'action'}
@@ -334,7 +308,7 @@ export default function AgentConsolePage() {
 
             <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Model Providers" detail="管理本地模型供应商、Base URL、API Key 和默认模型路由。" />
+                <ManagementLink to={ROUTES.modelProviders} icon={<Settings size={14} />} title="Model Providers" detail="管理后端模型路由；高级直连覆盖仅用于临时外部模型服务。" />
                 {appServerProvidersForManagement.map((provider) => (
                   <ManagementLink
                     key={provider.id}
@@ -344,7 +318,7 @@ export default function AgentConsolePage() {
                     detail={`管理 ${provider.label} 的 app-server、托管 home 和运行状态。`}
                   />
                 ))}
-                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace" detail="查看 edit、.interpret 和 .movscript/providers 文件。" />
+                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace" detail="查看 source 与 .movscript/providers 配置。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Terminal size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
                 <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Plugins" detail="插件是全局扩展入口，也可以贡献 Provider Skills、Tools 和 UI 扩展。" />
@@ -368,541 +342,6 @@ export default function AgentConsolePage() {
       </AgentConsolePageBody>
     </AgentPageShell>
   )
-}
-
-function useAppServerRealtimeLogs(profiles: AppServerLogProfile[]): AppServerLogLine[] {
-  const [logs, setLogs] = useState<AppServerLogLine[]>([])
-  const sequenceRef = useRef(0)
-  const profileKey = useMemo(
-    () => profiles.map((profile) => `${profile.profileId}:${profile.providerLabel}`).sort().join('|'),
-    [profiles],
-  )
-
-  useEffect(() => {
-    setLogs([])
-    sequenceRef.current = 0
-    const profileLabelsById = new Map(profiles.map((profile) => [profile.profileId, profile.providerLabel]))
-    if (profileLabelsById.size === 0) return undefined
-    const unsubscribe = window.api?.onAppServerLog?.((event) => {
-      const providerLabel = profileLabelsById.get(event.profileId)
-      if (!providerLabel) return
-      const rawLines = sanitizeAppServerLogText(event.chunk).replace(/\r\n/g, '\n').split('\n')
-      const lines = rawLines.filter((line, index) => line.length > 0 || index === 0)
-      if (lines.length === 0) return
-      setLogs((current) => {
-        const next = [
-          ...current,
-          ...lines.map((line) => ({
-            ...event,
-            id: `${event.at}:${event.stream}:${sequenceRef.current++}`,
-            text: line,
-            providerLabel,
-          })),
-        ]
-        return next.length > APP_SERVER_LOG_LINE_LIMIT ? next.slice(next.length - APP_SERVER_LOG_LINE_LIMIT) : next
-      })
-    })
-    return unsubscribe
-  }, [profileKey])
-
-  return logs
-}
-
-export function sanitizeAppServerLogText(text: string): string {
-  return text
-    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
-    .replace(ANSI_SGR_FRAGMENT_PATTERN, '')
-}
-
-function AppServerRealtimeLogPanel({
-  logs,
-  status,
-  profiles,
-  primaryProfileId,
-  primaryProviderLabel,
-}: {
-  logs: AppServerLogLine[]
-  status?: ElectronAppServerStatus
-  profiles: AppServerLogProfile[]
-  primaryProfileId: string
-  primaryProviderLabel: string
-}) {
-  const streamRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    const element = streamRef.current
-    if (!element) return
-    element.scrollTop = element.scrollHeight
-  }, [logs])
-
-  const config = status?.config
-  return (
-    <ConsolePanel
-      title="app-server 实时日志"
-      icon={<Terminal size={14} />}
-      action={
-        <AgentConsolePanelActions>
-          <AgentConsoleStatusBadge intent={status?.running ? 'success' : 'neutral'} emphasis="soft">
-            {status?.running ? '运行中' : '未启动'}
-          </AgentConsoleStatusBadge>
-          <AgentConsoleStatusBadge intent={logs.length > 0 ? 'success' : 'neutral'} emphasis="soft">
-            {logs.length} 行
-          </AgentConsoleStatusBadge>
-      </AgentConsolePanelActions>
-      }
-    >
-      <AgentConsoleLogSummary>
-        <LogSummaryItem label="Primary" value={primaryProviderLabel} />
-        <LogSummaryItem label="Primary Profile" value={primaryProfileId} />
-        <LogSummaryItem label="Listening" value={formatAppServerLogProfiles(profiles)} />
-        <LogSummaryItem label="PID" value={status?.pid ? String(status.pid) : '-'} />
-        <LogSummaryItem label="Endpoint" value={status?.endpoint ?? '-'} />
-        <LogSummaryItem label="Home" value={status?.home ?? '-'} />
-        <LogSummaryItem label="CWD" value={status?.providerSessionCwd ?? '-'} />
-        <LogSummaryItem label="Workspace" value={formatWorkspaceContext(status?.workspaceContext)} />
-        <LogSummaryItem label="Base URL" value={config?.baseURL ?? '-'} />
-        <LogSummaryItem label="Account" value={formatAppServerAccount(config)} />
-        <LogSummaryItem label="RUST_LOG" value={status?.rustLog ?? '-'} />
-      </AgentConsoleLogSummary>
-      {status?.error ? <AgentConsoleInlineError>{status.error}</AgentConsoleInlineError> : null}
-      <AgentConsoleLogStream ref={streamRef} data-testid="agent-console-app-server-log-stream">
-        {logs.length === 0 ? (
-          <AgentConsoleLogEmpty>等待 app-server 输出。</AgentConsoleLogEmpty>
-        ) : (
-          logs.map((line) => (
-            <AgentConsoleLogLine key={line.id} data-stream={line.stream}>
-              <AgentConsoleLogLineTime>{formatLogTime(line.at)}</AgentConsoleLogLineTime>
-              <AgentConsoleLogLineStream>{line.stream}</AgentConsoleLogLineStream>
-              <AgentConsoleLogLineStream title={line.profileId}>{line.providerLabel ?? line.profileId}</AgentConsoleLogLineStream>
-              <AgentConsoleLogLineText>{line.text}</AgentConsoleLogLineText>
-            </AgentConsoleLogLine>
-          ))
-        )}
-      </AgentConsoleLogStream>
-    </ConsolePanel>
-  )
-}
-
-function LogSummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <AgentConsoleLogSummaryItem>
-      <AgentConsoleLogSummaryLabel>{label}</AgentConsoleLogSummaryLabel>
-      <AgentConsoleLogSummaryValue title={value}>{value}</AgentConsoleLogSummaryValue>
-    </AgentConsoleLogSummaryItem>
-  )
-}
-
-function formatWorkspaceContext(context?: ElectronMovScriptWorkspaceContext): string {
-  if (!context) return '-'
-  return [
-    context.scope ?? 'global',
-    context.projectId ? `project=${context.projectId}` : undefined,
-    context.productionId ? `production=${context.productionId}` : undefined,
-  ].filter(Boolean).join(' / ')
-}
-
-function formatAppServerAccount(config?: ElectronAppServerConfigStatus): string {
-  if (!config) return '-'
-  return `${config.accountSource}${config.apiKeyConfigured ? ' / api key' : ''}`
-}
-
-function formatAppServerLogProfiles(profiles: AppServerLogProfile[]): string {
-  if (profiles.length === 0) return '-'
-  return profiles.map((profile) => `${profile.providerLabel} (${profile.profileId})`).join(', ')
-}
-
-function formatLogTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
-
-function AgentCapabilityProbePanel() {
-  const savedSettings = useProviderConfigStore((state) => state.settings)
-  const providers = useMemo(() => enabledProviders(normalizeProviderSettings(savedSettings)), [savedSettings])
-  const probeQuery = useQuery({
-    queryKey: ['agent-console-provider-capability-probe', providers.map(providerProbeKey).join('|')],
-    queryFn: async () => Promise.all(providers.map(async (provider) => {
-      try {
-        const dataSource = await createAgentChatDataSourceForProvider(provider)
-        return await probeAgentChatDataSourceCapabilities({ provider, dataSource })
-      } catch (error) {
-        return failedAgentChatCapabilityProbeResult({ provider, error })
-      }
-    })),
-    enabled: false,
-    retry: false,
-  })
-  const results = probeQuery.data ?? []
-  const supportedCount = results.reduce((count, result) => count + result.supportedCount, 0)
-  const warningCount = results.reduce((count, result) => count + result.warningCount, 0)
-  const readiness = agentReadinessStatusRecipe(results.length > 0 && warningCount === 0)
-
-  return (
-    <ConsolePanel
-      title="Provider 数据流与能力探针"
-      icon={<Cable size={14} />}
-      action={
-        <AgentConsolePanelActions>
-          {results.length > 0 ? (
-            <AgentConsoleStatusBadge intent={readiness.intent} emphasis={readiness.emphasis}>
-              {supportedCount} 个入口 / {warningCount} 项需关注
-            </AgentConsoleStatusBadge>
-          ) : null}
-          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void probeQuery.refetch()} disabled={probeQuery.isFetching || providers.length === 0}>
-            <AgentConsoleIcon icon={RefreshCw} size={14} spinning={probeQuery.isFetching} />
-            {probeQuery.isFetching ? '探测中' : '刷新 Provider 能力'}
-          </AgentConsoleActionButton>
-        </AgentConsolePanelActions>
-      }
-    >
-      <AgentConsoleIntroRow>
-        <AgentConsoleDescription>
-          通过统一数据源 capability 探测每个已启用 provider。app-server provider 可以按各自 profile 启动；后续 provider 只需要实现同一组能力入口。
-        </AgentConsoleDescription>
-        <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length > 0 ? `${providers.length} 个 Provider 可探测` : '没有已启用 Provider'}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleToolbar>
-      </AgentConsoleIntroRow>
-
-      {probeQuery.error ? (
-        <AgentConsoleInlineError>{errorMessage(probeQuery.error)}</AgentConsoleInlineError>
-      ) : results.length === 0 ? (
-        <EmptyText>点击刷新后，控制台会通过统一数据源读取线程、模型、配置、插件、Skills、账号、MCP 和 realtime 能力摘要。</EmptyText>
-      ) : (
-        <AgentConsoleGrid columns="server" data-testid="agent-console-capability-probe-grid">
-          {results.map((result) => <AgentCapabilityProbeCard key={result.providerId} result={result} />)}
-        </AgentConsoleGrid>
-      )}
-    </ConsolePanel>
-  )
-}
-
-function AgentCapabilityHealthPanel({
-  capabilityHealth,
-  loading,
-}: {
-  capabilityHealth: ReturnType<typeof useAgentControlCenter>['capabilityHealth']
-  loading: boolean
-}) {
-  return (
-    <ConsolePanel
-      title="运行中 Provider 能力健康"
-      icon={<PlugZap size={14} />}
-      action={
-        <AgentConsolePanelActions>
-          {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleStatusBadge intent={capabilityHealth.warningCount > 0 ? 'warning' : capabilityHealth.checkedProviderCount > 0 ? 'success' : 'neutral'} emphasis="soft">
-            {capabilityHealth.checkedProviderCount > 0 ? `${capabilityHealth.checkedProviderCount} 个已检查` : '等待运行中 Agent'}
-          </AgentConsoleStatusBadge>
-        </AgentConsolePanelActions>
-      }
-    >
-      {capabilityHealth.providers.length === 0 ? (
-        <EmptyText>启动任一 app-server provider 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</EmptyText>
-      ) : (
-        <AgentConsoleGrid columns="server">
-          {capabilityHealth.providers.map((provider) => (
-            <AgentCapabilityHealthCard key={provider.providerId} provider={provider} />
-          ))}
-        </AgentConsoleGrid>
-      )}
-    </ConsolePanel>
-  )
-}
-
-function AgentCapabilityHealthCard({
-  provider,
-}: {
-  provider: ReturnType<typeof useAgentControlCenter>['capabilityHealth']['providers'][number]
-}) {
-  return (
-    <AgentConsoleLocalToolCard invalid={!provider.ok}>
-      <AgentConsoleLocalToolHeader>
-        <AgentConsoleLocalToolCopy>
-          <AgentConsoleLocalToolTitle>{provider.providerLabel}</AgentConsoleLocalToolTitle>
-          <AgentConsoleLocalToolDetail>{provider.providerKind} / {provider.providerId}</AgentConsoleLocalToolDetail>
-        </AgentConsoleLocalToolCopy>
-        <AgentConsoleLocalToolControls>
-          <AgentConsoleStatusBadge intent={provider.ok ? 'success' : 'warning'} emphasis="soft">
-            {provider.ok ? '能力正常' : `${provider.warningCount} 项需关注`}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleLocalToolControls>
-      </AgentConsoleLocalToolHeader>
-      <AgentConsoleLocalToolFields>
-        <AgentConsoleStack>
-          <AgentConsoleTestResult tone={provider.blockedToolCount > 0 ? 'warning' : 'success'}>
-            Tools：{provider.toolCount} 可用 / {provider.blockedToolCount} 受限
-          </AgentConsoleTestResult>
-          <AgentConsoleTestResult tone="success">
-            Skills：{provider.skillCount} / Plugins：{provider.pluginCount}
-          </AgentConsoleTestResult>
-          <AgentConsoleTestResult tone={provider.mcpServerCount > 0 ? 'success' : 'neutral'}>
-            MCP：{provider.mcpServerCount} servers / {provider.mcpToolCount} tools
-          </AgentConsoleTestResult>
-          {provider.warnings.map((warning) => (
-            <AgentConsoleTestResult key={warning} tone="warning">
-              {warning}
-            </AgentConsoleTestResult>
-          ))}
-        </AgentConsoleStack>
-      </AgentConsoleLocalToolFields>
-    </AgentConsoleLocalToolCard>
-  )
-}
-
-function AgentCapabilityProbeCard({ result }: { result: AgentChatCapabilityProbeResult }) {
-  const readiness = agentReadinessStatusRecipe(result.ok)
-  return (
-    <AgentConsoleLocalToolCard invalid={!result.ok}>
-      <AgentConsoleLocalToolHeader>
-        <AgentConsoleLocalToolCopy>
-          <AgentConsoleLocalToolTitle>{result.providerLabel}</AgentConsoleLocalToolTitle>
-          <AgentConsoleLocalToolDetail>{result.dataSourceLabel} / {result.providerKind}</AgentConsoleLocalToolDetail>
-        </AgentConsoleLocalToolCopy>
-        <AgentConsoleLocalToolControls>
-          <AgentConsoleStatusBadge intent={readiness.intent} emphasis={readiness.emphasis}>
-            {result.ok ? '能力正常' : `${result.warningCount} 项需关注`}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleLocalToolControls>
-      </AgentConsoleLocalToolHeader>
-      <AgentConsoleLocalToolFields>
-        <AgentConsoleStack>
-          {result.items.map((item) => (
-            <AgentConsoleTestResult key={item.id} tone={capabilityProbeItemTone(item)}>
-              {item.label} · {item.method}：{item.detail}
-            </AgentConsoleTestResult>
-          ))}
-        </AgentConsoleStack>
-      </AgentConsoleLocalToolFields>
-    </AgentConsoleLocalToolCard>
-  )
-}
-
-function capabilityProbeItemTone(item: AgentChatCapabilityProbeItem): 'success' | 'warning' | 'danger' {
-  if (item.tone === 'ready') return 'success'
-  if (item.tone === 'warning') return 'warning'
-  return 'danger'
-}
-
-function providerProbeKey(provider: ProviderConfig): string {
-  const profile = usesAppServerProtocol(provider) ? resolveAppServerProfile(provider) : undefined
-  return [
-    provider.id,
-    provider.kind,
-    provider.enabled ? 'enabled' : 'disabled',
-    provider.label,
-    profile?.id ?? '',
-    profile?.executablePath ?? '',
-    profile?.home ?? '',
-    profile?.workspaceDir ?? '',
-  ].join(':')
-}
-
-function AgentSessionIntegrationPanel({
-  providerSessions,
-  threads,
-  runs,
-  providers,
-  loading,
-  error,
-}: {
-  providerSessions: ProviderSessionSummary[]
-  threads: AgentThreadSummary[]
-  runs: ProviderSessionRunListItem[]
-  providers: ProviderConfig[]
-  loading: boolean
-  error: unknown
-}) {
-  const threadSummary = summarizeAgentControlThreads(threads)
-  const runsByThreadId = useMemo(() => {
-    const grouped = new Map<string, ProviderSessionRunListItem[]>()
-    for (const run of runs) {
-      const list = grouped.get(run.threadId) ?? []
-      list.push(run)
-      grouped.set(run.threadId, list)
-    }
-    return grouped
-  }, [runs])
-  const sessionsById = useMemo(() => new Map(providerSessions.map((session) => [session.session.id, session])), [providerSessions])
-
-  return (
-    <ConsolePanel
-      title="会话集成模型"
-      icon={<MessageSquare size={14} />}
-      action={
-        <AgentConsolePanelActions>
-          {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleStatusBadge intent={threadSummary.requiresAction > 0 ? 'warning' : 'success'} emphasis="soft">
-            {threadSummary.total} 个 ThreadRef
-          </AgentConsoleStatusBadge>
-        </AgentConsolePanelActions>
-      }
-    >
-      <AgentConsoleIntroRow>
-        <AgentConsoleDescription>
-          先把用户看到的 Conversation 和 provider 内部 thread/session 拆开：控制台负责注册和恢复映射，聊天壳只负责渲染选中的统一数据源。
-        </AgentConsoleDescription>
-        <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
-            {providers.length} 个 Provider source
-          </AgentConsoleStatusBadge>
-          <AgentConsoleStatusBadge intent={providerSessions.length > 0 ? 'success' : 'neutral'} emphasis="soft">
-            {providerSessions.length} 个 Provider session
-          </AgentConsoleStatusBadge>
-        </AgentConsoleToolbar>
-      </AgentConsoleIntroRow>
-
-      <AgentConsoleGrid columns="three">
-        <BoundaryCard title="Conversation Record" detail="面板、项目页和历史列表共用一个会话对象；不再按 provider 分散保存 activeThreadId。" />
-        <BoundaryCard title="Provider ThreadRef" detail="ThreadRef 携带 providerId、providerInstanceId、threadId、runtime session 或 session tree、workspaceDir，避免跨 provider 冲突。" />
-        <BoundaryCard title="Participants" detail="主会话可以挂多个 worker/subagent thread，Pinned Status 和 Trace 从 participant refs 聚合。" />
-      </AgentConsoleGrid>
-
-      <AgentConsoleDivider>
-        <AgentConsoleGrid columns="server">
-          {providers.map((provider) => (
-            <ProviderConversationSourceCard
-              key={provider.id}
-              provider={provider}
-              threadCount={0}
-              sessionCount={0}
-            />
-          ))}
-        </AgentConsoleGrid>
-      </AgentConsoleDivider>
-
-      {error ? (
-        <AgentConsoleInlineError>{errorMessage(error)}</AgentConsoleInlineError>
-      ) : threads.length === 0 ? (
-        <AgentConsoleDivider>
-          <EmptyText>当前 workspace 还没有可注册的 provider session。任一 provider 都可以通过自己的协议 adapter 接入同一个 registry。</EmptyText>
-        </AgentConsoleDivider>
-      ) : (
-        <AgentConsoleDivider>
-          <AgentConsoleStack>
-            {threads.slice(0, 6).map((thread) => (
-              <ConversationThreadRefRow
-                key={thread.id}
-                thread={thread}
-                session={thread.sessionId ? sessionsById.get(thread.sessionId) : undefined}
-                runs={runsByThreadId.get(thread.id) ?? []}
-              />
-            ))}
-          </AgentConsoleStack>
-        </AgentConsoleDivider>
-      )}
-    </ConsolePanel>
-  )
-}
-
-function ProviderConversationSourceCard({
-  provider,
-  threadCount,
-  sessionCount,
-}: {
-  provider: ProviderConfig
-  threadCount: number
-  sessionCount: number
-}) {
-  const isAppServer = usesAppServerProtocol(provider)
-  const profile = isAppServer ? resolveAppServerProfile(provider) : undefined
-  return (
-    <AgentConsoleLocalToolCard>
-      <AgentConsoleLocalToolHeader>
-        <AgentConsoleLocalToolCopy>
-          <AgentConsoleLocalToolTitle>{provider.label}</AgentConsoleLocalToolTitle>
-          <AgentConsoleLocalToolDetail>
-            {isAppServer
-              ? `${provider.label} app-server / ${profile?.id ?? provider.id}`
-              : 'MovScript provider profile'}
-          </AgentConsoleLocalToolDetail>
-        </AgentConsoleLocalToolCopy>
-        <AgentConsoleLocalToolControls>
-          <AgentConsoleStatusBadge intent={provider.enabled ? 'success' : 'neutral'} emphasis="soft">
-            {provider.enabled ? '启用' : '停用'}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleLocalToolControls>
-      </AgentConsoleLocalToolHeader>
-      <AgentConsoleLocalToolFields>
-        <AgentConsoleTestResult tone="neutral">
-          <Network size={12} /> source：{isAppServer ? 'thread/list + realtime subscription' : 'provider sessions + event stream'}
-        </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone="neutral">
-          <PlugZap size={12} /> registry key：{provider.kind}:{provider.id}:{profile?.id ?? provider.id}
-        </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone={isAppServer || threadCount > 0 ? 'success' : 'warning'}>
-          {isAppServer ? '等待 app-server thread list 接入' : `${sessionCount} session / ${threadCount} thread`}
-        </AgentConsoleTestResult>
-      </AgentConsoleLocalToolFields>
-    </AgentConsoleLocalToolCard>
-  )
-}
-
-function ConversationThreadRefRow({
-  thread,
-  session,
-  runs,
-}: {
-  thread: AgentThreadSummary
-  session?: ProviderSessionSummary
-  runs: ProviderSessionRunListItem[]
-}) {
-  const status = thread.status ?? 'idle'
-  const statusRecipe = agentRunStatusRecipe(status === 'running' ? 'in_progress' : status === 'requires_action' ? 'requires_action' : status === 'failed' ? 'failed' : 'completed')
-  const latestRun = sortAgentControlRuns(runs)[0]
-  const providerKey = providerKeyForThreadRef(thread, session)
-  return (
-    <AgentConsoleLocalToolCard invalid={status === 'failed'}>
-      <AgentConsoleLocalToolHeader>
-        <AgentConsoleLocalToolCopy>
-          <AgentConsoleLocalToolTitle>{thread.title || thread.id}</AgentConsoleLocalToolTitle>
-          <AgentConsoleLocalToolDetail>
-            provider={providerKey} / runtime session={thread.sessionId ?? '-'} / thread={thread.id}
-          </AgentConsoleLocalToolDetail>
-        </AgentConsoleLocalToolCopy>
-        <AgentConsoleLocalToolControls>
-          <AgentConsoleStatusBadge intent={statusRecipe.intent} emphasis={statusRecipe.emphasis}>
-            {status}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleLocalToolControls>
-      </AgentConsoleLocalToolHeader>
-      <AgentConsoleLocalToolFields>
-        <AgentConsoleTestResult tone="neutral">
-          conversation key：{providerKey}:{thread.sessionId ?? 'runtime-session'}:{thread.id}
-        </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone={session?.state?.status === 'running' || session?.state?.status === 'requires_action' ? 'success' : 'neutral'}>
-          provider session：{session?.state?.status ?? 'indexed'} / messages={thread.messageCount ?? 0}
-        </AgentConsoleTestResult>
-        <AgentConsoleTestResult tone={latestRun?.status === 'failed' ? 'danger' : latestRun?.status === 'requires_action' ? 'warning' : 'neutral'}>
-          latest run：{latestRun ? `${latestRun.id} / ${runStatusLabel(latestRun.status)}` : 'none'}
-        </AgentConsoleTestResult>
-      </AgentConsoleLocalToolFields>
-    </AgentConsoleLocalToolCard>
-  )
-}
-
-function providerKeyForThreadRef(thread: AgentThreadSummary, session?: ProviderSessionSummary): string {
-  const rawMetadata = (thread as { metadata?: unknown }).metadata
-  const metadata = isRecord(rawMetadata) ? rawMetadata : undefined
-  const rawSession: unknown = session?.session
-  const sessionRecord = isRecord(rawSession) ? rawSession : undefined
-  const providerId = stringField(metadata?.providerId)
-    ?? stringField(metadata?.provider)
-    ?? stringField(metadata?.providerKind)
-    ?? stringField(sessionRecord?.providerId)
-    ?? stringField(sessionRecord?.provider)
-    ?? stringField(sessionRecord?.providerKind)
-  return providerId?.trim() || 'provider'
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function stringField(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function AgentControlMatrixPanel({
@@ -962,7 +401,7 @@ function AgentControlMatrixPanel({
       {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
 
       <AgentConsoleGrid columns="server">
-        <AgentConsoleLocalToolCard>
+        <AgentConsoleLocalToolCard invalid={Boolean(error) || !appServerEnabled}>
           <AgentConsoleLocalToolHeader>
             <AgentConsoleLocalToolCopy>
               <AgentConsoleLocalToolTitle>{appServerLabel}</AgentConsoleLocalToolTitle>
@@ -979,7 +418,7 @@ function AgentControlMatrixPanel({
           </AgentConsoleLocalToolHeader>
           <AgentConsoleLocalToolFields>
             <AgentConsoleCallout compact>
-              app-server 由 MovScript 托管，home path 由对应 provider profile 投影给启动进程；可在 Agents 中配置继承本机账号或使用托管 home。
+              app-server 由 MovScript 托管，home path 由对应 runtime profile 投影给启动进程；可在 Agents 中配置继承本机账号或使用托管 home。
             </AgentConsoleCallout>
           </AgentConsoleLocalToolFields>
           <AgentConsoleLocalToolActions>

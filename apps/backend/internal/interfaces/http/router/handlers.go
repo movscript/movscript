@@ -6,6 +6,8 @@ import (
 )
 
 type handlers struct {
+	editionHandlers
+
 	projects          *handler.ProjectHandler
 	decisions         *handler.DecisionHandler
 	users             *handler.UserHandler
@@ -34,6 +36,8 @@ type handlers struct {
 	orgAdmin          *handler.OrgAdminHandler
 	adminOverview     *handler.AdminOverviewHandler
 	agentTelemetry    *handler.AgentTelemetryHandler
+	agentRuntime      *handler.AgentRuntimeHandler
+	audio             *handler.AudioHandler
 	ws                *wsiface.Handler
 }
 
@@ -48,22 +52,23 @@ func newHandlers(deps Dependencies) handlers {
 	imageVerifier := deps.ImageVerifier
 
 	return handlers{
-		projects:          handler.NewProjectHandlerWithConfigAndEncryption(db, cfg, deps.EncryptionKey, cacheStore),
+		editionHandlers:   newEditionHandlers(deps),
+		projects:          handler.NewProjectHandlerWithConfigEncryptionAndTokens(db, cfg, deps.EncryptionKey, tokens, cacheStore),
 		decisions:         handler.NewDecisionHandler(db),
 		users:             handler.NewUserHandler(db),
 		userAdmin:         handler.NewUserAdminHandler(db),
 		auth:              handler.NewAuthHandlerWithConfigAndEncryption(db, tokens, cfg, deps.EncryptionKey),
-		ai:                handler.NewAIHandler(db, cfg.EncryptionKey, registry),
+		ai:                handler.NewAIHandlerWithConfig(db, cfg, cfg.EncryptionKey, registry),
 		resources:         handler.NewResourceHandler(db, store, imageVerifier, cfg.MaxUploadBytes, cacheStore),
 		externalResources: handler.NewExternalResourceHandler(db, cfg.EncryptionKey),
-		shotReferences:    handler.NewShotReferenceHandler(db, store, imageVerifier, cfg.MaxUploadBytes, cacheStore),
+		shotReferences:    handler.NewShotReferenceHandlerWithVectorIndex(db, store, imageVerifier, deps.VectorIndex, cfg.MaxUploadBytes, cacheStore),
 		resourceFolders:   handler.NewResourceFolderHandler(db, cacheStore),
 		resourceAdmin:     handler.NewResourceAdminHandler(db, store),
 		canvases:          handler.NewCanvasHandler(db, registry, aiService, store),
 		models:            handler.NewModelsHandler(aiService, cacheStore),
 		jobs:              handler.NewJobHandler(db, aiService),
 		modelGateway:      handler.NewModelGatewayHandler(db, aiService),
-		debug:             handler.NewDebugHandler(db, deps.EncryptionKey),
+		debug:             handler.NewDebugHandlerWithGatewayHealth(db, deps.EncryptionKey, aiService),
 		plugin:            handler.NewPluginHandler(db),
 		hub:               handler.NewHubHandler(db, store, cfg.HubAdminToken),
 		registry:          handler.NewRegistryHandler(),
@@ -76,6 +81,8 @@ func newHandlers(deps Dependencies) handlers {
 		orgAdmin:          handler.NewOrgAdminHandler(db),
 		adminOverview:     handler.NewAdminOverviewHandler(db),
 		agentTelemetry:    handler.NewAgentTelemetryHandler(nil),
+		agentRuntime:      handler.NewAgentRuntimeHandler(db, cfg),
+		audio:             handler.NewAudioHandler(db, aiService, store),
 		ws:                wsiface.NewHandler(),
 	}
 }

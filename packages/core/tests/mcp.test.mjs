@@ -153,6 +153,7 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_query_assets'))
   assert.ok(tools.includes('domain_query_production_context'))
   assert.ok(tools.includes('domain_build_content_unit_backend_prompt'))
+  assert.ok(tools.includes('domain_compose_scene_moment_from_edit_plan'))
   assert.ok(tools.includes('domain_read_content_unit_generation_prompt'))
   assert.ok(tools.includes('domain_read_content_unit_input_version'))
   assert.ok(tools.includes('domain_read_production_work_plan'))
@@ -228,6 +229,72 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(resources.includes('movscript://resource-library'))
   assert.ok(resources.includes('movscript://shot-library'))
   assert.ok(resources.includes('movscript://external-resources'))
+})
+
+test('MCP project resources read project workspace data without backend entity endpoints', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const originalFetch = globalThis.fetch
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-project-resources-'))
+  const projectDir = join(workspaceDir, 'user', '1', 'projects', 'project_14')
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  try {
+    updateMCPContextSnapshot({
+      route: { pathname: '/project/agent', search: '', hash: '' },
+      project: { id: 14, name: 'Local Project' },
+      productionId: null,
+      user: { id: 1, username: 'alice', systemRole: 'user' },
+      selection: null,
+      updatedAt: new Date().toISOString(),
+    })
+    globalThis.fetch = async () => {
+      throw new Error('backend fetch should not be called for project resources/read')
+    }
+    await mkdir(join(projectDir, 'settings', 'setting_hero'), { recursive: true })
+    await writeFile(join(projectDir, 'settings', 'setting_hero', 'setting.json'), JSON.stringify({
+      schema: 'movscript.setting.v1',
+      kind: 'setting',
+      id: 'setting_hero',
+      title: 'Local Hero',
+      setting_kind: 'character',
+    }), 'utf8')
+    await mkdir(join(projectDir, 'productions', 'pilot'), { recursive: true })
+    await writeFile(join(projectDir, 'productions', 'pilot', 'production.json'), JSON.stringify({
+      schema: 'movscript.production.v1',
+      kind: 'production',
+      id: 'pilot',
+      title: 'Local Pilot',
+    }), 'utf8')
+    await mkdir(join(projectDir, 'scripts', 'script_main'), { recursive: true })
+    await writeFile(join(projectDir, 'scripts', 'script_main', 'script.json'), JSON.stringify({
+      schema: 'movscript.script.v1',
+      kind: 'script',
+      id: 'script_main',
+      title: 'Local Script',
+      source_ref: 'script.md',
+    }), 'utf8')
+    await writeFile(join(projectDir, 'scripts', 'script_main', 'script.md'), 'INT. LOCAL ROOM - NIGHT', 'utf8')
+
+    for (const [uri, title] of [
+      ['movscript://project/14/settings', 'Local Hero'],
+      ['movscript://project/14/episodes', 'Local Pilot'],
+      ['movscript://project/14/scripts', 'Local Script'],
+    ]) {
+      const response = await handleJSONRPC({
+        jsonrpc: '2.0',
+        id: uri,
+        method: 'resources/read',
+        params: { uri },
+      })
+      assert.equal(response?.error, undefined)
+      assert.match(response?.result?.contents?.[0]?.text ?? '', new RegExp(title))
+    }
+  } finally {
+    globalThis.fetch = originalFetch
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (previousWorkspaceDir === undefined) delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    else process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
 })
 
 test('MCP tool schemas are compatible with OpenAI function parameters', () => {
@@ -1614,6 +1681,8 @@ test('MCP backend prompt tool returns blockers from backend decision context', a
       kind: 'asset',
       id: 'wet_hair',
       title: 'Wet hair',
+      setting_id: 'hero',
+      setting_state_id: 'rain',
       slot: 'hair',
     }), 'utf8')
     const upstreamResponse = await handleJSONRPC({
@@ -1781,7 +1850,7 @@ test('MCP domain tools expose get_model inspect and interpret over source/.inter
     assert.doesNotMatch(buildText, /currentPath/)
     assert.doesNotMatch(buildText, /contentHash/)
     assert.equal(Boolean(build.review?.changedFiles?.[0]?.currentPath), true)
-    assert.equal(existsSync(join(projectDir, '.interpret', 'indexes', 'domain-index.json')), true)
+    assert.equal(existsSync(join(projectDir, '.interpret', 'current', 'domain-index.json')), true)
     assert.equal(JSON.parse(readFileSync(join(projectDir, '.interpret', 'current', 'settings', 'setting_hero', 'setting.json'), 'utf8')).title, 'New Hero')
   } finally {
     updateMCPContextSnapshot(emptyMCPContextSnapshot())

@@ -6,9 +6,69 @@ import (
 	"time"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
+
+func TestServiceUsesGatewayUsageReporterContract(t *testing.T) {
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	reporter := &fakeUsageReporter{
+		page: providercontract.AIGatewayUsageLogPage{
+			Items: []providercontract.AIGatewayUsageLog{{
+				ID:              1,
+				UserID:          7,
+				AIModelConfigID: 9,
+				OperationType:   "text",
+				InputTokens:     3,
+				OutputTokens:    2,
+				Cost:            0.5,
+				CreatedAt:       now,
+				AIModelConfig: &providercontract.AIGatewayUsageModelConfigRef{
+					ID:         9,
+					ModelDefID: "gpt-5.2",
+				},
+			}},
+			Total:    1,
+			Page:     2,
+			PageSize: 10,
+		},
+		summary: providercontract.AIGatewayUsageSummary{
+			Totals:      providercontract.AIGatewayUsageTotals{Records: 1, Cost: 0.5, InputTokens: 3, OutputTokens: 2},
+			GeneratedAt: now,
+		},
+	}
+	service := NewServiceWithReporter(reporter)
+	filter := ListFilter{ProviderID: "11", OperationType: "text", Page: 2, PageSize: 10}
+
+	page, err := service.List(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if page.Total != 1 || page.Page != 2 || len(page.Items) != 1 || page.Items[0].AIModelConfig.ModelDefID != "gpt-5.2" {
+		t.Fatalf("page = %#v, want reporter data mapped to admin shape", page)
+	}
+	exported, err := service.Export(context.Background(), filter, 100)
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	if len(exported) != 1 || exported[0].ID != 1 {
+		t.Fatalf("export = %#v, want reporter rows", exported)
+	}
+	summary, err := service.Summary(context.Background(), filter)
+	if err != nil {
+		t.Fatalf("Summary() error = %v", err)
+	}
+	if summary.Totals.Records != 1 || summary.Totals.Cost != 0.5 || !summary.GeneratedAt.Equal(now) {
+		t.Fatalf("summary = %#v, want reporter summary", summary)
+	}
+	if len(reporter.filters) != 3 {
+		t.Fatalf("reporter filter calls = %d, want 3", len(reporter.filters))
+	}
+	if reporter.filters[0].ProviderID != "11" || reporter.filters[0].OperationType != "text" || reporter.filters[0].Page != 2 {
+		t.Fatalf("first reporter filter = %#v, want service filter mapped", reporter.filters[0])
+	}
+}
 
 func TestSummaryAggregatesFilteredUsage(t *testing.T) {
 	db := testutil.OpenSQLite(t, "adminusage.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.UsageLog{})
@@ -66,6 +126,27 @@ func TestSummaryAggregatesFilteredUsage(t *testing.T) {
 	if len(keySummary.TopUsers) != 1 || keySummary.TopUsers[0].UserID != userA.ID {
 		t.Fatalf("unexpected gateway key top users: %+v", keySummary.TopUsers)
 	}
+}
+
+type fakeUsageReporter struct {
+	page    providercontract.AIGatewayUsageLogPage
+	summary providercontract.AIGatewayUsageSummary
+	filters []providercontract.AIGatewayUsageLogFilter
+}
+
+func (f *fakeUsageReporter) ListGatewayUsageLogs(_ context.Context, filter providercontract.AIGatewayUsageLogFilter) (providercontract.AIGatewayUsageLogPage, error) {
+	f.filters = append(f.filters, filter)
+	return f.page, nil
+}
+
+func (f *fakeUsageReporter) ExportGatewayUsageLogs(_ context.Context, filter providercontract.AIGatewayUsageLogFilter, _ int) ([]providercontract.AIGatewayUsageLog, error) {
+	f.filters = append(f.filters, filter)
+	return f.page.Items, nil
+}
+
+func (f *fakeUsageReporter) SummarizeGatewayUsage(_ context.Context, filter providercontract.AIGatewayUsageLogFilter) (providercontract.AIGatewayUsageSummary, error) {
+	f.filters = append(f.filters, filter)
+	return f.summary, nil
 }
 
 func createUsageUser(t *testing.T, db *gorm.DB, username string) persistencemodel.User {

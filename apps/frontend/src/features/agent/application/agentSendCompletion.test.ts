@@ -22,10 +22,10 @@ test('completeSendRunResult binds provider-session thread, run state, and settle
   assert.equal(calls.includes('providerThreadBinding:thread_1'), true)
   assert.equal(calls.includes('providerSessionTree:session_1'), true)
   assert.equal(calls.includes('setProviderThread:thread_1'), false)
-  assert.equal(calls.includes('providerThread:thread_1'), true)
   assert.equal(calls.includes('title:Thread title'), true)
   assert.equal(calls.includes('task:request_1:run_1:thread_1:0'), true)
   assert.equal(calls.includes('setRun:run_1:completed:false'), true)
+  assert.equal(calls.includes('runProviderSessionTree:session_1'), true)
   assert.equal(calls.includes('pendingHttp:0'), true)
   assert.equal(calls.includes('pending:null'), true)
   assert.equal(calls.includes('liveRef:0'), true)
@@ -44,7 +44,6 @@ test('completeSendRunResult binds diagnostic command threads so local diagnostic
   })
 
   assert.equal(calls.includes('providerThreadBinding:thread_1'), true)
-  assert.equal(calls.includes('providerThread:thread_1'), true)
   assert.equal(calls.includes('title:Thread title'), true)
 })
 
@@ -193,17 +192,11 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
       calls.push('getRun')
       return makeRun({ id: runId, status: 'completed' })
     },
-    setProviderThreadId: (_conversationId, threadId) => {
-      calls.push(`setProviderThread:${threadId}`)
-    },
     setConversationProviderSessionTreeId: (_conversationId, providerSessionTreeId) => {
       calls.push(`providerSessionTree:${providerSessionTreeId}`)
     },
     setConversationProviderThreadBindingId: (_conversationId, providerThreadId) => {
       calls.push(`providerThreadBinding:${providerThreadId}`)
-    },
-    setConversationProviderThreadId: (_userId, _conversationId, threadId) => {
-      calls.push(`providerThread:${threadId}`)
     },
     updateConversationTitle: (_userId, _conversationId, title) => {
       calls.push(`title:${title}`)
@@ -213,6 +206,7 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     },
     setConversationRun: (_conversationId, run, patch) => {
       calls.push(`setRun:${run.id}:${run.status}:${patch.loading === true}`)
+      if (patch.providerSessionTreeId) calls.push(`runProviderSessionTree:${patch.providerSessionTreeId}`)
     },
     setPendingHttpEvents: (events) => {
       calls.push(`pendingHttp:${events.length}`)

@@ -7,6 +7,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/config"
 	"github.com/movscript/movscript/internal/infra/storage"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +20,7 @@ type Dependencies struct {
 	AIService     *ai.AIService
 	ImageVerifier ai.ImageVerificationClient
 	Cache         cache.Cache
+	VectorIndex   providercontract.VectorIndexProvider
 	Entitlements  entitlement.EntitlementService
 	EncryptionKey []byte
 }

@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui'
+import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import {
   AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
   AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
@@ -13,12 +13,6 @@ import {
   LEGACY_AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
 } from '@/features/agent/presentation/agentModePanelSizing'
 import {
-  SCRIPT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
-  SCRIPT_WORKBENCH_DETAIL_PANE_ID,
-  SCRIPT_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
-  SCRIPT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
-} from '@/features/scripts/presentation/scriptsWorkbenchLayoutSpec'
-import {
   TOOL_WORKBENCH_RESOURCE_PANE_DEFAULT_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_ID,
   TOOL_WORKBENCH_RESOURCE_PANE_MIN_WIDTH,
@@ -27,20 +21,15 @@ import {
 import {
   APP_SHELL_AGENT_CONTENT_PANE_ID,
   APP_SHELL_AGENT_SIDEBAR_PANE_ID,
-  APP_SHELL_ASSISTANT_DOCK_PANE_ID,
-  APP_SHELL_DETAIL_SIDEBAR_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
   APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
   APP_SHELL_TERMINAL_DOCK_PANE_ID,
   APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
+  APP_SHELL_TOOL_SIDEBAR_PANE_ID,
   routeLayoutSpecForPathname,
 } from '@/routes/routeLayoutRegistry'
-import {
-  DETAIL_AGENT_PANEL_DEFAULT_WIDTH,
-  DETAIL_AGENT_PANEL_WIDTH_STORAGE_KEY,
-} from '@/features/agent/presentation/agentDetailAssistantPaneSizing'
 import {
   allowedRouteLayoutPaneState,
   readRouteLayoutPaneSize,
@@ -54,9 +43,9 @@ import {
   routeLayoutOverlapPaneGroupPropsForVisibility,
 } from './useRouteLayoutOverlapPaneController'
 
-test('route layout pane controller derives sidebar state contract from route spec', () => {
-  const routeLayout = routeLayoutSpecForPathname('/project/scripts/workbench')
-  const pane = routeLayoutPaneById(routeLayout, APP_SHELL_DETAIL_SIDEBAR_PANE_ID)
+test('route layout pane controller derives tool sidebar state contract from route spec', () => {
+  const routeLayout = routeLayoutSpecForPathname('/tools/ref-image-gen')
+  const pane = routeLayoutPaneById(routeLayout, APP_SHELL_TOOL_SIDEBAR_PANE_ID)
 
   assert.equal(pane?.storageKey, APP_SIDEBAR_WIDTH_STORAGE_KEY)
   assert.equal(routeLayoutPaneStateStorageKey(pane), `${APP_SIDEBAR_WIDTH_STORAGE_KEY}.state`)
@@ -77,19 +66,6 @@ test('route layout pane controller derives terminal dock state contract from rou
   assert.equal(routeLayoutPaneDefaultState(pane), 'hidden')
   assert.equal(allowedRouteLayoutPaneState(pane, 'default'), 'default')
   assert.equal(allowedRouteLayoutPaneState(pane, 'collapsed'), 'default')
-})
-
-test('route layout pane controller derives detail assistant dock sizing from route spec', () => {
-  const routeLayout = routeLayoutSpecForPathname('/project/scripts/workbench')
-  const pane = routeLayoutPaneById(routeLayout, APP_SHELL_ASSISTANT_DOCK_PANE_ID)
-
-  assert.equal(pane?.storageKey, DETAIL_AGENT_PANEL_WIDTH_STORAGE_KEY)
-  assert.equal(pane?.defaultSize, DETAIL_AGENT_PANEL_DEFAULT_WIDTH)
-  assert.equal(routeLayoutPaneStateStorageKey(pane), undefined)
-  assert.equal(routeLayoutPaneDefaultState(pane, 'hidden'), 'hidden')
-  assert.equal(allowedRouteLayoutPaneState(pane, 'hidden'), 'hidden')
-  assert.equal(allowedRouteLayoutPaneState(pane, 'default'), 'default')
-  assert.equal(allowedRouteLayoutPaneState(pane, 'collapsed', 'hidden'), 'hidden')
 })
 
 test('route layout pane controller derives agent shell pane state contract from route spec', () => {
@@ -221,42 +197,51 @@ test('route layout pane controller clamps restored agent pane sizes', () => {
   }
 })
 
-test('shell layout consumes detail sidebar state through the route pane controller', () => {
-  const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
-  const projectAgentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+test('shell layout consumes mode pane state through the route pane controller', () => {
+  const appShellSource = readFileSync(resolve('src/features/app-shell/application/AppShellLayout.tsx'), 'utf8')
+  const projectAgentModePageSource = [
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+  ].join('\n')
+  const projectAgentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
   const agentTerminalPanelSource = readFileSync(resolve('src/features/agent/components/AgentTerminalPanel.tsx'), 'utf8')
 
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_DETAIL_SIDEBAR_PANE_ID/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_ASSISTANT_DOCK_PANE_ID[\s\S]*clampSize: clampDetailAgentPanelWidth[\s\S]*controlledState: detailAgentPanelOpen \? 'default' : 'hidden'/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackState: 'hidden'/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT[\s\S]*clampSize: clampTerminalDockHeight[\s\S]*fallbackState: 'hidden'/)
-  assert.match(appSource, /useResizablePanel\(\{[\s\S]*size: terminalPane\.size[\s\S]*onSizeChange: terminalPane\.setSize[\s\S]*resizeEdge: 'top'/)
-  assert.match(appSource, /className="app-shell-terminal-resize-handle"[\s\S]*\{...terminalResizeHandleProps\}/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*clampSize: clampAgentModeSidebarWidth[\s\S]*\}\)/)
-  assert.match(appSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*clampSize: clampAgentModeContentPanelWidth[\s\S]*fallbackState: 'default'[\s\S]*\}\)/)
-  assert.match(appSource, /detailSidebarPane\.hidden/)
-  assert.match(appSource, /detailSidebarPane\.setSize/)
-  assert.match(appSource, /detailAssistantPane\.hidden/)
-  assert.match(appSource, /appControls=\{<>\{detailAssistantPanelHeaderControl\}\{detailHeaderActions\}\{terminalHeaderControl\}<\/>\}/)
-  assert.match(appSource, /detailAssistantPane\.size/)
-  assert.match(appSource, /onWidthChange=\{detailAssistantPane\.setSize\}/)
-  assert.match(appSource, /const terminalOpen = !terminalPane\.hidden/)
-  assert.doesNotMatch(appSource, /agentSidebarPane\.collapse/)
-  assert.match(appSource, /agentContentPane\.collapsed/)
-  assert.match(appSource, /fallbackState: 'default'/)
-  assert.match(appSource, /const agentSidebarVisible = !agentSidebarPane\.hidden/)
-  assert.match(appSource, /const agentLeftSlotWidth = !agentSidebarVisible[\s\S]*agentSidebarPane\.size/)
-  assert.match(appSource, /const agentLeftSlotStyle = \{[\s\S]*agentLeftSlotWidth/)
-  assert.match(appSource, /const agentRightCollapsedWidth = agentContentPane\.pane\?\.collapsedSize \?\? 0/)
-  assert.match(appSource, /const agentRightSlotStyle = \{[\s\S]*agentRightCollapsedWidth[\s\S]*agentContentPane\.size/)
-  assert.match(appSource, /onClick=\{agentContentPanelClosed \? agentContentPane\.show : agentContentPane\.collapse\}/)
-  assert.match(appSource, /showAgentContentPanelShortcut=\{false\}/)
-  assert.match(appSource, /sidebarCollapsed=\{false\}/)
-  assert.match(appSource, /leftPaneHidden=\{!agentSidebarVisible\}/)
-  assert.match(appSource, /onClick=\{agentSidebarVisible \? agentSidebarPane\.hide : agentSidebarPane\.show\}/)
-  assert.match(appSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
-  assert.match(appSource, /<ProjectAgentContentPanel[\s\S]*collapsed=\{agentContentPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentContentPane\.collapse\(\)[\s\S]*agentContentPane\.show\(\)[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
-  assert.match(appSource, /<AgentTerminalPanel[\s\S]*open=\{terminalOpen\}[\s\S]*onOpenChange=\{\(open\) => \{[\s\S]*terminalPane\.show\(\)[\s\S]*terminalPane\.hide\(\)/)
+  assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TOOL_SIDEBAR_PANE_ID/)
+  assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_SETTINGS_SIDEBAR_PANE_ID/)
+  assert.doesNotMatch(appShellSource, /APP_SHELL_ASSISTANT_DOCK_PANE_ID/)
+  assert.doesNotMatch(appShellSource, /clampDetailAgentPanelWidth/)
+  assert.doesNotMatch(appShellSource, /AIAgentPanel/)
+  assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackState: 'hidden'/)
+  assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_TERMINAL_DOCK_PANE_ID[\s\S]*fallbackSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT[\s\S]*clampSize: clampTerminalDockHeight[\s\S]*fallbackState: 'hidden'/)
+  assert.match(appShellSource, /useResizablePanel\(\{[\s\S]*size: terminalPane\.size[\s\S]*onSizeChange: terminalPane\.setSize[\s\S]*resizeEdge: 'top'/)
+  assert.match(appShellSource, /className="app-shell-terminal-resize-handle"[\s\S]*\{...terminalResizeHandleProps\}/)
+  assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_SIDEBAR_PANE_ID[\s\S]*clampSize: clampAgentModeSidebarWidth[\s\S]*\}\)/)
+  assert.match(appShellSource, /useRouteLayoutPaneController\(\{[\s\S]*paneId: APP_SHELL_AGENT_CONTENT_PANE_ID[\s\S]*clampSize: clampAgentModeContentPanelWidth[\s\S]*fallbackState: 'default'[\s\S]*\}\)/)
+  assert.match(appShellSource, /toolSidebarPane\.hidden/)
+  assert.match(appShellSource, /toolSidebarPane\.setSize/)
+  assert.match(appShellSource, /settingsSidebarPane\.hidden/)
+  assert.match(appShellSource, /settingsSidebarPane\.setSize/)
+  assert.match(appShellSource, /sidebar=\{settingsChrome \? \(/)
+  assert.match(appShellSource, /: toolChrome \? \(/)
+  assert.match(appShellSource, /centerHeader=\{settingsChrome \? settingsCenterHeader : toolChrome \? toolCenterHeader : homeChrome \? homeCenterHeader : projectCenterHeader\}/)
+  assert.match(appShellSource, /leftPaneHidden=\{settingsChrome \? settingsSidebarHidden : toolChrome \? toolSidebarHidden : false\}/)
+  assert.match(appShellSource, /const terminalOpen = !terminalPane\.hidden/)
+  assert.doesNotMatch(appShellSource, /agentSidebarPane\.collapse/)
+  assert.match(appShellSource, /agentContentPane\.collapsed/)
+  assert.match(appShellSource, /fallbackState: 'default'/)
+  assert.match(appShellSource, /const agentSidebarVisible = agentChrome && !agentSidebarPane\.hidden/)
+  assert.match(appShellSource, /const agentLeftSlotWidth = !agentSidebarVisible[\s\S]*agentSidebarPane\.size/)
+  assert.match(appShellSource, /const agentLeftSlotStyle = \{[\s\S]*agentLeftSlotWidth/)
+  assert.match(appShellSource, /const agentRightCollapsedWidth = agentContentPane\.pane\?\.collapsedSize \?\? 0/)
+  assert.match(appShellSource, /const agentRightSlotStyle = \{[\s\S]*agentRightCollapsedWidth[\s\S]*agentContentPane\.size/)
+  assert.match(appShellSource, /onClick=\{agentContentPanelClosed \? agentContentPane\.show : agentContentPane\.collapse\}/)
+  assert.doesNotMatch(appShellSource, /showAgentContentPanelShortcut/)
+  assert.match(appShellSource, /sidebarCollapsed=\{false\}/)
+  assert.match(appShellSource, /leftPaneHidden=\{!agentSidebarVisible\}/)
+  assert.match(appShellSource, /onClick=\{agentSidebarVisible \? agentSidebarPane\.hide : agentSidebarPane\.show\}/)
+  assert.match(appShellSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
+  assert.match(appShellSource, /<ProjectAgentContentPanel[\s\S]*collapsed=\{agentContentPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentContentPane\.collapse\(\)[\s\S]*agentContentPane\.show\(\)[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
+  assert.match(appShellSource, /<AgentTerminalPanel[\s\S]*open=\{terminalOpen\}[\s\S]*onOpenChange=\{\(open\) => \{[\s\S]*terminalPane\.show\(\)[\s\S]*terminalPane\.hide\(\)/)
   assert.doesNotMatch(agentTerminalPanelSource, /AGENT_TERMINAL_PANEL_OPEN_KEY/)
   assert.doesNotMatch(agentTerminalPanelSource, /movscript\.agentMode\.terminal\.open/)
   assert.doesNotMatch(agentTerminalPanelSource, /window\.localStorage\.(getItem|setItem)\(/)
@@ -268,37 +253,25 @@ test('shell layout consumes detail sidebar state through the route pane controll
   assert.doesNotMatch(projectAgentModePageSource, /AGENT_MODE_SIDEBAR_COLLAPSED_WIDTH/)
   assert.doesNotMatch(projectAgentModePageSource, /sidebarToggleLabel/)
   assert.match(projectAgentModePageSource, /const sidebarWidth = clampAgentModeSidebarWidth\(width \?\? AGENT_MODE_SIDEBAR_DEFAULT_WIDTH\)/)
-  assert.match(projectAgentModePageSource, /const panelWidth = clampAgentModeContentPanelWidth\(width \?\? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH\)/)
+  assert.match(projectAgentContentPanelSource, /const panelWidth = clampAgentModeContentPanelWidth\(width \?\? AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH\)/)
   assert.doesNotMatch(projectAgentModePageSource, /AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY/)
   assert.doesNotMatch(projectAgentModePageSource, /AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY/)
   assert.doesNotMatch(projectAgentModePageSource, /window\.localStorage\.getItem/)
   assert.doesNotMatch(projectAgentModePageSource, /window\.localStorage\.setItem\(AGENT_MODE/)
-  assert.doesNotMatch(appSource, /const \[detailSidebarState/)
-  assert.doesNotMatch(appSource, /const \[terminalOpen/)
-  assert.doesNotMatch(appSource, /const \[agentModeContentPanelWidth/)
-  assert.doesNotMatch(appSource, /agentModeSidebarCollapsed/)
-  assert.doesNotMatch(appSource, /agentModeContentPanelCollapsed/)
-  assert.doesNotMatch(appSource, /handleAgentModeContentPanelWidthChange/)
-  assert.doesNotMatch(appSource, /APP_TERMINAL_OPEN_STORAGE_KEY/)
-  assert.doesNotMatch(appSource, /toggleAgentModeSidebarCollapsed/)
-  assert.doesNotMatch(appSource, /window\.localStorage\.getItem\(SIDEBAR_WIDTH_STORAGE_KEY\)/)
-  assert.doesNotMatch(appSource, /window\.localStorage\.setItem\(SIDEBAR_WIDTH_STORAGE_KEY/)
+  assert.doesNotMatch(appShellSource, /const \[detailSidebarState/)
+  assert.doesNotMatch(appShellSource, /const \[terminalOpen/)
+  assert.doesNotMatch(appShellSource, /const \[agentModeContentPanelWidth/)
+  assert.doesNotMatch(appShellSource, /agentModeSidebarCollapsed/)
+  assert.doesNotMatch(appShellSource, /agentModeContentPanelCollapsed/)
+  assert.doesNotMatch(appShellSource, /handleAgentModeContentPanelWidthChange/)
+  assert.doesNotMatch(appShellSource, /APP_TERMINAL_OPEN_STORAGE_KEY/)
+  assert.doesNotMatch(appShellSource, /toggleAgentModeSidebarCollapsed/)
+  assert.doesNotMatch(appShellSource, /window\.localStorage\.getItem\(SIDEBAR_WIDTH_STORAGE_KEY\)/)
+  assert.doesNotMatch(appShellSource, /window\.localStorage\.setItem\(SIDEBAR_WIDTH_STORAGE_KEY/)
 })
 
 test('workbench overlap pane controller options are derived from route pane specs', () => {
-  const scriptPane = routeLayoutPaneById(
-    routeLayoutSpecForPathname('/project/scripts/workbench'),
-    SCRIPT_WORKBENCH_DETAIL_PANE_ID,
-  )
-  const scriptOptions = routeLayoutOverlapPaneControllerOptionsForPane(scriptPane, {
-    resizeEdge: 'left',
-    ariaLabel: '调整剧本正文宽度',
-  })
-  assert.equal(scriptOptions.storageKey, SCRIPT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY)
-  assert.equal(scriptOptions.defaultSize, SCRIPT_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH)
-  assert.equal(scriptOptions.minSize, SCRIPT_WORKBENCH_DETAIL_PANE_MIN_WIDTH)
-  assert.equal(scriptOptions.collapseMode, 'after-min')
-  assert.equal(scriptOptions.expandMode, 'after-max')
+  assert.ok(!routeLayoutSpecForPathname('/project/scripts/workbench').panes.some((pane) => pane.owner === 'workbench'))
 
   const toolPane = routeLayoutPaneById(
     routeLayoutSpecForPathname('/tools/ref-image-gen'),
@@ -336,12 +309,8 @@ test('workbench pages consume overlap pane sizing through the route layout adapt
   const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
 
   assert.match(toolDialogSource, /useRouteLayoutOverlapPaneController\(\{[\s\S]*paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID/)
-  assert.match(scriptsSource, /useRouteLayoutOverlapPaneController\(\{[\s\S]*paneId: SCRIPT_WORKBENCH_DETAIL_PANE_ID/)
-  for (const pageSource of [scriptsSource]) {
-    assert.match(pageSource, /routeLayoutOverlapPaneGroupPropsForVisibility\([^)]*\.groupProps,/)
-    assert.doesNotMatch(pageSource, /'data-overlap-pane-collapsed': 'true'/)
-    assert.doesNotMatch(pageSource, /'data-overlap-pane-expanded': undefined/)
-  }
+  assert.doesNotMatch(scriptsSource, /useRouteLayoutOverlapPaneController/)
+  assert.doesNotMatch(scriptsSource, /routeLayoutOverlapPaneGroupPropsForVisibility/)
   assert.doesNotMatch(toolDialogSource, /usePersistentOverlapPaneController/)
   assert.doesNotMatch(scriptsSource, /usePersistentOverlapPaneController/)
   assert.doesNotMatch(toolDialogSource, /movscript:tools:resource-pane-width/)
@@ -353,10 +322,18 @@ test('agent workspace split pages use the shared split primitive', () => {
   const workspaceReviewSource = readFileSync(resolve('src/features/agent/components/MovScriptWorkspaceReviewPage.tsx'), 'utf8')
   const agentConnectionsSource = readFileSync(resolve('src/features/agent/components/AgentConnectionsPage.tsx'), 'utf8')
   const agentConsoleSource = readFileSync(resolve('src/features/agent/components/AgentConsolePage.tsx'), 'utf8')
+  const agentConsoleRealtimeLogPanelSource = readFileSync(
+    resolve('src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx'),
+    'utf8',
+  )
+  const agentConsoleSurfaceSource = `${agentConsoleSource}\n${agentConsoleRealtimeLogPanelSource}`
   const agentPageSource = readFileSync(resolve('../../packages/ui/src/components/business/agent/page/index.tsx'), 'utf8')
   const agentPageStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/page/styles.css'), 'utf8')
-  const agentConsoleStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/console/styles.css'), 'utf8')
-  const businessExports = readFileSync(resolve('../../packages/ui/src/components/business/index.ts'), 'utf8')
+  const agentPageWorkspaceUiSource = readFileSync(resolve('src/features/agent/components/AgentPageWorkspaceUi.tsx'), 'utf8')
+  const agentPageWorkspaceUiStyles = readFileSync(resolve('src/features/agent/components/AgentPageWorkspaceUi.css'), 'utf8')
+  const agentPageThreePaneUiSource = readFileSync(resolve('src/features/agent/components/AgentPageThreePaneUi.tsx'), 'utf8')
+  const agentPageThreePaneUiStyles = readFileSync(resolve('src/features/agent/components/AgentPageThreePaneUi.css'), 'utf8')
+  const agentConsoleStyles = readFileSync(resolve('src/features/agent/components/AgentConsoleUi.css'), 'utf8')
 
   for (const source of [workspaceFilesSource, workspaceReviewSource]) {
     assert.match(source, /AgentWorkspacesPageBody/)
@@ -401,46 +378,37 @@ test('agent workspace split pages use the shared split primitive', () => {
   assert.doesNotMatch(workspaceReviewSource, /animate-spin/)
   assert.doesNotMatch(workspaceReviewSource, /className=\{`/)
 
-  assert.match(agentPageSource, /export function AgentThreePanePageBody/)
-  assert.match(agentPageSource, /export function AgentThreePanePagePane/)
-  assert.match(agentPageSource, /export function AgentThreePanePagePaneScroller/)
-  assert.match(agentPageSource, /export function AgentThreePanePageItemButton/)
-  assert.match(agentPageSource, /export function AgentThreePanePageListStack/)
-  assert.match(agentPageSource, /export function AgentWorkspaceEditorLayout/)
-  assert.match(agentPageSource, /export function AgentWorkspaceEditorTitleBlock/)
-  assert.match(agentPageSource, /export function AgentWorkspaceReviewSummaryPane/)
-  assert.match(agentPageSource, /export function AgentWorkspaceReviewPaneTitle/)
-  assert.match(agentPageSource, /export function AgentWorkspaceReviewJsonBlock/)
-  assert.match(agentPageSource, /export function AgentWorkspaceStateRow/)
-  assert.match(agentPageSource, /export function AgentWorkspaceStateSpinner/)
-  assert.match(agentPageSource, /export function AgentWorkspaceListStack/)
-  assert.match(agentPageSource, /export function AgentWorkspaceReviewEffectsList/)
-  assert.match(agentPageStyles, /\.agent-three-pane-page-body \{[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 300px\), 1fr\)\);[\s\S]*overflow: auto;/)
-  assert.match(agentPageStyles, /\.agent-three-pane-page-body \{[\s\S]*grid-auto-rows: minmax\(360px, 1fr\);/)
-  assert.doesNotMatch(agentPageStyles, /grid-template-columns: minmax\(240px, 280px\) minmax\(260px, 0\.9fr\) minmax\(320px, 1\.1fr\);/)
-  assert.match(agentPageStyles, /\.agent-three-pane-page-item \{[\s\S]*display: block;[\s\S]*width: 100%;/)
-  assert.match(agentPageStyles, /\.agent-three-pane-page-list-stack \{[\s\S]*display: grid;[\s\S]*gap: var\(--ms-space-2\);/)
-  assert.match(agentPageStyles, /\.agent-workspace-editor-layout \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
-  assert.match(agentPageStyles, /\.agent-workspace-editor-title-block \{[\s\S]*min-width: 0;/)
-  assert.match(agentPageStyles, /\.agent-workspace-review-summary-pane \{[\s\S]*overflow: auto;[\s\S]*padding: var\(--ms-space-4\);/)
-  assert.match(agentPageStyles, /\.agent-workspace-review-pane-title,[\s\S]*\.agent-workspace-review-json-block__title \{[\s\S]*font-weight: 500;/)
-  assert.match(agentPageStyles, /\.agent-workspace-state-row \{[\s\S]*min-height: 8rem;[\s\S]*justify-content: center;/)
-  assert.match(agentPageStyles, /\.agent-workspace-state-spinner \{[\s\S]*animation: ms-spin 1s linear infinite;/)
-  assert.match(agentPageStyles, /\.agent-workspace-list-stack \{[\s\S]*display: grid;[\s\S]*gap: var\(--ms-space-1\);/)
-  assert.match(agentPageStyles, /\.agent-workspace-review-effects-list \{[\s\S]*display: grid;[\s\S]*gap: var\(--ms-space-2\);/)
-  assert.match(businessExports, /AgentThreePanePageBody/)
-  assert.match(businessExports, /AgentThreePanePagePane/)
-  assert.match(businessExports, /AgentThreePanePageItemButton/)
-  assert.match(businessExports, /AgentThreePanePageListStack/)
-  assert.match(businessExports, /AgentWorkspaceEditorLayout/)
-  assert.match(businessExports, /AgentWorkspaceEditorTitleBlock/)
-  assert.match(businessExports, /AgentWorkspaceReviewSummaryPane/)
-  assert.match(businessExports, /AgentWorkspaceReviewPaneTitle/)
-  assert.match(businessExports, /AgentWorkspaceReviewJsonBlock/)
-  assert.match(businessExports, /AgentWorkspaceStateRow/)
-  assert.match(businessExports, /AgentWorkspaceStateSpinner/)
-  assert.match(businessExports, /AgentWorkspaceListStack/)
-  assert.match(businessExports, /AgentWorkspaceReviewEffectsList/)
+  assert.match(agentPageThreePaneUiSource, /export function AgentThreePanePageBody/)
+  assert.match(agentPageThreePaneUiSource, /export function AgentThreePanePagePane/)
+  assert.match(agentPageThreePaneUiSource, /export function AgentThreePanePagePaneScroller/)
+  assert.match(agentPageThreePaneUiSource, /export function AgentThreePanePageItemButton/)
+  assert.match(agentPageThreePaneUiSource, /export function AgentThreePanePageListStack/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceEditorLayout/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceEditorTitleBlock/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceReviewSummaryPane/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceReviewPaneTitle/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceReviewJsonBlock/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceStateRow/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceStateSpinner/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceListStack/)
+  assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspaceReviewEffectsList/)
+  assert.doesNotMatch(agentPageSource, /export function AgentThreePanePageBody/)
+  assert.doesNotMatch(agentPageSource, /export function AgentWorkspaceEditorLayout/)
+  assert.match(agentPageThreePaneUiStyles, /\.agent-three-pane-page-body \{[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 300px\), 1fr\)\);[\s\S]*overflow: auto;/)
+  assert.match(agentPageThreePaneUiStyles, /\.agent-three-pane-page-body \{[\s\S]*grid-auto-rows: minmax\(360px, 1fr\);/)
+  assert.doesNotMatch(agentPageThreePaneUiStyles, /grid-template-columns: minmax\(240px, 280px\) minmax\(260px, 0\.9fr\) minmax\(320px, 1\.1fr\);/)
+  assert.match(agentPageThreePaneUiStyles, /\.agent-three-pane-page-item \{[\s\S]*display: block;[\s\S]*width: 100%;/)
+  assert.match(agentPageThreePaneUiStyles, /\.agent-three-pane-page-list-stack \{[\s\S]*display: grid;[\s\S]*gap: var\(--ms-space-2\);/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-editor-layout \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-editor-title-block \{[\s\S]*min-width: 0;/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-review-summary-pane \{[\s\S]*overflow: auto;[\s\S]*padding: var\(--ms-space-4\);/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-review-pane-title,[\s\S]*\.agent-workspace-review-json-block__title \{[\s\S]*font-weight: 500;/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-state-row \{[\s\S]*min-height: 8rem;[\s\S]*justify-content: center;/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-state-spinner \{[\s\S]*animation: ms-spin 1s linear infinite;/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-list-stack \{[\s\S]*display: grid;[\s\S]*gap: var\(--ms-space-1\);/)
+  assert.match(agentPageWorkspaceUiStyles, /\.agent-workspace-review-effects-list \{[\s\S]*display: grid;[\s\S]*gap: var\(--ms-space-2\);/)
+  assert.doesNotMatch(agentPageStyles, /\.agent-three-pane-page-body \{/)
+  assert.doesNotMatch(agentPageStyles, /\.agent-workspace-editor-layout \{/)
   assert.match(agentConnectionsSource, /AgentThreePanePageBody/)
   assert.match(agentConnectionsSource, /AgentThreePanePagePane/)
   assert.match(agentConnectionsSource, /AgentThreePanePagePaneScroller/)
@@ -460,10 +428,10 @@ test('agent workspace split pages use the shared split primitive', () => {
   assert.match(agentConsoleSource, /<AgentConsoleMainGrid layout="control-logs">/)
   assert.match(agentConsoleSource, /<AgentConsoleMainColumn pane="config">/)
   assert.match(agentConsoleSource, /<AgentConsoleSidebar pane="logs">/)
-  assert.match(agentConsoleSource, /AgentConsoleLogSummary/)
-  assert.match(agentConsoleSource, /AgentConsoleLogStream/)
-  assert.match(agentConsoleSource, /AgentConsoleLogLineText/)
-  assert.doesNotMatch(agentConsoleSource, /className="agent-console-log-/)
+  assert.match(agentConsoleSurfaceSource, /AgentConsoleLogSummary/)
+  assert.match(agentConsoleSurfaceSource, /AgentConsoleLogStream/)
+  assert.match(agentConsoleSurfaceSource, /AgentConsoleLogLineText/)
+  assert.doesNotMatch(agentConsoleSurfaceSource, /className="agent-console-log-/)
   assert.match(agentConsoleStyles, /\.agent-console-page-body \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
   assert.match(agentConsoleStyles, /\.agent-console-main-grid\[data-layout="control-logs"\] > \.agent-console-main-column,[\s\S]*overflow-y: auto;/)
 })

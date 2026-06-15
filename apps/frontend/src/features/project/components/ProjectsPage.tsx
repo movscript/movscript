@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { api } from '@/shared/infrastructure/api'
 import type { Project } from '@/types'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { openProjectWindow } from '@/shared/infrastructure/appWindowContext'
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, ArrowRight, FolderOpen } from 'lucide-react'
+import { AppPageHeader } from '@movscript/ui/layout'
 import {
-  AppPageHeader,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -14,22 +14,21 @@ import {
   Input,
   Label,
   Progress,
-  ProjectPageActionButton,
-  ProjectPageEmptyState,
-  ProjectListPageLayout,
-  ProjectPageLocalAdminPrompt,
-  Textarea,
-} from '@movscript/ui'
+  StatusBadge,
+  Textarea
+} from '@movscript/ui/primitives'
 import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
-import { routeForWorkMode } from '@/routes/appRouteModel'
 import { isLocalLaunchMode } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
-import { projectListQueryKey, projectProgressQueryKey } from '@/features/project/application/projectQueries'
+import { projectKeys } from '@/features/project/application/projectQueries'
+import { invalidateProjectMutationResult, projectListChangedResult } from '@/features/project/application/projectMutationInvalidation'
 import { initializeProjectGitWorkspace } from '@/features/project/application/projectGitWorkspace'
 import { readLocalAdminPromptDismissed, saveLocalAdminPromptDismissed } from '@/features/project/presentation/localAdminPromptPreference'
+import { projectStatusRecipe } from '@/features/project/presentation/projectSemanticUi'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { ProjectListPageLayout, ProjectPageActionButton, ProjectPageEmptyState, ProjectPageLocalAdminPrompt } from './ProjectPageUi'
 
 interface ContentUnitProgress {
   total: number
@@ -62,12 +61,13 @@ function ProjectListRow({
   const { t } = useTranslation()
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const { data: progress } = useQuery<ProjectProgress>({
-    queryKey: projectProgressQueryKey(currentOrgID, project.ID),
+    queryKey: projectKeys.progress(currentOrgID, project.ID),
     queryFn: () => api.get(`/projects/${project.ID}/progress`).then((r) => r.data),
   })
 
   const contentUnits = progress?.content_units
   const approvedPct = contentUnits && contentUnits.total > 0 ? Math.round((contentUnits.approved / contentUnits.total) * 100) : 0
+  const statusRecipe = projectStatusRecipe(contentUnits && contentUnits.total > 0 ? (approvedPct >= 100 ? 'ready' : 'active') : 'default')
   const stats = progress ? [
     { label: t('entities.scripts'), value: progress.scripts },
     { label: t('entities.segments'), value: progress.segments },
@@ -88,6 +88,9 @@ function ProjectListRow({
           >
             {project.name}
           </ProjectPageActionButton>
+          <StatusBadge {...statusRecipe}>
+            {approvedPct >= 100 ? t('common.done') : t('common.inProgress')}
+          </StatusBadge>
         </div>
         {project.description ? (
           <p className="mt-1 truncate type-label text-muted-foreground">{project.description}</p>
@@ -198,17 +201,17 @@ function CreateProjectModal({ onClose, onCreate }: {
 export default function ProjectsPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const navigate = useNavigate()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const settings = useAppSettingsStore((s) => s.settings)
+  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const [showCreate, setShowCreate] = useState(false)
   const [adminPromptDismissed, setAdminPromptDismissed] = useState(readLocalAdminPromptDismissed)
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
-    queryKey: projectListQueryKey(currentOrgID),
+    queryKey: projectKeys.list(currentOrgID),
     queryFn: () => api.get('/projects').then((r) => r.data),
   })
 
@@ -222,10 +225,11 @@ export default function ProjectsPage() {
   const create = useMutation({
     mutationFn: (p: Partial<Project>) => api.post('/projects', p).then((r) => r.data),
     onSuccess: (newProject: Project) => {
-      qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
+      invalidateProjectMutationResult(qc, projectListChangedResult({ orgId: currentOrgID, changedIds: [newProject.ID] }))
       void initializeProjectGitWorkspace(newProject, currentOrgID)
       setCurrent(newProject)
-      navigate(routeForWorkMode(settings.workMode, true))
+      setWorkMode('project')
+      void openProjectWindow({ projectId: newProject.ID, project: newProject, route: ROUTES.project.home })
     },
   })
 
@@ -233,7 +237,7 @@ export default function ProjectsPage() {
     mutationFn: (id: number) => api.delete(`/projects/${id}`),
     onSuccess: (_, id) => {
       if (current?.ID === id) setCurrent(null)
-      qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
+      invalidateProjectMutationResult(qc, projectListChangedResult({ orgId: currentOrgID, changedIds: [id] }))
     },
   })
 
@@ -243,7 +247,8 @@ export default function ProjectsPage() {
 
   function handleOpen(p: Project) {
     setCurrent(p)
-    navigate(routeForWorkMode(settings.workMode, true))
+    setWorkMode('project')
+    void openProjectWindow({ projectId: p.ID, project: p, route: ROUTES.project.home })
   }
 
   function dismissAdminPrompt() {
@@ -275,7 +280,7 @@ export default function ProjectsPage() {
           openLabel={t('pages.projects.localAdminPrompt.openModels')}
           dismissLabel={t('common.dismiss')}
           closeLabel={t('common.close')}
-          onOpenModels={() => void openAdminConsole(settings.apiBaseURL, '/models')}
+          onOpenModels={() => void openAdminConsole(undefined, '/models')}
           onDismiss={dismissAdminPrompt}
         />
       )}

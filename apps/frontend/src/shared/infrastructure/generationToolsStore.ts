@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { persist } from 'zustand/middleware'
 import {
   createGenerationToolServer,
@@ -34,7 +35,7 @@ interface GenerationToolsStore {
 
 function syncElectronGenerationTools(settings: GenerationToolsSettings): void {
   if (typeof window === 'undefined') return
-  void window.api?.setGenerationToolsSettings?.(settings)
+  void readElectronApi()?.setGenerationToolsSettings?.(settings)
 }
 
 export const useGenerationToolsStore = create<GenerationToolsStore>()(

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { isRecord, stringValue } from '../../../tools/shared/record.js'
 import type { MovScriptContentCandidateWriteInput } from '@movscript/workspace'
 import { saveMovScriptProductionWorkspaceSnapshot } from '@movscript/workspace'
@@ -9,9 +10,33 @@ import {
   type MovScriptDomainRuntime,
 } from './runtime.js'
 import { resolveMCPProjectWorkspaceLocator } from '../workspace/locator.js'
+import { composeResourceVideosToResource } from '../resource-media/actions.js'
 
 type Args = Record<string, unknown>
 type ContentCandidateStatus = NonNullable<MovScriptContentCandidateWriteInput['status']>
+type SceneMomentEditPlan = {
+  status?: string
+  sceneMomentId?: string | number
+  sceneMomentPath?: string
+  blockers?: unknown[]
+  tracks?: Array<{
+    type?: string
+    items?: Array<{
+      content_unit_id?: string | number
+      resource_id?: number
+      selected?: boolean
+      stale?: boolean
+      order?: number
+      timing_intent?: Record<string, unknown>
+    }>
+  }>
+  compose_inputs?: Array<{
+    content_unit_id?: string | number
+    resource_id?: number
+    output_kind?: string
+    track_type?: string
+  }>
+}
 
 const CONTENT_CANDIDATE_STATUSES = new Set<ContentCandidateStatus>([
   'queued',
@@ -86,6 +111,108 @@ export async function domainBuildContentUnitBackendPrompt(args: Args): Promise<u
 
 export async function domainReadPreviewTimeline(args: Args): Promise<unknown> {
   return service(args).readPreviewTimeline(requiredId(args.productionId ?? args.production_id, 'productionId'))
+}
+
+export async function domainReadSceneMomentEditPlan(args: Args): Promise<unknown> {
+  return service(args).readSceneMomentEditPlan(requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId'))
+}
+
+export async function domainComposeSceneMomentFromEditPlan(args: Args): Promise<unknown> {
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId')
+  const contentUnitId = requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId')
+  const candidateId = idValue(args.candidateId ?? args.candidate_id ?? `scene_moment_comp_${randomUUID().slice(0, 8)}`)
+  const editPlan = await service(args).readSceneMomentEditPlan(sceneMomentId) as SceneMomentEditPlan
+  if (editPlan.status !== 'ready_to_compose') {
+    return {
+      status: 'blocked',
+      scene_moment_id: sceneMomentId,
+      content_unit_id: contentUnitId,
+      blockers: editPlan.blockers ?? [{ code: 'edit_plan_not_ready', message: `scene_moment ${String(sceneMomentId)} edit plan is not ready to compose` }],
+    }
+  }
+
+  const videoItems = editPlanVideoItems(editPlan)
+  if (videoItems.length === 0) {
+    return {
+      status: 'blocked',
+      scene_moment_id: sceneMomentId,
+      content_unit_id: contentUnitId,
+      blockers: [{ code: 'video_track_missing', message: `scene_moment ${String(sceneMomentId)} edit plan has no selected video resources` }],
+    }
+  }
+
+  const filename = stringValue(args.filename ?? args.name) ?? `scene-moment-${String(sceneMomentId)}-${String(candidateId)}.mp4`
+  const composed = await composeResourceVideosToResource({
+    ...args,
+    items: videoItems,
+    filename,
+  })
+  const resourceId = numberValue(composed.resource_id ?? composed.video_resource_id)
+  if (resourceId === undefined) throw new Error('scene_moment compose did not return a video resource_id')
+
+  const outputs: MovScriptContentCandidateWriteInput['outputs'] = [{
+    kind: 'video',
+    resource_id: resourceId,
+    mime_type: stringValue(composed.mime_type) ?? 'video/mp4',
+    ...(numberValue(composed.duration_sec) !== undefined ? { duration_sec: numberValue(composed.duration_sec) } : {}),
+    metadata: {
+      operation: 'scene_moment_edit_plan_compose',
+      scene_moment_id: sceneMomentId,
+      scene_moment_path: editPlan.sceneMomentPath,
+      input_resource_ids: videoItems.map((item) => item.resource_id),
+      ignored_tracks: editPlan.tracks?.filter((track) => track.type !== 'video').map((track) => track.type).filter(isString) ?? [],
+      composed,
+    },
+  }]
+  const candidate = await runtimeMutation(args, async (runtime) => {
+    const created = await runtime.createContentCandidate({
+      contentUnitId,
+      candidateId,
+      source: stringValue(args.source) ?? 'scene_moment_edit_plan_compose',
+      status: contentCandidateStatus(args.status) ?? 'succeeded',
+      producer: {
+        kind: 'agent',
+        tool: 'domain_compose_scene_moment_from_edit_plan',
+        scene_moment_id: sceneMomentId,
+      },
+      outputs,
+      promptSnapshot: {
+        schema: 'movscript.scene_moment_compose_prompt_snapshot.v1',
+        edit_plan: editPlan,
+        compose: {
+          video_items: videoItems,
+          resource_id: resourceId,
+        },
+      },
+    })
+    if (booleanValue(args.adopt ?? args.select) === true) {
+      await runtime.decideContentUnitCandidate({
+        contentUnitId,
+        candidateId,
+        decision: 'adopt',
+        resourceId,
+        reason: stringValue(args.reason) ?? 'Adopted composed scene_moment candidate from edit plan.',
+        metadata: {
+          tool: 'domain_compose_scene_moment_from_edit_plan',
+          scene_moment_id: sceneMomentId,
+        },
+      })
+    }
+    return created
+  })
+
+  return {
+    status: 'created',
+    scene_moment_id: sceneMomentId,
+    content_unit_id: contentUnitId,
+    candidate_id: candidateId,
+    resource_id: resourceId,
+    video_resource_id: resourceId,
+    adopted: booleanValue(args.adopt ?? args.select) === true,
+    compose: composed,
+    candidate,
+    message: `Composed scene_moment ${String(sceneMomentId)} from ${videoItems.length} selected video item(s) to content unit ${String(contentUnitId)} candidate ${String(candidateId)}.`,
+  }
 }
 
 export async function domainReadContentUnitRuntimePanel(args: Args): Promise<unknown> {
@@ -680,10 +807,13 @@ function pruneUndefinedRecord(record: Record<string, unknown>): Record<string, u
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined))
 }
 
-function requiredTargetKind(args: Args): 'asset' | 'keyframe' | 'content_unit' {
+function requiredTargetKind(args: Args): 'asset' | 'keyframe' {
   const value = requiredString(args.targetKind ?? args.target_kind, 'targetKind')
-  if (value === 'asset' || value === 'keyframe' || value === 'content_unit') return value
-  throw new Error('targetKind must be asset, keyframe, or content_unit')
+  if (value === 'asset' || value === 'keyframe') return value
+  if (value === 'content_unit') {
+    throw new Error('content_unit candidates are backend decision records; use domain_create_content_candidate/domain_select_content_unit_candidate')
+  }
+  throw new Error('targetKind must be asset or keyframe')
 }
 
 function semanticKind(value: unknown): SemanticEntityKind | undefined {
@@ -763,6 +893,26 @@ function booleanValue(value: unknown): boolean | undefined {
   if (value === 'true') return true
   if (value === 'false') return false
   return undefined
+}
+
+function editPlanVideoItems(editPlan: SceneMomentEditPlan): Array<Record<string, unknown>> {
+  const trackItems = editPlan.tracks
+    ?.find((track) => track.type === 'video')
+    ?.items
+    ?.filter((item) => item.selected === true && item.stale !== true && numberValue(item.resource_id) !== undefined)
+    .sort((left, right) => (numberValue(left.order) ?? 0) - (numberValue(right.order) ?? 0))
+    .map((item) => ({
+      resource_id: numberValue(item.resource_id),
+      ...(numberValue(item.timing_intent?.start_sec) !== undefined ? { start_sec: numberValue(item.timing_intent?.start_sec) } : {}),
+      ...(numberValue(item.timing_intent?.end_sec) !== undefined ? { end_sec: numberValue(item.timing_intent?.end_sec) } : {}),
+      ...(numberValue(item.timing_intent?.duration_sec) !== undefined ? { duration_sec: numberValue(item.timing_intent?.duration_sec) } : {}),
+    }))
+    ?? []
+  if (trackItems.length > 0) return trackItems
+  return editPlan.compose_inputs
+    ?.filter((item) => item.track_type === 'video' && numberValue(item.resource_id) !== undefined)
+    .map((item) => ({ resource_id: numberValue(item.resource_id) }))
+    ?? []
 }
 
 function errorMessage(error: unknown): string {

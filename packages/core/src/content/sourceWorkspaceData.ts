@@ -1468,6 +1468,7 @@ function previewCandidatesForContentUnit(
 ): PreviewCandidate[] {
   return candidates.map((candidate, index) => {
     const id = idValue(candidate.id) ?? `candidate_${index + 1}`
+    const output = firstCandidateOutput(candidate)
     return {
       id,
       title: candidateTitle(candidate, id),
@@ -1475,6 +1476,9 @@ function previewCandidatesForContentUnit(
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
+      resourceId: resourceIdValue(output?.resource_id),
+      resourceKind: stringField(output?.kind),
+      artifactRef: stringField(output?.artifact_ref),
     }
   })
 }
@@ -1486,6 +1490,7 @@ function previewAssetCandidatesForContentUnit(
 ): PreviewAssetCandidate[] {
   return candidates.map((candidate, index) => {
     const id = idValue(candidate.id) ?? `candidate_${index + 1}`
+    const output = firstCandidateOutput(candidate)
     return {
       id,
       title: candidateTitle(candidate, id),
@@ -1493,7 +1498,9 @@ function previewAssetCandidatesForContentUnit(
       inputHash: candidateInputHash(candidate, contentUnitId),
       selected: selectionCandidateMatches(selection, id),
       note: candidateNote(candidate),
-      resourceId: resourceIdValue(firstCandidateOutput(candidate)?.resource_id),
+      resourceId: resourceIdValue(output?.resource_id),
+      resourceKind: stringField(output?.kind),
+      artifactRef: stringField(output?.artifact_ref),
       confirmation: assetCandidateConfirmation(candidate, selection, id),
     }
   })

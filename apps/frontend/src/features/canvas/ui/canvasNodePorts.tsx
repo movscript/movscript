@@ -3,13 +3,13 @@ import { Handle, Position } from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
 import type { CanvasNodeData, CanvasPortDef } from '@/types'
 import {
-  CanvasNodeFrame,
   CanvasNodeSemanticPortRows,
   canvasNodeCardPortHandleStyle,
   canvasNodeSemanticSourceHandleStyle,
   canvasNodeSemanticTargetHandleStyle,
-  type CanvasPortHandleRenderer,
-} from '@movscript/ui'
+  type CanvasPortHandleRenderer
+} from '@movscript/ui/business/canvas'
+import { CanvasNodeFrame } from './CanvasNodeCardUi'
 import {
   canvasNodeSemanticPort,
   resolvePorts,

@@ -5,7 +5,15 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Building2, CircleUserRound, KeyRound, Plus, ChevronRight, Settings } from 'lucide-react'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { removeProjectCaches } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
+import {
+  OrganizationSelectActionTile,
+  OrganizationSelectCurrentCard,
+  OrganizationSelectMembershipButton,
+  OrganizationSelectMembershipList,
+  OrganizationStatusMessage
+} from './OrganizationUi'
 import {
   Button,
   Dialog,
@@ -14,13 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
-  OrganizationSelectActionTile,
-  OrganizationSelectCurrentCard,
-  OrganizationSelectMembershipButton,
-  OrganizationSelectMembershipList,
-  OrganizationStatusMessage,
-} from '@movscript/ui'
+  Label
+} from '@movscript/ui/primitives'
 import { translateApiError } from '@/shared/infrastructure/apiError'
 import type { OrgMembership } from '@/types'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -158,8 +161,7 @@ export default function OrgSelectPage() {
   function selectOrg(orgId: number) {
     setCurrentOrg(orgId)
     setCurrentProject(null)
-    queryClient.removeQueries({ queryKey: ['projects'] })
-    queryClient.removeQueries({ queryKey: ['progress'] })
+    removeProjectCaches(queryClient)
     navigate(ROUTES.projects, { replace: true })
   }
 

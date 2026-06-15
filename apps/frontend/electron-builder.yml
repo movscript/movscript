@@ -22,7 +22,10 @@ extraResources:
       - movscript-server.exe
       - server
       - server.exe
-      - admin/**
+  - from: ../admin/dist
+    to: admin
+    filter:
+      - "**/*"
   - from: ../../plugins/movscript
     to: provider-plugins/movscript
     filter:

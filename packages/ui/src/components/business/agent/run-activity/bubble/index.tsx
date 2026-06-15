@@ -12,22 +12,6 @@ export const AgentRunActivityBubble = React.forwardRef<HTMLDivElement, React.HTM
 
 AgentRunActivityBubble.displayName = "AgentRunActivityBubble";
 
-export const AgentRunActivityBubbleFrame = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-activity-bubble__frame", className)} {...props} />;
-  }
-);
-
-AgentRunActivityBubbleFrame.displayName = "AgentRunActivityBubbleFrame";
-
-export const AgentRunActivityBubbleButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "ghost", ...props }, ref) => {
-    return <Button ref={ref} variant={variant} className={cn("ms-agent-run-activity-bubble__button", className)} {...props} />;
-  }
-);
-
-AgentRunActivityBubbleButton.displayName = "AgentRunActivityBubbleButton";
-
 export const AgentRunActivityDetailButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, size = "xs", variant = "ghost", ...props }, ref) => {
     return <Button ref={ref} size={size} variant={variant} className={cn("ms-agent-run-activity-detail-button", className)} {...props} />;

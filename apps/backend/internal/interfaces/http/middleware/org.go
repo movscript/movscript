@@ -41,6 +41,17 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 			}
 			orgID := uint(parsed)
 			preferredOrgID = &orgID
+		} else if raw, ok := c.Get(ContextPreferredOrgIDKey); ok {
+			switch id := raw.(type) {
+			case uint:
+				if id != 0 {
+					preferredOrgID = &id
+				}
+			case *uint:
+				if id != nil && *id != 0 {
+					preferredOrgID = id
+				}
+			}
 		}
 
 		member, found, err := orgService.ResolveCurrentMember(c.Request.Context(), user.ID, preferredOrgID)

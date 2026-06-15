@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { isAgentTranscriptExcludedAssistantMessage } from '@movscript/core/agent/protocol'
+import { isProviderSessionThreadListQueryKey } from '@/features/agent/application/providerSessionQueryKeys'
 import { providerSessionClient, type AgentRunRole, type AgentRunStatus, type ProviderSessionSummary, type AgentSessionSummary, type AgentThread, type AgentThreadListPage, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 
 type StartProvisionalConversationInput = Parameters<typeof providerSessionClient.startProvisionalConversation>[0] & {
@@ -30,6 +31,23 @@ export interface ProviderSessionRunListItem {
   error?: string
   warnings?: string[]
   steps: unknown[]
+}
+
+export type ProviderSessionThreadMutationEvent =
+  | {
+    type: 'ProviderThreadUpdated'
+    baseURL: string
+    thread: AgentThreadSummary
+    changedIds: readonly string[]
+    changedPaths: readonly string[]
+    snapshotVersion?: number
+  }
+
+export interface ProviderSessionThreadMutationResult {
+  event: ProviderSessionThreadMutationEvent
+  changedIds: readonly string[]
+  changedPaths: readonly string[]
+  snapshotVersion?: number
 }
 
 const pendingProvisionalConversations = new Map<string, Promise<AgentThread>>()
@@ -205,16 +223,57 @@ function isProviderSessionThreadSummaryTranscriptMessage(message: AgentThread['m
   return !isAgentTranscriptExcludedAssistantMessage(message)
 }
 
-export function upsertCachedProviderSessionThread(queryClient: QueryClient, thread: AgentThreadSummary) {
+export function providerThreadUpdatedResult(input: {
+  thread: AgentThreadSummary
+  baseURL?: string
+  changedPaths?: readonly string[]
+  snapshotVersion?: number
+}): ProviderSessionThreadMutationResult {
+  const event: ProviderSessionThreadMutationEvent = {
+    type: 'ProviderThreadUpdated',
+    baseURL: input.baseURL ?? providerSessionClient.baseURL,
+    thread: input.thread,
+    changedIds: [input.thread.id],
+    changedPaths: input.changedPaths ?? [],
+    ...(input.snapshotVersion !== undefined ? { snapshotVersion: input.snapshotVersion } : {}),
+  }
+  return {
+    event,
+    changedIds: event.changedIds,
+    changedPaths: event.changedPaths,
+    ...(event.snapshotVersion !== undefined ? { snapshotVersion: event.snapshotVersion } : {}),
+  }
+}
+
+export function applyProviderSessionThreadMutationResult(
+  queryClient: QueryClient,
+  result: ProviderSessionThreadMutationResult,
+): void {
+  applyProviderSessionThreadMutationEvent(queryClient, result.event)
+}
+
+export function applyProviderSessionThreadMutationEvent(
+  queryClient: QueryClient,
+  event: ProviderSessionThreadMutationEvent,
+): void {
+  switch (event.type) {
+    case 'ProviderThreadUpdated':
+      applyProviderThreadUpdated(queryClient, event)
+      return
+  }
+}
+
+function applyProviderThreadUpdated(
+  queryClient: QueryClient,
+  event: Extract<ProviderSessionThreadMutationEvent, { type: 'ProviderThreadUpdated' }>,
+) {
   queryClient.setQueriesData<AgentThreadSummary[]>({
-    predicate: (query) => Array.isArray(query.queryKey)
-      && query.queryKey[0] === 'provider-session-threads'
-      && query.queryKey[1] === providerSessionClient.baseURL,
+    predicate: (query) => isProviderSessionThreadListQueryKey(query.queryKey, event.baseURL),
   }, (threads) => {
-    if (!threads) return [thread]
-    const existing = threads.some((item) => item.id === thread.id)
-    if (!existing) return [thread, ...threads]
-    return threads.map((item) => item.id === thread.id ? { ...item, ...thread } : item)
+    if (!threads) return [event.thread]
+    const existing = threads.some((item) => item.id === event.thread.id)
+    if (!existing) return [event.thread, ...threads]
+    return threads.map((item) => item.id === event.thread.id ? { ...item, ...event.thread } : item)
   })
 }
 

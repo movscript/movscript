@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ClipboardCheck, Copy, Loader2, Send, X } from 'lucide-react'
+import { AgentDataBlock } from '@movscript/ui/business/agent'
 import {
-  AgentDataBlock,
   AgentDebugCard,
   AgentDebugCardDetail,
   AgentDebugCardHeader,
@@ -47,8 +47,8 @@ import {
   AgentDebugSubtleText,
   AgentDebugSummaryItem,
   AgentDebugToneText,
-  AgentDebugWarningCallout,
-} from '@movscript/ui'
+  AgentDebugWarningCallout
+} from '@/features/agent/components/AgentDebugPreviewUi'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/features/agent/domain/agentRunUi'
 import type { AgentSendWorkspace, DebugHttpRequest } from '@/features/agent/application/agentSendWorkspace'
@@ -85,7 +85,7 @@ function toolResolutionLabel(tool: ProviderToolDescriptor, t: ReturnType<typeof 
 }
 
 function previewProviderSessionLimits(preview: AgentRunPreview | undefined) {
-  return preview?.providerSessionLimits ?? preview?.runtimeLimits
+  return preview?.providerSessionLimits
 }
 
 export function AgentDebugPreviewDialog({

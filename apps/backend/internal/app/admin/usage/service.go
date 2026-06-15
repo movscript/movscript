@@ -4,15 +4,20 @@ import (
 	"context"
 	"time"
 
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	repo repository
+	reporter providercontract.AIGatewayUsageReporter
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{repo: &gormRepository{db: db}}
+	return NewServiceWithReporter(&gormRepository{db: db})
+}
+
+func NewServiceWithReporter(reporter providercontract.AIGatewayUsageReporter) *Service {
+	return &Service{reporter: reporter}
 }
 
 type ListFilter struct {
@@ -110,7 +115,11 @@ type Log struct {
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (Page, error) {
-	return s.repo.ListLogs(ctx, filter)
+	page, err := s.reporter.ListGatewayUsageLogs(ctx, usageFilterToContract(filter))
+	if err != nil {
+		return Page{}, err
+	}
+	return usagePageFromContract(page), nil
 }
 
 func (s *Service) Export(ctx context.Context, filter ListFilter, limit int) ([]Log, error) {
@@ -120,14 +129,37 @@ func (s *Service) Export(ctx context.Context, filter ListFilter, limit int) ([]L
 	if limit > 5000 {
 		limit = 5000
 	}
-	return s.repo.ExportLogs(ctx, filter, limit)
+	rows, err := s.reporter.ExportGatewayUsageLogs(ctx, usageFilterToContract(filter), limit)
+	if err != nil {
+		return nil, err
+	}
+	return usageLogsFromContract(rows), nil
 }
 
 func (s *Service) Summary(ctx context.Context, filter ListFilter) (Summary, error) {
-	summary, err := s.repo.Summary(ctx, filter)
+	summary, err := s.reporter.SummarizeGatewayUsage(ctx, usageFilterToContract(filter))
 	if err != nil {
 		return Summary{}, err
 	}
-	summary.GeneratedAt = time.Now().UTC()
-	return summary, nil
+	out := usageSummaryFromContract(summary)
+	if out.GeneratedAt.IsZero() {
+		out.GeneratedAt = time.Now().UTC()
+	}
+	return out, nil
+}
+
+func usageFilterToContract(filter ListFilter) providercontract.AIGatewayUsageLogFilter {
+	return providercontract.AIGatewayUsageLogFilter{
+		UserID:        filter.UserID,
+		OrgID:         filter.OrgID,
+		ProjectID:     filter.ProjectID,
+		ModelConfigID: filter.ModelConfigID,
+		ProviderID:    filter.ProviderID,
+		GatewayKeyID:  filter.GatewayKeyID,
+		OperationType: filter.OperationType,
+		Since:         filter.Since,
+		Until:         filter.Until,
+		Page:          filter.Page,
+		PageSize:      filter.PageSize,
+	}
 }

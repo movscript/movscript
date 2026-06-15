@@ -1,73 +1,61 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { AppTopControls } from '@/features/app-shell/components/AppTopControls'
-import { ProjectGitHeaderActions } from '@/features/app-shell/components/ProjectGitHeaderActions'
 import { useTranslation } from 'react-i18next'
-import {
-  AppWindowBrandButton,
-  AppWindowControls,
-  AppWindowHeader,
-  AppWindowMacTrafficLights,
-} from '@movscript/ui'
+import { AppWindowBrandButton, AppWindowControls, AppWindowHeader, AppWindowMacTrafficLights } from '@movscript/ui/layout'
 import { Clapperboard } from 'lucide-react'
+import { useAppWindowController } from '@/features/app-shell/application/useAppWindowController'
 
 export function Header({
   titleKey: _titleKey,
-  appControls,
-  leftControls,
   leftControlsLayout,
   centerContent,
+  navigationControls,
+  layoutControls,
+  primaryActions,
+  contextActions,
+  globalActions,
   showWindowControls = true,
   showAppControls = true,
   showFallbackBrand = true,
-  showProjectControls = true,
-  showAssistantShortcut,
-  showAgentContentPanelShortcut,
+  showSettingsAction = true,
+  showAppUpdateAction = false,
 }: {
   titleKey?: string
-  appControls?: ReactNode
-  leftControls?: ReactNode
   leftControlsLayout?: 'default' | 'fill'
   centerContent?: ReactNode
+  navigationControls?: ReactNode
+  layoutControls?: ReactNode
+  primaryActions?: ReactNode
+  contextActions?: ReactNode
+  globalActions?: ReactNode
   showWindowControls?: boolean
   showAppControls?: boolean
   showFallbackBrand?: boolean
-  showProjectControls?: boolean
-  showAssistantShortcut?: boolean
-  showAgentContentPanelShortcut?: boolean
+  showSettingsAction?: boolean
+  showAppUpdateAction?: boolean
 }) {
   const { t } = useTranslation()
-  const platform = typeof window === 'undefined' ? undefined : window.api?.platform
-  const isMacOS = platform === undefined || platform === 'darwin'
-  const windowApi = typeof window === 'undefined' ? undefined : window.api
-  const [windowState, setWindowState] = useState({ fullscreen: false, focused: true })
+  const { isMacOS, windowControl, windowState } = useAppWindowController()
+  const resolvedGlobalActions = globalActions ?? (
+    <AppTopControls
+      compact
+      showSettingsAction={showSettingsAction}
+      showAppUpdateAction={showAppUpdateAction}
+    />
+  )
   const controls = (
     <AppWindowControls>
-      {appControls}
-      {showProjectControls ? <ProjectGitHeaderActions compact /> : null}
-      <AppTopControls
-        compact
-        showProjectSelector={showProjectControls}
-        showAssistantShortcut={showAssistantShortcut}
-        showAgentContentPanelShortcut={showAgentContentPanelShortcut}
-      />
+      <HeaderActionGroup roleName="primary">{primaryActions}</HeaderActionGroup>
+      <HeaderActionGroup roleName="context">{contextActions}</HeaderActionGroup>
+      <HeaderActionGroup roleName="global">{resolvedGlobalActions}</HeaderActionGroup>
     </AppWindowControls>
   )
-  const windowControl = useCallback((action: 'close' | 'minimize' | 'toggleFullscreen') => {
-    void windowApi?.windowControl?.(action).then((state) => {
-      if (state) setWindowState(state)
-    })
-  }, [windowApi])
-
-  useEffect(() => {
-    if (!isMacOS || !windowApi) return undefined
-
-    void windowApi.getWindowState?.().then((state) => {
-      if (state) setWindowState(state)
-    })
-
-    return windowApi.onWindowState?.((state) => setWindowState(state))
-  }, [isMacOS, windowApi])
-
+  const generatedLeftControls = navigationControls || layoutControls ? (
+    <>
+      <HeaderActionGroup roleName="navigation">{navigationControls}</HeaderActionGroup>
+      <HeaderActionGroup roleName="layout">{layoutControls}</HeaderActionGroup>
+    </>
+  ) : undefined
   return (
     <AppWindowHeader
       isMacOS={isMacOS}
@@ -84,7 +72,7 @@ export function Header({
           onToggleFullscreen={() => windowControl('toggleFullscreen')}
         />
       ) : undefined}
-      leftControls={leftControls}
+      leftControls={generatedLeftControls}
       leftControlsLayout={leftControlsLayout}
       controls={showAppControls ? controls : undefined}
       centerContent={centerContent}
@@ -95,5 +83,20 @@ export function Header({
         </AppWindowBrandButton>
       ) : undefined}
     />
+  )
+}
+
+function HeaderActionGroup({
+  children,
+  roleName,
+}: {
+  children?: ReactNode
+  roleName: 'navigation' | 'layout' | 'primary' | 'context' | 'global'
+}) {
+  if (!children) return null
+  return (
+    <div className="app-window-header-action-group" data-role={roleName}>
+      {children}
+    </div>
   )
 }

@@ -25,8 +25,8 @@ function AgentSessionChatHarness() {
       role: 'user',
       content: 'Start worker task',
       meta: {
-        runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker' },
-        runtimeInput: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker', deliveryStatus: 'accepted' },
+        providerSessionMessage: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker' },
+        providerSessionInput: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker', deliveryStatus: 'accepted' },
       },
     }),
     message({
@@ -35,7 +35,7 @@ function AgentSessionChatHarness() {
       content: 'Worker reported result',
       timestamp: 2,
       meta: {
-        runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_result', runId: 'run_worker' },
+        providerSessionMessage: { threadId: 'thread_interactive', messageId: 'msg_result', runId: 'run_worker' },
       },
     }),
   ]

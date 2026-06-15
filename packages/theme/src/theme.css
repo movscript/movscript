@@ -20,7 +20,6 @@
   --ms-color-primary: #fafafa;
   --ms-color-primary-foreground: #09090b;
   --ms-color-accent: #27272a;
-  --ms-color-accent-foreground: #fafafa;
   --ms-color-info: #fafafa;
   --ms-color-danger: #fafafa;
   --ms-color-danger-foreground: #09090b;
@@ -28,7 +27,6 @@
   --ms-color-success-foreground: #09090b;
   --ms-color-warning: #fafafa;
   --ms-color-warning-foreground: #09090b;
-  --ms-color-focus: #fafafa;
 
   --ms-button-brand-background: #fafafa;
   --ms-button-brand-foreground: #09090b;
@@ -78,7 +76,6 @@
   --ms-color-primary: #09090b;
   --ms-color-primary-foreground: #fafafa;
   --ms-color-accent: #f4f4f5;
-  --ms-color-accent-foreground: #09090b;
   --ms-color-info: #09090b;
   --ms-color-danger: #09090b;
   --ms-color-danger-foreground: #fafafa;
@@ -86,7 +83,6 @@
   --ms-color-success-foreground: #fafafa;
   --ms-color-warning: #09090b;
   --ms-color-warning-foreground: #fafafa;
-  --ms-color-focus: #09090b;
 
   --ms-button-brand-background: #09090b;
   --ms-button-brand-foreground: #fafafa;

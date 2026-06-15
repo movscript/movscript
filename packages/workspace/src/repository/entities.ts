@@ -67,10 +67,21 @@ export async function upsertMovScriptWorkspaceAsset(
   if (sourcePath && !sourcePathSettingStateId) {
     throw new Error('asset source path must be under a setting state')
   }
-  const settingId = entityRef(payload.setting_id ?? payload.settingId ?? current.setting_id ?? current.settingId, 'setting')
+  const settingId = entityRef(
+    payload.setting_id ?? payload.settingId ?? payload.setting_ref ?? payload.settingRef
+    ?? current.setting_id ?? current.settingId ?? current.setting_ref ?? current.settingRef,
+    'setting',
+  )
     ?? sourcePathSettingId
-  const settingStateId = entityRef(payload.setting_state_id ?? payload.settingStateId ?? current.setting_state_id ?? current.settingStateId, 'setting_state')
+  const settingStateId = entityRef(
+    payload.setting_state_id ?? payload.settingStateId ?? payload.setting_state_ref ?? payload.settingStateRef
+    ?? current.setting_state_id ?? current.settingStateId ?? current.setting_state_ref ?? current.settingStateRef,
+    'setting_state',
+  )
     ?? sourcePathSettingStateId
+  if (!settingId) {
+    throw new Error('asset requires setting_id; assets must be stored under settings/{setting}/states/{state}/assets/{asset}/asset.json')
+  }
   if (!settingStateId) {
     throw new Error('asset requires setting_state_id; assets must be stored under settings/{setting}/states/{state}/assets/{asset}/asset.json')
   }
@@ -78,8 +89,8 @@ export async function upsertMovScriptWorkspaceAsset(
     ?? displayName(identity.id)
   const path = sourcePath ?? assetPath({ id: identity.id, settingId, settingStateId })
   const record = pruneUndefined({
-    ...current,
-    ...payload,
+    ...stripAssetOwnershipAliasFields(current),
+    ...stripAssetOwnershipAliasFields(payload),
     schema: 'movscript.asset.v1',
     kind: 'asset',
     id: identity.id,
@@ -100,8 +111,8 @@ export async function deleteMovScriptWorkspaceEntity(input: MovScriptWorkspaceEn
   await input.fileRepository.delete({ path })
 }
 
-export function movScriptWorkspaceAssetPath(input: { id: string; settingId?: string; settingStateId: string }): string {
-  const settingSlug = entityPathSlug(input.settingId ?? 'unassigned', 'setting')
+export function movScriptWorkspaceAssetPath(input: { id: string; settingId: string; settingStateId: string }): string {
+  const settingSlug = entityPathSlug(input.settingId, 'setting')
   const assetSlug = entityPathSlug(input.id, 'asset')
   return `settings/${settingSlug}/states/${entityPathSlug(input.settingStateId, 'setting_state')}/assets/${assetSlug}/asset.json`
 }
@@ -133,6 +144,15 @@ function entityIdentityValue(
 function entityRef(value: unknown, entityKind: string): string | undefined {
   if (value === undefined || value === null || String(value).trim() === '') return undefined
   return semanticEntityId(value, entityKind)
+}
+
+function stripAssetOwnershipAliasFields(record: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'setting_ref' || key === 'settingRef' || key === 'setting_state_ref' || key === 'settingStateRef') continue
+    output[key] = value
+  }
+  return output
 }
 
 function normalizeSettingKind(value: unknown): string {

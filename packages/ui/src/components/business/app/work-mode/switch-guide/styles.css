@@ -58,7 +58,7 @@
 
 .onboarding-switch-guide__dot::after {
   position: absolute;
-  inset: -8px;
+  inset: calc(var(--ms-space-2) * -1);
   border: 1px solid color-mix(in srgb, var(--ms-color-primary) 28%, transparent);
   border-radius: var(--ms-radius-full);
   content: "";

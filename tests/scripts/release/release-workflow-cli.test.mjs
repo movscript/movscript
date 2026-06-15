@@ -6,16 +6,24 @@ import { releaseSubcommands, releaseWorkflowSteps, runReleaseWorkflowCli } from 
 test('release workflow exposes the curated release subcommand surface', () => {
   assert.deepEqual(releaseSubcommands(), [
     'audit-ffmpeg',
+    'build-app-server-deps',
     'collect',
     'download-ffmpeg-static',
     'package-desktop',
+    'resolve-binary-deps',
+    'smoke-desktop-package',
     'stage-app-server-binaries',
     'stage-ffmpeg',
+    'update-binary-deps',
+    'verify-package-resources',
+    'verify-release-readiness',
   ])
 })
 
 test('release workflow check runs release gates in order', () => {
   assert.deepEqual(releaseWorkflowSteps('check'), [
+    ['Verify release readiness', 'node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']],
+    ['Verify package resource contract', 'node', ['scripts/release/release-workflow.mjs', 'verify-package-resources']],
     ['Audit desktop ffmpeg matrix', 'node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']],
   ])
 })
@@ -56,7 +64,7 @@ test('runReleaseWorkflowCli runs steps and stops on failure', () => {
 
   assert.equal(exitCode, 9)
   assert.equal(calls.length, 1)
-  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']])
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']])
 })
 
 test('runReleaseWorkflowCli accepts pnpm argument separator before modes', () => {
@@ -70,7 +78,7 @@ test('runReleaseWorkflowCli accepts pnpm argument separator before modes', () =>
     },
   })
 
-  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']])
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']])
 })
 
 test('runReleaseWorkflowCli dispatches release subcommands', () => {
@@ -101,6 +109,90 @@ test('runReleaseWorkflowCli dispatches app-server binary staging', () => {
   })
 
   assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/stage-app-server-binaries.mjs', '--platform=darwin', '--arch=arm64']])
+})
+
+test('runReleaseWorkflowCli dispatches app-server dependency builds', () => {
+  const calls = []
+  runReleaseWorkflowCli(['build-app-server-deps', '--platform=darwin', '--arch=arm64'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/build-app-server-deps.mjs', '--platform=darwin', '--arch=arm64']])
+})
+
+test('runReleaseWorkflowCli dispatches binary dependency resolution', () => {
+  const calls = []
+  runReleaseWorkflowCli(['resolve-binary-deps', '--manifest=binary-deps.manifest.json'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/resolve-binary-deps.mjs', '--manifest=binary-deps.manifest.json']])
+})
+
+test('runReleaseWorkflowCli dispatches binary dependency updates', () => {
+  const calls = []
+  runReleaseWorkflowCli(['update-binary-deps', '--branch=main'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/update-binary-deps.mjs', '--branch=main']])
+})
+
+test('runReleaseWorkflowCli dispatches package resource verification', () => {
+  const calls = []
+  runReleaseWorkflowCli(['verify-package-resources', '--manifest=package-resources.manifest.json'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/verify-package-resources.mjs', '--manifest=package-resources.manifest.json']])
+})
+
+test('runReleaseWorkflowCli dispatches release readiness verification', () => {
+  const calls = []
+  runReleaseWorkflowCli(['verify-release-readiness', '--tag=v0.1.0'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/verify-release-readiness.mjs', '--tag=v0.1.0']])
+})
+
+test('runReleaseWorkflowCli dispatches desktop package smoke verification', () => {
+  const calls = []
+  runReleaseWorkflowCli(['smoke-desktop-package', '--platform=linux', '--arch=x64'], {
+    exit: () => undefined,
+    log: () => undefined,
+    spawn: (command, args, options) => {
+      calls.push([command, args, options])
+      return { status: 0 }
+    },
+  })
+
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/smoke-desktop-package.mjs', '--platform=linux', '--arch=x64']])
 })
 
 test('runReleaseWorkflowCli dispatches release artifact collection as a builtin command', () => {

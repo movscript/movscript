@@ -1,20 +1,6 @@
-import { Check, History, Plus } from 'lucide-react'
-import { useMemo } from 'react'
+import { History, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  IdentityBadge,
-  IdentityMark,
-} from '@movscript/ui'
-import {
-  enabledProviders,
-  resolveNewConversationProvider,
-  useProviderConfigStore,
-} from '@/shared/infrastructure/providerConfigStore'
+import { Button } from '@movscript/ui/primitives'
 import { cn } from '@/shared/ui/cn'
 
 export interface ProviderControlsProps {
@@ -35,40 +21,9 @@ export function ProviderControls({
   showNewConversation = false,
 }: ProviderControlsProps) {
   const { t } = useTranslation()
-  const providerSettings = useProviderConfigStore((s) => s.settings)
-  const setNewConversationProviderId = useProviderConfigStore((s) => s.setNewConversationProviderId)
-  const availableProviders = useMemo(() => enabledProviders(providerSettings), [providerSettings])
-  const newConversationProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
 
   return (
     <div className={cn('ai-provider-controls', className)}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            className="ai-provider-controls__button"
-            aria-label={t('agents.chat.selectNewConversationProvider')}
-            title={newConversationProvider.label}
-          >
-            <IdentityMark kind="agent" id={newConversationProvider.kind} />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="ai-provider-controls__menu">
-          {availableProviders.map((provider) => {
-            return (
-              <DropdownMenuItem
-                key={provider.id}
-                onSelect={() => setNewConversationProviderId(provider.id)}
-              >
-                <IdentityBadge kind="agent" id={provider.kind} label={provider.label} size="xs" />
-                {provider.id === newConversationProvider.id ? <Check size={13} className="ml-auto" /> : null}
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
       {showNewConversation ? (
         <Button
           type="button"
@@ -97,24 +52,5 @@ export function ProviderControls({
         </Button>
       ) : null}
     </div>
-  )
-}
-
-export interface ProviderMarkProps {
-  className?: string
-}
-
-export function ProviderMark({ className }: ProviderMarkProps) {
-  const providerSettings = useProviderConfigStore((s) => s.settings)
-  const newConversationProvider = useMemo(() => resolveNewConversationProvider(providerSettings), [providerSettings])
-
-  return (
-    <span
-      className={cn('ai-provider-mark', className)}
-      aria-label={newConversationProvider.label}
-      title={newConversationProvider.label}
-    >
-      <IdentityMark kind="agent" id={newConversationProvider.kind} />
-    </span>
   )
 }

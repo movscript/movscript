@@ -2,6 +2,33 @@ package ai
 
 var modelPresetSources = []ModelDef{
 
+	// ─── ElevenLabs ───────────────────────────────────────────────────────────
+
+	{ID: "elevenlabs:eleven-v3-tts", ModelID: "eleven_v3",
+		DisplayName: "ElevenLabs Eleven v3 语音合成", Capabilities: []string{CapabilityAudioTTS},
+		PricingMode: PricingPerCall, AdapterType: AdapterElevenLabs,
+		SupportedParams: elevenLabsTTSParams()},
+
+	{ID: "elevenlabs:eleven-multilingual-v2-tts", ModelID: "eleven_multilingual_v2",
+		DisplayName: "ElevenLabs Multilingual v2 语音合成", Capabilities: []string{CapabilityAudioTTS},
+		PricingMode: PricingPerCall, AdapterType: AdapterElevenLabs,
+		SupportedParams: elevenLabsTTSParams()},
+
+	{ID: "elevenlabs:eleven-flash-v2-5-tts", ModelID: "eleven_flash_v2_5",
+		DisplayName: "ElevenLabs Flash v2.5 低延迟语音合成", Capabilities: []string{CapabilityAudioTTS},
+		PricingMode: PricingPerCall, AdapterType: AdapterElevenLabs,
+		SupportedParams: elevenLabsTTSParams()},
+
+	{ID: "elevenlabs:eleven-flash-v2-tts", ModelID: "eleven_flash_v2",
+		DisplayName: "ElevenLabs Flash v2 英文低延迟语音合成", Capabilities: []string{CapabilityAudioTTS},
+		PricingMode: PricingPerCall, AdapterType: AdapterElevenLabs,
+		SupportedParams: elevenLabsTTSParams()},
+
+	{ID: "elevenlabs:scribe-v2", ModelID: "scribe_v2",
+		DisplayName: "ElevenLabs Scribe v2 转写", Capabilities: []string{CapabilityAudioSTT},
+		PricingMode: PricingPerCall, AdapterType: AdapterElevenLabs,
+		SupportedParams: elevenLabsSTTParams()},
+
 	// ─── OpenAI ────────────────────────────────────────────────────────────────
 
 	{ID: "openai:gpt-5.2", ModelID: "gpt-5.2",

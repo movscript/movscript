@@ -16,7 +16,8 @@ import {
   isGeneratedCandidateTargetRecord,
   pendingGeneratedCandidateAttachments,
 } from '@/features/agent/domain/agentGeneratedResourceBinding'
-import { invalidateAssetCandidateConsumers } from '@/shared/infrastructure/assetCandidateQueryInvalidation'
+import { assetCandidateSelectedResult, invalidateResourceMutationResult } from '@/features/resources/application/resourceMutationInvalidation'
+import { resourceCandidateKeys } from '@/features/resources/application/resourceQueryKeys'
 import {
   createWorkspaceAssetSlotCandidate,
   createWorkspaceKeyframeCandidate,
@@ -38,8 +39,8 @@ import {
   ResourceCandidateTargetEmpty,
   ResourceCandidateTargetItem,
   ResourceCandidateTargetList,
-  ResourceCandidateTargetTypeSelect,
-} from '@movscript/ui'
+  ResourceCandidateTargetTypeSelect
+} from '@movscript/ui/business/resource'
 
 export interface CandidateResourceRef {
   id: string
@@ -89,7 +90,7 @@ export function ResourceCandidateAttachPanel({
   const hasCandidateResources = pendingCandidateResources.length > 0
 
   const { data: targetRecords = [], isFetching: loadingTargets } = useQuery({
-    queryKey: ['resource-candidate-targets', projectId, targetConfig.entityKind],
+    queryKey: resourceCandidateKeys.targets(projectId, targetConfig.entityKind),
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig(targetConfig.entityKind)),
     enabled: !!projectId && hasCandidateResources,
     staleTime: 30_000,
@@ -142,9 +143,7 @@ export function ResourceCandidateAttachPanel({
     const nextAttachedResourceIds = attachedGeneratedCandidateIdsAfterResults(attachedResourceIds, attemptedResources, results)
     if (summary.createdCount > 0) {
       setAttachedResourceIds(nextAttachedResourceIds)
-      invalidateAssetCandidateConsumers(queryClient, projectId)
-      void queryClient.invalidateQueries({ queryKey: ['resource-candidate-targets', projectId] })
-      void queryClient.invalidateQueries({ queryKey: ['agent-generated-candidate-targets', projectId] })
+      invalidateResourceMutationResult(queryClient, assetCandidateSelectedResult({ projectId }))
     }
     const allAttached = nextAttachedResourceIds.size >= candidateResources.length && candidateResources.length > 0
     setAttachStatus(allAttached && summary.failedCount === 0 ? 'attached' : summary.status)

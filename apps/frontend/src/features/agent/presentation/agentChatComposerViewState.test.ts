@@ -64,12 +64,12 @@ test('buildAgentChatComposerViewState disables stopping while answering input an
 test('buildAgentChatComposerViewState exposes pending active run input queue items', () => {
   const state = composerState({
     messages: [
-      message({ id: 'accepted', role: 'user', meta: { runtimeInput: { deliveryStatus: 'accepted' } } }),
+      message({ id: 'accepted', role: 'user', meta: { providerSessionInput: { deliveryStatus: 'accepted' } } }),
       message({
         id: 'pending',
         role: 'user',
         content: 'Queued input',
-        meta: { runtimeInput: { runId: 'run_1', deliveryStatus: 'pending' } },
+        meta: { providerSessionInput: { runId: 'run_1', deliveryStatus: 'pending' } },
       }),
     ],
   })

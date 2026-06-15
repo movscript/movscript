@@ -12,4 +12,3 @@ export {
   type ScriptLibraryRailProps
 } from "./library";
 export { ScriptVersionCard, type ScriptVersionCardProps } from "./version";
-export * from "./page";

@@ -1,6 +1,6 @@
 import { useMemo, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@movscript/ui'
+import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@movscript/ui/business/agent'
 import { conversationDisplayTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
 import type { ProviderSessionStatusLight } from '@movscript/core/agent'

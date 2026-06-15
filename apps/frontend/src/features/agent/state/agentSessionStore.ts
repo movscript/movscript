@@ -1,274 +1,61 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import type { ProviderSessionClientInput, ProviderManifest, AgentRun, AgentThread } from '@/shared/infrastructure/providerSessionClient'
-import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
+import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
-import type { ConversationWorkspace } from '@/features/agent/state/agentStore'
+import {
+  EMPTY_CONVERSATION_WORKSPACE,
+  compactRun,
+  defaultConversationRuntimeState,
+  type AgentConversationRunPatch,
+  type AgentConversationRuntimePatch,
+  type AgentConversationRuntimeState,
+  type AgentConversationThreadBinding,
+  type AgentStandaloneTaskState,
+} from '@/features/agent/state/agentSessionRuntimeModel'
+import {
+  isTerminalAgentPageTaskRun,
+  normalizeTaskPayload,
+  pageTaskStatusFromProviderSession,
+  type AgentPageTaskPayload,
+} from '@/features/agent/state/agentSessionTaskModel'
+import {
+  persistedAgentSessionState,
+  type AgentSessionStore,
+  type PersistedAgentSessionStore,
+} from '@/features/agent/state/agentSessionStoreTypes'
 import {
   activeAgentConversationIdForUser,
   agentConversationIdForRegistryInput,
   removeAgentConversationRegistryRecord,
   setAgentConversationRegistryOpen,
   upsertAgentConversationRegistryRecord,
-  type AgentConversationRegistryInput,
-  type AgentConversationRegistryRecord,
-  type AgentSessionWorkspaceContext,
 } from '@movscript/core/agent'
-import type { AgentChatProviderKind, AgentChatTurnStatus, AgentThreadControlState } from '@movscript/core/agent/chat'
 
-export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
-export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
-export type AgentPageTaskRun = AgentRun | {
-  id: string
-  threadId?: string
-  sessionId?: string
-  status?: string
-  error?: string | null
-}
-export type AgentPageTaskThread = AgentThread | {
-  id: string
-  sessionId?: string
-}
-
-export interface AgentPageTaskPayload {
-  requestId?: string
-  taskType?: string
-  message: string
-  displayMessage?: string
-  title?: string
-  newConversation?: boolean
-  autoSend?: boolean
-  projectId?: number
-  clientInput?: ProviderSessionClientInput
-  providerManifest?: ProviderManifest
-  timeoutMs?: number
-  renderMode?: AgentTaskRenderMode
-}
-
-export interface AgentPageTaskState {
-  requestId: string
-  taskType: string
-  status: AgentPageTaskStatus
-  payload: AgentPageTaskPayload & { requestId: string; taskType: string }
-  artifacts?: AgentTaskArtifactRef[]
-  conversationId?: string
-  sessionId?: string
-  threadId?: string
-  runId?: string
-  run?: AgentPageTaskRun
-  thread?: AgentPageTaskThread
-  error?: string
-  createdAt: number
-  updatedAt: number
-  settledAt?: number
-}
-
-export interface AgentPageTaskRunningPatch {
-  conversationId?: string
-  sessionId?: string
-  run?: AgentRun
-  thread?: AgentThread
-  threadId?: string
-  artifacts?: AgentTaskArtifactRef[]
-}
-
-export interface AgentConversationProviderSessionState {
-  conversationId: string
-  title?: string
-  requestId?: string
-  sessionId?: string
-  threadId?: string
-  runId?: string
-  run?: AgentRun
-  status?: string
-  loading: boolean
-  building: boolean
-  approving: boolean
-  stopping: boolean
-  stopRequested: boolean
-  error?: string
-  updatedAt: number
-}
-
-export interface AgentConversationThreadBinding {
-  conversationId: string
-  provider?: AgentChatProviderKind
-  providerId?: string
-  providerInstanceId?: string
-  providerThreadId: string
-  providerSessionTreeId?: string
-  providerThreadCwd?: string
-  updatedAt: number
-}
-
-export interface AgentConversationRuntimeState {
-  conversationId: string
-  activeTurnId?: string
-  turnStatus?: AgentChatTurnStatus
-  activeRunId?: string
-  threadControl?: AgentThreadControlState
-  run?: AgentRun
-  status?: string
-  loading: boolean
-  building: boolean
-  approving: boolean
-  stopping: boolean
-  stopRequested: boolean
-  error?: string
-  updatedAt: number
-}
-
-export type AgentConversationRuntimePatch = Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>
-type AgentConversationRuntimeCompatPatch = AgentConversationRuntimePatch & {
-  sessionId?: string
-}
-
-export interface AgentStandaloneTaskState {
-  taskId: string
-  taskType: string
-  title?: string
-  prompt: string
-  status: 'running' | 'completed' | 'cancelled' | 'error' | 'requires_action'
-  runId?: string
-  threadId?: string
-  run?: AgentRun
-  thread?: AgentThread
-  result?: string
-  error?: string
-  startedAt: number
-  updatedAt: number
-  settledAt?: number
-}
-
-interface AgentSessionStore {
-  activeConversationIdsByUser: Record<string, string | null>
-  conversationsById: Record<string, AgentConversationRegistryRecord>
-  workspacesByUser: Record<string, Record<string, ConversationWorkspace>>
-  pageTasks: Record<string, AgentPageTaskState>
-  conversationThreadBindings: Record<string, AgentConversationThreadBinding>
-  conversationRuntimeStates: Record<string, AgentConversationRuntimeState>
-  /** @deprecated Use conversationRuntimeStates for runtime UI state. */
-  conversationProviderSessionStates: Record<string, AgentConversationProviderSessionState>
-  standaloneTasks: Record<string, AgentStandaloneTaskState>
-
-  enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
-  upsertConversation: (input: AgentConversationRegistryInput) => string
-  setConversationOpen: (userId: string, conversationId: string, open: boolean) => void
-  createProviderSessionConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number; projectId?: number; provider?: AgentChatProviderKind | string; providerId?: string; providerInstanceId?: string; providerProtocol?: string; providerThreadCwd?: string; workspaceContext?: AgentSessionWorkspaceContext }) => string
-  removeProviderSessionConversation: (userId: string, conversationId: string) => void
-  setActiveConversation: (userId: string, conversationId: string | null) => void
-  getActiveConversationId: (userId: string) => string | null
-  updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  getConversationWorkspace: (userId: string, conversationId: string) => ConversationWorkspace
-  updateConversationWorkspace: (userId: string, conversationId: string, patch: Partial<ConversationWorkspace>) => void
-  clearConversationWorkspace: (userId: string, conversationId: string) => void
-  claimNextQueuedPageTask: () => (AgentPageTaskPayload & { requestId: string; taskType: string }) | null
-  attachPageTaskConversation: (requestId: string, conversationId: string) => void
-  setPageTaskRunning: (requestId: string | undefined, patch: AgentPageTaskRunningPatch) => void
-  updatePageTaskFromProviderSession: (payload: { requestId?: string; run?: AgentPageTaskRun; thread?: AgentPageTaskThread; error?: string; artifacts?: AgentTaskArtifactRef[]; status?: 'completed' | 'error' | 'cancelled' }) => void
-
-  bindConversationToProviderThread: (input: Omit<AgentConversationThreadBinding, 'updatedAt'> & { updatedAt?: number }) => void
-  clearConversationThreadBinding: (conversationId: string) => void
-  updateConversationRuntimeState: (conversationId: string, patch: AgentConversationRuntimePatch) => void
-  /** @deprecated Use updateConversationRuntimeState for runtime flags and bindConversationToProviderThread for thread refs. */
-  clearConversationProviderSessionState: (conversationId: string) => void
-  /** @deprecated Use updateConversationRuntimeState for runtime flags and bindConversationToProviderThread for thread refs. */
-  setConversationProviderSessionState: (conversationId: string, patch: Partial<Omit<AgentConversationProviderSessionState, 'conversationId' | 'updatedAt'>>) => void
-  setConversationProviderSessionTreeId: (conversationId: string, providerSessionTreeId: string) => void
-  setConversationProviderThreadBindingId: (conversationId: string, providerThreadId: string) => void
-  /** @deprecated Use setConversationProviderSessionTreeId. */
-  setConversationProviderSessionId: (userId: string, conversationId: string, sessionId: string) => void
-  /** @deprecated Use setConversationProviderThreadBindingId. */
-  setConversationProviderThreadId: (userId: string, conversationId: string, threadId: string) => void
-  setConversationRun: (conversationId: string, run: AgentRun, patch?: AgentConversationRuntimeCompatPatch) => void
-  clearConversationProviderSessionProjection: (conversationId: string) => void
-  /** @deprecated Use setConversationProviderThreadBindingId. */
-  setProviderThreadId: (conversationId: string, threadId: string) => void
-  /** @deprecated Use setConversationProviderSessionTreeId. */
-  setConversationSessionId: (conversationId: string, sessionId: string) => void
-  startStandaloneTask: (input: { taskId: string; taskType: string; title?: string; prompt: string }) => void
-  updateStandaloneTask: (taskId: string, patch: Partial<Omit<AgentStandaloneTaskState, 'taskId' | 'taskType' | 'prompt' | 'startedAt'>>) => void
-  settleStandaloneTask: (payload: { taskId: string; status: 'completed' | 'cancelled' | 'error' | 'requires_action'; run?: AgentRun; thread?: AgentThread; result?: string; error?: string }) => void
-}
-
-function genTaskId() {
-  return `agent_task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-}
-
-export const EMPTY_CONVERSATION_WORKSPACE: ConversationWorkspace = {
-  input: '',
-  attachments: [],
-}
-
-function normalizeTaskPayload(payload: AgentPageTaskPayload): AgentPageTaskPayload & { requestId: string; taskType: string } {
-  return {
-    ...payload,
-    requestId: payload.requestId || genTaskId(),
-    taskType: payload.taskType || inferTaskType(payload),
-  }
-}
-
-function inferTaskType(payload: AgentPageTaskPayload): string {
-  const labels = payload.clientInput?.uiSnapshot?.labels ?? []
-  const known = labels.find((label) => /workbench|orchestrate|script|creative|page-tool/i.test(label))
-  if (known) return known
-  if (payload.title?.trim()) return payload.title.trim().split(':')[0] || 'agent_task'
-  return 'agent_task'
-}
-
-function compactRun(run: AgentRun): AgentRun
-function compactRun(run: AgentPageTaskRun | undefined): AgentPageTaskRun | undefined
-function compactRun(run: AgentPageTaskRun | undefined): AgentPageTaskRun | undefined {
-  if (!run) return undefined
-  if (!('steps' in run)) return run
-  return {
-    ...run,
-    steps: run.steps.map((step) => ({
-      ...step,
-      args: undefined,
-      result: undefined,
-    })),
-    traceEvents: [],
-  }
-}
-
-function defaultConversationProviderSessionState(conversationId: string): AgentConversationProviderSessionState {
-  return {
-    conversationId,
-    loading: false,
-    building: false,
-    approving: false,
-    stopping: false,
-    stopRequested: false,
-    updatedAt: Date.now(),
-  }
-}
-
-function defaultConversationRuntimeState(conversationId: string): AgentConversationRuntimeState {
-  return {
-    conversationId,
-    loading: false,
-    building: false,
-    approving: false,
-    stopping: false,
-    stopRequested: false,
-    updatedAt: Date.now(),
-  }
-}
+export {
+  pageTaskStatusFromProviderSession,
+} from '@/features/agent/state/agentSessionTaskModel'
+export type {
+  AgentPageTaskPayload,
+  AgentPageTaskRun,
+  AgentPageTaskRunningPatch,
+  AgentPageTaskState,
+  AgentPageTaskStatus,
+  AgentPageTaskThread,
+  AgentTaskRenderMode,
+} from '@/features/agent/state/agentSessionTaskModel'
+export type {
+  AgentConversationRuntimePatch,
+  AgentConversationRuntimeState,
+  AgentConversationThreadBinding,
+  AgentStandaloneTaskState,
+} from '@/features/agent/state/agentSessionRuntimeModel'
+export {
+  EMPTY_CONVERSATION_WORKSPACE,
+} from '@/features/agent/state/agentSessionRuntimeModel'
 
 function activeConversationIdForUser(state: Pick<AgentSessionStore, 'activeConversationIdsByUser'>, userId: string): string | null {
   return activeAgentConversationIdForUser(state, userId)
 }
-
-function persistedAgentSessionState(state: AgentSessionStore): PersistedAgentSessionStore {
-  return {
-    activeConversationIdsByUser: state.activeConversationIdsByUser,
-    conversationsById: state.conversationsById,
-    workspacesByUser: state.workspacesByUser,
-  }
-}
-
-type PersistedAgentSessionStore = Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'conversationsById' | 'workspacesByUser'>
 
 export const useAgentSessionStore = create<AgentSessionStore>()(
   persist(
@@ -279,7 +66,6 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       pageTasks: {},
       conversationThreadBindings: {},
       conversationRuntimeStates: {},
-      conversationProviderSessionStates: {},
       standaloneTasks: {},
 
       enqueuePageTask: (payload) => {
@@ -378,28 +164,18 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               },
             }
             : {}),
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              ...(input.sessionId?.trim() ? { sessionId: input.sessionId.trim() } : {}),
-              ...(title ? { title } : {}),
-              ...(threadId ? { threadId } : {}),
-              loading: false,
-              building: false,
-              updatedAt: Date.now(),
-            },
-          },
         }))
         return conversationId
       },
 
       removeProviderSessionConversation: (userId, conversationId) => {
-        get().clearConversationProviderSessionState(conversationId)
         set((state) => {
           const workspacesByUser = { ...state.workspacesByUser }
           const conversationsById = removeAgentConversationRegistryRecord(state.conversationsById, conversationId)
+          const conversationThreadBindings = { ...state.conversationThreadBindings }
+          const conversationRuntimeStates = { ...state.conversationRuntimeStates }
+          delete conversationThreadBindings[conversationId]
+          delete conversationRuntimeStates[conversationId]
           if (workspacesByUser[userId]?.[conversationId]) {
             workspacesByUser[userId] = { ...workspacesByUser[userId] }
             delete workspacesByUser[userId][conversationId]
@@ -410,7 +186,12 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               [userId]: activeConversationIdForUser(state, userId) === conversationId ? null : activeConversationIdForUser(state, userId),
             },
             conversationsById,
+            conversationThreadBindings,
+            conversationRuntimeStates,
             workspacesByUser,
+            pageTasks: Object.fromEntries(
+              Object.entries(state.pageTasks).filter(([, task]) => task.conversationId !== conversationId),
+            ),
           }
         })
       },
@@ -441,15 +222,6 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               },
             }
             : state.conversationsById,
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              title: trimmed,
-              updatedAt: Date.now(),
-            },
-          },
         }))
       },
 
@@ -607,16 +379,6 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               updatedAt: now,
             },
           },
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              threadId: providerThreadId,
-              ...(providerSessionTreeId ? { sessionId: providerSessionTreeId } : {}),
-              updatedAt: now,
-            },
-          },
         }
       }),
 
@@ -651,95 +413,12 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               updatedAt: now,
             },
           },
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              ...patch,
-              ...(patch.activeRunId ? { runId: patch.activeRunId } : {}),
-              updatedAt: now,
-            },
-          },
         }
       }),
-
-      clearConversationProviderSessionState: (conversationId) => set((state) => {
-        const conversationProviderSessionStates = { ...state.conversationProviderSessionStates }
-        const conversationThreadBindings = { ...state.conversationThreadBindings }
-        const conversationRuntimeStates = { ...state.conversationRuntimeStates }
-        delete conversationProviderSessionStates[conversationId]
-        delete conversationThreadBindings[conversationId]
-        delete conversationRuntimeStates[conversationId]
-        const conversationsById = removeAgentConversationRegistryRecord(state.conversationsById, conversationId)
-        return {
-          conversationsById,
-          conversationProviderSessionStates,
-          conversationThreadBindings,
-          conversationRuntimeStates,
-          pageTasks: Object.fromEntries(
-            Object.entries(state.pageTasks).filter(([, task]) => task.conversationId !== conversationId),
-          ),
-        }
-      }),
-
-      setConversationProviderSessionState: (conversationId, patch) => set((state) => {
-        const sessionId = patch.sessionId ?? state.conversationProviderSessionStates[conversationId]?.sessionId
-        const threadId = patch.threadId ?? state.conversationProviderSessionStates[conversationId]?.threadId
-        const now = Date.now()
-        return {
-          conversationThreadBindings: threadId
-            ? {
-              ...state.conversationThreadBindings,
-              [conversationId]: {
-                ...(state.conversationThreadBindings[conversationId] ?? {}),
-                conversationId,
-                providerThreadId: threadId,
-                ...(sessionId ? { providerSessionTreeId: sessionId } : {}),
-                updatedAt: now,
-              },
-            }
-            : state.conversationThreadBindings,
-          conversationRuntimeStates: {
-            ...state.conversationRuntimeStates,
-            [conversationId]: {
-              ...defaultConversationRuntimeState(conversationId),
-              ...(state.conversationRuntimeStates[conversationId] ?? {}),
-              loading: patch.loading ?? state.conversationRuntimeStates[conversationId]?.loading ?? false,
-              building: patch.building ?? state.conversationRuntimeStates[conversationId]?.building ?? false,
-              approving: patch.approving ?? state.conversationRuntimeStates[conversationId]?.approving ?? false,
-              stopping: patch.stopping ?? state.conversationRuntimeStates[conversationId]?.stopping ?? false,
-              stopRequested: patch.stopRequested ?? state.conversationRuntimeStates[conversationId]?.stopRequested ?? false,
-              ...(patch.run ? { run: compactRun(patch.run), activeRunId: patch.run.id } : {}),
-              ...(patch.runId ? { activeRunId: patch.runId } : {}),
-              ...(patch.status !== undefined ? { status: patch.status } : {}),
-              ...(patch.error !== undefined ? { error: patch.error } : {}),
-              updatedAt: now,
-            },
-          },
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              ...patch,
-              ...(sessionId ? { sessionId } : {}),
-              updatedAt: now,
-            },
-          },
-        }
-      }),
-
-      setConversationProviderSessionId: (_userId, conversationId, sessionId) => {
-        get().setConversationProviderSessionTreeId(conversationId, sessionId)
-      },
-
-      setConversationProviderThreadId: (_userId, conversationId, threadId) => {
-        get().setConversationProviderThreadBindingId(conversationId, threadId)
-      },
 
       setConversationRun: (conversationId, run, patch = {}) => set((state) => {
-        const sessionId = patch.sessionId ?? run.sessionId ?? state.conversationProviderSessionStates[conversationId]?.sessionId
+        const { providerSessionTreeId: patchProviderSessionTreeId, ...runtimePatch } = patch
+        const providerSessionTreeId = patchProviderSessionTreeId ?? run.sessionId ?? state.conversationThreadBindings[conversationId]?.providerSessionTreeId
         const now = Date.now()
         return {
           conversationsById: state.conversationsById[conversationId]
@@ -748,7 +427,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               [conversationId]: {
                 ...state.conversationsById[conversationId],
                 providerThreadId: run.threadId || state.conversationsById[conversationId].providerThreadId,
-                ...(sessionId ? { providerSessionId: sessionId } : {}),
+                ...(providerSessionTreeId ? { providerSessionId: providerSessionTreeId } : {}),
                 activeRunId: run.id,
                 lastRunId: run.id,
                 status: run.status,
@@ -763,7 +442,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 ...(state.conversationThreadBindings[conversationId] ?? {}),
                 conversationId,
                 providerThreadId: run.threadId,
-                ...(sessionId ? { providerSessionTreeId: sessionId } : {}),
+                ...(providerSessionTreeId ? { providerSessionTreeId } : {}),
                 updatedAt: now,
               },
             }
@@ -773,23 +452,9 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
             [conversationId]: {
               ...defaultConversationRuntimeState(conversationId),
               ...(state.conversationRuntimeStates[conversationId] ?? {}),
-              ...patch,
+              ...runtimePatch,
               run: compactRun(run) as AgentRun,
               activeRunId: run.id,
-              status: run.status,
-              updatedAt: now,
-            },
-          },
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              ...patch,
-              run: compactRun(run),
-              runId: run.id,
-              ...(sessionId ? { sessionId } : {}),
-              threadId: run.threadId,
               status: run.status,
               updatedAt: now,
             },
@@ -797,25 +462,9 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
 
-      clearConversationProviderSessionProjection: (conversationId) => set((state) => {
-        const conversationProviderSessionStates = { ...state.conversationProviderSessionStates }
-        const conversationRuntimeStates = { ...state.conversationRuntimeStates }
-        delete conversationProviderSessionStates[conversationId]
-        delete conversationRuntimeStates[conversationId]
-        return { conversationProviderSessionStates, conversationRuntimeStates }
-      }),
-
-      setProviderThreadId: (conversationId, threadId) => {
-        get().setConversationProviderThreadBindingId(conversationId, threadId)
-      },
-
-      setConversationSessionId: (conversationId, sessionId) => {
-        get().setConversationProviderSessionTreeId(conversationId, sessionId)
-      },
-
       setConversationProviderThreadBindingId: (conversationId, providerThreadId) => {
         const sessionId = get().conversationThreadBindings[conversationId]?.providerSessionTreeId
-          ?? get().conversationProviderSessionStates[conversationId]?.sessionId
+          ?? get().conversationsById[conversationId]?.providerSessionId
         get().bindConversationToProviderThread({
           conversationId,
           providerThreadId,
@@ -824,27 +473,31 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       },
 
       setConversationProviderSessionTreeId: (conversationId, providerSessionTreeId) => {
+        const sessionId = providerSessionTreeId.trim()
+        if (!sessionId) return
         const threadId = get().conversationThreadBindings[conversationId]?.providerThreadId
-          ?? get().conversationProviderSessionStates[conversationId]?.threadId
         if (threadId) {
           get().bindConversationToProviderThread({
             conversationId,
             providerThreadId: threadId,
-            providerSessionTreeId,
+            providerSessionTreeId: sessionId,
           })
           return
         }
-        set((state) => ({
-          conversationProviderSessionStates: {
-            ...state.conversationProviderSessionStates,
-            [conversationId]: {
-              ...defaultConversationProviderSessionState(conversationId),
-              ...(state.conversationProviderSessionStates[conversationId] ?? {}),
-              sessionId: providerSessionTreeId,
-              updatedAt: Date.now(),
+        set((state) => {
+          const conversation = state.conversationsById[conversationId]
+          if (!conversation) return {}
+          return {
+            conversationsById: {
+              ...state.conversationsById,
+              [conversationId]: {
+                ...conversation,
+                providerSessionId: sessionId,
+                updatedAt: Date.now(),
+              },
             },
-          },
-        }))
+          }
+        })
       },
 
       startStandaloneTask: ({ taskId, taskType, title, prompt }) => set((state) => {
@@ -919,29 +572,3 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
     },
   ),
 )
-
-function isTerminalAgentPageTaskRun(run: AgentPageTaskRun): boolean {
-  return run.status === 'completed'
-    || run.status === 'completed_with_warnings'
-    || run.status === 'failed'
-    || run.status === 'cancelled'
-}
-
-export function pageTaskStatusFromProviderSession(
-  payload: { status?: 'completed' | 'error' | 'cancelled'; run?: AgentPageTaskRun },
-  currentStatus: AgentPageTaskStatus,
-): AgentPageTaskStatus {
-  if (payload.status) return payload.status
-  if (!payload.run) return currentStatus === 'queued' ? 'claimed' : currentStatus
-  switch (payload.run.status) {
-    case 'completed':
-    case 'completed_with_warnings':
-      return 'completed'
-    case 'failed':
-      return 'error'
-    case 'cancelled':
-      return 'cancelled'
-    default:
-      return currentStatus === 'queued' ? 'claimed' : currentStatus
-  }
-}

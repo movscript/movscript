@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type FileSystemStorage struct {
@@ -133,6 +135,31 @@ func (s *FileSystemStorage) GetObject(ctx context.Context, key string, start, en
 }
 
 func (s *FileSystemStorage) Backend() string { return "filesystem" }
+
+func (s *FileSystemStorage) Health(ctx context.Context) providercontract.ProviderHealth {
+	health := providercontract.ProviderHealth{
+		Type:     providercontract.TypeBlobStorage,
+		Adapter:  providercontract.AdapterFilesystem,
+		Assembly: providercontract.AssemblyStartup,
+		Status:   providercontract.HealthStatusOK,
+		Message:  "filesystem storage root is writable",
+	}
+	if err := ctx.Err(); err != nil {
+		health.Status = providercontract.HealthStatusError
+		health.Message = err.Error()
+		return health
+	}
+	if strings.TrimSpace(s.root) == "" {
+		health.Status = providercontract.HealthStatusMissingConfig
+		health.Message = "filesystem storage root is required"
+		return health
+	}
+	if err := os.MkdirAll(s.root, 0o755); err != nil {
+		health.Status = providercontract.HealthStatusError
+		health.Message = fmt.Sprintf("filesystem storage root is not writable: %v", err)
+	}
+	return health
+}
 
 func (s *FileSystemStorage) pathForKey(key string) (string, error) {
 	key = strings.TrimSpace(key)

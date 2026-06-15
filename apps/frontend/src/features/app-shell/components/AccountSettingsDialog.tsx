@@ -11,17 +11,16 @@ import {
   AppSidebarNav,
   AppSidebarNavItemContent,
   AppSidebarShell,
-  Button,
   PanelResizeHandle,
-  useResizablePanel,
-} from '@movscript/ui'
+  useResizablePanel
+} from '@movscript/ui/layout'
+import { Button } from '@movscript/ui/primitives'
 
 import type { AccountSettingsDialogTab } from '@/features/app-shell/application/appShellDialogStore'
 import OrgSelectPage from '@/features/organization/components/OrgSelectPage'
 import { AppSettingsPanel } from '@/features/settings/components/AppSettingsPage'
 import { UserProfilePanel } from '@/features/user/components/UserProfilePage'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
@@ -82,7 +81,6 @@ export function AccountSettingsPageSidebar({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const currentUser = useUserStore((s) => s.currentUser)
-  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const runtimeTabs = runtimeNavItems
     .filter((item) => (item.section ?? 'manage') === 'manage')
     .map((item) => ({ key: `runtime:${item.to}` as AccountSettingsPageTab, icon: item.icon, label: item.label }))
@@ -108,6 +106,8 @@ export function AccountSettingsPageSidebar({
               type="button"
               variant="ghost"
               size="sm"
+              fullWidth
+              align="start"
               className="account-settings-page__nav-button"
               data-active={activeTab === tab.key ? 'true' : undefined}
               onClick={() => selectTab(tab.key)}
@@ -132,7 +132,7 @@ export function AccountSettingsPageSidebar({
               icon={ExternalLink}
               label={t('sidebar.items.adminConsole')}
               className="account-settings-page__admin-button"
-              onClick={() => void openAdminConsole(apiBaseURL)}
+              onClick={() => void openAdminConsole()}
             />
           ) : null}
         </AppSidebarFooter>

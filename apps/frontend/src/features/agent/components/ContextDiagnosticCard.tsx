@@ -21,8 +21,8 @@ import {
   AgentDiagnosticToolItem,
   AgentDiagnosticToolName,
   AgentDiagnosticToolText,
-  AgentDiagnosticWarnings,
-} from '@movscript/ui'
+  AgentDiagnosticWarnings
+} from '@movscript/ui/business/agent'
 import { useTranslation } from 'react-i18next'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { toolApprovalLabel } from '@/features/agent/domain/agentRunUi'

@@ -1,5 +1,4 @@
 export * from "./handles";
-export * from "./core";
 export * from "./ports";
 export * from "./result";
 export * from "./prompt";

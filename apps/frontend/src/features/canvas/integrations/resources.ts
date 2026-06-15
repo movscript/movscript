@@ -3,6 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '@/shared/infrastructure/api'
 import { toast } from '@/shared/ui/toastStore'
+import { canvasResourceKeys } from '@/features/resources/application/resourceQueryKeys'
+import {
+  canvasResourceChangedResult,
+  invalidateResourceMutationResult,
+  resourceLibraryChangedResult,
+} from '@/features/resources/application/resourceMutationInvalidation'
 import type { NodeType, PaginatedResponse, RawResource } from '@/types'
 import {
   canvasResourceMatchesSearch,
@@ -44,7 +50,7 @@ export function useCanvasResourceIntegration({
   const [removingRunResultResourceId, setRemovingRunResultResourceId] = useState<number>()
 
   const { data: nodeResourcePage } = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['canvas-node-resources'],
+    queryKey: canvasResourceKeys.nodeResources,
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 200, type: 'image,video,text' } }).then((r) => r.data),
   })
 
@@ -59,9 +65,9 @@ export function useCanvasResourceIntegration({
     onMutate: (resourceId) => {
       setRemovingRunResultResourceId(resourceId)
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['resources'] })
-      qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
+    onSuccess: (_, resourceId) => {
+      invalidateResourceMutationResult(qc, resourceLibraryChangedResult({ changedIds: [resourceId] }))
+      invalidateResourceMutationResult(qc, canvasResourceChangedResult({ changedIds: [resourceId] }))
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || err?.message || removeFailedMessage)

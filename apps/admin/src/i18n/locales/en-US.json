@@ -2249,6 +2249,10 @@
       "gemini": {
         "name": "Google Gemini",
         "description": "Google AI models for Gemini text chat, Imagen image generation, and Veo video generation."
+      },
+      "elevenlabs": {
+        "name": "ElevenLabs",
+        "description": "ElevenLabs voice models for text-to-speech and transcription."
       }
     },
     "credentialFields": {
@@ -2280,7 +2284,12 @@
       "imageEdit": "Image Edit",
       "video": "Text to Video",
       "videoI2V": "Image to Video",
-      "videoV2V": "Video to Video"
+      "videoV2V": "Video to Video",
+      "audio": "Audio",
+      "audioTTS": "Text to Speech",
+      "audioTranscribe": "Transcription",
+      "subtitleAlign": "Subtitle Alignment",
+      "renderVideo": "Video Rendering"
     },
     "params": {
       "title": "Generation Parameters",
@@ -2362,7 +2371,13 @@
         "optimize_prompt_mode": "Prompt Optimization",
         "max_tokens": "Max Tokens",
         "temperature": "Temperature",
-        "json_mode": "JSON Mode"
+        "json_mode": "JSON Mode",
+        "stability": "Stability",
+        "similarity_boost": "Similarity Boost",
+        "use_speaker_boost": "Speaker Boost",
+        "speed": "Speed",
+        "diarize": "Diarization",
+        "tag_audio_events": "Audio Event Tags"
       }
     },
     "models": {
@@ -2426,6 +2441,35 @@
       "runtimeHealthSaturated": "Saturated",
       "runtimeHealthDegraded": "Degraded",
       "runtimeHealthHealthy": "Healthy",
+      "startupAssemblyTitle": "Startup assembly",
+      "startupAssemblyHint": "These backend providers are assembled at process startup. Saved provider config drafts are applied after restart.",
+      "providerInstanceConfig": "Config {{configured}}/{{total}}",
+      "providerInstanceSecrets": "Secrets {{configured}}/{{total}}",
+      "requiresRestart": "Requires restart",
+      "managedBy": "Managed by {{managedBy}}",
+      "collapseConfig": "Collapse",
+      "secretConfigured": "configured",
+      "secretKeepPlaceholder": "Leave blank to keep current secret",
+      "applyConfig": "Apply to startup",
+      "applyingConfig": "Applying",
+      "providerConfigApplied": "Startup env overlay updated. Restart backend to apply.",
+      "providerActivationModes": {
+        "local_backend_restart": "Next step: restart the local backend from the desktop app so Electron reloads this startup overlay.",
+        "deployment_rollout": "Next step: run your backend deployment rollout so the new startup overlay is loaded by the server process.",
+        "manual_restart": "Next step: restart the backend process that owns this startup profile."
+      },
+      "providerActivationActions": {
+        "restart_local_backend": "Action: restart local backend",
+        "rollout_backend_deployment": "Action: rollout backend deployment",
+        "restart_backend_process": "Action: restart backend process"
+      },
+      "providerActivationHost": "Activation host: {{host}}",
+      "providerActivationAutoApplyAvailable": "Automatic activation is available for this host.",
+      "providerActivationAutoApplyUnavailable": "Automatic activation is not wired yet; use the host-specific restart path.",
+      "providerActivationAutoApplyOpen": "Restart local backend",
+      "providerActivationAutoApplyRun": "Run deployment rollout",
+      "providerActivationAutoApplying": "Activating",
+      "providerActivationAutoApplyDone": "Activation request accepted.",
       "collapsePresets": "Collapse presets",
       "pickPreset": "Choose preset",
       "fetchFromApi": "Fetch from API",
@@ -2931,6 +2975,43 @@
     "settings": {
       "title": "System Settings",
       "description": "Control account registration policy, email verification, and SMTP delivery.",
+      "deployment": "Deployment and Provider Assembly",
+      "deploymentHint": "Shows the backend profile and built-in provider adapters assembled at startup.",
+      "deploymentUnavailable": "Deployment assembly is not available.",
+      "deploymentProfile": "Deployment profile",
+      "dependencyProfile": "Dependency profile",
+      "assemblyMode": "Assembly mode",
+      "supportedAdapters": "Supported adapters",
+      "providerType": "Provider type",
+      "providerAdapter": "Adapter",
+      "providerCapabilities": "Capabilities",
+      "providerSecrets": "Secrets",
+      "providerSecretsNone": "None",
+      "providerManagedBy": "Managed by",
+      "providerStatus": "Status",
+      "providerConfigured": "Configured",
+      "providerMissingConfig": "Missing config",
+      "deploymentProfiles": {
+        "personal-local": "Personal local",
+        "team-cloud": "Team cloud",
+        "custom": "Custom"
+      },
+      "assemblyModes": {
+        "startup": "Startup"
+      },
+      "providerManaged": {
+        "profile": "Profile",
+        "config": "Config"
+      },
+      "providerTypes": {
+        "database": "Database",
+        "blob_storage": "Blob storage",
+        "workspace_repository": "Workspace repository",
+        "ai_gateway": "AI gateway",
+        "cache": "Cache",
+        "media_processing": "Media runtime",
+        "agent_runtime": "Agent runtime"
+      },
       "registration": "Registration Policy",
       "openRegistration": "Allow self-service registration",
       "openRegistrationHint": "When disabled, new accounts must be created manually by an admin.",

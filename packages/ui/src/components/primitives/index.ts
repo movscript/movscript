@@ -93,6 +93,17 @@ export { Input, type InputProps } from "./input";
 export { KeyValue, type KeyValueProps } from "./key-value";
 export { Label, type LabelProps } from "./label";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
+export {
+  Frame,
+  FrameActions,
+  FrameBody,
+  FrameDescription,
+  FrameFooter,
+  FrameHeader,
+  FrameHeading,
+  FrameTitle,
+  type FrameProps
+} from "./frame";
 export { MetricCard, type MetricCardProps } from "./metric-card";
 export { Progress, type ProgressProps } from "./progress";
 export { RangeInput, type RangeInputProps } from "./range-input";

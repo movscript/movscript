@@ -25,6 +25,8 @@ export interface AgentUnifiedChatShellProps {
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   surface?: 'panel' | 'page'
   currentProject?: Project | null
+  composerWorkspaceContextLocked?: boolean
+  hideComposerWorkspaceProjectSelector?: boolean
 }
 
 export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
@@ -50,6 +52,8 @@ export function AgentUnifiedChatShell(props: AgentUnifiedChatShellProps) {
       host={props.host}
       surface={props.surface}
       currentProject={props.currentProject}
+      composerWorkspaceContextLocked={props.composerWorkspaceContextLocked}
+      hideComposerWorkspaceProjectSelector={props.hideComposerWorkspaceProjectSelector}
       showCollapse={props.showCollapse}
       onCollapse={props.onCollapse}
     />

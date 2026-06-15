@@ -10,6 +10,7 @@ import (
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -52,8 +53,9 @@ func IsUsageLimitExceeded(err error) bool {
 }
 
 type Service struct {
-	repo repository
-	ai   *ai.AIService
+	repo    repository
+	ai      *ai.AIService
+	routing providercontract.AIGatewayRoutingPolicy
 }
 
 func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
@@ -61,7 +63,11 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 	if len(aiService) > 0 {
 		svc = aiService[0]
 	}
-	return &Service{repo: newRepository(db), ai: svc}
+	service := &Service{repo: newRepository(db), ai: svc}
+	if svc != nil {
+		service.routing = svc
+	}
+	return service
 }
 
 type ListFilter = domainjob.ListFilter
@@ -168,7 +174,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
 
-	route, err := s.resolveGenerationModelRoute(input)
+	route, err := s.resolveGenerationModelRoute(ctx, input)
 	if err != nil {
 		return domainjob.Job{}, err
 	}
@@ -257,12 +263,15 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	return job, nil
 }
 
-func (s *Service) resolveGenerationModelRoute(input EnqueueInput) (ai.ModelRoute, error) {
+func (s *Service) resolveGenerationModelRoute(ctx context.Context, input EnqueueInput) (providercontract.AIGatewayModelRoute, error) {
+	if s.routing == nil {
+		return providercontract.AIGatewayModelRoute{}, errors.New("ai routing policy is required")
+	}
 	modelID := strings.TrimSpace(input.ModelID)
 	if modelID != "" {
-		return s.ai.ResolveGenerationModelRoute(modelID, input.JobType)
+		return s.routing.ResolveGatewayGenerationModelRoute(ctx, modelID, input.JobType)
 	}
-	return s.ai.ResolveModelRoute(ai.ModelRouteRequest{
+	return s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 		ModelConfigID: input.ModelConfigID,
 		Capability:    input.JobType,
 	})

@@ -186,8 +186,8 @@ function agentThreadSummaryFromAgentChatThread(thread: AgentChatThread): AgentTh
   const projectId = projectIdFromProviderSessionCwd(thread.cwd)
   return {
     id: thread.id,
-    ...(thread.providerSessionTreeId?.trim() || thread.sessionId?.trim()
-      ? { sessionId: thread.providerSessionTreeId?.trim() || thread.sessionId?.trim() }
+    ...(thread.providerSessionTreeId?.trim()
+      ? { sessionId: thread.providerSessionTreeId.trim() }
       : {}),
     title: thread.name?.trim() || preview || undefined,
     ...(projectId !== undefined ? { projectId } : {}),

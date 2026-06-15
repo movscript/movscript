@@ -16,13 +16,9 @@ export interface UseAgentCommitSendWorkspaceInput {
   cancelRequestedRunIdsRef: MutableRefObject<Set<string>>
   liveTraceEventsRef: CommitAgentSendWorkspaceDeps['liveTraceEventsRef']
   clearConversationWorkspace: CommitAgentSendWorkspaceDeps['clearConversationWorkspace']
-  setConversationSessionId?: CommitAgentSendWorkspaceDeps['setConversationSessionId']
   setConversationProviderSessionTreeId?: CommitAgentSendWorkspaceDeps['setConversationProviderSessionTreeId']
-  setConversationProviderSessionId?: CommitAgentSendWorkspaceDeps['setConversationProviderSessionId']
   setConversationProviderThreadBindingId?: CommitAgentSendWorkspaceDeps['setConversationProviderThreadBindingId']
-  setConversationProviderThreadId?: CommitAgentSendWorkspaceDeps['setConversationProviderThreadId']
   updateConversationTitle: CommitAgentSendWorkspaceDeps['updateConversationTitle']
-  setProviderThreadId?: CommitAgentSendWorkspaceDeps['setProviderThreadId']
   setPageTaskRunning: CommitAgentSendWorkspaceDeps['setPageTaskRunning']
   setConversationRun: CommitAgentSendWorkspaceDeps['setConversationRun']
   updateConversationRuntimeState: CommitAgentSendWorkspaceDeps['updateConversationRuntimeState']
@@ -54,13 +50,9 @@ export function useAgentCommitSendWorkspace({
   cancelRequestedRunIdsRef,
   liveTraceEventsRef,
   clearConversationWorkspace,
-  setConversationSessionId,
   setConversationProviderSessionTreeId,
-  setConversationProviderSessionId,
   setConversationProviderThreadBindingId,
-  setConversationProviderThreadId,
   updateConversationTitle,
-  setProviderThreadId,
   setPageTaskRunning,
   setConversationRun,
   updateConversationRuntimeState,
@@ -85,13 +77,9 @@ export function useAgentCommitSendWorkspace({
       cancelRequestedRunIds: cancelRequestedRunIdsRef.current,
       liveTraceEventsRef,
       clearConversationWorkspace,
-      setConversationSessionId,
       setConversationProviderSessionTreeId,
-      setConversationProviderSessionId,
       setConversationProviderThreadBindingId,
-      setConversationProviderThreadId,
       updateConversationTitle,
-      setProviderThreadId,
       setPageTaskRunning,
       setConversationRun,
       updateConversationRuntimeState,
@@ -125,15 +113,11 @@ export function useAgentCommitSendWorkspace({
     refetchProviderSessionHealth,
     resetStreamingAssistant,
     revokeAttachmentPreviewUrls,
-    setConversationSessionId,
     setConversationProviderSessionTreeId,
-    setConversationProviderSessionId,
     setConversationProviderThreadBindingId,
     setConversationRun,
     updateConversationRuntimeState,
-    setConversationProviderThreadId,
     setLiveTraceEvents,
-    setProviderThreadId,
     setMentionRange,
     setPageTaskRunning,
     setPendingAssistantState,

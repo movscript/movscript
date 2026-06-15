@@ -13,7 +13,7 @@ import {
 
 export async function mockGenerationCandidateTargets(page: Page) {
   const workspaceRoot = '/tmp/movscript-e2e-workspace'
-  const assetTargetPath = movScriptWorkspaceAssetPath({ id: 'asset_77', settingId: 'setting_1' })
+  const assetTargetPath = movScriptWorkspaceAssetPath({ id: 'asset_77', settingId: 'setting_1', settingStateId: 'state_1' })
   const keyframeTargetPath = movScriptContentUnitKeyframePath({ contentUnitId: 30, keyframeId: 88 })
   await page.addInitScript(({
     assetTargetPath,
@@ -39,6 +39,8 @@ export async function mockGenerationCandidateTargets(page: Page) {
         kind: 'asset',
         id: 'asset_77',
         project_id: 123,
+        setting_id: 'setting_1',
+        setting_state_id: 'state_1',
         title: '主视觉素材位',
         asset_kind: 'image',
         status: 'open',

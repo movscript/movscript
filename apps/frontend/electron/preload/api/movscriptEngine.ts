@@ -15,6 +15,9 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
+  | 'upsertMovScriptEngineWorkspaceContentUnit'
+  | 'selectMovScriptEngineWorkspaceCandidate'
+  | 'appendMovScriptEngineWorkspaceCandidate'
   | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
   | 'createMovScriptEngineWorkspaceKeyframeCandidate'
   | 'createMovScriptEngineContentCandidate'
@@ -40,6 +43,9 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     deleteMovScriptEngineWorkspaceEntity: (input) => ipcRenderer.invoke('movscript:engine-workspace-entity-delete', input),
     saveMovScriptEngineWorkspaceProductionSnapshot: (input) => ipcRenderer.invoke('movscript:engine-workspace-production-snapshot-save', input),
     upsertMovScriptEngineWorkspaceProjectStandards: (input) => ipcRenderer.invoke('movscript:engine-workspace-project-standards-upsert', input),
+    upsertMovScriptEngineWorkspaceContentUnit: (input) => ipcRenderer.invoke('movscript:engine-workspace-content-unit-upsert', input),
+    selectMovScriptEngineWorkspaceCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-candidate-select', input),
+    appendMovScriptEngineWorkspaceCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-candidate-append', input),
     createMovScriptEngineWorkspaceAssetSlotCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-asset-slot-candidate-create', input),
     createMovScriptEngineWorkspaceKeyframeCandidate: (input) => ipcRenderer.invoke('movscript:engine-workspace-keyframe-candidate-create', input),
     createMovScriptEngineContentCandidate: (input) => ipcRenderer.invoke('movscript:engine-content-candidate-create', input),

@@ -52,9 +52,6 @@ export interface ProjectStandardsWorkspaceArtifactView {
   }
 }
 
-/** @deprecated Use ProjectStandardsWorkspaceArtifactView. */
-export type ProjectStandardsWorkspaceWorkspaceView = ProjectStandardsWorkspaceArtifactView
-
 export interface ProjectStyleWorkspaceRow {
   key: string
   label: string
@@ -203,9 +200,6 @@ export function parseProjectStandardsWorkspaceArtifact(workspace: WorkspaceArtif
     return null
   }
 }
-
-/** @deprecated Use parseProjectStandardsWorkspaceArtifact. */
-export const parseProjectStandardsWorkspaceWorkspace = parseProjectStandardsWorkspaceArtifact
 
 export function buildProjectStyleApplyPayload(workspace: WorkspaceArtifact) {
   const content = JSON.parse(workspace.content) as Record<string, unknown>

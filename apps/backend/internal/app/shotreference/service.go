@@ -13,6 +13,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -44,14 +45,21 @@ func (e StageError) Unwrap() error {
 type Service struct {
 	repo      repository
 	resources *appresource.Service
-	vectors   domainshotreference.VectorStore
+	vectors   providercontract.VectorIndexProvider
 }
 
 func NewService(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, cacheStore ...cache.Cache) *Service {
+	return NewServiceWithVectorIndex(db, store, verifier, NewLocalVectorIndexProvider(db), cacheStore...)
+}
+
+func NewServiceWithVectorIndex(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, vectors providercontract.VectorIndexProvider, cacheStore ...cache.Cache) *Service {
+	if vectors == nil {
+		vectors = NewLocalVectorIndexProvider(db)
+	}
 	return &Service{
 		repo:      &gormRepository{db: db},
 		resources: appresource.NewService(db, store, verifier, cacheStore...),
-		vectors:   NewLocalVectorStore(db),
+		vectors:   vectors,
 	}
 }
 
@@ -296,7 +304,7 @@ func (s *Service) Delete(ctx context.Context, id uint, input domainshotreference
 		return ErrNotFound
 	}
 	if s.vectors != nil {
-		if err := s.vectors.DeleteByReference(ctx, id); err != nil {
+		if err := s.vectors.Delete(ctx, providercontract.VectorDocumentRef{ReferenceID: id}); err != nil {
 			return err
 		}
 	}
@@ -307,19 +315,44 @@ func (s *Service) SearchVectorDocuments(ctx context.Context, request domainshotr
 	if s.vectors == nil {
 		return nil, nil
 	}
-	return s.vectors.Search(ctx, request)
+	results, err := s.vectors.Search(ctx, providercontract.VectorSearchRequest{
+		Query:     request.Query,
+		Locale:    request.Locale,
+		SourceIDs: request.SourceIDs,
+		Filters:   request.Filters,
+		TopK:      request.TopK,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domainshotreference.VectorSearchResult, 0, len(results))
+	for _, result := range results {
+		out = append(out, domainshotreference.VectorSearchResult{
+			Document: vectorDocumentFromProviderContract(result.Document),
+			Score:    result.Score,
+		})
+	}
+	return out, nil
 }
 
 func (s *Service) VectorStats(ctx context.Context) (VectorStoreStats, error) {
 	stats := VectorStoreStats{ByKind: map[string]int64{}, ByLocale: map[string]int64{}, ByEmbeddingModel: map[string]int64{}}
 	if provider, ok := s.vectors.(interface {
-		Stats(context.Context) (VectorStoreStats, error)
+		LocalStats(context.Context) (VectorStoreStats, error)
 	}); ok {
-		provided, err := provider.Stats(ctx)
+		provided, err := provider.LocalStats(ctx)
 		if err != nil {
 			return stats, err
 		}
 		stats = provided
+	} else if s.vectors != nil {
+		provided, err := s.vectors.Stats(ctx)
+		if err != nil {
+			return stats, err
+		}
+		stats.Documents = provided.Documents
+		stats.ByLocale = provided.Namespaces
+		stats.ByEmbeddingModel = provided.EmbeddingModels
 	}
 	if stats.ByKind == nil {
 		stats.ByKind = map[string]int64{}
@@ -397,10 +430,8 @@ func (s *Service) AdminReindexVectorDocuments(ctx context.Context) (int, error) 
 	if err != nil {
 		return 0, err
 	}
-	if resetter, ok := s.vectors.(interface {
-		DeleteAll(context.Context) error
-	}); ok {
-		if err := resetter.DeleteAll(ctx); err != nil {
+	if s.vectors != nil {
+		if _, err := s.vectors.Rebuild(ctx, providercontract.VectorRebuildRequest{Reset: true}); err != nil {
 			return 0, err
 		}
 	}
@@ -416,11 +447,11 @@ func (s *Service) indexReferenceVectors(ctx context.Context, reference domainsho
 	if s.vectors == nil {
 		return nil
 	}
-	if err := s.vectors.DeleteByReference(ctx, reference.ID); err != nil {
+	if err := s.vectors.Delete(ctx, providercontract.VectorDocumentRef{ReferenceID: reference.ID}); err != nil {
 		return err
 	}
 	for _, document := range domainshotreference.BuildVectorDocuments(reference, "default", "zh-CN") {
-		if err := s.vectors.Upsert(ctx, document); err != nil {
+		if err := s.vectors.Upsert(ctx, vectorDocumentToProviderContract(document)); err != nil {
 			return err
 		}
 	}

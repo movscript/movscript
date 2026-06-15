@@ -16,17 +16,28 @@ import (
 	"github.com/movscript/movscript/internal/infra/observability"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
 type DebugHandler struct {
-	db       *gorm.DB
-	service  *debugapp.Service
-	settings *adminsettings.Service
+	db            *gorm.DB
+	service       *debugapp.Service
+	settings      *adminsettings.Service
+	gatewayHealth providercontract.AIGatewayHealthProbe
 }
 
 func NewDebugHandler(db *gorm.DB, encryptionKey []byte) *DebugHandler {
-	return &DebugHandler{db: db, service: debugapp.NewService(db, encryptionKey), settings: adminsettings.NewService(db)}
+	return NewDebugHandlerWithGatewayHealth(db, encryptionKey, nil)
+}
+
+func NewDebugHandlerWithGatewayHealth(db *gorm.DB, encryptionKey []byte, gatewayHealth providercontract.AIGatewayHealthProbe) *DebugHandler {
+	return &DebugHandler{
+		db:            db,
+		service:       debugapp.NewService(db, encryptionKey),
+		settings:      adminsettings.NewService(db),
+		gatewayHealth: gatewayHealth,
+	}
 }
 
 // RawCall sends an arbitrary HTTP request from the backend and returns full details.
@@ -309,14 +320,27 @@ func (h *DebugHandler) SystemHealth(c *gin.Context) {
 }
 
 func (h *DebugHandler) ModelRuntimeHealth(c *gin.Context) {
-	items, err := ai.RuntimeProviderHealthSnapshot(h.db)
+	var items any
+	var total int
+	var err error
+	if h.gatewayHealth != nil {
+		var health []providercontract.AIGatewayRuntimeHealth
+		health, err = h.gatewayHealth.ListGatewayRuntimeHealth(c.Request.Context())
+		items = health
+		total = len(health)
+	} else {
+		var health []ai.RuntimeProviderHealth
+		health, err = ai.RuntimeProviderHealthSnapshot(h.db)
+		items = health
+		total = len(health)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Internal("读取模型运行时健康状态失败"))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"items": items,
-		"total": len(items),
+		"total": total,
 	})
 }
 

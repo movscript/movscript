@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, Label } from '@movscript/ui'
+import { Button, Input, Label } from '@movscript/ui/primitives'
 import { api } from '@/lib/api'
 import { activeUserOptionLabel } from '@/lib/adminPickerLabels'
 import type { PaginatedResponse, User } from '@/types'

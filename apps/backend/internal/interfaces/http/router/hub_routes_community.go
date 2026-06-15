@@ -1,5 +1,3 @@
-//go:build !runtime_overlay
-
 package router
 
 import "github.com/gin-gonic/gin"

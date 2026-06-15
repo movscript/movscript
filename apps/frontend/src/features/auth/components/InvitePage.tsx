@@ -6,14 +6,16 @@ import { Bot, Building2, LayoutDashboard } from 'lucide-react'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { api } from '@/shared/infrastructure/api'
-import { AppIconFrame, AppInlineError, Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Label } from '@movscript/ui'
+import { authKeys } from '@/features/auth/application/authQueryKeys'
+import { AppIconFrame, AppInlineError } from '@movscript/ui/business/app'
+import { Button } from '@movscript/ui/primitives'
+import { Input } from '@movscript/ui/primitives'
+import { Label } from '@movscript/ui/primitives'
 import { translateApiError } from '@/shared/infrastructure/apiError'
 import type { AuthSession } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { WorkModePrompt, type WorkModeChoice } from '@movscript/ui'
+import { WorkModePrompt, type WorkModeChoice } from '@movscript/ui/business/app'
 
 export default function InvitePage() {
   const { t } = useTranslation()
@@ -33,7 +35,7 @@ export default function InvitePage() {
   const [pendingSession, setPendingSession] = useState<(AuthSession & { org_id?: number }) | null>(null)
 
   const { data: invite, isLoading, isError } = useQuery({
-    queryKey: ['invitation', token],
+    queryKey: authKeys.invitation(token),
     queryFn: () => api.get(`/invitations/${token}`).then((r) => r.data),
     enabled: !!token,
     retry: false,
@@ -74,7 +76,7 @@ export default function InvitePage() {
     }
   }
 
-  function completeInviteLogin(mode: WorkModeChoice) {
+  async function completeInviteLogin(mode: WorkModeChoice) {
     if (!pendingSession) return
     setWorkMode(mode)
     setSession(pendingSession)
@@ -112,15 +114,15 @@ export default function InvitePage() {
           <p className="mb-2 type-body font-medium text-primary">Movscript</p>
           <WorkModePrompt
             agentIcon={Bot}
-            detailIcon={LayoutDashboard}
+            projectIcon={LayoutDashboard}
             title={t('auth.workModeTitle')}
             description={t('auth.workModeDescription')}
             agentTitle={t('appSettings.agentWorkMode')}
             agentDescription={t('onboarding.workMode.agentDescription')}
             agentAction={t('onboarding.workMode.agentAction')}
-            detailTitle={t('appSettings.detailWorkMode')}
-            detailDescription={t('onboarding.workMode.detailDescription')}
-            detailAction={t('onboarding.workMode.detailAction')}
+            projectTitle={t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
+            projectDescription={t('onboarding.workMode.projectDescription')}
+            projectAction={t('onboarding.workMode.projectAction')}
             onSelect={completeInviteLogin}
           />
         </div>

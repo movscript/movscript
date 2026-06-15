@@ -35,8 +35,8 @@ test('provider session status light controller shares one stream per target acro
   assert.equal(client.sessionStreams.length, 1)
   assert.equal(client.threadStreams.length, 1)
   assert.deepEqual(client.sessionClientInputs, [{ sessionId: 'session_1' }, { sessionId: 'session_1' }])
-  client.sessionStreams[0]?.emit(statusLightEvent({ state: 'waiting', label: '等待', detail: 'Provider 会话正在等待外部信息。' }))
-  client.threadStreams[0]?.emit(statusLightEvent({ state: 'active', label: '运行', detail: 'Provider 会话正在触发 run 循环。' }))
+  client.sessionStreams[0]?.emit(statusLightEvent({ state: 'waiting', label: '等待', detail: 'Runtime 会话正在等待外部信息。' }))
+  client.threadStreams[0]?.emit(statusLightEvent({ state: 'active', label: '运行', detail: 'Runtime 会话正在触发 run 循环。' }))
   assert.equal(statuses['session:session_1']?.state, 'waiting')
   assert.equal(statuses['thread:thread_1']?.state, 'active')
 
@@ -79,7 +79,7 @@ test('provider session status light controller ignores non-status-light provider
   client.threadStreams[0]?.emit(asyncWorkStatusEvent())
   assert.equal(statuses['thread:thread_1'], undefined)
 
-  client.threadStreams[0]?.emit(statusLightEvent({ state: 'waiting', label: '等待', detail: 'Provider 会话正在等待外部信息。' }))
+  client.threadStreams[0]?.emit(statusLightEvent({ state: 'waiting', label: '等待', detail: 'Runtime 会话正在等待外部信息。' }))
   const statusLight = statuses['thread:thread_1'] as ProviderSessionStatusLight | undefined
   assert.equal(statusLight?.state, 'waiting')
   controller.stopAll()
@@ -114,7 +114,7 @@ test('provider session status light controller falls back to session streams whe
   await settle()
 
   assert.equal(client.sessionStreams.length, 1)
-  client.sessionStreams[0]?.emit(statusLightEvent({ state: 'stopped', label: '停止', detail: 'Provider 会话当前不会自行触发新的 run。' }))
+  client.sessionStreams[0]?.emit(statusLightEvent({ state: 'stopped', label: '停止', detail: 'Runtime 会话当前不会自行触发新的 run。' }))
   assert.equal(statuses['session:session_1']?.state, 'stopped')
   controller.stopAll()
 })

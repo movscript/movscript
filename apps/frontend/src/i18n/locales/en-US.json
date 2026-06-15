@@ -89,8 +89,8 @@
     "missingCredentialField": "Missing required credential: {{detail}}",
     "modelConfigNotFound": "Model config not found",
     "modelListingUnsupported": "This provider does not support model listing",
-    "noAIProviderAvailable": "No AI provider is available: {{detail}}",
-    "noAIProviderConfigured": "No AI provider is available. Add and enable a provider in AI configuration first.",
+    "noAIProviderAvailable": "No backend model route is available: {{detail}}",
+    "noAIProviderConfigured": "No backend model route is available. Ask an Admin to enable AI Gateway providers and model routes.",
     "noStorageKey": "No storage key",
     "noTask": "No task found",
     "nodeNotFound": "Node not found",
@@ -137,7 +137,7 @@
     "loginFailed": "Login failed",
     "registerFailed": "Registration failed",
     "workModeTitle": "Choose the work mode for this session",
-    "workModeDescription": "You can choose a fresh entry point each time you sign in. Use the mode icon in the top right whenever you need to switch later.",
+    "workModeDescription": "You can choose a fresh entry point each time you sign in. You can still adjust the default entry in App Settings later.",
     "passwordMismatch": "Passwords do not match",
     "email": "Email",
     "sendCode": "Send code",
@@ -177,13 +177,13 @@
     "localFailed": "Failed to create local workspace",
     "workMode": {
       "title": "Choose a Work Mode First",
-      "description": "Pick the entry point that fits how you work. You can switch later with the mode icon in the top right.",
+      "description": "Pick the entry point that fits how you work. You can still adjust the default entry in App Settings later.",
       "agentDescription": "Start from a goal. Let Agent read project context, propose plans, and move workspaces, workspaces, and generation work forward.",
-      "detailDescription": "Use the full sidebar, project object pages, and focused workbenches for manual review, refinement, and batch management.",
+      "projectDescription": "Enter a project and focus on script editing, content orchestration, and project standards around one work.",
       "agentAction": "Start with Agent mode",
-      "detailAction": "Start with Detail mode",
+      "projectAction": "Start with Project mode",
       "selected": "Selected: {{mode}}",
-      "switchHint": "After you enter a project, the mode icon stays in the top right. Use it whenever you need to switch between Agent and detailed workbenches."
+      "switchHint": "After you enter a project, you can still adjust the default entry in App Settings."
     },
     "local": {
       "title": "Use Locally",
@@ -219,9 +219,11 @@
     "launchModeTitle": "Launch Mode",
     "launchModeHint": "Local launch requests system admin initialization during registration. Cloud launch only connects to the remote service.",
     "workModeTitle": "Work Mode",
-    "workModeHint": "Choose the main project workspace. Detail mode keeps the current workbench; Agent mode uses a fullscreen conversation-first entry.",
-    "detailWorkMode": "Detail Mode",
-    "detailWorkModeHelp": "Keep the existing sidebar, object pages, and workbenches.",
+    "workModeHint": "Choose the default work entry. The home page can still open every mode directly.",
+    "projectWorkMode": "Project Mode",
+    "projectWorkModeHelp": "Choose a project, then enter the overview before scripts, arrangement, and standards.",
+    "toolWorkMode": "Tool Mode",
+    "toolWorkModeHelp": "Open tools, resources, and jobs without a right-side AI conversation panel.",
     "agentWorkMode": "Agent Mode",
     "agentWorkModeHelp": "Open projects in a fullscreen Agent surface that puts conversation and task progress first.",
     "cloudMode": "Cloud Launch",
@@ -244,7 +246,7 @@
     "savedReloading": "Saved. Reloading the client...",
     "saved": "Saved.",
     "movScriptWorkspaceTitle": "MovScript Workspace",
-    "movScriptWorkspaceHint": "Choose the local MovScript project repository root. Source files live in productions/, scripts/, content_units/, and settings/; interpreted outputs live in .interpret/ and local config in .movscript/.",
+    "movScriptWorkspaceHint": "Choose the local MovScript project repository root. Source files live in productions/, scripts/, content_units/, and settings/; local config lives in .movscript/.",
     "movScriptWorkspaceDir": "Workspace directory",
     "movScriptWorkspaceDirHelp": "Leave empty to use the desktop default. When set, this directory is the workspace root and .movscript is created inside it.",
     "movScriptWorkspaceDirPlaceholder": "/Users/me/Projects/story-workspace",
@@ -253,8 +255,17 @@
     "movScriptWorkspaceUseDefault": "Use Default Directory",
     "returnToLogin": "Back to login",
     "adminConsole": "Admin Console",
+    "adminConsoleHost": "Desktop window",
     "openAdminConsole": "Open Admin Console",
     "adminConsoleHelp": "In local mode, use the admin console to add provider credentials, enable models, configure model capabilities, and debug generation jobs.",
+    "externalResourcesTitle": "External Resources",
+    "externalResourcesHint": "Searchable media sources are configured by Admin as external resource provider instances. This client only shows readiness and opens the resource browser.",
+    "externalResourceSourceEnabled": "{{name}} is enabled.",
+    "externalResourceSourceDisabled": "{{name}} is configured but disabled.",
+    "externalResourceSourceMissing": "Not configured in Admin.",
+    "externalResourceAdmin": "External resource provider settings",
+    "externalResourceAdminHelp": "Manage Pexels, Pixabay, and their API keys in Admin Provider Instances. API keys are not edited in user App Settings.",
+    "openExternalResources": "Open External Resources",
     "resourceStorageTitle": "Resource Storage Maintenance",
     "resourceStorageHint": "Clean up physical file objects that no active resource record references. Run a dry check before cleanup.",
     "resourceBlobGCEndpoint": "Cleanup endpoint",
@@ -1159,7 +1170,7 @@
   },
   "agents": {
     "myAgents": "My Agents",
-    "description": "Manage provider config files, installed capabilities, Skills, tools, and run history.",
+    "description": "Manage agent runtime config files, installed capabilities, Skills, tools, and run history.",
     "tools": {
       "names": {
         "workspace_fetch": "Fetch workspace",
@@ -1270,9 +1281,9 @@
     "debug": {
       "shortTitle": "Debug",
       "title": "Agent Debug Console",
-      "description": "Observe provider session status, current context, Prompt Preview, recent runs, and raw diagnostics. Manage persistent configuration in Agent Settings.",
+      "description": "Observe runtime session status, current context, Prompt Preview, recent runs, and raw diagnostics. Manage persistent configuration in Agent Settings.",
       "scope": {
-        "observabilityPlane": "Observability plane: read-only provider session state",
+        "observabilityPlane": "Observability plane: read-only runtime session state",
         "noPersistentWrites": "Does not modify models, Skills, config files, or tool permissions",
         "runDiagnosticsInDetails": "Per-run diagnostics live in conversation details"
       },
@@ -1305,8 +1316,8 @@
         "evidenceCopied": "Evidence Copied"
       },
       "status": {
-        "providerSessionOnline": "Provider session online",
-        "providerSessionOffline": "Provider session offline",
+        "providerSessionOnline": "Runtime session online",
+        "providerSessionOffline": "Runtime session offline",
         "checking": "Checking",
         "online": "Online",
         "offline": "Offline",
@@ -1316,8 +1327,8 @@
         "blocked": "Blocked"
       },
       "panels": {
-        "runtime": "Provider Session",
-        "providerModelConfig": "Provider Model Config",
+        "runtime": "Runtime Session",
+        "providerModelConfig": "Model Routing Config",
         "previewInput": "Preview Input",
         "warnings": "Warnings",
         "mcpResources": "MCP Resources",
@@ -1377,7 +1388,7 @@
         "notRequired": "Not required for this call mode"
       },
       "metrics": {
-        "runtime": "Provider Session",
+        "runtime": "Runtime Session",
         "mcpTools": "MCP tools",
         "resources": "MCP resources",
         "runs": "Runs",
@@ -1400,8 +1411,8 @@
         "status": "Status"
       },
       "toolConsole": {
-        "warning": "Only external MCP tools with source=mcp are listed here. Provider session calls hide local workspace / memory / taskGraph tools.",
-        "runtimeBoundary": "Workspace capabilities are served by the frontend MCP/file manager boundary. Provider sessions do not own workspace_open, workspace_validate, or workspace_submit local tools.",
+        "warning": "Only external MCP tools with source=mcp are listed here. Runtime session calls hide local workspace / memory / taskGraph tools.",
+        "runtimeBoundary": "Workspace capabilities are served by the frontend MCP/file manager boundary. Runtime sessions do not own workspace_open, workspace_validate, or workspace_submit local tools.",
         "tool": "MCP tool",
         "args": "JSON args",
         "run": "Run Tool",
@@ -1424,8 +1435,8 @@
         "action": "Unavailable"
       },
       "observation": {
-        "runtime": "Provider session connection",
-        "modelConfig": "Provider model config",
+        "runtime": "Runtime session connection",
+        "modelConfig": "Model routing config",
         "mcp": "MCP status",
         "context": "Project context",
         "preview": "Prompt Preview",
@@ -1433,17 +1444,17 @@
         "warnings": "Warning signals"
       },
       "observationDetails": {
-        "runtimeReady": "Provider session health, catalog, and capabilities are loaded.",
-        "runtimeMissing": "Provider session is not connected; status cannot be observed.",
-        "modelConfigReady": "Provider model config is saved for {{model}} and credentials are ready.",
-        "modelConfigUnavailable": "Provider session is not connected, so model config cannot be observed.",
-        "modelConfigReadFailed": "Provider session is online, but model config could not be read: {{reason}}.",
-        "modelConfigMissing": "No Provider model config is saved. Open Agent Settings to configure the default model.",
-        "modelCredentialMissing": "Provider model config is saved, but direct provider credentials are missing: {{env}}.",
+        "runtimeReady": "Runtime session health, catalog, and capabilities are loaded.",
+        "runtimeMissing": "Runtime session is not connected; status cannot be observed.",
+        "modelConfigReady": "Model routing config is saved for {{model}} and credentials are ready.",
+        "modelConfigUnavailable": "Runtime session is not connected, so model config cannot be observed.",
+        "modelConfigReadFailed": "Runtime session is online, but model config could not be read: {{reason}}.",
+        "modelConfigMissing": "No model routing config is saved. Open Agent Settings to configure the default model.",
+        "modelCredentialMissing": "Model routing config is saved, but direct credentials are missing: {{env}}.",
         "mcpReady": "MCP is connected, so resources and tool capabilities can be observed.",
         "mcpMissing": "MCP is disconnected or resources are unavailable.",
         "contextReady": "Session project: {{project}}.",
-        "contextMissing": "No project selected; only the global provider session can be observed.",
+        "contextMissing": "No project selected; only the global runtime session can be observed.",
         "previewReady": "Preview is generated; prompt, context, and taskGraph can be inspected.",
         "previewMissing": "Preview has not been run yet.",
         "runsReady": "{{count}} run records loaded.",
@@ -1453,7 +1464,7 @@
       },
       "evidenceChecklist": {
         "title": "Agent Debug Evidence Checklist",
-        "runtime": "Provider session snapshot",
+        "runtime": "Runtime session snapshot",
         "observations": "Observation coverage",
         "triage": "Triage result",
         "remediation": "Next-step routing",
@@ -1462,8 +1473,8 @@
         "redaction": "Redaction status"
       },
       "evidenceChecklistDetails": {
-        "runtimeReady": "Provider session health, catalog, capabilities, and run list are included.",
-        "runtimeMissing": "Provider session is unavailable; this bundle cannot prove current provider-session state.",
+        "runtimeReady": "Runtime session health, catalog, capabilities, and run list are included.",
+        "runtimeMissing": "Runtime session is unavailable; this bundle cannot prove current runtime-session state.",
         "observations": "{{total}} observation checks completed; {{actions}} unavailable and {{warnings}} missing, across {{warningSources}} warning sources.",
         "triage": "{{total}} triage items generated, including {{actions}} action items.",
         "remediation": "{{count}} read-only next steps are included.",
@@ -1503,7 +1514,7 @@
         "requiresAction": "{{count}} runs are waiting for confirmation. The representative reason is: {{reason}}.",
         "modelConfig": "Debug only observes the problem; Agent Settings owns the persistent model, credential, and route fix.",
         "preview": "Run Preview builds prompt, context, taskGraph, and approval evidence without changing saved settings.",
-        "mcp": "MCP state is read-only here. Use the grouped signals to decide whether provider session or connector setup needs attention.",
+        "mcp": "MCP state is read-only here. Use the grouped signals to decide whether runtime session or connector setup needs attention.",
         "warningSignals": "{{count}} warnings across {{sources}} sources are present. Review the grouped warnings before changing configuration."
       },
       "redactionNotice": {
@@ -1515,19 +1526,19 @@
         "requiresAction": "Representative reason: {{reason}}. Per-run handling still lives in conversation details.",
         "warningSignals": "From {{sources}} sources. Debug only aggregates signals; use Agent Settings for persistent configuration fixes.",
         "observation": {
-          "runtime": "Provider session connection is required to read health, catalog, capabilities, and run records.",
-          "model-config": "Provider model config is missing or lacks direct provider credentials. Use Agent Settings to fix persistent model configuration.",
+          "runtime": "Runtime session connection is required to read health, catalog, capabilities, and run records.",
+          "model-config": "Model routing config is missing or lacks direct credentials. Use Agent Settings to fix persistent model configuration.",
           "mcp": "MCP is disconnected or resources are unavailable, so tool/resource observation is incomplete.",
-          "context": "Without a selected project, Debug can only observe global provider-session state.",
+          "context": "Without a selected project, Debug can only observe global runtime-session state.",
           "preview": "Run Preview before inspecting this prompt, context, and taskGraph.",
           "runs": "No run records are available, so runtime trends cannot be judged yet.",
           "warnings": "Warning signals exist; inspect the grouped warning sources."
         }
       },
       "warningSources": {
-        "capabilities": "Provider session capabilities",
+        "capabilities": "Runtime session capabilities",
         "catalog": "Plugin catalog",
-        "model": "Provider model config",
+        "model": "Model routing config",
         "preview": "Prompt Preview"
       },
       "runIssueGroups": {
@@ -1545,12 +1556,12 @@
         "observationCoverage": "Which observation signals this diagnostic bundle covers, and whether each one is missing.",
         "evidenceChecklist": "Support-readiness checklist explaining whether the bundle has enough redacted evidence for escalation.",
         "runIssueGroups": "Run issue counts and representative reasons grouped by status.",
-        "warningGroups": "Provider session, catalog, and Preview warnings grouped by source.",
+        "warningGroups": "Runtime session, catalog, and Preview warnings grouped by source.",
         "redacted": "Marks that this Debug Bundle has redacted keys, tokens, cookies, and signed URL parameters.",
         "preview": "The latest Preview prompt, context, taskGraph, and approval data, redacted on export.",
-        "runtime": "Provider session health, catalog, capabilities, and recent run snapshot, redacted on export.",
-        "modelConfig": "The effective Provider model config, routes, and credential status, redacted on export.",
-        "modelConfigError": "A redacted error explaining why Provider model config could not be read."
+        "runtime": "Runtime session health, catalog, capabilities, and recent run snapshot, redacted on export.",
+        "modelConfig": "The effective model routing config, routes, and credential status, redacted on export.",
+        "modelConfigError": "A redacted error explaining why model routing config could not be read."
       },
       "empty": {
         "noResources": "No resources discovered.",
@@ -1591,11 +1602,11 @@
     },
     "settings": {
       "title": "Agent Settings",
-      "description": "Manage provider config files, installed capabilities, Skills, tool permissions, model, provider-session limits, and settings snapshots.",
+      "description": "Manage agent runtime config files, installed capabilities, Skills, tool permissions, model, runtime-session limits, and settings snapshots.",
       "scope": {
         "controlPlane": "Control plane: configures future new runs",
         "futureRuns": "Does not show per-run diagnostics",
-        "debugReadOnly": "Provider session observation remains read-only"
+        "debugReadOnly": "Runtime session observation remains read-only"
       },
       "settingsStatusSummaryTitle": "Agent Settings Status Summary",
       "settingsStatusSummaryReadiness": "Configuration readiness",
@@ -1604,35 +1615,35 @@
       "copySettingsStatus": "Copy Status",
       "settingsStatusCopied": "Status Copied",
       "refresh": "Refresh",
-      "providerProfileConfigLabel": "Provider Profile",
-      "selectProviderProfileConfig": "Select Provider Profile",
+      "providerProfileConfigLabel": "Runtime Profile",
+      "selectProviderProfileConfig": "Select Runtime Profile",
       "providerProfileConfigs": {
         "mova": "Mova",
         "codex": "Codex"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "Configures the Mova provider profile under .movscript/providers/mova; its managed app-server home is .movscript/.mova.",
-        "codex": "Configures the Codex provider profile under .movscript/providers/codex; its managed app-server home is .movscript/.codex."
+        "mova": "Configures the Mova runtime profile under .movscript/providers/mova; its managed app-server home is .movscript/.mova.",
+        "codex": "Configures the Codex runtime profile under .movscript/providers/codex; its managed app-server home is .movscript/.codex."
       },
-      "modelPanel": "Provider Model",
-      "modelLabel": "Provider text model",
-      "modelHelp": "When Base URL is empty or points to the MovScript backend, select an enabled backend text/reasoning model and save it into Provider model settings.",
-      "providerModelIdLabel": "Provider model ID",
-      "providerModelIdHelp": "For direct OpenAI or Anthropic modes, enter the provider model ID directly. It does not need a matching backend model catalog entry.",
+      "modelPanel": "Model Routing",
+      "modelLabel": "Backend text model",
+      "modelHelp": "By default, use text/reasoning models enabled in the backend AI Gateway. Provider credentials, Base URLs, and routing policy are managed in Admin.",
+      "providerModelIdLabel": "Direct model ID",
+      "providerModelIdHelp": "Advanced direct override only: when connecting directly to OpenAI or Anthropic, enter that service's model ID. It does not need a matching backend model catalog entry.",
       "providerModelIdPlaceholder": "Enter a configured model ID",
-      "providerModelPanel": "Provider Model",
-      "providerModelPanelHelp": "Enter the model ID. When Base URL is empty or points to the MovScript backend, the backend login credential is used; only external provider URLs need an API key here.",
-      "modelRequired": "Select a model or enter a provider model ID first.",
-      "modelIdSecretsBlocked": "The provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Enter only the model ID and put the secret in the API key field.",
-      "providerApiKeyLabel": "API key",
-      "providerApiKeyPlaceholder": "Enter external provider API key",
+      "providerModelPanel": "Model Routing",
+      "providerModelPanelHelp": "Prefer the backend AI Gateway model catalog. Only fill in a direct URL, model ID, and API key when temporarily connecting to a model service outside the backend catalog.",
+      "modelRequired": "Select a model or enter a direct model ID first.",
+      "modelIdSecretsBlocked": "The direct model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Enter only the model ID and put the secret in the API key field.",
+      "providerApiKeyLabel": "Direct API key",
+      "providerApiKeyPlaceholder": "Enter direct service API key",
       "providerApiKeyConfiguredPlaceholder": "API key saved; leave blank to keep using it",
-      "providerCredentialNotice": "External providers need an API key",
-      "providerCredentialHelp": "Only required when Base URL points to an external provider. Do not put keys in the Base URL.",
+      "providerCredentialNotice": "Direct model services need an API key",
+      "providerCredentialHelp": "Only required for advanced direct overrides. Daily model credentials are managed in Admin; do not put keys in the Base URL.",
       "apiKindLabel": "Call mode",
       "selectApiKind": "Select call mode",
-      "baseUrlLabel": "Model Base URL",
-      "baseUrlHelp": "Leave empty to use the MovScript backend /v1 compatible endpoint. Only external provider URLs need an API key.",
+      "baseUrlLabel": "Direct Base URL",
+      "baseUrlHelp": "Leave empty to use backend AI Gateway model routing. Only fill this when temporarily connecting to a model service outside the backend catalog.",
       "baseUrlSecretsBlocked": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Remove URL secrets and store model credentials in the API key field instead.",
       "apiKinds": {
         "backendChatCompletions": "Backend Gateway / Chat Completions",
@@ -1649,7 +1660,7 @@
       "apiModeCapabilityPanel": "Call Mode Capability Matrix",
       "apiModeCapabilityHelp": "This controls which model interface future runs use. Debug only shows the effective result and does not modify call mode.",
       "apiModeCapabilityBadges": {
-        "recommended": "Recommended for new provider sessions",
+        "recommended": "Recommended for new runtime sessions",
         "managed": "Managed Gateway",
         "compatibility": "Compatibility Mode",
         "providerNative": "Provider Native"
@@ -1673,7 +1684,7 @@
         },
         "agenticPrimitive": {
           "label": "Agentic primitive",
-          "detail": "Responses is the default preferred mode for new provider-session runs with tools and multi-turn tasks."
+          "detail": "Responses is the default preferred mode for new runtime-session runs with tools and multi-turn tasks."
         },
         "structuredOutputs": {
           "label": "Structured outputs",
@@ -1705,7 +1716,7 @@
         },
         "toolUse": {
           "label": "Tool use",
-          "detail": "Preserves Anthropic tool-use semantics and normalizes them into provider-session trace."
+          "detail": "Preserves Anthropic tool-use semantics and normalizes them into runtime-session trace."
         },
         "directCredential": {
           "label": "Direct credential",
@@ -1767,7 +1778,7 @@
         "centralize": "Keep team credentials, routing, and audit centralized in the backend gateway.",
         "evaluate": "Evaluate whether the run needs provider-native response state or built-in tools.",
         "switchWhenReady": "Switch selected flows to Responses once direct provider credentials and model ids are ready.",
-        "recommended": "Use Responses as the default for new OpenAI provider-session runs.",
+        "recommended": "Use Responses as the default for new OpenAI runtime-session runs.",
         "stateful": "Prefer Responses when future runs need response state or longer reasoning continuity.",
         "futureTools": "Leave room for provider-side built-in tools without changing the settings boundary.",
         "preserveCompatibility": "Keep Chat Completions only for older message/choice integrations during migration.",
@@ -1848,10 +1859,10 @@
       "saveSkillConfig": "Save Skill Config",
       "skillConfigSaved": "Skill config saved",
       "resetSkillConfig": "Reset",
-      "skillConfigEditHelp": "Manage which Skills are included by the selected config file. Skill trigger and loading strategy are defined by the Skill itself and the provider session.",
+      "skillConfigEditHelp": "Manage which Skills are included by the selected config file. Skill trigger and loading strategy are defined by the Skill itself and the runtime session.",
       "skillConfigSelected": "Config selected",
       "skillConfigCoreLocked": "Core skills are loaded by the system and cannot be disabled here.",
-      "skillConfigToggleHelp": "Saving writes this into the selected config file and affects future new provider-session runs.",
+      "skillConfigToggleHelp": "Saving writes this into the selected config file and affects future new runtime-session runs.",
       "skillInstructionLabel": "Instruction",
       "skillInstructionHelp": "Edit Skill content in Packs or the plugin marketplace. Config files only save activation choices.",
       "skillConfigIssues": "The current config file's Skill selection has dependency or conflict issues",
@@ -1902,12 +1913,12 @@
       "configFilesPanel": "Config Files",
       "noConfigFiles": "No config files found.",
       "activeConfigFileLabel": "Selected config file",
-      "activeConfigFileHelp": "Selection only changes the config file being viewed and edited; set it active before future new provider-session runs use it.",
-      "configFileScopeHelp": "A config file is only the provider-session config for future new runs, not the Agent identity. Existing runs keep their creation-time configuration snapshot.",
+      "activeConfigFileHelp": "Selection only changes the config file being viewed and edited; set it active before future new runtime-session runs use it.",
+      "configFileScopeHelp": "A config file is only the runtime-session config for future new runs, not the Agent identity. Existing runs keep their creation-time configuration snapshot.",
       "selectConfigFile": "Select config file",
       "configFileNameLabel": "Name",
       "configFileDescriptionLabel": "Description",
-      "configFileLimitsLabel": "Provider session limits",
+      "configFileLimitsLabel": "Runtime session limits",
       "configFileLimitsHelp": "Blank values use the catalog default. Saved limits affect future runs for this config file only.",
       "configFileApprovalDefaultsLabel": "Default approval",
       "configFileApprovalDefaultsHelp": "Config files can set default approval by tool risk. Individual tool grants can still override this default.",
@@ -1949,7 +1960,7 @@
       "configFileDownloaded": "Config file JSON downloaded: {{configFileId}}.",
       "configFileImported": "Imported and activated config file from {{fileName}}: {{configFileId}}.",
       "configFileTooLarge": "Config file exceeds the {{size}} limit.",
-      "configFileReadonlyHelp": "Default config files are read-only. Duplicate or import a user config file before editing and overriding its Skills, tool grants, approval, or provider-session limits.",
+      "configFileReadonlyHelp": "Default config files are read-only. Duplicate or import a user config file before editing and overriding its Skills, tool grants, approval, or runtime-session limits.",
       "configFileBackupHelp": "Kept the previous config file snapshot: {{name}} ({{time}}). Restore only affects future new runs; existing runs keep their creation-time snapshot.",
       "restoreConfigFileBackup": "Restore Previous Config File",
       "configFileDiffTitle": "Switch Impact Preview",
@@ -1957,7 +1968,7 @@
       "configFileDiffRemoved": "Removes",
       "configFileDiffChanged": "Changes",
       "configFileDiffNoChange": "No change",
-      "configFileSwitchResetsToolPermissions": "Changing the active config file makes future new runs use that config file's own tool grants, approval, and provider-session limits.",
+      "configFileSwitchResetsToolPermissions": "Changing the active config file makes future new runs use that config file's own tool grants, approval, and runtime-session limits.",
       "toolPermissionsPanel": "Tool Permissions",
       "noTools": "No tools found.",
       "saveToolPermissions": "Save Tool Permissions",
@@ -1986,7 +1997,7 @@
       "deleteToolPermissionsFilterPreset": "Delete filter",
       "toolPermissionsFilterPresetsHelp": "Save recurring tool reviews such as write-risk or currently unavailable tools.",
       "toolPermissionsFilterPresetsEmpty": "No saved filters yet.",
-      "toolPermissionsAllowDisabled": "Only tools granted by the current config file and available in the provider session can be saved as allowed.",
+      "toolPermissionsAllowDisabled": "Only tools granted by the current config file and available in the runtime session can be saved as allowed.",
       "toolPermissionsWorkspaceIssues": "Tool permission workspace has unsavable items",
       "toolPermissionsWorkspaceInvalid": "Tool permission workspace has {{count}} unsavable items.",
       "fixToolPermissionsWorkspaceIssues": "Fix Workspace",
@@ -2008,7 +2019,7 @@
         "none": "not present",
         "grant": "{{mode}} / {{approval}}"
       },
-      "currentProviderSession": "Current Provider Session",
+      "currentProviderSession": "Current Runtime Session",
       "sectionDescriptions": {
         "model": "Choose call mode, model, and usage routes.",
         "installedCapabilities": "Manage packs, plugin sources, and local catalog reloads.",
@@ -2061,9 +2072,9 @@
         "settings_operation_failed": "Operation failed"
       },
       "auditSummaries": {
-        "modelSaved": "Saved Provider model config: {{model}} ({{apiKind}} / {{routes}})",
-        "modelTested": "Saved and tested Provider model config: {{model}} ({{apiKind}} / {{routes}})",
-        "modelCleared": "Cleared Provider model config",
+        "modelSaved": "Saved model routing config: {{model}} ({{apiKind}} / {{routes}})",
+        "modelTested": "Saved and tested model routing config: {{model}} ({{apiKind}} / {{routes}})",
+        "modelCleared": "Cleared model routing config",
         "configFileSaved": "Set active config file: {{configFileId}}",
         "configFileDetailsSaved": "Saved config file details: {{name}} ({{configFileId}})",
         "configFileCreated": "Created and activated config file: {{configFileId}}",
@@ -2108,12 +2119,12 @@
         "applied": "Local fix applied. Review and save any configuration that should persist."
       },
       "actionItems": {
-        "modelMissing": "Provider model is not configured",
-        "modelUnsaved": "Provider model config has unsaved changes",
+        "modelMissing": "Model routing is not configured",
+        "modelUnsaved": "Model routing config has unsaved changes",
         "modelIdSensitive": "Saved model ID may contain secrets",
         "apiModeCompatibility": "Call mode is still compatibility mode",
         "modelCredentialsMissing": "Direct model credentials are not loaded",
-        "modelBaseURLSensitive": "Model Base URL may contain secrets",
+        "modelBaseURLSensitive": "Direct Base URL may contain secrets",
         "routesInvalid": "Model routes are unavailable",
         "routesMissing": "No model route is active",
         "configFileMissing": "Active config file is missing",
@@ -2125,10 +2136,10 @@
         "toolsBlocked": "All tools are unavailable"
       },
       "actionItemDetails": {
-        "modelMissing": "Choose a model, call mode, and usage routes, then save them to Provider model settings.",
-        "modelUnsaved": "Save or reset the Provider model config; future new runs still use the old config until then.",
-        "modelIdSensitive": "The saved direct Provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and save only the model ID; credentials belong in the API key field.",
-        "apiModeCompatibility": "Chat Completions is available for older flows; unless this is a migration period, switch new provider-session runs to OpenAI Responses.",
+        "modelMissing": "Choose a model, call mode, and usage routes, then save them to model routing settings.",
+        "modelUnsaved": "Save or reset the model routing config; future new runs still use the old config until then.",
+        "modelIdSensitive": "The saved direct model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and save only the model ID; credentials belong in the API key field.",
+        "apiModeCompatibility": "Chat Completions is available for older flows; unless this is a migration period, switch new runtime-session runs to OpenAI Responses.",
         "modelCredentialsMissing": "API key settings did not detect {{env}}; direct provider calls will fail.",
         "modelBaseURLSensitive": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Put model credentials in the provider environment instead.",
         "routesInvalid": "Enable at least one usage route for chat or planning.",
@@ -2182,7 +2193,7 @@
         "apiModeAnthropicProvider": "Current calls use Anthropic Messages directly for Claude-family models and provider-native evaluation.",
         "modelCredentialsReady": "API key settings loaded model credentials from {{env}}.",
         "modelCredentialsMissing": "API key settings did not detect {{env}}.",
-        "modelCredentialsNotRequired": "This call mode does not require a direct model key in the provider session.",
+        "modelCredentialsNotRequired": "This call mode does not require a direct model key in the runtime session.",
         "routesReady": "{{count}} model routes are available.",
         "routesInvalid": "Model route config is invalid; fix usage toggles first.",
         "routesMissing": "No model routes are available.",
@@ -2198,7 +2209,7 @@
         "noPendingChanges": "Current configuration is saved."
       },
       "settingsSnapshotPanel": "Config Import / Export",
-      "settingsSnapshotHelp": "Export includes the Provider model, active config file, provider-session limits, Skill enablement and instruction, and Tool Permissions, and strips secret URL credentials from Base URLs. Import applies only the selected sections, in model, config file, provider-session limits, skills, then tools order, and rejects Base URLs that contain secret URL credentials.",
+      "settingsSnapshotHelp": "Export includes model routing, active config file, runtime-session limits, Skill enablement and instruction, and Tool Permissions, and strips secret URL credentials from Base URLs. Import applies only the selected sections, in model, config file, runtime-session limits, skills, then tools order, and rejects Base URLs that contain secret URL credentials.",
       "settingsSnapshotPlaceholder": "Generate or paste Agent Settings Snapshot JSON here.",
       "settingsSnapshotSummary": "Snapshot Summary",
       "settingsSnapshotFields": {
@@ -2206,8 +2217,7 @@
         "model": "Model",
         "configFile": "Config file",
         "configFiles": "Config files",
-        "providerSessionLimits": "Provider session limits",
-        "runtimeLimits": "Provider session limits",
+        "providerSessionLimits": "Runtime session limits",
         "skills": "Skills",
         "tools": "Tool permission"
       },
@@ -2221,19 +2231,19 @@
         "skipped": "No Change"
       },
       "settingsSnapshotImpact": {
-        "model": "Provider model",
+        "model": "Model routing",
         "configFile": "Active config file",
-        "limits": "Provider session limits",
+        "limits": "Runtime session limits",
         "skills": "Skill enablement and instruction",
         "tools": "Tool permissions"
       },
       "settingsSnapshotImpactDetails": {
-        "model": "Import writes model {{model}} into Provider model settings and does not alter config files.",
-        "modelSkipped": "The snapshot has no model config; current Provider model settings are unchanged.",
+        "model": "Import writes model {{model}} into model routing settings and does not alter config files.",
+        "modelSkipped": "The snapshot has no model config; current model routing settings are unchanged.",
         "configFile": "Import saves {{count}} config files and activates {{configFileId}} when present.",
         "configFileSkipped": "The snapshot has no config files or active config file; the current capability config is unchanged.",
-        "limits": "Import writes {{count}} provider-session limits into the target config file.",
-        "limitsSkipped": "The snapshot has no provider-session limits; the current config file limits are unchanged.",
+        "limits": "Import writes {{count}} runtime-session limits into the target config file.",
+        "limitsSkipped": "The snapshot has no runtime-session limits; the current config file limits are unchanged.",
         "skills": "Import writes {{count}} Skill enablement choices into the target config file and saves matching instruction.",
         "skillsSkipped": "The snapshot has no Skill enablement or instruction; the current config file's Skill selection is unchanged.",
         "tools": "Import saves {{count}} config-file tool grants.",
@@ -2248,10 +2258,10 @@
         "all": "All",
         "model-routing": "Model routing only",
         "skills-tools": "Skills + tools",
-        "limits": "Provider session limits only"
+        "limits": "Runtime session limits only"
       },
       "settingsSnapshotImportScopeDetails": {
-        "model": "Provider model and provider API mode.",
+        "model": "Model routing and direct API mode.",
         "configFile": "Saved config files and the active config file used by future runs.",
         "limits": "Context, system prompt, history, and reference budgets on the current config file.",
         "skills": "Enabled and disabled Skill rules.",
@@ -2280,9 +2290,9 @@
       "settingsSnapshotTooLarge": "Snapshot exceeds the {{size}} limit.",
       "settingsSnapshotModelCatalogUnavailable": "The snapshot references a backend model config, but the current model catalog is not available.",
       "settingsSnapshotCatalogUnavailable": "The snapshot references config files, Skills, or tool permissions, but the current catalog is not available.",
-      "settingsSnapshotCapabilitiesUnavailable": "The snapshot references tool permissions, but the current Provider session capabilities catalog is not available.",
+      "settingsSnapshotCapabilitiesUnavailable": "The snapshot references tool permissions, but the current Runtime session capabilities catalog is not available.",
       "settingsSnapshotModelTargetMissing": "The snapshot includes model configuration, but model settings cannot be written right now.",
-      "settingsSnapshotLimitsTargetMissing": "The snapshot includes provider-session limits, but there is no config file to write them into.",
+      "settingsSnapshotLimitsTargetMissing": "The snapshot includes runtime-session limits, but there is no config file to write them into.",
       "settingsSnapshotSkillsTargetMissing": "The snapshot includes Skill enablement or instruction, but there is no config file to write them into.",
       "settingsSnapshotToolPermissionsInvalid": "Snapshot tool permissions have {{count}} items that cannot be imported.",
       "settingsSnapshotImportScopeEmpty": "Select at least one available section to import.",
@@ -2459,9 +2469,10 @@
       "modelLockedByAgent": "This Agent has a pinned model",
       "myAgents": "My Agents",
       "newConversation": "New Conversation",
-      "selectNewConversationProvider": "Select the provider for new conversations",
       "expandAgentContentPanel": "Expand right content panel",
       "collapseAgentContentPanel": "Collapse right content panel",
+      "expandProjectAgentPanel": "Open AI chat panel",
+      "collapseProjectAgentPanel": "Close AI chat panel",
       "agentModeEmptyTitle": "What kind of film do you want to make?",
       "agentModeProjectPicker": {
         "title": "Select project",
@@ -2510,7 +2521,6 @@
       "loadingConversationTimeline": "Loading conversation…",
       "loadMoreHistory": "Load more",
       "platformTemplates": "Platform Templates",
-      "selectAgent": "Select Agent",
       "selectModelFirst": "Please select a model first.",
       "modelSetupAction": {
         "title": "Model setup required",
@@ -2615,7 +2625,7 @@
       "preview": "Preview",
       "stop": "Stop",
       "restoring": "Restoring",
-      "providerSession": "Provider Session",
+      "providerSession": "Runtime Session",
       "messageCountLabel": "{{count}} chars",
       "messageSections": {
         "result": "Results",
@@ -2644,7 +2654,7 @@
       "noMemoryInScope": "No memory in this scope.",
       "noRunYet": "No run has started in this conversation yet.",
       "productSurface": "Product Surface",
-      "providerSessionStatus": "Provider Session Status",
+      "providerSessionStatus": "Runtime Session Status",
       "providerContextTitle": "Provider Context",
       "promptTitle": "Prompt",
       "executionTitle": "Execution",
@@ -2656,16 +2666,16 @@
       "checking": "Checking",
       "thread": "Thread",
       "noSelection": "No context selected",
-      "noSnapshot": "Build a debug preview to inspect the exact page snapshot sent to the provider session.",
+      "noSnapshot": "Build a debug preview to inspect the exact page snapshot sent to the runtime session.",
       "snapshot": "uiSnapshot",
       "project": "Project",
       "resources": "Resources",
       "attachments": "Attachments",
-      "runtime": "Provider Session",
+      "runtime": "Runtime Session",
       "conversation": "Conversation",
       "customContext": "custom context",
       "providerDefault": "provider default",
-      "startHint": "Start the provider session service to inspect loaded skills and tools.",
+      "startHint": "Start the runtime session service to inspect loaded skills and tools.",
       "loadingCatalog": "Loading provider catalog...",
       "notLoaded": "Provider catalog is not loaded yet.",
       "skills": "Skills",
@@ -2735,7 +2745,6 @@
       "context": "Context",
       "route": "Route",
       "memories": "Memories",
-      "runtimeLimits": "Provider session limits",
       "previewMessage": "Agentic loop preview",
       "panel": {
         "layers": {
@@ -2757,16 +2766,16 @@
           "online": "online",
           "offline": "offline",
           "newThread": "new thread",
-          "autoStartHint": "MovScript will start the provider session through the desktop client."
+          "autoStartHint": "MovScript will start the runtime session through the desktop client."
         },
         "context": {
           "noSelection": "No context selected",
-          "noSnapshot": "Build a debug preview to inspect the exact page snapshot sent to the provider session.",
+          "noSnapshot": "Build a debug preview to inspect the exact page snapshot sent to the runtime session.",
           "snapshot": "uiSnapshot",
           "project": "Project",
           "resources": "Resources",
           "attachments": "Attachments",
-          "runtime": "Provider Session",
+          "runtime": "Runtime Session",
           "conversation": "Conversation",
           "customContext": "custom context",
           "providerDefault": "provider default",
@@ -2795,10 +2804,10 @@
           "title": "Capabilities",
           "custom": "custom",
           "providerDefault": "provider default",
-          "activeHint": "Only the active provider-session skills and tools for this conversation are shown here.",
-          "selectHint": "Only the active provider-session skills and tools for this conversation are shown here.",
+          "activeHint": "Only the active runtime-session skills and tools for this conversation are shown here.",
+          "selectHint": "Only the active runtime-session skills and tools for this conversation are shown here.",
           "refresh": "Refresh",
-          "startHint": "Start the provider session service to inspect loaded skills and tools.",
+          "startHint": "Start the runtime session service to inspect loaded skills and tools.",
           "loadingCatalog": "Loading provider catalog...",
           "notLoaded": "Provider catalog is not loaded yet.",
           "importCurrentCatalog": "Import current catalog",
@@ -2870,7 +2879,7 @@
           "currentThreadTitle": "Current thread artifacts",
           "history": "Artifact history",
           "refresh": "Refresh",
-          "noOnline": "Start the provider session service to inspect Agent artifacts.",
+          "noOnline": "Start the runtime session service to inspect Agent artifacts.",
           "noThread": "This conversation is not bound to a provider thread yet. Send a message to show artifacts from this thread.",
           "emptyFilter": "No artifacts match this filter.",
           "projectBadge": "project #{{id}}",
@@ -2911,17 +2920,17 @@
           "project": "Project",
           "memories": "Memories",
           "skills": "Skills",
-          "providerSessionLimits": "Provider session limits",
+          "providerSessionLimits": "Runtime session limits",
           "tools": "Tools",
           "previewMessage": "Agentic loop preview"
         },
         "providerSession": {
-          "limits": "Provider session limits",
+          "limits": "Runtime session limits",
           "approvalMode": "Approval mode",
           "maxToolCalls": "Max tool calls",
           "maxIterations": "Max iterations",
           "fileBytes": "File bytes",
-          "sessionBoundaries": "Provider session boundaries",
+          "sessionBoundaries": "Runtime session boundaries",
           "manifestGrants": "Manifest grants",
           "available": "Available",
           "blocked": "Blocked",
@@ -2970,7 +2979,7 @@
           "missingThreadFallback": "If this saved thread is missing, the client creates a new provider thread instead.",
           "createThread": "Create provider thread",
           "appendUserMessage": "Append user message",
-          "createRun": "Create provider session run",
+          "createRun": "Create runtime session run",
           "pollRun": "Poll run status",
           "pollRunNote": "Repeated until completed, completed_with_warnings, requires_action, or failed.",
           "fetchFinalThread": "Fetch final provider thread"
@@ -2998,8 +3007,8 @@
             "scriptCreate": "Approving will save the script as a formal session project script record.",
             "workspaceApply": "Approving will apply the reviewed workspace changes to the session project.",
             "workspaceWrite": "Approving will let the agent update local workspace data used for review.",
-            "memoryWrite": "Approving will change provider session memory and may affect future suggestions.",
-            "memoryDelete": "Approving will delete the selected provider session memory.",
+            "memoryWrite": "Approving will change runtime session memory and may affect future suggestions.",
+            "memoryDelete": "Approving will delete the selected runtime session memory.",
             "catalogReload": "Approving will reload local skills, tools, packs, and config files from disk.",
             "workStart": "Approving will submit async provider work; generation jobs may consume quota and subagent work starts worker runs.",
             "workCancel": "Approving will cancel async provider work; unfinished outputs or worker follow-up may not be produced.",
@@ -3014,7 +3023,7 @@
           "needsInput": "Additional information is required before execution:\n{{items}}",
           "needsApproval": "Confirmation is required before execution:\n{{items}}",
           "waitingForToolCallConfirmation": "- Waiting for tool call confirmation",
-          "noAssistantMessage": "The provider session did not return an assistant message.",
+          "noAssistantMessage": "The runtime session did not return an assistant message.",
           "warnings": "Warnings",
           "unknownError": "unknown error"
         }
@@ -3085,8 +3094,8 @@
           "scriptCreate": "Approving will save the script as a formal session project script record.",
           "workspaceApply": "Approving will apply the reviewed workspace changes to the session project.",
           "workspaceWrite": "Approving will let the agent update local workspace data used for review.",
-          "memoryWrite": "Approving will change provider session memory and may affect future suggestions.",
-          "memoryDelete": "Approving will delete the selected provider session memory.",
+          "memoryWrite": "Approving will change runtime session memory and may affect future suggestions.",
+          "memoryDelete": "Approving will delete the selected runtime session memory.",
           "catalogReload": "Approving will reload local skills, tools, packs, and config files from disk.",
           "workStart": "Approving will submit async provider work; generation jobs may consume quota and subagent work starts worker runs.",
           "workCancel": "Approving will cancel async provider work; unfinished outputs or worker follow-up may not be produced.",
@@ -3101,7 +3110,7 @@
         "needsInput": "Additional information is required before execution:\n{{items}}",
         "needsApproval": "Confirmation is required before execution:\n{{items}}",
         "waitingForToolCallConfirmation": "- Waiting for tool call confirmation",
-        "noAssistantMessage": "The provider session did not return an assistant message.",
+        "noAssistantMessage": "The runtime session did not return an assistant message.",
         "warnings": "Warnings",
         "unknownError": "unknown error"
       }
@@ -3522,7 +3531,7 @@
       "download": "Download"
     },
     "modelSelector": {
-      "noModels": "No models available",
+      "noModels": "No backend-routed models available",
       "refresh": "Refresh model list"
     },
     "resourcePanel": {
@@ -4222,6 +4231,7 @@
       "workbenchReferenceRelations": "Relation Correction",
       "workbenchAssetPreparation": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
+      "contentCanvas": "Orchestration Canvas",
       "shotEditWorkbench": "Shot Edit Workbench",
       "user": "User Profile",
       "admin": "Admin",

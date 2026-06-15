@@ -45,7 +45,7 @@ test('core shared app settings normalize URLs, modes, and shot library sources',
   const defaultSettings = {
     apiBaseURL: 'http://localhost:8765',
     launchMode: 'cloud',
-    workMode: 'detail',
+    workMode: 'project',
     onboardingCompleted: false,
   }
 

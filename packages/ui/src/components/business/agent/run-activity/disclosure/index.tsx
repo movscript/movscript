@@ -36,11 +36,11 @@ export function AgentRunActivityDisclosure({
   );
 }
 
-export interface AgentRunActivityTitleProps extends React.HTMLAttributes<HTMLSpanElement> {
+interface AgentRunActivityTitleProps extends React.HTMLAttributes<HTMLSpanElement> {
   icon?: React.ReactNode;
 }
 
-export const AgentRunActivityTitle = React.forwardRef<HTMLSpanElement, AgentRunActivityTitleProps>(
+const AgentRunActivityTitle = React.forwardRef<HTMLSpanElement, AgentRunActivityTitleProps>(
   ({ className, icon, children, ...props }, ref) => {
     return (
       <span ref={ref} className={cn("ms-agent-run-activity__title", className)} {...props}>
@@ -53,7 +53,7 @@ export const AgentRunActivityTitle = React.forwardRef<HTMLSpanElement, AgentRunA
 
 AgentRunActivityTitle.displayName = "AgentRunActivityTitle";
 
-export const AgentRunActivityMeta = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
+const AgentRunActivityMeta = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
     return <span ref={ref} className={cn("ms-agent-run-activity__meta", className)} {...props} />;
   }
@@ -61,7 +61,7 @@ export const AgentRunActivityMeta = React.forwardRef<HTMLSpanElement, React.HTML
 
 AgentRunActivityMeta.displayName = "AgentRunActivityMeta";
 
-export const AgentRunActivitySummaryText = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
+const AgentRunActivitySummaryText = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
     return <span ref={ref} className={cn("ms-agent-run-activity__summary-text", className)} {...props} />;
   }

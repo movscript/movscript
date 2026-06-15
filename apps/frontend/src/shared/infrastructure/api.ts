@@ -4,6 +4,8 @@ import { toast } from '@/shared/ui/toastStore'
 import { getAPIV1BaseURL } from '@/shared/infrastructure/config'
 import { translateApiError, type APIErrorBody } from '@/shared/infrastructure/apiError'
 import { isBackendBootError, waitForLocalBackendReady } from '@/shared/infrastructure/backendBoot'
+import { publishApiRedirect } from '@/shared/application/navigationEvents'
+import { handleElectronBackendAuthExpired } from '@/shared/infrastructure/session/backendAuthSessionSync'
 
 export const api = axios.create({
   baseURL: getAPIV1BaseURL()
@@ -65,8 +67,9 @@ api.interceptors.response.use(
 
     if (action === 'logout') {
       useUserStore.getState().setCurrentUser(null)
+      void handleElectronBackendAuthExpired()
     } else if (action === 'redirect_projects') {
-      window.dispatchEvent(new CustomEvent('api:redirect', { detail: '/projects' }))
+      publishApiRedirect('/projects')
     }
 
     return Promise.reject(err)

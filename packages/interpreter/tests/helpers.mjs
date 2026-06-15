@@ -17,6 +17,8 @@ export function sourceFileEntries() {
       schema: 'movscript.asset.v1',
       kind: 'asset',
       id: 'wet_hair',
+      setting_id: 'hero',
+      setting_state_id: 'rain',
       slot: 'character_state_reference',
       prompt_hint: 'Wet hair and rain on the hero face.',
     })],

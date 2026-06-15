@@ -20,8 +20,8 @@ test('buildAgentConversationProjectionRenderWindow keeps the active run turn vis
         role: 'user',
         timestamp: 2,
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'active-trigger', runId: 'run_active' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'active-trigger', runId: 'run_active', deliveryStatus: 'accepted' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'active-trigger', runId: 'run_active' },
+          providerSessionInput: { threadId: 'thread_1', messageId: 'active-trigger', runId: 'run_active', deliveryStatus: 'accepted' },
         },
       }),
       message({ id: 'newer', role: 'assistant', timestamp: 3 }),

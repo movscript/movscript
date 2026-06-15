@@ -4,8 +4,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-} from '@movscript/ui'
+  DialogTitle
+} from '@movscript/ui/primitives'
 import { ContextDiagnosticCard } from '@/features/agent/components/ContextDiagnosticCard'
 import type { ChatContextDiagnostic } from '@/features/agent/state/agentStore'
 import type { AgentTimelineItem } from '@/shared/infrastructure/providerSessionClient'

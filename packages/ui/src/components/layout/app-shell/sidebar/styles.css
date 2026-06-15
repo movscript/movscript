@@ -28,7 +28,7 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  padding: 6px 8px;
+  padding: 6px var(--ms-space-2);
 }
 
 .app-sidebar__header--actions {
@@ -73,7 +73,7 @@
   width: 100%;
   height: auto;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: 6px var(--ms-space-3);
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-caption);
   font-weight: 650;
@@ -92,7 +92,7 @@
   justify-content: flex-start;
   gap: 10px;
   border-radius: var(--ms-radius-control);
-  padding: 6px 12px;
+  padding: 6px var(--ms-space-3);
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-item);
   text-decoration: none;
@@ -133,7 +133,7 @@
   white-space: nowrap;
   transition:
     max-width 260ms var(--ms-easing-standard),
-    opacity 160ms var(--ms-easing-standard);
+    opacity var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
 .app-sidebar[data-collapsed="true"] .app-sidebar-nav-item__label {

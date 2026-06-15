@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
 
+import { listenToWindowEvent } from '@/shared/infrastructure/windowEvents'
+
 export interface AgentComposerMentionMenuRect {
   top: number
   left: number
@@ -94,13 +96,11 @@ export function agentComposerMentionMenuPositionFromEditorElement(
 }
 
 export function subscribeAgentComposerMentionMenuPlacement(update: () => void) {
-  if (typeof window === 'undefined') return () => {}
-
-  window.addEventListener('resize', update)
-  window.addEventListener('scroll', update, true)
+  const cleanupResize = listenToWindowEvent('resize', update)
+  const cleanupScroll = listenToWindowEvent('scroll', update, true)
 
   return () => {
-    window.removeEventListener('resize', update)
-    window.removeEventListener('scroll', update, true)
+    cleanupResize()
+    cleanupScroll()
   }
 }

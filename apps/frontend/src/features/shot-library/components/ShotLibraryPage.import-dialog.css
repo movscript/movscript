@@ -1,0 +1,496 @@
+  .shot-import-dialog {
+    display: flex;
+    width: min(1180px, calc(100vw - 32px));
+    max-width: min(1180px, calc(100vw - 32px));
+    max-height: min(880px, calc(100vh - 32px));
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .shot-import-dialog__header,
+  .shot-import-dialog__footer {
+    flex: 0 0 auto;
+    border-color: var(--ms-color-border);
+    padding: 16px 18px;
+  }
+
+  .shot-import-dialog__header {
+    border-bottom: 1px solid var(--ms-color-border);
+  }
+
+  .shot-import-dialog__title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .shot-import-dialog__title-row > span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-body);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shot-import-dialog__footer {
+    border-top: 1px solid var(--ms-color-border);
+    background: var(--ms-color-surface);
+  }
+
+  .shot-import-dialog__body {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  }
+
+  .shot-import-dialog__body[data-scroll-owner="dialog-body"] {
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .shot-import-dialog__source-pane,
+  .shot-import-dialog__review-pane {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .shot-import-dialog__source-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-right: 1px solid var(--ms-color-border);
+    background: color-mix(in srgb, var(--ms-color-muted) 22%, var(--ms-color-surface));
+    padding: 14px;
+  }
+
+  .shot-import-dialog__source-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .shot-import-dialog__source-target {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    border: 1px solid var(--ms-color-border);
+    border-radius: 8px;
+    background: var(--ms-color-surface);
+    padding: 8px 10px;
+  }
+
+  .shot-import-dialog__source-target span {
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-dialog__source-target strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--ms-text-body);
+  }
+
+  .shot-import-dialog__group-editor {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .shot-import-dialog__group-name {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--ms-color-border);
+    border-radius: 8px;
+    background: var(--ms-color-surface);
+    padding: 7px 9px;
+  }
+
+  .shot-import-dialog__group-name > svg {
+    color: var(--ms-color-muted-foreground);
+  }
+
+  .shot-import-dialog__group-name input {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .shot-import-resource-grid {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .shot-import-resource-grid__search {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .shot-import-resource-grid__search > svg {
+    color: var(--ms-color-muted-foreground);
+  }
+
+  .shot-import-resource-grid__list {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 8px;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .shot-import-resource-grid__card {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 1px solid var(--ms-color-border);
+    border-radius: 8px;
+    background: var(--ms-color-muted);
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .shot-import-resource-grid__card:disabled {
+    cursor: default;
+    opacity: 0.68;
+  }
+
+  .shot-import-resource-grid__card > *:first-child {
+    width: 100%;
+    height: 100%;
+  }
+
+  .shot-import-resource-grid__card img,
+  .shot-import-resource-grid__card video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .shot-import-resource-grid__card--selected {
+    border-color: color-mix(in srgb, var(--ms-color-info) 70%, var(--ms-color-border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-info) 28%, transparent);
+  }
+
+  .shot-import-resource-grid__selected {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--ms-color-info) 60%, white);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
+    color: var(--ms-color-info);
+    box-shadow: var(--ms-shadow-sm);
+  }
+
+  .shot-import-resource-grid__state {
+    display: flex;
+    min-height: 140px;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px dashed var(--ms-color-border);
+    border-radius: 8px;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-resource-grid__state svg:first-child {
+    color: var(--ms-color-muted-foreground);
+  }
+
+  .shot-import-resource-grid__spinner {
+    animation: shot-upload-spin 900ms linear infinite;
+  }
+
+  .shot-import-resource-grid__pager {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-resource-grid__pager > div {
+    display: flex;
+    gap: 6px;
+  }
+
+  .shot-import-dialog__review-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .shot-import-dialog__preview {
+    aspect-ratio: var(--shot-import-preview-aspect-ratio, 16 / 9);
+    max-height: 300px;
+    overflow: hidden;
+    border: 1px solid var(--ms-color-border);
+    border-radius: 8px;
+    background: var(--ms-color-muted);
+  }
+
+  .shot-import-clip-player {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    background: #000;
+  }
+
+  .shot-import-dialog__preview-video {
+    display: block;
+    width: 100%;
+    min-height: 0;
+    flex: 1;
+    background: #000;
+    object-fit: contain;
+  }
+
+  .shot-import-clip-player__controls {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid rgb(255 255 255 / 14%);
+    background: rgb(0 0 0 / 72%);
+    padding: 8px 10px;
+    color: white;
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-clip-player__controls input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    accent-color: var(--ms-color-info);
+  }
+
+  .shot-import-clip-player__controls span {
+    min-width: 82px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shot-import-dialog__status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-dialog__error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid color-mix(in srgb, var(--ms-color-danger) 36%, var(--ms-color-border));
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--ms-color-danger);
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-dialog__workspace-layout {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    gap: 12px;
+  }
+
+  .shot-import-dialog__workspace-browser,
+  .shot-import-dialog__editor {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .shot-import-dialog__workspace-browser {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .shot-import-dialog__workspace-grid {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: repeat(var(--shot-import-workspace-columns, 2), minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 10px;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .shot-import-dialog__workspace-card {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--ms-color-border);
+    border-radius: 8px;
+    background: var(--ms-color-surface);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    animation: shot-workspace-card-in 180ms ease-out both;
+  }
+
+  .shot-import-dialog__workspace-card--active {
+    border-color: color-mix(in srgb, var(--ms-color-info) 55%, var(--ms-color-border));
+    background: color-mix(in srgb, var(--ms-color-info) 8%, var(--ms-color-surface));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-info) 22%, transparent);
+  }
+
+  .shot-import-dialog__workspace-thumb {
+    position: relative;
+    display: grid;
+    aspect-ratio: var(--shot-import-workspace-aspect-ratio, 16 / 9);
+    width: 100%;
+    place-items: center;
+    overflow: hidden;
+    background: var(--ms-color-muted);
+  }
+
+  .shot-import-dialog__workspace-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .shot-import-dialog__workspace-thumb > svg {
+    color: var(--ms-color-muted-foreground);
+  }
+
+  .shot-import-dialog__workspace-thumb > span {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    border-radius: 4px;
+    background: rgb(0 0 0 / 68%);
+    padding: 2px 5px;
+    color: white;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shot-import-dialog__workspace-card-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px;
+  }
+
+  .shot-import-dialog__workspace-card-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-label);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shot-import-dialog__workspace-card-topline svg {
+    color: var(--ms-color-success);
+  }
+
+  .shot-import-dialog__workspace-card-body strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--ms-text-label);
+    font-weight: 650;
+  }
+
+  .shot-import-dialog__workspace-include {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 58%);
+  }
+
+  .shot-import-dialog__workspace-include input {
+    accent-color: var(--ms-color-info);
+  }
+
+  .shot-import-dialog__workspace-pager {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-label);
+  }
+
+  .shot-import-dialog__workspace-pager > div {
+    display: flex;
+    gap: 6px;
+  }
+
+  .shot-import-dialog__editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 2px;
+  }
+
+  .shot-import-dialog__empty,
+  .shot-import-dialog__starter {
+    display: flex;
+    min-height: 180px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px dashed var(--ms-color-border);
+    border-radius: 8px;
+    color: var(--ms-color-muted-foreground);
+    font-size: var(--ms-text-body);
+  }
+
+  .shot-import-dialog__empty svg,
+  .shot-import-dialog__starter svg {
+    color: var(--ms-color-muted-foreground);
+  }
+
+  .shot-import-dialog__empty svg:first-child {
+    animation: shot-upload-spin 900ms linear infinite;
+  }

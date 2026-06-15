@@ -6,6 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/observability"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
+	providerassembly "github.com/movscript/movscript/internal/providers/assembly"
+	providerdescriptor "github.com/movscript/movscript/internal/providers/descriptor"
 )
 
 func New(deps Dependencies) *gin.Engine {
@@ -29,14 +31,11 @@ func New(deps Dependencies) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.GET("/metrics", observability.MetricsHandler(observability.DefaultHTTPMetrics()))
-	if deps.Config != nil {
-		registerAdminStaticRoutes(r, deps.Config.AdminStaticDir)
-	}
-
 	// MCP endpoint removed — tools are now provided by the client.
 
 	registerOpenAIGatewayRoutes(r, h)
 	registerHubRoutes(r, h)
+	registerEditionRootRoutes(r, h)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -47,17 +46,28 @@ func New(deps Dependencies) *gin.Engine {
 		{
 			if deps.Config != nil {
 				protected.GET("/backend/dependencies", func(c *gin.Context) {
-					c.JSON(http.StatusOK, deps.Config.EffectiveDependencyProviders())
+					c.JSON(http.StatusOK, deps.Config.EffectiveProviderAssembly())
+				})
+				protected.GET("/backend/provider-health", func(c *gin.Context) {
+					c.JSON(http.StatusOK, gin.H{"items": providerassembly.BuildProviderHealthSnapshot(deps.Config)})
+				})
+				protected.GET("/backend/provider-instances", func(c *gin.Context) {
+					c.JSON(http.StatusOK, gin.H{"items": deps.Config.EffectiveProviderInstances()})
 				})
 			}
+			protected.GET("/backend/provider-descriptors", func(c *gin.Context) {
+				c.JSON(http.StatusOK, providerdescriptor.BuiltIns())
+			})
 			registerGatewayProtectedRoutes(protected, h)
 			registerOrgRoutes(protected, db, h)
 			registerResourceRoutes(protected, h)
+			registerAudioRoutes(protected, h)
 			registerJobRoutes(protected, h)
 			registerPluginRoutes(protected, h)
 			registerCanvasRoutes(protected, h)
 			registerProjectRoutes(protected, db, h)
 			registerRuntimeProtectedRoutes(protected, h)
+			registerEditionProtectedRoutes(protected, h)
 			registerAgentTelemetryRoutes(protected, h)
 
 			// admin routes — super_admin only

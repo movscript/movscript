@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Archive, Loader2 } from 'lucide-react'
-import { AgentConversationHistoryPanel, AgentConversationItem, AgentMain, Button } from '@movscript/ui'
+import { AgentConversationHistoryPanel, AgentConversationItem, AgentMain } from '@movscript/ui/business/agent'
+import { Button } from '@movscript/ui/primitives'
 import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
 import { AgentChatHeaderSection } from '@/features/agent/components/AgentChatHeaderSection'
@@ -12,6 +13,7 @@ import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedSta
 import { conversationDisplayTitle, formatAgentDate, providerThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { latestTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 import { listProviderSessionThreadPageFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { providerSessionThreadKeys } from '@/features/agent/application/providerSessionQueryKeys'
 import { useAgentChatHistoryPaneController } from '@/features/agent/presentation/useAgentChatHistoryPaneController'
 import { providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
@@ -40,7 +42,7 @@ export function AgentChatPanelLayout({
     conversationStarted,
   })
   const historyQuery = useInfiniteQuery({
-    queryKey: ['provider-session-panel-thread-history', providerSessionClient.baseURL],
+    queryKey: providerSessionThreadKeys.panelHistory(providerSessionClient.baseURL),
     queryFn: async ({ pageParam, signal }) => {
       return listProviderSessionThreadPageFromWorkspace({
         limit: HISTORY_PAGE_SIZE,

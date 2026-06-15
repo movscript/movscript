@@ -1,0 +1,85 @@
+.agent-console-log-summary,
+.agent-console-log-summary__item,
+.agent-console-log-line {
+  min-width: 0;
+}
+
+.agent-console-log-summary {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
+  gap: var(--ms-space-1) var(--ms-space-2);
+  margin-bottom: var(--ms-space-3);
+  padding: var(--ms-space-2);
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+}
+
+.agent-console-log-summary__item {
+  display: contents;
+}
+
+.agent-console-log-summary__label,
+.agent-console-log-summary__value {
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.agent-console-log-summary__label {
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-console-log-summary__value {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-family: var(--ms-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-console-log-stream {
+  display: flex;
+  min-height: 420px;
+  max-height: min(680px, calc(100vh - 260px));
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-background) 92%, black);
+  padding: var(--ms-space-2);
+}
+
+.agent-console-log-empty {
+  margin: auto;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.agent-console-log-line {
+  display: grid;
+  grid-template-columns: 72px 48px minmax(0, 1fr);
+  gap: var(--ms-space-2);
+  align-items: start;
+  color: var(--ms-color-foreground);
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-caption);
+  line-height: 1.35;
+}
+
+.agent-console-log-line__time,
+.agent-console-log-line__stream {
+  color: var(--ms-color-muted-foreground);
+  white-space: nowrap;
+}
+
+.agent-console-log-line[data-stream="stderr"] .agent-console-log-line__stream {
+  color: var(--ms-color-warning);
+}
+
+.agent-console-log-line__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

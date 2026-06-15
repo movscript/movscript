@@ -170,6 +170,29 @@ export function createContentSourceWorkspaceRuntime(options: {
     })
   }
 
+  async function commitOptimisticWorkspaceOperation<T>(input: {
+    optimistic: () => void
+    commit: (projectId: number) => Promise<T>
+    fallback: string
+  }): Promise<T | undefined> {
+    const previousData = state.data ? cloneContentSourceWorkspaceData(state.data) : undefined
+    input.optimistic()
+    const projectId = requireWorkspaceProject()
+    if (!projectId) return undefined
+    markDirty()
+    try {
+      return await input.commit(projectId)
+    } catch (error) {
+      setState({
+        data: previousData,
+        status: 'error',
+        sourceSyncStatus: 'error',
+        error: error instanceof Error ? error.message : input.fallback,
+      })
+      throw error
+    }
+  }
+
   async function reloadProject(projectId: number, token: number) {
     const snapshot = await options.port.loadSnapshot(projectId)
     if (token !== loadToken) return
@@ -226,19 +249,14 @@ export function createContentSourceWorkspaceRuntime(options: {
       }
     },
     async selectCandidate(input) {
-      setData((data) => updateContentSourceWorkspaceContentUnitSelection(data, input.contentUnitId, input.candidateId))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.selectContentUnitCandidate({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => updateContentSourceWorkspaceContentUnitSelection(data, input.contentUnitId, input.candidateId)),
+        fallback: 'content_unit_selection_failed',
+        commit: (projectId) => options.port.selectContentUnitCandidate({
           projectId,
           ...buildContentSourceWorkspaceSelectionPatch(input),
-        })
-      } catch (error) {
-        captureError(error, 'content_unit_selection_failed')
-        throw error
-      }
+        }),
+      })
     },
     async createCandidate(input) {
       const projectId = requireWorkspaceProject()
@@ -261,29 +279,22 @@ export function createContentSourceWorkspaceRuntime(options: {
       }
     },
     async updateEditPrompt(input) {
-      setData((data) => input.assetId
-        ? updateContentSourceWorkspaceAssetPrompt(data, input.assetId!, input.text)
-        : updateContentSourceWorkspaceContentUnitPrompt(data, input.contentUnitId, input.text))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.updateContentUnitEditPrompt({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => input.assetId
+          ? updateContentSourceWorkspaceAssetPrompt(data, input.assetId!, input.text)
+          : updateContentSourceWorkspaceContentUnitPrompt(data, input.contentUnitId, input.text)),
+        fallback: 'content_unit_prompt_update_failed',
+        commit: (projectId) => options.port.updateContentUnitEditPrompt({
           projectId,
           ...buildContentSourceWorkspaceEditPromptPatch(input),
-        })
-      } catch (error) {
-        captureError(error, 'content_unit_prompt_update_failed')
-        throw error
-      }
+        }),
+      })
     },
     async updateExpressionUnit(unit) {
-      setData((data) => updateContentSourceWorkspaceExpressionUnitState(data, unit))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.updateExpressionUnit({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => updateContentSourceWorkspaceExpressionUnitState(data, unit)),
+        fallback: 'expression_unit_update_failed',
+        commit: (projectId) => options.port.updateExpressionUnit({
           projectId,
           ...buildContentSourceWorkspaceExpressionUnitPatch({
             targetPath: unit.path,
@@ -294,19 +305,14 @@ export function createContentSourceWorkspaceRuntime(options: {
             speaker: unit.speaker,
             note: unit.note,
           }),
-        })
-      } catch (error) {
-        captureError(error, 'expression_unit_update_failed')
-        throw error
-      }
+        }),
+      })
     },
     async updateAudioCue(cue) {
-      setData((data) => updateContentSourceWorkspaceAudioCueState(data, cue))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.updateAudioCue({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => updateContentSourceWorkspaceAudioCueState(data, cue)),
+        fallback: 'audio_cue_update_failed',
+        commit: (projectId) => options.port.updateAudioCue({
           projectId,
           ...buildContentSourceWorkspaceAudioCuePatch({
             targetPath: cue.path,
@@ -318,52 +324,37 @@ export function createContentSourceWorkspaceRuntime(options: {
             timing: cue.timing,
             assetRefs: cue.assetRefs,
           }),
-        })
-      } catch (error) {
-        captureError(error, 'audio_cue_update_failed')
-        throw error
-      }
+        }),
+      })
     },
     async updateTransition(input) {
-      setData((data) => updateContentSourceWorkspaceHierarchyPlanning(data, input.nodeId, { transition: input.transition }))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.updateEntityTransition({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => updateContentSourceWorkspaceHierarchyPlanning(data, input.nodeId, { transition: input.transition })),
+        fallback: 'entity_transition_update_failed',
+        commit: (projectId) => options.port.updateEntityTransition({
           projectId,
           ...buildContentSourceWorkspaceTransitionPatch(input),
-        })
-      } catch (error) {
-        captureError(error, 'entity_transition_update_failed')
-        throw error
-      }
+        }),
+      })
     },
     async updateStoryboardTimeline(input) {
-      setData((data) => updateContentSourceWorkspaceHierarchyPlanning(data, input.nodeId, { storyboardTimeline: input.timeline }))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.updateStoryboardTimeline({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => updateContentSourceWorkspaceHierarchyPlanning(data, input.nodeId, { storyboardTimeline: input.timeline })),
+        fallback: 'storyboard_timeline_update_failed',
+        commit: (projectId) => options.port.updateStoryboardTimeline({
           projectId,
           ...buildContentSourceWorkspaceStoryboardTimelinePatch(input),
-        })
-      } catch (error) {
-        captureError(error, 'storyboard_timeline_update_failed')
-        throw error
-      }
+        }),
+      })
     },
     async createHierarchyNode(input) {
-      setData((data) => ({
-        ...data,
-        hierarchyTree: appendChildNode(data.hierarchyTree, input.parentNode.id, input.node),
-      }))
-      const projectId = requireWorkspaceProject()
-      if (!projectId) return
-      markDirty()
-      try {
-        await options.port.writeHierarchyNode({
+      await commitOptimisticWorkspaceOperation({
+        optimistic: () => setData((data) => ({
+          ...data,
+          hierarchyTree: appendChildNode(data.hierarchyTree, input.parentNode.id, input.node),
+        })),
+        fallback: 'hierarchy_node_create_failed',
+        commit: (projectId) => options.port.writeHierarchyNode({
           projectId,
           targetPath: input.targetPath,
           record: buildContentSourceWorkspaceHierarchyNodeRecord({
@@ -374,11 +365,8 @@ export function createContentSourceWorkspaceRuntime(options: {
             targetPath: input.targetPath,
             parentNode: input.parentNode,
           }),
-        })
-      } catch (error) {
-        captureError(error, 'hierarchy_node_create_failed')
-        throw error
-      }
+        }),
+      })
     },
     async sync() {
       const projectId = requireWorkspaceProject()
@@ -403,4 +391,8 @@ export function createContentSourceWorkspaceRuntime(options: {
 function isContentSourceWorkspaceDataEmpty(data: ContentSourceWorkspaceData): boolean {
   return data.previewMoments.length === 0
     && Object.keys(data.assetReferenceUnits).length === 0
+}
+
+function cloneContentSourceWorkspaceData(data: ContentSourceWorkspaceData): ContentSourceWorkspaceData {
+  return JSON.parse(JSON.stringify(data)) as ContentSourceWorkspaceData
 }

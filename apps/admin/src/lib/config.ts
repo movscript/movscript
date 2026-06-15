@@ -52,7 +52,7 @@ export function getLocalAPIBaseURL(): string {
 }
 
 export function getAPIBaseURL(): string {
-  return readStoredAPIBaseURL() || getDefaultAPIBaseURL()
+  return readURLAPIBaseURL() || readLaunchContextAPIBaseURL() || readStoredAPIBaseURL() || getDefaultAPIBaseURL()
 }
 
 export function getAPIV1BaseURL(): string {
@@ -64,4 +64,32 @@ export const API_V1_BASE_URL = getAPIV1BaseURL()
 
 function readImportMetaEnv(): Record<string, string | undefined> {
   return (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+}
+
+function readURLAPIBaseURL(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = new URL(window.location.href).searchParams.get('apiBaseURL')
+    return value?.trim() ? normalizeAPIBaseURL(value) : null
+  } catch {
+    return null
+  }
+}
+
+function readLaunchContextAPIBaseURL(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const encoded = hash.get('authSession')
+    if (!encoded) return null
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const json = decodeURIComponent(Array.from(atob(padded), (char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''))
+    const parsed = JSON.parse(json) as { api_base_url?: unknown }
+    return typeof parsed.api_base_url === 'string' && parsed.api_base_url.trim()
+      ? normalizeAPIBaseURL(parsed.api_base_url)
+      : null
+  } catch {
+    return null
+  }
 }

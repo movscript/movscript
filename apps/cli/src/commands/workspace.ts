@@ -44,7 +44,7 @@ export function registerWorkspaceCommands(program: Command): void {
 
   workspace
     .command('review')
-    .description('Review current MovScript source files against .interpret/current without making them effective')
+    .description('Review current MovScript source files and diagnostics without publishing product state')
     .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')
@@ -60,7 +60,7 @@ export function registerWorkspaceCommands(program: Command): void {
 
   workspace
     .command('interpret')
-    .description('Interpret current MovScript source files into .interpret/current and .interpret/indexes')
+    .description('Validate current MovScript source files and refresh interpreter debug artifacts')
     .option('--workspace <dir>', 'MovScript workspace container directory')
     .option('--user <id>', 'Workspace user id')
     .option('--org <id>', 'Workspace organization id')

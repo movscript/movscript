@@ -47,7 +47,7 @@ export function OnboardingWorkModeSummary({
   hint,
   activeMode,
   agentIcon,
-  detailIcon,
+  projectIcon,
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
@@ -55,7 +55,7 @@ export function OnboardingWorkModeSummary({
   hint: ReactNode;
   activeMode: WorkModeChoice;
   agentIcon: IconComponent;
-  detailIcon: IconComponent;
+  projectIcon: IconComponent;
 }) {
   return (
     <AppSurfaceItem className={cn("onboarding-work-mode-summary", className)} {...props}>
@@ -64,7 +64,7 @@ export function OnboardingWorkModeSummary({
           <p className="onboarding-work-mode-summary__title">{selectedLabel}</p>
           <p className="onboarding-work-mode-summary__hint">{hint}</p>
         </div>
-        <WorkModeSwitchGuide activeMode={activeMode} agentIcon={agentIcon} detailIcon={detailIcon} />
+        <WorkModeSwitchGuide activeMode={activeMode} agentIcon={agentIcon} projectIcon={projectIcon} />
       </div>
     </AppSurfaceItem>
   );

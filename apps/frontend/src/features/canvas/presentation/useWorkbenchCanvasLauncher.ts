@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { api } from '@/shared/infrastructure/api'
 import { canvasEditorPath } from '@/routes/appRouteModel'
+import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { Canvas, CanvasStage } from '@/types'
 
@@ -24,7 +25,7 @@ export function useWorkbenchCanvasLauncher(kind?: CanvasWorkbenchKind) {
   const project = useProjectStore((s) => s.current)
   const meta = kind ? canvasWorkbenchMeta[kind] : undefined
   const canvasesQuery = useQuery<Canvas[]>({
-    queryKey: ['workbench-canvas', project?.ID, meta?.stage],
+    queryKey: canvasKeys.workbench(project?.ID, meta?.stage),
     queryFn: () => api.get('/canvases', {
       params: {
         project_id: project?.ID,
@@ -44,7 +45,7 @@ export function useWorkbenchCanvasLauncher(kind?: CanvasWorkbenchKind) {
         stage: meta.stage,
       }).then((r) => r.data as Canvas)
     },
-    onSuccess: (canvas) => navigate(canvasEditorPath(canvas.ID, { source: 'detail' })),
+    onSuccess: (canvas) => navigate(canvasEditorPath(canvas.ID, { source: 'project' })),
   })
   const existingCanvas = canvasesQuery.data?.[0]
   return {
@@ -54,7 +55,7 @@ export function useWorkbenchCanvasLauncher(kind?: CanvasWorkbenchKind) {
     open: () => {
       if (!meta) return
       if (existingCanvas) {
-        navigate(canvasEditorPath(existingCanvas.ID, { source: 'detail' }))
+        navigate(canvasEditorPath(existingCanvas.ID, { source: 'project' }))
         return
       }
       createCanvas.mutate()

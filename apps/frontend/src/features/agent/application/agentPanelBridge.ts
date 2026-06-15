@@ -3,6 +3,7 @@ import { useAgentSessionStore, type AgentPageTaskPayload } from '@/features/agen
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import type { AgentChatServerRequest, AgentChatServerRequestResponse } from '@movscript/core/agent/chat'
+import { createEventBus } from '@/shared/application/eventBus'
 
 export const AGENT_PANEL_WORKSPACE_EVENT = 'movscript:agent-panel-workspace'
 export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
@@ -35,9 +36,6 @@ export interface AgentPanelRunSettledPayload {
 export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void | Promise<void>
 
 const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
-const pendingNewConversationPayloads: AgentPanelNewConversationPayload[] = []
-const pendingThreadPayloads: AgentPanelThreadPayload[] = []
-const pendingDecisionRequestPayloads: AgentPanelDecisionRequestPayload[] = []
 
 export type AgentPanelWorkspacePayload = AgentPageTaskPayload
 
@@ -57,14 +55,23 @@ export interface AgentPanelDecisionRequestPayload {
   onResolve?: (response: AgentChatServerRequestResponse | undefined) => void | Promise<void>
 }
 
+type AgentPanelEventMap = {
+  [AGENT_PANEL_WORKSPACE_EVENT]: AgentPanelWorkspacePayload
+  [AGENT_PANEL_RUN_SETTLED_EVENT]: AgentPanelRunSettledPayload
+  [AGENT_PANEL_THREAD_EVENT]: AgentPanelThreadPayload
+  [AGENT_PANEL_NEW_CONVERSATION_EVENT]: AgentPanelNewConversationPayload
+  [AGENT_PANEL_DECISION_REQUEST_EVENT]: AgentPanelDecisionRequestPayload
+}
+
+const agentPanelEventBus = createEventBus<AgentPanelEventMap>()
+
 export function openAgentPanelWorkspace(payload: AgentPanelWorkspacePayload) {
   const normalized = useAgentSessionStore.getState().enqueuePageTask(payload)
-  window.dispatchEvent(new CustomEvent<AgentPanelWorkspacePayload>(AGENT_PANEL_WORKSPACE_EVENT, { detail: normalized }))
+  agentPanelEventBus.publish(AGENT_PANEL_WORKSPACE_EVENT, normalized)
 }
 
 export function openAgentPanelNewConversation(payload: AgentPanelNewConversationPayload = {}) {
-  pendingNewConversationPayloads.push(payload)
-  window.dispatchEvent(new CustomEvent<AgentPanelNewConversationPayload>(AGENT_PANEL_NEW_CONVERSATION_EVENT, { detail: payload }))
+  agentPanelEventBus.publishReplay(AGENT_PANEL_NEW_CONVERSATION_EVENT, payload)
 }
 
 export function openAgentPanelThread(input: string | AgentPanelThreadPayload, sessionId?: string) {
@@ -77,15 +84,11 @@ export function openAgentPanelThread(input: string | AgentPanelThreadPayload, se
     threadId: normalizedThreadId,
     ...(payload.sessionId?.trim() ? { sessionId: payload.sessionId.trim() } : {}),
   }
-  pendingThreadPayloads.push(normalizedPayload)
-  window.dispatchEvent(new CustomEvent<AgentPanelThreadPayload>(AGENT_PANEL_THREAD_EVENT, {
-    detail: normalizedPayload,
-  }))
+  agentPanelEventBus.publishReplay(AGENT_PANEL_THREAD_EVENT, normalizedPayload)
 }
 
 export function openAgentPanelDecisionRequest(payload: AgentPanelDecisionRequestPayload) {
-  pendingDecisionRequestPayloads.push(payload)
-  window.dispatchEvent(new CustomEvent<AgentPanelDecisionRequestPayload>(AGENT_PANEL_DECISION_REQUEST_EVENT, { detail: payload }))
+  agentPanelEventBus.publishReplay(AGENT_PANEL_DECISION_REQUEST_EVENT, payload)
 }
 
 export function consumeAgentPanelWorkspace() {
@@ -93,15 +96,15 @@ export function consumeAgentPanelWorkspace() {
 }
 
 export function consumeAgentPanelNewConversation() {
-  return pendingNewConversationPayloads.shift()
+  return agentPanelEventBus.consume(AGENT_PANEL_NEW_CONVERSATION_EVENT)
 }
 
 export function consumeAgentPanelThread() {
-  return pendingThreadPayloads.shift()
+  return agentPanelEventBus.consume(AGENT_PANEL_THREAD_EVENT)
 }
 
 export function consumeAgentPanelDecisionRequest() {
-  return pendingDecisionRequestPayloads.shift()
+  return agentPanelEventBus.consume(AGENT_PANEL_DECISION_REQUEST_EVENT)
 }
 
 export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPageTool) {
@@ -115,11 +118,31 @@ export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPa
 
 export function notifyAgentPanelRunSettled(payload: AgentPanelRunSettledPayload) {
   useAgentSessionStore.getState().updatePageTaskFromProviderSession(payload)
-  window.dispatchEvent(new CustomEvent<AgentPanelRunSettledPayload>(AGENT_PANEL_RUN_SETTLED_EVENT, { detail: payload }))
+  agentPanelEventBus.publish(AGENT_PANEL_RUN_SETTLED_EVENT, payload)
   if (!payload.requestId) return
   const tool = pageToolsByRequestId.get(payload.requestId)
   if (!tool) return
   Promise.resolve(tool(payload)).catch((error) => {
     console.error('[agent-panel] page tool failed', error)
   })
+}
+
+export function subscribeAgentPanelWorkspace(handler: (payload: AgentPanelWorkspacePayload) => void) {
+  return agentPanelEventBus.subscribe(AGENT_PANEL_WORKSPACE_EVENT, handler)
+}
+
+export function subscribeAgentPanelNewConversation(handler: (payload: AgentPanelNewConversationPayload) => void) {
+  return agentPanelEventBus.subscribe(AGENT_PANEL_NEW_CONVERSATION_EVENT, handler)
+}
+
+export function subscribeAgentPanelThread(handler: (payload: AgentPanelThreadPayload) => void) {
+  return agentPanelEventBus.subscribe(AGENT_PANEL_THREAD_EVENT, handler)
+}
+
+export function subscribeAgentPanelDecisionRequest(handler: (payload: AgentPanelDecisionRequestPayload) => void) {
+  return agentPanelEventBus.subscribe(AGENT_PANEL_DECISION_REQUEST_EVENT, handler)
+}
+
+export function subscribeAgentPanelRunSettled(handler: (payload: AgentPanelRunSettledPayload) => void) {
+  return agentPanelEventBus.subscribe(AGENT_PANEL_RUN_SETTLED_EVENT, handler)
 }

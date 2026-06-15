@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
@@ -14,10 +15,7 @@ import (
 )
 
 // FileUploader uploads a file to a provider-side Files API and returns the file ID.
-type FileUploader interface {
-	UploadFile(ctx context.Context, data []byte, filename, mimeType, purpose string) (string, error)
-	DeleteFile(ctx context.Context, fileID string) error
-}
+type FileUploader = providercontract.AIGatewayFileUploader
 
 // OpenAIFileUploader uploads files to an OpenAI-compatible Files API endpoint.
 type OpenAIFileUploader struct {

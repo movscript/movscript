@@ -1,5 +1,6 @@
 import { getLocalAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
 export type BackendBootState = 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
 
@@ -43,7 +44,7 @@ export function isBackendBootStatus(value: unknown): value is BackendBootStatus 
 
 export function shouldGateLocalBackendRequests(): boolean {
   if (typeof window === 'undefined') return false
-  if (!window.api?.getBackendStatus || !window.api?.setAppSettings) return false
+  if (!readElectronApi()?.getBackendStatus || !readElectronApi()?.setAppSettings) return false
   const settings = useAppSettingsStore.getState().settings
   if (!isLocalLaunchMode(settings)) return false
   return normalizeAPIBaseURL(settings.apiBaseURL) === getLocalAPIBaseURL()
@@ -51,7 +52,7 @@ export function shouldGateLocalBackendRequests(): boolean {
 
 export function canManageLocalBackend(): boolean {
   if (typeof window === 'undefined') return false
-  return !!window.api?.getBackendStatus && !!window.api?.setAppSettings
+  return !!readElectronApi()?.getBackendStatus && !!readElectronApi()?.setAppSettings
 }
 
 export async function probeLocalBackendStatus(baseURL: string): Promise<BackendBootStatus> {
@@ -77,7 +78,7 @@ export async function waitForLocalBackendReady(timeoutMs = 20_000): Promise<void
 }
 
 async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
-  const api = window.api
+  const api = readElectronApi()
   if (!api?.getBackendStatus || !api?.setAppSettings) return
 
   const settings = useAppSettingsStore.getState().settings

@@ -90,6 +90,52 @@ export interface MovScriptPreviewTimelineArtifact {
   items: MovScriptPreviewTimelineItem[]
 }
 
+export interface MovScriptEditPlanTrackItem {
+  id: string
+  content_unit_id: string | number
+  content_unit_ref: string
+  output_kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
+  target_kind: 'scene_moment' | 'expression_unit' | 'content_unit' | string
+  target_ref: string
+  expression_unit_ref?: string
+  expression_modality?: string
+  expression_role?: string
+  candidate_id?: string | number
+  resource_id?: number
+  selected: boolean
+  stale: boolean
+  timing_intent?: Record<string, unknown>
+  generation_role?: string
+  order: number
+}
+
+export interface MovScriptEditPlanTrack {
+  type: 'video' | 'voice' | 'subtitle' | 'audio' | 'image' | 'metadata'
+  items: MovScriptEditPlanTrackItem[]
+}
+
+export interface MovScriptEditPlanArtifact {
+  schema: 'movscript.edit_plan.v1'
+  productionId: string | number
+  productionPath: string
+  sceneMomentId: string | number
+  sceneMomentPath: string
+  target_ref: string
+  status: 'ready_to_compose' | 'missing_selection'
+  tracks: MovScriptEditPlanTrack[]
+  compose_inputs: Array<{
+    content_unit_id: string | number
+    resource_id: number
+    output_kind: 'image' | 'video' | 'audio' | 'text' | 'metadata'
+    track_type: MovScriptEditPlanTrack['type']
+  }>
+  blockers?: Array<{
+    code: 'selection_missing' | 'selection_stale' | 'resource_missing'
+    content_unit_id: string | number
+    message: string
+  }>
+}
+
 export interface MovScriptProductionWorkPlanSourceIssue {
   path: string
   severity: 'error' | 'warning'
@@ -214,6 +260,7 @@ export interface MovScriptWorkspaceDerivedArtifacts {
   assetIndex: MovScriptAssetIndexArtifact
   impactReport: MovScriptImpactReportArtifact
   previewTimelines: MovScriptPreviewTimelineArtifact[]
+  editPlans: MovScriptEditPlanArtifact[]
   contentUnitArtifacts: ContentUnitDerivedArtifactBundle[]
   productionWorkPlan: MovScriptProductionWorkPlan
 }

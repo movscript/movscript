@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
+import { modelKeys } from '@/shared/application/modelQueryKeys'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
+import { resourceKeys } from '@/features/resources/application/resourceQueryKeys'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { Job, NodeType, PublicModel, RawResource } from '@/types'
 import { useTranslation } from 'react-i18next'
@@ -32,13 +34,13 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
   })
 
   const { data: modelsData } = useQuery<PublicModel[]>({
-    queryKey: ['models', capability],
+    queryKey: modelKeys.capability(capability),
     queryFn: () => api.get(`/models?capability=${capability}`).then((r) => r.data),
   })
   const models = modelsData ?? []
 
   const { data: resourcesData } = useQuery<RawResource[]>({
-    queryKey: ['resources'],
+    queryKey: resourceKeys.all,
     queryFn: () => api.get('/resources').then((r) => r.data),
   })
   const resources = resourcesData ?? []

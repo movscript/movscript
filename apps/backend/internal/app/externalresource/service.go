@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/infra/crypto"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -212,30 +213,30 @@ func (s *Service) Search(ctx context.Context, input SearchInput) (SearchResult, 
 		return SearchResult{}, ErrForbidden
 	}
 	config := s.decryptConfig(source.configJSON)
-	switch source.ProviderKey {
-	case ProviderPexels:
-		result, err := s.searchPexels(ctx, config, SearchInput{
-			Query:       query,
-			MediaType:   input.MediaType,
-			Orientation: input.Orientation,
-			Page:        input.Page,
-			PageSize:    input.PageSize,
-		})
-		result.SourceName = source.Name
-		return result, err
-	case ProviderPixabay:
-		result, err := s.searchPixabay(ctx, config, SearchInput{
-			Query:       query,
-			MediaType:   input.MediaType,
-			Orientation: input.Orientation,
-			Page:        input.Page,
-			PageSize:    input.PageSize,
-		})
-		result.SourceName = source.Name
-		return result, err
-	default:
+	provider, ok := externalResourceProviderFor(source.ProviderKey, config, s.httpClient)
+	if !ok {
 		return SearchResult{}, ErrInvalidConfig
 	}
+	request := providercontract.ExternalResourceSearchRequest{
+		Query:       query,
+		MediaType:   input.MediaType,
+		Orientation: input.Orientation,
+		Page:        input.Page,
+		PageSize:    input.PageSize,
+	}
+	providerResult, err := provider.Search(ctx, request)
+	if err != nil {
+		return SearchResult{}, err
+	}
+	return SearchResult{
+		Items:      externalResourceItemsFromProviderContract(providerResult.Items),
+		Total:      providerResult.Total,
+		Page:       normalizeSearchPage(input.Page),
+		PageSize:   normalizeSearchPageSize(input.PageSize),
+		Provider:   source.ProviderKey,
+		NextPage:   providerResult.NextPage,
+		SourceName: source.Name,
+	}, nil
 }
 
 func (s *Service) encryptConfig(config map[string]string) (string, error) {
@@ -442,10 +443,10 @@ type pixabayFile struct {
 	Thumbnail string `json:"thumbnail"`
 }
 
-func (s *Service) searchPexels(ctx context.Context, config map[string]string, input SearchInput) (SearchResult, error) {
-	apiKey := strings.TrimSpace(config["api_key"])
+func (p httpProviderAdapter) searchPexels(ctx context.Context, input providercontract.ExternalResourceSearchRequest) (providercontract.ExternalResourceSearchResult, error) {
+	apiKey := strings.TrimSpace(p.config["api_key"])
 	if apiKey == "" {
-		return SearchResult{}, ErrInvalidConfig
+		return providercontract.ExternalResourceSearchResult{}, ErrInvalidConfig
 	}
 	mediaType := strings.TrimSpace(input.MediaType)
 	if mediaType == "" || mediaType == "all" {
@@ -457,7 +458,7 @@ func (s *Service) searchPexels(ctx context.Context, config map[string]string, in
 	if mediaType == "video" {
 		endpointPath = "/videos/search"
 	} else if mediaType != "image" {
-		return SearchResult{}, ErrInvalidQuery
+		return providercontract.ExternalResourceSearchResult{}, ErrInvalidQuery
 	}
 	values := url.Values{}
 	values.Set("query", strings.TrimSpace(input.Query))
@@ -469,51 +470,51 @@ func (s *Service) searchPexels(ctx context.Context, config map[string]string, in
 	endpoint := "https://api.pexels.com" + endpointPath + "?" + values.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return SearchResult{}, err
+		return providercontract.ExternalResourceSearchResult{}, err
 	}
 	req.Header.Set("Authorization", apiKey)
 	req.Header.Set("Accept", "application/json")
-	resp, err := s.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w: %v", ErrProviderFailed, err)
+		return providercontract.ExternalResourceSearchResult{}, fmt.Errorf("%w: %v", ErrProviderFailed, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SearchResult{}, providerHTTPError("pexels", resp)
+		return providercontract.ExternalResourceSearchResult{}, providerHTTPError("pexels", resp)
 	}
 	if mediaType == "video" {
 		var decoded pexelsVideoSearchResponse
 		if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-			return SearchResult{}, err
+			return providercontract.ExternalResourceSearchResult{}, err
 		}
 		items := make([]ExternalResourceItem, 0, len(decoded.Videos))
 		for _, video := range decoded.Videos {
 			items = append(items, pexelsVideoItem(video))
 		}
-		return SearchResult{Items: items, Total: decoded.TotalResults, Page: page, PageSize: pageSize, Provider: ProviderPexels, NextPage: decoded.NextPage}, nil
+		return providercontract.ExternalResourceSearchResult{Items: externalResourceItemsToProviderContract(items), Total: decoded.TotalResults, NextPage: decoded.NextPage}, nil
 	}
 	var decoded pexelsPhotoSearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return SearchResult{}, err
+		return providercontract.ExternalResourceSearchResult{}, err
 	}
 	items := make([]ExternalResourceItem, 0, len(decoded.Photos))
 	for _, photo := range decoded.Photos {
 		items = append(items, pexelsPhotoItem(photo))
 	}
-	return SearchResult{Items: items, Total: decoded.TotalResults, Page: page, PageSize: pageSize, Provider: ProviderPexels, NextPage: decoded.NextPage}, nil
+	return providercontract.ExternalResourceSearchResult{Items: externalResourceItemsToProviderContract(items), Total: decoded.TotalResults, NextPage: decoded.NextPage}, nil
 }
 
-func (s *Service) searchPixabay(ctx context.Context, config map[string]string, input SearchInput) (SearchResult, error) {
-	apiKey := strings.TrimSpace(config["api_key"])
+func (p httpProviderAdapter) searchPixabay(ctx context.Context, input providercontract.ExternalResourceSearchRequest) (providercontract.ExternalResourceSearchResult, error) {
+	apiKey := strings.TrimSpace(p.config["api_key"])
 	if apiKey == "" {
-		return SearchResult{}, ErrInvalidConfig
+		return providercontract.ExternalResourceSearchResult{}, ErrInvalidConfig
 	}
 	mediaType := strings.TrimSpace(input.MediaType)
 	if mediaType == "" || mediaType == "all" {
 		mediaType = "image"
 	}
 	if mediaType != "image" && mediaType != "video" {
-		return SearchResult{}, ErrInvalidQuery
+		return providercontract.ExternalResourceSearchResult{}, ErrInvalidQuery
 	}
 	page := normalizeSearchPage(input.Page)
 	pageSize := normalizeSearchPageSize(input.PageSize)
@@ -541,20 +542,20 @@ func (s *Service) searchPixabay(ctx context.Context, config map[string]string, i
 	endpoint := "https://pixabay.com/api/" + endpointPath + "?" + values.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return SearchResult{}, err
+		return providercontract.ExternalResourceSearchResult{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := s.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("%w: %v", ErrProviderFailed, err)
+		return providercontract.ExternalResourceSearchResult{}, fmt.Errorf("%w: %v", ErrProviderFailed, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SearchResult{}, providerHTTPError("pixabay", resp)
+		return providercontract.ExternalResourceSearchResult{}, providerHTTPError("pixabay", resp)
 	}
 	var decoded pixabaySearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return SearchResult{}, err
+		return providercontract.ExternalResourceSearchResult{}, err
 	}
 	items := make([]ExternalResourceItem, 0, len(decoded.Hits))
 	for _, hit := range decoded.Hits {
@@ -564,7 +565,7 @@ func (s *Service) searchPixabay(ctx context.Context, config map[string]string, i
 			items = append(items, pixabayImageItem(hit))
 		}
 	}
-	return SearchResult{Items: items, Total: decoded.TotalHits, Page: page, PageSize: pageSize, Provider: ProviderPixabay}, nil
+	return providercontract.ExternalResourceSearchResult{Items: externalResourceItemsToProviderContract(items), Total: decoded.TotalHits}, nil
 }
 
 func pixabayOrientation(orientation string) string {

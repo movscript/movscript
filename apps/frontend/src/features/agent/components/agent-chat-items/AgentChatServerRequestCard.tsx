@@ -1,10 +1,6 @@
 import { useMemo, useState } from 'react'
-import {
-  AgentChatContentStack,
-  AgentChatMessage,
-  AgentMessageSection,
-  Button,
-} from '@movscript/ui'
+import { AgentChatContentStack, AgentChatMessage, AgentMessageSection } from '@movscript/ui/business/agent'
+import { Button } from '@movscript/ui/primitives'
 import {
   agentChatAnswerResponse,
   agentChatElicitationContent,

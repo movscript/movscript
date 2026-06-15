@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
+import { removeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import { MOVA_PROVIDER_ID } from '@/shared/infrastructure/providerConfigStore'
 import type {
   AgentAttachment as ProtocolAgentAttachment,
@@ -139,11 +140,7 @@ const agentStorePartialize = createAgentStorePartialize()
 
 if (typeof window !== 'undefined') {
   for (const key of REMOVED_CONVERSATION_SESSION_STORAGE_KEYS) {
-    try {
-      window.localStorage.removeItem(key)
-    } catch {
-      // Ignore storage access failures; the panel store itself remains in-memory.
-    }
+    removeBrowserStorageItem('local', key)
   }
 }
 

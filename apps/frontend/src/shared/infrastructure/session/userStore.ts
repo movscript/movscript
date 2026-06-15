@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User, OrgMembership } from '@/types'
+import { syncElectronBackendAuthSession } from './backendAuthSessionSync'
 
 interface UserStore {
   currentUser: User | null
@@ -71,6 +72,7 @@ export const useUserStore = create<UserStore>()(
       setSession: (session: AuthSession | null) => {
         if (!session) {
           set({ currentUser: null, token: null, tokenExpiresAt: null, gitCredential: null, orgMemberships: [], currentOrgID: null })
+          void syncElectronBackendAuthSession(null)
           return
         }
         const memberships = session.org_memberships ?? []
@@ -82,15 +84,19 @@ export const useUserStore = create<UserStore>()(
           orgMemberships: memberships,
           currentOrgID: resolveInitialOrg(memberships),
         })
+        void syncElectronBackendAuthSession(session)
       },
-      setCurrentUser: (u: User | null) => set((state: UserStore) => ({
-        currentUser: u,
-        token: u ? state.token : null,
-        tokenExpiresAt: u ? state.tokenExpiresAt : null,
-        gitCredential: u ? state.gitCredential : null,
-        orgMemberships: u ? state.orgMemberships : [],
-        currentOrgID: u ? state.currentOrgID : null,
-      })),
+      setCurrentUser: (u: User | null) => {
+        if (!u) void syncElectronBackendAuthSession(null)
+        set((state: UserStore) => ({
+          currentUser: u,
+          token: u ? state.token : null,
+          tokenExpiresAt: u ? state.tokenExpiresAt : null,
+          gitCredential: u ? state.gitCredential : null,
+          orgMemberships: u ? state.orgMemberships : [],
+          currentOrgID: u ? state.currentOrgID : null,
+        }))
+      },
       setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => set({
         orgMemberships: memberships,
         currentOrgID: resolveInitialOrg(memberships, preferredOrgId),
@@ -111,7 +117,16 @@ export const useUserStore = create<UserStore>()(
         }
       },
       onRehydrateStorage: () => (state?: UserStore) => {
-        if (state) state.hydrated = true
+        if (!state) return
+        state.hydrated = true
+        if (state.token && state.currentUser) {
+          void syncElectronBackendAuthSession({
+            token: state.token,
+            expires_at: state.tokenExpiresAt,
+            user: state.currentUser,
+            git_credential: state.gitCredential,
+          })
+        }
       },
     }
   )

@@ -1,0 +1,47 @@
+import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import {
+  type AgentPanelNewConversationPayload,
+} from '@/features/agent/application/agentPanelBridge'
+import { clearAgentChatComposerEditor } from '@/features/agent/application/agentComposerEditorDom'
+import {
+  createAgentChatDraftConversationId,
+  workspaceContextFromNewConversationPayload,
+} from '@/features/agent/presentation/agentChatDataSourceShellModel'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+
+interface UseAgentChatDraftConversationInput {
+  composerInputRef: MutableRefObject<HTMLDivElement | null>
+  setActiveThreadIdValue: (threadId: string | null) => void
+  setDraftConversationId: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+  setHistoryOpen: Dispatch<SetStateAction<boolean>>
+  threadScopeKey: string
+  userId: string
+}
+
+export function useAgentChatDraftConversation({
+  composerInputRef,
+  setActiveThreadIdValue,
+  setDraftConversationId,
+  setError,
+  setHistoryOpen,
+  threadScopeKey,
+  userId,
+}: UseAgentChatDraftConversationInput) {
+  return useCallback((input: AgentPanelNewConversationPayload = {}) => {
+    const workspaceContext = workspaceContextFromNewConversationPayload(input)
+    const draftId = createAgentChatDraftConversationId(threadScopeKey)
+    setDraftConversationId(draftId)
+    setActiveThreadIdValue(null)
+    useAgentSessionStore.getState().setActiveConversation(userId, draftId)
+    setHistoryOpen(false)
+    setError(null)
+    useAgentSessionStore.getState().updateConversationWorkspace(userId, draftId, {
+      input: '',
+      attachments: [],
+      ...(workspaceContext ? { workspaceContext } : {}),
+    })
+    clearAgentChatComposerEditor(composerInputRef.current)
+    return draftId
+  }, [composerInputRef, setActiveThreadIdValue, setDraftConversationId, setError, setHistoryOpen, threadScopeKey, userId])
+}

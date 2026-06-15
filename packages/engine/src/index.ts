@@ -117,11 +117,19 @@ export interface MovScriptEngineExpressionUnitInput {
   segmentId?: string | number
   sceneMomentId?: string | number
   title?: string
+  modality?: string
+  role?: string
   kind?: string
+  visualKind?: string
   speaker?: string
+  speakerRef?: string
+  sourceExpressionRef?: string
   text?: string
   note?: string
   intent?: string
+  content?: Record<string, unknown>
+  timingIntent?: Record<string, unknown>
+  voiceProfileRef?: string
   order?: number
   span?: Record<string, unknown>
   scriptBlockId?: string | number | null
@@ -133,10 +141,15 @@ export interface MovScriptEngineContentUnitInput {
   kind?: string
   contentUnitType?: string
   outputKind?: string
+  targetKind?: string
+  targetRef?: string | number
+  generationRole?: string
   assetRef?: string | number
   productionId?: string | number
   segmentId?: string | number
   sceneMomentId?: string | number
+  expressionUnitId?: string | number
+  expressionUnitRef?: string | number
   shotId?: string | number
   storyboardId?: string | number
   audioCueId?: string | number
@@ -594,11 +607,19 @@ function saveExpressionUnit(
           expression_units: [pruneUndefined({
             id: input.id,
             title: input.title,
+            modality: input.modality,
+            role: input.role,
             kind: input.kind,
+            visual_kind: input.visualKind,
             speaker: input.speaker,
+            speaker_ref: input.speakerRef,
+            source_expression_ref: input.sourceExpressionRef,
             text: input.text,
             note: input.note,
             intent: input.intent,
+            content: input.content,
+            timing_intent: input.timingIntent,
+            voice_profile_ref: input.voiceProfileRef,
             order: input.order,
             span: input.span,
             script_block_id: input.scriptBlockId,
@@ -619,6 +640,9 @@ function saveContentUnit(
       title: input.title,
       content_unit_type: input.contentUnitType ?? input.kind ?? 'storyboard_ref',
       output_kind: input.outputKind ?? defaultContentUnitOutputKind(input.contentUnitType ?? input.kind ?? 'storyboard_ref'),
+      target_kind: input.targetKind,
+      target_ref: input.targetRef,
+      generation_role: input.generationRole,
       edit_prompt: pruneUndefined({
         text: input.prompt?.trim() || undefined,
         negative_text: input.negativePrompt,
@@ -637,6 +661,7 @@ function saveContentUnit(
       production_ref: input.productionId,
       segment_ref: input.segmentId,
       scene_moment_ref: input.sceneMomentId,
+      expression_unit_ref: input.expressionUnitRef ?? input.expressionUnitId,
       shot_ref: input.shotId,
       storyboard_ref: input.storyboardId,
       audio_cue_ref: input.audioCueId,

@@ -92,24 +92,21 @@ MOVSCRIPT_WORKSPACE_DIR=/tmp/movscript-debug pnpm --filter @movscript/desktop de
 
 ## Workspace Model
 
-MovScript treats each project Git repository as the project workspace. Business source files live under `edit/`; successful interprets write the current effective state under `.interpret/`. The `.movscript/` directory inside the repo is only the local control directory for app/provider configuration and backend auth.
+MovScript treats each project Git repository as the project workspace. Business source files live under `edit/`. Product code and agents should use source files plus MovScript domain APIs as the contract; interpreter debug artifacts are not product state. The `.movscript/` directory inside the repo is only the local control directory for app/provider configuration and backend auth.
 
 ```text
 project.json
 workspace.json
 edit/                       Editable business files
-.interpret/
-├── current/                Last successful interpreted state
-├── indexes/                Derived domain indexes
-├── reviews/                Review evidence
-└── manifests/              Interpret manifests
 .movscript/
 ├── manifest.json           Local workspace control contract
 ├── providers/              Provider configs, sessions, runs, and cache
 └── backend/                Local backend auth and connection config
 ```
 
-Workspace tools are `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_interpret`. Review compares `.interpret/current` to `edit/`; interpret validates `edit/`, updates `.interpret/current`, and writes indexes/manifests. Git commit/push persists a successful interpret step in repo history.
+When interpreter debugging is enabled, diagnostic snapshots may be written under `.interpret/`. Treat that directory as ignored debug output, not as a workflow contract or source of truth.
+
+Workspace tools are `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_interpret`. Review diagnoses source changes; interpret validates source and can refresh debug artifacts for inspection. Git commit/push persists source changes in repo history.
 
 See [docs/workspace-ontology.zh-CN.md](docs/workspace-ontology.zh-CN.md) for the current workspace ontology.
 

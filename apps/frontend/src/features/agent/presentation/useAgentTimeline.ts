@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react'
-import { AGENT_TIMELINE_LOCAL_EVENT, isAcceptedSourceTimelineItem } from '@/features/agent/application/agentTimelineBridge'
+import {
+  isAcceptedSourceTimelineItem,
+  subscribeAgentTimelineAcceptedSource,
+} from '@/features/agent/application/agentTimelineBridge'
 import {
   EMPTY_AGENT_TIMELINE_STATE as CORE_EMPTY_AGENT_TIMELINE_STATE,
   applyTimelineEvent,
@@ -214,8 +217,7 @@ export function useAgentTimeline({
 
   useEffect(() => {
     if (!threadId && !sessionId) return
-    function handleLocalTimelineItem(event: Event) {
-      const item = (event as CustomEvent<AgentTimelineItem>).detail
+    return subscribeAgentTimelineAcceptedSource((item) => {
       if (!isAcceptedSourceTimelineItem(item)) return
       if (!localTimelineItemMatchesScope(item, { sessionId, threadId })) return
       dispatch({
@@ -227,9 +229,7 @@ export function useAgentTimeline({
           item,
         },
       })
-    }
-    window.addEventListener(AGENT_TIMELINE_LOCAL_EVENT, handleLocalTimelineItem)
-    return () => window.removeEventListener(AGENT_TIMELINE_LOCAL_EVENT, handleLocalTimelineItem)
+    })
   }, [scopeKey, sessionId, threadId])
 
   const visibleState = visibleTimelineStateForScope(state, scopeKey)

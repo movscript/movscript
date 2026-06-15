@@ -3,7 +3,6 @@ import test from 'node:test'
 
 import {
   appendMovScriptInlineCandidate,
-  createMovScriptContentCandidate,
   createMovScriptWorkspaceService,
   lockMovScriptInlineCandidate,
   updateMovScriptContentUnitEditPrompt,
@@ -111,6 +110,33 @@ test('workspace inline candidate writer locks existing keyframe candidate', asyn
   assert.equal(saved.lock.resource_id, 101)
 })
 
+test('workspace inline candidate writer rejects content unit targets', async () => {
+  const files = new Map([
+    ['content_units/k41m/content_unit.json', JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'k41m',
+      title: 'Scene video',
+    })],
+  ])
+  const repository = memoryWorkspaceFileRepository(files)
+
+  await assert.rejects(() => appendMovScriptInlineCandidate({
+    fileRepository: repository,
+    targetPath: 'content_units/k41m/content_unit.json',
+    targetKind: 'content_unit',
+    payload: {
+      resource_id: 202,
+      artifact_ref: 'resource_video_2',
+      source: 'generated',
+    },
+  }), /content_unit candidates are backend decision records/)
+
+  const saved = JSON.parse(files.get('content_units/k41m/content_unit.json'))
+  assert.equal(saved.candidates, undefined)
+  assert.equal(saved.lock, undefined)
+})
+
 test('workspace asset writer requires assets to live under setting states', async () => {
   const files = new Map()
   const repository = memoryWorkspaceFileRepository(files)
@@ -118,6 +144,16 @@ test('workspace asset writer requires assets to live under setting states', asyn
     fileRepository: repository,
     now: () => new Date('2026-06-07T00:00:00.000Z'),
   })
+
+  await assert.rejects(
+    () => service.upsertAsset({
+      payload: {
+        id: 'portrait',
+        slot: 'character_base_portrait',
+      },
+    }),
+    /setting_id/,
+  )
 
   await assert.rejects(
     () => service.upsertAsset({
@@ -133,34 +169,58 @@ test('workspace asset writer requires assets to live under setting states', asyn
   const result = await service.upsertAsset({
     payload: {
       id: 'portrait',
-      setting_id: 'hero',
-      setting_state_id: 'base',
+      setting_ref: 'hero',
+      setting_state_ref: 'base',
       slot: 'character_base_portrait',
     },
   })
 
   assert.equal(result.path, 'settings/hero/states/base/assets/portrait/asset.json')
   assert.equal(files.has('settings/hero/states/base/assets/portrait/asset.json'), true)
+  assert.equal(JSON.parse(files.get(result.path)).setting_id, 'hero')
   assert.equal(JSON.parse(files.get(result.path)).setting_state_id, 'base')
 })
 
-test('workspace content candidate writer stores runtime candidates outside content_unit source', async () => {
+test('workspace content unit writer rejects direct primary prompt self references', async () => {
   const files = new Map()
   const repository = memoryWorkspaceFileRepository(files)
-
-  const candidate = await createMovScriptContentCandidate({
+  const service = createMovScriptWorkspaceService({
     fileRepository: repository,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  await assert.rejects(
+    () => service.upsertContentUnit({
+      unit: {
+        id: 'portrait_task',
+        title: 'Portrait task',
+        content_unit_type: 'asset_ref',
+        output_kind: 'image',
+        asset_ref: 'portrait',
+        edit_prompt: { text: '{{asset:portrait}}\nGenerate portrait.' },
+      },
+    }),
+    /must not reference its own asset_ref/,
+  )
+})
+
+test('workspace content candidate creation requires backend decision store', async () => {
+  const files = new Map()
+  const repository = memoryWorkspaceFileRepository(files)
+  const service = createMovScriptWorkspaceService({
+    fileRepository: repository,
+    now: () => new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  await assert.rejects(() => service.createContentCandidate({
     contentUnitId: 'k41m',
     candidateId: 'candidate_video_2',
     outputs: [{ kind: 'video', resource_id: 202, artifact_ref: 'resource_video_2', duration_sec: 4 }],
     promptSnapshot: { text: 'runtime prompt' },
     createdAt: '2026-06-07T00:00:00.000Z',
-  })
+  }), /requires a decisionStore/)
 
-  assert.equal(candidate.path, 'content_units/k41m/candidates/candidate_video_2/content_candidate.json')
-  assert.equal(candidate.record.outputs[0].resource_id, 202)
-  assert.equal(candidate.record.outputs[0].artifact_ref, 'resource_video_2')
-  assert.equal(candidate.record.input_version, undefined)
+  assert.equal(files.has('content_units/k41m/candidates/candidate_video_2/content_candidate.json'), false)
 })
 
 test('workspace service captures content unit prompt snapshot for candidates and keeps stale regeneration across interpretations', async () => {

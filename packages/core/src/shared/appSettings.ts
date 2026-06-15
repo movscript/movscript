@@ -1,5 +1,5 @@
 export type AppLaunchMode = 'cloud' | 'local'
-export type AppWorkMode = 'detail' | 'agent'
+export type AppWorkMode = 'project' | 'tool' | 'agent'
 
 export interface AppSettings {
   apiBaseURL: string
@@ -53,7 +53,7 @@ export function normalizeAppSettings(
     ...options.defaultSettings,
     ...settings,
     launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
-    workMode: settings?.workMode === 'agent' ? 'agent' : 'detail',
+    workMode: normalizeWorkMode(settings?.workMode, options.defaultSettings.workMode),
     onboardingCompleted: settings?.onboardingCompleted ?? options.defaultSettings.onboardingCompleted,
     movScriptWorkspaceDir: settings?.movScriptWorkspaceDir?.trim() || undefined,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
@@ -61,6 +61,11 @@ export function normalizeAppSettings(
     shotLibrarySources,
     defaultShotLibrarySourceId,
   }
+}
+
+function normalizeWorkMode(value: unknown, fallback: AppWorkMode): AppWorkMode {
+  if (value === 'agent' || value === 'tool' || value === 'project') return value
+  return fallback === 'agent' || fallback === 'tool' ? fallback : 'project'
 }
 
 export function normalizeShotLibrarySources(

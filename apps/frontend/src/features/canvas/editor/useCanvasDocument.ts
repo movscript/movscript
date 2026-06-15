@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Edge, Node } from '@xyflow/react'
 import { api } from '@/shared/infrastructure/api'
+import { canvasDocumentChangedResult, invalidateCanvasMutationResult } from '@/features/canvas/application/canvasMutationInvalidation'
 import type { Canvas, CanvasNodeData, CanvasType } from '@/types'
 import { toast } from '@/shared/ui/toastStore'
 import { canvasGraphSignature } from '@/features/canvas/domain/serialization'
@@ -88,12 +89,12 @@ export function useCanvasDocument({
     lastSavedSignatureRef.current = savedSignature
     setHasUnsavedChanges(latestGraphSignatureRef.current !== savedSignature)
     setAutoSaveState('saved')
-    qc.invalidateQueries({ queryKey: ['canvas', canvasId] })
+    invalidateCanvasMutationResult(qc, canvasDocumentChangedResult({ canvasId }))
   }, [canvasId, canvasType, qc, t])
 
   const save = useMutation({
     mutationFn: () => persistCanvasGraph(nodes, edges),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas', canvasId] }),
+    onSuccess: () => invalidateCanvasMutationResult(qc, canvasDocumentChangedResult({ canvasId })),
   })
 
   useEffect(() => {

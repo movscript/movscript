@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { persist } from 'zustand/middleware'
 import {
   APP_SETTINGS_STORAGE_KEY,
@@ -27,7 +28,7 @@ interface AppSettingsStore {
 const defaultSettings: AppSettings = {
   apiBaseURL: getDefaultAPIBaseURL(),
   launchMode: 'cloud',
-  workMode: 'detail',
+  workMode: 'project',
   onboardingCompleted: false,
 }
 
@@ -38,9 +39,13 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
   })
 }
 
-function syncElectronSettings(settings: AppSettings): void {
+export async function saveElectronAppSettings(settings: AppSettings): Promise<void> {
   if (typeof window === 'undefined') return
-  void window.api?.setAppSettings?.(settings)
+  await readElectronApi()?.setAppSettings?.(settings)
+}
+
+function syncElectronSettings(settings: AppSettings): void {
+  void saveElectronAppSettings(settings)
 }
 
 export const useAppSettingsStore = create<AppSettingsStore>()(

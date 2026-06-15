@@ -5,16 +5,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	catalogapp "github.com/movscript/movscript/internal/app/catalog"
-	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type ModelsHandler struct {
 	service *catalogapp.Service
 }
 
-func NewModelsHandler(svc *ai.AIService, cacheStore ...cache.Cache) *ModelsHandler {
-	return &ModelsHandler{service: catalogapp.NewService(svc, cacheStore...)}
+func NewModelsHandler(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore ...cache.Cache) *ModelsHandler {
+	return &ModelsHandler{service: catalogapp.NewService(modelCatalog, cacheStore...)}
 }
 
 // ListByCapability returns enabled models for one or more runtime capabilities.

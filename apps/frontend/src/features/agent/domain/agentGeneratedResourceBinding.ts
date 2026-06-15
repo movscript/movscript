@@ -1,5 +1,4 @@
 import type { SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
-import { invalidateAssetCandidateConsumers } from '@/shared/infrastructure/assetCandidateQueryInvalidation'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { ResourceBindingOwnerType } from '@/types'
 
@@ -192,15 +191,6 @@ export function generatedKeyframeCandidateTargetId(record: SemanticEntityRecord)
   const targetId = nullablePositiveNumber(metadata?.target_keyframe_id)
   if (metadata?.source === 'ai_generated_keyframe_candidate') return targetId ?? 0
   return targetId ?? undefined
-}
-
-export interface GeneratedCandidateQueryInvalidator {
-  invalidateQueries: (options: { queryKey: unknown[] }) => unknown
-}
-
-export function invalidateGeneratedCandidateQueries(queryClient: GeneratedCandidateQueryInvalidator, projectId: number) {
-  invalidateAssetCandidateConsumers(queryClient, projectId)
-  void queryClient.invalidateQueries({ queryKey: ['agent-generated-candidate-targets', projectId] })
 }
 
 export function pendingGeneratedCandidateAttachments<T extends { id: string }>(

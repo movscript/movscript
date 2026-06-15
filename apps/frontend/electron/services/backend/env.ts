@@ -3,7 +3,6 @@ import { join } from 'path'
 import { LOCAL_BACKEND_PORT } from './constants'
 
 export function buildBackendSpawnEnv(input: {
-  adminDir: string
   dataDir: string
   localSecret: string
   inheritedEnv?: NodeJS.ProcessEnv
@@ -19,7 +18,6 @@ export function buildBackendSpawnEnv(input: {
     ...inheritedEnv,
     MOVSCRIPT_DEPENDENCY_PROFILE: dependencyProfile,
     MOVSCRIPT_APP_MODE: inheritedEnv.MOVSCRIPT_APP_MODE || 'local',
-    MOVSCRIPT_ADMIN_DIR: inheritedEnv.MOVSCRIPT_ADMIN_DIR || input.adminDir,
     MOVSCRIPT_DATA_DIR: inheritedEnv.MOVSCRIPT_DATA_DIR || input.dataDir,
     SERVER_PORT: inheritedEnv.SERVER_PORT || LOCAL_BACKEND_PORT,
     DB_DRIVER: inheritedEnv.DB_DRIVER || (externalDependencies ? 'postgres' : 'sqlite'),

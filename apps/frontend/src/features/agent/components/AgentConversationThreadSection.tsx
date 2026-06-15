@@ -1,12 +1,8 @@
 import { type RefObject, type UIEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
-import {
-  AgentBody,
-  AgentEmpty,
-  AgentThreadFill,
-  Button,
-} from '@movscript/ui'
+import { AgentBody, AgentEmpty, AgentThreadFill } from '@movscript/ui/business/agent'
+import { Button } from '@movscript/ui/primitives'
 import { AgentPlanOverviewPanel } from '@/features/agent/components/AgentPlanOverviewPanel'
 import { AgentPinnedStatusShelf, hasAgentPinnedStatus, type AgentPinnedStatusSummaryItem } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { hiddenActivityActionItemIdsFromProjectionItems } from '@/features/agent/components/AgentConversationProjectionActivityFilters'

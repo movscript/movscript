@@ -28,7 +28,6 @@ import {
   buildMovScriptContentCandidate,
   createMovScriptWorkspaceAssetSlotCandidate,
   createMovScriptWorkspaceKeyframeCandidate,
-  createMovScriptContentCandidate,
   createMovScriptWorkspaceDomainRepository,
   deleteMovScriptWorkspaceEntity,
   selectMovScriptInlineCandidate,
@@ -160,6 +159,7 @@ export interface MovScriptWorkspaceService {
   queryProductionContext(query?: MovScriptWorkspaceProductionContextQuery): Promise<Record<string, MovScriptWorkspaceIndexedEntity[]>>
   readEditorState(): Promise<Record<string, unknown> | undefined>
   readPreviewTimeline(productionId: string | number): Promise<MovScriptWorkspacePreviewTimelineArtifact | undefined>
+  readSceneMomentEditPlan(sceneMomentId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitRuntimePanel(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitGenerationPrompt(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
   readContentUnitDependencyReport(contentUnitId: string | number): Promise<Record<string, unknown> | undefined>
@@ -288,6 +288,12 @@ export function createMovScriptWorkspaceService(
       const timelines = deriveMovScriptWorkspacePreviewTimelines(await loadIndex())
       return timelines.find((timeline) => samePreviewTimelineProduction(timeline.productionId, productionId))
     },
+    async readSceneMomentEditPlan(sceneMomentId) {
+      const sceneMoment = queryMovScriptWorkspaceEntities(await loadIndex(), { entityKind: 'scene_moment' })
+        .find((entity) => sameEntityId(entity.id, sceneMomentId) || entity.path.includes(`/scene_moments/${entityPathSlug(sceneMomentId, 'scene_moment')}/`))
+      if (!sceneMoment) return undefined
+      return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${sceneMoment.path.replace(/\/scene_moment\.json$/, '')}/edit_plan.json`)
+    },
     readContentUnitRuntimePanel(contentUnitId) {
       return readJSONArtifact(options.fileRepository, `${MOVSCRIPT_INTERPRET_CURRENT_DIR}/content_units/${entityPathSlug(contentUnitId, 'content_unit')}/runtime_panel.json`)
     },
@@ -405,11 +411,7 @@ export function createMovScriptWorkspaceService(
         })
         return result
       }
-      return createMovScriptContentCandidate({
-        fileRepository: options.fileRepository,
-        ...input,
-        ...(promptSnapshot !== undefined ? { promptSnapshot } : {}),
-      })
+      throw new Error('content unit candidate creation requires a decisionStore')
     },
     async selectContentUnitCandidate(input) {
       const decisionStore = options.decisionStore
@@ -704,6 +706,10 @@ async function writeJSONDocument(
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function sameEntityId(left: unknown, right: unknown): boolean {
+  return String(left ?? '') === String(right ?? '')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels, mergeAgentBackendModels } from './agentModelCatalog'
+import { fetchAgentBackendModels } from '../application/agentModelCatalogApi'
+import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, mergeAgentBackendModels } from './agentModelCatalog'
 import type { PublicModel } from '@/types'
 
 test('fetchAgentBackendModels asks backend for text and reasoning models', async () => {

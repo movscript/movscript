@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/shared/contracts/appSettings'
+import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import {
   isLocalLaunchMode,
   normalizeAPIBaseURL,
@@ -13,9 +14,8 @@ export type { AppSettings }
 export { isLocalLaunchMode, normalizeAPIBaseURL, trimTrailingSlash }
 
 function readStoredAPIBaseURL(): string | null {
-  if (typeof window === 'undefined') return null
   try {
-    const raw = window.localStorage.getItem(APP_SETTINGS_STORAGE_KEY)
+    const raw = readBrowserStorageItem('local', APP_SETTINGS_STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<AppSettings> & {
       state?: { settings?: Partial<AppSettings> }

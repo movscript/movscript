@@ -36,6 +36,7 @@ const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = {
   storyboard_ref: refAdapter('storyboard_ref', 'storyboard', 'image'),
   scence_moment_ref: refAdapter('scence_moment_ref', 'scene_moment', 'video'),
   scene_moment_ref: refAdapter('scene_moment_ref', 'scene_moment', 'video'),
+  expression_unit_ref: expressionUnitAdapter(),
   shot_ref: refAdapter('shot_ref', 'shot', 'video'),
 }
 
@@ -127,6 +128,31 @@ function refAdapter(
     },
     deriveRuntimePanel(context, derivation) {
       return runtimePanelFor(context, this.version, derivation.prompt)
+    },
+  }
+}
+
+function expressionUnitAdapter(): ContentUnitAdapter {
+  return {
+    ...refAdapter('expression_unit_ref', 'expression_unit', 'metadata'),
+    version: 'expression_unit_ref@1',
+    outputKind: 'metadata',
+    derivePrompt(context) {
+      const outputKind = contentUnitOutputKind(context.contentUnit.record.output_kind)
+      const prompt = basePrompt(context, {
+        adapterVersion: this.version,
+        outputKind,
+        primaryKind: 'expression_unit',
+        blockers: [],
+      })
+      const blockers = [
+        ...(prompt.blockers ?? []),
+        ...promptBlockers(context, prompt.refs, 'expression_unit'),
+      ]
+      return {
+        ...prompt,
+        blockers: blockers.length > 0 ? dedupeBlockers(blockers) : undefined,
+      }
     },
   }
 }

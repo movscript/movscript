@@ -2,6 +2,7 @@ import {
   shotLibraryMeasuredBoxFromRect,
   type ShotLibraryMeasuredBox,
 } from '@/features/shot-library/domain/shotLibraryLayout'
+import { listenToWindowEvent } from '@/shared/infrastructure/windowEvents'
 
 export interface ShotLibraryMeasuredElement {
   getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>
@@ -28,7 +29,5 @@ export function subscribeShotLibraryMeasuredBox(
     return () => observer.disconnect()
   }
 
-  if (typeof window === 'undefined') return () => {}
-  window.addEventListener('resize', update)
-  return () => window.removeEventListener('resize', update)
+  return listenToWindowEvent('resize', update)
 }

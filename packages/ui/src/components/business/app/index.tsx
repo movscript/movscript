@@ -3,7 +3,6 @@ export * from "./navigation";
 export * from "./surface";
 export * from "./display";
 export * from "./data-display";
-export * from "./dashboard";
 export * from "./state";
 export * from "./auth";
 export * from "./work-mode";

@@ -13,6 +13,7 @@ import {
   NodeMovScriptEngineRegistry,
 } from '@movscript/engine/node'
 import { createMovScriptBackendDecisionStore } from '@movscript/workspace/repository'
+import type { MovScriptWorkspaceService } from '@movscript/workspace'
 
 import type {
   ElectronMovScriptEngineAudioCueInput,
@@ -31,7 +32,10 @@ import type {
   ElectronMovScriptEngineWorkspaceQuerySettingsInput,
   ElectronMovScriptEngineWorkspaceReadScriptSourceInput,
   ElectronMovScriptEngineWorkspaceSaveProductionSnapshotInput,
+  ElectronMovScriptEngineWorkspaceAppendCandidateInput,
+  ElectronMovScriptEngineWorkspaceSelectCandidateInput,
   ElectronMovScriptEngineWorkspaceUpsertAssetInput,
+  ElectronMovScriptEngineWorkspaceUpsertContentUnitInput,
   ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput,
   ElectronMovScriptEngineWorkspaceUpsertScriptInput,
   ElectronMovScriptEngineWorkspaceUpsertSettingInput,
@@ -70,7 +74,7 @@ class ProjectEngineRegistry {
               baseUrl: session.baseURL,
               projectId: context.projectId,
               ...(session.token ? { token: session.token } : {}),
-              ...(session.userId ? { headers: { 'X-User-ID': session.userId } } : {}),
+              ...backendDecisionStoreHeaders(context, session.userId),
             }),
           }
         : {}),
@@ -111,13 +115,52 @@ export function __setProjectEngineFactoryForTest(
 export async function loadMovScriptEngineContentWorkspaceSnapshot(
   input: ElectronMovScriptEngineProjectInput,
 ): Promise<ContentSourceWorkspaceSnapshot> {
-  return loadContentSourceWorkspaceSnapshotFromEngine(projectEngineRegistry.get(input))
+  const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(projectEngineRegistry.get(input))
+  console.log('[movscript-engine] load content workspace snapshot', {
+    projectId: input.projectId,
+    workspaceDir: input.workspaceDir,
+    userId: input.userId,
+    orgId: input.orgId,
+    contentUnits: snapshot.contentUnits.length,
+    indexDocuments: snapshot.indexDocuments.length,
+    contentCandidateDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/content_candidate.json')).map((document) => ({
+      path: document.path,
+      id: isRecord(document.data) ? document.data.id : undefined,
+      contentUnitRef: isRecord(document.data) ? document.data.content_unit_ref : undefined,
+      status: isRecord(document.data) ? document.data.status : undefined,
+    })),
+    decisionContextDocuments: snapshot.indexDocuments.filter((document) => document.path.endsWith('/decision_context.json')).map((document) => ({
+      path: document.path,
+      targetRef: isRecord(document.data) ? document.data.target_ref : undefined,
+      candidateCount: isRecord(document.data) && Array.isArray(document.data.candidates) ? document.data.candidates.length : undefined,
+    })),
+  })
+  return snapshot
 }
 
 export async function loadMovScriptEngineContentWorkspace(
   input: ElectronMovScriptEngineProjectInput,
 ): Promise<ContentSourceWorkspaceData> {
-  return buildContentSourceWorkspaceData(await loadMovScriptEngineContentWorkspaceSnapshot(input))
+  const snapshot = await loadMovScriptEngineContentWorkspaceSnapshot(input)
+  const data = buildContentSourceWorkspaceData(snapshot)
+  console.log('[movscript-engine] build content workspace data', {
+    projectId: input.projectId,
+    userId: input.userId,
+    orgId: input.orgId,
+    previewMoments: data.previewMoments.length,
+    previewShotCandidates: data.previewMoments.flatMap((moment) => moment.shots).map((shot) => ({
+      contentUnitId: shot.contentUnit.id,
+      candidateCount: shot.contentUnit.candidates.length,
+      candidateIds: shot.contentUnit.candidates.map((candidate) => candidate.id),
+    })).filter((row) => row.candidateCount > 0),
+    assetReferenceCandidates: Object.values(data.assetReferenceUnits).map((unit) => ({
+      contentUnitId: unit.contentUnitId,
+      assetId: unit.assetId,
+      candidateCount: unit.candidates.length,
+      candidateIds: unit.candidates.map((candidate) => candidate.id),
+    })).filter((row) => row.candidateCount > 0),
+  })
+  return data
 }
 
 export async function queryMovScriptEngineWorkspaceEntities(
@@ -180,6 +223,24 @@ export async function upsertMovScriptEngineWorkspaceProjectStandards(
   return workspaceMutation(input, (engine) => engine.workspaceService.upsertProjectStandards(input.payload))
 }
 
+export async function upsertMovScriptEngineWorkspaceContentUnit(
+  input: ElectronMovScriptEngineWorkspaceUpsertContentUnitInput,
+) {
+  return workspaceMutation(input, (engine) => engine.workspaceService.upsertContentUnit(input.payload))
+}
+
+export async function selectMovScriptEngineWorkspaceCandidate(
+  input: ElectronMovScriptEngineWorkspaceSelectCandidateInput,
+) {
+  return workspaceMutation(input, (engine) => engine.workspaceService.selectCandidate(input.payload))
+}
+
+export async function appendMovScriptEngineWorkspaceCandidate(
+  input: ElectronMovScriptEngineWorkspaceAppendCandidateInput,
+) {
+  return workspaceMutation(input, (engine) => engine.workspaceService.appendCandidate(input.payload))
+}
+
 export async function createMovScriptEngineWorkspaceAssetSlotCandidate(
   input: ElectronMovScriptEngineWorkspaceCandidateCreateInput,
 ) {
@@ -195,6 +256,17 @@ export async function createMovScriptEngineWorkspaceKeyframeCandidate(
 export async function createMovScriptEngineContentCandidate(
   input: ElectronMovScriptEngineContentCandidateCreateInput,
 ): Promise<ContentCandidateRecord> {
+  console.log('[movscript-engine] create content candidate backend request', {
+    projectId: input.projectId,
+    workspaceDir: input.workspaceDir,
+    userId: input.userId,
+    orgId: input.orgId,
+    contentUnitId: input.contentUnitId,
+    candidateId: input.candidateId,
+    source: input.source,
+    status: input.status,
+    outputs: input.outputs,
+  })
   const result = await projectEngineRegistry.get(input).workspaceService.createContentCandidate({
     contentUnitId: input.contentUnitId,
     candidateId: input.candidateId,
@@ -204,6 +276,16 @@ export async function createMovScriptEngineContentCandidate(
     outputs: input.outputs,
     promptSnapshot: input.promptSnapshot,
     createdAt: input.createdAt,
+  })
+  console.log('[movscript-engine] create content candidate backend saved', {
+    projectId: input.projectId,
+    userId: input.userId,
+    orgId: input.orgId,
+    contentUnitId: input.contentUnitId,
+    candidateId: result.record.id,
+    source: result.record.source,
+    status: result.record.status,
+    outputs: result.record.outputs,
   })
   projectEngineRegistry.invalidate(input)
   return result.record as ContentCandidateRecord
@@ -223,12 +305,13 @@ export async function selectMovScriptEngineContentUnitCandidate(
 
 export async function updateMovScriptEngineContentUnitEditPrompt(
   input: ElectronMovScriptEngineContentUnitEditPromptInput,
-): Promise<void> {
-  await projectEngineRegistry.get(input).workspaceService.updateContentUnitEditPrompt({
+): Promise<Awaited<ReturnType<MovScriptWorkspaceService['updateContentUnitEditPrompt']>>> {
+  const result = await projectEngineRegistry.get(input).workspaceService.updateContentUnitEditPrompt({
     targetPath: input.targetPath,
     editPrompt: input.editPrompt,
   })
   projectEngineRegistry.invalidate(input)
+  return result
 }
 
 export async function updateMovScriptEngineExpressionUnit(
@@ -318,4 +401,18 @@ function projectEngineKey(input: NormalizedProjectEngineInput): string {
     input.orgId ?? '',
     input.projectId ?? '',
   ].map((part) => String(part)).join('\u001f')
+}
+
+function backendDecisionStoreHeaders(
+  context: NormalizedProjectEngineInput,
+  sessionUserId: string | undefined,
+): { headers?: Record<string, string> } {
+  const headers: Record<string, string> = {}
+  if (sessionUserId) headers['X-User-ID'] = sessionUserId
+  if (context.orgId !== undefined) headers['X-Org-ID'] = String(context.orgId)
+  return Object.keys(headers).length ? { headers } : {}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

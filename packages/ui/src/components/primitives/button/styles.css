@@ -155,6 +155,24 @@
   white-space: nowrap;
 }
 
+.ms-button--full-width {
+  width: 100%;
+}
+
+.ms-button[data-ms-full-width="true"] .ms-button__content {
+  width: 100%;
+}
+
+.ms-button[data-ms-align="start"],
+.ms-button[data-ms-align="start"] .ms-button__content {
+  justify-content: flex-start;
+}
+
+.ms-button[data-ms-align="end"],
+.ms-button[data-ms-align="end"] .ms-button__content {
+  justify-content: flex-end;
+}
+
 .ms-button__content > svg {
   flex-shrink: 0;
 }

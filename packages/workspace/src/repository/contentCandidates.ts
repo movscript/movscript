@@ -53,11 +53,9 @@ export function buildMovScriptContentCandidate(
 }
 
 export async function createMovScriptContentCandidate(
-  input: MovScriptContentCandidateWriteInput,
+  _input: MovScriptContentCandidateWriteInput,
 ): Promise<MovScriptContentCandidateWriteResult> {
-  const { path, record } = buildMovScriptContentCandidate(input)
-  await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
-  return { path, record }
+  throw new Error('content unit candidates are backend decision records; use MovScriptDecisionStore.upsertContentUnitCandidate')
 }
 
 function contentUnitDirectory(id: string): string {
@@ -86,10 +84,6 @@ function requiredResourceId(value: unknown, name: string): number {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function serializeWorkspaceRecord(value: Record<string, unknown>): string {
-  return `${JSON.stringify(value, null, 2)}\n`
 }
 
 function pruneUndefined<T extends Record<string, unknown>>(value: T): T {

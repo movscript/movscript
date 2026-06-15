@@ -11,6 +11,7 @@ import {
 } from '@movscript/language/domain'
 import {
   normalizeWorkspacePath,
+  sameEntityRef,
 } from '@movscript/workspace/layout'
 import {
   expectedOutputKindForContentUnitType,
@@ -61,9 +62,6 @@ export function validateSourceDomainGraph(
       ? entry.data.schema.replace(/^movscript\./, '').replace(/\.v\d+$/, '')
       : undefined
     const actualKind = typeof entry.data.kind === 'string' ? entry.data.kind : undefined
-    if (!expectedKind && isRuntimeContentUnitDocument(entry.file.relativePath)) {
-      continue
-    }
     if (!expectedKind) {
       issues.push({
         path: entry.file.path,
@@ -119,6 +117,9 @@ export function validateSourceDomainGraph(
     }
     if (expectedKind === 'content_unit') {
       validateContentUnitRefs(entry.file, entry.data, graph, issues)
+    }
+    if (expectedKind === 'asset') {
+      validateAssetOwnership(entry.file, entry.data, graph, issues)
     }
     if (expectedKind === 'storyboard') {
       validateStoryboardSettingRefs(entry.file, entry.data, graph, issues)
@@ -207,6 +208,13 @@ function validateContentUnitRefs(
   }
   const refs = parseContentUnitEditPromptRefs(record.edit_prompt)
   for (const ref of refs) {
+    if (ref.kind === primaryKind && primaryRefs.some((primaryRef) => sameRefId(primaryRef, ref.id, primaryKind))) {
+      issues.push({
+        path: file.path,
+        severity: 'error',
+        message: `${contentUnitType} content_unit edit_prompt must not reference its own ${primaryFieldName}: ${ref.raw}`,
+      })
+    }
     const resolved = sourceRecordByPathOrId(graph, ref.kind, ref.id)
     if (!resolved && ref.kind !== 'content_unit') {
       issues.push({
@@ -215,6 +223,71 @@ function validateContentUnitRefs(
         message: `content_unit prompt ref does not resolve: ${ref.raw}`,
       })
     }
+  }
+}
+
+function validateAssetOwnership(
+  file: MovScriptSourceDomainRecord['file'],
+  record: Record<string, unknown>,
+  graph: MovScriptSourceDomainGraph,
+  issues: MovScriptSourceValidationIssue[],
+): void {
+  const parts = normalizeWorkspacePath(file.relativePath).split('/')
+  const pathSettingId = parts[1]
+  const pathStateId = parts[3]
+  const pathAssetId = parts[5]
+  if (!pathSettingId || !pathStateId || !pathAssetId) return
+
+  const recordSettingId = idField(record.setting_id ?? record.settingId ?? record.setting_ref ?? record.settingRef)
+  const recordStateId = idField(record.setting_state_id ?? record.settingStateId ?? record.setting_state_ref ?? record.settingStateRef)
+  if (recordSettingId === undefined) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: 'asset requires setting_id matching source path',
+    })
+  } else if (!sameRefId(String(recordSettingId), pathSettingId, 'setting')) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `asset setting_id ${String(recordSettingId)} does not match source path setting ${pathSettingId}`,
+    })
+  }
+  if (recordStateId === undefined) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: 'asset requires setting_state_id matching source path',
+    })
+  } else if (!sameRefId(String(recordStateId), pathStateId, 'setting_state')) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `asset setting_state_id ${String(recordStateId)} does not match source path state ${pathStateId}`,
+    })
+  }
+
+  const setting = sourceRecordByPathOrId(graph, 'setting', pathSettingId)
+  if (!setting) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `asset source path setting does not resolve: ${pathSettingId}`,
+    })
+  }
+  const settingState = sourceRecordByPathOrId(graph, 'setting_state', pathStateId)
+  if (!settingState) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `asset source path setting state does not resolve: ${pathStateId}`,
+    })
+  } else if (setting && !settingState.dir.startsWith(`${setting.dir}/states/`)) {
+    issues.push({
+      path: file.path,
+      severity: 'error',
+      message: `asset setting_state_id does not belong to setting_id: ${pathStateId}`,
+    })
   }
 }
 
@@ -419,15 +492,21 @@ function sourcePathMatchesEntityKind(path: string, entityKind: string): boolean 
   return patterns[entityKind]?.test(normalized) ?? false
 }
 
-function isRuntimeContentUnitDocument(path: string): boolean {
-  const normalized = normalizeWorkspacePath(path)
-  return /^content_units\/[^/]+\/candidates\/[^/]+\/content_candidate\.json$/.test(normalized)
-}
-
 function idField(value: unknown): string | number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
+}
+
+function sameRefId(left: string, right: string, kind: string): boolean {
+  return sameEntityRef(left, right, kind)
+    || lastPathSegment(left) === right
+    || lastPathSegment(right) === left
+}
+
+function lastPathSegment(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.includes('/')) return undefined
+  return value.split('/').filter(Boolean).at(-1)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

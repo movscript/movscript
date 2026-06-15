@@ -17,6 +17,7 @@ import (
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +26,7 @@ var ErrInvalidLLMCallLogSettings = errors.New("invalid llm call log settings")
 
 type Service struct {
 	repo          repository
+	auditReader   providercontract.AIGatewayAuditLogReader
 	encryptionKey []byte
 }
 
@@ -33,7 +35,12 @@ func NewService(db *gorm.DB, encryptionKey ...[]byte) *Service {
 	if len(encryptionKey) > 0 {
 		key = encryptionKey[0]
 	}
-	return &Service{repo: &gormRepository{db: db}, encryptionKey: key}
+	repo := &gormRepository{db: db}
+	return &Service{repo: repo, auditReader: repo, encryptionKey: key}
+}
+
+func NewServiceWithAuditLogReader(repo repository, reader providercontract.AIGatewayAuditLogReader, encryptionKey []byte) *Service {
+	return &Service{repo: repo, auditReader: reader, encryptionKey: encryptionKey}
 }
 
 type JobPage struct {
@@ -365,16 +372,23 @@ func (s *Service) ProviderCall(ctx context.Context, input ProviderCallInput) ai.
 }
 
 func (s *Service) ListLLMCallLogs(ctx context.Context, filter LLMCallLogFilter) (LLMCallLogPage, error) {
-	return s.repo.ListLLMCallLogs(ctx, filter)
+	page, err := s.auditReader.ListGatewayCallLogs(ctx, llmCallLogFilterToContract(filter))
+	if err != nil {
+		return LLMCallLogPage{}, err
+	}
+	return llmCallLogPageFromContract(page), nil
 }
 
 func (s *Service) LLMCallLogSummary(ctx context.Context, filter LLMCallLogFilter) (LLMCallLogSummary, error) {
-	summary, err := s.repo.LLMCallLogSummary(ctx, filter)
+	summary, err := s.auditReader.SummarizeGatewayCallLogs(ctx, llmCallLogFilterToContract(filter))
 	if err != nil {
 		return LLMCallLogSummary{}, err
 	}
-	summary.GeneratedAt = time.Now().UTC()
-	return summary, nil
+	out := llmCallLogSummaryFromContract(summary)
+	if out.GeneratedAt.IsZero() {
+		out.GeneratedAt = time.Now().UTC()
+	}
+	return out, nil
 }
 
 func (s *Service) LLMCallLogSettings(ctx context.Context) (LLMCallLogSettings, error) {

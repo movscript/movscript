@@ -51,10 +51,10 @@ test('activeRunInputDeliveryBadge projects active run input delivery state for m
   })
 })
 
-test('activeRunInputDeliveryBadge accepts compatibility input refs only through the provider-session helper', () => {
+test('activeRunInputDeliveryBadge reads provider-session input refs through the provider-session helper', () => {
   assert.equal(activeRunInputDeliveryBadge(message({
     meta: {
-      runtimeInput: { deliveryStatus: 'pending' },
+      providerSessionInput: { deliveryStatus: 'pending' },
     },
   }))?.status, 'pending')
 })

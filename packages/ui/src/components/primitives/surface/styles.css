@@ -29,7 +29,7 @@
 
 .ms-surface-root[data-kind="item"] {
   --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 80%, transparent);
-  --ui-surface-radius: var(--ms-radius-card);
+  --ui-surface-radius: var(--ms-radius-sm);
 }
 
 .ms-surface-root[data-kind="metric"] {
@@ -223,7 +223,7 @@
   flex-shrink: 0;
   height: 30px;
   width: 30px;
-  border-radius: var(--ms-radius-icon);
+  border-radius: var(--ms-radius-sm);
   background: color-mix(in srgb, var(--ms-color-muted) 62%, transparent);
 }
 

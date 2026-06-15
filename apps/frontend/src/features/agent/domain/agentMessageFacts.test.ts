@@ -103,7 +103,7 @@ test('buildAgentMessageFacts exposes assistant meta as view model fields', () =>
 test('buildAgentMessageFacts hides internal run status breadcrumbs', () => {
   const result = buildAgentMessageFacts(message({
     meta: {
-      contextLabels: ['run completed', '已恢复 Provider 会话', 'Restored Provider Session', 'Project Alpha'],
+      contextLabels: ['run completed', '已恢复 Runtime 会话', 'Restored Provider Session', 'Project Alpha'],
     },
   }))
 

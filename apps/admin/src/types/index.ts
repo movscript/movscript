@@ -315,6 +315,77 @@ export interface AICredential {
   UpdatedAt: string
 }
 
+export interface ProviderInstanceField {
+  key: string
+  required: boolean
+  configured: boolean
+}
+
+export interface ProviderInstance {
+  id: string
+  type: string
+  adapter: string
+  label: string
+  display_name: string
+  managed_by: string
+  configured: boolean
+  enabled: boolean
+  config_editable: boolean
+  requires_restart: boolean
+  legacy_ref?: {
+    kind: string
+    id: number
+  }
+  config_fields: ProviderInstanceField[]
+  secret_fields: ProviderInstanceField[]
+  capabilities: string[]
+}
+
+export interface ProviderInstancesResponse {
+  items: ProviderInstance[]
+}
+
+export interface ProviderInstanceConfigDraft {
+  provider_instance_id: string
+  config: Record<string, string>
+  config_fields: ProviderInstanceField[]
+  secret_fields: ProviderInstanceField[]
+  requires_restart: boolean
+  applied: boolean
+}
+
+export interface ProviderInstanceConfigApplyResult {
+  provider_instance_id: string
+  env_path: string
+  env_keys: string[]
+  secret_keys: string[]
+  requires_restart: boolean
+  activation_mode: 'local_backend_restart' | 'deployment_rollout' | 'manual_restart' | string
+  activation_plan?: {
+    mode: 'local_backend_restart' | 'deployment_rollout' | 'manual_restart' | string
+    action: 'restart_local_backend' | 'rollout_backend_deployment' | 'restart_backend_process' | string
+    host: 'electron' | 'deployment_platform' | 'operator' | string
+    env_path: string
+    requires_restart: boolean
+    can_auto_apply: boolean
+    auto_apply_channel?: string
+    auto_apply_url?: string
+    auto_apply_endpoint?: string
+    env_keys: string[]
+    secret_keys: string[]
+  }
+  applied: boolean
+}
+
+export interface ProviderInstanceConfigActivationResult {
+  provider_instance_id: string
+  activation_mode: string
+  activation_plan: NonNullable<ProviderInstanceConfigApplyResult['activation_plan']>
+  success: boolean
+  message: string
+  latency_ms: number
+}
+
 // AIModelConfig registers a model and stores all metadata + admin credit prices.
 export interface AIModelConfig {
   ID: number

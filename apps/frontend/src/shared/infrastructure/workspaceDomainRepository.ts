@@ -3,6 +3,7 @@ import type {
   ElectronAPI,
 } from '@/shared/contracts/electronApi'
 import { currentWorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
 type WorkspaceElectronAPI = Pick<
   ElectronAPI,
@@ -18,6 +19,10 @@ type WorkspaceElectronAPI = Pick<
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
+  | 'upsertMovScriptEngineWorkspaceContentUnit'
+  | 'updateMovScriptEngineContentUnitEditPrompt'
+  | 'selectMovScriptEngineWorkspaceCandidate'
+  | 'appendMovScriptEngineWorkspaceCandidate'
   | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
   | 'createMovScriptEngineWorkspaceKeyframeCandidate'
 >
@@ -107,7 +112,7 @@ let movScriptWorkspaceActionFactoryForTest:
   | undefined
 
 function requireElectronMovScriptWorkspaceAPI(): WorkspaceElectronAPI {
-  const api = window.api
+  const api = readElectronApi()
   if (!api) {
     throw new Error('当前窗口没有 MovScript 工作区文件能力')
   }
@@ -128,6 +133,10 @@ function createElectronMovScriptEngineWorkspaceService(
     | 'deleteMovScriptEngineWorkspaceEntity'
     | 'saveMovScriptEngineWorkspaceProductionSnapshot'
     | 'upsertMovScriptEngineWorkspaceProjectStandards'
+    | 'upsertMovScriptEngineWorkspaceContentUnit'
+    | 'updateMovScriptEngineContentUnitEditPrompt'
+    | 'selectMovScriptEngineWorkspaceCandidate'
+    | 'appendMovScriptEngineWorkspaceCandidate'
     | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
     | 'createMovScriptEngineWorkspaceKeyframeCandidate'
   >>,
@@ -162,6 +171,18 @@ function createElectronMovScriptEngineWorkspaceService(
     },
     async upsertProjectStandards(payload) {
       return api.upsertMovScriptEngineWorkspaceProjectStandards({ ...context, payload })
+    },
+    async upsertContentUnit(payload) {
+      return api.upsertMovScriptEngineWorkspaceContentUnit({ ...context, payload })
+    },
+    async updateContentUnitEditPrompt(payload) {
+      return api.updateMovScriptEngineContentUnitEditPrompt({ ...context, ...payload })
+    },
+    async selectCandidate(payload) {
+      return api.selectMovScriptEngineWorkspaceCandidate({ ...context, payload })
+    },
+    async appendCandidate(payload) {
+      return api.appendMovScriptEngineWorkspaceCandidate({ ...context, payload })
     },
     async createAssetSlotCandidate(payload) {
       return api.createMovScriptEngineWorkspaceAssetSlotCandidate({ ...context, payload })
@@ -224,6 +245,10 @@ function hasEngineWorkspaceAPI(value: WorkspaceElectronAPI): value is Required<P
   | 'deleteMovScriptEngineWorkspaceEntity'
   | 'saveMovScriptEngineWorkspaceProductionSnapshot'
   | 'upsertMovScriptEngineWorkspaceProjectStandards'
+  | 'upsertMovScriptEngineWorkspaceContentUnit'
+  | 'updateMovScriptEngineContentUnitEditPrompt'
+  | 'selectMovScriptEngineWorkspaceCandidate'
+  | 'appendMovScriptEngineWorkspaceCandidate'
   | 'createMovScriptEngineWorkspaceAssetSlotCandidate'
   | 'createMovScriptEngineWorkspaceKeyframeCandidate'
 >> {
@@ -238,6 +263,10 @@ function hasEngineWorkspaceAPI(value: WorkspaceElectronAPI): value is Required<P
     && value.deleteMovScriptEngineWorkspaceEntity
     && value.saveMovScriptEngineWorkspaceProductionSnapshot
     && value.upsertMovScriptEngineWorkspaceProjectStandards
+    && value.upsertMovScriptEngineWorkspaceContentUnit
+    && value.updateMovScriptEngineContentUnitEditPrompt
+    && value.selectMovScriptEngineWorkspaceCandidate
+    && value.appendMovScriptEngineWorkspaceCandidate
     && value.createMovScriptEngineWorkspaceAssetSlotCandidate
     && value.createMovScriptEngineWorkspaceKeyframeCandidate
   )

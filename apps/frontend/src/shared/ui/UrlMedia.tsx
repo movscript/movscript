@@ -1,5 +1,5 @@
 import { forwardRef, type ImgHTMLAttributes, type VideoHTMLAttributes } from 'react'
-import { ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui'
+import { ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui/business/resource'
 
 export type UrlImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   src?: string

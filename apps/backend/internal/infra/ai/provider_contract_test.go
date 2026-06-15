@@ -1,0 +1,23 @@
+package ai
+
+import providercontract "github.com/movscript/movscript/internal/providers/contract"
+
+var (
+	_ providercontract.AIGatewayModelCatalog            = (*AIService)(nil)
+	_ providercontract.AIGatewayRoutingPolicy           = (*AIService)(nil)
+	_ providercontract.AIGatewayGovernancePolicy        = (*AIService)(nil)
+	_ providercontract.AIGatewayUsageGovernor           = (*AIService)(nil)
+	_ providercontract.AIGatewayCallAuditor             = (*AIService)(nil)
+	_ providercontract.AIGatewayHealthProbe             = (*AIService)(nil)
+	_ providercontract.AIGatewayProvider                = (*LocalAdapter)(nil)
+	_ providercontract.AIGatewayTextStreamProvider      = (*LocalAdapter)(nil)
+	_ providercontract.AIGatewayResponsesProvider       = (*LocalAdapter)(nil)
+	_ providercontract.AIGatewayProvider                = (*OpenAIAdapter)(nil)
+	_ providercontract.AIGatewayTextStreamProvider      = (*OpenAIAdapter)(nil)
+	_ providercontract.AIGatewayResponsesProvider       = (*OpenAIAdapter)(nil)
+	_ providercontract.AIGatewayVideoTaskProvider       = (*OpenAIAdapter)(nil)
+	_ providercontract.AIGatewayVideoTaskCancelProvider = (*ViduAdapter)(nil)
+	_ providercontract.AIGatewayVideoTaskCancelProvider = (*VolcenAdapter)(nil)
+	_ providercontract.AIGatewayFileUploader            = (*OpenAIFileUploader)(nil)
+	_ providercontract.AIGatewayFileUploader            = (*VolcenFileUploader)(nil)
+)

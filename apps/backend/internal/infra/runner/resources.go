@@ -16,7 +16,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/movscript/movscript/internal/domain/media"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -36,12 +35,6 @@ func (w *Worker) saveDebugInfo(job *persistencemodel.Job, result *ai.DebugCallRe
 
 // saveBytes stores raw bytes directly (used when the adapter downloads auth-gated content).
 func (w *Worker) saveBytes(ctx context.Context, job *persistencemodel.Job, data []byte, mimeType string) (uint, error) {
-	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
-		log.Printf("[job] video normalization skipped for job #%d: %v", job.ID, err)
-	} else if changed {
-		data = normalized
-		mimeType = normalizedMime
-	}
 	resType := typeFromMime(mimeType)
 	name, err := w.uniqueGeneratedResourceName(job, generatedResourceName(job, resType, extFromMime(mimeType)))
 	if err != nil {
@@ -115,13 +108,6 @@ func (w *Worker) saveResult(ctx context.Context, job *persistencemodel.Job, prov
 		if err != nil {
 			return 0, fmt.Errorf("read response body: %w", err)
 		}
-	}
-
-	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
-		log.Printf("[job] video normalization skipped for job #%d: %v", job.ID, err)
-	} else if changed {
-		data = normalized
-		mimeType = normalizedMime
 	}
 
 	resType := typeFromMime(mimeType)

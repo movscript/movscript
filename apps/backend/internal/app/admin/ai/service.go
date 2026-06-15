@@ -3,7 +3,8 @@ package ai
 import (
 	"errors"
 
-	"github.com/movscript/movscript/internal/infra/ai"
+	infraai "github.com/movscript/movscript/internal/infra/ai"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
@@ -18,11 +19,16 @@ type Service struct {
 	db            *gorm.DB
 	repo          repository
 	encryptionKey []byte
-	registry      *ai.Registry
+	registry      *infraai.Registry
+	gatewayHealth providercontract.AIGatewayHealthProbe
 }
 
-func NewService(db *gorm.DB, encryptionKey []byte, registry *ai.Registry) *Service {
-	return &Service{db: db, repo: newRepository(db), encryptionKey: encryptionKey, registry: registry}
+func NewService(db *gorm.DB, encryptionKey []byte, registry *infraai.Registry) *Service {
+	var gatewayHealth providercontract.AIGatewayHealthProbe
+	if registry != nil {
+		gatewayHealth = infraai.NewAIService(db, registry)
+	}
+	return &Service{db: db, repo: newRepository(db), encryptionKey: encryptionKey, registry: registry, gatewayHealth: gatewayHealth}
 }
 
 type TestResult struct {

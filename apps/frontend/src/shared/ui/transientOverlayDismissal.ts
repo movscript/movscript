@@ -1,3 +1,5 @@
+import { listenToWindowEvent } from '@/shared/infrastructure/windowEvents'
+
 export interface TransientOverlayDismissalOptions {
   onDismiss: () => void
   pointerDown?: boolean
@@ -9,21 +11,18 @@ export function subscribeTransientOverlayDismissal({
   pointerDown = false,
   escapeKey = false,
 }: TransientOverlayDismissalOptions) {
-  if (typeof window === 'undefined') return () => {}
-
   const onKeyDown = (event: globalThis.KeyboardEvent) => {
     if (event.key === 'Escape') onDismiss()
   }
 
-  window.addEventListener('resize', onDismiss)
-  window.addEventListener('scroll', onDismiss, true)
-  if (pointerDown) window.addEventListener('pointerdown', onDismiss)
-  if (escapeKey) window.addEventListener('keydown', onKeyDown)
+  const cleanups = [
+    listenToWindowEvent('resize', onDismiss),
+    listenToWindowEvent('scroll', onDismiss, true),
+    pointerDown ? listenToWindowEvent('pointerdown', onDismiss) : undefined,
+    escapeKey ? listenToWindowEvent('keydown', onKeyDown) : undefined,
+  ].filter((cleanup): cleanup is () => void => Boolean(cleanup))
 
   return () => {
-    window.removeEventListener('resize', onDismiss)
-    window.removeEventListener('scroll', onDismiss, true)
-    if (pointerDown) window.removeEventListener('pointerdown', onDismiss)
-    if (escapeKey) window.removeEventListener('keydown', onKeyDown)
+    for (const cleanup of cleanups) cleanup()
   }
 }

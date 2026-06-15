@@ -14,7 +14,7 @@ test('buildAgentConversationProjectionRunInteractions maps anchored runs and lea
       message({
         id: 'assistant_anchored',
         meta: {
-          runtimeMessage: { threadId: 'thread_1', messageId: 'assistant_anchored', runId: 'run_anchored' },
+          providerSessionMessage: { threadId: 'thread_1', messageId: 'assistant_anchored', runId: 'run_anchored' },
         },
       }),
     ],

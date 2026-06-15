@@ -21,6 +21,7 @@ const (
 	AdapterGemini       = "gemini" // Google Gemini API (text/image/video)
 	AdapterDashScope    = "dashscope"
 	AdapterVidu         = "vidu"
+	AdapterElevenLabs   = "elevenlabs"
 	AdapterLocal        = "local"
 )
 
@@ -365,6 +366,25 @@ func viduVideoParams() []ParamDef {
 	}
 }
 
+func elevenLabsTTSParams() []ParamDef {
+	return []ParamDef{
+		{Key: "output_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3_44100_128", "mp3_22050_32", "pcm_16000", "ulaw_8000"}, Default: "mp3_44100_128"},
+		{Key: "stability", Label: "稳定度", Type: "number", Default: 0.5, Min: 0, Max: 1, Step: 0.01},
+		{Key: "similarity_boost", Label: "相似度", Type: "number", Default: 0.75, Min: 0, Max: 1, Step: 0.01},
+		{Key: "style", Label: "风格强度", Type: "number", Default: 0, Min: 0, Max: 1, Step: 0.01},
+		{Key: "use_speaker_boost", Label: "增强说话人", Type: "boolean", Default: true},
+		{Key: "speed", Label: "语速", Type: "number", Default: 1, Min: 0.7, Max: 1.2, Step: 0.01},
+	}
+}
+
+func elevenLabsSTTParams() []ParamDef {
+	return []ParamDef{
+		{Key: "diarize", Label: "区分说话人", Type: "boolean", Default: false},
+		{Key: "tag_audio_events", Label: "标注音频事件", Type: "boolean", Default: true},
+	}
+}
+
 // AdapterDefs lists all supported adapter definitions.
 var AdapterDefs = []AdapterDef{
 	{
@@ -486,6 +506,20 @@ var AdapterDefs = []AdapterDef{
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityVideo, Params: viduVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: viduVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterElevenLabs,
+		DisplayName:    "ElevenLabs",
+		Description:    "ElevenLabs 语音模型，支持文本转语音和音频转写",
+		DefaultBaseURL: "https://api.elevenlabs.io/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityAudioTTS, Params: elevenLabsTTSParams()},
+			{Capability: CapabilityAudioSTT, Params: elevenLabsSTTParams()},
 		},
 	},
 }

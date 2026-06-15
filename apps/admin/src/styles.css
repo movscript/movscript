@@ -1,5 +1,9 @@
 @import "@movscript/theme/theme.css";
-@import "@movscript/ui/styles.css";
+@import "@movscript/ui/styles/base.css";
+@import "@movscript/ui/styles/primitives.css";
+@import "@movscript/ui/styles/semantic.css";
+@import "@movscript/ui/styles/layout.css";
+@import "@movscript/ui/styles/business/app.css";
 
 @tailwind base;
 @tailwind components;

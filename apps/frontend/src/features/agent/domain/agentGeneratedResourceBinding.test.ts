@@ -19,7 +19,6 @@ import {
   generatedTargetSearchText,
   isGeneratedKeyframeCandidateRecord,
   isUnresolvedCandidateStatus,
-  invalidateGeneratedCandidateQueries,
   isGeneratedCandidateTargetRecord,
   pendingGeneratedCandidateAttachments,
 } from '@/features/agent/domain/agentGeneratedResourceBinding.ts'
@@ -159,34 +158,6 @@ test('generated candidate target filter hides internal candidate asset slots', (
     ID: 6,
     metadata_json: '{"source":"ai_generated_keyframe_candidate","target_keyframe_id":4}',
   }), true)
-})
-
-test('invalidateGeneratedCandidateQueries refreshes all candidate consumers', () => {
-  const queryKeys: unknown[][] = []
-  invalidateGeneratedCandidateQueries({
-    invalidateQueries: ({ queryKey }) => queryKeys.push(queryKey),
-  }, 123)
-
-  assert.deepEqual(queryKeys, [
-    ['work-targets', 123, 'asset-slots'],
-    ['work-targets', 123, 'asset-slot-candidates'],
-    ['work-targets', 123, 'keyframes'],
-    ['semantic-asset-slot-candidates-page', 123],
-    ['semantic-asset-slots-page', 123],
-    ['semantic-keyframes-page', 123],
-    ['semantic-candidate-decisions-page', 123],
-    ['semantic-review-events-page', 123],
-    ['semantic-content-positioning', 123, 'keyframes'],
-    ['semantic-content-positioning', 123],
-    ['semantic-scene-moment-page', 123],
-    ['semantic-segment-workspace', 123],
-    ['project-overview', 123],
-    ['project-workspace', 123],
-    ['production-frame', 123],
-    ['workbench', 'assets', 123],
-    ['workbench', 'production', 123],
-    ['agent-generated-candidate-targets', 123],
-  ])
 })
 
 test('generatedKeyframeCandidatePayload creates a candidate keyframe linked to the target keyframe', () => {

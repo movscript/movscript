@@ -1,5 +1,3 @@
-//go:build !runtime_overlay
-
 package router
 
 import (
@@ -13,6 +11,12 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/model-presets", h.ai.ListModelPresets)
 
 	// credentials (one per adapter type)
+	admin.GET("/provider-instances", h.ai.ListProviderInstances)
+	admin.GET("/provider-instances/:id/config", h.ai.GetProviderInstanceConfig)
+	admin.PUT("/provider-instances/:id/config", h.ai.UpdateProviderInstanceConfig)
+	admin.POST("/provider-instances/:id/config/apply", h.ai.ApplyProviderInstanceConfig)
+	admin.POST("/provider-instances/:id/config/activate", h.ai.ActivateProviderInstanceConfig)
+	admin.POST("/provider-instances/:id/test", h.ai.TestProviderInstance)
 	admin.GET("/credentials", h.ai.ListCredentials)
 	admin.POST("/credentials", h.ai.CreateCredential)
 	admin.PUT("/credentials/:id", h.ai.UpdateCredential)
@@ -39,13 +43,15 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/settings/generation-tools", h.adminSettings.GetGenerationToolsSettings)
 	admin.PUT("/settings/generation-tools", h.adminSettings.UpdateGenerationToolsSettings)
 	admin.GET("/users", h.userAdmin.List)
+	registerEditionAdminUserRoutes(admin, h)
 	admin.POST("/users", h.userAdmin.Create)
 	admin.GET("/users/:id/detail", h.userAdmin.Detail)
 	admin.PUT("/users/:id/password", h.userAdmin.ResetPassword)
 	admin.DELETE("/users/:id/sessions", h.userAdmin.RevokeAllSessions)
 	admin.DELETE("/users/:id/sessions/:sessionId", h.userAdmin.RevokeSession)
 	admin.PATCH("/users/:id", h.userAdmin.Update)
-	admin.GET("/orgs", h.orgAdmin.List)
+	registerEditionAdminRoutes(admin, h)
+	admin.GET("/orgs", adminOrgListHandler(h))
 	admin.POST("/orgs", h.orgAdmin.Create)
 	admin.GET("/orgs/:id/detail", h.orgAdmin.Detail)
 	admin.GET("/orgs/:id/members", h.orgAdmin.ListMembers)
@@ -62,7 +68,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/audit-logs", h.audit.List)
 	admin.GET("/usage-logs/summary", h.usageAdmin.Summary)
 	admin.GET("/usage-logs/export", h.usageAdmin.Export)
-	admin.GET("/usage-logs", h.usageAdmin.List)
+	admin.GET("/usage-logs", adminUsageListHandler(h))
 	admin.GET("/projects", h.projects.AdminList)
 	admin.POST("/projects", h.projects.AdminCreate)
 	admin.GET("/projects/:id/detail", h.projects.AdminDetail)

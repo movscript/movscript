@@ -2,6 +2,7 @@ import { getFocus } from './focus/actions'
 import {
   domainAppendCandidate,
   domainBuildContentUnitBackendPrompt,
+  domainComposeSceneMomentFromEditPlan,
   domainInterpretContentUnitArtifact,
   domainInterpret,
   domainCreateAssetSlotCandidate,
@@ -24,6 +25,7 @@ import {
   domainReadContentUnitRuntimePanel,
   domainReadContentUnitSelectionValidity,
   domainReadPreviewTimeline,
+  domainReadSceneMomentEditPlan,
   domainReadProductionWorkPlan,
   domainReadScriptSource,
   domainRegenerationPlan,
@@ -208,6 +210,10 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainBuildContentUnitBackendPrompt(args))
     case 'domain_read_preview_timeline':
       return toolText(await domainReadPreviewTimeline(args))
+    case 'domain_read_scene_moment_edit_plan':
+      return toolText(await domainReadSceneMomentEditPlan(args))
+    case 'domain_compose_scene_moment_from_edit_plan':
+      return toolText(await domainComposeSceneMomentFromEditPlan(args))
     case 'domain_read_content_unit_runtime_panel':
       return toolText(await domainReadContentUnitRuntimePanel(args))
     case 'domain_read_content_unit_generation_prompt':

@@ -22,8 +22,9 @@ import type {
   AgentActivityRound,
 } from './types'
 import { formatDuration, formatTokenUsage, sumNumbers } from './format'
+import { modelDecisionItems } from './decisionItems'
 import { toolActivityItem, toolActivityRecords } from './toolItems'
-import { arrayValue, compactLines, idFromAliases, numberValue, planTasksSummary, recordValue, stringValue, timestamp } from './values'
+import { compactLines, recordValue, stringValue, timestamp } from './values'
 
 export function buildAgentActivityFeed(input: {
   activity?: ChatRunActivity
@@ -181,66 +182,6 @@ function activityRepeatCount(item: AgentActivityItem): number {
   if (item.type !== 'block') return 1
   const match = item.title.match(/\s+×(\d+)$/)
   return match ? Number(match[1]) || 1 : 1
-}
-
-function modelDecisionItems(activity: ChatRunActivity): AgentActivityDecisionItem[] {
-  return activity.events.flatMap((event) => {
-    if (event.kind !== 'model_call' || event.title !== 'Model tool calls requested') return []
-    const data = recordValue(event.data)
-    const calls = arrayValue(data?.tool_calls)
-      ?.map((call) => modelDecisionToolCall(recordValue(call)))
-      .filter((call) => call?.name !== 'core_user_input_request')
-      .filter((call): call is ModelDecisionToolCall => !!call) ?? []
-    if (calls.length === 0) return []
-    const eventDurationMs = typeof event.durationMs === 'number'
-      ? event.durationMs
-      : typeof data?.durationMs === 'number' ? data.durationMs : undefined
-    return [{
-      id: `decision-${event.id}`,
-      type: 'decision',
-      kind: 'system',
-      title: `模型决定调用 ${calls.length} 个工具`,
-      lines: calls.map(decisionToolLine),
-      status: event.status,
-      createdAt: event.createdAt,
-      ...(eventDurationMs !== undefined ? { durationMs: eventDurationMs } : {}),
-      ...(event.roundIndex !== undefined ? { roundIndex: event.roundIndex } : {}),
-      ...(event.roundLabel ? { roundLabel: event.roundLabel } : {}),
-    }]
-  })
-}
-
-interface ModelDecisionToolCall {
-  name: string
-  args?: Record<string, unknown>
-}
-
-function modelDecisionToolCall(record: Record<string, unknown> | undefined): ModelDecisionToolCall | undefined {
-  const name = stringValue(record?.name)
-  if (!name) return undefined
-  const args = recordValue(record?.args)
-  return {
-    name,
-    ...(args ? { args } : {}),
-  }
-}
-
-function decisionToolLine(call: ModelDecisionToolCall): string {
-  const args = call.args
-  if (call.name === 'core_update_plan') {
-    return compactLines([
-      `${agentToolNameLabel(call.name)}${stringValue(args?.explanation) ? `：${stringValue(args?.explanation)}` : ''}`,
-      planTasksSummary(args),
-    ]).join('；')
-  }
-  const details = compactLines([
-    stringValue(args?.query) ? `查询：${stringValue(args?.query)}` : undefined,
-    numberValue(args?.projectId) !== undefined ? `项目：#${numberValue(args?.projectId)}` : undefined,
-    numberValue(args?.contentLimit) !== undefined ? `内容上限：${numberValue(args?.contentLimit)}` : undefined,
-    stringValue(args?.kind) ? `类型：${stringValue(args?.kind)}` : undefined,
-    idFromAliases(args, ['workspaceId', 'workspace_id']) !== undefined ? `工作区：#${idFromAliases(args, ['workspaceId', 'workspace_id'])}` : undefined,
-  ]).join('，')
-  return `${agentToolNameLabel(call.name)}${details ? `：${details}` : ''}`
 }
 
 function buildRoundIndexActivityRounds(
@@ -439,7 +380,7 @@ function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined 
   const data = recordValue(event.data)
   const eventType = stringValue(data?.eventType)
   if (eventType === 'runtime.recovery.interrupted') {
-    return '运行中断：provider session 重启时这个 run 尚未结束，已暂停等待继续或取消。'
+    return '运行中断：runtime session 重启时这个 run 尚未结束，已暂停等待继续或取消。'
   }
   if (eventType === 'runtime.recovery.resumed') {
     return '恢复继续：沿用同一个 run 重新调度，之前已完成的步骤保留为历史。'
@@ -574,8 +515,8 @@ function providerSessionRoundLabel(
   const base = label === 'Setup'
     ? '运行准备'
     : label === ['Run', 'time command'].join('')
-      ? 'Provider 会话命令'
-      : label?.trim() || (source === 'setup' ? '运行准备' : 'provider session 规则')
+      ? 'Runtime 会话命令'
+      : label?.trim() || (source === 'setup' ? '运行准备' : 'runtime session 规则')
   const details = compactLines([
     telemetry?.durationMs !== undefined ? formatDuration(telemetry.durationMs) : undefined,
     telemetry?.usage ? formatTokenUsage(telemetry.usage) : undefined,

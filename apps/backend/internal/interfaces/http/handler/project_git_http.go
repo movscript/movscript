@@ -17,17 +17,24 @@ import (
 )
 
 func (h *ProjectHandler) gitProxyLocal(c *gin.Context, target projectrepoapp.GitProxyTarget, remoteUser string) {
-	root := strings.TrimSpace(h.gitHTTPRoot)
+	root := strings.TrimSpace(target.LocalRoot)
+	if root == "" {
+		root = strings.TrimSpace(h.gitHTTPRoot)
+	}
 	if root == "" {
 		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库代理未配置：缺少本地 Git 根目录"))
 		return
 	}
-	gitBinary := strings.TrimSpace(h.gitBinary)
+	gitBinary := strings.TrimSpace(target.GitBinary)
+	if gitBinary == "" {
+		gitBinary = strings.TrimSpace(h.gitBinary)
+	}
 	if gitBinary == "" {
 		gitBinary = "git"
 	}
 	pathInfo, err := gitProxyLocalPathInfo(target, c.Param("gitPath"))
 	if err != nil {
+		log.Printf("[movscript:project-git-proxy] local git path invalid owner=%s repo=%s path=%s error=%s", target.Owner, target.Repo, c.Param("gitPath"), err)
 		c.JSON(http.StatusBadRequest, api.InvalidInput("Git proxy path invalid"))
 		return
 	}

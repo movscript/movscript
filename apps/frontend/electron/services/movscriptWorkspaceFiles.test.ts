@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import assert from 'node:assert/strict'
@@ -7,6 +7,7 @@ import {
   deleteMovScriptWorkspaceFile,
   listMovScriptWorkspaceFiles,
   readMovScriptWorkspaceFile,
+  readMovScriptWorkspaceMediaFile,
   writeMovScriptWorkspaceFile,
 } from './movscriptWorkspaceFiles'
 
@@ -113,6 +114,33 @@ test('rejects workspace file paths outside the project workspace root', async ()
       }),
       /workspace file path must stay inside/,
     )
+  } finally {
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('previews large workspace images without using the text editor read limit', async () => {
+  const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-media-'))
+  try {
+    const setup = await writeMovScriptWorkspaceFile({
+      workspaceDir,
+      projectId: 6,
+      path: 'artifacts/.keep',
+      content: '',
+    })
+    const imagePath = join(setup.rootPath, 'artifacts', 'large.png')
+    await writeFile(imagePath, Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      Buffer.alloc(2 * 1024 * 1024 + 1),
+    ]))
+
+    await assert.rejects(
+      readMovScriptWorkspaceFile({ workspaceDir, projectId: 6, path: 'artifacts/large.png' }),
+      /workspace file is too large to edit/,
+    )
+    const preview = await readMovScriptWorkspaceMediaFile({ workspaceDir, projectId: 6, path: 'artifacts/large.png' })
+    assert.equal(preview.mimeType, 'image/png')
+    assert.match(preview.dataUrl, /^data:image\/png;base64,/)
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }

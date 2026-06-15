@@ -98,7 +98,7 @@ export function providerSessionStatusLightFromConversationState(
       light: {
         state: 'error',
         label: '错误',
-        detail: 'Provider 会话已失败。',
+        detail: 'Runtime 会话已失败。',
       },
     }
   }
@@ -111,7 +111,7 @@ export function providerSessionStatusLightFromConversationState(
       light: {
         state: 'waiting',
         label: '等待',
-        detail: 'Provider 会话正在等待用户或外部输入。',
+        detail: 'Runtime 会话正在等待用户或外部输入。',
       },
     }
   }
@@ -124,7 +124,7 @@ export function providerSessionStatusLightFromConversationState(
       light: {
         state: 'active',
         label: '运行',
-        detail: 'Provider 会话正在触发 run 循环。',
+        detail: 'Runtime 会话正在触发 run 循环。',
       },
     }
   }

@@ -1,1 +1,1 @@
-export type WorkModeChoice = "detail" | "agent";
+export type WorkModeChoice = "project" | "tool" | "agent";

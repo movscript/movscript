@@ -3,7 +3,7 @@ import type { ClipboardEvent, DragEvent, RefObject } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
-import { fetchResourceById } from '@/features/agent/domain/agentResourceLookup'
+import { fetchResourceById } from '@/features/agent/application/agentResourceLookup'
 import {
   RESOURCE_MENTION_RE,
   RESOURCE_MENTION_TRIGGER_RE,
@@ -23,6 +23,8 @@ import {
   agentComposerDropKind,
   readAgentComposerResourceDrop,
 } from '@/features/agent/presentation/agentComposerDropInteraction'
+import { invalidateResourceMutationResult, resourceLibraryChangedResult } from '@/features/resources/application/resourceMutationInvalidation'
+import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 
 const USER_WORKSPACE_VALUE = '__user__'
 
@@ -65,10 +67,11 @@ export function useAgentComposerController({
   const attachments = workspace.attachments
   const effectiveWorkspaceContext = useMemo(() => normalizeAgentWorkspaceContext(
     workspace.workspaceContext,
-  ), [workspace.workspaceContext])
+    workspaceContextLocked ? currentProject : null,
+  ), [currentProject, workspace.workspaceContext, workspaceContextLocked])
   const selectedProjectId = positiveInteger(effectiveWorkspaceContext.projectId)
   const { data: projectsData = [], isLoading: projectsLoading } = useQuery<Project[]>({
-    queryKey: ['agent-composer-workspace-projects'],
+    queryKey: agentProviderKeys.composerWorkspaceProjects,
     queryFn: () => api.get('/projects').then((response) => response.data),
   })
   const projects = useMemo(() => mergeCurrentProject(projectsData, currentProject), [currentProject, projectsData])
@@ -243,8 +246,7 @@ export function useAgentComposerController({
         attachments: latestAttachments.map((attachment) => uploadedByPendingId.get(attachment.id) ?? attachment),
       })
       setMentionRange(null)
-      qc.invalidateQueries({ queryKey: ['resources'] })
-      qc.invalidateQueries({ queryKey: ['resources', 'agent-panel'] })
+      invalidateResourceMutationResult(qc, resourceLibraryChangedResult({ changedIds: uploaded.map(attachment => attachment.resourceId).filter((id): id is number => id !== undefined) }))
     } catch (e) {
       const latestAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
       const pendingIds = new Set(pending.map((attachment) => attachment.id))
@@ -479,12 +481,19 @@ function releaseLocalAttachmentSource(attachment: AgentAttachment | undefined) {
 
 function normalizeAgentWorkspaceContext(
   context: MovScriptWorkspaceContext | undefined,
+  lockedProject?: Project | null,
 ): MovScriptWorkspaceContext {
   const projectId = positiveInteger(context?.projectId)
   if ((context?.scope === 'project' || projectId !== undefined) && projectId !== undefined) {
     return {
       scope: 'project',
       projectId,
+    }
+  }
+  if (lockedProject?.ID) {
+    return {
+      scope: 'project',
+      projectId: lockedProject.ID,
     }
   }
   return {

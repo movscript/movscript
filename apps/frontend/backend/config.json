@@ -1,0 +1,5 @@
+{
+  "schema": "movscript.backend-config.v1",
+  "baseURL": "http://localhost:8765",
+  "updatedAt": "2026-06-15T14:27:21.514Z"
+}

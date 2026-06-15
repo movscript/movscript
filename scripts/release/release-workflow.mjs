@@ -21,11 +21,17 @@ import {
 const repoRoot = resolve(import.meta.dirname, '../..')
 const releaseCommands = new Map([
   ['audit-ffmpeg', ['scripts/release/audit-ffmpeg.mjs']],
+  ['build-app-server-deps', ['scripts/release/build-app-server-deps.mjs']],
   ['collect', ['builtin:collect']],
   ['download-ffmpeg-static', ['scripts/release/download-ffmpeg-static.mjs']],
   ['package-desktop', ['builtin:package-desktop']],
+  ['resolve-binary-deps', ['scripts/release/resolve-binary-deps.mjs']],
+  ['smoke-desktop-package', ['scripts/release/smoke-desktop-package.mjs']],
   ['stage-app-server-binaries', ['scripts/release/stage-app-server-binaries.mjs']],
   ['stage-ffmpeg', ['scripts/release/stage-ffmpeg.mjs']],
+  ['update-binary-deps', ['scripts/release/update-binary-deps.mjs']],
+  ['verify-package-resources', ['scripts/release/verify-package-resources.mjs']],
+  ['verify-release-readiness', ['scripts/release/verify-release-readiness.mjs']],
 ])
 const isWindows = process.platform === 'win32'
 const pnpmCommand = 'pnpm'
@@ -48,6 +54,8 @@ const releaseAssetExtensions = new Set([
 export function releaseWorkflowSteps(mode) {
   if (mode === 'check') {
     return [
+      ['Verify release readiness', 'node', ['scripts/release/release-workflow.mjs', 'verify-release-readiness']],
+      ['Verify package resource contract', 'node', ['scripts/release/release-workflow.mjs', 'verify-package-resources']],
       ['Audit desktop ffmpeg matrix', 'node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']],
     ]
   }

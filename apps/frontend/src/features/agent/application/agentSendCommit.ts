@@ -34,13 +34,9 @@ export interface CommitAgentSendWorkspaceDeps {
   cancelRequestedRunIds: Set<string>
   liveTraceEventsRef: MutableRefObject<ChatRunActivityEvent[]>
   clearConversationWorkspace: (userId: string, conversationId: string) => void
-  setConversationSessionId?: (conversationId: string, sessionId: string) => void
   setConversationProviderSessionTreeId?: (conversationId: string, providerSessionTreeId: string) => void
-  setConversationProviderSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationProviderThreadBindingId?: (conversationId: string, providerThreadId: string) => void
-  setConversationProviderThreadId?: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  setProviderThreadId?: (conversationId: string, threadId: string) => void
   setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: AgentConversationRuntimePatch) => void
   updateConversationRuntimeState: (conversationId: string, patch: AgentConversationRuntimePatch) => void
@@ -290,12 +286,8 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
           deps.liveTraceEventsRef.current = events
         },
         getRun: (runId) => providerSessionRunClient.getRun(runId),
-        setProviderThreadId: deps.setProviderThreadId,
-        setConversationSessionId: deps.setConversationSessionId,
         setConversationProviderSessionTreeId: deps.setConversationProviderSessionTreeId,
-        setConversationProviderSessionId: deps.setConversationProviderSessionId,
         setConversationProviderThreadBindingId: deps.setConversationProviderThreadBindingId,
-        setConversationProviderThreadId: deps.setConversationProviderThreadId,
         updateConversationTitle: deps.updateConversationTitle,
         setPageTaskRunning: deps.setPageTaskRunning,
         setConversationRun: deps.setConversationRun,
@@ -379,13 +371,8 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
 type AcceptedSourceProviderSessionScopeDeps = Pick<
   CommitAgentSendWorkspaceDeps,
   | 'conversationId'
-  | 'setConversationProviderSessionId'
-  | 'setConversationProviderThreadId'
   | 'setConversationProviderSessionTreeId'
   | 'setConversationProviderThreadBindingId'
-  | 'setConversationSessionId'
-  | 'setProviderThreadId'
-  | 'userId'
 >
 
 export function bindAcceptedSourceProviderSessionScope(input: {
@@ -397,13 +384,9 @@ export function bindAcceptedSourceProviderSessionScope(input: {
   if (!threadId) return
   const sessionId = input.run.sessionId?.trim()
   if (sessionId) {
-    if (input.deps.setConversationProviderSessionTreeId) input.deps.setConversationProviderSessionTreeId(input.deps.conversationId, sessionId)
-    else input.deps.setConversationSessionId?.(input.deps.conversationId, sessionId)
-    input.deps.setConversationProviderSessionId?.(input.deps.userId, input.deps.conversationId, sessionId)
+    input.deps.setConversationProviderSessionTreeId?.(input.deps.conversationId, sessionId)
   }
-  if (input.deps.setConversationProviderThreadBindingId) input.deps.setConversationProviderThreadBindingId(input.deps.conversationId, threadId)
-  else input.deps.setProviderThreadId?.(input.deps.conversationId, threadId)
-  input.deps.setConversationProviderThreadId?.(input.deps.userId, input.deps.conversationId, threadId)
+  input.deps.setConversationProviderThreadBindingId?.(input.deps.conversationId, threadId)
 }
 
 function schedulePostCommitFrame(operationId: string | undefined): void {

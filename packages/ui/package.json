@@ -5,7 +5,7 @@
   "sideEffects": [
     "./src/base.css",
     "./src/semantic.css",
-    "./src/styles.css",
+    "./src/styles/**/*.css",
     "./src/components/primitives/styles.css",
     "./src/components/primitives/**/*.css",
     "./src/components/business/**/*.css",
@@ -15,7 +15,7 @@
     "dist",
     "src/base.css",
     "src/semantic.css",
-    "src/styles.css",
+    "src/styles/**/*.css",
     "src/components/primitives/styles.css",
     "src/components/primitives/**/*.css",
     "src/components/business/**/*.css",
@@ -27,14 +27,91 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
+    "./primitives": {
+      "types": "./dist/primitives.d.ts",
+      "import": "./dist/primitives.mjs",
+      "require": "./dist/primitives.js"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "import": "./dist/layout.mjs",
+      "require": "./dist/layout.js"
+    },
+    "./semantic": {
+      "types": "./dist/semantic.d.ts",
+      "import": "./dist/semantic.mjs",
+      "require": "./dist/semantic.js"
+    },
+    "./debug": {
+      "types": "./dist/debug-entry.d.ts",
+      "import": "./dist/debug-entry.mjs",
+      "require": "./dist/debug-entry.js"
+    },
     "./style-system": {
       "types": "./dist/style-system.d.mts",
       "import": "./dist/style-system.mjs"
     },
-    "./styles.css": "./src/styles.css"
+    "./business/agent": {
+      "types": "./dist/business/agent.d.ts",
+      "import": "./dist/business/agent.mjs",
+      "require": "./dist/business/agent.js"
+    },
+    "./business/app": {
+      "types": "./dist/business/app.d.ts",
+      "import": "./dist/business/app.mjs",
+      "require": "./dist/business/app.js"
+    },
+    "./business/canvas": {
+      "types": "./dist/business/canvas.d.ts",
+      "import": "./dist/business/canvas.mjs",
+      "require": "./dist/business/canvas.js"
+    },
+    "./business/generation": {
+      "types": "./dist/business/generation.d.ts",
+      "import": "./dist/business/generation.mjs",
+      "require": "./dist/business/generation.js"
+    },
+    "./business/jobs": {
+      "types": "./dist/business/jobs.d.ts",
+      "import": "./dist/business/jobs.mjs",
+      "require": "./dist/business/jobs.js"
+    },
+    "./business/resource": {
+      "types": "./dist/business/resource.d.ts",
+      "import": "./dist/business/resource.mjs",
+      "require": "./dist/business/resource.js"
+    },
+    "./business/review": {
+      "types": "./dist/business/review.d.ts",
+      "import": "./dist/business/review.mjs",
+      "require": "./dist/business/review.js"
+    },
+    "./business/scripts": {
+      "types": "./dist/business/scripts.d.ts",
+      "import": "./dist/business/scripts.mjs",
+      "require": "./dist/business/scripts.js"
+    },
+    "./business/workbench": {
+      "types": "./dist/business/workbench.d.ts",
+      "import": "./dist/business/workbench.mjs",
+      "require": "./dist/business/workbench.js"
+    },
+    "./styles/base.css": "./src/styles/base.css",
+    "./styles/semantic.css": "./src/styles/semantic.css",
+    "./styles/primitives.css": "./src/styles/primitives.css",
+    "./styles/layout.css": "./src/styles/layout.css",
+    "./styles/business/agent.css": "./src/styles/business/agent.css",
+    "./styles/business/app.css": "./src/styles/business/app.css",
+    "./styles/business/canvas.css": "./src/styles/business/canvas.css",
+    "./styles/business/generation.css": "./src/styles/business/generation.css",
+    "./styles/business/jobs.css": "./src/styles/business/jobs.css",
+    "./styles/business/resource.css": "./src/styles/business/resource.css",
+    "./styles/business/review.css": "./src/styles/business/review.css",
+    "./styles/business/scripts.css": "./src/styles/business/scripts.css",
+    "./styles/business/workbench.css": "./src/styles/business/workbench.css"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/style-system.ts --format esm,cjs --dts --clean --external react --external react-dom",
+    "build": "tsup src/index.ts src/primitives.ts src/layout.ts src/debug-entry.ts src/semantic.ts src/style-system.ts src/business/*.ts --format esm,cjs --dts --clean --external react --external react-dom",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

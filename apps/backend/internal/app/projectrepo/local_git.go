@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type LocalGitAdapter struct {
@@ -63,6 +65,44 @@ func (a *LocalGitAdapter) EnsureRepository(ctx context.Context, input EnsureRepo
 	return EnsureRepositoryResult{
 		ProviderRepoID: filepath.ToSlash(filepath.Join(input.Owner, input.Repo+".git")),
 		HeadCommit:     strings.TrimSpace(head),
+	}, nil
+}
+
+func (a *LocalGitAdapter) GetCloneURL(_ context.Context, request providercontract.RepositoryCloneURLRequest) (providercontract.RepositoryCloneURLResult, error) {
+	strategy := strings.TrimSpace(request.PreferredStrategy)
+	if strategy == "" {
+		strategy = providercontract.RepositoryCloneURLStrategyProxy
+	}
+	if strategy == providercontract.RepositoryCloneURLStrategyTemporary {
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("local git temporary clone URL is not supported")
+	}
+	if strategy != providercontract.RepositoryCloneURLStrategyProxy && strategy != providercontract.RepositoryCloneURLStrategyDirect {
+		return providercontract.RepositoryCloneURLResult{}, fmt.Errorf("local git clone URL strategy %q is not supported", request.PreferredStrategy)
+	}
+	if strategy == providercontract.RepositoryCloneURLStrategyProxy && strings.TrimSpace(request.PublicURL) != "" {
+		return providercontract.RepositoryCloneURLResult{URL: strings.TrimSpace(request.PublicURL), Strategy: providercontract.RepositoryCloneURLStrategyProxy}, nil
+	}
+	repoPath, err := a.RepoPath(request.Ref.Owner, request.Ref.Repo)
+	if err != nil {
+		return providercontract.RepositoryCloneURLResult{}, err
+	}
+	return providercontract.RepositoryCloneURLResult{URL: "file://" + filepath.ToSlash(repoPath), Strategy: providercontract.RepositoryCloneURLStrategyDirect}, nil
+}
+
+func (a *LocalGitAdapter) GetGitHTTPProxyTarget(_ context.Context, request providercontract.GitHTTPProxyTargetRequest) (providercontract.GitHTTPProxyTarget, error) {
+	if a == nil || strings.TrimSpace(a.root) == "" {
+		return providercontract.GitHTTPProxyTarget{}, fmt.Errorf("%w: local git root is required", ErrInvalidRepositoryConfig)
+	}
+	if _, err := a.RepoPath(request.Ref.Owner, request.Ref.Repo); err != nil {
+		return providercontract.GitHTTPProxyTarget{}, err
+	}
+	return providercontract.GitHTTPProxyTarget{
+		Provider:      ProviderGitHTTP,
+		Owner:         request.Ref.Owner,
+		Repo:          request.Ref.Repo,
+		DefaultBranch: request.Ref.DefaultBranch,
+		LocalRoot:     a.root,
+		GitBinary:     a.gitBinary,
 	}, nil
 }
 

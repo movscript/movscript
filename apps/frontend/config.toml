@@ -1,0 +1,5 @@
+schema = "movscript.config.v1"
+
+[startup]
+backend_policy = "spawn"
+agent_policy = "lazy"

@@ -223,7 +223,7 @@ export function modelFinishReasonLabel(value: string | undefined): string | unde
 export function messageSourceLabel(value: string | undefined): string | undefined {
   switch (value) {
     case 'model': return '模型输出 (model)'
-    case 'runtime': return 'Provider 会话 (runtime)'
+    case 'runtime': return 'Runtime 会话 (runtime)'
     case 'tool': return '工具结果 (tool)'
     case 'user': return '用户 (user)'
     default: return value

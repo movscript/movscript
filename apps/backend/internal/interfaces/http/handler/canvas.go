@@ -9,19 +9,25 @@ import (
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/storage"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
 type CanvasHandler struct {
 	CanvasExecService canvasservice.Service
 	aiService         *ai.AIService
+	aiRouting         providercontract.AIGatewayRoutingPolicy
 }
 
 func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
-	return &CanvasHandler{
+	handler := &CanvasHandler{
 		CanvasExecService: canvasservice.NewService(db, registry, svc, nil, store),
 		aiService:         svc,
 	}
+	if svc != nil {
+		handler.aiRouting = svc
+	}
+	return handler
 }
 
 func (h *CanvasHandler) List(c *gin.Context) {

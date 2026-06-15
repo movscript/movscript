@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button } from '@movscript/ui'
+import { Button } from '@movscript/ui/primitives'
 
 type PaginationControlsProps = {
   page: number

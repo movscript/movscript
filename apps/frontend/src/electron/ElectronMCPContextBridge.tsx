@@ -4,6 +4,7 @@ import type { MCPContextUpdate } from '@/shared/contracts/mcpContext'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
 const productionOrchestrationPaths: readonly string[] = [
   ROUTES.project.scripts,
@@ -76,14 +77,14 @@ export function ElectronMCPContextBridge() {
     const stableSnapshot = JSON.stringify(snapshot)
     if (stableSnapshot === lastSentSnapshotRef.current) return
     lastSentSnapshotRef.current = stableSnapshot
-    window.api?.updateMCPContext?.({
+    readElectronApi()?.updateMCPContext?.({
       ...snapshot,
       updatedAt: new Date().toISOString(),
     })
   }, [snapshot])
 
   useEffect(() => {
-    return window.api?.onMCPOpenRoute?.((route) => {
+    return readElectronApi()?.onMCPOpenRoute?.((route) => {
       const currentRoute = `${location.pathname}${location.search}${location.hash}`
       if (route !== currentRoute) navigate(route)
     })

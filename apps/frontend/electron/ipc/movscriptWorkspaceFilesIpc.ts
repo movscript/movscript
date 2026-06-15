@@ -3,6 +3,7 @@ import {
   deleteMovScriptWorkspaceFile,
   listMovScriptWorkspaceFiles,
   readMovScriptWorkspaceFile,
+  readMovScriptWorkspaceMediaFile,
   writeMovScriptWorkspaceFile,
 } from '../services/movscriptWorkspaceFiles'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
@@ -19,6 +20,9 @@ export function registerMovScriptWorkspaceFilesIpcHandlers(): void {
   })
   ipcMain.handle('movscript:workspace-files-read', (_event, input: ElectronMovScriptWorkspaceFilesInput) => {
     return readMovScriptWorkspaceFile(input)
+  })
+  ipcMain.handle('movscript:workspace-files-read-media', (_event, input: ElectronMovScriptWorkspaceFilesInput) => {
+    return readMovScriptWorkspaceMediaFile(input)
   })
   ipcMain.handle('movscript:workspace-files-write', (_event, input: ElectronMovScriptWorkspaceFileWriteInput) => {
     return writeMovScriptWorkspaceFile(input)

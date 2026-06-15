@@ -8,6 +8,7 @@ import { ResourceAudio } from '@/shared/ui/ResourceAudio'
 import { downloadResource } from '@/shared/ui/resourceDownload'
 import { loadResourceTextUrl } from '@/shared/ui/resourceText'
 import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
+import { resourceTextKeys } from '@/features/resources/application/resourceQueryKeys'
 import type { RawResource } from '@/types'
 import {
   ResourceMediaAudioPanel,
@@ -19,7 +20,7 @@ import {
   ResourceMediaTextPreviewPanel,
   ResourceMediaTextThumb,
   ResourceMediaThumb
-} from '@movscript/ui'
+} from '@movscript/ui/business/resource'
 
 interface MediaViewerProps {
   resource: RawResource
@@ -185,7 +186,7 @@ function IconThumb({ icon }: { icon: ReactNode }) {
 
 function TextThumb({ proxyUrl, name }: { proxyUrl: string; name: string }) {
   const { data } = useQuery({
-    queryKey: ['resource-text-thumb', proxyUrl],
+    queryKey: resourceTextKeys.thumb(proxyUrl),
     queryFn: () => loadResourceTextUrl(proxyUrl),
     staleTime: 5 * 60 * 1000,
   })
@@ -203,7 +204,7 @@ function TextThumb({ proxyUrl, name }: { proxyUrl: string; name: string }) {
 function TextPreview({ proxyUrl }: { proxyUrl: string }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery({
-    queryKey: ['resource-text-preview', proxyUrl],
+    queryKey: resourceTextKeys.preview(proxyUrl),
     queryFn: () => loadResourceTextUrl(proxyUrl),
     staleTime: 5 * 60 * 1000,
   })

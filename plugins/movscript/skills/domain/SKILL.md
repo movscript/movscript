@@ -64,11 +64,11 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - MCP does not infer project from session, cwd, route, or focus. Every project-scoped domain call must include the intended `projectId`/`project_id`.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
 - `source`: Editable creative source. It may be incomplete while the user or agent is editing.
-- `.interpret/current`: Last successful interpreted state. UI display should prefer this stable state.
-- `.interpret/indexes` and `.interpret/manifests`: Interpreter outputs. Do not edit them directly.
+- Product state lives in editable source files plus backend candidate/decision metadata exposed through domain APIs.
+- `.interpret/**`: Interpreter debug artifacts only. Do not treat them as product state, source of truth, or a workflow contract.
 - `domain_inspect`: Primary current-source diagnostic entrypoint. It reports source changes, issues, and interpret readiness without writing interpreted artifacts.
 - `domain_review`: Compatibility diagnostic alias for older review workflows. Prefer `domain_inspect` unless the user explicitly asks for review.
-- `domain_interpret`: Refreshes `.interpret/current`, indexes, and derived read models from current source when diagnostics pass. It is not publish, approval, commit, or user-intent checkpoint.
+- `domain_interpret`: Validates current source and refreshes derived diagnostic artifacts when enabled. It is not publish, approval, commit, or user-intent checkpoint.
 - `domain_regeneration_plan`: After interpret, reports downstream content units, prompt bundles, selected outputs, or preview timelines that need review.
 - Except for `content_unit`, entities are production structure or generation prerequisites. Do not create every prerequisite at once unless the user asks for that scope.
 - Content units are top-level production tasks with refs. They are not production hierarchy nodes and not generated resources.
@@ -90,13 +90,13 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 ## Edit Workflow
 
 1. Call `system_focus_get` when the request depends on the selected project, production, or entity.
-2. Query existing context with `domain_query_*` or read interpreted outputs with `domain_read_*`.
+2. Query existing context with `domain_query_*` or read derived artifact context with `domain_read_*`.
 3. Call `domain_get_model` before changing a domain entity so editable paths, schema ids, and instructions come from MovScript.
 4. Prefer structured `domain_*` write APIs when they cover the requested operation.
 5. Directly edit source files only when no structured API covers the field or structure.
 6. Run `domain_inspect` after any API write or file edit.
 7. Fix diagnostics and re-run `domain_inspect` until the source is ready.
-8. Run `domain_interpret` after the coherent semantic step is ready. Interpret refreshes `.interpret/current`, indexes, and derived read models from source; it does not publish, approve, commit, or checkpoint user intent.
+8. Run `domain_interpret` after the coherent semantic step is ready. Interpret validates source and refreshes derived diagnostic artifacts when enabled; it does not publish, approve, commit, or checkpoint user intent.
 9. Run `domain_regeneration_plan` after interpret when the change can stale generated content, prompts, media, or selections.
 
 ## Editable Source
@@ -112,7 +112,7 @@ Direct file edits are allowed only under source paths returned by `domain_get_mo
 
 Do not directly edit:
 
-- `.interpret/**`
+- `.interpret/**` debug artifacts
 - `.movscript/**` runtime, provider, session, cache, or local config files unless the user explicitly asks for configuration work.
 - Resource binaries, backend database state, or generation job runtime records.
 
@@ -122,7 +122,7 @@ Do not directly edit:
 - Always pass `projectId` to project-scoped tools, and never use user or organization identity as a project routing shortcut.
 - For `domain_upsert_setting` and `domain_upsert_asset`, put the data to write under `payload`; `record` and `entity` are existing-context objects, not the write body.
 - If a direct edit is needed, call `domain_get_model` first and edit only the returned source scope.
-- After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and interpreted read models should be refreshed. After content candidate, decision, or selection writes, run `domain_interpret` when `.interpret/current` must include the backend decision metadata.
+- After completing any user request that changes domain source, run `domain_inspect` and then `domain_interpret` when diagnostics pass and derived domain artifacts should be refreshed. After content candidate, decision, or selection writes, run `domain_interpret` when downstream artifact tools need the latest backend decision metadata.
 - Do not interpret for read-only review, draft-only analysis, or source states with blocking issues; state the reason when interpret is intentionally skipped.
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
 - Use stable ids and MovScript `resource_id` references for generated or uploaded media.

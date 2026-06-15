@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { cn } from "../../../../lib/cn";
-import { Surface } from "../../../primitives";
+import { Surface, type SurfaceProps } from "../../../primitives";
 import type { WorkbenchDensity } from "../types";
 
 export function WorkbenchList({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -43,6 +43,7 @@ export function WorkbenchSurfaceItem({
   active,
   asChild = false,
   density = "normal",
+  emphasis = "plain",
   className,
   children,
   ...props
@@ -50,6 +51,7 @@ export function WorkbenchSurfaceItem({
   active?: boolean;
   asChild?: boolean;
   density?: WorkbenchDensity;
+  emphasis?: SurfaceProps["emphasis"];
   children?: ReactNode;
 }) {
   return (
@@ -58,7 +60,7 @@ export function WorkbenchSurfaceItem({
       kind="item"
       tone="brand"
       density={density === "compact" ? "compact" : "normal"}
-      emphasis="plain"
+      emphasis={emphasis}
       interaction={active ? "selected" : "selectable"}
       data-active={active ? "true" : undefined}
       className={cn("ms-workbench-selectable workbench-list-item", className)}

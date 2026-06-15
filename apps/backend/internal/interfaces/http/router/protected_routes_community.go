@@ -1,5 +1,3 @@
-//go:build !runtime_overlay
-
 package router
 
 import (
@@ -77,6 +75,12 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.DELETE("/resource-folders/:id", h.resourceFolders.Delete)
 }
 
+func registerAudioRoutes(protected *gin.RouterGroup, h handlers) {
+	protected.GET("/audio/models", h.audio.ListModels)
+	protected.POST("/audio/tts", h.audio.Synthesize)
+	protected.POST("/audio/transcribe", h.audio.Transcribe)
+}
+
 func registerJobRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/jobs", h.jobs.Create)
 	protected.GET("/jobs", h.jobs.List)
@@ -103,6 +107,7 @@ func registerRegistryRoutes(v1 *gin.RouterGroup, h handlers) {
 	v1.GET("/registry/plugins/:id", h.registry.GetPlugin)
 	v1.GET("/registry/workflows", h.registry.ListWorkflows)
 	v1.GET("/registry/workflows/:id", h.registry.GetWorkflow)
+	registerEditionRegistryRoutes(v1, h)
 }
 
 func registerCanvasRoutes(protected *gin.RouterGroup, h handlers) {

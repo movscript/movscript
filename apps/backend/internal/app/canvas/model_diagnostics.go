@@ -8,6 +8,7 @@ import (
 
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	"github.com/movscript/movscript/internal/infra/ai"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type nodeData = canvasdomain.NodeData
@@ -98,13 +99,13 @@ func (h *Service) DiagnoseNodeModel(ctx context.Context, canvasID uint, nodeID s
 	return diag, nil
 }
 
-func (h *Service) diagnoseNodeRoute(_ context.Context, diag *NodeModelDiagnostics, nd nodeData) {
+func (h *Service) diagnoseNodeRoute(ctx context.Context, diag *NodeModelDiagnostics, nd nodeData) {
 	if diag.Capability == "" {
 		diag.Status = "not_applicable"
 		diag.Problems = append(diag.Problems, fmt.Sprintf("node type %q does not route through an AI model", diag.NodeType))
 		return
 	}
-	if h.svc == nil {
+	if h.routing == nil {
 		diag.Status = "ai_service_unavailable"
 		diag.Problems = append(diag.Problems, "AI service is not configured in this process")
 		return
@@ -119,7 +120,7 @@ func (h *Service) diagnoseNodeRoute(_ context.Context, diag *NodeModelDiagnostic
 		return
 	}
 
-	route, err := h.svc.ResolveModelRoute(ai.ModelRouteRequest{
+	route, err := h.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 		ModelID:       modelID,
 		ModelConfigID: nd.ModelDbID,
 		Capability:    diag.Capability,
@@ -133,13 +134,13 @@ func (h *Service) diagnoseNodeRoute(_ context.Context, diag *NodeModelDiagnostic
 	setDiagnosticRoute(diag, route)
 }
 
-func (h *Service) diagnoseExecutableSpecRoute(_ context.Context, diag *NodeModelDiagnostics, spec *canvasdomain.ExecutableSpec) {
+func (h *Service) diagnoseExecutableSpecRoute(ctx context.Context, diag *NodeModelDiagnostics, spec *canvasdomain.ExecutableSpec) {
 	if diag.Capability == "" {
 		diag.Status = "missing_capability"
 		diag.Problems = append(diag.Problems, "executableSpec.capability is empty")
 		return
 	}
-	if h.svc == nil {
+	if h.routing == nil {
 		diag.Status = "ai_service_unavailable"
 		diag.Problems = append(diag.Problems, "AI service is not configured in this process")
 		return
@@ -154,7 +155,7 @@ func (h *Service) diagnoseExecutableSpecRoute(_ context.Context, diag *NodeModel
 		return
 	}
 
-	route, err := h.svc.ResolveModelRoute(ai.ModelRouteRequest{
+	route, err := h.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 		ModelID:       modelID,
 		ModelConfigID: modelDbID,
 		Capability:    diag.Capability,
@@ -167,28 +168,24 @@ func (h *Service) diagnoseExecutableSpecRoute(_ context.Context, diag *NodeModel
 	setDiagnosticRoute(diag, route)
 }
 
-func (h *Service) fillAvailableModels(_ context.Context, diag *NodeModelDiagnostics) {
-	if h.svc == nil || diag.Capability == "" {
+func (h *Service) fillAvailableModels(ctx context.Context, diag *NodeModelDiagnostics) {
+	if h.catalog == nil || diag.Capability == "" {
 		return
 	}
-	var (
-		models []ai.PublicModel
-		err    error
-	)
-	models, err = h.svc.GetModelsByCapability(diag.Capability)
+	descriptors, err := h.catalog.ListModels(ctx, providercontract.AIModelListFilter{Capability: diag.Capability})
 	if err != nil {
 		diag.Problems = append(diag.Problems, fmt.Sprintf("failed to list available models: %v", err))
 		return
 	}
-	diag.AvailableModelCount = len(models)
-	limit := len(models)
+	diag.AvailableModelCount = len(descriptors)
+	limit := len(descriptors)
 	if limit > 10 {
 		limit = 10
 	}
 	diag.AvailableModels = make([]NodeModelDiagnosticModel, 0, limit)
-	for _, model := range models[:limit] {
+	for _, model := range descriptors[:limit] {
 		diag.AvailableModels = append(diag.AvailableModels, NodeModelDiagnosticModel{
-			ID:           model.ID,
+			ID:           model.ModelConfigID,
 			ModelID:      model.ModelID,
 			DisplayName:  model.DisplayName,
 			IsDefault:    model.IsDefault,
@@ -197,7 +194,7 @@ func (h *Service) fillAvailableModels(_ context.Context, diag *NodeModelDiagnost
 	}
 }
 
-func setDiagnosticRoute(diag *NodeModelDiagnostics, route ai.ModelRoute) {
+func setDiagnosticRoute(diag *NodeModelDiagnostics, route providercontract.AIGatewayModelRoute) {
 	diag.Status = "ok"
 	diag.Route = &NodeModelDiagnosticRoute{
 		ModelID:         route.ModelID,

@@ -129,6 +129,85 @@ func TestIdentityAcceptsGitBasicAuthOnlyForGitProxy(t *testing.T) {
 	}
 }
 
+func TestIdentityAcceptsPurposeScopedGitProxyToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "middleware-git-proxy-token.db", &persistencemodel.User{})
+	user := persistencemodel.User{Username: "alice", Status: "active", SystemRole: domainauth.SystemRoleUser}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	tokens, err := auth.NewManager("0123456789abcdef0123456789abcdef", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := tokens.IssueWithTTL(auth.Subject{
+		UserID:    user.ID,
+		Username:  user.Username,
+		Purpose:   auth.GitProxyTokenPurpose,
+		ProjectID: 7,
+		OrgID:     11,
+	}, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := gin.New()
+	r.Use(Identity(db, tokens))
+	r.GET("/api/v1/projects/:id/git/*gitPath", RequireAuth(), func(c *gin.Context) {
+		if current, ok := CurrentUserProfileFromContext(c); !ok || current.ID != user.ID {
+			t.Fatalf("current user = %+v, ok=%v", current, ok)
+		}
+		rawOrgID, ok := c.Get(ContextPreferredOrgIDKey)
+		if !ok || rawOrgID.(uint) != 11 {
+			t.Fatalf("preferred org id = %#v, ok=%v", rawOrgID, ok)
+		}
+		c.Status(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/7/git/repo.git/info/refs?"+GitProxyTokenQueryParam+"="+token, nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d: %s", res.Code, http.StatusNoContent, res.Body.String())
+	}
+}
+
+func TestIdentityRejectsGitProxyTokenForDifferentProject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "middleware-git-proxy-token-project.db", &persistencemodel.User{})
+	user := persistencemodel.User{Username: "alice", Status: "active", SystemRole: domainauth.SystemRoleUser}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	tokens, err := auth.NewManager("0123456789abcdef0123456789abcdef", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := tokens.IssueWithTTL(auth.Subject{
+		UserID:    user.ID,
+		Username:  user.Username,
+		Purpose:   auth.GitProxyTokenPurpose,
+		ProjectID: 7,
+		OrgID:     11,
+	}, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := gin.New()
+	r.Use(Identity(db, tokens))
+	r.GET("/api/v1/projects/:id/git/*gitPath", RequireAuth(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/8/git/repo.git/info/refs?"+GitProxyTokenQueryParam+"="+token, nil)
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d: %s", res.Code, http.StatusForbidden, res.Body.String())
+	}
+}
+
 func TestRequireSystemRoleRejectsUnauthenticatedAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

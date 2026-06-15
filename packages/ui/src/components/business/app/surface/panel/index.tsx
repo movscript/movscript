@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { Frame, FrameActions, FrameBody, FrameHeader, FrameHeading, FrameTitle, type SurfaceProps } from "../../../../primitives";
 import type { IconComponent } from "../../../../primitives/types";
 
 export function AppPanel({
@@ -10,6 +10,7 @@ export function AppPanel({
   icon: Icon,
   iconClassName,
   action,
+  emphasis = "plain",
   className,
   bodyClassName,
   ...props
@@ -18,20 +19,21 @@ export function AppPanel({
   icon?: IconComponent;
   iconClassName?: string;
   action?: ReactNode;
+  emphasis?: SurfaceProps["emphasis"];
   bodyClassName?: string;
 }) {
   return (
-    <Surface as="section" kind="panel" density="normal" emphasis="plain" className={cn("app-panel", className)} {...props}>
+    <Frame as="section" kind="panel" density="normal" emphasis={emphasis} className={cn("app-panel", className)} {...props}>
       {title || Icon || action ? (
-        <div className="ms-frame__header ms-surface__header app-panel__header">
-          <div className="ms-surface__heading app-panel__heading">
+        <FrameHeader className="ms-surface__header app-panel__header">
+          <FrameHeading className="ms-surface__heading app-panel__heading">
             {Icon ? <Icon size={14} className={cn("ms-surface__icon app-panel__icon", iconClassName)} /> : null}
-            {title ? <h2 className="ms-surface__title app-panel__title">{title}</h2> : null}
-          </div>
-          {action ? <div className="ms-surface__action app-panel__action">{action}</div> : null}
-        </div>
+            {title ? <FrameTitle className="ms-surface__title app-panel__title">{title}</FrameTitle> : null}
+          </FrameHeading>
+          {action ? <FrameActions className="ms-surface__action app-panel__action">{action}</FrameActions> : null}
+        </FrameHeader>
       ) : null}
-      <div className={cn("ms-surface__body app-panel__body", bodyClassName)}>{children}</div>
-    </Surface>
+      <FrameBody className={cn("ms-surface__body app-panel__body", bodyClassName)}>{children}</FrameBody>
+    </Frame>
   );
 }

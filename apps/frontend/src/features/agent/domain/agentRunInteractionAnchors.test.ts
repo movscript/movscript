@@ -60,7 +60,7 @@ test('buildInteractionRunsByResultMessageId falls back to the source user messag
       role: 'user',
       content: 'Start work',
       timestamp: 1,
-      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_needs_action' } },
+      meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_needs_action' } },
     }],
     interactionRuns: [approvalRun],
   })
@@ -69,7 +69,7 @@ test('buildInteractionRunsByResultMessageId falls back to the source user messag
   assert.equal(result.get('trigger')?.[0]?.id, 'run_needs_action')
 })
 
-test('buildInteractionRunsByResultMessageId resolves runtime message id aliases for source fallback', () => {
+test('buildInteractionRunsByResultMessageId resolves provider-session message ids for source fallback', () => {
   const approvalRun = run({
     id: 'run_needs_action',
     input: {
@@ -86,7 +86,7 @@ test('buildInteractionRunsByResultMessageId resolves runtime message id aliases 
       role: 'user',
       content: 'Start work',
       timestamp: 1,
-      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'runtime_msg_user', runId: 'run_needs_action' } },
+      meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'runtime_msg_user', runId: 'run_needs_action' } },
     }],
     interactionRuns: [approvalRun],
   })
@@ -181,7 +181,7 @@ test('buildInteractionRunsByResultMessageId uses input request display anchors',
   assert.equal(result.get('root_user')?.[0]?.id, 'run_input')
 })
 
-test('runInteractionDisplayAnchorPlacementForMessage resolves local and runtime message anchors', () => {
+test('runInteractionDisplayAnchorPlacementForMessage resolves local and provider-session message anchors', () => {
   const approvalRun = run({
     id: 'run_approval',
     pendingApprovals: [{
@@ -228,7 +228,7 @@ test('runInteractionDisplayAnchorPlacementForMessage resolves local and runtime 
     role: 'assistant',
     content: 'Ready',
     timestamp: 1,
-    meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'runtime_msg', runId: 'run_approval' } },
+    meta: { providerSessionMessage: { threadId: 'thread_1', messageId: 'runtime_msg', runId: 'run_approval' } },
   }
 
   assert.equal(runInteractionDisplayAnchorPlacementForMessage(approvalRun, anchoredMessage), 'after')
@@ -260,7 +260,7 @@ function messageWithRun(id: string, runId: string): ChatMessage {
     content: 'Waiting for input',
     timestamp: 1,
     meta: {
-      runtimeMessage: { threadId: 'thread_1', messageId: id, runId },
+      providerSessionMessage: { threadId: 'thread_1', messageId: id, runId },
     },
   }
 }

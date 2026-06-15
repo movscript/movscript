@@ -8,7 +8,57 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
+
+var _ providercontract.HealthChecker = (*GiteaAdapter)(nil)
+
+func TestGiteaAdapterHealthChecksCurrentUser(t *testing.T) {
+	var sawToken bool
+	adapter := NewGiteaAdapterWithAdminAuth("http://gitea.local", "admin-token", "", "")
+	if adapter == nil {
+		t.Fatal("adapter is nil")
+	}
+	adapter.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/v1/user" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		sawToken = r.Header.Get("Authorization") == "token admin-token"
+		return jsonResponse(http.StatusOK, `{"id":1,"username":"admin"}`), nil
+	})}
+
+	health := adapter.Health(context.Background())
+
+	if health.Status != providercontract.HealthStatusOK {
+		t.Fatalf("health = %+v, want ok", health)
+	}
+	if !strings.Contains(health.Message, "admin") {
+		t.Fatalf("health message = %q, want authenticated username", health.Message)
+	}
+	if !sawToken {
+		t.Fatal("expected token auth header")
+	}
+}
+
+func TestGiteaAdapterHealthReportsAuthError(t *testing.T) {
+	adapter := NewGiteaAdapterWithAdminAuth("http://gitea.local", "bad-token", "", "")
+	if adapter == nil {
+		t.Fatal("adapter is nil")
+	}
+	adapter.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusUnauthorized, `{"message":"bad credentials"}`), nil
+	})}
+
+	health := adapter.Health(context.Background())
+
+	if health.Status != providercontract.HealthStatusError {
+		t.Fatalf("health = %+v, want error", health)
+	}
+	if !strings.Contains(health.Message, "401") {
+		t.Fatalf("health message = %q, want status code", health.Message)
+	}
+}
 
 func TestGiteaAdapterUsesAdminBasicAuthWhenTokenMissing(t *testing.T) {
 	var sawBasic bool
@@ -102,6 +152,87 @@ func TestGiteaAdapterResetsExistingUserPasswordBeforeCreatingToken(t *testing.T)
 		"PATCH /api/v1/admin/users/movscript-user-1",
 		"POST /api/v1/users/movscript-user-1/tokens",
 	})
+}
+
+func TestGiteaAdapterChecksRepoAccessPermission(t *testing.T) {
+	adapter := NewGiteaAdapterWithAdminAuth("http://gitea.local", "admin-token", "", "")
+	if adapter == nil {
+		t.Fatal("adapter is nil")
+	}
+	var sawPath bool
+	adapter.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		sawPath = r.URL.Path == "/api/v1/repos/acme/project/collaborators/alice/permission"
+		return jsonResponse(http.StatusOK, `{"permission":"write"}`), nil
+	})}
+
+	result, err := adapter.CheckRepoAccess(context.Background(), RepositoryAccessRequest{
+		Owner:      "acme",
+		Repo:       "project",
+		Username:   "alice",
+		Permission: "write",
+	})
+	if err != nil {
+		t.Fatalf("CheckRepoAccess returned error: %v", err)
+	}
+	if !sawPath {
+		t.Fatal("expected collaborator permission endpoint")
+	}
+	if !result.Allowed || result.Permission != "write" {
+		t.Fatalf("result = %+v, want write access", result)
+	}
+}
+
+func TestGiteaAdapterRepoAccessDeniesInsufficientPermission(t *testing.T) {
+	adapter := NewGiteaAdapterWithAdminAuth("http://gitea.local", "admin-token", "", "")
+	if adapter == nil {
+		t.Fatal("adapter is nil")
+	}
+	adapter.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, `{"permission":"read"}`), nil
+	})}
+
+	result, err := adapter.CheckRepoAccess(context.Background(), RepositoryAccessRequest{
+		Owner:      "acme",
+		Repo:       "project",
+		Username:   "alice",
+		Permission: "write",
+	})
+	if err != nil {
+		t.Fatalf("CheckRepoAccess returned error: %v", err)
+	}
+	if result.Allowed || result.Permission != "read" {
+		t.Fatalf("result = %+v, want denied read-only access", result)
+	}
+}
+
+func TestGiteaAdapterCloneURLStrategies(t *testing.T) {
+	adapter := NewGiteaAdapterWithAdminAuth("http://gitea.local", "admin-token", "", "")
+	if adapter == nil {
+		t.Fatal("adapter is nil")
+	}
+	proxy, err := adapter.GetCloneURL(context.Background(), providercontract.RepositoryCloneURLRequest{
+		Ref:       providercontract.RepositoryRef{Owner: "acme", Repo: "project"},
+		PublicURL: "/api/v1/projects/1/git/project.git",
+	})
+	if err != nil {
+		t.Fatalf("GetCloneURL proxy returned error: %v", err)
+	}
+	if proxy.Strategy != providercontract.RepositoryCloneURLStrategyProxy || proxy.URL != "/api/v1/projects/1/git/project.git" {
+		t.Fatalf("proxy clone = %+v, want proxy public URL", proxy)
+	}
+	direct, err := adapter.GetCloneURL(context.Background(), providercontract.RepositoryCloneURLRequest{
+		Ref:               providercontract.RepositoryRef{Owner: "acme", Repo: "project"},
+		PreferredStrategy: providercontract.RepositoryCloneURLStrategyDirect,
+	})
+	if err != nil {
+		t.Fatalf("GetCloneURL direct returned error: %v", err)
+	}
+	if direct.Strategy != providercontract.RepositoryCloneURLStrategyDirect || direct.URL != "http://gitea.local/acme/project.git" {
+		t.Fatalf("direct clone = %+v, want provider direct URL", direct)
+	}
 }
 
 func TestGiteaAdapterCreatesOrganizationOwnerBeforeRepo(t *testing.T) {

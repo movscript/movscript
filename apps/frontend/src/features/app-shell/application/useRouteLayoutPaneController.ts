@@ -1,5 +1,6 @@
 import React from 'react'
 
+import { readBrowserStorageItem, writeBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import type {
   RouteLayoutPaneSpec,
   RouteLayoutPaneState,
@@ -196,13 +197,8 @@ export function readRouteLayoutPaneSize(
 }
 
 function readStoredPaneState(storageKey: string | undefined): RouteLayoutPaneState | undefined {
-  if (!storageKey || typeof window === 'undefined') return undefined
-  let value: string | null
-  try {
-    value = window.localStorage.getItem(storageKey)
-  } catch {
-    return undefined
-  }
+  if (!storageKey) return undefined
+  const value = readBrowserStorageItem('local', storageKey)
   if (isRouteLayoutPaneState(value)) return value
   if (value === '1') return 'default'
   if (value === '0') return 'hidden'
@@ -212,34 +208,21 @@ function readStoredPaneState(storageKey: string | undefined): RouteLayoutPaneSta
 }
 
 function readStoredPaneSize(storageKey: string | undefined): number | undefined {
-  if (!storageKey || typeof window === 'undefined') return undefined
-  let storedValue: string | null
-  try {
-    storedValue = window.localStorage.getItem(storageKey)
-  } catch {
-    return undefined
-  }
+  if (!storageKey) return undefined
+  const storedValue = readBrowserStorageItem('local', storageKey)
   if (storedValue === null) return undefined
   const value = Number(storedValue)
   return Number.isFinite(value) ? value : undefined
 }
 
 function writeStoredPaneState(storageKey: string | undefined, state: RouteLayoutPaneState): void {
-  if (!storageKey || typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(storageKey, state)
-  } catch {
-    // localStorage can be unavailable in restricted browser contexts.
-  }
+  if (!storageKey) return
+  writeBrowserStorageItem('local', storageKey, state)
 }
 
 function writeStoredPaneSize(storageKey: string | undefined, size: number): void {
-  if (!storageKey || typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(storageKey, String(size))
-  } catch {
-    // localStorage can be unavailable in restricted browser contexts.
-  }
+  if (!storageKey) return
+  writeBrowserStorageItem('local', storageKey, String(size))
 }
 
 function isRouteLayoutPaneState(value: unknown): value is RouteLayoutPaneState {

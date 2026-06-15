@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/media"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
@@ -124,14 +123,6 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource
 	filename := strings.TrimSpace(input.Filename)
 	data := input.Data
 	size := input.Size
-	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
-		fmt.Printf("[resource] video normalization skipped for %q: %v\n", input.Filename, err)
-	} else if changed {
-		data = normalized
-		mimeType = normalizedMime
-		filename = media.MP4Name(filename)
-		size = int64(len(data))
-	}
 	if err := s.ensureUniqueResourceName(ctx, input.UserID, input.OrgID, filename, 0); err != nil {
 		return domainresource.RawResource{}, err
 	}

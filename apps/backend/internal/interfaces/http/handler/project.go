@@ -8,32 +8,44 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	gitidentityapp "github.com/movscript/movscript/internal/app/gitidentity"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	projectrepoapp "github.com/movscript/movscript/internal/app/projectrepo"
+	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/config"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
+	providerassembly "github.com/movscript/movscript/internal/providers/assembly"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"gorm.io/gorm"
 )
 
 type ProjectHandler struct {
-	db                 *gorm.DB
-	projects           *projectapp.Service
-	repositories       *projectrepoapp.Service
-	gitIdentities      *gitidentityapp.Service
-	giteaBaseURL       string
-	giteaToken         string
-	giteaAdminUsername string
-	giteaAdminPassword string
-	gitHTTPRoot        string
-	gitBinary          string
-	httpClient         *http.Client
+	db                        *gorm.DB
+	projects                  *projectapp.Service
+	repositories              *projectrepoapp.Service
+	gitIdentities             *gitidentityapp.Service
+	giteaBaseURL              string
+	giteaToken                string
+	giteaAdminUsername        string
+	giteaAdminPassword        string
+	gitHubBaseURL             string
+	gitHubToken               string
+	gitLabBaseURL             string
+	gitLabToken               string
+	gitHTTPRoot               string
+	gitBinary                 string
+	httpClient                *http.Client
+	tokens                    *tokenauth.Manager
+	workspaceCloneURLStrategy string
 }
+
+const gitProxyTemporaryCloneURLTTL = 15 * time.Minute
 
 func NewProjectHandler(db *gorm.DB, cacheStore ...cache.Cache) *ProjectHandler {
 	return NewProjectHandlerWithConfig(db, &config.Config{}, cacheStore...)
@@ -44,57 +56,39 @@ func NewProjectHandlerWithConfig(db *gorm.DB, cfg *config.Config, cacheStore ...
 }
 
 func NewProjectHandlerWithConfigAndEncryption(db *gorm.DB, cfg *config.Config, encryptionKey []byte, cacheStore ...cache.Cache) *ProjectHandler {
+	return NewProjectHandlerWithConfigEncryptionAndTokens(db, cfg, encryptionKey, nil, cacheStore...)
+}
+
+func NewProjectHandlerWithConfigEncryptionAndTokens(db *gorm.DB, cfg *config.Config, encryptionKey []byte, tokens *tokenauth.Manager, cacheStore ...cache.Cache) *ProjectHandler {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	workspaceStorageBackend := projectrepoapp.NormalizeProvider(cfg.WorkspaceStorageBackend)
-	if workspaceStorageBackend == "" {
-		workspaceStorageBackend = projectrepoapp.ProviderGitea
-	}
-	var repositoryAdapter projectrepoapp.GitRepositoryAdapter
-	var giteaAdapter *projectrepoapp.GiteaAdapter
-	if workspaceStorageBackend == projectrepoapp.ProviderGitea {
-		giteaAdapter = projectrepoapp.NewGiteaAdapterWithAdminAuth(cfg.GiteaBaseURL, cfg.GiteaToken, cfg.GiteaAdminUsername, cfg.GiteaAdminPassword)
-		repositoryAdapter = giteaAdapter
-	} else if workspaceStorageBackend == projectrepoapp.ProviderGitHTTP {
-		repositoryAdapter = projectrepoapp.NewLocalGitAdapter(cfg.GitHTTPRoot, cfg.GitBinary)
-	}
+	workspaceProvider := providerassembly.BuildWorkspaceRepositoryProvider(cfg)
 	var gitIdentities *gitidentityapp.Service
-	if giteaAdapter != nil && len(encryptionKey) > 0 {
-		gitIdentities = gitidentityapp.NewService(db, giteaAdapter, gitidentityapp.Config{
-			UserEmailDomain: cfg.GiteaUserEmailDomain,
-			UserTokenName:   cfg.GiteaUserTokenName,
-		}, encryptionKey)
-	}
-	repositoryConfig := projectrepoapp.Config{
-		Provider:      workspaceStorageBackend,
-		Repo:          cfg.GiteaRepo,
-		RepoPrefix:    cfg.GiteaRepoPrefix,
-		DefaultBranch: cfg.GiteaBranch,
-		OrgPrefix:     cfg.GiteaOrgPrefix,
+	if workspaceProvider.GiteaAdapter != nil && len(encryptionKey) > 0 {
+		gitIdentities = gitidentityapp.NewService(db, workspaceProvider.GiteaAdapter, workspaceProvider.GitIdentityConfig, encryptionKey)
 	}
 	return &ProjectHandler{
 		db:                 db,
 		projects:           projectapp.NewService(db, cacheStore...),
-		repositories:       projectrepoapp.NewService(db, repositoryConfig, repositoryAdapter),
+		repositories:       projectrepoapp.NewService(db, workspaceProvider.Config, workspaceProvider.Adapter),
 		gitIdentities:      gitIdentities,
-		giteaBaseURL:       configuredGiteaValue(giteaAdapter, cfg.GiteaBaseURL),
-		giteaToken:         configuredGiteaValue(giteaAdapter, cfg.GiteaToken),
-		giteaAdminUsername: configuredGiteaValue(giteaAdapter, cfg.GiteaAdminUsername),
-		giteaAdminPassword: configuredGiteaValue(giteaAdapter, cfg.GiteaAdminPassword),
-		gitHTTPRoot:        strings.TrimSpace(cfg.GitHTTPRoot),
-		gitBinary:          strings.TrimSpace(cfg.GitBinary),
+		giteaBaseURL:       workspaceProvider.GiteaBaseURL,
+		giteaToken:         workspaceProvider.GiteaToken,
+		giteaAdminUsername: workspaceProvider.GiteaAdminUsername,
+		giteaAdminPassword: workspaceProvider.GiteaAdminPassword,
+		gitHubBaseURL:      workspaceProvider.GitHubBaseURL,
+		gitHubToken:        workspaceProvider.GitHubToken,
+		gitLabBaseURL:      workspaceProvider.GitLabBaseURL,
+		gitLabToken:        workspaceProvider.GitLabToken,
+		gitHTTPRoot:        workspaceProvider.GitHTTPRoot,
+		gitBinary:          workspaceProvider.GitBinary,
 		httpClient: &http.Client{
 			Timeout: 0,
 		},
+		tokens:                    tokens,
+		workspaceCloneURLStrategy: workspaceProvider.Config.CloneURLStrategy,
 	}
-}
-
-func configuredGiteaValue(adapter *projectrepoapp.GiteaAdapter, value string) string {
-	if adapter == nil {
-		return ""
-	}
-	return strings.TrimSpace(value)
 }
 
 func currentOrgID(c *gin.Context) *uint {
@@ -364,19 +358,62 @@ func (h *ProjectHandler) Workspace(c *gin.Context) {
 	if !ok {
 		return
 	}
-	metadata, err := h.repositories.WorkspaceMetadata(c.Request.Context(), parseID(c.Param("id")), orgID)
+	actor := projectrepoapp.RepositoryActor{}
+	if user, ok := middleware.CurrentUserProfileFromContext(c); ok {
+		actor.UserID = user.ID
+		actor.Username = user.Username
+	}
+	metadata, err := h.repositories.WorkspaceMetadata(c.Request.Context(), parseID(c.Param("id")), orgID, actor)
 	if err != nil {
 		switch {
 		case errors.Is(err, projectrepoapp.ErrProjectNotFound):
 			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		case errors.Is(err, projectrepoapp.ErrInvalidRepositoryConfig):
 			c.JSON(http.StatusInternalServerError, api.Internal("项目仓库配置无效"))
+		case errors.Is(err, projectrepoapp.ErrCloneURLStrategyUnsupported):
+			c.JSON(http.StatusInternalServerError, api.Internal("项目仓库 clone URL 策略不受当前 provider 支持"))
 		default:
 			c.JSON(http.StatusInternalServerError, api.Internal("获取项目工作区仓库失败"))
 		}
 		return
 	}
+	if metadata.GitRemoteStrategy == providercontract.RepositoryCloneURLStrategyTemporary {
+		signedURL, expiresAt, err := h.temporaryGitRemoteURL(metadata.GitRemoteURL, metadata.ProjectID, orgID, actor)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, api.Internal("生成临时 Git clone URL 失败"))
+			return
+		}
+		metadata.GitRemoteURL = signedURL
+		metadata.GitRemoteExpiresAt = expiresAt.Unix()
+	}
 	c.JSON(http.StatusOK, metadata)
+}
+
+func (h *ProjectHandler) temporaryGitRemoteURL(rawURL string, projectID uint, orgID *uint, actor projectrepoapp.RepositoryActor) (string, time.Time, error) {
+	if h.tokens == nil || actor.UserID == 0 || projectID == 0 {
+		return "", time.Time{}, errors.New("temporary git clone URL requires token manager and actor")
+	}
+	subject := tokenauth.Subject{
+		UserID:    actor.UserID,
+		Username:  actor.Username,
+		Purpose:   tokenauth.GitProxyTokenPurpose,
+		ProjectID: projectID,
+	}
+	if orgID != nil {
+		subject.OrgID = *orgID
+	}
+	token, expiresAt, err := h.tokens.IssueWithTTL(subject, gitProxyTemporaryCloneURLTTL)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	q := u.Query()
+	q.Set(middleware.GitProxyTokenQueryParam, token)
+	u.RawQuery = q.Encode()
+	return u.String(), expiresAt, nil
 }
 
 func (h *ProjectHandler) GitProxy(c *gin.Context) {
@@ -398,11 +435,6 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 		}
 		return
 	}
-	upstreamURL, err := h.gitProxyUpstreamURL(target, c.Param("gitPath"), c.Request.URL.RawQuery)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.InvalidInput("Git proxy path invalid"))
-		return
-	}
 	if !gitProxyAllowsSmartHTTP(c.Request.Method, c.Param("gitPath"), c.Query("service")) {
 		c.JSON(http.StatusForbidden, api.Forbidden("Git proxy path is not allowed"))
 		return
@@ -418,25 +450,25 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 		h.gitProxyLocal(c, target, user.Username)
 		return
 	case projectrepoapp.ProviderGitea:
+	case projectrepoapp.ProviderGitHubEnterprise, projectrepoapp.ProviderGitLab:
 	default:
 		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库 provider 不受支持"))
 		return
 	}
 
-	hasToken := h.giteaToken != ""
-	hasAdminBasic := h.giteaAdminUsername != "" && h.giteaAdminPassword != ""
-	if h.giteaBaseURL == "" || (!hasToken && !hasAdminBasic) {
-		log.Printf("[movscript:project-git-proxy] proxy not configured baseURLSet=%t tokenSet=%t adminBasicSet=%t", h.giteaBaseURL != "", hasToken, hasAdminBasic)
-		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库代理未配置：缺少 Gitea base URL 或管理凭据"))
+	if err := h.prepareGitProxyTarget(&target); err != nil {
+		log.Printf("[movscript:project-git-proxy] proxy not configured provider=%s owner=%s repo=%s error=%s", target.Provider, target.Owner, target.Repo, err)
+		c.JSON(http.StatusServiceUnavailable, api.Internal("项目仓库代理未配置"))
 		return
 	}
-	upstreamUsername := target.Owner
-	upstreamSecret := h.giteaToken
-	if upstreamSecret == "" && hasAdminBasic {
-		upstreamUsername = h.giteaAdminUsername
-		upstreamSecret = h.giteaAdminPassword
+	upstreamURL, err := h.gitProxyUpstreamURL(target, c.Param("gitPath"), stripGitProxyAuthQuery(c.Request.URL.RawQuery))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("Git proxy path invalid"))
+		return
 	}
-	if h.gitIdentities != nil {
+	upstreamUsername := target.AuthUsername
+	upstreamSecret := target.AuthSecret
+	if target.Provider == projectrepoapp.ProviderGitea && h.gitIdentities != nil {
 		credential, err := h.gitIdentities.EnsureForUser(c.Request.Context(), user)
 		if err != nil {
 			log.Printf("[movscript:project-git-proxy] user git credential failed userId=%d error=%s", user.ID, err)
@@ -483,10 +515,61 @@ func (h *ProjectHandler) GitProxy(c *gin.Context) {
 	_, _ = io.Copy(c.Writer, resp.Body)
 }
 
+func (h *ProjectHandler) prepareGitProxyTarget(target *projectrepoapp.GitProxyTarget) error {
+	if target == nil {
+		return errors.New("git proxy target is nil")
+	}
+	switch target.Provider {
+	case projectrepoapp.ProviderGitea:
+		if strings.TrimSpace(target.BaseURL) == "" {
+			target.BaseURL = strings.TrimSpace(h.giteaBaseURL)
+		}
+		if strings.TrimSpace(target.AuthSecret) == "" {
+			if h.giteaToken != "" {
+				target.AuthUsername = target.Owner
+				target.AuthSecret = h.giteaToken
+			} else if h.giteaAdminUsername != "" && h.giteaAdminPassword != "" {
+				target.AuthUsername = h.giteaAdminUsername
+				target.AuthSecret = h.giteaAdminPassword
+			}
+		}
+	case projectrepoapp.ProviderGitHubEnterprise:
+		if strings.TrimSpace(target.BaseURL) == "" {
+			target.BaseURL = strings.TrimSpace(h.gitHubBaseURL)
+		}
+		if strings.TrimSpace(target.AuthSecret) == "" {
+			target.AuthUsername = "x-access-token"
+			target.AuthSecret = h.gitHubToken
+		}
+	case projectrepoapp.ProviderGitLab:
+		if strings.TrimSpace(target.BaseURL) == "" {
+			target.BaseURL = strings.TrimSpace(h.gitLabBaseURL)
+		}
+		if strings.TrimSpace(target.AuthSecret) == "" {
+			target.AuthUsername = "oauth2"
+			target.AuthSecret = h.gitLabToken
+		}
+	}
+	if strings.TrimSpace(target.BaseURL) == "" || strings.TrimSpace(target.AuthSecret) == "" {
+		return errors.New("missing upstream base URL or credentials")
+	}
+	if strings.TrimSpace(target.AuthUsername) == "" {
+		target.AuthUsername = target.Owner
+	}
+	return nil
+}
+
 func (h *ProjectHandler) gitProxyUpstreamURL(target projectrepoapp.GitProxyTarget, gitPath string, rawQuery string) (string, error) {
-	parsedBase, err := url.Parse(h.giteaBaseURL)
-	if err != nil || parsedBase.Scheme == "" || parsedBase.Host == "" {
+	baseURL := strings.TrimSpace(target.BaseURL)
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(h.giteaBaseURL)
+	}
+	parsedBase, err := url.Parse(baseURL)
+	if err != nil {
 		return "", err
+	}
+	if parsedBase.Scheme == "" || parsedBase.Host == "" {
+		return "", errors.New("invalid git upstream base url")
 	}
 	path := strings.TrimSpace(gitPath)
 	if path == "" || !strings.HasPrefix(path, "/") || strings.Contains(path, "..") || strings.Contains(path, "\\") {
@@ -500,6 +583,15 @@ func (h *ProjectHandler) gitProxyUpstreamURL(target projectrepoapp.GitProxyTarge
 	parsedBase.Path = strings.TrimRight(parsedBase.Path, "/") + "/" + url.PathEscape(target.Owner) + "/" + url.PathEscape(target.Repo) + ".git" + suffix
 	parsedBase.RawQuery = rawQuery
 	return parsedBase.String(), nil
+}
+
+func stripGitProxyAuthQuery(rawQuery string) string {
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return rawQuery
+	}
+	values.Del(middleware.GitProxyTokenQueryParam)
+	return values.Encode()
 }
 
 func copyGitProxyRequestHeaders(dst http.Header, src http.Header) {

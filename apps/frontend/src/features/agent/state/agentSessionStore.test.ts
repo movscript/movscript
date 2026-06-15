@@ -13,41 +13,35 @@ test('conversationIdForProviderThread resolves conversation thread bindings firs
         updatedAt: 1000,
       },
     },
-    conversationProviderSessionStates: {
-      conv_runtime: {
-        threadId: 'thread_1',
-        updatedAt: 2000,
-      },
-    },
   }), 'conv_binding')
 })
 
-test('conversationIdForProviderThread falls back to the latest provider-session mapping', () => {
+test('conversationIdForProviderThread uses the latest thread binding', () => {
   assert.equal(conversationIdForProviderThread({
     threadId: 'thread_1',
-    conversationProviderSessionStates: {
+    conversationThreadBindings: {
       conv_old: {
-        threadId: 'thread_1',
+        providerThreadId: 'thread_1',
         updatedAt: 1000,
       },
       conv_new: {
-        threadId: 'thread_1',
+        providerThreadId: 'thread_1',
         updatedAt: 2000,
       },
       conv_other: {
-        threadId: 'thread_2',
+        providerThreadId: 'thread_2',
         updatedAt: 3000,
       },
     },
   }), 'conv_new')
 })
 
-test('conversationIdForProviderThread returns undefined for unmapped provider-session threads', () => {
+test('conversationIdForProviderThread returns undefined for unmapped thread bindings', () => {
   assert.equal(conversationIdForProviderThread({
     threadId: 'thread_missing',
-    conversationProviderSessionStates: {
+    conversationThreadBindings: {
       conv_runtime: {
-        threadId: 'thread_2',
+        providerThreadId: 'thread_2',
         updatedAt: 1000,
       },
     },
@@ -79,19 +73,6 @@ test('agent session persistence stores registry state and excludes provider-sess
       },
     },
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {
-      conv_1: {
-        conversationId: 'conv_1',
-        threadId: 'thread_1',
-        sessionId: 'session_1',
-        loading: false,
-        building: false,
-        approving: false,
-        stopping: false,
-        stopRequested: false,
-        updatedAt: Date.now(),
-      },
-    },
   })
 
   const partialized = useAgentSessionStore.persist.getOptions().partialize?.(useAgentSessionStore.getState())
@@ -121,7 +102,6 @@ test('createProviderSessionConversation stores explicit conversation titles', ()
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
@@ -133,7 +113,6 @@ test('createProviderSessionConversation stores explicit conversation titles', ()
 
   assert.equal(conversationId, 'thread_titled')
   assert.equal(useAgentSessionStore.getState().conversationsById.thread_titled?.title, '上下文')
-  assert.equal(useAgentSessionStore.getState().conversationProviderSessionStates.thread_titled?.title, '上下文')
 })
 
 test('createProviderSessionConversation writes conversation thread bindings', () => {
@@ -143,7 +122,6 @@ test('createProviderSessionConversation writes conversation thread bindings', ()
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
@@ -170,7 +148,6 @@ test('createProviderSessionConversation scopes identical thread ids by provider 
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
@@ -199,42 +176,50 @@ test('createProviderSessionConversation scopes identical thread ids by provider 
   assert.equal(useAgentSessionStore.getState().conversationsById[movaConversationId]?.providerThreadId, 'thread_shared')
 })
 
-test('legacy provider-session setters update conversation thread bindings', () => {
+test('provider-session binding setters update conversation thread bindings', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
-    conversationsById: {},
+    conversationsById: {
+      conv_1: {
+        id: 'conv_1',
+        userId: 'user_1',
+        open: true,
+        archived: false,
+        createdAt: 1000,
+        updatedAt: 1000,
+      },
+    },
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
 
-  useAgentSessionStore.getState().setProviderThreadId('conv_1', 'thread_1')
-  useAgentSessionStore.getState().setConversationSessionId('conv_1', 'session_tree_1')
+  useAgentSessionStore.getState().setConversationProviderSessionTreeId('conv_1', 'session_tree_1')
+  useAgentSessionStore.getState().setConversationProviderThreadBindingId('conv_1', 'thread_1')
 
   assert.equal(useAgentSessionStore.getState().conversationThreadBindings.conv_1?.providerThreadId, 'thread_1')
   assert.equal(useAgentSessionStore.getState().conversationThreadBindings.conv_1?.providerSessionTreeId, 'session_tree_1')
-  assert.equal(useAgentSessionStore.getState().conversationProviderSessionStates.conv_1?.threadId, 'thread_1')
-  assert.equal(useAgentSessionStore.getState().conversationProviderSessionStates.conv_1?.sessionId, 'session_tree_1')
 })
 
-test('legacy provider-session runtime patches update conversation runtime states', () => {
+test('conversation runtime patches update conversation runtime states', () => {
   useAgentSessionStore.setState({
     activeConversationIdsByUser: {},
     conversationsById: {},
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })
 
-  useAgentSessionStore.getState().setConversationProviderSessionState('conv_1', {
-    threadId: 'thread_1',
-    sessionId: 'session_tree_1',
+  useAgentSessionStore.getState().bindConversationToProviderThread({
+    conversationId: 'conv_1',
+    providerThreadId: 'thread_1',
+    providerSessionTreeId: 'session_tree_1',
+  })
+  useAgentSessionStore.getState().updateConversationRuntimeState('conv_1', {
     loading: true,
     building: true,
     status: 'running',
@@ -253,7 +238,6 @@ test('setActiveConversation ignores duplicate active conversation ids', () => {
     workspacesByUser: {},
     conversationThreadBindings: {},
     conversationRuntimeStates: {},
-    conversationProviderSessionStates: {},
     pageTasks: {},
     standaloneTasks: {},
   })

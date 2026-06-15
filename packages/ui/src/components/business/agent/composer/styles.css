@@ -21,9 +21,9 @@
 }
 
 .ms-agent-composer:focus-within {
-  border-color: color-mix(in srgb, var(--ms-color-focus) 36%, var(--ms-agent-composer-border));
+  border-color: color-mix(in srgb, var(--ms-color-primary) 36%, var(--ms-agent-composer-border));
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--ms-color-focus) 10%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--ms-color-primary) 10%, transparent),
     0 18px 44px color-mix(in srgb, var(--ms-color-foreground) 8%, transparent);
 }
 
@@ -142,7 +142,7 @@
 .ai-agent-model-select__meta {
   color: var(--ms-color-muted-foreground);
   font-size: 10px;
-  line-height: 12px;
+  line-height: var(--ms-leading-tiny);
 }
 
 .ms-agent-composer__drop-overlay {

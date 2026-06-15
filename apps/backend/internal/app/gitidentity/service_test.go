@@ -57,9 +57,12 @@ func TestEnsureForUserCreatesGiteaUserTokenAndStoresEncryptedCredential(t *testi
 }
 
 type fakeGiteaAdapter struct {
-	token           string
-	ensureUserCalls int
-	lastUserInput   projectrepoapp.EnsureUserInput
+	token            string
+	accessAllowed    bool
+	ensureUserCalls  int
+	accessCheckCalls int
+	lastUserInput    projectrepoapp.EnsureUserInput
+	lastAccessInput  projectrepoapp.RepositoryAccessRequest
 }
 
 func (a *fakeGiteaAdapter) EnsureUser(_ context.Context, input projectrepoapp.EnsureUserInput) (projectrepoapp.EnsureUserResult, error) {
@@ -74,4 +77,72 @@ func (a *fakeGiteaAdapter) EnsureUser(_ context.Context, input projectrepoapp.En
 
 func (a *fakeGiteaAdapter) EnsureRepoCollaborator(context.Context, string, string, string, string) error {
 	return nil
+}
+
+func (a *fakeGiteaAdapter) CheckRepoAccess(_ context.Context, request projectrepoapp.RepositoryAccessRequest) (projectrepoapp.RepositoryAccessResult, error) {
+	a.accessCheckCalls++
+	a.lastAccessInput = request
+	if a.accessAllowed {
+		return projectrepoapp.RepositoryAccessResult{Allowed: true, Permission: "write"}, nil
+	}
+	return projectrepoapp.RepositoryAccessResult{Allowed: false, Permission: "read"}, nil
+}
+
+func TestEnsureRepoAccessVerifiesRemoteCollaboratorPermission(t *testing.T) {
+	db := testutil.OpenSQLite(t, "git-identity-access.db", &persistencemodel.UserGitCredential{})
+	key := []byte("0123456789abcdef0123456789abcdef")
+	encryptedToken, err := crypto.Encrypt("gitea-user-token", key)
+	if err != nil {
+		t.Fatalf("encrypt token: %v", err)
+	}
+	if err := db.Create(&persistencemodel.UserGitCredential{
+		UserID:         42,
+		Provider:       ProviderGitea,
+		Username:       "alice",
+		EncryptedToken: encryptedToken,
+		Status:         "active",
+	}).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	adapter := &fakeGiteaAdapter{accessAllowed: true}
+	service := NewService(db, adapter, Config{}, key)
+
+	credential, err := service.EnsureRepoAccess(t.Context(), 42, "acme", "project")
+	if err != nil {
+		t.Fatalf("EnsureRepoAccess returned error: %v", err)
+	}
+	if credential.Username != "alice" {
+		t.Fatalf("credential = %+v, want alice", credential)
+	}
+	if adapter.accessCheckCalls != 1 {
+		t.Fatalf("accessCheckCalls = %d, want 1", adapter.accessCheckCalls)
+	}
+	if adapter.lastAccessInput.Owner != "acme" || adapter.lastAccessInput.Repo != "project" || adapter.lastAccessInput.Username != "alice" || adapter.lastAccessInput.Permission != "write" {
+		t.Fatalf("access input = %+v, want write probe for acme/project alice", adapter.lastAccessInput)
+	}
+}
+
+func TestEnsureRepoAccessFailsWhenRemotePermissionProbeDenies(t *testing.T) {
+	db := testutil.OpenSQLite(t, "git-identity-access-denied.db", &persistencemodel.UserGitCredential{})
+	key := []byte("0123456789abcdef0123456789abcdef")
+	encryptedToken, err := crypto.Encrypt("gitea-user-token", key)
+	if err != nil {
+		t.Fatalf("encrypt token: %v", err)
+	}
+	if err := db.Create(&persistencemodel.UserGitCredential{
+		UserID:         42,
+		Provider:       ProviderGitea,
+		Username:       "alice",
+		EncryptedToken: encryptedToken,
+		Status:         "active",
+	}).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	adapter := &fakeGiteaAdapter{accessAllowed: false}
+	service := NewService(db, adapter, Config{}, key)
+
+	_, err = service.EnsureRepoAccess(t.Context(), 42, "acme", "project")
+	if err == nil || !strings.Contains(err.Error(), "does not have write access") {
+		t.Fatalf("EnsureRepoAccess error = %v, want permission denial", err)
+	}
 }

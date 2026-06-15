@@ -1,6 +1,6 @@
 import { FileAudio, FileText, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ResourceLibraryPickerPanel, type ResourceLibraryPickerItem, type ResourceLibraryPickerOption } from '@movscript/ui'
+import { ResourceLibraryPickerPanel, type ResourceLibraryPickerItem, type ResourceLibraryPickerOption } from '@movscript/ui/business/resource'
 import type { RawResource } from '@/types'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 

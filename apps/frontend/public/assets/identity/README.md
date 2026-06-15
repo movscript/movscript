@@ -28,6 +28,6 @@ Model assets:
 
 The UI registry is in:
 
-`packages/ui/src/components/business/identity/registry.ts`
+`apps/frontend/src/features/agent/components/AgentIdentityUi.tsx`
 
 Update that file when adding a new identity, alias, color, or asset path.

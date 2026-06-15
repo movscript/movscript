@@ -21,14 +21,14 @@ import {
   ProviderSessionStatusContent,
   ProviderSessionStatusDetail,
   ProviderSessionStatusHeader,
-  ProviderSessionStatusSuccessIcon,
-  Button,
-} from '@movscript/ui'
+  ProviderSessionStatusSuccessIcon
+} from '@movscript/ui/business/agent'
+import { Button } from '@movscript/ui/primitives'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { toolNameFromToolCallStreamEvent } from '@/features/agent/domain/agentRunActivity'
 import { type AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { GenerationParamAuditCard, GenerationValidationErrorCard } from '@/features/agent/components/GenerationCards'
 import { GeneratedResultCard } from '@/features/agent/components/GeneratedResultCard'
@@ -267,11 +267,11 @@ function MessageBubbleSections({
   projectId?: number
 }) {
   const { t } = useTranslation()
-  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
+  const canOpenAdmin = useUserStore((s) => s.currentUser?.system_role === 'super_admin')
   return (
     <React.Fragment>
       {sections.showContent && <MarkdownContent text={sections.contentText} attachments={sections.contentAttachments} />}
-      {sections.showModelSetupAction && (
+      {sections.showModelSetupAction && canOpenAdmin && (
         <AgentModelSetupCallout>
           <AgentModelSetupCalloutBody>
             <AgentModelSetupCalloutIcon>
@@ -282,7 +282,7 @@ function MessageBubbleSections({
               <AgentModelSetupCalloutDescription>{t('agents.chat.modelSetupAction.description')}</AgentModelSetupCalloutDescription>
               <AgentModelSetupCalloutAction
                 type="button"
-                onClick={() => void openAdminConsole(apiBaseURL, '/models')}
+                onClick={() => void openAdminConsole(undefined, '/models')}
               >
                 {t('agents.chat.modelSetupAction.openModels')}
               </AgentModelSetupCalloutAction>

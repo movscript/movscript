@@ -3,7 +3,6 @@ import test from 'node:test'
 
 import {
   AGENT_PROTOCOL_VERSION,
-  PROVIDER_SESSION_EVENT_COMPAT_SCHEMA,
   PROVIDER_SESSION_EVENT_V2_SCHEMA,
 } from '@movscript/core/agent/protocol'
 import { parseProviderSessionEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEvent'
@@ -21,8 +20,8 @@ function eventPayload(schema: string): string {
   })
 }
 
-test('parseProviderSessionEvent accepts provider-session schema and runtime compatibility schema only', () => {
+test('parseProviderSessionEvent accepts only the provider-session schema', () => {
   assert.equal(parseProviderSessionEvent(eventPayload(PROVIDER_SESSION_EVENT_V2_SCHEMA))?.schema, PROVIDER_SESSION_EVENT_V2_SCHEMA)
-  assert.equal(parseProviderSessionEvent(eventPayload(PROVIDER_SESSION_EVENT_COMPAT_SCHEMA))?.schema, PROVIDER_SESSION_EVENT_COMPAT_SCHEMA)
+  assert.equal(parseProviderSessionEvent(eventPayload('movscript.agent.runtime-event.v2')), undefined)
   assert.equal(parseProviderSessionEvent(eventPayload('movscript.agent.unknown-event.v2')), undefined)
 })

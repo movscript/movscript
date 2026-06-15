@@ -35,6 +35,11 @@ import {
 } from './runtimeValues'
 import { useCanvasRuntimeStore } from './runHistoryStore'
 import { toast } from '@/shared/ui/toastStore'
+import {
+  canvasResourceChangedResult,
+  invalidateResourceMutationResult,
+  resourceLibraryChangedResult,
+} from '@/features/resources/application/resourceMutationInvalidation'
 
 export function useCanvasRuntimeExecutor({
   canvasId,
@@ -277,9 +282,8 @@ export function useCanvasRuntimeExecutor({
           })
           runtimeNodes = nextRuntimeNodes
           setNodes(nextRuntimeNodes)
-          qc.invalidateQueries({ queryKey: ['resources'] })
-          qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
-          qc.invalidateQueries({ queryKey: ['canvas-node-resources'] })
+          invalidateResourceMutationResult(qc, resourceLibraryChangedResult())
+          invalidateResourceMutationResult(qc, canvasResourceChangedResult())
         } catch (err: any) {
           const message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
           failRuntimeTask(canvasId, run.id, node.id, message)

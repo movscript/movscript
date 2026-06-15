@@ -13,7 +13,7 @@ test('check-electron-boundaries accepts the intended Electron and renderer MCP l
     await writeFixtureFile(root, 'electron/appWindow.ts', "export { createWindow } from './appWindow/create'\n")
     await writeFixtureFile(root, 'electron/managedServices.ts', "export { ensureMCPServerReady } from './managedServices/mcp'\n")
     await writeFixtureFile(root, 'electron/preload.ts', "import { createElectronAPI } from './preload/api'\n")
-    await writeFixtureFile(root, 'electron/mcp/server.ts', "export function startMCPServer() {}\n")
+    await writeFixtureFile(root, 'electron/managedServices/mcp.ts', "export function ensureMCPServerReady() {}\n")
     await writeFixtureFile(root, 'electron/services/backend.ts', "export const LOCAL_BACKEND_URL = 'http://localhost:8080'\n")
     await writeFixtureFile(root, 'src/electron/ElectronMCPContextBridge.tsx', 'export function ElectronMCPContextBridge() { return null }\n')
     await writeFixtureFile(root, 'src/features/agent/presentation/mcpStatus.ts', 'export function toastMCPStatus() {}\n')
@@ -50,7 +50,30 @@ test('check-electron-boundaries reports Electron and renderer MCP boundary viola
 })
 
 async function createFrontendFixture() {
-  return mkdtemp(join(tmpdir(), 'movscript-electron-boundaries-'))
+  const root = await mkdtemp(join(tmpdir(), 'movscript-electron-boundaries-'))
+  await writeFixtureFile(root, 'tsconfig.json', JSON.stringify({
+    compilerOptions: {
+      paths: {
+        '@/*': ['./src/*'],
+      },
+    },
+    include: ['src'],
+  }))
+  await writeFixtureFile(root, 'tsconfig.electron.json', JSON.stringify({
+    compilerOptions: {
+      paths: {
+        '@movscript/core/workspace/node': ['../../packages/core/src/workspace/node/index.ts'],
+      },
+    },
+    include: ['electron'],
+  }))
+  await writeFixtureFile(root, 'vite.e2e.config.ts', 'export default {}\n')
+  await writeFixtureFile(
+    root,
+    'electron.vite.config.ts',
+    "const rendererAlias = {\n  '@': '/src',\n}\nexport default { renderer: { resolve: { alias: rendererAlias } } }\n",
+  )
+  return root
 }
 
 async function writeFixtureFile(root, path, contents) {

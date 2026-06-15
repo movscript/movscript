@@ -1,5 +1,5 @@
-import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind, AgentChatRunProfileSelection, AgentChatThreadReadInput, AgentThreadExecutionSettings } from '@movscript/core/agent/chat'
-import type { AppServerJsonValue, AppServerThread, AppServerTurn, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
+import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind, AgentChatRunProfileSelection, AgentThreadExecutionSettings } from '@movscript/core/agent/chat'
+import type { AppServerJsonValue, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
 import { MOVA_PROVIDER_ID, type MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import {
   appServerThreadTurnItemServerRequestResponseFromAgentChat,
@@ -10,6 +10,19 @@ import {
   agentChatTurnFromAppServerThreadTurnItem,
 } from '@/shared/infrastructure/app-server/appServerThreadTurnItemAdapter'
 import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
+import { workspaceDeveloperInstructionsParams } from '@/shared/infrastructure/app-server/appServerChatWorkspaceInstructions'
+import {
+  appServerThreadReadIsBeforeFirstUserMessage,
+  appServerThreadReadIsOlderPage,
+  appServerThreadReadShouldUseTurnPages,
+  appServerThreadTurnsListCanFallback,
+  appServerThreadTurnsListPageThread,
+  appServerThreadTurnsListPageTurns,
+  appServerThreadTurnsListParams,
+  appServerUnmaterializedThread,
+} from '@/shared/infrastructure/app-server/appServerChatThreadRead'
+
+export { workspaceDeveloperInstructions } from '@/shared/infrastructure/app-server/appServerChatWorkspaceInstructions'
 
 export interface AppServerChatDataSourceOptions {
   provider?: AgentChatProviderKind
@@ -220,138 +233,6 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
       }
     },
   }
-}
-
-function workspaceDeveloperInstructionsParams(context: MovScriptWorkspaceContext | undefined): { developerInstructions?: string } {
-  const instructions = workspaceDeveloperInstructions(context)
-  return instructions ? { developerInstructions: instructions } : {}
-}
-
-export function workspaceDeveloperInstructions(context: MovScriptWorkspaceContext | undefined): string | undefined {
-  if (!context) return undefined
-  const scope = context.scope ?? (context.productionId !== undefined ? 'production' : context.projectId !== undefined ? 'project' : 'global')
-  const projectId = idText(context.projectId)
-  const productionId = idText(context.productionId)
-  const lines = [
-    'MovScript workspace boundary:',
-    scope === 'global'
-      ? '- This is a global MovScript workspace session. You may inspect multiple projects, but every project-scoped MovScript MCP domain/generation/workspace tool call must include the intended projectId/project_id explicitly.'
-      : projectId
-        ? `- This session is scoped to MovScript project ${projectId}. Only edit files and call project-scoped MovScript MCP tools for projectId/project_id ${projectId}.`
-        : '- This session is scoped to a MovScript project workspace. Only edit the current project workspace; project-scoped MovScript MCP tools still require an explicit projectId/project_id.',
-    '- Do not pass userId/user_id/orgId/org_id to MovScript MCP tools; MovScript app/frontend state and the MCP service own user and organization identity.',
-    '- Do not rely on cwd, route, focus, or session state as a project argument for MCP tools; include projectId/project_id on every project-scoped call.',
-  ]
-  if (scope === 'production' && productionId) {
-    lines.splice(2, 0, `- Active production scope: ${productionId}. Keep production edits inside project ${projectId ?? 'the current project'} unless the user explicitly changes scope.`)
-  }
-  return lines.join('\n')
-}
-
-function idText(value: string | number | undefined): string | undefined {
-  if (value === undefined) return undefined
-  const text = String(value).trim()
-  return text || undefined
-}
-
-function appServerThreadReadShouldUseTurnPages(input: AgentChatThreadReadInput): boolean {
-  return input.includeTurns !== false
-}
-
-function appServerThreadReadIsOlderPage(input: AgentChatThreadReadInput): boolean {
-  return (input.direction ?? 'newer') === 'older'
-}
-
-function appServerThreadTurnsListParams(threadId: string, input: AgentChatThreadReadInput) {
-  const direction = input.direction ?? 'newer'
-  const beforeTurnId = input.beforeTurnId?.trim()
-  const afterTurnId = input.afterTurnId?.trim()
-  const older = direction === 'older'
-  return {
-    threadId,
-    ...(older && beforeTurnId ? { cursor: appServerThreadTurnsCursor(beforeTurnId) } : {}),
-    ...(!older && afterTurnId ? { cursor: appServerThreadTurnsCursor(afterTurnId) } : {}),
-    ...(input.limit !== undefined && input.limit !== null ? { limit: input.limit } : {}),
-    sortDirection: older || !afterTurnId ? 'desc' as const : 'asc' as const,
-    itemsView: 'full' as const,
-  }
-}
-
-function appServerThreadTurnsCursor(turnId: string): string {
-  return JSON.stringify({ turnId, includeAnchor: false })
-}
-
-function appServerThreadTurnsListPageTurns(turns: AppServerTurn[], input: AgentChatThreadReadInput): AppServerTurn[] {
-  const direction = input.direction ?? 'newer'
-  const afterTurnId = input.afterTurnId?.trim()
-  return direction === 'older' || !afterTurnId ? [...turns].reverse() : turns
-}
-
-function appServerThreadTurnsListPageThread(
-  threadId: string,
-  turns: AppServerTurn[],
-  input: AgentChatThreadReadInput,
-): AppServerThread {
-  return {
-    id: threadId,
-    sessionId: '',
-    forkedFromId: null,
-    parentThreadId: null,
-    preview: '',
-    ephemeral: false,
-    modelProvider: '',
-    createdAt: 0,
-    updatedAt: 0,
-    status: { type: 'idle' },
-    path: null,
-    cwd: '',
-    cliVersion: '',
-    source: 'unknown',
-    threadSource: null,
-    agentNickname: null,
-    agentRole: null,
-    gitInfo: null,
-    name: null,
-    turns: appServerThreadTurnsListPageTurns(turns, input),
-  }
-}
-
-function appServerUnmaterializedThread(threadId: string): AppServerThread {
-  const now = Math.floor(Date.now() / 1000)
-  return {
-    id: threadId,
-    sessionId: '',
-    forkedFromId: null,
-    parentThreadId: null,
-    preview: '',
-    ephemeral: false,
-    modelProvider: '',
-    createdAt: now,
-    updatedAt: now,
-    status: { type: 'idle' },
-    path: null,
-    cwd: '',
-    cliVersion: '',
-    source: 'unknown',
-    threadSource: null,
-    agentNickname: null,
-    agentRole: null,
-    gitInfo: null,
-    name: null,
-    turns: [],
-  }
-}
-
-function appServerThreadTurnsListCanFallback(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  if (appServerThreadReadIsBeforeFirstUserMessage(error)) return false
-  return /method not found|not supported|unknown method/i.test(message)
-}
-
-function appServerThreadReadIsBeforeFirstUserMessage(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  return /\bnot materialized yet\b/i.test(message)
-    || /\bbefore first user message\b/i.test(message)
 }
 
 function appServerProviderTitle(provider: string): string {

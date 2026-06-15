@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Loader2 } from 'lucide-react'
-import { AppTopControlButton } from '@movscript/ui'
+import { AppTopControlButton } from '@movscript/ui/business/app'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { toast } from '@/shared/ui/toastStore'
 import type { ElectronProjectGitActionInput } from '@/shared/contracts/electronApi'
+import { runProjectGitWorkspaceAction, type ProjectGitWorkspaceAction } from '@/features/project/application/projectGitWorkspace'
 
-type GitAction = 'commit' | 'push' | 'pull'
+type GitAction = ProjectGitWorkspaceAction
 
 interface ProjectGitHeaderActionsProps {
   compact?: boolean
@@ -44,24 +45,19 @@ export function ProjectGitHeaderActions({ compact = false }: ProjectGitHeaderAct
 
   async function runGitAction(action: GitAction) {
     if (!current) return
-    const apiMethod = action === 'commit'
-      ? window.api?.commitProjectGitWorkspace
-      : action === 'push'
-        ? window.api?.pushProjectGitWorkspace
-        : window.api?.pullProjectGitWorkspace
     const labels = actionLabels[action]
     console.info('[movscript:project-git-header] action start', { action, projectId: current.ID, orgId: currentOrgID })
-    if (!apiMethod) {
-      toast.error(labels.unavailable)
-      return
-    }
     const input: ElectronProjectGitActionInput = {
       projectId: current.ID,
       ...(currentOrgID ? { orgId: currentOrgID } : {}),
     }
     setRunningAction(action)
     try {
-      const result = await apiMethod(input)
+      const result = await runProjectGitWorkspaceAction(action, input)
+      if (!result) {
+        toast.error(labels.unavailable)
+        return
+      }
       console.info('[movscript:project-git-header] action result', result)
       if (!result.ok) {
         toast.error(labels.failure, result.error || result.stderr)

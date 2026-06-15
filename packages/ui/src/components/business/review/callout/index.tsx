@@ -4,7 +4,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "../../../../lib/cn";
 import { toneSurfaceClass } from "../../../../semantic";
 import { StatusBadge, type StatusBadgeProps } from "../../../primitives";
-import type { IconComponent, ReviewDecision, ReviewTone } from "../types";
+import type { IconComponent, ReviewTone } from "../types";
 
 export function ReviewCallout({
   tone = "neutral",
@@ -45,20 +45,6 @@ export function ReviewStat({
   className?: string;
 }) {
   return <StatusBadge {...reviewStatusProps(tone)} className={cn("ms-inline-badge ms-inline-badge--center ms-review-stat", className)}>{children}</StatusBadge>;
-}
-
-export function ReviewDecisionBadge({
-  decision,
-  className,
-}: {
-  decision: ReviewDecision;
-  className?: string;
-}) {
-  return (
-    <StatusBadge {...reviewStatusProps(decision === "accepted" ? "success" : "danger")} className={cn("ms-inline-badge ms-review-decision-badge", className)}>
-      {decision === "accepted" ? "已接受" : "已拒绝"}
-    </StatusBadge>
-  );
 }
 
 function reviewStatusProps(tone: ReviewTone): Pick<StatusBadgeProps, "intent" | "emphasis"> {

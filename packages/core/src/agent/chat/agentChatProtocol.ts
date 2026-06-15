@@ -329,10 +329,6 @@ export function providerSessionTreeIdFromAgentChatThread(thread: Pick<AgentChatT
   return thread.providerSessionTreeId?.trim() || thread.sessionId?.trim() || undefined
 }
 
-export function legacySessionIdFromAgentChatThread(thread: Pick<AgentChatThread, 'providerSessionTreeId' | 'sessionId'>): string | undefined {
-  return providerSessionTreeIdFromAgentChatThread(thread)
-}
-
 export interface AgentChatCapabilities {
   command?: AgentChatCommandCapability
   fs?: AgentChatFsCapability

@@ -20,7 +20,7 @@
   background: var(--ms-color-page-background);
 }
 
-.app-shell[data-surface="detail"] main,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) main,
 .app-shell[data-surface="agent"] main {
   background: var(--app-shell-slot-center-background);
 }
@@ -66,7 +66,7 @@
   background: var(--app-shell-slot-center-background);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slots,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slots,
 .app-shell[data-surface="agent"] .app-shell__slots {
   gap: 0;
   padding: 0;
@@ -80,7 +80,7 @@
   background: var(--app-shell-slot-left-background);
 }
 
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slots,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slots,
 .app-shell[data-surface="agent"][data-layout="stacked"] .app-shell__slots {
   padding: 0;
   background: var(--app-shell-slot-left-background);
@@ -94,24 +94,24 @@
   position: relative;
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot,
 .app-shell[data-surface="agent"] .app-shell__slot {
   overflow: hidden;
   border: 1px solid var(--ms-color-border);
   background: var(--app-shell-slot-center-background);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--left,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--left,
 .app-shell[data-surface="agent"] .app-shell__slot--left {
   background: var(--app-shell-slot-left-background);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--center,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center,
 .app-shell[data-surface="agent"] .app-shell__slot--center {
   background: var(--app-shell-slot-center-background);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--right,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--right,
 .app-shell[data-surface="agent"] .app-shell__slot--right {
   background: var(--app-shell-slot-right-background);
 }
@@ -135,59 +135,59 @@
   background: var(--app-shell-slot-right-background);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--left {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--left {
   border-radius: var(--app-shell-slot-radius) 0 0 var(--app-shell-slot-radius);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--center {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center {
   border-radius: 0;
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--center:first-child {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center:first-child {
   border-radius: var(--app-shell-slot-radius) 0 0 var(--app-shell-slot-radius);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--center:last-child {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center:last-child {
   border-radius: 0 var(--app-shell-slot-radius) var(--app-shell-slot-radius) 0;
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--right {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--right {
   border-radius: 0 var(--app-shell-slot-radius) var(--app-shell-slot-radius) 0;
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot,
 .app-shell[data-surface="agent"] .app-shell__slot {
   border-radius: var(--app-shell-slot-radius) 0 0 var(--app-shell-slot-radius);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot + .app-shell__slot,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot + .app-shell__slot,
 .app-shell[data-surface="agent"] .app-shell__slot + .app-shell__slot {
   border-left: 1px solid var(--ms-color-border);
   box-shadow: none;
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot[data-has-next-slot="true"],
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot[data-has-next-slot="true"],
 .app-shell[data-surface="agent"] .app-shell__slot[data-has-next-slot="true"] {
   border-right: 0;
 }
 
 .app-shell[data-layout="stacked"] .app-shell__slot,
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot,
 .app-shell[data-surface="agent"][data-layout="stacked"] .app-shell__slot,
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot--left,
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot--center,
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot--center:first-child,
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot--center:last-child,
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot--right {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--left,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--center,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--center:first-child,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--center:last-child,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--right {
   border-radius: var(--app-shell-slot-radius);
 }
 
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot[data-has-next-slot="true"],
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot[data-has-next-slot="true"],
 .app-shell[data-surface="agent"][data-layout="stacked"] .app-shell__slot[data-has-next-slot="true"] {
   border-right: 1px solid var(--ms-color-border);
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--left[data-hidden="true"] {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--left[data-hidden="true"] {
   border: 0;
 }
 
@@ -264,7 +264,7 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   overflow: hidden;
 }
 
-.app-shell[data-surface="detail"] .app-shell-pane__header,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell-pane__header,
 .app-shell[data-surface="agent"] .app-shell-pane__header {
   border-radius: inherit;
   overflow: hidden;
@@ -340,12 +340,12 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   box-shadow: none;
 }
 
-.app-shell[data-surface="detail"] .app-shell__slot--center {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center {
   min-width: 480px;
 }
 
 .app-shell[data-surface="agent"] .app-shell__slot--center,
-.app-shell[data-surface="detail"] .app-shell__slot--center {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-shell__slot--center {
   background: var(--app-shell-slot-center-background);
 }
 
@@ -361,8 +361,8 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   background: var(--app-shell-slot-center-background);
 }
 
-.app-shell[data-surface="detail"] .app-content-frame,
-.app-shell[data-surface="detail"] .app-content-frame__head-spacer,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-content-frame,
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"]) .app-content-frame__head-spacer,
 .app-shell[data-surface="agent"] .app-content-frame,
 .app-shell[data-surface="agent"] .app-content-frame__head-spacer {
   border-radius: inherit;
@@ -447,7 +447,7 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   right: 12px;
   left: 12px;
   height: 2px;
-  border-radius: 999px;
+  border-radius: var(--ms-radius-full);
   background: transparent;
   content: "";
   transition:
@@ -505,7 +505,7 @@ body.ui-resizable-panel-resizing .app-shell-pane {
   transform: translateX(6px);
 }
 
-.app-shell[data-surface="detail"][data-layout="stacked"] .app-shell__slot--left .app-sidebar .panel-resize-handle--right::after {
+.app-shell:is([data-surface="home"], [data-surface="tool"], [data-surface="project"], [data-surface="settings"])[data-layout="stacked"] .app-shell__slot--left .app-sidebar .panel-resize-handle--right::after {
   transform: translateX(calc(-50% + 1px));
 }
 
@@ -670,8 +670,7 @@ body.ui-resizable-panel-resizing .app-shell-pane {
 
 .content-workspace-shell,
 .asset-prep-workbench,
-.content-source-workspace,
-.script-workbench-shell {
+.content-source-workspace {
   container-type: inline-size;
 }
 
@@ -787,12 +786,6 @@ body.ui-resizable-panel-resizing .app-shell-pane {
 @media (min-width: 1280px) {
   .content-workspace-related-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1280px) {
-  [data-testid="content-workbench-production-grid"][data-detail-collapsed="true"] {
-    grid-template-columns: minmax(0, 1fr) 52px;
   }
 }
 

@@ -4,39 +4,22 @@ import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { api } from '@/shared/infrastructure/api'
-import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, PaginatedResponse } from '@/types'
+import type { RawResource, NodeType, Job, PublicModel, PaginatedResponse } from '@/types'
 import {
   Wand2,
   Bug, History, ChevronLeft, ChevronRight,
   AlertTriangle,
   PanelRightClose,
-  RefreshCw,
+  FolderArchive,
+  Image as ImageIcon,
+  Video,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { ResourcePanel } from '@/shared/ui/ResourcePanel'
-import { JobContextSummary, GenResultCard, formatGenTime } from '@/shared/ui/GenResultCard'
-import { MediaViewer } from '@/shared/ui/MediaViewer'
 import type { InputSlotDef } from '@/shared/ui/GenInputCard'
 import { GenInputCard } from '@/shared/ui/GenInputCard'
 import {
-  Button,
-  JobCardShell,
-  JobCardState,
-  JobGridCaption,
-  JobGridDescription,
-  JobGridMediaArea,
-  JobGridMediaPreview,
-  JobGridTitle,
   ToolDialogBody,
-  ToolDialogCopyButton,
-  ToolDialogDebugEndpoint,
-  ToolDialogDebugHeaders,
-  ToolDialogDebugJsonBlock,
-  ToolDialogDebugKV,
-  ToolDialogDebugPanel,
-  ToolDialogDebugSection,
-  ToolDialogDebugStatus,
-  ToolDialogDebugTitle,
   ToolDialogEmptyState,
   ToolDialogFrame,
   ToolDialogHistoryCount,
@@ -48,12 +31,23 @@ import {
   ToolDialogMain,
   ToolDialogPanel,
   ToolDialogPanelHeader,
+  ToolDialogProgramDescription,
+  ToolDialogProgramHeader,
+  ToolDialogProgramHeaderText,
+  ToolDialogProgramMeta,
+  ToolDialogProgramMetaItem,
+  ToolDialogProgramTitle,
   ToolDialogResourcePane,
-  ToolDialogWarningCallout,
-  OverlapPaneRevealButton,
-} from '@movscript/ui'
+  ToolDialogWarningCallout
+} from './ToolDialogUi'
+import { OverlapPaneRevealButton } from '@movscript/ui/layout'
+import { Button } from '@movscript/ui/primitives'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
+import { jobKeys } from '@/features/jobs/application/jobQueryKeys'
+import { invalidateJobMutationResult, toolJobsChangedResult } from '@/features/jobs/application/jobMutationInvalidation'
+import { resourceKeys } from '@/features/resources/application/resourceQueryKeys'
+import { invalidateResourceMutationResult, resourceLibraryChangedResult } from '@/features/resources/application/resourceMutationInvalidation'
 import { useTranslation } from 'react-i18next'
 import { useRouteLayoutOverlapPaneController } from '@/features/app-shell/application/useRouteLayoutOverlapPaneController'
 import { TOOL_WORKBENCH_RESOURCE_PANE_ID } from '@/features/tools/presentation/toolWorkbenchLayoutSpec'
@@ -68,37 +62,7 @@ import {
   generationParamDefaults,
   resolveGenerationJobType,
 } from '@movscript/core/generation'
-
-// ── CopyButton ────────────────────────────────────────────────────────────────
-
-function CopyButton({ text }: { text: string }) {
-  const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-  function copy() {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-  return (
-    <ToolDialogCopyButton
-      copied={copied}
-      copiedLabel={t('tools.debug.copied')}
-      copyLabel={t('tools.debug.copy')}
-      onClick={copy}
-    />
-  )
-}
-
-function buildCurl(d: DebugCallResult): string {
-  const headers = Object.entries(d.request_headers ?? {})
-    .map(([k, v]) => `-H '${k}: ${v}'`)
-    .join(' \\\n  ')
-  const body = d.method !== 'GET' && d.request_body
-    ? `\\\n  -d '${d.request_body.replace(/'/g, "'\\''")}'`
-    : ''
-  return `curl -X ${d.method} '${d.endpoint}' \\\n  ${headers}${body}`
-}
+import { GenerationCard, GenerationHistoryGridItem } from './ToolDialogJobPanels'
 
 function buildGenerationJobTitle(jobType: string): string {
   const labels: Record<string, string> = {
@@ -109,221 +73,6 @@ function buildGenerationJobTitle(jobType: string): string {
     video_v2v: '视频迁移',
   }
   return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
-}
-
-// ── DebugPanel ────────────────────────────────────────────────────────────────
-
-function DebugPanel({ job }: { job: Job }) {
-  const { t, i18n } = useTranslation()
-  const params = job.extra_params ? (() => { try { return JSON.parse(job.extra_params!) } catch { return {} } })() : {}
-  const debug: DebugCallResult | null = job.debug_info ? (() => {
-    try { return JSON.parse(job.debug_info!) } catch { return null }
-  })() : null
-
-  function KV({ label, value, mono = true, color }: { label: string; value: string; mono?: boolean; color?: string }) {
-    const tone = color === 'danger' ? 'danger' : color === 'success' ? 'success' : 'default'
-    return (
-      <ToolDialogDebugKV label={label} value={value} mono={mono} tone={tone} />
-    )
-  }
-
-  function Section({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-      <ToolDialogDebugSection title={title}>
-        {children}
-      </ToolDialogDebugSection>
-    )
-  }
-
-  function JsonBlock({ text, maxHeight = 'default' }: { text: string; maxHeight?: 'default' | 'large' }) {
-    const pretty = (() => { try { return JSON.stringify(JSON.parse(text), null, 2) } catch { return text } })()
-    return (
-      <ToolDialogDebugJsonBlock
-        text={pretty}
-        action={<CopyButton text={text} />}
-        maxHeight={maxHeight}
-      />
-    )
-  }
-
-  return (
-    <ToolDialogDebugPanel>
-      <ToolDialogDebugTitle>{t('tools.debug.title')}</ToolDialogDebugTitle>
-
-      {/* ── Job 基础信息 ── */}
-      <div className="space-y-1">
-        <KV label="Job ID" value={String(job.ID)} />
-        <KV label={t('tools.debug.status')} value={job.status} color={job.status === 'failed' ? 'danger' : job.status === 'succeeded' ? 'success' : undefined} />
-        <KV label={t('tools.debug.configId')} value={String(job.model_config_id)} />
-        {job.started_at && <KV label={t('tools.debug.started')} value={new Date(job.started_at).toLocaleTimeString(i18n.language)} />}
-        {job.finished_at && <KV label={t('tools.debug.finished')} value={new Date(job.finished_at).toLocaleTimeString(i18n.language)} />}
-        {job.error_msg && <KV label={t('common.error')} value={job.error_msg} color="danger" />}
-      </div>
-
-      {/* ── Job 调用上下文（worker 填入）── */}
-      {debug && (debug.job_type || debug.job_model_def_id || debug.job_resolved_prompt || (debug.job_input_resource_ids?.length ?? 0) > 0) && (
-        <Section title={t('tools.debug.callContext')}>
-          {debug.job_type && <KV label={t('tools.debug.outputType')} value={debug.job_type} />}
-          {debug.job_model_def_id && <KV label={t('tools.debug.modelDefinition')} value={debug.job_model_def_id} />}
-          {(debug.job_input_resource_ids?.length ?? 0) > 0 && (
-            <KV label={t('tools.debug.inputResources')} value={debug.job_input_resource_ids!.join(', ')} />
-          )}
-          {debug.job_resolved_prompt && (
-            <ToolDialogDebugKV label={t('tools.debug.sentPrompt')} value={debug.job_resolved_prompt} mono={false} />
-          )}
-        </Section>
-      )}
-
-      {/* ── 生成参数 ── */}
-      {Object.keys(params).length > 0 && (
-        <Section title={t('admin.params.title')}>
-          {Object.entries(params).map(([k, v]) => (
-            <KV key={k} label={k} value={String(v)} />
-          ))}
-        </Section>
-      )}
-
-      {/* ── HTTP 请求 ── */}
-      {debug && debug.endpoint && (
-        <Section title={`${t('tools.debug.request')} ${debug.latency_ms ? `· ${debug.latency_ms}ms` : ''}`}>
-          <ToolDialogDebugEndpoint>
-            <span className="text-foreground font-semibold shrink-0">{debug.method}</span>
-            <span className="text-foreground break-all">{debug.endpoint}</span>
-            {debug.model_id && <span className="text-muted-foreground ml-auto shrink-0">({debug.model_id})</span>}
-          </ToolDialogDebugEndpoint>
-          {debug.request_headers && Object.keys(debug.request_headers).length > 0 && (
-            <ToolDialogDebugHeaders>
-              {Object.entries(debug.request_headers).map(([k, v]) => (
-                <div key={k} className="flex gap-1.5">
-                  <span className="text-muted-foreground shrink-0">{k}:</span>
-                  <span className="text-foreground break-all">{v}</span>
-                </div>
-              ))}
-            </ToolDialogDebugHeaders>
-          )}
-          {debug.request_body && debug.request_body !== '(no body)' && (
-            <JsonBlock text={debug.request_body} />
-          )}
-          <div className="flex items-center gap-1.5">
-            <CopyButton text={buildCurl(debug)} />
-          </div>
-        </Section>
-      )}
-
-      {/* ── HTTP 响应 ── */}
-      {debug && debug.response_status > 0 && (
-        <Section title={t('tools.debug.response')}>
-          <ToolDialogDebugStatus tone={debug.response_status < 400 ? 'success' : 'danger'}>
-            {debug.response_status}
-          </ToolDialogDebugStatus>
-          {debug.response_body && <JsonBlock text={debug.response_body} maxHeight="large" />}
-        </Section>
-      )}
-
-      {/* ── 错误（来自 adapter）── */}
-      {debug?.error && (
-        <Section title={t('tools.debug.adapterError')}>
-          <ToolDialogDebugKV label={t('common.error')} value={debug.error} mono={false} tone="danger" />
-        </Section>
-      )}
-    </ToolDialogDebugPanel>
-  )
-}
-
-// ── GenerationCard ────────────────────────────────────────────────────────────
-
-function GenerationCard({
-  job,
-  outputType,
-  onReuse,
-  debugMode,
-}: {
-  job: Job
-  outputType: 'image' | 'video'
-  onReuse: () => void
-  debugMode: boolean
-}) {
-  const normalizedStatus = job.status === 'succeeded' ? 'done' : job.status as 'pending' | 'running' | 'failed' | 'cancelled'
-  return (
-    <GenResultCard
-      prompt={job.prompt}
-      status={normalizedStatus}
-      outputResource={job.output_resource as RawResource | undefined}
-      outputType={outputType}
-      error={job.error_msg}
-      timestamp={job.CreatedAt}
-      onReuse={onReuse}
-      contextPanel={<JobContextSummary job={job} includeProvider={debugMode} />}
-      debugPanel={debugMode ? <DebugPanel job={job} /> : undefined}
-      compact
-    />
-  )
-}
-
-function GenerationHistoryGridItem({
-  job,
-  onReuse,
-}: {
-  job: Job
-  onReuse: () => void
-}) {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const isActive = job.status === 'pending' || job.status === 'running'
-  const normalizedStatus = job.status === 'succeeded' ? 'done' : job.status as 'pending' | 'running' | 'failed' | 'cancelled'
-  const statusLabel: Record<typeof normalizedStatus, string> = {
-    pending: t('pages.jobs.status.pending'),
-    running: t('pages.jobs.status.running'),
-    done: t('canvas.status.done'),
-    failed: t('canvas.status.failed'),
-    cancelled: t('pages.jobs.status.cancelled'),
-  }
-  const timestampLabel = job.CreatedAt ? formatGenTime(job.CreatedAt, t, locale) : undefined
-
-  return (
-    <JobCardShell layout="grid" className="tool-dialog-history-grid-item">
-      <JobGridMediaArea>
-        {isActive ? (
-          <JobCardState
-            layout="stack"
-            text={statusLabel[normalizedStatus]}
-          />
-        ) : null}
-        {!isActive && normalizedStatus === 'failed' ? (
-          <JobCardState tone="danger" layout="stack" text={statusLabel[normalizedStatus]} />
-        ) : null}
-        {!isActive && normalizedStatus === 'cancelled' ? (
-          <JobCardState layout="stack" text={statusLabel[normalizedStatus]} />
-        ) : null}
-        {!isActive && normalizedStatus === 'done' && job.output_resource ? (
-          <JobGridMediaPreview>
-            <MediaViewer resource={job.output_resource as RawResource} lightbox />
-          </JobGridMediaPreview>
-        ) : null}
-        <Button
-          type="button"
-          variant="soft"
-          size="icon-xs"
-          className="tool-dialog-history-grid-item__reuse"
-          title={t('shared.genResult.reusePrompt')}
-          onClick={onReuse}
-        >
-          <RefreshCw size={12} />
-        </Button>
-      </JobGridMediaArea>
-      <JobGridCaption>
-        <JobGridTitle>{job.title || statusLabel[normalizedStatus]}</JobGridTitle>
-        {job.prompt ? (
-          <JobGridDescription>
-            {job.prompt}
-          </JobGridDescription>
-        ) : null}
-        {timestampLabel ? (
-          <span className="tool-dialog-history-grid-item__timestamp">{timestampLabel}</span>
-        ) : null}
-      </JobGridCaption>
-    </JobCardShell>
-  )
 }
 
 // ── ToolDialog ────────────────────────────────────────────────────────────────
@@ -377,7 +126,7 @@ export function ToolDialog({
   const historyPageSize = layout === 'reference-workbench' ? 6 : 10
 
   const { data: resourcesData } = useQuery<RawResource[]>({
-    queryKey: ['resources'],
+    queryKey: resourceKeys.all,
     queryFn: () => api.get('/resources').then((r) => r.data),
   })
   const resources = resourcesData ?? []
@@ -448,7 +197,7 @@ export function ToolDialog({
     return warnings
   })()
   const { data: jobsData } = useQuery<PaginatedResponse<Job>>({
-    queryKey: ['jobs', _nodeType, historyPage],
+    queryKey: jobKeys.toolHistory(_nodeType, historyPage),
     queryFn: () => api.get('/jobs', {
       params: { feature_key: _nodeType, page: historyPage, page_size: historyPageSize },
     }).then((r) => r.data),
@@ -463,7 +212,7 @@ export function ToolDialog({
     const activeJob = jobs.find((j) => j.ID === activeJobId)
     if (activeJob && activeJob.status !== 'pending' && activeJob.status !== 'running') {
       setActiveJobId(null)
-      qc.invalidateQueries({ queryKey: ['resources'] })
+      invalidateResourceMutationResult(qc, resourceLibraryChangedResult())
     }
   }, [jobs, activeJobId, qc])
 
@@ -481,7 +230,7 @@ export function ToolDialog({
       const fd = new FormData()
       fd.append('file', file)
       const r = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
-      qc.invalidateQueries({ queryKey: ['resources'] })
+      invalidateResourceMutationResult(qc, resourceLibraryChangedResult({ changedIds: [r.ID] }))
       addAttachment(r)
     } finally {
       setUploading(false)
@@ -510,7 +259,7 @@ export function ToolDialog({
       setHistoryPage(1)
       setPrompt('')
       setAttachments([])
-      qc.invalidateQueries({ queryKey: ['jobs', _nodeType] })
+      invalidateJobMutationResult(qc, toolJobsChangedResult({ nodeType: _nodeType, changedIds: [job.ID] }))
     } catch { /* toast handled by interceptor */ }
   }
 
@@ -527,6 +276,17 @@ export function ToolDialog({
     (requiredSlots.length > 0 ? slotsAreFilled : (!fallbackInputRequired || attachments.length > 0))
   const supportedParams = selectedModel?.supported_params ?? []
   const selectedResourceIds = attachments.map((a) => a.ID)
+  const capabilityLabel = capability === 'video'
+    ? t('tools.capabilities.video', { defaultValue: 'Video tool' })
+    : t('tools.capabilities.image', { defaultValue: 'Image tool' })
+  const resourcePaneLabel = resourcePaneController.collapsed
+    ? t('tools.page.resourcePaneHidden', { defaultValue: '资源库已隐藏' })
+    : t('tools.page.resourcePaneVisible', { defaultValue: '资源库已展开' })
+  const inputOutputLabel = t('tools.page.inputOutputLabel', {
+    defaultValue: '{{input}} to {{output}}',
+    input: inputType,
+    output: outputType,
+  })
   const resourcePaneNode = resourcePane ?? (
       <ResourcePanel
         inputType={
@@ -696,6 +456,23 @@ export function ToolDialog({
   if (layout === 'reference-workbench') {
     return (
       <ToolDialogFrame className="tool-dialog-frame--reference-workbench">
+        <ToolDialogProgramHeader>
+          <ToolDialogProgramHeaderText>
+            <ToolDialogProgramTitle>{toolName}</ToolDialogProgramTitle>
+            <ToolDialogProgramDescription>{toolDescription}</ToolDialogProgramDescription>
+          </ToolDialogProgramHeaderText>
+          <ToolDialogProgramMeta>
+            <ToolDialogProgramMetaItem icon={capability === 'video' ? <Video size={13} /> : <ImageIcon size={13} />}>
+              {capabilityLabel}
+            </ToolDialogProgramMetaItem>
+            <ToolDialogProgramMetaItem icon={<Wand2 size={13} />}>
+              {inputOutputLabel}
+            </ToolDialogProgramMetaItem>
+            <ToolDialogProgramMetaItem icon={<FolderArchive size={13} />}>
+              {resourcePaneLabel}
+            </ToolDialogProgramMetaItem>
+          </ToolDialogProgramMeta>
+        </ToolDialogProgramHeader>
         <ToolDialogBody
           className="tool-dialog-body--reference-workbench"
           {...resourcePaneController.groupProps}

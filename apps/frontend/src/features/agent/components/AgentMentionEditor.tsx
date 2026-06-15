@@ -1,6 +1,7 @@
 import React from 'react'
 import { X } from 'lucide-react'
-import { AgentMediaThumb, Button } from '@movscript/ui'
+import { AgentMediaThumb } from '@movscript/ui/business/agent'
+import { Button } from '@movscript/ui/primitives'
 import { formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
 import { readMentionEditorState } from '@/features/agent/presentation/agentMentionEditorModel'
 import { AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'

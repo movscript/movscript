@@ -11,8 +11,8 @@ import {
   AppToastRow,
   AppToastShell,
   AppToastViewport,
-  type AppToastTone,
-} from '@movscript/ui'
+  type AppToastTone
+} from '@movscript/ui/business/app'
 
 const ICONS = {
   success: <CheckCircle size={14} />,

@@ -1,0 +1,444 @@
+.tool-dialog-frame {
+  --tool-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  background: var(--tool-page-background);
+}
+
+.tool-dialog-frame--reference-workbench {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ms-color-muted) 18%, transparent), transparent 220px),
+    var(--tool-page-background);
+}
+
+.tool-dialog-program-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ms-space-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  padding: 18px clamp(20px, 3vw, 36px) 16px;
+}
+
+.tool-dialog-program-header__text {
+  min-width: 0;
+}
+
+.tool-dialog-program-header__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: clamp(22px, 2.5vw, 30px);
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.tool-dialog-program-header__description {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-program-header__meta {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.tool-dialog-program-header__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-background) 78%, transparent);
+  color: var(--ms-color-muted-foreground);
+  padding: 5px 8px;
+  font-size: var(--ms-text-caption);
+  font-weight: 500;
+  line-height: var(--ms-leading-caption);
+  white-space: nowrap;
+}
+
+.tool-dialog-program-header__meta-icon {
+  display: inline-flex;
+  color: var(--ms-color-foreground);
+}
+
+.tool-dialog-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tool-dialog-body--reference-workbench {
+  --tool-dialog-main-inset: clamp(20px, 3vw, 36px);
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(500px, 1fr) minmax(380px, var(--overlap-pane-size, 520px));
+  gap: 0;
+}
+
+.tool-dialog-body--reference-workbench[data-overlap-pane-collapsed="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] .tool-dialog-main {
+  display: none;
+}
+
+.tool-dialog-main {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 18px;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-main {
+  grid-template-rows: max-content max-content;
+  align-content: start;
+  overflow-y: auto;
+  padding: 22px var(--tool-dialog-main-inset) 28px;
+  padding-inline-end: calc(var(--tool-dialog-main-inset) + var(--overlap-pane-reserve-inline-end, 0px));
+}
+
+.tool-dialog-panel {
+  margin-inline: auto;
+  --ui-surface-shadow: none;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 46rem;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-panel,
+.tool-dialog-body--reference-workbench .tool-dialog-history {
+  max-width: 58rem;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-panel {
+  align-self: start;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-panel__body {
+  min-height: 0;
+}
+
+.tool-dialog-history {
+  min-width: 0;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 46rem;
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-history {
+  max-height: min(48vh, 420px);
+}
+
+.tool-dialog-body--reference-workbench .tool-dialog-history-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 180px));
+  justify-content: start;
+  gap: 8px;
+  overflow: visible;
+}
+
+.tool-dialog-history-grid-item {
+  --tool-dialog-history-media-height: 112px;
+  min-width: 0;
+}
+
+.tool-dialog-history-grid-item .job-card__body {
+  display: grid;
+  grid-template-rows: var(--tool-dialog-history-media-height) minmax(0, auto);
+}
+
+.tool-dialog-history-grid-item__media {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tool-dialog-history-grid-item__media .job-grid-media-area {
+  height: var(--tool-dialog-history-media-height);
+  aspect-ratio: auto;
+}
+
+.tool-dialog-history-grid-item__info {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tool-dialog-history-grid-item__reuse {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 12;
+}
+
+.tool-dialog-history-grid-item__timestamp {
+  display: block;
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.tool-dialog-resource-overlap {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
+  background: color-mix(in srgb, var(--ms-color-app-background) 46%, var(--tool-page-background, var(--ms-color-page-background)));
+}
+
+.tool-dialog-resource-overlap > * {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.tool-dialog-resource-overlap > .resource-panel {
+  width: 100%;
+  border-right: 0;
+}
+
+.tool-dialog-resource-overlap > .resource-panel .resource-panel__filters {
+  padding: 0 0 var(--ms-space-2);
+}
+
+.tool-dialog-resource-overlap > .resource-panel .resource-panel__content,
+.tool-dialog-resource-overlap > .resource-panel .resource-panel__pager {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.tool-dialog-panel__body {
+  display: grid;
+  min-height: 100%;
+  gap: 12px;
+  padding: 0;
+}
+
+.tool-dialog-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-background) 72%, transparent);
+  padding: 11px 12px;
+}
+
+.tool-dialog-warning-callout {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-debug-panel {
+  display: grid;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-3);
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-debug-title {
+  color: var(--ms-color-muted-foreground);
+  font-family: var(--ms-font-sans);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-debug-kv {
+  display: flex;
+  min-width: 0;
+  gap: var(--ms-space-2);
+}
+
+.tool-dialog-debug-kv__label {
+  width: 6rem;
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.tool-dialog-debug-kv__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ms-color-foreground);
+}
+
+.tool-dialog-debug-kv__value--mono {
+  font-family: var(--ms-font-mono);
+}
+
+.tool-dialog-debug-kv__value--sans {
+  font-family: var(--ms-font-sans);
+}
+
+.tool-dialog-debug-section {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 40%, transparent);
+  padding-top: var(--ms-space-2);
+}
+
+.tool-dialog-debug-section__title {
+  color: var(--ms-color-muted-foreground);
+  font-family: var(--ms-font-sans);
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: var(--ms-leading-tiny);
+  text-transform: uppercase;
+}
+
+.tool-dialog-debug-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-dialog-debug-headers {
+  display: grid;
+  gap: calc(var(--ms-space-1) * 0.5);
+  padding: var(--ms-space-2);
+}
+
+.tool-dialog-debug-json {
+  position: relative;
+}
+
+.tool-dialog-debug-json__surface {
+  max-height: 8rem;
+  overflow: auto;
+  padding: var(--ms-space-2);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.tool-dialog-debug-json[data-max-height="large"] .tool-dialog-debug-json__surface {
+  max-height: 12rem;
+}
+
+.tool-dialog-debug-json__action {
+  position: absolute;
+  top: var(--ms-space-1);
+  right: var(--ms-space-1);
+}
+
+.tool-dialog-copy-button {
+  height: 1.75rem;
+  gap: var(--ms-space-1);
+  padding-inline: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-copy-button:hover {
+  color: var(--ms-color-foreground);
+}
+
+.tool-dialog-history-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  margin-bottom: 10px;
+  padding-inline: 2px;
+}
+
+.tool-dialog-history-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--ms-leading-label);
+  text-transform: uppercase;
+}
+
+.tool-dialog-history-count {
+  padding: calc(var(--ms-space-1) * 0.5) 6px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  line-height: var(--ms-leading-tiny);
+}
+
+.tool-dialog-history-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--ms-leading-label);
+}
+
+.tool-dialog-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-dialog-empty-state {
+  border: 0;
+  background: transparent;
+  padding-block: calc(var(--ms-space-4) + var(--ms-space-3) + var(--ms-space-3));
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 60%, transparent);
+}
+
+@media (max-height: 760px) {
+  .tool-dialog-panel {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .tool-dialog-program-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tool-dialog-program-header__meta {
+    justify-content: flex-start;
+  }
+
+  .tool-dialog-body--reference-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(360px, auto) minmax(420px, 1fr);
+    overflow-y: auto;
+  }
+
+  .tool-dialog-body--reference-workbench .tool-dialog-main {
+    overflow: visible;
+    padding: 20px var(--tool-dialog-main-inset);
+  }
+
+  .tool-dialog-body--reference-workbench > .tool-dialog-resource-overlap {
+    min-height: 420px;
+  }
+}

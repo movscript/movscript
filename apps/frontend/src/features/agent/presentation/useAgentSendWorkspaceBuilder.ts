@@ -26,8 +26,6 @@ export interface BuildAgentSendWorkspaceOptions {
   clientInput?: ProviderSessionClientInput
   providerManifest?: ProviderManifest
   providerSessionLimits?: ProviderSessionLimitsOverride
-  /** Legacy provider wire key. New client code should use providerSessionLimits. */
-  runtimeLimits?: ProviderSessionLimitsOverride
   runProfile?: AgentRunProfileSelection
   threadControl?: Partial<AgentThreadControlState>
   workspaceContext?: MovScriptWorkspaceContext

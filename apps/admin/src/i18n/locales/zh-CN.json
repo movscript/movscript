@@ -2132,6 +2132,10 @@
       "gemini": {
         "name": "Google Gemini",
         "description": "Google AI：Gemini 文本对话、Imagen 图像生成、Veo 视频生成。"
+      },
+      "elevenlabs": {
+        "name": "ElevenLabs",
+        "description": "ElevenLabs 语音模型，支持文本转语音和音频转写。"
       }
     },
     "credentialFields": {
@@ -2163,7 +2167,12 @@
       "imageEdit": "图像编辑",
       "video": "文生视频",
       "videoI2V": "图生视频",
-      "videoV2V": "视频转视频"
+      "videoV2V": "视频转视频",
+      "audio": "音频",
+      "audioTTS": "文本转语音",
+      "audioTranscribe": "语音转写",
+      "subtitleAlign": "字幕对齐",
+      "renderVideo": "视频渲染"
     },
     "params": {
       "title": "生成参数",
@@ -2245,7 +2254,13 @@
         "optimize_prompt_mode": "提示词优化",
         "max_tokens": "最大输出 Token",
         "temperature": "随机性",
-        "json_mode": "JSON 输出"
+        "json_mode": "JSON 输出",
+        "stability": "稳定度",
+        "similarity_boost": "相似度",
+        "use_speaker_boost": "增强说话人",
+        "speed": "语速",
+        "diarize": "区分说话人",
+        "tag_audio_events": "标注音频事件"
       }
     },
     "models": {
@@ -2309,6 +2324,35 @@
       "runtimeHealthSaturated": "已饱和",
       "runtimeHealthDegraded": "降级",
       "runtimeHealthHealthy": "健康",
+      "startupAssemblyTitle": "启动组装实例",
+      "startupAssemblyHint": "这些后端 provider 在进程启动时组装。保存的 provider 配置草案会在重启后应用。",
+      "providerInstanceConfig": "配置 {{configured}}/{{total}}",
+      "providerInstanceSecrets": "Secret {{configured}}/{{total}}",
+      "requiresRestart": "需重启",
+      "managedBy": "由 {{managedBy}} 管理",
+      "collapseConfig": "收起",
+      "secretConfigured": "已配置",
+      "secretKeepPlaceholder": "留空保留当前 secret",
+      "applyConfig": "应用到启动配置",
+      "applyingConfig": "应用中",
+      "providerConfigApplied": "启动 env overlay 已更新，重启后端后生效。",
+      "providerActivationModes": {
+        "local_backend_restart": "下一步：在桌面端重启本地后端，让 Electron 重新加载这份启动 overlay。",
+        "deployment_rollout": "下一步：执行后端部署 rollout，让服务端进程加载新的启动 overlay。",
+        "manual_restart": "下一步：重启承载当前启动 profile 的后端进程。"
+      },
+      "providerActivationActions": {
+        "restart_local_backend": "动作：重启本地后端",
+        "rollout_backend_deployment": "动作：执行后端部署 rollout",
+        "restart_backend_process": "动作：重启后端进程"
+      },
+      "providerActivationHost": "执行宿主：{{host}}",
+      "providerActivationAutoApplyAvailable": "当前宿主支持自动生效。",
+      "providerActivationAutoApplyUnavailable": "自动生效尚未接通，请使用对应宿主的重启路径。",
+      "providerActivationAutoApplyOpen": "重启本地后端",
+      "providerActivationAutoApplyRun": "执行部署 rollout",
+      "providerActivationAutoApplying": "生效中",
+      "providerActivationAutoApplyDone": "生效请求已接受。",
       "collapsePresets": "收起预设",
       "pickPreset": "从预设选",
       "fetchFromApi": "从接口获取",
@@ -2814,6 +2858,43 @@
     "settings": {
       "title": "系统设置",
       "description": "控制账号注册策略、邮箱验证码和 SMTP 发送配置。",
+      "deployment": "部署与 Provider 组装",
+      "deploymentHint": "展示后端启动时按 profile 组装的内置 Provider Adapter。",
+      "deploymentUnavailable": "暂无部署组装信息。",
+      "deploymentProfile": "部署形态",
+      "dependencyProfile": "依赖 profile",
+      "assemblyMode": "组装方式",
+      "supportedAdapters": "支持的 Adapter",
+      "providerType": "Provider 类型",
+      "providerAdapter": "Adapter",
+      "providerCapabilities": "能力",
+      "providerSecrets": "Secret",
+      "providerSecretsNone": "无",
+      "providerManagedBy": "管理来源",
+      "providerStatus": "状态",
+      "providerConfigured": "已配置",
+      "providerMissingConfig": "缺少配置",
+      "deploymentProfiles": {
+        "personal-local": "个人本地",
+        "team-cloud": "团队云端",
+        "custom": "自定义"
+      },
+      "assemblyModes": {
+        "startup": "启动时组装"
+      },
+      "providerManaged": {
+        "profile": "Profile",
+        "config": "配置覆盖"
+      },
+      "providerTypes": {
+        "database": "数据库",
+        "blob_storage": "Blob 存储",
+        "workspace_repository": "工作区仓库",
+        "ai_gateway": "AI 网关",
+        "cache": "缓存",
+        "media_processing": "媒体运行时",
+        "agent_runtime": "Agent 运行时"
+      },
       "registration": "注册策略",
       "openRegistration": "开放用户自助注册",
       "openRegistrationHint": "关闭后，新账号只能由后台管理员手动创建。",

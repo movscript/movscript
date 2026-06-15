@@ -8,7 +8,7 @@ test('app settings store owns onboarding preflight settings before completion', 
     settings: {
       apiBaseURL: 'http://localhost:8765',
       launchMode: 'cloud',
-      workMode: 'detail',
+      workMode: 'project',
       onboardingCompleted: false,
     },
     savedAt: null,

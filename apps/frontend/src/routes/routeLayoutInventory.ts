@@ -112,9 +112,6 @@ const tests: LayoutInventoryTestItem[] = [
   if (spec.routeId === 'canvas.editor') {
     tests.push({ path: 'src/features/canvas/application/canvasWorkflowLayoutContract.test.ts', action: 'keep' })
   }
-  if (spec.routeId === 'project.sourceWorkspace') {
-    tests.push({ path: 'src/features/content-workbench/application/contentWorkbenchUiContract.test.ts', action: 'keep' })
-  }
   if (spec.routeId.startsWith('agent.')) {
     tests.push({ path: 'src/features/agent/application/agentGenerationUiContract.test.tsx', action: 'keep' })
   }

@@ -6,15 +6,15 @@ export function WorkModeSwitchGuide({
   activeMode,
   compact = false,
   agentIcon: AgentIcon,
-  detailIcon: DetailIcon,
+  projectIcon: ProjectIcon,
 }: {
   activeMode: WorkModeChoice;
   compact?: boolean;
   agentIcon: IconComponent;
-  detailIcon: IconComponent;
+  projectIcon: IconComponent;
 }) {
-  const CurrentIcon = activeMode === "agent" ? AgentIcon : DetailIcon;
-  const NextIcon = activeMode === "agent" ? DetailIcon : AgentIcon;
+  const CurrentIcon = activeMode === "agent" ? AgentIcon : ProjectIcon;
+  const NextIcon = activeMode === "agent" ? ProjectIcon : AgentIcon;
 
   return (
     <div className={cn("onboarding-switch-guide", compact && "onboarding-switch-guide--compact")} aria-hidden="true">

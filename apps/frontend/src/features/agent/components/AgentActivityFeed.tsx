@@ -25,12 +25,9 @@ import {
   AgentActivityRoundItems,
   AgentActivityStatusLine,
   AgentActivityKindLabel,
-  AgentActivityTotals,
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@movscript/ui'
+  AgentActivityTotals
+} from '@movscript/ui/business/agent'
+import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui/primitives'
 import {
   agentActivityFeedMarkdown,
   agentActivityTraceJSON,

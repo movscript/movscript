@@ -89,7 +89,8 @@
 
 .generation-result-card__media--compact {
   border-radius: var(--ms-radius-sm);
-  aspect-ratio: 16 / 9;
+  height: 176px;
+  aspect-ratio: auto;
 }
 
 .generation-result-card__media--large {

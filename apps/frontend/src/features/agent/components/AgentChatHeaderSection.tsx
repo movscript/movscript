@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PanelRightClose } from 'lucide-react'
+import { AgentHeader } from '@movscript/ui/business/agent'
 import {
-  AgentHeader,
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@movscript/ui'
+  DropdownMenuTrigger
+} from '@movscript/ui/primitives'
 import { AgentConversationTabs } from '@/features/agent/components/AgentConversationTabs'
 import {
   agentConversationTabMenuAnchorStyleFromPosition,

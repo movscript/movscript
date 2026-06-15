@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Check, Clipboard, Network, RefreshCw, Trash2 } from 'lucide-react'
+import {
+  useEffect,
+  useMemo,
+  useState } from 'react'
+import { Check,
+  Clipboard,
+  Network,
+  RefreshCw,
+  Trash2 } from 'lucide-react'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
   AgentConsoleHeader,
@@ -9,8 +20,8 @@ import {
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
   AgentConsoleStatusBadge,
-  AgentPageShell,
-  AgentPageShellHeader,
+} from '@/features/agent/components/AgentConsoleUi'
+import {
   AgentThreePanePageBody,
   AgentThreePanePageEmptyText,
   AgentThreePanePageItemBadge,
@@ -32,8 +43,8 @@ import {
   AgentThreePanePagePaneScroller,
   AgentThreePanePagePaneTitle,
   AgentThreePanePageSegmentButton,
-  AgentThreePanePageSegmentedControl,
-} from '@movscript/ui'
+  AgentThreePanePageSegmentedControl
+} from '@/features/agent/components/AgentPageThreePaneUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import {
   AGENT_CONNECTION_DEBUG_GLOBAL_THREAD_ID,

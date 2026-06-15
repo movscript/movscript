@@ -122,7 +122,6 @@ export {
 
 export {
   buildMovScriptContentCandidate,
-  createMovScriptContentCandidate,
   type MovScriptContentCandidateOutput,
   type MovScriptContentCandidateWriteInput,
   type MovScriptContentCandidateWriteResult,

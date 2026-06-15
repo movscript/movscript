@@ -28,10 +28,6 @@ function sourceBetween(source: string, startNeedle: string, endNeedle: string): 
   return source.slice(start, end)
 }
 
-function uiAgentGeneratedFeedbackSource(): string {
-  return readFileSync(resolve('../../packages/ui/src/components/business/agent/generated/feedback/index.tsx'), 'utf8')
-}
-
 test('agent session UI keeps worker trace summary contracts without run detail pages', () => {
   const planOverviewSource = readFileSync(resolve('src/features/agent/components/AgentPlanOverviewPanel.tsx'), 'utf8')
 
@@ -64,7 +60,10 @@ test('desktop bootstrap does not auto-start a workspace-global provider session'
 
 test('agent composer supports clipboard file uploads with a blocking resource transfer dialog', () => {
   const composerControllerSource = readFileSync(resolve('src/features/agent/presentation/useAgentComposerController.ts'), 'utf8')
-  const composerSectionSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
+  const composerSectionSource = [
+    readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentComposerUploadDialog.tsx'), 'utf8'),
+  ].join('\n')
   const mentionEditorSource = readFileSync(resolve('src/features/agent/components/AgentMentionEditor.tsx'), 'utf8')
   const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
 
@@ -87,7 +86,8 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
   assert.match(composerSectionSource, /\{showAttachmentTools \? \(/)
   assert.match(composerSectionSource, /\{showMentionTools \? \(/)
   assert.match(composerSectionSource, /\{showDebugPreview \? \(/)
-  assert.match(composerSectionSource, /<Dialog open=\{uploading\}>/)
+  assert.match(composerSectionSource, /<AgentComposerUploadDialog[\s\S]*open=\{uploading\}/)
+  assert.match(composerSectionSource, /<Dialog open=\{open\}>/)
   assert.match(composerSectionSource, /hideClose/)
   assert.match(composerSectionSource, /onEscapeKeyDown=\{\(event\) => event\.preventDefault\(\)\}/)
   assert.match(composerSectionSource, /agents\.chat\.uploadDialogDescription/)
@@ -99,27 +99,37 @@ test('agent composer supports clipboard file uploads with a blocking resource tr
 
 test('agent chat composer uses the same chrome in page and detail surfaces', () => {
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
+  const shellPartsSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShellParts.tsx'), 'utf8')
   const panelShellLayoutCss = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/shell-layout/styles.css'), 'utf8')
 
-  assert.match(dataSourceShellSource, /<AgentComposerSection[\s\S]*?chrome="flush"/)
-  assert.match(dataSourceShellSource, /ai-agent-panel-composer-wrap/)
+  assert.match(dataSourceShellSource, /<AgentChatShellView/)
+  assert.match(shellViewSource, /<AgentChatDataSourceComposerPanel[\s\S]*?chrome="flush"/)
+  assert.match(shellPartsSource, /<AgentComposerSection \{\.\.\.composerProps\} \/>/)
+  assert.match(shellPartsSource, /ai-agent-panel-composer-wrap/)
   assert.match(panelShellLayoutCss, /\.ai-agent-panel-shell \.ai-agent-panel-composer-wrap/)
   assert.doesNotMatch(dataSourceShellSource, /chrome=\{surface === 'page' \? 'flush' : 'bottom-bar'\}/)
 })
 
 test('agent mode sidebar keeps conversations scoped to unbound chats', () => {
-  const agentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+  const agentModePageSource = [
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+  ].join('\n')
+  const agentModeSidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
+  const agentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
   const conversationGroupSource = sourceBetween(
     agentModePageSource,
-    "<AgentSidebarGroup\n          title={t('agents.chat.agentModeSidebar.conversations')}",
-    "<AgentSidebarGroup\n          title={t('agents.chat.conversationHistory')}",
+    '<ProjectAgentModeChatConversationsSection',
+    '<ProjectAgentModeHistorySection',
   )
 
   assert.match(agentModePageSource, /const \{ projectGroups, chatConversations \} = conversationsByScope/)
   assert.match(agentModePageSource, /const sortedChatConversations = chatConversations/)
-  assert.match(conversationGroupSource, /trailing=\{chatConversations\.length > 0 \? `\$\{chatConversations\.length\}` : undefined\}/)
-  assert.match(conversationGroupSource, /sortedChatConversations\.length === 0/)
-  assert.match(conversationGroupSource, /visibleChatConversations\.map/)
+  assert.match(conversationGroupSource, /conversations=\{sortedChatConversations\}/)
+  assert.match(agentModeSidebarPartsSource, /trailing=\{conversations\.length > 0 \? `\$\{conversations\.length\}` : undefined\}/)
+  assert.match(agentModeSidebarPartsSource, /conversations\.length === 0/)
+  assert.match(agentModeSidebarPartsSource, /visibleConversations\.map/)
   assert.doesNotMatch(conversationGroupSource, /appServerMode \?/)
   assert.doesNotMatch(agentModePageSource, /appServerActiveThreadId/)
   assert.doesNotMatch(agentModePageSource, /AppServerSidebarActiveThread/)
@@ -129,6 +139,9 @@ test('agent composer locks workspace context after a session starts', () => {
   const composerControllerSource = readFileSync(resolve('src/features/agent/presentation/useAgentComposerController.ts'), 'utf8')
   const composerSectionSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
+  const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
+  const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
+  const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
   const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
   const sessionStoreSource = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
   const composerCssSource = readFileSync(resolve('../../packages/ui/src/components/business/agent/composer/styles.css'), 'utf8')
@@ -140,9 +153,14 @@ test('agent composer locks workspace context after a session starts', () => {
   assert.doesNotMatch(composerSectionSource, /ProviderMark/)
   assert.match(composerSectionSource, /collaborationMode === 'plan'/)
   assert.match(composerSectionSource, /goalModeEnabled \? \(/)
-  assert.match(dataSourceShellSource, /const composerWorkspaceContextLocked = Boolean\(activeThreadId\)/)
-  assert.match(dataSourceShellSource, /workspaceProjectLocked=\{composerWorkspaceContextLocked\}/)
-  assert.match(dataSourceShellSource, /workspaceContext: composer\.selectedWorkspaceContext/)
+  assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
+  assert.match(shellCoreStateSource, /composerWorkspaceContextLocked: forceComposerWorkspaceContextLocked = false/)
+  assert.match(shellCoreStateSource, /const composerWorkspaceContextLocked = forceComposerWorkspaceContextLocked \|\| Boolean\(activeThreadId\)/)
+  assert.match(dataSourceShellSource, /composerWorkspaceContextLocked: forceComposerWorkspaceContextLocked = false/)
+  assert.match(dataSourceShellSource, /composerWorkspaceContextLocked: forceComposerWorkspaceContextLocked/)
+  assert.match(dataSourceShellSource, /composerWorkspaceContextLocked=\{composerWorkspaceContextLocked\}/)
+  assert.match(shellViewSource, /workspaceProjectLocked=\{composerWorkspaceContextLocked\}/)
+  assert.match(turnControlsSource, /workspaceContext: composer\.selectedWorkspaceContext/)
   assert.match(layoutPropsSource, /workspaceProjectLocked: conversationEstablished/)
   assert.match(sessionStoreSource, /const workspaceContext = userWorkspaces\[conversationId\]\?\.workspaceContext/)
   assert.match(sessionStoreSource, /input: '',[\s\S]*attachments: \[\],[\s\S]*workspaceContext/)
@@ -151,13 +169,22 @@ test('agent composer locks workspace context after a session starts', () => {
 
 test('agent new conversation drafts bind selected project without starting a thread before send', () => {
   const composerControllerSource = readFileSync(resolve('src/features/agent/presentation/useAgentComposerController.ts'), 'utf8')
-  const agentModePageSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8')
+  const agentModePageSource = [
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+  ].join('\n')
   const agentStoreSource = readFileSync(resolve('src/features/agent/state/agentStore.ts'), 'utf8')
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
-  const agentBrowserPanelSource = readFileSync(resolve('src/features/agent/components/AgentBrowserPanel.tsx'), 'utf8')
+  const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
+  const draftConversationSource = readFileSync(resolve('src/features/agent/application/useAgentChatDraftConversation.ts'), 'utf8')
+  const threadCreationSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadCreation.ts'), 'utf8')
+  const agentBrowserPanelSource = [
+    readFileSync(resolve('src/features/agent/components/AgentBrowserPanel.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentBrowserTabContent.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentBrowserPanelModel.ts'), 'utf8'),
+  ].join('\n')
+  const agentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
   const agentContentAreaStoreSource = readFileSync(resolve('src/features/agent/state/agentContentAreaStore.ts'), 'utf8')
-  const aiAgentPanelSource = readFileSync(resolve('src/features/agent/components/AIAgentPanel.tsx'), 'utf8')
-  const appSource = readFileSync(resolve('src/App.tsx'), 'utf8')
   const headerSource = readFileSync(resolve('src/features/app-shell/components/Header.tsx'), 'utf8')
   const topControlsSource = readFileSync(resolve('src/features/app-shell/components/AppTopControls.tsx'), 'utf8')
   const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
@@ -166,11 +193,14 @@ test('agent new conversation drafts bind selected project without starting a thr
   const interactionInputTypesSource = readFileSync(resolve('src/features/agent/presentation/agentChatInteractionInputTypes.ts'), 'utf8')
   const sendPipelineSource = readFileSync(resolve('src/features/agent/presentation/agentChatSendPipelineInputs.ts'), 'utf8')
   const sendWorkspaceSource = readFileSync(resolve('src/features/agent/application/agentSendWorkspace.ts'), 'utf8')
+  const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
+  const threadRuntimeEffectsSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadRuntimeEffects.ts'), 'utf8')
+  const runProfileSettingsSource = readFileSync(resolve('src/features/agent/application/useAgentChatRunProfileSettings.ts'), 'utf8')
   const normalizeWorkspaceContextBlock = sourceFunctionBlock(composerControllerSource, 'normalizeAgentWorkspaceContext')
-  const resumeThreadBlock = sourceBetween(dataSourceShellSource, 'void dataSource.resumeThread({', '})\n        .then')
-  const updateThreadSettingsBlock = sourceBetween(dataSourceShellSource, 'void dataSource.updateThreadSettings({', '})\n      .then')
-  const sendMessageBlock = sourceBetween(dataSourceShellSource, 'const sendMessage = useCallback', 'const submitQueuedInputsAsTurn = useCallback')
-  const queuedTurnBlock = sourceBetween(dataSourceShellSource, 'const submitQueuedInputsAsTurn = useCallback', 'const submitQueuedInputAsTurn = useCallback')
+  const resumeThreadBlock = sourceBetween(threadRuntimeEffectsSource, 'void dataSource.resumeThread({', '})\n        .then')
+  const updateThreadSettingsBlock = sourceBetween(runProfileSettingsSource, 'void dataSource.updateThreadSettings({', '})\n      .then')
+  const sendMessageBlock = sourceBetween(turnControlsSource, 'const sendMessage = useCallback', 'const submitQueuedInputsAsTurn = useCallback')
+  const queuedTurnBlock = sourceBetween(turnControlsSource, 'const submitQueuedInputsAsTurn = useCallback', 'const submitQueuedInputAsTurn = useCallback')
 
   assert.doesNotMatch(composerControllerSource, /normalizeAgentWorkspaceContext\([\s\S]*\{ projectId: currentProject\?\.ID \}/)
   assert.doesNotMatch(composerControllerSource, /useProjectStore/)
@@ -209,33 +239,34 @@ test('agent new conversation drafts bind selected project without starting a thr
   assert.match(sendWorkspaceSource, /resolveProviderSessionProjectId/)
   assert.match(agentStoreSource, /resetDraftModeSettings/)
   assert.match(agentStoreSource, /goalModeEnabled: DEFAULT_AGENT_SETTINGS\.goalModeEnabled/)
-  assert.match(dataSourceShellSource, /type StartThreadInput[\s\S]*useDraftModeSettings\?: boolean/)
-  assert.match(dataSourceShellSource, /const resetDraftModeSettings = useCallback/)
-  assert.match(dataSourceShellSource, /function draftThreadControlOptions/)
-  assert.match(dataSourceShellSource, /useDraftModeSettings \? draftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\) : \{\}/)
+  assert.match(threadCreationSource, /type AgentChatStartThreadInput[\s\S]*useDraftModeSettings\?: boolean/)
+  assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatShellCoreState'/)
+  assert.match(shellCoreStateSource, /const resetDraftModeSettings = useCallback/)
+  assert.match(threadCreationSource, /useDraftModeSettings \? buildAgentChatDraftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\) : \{\}/)
   assert.doesNotMatch(resumeThreadBlock, /collaborationMode|goalModeEnabled/)
   assert.doesNotMatch(updateThreadSettingsBlock, /collaborationMode|goalModeEnabled/)
   assert.match(sendMessageBlock, /let firstTurnDraftControls/)
-  assert.match(sendMessageBlock, /firstTurnDraftControls = draftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\)/)
+  assert.match(sendMessageBlock, /firstTurnDraftControls = buildAgentChatDraftThreadControlOptions\(\{ collaborationMode, goalModeEnabled \}\)/)
   assert.doesNotMatch(sendMessageBlock, /ensureAgentChatThreadReadyForTurn\(\{[\s\S]*controls:/)
   assert.doesNotMatch(sendMessageBlock, /\.\.\.\(collaborationMode === 'plan'/)
   assert.doesNotMatch(sendMessageBlock, /\.\.\.\(goalModeEnabled/)
   assert.doesNotMatch(queuedTurnBlock, /collaborationMode|goalModeEnabled/)
-  assert.match(dataSourceShellSource, /function workspaceContextFromNewConversationPayload/)
-  assert.match(dataSourceShellSource, /if \(payload\?\.workspaceContext\) return payload\.workspaceContext/)
-  assert.match(dataSourceShellSource, /scope: 'project'[\s\S]*projectId/)
-  assert.match(dataSourceShellSource, /const createDraftConversation = useCallback/)
+  assert.match(draftConversationSource, /workspaceContextFromNewConversationPayload\(input\)/)
+  assert.match(dataSourceShellSource, /const createDraftConversation = useAgentChatDraftConversation/)
   assert.match(dataSourceShellSource, /resetDraftModeSettings\(\)[\s\S]*createDraftConversation\(/)
   assert.match(sendMessageBlock, /startThreadResult\(\{[\s\S]*useDraftModeSettings: true/)
-  assert.match(appSource, /showProjectControls=\{false\}/)
-  assert.match(headerSource, /showProjectControls \? <ProjectGitHeaderActions compact \/> : null/)
-  assert.match(topControlsSource, /showProjectSelector \? \(/)
-  assert.match(agentModePageSource, /sessionWorkspaceContext/)
-  assert.match(agentModePageSource, /sessionProjectId = positiveInteger\(sessionWorkspaceContext\?\.projectId\)/)
-  assert.match(agentModePageSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} conversationId=\{sessionConversationId\} project=\{sessionProject\} \/>/)
+  const appShellLayoutSource = readFileSync(resolve('src/features/app-shell/application/AppShellLayout.tsx'), 'utf8')
+  assert.doesNotMatch(appShellLayoutSource, /showProjectControls=/)
+  assert.doesNotMatch(headerSource, /showProjectControls/)
+  assert.doesNotMatch(topControlsSource, /showProjectSelector/)
+  assert.doesNotMatch(topControlsSource, /AppTopProjectMenuContent/)
+  assert.match(agentContentPanelSource, /sessionWorkspaceContext/)
+  assert.match(agentContentPanelSource, /sessionProjectId = positiveInteger\(sessionWorkspaceContext\?\.projectId\)/)
+  assert.match(agentContentPanelSource, /<AgentBrowserPanel contentAreaId=\{contentAreaId\} conversationId=\{sessionConversationId\} project=\{sessionProject\} \/>/)
   assert.doesNotMatch(agentBrowserPanelSource, /useProjectStore/)
-  assert.match(aiAgentPanelSource, /useProjectStore/)
-  assert.match(aiAgentPanelSource, /currentProject=\{currentProject\}/)
+  assert.match(agentContentPanelSource, /ProjectAgentContentPanel/)
+  assert.match(agentContentPanelSource, /const sessionProject = useMemo/)
+  assert.match(agentContentPanelSource, /<AgentBrowserPanel[\s\S]*project=\{sessionProject\}/)
   assert.match(agentContentAreaStoreSource, /AGENT_BLANK_TAB_ID = 'blank_home'/)
   assert.match(agentBrowserPanelSource, /defaultTab: hasProject \? 'project_home' : 'blank'/)
 })

@@ -1,24 +1,35 @@
 import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/presentation/semanticRecipe'
 
-export type ProjectSemanticRecipe = UiStatusRecipe
+export type ProjectStatusRecipe = UiStatusRecipe
 
-export function projectLaneStateRecipe(state?: string): ProjectSemanticRecipe {
+export function projectLaneStateRecipe(state?: string): ProjectStatusRecipe {
   return projectLaneStatus.recipe(state)
 }
 
-export function projectPriorityRecipe(priority?: string): ProjectSemanticRecipe {
+export function projectStatusRecipe(state?: string): ProjectStatusRecipe {
+  return projectStatus.recipe(state)
+}
+
+export function projectPriorityRecipe(priority?: string): ProjectStatusRecipe {
   return projectPriorityStatus.recipe(priority)
 }
 
-export function projectBlockedSummaryRecipe(blockedCount: number): ProjectSemanticRecipe {
+export function projectBlockedSummaryRecipe(blockedCount: number): ProjectStatusRecipe {
   return projectBlockedSummaryStatus.recipe(blockedCount > 0 ? 'blocked' : 'clear')
 }
 
-export function projectReadinessRecipe(readiness: number): ProjectSemanticRecipe {
+export function projectReadinessRecipe(readiness: number): ProjectStatusRecipe {
   return projectReadinessStatus.recipe(readiness >= 70 ? 'ready' : 'default')
 }
 
 const projectLaneStatus = defineFeatureStatusRecipeGroup('project.lane.status', {
+  ready: 'success',
+  active: 'info',
+  blocked: 'warning',
+  default: 'neutral',
+})
+
+const projectStatus = defineFeatureStatusRecipeGroup('project.status', {
   ready: 'success',
   active: 'info',
   blocked: 'warning',

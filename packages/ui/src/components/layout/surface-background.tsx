@@ -11,7 +11,7 @@ const STYLE_VARS: Array<[keyof AppShellSurfaceBackgrounds, string]> = [
   ["center", "--ms-app-shell-slot-center-background"],
   ["left", "--ms-app-shell-slot-left-background"],
   ["right", "--ms-app-shell-slot-right-background"],
-  ["header", "--ms-app-window-header-background"],
+  ["header", "--app-window-header-background"],
 ];
 
 function setStyleVariable(name: string, value?: string) {

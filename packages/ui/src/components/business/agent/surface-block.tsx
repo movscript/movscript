@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "../../../lib/cn";
-import { Surface } from "../../primitives";
+import { Frame } from "../../primitives";
 
 export interface AgentSurfaceBlockProps extends React.HTMLAttributes<HTMLDivElement> {
   asChild?: boolean;
@@ -13,7 +13,7 @@ export const AgentSurfaceBlock = React.forwardRef<HTMLDivElement, AgentSurfaceBl
   ({ asChild = false, variant = "surface", className, ...props }, ref) => {
     const blockClassName = cn("ms-agent-frame ms-agent-surface-block", `ms-agent-surface-block--${variant}`, className);
     return (
-      <Surface
+      <Frame
         ref={ref}
         asChild={asChild}
         kind="panel"

@@ -9,7 +9,7 @@ import {
 } from '@movscript/workspace/layout'
 
 export type MovScriptPromptOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
-export type MovScriptPromptRefKind = 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | 'content_unit'
+export type MovScriptPromptRefKind = 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'shot' | 'content_unit'
 export type MovScriptPromptRefRole = 'input'
 
 export interface MovScriptPromptRef {
@@ -537,7 +537,9 @@ function flatPrimaryRefIds(record: Record<string, unknown>, kind: MovScriptPromp
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
     case 'scene_moment':
-      return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
+      return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
+    case 'expression_unit':
+      return compactStrings(record.target_kind === 'expression_unit' ? record.target_ref : undefined, record.expression_unit_ref)
     case 'shot':
       return compactStrings(record.shot_ref)
     case 'content_unit':
@@ -589,6 +591,7 @@ function promptRefKind(value: string | undefined): MovScriptPromptRefKind | unde
     case 'keyframe':
     case 'storyboard':
     case 'scene_moment':
+    case 'expression_unit':
     case 'shot':
     case 'content_unit':
       return value
@@ -608,6 +611,8 @@ function primaryRefKindForContentUnitType(contentUnitType: string): MovScriptPro
     case 'scence_moment_ref':
     case 'scene_moment_ref':
       return 'scene_moment'
+    case 'expression_unit_ref':
+      return 'expression_unit'
     case 'shot_ref':
       return 'shot'
     default:
@@ -617,6 +622,7 @@ function primaryRefKindForContentUnitType(contentUnitType: string): MovScriptPro
 
 function contentUnitTypesForPromptRefKind(kind: MovScriptPromptRefKind): string[] {
   if (kind === 'scene_moment') return ['scence_moment_ref', 'scene_moment_ref']
+  if (kind === 'expression_unit') return ['expression_unit_ref']
   return [`${kind}_ref`]
 }
 

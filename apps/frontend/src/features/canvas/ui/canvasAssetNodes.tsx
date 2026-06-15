@@ -8,6 +8,7 @@ import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceImage } from '@/shared/ui/ResourceImage'
 import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
 import { loadResourceTextUrl } from '@/shared/ui/resourceText'
+import { canvasResourceKeys } from '@/features/resources/application/resourceQueryKeys'
 import type { RawResource } from '@/types'
 import {
   CanvasImageNodeView,
@@ -17,8 +18,10 @@ import {
   CanvasNodeCardActionButton,
   CanvasTextNodeView,
   CanvasVideoNodeView,
-  canvasNodeSemanticSourceHandleStyle,
-} from '@movscript/ui'
+} from './CanvasNodeCardUi'
+import {
+  canvasNodeSemanticSourceHandleStyle
+} from '@movscript/ui/business/canvas'
 import {
   canvasNodeSemanticPort,
   mediaNodeInputPorts,
@@ -41,7 +44,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
   const textResource = data.resource?.type === 'text' ? data.resource : undefined
   const textResourceUrl = textResource ? resolveResourceUrl(textResource) : ''
   const { data: resourceText, isLoading: resourceTextLoading } = useQuery({
-    queryKey: ['canvas-text-node-resource', textResourceUrl],
+    queryKey: canvasResourceKeys.textNodeResource(textResourceUrl),
     queryFn: () => loadResourceTextUrl(textResourceUrl),
     enabled: !!textResourceUrl && data.textContent === undefined,
     staleTime: 5 * 60 * 1000,

@@ -378,7 +378,7 @@ test('buildProviderSessionSendWorkspace retries preview without stale thread whe
 
   assert.deepEqual(previewCalls, [{ threadId: 'missing_thread' }, { threadId: undefined }])
   assert.equal(workspace.providerSession?.preview?.id, 'preview_1')
-  assert.equal(workspace.warnings.includes('Saved provider session thread was not found; retried preview as a new thread.'), true)
+  assert.equal(workspace.warnings.includes('Saved runtime session thread was not found; retried preview as a new thread.'), true)
 })
 
 test('resourceMentionAttachments resolves known resources and creates placeholders for unknown mentions', () => {

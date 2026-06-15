@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/ai"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 // GenerateRuntimeText is a stateless canvas runtime primitive. The frontend owns
@@ -39,7 +42,7 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 		return
 	}
 
-	route, err := h.resolveCanvasRuntimeTextRoute(req.ModelID, req.ModelConfigID)
+	route, err := h.resolveCanvasRuntimeTextRoute(c, req.ModelID, req.ModelConfigID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -69,23 +72,37 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 	})
 }
 
-func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(modelID string, modelConfigID uint) (ai.ModelRoute, error) {
-	if strings.TrimSpace(modelID) != "" || modelConfigID != 0 {
-		return h.aiService.ResolveModelRoute(ai.ModelRouteRequest{
+func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(c *gin.Context, modelID string, modelConfigID uint) (providercontract.AIGatewayModelRoute, error) {
+	if h.aiRouting == nil {
+		return providercontract.AIGatewayModelRoute{}, errors.New("ai routing policy is not configured")
+	}
+	ctx := c.Request.Context()
+	if strings.TrimSpace(modelID) != "" && modelConfigID == 0 {
+		return h.aiRouting.ResolveGatewayTextModelRoute(ctx, modelID)
+	}
+	if modelConfigID == 0 {
+		return h.aiRouting.ResolveGatewayTextModelRoute(ctx, "")
+	}
+	return resolveCanvasRuntimeModelConfigTextRoute(ctx, h.aiRouting, modelID, modelConfigID)
+}
+
+func resolveCanvasRuntimeModelConfigTextRoute(ctx context.Context, routing providercontract.AIGatewayRoutingPolicy, modelID string, modelConfigID uint) (providercontract.AIGatewayModelRoute, error) {
+	var lastErr error
+	for _, capability := range []string{ai.CapabilityText, ai.CapabilityReasoning} {
+		route, err := routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 			ModelID:       modelID,
 			ModelConfigID: modelConfigID,
-			Capability:    ai.CapabilityText,
+			Capability:    capability,
 		})
+		if err == nil {
+			return route, nil
+		}
+		lastErr = err
 	}
-	modelConfigID, modelID, err := h.aiService.GetAnyTextModel()
-	if err != nil {
-		return ai.ModelRoute{}, err
+	if lastErr != nil {
+		return providercontract.AIGatewayModelRoute{}, lastErr
 	}
-	return h.aiService.ResolveModelRoute(ai.ModelRouteRequest{
-		ModelID:       modelID,
-		ModelConfigID: modelConfigID,
-		Capability:    ai.CapabilityText,
-	})
+	return providercontract.AIGatewayModelRoute{}, errors.New("text model route is not available")
 }
 
 func intParam(params map[string]any, key string, fallback int) int {

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   AgentPinnedStatusActiveCount,
-  AgentPinnedStatusBadge,
   AgentPinnedStatusBody,
   AgentPinnedStatusCollapseIcon,
   AgentPinnedStatusDividerRow,
@@ -21,13 +20,14 @@ import {
   AgentPinnedStatusRoot,
   AgentPinnedStatusSummaryRow,
   AgentPinnedStatusSurface,
+  AgentPinnedStatusStatusLine as AgentPinnedStatusStatusLineFrame,
   AgentPinnedStatusTabButton,
   AgentPinnedStatusTabGroup,
   AgentPinnedStatusTitleRow,
   AgentPinnedStatusTruncatedText,
   AgentPinnedStatusWorkerRow,
-  AgentPlanOverviewTaskStatusIcon,
-} from '@movscript/ui'
+  AgentPlanOverviewTaskStatusIcon
+} from '@/features/agent/components/AgentPinnedStatusUi'
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, Dot } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { generationJobBadge, generationProgressTitle, generationStatusText } from '@/features/agent/domain/agentGenerationDisplay'
@@ -237,13 +237,12 @@ export function hasAgentPinnedStatus({
 
 function AgentPinnedStatusStatusLine({ item }: { item: AgentPinnedStatusSummaryItem }) {
   return (
-    <div className="agent-pinned-status-status-line" data-tone={item.tone ?? 'neutral'}>
-      <div className="agent-pinned-status-status-line__copy">
-        <div className="agent-pinned-status-status-line__title">{item.title}</div>
-        {item.detail ? <div className="agent-pinned-status-status-line__detail">{item.detail}</div> : null}
-      </div>
-      {item.badge ? <AgentPinnedStatusBadge>{item.badge}</AgentPinnedStatusBadge> : null}
-    </div>
+    <AgentPinnedStatusStatusLineFrame
+      title={item.title}
+      detail={item.detail}
+      badge={item.badge}
+      tone={item.tone ?? 'neutral'}
+    />
   )
 }
 

@@ -1,5 +1,5 @@
 import type { AgentChatDataSource, AgentChatModelSelection } from '@movscript/core/agent/chat'
-import { fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import {
   resolveAppServerProfile,

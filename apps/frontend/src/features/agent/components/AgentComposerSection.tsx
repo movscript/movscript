@@ -2,21 +2,18 @@ import type { ClipboardEventHandler, ComponentProps, DragEventHandler, FormEvent
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { AtSign, Check, ChevronDown, ChevronUp, CircleDot, CircleStop, CornerDownLeft, Eye, Hand, Loader2, Mic, Paperclip, Pencil, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
+import { AtSign, Check, ChevronDown, CircleDot, CircleStop, Eye, Hand, Loader2, Mic, Paperclip, Plus, Send, Sparkles } from 'lucide-react'
 import {
   AgentComposer,
   AgentComposerAction,
   AgentComposerDropOverlay,
   AgentComposerSubmit,
   AgentComposerToolbar,
-  AgentSurfaceBlock,
+  AgentSurfaceBlock
+} from '@movscript/ui/business/agent'
+import {
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -27,9 +24,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
-  IdentityMark,
-} from '@movscript/ui'
+  SelectTrigger
+} from '@movscript/ui/primitives'
 import { attachmentKey } from '@/features/agent/domain/agentAttachments'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import { cn } from '@/shared/ui/cn'
@@ -38,6 +34,9 @@ import {
   ComposerAttachmentChip,
   MentionResourceOption,
 } from '@/features/agent/components/AgentMentionEditor'
+import { AgentComposerModelSelector } from '@/features/agent/components/AgentComposerModelSelector'
+import { AgentComposerUploadDialog } from '@/features/agent/components/AgentComposerUploadDialog'
+import { AgentQueuedInputPreview } from '@/features/agent/components/AgentQueuedInputPreview'
 import {
   agentComposerMentionMenuPositionEqual,
   agentComposerMentionMenuPositionFromEditorElement,
@@ -47,10 +46,7 @@ import {
 } from '@/features/agent/presentation/agentComposerMentionMenuPlacement'
 import type { AgentPendingActiveRunInputQueueItem } from '@movscript/core/agent/protocol'
 import {
-  agentChatQueuedInputSummary,
-  agentThreadGoalStatusLabel,
   type AgentChatQueuedInputPreviewItem,
-  type AgentChatQueuedInputStatus,
   type AgentThreadGoalState,
 } from '@movscript/core/agent/chat'
 import {
@@ -93,6 +89,7 @@ export interface AgentComposerSectionProps {
   collaborationMode?: 'default' | 'plan'
   goalModeEnabled?: boolean
   goalState?: AgentThreadGoalState | null
+  hideWorkspaceProjectSelector?: boolean
   modelOptions?: PublicModel[]
   modelValue?: number | null
   queuedInputs?: AgentChatQueuedInputPreviewItem[]
@@ -162,6 +159,7 @@ export function AgentComposerSection({
   collaborationMode = 'default',
   goalModeEnabled = false,
   goalState = null,
+  hideWorkspaceProjectSelector = false,
   modelOptions = [],
   modelValue,
   queuedInputs = [],
@@ -247,7 +245,8 @@ export function AgentComposerSection({
 
   const mentionMenuPortalTarget = typeof document === 'undefined' ? null : document.body
   const workspaceSelectorDisabled = answeringPendingInput || buildingSendWorkspace || loading
-  const showWorkspaceSelector = workspaceProjectOptions.length > 0
+  const showWorkspaceSelector = !hideWorkspaceProjectSelector
+    && workspaceProjectOptions.length > 0
     && workspaceProjectValue !== undefined
     && !!onWorkspaceProjectChange
   const selectedWorkspaceProjectOption = showWorkspaceSelector
@@ -259,11 +258,6 @@ export function AgentComposerSection({
   const selectedWorkspaceProjectTitle = selectedWorkspaceProjectOption
     ? [selectedWorkspaceProjectOption.label, selectedWorkspaceProjectOption.meta].filter(Boolean).join(' / ')
     : workspaceProjectValue
-  const showModelSelector = modelOptions.length > 0 && modelValue !== undefined && !!onModelChange
-  const selectedModel = showModelSelector
-    ? modelOptions.find((model) => model.id === modelValue) ?? modelOptions[0]
-    : undefined
-  const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
   const runProfileDisplayLabel = runProfile.id === 'default' ? '默认权限' : runProfile.label
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
     <div
@@ -302,8 +296,6 @@ export function AgentComposerSection({
     onProfilePresetChange?.(nextProfilePresetId)
   }
 
-  const uploadingFileCount = uploadingFileNames.length
-  const uploadingPrimaryFileName = uploadingFileNames[0]
   const canSubmit = canSend || (
     draftHasInput
     && !loading
@@ -315,42 +307,15 @@ export function AgentComposerSection({
   return (
     <AgentSurfaceBlock asChild variant="card">
       <section className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)} data-chrome={chrome}>
-        <Dialog open={uploading}>
-          <DialogContent
-            hideClose
-            className="w-[min(360px,calc(100vw-32px))]"
-            onEscapeKeyDown={(event) => event.preventDefault()}
-            onPointerDownOutside={(event) => event.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>{t('agents.chat.uploadDialogTitle')}</DialogTitle>
-              <DialogDescription>
-                {t('agents.chat.uploadDialogDescription', {
-                  count: uploadingFileCount,
-                  uploaded: uploadedFileCount,
-                })}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex items-center gap-3 rounded-md border border-border bg-muted px-3 py-2">
-              <Loader2 size={16} className="shrink-0 animate-spin text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="truncate type-caption text-foreground">
-                  {uploadingPrimaryFileName ?? t('agents.chat.uploadDialogPreparing')}
-                </p>
-                <p className="type-tiny text-muted-foreground">
-                  {t('agents.chat.uploadDialogProgress', {
-                    uploaded: uploadedFileCount,
-                    count: uploadingFileCount,
-                  })}
-                </p>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <AgentComposerUploadDialog
+          open={uploading}
+          uploadedFileCount={uploadedFileCount}
+          uploadingFileNames={uploadingFileNames}
+        />
       <AgentQueuedInputPreview
         goal={goalState}
         items={queuedInputs}
-        legacyItems={pendingActiveRunInputQueue}
+        pendingActiveRunItems={pendingActiveRunInputQueue}
         collapsed={queuedInputsCollapsed}
         steerEnabled={queuedInputSteerEnabled}
         onCollapsedChange={onQueuedInputCollapseChange}
@@ -599,41 +564,12 @@ export function AgentComposerSection({
             )}
           </div>
           <div className="ms-agent-composer__submit-group">
-            {showModelSelector ? (
-              <Select
-                value={modelValue === null ? 'auto' : String(modelValue)}
-                onValueChange={(value) => onModelChange(value === 'auto' ? null : Number(value))}
-                disabled={loading || buildingSendWorkspace || answeringPendingInput}
-              >
-                <SelectTrigger size="sm" className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny">
-                  <span className="ai-agent-model-select__value">
-                    <span className="ai-agent-model-select__id">{selectedModelId ?? 'Auto model'}</span>
-                  </span>
-                </SelectTrigger>
-                <SelectContent align="end" className="min-w-64">
-                  <SelectItem value="auto">
-                    <span className="ai-agent-model-select__option">
-                      {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
-                      <span className="ai-agent-model-select__option-copy">
-                        <span className="ai-agent-model-select__id">Auto model</span>
-                        <span className="ai-agent-model-select__meta">{selectedModelId ?? 'backend default'}</span>
-                      </span>
-                    </span>
-                  </SelectItem>
-                  {modelOptions.map((model) => (
-                    <SelectItem key={model.id} value={String(model.id)}>
-                      <span className="ai-agent-model-select__option">
-                        <IdentityMark kind="model" id={agentComposerModelId(model)} />
-                        <span className="ai-agent-model-select__option-copy">
-                          <span className="ai-agent-model-select__id">{agentComposerModelId(model)}</span>
-                          {model.provider_name ? <span className="ai-agent-model-select__meta">{model.provider_name}</span> : null}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
+            <AgentComposerModelSelector
+              modelOptions={modelOptions}
+              modelValue={modelValue}
+              onModelChange={onModelChange}
+              disabled={loading || buildingSendWorkspace || answeringPendingInput}
+            />
             <button
               type="button"
               className="ms-control ms-agent-composer__voice-action"
@@ -661,206 +597,4 @@ export function AgentComposerSection({
       </section>
     </AgentSurfaceBlock>
   )
-}
-
-function AgentQueuedInputPreview({
-  goal,
-  items,
-  legacyItems,
-  collapsed,
-  steerEnabled,
-  onCollapsedChange,
-  onDelete,
-  onEdit,
-  onEditCancel,
-  onSteerNow,
-  onTextChange,
-}: {
-  goal: AgentThreadGoalState | null
-  items: AgentChatQueuedInputPreviewItem[]
-  legacyItems: AgentPendingActiveRunInputQueueItem[]
-  collapsed: boolean
-  steerEnabled: boolean
-  onCollapsedChange?: (collapsed: boolean) => void
-  onDelete?: (id: string) => void
-  onEdit?: (id: string) => void
-  onEditCancel?: (id: string) => void
-  onSteerNow?: (id: string) => void
-  onTextChange?: (id: string, text: string) => void
-}) {
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingText, setEditingText] = useState('')
-  const previewItems = items.length > 0
-    ? items
-    : legacyItems.map((item, index): AgentChatQueuedInputPreviewItem => ({
-        id: item.id,
-        text: item.content,
-        inputs: [],
-        status: 'draft' as AgentChatQueuedInputStatus,
-        createdAt: index,
-      }))
-  const editingItem = editingId ? previewItems.find((item) => item.id === editingId) : undefined
-  useEffect(() => {
-    if (!editingId || editingItem) return
-    setEditingId(null)
-    setEditingText('')
-  }, [editingId, editingItem])
-
-  if (previewItems.length === 0 && !goal) return null
-
-  function startEditing(item: AgentChatQueuedInputPreviewItem) {
-    if (item.status === 'sending') return
-    setEditingId(item.id)
-    setEditingText(item.text)
-    onEdit?.(item.id)
-  }
-
-  function commitEditing(item: AgentChatQueuedInputPreviewItem) {
-    if (editingId !== item.id) return
-    setEditingId(null)
-    onTextChange?.(item.id, editingText)
-  }
-
-  function cancelEditing(item: AgentChatQueuedInputPreviewItem) {
-    if (editingId !== item.id) return
-    setEditingId(null)
-    setEditingText(item.text)
-    onEditCancel?.(item.id)
-  }
-
-  const isCollapsed = collapsed && previewItems.length > 1
-  const visibleItems = isCollapsed ? previewItems.slice(0, 1) : previewItems
-  return (
-    <div className="mb-2 flex justify-center">
-      <div className="w-[calc(100%-32px)] max-w-[680px] space-y-1.5">
-        {goal ? <AgentGoalStatusPill goal={goal} /> : null}
-        {previewItems.length > 0 ? (
-          <div className="rounded-md border border-border bg-muted/45 px-2.5 py-2 shadow-sm">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-2 text-left type-tiny text-muted-foreground"
-              onClick={() => onCollapsedChange?.(!collapsed)}
-              aria-expanded={!isCollapsed}
-            >
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                {previewItems.some((item) => item.status === 'sending')
-                  ? <Loader2 size={10} className="shrink-0 animate-spin" />
-                  : <CornerDownLeft size={11} className="shrink-0" />}
-                <span className="truncate">等待进入会话</span>
-              </span>
-              <span className="inline-flex shrink-0 items-center gap-1.5">
-                <span>{previewItems.length}</span>
-                {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-              </span>
-            </button>
-            <div className="mt-1.5 space-y-1">
-              {visibleItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex min-h-8 items-center gap-2 border-t border-border/70 pt-1 first:border-t-0 first:pt-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    {editingId === item.id ? (
-                      <input
-                        autoFocus
-                        className="h-7 w-full rounded-sm border border-border bg-background px-2 type-tiny text-foreground outline-none focus:border-primary"
-                        value={editingText}
-                        aria-label="编辑等待消息内容"
-                        onChange={(event) => setEditingText(event.currentTarget.value)}
-                        onBlur={() => commitEditing(item)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            commitEditing(item)
-                          }
-                          if (event.key === 'Escape') {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            cancelEditing(item)
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="truncate type-tiny text-foreground" title={agentChatQueuedInputSummary(item)}>
-                        {agentChatQueuedInputSummary(item)}
-                      </div>
-                    )}
-                    {item.error ? (
-                      <div className="truncate type-tiny text-destructive" title={item.error}>{item.error}</div>
-                    ) : null}
-                  </div>
-                  {item.status === 'sending' ? (
-                    <Loader2 size={13} className="shrink-0 animate-spin text-muted-foreground" />
-                  ) : (
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <button
-                        type="button"
-                        className="ms-control h-6 w-6 justify-center p-0"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => editingId === item.id ? commitEditing(item) : startEditing(item)}
-                        aria-label={editingId === item.id ? '保存等待消息' : '编辑等待消息'}
-                        title={editingId === item.id ? '保存等待消息' : '编辑等待消息'}
-                      >
-                        {editingId === item.id ? <Check size={12} /> : <Pencil size={12} />}
-                      </button>
-                      <button
-                        type="button"
-                        className="ms-control h-6 w-6 justify-center p-0"
-                        disabled={editingId === item.id || !steerEnabled}
-                        onClick={() => onSteerNow?.(item.id)}
-                        aria-label="立即插队"
-                        title={steerEnabled ? '立即插队' : '当前后端不支持运行中插队'}
-                      >
-                        <CornerDownLeft size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        className="ms-control h-6 w-6 justify-center p-0"
-                        disabled={editingId === item.id}
-                        onClick={() => onDelete?.(item.id)}
-                        aria-label="删除等待消息"
-                        title="删除等待消息"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
-function AgentGoalStatusPill({ goal }: { goal: AgentThreadGoalState }) {
-  const usage = goal.tokenBudget && goal.tokensUsed !== undefined
-    ? `${goal.tokensUsed}/${goal.tokenBudget}`
-    : goal.tokensUsed !== undefined
-      ? `${goal.tokensUsed} tokens`
-      : undefined
-  return (
-    <div className="flex min-h-8 items-center gap-2 rounded-md border border-border bg-background/80 px-2.5 py-1.5 shadow-sm">
-      <CircleDot size={12} className="shrink-0 text-primary" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate type-tiny font-medium text-foreground" title={goal.objective}>
-          {goal.objective}
-        </div>
-      </div>
-      <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">
-        {agentThreadGoalStatusLabel(goal.status)}
-      </span>
-      {usage ? (
-        <span className="hidden shrink-0 type-tiny text-muted-foreground sm:inline">
-          {usage}
-        </span>
-      ) : null}
-    </div>
-  )
-}
-
-function agentComposerModelId(model: PublicModel): string {
-  return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `model_config:${model.id}`
 }

@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { attachmentToResource, formatAgentAttachmentBytes, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { AgentAttachmentIcon, AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
-import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import {
   AgentAttachmentPreviewBody,
   AgentAttachmentPreviewCard,
   AgentAttachmentPreviewFallback,
   AgentAttachmentPreviewMedia,
+} from '@/features/agent/components/AgentAttachmentPreviewUi'
+import type { AgentAttachment } from '@/features/agent/state/agentStore'
+import {
   AgentCodeBlock,
   AgentCodeBlockActionButton,
   AgentCodeBlockContent,
@@ -15,11 +17,11 @@ import {
   AgentCodeBlockTitle,
   AgentInlineCode,
   AgentInlineResource,
-  AgentMediaThumb,
-} from '@movscript/ui'
+  AgentMediaThumb
+} from '@movscript/ui/business/agent'
 
 export { attachmentDisplayUrl, formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
-export { AgentMessageSection } from '@movscript/ui'
+export { AgentMessageSection } from '@movscript/ui/business/agent'
 
 type MarkdownSegment =
   | { type: 'code'; key: string; lang: string; code: string }

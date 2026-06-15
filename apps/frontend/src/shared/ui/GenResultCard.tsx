@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Cpu, Paperclip, SlidersHorizontal } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
 import type { Job, RawResource } from '@/types'
+import { readCachedResourceById } from '@/features/resources/application/resourceQueryCache'
 import {
   GenerationContextMeta,
   GenerationContextRow,
@@ -10,16 +11,15 @@ import {
   GenerationContextValue,
   GenerationContextValueList,
   GenerationInlineResourceChip,
-  GenerationResultCard,
-} from '@movscript/ui'
+  GenerationResultCard
+} from '@movscript/ui/business/generation'
 
 // ── PromptText ────────────────────────────────────────────────────────────────
 // Renders a prompt string, replacing @[resource:ID] tokens with inline thumbnails.
 
 function ResourceChip({ id }: { id: number }) {
   const qc = useQueryClient()
-  const resources = qc.getQueryData<RawResource[]>(['resources']) ?? []
-  const resource = resources.find(r => r.ID === id)
+  const resource = readCachedResourceById(qc, id)
 
   if (!resource) {
     return (

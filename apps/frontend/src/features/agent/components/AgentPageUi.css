@@ -1,0 +1,50 @@
+.agent-page-shell {
+  background: transparent;
+}
+
+.mention-editor {
+  min-width: 0;
+}
+
+.mention-editor:empty::before {
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 40%, transparent);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.agent-page-header-content {
+  display: flex;
+  min-height: 72px;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+}
+
+.agent-page-header-copy {
+  min-width: 0;
+}
+
+.agent-page-eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  margin-bottom: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 500;
+  line-height: var(--ms-leading-caption);
+}
+
+.agent-page-description {
+  margin: var(--ms-space-1) 0 0;
+  max-width: 48rem;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 20px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

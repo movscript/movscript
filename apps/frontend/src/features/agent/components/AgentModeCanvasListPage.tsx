@@ -5,8 +5,8 @@ import {
   AgentPageHeaderCopy,
   AgentPageShell,
   AgentPageShellBody,
-  AgentPageShellHeader,
-} from '@movscript/ui'
+  AgentPageShellHeader
+} from '@/features/agent/components/AgentPageUi'
 import { LayoutTemplate } from 'lucide-react'
 
 import { CanvasListView } from '@/features/canvas/components/CanvasListView'

@@ -20,7 +20,7 @@ test('project workbench definitions cover the canonical workbenches', () => {
 
   assert.deepEqual(projectWorkbenchDefinitions.map((item) => item.id), expectedIds)
   assert.equal(getProjectWorkbenchDefinition('orchestration_production').route, '/project/scripts/workbench')
-  assert.equal(getProjectWorkbenchDefinition('content_orchestration').route, '/project/content-units/editor')
+  assert.equal(getProjectWorkbenchDefinition('content_orchestration').route, '/project/content-orchestration/canvas')
   assert.equal(getProjectWorkbenchDefinition('project_standards').route, '/project/standards')
   for (const definition of projectWorkbenchDefinitions) {
     assert.ok(definition.purpose.length > 0, `${definition.id} must document its purpose`)
@@ -52,7 +52,7 @@ test('project workbench review paths are generated from review query contracts',
       entityType: 'scene_moment',
       entityId: 77,
     }),
-    '/project/content-units/editor?workspaceId=workspace-c&scene_moment_id=77',
+    '/project/content-orchestration/canvas?workspaceId=workspace-c&scene_moment_id=77',
   )
   assert.equal(
     buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('orchestration_production'), { workspaceId: 'workspace-d' }),

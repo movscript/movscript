@@ -194,8 +194,6 @@ export type AgentSettingsSnapshot = {
   activeConfigFileId?: string
   configFiles?: ProviderCatalogConfigFile[]
   providerSessionLimits?: ProviderCatalogConfigFile['limits']
-  /** Compatibility input for older exported settings snapshots. New exports use providerSessionLimits. */
-  runtimeLimits?: ProviderCatalogConfigFile['limits']
   skillConfig?: SkillConfigWorkspace[]
   toolPermissionOverrides?: ConfigFileToolPermissionOverrides[]
 }
@@ -248,7 +246,7 @@ export function parseSettingsSnapshot(text: string): AgentSettingsSnapshot {
   }
   if (!isRecord(parsed)) throw new Error('agent settings snapshot must be a JSON object')
   if (parsed.schema !== AGENT_SETTINGS_SNAPSHOT_SCHEMA) throw new Error('unsupported agent settings snapshot schema')
-  assertAllowedKeys(parsed, 'agent settings snapshot', ['schema', 'schemaVersion', 'schemaUrl', 'exportedAt', 'model', 'activeConfigFileId', 'configFiles', 'providerSessionLimits', 'runtimeLimits', 'skillConfig', 'toolPermissionOverrides'])
+  assertAllowedKeys(parsed, 'agent settings snapshot', ['schema', 'schemaVersion', 'schemaUrl', 'exportedAt', 'model', 'activeConfigFileId', 'configFiles', 'providerSessionLimits', 'skillConfig', 'toolPermissionOverrides'])
   if (parsed.schemaVersion !== undefined && parsed.schemaVersion !== AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION) throw new Error('unsupported agent settings snapshot schemaVersion')
   if (parsed.schemaUrl !== undefined && parsed.schemaUrl !== AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL) throw new Error('unsupported agent settings snapshot schemaUrl')
   const snapshot: AgentSettingsSnapshot = {
@@ -266,11 +264,6 @@ export function parseSettingsSnapshot(text: string): AgentSettingsSnapshot {
   if (parsed.configFiles !== undefined) snapshot.configFiles = parseSnapshotConfigFiles(parsed.configFiles)
   if (parsed.providerSessionLimits !== undefined) {
     snapshot.providerSessionLimits = parseSnapshotLimits(parsed.providerSessionLimits, 'agent settings snapshot providerSessionLimits')
-  }
-  if (parsed.runtimeLimits !== undefined) {
-    const runtimeLimits = parseSnapshotLimits(parsed.runtimeLimits, 'agent settings snapshot runtimeLimits')
-    snapshot.runtimeLimits = runtimeLimits
-    if (!snapshot.providerSessionLimits) snapshot.providerSessionLimits = runtimeLimits
   }
   if (parsed.skillConfig !== undefined) snapshot.skillConfig = parseSnapshotSkillConfig(parsed.skillConfig)
   if (parsed.toolPermissionOverrides !== undefined) snapshot.toolPermissionOverrides = parseSnapshotToolPermissionOverrides(parsed.toolPermissionOverrides)

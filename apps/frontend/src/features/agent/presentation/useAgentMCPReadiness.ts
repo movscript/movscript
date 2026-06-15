@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { toastMCPStatus, type MCPServerStatus } from './mcpStatus'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
 const MCP_STATUS_TIMEOUT_MS = 5_000
 
@@ -28,7 +29,7 @@ export async function assertMCPStatusReady(
 
 export function useAgentMCPReadiness() {
   return useCallback(async () => {
-    const getMCPStatus = typeof window === 'undefined' ? undefined : window.api?.getMCPStatus
+    const getMCPStatus = readElectronApi()?.getMCPStatus
     await assertMCPStatusReady(getMCPStatus)
   }, [])
 }

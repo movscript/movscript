@@ -1,35 +1,25 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useState, type ReactNode } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   AppWindow,
   CirclePlay,
   FolderArchive,
-  FolderOpen,
-  Hammer,
   Home,
   Images,
   ListTodo,
   Move,
   Palette,
-  Radar,
   ScanSearch,
   Shapes,
-  Telescope,
-  ToyBrick,
   Video,
-  Wrench,
 } from 'lucide-react'
-import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
-import { api } from '@/shared/infrastructure/api'
 import {
   APP_SIDEBAR_DEFAULT_WIDTH,
   APP_SIDEBAR_MAX_WIDTH,
   APP_SIDEBAR_MIN_WIDTH,
   APP_SIDEBAR_WIDTH_STORAGE_KEY,
-  AppSidebarActionItem,
   AppSidebarDivider,
   AppSidebarFooter,
   AppSidebarHeader,
@@ -37,25 +27,17 @@ import {
   AppSidebarNav,
   AppSidebarNavItemFrame,
   AppSidebarNavItemContent,
-  AppSidebarProjectCurrent,
-  AppSidebarProjectRow,
   AppSidebarSection,
   AppSidebarShell,
   AppSidebarUserButton,
   AppSidebarUserButtonContent,
   AppSidebarUserMenuContent,
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   PanelResizeHandle,
   clampAppSidebarWidth,
-  useResizablePanel,
-} from '@movscript/ui'
-import { projectWorkbenchDefinitions } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
+  useResizablePanel
+} from '@movscript/ui/layout'
+import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui/primitives'
 import { ROUTES } from '@/routes/projectRoutes'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 
 export const SIDEBAR_WIDTH_STORAGE_KEY = APP_SIDEBAR_WIDTH_STORAGE_KEY
@@ -116,11 +98,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const current = useProjectStore((s) => s.current)
-  const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
-  const settings = useAppSettingsStore((s) => s.settings)
-  const { pathname } = useLocation()
   const sidebarResize = useResizablePanel({
     size: width,
     onSizeChange: (nextWidth) => onWidthChange?.(clampSidebarWidth(nextWidth)),
@@ -135,17 +113,6 @@ export function Sidebar({
     ariaLabel: '调整左侧栏宽度',
   })
 
-  const { isError: projectNotFound } = useQuery({
-    queryKey: ['project', current?.ID],
-    queryFn: () => api.get(`/projects/${current!.ID}`).then((r) => r.data),
-    enabled: !!current,
-    retry: false,
-  })
-
-  useEffect(() => {
-    if (projectNotFound && current) setCurrent(null)
-  }, [projectNotFound, current, setCurrent])
-
   return (
     <AppSidebarShell collapsed={collapsed} width={width}>
       {(reserveHeader || headerActions) ? (
@@ -154,51 +121,6 @@ export function Sidebar({
         </AppSidebarHeader>
       ) : null}
       <AppSidebarNav collapsed={collapsed}>
-        <AppSidebarSection title={t('sidebar.sections.global')} collapsed={collapsed}>
-          <NavItem to={ROUTES.root} icon={Home} label={t('sidebar.items.home')} collapsed={collapsed} end />
-          {currentUser?.system_role === 'super_admin' ? (
-            <AppSidebarActionItem
-              icon={Wrench}
-              label={t('sidebar.items.adminConsole')}
-              collapsed={collapsed}
-              onClick={() => void openAdminConsole(settings.apiBaseURL)}
-            />
-          ) : null}
-        </AppSidebarSection>
-
-        <AppSidebarDivider collapsed={collapsed} />
-
-        {current && (
-          <>
-            {/* Project */}
-            <AppSidebarSection title={t('sidebar.sections.project')} collapsed={collapsed}>
-              {collapsed ? (
-                <AppSidebarNavItemFrame collapsed>
-                  <AppSidebarNavItemContent icon={FolderOpen} label={current.name} collapsed />
-                </AppSidebarNavItemFrame>
-              ) : (
-                <AppSidebarProjectRow>
-                  <AppSidebarProjectCurrent
-                    icon={FolderOpen}
-                    name={current.name}
-                    switchControl={null}
-                  />
-                </AppSidebarProjectRow>
-              )}
-            </AppSidebarSection>
-
-            <AppSidebarDivider collapsed={collapsed} />
-            <AppSidebarSection title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              {projectWorkbenchDefinitions.map((item) => (
-                <NavItem key={item.id} to={item.route} icon={item.icon} label={t(item.sidebarTitleKey)} collapsed={collapsed} />
-              ))}
-            </AppSidebarSection>
-          </>
-        )}
-
-        {current ? <AppSidebarDivider collapsed={collapsed} /> : null}
-
-        {/* Tools */}
         <AppSidebarSection title={t('sidebar.sections.tools')} collapsed={collapsed}>
           <NavItem to={ROUTES.canvases} icon={AppWindow} label={t('sidebar.items.canvas')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.refImageGen} icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
@@ -210,7 +132,6 @@ export function Sidebar({
 
         <AppSidebarDivider collapsed={collapsed} />
 
-        {/* Files */}
         <AppSidebarSection title={t('sidebar.sections.files')} collapsed={collapsed}>
           <NavItem to={ROUTES.resources} icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} end />
           <NavItem to={ROUTES.externalResources} icon={ScanSearch} label={t('sidebar.items.externalResources', { defaultValue: '外部资源' })} collapsed={collapsed} />

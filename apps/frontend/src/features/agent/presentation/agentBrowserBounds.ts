@@ -1,3 +1,5 @@
+import { listenToWindowEvent } from '@/shared/infrastructure/windowEvents'
+
 export interface AgentBrowserBounds {
   x: number
   y: number
@@ -35,17 +37,12 @@ export function subscribeAgentBrowserBoundsSync(
 
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncBounds)
   observer?.observe(viewport)
-
-  if (typeof window !== 'undefined') {
-    window.addEventListener('resize', syncBounds)
-    window.addEventListener('scroll', syncBounds, true)
-  }
+  const cleanupResize = listenToWindowEvent('resize', syncBounds)
+  const cleanupScroll = listenToWindowEvent('scroll', syncBounds, true)
 
   return () => {
     observer?.disconnect()
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('resize', syncBounds)
-      window.removeEventListener('scroll', syncBounds, true)
-    }
+    cleanupResize()
+    cleanupScroll()
   }
 }

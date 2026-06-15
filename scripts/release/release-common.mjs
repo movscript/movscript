@@ -4,6 +4,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { verifyPackageResources } from './verify-package-resources.mjs'
+
 export const desktopPlatforms = Object.freeze(['darwin', 'linux', 'win32'])
 export const desktopArchs = Object.freeze(['x64', 'arm64'])
 export const desktopReleaseTargets = Object.freeze([
@@ -283,15 +285,16 @@ export function verifyDesktopPackage(root, options = {}) {
   } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
   const backendBinDir = resolve(root, 'apps/backend/bin')
-  const ffmpegPath = resolveDesktopFFmpegPath(root, platform, arch)
-  const appServerPaths = desktopAppServerProviders.map((provider) => resolveDesktopAppServerPath(root, provider, platform, arch))
+  let packageResourceManifest
+  try {
+    packageResourceManifest = verifyPackageResources(root)
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error))
+    exit(1)
+    return false
+  }
 
-  const requiredPaths = [
-    resolve(backendBinDir, platform === 'win32' ? 'server.exe' : 'server'),
-    resolve(backendBinDir, 'admin/index.html'),
-    ffmpegPath,
-    ...appServerPaths,
-  ]
+  const requiredPaths = requiredDesktopPackagePrerequisites(root, packageResourceManifest, platform, arch)
 
   const missing = requiredPaths.filter((path) => !existsSync(path))
   if (missing.length > 0) {
@@ -301,14 +304,17 @@ export function verifyDesktopPackage(root, options = {}) {
     return false
   }
 
-  const ffmpegError = verifyDesktopFFmpeg(ffmpegPath, root, spawn, ffmpegVersionTimeoutMs, {
-    arch,
-    runCheck: platform === currentPlatform && arch === currentArch,
-  })
-  if (ffmpegError) {
-    logError(ffmpegError)
-    exit(1)
-    return false
+  const ffmpegPath = resolveDesktopFFmpegPath(root, platform, arch)
+  if (manifestHasResource(packageResourceManifest, 'ffmpeg')) {
+    const ffmpegError = verifyDesktopFFmpeg(ffmpegPath, root, spawn, ffmpegVersionTimeoutMs, {
+      arch,
+      runCheck: platform === currentPlatform && arch === currentArch,
+    })
+    if (ffmpegError) {
+      logError(ffmpegError)
+      exit(1)
+      return false
+    }
   }
 
   if (!existsSync(releaseDir)) {
@@ -328,17 +334,28 @@ export function verifyDesktopPackage(root, options = {}) {
     return false
   }
 
-  const bundledFFmpegError = verifyBundledDesktopFFmpeg(releaseDir, platform, { sourcePath: ffmpegPath, arch })
-  if (bundledFFmpegError) {
-    logError(bundledFFmpegError)
+  const bundledResourcesError = verifyBundledPackageResources(releaseDir, platform, packageResourceManifest)
+  if (bundledResourcesError) {
+    logError(bundledResourcesError)
     exit(1)
     return false
   }
-  const bundledAppServerError = verifyBundledDesktopAppServers(releaseDir, platform, { root, arch })
-  if (bundledAppServerError) {
-    logError(bundledAppServerError)
-    exit(1)
-    return false
+
+  if (manifestHasResource(packageResourceManifest, 'ffmpeg')) {
+    const bundledFFmpegError = verifyBundledDesktopFFmpeg(releaseDir, platform, { sourcePath: ffmpegPath, arch })
+    if (bundledFFmpegError) {
+      logError(bundledFFmpegError)
+      exit(1)
+      return false
+    }
+  }
+  if (manifestHasResource(packageResourceManifest, 'app-server')) {
+    const bundledAppServerError = verifyBundledDesktopAppServers(releaseDir, platform, { root, arch })
+    if (bundledAppServerError) {
+      logError(bundledAppServerError)
+      exit(1)
+      return false
+    }
   }
 
   log('Desktop package verification passed.')
@@ -347,6 +364,53 @@ export function verifyDesktopPackage(root, options = {}) {
     log(`- ${artifact} (${Math.round(size / 1024 / 1024)} MB)`)
   }
   return true
+}
+
+export function requiredDesktopPackagePrerequisites(root, manifest, platform = process.platform, arch = process.arch) {
+  const backendBinDir = resolve(root, 'apps/backend/bin')
+  const required = []
+  if (manifestHasResource(manifest, 'backend')) {
+    required.push(resolve(backendBinDir, platform === 'win32' ? 'server.exe' : 'server'))
+  }
+  if (manifestHasResource(manifest, 'renderer-admin') || manifestResource(manifest, 'backend')?.filter?.includes('admin/**')) {
+    required.push(resolve(backendBinDir, 'admin/index.html'))
+  }
+  if (manifestHasResource(manifest, 'ffmpeg')) {
+    required.push(resolveDesktopFFmpegPath(root, platform, arch))
+  }
+  if (manifestHasResource(manifest, 'app-server')) {
+    required.push(...desktopAppServerProviders.map((provider) => resolveDesktopAppServerPath(root, provider, platform, arch)))
+  }
+  return required
+}
+
+export function verifyBundledPackageResources(releaseDir, platform = process.platform, manifest) {
+  if (!existsSync(releaseDir)) {
+    return `Electron release directory does not exist: ${releaseDir}`
+  }
+  const resourceDirs = findUnpackedResourceDirs(releaseDir, platform)
+  if (resourceDirs.length === 0) {
+    return `No unpacked Electron resources directory found for ${platform}: ${releaseDir}`
+  }
+  const missing = []
+  for (const resource of manifest?.resources ?? []) {
+    if (resource.required !== true) continue
+    const expected = resourceDirs.map((resourcesPath) => resolve(resourcesPath, resource.to))
+    if (!expected.some((path) => existsSync(path))) {
+      missing.push(`${resource.id}: expected one of ${expected.join(', ')}`)
+    }
+  }
+  return missing.length > 0
+    ? ['Bundled package resources are missing declared manifest entries.', ...missing].join('\n')
+    : ''
+}
+
+function manifestResource(manifest, id) {
+  return manifest?.resources?.find((resource) => resource.id === id)
+}
+
+function manifestHasResource(manifest, id) {
+  return Boolean(manifestResource(manifest, id))
 }
 
 export function verifyDesktopAppServerBinary(path) {

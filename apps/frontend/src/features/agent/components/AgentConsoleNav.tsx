@@ -6,8 +6,8 @@ import {
   AgentConsoleNavList,
   AgentConsoleNavMeta,
   AgentConsoleNavMetaRow,
-  AgentConsoleNavShell,
-} from '@movscript/ui'
+  AgentConsoleNavShell
+} from '@/features/agent/components/AgentConsoleNavUi'
 import { ROUTES } from '@/routes/projectRoutes'
 import {
   enabledProviders,
@@ -30,7 +30,7 @@ const agentConsoleSections = [
     tab: 'console:model-providers',
     to: ROUTES.modelProviders,
     label: 'Model Providers',
-    description: '本地模型供应商、Base URL、API Key',
+    description: '后端模型路由与高级直连覆盖',
     icon: Database,
   },
   {
@@ -60,7 +60,7 @@ const agentConsoleSections = [
     tab: 'console:workspace',
     to: ROUTES.workspaceConfig,
     label: 'Workspace',
-    description: 'edit、.interpret、.movscript/providers',
+    description: 'source、.movscript/providers',
     icon: FileCog,
     match: [ROUTES.workspaceConfig, ROUTES.workspaceReview],
   },

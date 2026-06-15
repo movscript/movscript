@@ -1,11 +1,14 @@
 import type { BackendStatus } from '../services/backend'
 import { registerEmbeddedBrowserIpcHandlers } from './embeddedBrowserIpc'
 import { registerPluginCatalogPackStoreIpcHandlers } from './pluginCatalogPackStoreIpc'
+import { registerProjectPluginStoreIpcHandlers } from './projectPluginStoreIpc'
 import { registerMovScriptWorkspaceFilesIpcHandlers } from './movscriptWorkspaceFilesIpc'
 import { registerMovScriptEngineIpcHandlers } from './movscriptEngineIpc'
 import { registerMovScriptWorkspaceRootIpcHandlers } from './movscriptWorkspaceRootIpc'
 import { registerBackendIpcHandlers } from './backendIpc'
+import { registerBackendAuthIpcHandlers } from './backendAuthIpc'
 import { registerAppServerIpcHandlers } from './appServerIpc'
+import { registerAppUpdateIpcHandlers } from './appUpdateIpc'
 import { registerDialogIpcHandlers } from './dialogIpc'
 import { registerMCPIpcHandlers } from './mcpIpc'
 import { registerMovScriptWorkspaceConfigIpcHandlers } from './movscriptWorkspaceConfigIpc'
@@ -25,9 +28,12 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerDialogIpcHandlers()
   registerMCPIpcHandlers()
   registerBackendIpcHandlers()
+  registerBackendAuthIpcHandlers()
+  registerAppUpdateIpcHandlers()
   registerWindowIpcHandlers()
   registerEmbeddedBrowserIpcHandlers()
   registerPluginCatalogPackStoreIpcHandlers()
+  registerProjectPluginStoreIpcHandlers()
   registerSettingsIpcHandlers(deps)
   registerMovScriptWorkspaceConfigIpcHandlers()
   registerMovScriptEngineIpcHandlers()

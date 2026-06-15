@@ -11,6 +11,8 @@ import {
   summarizeAgentControlThreads,
 } from '@/features/agent/application/agentControlCenter'
 import { listProviderSessionRunSummariesFromProviderSessions, listProviderSessionThreadSummariesFromWorkspace } from '@/features/agent/application/providerSessionThreadQueryCache'
+import { providerSessionKeys, providerSessionRunKeys, providerSessionThreadKeys } from '@/features/agent/application/providerSessionQueryKeys'
+import { agentConsoleKeys } from '@/features/agent/application/agentQueryKeys'
 import {
   enabledProviders,
   normalizeProviderSettings,
@@ -29,22 +31,22 @@ import {
 
 export function useAgentControlCenter() {
   const providerSessionsQuery = useQuery({
-    queryKey: ['agent-console-provider-sessions', 'workspace'],
+    queryKey: providerSessionKeys.workspace,
     queryFn: () => providerSessionClient.listProviderSessionsFromWorkspace().then((result) => result.sessions),
     retry: false,
   })
   const modelQuery = useQuery({
-    queryKey: ['agent-console-provider-model-config'],
+    queryKey: agentConsoleKeys.providerModelConfig,
     queryFn: () => providerSessionClient.getProviderModelConfig(),
     retry: false,
   })
   const runsQuery = useQuery({
-    queryKey: ['agent-console-runs', 'provider-sessions'],
+    queryKey: providerSessionRunKeys.console,
     queryFn: () => listProviderSessionRunSummariesFromProviderSessions(),
     retry: false,
   })
   const threadsQuery = useQuery({
-    queryKey: ['agent-console-threads', 'provider-sessions'],
+    queryKey: providerSessionThreadKeys.console,
     queryFn: () => listProviderSessionThreadSummariesFromWorkspace({ includeProvisional: true }),
     retry: false,
   })
@@ -68,7 +70,7 @@ export function useAgentControlCenter() {
   }, [defaultProvider, enabledProvidersForConsole])
   const appServerProfile = useMemo(() => appServerProvider ? resolveAppServerProfile(appServerProvider) : undefined, [appServerProvider])
   const appServerStatusQuery = useQuery({
-    queryKey: ['agent-console-control-app-server-status', appServerProvider?.id ?? 'none', appServerProfile?.id ?? 'none'],
+    queryKey: agentConsoleKeys.controlAppServerStatus(appServerProvider?.id ?? 'none', appServerProfile?.id ?? 'none'),
     queryFn: async () => {
       if (!appServerProvider || !appServerProfile) {
         return {
@@ -105,7 +107,7 @@ export function useAgentControlCenter() {
     })
   }, [appServerProvider?.id, appServerRunning, enabledProvidersForConsole])
   const capabilityHealthQuery = useQuery({
-    queryKey: ['agent-control-capability-health', capabilityProviders.map(providerControlHealthKey).join('|')],
+    queryKey: agentConsoleKeys.controlCapabilityHealth(capabilityProviders.map(providerControlHealthKey).join('|')),
     queryFn: () => inspectAgentControlProviderCapabilities(capabilityProviders),
     enabled: capabilityProviders.length > 0,
     retry: false,

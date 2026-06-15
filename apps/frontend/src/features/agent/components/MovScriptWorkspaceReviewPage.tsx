@@ -1,8 +1,16 @@
-import { useMemo } from 'react'
+import {
+  useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link,
+  useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, ClipboardCheck, RefreshCw } from 'lucide-react'
+import { ArrowRight,
+  ClipboardCheck,
+  RefreshCw } from 'lucide-react'
+import {
+  AgentPageShell,
+  AgentPageShellHeader,
+} from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
   AgentConsoleHeader,
@@ -12,8 +20,8 @@ import {
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
   AgentConsoleStatusBadge,
-  AgentPageShell,
-  AgentPageShellHeader,
+} from '@/features/agent/components/AgentConsoleUi'
+import {
   AgentWorkspaceReviewEffectsList,
   AgentWorkspaceReviewEmptyBlock,
   AgentWorkspaceReviewJsonBlock,
@@ -31,9 +39,11 @@ import {
   AgentWorkspaceStateRow,
   AgentWorkspaceStateSpinner,
   AgentWorkspacesPageBody,
-  AgentWorkspacesPageFullMain,
-} from '@movscript/ui'
+  AgentWorkspacesPageFullMain
+} from '@/features/agent/components/AgentPageWorkspaceUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
+import { requireWorkspaceFileReadAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
+import { movScriptWorkspaceKeys } from '@/features/agent/application/movScriptWorkspaceQueryKeys'
 import type { ElectronMovScriptWorkspaceFileReadResult } from '@/shared/contracts/electronApi'
 
 export default function MovScriptWorkspaceReviewPage() {
@@ -41,8 +51,8 @@ export default function MovScriptWorkspaceReviewPage() {
   const reviewPath = searchParams.get('path')?.trim() || searchParams.get('reviewPath')?.trim() || ''
   const businessReviewPath = searchParams.get('businessReviewPath')?.trim() || ''
   const reviewQuery = useQuery<ElectronMovScriptWorkspaceFileReadResult>({
-    queryKey: ['movscript-workspace-review-file', reviewPath],
-    queryFn: () => requireWorkspaceFilesAPI().read({ path: reviewPath }),
+    queryKey: movScriptWorkspaceKeys.reviewFile(reviewPath),
+    queryFn: () => requireWorkspaceFileReadAPI().read({ path: reviewPath }),
     enabled: Boolean(reviewPath),
     retry: false,
   })
@@ -187,16 +197,6 @@ function StateRow({ icon, text, tone = 'muted' }: { icon?: ReactNode; text: stri
       <span>{text}</span>
     </AgentWorkspaceStateRow>
   )
-}
-
-function requireWorkspaceFilesAPI() {
-  const api = window.api
-  if (!api?.readMovScriptWorkspaceFile) {
-    throw new Error('当前窗口没有 MovScript Workspace 文件读取能力')
-  }
-  return {
-    read: api.readMovScriptWorkspaceFile,
-  }
 }
 
 function parseJSONRecord(content?: string): { record?: Record<string, unknown>; error?: string } {

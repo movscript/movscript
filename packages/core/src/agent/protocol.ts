@@ -1,14 +1,12 @@
 export const AGENT_PROTOCOL_VERSION = 'movscript.agent.protocol.v1'
 export const PROVIDER_SESSION_SNAPSHOT_V2_SCHEMA = 'movscript.agent.provider-session-snapshot.v2'
 export const PROVIDER_SESSION_EVENT_V2_SCHEMA = 'movscript.agent.provider-session-event.v2'
-export const PROVIDER_SESSION_SNAPSHOT_COMPAT_SCHEMA = 'movscript.agent.runtime-snapshot.v2'
-export const PROVIDER_SESSION_EVENT_COMPAT_SCHEMA = 'movscript.agent.runtime-event.v2'
 export const AGENT_CLIENT_TELEMETRY_SCHEMA = 'movscript.agent.client-telemetry.v1'
 export const MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript.media.artifacts.v1'
 export const MEDIA_PROVIDER_CONTRACT_V1_SCHEMA = 'movscript.media.provider_contract.v1'
 
-export type ProviderSessionSnapshotV2Schema = typeof PROVIDER_SESSION_SNAPSHOT_V2_SCHEMA | typeof PROVIDER_SESSION_SNAPSHOT_COMPAT_SCHEMA
-export type ProviderSessionEventV2Schema = typeof PROVIDER_SESSION_EVENT_V2_SCHEMA | typeof PROVIDER_SESSION_EVENT_COMPAT_SCHEMA
+export type ProviderSessionSnapshotV2Schema = typeof PROVIDER_SESSION_SNAPSHOT_V2_SCHEMA
+export type ProviderSessionEventV2Schema = typeof PROVIDER_SESSION_EVENT_V2_SCHEMA
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue }
 
@@ -642,10 +640,7 @@ export interface AgentRunConfigurationSnapshot {
   }
   activeConfigFileId: string
   providerSessionLimits: ProviderSessionLimits
-  /** Compatibility field accepted from older run configuration snapshots. */
-  runtimeLimits?: ProviderSessionLimits
   activeProviderManifest: ProviderManifest
-  /** Compatibility alias for older run configuration snapshots. */
   activeAgentManifest?: ProviderManifest
   toolPermissionOverridesByConfigFile: Record<string, Array<{
     name: string
@@ -1118,8 +1113,6 @@ export interface AgentRun {
   pendingApprovals?: AgentApprovalRequest[]
   pendingInputRequests?: ProviderSessionInputRequest[]
   providerSessionLimits: ProviderSessionLimits
-  /** Compatibility alias for older provider run projections. New UI code should use providerSessionLimits. */
-  runtimeLimits?: ProviderSessionLimits
   metadata?: Record<string, JSONValue>
   createdAt: string
   updatedAt: string
@@ -1154,13 +1147,6 @@ export interface CreateMessageRunResult {
   run: AgentRun
   message: AgentMessage
   providerSessionInput?: {
-    accepted: boolean
-    runId: string
-    messageId: string
-    deliveryStatus: ProviderSessionInputDeliveryStatus
-  }
-  /** Legacy provider wire key. New client code should use providerSessionInput. */
-  runtimeInput?: {
     accepted: boolean
     runId: string
     messageId: string
@@ -1529,8 +1515,6 @@ export interface AgentTimelineItem {
   /** Opaque pagination token. Clients must not parse it for display ordering. */
   cursor: string
   providerSessionRefs: AgentTimelineProviderSessionRefs
-  /** Legacy provider payload key accepted at the HTTP/stream boundary. New UI code should use providerSessionRefs. */
-  runtimeRefs?: AgentTimelineProviderSessionRefs
 }
 
 export interface AgentTimelinePage {
@@ -1810,8 +1794,6 @@ export interface AgentRunPreview {
   skills?: ResolvedProviderSkill[]
   tools?: ResolvedToolCatalog
   providerSessionLimits?: ProviderSessionLimits
-  /** Compatibility alias for older provider preview responses. New UI code should use providerSessionLimits. */
-  runtimeLimits?: ProviderSessionLimits
   promptPreview?: CompiledPromptPreview
   debug?: AgentRunDebugTrace
   toolCalls: ToolCall[]
@@ -2036,10 +2018,6 @@ export interface AgentChatMessageMeta {
   localRunActivity?: Record<string, unknown>
   providerSessionMessage?: ProviderSessionMessageRef
   providerSessionInput?: ProviderSessionInputRef
-  /** Legacy provider-session message ref accepted from older UI/test fixtures. New code should prefer providerSessionMessage. */
-  runtimeMessage?: ProviderSessionMessageRef
-  /** Legacy provider-session input ref accepted from older UI/test fixtures. New code should prefer providerSessionInput. */
-  runtimeInput?: ProviderSessionInputRef
   generationJobs?: AgentGenerationJob[]
   generationParamAudits?: AgentGenerationParamAudit[]
   generationValidationErrors?: AgentGenerationValidationError[]
@@ -2047,11 +2025,11 @@ export interface AgentChatMessageMeta {
 }
 
 export function providerSessionMessageRef(message: { meta?: AgentChatMessageMeta }): ProviderSessionMessageRef | undefined {
-  return message.meta?.providerSessionMessage ?? message.meta?.runtimeMessage
+  return message.meta?.providerSessionMessage
 }
 
 export function providerSessionInputRef(message: { meta?: AgentChatMessageMeta }): ProviderSessionInputRef | undefined {
-  return message.meta?.providerSessionInput ?? message.meta?.runtimeInput
+  return message.meta?.providerSessionInput
 }
 
 export interface AgentPendingActiveRunInputQueueItem {

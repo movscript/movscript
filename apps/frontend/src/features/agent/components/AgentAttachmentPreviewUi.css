@@ -1,0 +1,49 @@
+.agent-attachment-preview {
+  width: 100%;
+  overflow: hidden;
+}
+
+.agent-attachment-preview[data-density="compact"] {
+  width: 7rem;
+}
+
+.agent-attachment-preview__media {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ms-color-muted) 76%, transparent);
+}
+
+.agent-attachment-preview__media[data-surface="dark"] {
+  background: #000;
+}
+
+.agent-attachment-preview__media > img,
+.agent-attachment-preview__media > video {
+  width: 100%;
+  height: 14rem;
+  max-height: 45vh;
+  object-fit: contain;
+}
+
+.agent-attachment-preview[data-density="compact"] .agent-attachment-preview__media > img,
+.agent-attachment-preview[data-density="compact"] .agent-attachment-preview__media > video {
+  height: 5rem;
+  max-height: 5rem;
+}
+
+.agent-attachment-preview__fallback {
+  display: flex;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ms-color-muted) 46%, transparent);
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-attachment-preview__body {
+  min-width: 0;
+  padding: 4px 8px;
+}

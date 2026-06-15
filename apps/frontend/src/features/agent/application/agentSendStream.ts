@@ -3,10 +3,11 @@ import { generationProgressFromEvents } from '@/features/agent/domain/agentGener
 import { isStoppableAgentRun, isTerminalAgentRun, type RunControlProviderSessionPatch } from '@/features/agent/domain/agentRunControl'
 import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { setActivityEventStatus } from '@/features/agent/application/agentSendActivity'
-import type { AgentRun, ProviderSessionEventV2, ProviderSessionLimits } from '@/shared/infrastructure/providerSessionClient'
+import type { AgentRun, ProviderSessionEventV2 } from '@/shared/infrastructure/providerSessionClient'
 import type { AgentPageTaskRunningPatch } from '@/features/agent/state/agentSessionStore'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import { providerSessionRunFromEvent, providerSessionThreadTitleFromEvent } from '@/shared/infrastructure/provider-session-client/providerSessionEventFacts'
+import { normalizeOptionalAgentRun } from '@/shared/infrastructure/provider-session-client/providerSessionHttpProtocol'
 
 export interface AgentSendRunUpdateDeps {
   conversationId: string
@@ -97,7 +98,7 @@ export function handleSendProviderSessionEvent(event: ProviderSessionEventV2, de
   if (title) {
     deps.updateConversationTitle(title)
   }
-  const run = normalizeProviderSessionEventRun(providerSessionRunFromEvent(event))
+  const run = normalizeOptionalAgentRun(providerSessionRunFromEvent(event))
   if (run?.id) {
     const completedAt = (deps.now ?? (() => new Date()))().toISOString()
     deps.updateActivityEvents((current) => current.map((item) => (
@@ -108,20 +109,6 @@ export function handleSendProviderSessionEvent(event: ProviderSessionEventV2, de
     deps.onRunUpdate?.(run)
   }
   deps.recordLiveTraceEvent(event)
-}
-
-type AgentRunCompatInput = Omit<AgentRun, 'providerSessionLimits'> & {
-  providerSessionLimits?: ProviderSessionLimits
-  runtimeLimits?: ProviderSessionLimits
-}
-
-function normalizeProviderSessionEventRun(run: AgentRunCompatInput | undefined): AgentRun | undefined {
-  if (!run) return undefined
-  const providerSessionLimits = run.providerSessionLimits ?? run.runtimeLimits
-  return {
-    ...run,
-    ...(providerSessionLimits ? { providerSessionLimits } : {}),
-  } as AgentRun
 }
 
 function shouldKeepCurrentInteractionRun(currentRun: AgentRun | undefined, nextRun: AgentRun): boolean {

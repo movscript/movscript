@@ -3,10 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -16,21 +12,19 @@ import {
   type NodeChange,
   ReactFlowProvider,
   useReactFlow,
-  SelectionMode,
-  ConnectionMode,
   MarkerType,
-  PanOnScrollMode,
-  ViewportPortal,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-
 import { api } from '@/shared/infrastructure/api'
-import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, RawResource } from '@/types'
+import { canvasKeys } from '@/features/canvas/application/canvasQueryKeys'
 import {
-	TextNode, ImageNode, VideoNode, ToolNode,
-	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode,
-} from '@/features/canvas/ui/CanvasNodes'
-import { ContextMenu } from '@/features/canvas/ui/ContextMenu'
+  canvasListChangedResult,
+  commitCanvasRenameMutation,
+  invalidateCanvasMutationResult,
+  prepareCanvasRenameMutation,
+  restoreCanvasRenameMutation,
+} from '@/features/canvas/application/canvasMutationInvalidation'
+import type { Canvas, CanvasNodeData, CanvasParamType, CanvasType, NodeType, RawResource } from '@/types'
 import { useCanvasWorkflowReferencePorts } from '@/features/canvas/integrations/workflowReferences'
 import {
   fileToCanvasResourceNodeType,
@@ -39,46 +33,36 @@ import {
   useCanvasResourceIntegration,
 } from '@/features/canvas/integrations/resources'
 import { toast } from '@/shared/ui/toastStore'
-import { useCanvasHeaderStore } from '@/features/canvas/presentation/canvasHeaderStore'
 import {
-  canvasRenderDiagnosticsEnabled,
-  compactCanvasDebugOptions,
   parseCanvasDebugOptions,
 } from '@/features/canvas/presentation/canvasDebugOptions'
 import { useRouteLayoutPaneController } from '@/features/app-shell/application/useRouteLayoutPaneController'
 import {
   CANVAS_WORKFLOW_PANE_ID,
-  CANVAS_WORKFLOW_PANE_MAX_WIDTH,
-  CANVAS_WORKFLOW_PANE_MIN_WIDTH,
   routeLayoutSpecForPathname,
 } from '@/routes/routeLayoutRegistry'
 import {
-  CANVAS_NODE_CATALOG,
-  CANVAS_NODE_CATEGORIES,
   CANVAS_NODE_META,
 } from '@/features/canvas/presentation/nodeCatalog'
 import {
-  canvasGroupAncestorIds,
-  canvasGroupDescendantIds,
-  canvasGroupSelectionBounds,
-  canvasNodeGroupId,
-  canvasNodeWithGroupId,
-  commonCanvasGroupId,
-  findCanvasGroupDropTarget,
-  isCanvasNodeOutsideGroupBounds,
-  resizeCanvasGroupsToFitMembers,
-  resolveCanvasGroupPromotionId,
-  shouldUseCanvasMediaLightweightMode,
-  topLevelSelectedCanvasNodes,
+  CANVAS_MINIMAP_NODE_LIMIT,
+  SIDEBAR_HIDDEN_NODE_TYPES,
+  canvasNodeIsAiProcessor,
+  canvasNodeIsDone,
+  canvasNodeIsRunning,
+  canvasEditorNodeTypes,
+  clampCanvasWorkflowPaneWidth,
+} from '@/features/canvas/components/canvasEditorModel'
+import {
   type CanvasClientPoint,
   type CanvasFlowCoordinateSpace,
 } from '@/features/canvas/domain/layout'
 import {
   acceptCanvasDropDragOver,
   readCanvasDropPayload,
-  startCanvasNodeTemplateDrag,
 } from '@/features/canvas/domain/canvasDropTarget'
-import { compareWorkflowIoNodes, isFinalOutputNode } from '@/features/canvas/domain/graph'
+import { isFinalOutputNode } from '@/features/canvas/domain/graph'
+import { useCanvasExitController } from '@/features/canvas/application/useCanvasExitController'
 import {
   arePortTypesCompatible,
   defaultHandleForNode,
@@ -89,172 +73,50 @@ import {
   toUiHandleId,
 } from '@/features/canvas/domain/ports'
 import { useCanvasDocument } from '@/features/canvas/editor/useCanvasDocument'
+import { useCanvasSaveShortcut } from '@/features/canvas/application/useCanvasBrowserGuards'
+import { CanvasEditorAuxiliaryPanels } from '@/features/canvas/components/CanvasEditorAuxiliaryPanels'
+import { CanvasEditorChromeBar } from '@/features/canvas/components/CanvasEditorChromeBar'
+import { CanvasEditorNodePalette } from '@/features/canvas/components/CanvasEditorNodePalette'
+import { CanvasEditorViewport } from '@/features/canvas/components/CanvasEditorViewport'
 import {
   createCanvasEdgeId,
-  createCanvasNodeId,
   createPaletteCanvasNode,
   createResourceCanvasNode,
   createWorkflowReferenceCanvasNode,
   isPaletteNodeTypeAvailable,
 } from '@/features/canvas/editor/nodeFactory'
-import { CanvasResourceShelf } from '@/features/canvas/ui/CanvasResourceShelf'
-import { WorkflowRunResultsDialog, WorkflowSidePanel } from '@/features/canvas/ui/CanvasWorkflowPanels'
-import { useCanvasRuntimeStore } from '@/features/canvas/runtime/runHistoryStore'
-import { useCanvasRuntimeExecutor } from '@/features/canvas/runtime/useCanvasRuntimeExecutor'
 import {
-  defaultRuntimeValueForPort,
-  encodeRuntimePortValue,
-  hasValueForPort,
-  portForWorkflowInputNode,
-  runtimeInputPortsForNode,
-} from '@/features/canvas/runtime/runtimeValues'
-import {
-  CanvasDropOverlay,
-  CanvasEditorActionButton,
-  CanvasEditorChrome,
-  CanvasEditorChromeContent,
   CanvasEditorContent,
-  CanvasEditorIconButton,
   CanvasEditorMain,
-  CanvasEditorMetricBadge,
-  CanvasEditorNameButton,
-  CanvasEditorNameInput,
-  CanvasEditorRunningBadge,
   CanvasEditorShell,
-  CanvasEditorStats,
-  CanvasEditorStatusBadge,
-  CanvasEditorTitleArea,
-  CanvasEditorTitleRow,
-  CanvasEditorTypeBadge,
-  CanvasPaletteCollapsedBody,
-  CanvasPaletteCollapsedGroup,
-  CanvasPaletteCollapsedItemButton,
-  CanvasPaletteCollapsedItems,
-  CanvasPaletteEmpty,
-  CanvasPaletteExpandedBody,
-  CanvasPaletteHeader,
-  CanvasPaletteHint,
-  CanvasPaletteInner,
-  CanvasPaletteItemButton,
-  CanvasPaletteItemGrid,
-  CanvasPalettePanel,
-  CanvasPaletteSection,
-  CanvasPaletteSectionDescription,
-  CanvasPaletteSectionHeader,
-  CanvasPaletteSections,
-  CanvasPaletteSectionTitle,
-  CanvasRuntimeInputDialogActionButton,
-  CanvasRuntimeInputDialogActions,
-  CanvasRuntimeInputDialogBody,
-  CanvasRuntimeInputDialogCheckbox,
-  CanvasRuntimeInputDialogField,
-  CanvasRuntimeInputDialogFieldLabel,
-  CanvasRuntimeInputDialogHeader,
-  CanvasRuntimeInputDialogInput,
-  CanvasRuntimeInputDialogShell,
-  CanvasRuntimeInputDialogTextarea,
-  CanvasSelectionFrame,
-  CanvasViewportActionButton,
-  CanvasViewportBoundsLayer,
-  CanvasViewportEmptyOverlay,
-  CanvasViewportEmptyState,
-  CanvasViewportOverlayLayer,
-  CanvasViewportPane,
-  CanvasViewportSelectionActionButton,
-  CanvasViewportStatusOverlay,
-  canvasFlowBackgroundColor,
-  canvasFlowClassName,
-} from '@movscript/ui'
-import { cn } from '@/shared/ui/cn'
+} from '@/features/canvas/ui/CanvasEditorUi'
 import { canvasBackPath } from '@/routes/appRouteModel'
+import { useCanvasEditorRenderDiagnostics } from '@/features/canvas/presentation/useCanvasEditorRenderDiagnostics'
+import { useCanvasEditorPaletteSections } from '@/features/canvas/presentation/useCanvasEditorPaletteSections'
+import { useCanvasGroupEditing } from '@/features/canvas/presentation/useCanvasGroupEditing'
 import { useInlineTitleEditor } from '@/features/canvas/presentation/useInlineTitleEditor'
-import { logCanvasRenderDiagnostics } from '@/features/canvas/presentation/canvasRenderDiagnostics'
+import { useCanvasRuntimeControls } from '@/features/canvas/presentation/useCanvasRuntimeControls'
+import { useCanvasViewportPerformanceState } from '@/features/canvas/presentation/useCanvasViewportPerformanceState'
 import {
   canvasClientPointFromEvent,
   canvasDefaultClientPointFromViewportElement,
   canvasOverlayPointFromClient as canvasOverlayPointFromViewportElement,
-  canvasRenderDiagnosticViewport,
   canvasViewportContextMenuBoundary,
   canvasViewportDropHitBoxFromEvent,
-  canvasViewportSizeFromElement,
 } from '@/features/canvas/presentation/canvasViewportGeometry'
-import {
-  ArrowLeft,
-  GripVertical,
-  Layers3,
-  Loader2,
-  MousePointer2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  Play,
-  Save,
-  Search,
-  Sparkles,
-  Workflow,
-  Zap,
-  Lightbulb,
-  Ungroup,
-} from 'lucide-react'
-
-const nodeTypes = {
-  text: TextNode,
-  image: ImageNode,
-  video: VideoNode,
-  canvas: ToolNode,
-  ref_image_gen: ToolNode,
-  ref_video_gen: ToolNode,
-  multi_angle: ToolNode,
-  style_transfer: ToolNode,
-  motion_imitation: ToolNode,
-	input: InputNode,
-	output: OutputNode,
-	resource_sink: ResourceSinkNode,
-	approval: ApprovalNode,
-  text_gen: TextGenNode,
-  ai_gen: AIGenNode,
-  group: GroupNode,
-}
-
-const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
-const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval', 'resource_sink', 'canvas'])
-const CANVAS_GRID_MIN_ZOOM = 0.65
-const CANVAS_OVERVIEW_MIN_ZOOM = 0.45
-const CANVAS_BUSY_OVERVIEW_MIN_ZOOM = 0.8
-const CANVAS_OVERVIEW_NODE_LIMIT = 80
-const CANVAS_MINIMAP_NODE_LIMIT = 60
-
-function clampCanvasWorkflowPaneWidth(width: number) {
-  return Math.min(
-    CANVAS_WORKFLOW_PANE_MAX_WIDTH,
-    Math.max(CANVAS_WORKFLOW_PANE_MIN_WIDTH, Math.round(Number(width) || 0)),
-  )
-}
-
-type CanvasGroupDragSnapshot = {
-  nodeId: string
-  position: { x: number; y: number }
-  memberPositions: Map<string, { x: number; y: number }>
-}
+import { useCanvasAppHeaderSync } from '@/features/canvas/presentation/useCanvasAppHeaderSync'
 
 type CanvasContextMenuPosition = {
   client: CanvasClientPoint
   overlay: CanvasClientPoint
   boundary: { width: number; height: number }
 }
-
-function shouldUseCanvasOverviewMode(zoom: number, nodeCount: number) {
-  return zoom < CANVAS_OVERVIEW_MIN_ZOOM || (nodeCount > CANVAS_OVERVIEW_NODE_LIMIT && zoom < CANVAS_BUSY_OVERVIEW_MIN_ZOOM)
-}
-
-interface CanvasWorkspaceProps {
+export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = false, onClose }: {
   canvasId: number | string
   embedded?: boolean
   useAppHeader?: boolean
   onClose?: () => void
-}
-
-export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = false, onClose }: CanvasWorkspaceProps) {
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -272,25 +134,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [menu, setMenu] = useState<CanvasContextMenuPosition | null>(null)
   const [libraryCollapsed, setLibraryCollapsed] = useState(true)
   const toggleLibraryCollapsed = useCallback(() => setLibraryCollapsed((value) => !value), [])
-  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const viewportZoomRef = useRef(1)
   const viewportPositionRef = useRef({ x: 0, y: 0 })
-  const groupDragSnapshotRef = useRef<CanvasGroupDragSnapshot | null>(null)
-  const [gridZoomEligible, setGridZoomEligible] = useState(true)
-  const [canvasOverviewMode, setCanvasOverviewMode] = useState(false)
-  const [canvasMediaLightweightMode, setCanvasMediaLightweightMode] = useState(false)
-  const renderDiagnosticsTimerRef = useRef<number | null>(null)
+  const canvasPaneRef = useRef<HTMLDivElement>(null)
+  const {
+    canvasMediaLightweightMode,
+    canvasOverviewMode,
+    gridZoomEligible,
+    handleViewportMove,
+  } = useCanvasViewportPerformanceState({
+    canvasPaneRef,
+    nodes,
+    viewportPositionRef,
+    viewportZoomRef,
+  })
 
-  // Workflow input dialog
-  const [runDialogOpen, setRunDialogOpen] = useState(false)
-  const [inputValues, setInputValues] = useState<Record<string, string>>({})
-  const [nodeRunDialog, setNodeRunDialog] = useState<{ nodeId: string; ports: CanvasPortDef[] } | null>(null)
-  const [nodeRunValues, setNodeRunValues] = useState<Record<string, string>>({})
-	  const [activeRunId, setActiveRunId] = useState<string | null>(null)
-	  const [runHistoryPage, setRunHistoryPage] = useState(1)
-	  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRunStatus>('all')
-	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'workflows' | 'history'>('resources')
   const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(false)
   const workflowPane = useRouteLayoutPaneController({
     routeLayout,
@@ -303,11 +162,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     if (workflowPane.collapsed) workflowPane.show()
     else workflowPane.collapse()
   }, [workflowPane])
-	  const [runResultDialogRunId, setRunResultDialogRunId] = useState<string | null>(null)
   const [runtimeStarting, setRuntimeStarting] = useState(false)
-
-  const pendingResultRunIdsRef = useRef<Set<string>>(new Set())
-  const canvasPaneRef = useRef<HTMLDivElement>(null)
   const canvasCoordinateSpace = useMemo<CanvasFlowCoordinateSpace>(() => ({
     fromClient: (point) => screenToFlowPosition(point),
     defaultClientPoint: () => canvasDefaultClientPointFromViewportElement(canvasPaneRef.current),
@@ -322,14 +177,9 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       boundary: canvasViewportContextMenuBoundary(canvasPaneRef.current),
     })
   }, [canvasOverlayPointFromClient])
-  const runHistoryPageSize = 8
-	  const setCanvasHeader = useCanvasHeaderStore((s) => s.setHeader)
-	  const resetCanvasHeader = useCanvasHeaderStore((s) => s.reset)
-	  const runtimeRunsByCanvasId = useCanvasRuntimeStore((s) => s.runsByCanvasId)
-
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
-    queryKey: ['canvas', id],
+    queryKey: canvasKeys.detail(id),
     queryFn: () => api.get(`/canvases/${id}`).then((r) => r.data),
     enabled: !!id
   })
@@ -337,26 +187,20 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     mutationFn: (name: string) => api.patch(`/canvases/${id}`, { name }).then((response) => response.data as Canvas),
     onMutate: async (name) => {
       const nextName = name.trim()
-      await queryClient.cancelQueries({ queryKey: ['canvas', id] })
-      const previousCanvas = queryClient.getQueryData<Canvas>(['canvas', id])
+      const context = await prepareCanvasRenameMutation(queryClient, id, name)
       setCanvasName(nextName)
-      if (previousCanvas) {
-        queryClient.setQueryData<Canvas>(['canvas', id], { ...previousCanvas, name: nextName })
-      }
-      return { previousCanvas }
+      return context
     },
     onError: (err: any, _name, context) => {
-      if (context?.previousCanvas) {
-        queryClient.setQueryData(['canvas', id], context.previousCanvas)
-        setCanvasName(context.previousCanvas.name)
-      }
+      const previousCanvas = restoreCanvasRenameMutation(queryClient, id, context)
+      if (previousCanvas) setCanvasName(previousCanvas.name)
       toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.renameFailed', { defaultValue: '重命名失败' }))
     },
     onSuccess: (nextCanvas) => {
-      queryClient.setQueryData<Canvas>(['canvas', id], (current) => current ? { ...current, name: nextCanvas.name } : nextCanvas)
+      commitCanvasRenameMutation(queryClient, id, nextCanvas)
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['canvases'] })
+      invalidateCanvasMutationResult(queryClient, canvasListChangedResult({ changedIds: [id] }))
     },
   })
   const {
@@ -388,23 +232,44 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     removeFailedMessage: t('canvas.editor.runResults.removeFailed', { defaultValue: 'Failed to remove resource' }),
   })
   const {
-    executeCanvasRuntime,
-    submitRunNode,
-  } = useCanvasRuntimeExecutor({
+    activeRun,
+    activeRunId,
+    handleConfirmNodeRun,
+    handleConfirmRun,
+    handleRunWorkflow,
+    inputNodes,
+    inputValues,
+    nodeRunDialog,
+    nodeRunValues,
+    resultDialogRun,
+    runDialogOpen,
+    runHistoryPage,
+    runNode,
+    runStatusFilter,
+    setActiveRunId,
+    setInputValues,
+    setNodeRunDialog,
+    setNodeRunValues,
+    setRunDialogOpen,
+    setRunHistoryPage,
+    setRunResultDialogRunId,
+    setRunStatusFilter,
+    setWorkflowPanelTab,
+    workflowPanelTab,
+    workflowRunPageCount,
+    workflowRuns,
+    workflowRunningCount,
+    workflowRunTotal,
+  } = useCanvasRuntimeControls({
     canvasId: id,
-    projectId: canvas?.project_id,
-    nodes,
+    canvasType,
     edges,
-    setNodes,
-    resourceById: canvasNodeResourceById,
+    nodes,
     persistCanvasGraph,
-    onRunStarted: ({ runId, targetNodeId }) => {
-      setActiveRunId(runId)
-      setRunStatusFilter('all')
-      setRunHistoryPage(1)
-      setWorkflowPanelTab('history')
-      if (!targetNodeId) pendingResultRunIdsRef.current.add(runId)
-    },
+    projectId: canvas?.project_id,
+    resourceById: canvasNodeResourceById,
+    setNodes,
+    setRuntimeStarting,
     t,
   })
   useCanvasWorkflowReferencePorts({ nodes, setNodes })
@@ -412,136 +277,25 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     value: canvasName,
     onCommit: (name) => renameCanvas.mutate(name),
   })
-
-	  const workflowRunsAll = runtimeRunsByCanvasId[id] ?? []
-	  const workflowRunsFiltered = runStatusFilter === 'all'
-	    ? workflowRunsAll
-	    : workflowRunsAll.filter((run) => run.status === runStatusFilter)
-	  const workflowRunTotal = workflowRunsFiltered.length
-	  const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
-	  const workflowRuns = workflowRunsFiltered.slice((runHistoryPage - 1) * runHistoryPageSize, runHistoryPage * runHistoryPageSize)
-	  const activeRun = workflowRunsAll.find((run) => run.id === activeRunId) ?? workflowRunsAll[0]
-
-	  const resultDialogRun = runResultDialogRunId
-	    ? workflowRunsAll.find((run) => run.id === runResultDialogRunId)
-	    : undefined
-
-	  const selectedNodeId = selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : undefined
-
-  useEffect(() => {
-    setRunHistoryPage(1)
-  }, [runStatusFilter])
-
-	  useEffect(() => {
-	    if (canvasType !== 'workflow' || !activeRun) return
-	    if (activeRun.status !== 'done' || Object.keys(activeRun.outputValues ?? {}).length === 0) return
-	    if (!pendingResultRunIdsRef.current.has(activeRun.id)) return
-	    pendingResultRunIdsRef.current.delete(activeRun.id)
-	    setRunResultDialogRunId(activeRun.id)
-	  }, [activeRun?.id, activeRun?.outputValues, activeRun?.status, canvasType])
-
-  const runNode = useCallback(async (nodeId: string) => {
-    const node = nodes.find((n) => n.id === nodeId)
-    if (node?.type === 'input') {
-      const port = portForWorkflowInputNode(node)
-      const data = node.data as Partial<CanvasNodeData>
-      setNodeRunValues({ [port.id]: data.inputValue ?? defaultRuntimeValueForPort(port) })
-      setNodeRunDialog({ nodeId, ports: [port] })
-      return
-    }
-    const workflowInputKeys = new Set<string>()
-    nodes.forEach((item) => {
-      if (item.type !== 'input') return
-      const data = item.data as Partial<CanvasNodeData>
-      if (data.inputValue === undefined) return
-      workflowInputKeys.add(item.id)
-      if (data.paramName) workflowInputKeys.add(data.paramName)
-    })
-    const ports = runtimeInputPortsForNode(node, edges).filter((port) => {
-      if (node?.type !== 'canvas') return true
-      return !workflowInputKeys.has(port.id) && !workflowInputKeys.has(port.label ?? '')
-    })
-    if (ports.length > 0) {
-      setNodeRunValues(Object.fromEntries(ports.map((port) => [port.id, defaultRuntimeValueForPort(port)])))
-      setNodeRunDialog({ nodeId, ports })
-      return
-    }
-    await submitRunNode(nodeId)
-  }, [edges, nodes, submitRunNode])
-
-  const handleConfirmNodeRun = useCallback(async () => {
-    if (!nodeRunDialog) return
-    const encoded: Record<string, CanvasPortValue> = {}
-    const runtimeInputText = nodeRunValues[nodeRunDialog.ports[0]?.id ?? ''] ?? ''
-    for (const port of nodeRunDialog.ports) {
-      const value = encodeRuntimePortValue(port, nodeRunValues[port.id] ?? '')
-      if (!value) {
-        toast.error(t('canvas.editor.errors.invalidRuntimeInput', { port: port.label ?? port.id, defaultValue: `Invalid input for ${port.label ?? port.id}` }))
-        return
-      }
-      if (!hasValueForPort([value]) && port.required) {
-        toast.error(t('canvas.editor.errors.requiredRuntimeInput', { port: port.label ?? port.id, defaultValue: `${port.label ?? port.id} is required` }))
-        return
-      }
-      if (hasValueForPort([value])) encoded[port.id] = value
-    }
-    setNodeRunDialog(null)
-    setNodeRunValues({})
-    setNodes((prev) => prev.map((n) => {
-      if (n.id === nodeRunDialog.nodeId && n.type === 'input') {
-        return { ...n, data: { ...n.data, inputValue: runtimeInputText } }
-      }
-      return n
-    }))
-    await submitRunNode(nodeRunDialog.nodeId, encoded)
-  }, [nodeRunDialog, nodeRunValues, setNodes, submitRunNode, t])
-
-	  // Handle workflow run from the current in-memory graph.
-	  async function handleRunWorkflow() {
-	    const inputNodes = nodes.filter((n) => n.type === 'input')
-	    if (inputNodes.length > 0) {
-      const initial: Record<string, string> = {}
-      inputNodes.forEach((n) => {
-        const data = n.data as Partial<CanvasNodeData>
-        initial[n.id] = data.inputValue ?? defaultRuntimeValueForPort(portForWorkflowInputNode(n))
-      })
-	      setInputValues(initial)
-	      setRunDialogOpen(true)
-	    } else {
-	      setRuntimeStarting(true)
-	      try {
-	        await executeCanvasRuntime(undefined, {})
-	      } finally {
-	        setRuntimeStarting(false)
-	      }
-	    }
-	  }
-
-  function handleConfirmRun() {
-    const encoded: Record<string, CanvasPortValue> = {}
-    for (const node of inputNodes) {
-      const port = portForWorkflowInputNode(node)
-      const value = encodeRuntimePortValue(port, inputValues[node.id] ?? '')
-      if (!value) {
-        toast.error(t('canvas.editor.errors.invalidRuntimeInput', { port: port.label ?? node.id, defaultValue: `Invalid input for ${port.label ?? node.id}` }))
-        return
-      }
-      if (!hasValueForPort([value]) && port.required) {
-        toast.error(t('canvas.editor.errors.requiredRuntimeInput', { port: port.label ?? node.id, defaultValue: `${port.label ?? node.id} is required` }))
-        return
-      }
-      if (hasValueForPort([value])) encoded[node.id] = value
-    }
-    setNodes((prev) => prev.map((n) => {
-      if (n.type === 'input' && inputValues[n.id] !== undefined) {
-        return { ...n, data: { ...n.data, inputValue: inputValues[n.id] } }
-      }
-      return n
-	    }))
-	    setRunDialogOpen(false)
-	    setRuntimeStarting(true)
-	    void executeCanvasRuntime(undefined, encoded).finally(() => setRuntimeStarting(false))
-	  }
+  const visiblePaletteSections = useCanvasEditorPaletteSections(canvasType)
+  const {
+    createGroupFromSelection,
+    deleteSelectedNodes,
+    draggingNodeId,
+    handleNodeDragStop,
+    onNodeDragStart,
+    selectedGroupBounds,
+    selectedUngroupBounds,
+    topLevelSelectedGroups,
+    topLevelSelectedNodes,
+    ungroupSelectedGroups,
+  } = useCanvasGroupEditing({
+    nodes,
+    setEdges,
+    setNodes,
+    setSelectedNodeIds,
+    t,
+  })
 
   // Approval
   function handleApprove(nodeId: string) {
@@ -603,158 +357,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     addNodeAt(type, menu.client)
   }, [addNodeAt, menu])
 
-  // Delete selected nodes. Lightweight groups are removed as containers while members are promoted.
-  const deleteSelectedNodes = useCallback(() => {
-    const selectedGroups = nodes.filter(n => n.selected && n.type === 'group')
-    const directSelected = new Set(nodes.filter(n => n.selected && !isFinalOutputNode(n)).map(n => n.id))
-    if (directSelected.size === 0) return
-    const selectedGroupParentById = new Map<string, string | undefined>(
-      selectedGroups.map((node): [string, string | undefined] => [node.id, canvasNodeGroupId(node)]),
-    )
-    setNodes(prev => prev.flatMap((node) => {
-      if (directSelected.has(node.id)) return []
-      const groupId = canvasNodeGroupId(node)
-      if (!groupId || !selectedGroupParentById.has(groupId)) return node
-      return canvasNodeWithGroupId(node, resolveCanvasGroupPromotionId(groupId, selectedGroupParentById))
-    }))
-    setEdges(prev => prev.filter(e => !directSelected.has(e.source) && !directSelected.has(e.target)))
-    setSelectedNodeIds([])
-  }, [nodes, setNodes, setEdges])
-
-  // Group selected nodes into a new group node
-  const createGroupFromSelection = useCallback(() => {
-    const selected = topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n)))
-    const bounds = canvasGroupSelectionBounds(nodes, selected)
-    if (!bounds) return
-    const groupId = createCanvasNodeId()
-    const parentGroupId = commonCanvasGroupId(selected)
-    const groupNode: Node = {
-      id: groupId,
-      type: 'group',
-      position: { x: bounds.x, y: bounds.y },
-      style: { width: bounds.width, height: bounds.height },
-      zIndex: -1,
-      data: {
-        source: 'manual',
-        label: t('canvas.nodeLabels.group'),
-        isGroup: true,
-        ...(parentGroupId ? { groupId: parentGroupId } : {}),
-      },
-      selected: true,
-    }
-    const selectedIds = new Set(selected.map((node) => node.id))
-    setNodes((prev) => {
-      const nextNodes = prev.map((n) => {
-        if (!selectedIds.has(n.id)) return n
-        const absolutePosition = bounds.absolutePositionByNodeId.get(n.id) ?? n.position
-        return canvasNodeWithGroupId({
-          ...n,
-          position: absolutePosition,
-          selected: false,
-        }, groupId)
-      })
-      return [
-        groupNode,
-        ...nextNodes,
-      ]
-    })
-    setSelectedNodeIds([groupId])
-  }, [nodes, setNodes, t])
-
-  const ungroupSelectedGroups = useCallback(() => {
-    const selectedGroups = topLevelSelectedCanvasNodes(nodes, nodes.filter((node) => node.selected && node.type === 'group'))
-    if (selectedGroups.length === 0) return
-    const selectedGroupIds = new Set(selectedGroups.map((node) => node.id))
-    const groupParentById = new Map<string, string | undefined>(
-      selectedGroups.map((node): [string, string | undefined] => [node.id, canvasNodeGroupId(node)]),
-    )
-    const promotedNodeIds = nodes
-      .filter((node) => selectedGroupIds.has(canvasNodeGroupId(node) ?? ''))
-      .map((node) => node.id)
-    setNodes((prev) => {
-      const nextNodes = prev.flatMap((node) => {
-        if (selectedGroupIds.has(node.id)) return []
-        const groupId = canvasNodeGroupId(node)
-        if (!groupId || !selectedGroupIds.has(groupId)) return node
-        return [{ ...canvasNodeWithGroupId(node, resolveCanvasGroupPromotionId(groupId, groupParentById)), selected: true }]
-      })
-      return resizeCanvasGroupsToFitMembers(nextNodes, nextNodes.filter((node) => node.type === 'group').map((node) => node.id))
-    })
-    setSelectedNodeIds(promotedNodeIds)
-  }, [nodes, setNodes])
-
-  // Drag group containers by moving their lightweight members in batch.
-  const onNodeDragStop = useCallback((_: React.MouseEvent, draggedNode: Node) => {
-    const dragSnapshot = groupDragSnapshotRef.current
-    groupDragSnapshotRef.current = null
-    let nextNodes = nodes.map((node) => node.id === draggedNode.id ? draggedNode : node)
-    if (draggedNode.type === 'group' && dragSnapshot?.nodeId === draggedNode.id) {
-      const dx = draggedNode.position.x - dragSnapshot.position.x
-      const dy = draggedNode.position.y - dragSnapshot.position.y
-      if (dx !== 0 || dy !== 0) {
-        nextNodes = nextNodes.map((node) => {
-          const startPosition = dragSnapshot.memberPositions.get(node.id)
-          if (!startPosition) return node
-          return {
-            ...node,
-            position: {
-              x: startPosition.x + dx,
-              y: startPosition.y + dy,
-            },
-          }
-        })
-      }
-    }
-
-    const currentDraggedNode = nextNodes.find((node) => node.id === draggedNode.id) ?? draggedNode
-    const currentGroupId = canvasNodeGroupId(currentDraggedNode)
-    const currentGroup = currentGroupId ? nextNodes.find((node) => node.id === currentGroupId) : undefined
-    const outsideCurrentGroup = currentGroup ? isCanvasNodeOutsideGroupBounds(currentDraggedNode, currentGroup) : false
-    const excludedGroupIds = currentGroupId && currentGroup && !outsideCurrentGroup
-      ? canvasGroupAncestorIds(nextNodes, currentGroupId)
-      : []
-    const targetGroup = findCanvasGroupDropTarget(currentDraggedNode, nextNodes, { excludedGroupIds })
-
-    if (targetGroup) {
-      const ok = window.confirm(t('canvas.editor.confirmAddToGroup', {
-        defaultValue: '节点已移动到分组内，是否加入该分组？',
-      }))
-      if (ok) {
-        setNodes(resizeCanvasGroupsToFitMembers(
-          nextNodes.map((node) => node.id === currentDraggedNode.id ? canvasNodeWithGroupId(node, targetGroup.id) : node),
-          [targetGroup.id, currentGroupId],
-        ))
-        return
-      }
-    }
-
-    if (currentGroup && outsideCurrentGroup) {
-      const ok = window.confirm(t('canvas.editor.confirmRemoveFromGroup', {
-        defaultValue: '节点已移出当前分组，是否从分组中移除？',
-      }))
-      setNodes(ok
-        ? resizeCanvasGroupsToFitMembers(
-          nextNodes.map((node) => node.id === currentDraggedNode.id ? canvasNodeWithGroupId(node, undefined) : node),
-          [currentGroupId],
-        )
-        : resizeCanvasGroupsToFitMembers(nextNodes, [currentGroupId]))
-      return
-    }
-
-    if (nextNodes !== nodes) setNodes(nextNodes)
-  }, [nodes, setNodes, t])
-
-  // Cmd+S to save
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        save.mutate()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [save])
+  useCanvasSaveShortcut(save.mutate)
 
   // Track multi-selection
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
@@ -914,61 +517,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     if (e.currentTarget === e.target) setDropActive(false)
   }, [])
 
-  const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
-    setDraggingNodeId(node.id)
-    if (node.type !== 'group') {
-      groupDragSnapshotRef.current = null
-      return
-    }
-    const memberIds = canvasGroupDescendantIds(nodes, node.id)
-    groupDragSnapshotRef.current = {
-      nodeId: node.id,
-      position: { ...node.position },
-      memberPositions: new Map(nodes
-        .filter((candidate) => memberIds.has(candidate.id))
-        .map((candidate) => [candidate.id, { ...candidate.position }])),
-    }
-  }, [nodes])
-
-  const handleNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
-    setDraggingNodeId(null)
-    onNodeDragStop(event, node)
-  }, [onNodeDragStop])
-
-  const handleViewportMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { x: number; y: number; zoom: number }) => {
-    viewportZoomRef.current = viewport.zoom
-    viewportPositionRef.current = { x: viewport.x, y: viewport.y }
-    const nextGridZoomEligible = viewport.zoom >= CANVAS_GRID_MIN_ZOOM
-    const nextOverviewMode = shouldUseCanvasOverviewMode(viewport.zoom, nodes.length)
-    const viewportSize = canvasViewportSizeFromElement(canvasPaneRef.current)
-    const nextMediaLightweightMode = shouldUseCanvasMediaLightweightMode({
-      nodes,
-      viewportX: viewport.x,
-      viewportY: viewport.y,
-      zoom: viewport.zoom,
-      viewportWidth: viewportSize.width,
-      viewportHeight: viewportSize.height,
-    })
-    setGridZoomEligible((current) => current === nextGridZoomEligible ? current : nextGridZoomEligible)
-    setCanvasOverviewMode((current) => current === nextOverviewMode ? current : nextOverviewMode)
-    setCanvasMediaLightweightMode((current) => current === nextMediaLightweightMode ? current : nextMediaLightweightMode)
-  }, [nodes])
-
-  useEffect(() => {
-    const nextOverviewMode = shouldUseCanvasOverviewMode(viewportZoomRef.current, nodes.length)
-    const viewportSize = canvasViewportSizeFromElement(canvasPaneRef.current)
-    const nextMediaLightweightMode = shouldUseCanvasMediaLightweightMode({
-      nodes,
-      viewportX: viewportPositionRef.current.x,
-      viewportY: viewportPositionRef.current.y,
-      zoom: viewportZoomRef.current,
-      viewportWidth: viewportSize.width,
-      viewportHeight: viewportSize.height,
-    })
-    setCanvasOverviewMode((current) => current === nextOverviewMode ? current : nextOverviewMode)
-    setCanvasMediaLightweightMode((current) => current === nextMediaLightweightMode ? current : nextMediaLightweightMode)
-  }, [nodes])
-
   const nodesWithHandlers = useMemo(() => {
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
     const incomingEdgesByTarget = new Map<string, Edge[]>()
@@ -1032,40 +580,16 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     })
   }, [canvasDebug, canvasMediaLightweightMode, canvasNodeResourceById, canvasNodeResources, canvasOverviewMode, edges, id, nodes, runNode, updateNodeData])
 
-  const topLevelSelectedNodes = useMemo(
-    () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n))),
-    [nodes],
-  )
-
-  const topLevelSelectedGroups = useMemo(
-    () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && n.type === 'group')),
-    [nodes],
-  )
-
-  const selectedGroupBounds = useMemo(() => canvasGroupSelectionBounds(nodes, topLevelSelectedNodes), [nodes, topLevelSelectedNodes])
-
-  const selectedUngroupBounds = useMemo(() => canvasGroupSelectionBounds(nodes, topLevelSelectedGroups, 0, 1), [nodes, topLevelSelectedGroups])
-
-  const inputNodes = useMemo(() => nodes.filter((n) => n.type === 'input').sort(compareWorkflowIoNodes), [nodes])
   const selectedNode = selectedNodeIds.length > 0
     ? nodes.find((n) => n.id === selectedNodeIds[selectedNodeIds.length - 1])
     : undefined
   const selectedNodeData = selectedNode?.data as (CanvasNodeData & { label?: string }) | undefined
-  const runningCount = nodes.filter((n) => {
-    const d = n.data as unknown as CanvasNodeData
-    return d.status === 'running' || d.status === 'pending'
-  }).length
-  const doneCount = nodes.filter((n) => (n.data as unknown as CanvasNodeData).status === 'done').length
-  const workflowStats = {
-    inputs: nodes.filter((n) => n.type === 'input').length,
-    processors: nodes.filter((n) => (n.data as unknown as CanvasNodeData).source === 'ai').length,
-    outputs: nodes.filter((n) => n.type === 'output').length,
-  }
+  const runningCount = nodes.filter(canvasNodeIsRunning).length
+  const doneCount = nodes.filter(canvasNodeIsDone).length
+  const workflowStats = { inputs: nodes.filter((n) => n.type === 'input').length, processors: nodes.filter(canvasNodeIsAiProcessor).length, outputs: nodes.filter((n) => n.type === 'output').length }
   const activeRunStatusLabel = activeRun ? t(`canvas.runStatus.${activeRun.status}`) : undefined
-  const workflowRunningCount = workflowRuns.filter((run) => run.status === 'running' || run.status === 'pending').length
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
   const savingCanvas = save.isPending || autoSaveState === 'saving' || renameCanvas.isPending
-  const shouldBlockCanvasExit = hasUnsavedChanges || savingCanvas || runtimeStarting || runningCount > 0
   const showCanvasGrid = canvasDebug.grid && gridZoomEligible && !canvasOverviewMode
   const showCanvasMinimap = canvasDebug.minimap && !canvasOverviewMode && nodes.length <= CANVAS_MINIMAP_NODE_LIMIT
   const renderedNodes = useMemo(() => canvasDebug.nodes ? nodesWithHandlers : [], [canvasDebug.nodes, nodesWithHandlers])
@@ -1080,658 +604,186 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       },
     }))
   }, [canvasDebug.edges, canvasDebug.nodes, canvasOverviewMode, edges])
-  const visiblePaletteSections = useMemo(() => SIDEBAR_NODE_CATEGORIES
-    .map((category) => ({
-      category,
-      items: CANVAS_NODE_CATALOG.filter((item) => (
-        item.category === category.id
-        && !SIDEBAR_HIDDEN_NODE_TYPES.has(item.type)
-        && isPaletteNodeTypeAvailable(item.type, canvasType)
-      )),
-    }))
-    .filter((section) => section.items.length > 0), [canvasType])
-  useEffect(() => {
-    if (!canvasRenderDiagnosticsEnabled({
-      dev: import.meta.env.DEV,
-      renderDiagnostics: import.meta.env.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS,
-    }, canvasDebug)) return
-    if (renderDiagnosticsTimerRef.current !== null) {
-      window.clearTimeout(renderDiagnosticsTimerRef.current)
-    }
-    renderDiagnosticsTimerRef.current = window.setTimeout(() => {
-      renderDiagnosticsTimerRef.current = null
-      logCanvasRenderDiagnostics({
-        id,
-        canvasType,
-        root: canvasPaneRef.current,
-        viewport: canvasRenderDiagnosticViewport(),
-        nodes,
-        edgesCount: edges.length,
-        renderedNodesCount: renderedNodes.length,
-        renderedEdgesCount: visibleEdges.length,
-        resourcesCount: canvasNodeResources.length,
-        selectedCount: selectedNodeIds.length,
-        runningCount,
-        libraryCollapsed,
-        workflowPanelCollapsed,
-        zoom: viewportZoomRef.current,
-        grid: showCanvasGrid,
-        minimap: showCanvasMinimap,
-        mediaLightweight: canvasMediaLightweightMode,
-        debugOptions: compactCanvasDebugOptions(canvasDebug),
-        origin: window.location.origin,
-      })
-    }, 250)
+  useCanvasEditorRenderDiagnostics({
+    canvasDebug,
+    canvasId,
+    canvasMediaLightweightMode,
+    canvasNodeResources,
+    canvasPaneRef,
+    canvasType,
+    edges,
+    id,
+    libraryCollapsed,
+    nodes,
+    renderedNodesCount: renderedNodes.length,
+    runningCount,
+    selectedCount: selectedNodeIds.length,
+    showCanvasGrid,
+    showCanvasMinimap,
+    visibleEdgesCount: visibleEdges.length,
+    viewportZoomRef,
+    workflowPanelCollapsed,
+  })
 
-    return () => {
-      if (renderDiagnosticsTimerRef.current !== null) {
-        window.clearTimeout(renderDiagnosticsTimerRef.current)
-        renderDiagnosticsTimerRef.current = null
-      }
-    }
-  }, [canvasDebug, canvasId, canvasNodeResources.length, canvasType, edges.length, id, libraryCollapsed, nodes, renderedNodes.length, runningCount, selectedNodeIds.length, showCanvasGrid, showCanvasMinimap, visibleEdges.length, workflowPanelCollapsed])
+  const requestCanvasExit = useCanvasExitController({
+    edges,
+    hasUnsavedChanges,
+    nodes,
+    persistCanvasGraph,
+    runningCount,
+    runtimeStarting,
+    savingCanvas,
+    setAutoSaveState,
+    t,
+  })
 
-  const requestCanvasExit = useCallback(async (leave: () => void) => {
-    if (runningCount > 0 || runtimeStarting) {
-      const ok = window.confirm(t('canvas.editor.leaveWhileRunningConfirm', {
-        defaultValue: '画布仍在运行中。现在退出可能导致本次运行结果无法写回节点。确定要退出吗？',
-      }))
-      if (!ok) return
-    }
-    if (hasUnsavedChanges || savingCanvas) {
-      const ok = window.confirm(t('canvas.editor.saveBeforeLeaveConfirm', {
-        defaultValue: '画布有未保存改动。是否先保存再退出？',
-      }))
-      if (!ok) return
-      try {
-        setAutoSaveState('saving')
-        await persistCanvasGraph(nodes, edges)
-      } catch (err: any) {
-        setAutoSaveState('error')
-        toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.autoSaveFailed', { defaultValue: '自动保存失败' }))
-        return
-      }
-    }
-    leave()
-  }, [edges, hasUnsavedChanges, nodes, persistCanvasGraph, runningCount, runtimeStarting, savingCanvas, t])
-
-  useEffect(() => {
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!shouldBlockCanvasExit) return
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [shouldBlockCanvasExit])
-
-  useEffect(() => {
-    if (!useAppHeader) return
-    setCanvasHeader({
-      active: true,
-      canvasName,
-      canvasType,
-      nodeCount: nodes.length,
-      runningCount,
-      doneCount,
-      inputCount: workflowStats.inputs,
-      processorCount: workflowStats.processors,
-      outputCount: workflowStats.outputs,
-	      activeRunLabel: canvasType === 'workflow' && activeRun && activeRunStatusLabel
-	        ? t('canvas.editor.activeRun', { id: activeRun.id.slice(-6), status: activeRunStatusLabel })
-	        : undefined,
-      workflowRunningCount,
-      saving: savingCanvas,
-	      startingRun: runtimeStarting,
-      libraryCollapsed,
-      workflowPanelCollapsed,
-      onNameChange: (name) => renameCanvas.mutate(name),
-      onToggleLibrary: toggleLibraryCollapsed,
-      onToggleWorkflowPanel: toggleWorkflowPanelCollapsed,
-      onRun: handleRunWorkflow,
-      onSave: () => save.mutate(),
-    })
-  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, libraryCollapsed, nodes.length, renameCanvas, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, toggleLibraryCollapsed, toggleWorkflowPanelCollapsed, useAppHeader, workflowPanelCollapsed, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
-
-  useEffect(() => {
-    if (!useAppHeader) return
-    return () => resetCanvasHeader()
-  }, [resetCanvasHeader, useAppHeader])
+  useCanvasAppHeaderSync({
+    activeRun,
+    activeRunStatusLabel,
+    canvasName,
+    canvasType,
+    doneCount,
+    inputCount: workflowStats.inputs,
+    libraryCollapsed,
+    nodeCount: nodes.length,
+    onNameChange: (name) => renameCanvas.mutate(name),
+    onRun: handleRunWorkflow,
+    onSave: () => save.mutate(),
+    onToggleLibrary: toggleLibraryCollapsed,
+    onToggleWorkflowPanel: toggleWorkflowPanelCollapsed,
+    outputCount: workflowStats.outputs,
+    processorCount: workflowStats.processors,
+    runningCount,
+    saving: savingCanvas,
+    startingRun: runtimeStarting,
+    t,
+    useAppHeader,
+    workflowPanelCollapsed,
+    workflowRunningCount,
+  })
 
   return (
     <CanvasEditorShell embedded={embedded}>
-      {!useAppHeader && <CanvasEditorChrome embedded={embedded}>
-        <CanvasEditorChromeContent>
-          {embedded ? (
-            <CanvasEditorTypeBadge>
-              {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
-              {t(`canvas.editor.canvasType.${canvasType}`)}
-            </CanvasEditorTypeBadge>
-          ) : (
-            <CanvasEditorIconButton onClick={() => void requestCanvasExit(() => navigate(canvasBackPath(search)))}>
-              <ArrowLeft size={16} />
-            </CanvasEditorIconButton>
-          )}
-
-          <CanvasEditorIconButton
-            onClick={toggleLibraryCollapsed}
-            title={libraryCollapsed
-              ? t('canvas.editor.expandNodeLibrary', { defaultValue: '展开节点库' })
-              : t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
-            aria-label={libraryCollapsed
-              ? t('canvas.editor.expandNodeLibrary', { defaultValue: '展开节点库' })
-              : t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
-          >
-            {libraryCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-          </CanvasEditorIconButton>
-
-          <CanvasEditorTitleArea>
-            <CanvasEditorTitleRow>
-              {titleEditor.editing ? (
-                <CanvasEditorNameInput
-                  ref={titleEditor.inputRef}
-                  value={titleEditor.workspace}
-                  onChange={(e) => titleEditor.setWorkspace(e.target.value)}
-                  onBlur={titleEditor.commitEditing}
-                  onKeyDown={titleEditor.handleInputKeyDown}
-                  placeholder={t('canvas.editor.untitled')}
-                  aria-label={t('canvas.editor.untitled')}
-                  disabled={renameCanvas.isPending}
-                />
-              ) : (
-                <CanvasEditorNameButton
-                  onDoubleClick={titleEditor.startEditing}
-                  onKeyDown={titleEditor.handleDisplayKeyDown}
-                  title={t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
-                  aria-label={t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
-                >
-                  {canvasName.trim() || t('canvas.editor.untitled')}
-                </CanvasEditorNameButton>
-              )}
-              <CanvasEditorMetricBadge icon={<Workflow size={12} />}>
-                {t('canvas.editor.nodesCount', { count: nodes.length })}
-              </CanvasEditorMetricBadge>
-              {runningCount > 0 && (
-                <CanvasEditorRunningBadge icon={<Loader2 size={12} />} loading>
-                  {t('canvas.editor.runningCount', { count: runningCount })}
-                </CanvasEditorRunningBadge>
-              )}
-              {canvasType === 'workflow' && activeRun && activeRunStatusLabel && (
-                <CanvasEditorStatusBadge
-                  tone={activeRun.status === 'failed' ? 'danger' : 'neutral'}
-                  icon={(activeRun.status === 'running' || activeRun.status === 'pending') ? <Loader2 size={12} /> : undefined}
-                  loading={activeRun.status === 'running' || activeRun.status === 'pending'}
-                >
-                  {t('canvas.editor.activeRun', { id: activeRun.id.slice(-6), status: activeRunStatusLabel })}
-                </CanvasEditorStatusBadge>
-              )}
-              {canvasType === 'workflow' && workflowRunningCount > 1 && (
-                <CanvasEditorRunningBadge>
-                  {t('canvas.editor.parallelRuns', { count: workflowRunningCount })}
-                </CanvasEditorRunningBadge>
-              )}
-            </CanvasEditorTitleRow>
-            <CanvasEditorStats
-              items={[
-                t('canvas.editor.stats.inputs', { count: workflowStats.inputs }),
-                t('canvas.editor.stats.processors', { count: workflowStats.processors }),
-                t('canvas.editor.stats.outputs', { count: workflowStats.outputs }),
-                t('canvas.editor.stats.done', { count: doneCount }),
-              ]}
-            />
-          </CanvasEditorTitleArea>
-
-          {!embedded && (
-            <CanvasEditorTypeBadge>
-              {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
-              {t(`canvas.editor.canvasType.${canvasType}`)}
-            </CanvasEditorTypeBadge>
-          )}
-
-          <CanvasEditorActionButton
-            size="icon-sm"
-            onClick={handleRunWorkflow}
-            disabled={runtimeStarting}
-            title={runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
-            aria-label={runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
-          >
-            {runtimeStarting ? <Loader2 size={14} className="canvas-editor-chrome__spin-icon" /> : <Play size={14} />}
-          </CanvasEditorActionButton>
-
-          <CanvasEditorActionButton
-            size="icon-sm"
-            onClick={() => save.mutate()}
-            disabled={savingCanvas}
-            title={savingCanvas
-              ? t('common.saving')
-              : hasUnsavedChanges
-                ? t('canvas.editor.unsaved', { defaultValue: '未保存' })
-                : t('common.save')}
-            aria-label={savingCanvas
-              ? t('common.saving')
-              : hasUnsavedChanges
-                ? t('canvas.editor.unsaved', { defaultValue: '未保存' })
-                : t('common.save')}
-          >
-            {savingCanvas ? <Loader2 size={14} className="canvas-editor-chrome__spin-icon" /> : <Save size={14} />}
-          </CanvasEditorActionButton>
-
-          {embedded && onClose && (
-            <CanvasEditorIconButton onClick={() => void requestCanvasExit(onClose)}>
-              <PanelRightClose size={14} />
-            </CanvasEditorIconButton>
-          )}
-        </CanvasEditorChromeContent>
-      </CanvasEditorChrome>}
-
-      <CanvasEditorMain>
-        <CanvasPalettePanel collapsed={libraryCollapsed}>
-          <CanvasPaletteInner>
-            {!libraryCollapsed && (
-              <CanvasPaletteHeader icon={<Layers3 size={14} />}>
-                {t('canvas.editor.nodeLibrary')}
-              </CanvasPaletteHeader>
-            )}
-
-            {libraryCollapsed ? (
-              <CanvasPaletteCollapsedBody>
-                {visiblePaletteSections.map(({ category, items }, index) => {
-                  return (
-                    <CanvasPaletteCollapsedGroup key={category.id} separated={index > 0}>
-                      <CanvasPaletteCollapsedItems>
-                        {items.map((item) => {
-                          const Icon = item.icon
-                          return (
-                            <CanvasPaletteCollapsedItemButton
-                              key={item.type}
-                              type="button"
-                              draggable
-                              onDragStart={(e) => {
-                                startCanvasNodeTemplateDrag(e.dataTransfer, item.type)
-                              }}
-                              onClick={() => addNodeAt(item.type)}
-                              title={t(item.labelKey)}
-                              aria-label={t(item.labelKey)}
-                            >
-                              <Icon size={14} />
-                            </CanvasPaletteCollapsedItemButton>
-                          )
-                        })}
-                      </CanvasPaletteCollapsedItems>
-                    </CanvasPaletteCollapsedGroup>
-                  )
-                })}
-              </CanvasPaletteCollapsedBody>
-            ) : (
-              <CanvasPaletteExpandedBody>
-                <CanvasPaletteHint icon={<Search size={12} />}>
-                  {t('canvas.editor.nodeLibraryHint')}
-                </CanvasPaletteHint>
-                <CanvasPaletteSections>
-                  {visiblePaletteSections.map(({ category, items }) => {
-                    return (
-                      <CanvasPaletteSection key={category.id}>
-                        <CanvasPaletteSectionHeader>
-                          <CanvasPaletteSectionTitle>{t(category.titleKey)}</CanvasPaletteSectionTitle>
-                          <CanvasPaletteSectionDescription>{t(category.descriptionKey)}</CanvasPaletteSectionDescription>
-                        </CanvasPaletteSectionHeader>
-                        <CanvasPaletteItemGrid>
-                          {items.map((item) => {
-                            const Icon = item.icon
-                            return (
-                              <CanvasPaletteItemButton
-                                key={item.type}
-                                type="button"
-                                draggable
-                                onDragStart={(e) => {
-                                  startCanvasNodeTemplateDrag(e.dataTransfer, item.type)
-                                }}
-                                onClick={() => addNodeAt(item.type)}
-                                icon={<Icon size={14} />}
-                                title={t(item.labelKey)}
-                                description={t(item.descriptionKey)}
-                                dragHandle={<GripVertical size={14} />}
-                              />
-                            )
-                          })}
-                        </CanvasPaletteItemGrid>
-                      </CanvasPaletteSection>
-                    )
-                  })}
-                </CanvasPaletteSections>
-              </CanvasPaletteExpandedBody>
-            )}
-          </CanvasPaletteInner>
-        </CanvasPalettePanel>
-
-        <CanvasEditorContent>
-          <CanvasViewportPane
-            ref={canvasPaneRef}
-            dropActive={dropActive}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-          >
-            <ReactFlow
-              className={cn(
-                canvasFlowClassName,
-                (!canvasDebug.shadows || canvasOverviewMode) && 'canvas-flow--debug-no-shadows',
-                canvasOverviewMode && 'canvas-flow--overview',
-              )}
-              nodes={renderedNodes}
-              edges={visibleEdges}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={onNodeClick}
-              onNodeContextMenu={onNodeContextMenu}
-              onSelectionContextMenu={onSelectionContextMenu}
-              onNodeDragStart={onNodeDragStart}
-              onNodeDragStop={handleNodeDragStop}
-              onPaneClick={() => setMenu(null)}
-              onPaneContextMenu={onPaneContextMenu}
-              onMove={handleViewportMove}
-              nodeTypes={nodeTypes}
-              defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-              minZoom={0.1}
-              maxZoom={4}
-              deleteKeyCode={['Delete', 'Backspace']}
-              selectionOnDrag={true}
-              panOnDrag={[1, 2]}
-              panOnScroll={true}
-              panOnScrollMode={PanOnScrollMode.Free}
-              selectionMode={SelectionMode.Full}
-              connectionMode={ConnectionMode.Loose}
-              connectionRadius={40}
-              onlyRenderVisibleElements={canvasDebug.visibleOnly}
-              defaultEdgeOptions={{
-                type: 'default',
-                markerEnd: canvasOverviewMode ? undefined : { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-                style: { strokeWidth: canvasOverviewMode ? 1 : 1.6 },
-              }}
-            >
-              {selectedGroupBounds && (
-                <ViewportPortal>
-                  <CanvasSelectionFrame
-                    style={{
-                      transform: `translate(${selectedGroupBounds.x}px, ${selectedGroupBounds.y}px)`,
-                      width: selectedGroupBounds.width,
-                      height: selectedGroupBounds.height,
-                    }}
-                  >
-                    <CanvasViewportSelectionActionButton
-                      type="button"
-                      onClick={createGroupFromSelection}
-                    >
-                      <Layers3 size={13} />
-                      {t('canvas.contextMenu.groupSelected', { count: selectedGroupBounds.count })}
-                    </CanvasViewportSelectionActionButton>
-                  </CanvasSelectionFrame>
-                </ViewportPortal>
-              )}
-              {selectedUngroupBounds && (
-                <ViewportPortal>
-                  <CanvasViewportBoundsLayer
-                    x={selectedUngroupBounds.x}
-                    y={selectedUngroupBounds.y}
-                    width={selectedUngroupBounds.width}
-                    height={selectedUngroupBounds.height}
-                  >
-                    <CanvasViewportActionButton
-                      type="button"
-                      onClick={ungroupSelectedGroups}
-                    >
-                      <Ungroup size={13} />
-                      {t('canvas.contextMenu.ungroupSelected', { count: selectedUngroupBounds.count })}
-                    </CanvasViewportActionButton>
-                  </CanvasViewportBoundsLayer>
-                </ViewportPortal>
-              )}
-              {showCanvasGrid && <Background gap={24} size={1} color={canvasFlowBackgroundColor} />}
-              {canvasDebug.controls && <Controls position="bottom-left" />}
-              {showCanvasMinimap && <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />}
-            </ReactFlow>
-
-            <CanvasViewportOverlayLayer>
-              {nodes.length === 0 && (
-                <CanvasViewportEmptyOverlay>
-                  <CanvasViewportEmptyState
-                    icon={Sparkles}
-                    title={t('canvas.editor.emptyTitle')}
-                    detail={t('canvas.editor.emptyDescription')}
-                  />
-                </CanvasViewportEmptyOverlay>
-              )}
-
-              {dropActive && (
-                <CanvasDropOverlay>
-                  {t('canvas.editor.dropToPlace')}
-                </CanvasDropOverlay>
-              )}
-
-              <CanvasViewportStatusOverlay icon={<MousePointer2 size={14} />}>
-                {draggingNodeId
-                  ? t('canvas.editor.status.dragging')
-                  : selectedNode
-                    ? t('canvas.editor.status.selected', { label: selectedNodeData?.label || (selectedNodeMeta ? t(selectedNodeMeta.labelKey) : selectedNode.type) })
-                    : t('canvas.editor.status.idle')}
-              </CanvasViewportStatusOverlay>
-
-              {menu && (
-                <ContextMenu
-                  x={menu.overlay.x}
-                  y={menu.overlay.y}
-                  positioning="viewport"
-                  boundary={menu.boundary}
-                  canvasType={canvasType}
-                  onAdd={addNode}
-                  onClose={() => setMenu(null)}
-                  selectedCount={topLevelSelectedNodes.length}
-                  selectedGroupCount={topLevelSelectedGroups.length}
-                  onGroupSelected={createGroupFromSelection}
-                  onUngroupSelected={ungroupSelectedGroups}
-                  onDeleteSelected={deleteSelectedNodes}
-                  hasSelection={nodes.some(n => n.selected)}
-                />
-              )}
-            </CanvasViewportOverlayLayer>
-
-          </CanvasViewportPane>
-
-          {canvasDebug.shelf && (
-            <WorkflowSidePanel
-              projectId={canvas?.project_id}
-              disableResourcePreviews={!canvasDebug.media}
-              width={workflowPane.size}
-              minWidth={CANVAS_WORKFLOW_PANE_MIN_WIDTH}
-              maxWidth={CANVAS_WORKFLOW_PANE_MAX_WIDTH}
-              activeTab={workflowPanelTab}
-              collapsed={workflowPane.collapsed}
-              runs={workflowRuns}
-              total={workflowRunTotal}
-              page={runHistoryPage}
-              pageCount={workflowRunPageCount}
-              statusFilter={runStatusFilter}
-              activeRunId={activeRunId}
-	              isLoading={false}
-              onWidthChange={workflowPane.setSize}
-              onTabChange={setWorkflowPanelTab}
-              onCollapsedChange={(collapsed) => {
-                if (collapsed) workflowPane.collapse()
-                else workflowPane.show()
-              }}
-              onStatusFilterChange={setRunStatusFilter}
-              onPageChange={setRunHistoryPage}
-              onSelectRun={setActiveRunId}
-              currentCanvasId={Number(id)}
-              onAddWorkflowReference={(workflowCanvas) => {
-                void addWorkflowReferenceNodeAt(workflowCanvas, canvasCoordinateSpace.defaultClientPoint())
-              }}
-            />
-          )}
-        </CanvasEditorContent>
-      </CanvasEditorMain>
-
-      {resultDialogRun && (
-        <WorkflowRunResultsDialog
-          run={resultDialogRun}
-          nodes={nodes}
-          removingResourceId={removingRunResultResourceId}
-          onRemoveResource={(resourceId) => removeRunResultResource.mutateAsync(resourceId).then(() => undefined)}
-          onClose={() => setRunResultDialogRunId(null)}
+      {!useAppHeader && (
+        <CanvasEditorChromeBar
+          activeRun={activeRun}
+          activeRunStatusLabel={activeRunStatusLabel}
+          canvasName={canvasName}
+          canvasType={canvasType}
+          doneCount={doneCount}
+          embedded={embedded}
+          hasUnsavedChanges={hasUnsavedChanges}
+          libraryCollapsed={libraryCollapsed}
+          nodeCount={nodes.length}
+          onBack={() => void requestCanvasExit(() => navigate(canvasBackPath(search)))}
+          onClose={onClose ? () => void requestCanvasExit(onClose) : undefined}
+          onRunWorkflow={handleRunWorkflow}
+          onSave={() => save.mutate()}
+          onToggleLibrary={toggleLibraryCollapsed}
+          renamePending={renameCanvas.isPending}
+          runningCount={runningCount}
+          runtimeStarting={runtimeStarting}
+          savingCanvas={savingCanvas}
+          t={t}
+          titleEditor={titleEditor}
+          workflowRunningCount={workflowRunningCount}
+          workflowStats={workflowStats}
         />
       )}
 
-      {/* Workflow input dialog */}
-      {runDialogOpen && (
-        <CanvasRuntimeInputDialogShell>
-          <CanvasRuntimeInputDialogHeader
-            title={t('canvas.workflowInputTitle')}
-            description={t('canvas.editor.workflowInputDescription')}
-          />
-          <CanvasRuntimeInputDialogBody>
-            {inputNodes.map((n, index) => {
-              const port = portForWorkflowInputNode(n)
-              const label = port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
-              const value = inputValues[n.id] ?? ''
-              return (
-                <CanvasRuntimeInputDialogField key={n.id}>
-                  <CanvasRuntimeInputDialogFieldLabel label={label} portType={port.type} />
-                  {port.type === 'boolean' ? (
-                    <CanvasRuntimeInputDialogCheckbox
-                      checked={value === 'true'}
-                      onCheckedChange={(checked) => setInputValues((prev) => ({ ...prev, [n.id]: checked ? 'true' : 'false' }))}
-                      inputProps={{ autoFocus: index === 0 }}
-                    >
-                      {t('canvas.editor.booleanEnabled', { defaultValue: 'Enabled' })}
-                    </CanvasRuntimeInputDialogCheckbox>
-                  ) : port.type === 'number' ? (
-                    <CanvasRuntimeInputDialogInput
-                      type="number"
-                      value={value}
-                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  ) : port.type === 'json' ? (
-                    <CanvasRuntimeInputDialogTextarea
-                      rows={5}
-                      code
-                      value={value}
-                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  ) : port.type === 'image' || port.type === 'video' || port.type === 'resource' ? (
-                    <CanvasRuntimeInputDialogInput
-                      type="number"
-                      min={1}
-                      step={1}
-                      placeholder={t('canvas.editor.resourceIdPlaceholder', { defaultValue: 'Resource ID' })}
-                      value={value}
-                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  ) : (
-                    <CanvasRuntimeInputDialogTextarea
-                      rows={3}
-                      placeholder={t('canvas.inputContentPlaceholder')}
-                      value={value}
-                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  )}
-                </CanvasRuntimeInputDialogField>
-              )
-            })}
-          </CanvasRuntimeInputDialogBody>
-          <CanvasRuntimeInputDialogActions>
-            <CanvasRuntimeInputDialogActionButton onClick={handleConfirmRun} stretch>
-              {t('canvas.startRun')}
-            </CanvasRuntimeInputDialogActionButton>
-            <CanvasRuntimeInputDialogActionButton
-              variant="outline"
-              onClick={() => setRunDialogOpen(false)}
-            >
-              {t('common.cancel')}
-            </CanvasRuntimeInputDialogActionButton>
-          </CanvasRuntimeInputDialogActions>
-        </CanvasRuntimeInputDialogShell>
-      )}
+      <CanvasEditorMain>
+        <CanvasEditorNodePalette
+          collapsed={libraryCollapsed}
+          sections={visiblePaletteSections}
+          onAddNode={addNodeAt}
+          t={t}
+        />
 
-      {/* Single-node runtime input dialog */}
-      {nodeRunDialog && (
-        <CanvasRuntimeInputDialogShell size="node">
-          <CanvasRuntimeInputDialogHeader
-            title={t('canvas.editor.nodeRuntimeInputTitle', { defaultValue: 'Runtime inputs' })}
-            description={t('canvas.editor.nodeRuntimeInputDescription', { defaultValue: 'Provide values for unconnected input ports before running this node.' })}
+        <CanvasEditorContent>
+          <CanvasEditorViewport
+            canvasDebug={canvasDebug}
+            canvasOverviewMode={canvasOverviewMode}
+            canvasPaneRef={canvasPaneRef}
+            canvasType={canvasType}
+            createGroupFromSelection={createGroupFromSelection}
+            deleteSelectedNodes={deleteSelectedNodes}
+            draggingNodeId={draggingNodeId}
+            dropActive={dropActive}
+            handleNodeDragStop={handleNodeDragStop}
+            handleNodesChange={handleNodesChange}
+            handleViewportMove={handleViewportMove}
+            menu={menu}
+            nodeTypes={canvasEditorNodeTypes}
+            nodes={nodes}
+            onAddNode={addNode}
+            onConnect={onConnect}
+            onDragLeave={onDragLeave}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={onNodeClick}
+            onNodeContextMenu={onNodeContextMenu}
+            onNodeDragStart={onNodeDragStart}
+            onPaneContextMenu={onPaneContextMenu}
+            onSelectionContextMenu={onSelectionContextMenu}
+            renderedNodes={renderedNodes}
+            selectedGroupBounds={selectedGroupBounds ?? undefined}
+            selectedNode={selectedNode}
+            selectedNodeData={selectedNodeData}
+            selectedNodeMeta={selectedNodeMeta}
+            selectedUngroupBounds={selectedUngroupBounds ?? undefined}
+            onCloseMenu={() => setMenu(null)}
+            showCanvasGrid={showCanvasGrid}
+            showCanvasMinimap={showCanvasMinimap}
+            t={t}
+            topLevelSelectedGroups={topLevelSelectedGroups}
+            topLevelSelectedNodes={topLevelSelectedNodes}
+            ungroupSelectedGroups={ungroupSelectedGroups}
+            visibleEdges={visibleEdges}
           />
-          <CanvasRuntimeInputDialogBody>
-            {nodeRunDialog.ports.map((port, index) => {
-              const label = port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
-              const value = nodeRunValues[port.id] ?? ''
-              return (
-                <CanvasRuntimeInputDialogField key={port.id}>
-                  <CanvasRuntimeInputDialogFieldLabel label={label} portType={port.type} required={port.required} />
-                  {port.type === 'boolean' ? (
-                    <CanvasRuntimeInputDialogCheckbox
-                      checked={value === 'true'}
-                      onCheckedChange={(checked) => setNodeRunValues((prev) => ({ ...prev, [port.id]: checked ? 'true' : 'false' }))}
-                      inputProps={{ autoFocus: index === 0 }}
-                    >
-                      {t('canvas.editor.booleanEnabled', { defaultValue: 'Enabled' })}
-                    </CanvasRuntimeInputDialogCheckbox>
-                  ) : port.type === 'number' ? (
-                    <CanvasRuntimeInputDialogInput
-                      type="number"
-                      value={value}
-                      onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  ) : port.type === 'json' ? (
-                    <CanvasRuntimeInputDialogTextarea
-                      rows={5}
-                      code
-                      value={value}
-                      onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  ) : port.type === 'image' || port.type === 'video' || port.type === 'resource' ? (
-                    <CanvasRuntimeInputDialogInput
-                      type="number"
-                      min={1}
-                      step={1}
-                      placeholder={t('canvas.editor.resourceIdPlaceholder', { defaultValue: 'Resource ID' })}
-                      value={value}
-                      onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  ) : (
-                    <CanvasRuntimeInputDialogTextarea
-                      rows={3}
-                      value={value}
-                      onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
-                      autoFocus={index === 0}
-                    />
-                  )}
-                </CanvasRuntimeInputDialogField>
-              )
-            })}
-          </CanvasRuntimeInputDialogBody>
-          <CanvasRuntimeInputDialogActions>
-            <CanvasRuntimeInputDialogActionButton onClick={handleConfirmNodeRun} stretch>
-              {t('shared.generation.runNode')}
-            </CanvasRuntimeInputDialogActionButton>
-            <CanvasRuntimeInputDialogActionButton
-              variant="outline"
-              onClick={() => {
-                setNodeRunDialog(null)
-                setNodeRunValues({})
-              }}
-            >
-              {t('common.cancel')}
-            </CanvasRuntimeInputDialogActionButton>
-          </CanvasRuntimeInputDialogActions>
-        </CanvasRuntimeInputDialogShell>
-      )}
+
+          <CanvasEditorAuxiliaryPanels
+            activeRunId={activeRunId}
+            canvasDebug={canvasDebug}
+            currentCanvasId={Number(id)}
+            inputNodes={inputNodes}
+            inputValues={inputValues}
+            nodeRunDialog={nodeRunDialog}
+            nodeRunValues={nodeRunValues}
+            nodes={nodes}
+            onAddWorkflowReference={(workflowCanvas) => {
+              void addWorkflowReferenceNodeAt(workflowCanvas, canvasCoordinateSpace.defaultClientPoint())
+            }}
+            onCancelNodeRun={() => {
+              setNodeRunDialog(null)
+              setNodeRunValues({})
+            }}
+            onCancelRun={() => setRunDialogOpen(false)}
+            onCloseRunResultDialog={() => setRunResultDialogRunId(null)}
+            onConfirmNodeRun={handleConfirmNodeRun}
+            onConfirmRun={handleConfirmRun}
+            onRemoveRunResultResource={(resourceId) => removeRunResultResource.mutateAsync(resourceId).then(() => undefined)}
+            projectId={canvas?.project_id}
+            removingRunResultResourceId={removingRunResultResourceId}
+            resultDialogRun={resultDialogRun}
+            runDialogOpen={runDialogOpen}
+            runHistoryPage={runHistoryPage}
+            runStatusFilter={runStatusFilter}
+            setActiveRunId={setActiveRunId}
+            setInputValues={setInputValues}
+            setNodeRunValues={setNodeRunValues}
+            setRunHistoryPage={setRunHistoryPage}
+            setRunStatusFilter={setRunStatusFilter}
+            setWorkflowPanelTab={setWorkflowPanelTab}
+            t={t}
+            workflowPane={workflowPane}
+            workflowPanelTab={workflowPanelTab}
+            workflowRunPageCount={workflowRunPageCount}
+            workflowRuns={workflowRuns}
+            workflowRunTotal={workflowRunTotal}
+          />
+        </CanvasEditorContent>
+      </CanvasEditorMain>
     </CanvasEditorShell>
   )
 }

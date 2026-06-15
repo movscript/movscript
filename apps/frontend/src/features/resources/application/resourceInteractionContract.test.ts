@@ -5,6 +5,7 @@ import { test } from 'node:test'
 
 test('resource page context menu positioning is owned by the resource interaction helper', () => {
   const resourcePageSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
+  const externalResourceSearchSource = readFileSync(resolve('src/features/resources/components/ResourcesPageExternalSearch.tsx'), 'utf8')
   const resourcePanelSource = readFileSync(resolve('src/shared/ui/ResourcePanel.tsx'), 'utf8')
   const canvasResourceShelfSource = readFileSync(resolve('src/features/canvas/ui/CanvasResourceShelf.tsx'), 'utf8')
   const toolDialogSource = readFileSync(resolve('src/features/tools/components/ToolDialog.tsx'), 'utf8')
@@ -21,9 +22,11 @@ test('resource page context menu positioning is owned by the resource interactio
   assert.match(resourcePageSource, /resourceContextMenuPositionFromEvent\(event, resourceViewportBoundaryFromWindow\(window\)\)/)
   assert.match(resourcePageSource, /resourceViewportBoundaryFromWindow\(window\)/)
   assert.match(externalSearchSnapshotSource, /export function loadExternalResourceSearchSnapshot/)
-  assert.match(externalSearchSnapshotSource, /window\.localStorage\.getItem\(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY\)/)
-  assert.match(resourcePageSource, /loadExternalResourceSearchSnapshot\(\)/)
-  assert.match(resourcePageSource, /saveExternalResourceSearchSnapshot\(\{/)
+  assert.match(externalSearchSnapshotSource, /readBrowserStorageItem\('local', EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY\)/)
+  assert.match(externalSearchSnapshotSource, /writeBrowserStorageItem\('local', EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY/)
+  assert.doesNotMatch(externalSearchSnapshotSource, /window\.localStorage/)
+  assert.match(externalResourceSearchSource, /loadExternalResourceSearchSnapshot\(\)/)
+  assert.match(externalResourceSearchSource, /saveExternalResourceSearchSnapshot\(\{/)
   assert.match(resourcePageSource, /startResourceDragSource\(\{/)
   assert.match(resourcePanelSource, /startResourceDragSource\(\{/)
   assert.match(canvasResourceShelfSource, /startResourceDragSource\(\{/)

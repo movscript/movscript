@@ -360,6 +360,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.ResourceDerivative{})
 			},
 		},
+		{
+			Version: "000044",
+			Name:    "add_new_api_identities",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.NewAPIIdentity{})
+			},
+		},
 	}
 	return core
 }
@@ -895,6 +902,7 @@ func allModels() []any {
 		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
+		&persistencemodel.NewAPIIdentity{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.LLMCallLog{},
@@ -943,6 +951,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
+		&persistencemodel.NewAPIIdentity{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.LLMCallLog{},

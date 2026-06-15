@@ -10,6 +10,7 @@ import (
 	domainai "github.com/movscript/movscript/internal/domain/ai"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 type CreateCredentialInput struct {
@@ -209,6 +210,12 @@ func (s *Service) TestCredential(ctx context.Context, credentialID string) (Test
 	if err != nil {
 		return TestResult{}, err
 	}
+	if _, err := s.GetCredential(ctx, id); err != nil {
+		return TestResult{}, err
+	}
+	if s.gatewayHealth != nil {
+		return s.testCredentialByID(ctx, id), nil
+	}
 	cred, err := s.GetCredential(ctx, id)
 	if err != nil {
 		return TestResult{}, err
@@ -237,6 +244,18 @@ func (s *Service) testCredential(ctx context.Context, cred domainai.Credential) 
 		return TestResult{Success: false, Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}
 	}
 	return TestResult{Success: true, Message: "连接正常", LatencyMs: time.Since(start).Milliseconds()}
+}
+
+func (s *Service) testCredentialByID(ctx context.Context, credentialID uint) TestResult {
+	result, err := s.gatewayHealth.ProbeGatewayProvider(ctx, providercontract.AIGatewayProviderProbeRequest{CredentialID: credentialID})
+	if err != nil {
+		return TestResult{Success: false, Message: err.Error()}
+	}
+	message := result.Message
+	if message == "provider ping succeeded" {
+		message = "连接正常"
+	}
+	return TestResult{Success: result.Success, Message: message, LatencyMs: result.LatencyMs}
 }
 
 func (s *Service) applyMaskedKeys(cred *domainai.Credential) {

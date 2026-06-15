@@ -2,7 +2,6 @@ import { spawn, type ChildProcess } from 'child_process'
 import { app } from 'electron'
 
 import {
-  resolveAdminDir,
   resolveBackendBinary,
   resolveBackendCwd,
   resolveLocalDataDir,
@@ -13,10 +12,9 @@ import { buildBackendSpawnEnv } from './env'
 
 export function spawnBackendProcess(): ChildProcess {
   const bin = resolveBackendBinary()
-  const adminDir = resolveAdminDir()
   const dataDir = resolveLocalDataDir()
   const localSecret = resolveLocalSecret(dataDir)
-  const env = buildBackendSpawnEnv({ adminDir, dataDir, localSecret })
+  const env = buildBackendSpawnEnv({ dataDir, localSecret })
   console.info('[backend] spawn dependency providers', {
     profile: env.MOVSCRIPT_DEPENDENCY_PROFILE,
     database: env.DB_DRIVER,

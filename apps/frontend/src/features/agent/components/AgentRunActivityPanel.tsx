@@ -18,8 +18,8 @@ import {
   AgentRunActivityItemTitle,
   AgentRunActivityNotice,
   AgentRunActivityStatusBadge,
-  AgentRunActivityStatusDot,
-} from '@movscript/ui'
+  AgentRunActivityStatusDot
+} from '@movscript/ui/business/agent'
 import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'

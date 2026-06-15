@@ -9,10 +9,12 @@ import type {
   ElectronMovScriptWorkspaceFileReadResult,
   ElectronMovScriptWorkspaceFilesInput,
   ElectronMovScriptWorkspaceFilesListResult,
+  ElectronMovScriptWorkspaceMediaFileReadResult,
   ElectronMovScriptWorkspaceFileWriteInput,
 } from '../../src/shared/contracts/electronApi'
 
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
+const MAX_MEDIA_PREVIEW_FILE_BYTES = 32 * 1024 * 1024
 
 export async function listMovScriptWorkspaceFiles(input?: ElectronMovScriptWorkspaceFilesInput): Promise<ElectronMovScriptWorkspaceFilesListResult> {
   const target = await resolveMovScriptWorkspaceFilePath(input)
@@ -63,6 +65,26 @@ export async function readMovScriptWorkspaceFile(input: ElectronMovScriptWorkspa
     rootPath: target.rootPath,
     path: toWorkspaceRelativePath(target.rootPath, target.absolutePath),
     content,
+    size: fileStat.size,
+    updatedAt: fileStat.mtime.toISOString(),
+  }
+}
+
+export async function readMovScriptWorkspaceMediaFile(input: ElectronMovScriptWorkspaceFilesInput): Promise<ElectronMovScriptWorkspaceMediaFileReadResult> {
+  const target = await resolveMovScriptWorkspaceFilePath(input)
+  const targetLinkStat = await lstat(target.absolutePath)
+  if (targetLinkStat.isSymbolicLink()) throw new Error('workspace file symlinks are not supported')
+  const fileStat = await stat(target.absolutePath)
+  if (!fileStat.isFile()) throw new Error('workspace media path must point to a file')
+  if (fileStat.size > MAX_MEDIA_PREVIEW_FILE_BYTES) throw new Error(`workspace media file is too large to preview: ${fileStat.size} bytes`)
+  const mimeType = imageMimeTypeForPath(target.relativePath)
+  if (!mimeType) throw new Error('workspace media preview only supports image files')
+  const content = await readFile(target.absolutePath)
+  return {
+    rootPath: target.rootPath,
+    path: toWorkspaceRelativePath(target.rootPath, target.absolutePath),
+    dataUrl: `data:${mimeType};base64,${content.toString('base64')}`,
+    mimeType,
     size: fileStat.size,
     updatedAt: fileStat.mtime.toISOString(),
   }
@@ -130,6 +152,18 @@ function assertInsideRoot(rootPath: string, absolutePath: string): void {
 function toWorkspaceRelativePath(rootPath: string, absolutePath: string): string {
   const next = relative(rootPath, absolutePath)
   return next === '' ? '' : next.split('\\').join('/')
+}
+
+function imageMimeTypeForPath(path: string): string | undefined {
+  const lower = path.toLowerCase()
+  if (lower.endsWith('.png')) return 'image/png'
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+  if (lower.endsWith('.webp')) return 'image/webp'
+  if (lower.endsWith('.gif')) return 'image/gif'
+  if (lower.endsWith('.svg')) return 'image/svg+xml'
+  if (lower.endsWith('.avif')) return 'image/avif'
+  if (lower.endsWith('.bmp')) return 'image/bmp'
+  return undefined
 }
 
 async function lstatSafe(absolutePath: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {

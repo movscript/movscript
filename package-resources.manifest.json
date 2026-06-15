@@ -1,0 +1,165 @@
+{
+  "schema": "movscript.package-resources.v1",
+  "product": "movscript-desktop",
+  "edition": "community",
+  "owner": "release-engineering",
+  "builderConfig": "apps/frontend/electron-builder.yml",
+  "packageFiles": [
+    "out/**",
+    "package.json"
+  ],
+  "resources": [
+    {
+      "id": "app-icon",
+      "category": "static-asset",
+      "from": "../../assets/logo.png",
+      "to": "logo.png",
+      "source": "repository",
+      "required": true,
+      "owner": "desktop-release",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "verification": [
+        "electron-builder extraResources parity"
+      ]
+    },
+    {
+      "id": "app-server",
+      "category": "managed-binary",
+      "from": "vendor/app-server",
+      "to": "app-server",
+      "filter": [
+        "**/app-server",
+        "**/app-server.exe"
+      ],
+      "source": "staged-build-artifact",
+      "required": true,
+      "owner": "app-server-runtime",
+      "license": "LicenseRef-provider-runtime",
+      "updatePolicy": "bundled-with-app",
+      "platforms": ["darwin", "linux", "win32"],
+      "arches": ["x64", "arm64"],
+      "verification": [
+        "stage-app-server-binaries",
+        "verifyBundledDesktopAppServers"
+      ]
+    },
+    {
+      "id": "backend",
+      "category": "managed-binary",
+      "from": "../backend/bin",
+      "to": "backend",
+      "filter": [
+        "movscript-server",
+        "movscript-server.exe",
+        "server",
+        "server.exe"
+      ],
+      "source": "build-artifact",
+      "required": true,
+      "owner": "backend-runtime",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "platforms": ["darwin", "linux", "win32"],
+      "arches": ["x64", "arm64"],
+      "verification": [
+        "prepareDesktopPackage backend build",
+        "verifyDesktopPackage requiredPaths"
+      ]
+    },
+    {
+      "id": "ffmpeg",
+      "category": "third-party-binary",
+      "from": "vendor/ffmpeg",
+      "to": "ffmpeg",
+      "filter": [
+        "**/ffmpeg",
+        "**/ffmpeg.exe",
+        "**/METADATA.json"
+      ],
+      "source": "downloaded-release-artifact",
+      "required": true,
+      "owner": "media-runtime",
+      "license": "GPL-3.0-or-later",
+      "updatePolicy": "bundled-with-app",
+      "platforms": ["darwin", "linux", "win32"],
+      "arches": ["x64", "arm64"],
+      "verification": [
+        "download-ffmpeg-static",
+        "verifyDesktopFFmpeg",
+        "verifyBundledDesktopFFmpeg"
+      ]
+    },
+    {
+      "id": "movcli",
+      "category": "runtime-tool",
+      "from": "../cli",
+      "to": "movcli",
+      "filter": [
+        "bin/**",
+        "dist/**",
+        "package.json"
+      ],
+      "source": "build-artifact",
+      "required": true,
+      "owner": "cli-runtime",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "verification": [
+        "pnpm --filter @movscript/cli build",
+        "electron-builder extraResources parity"
+      ]
+    },
+    {
+      "id": "provider-plugin",
+      "category": "plugin-bundle",
+      "from": "../../plugins/movscript",
+      "to": "provider-plugins/movscript",
+      "filter": [
+        ".provider-plugin/**",
+        ".codex-plugin/**",
+        ".mcp.json",
+        "bin/**",
+        "skills/**",
+        "README.md"
+      ],
+      "source": "repository",
+      "required": true,
+      "owner": "provider-integrations",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "verification": [
+        "pnpm --filter ./plugins/* build",
+        "electron-builder extraResources parity"
+      ]
+    },
+    {
+      "id": "renderer-admin",
+      "category": "static-runtime",
+      "from": "../admin/dist",
+      "to": "admin",
+      "filter": [
+        "**/*"
+      ],
+      "source": "build-artifact",
+      "required": true,
+      "owner": "admin-frontend",
+      "license": "Apache-2.0",
+      "updatePolicy": "bundled-with-app",
+      "verification": [
+        "pnpm --filter @movscript/admin build",
+        "copy-admin-assets",
+        "verifyDesktopPackage requiredPaths"
+      ]
+    }
+  ],
+  "forbiddenPackagePaths": [
+    ".git/**",
+    ".build/**",
+    ".movscript-dev/**",
+    "node_modules/**",
+    "apps/frontend/release/**",
+    "apps/backend/vendor/**",
+    "tests/**"
+  ]
+}

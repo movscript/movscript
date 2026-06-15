@@ -9,6 +9,7 @@ import (
 
 	appresource "github.com/movscript/movscript/internal/app/resource"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	providercontract "github.com/movscript/movscript/internal/providers/contract"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -227,3 +228,11 @@ func (s *fakeStorage) GetObject(context.Context, string, int64, int64) (io.ReadC
 	return io.NopCloser(strings.NewReader("")), 0, "", nil
 }
 func (s *fakeStorage) Backend() string { return "fake" }
+func (s *fakeStorage) Health(context.Context) providercontract.ProviderHealth {
+	return providercontract.ProviderHealth{
+		Type:     providercontract.TypeBlobStorage,
+		Adapter:  s.Backend(),
+		Assembly: providercontract.AssemblyStartup,
+		Status:   providercontract.HealthStatusOK,
+	}
+}

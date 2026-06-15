@@ -1,6 +1,6 @@
 .app-key-value {
   background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
-  padding: 6px 8px;
+  padding: 6px var(--ms-space-2);
 }
 
 .app-key-value__label {

@@ -5,29 +5,34 @@ import { resolve } from 'node:path'
 
 test('canvas workflow side panel resizing is owned by the shared layout controller', () => {
   const workflowPanelsSource = readFileSync(resolve('src/features/canvas/ui/CanvasWorkflowPanels.tsx'), 'utf8')
-  const workflowComponentSource = readFileSync(resolve('../../packages/ui/src/components/business/canvas/workflow/index.tsx'), 'utf8')
-  const workflowStyles = readFileSync(resolve('../../packages/ui/src/components/business/canvas/workflow/styles.css'), 'utf8')
+  const workflowComponentSource = readFileSync(resolve('src/features/canvas/ui/CanvasWorkflowUi.tsx'), 'utf8')
+  const workflowStyles = readFileSync(resolve('src/features/canvas/ui/CanvasWorkflowUi.css'), 'utf8')
+  const packageCanvasSource = readFileSync(resolve('../../packages/ui/src/components/business/canvas/index.tsx'), 'utf8')
+  const packageCanvasStyles = readFileSync(resolve('../../packages/ui/src/components/business/canvas/styles.css'), 'utf8')
 
   assert.match(workflowPanelsSource, /useResizablePanel\(\{[\s\S]*resizeEdge: 'left'/)
+  assert.match(workflowPanelsSource, /from '@\/features\/canvas\/ui\/CanvasWorkflowUi'/)
   assert.match(workflowPanelsSource, /<CanvasWorkflowResizeHandle[\s\S]*\{\.{3}sidePanelResize\.resizeHandleProps\}[\s\S]*side="left"/)
   assert.match(workflowComponentSource, /return <PanelResizeHandle className=\{cn\("canvas-workflow-side-panel__resize-handle"/)
   assert.match(workflowStyles, /\.canvas-workflow-side-panel__resize-handle\.panel-resize-handle--left \{[\s\S]*width: 8px;[\s\S]*transform: translateX\(-4px\);/)
+  assert.doesNotMatch(packageCanvasSource, /from "\.\/workflow"/)
+  assert.doesNotMatch(packageCanvasStyles, /@import "\.\/workflow\/styles\.css"/)
   assert.doesNotMatch(workflowPanelsSource, /function startResize/)
   assert.doesNotMatch(workflowPanelsSource, /window\.addEventListener\('pointermove'/)
 })
 
 test('canvas viewport overlays are owned by an explicit viewport overlay layer', () => {
-  const canvasEditorSource = readFileSync(resolve('src/features/canvas/components/CanvasEditorPage.tsx'), 'utf8')
+  const canvasEditorViewportSource = readFileSync(resolve('src/features/canvas/components/CanvasEditorViewport.tsx'), 'utf8')
   const contextMenuSource = readFileSync(resolve('src/features/canvas/ui/ContextMenu.tsx'), 'utf8')
   const contextMenuPlacementSource = readFileSync(resolve('src/features/canvas/presentation/canvasContextMenuPlacement.ts'), 'utf8')
-  const canvasEditorComponentSource = readFileSync(resolve('../../packages/ui/src/components/business/canvas/editor/index.tsx'), 'utf8')
-  const canvasEditorStyles = readFileSync(resolve('../../packages/ui/src/components/business/canvas/editor/styles.css'), 'utf8')
+  const canvasEditorComponentSource = readFileSync(resolve('src/features/canvas/ui/CanvasEditorUi.tsx'), 'utf8')
+  const canvasEditorStyles = readFileSync(resolve('src/features/canvas/ui/CanvasEditorUi.css'), 'utf8')
   const contextMenuStyles = readFileSync(resolve('../../packages/ui/src/components/business/canvas/context-menu/styles.css'), 'utf8')
 
   assert.match(canvasEditorComponentSource, /export function CanvasViewportOverlayLayer/)
   assert.match(canvasEditorStyles, /\.canvas-viewport-overlay-layer \{[\s\S]*position: absolute;[\s\S]*inset: 0;[\s\S]*z-index: 100;/)
-  assert.match(canvasEditorSource, /<CanvasViewportOverlayLayer>[\s\S]*<CanvasViewportEmptyOverlay>[\s\S]*<CanvasDropOverlay>[\s\S]*<CanvasViewportStatusOverlay[\s\S]*<ContextMenu/)
-  assert.match(canvasEditorSource, /positioning="viewport"/)
+  assert.match(canvasEditorViewportSource, /<CanvasViewportOverlayLayer>[\s\S]*<CanvasViewportEmptyOverlay>[\s\S]*<CanvasDropOverlay>[\s\S]*<CanvasViewportStatusOverlay[\s\S]*<ContextMenu/)
+  assert.match(canvasEditorViewportSource, /positioning="viewport"/)
   assert.match(contextMenuSource, /positioning\?: 'fixed' \| 'viewport'/)
   assert.match(contextMenuPlacementSource, /export function canvasContextMenuPositionFromElement/)
   assert.match(contextMenuPlacementSource, /export function canvasContextMenuStyleFromPosition/)
@@ -75,6 +80,8 @@ test('canvas drop target parsing is centralized before page-level commit actions
 
 test('canvas viewport geometry is owned by the presentation adapter', () => {
   const canvasEditorSource = readFileSync(resolve('src/features/canvas/components/CanvasEditorPage.tsx'), 'utf8')
+  const renderDiagnosticsHookSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasEditorRenderDiagnostics.ts'), 'utf8')
+  const viewportPerformanceHookSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasViewportPerformanceState.ts'), 'utf8')
   const viewportGeometrySource = readFileSync(resolve('src/features/canvas/presentation/canvasViewportGeometry.ts'), 'utf8')
 
   assert.match(viewportGeometrySource, /export function canvasDefaultClientPointFromViewportElement/)
@@ -85,8 +92,8 @@ test('canvas viewport geometry is owned by the presentation adapter', () => {
   assert.match(canvasEditorSource, /canvasDefaultClientPointFromViewportElement\(canvasPaneRef\.current\)/)
   assert.match(canvasEditorSource, /canvasOverlayPointFromViewportElement\(point, canvasPaneRef\.current\)/)
   assert.match(canvasEditorSource, /boundary: canvasViewportContextMenuBoundary\(canvasPaneRef\.current\)/)
-  assert.match(canvasEditorSource, /const viewportSize = canvasViewportSizeFromElement\(canvasPaneRef\.current\)/)
-  assert.match(canvasEditorSource, /viewport: canvasRenderDiagnosticViewport\(\)/)
+  assert.match(viewportPerformanceHookSource, /const viewportSize = canvasViewportSizeFromElement\(canvasPaneRef\.current\)/)
+  assert.match(renderDiagnosticsHookSource, /viewport: canvasRenderDiagnosticViewport\(\)/)
   assert.doesNotMatch(canvasEditorSource, /window\.innerWidth/)
   assert.doesNotMatch(canvasEditorSource, /window\.innerHeight/)
   assert.doesNotMatch(canvasEditorSource, /window\.devicePixelRatio/)
@@ -103,6 +110,7 @@ test('canvas viewport performance states avoid imperative CSS overrides', () => 
 
 test('canvas render diagnostics reuse layout helpers for rect formatting', () => {
   const canvasEditorSource = readFileSync(resolve('src/features/canvas/components/CanvasEditorPage.tsx'), 'utf8')
+  const renderDiagnosticsHookSource = readFileSync(resolve('src/features/canvas/presentation/useCanvasEditorRenderDiagnostics.ts'), 'utf8')
   const layoutSource = readFileSync(resolve('src/features/canvas/domain/layout.ts'), 'utf8')
   const renderDiagnosticsSource = readFileSync(resolve('src/features/canvas/presentation/canvasRenderDiagnostics.ts'), 'utf8')
   const debugOptionsSource = readFileSync(resolve('src/features/canvas/presentation/canvasDebugOptions.ts'), 'utf8')
@@ -112,10 +120,11 @@ test('canvas render diagnostics reuse layout helpers for rect formatting', () =>
   assert.match(renderDiagnosticsSource, /compactCanvasLayoutRect\(dom\.flowRect\)/)
   assert.match(renderDiagnosticsSource, /compactCanvasLayoutRect\(rect\)/)
   assert.match(debugOptionsSource, /export function parseCanvasDebugOptions/)
-  assert.match(debugOptionsSource, /window\.localStorage\.getItem\(key\)/)
+  assert.match(debugOptionsSource, /readBrowserStorageItem\('local', key\)/)
+  assert.doesNotMatch(debugOptionsSource, /window\.localStorage/)
   assert.match(canvasEditorSource, /parseCanvasDebugOptions\(search\)/)
-  assert.match(canvasEditorSource, /canvasRenderDiagnosticsEnabled\(\{[\s\S]*dev: import\.meta\.env\.DEV,[\s\S]*renderDiagnostics: import\.meta\.env\.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS/)
-  assert.match(canvasEditorSource, /logCanvasRenderDiagnostics\(\{/)
+  assert.match(renderDiagnosticsHookSource, /canvasRenderDiagnosticsEnabled\(\{[\s\S]*dev: import\.meta\.env\.DEV,[\s\S]*renderDiagnostics: import\.meta\.env\.VITE_MOVSCRIPT_RENDER_DIAGNOSTICS/)
+  assert.match(renderDiagnosticsHookSource, /logCanvasRenderDiagnostics\(\{/)
   assert.doesNotMatch(canvasEditorSource, /function compactCanvasRect/)
   assert.doesNotMatch(canvasEditorSource, /function compactCanvasMediaElement/)
   assert.doesNotMatch(canvasEditorSource, /querySelectorAll\('img'\)/)
@@ -124,8 +133,8 @@ test('canvas render diagnostics reuse layout helpers for rect formatting', () =>
 })
 
 test('canvas text node card layout is keyed by explicit content mode', () => {
-  const nodeCardSource = readFileSync(resolve('../../packages/ui/src/components/business/canvas/card/node/core/index.tsx'), 'utf8')
-  const nodeCardStyles = readFileSync(resolve('../../packages/ui/src/components/business/canvas/card/node/core/styles.css'), 'utf8')
+  const nodeCardSource = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardUi.tsx'), 'utf8')
+  const nodeCardStyles = readFileSync(resolve('src/features/canvas/ui/CanvasNodeCardUi.css'), 'utf8')
 
   assert.match(nodeCardSource, /contentMode\?: "text"/)
   assert.match(nodeCardSource, /data-content-mode=\{contentMode\}/)

@@ -69,3 +69,34 @@ func TestManagerRejectsExpiredToken(t *testing.T) {
 		t.Fatalf("Verify expired token err = %v, want ErrExpiredToken", err)
 	}
 }
+
+func TestManagerIssuesPurposeScopedTokenWithCustomTTL(t *testing.T) {
+	m, err := NewManager(testSecret, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time { return now }
+
+	token, expiresAt, err := m.IssueWithTTL(Subject{
+		UserID:    7,
+		Username:  "alice",
+		Purpose:   GitProxyTokenPurpose,
+		ProjectID: 21,
+		OrgID:     34,
+	}, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !expiresAt.Equal(now.Add(15 * time.Minute)) {
+		t.Fatalf("expiresAt = %s, want %s", expiresAt, now.Add(15*time.Minute))
+	}
+
+	claims, err := m.Verify(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Purpose != GitProxyTokenPurpose || claims.ProjectID != 21 || claims.OrgID != 34 {
+		t.Fatalf("claims = %#v", claims)
+	}
+}

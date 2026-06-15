@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/movscript/movscript/internal/infra/crypto"
+	"github.com/movscript/movscript/internal/infra/newapi"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 	"io"
@@ -62,6 +63,13 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	if r.providerMode == "local" || cred.AdapterType == AdapterLocal {
 		return NewLocalAdapter(), nil
 	}
+	if r.providerMode == "new-api" {
+		cfg := newapi.LoadConfigFromEnv()
+		if cfg.BaseURL == "" {
+			return nil, fmt.Errorf("MOVSCRIPT_NEW_API_BASE_URL is required when MOVSCRIPT_AI_GATEWAY_PROVIDER=new-api")
+		}
+		return NewNewAPIForwardAdapter(r.db, r.encryptionKey, cfg, nil), nil
+	}
 	apiKey := ""
 	if cred.EncryptedKey != "" && len(r.encryptionKey) > 0 {
 		var err error
@@ -97,6 +105,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewDashScopeAdapter(apiKey, baseURL), nil
 	case AdapterVidu:
 		return NewViduAdapter(apiKey, baseURL), nil
+	case AdapterElevenLabs:
+		return NewElevenLabsAdapter(apiKey, baseURL), nil
 	default: // openai_compat — handles text, image (text-to-image), image_edit, and openai-compat video
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	}

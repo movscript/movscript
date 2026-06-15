@@ -14,7 +14,7 @@
 .script-detail-tabs__trigger {
   height: auto;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--ms-radius-full);
   padding: 7px 14px;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-label);

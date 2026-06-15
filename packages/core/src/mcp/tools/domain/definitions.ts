@@ -79,7 +79,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_query_assets',
-      description: 'Query MovScript setting-owned and setting-state-owned asset slots, optionally including inline candidates.',
+      description: 'Query MovScript setting-owned and setting-state-owned asset slots. Content-unit candidates are queried through domain candidate/decision APIs.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         assetId: { type: ['string', 'number'] },
@@ -128,37 +128,66 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_read_preview_timeline',
-      description: 'Read an interpreted production preview timeline from .interpret/current. This is read-only interpreted output.',
+      description: 'Read the derived production preview timeline through the domain API. This is read-only diagnostic/artifact context, not product source.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] } }),
     },
     {
+      name: 'domain_read_scene_moment_edit_plan',
+      description: 'Read the derived scene_moment edit plan through the domain API. The plan groups selected content-unit candidates into video, voice, subtitle, audio, image, and metadata tracks for agent-driven composition.',
+      inputSchema: projectSchema({ ...workspaceLocator, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] } }),
+    },
+    {
+      name: 'domain_compose_scene_moment_from_edit_plan',
+      description: 'Compose a scene_moment final video candidate from its derived edit plan. This domain-level tool reads selected expression/content-unit candidates, composes the video track into a new RawResource, and writes that output as a candidate on the target scene_moment content unit. Voice/subtitle/audio tracks are preserved in candidate metadata until multi-track mixing is available.',
+      inputSchema: projectSchema({
+        ...workspaceLocator,
+        sceneMomentId: { type: ['string', 'number'], description: 'Scene moment whose edit_plan.json supplies the selected input candidates.' },
+        scene_moment_id: { type: ['string', 'number'], description: 'Alias for sceneMomentId.' },
+        contentUnitId: { type: ['string', 'number'], description: 'Scene-moment output content unit that receives the composed candidate.' },
+        content_unit_id: { type: ['string', 'number'], description: 'Alias for contentUnitId.' },
+        candidateId: { type: ['string', 'number'], description: 'Optional candidate id. Defaults to a generated scene_moment_comp_* id.' },
+        candidate_id: { type: ['string', 'number'], description: 'Alias for candidateId.' },
+        filename: { type: 'string', description: 'Optional output MP4 filename.' },
+        name: { type: 'string', description: 'Alias for filename.' },
+        folder_id: { type: 'string', description: 'Optional resource library folder id for the composed video.' },
+        folderId: { type: 'string', description: 'Camel-case alias for folder_id.' },
+        max_video_bytes: { type: 'number', description: 'Maximum per-source video bytes for compose.' },
+        maxVideoBytes: { type: 'number', description: 'Camel-case alias for max_video_bytes.' },
+        max_upload_bytes: { type: 'number', description: 'Maximum generated upload bytes for compose.' },
+        maxUploadBytes: { type: 'number', description: 'Camel-case alias for max_upload_bytes.' },
+        adopt: { type: 'boolean', description: 'When true, immediately adopt/select the composed candidate after creation.' },
+        select: { type: 'boolean', description: 'Alias for adopt.' },
+        reason: { type: 'string', description: 'Optional decision reason when adopt/select is true.' },
+      }),
+    },
+    {
       name: 'domain_read_content_unit_runtime_panel',
-      description: 'Read an interpreted content unit runtime panel from .interpret/current. This is read-only interpreted output.',
+      description: 'Read the derived content unit runtime panel through the domain API. This is read-only diagnostic/artifact context, not product source.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
       name: 'domain_read_content_unit_generation_prompt',
-      description: 'Read an interpreted normalized content unit generation prompt from .interpret/current. This is read-only interpreted output.',
+      description: 'Read the derived normalized content unit generation prompt through the domain API. This is read-only diagnostic/artifact context, not product source.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
       name: 'domain_read_content_unit_input_version',
-      description: 'Compatibility alias for domain_read_content_unit_generation_prompt. Reads the interpreted normalized content unit generation prompt from .interpret/current.',
+      description: 'Compatibility alias for domain_read_content_unit_generation_prompt. Reads the derived normalized content unit generation prompt through the domain API.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
       name: 'domain_read_content_unit_dependency_report',
-      description: 'Read an interpreted content unit dependency report from .interpret/current. This is read-only interpreted output.',
+      description: 'Read the derived content unit dependency report through the domain API. This is read-only diagnostic/artifact context, not product source.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
       name: 'domain_read_content_unit_selection_validity',
-      description: 'Read an interpreted content unit selection validity report from .interpret/current. This is read-only interpreted output.',
+      description: 'Read the derived content unit selection validity report through the domain API. This is read-only diagnostic/artifact context, not product source.',
       inputSchema: projectSchema({ ...workspaceLocator, contentUnitId: { type: ['string', 'number'] }, content_unit_id: { type: ['string', 'number'] } }),
     },
     {
       name: 'domain_upsert_project_standards',
-      description: 'Create or update project-wide creative standards in source project_standards.json. Run domain_inspect, then domain_interpret to refresh interpreted read models when diagnostics pass.',
+      description: 'Create or update project-wide creative standards in source project_standards.json. Run domain_inspect, then domain_interpret when derived artifact tools need refreshed context.',
       inputSchema: projectSchema({ ...workspaceLocator, projectStyle: { type: 'object', additionalProperties: true }, project_style: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true } }),
     },
     {
@@ -203,12 +232,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_scene_moment',
-      description: 'Create or update a scene_moment source record inside a segment. Scene moments describe narrative events and own shots, expression units, and audio cues.',
+      description: 'Create or update a scene_moment source record inside a segment. Scene moments are the final expression aggregation unit for an event/beat; they own expression units and receive final composed content-unit candidates.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_shot',
-      description: 'Create or update a shot source record inside a scene_moment. Shots are the makeable camera units and own keyframe/storyboard source children.',
+      description: 'Legacy/auxiliary: create or update a shot source record inside a scene_moment. Prefer expression_unit with modality=visual for new planning; shots are retained only as optional visual material structure.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, shotId: { type: ['string', 'number'] }, shot_id: { type: ['string', 'number'] }, shot: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
@@ -242,12 +271,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_upsert_audio_cue',
-      description: 'Create or update an audio_cue source entity under a scene_moment. Audio cues are independent sound, music, ambience, dialogue, or foley planning objects.',
+      description: 'Legacy/auxiliary: create or update an audio_cue source entity under a scene_moment. Prefer expression_unit with modality=audio or verbal plus voice_profile_ref for new dialogue, sound, music, ambience, or foley planning.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, audioCueId: { type: ['string', 'number'] }, audio_cue_id: { type: ['string', 'number'] }, audioCue: { type: 'object', additionalProperties: true }, audio_cue: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_upsert_expression_unit',
-      description: 'Create or update an expression_unit source entity under a scene_moment. Expression units capture dialogue, narration, subtitle, action, caption, or visual-note semantics.',
+      description: 'Create or update an expression_unit source entity under a scene_moment. Expression units are the preferred orthogonal expression layer: modality says visual/verbal/audio/text, role says dramatic function, content carries semantics, and content units generate candidate media from them.',
       inputSchema: projectSchema({ ...workspaceLocator, productionId: { type: ['string', 'number'] }, production_id: { type: ['string', 'number'] }, segmentId: { type: ['string', 'number'] }, segment_id: { type: ['string', 'number'] }, sceneMomentId: { type: ['string', 'number'] }, scene_moment_id: { type: ['string', 'number'] }, expressionUnitId: { type: ['string', 'number'] }, expression_unit_id: { type: ['string', 'number'] }, expressionUnit: { type: 'object', additionalProperties: true }, expression_unit: { type: 'object', additionalProperties: true }, payload: { type: 'object', additionalProperties: true }, sceneMoment: { type: 'object', additionalProperties: true }, scene_moment: { type: 'object', additionalProperties: true }, segment: { type: 'object', additionalProperties: true }, production: { type: 'object', additionalProperties: true } }),
     },
     {
@@ -262,12 +291,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_update_storyboard_timeline',
-      description: 'Update a storyboard timeline source field. Storyboard order and timing belong on storyboard timeline entities, not on generated interpreted output.',
+      description: 'Update a storyboard timeline source field. Storyboard order and timing belong on storyboard timeline source entities, not on generated artifact output.',
       inputSchema: projectSchema({ ...workspaceLocator, targetPath: { type: 'string' }, target_path: { type: 'string' }, timeline: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_append_candidate',
-      description: 'Append an inline candidate to an asset, keyframe, or content unit source entity. Generated resources become interpreted read-model state only after candidate/selection writes are refreshed with domain_interpret.',
+      description: 'Append an inline candidate to an asset or keyframe source entity. Content-unit candidates are backend decision records; use domain_create_content_candidate instead. Generated resources become stable domain dependencies only after candidate/selection writes and explicit adoption/selection.',
       inputSchema: candidateSchema(),
     },
     {
@@ -300,7 +329,7 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_select_content_unit_candidate',
-      description: 'Select a content candidate for a content unit through the backend decision API. Selection is backend decision metadata, not a workspace source-file edit; run domain_inspect and domain_interpret when interpreted read models must be refreshed.',
+      description: 'Select a content candidate for a content unit through the backend decision API. Selection is backend decision metadata, not a workspace source-file edit; run domain_inspect and domain_interpret when derived artifact tools need refreshed context.',
       inputSchema: projectSchema({
         ...workspaceLocator,
         contentUnitId: { type: ['string', 'number'] },
@@ -346,37 +375,37 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_select_candidate',
-      description: 'Select and lock an inline candidate on an asset, keyframe, or content unit source entity.',
+      description: 'Select and lock an inline candidate on an asset or keyframe source entity. Content-unit selections are backend decision records; use domain_select_content_unit_candidate instead.',
       inputSchema: candidateSchema({ candidateId: { type: 'string' }, candidate_id: { type: 'string' }, reason: { type: 'string' } }),
     },
     {
       name: 'domain_update_candidate',
-      description: 'Update an inline candidate on an asset, keyframe, or content unit source entity.',
+      description: 'Update an inline candidate on an asset or keyframe source entity. Content-unit candidates are backend decision records; use domain_create_content_candidate or domain_decide_content_unit_candidate instead.',
       inputSchema: candidateSchema({ candidateId: { type: 'string' }, candidate_id: { type: 'string' } }),
     },
     {
       name: 'domain_unlock_candidate',
-      description: 'Remove an inline candidate lock from an asset, keyframe, or content unit source entity.',
+      description: 'Remove an inline candidate lock from an asset or keyframe source entity. Content-unit selections are backend decision records; use domain_select_content_unit_candidate/domain_decide_content_unit_candidate instead.',
       inputSchema: candidateSchema(),
     },
     {
       name: 'domain_delete_entity',
-      description: 'Delete a MovScript domain source entity file through the workspace service. Do not delete .interpret output directly.',
+      description: 'Delete a MovScript domain source entity file through the workspace service. Do not touch interpreter debug output for product work.',
       inputSchema: projectSchema({ ...workspaceLocator, entity: { type: 'object', additionalProperties: true }, record: { type: 'object', additionalProperties: true } }),
     },
     {
       name: 'domain_overview',
-      description: 'Show MovScript source state, last successful interpreted state, pending edits, stale generated outputs, and recommended next actions.',
+      description: 'Show MovScript source state, backend decisions, diagnostics, stale generated outputs, and recommended next actions.',
       inputSchema: projectSchema(workspaceLocator),
     },
     {
       name: 'domain_read_production_work_plan',
-      description: 'Derive the current in-memory production work plan from source and decision state. This does not read or write .interpret/current and should be used by UI, CLI, and agents as the shared production todo graph.',
+      description: 'Derive the current in-memory production work plan from source and decision state. This does not read or write interpreter debug artifacts and should be used by UI, CLI, and agents as the shared production todo graph.',
       inputSchema: projectSchema(workspaceLocator),
     },
     {
       name: 'domain_inspect',
-      description: 'Inspect current source changes, diagnostics, and predicted impact without writing interpreted artifacts. This is the primary diagnostic entrypoint after API writes or direct source edits.',
+      description: 'Inspect current source changes, diagnostics, and predicted impact without writing debug artifacts. This is the primary diagnostic entrypoint after API writes or direct source edits.',
       inputSchema: projectSchema(inspectOptions),
     },
     {
@@ -386,12 +415,12 @@ export function domainTools(): MCPTool[] {
     },
     {
       name: 'domain_interpret',
-      description: 'Refresh interpreted project read models from current source. Writes .interpret/current, indexes, and derived artifacts when diagnostics pass. Does not publish, approve, commit, or checkpoint user intent.',
+      description: 'Validate current source and refresh derived diagnostic artifacts when enabled. Does not publish, approve, commit, checkpoint user intent, or create product state.',
       inputSchema: projectSchema(workspaceLocator),
     },
     {
       name: 'domain_regeneration_plan',
-      description: 'Plan downstream review targets after domain_interpret refreshes interpreted state. Reports affected or stale content units, prompt bundles, preview timelines, and selections; it does not require regeneration by itself.',
+      description: 'Plan downstream review targets after domain_interpret refreshes diagnostic context. Reports affected or stale content units, prompt bundles, preview timelines, and selections; it does not require regeneration by itself.',
       inputSchema: projectSchema(workspaceLocator),
     },
   ]
@@ -402,8 +431,8 @@ function candidateSchema(extra: Record<string, unknown> = {}): MCPTool['inputSch
     ...workspaceLocator,
     targetPath: { type: 'string' },
     target_path: { type: 'string' },
-    targetKind: { type: 'string', enum: ['asset', 'keyframe', 'content_unit'] },
-    target_kind: { type: 'string', enum: ['asset', 'keyframe', 'content_unit'] },
+    targetKind: { type: 'string', enum: ['asset', 'keyframe'] },
+    target_kind: { type: 'string', enum: ['asset', 'keyframe'] },
     payload: { type: 'object', additionalProperties: true },
     lock: { type: ['boolean', 'object'], additionalProperties: true },
     nonce: { type: 'string' },

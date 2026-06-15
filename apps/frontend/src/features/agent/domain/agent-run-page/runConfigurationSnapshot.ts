@@ -188,7 +188,6 @@ function providerSessionLimitSummaryItems(limits: Record<string, unknown>): stri
 
 function providerSessionLimitsFromRunConfigurationSnapshot(snapshot: Record<string, unknown>): Record<string, unknown> {
   if (isRecord(snapshot.providerSessionLimits)) return snapshot.providerSessionLimits
-  if (isRecord(snapshot.runtimeLimits)) return snapshot.runtimeLimits
   return {}
 }
 

@@ -3,12 +3,8 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
+import { AgentComposer, AgentComposerAction, AgentComposerSubmit, AgentComposerToolbar } from '@movscript/ui/business/agent'
 import {
-  AgentComposer,
-  AgentComposerAction,
-  AgentComposerSubmit,
-  AgentComposerToolbar,
-  CheckboxField,
   GenerationActionHint,
   GenerationAttachmentList,
   GenerationAttachmentPreview,
@@ -25,10 +21,9 @@ import {
   GenerationSlotAttachmentList,
   GenerationSlotAttachmentTag,
   GenerationSlotEmpty,
-  GenerationSlotList,
-  Input,
-  NativeSelect,
-} from '@movscript/ui'
+  GenerationSlotList
+} from '@movscript/ui/business/generation'
+import { CheckboxField, Input, NativeSelect } from '@movscript/ui/primitives'
 import { generationParamLabel, generationSlotLabel } from '@/shared/domain/paramLabels'
 import type { RawResource, ParamDef } from '@/types'
 import { api } from '@/shared/infrastructure/api'
