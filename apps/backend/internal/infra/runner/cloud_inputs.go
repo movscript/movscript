@@ -148,7 +148,7 @@ func (w *Worker) ensureCloudUpload(job *persistencemodel.Job, media ai.MediaData
 	defer cancel()
 
 	if !requirePublicURL {
-		if uploader := w.aiService.GetFileUploader(job.ModelConfigID); uploader != nil {
+		if uploader := w.aiService.GetFileUploader(ctx, job.UserID, job.ModelConfigID); uploader != nil {
 			fileID, err := uploader.UploadFile(ctx, media.Bytes, filename, mimeType, "")
 			if err == nil && fileID != "" {
 				key := fmt.Sprintf("ai_model_config:%d", job.ModelConfigID)

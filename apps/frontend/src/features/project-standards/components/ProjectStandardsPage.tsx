@@ -17,7 +17,7 @@ import {
 import { ProjectStandardsWorkspaceReviewPanel } from '@/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel'
 import { saveProjectStandardsWorkspaceEdit } from '@/features/project-standards/application/projectStandardsWorkspaceRepository'
 import { projectStandardsKeys } from '@/features/project-standards/application/projectStandardsQueryKeys'
-import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
+import { useProjectEntryShellProps } from '@/features/project/application/useProjectEntryShellProps'
 import { buildPageKey } from '@/features/agent/domain/agentCommandInput'
 import {
   STYLE_REFERENCE_RULE_KEY,
@@ -59,16 +59,16 @@ import type { RawResource } from '@/types'
 
 export default function ProjectStandardsPage() {
   const project = useProjectStore((s) => s.current)
-  const workbenchShellProps = useProjectWorkbenchShellProps({
-    workbenchId: 'project_standards',
+  const entryShellProps = useProjectEntryShellProps({
+    projectEntryId: 'project_standards',
     projectName: project?.name,
     kicker: '项目规范',
-    title: '项目规范工作台',
+    title: '项目规范',
     description: '集中查看和调整项目会遵守的制作规范，并预览最终注入模型的提示词与风格参考。',
   })
 
   return (
-    <WorkbenchProjectShell {...workbenchShellProps}>
+    <WorkbenchProjectShell {...entryShellProps}>
       <WorkbenchProjectBody padding="none" scroll="auto" tone="muted">
         <ProjectStandardsContent />
       </WorkbenchProjectBody>

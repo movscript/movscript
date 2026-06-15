@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileText, GitBranch, ScrollText } from 'lucide-react'
+import { GitBranch, Save, ScrollText, Upload } from 'lucide-react'
 import { ScriptDetailHeader, ScriptDetailTabs } from '@movscript/ui/business/scripts'
 import { WorkbenchProjectBody, WorkbenchProjectShell } from '@movscript/ui/business/workbench'
 import { Badge, Button } from '@movscript/ui/primitives'
@@ -10,15 +10,17 @@ import type { Script } from '@/types'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
-  hasExplicitWorkbenchSearchParam,
-  useWorkbenchSessionStore,
-} from '@/features/project-workbenches/application/workbenchSessionStore'
+  hasExplicitProjectEntrySearchParam,
+  useProjectEntrySessionStore,
+} from '@/features/project/application/projectEntrySessionStore'
 import {
   ScriptWorkspaceDetailContent,
   ScriptWorkspaceEmptySelection,
+  ScriptEditorErrorText,
+  ScriptEditorHiddenFileInput,
+  ScriptEditorInlineMeta,
   ScriptWorkspaceInspector,
   ScriptWorkspaceShell,
-  ScriptWorkspaceStat,
 } from '@/features/scripts/components/ScriptsPageUi'
 import { ScriptForm } from '@/features/scripts/components/ScriptForm'
 import {
@@ -45,6 +47,8 @@ import {
 } from '@/features/scripts/presentation/scriptDisplayModel'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
+import { readScriptDocument } from '@/features/resources/application/scriptDocumentReader'
+import { SCRIPT_DOCUMENT_ACCEPT } from '@/features/resources/domain/scriptDocuments'
 
 function ScriptsSection({ projectId }: { projectId: number }) {
   const qc = useQueryClient()
@@ -54,11 +58,14 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
   const [versionEditorScrollTop, setVersionEditorScrollTop] = useState(0)
   const [workspace, setWorkspace] = useState<Partial<Script>>({})
+  const [fileName, setFileName] = useState('')
+  const [fileError, setFileError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const restoredSessionRef = useRef(false)
-  const sessionSnapshot = useWorkbenchSessionStore((state) => state.snapshotFor(projectId, 'scripts'))
-  const upsertWorkbenchSessionSnapshot = useWorkbenchSessionStore((state) => state.upsertSnapshot)
+  const sessionSnapshot = useProjectEntrySessionStore((state) => state.snapshotFor(projectId, 'scripts'))
+  const upsertProjectEntrySessionSnapshot = useProjectEntrySessionStore((state) => state.upsertSnapshot)
   const hasExplicitSessionSearch = useMemo(
-    () => hasExplicitWorkbenchSearchParam(searchParams, ['script_id']),
+    () => hasExplicitProjectEntrySearchParam(searchParams, ['script_id']),
     [searchParams],
   )
   const currentUser = useUserStore((state) => state.currentUser)
@@ -105,9 +112,9 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
   useEffect(() => {
     if (!selectedId) return
-    upsertWorkbenchSessionSnapshot({
+    upsertProjectEntrySessionSnapshot({
       projectId,
-      workbenchId: 'scripts',
+      projectEntryId: 'scripts',
       route: ROUTES.project.scripts,
       search: `script_id=${selectedId}`,
       filters: { scriptId: selectedId },
@@ -115,7 +122,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
         primary: { entityType: 'script', entityId: selectedId },
       },
     })
-  }, [projectId, selectedId, upsertWorkbenchSessionSnapshot])
+  }, [projectId, selectedId, upsertProjectEntrySessionSnapshot])
 
   const selected = selectedId ? scripts.find((script) => script.ID === selectedId) ?? null : null
   const workspaceSourceText = selected ? scriptWorkspaceSourceText(workspace, selected) : ''
@@ -140,7 +147,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const readinessScore = Math.round((readinessChecks.filter(Boolean).length / readinessChecks.length) * 100)
 
   useEffect(() => {
-    if (selected) setWorkspace({ ...selected })
+    if (selected) {
+      setWorkspace({ ...selected })
+      setFileName('')
+      setFileError('')
+    }
   }, [selected?.ID])
 
   useEffect(() => {
@@ -191,8 +202,21 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     onError: () => toast.error('保存版本失败'),
   })
 
+  async function handleFile(file?: File) {
+    if (!file) return
+    setFileError('')
+    try {
+      const text = await readScriptDocument(file)
+      setFileName(file.name)
+      setWorkspace((current) => ({ ...current, raw_source: text, content: text }))
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : '读取文档失败')
+    }
+  }
+
   return (
     <WorkbenchProjectShell
+      className="script-workbench-project-shell"
       workbenchId="scripts"
       icon={ScrollText}
       kicker="剧本"
@@ -226,33 +250,58 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     </>
                   )}
                   title={selected.title}
-                  metrics={(
+                  actions={(
                     <>
-                      <ScriptWorkspaceStat icon={FileText} label="正文" value={`${workspaceBodyLength} 字`} />
-                      <ScriptWorkspaceStat icon={GitBranch} label="版本" value={versionsForSelected.length} />
+                      <ScriptDetailTabs
+                        className="script-workbench-mode-tabs"
+                        tabs={[
+                          { key: 'edit', label: '正文' },
+                          { key: 'versions', label: `版本 ${versionsForSelected.length}` },
+                        ]}
+                        activeKey={detailTab}
+                        onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
+                      />
+                      <ScriptEditorHiddenFileInput
+                        ref={fileInputRef}
+                        type="file"
+                        accept={SCRIPT_DOCUMENT_ACCEPT}
+                        onChange={(event) => {
+                          void handleFile(event.target.files?.[0])
+                          event.currentTarget.value = ''
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload size={14} />
+                        导入文档
+                      </Button>
+                      {fileName && <ScriptEditorInlineMeta>{fileName}</ScriptEditorInlineMeta>}
+                      {fileError && <ScriptEditorErrorText>{fileError}</ScriptEditorErrorText>}
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => updateScript.mutate(workspace)}
+                        disabled={updateScript.isPending}
+                      >
+                        <Save size={14} />
+                        {updateScript.isPending ? '保存中' : '保存'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => setDetailTab('versions')}
+                      >
+                        <GitBranch size={14} />
+                        版本管理
+                      </Button>
                     </>
                   )}
-                  actions={(
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => setDetailTab('versions')}
-                    >
-                      <GitBranch size={14} />
-                      版本管理
-                    </Button>
-                  )}
-                />
-
-                <ScriptDetailTabs
-                  className="script-workbench-mode-tabs"
-                  tabs={[
-                    { key: 'edit', label: '正文' },
-                    { key: 'versions', label: `版本管理 ${versionsForSelected.length}` },
-                  ]}
-                  activeKey={detailTab}
-                  onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
                 />
 
                 <ScriptWorkspaceInspector className={detailTab === 'edit' ? 'script-workbench-inspector--editor' : undefined}>
@@ -262,9 +311,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                         script={selected}
                         workspace={workspace}
                         onChange={setWorkspace}
-                        onSave={(data) => updateScript.mutate(data)}
                         onCreateVersion={() => createVersion.mutate()}
-                        isSaving={updateScript.isPending}
                         isCreatingVersion={createVersion.isPending}
                         isCurrentVersionSaved={isCurrentVersionSaved}
                         versionCount={versionsForSelected.length}

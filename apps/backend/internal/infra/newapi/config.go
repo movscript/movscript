@@ -7,11 +7,9 @@ import (
 )
 
 type Config struct {
-	Provider           string
 	BaseURL            string
 	AdminToken         string
 	AdminUserID        int
-	PlanMap            map[string]int
 	UserPrefix         string
 	UserPassword       string
 	TokenQuota         int
@@ -22,11 +20,9 @@ type Config struct {
 
 func LoadConfigFromEnv() Config {
 	return Config{
-		Provider:           strings.TrimSpace(os.Getenv("MOVSCRIPT_METERING_PROVIDER")),
 		BaseURL:            strings.TrimRight(strings.TrimSpace(os.Getenv("MOVSCRIPT_NEW_API_BASE_URL")), "/"),
 		AdminToken:         strings.TrimSpace(os.Getenv("MOVSCRIPT_NEW_API_ADMIN_TOKEN")),
 		AdminUserID:        envInt("MOVSCRIPT_NEW_API_ADMIN_USER_ID", 0),
-		PlanMap:            ParsePlanMap(os.Getenv("MOVSCRIPT_NEW_API_PLAN_MAP")),
 		UserPrefix:         defaultString(strings.TrimSpace(os.Getenv("MOVSCRIPT_NEW_API_USER_PREFIX")), "movscript-"),
 		UserPassword:       defaultString(strings.TrimSpace(os.Getenv("MOVSCRIPT_NEW_API_USER_PASSWORD")), "movscript12345"),
 		TokenQuota:         envInt("MOVSCRIPT_NEW_API_TOKEN_REMAIN_QUOTA", 1000000000),
@@ -58,26 +54,6 @@ func (c Config) ValidateAdmin() error {
 		return ErrMissingAdminUserID
 	}
 	return nil
-}
-
-func ParsePlanMap(raw string) map[string]int {
-	out := map[string]int{}
-	for _, pair := range strings.Split(raw, ",") {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-		parts := strings.SplitN(pair, ":", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		id, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-		if err != nil || id <= 0 {
-			continue
-		}
-		out[strings.TrimSpace(parts[0])] = id
-	}
-	return out
 }
 
 func envInt(key string, fallback int) int {

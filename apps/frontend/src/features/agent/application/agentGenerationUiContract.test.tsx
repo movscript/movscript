@@ -222,7 +222,7 @@ test('generated result bulk candidate control explains missing resource ids', ()
 test('generated result card limits initially mounted media previews', () => {
   const source = readFileSync(resolve('src/features/agent/components/GeneratedResultCard.tsx'), 'utf8')
   const generatedMediaPreviewCss = readFileSync(resolve('src/features/agent/components/GeneratedResultCard.css'), 'utf8')
-  const panelThreadMessageCss = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/thread-message/styles.css'), 'utf8')
+  const panelThreadMessageCss = readFileSync(resolve('src/features/agent/components/AgentPanelThreadMessageUi.css'), 'utf8')
 
   assertIncludes(source, 'AGENT_GENERATED_RESULT_INITIAL_RENDER_LIMIT = 4')
   assertIncludes(source, 'const [expandedResults, setExpandedResults] = useState(false)')

@@ -42,7 +42,7 @@ import {
   CONTENT_CANVAS_TIMELINE_MAX_HEIGHT,
   CONTENT_CANVAS_TIMELINE_MIN_HEIGHT,
   CONTENT_CANVAS_TIMELINE_PANE_ID,
-} from '@/features/content-canvas/presentation/contentCanvasLayoutSpec'
+} from '@/features/content/presentation/contentCanvasLayoutSpec'
 import { APP_SIDEBAR_DEFAULT_WIDTH, APP_SIDEBAR_MAX_WIDTH, APP_SIDEBAR_MIN_WIDTH, APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import type { RouteLayoutPaneSpec } from './routeLayoutTypes'
 
@@ -67,7 +67,7 @@ export {
   CONTENT_CANVAS_TIMELINE_MAX_HEIGHT,
   CONTENT_CANVAS_TIMELINE_MIN_HEIGHT,
   CONTENT_CANVAS_TIMELINE_PANE_ID,
-} from '@/features/content-canvas/presentation/contentCanvasLayoutSpec'
+} from '@/features/content/presentation/contentCanvasLayoutSpec'
 
 export const APP_SHELL_TOOL_SIDEBAR_PANE_ID = 'app-shell.tool-sidebar'
 export const APP_SHELL_SETTINGS_SIDEBAR_PANE_ID = 'app-shell.settings-sidebar'

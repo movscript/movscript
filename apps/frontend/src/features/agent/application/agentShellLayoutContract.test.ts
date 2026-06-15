@@ -17,7 +17,7 @@ test('agent shell context layout is selected by explicit shell data', () => {
 })
 
 test('agent panel message layout avoids section child selectors', () => {
-  const panelMessageStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/thread-message/styles.css'), 'utf8')
+  const panelMessageStyles = readFileSync(resolve('src/features/agent/components/AgentPanelThreadMessageUi.css'), 'utf8')
 
   assert.match(panelMessageStyles, /\.ai-agent-panel-shell \.ms-agent-message--assistant \{[\s\S]*padding: 8px 0 6px;/)
   assert.match(panelMessageStyles, /\.ai-agent-panel-shell \.ms-agent-message--assistant::before \{[\s\S]*display: none;/)

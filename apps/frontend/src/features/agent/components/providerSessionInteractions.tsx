@@ -30,7 +30,7 @@ import {
   AgentRunInteractionStateBadge,
   AgentRunInteractionStatusBadge,
   AgentRunInteractionTextInput
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/run-interaction-ui'
 import { buildAgentRunActivityTimeline, type AgentRunActivityTimelineItem } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { agentRunStatusRecipe, agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import {

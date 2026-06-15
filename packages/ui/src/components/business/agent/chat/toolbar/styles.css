@@ -105,8 +105,7 @@
   color: var(--ms-color-primary);
 }
 
-.ai-agent-panel-chat-toolbar .ms-button:not(.ai-agent-panel-conversation-tab-close):hover:not(:disabled),
-.ai-agent-panel-conversation-tab-main:hover:not(:disabled) {
+.ai-agent-panel-chat-toolbar-actions .ms-button:hover:not(:disabled) {
   transform: none;
 }
 

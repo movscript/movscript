@@ -28,8 +28,9 @@ export const ROUTES = {
     agentCanvases: '/project/agent/canvases',
     standards: '/project/standards',
     scripts: '/project/scripts/workbench',
-    contentCanvas: '/project/content-orchestration/canvas',
-    contentCanvasNext: '/project/content-orchestration/canvas-next',
+    content: '/project/content',
+    contentLegacy: '/project/content-orchestration/canvas',
+    contentLegacyNext: '/project/content-orchestration/canvas-next',
   },
   tools: {
     refImageGen: '/tools/ref-image-gen',

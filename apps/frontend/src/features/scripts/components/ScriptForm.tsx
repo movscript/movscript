@@ -1,16 +1,12 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import type { Script } from '@/types'
-import { Save, Upload } from 'lucide-react'
 import {
   ScriptEditorActionButton,
   ScriptEditorBodyGrid,
   ScriptEditorBodyTextarea,
-  ScriptEditorErrorText,
   ScriptEditorFieldLabel,
   ScriptEditorFormShell,
   ScriptEditorHelperText,
-  ScriptEditorHiddenFileInput,
-  ScriptEditorInlineMeta,
   ScriptEditorInput,
   ScriptEditorMainField,
   ScriptEditorOutlineItem,
@@ -20,24 +16,18 @@ import {
   ScriptEditorSideRail,
   ScriptEditorStrongText,
   ScriptEditorSummaryTextarea,
-  ScriptEditorToolbar,
-  ScriptEditorToolbarGroup,
   ScriptEditorVersionState,
   ScriptEditorVersionSubtitle,
   ScriptEditorVersionTitle,
 } from '@/features/scripts/components/ScriptsPageUi'
 import { useTranslation } from 'react-i18next'
-import { readScriptDocument } from '@/features/resources/application/scriptDocumentReader'
-import { SCRIPT_DOCUMENT_ACCEPT } from '@/features/resources/domain/scriptDocuments'
 
 interface ScriptFormProps {
   script: Script
   projectId?: number
   workspace: Partial<Script>
   onChange: (d: Partial<Script>) => void
-  onSave: (data: Partial<Script>) => void
   onCreateVersion?: () => void
-  isSaving?: boolean
   isCreatingVersion?: boolean
   isCurrentVersionSaved?: boolean
   versionCount?: number
@@ -46,33 +36,16 @@ interface ScriptFormProps {
 export function ScriptForm({
   workspace,
   onChange,
-  onSave,
   onCreateVersion,
-  isSaving,
   isCreatingVersion,
   isCurrentVersionSaved,
   versionCount = 0,
 }: ScriptFormProps) {
   const { t } = useTranslation()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const [fileName, setFileName] = useState('')
-  const [fileError, setFileError] = useState('')
 
   function updateRawSource(value: string) {
     onChange({ ...workspace, raw_source: value, content: value })
-  }
-
-  async function handleFile(file?: File) {
-    if (!file) return
-    setFileError('')
-    try {
-      const text = await readScriptDocument(file)
-      setFileName(file.name)
-      updateRawSource(text)
-    } catch (error) {
-      setFileError(error instanceof Error ? error.message : '读取文档失败')
-    }
   }
 
   const bodyText = workspace.raw_source ?? workspace.content ?? ''
@@ -89,32 +62,6 @@ export function ScriptForm({
 
   return (
     <ScriptEditorFormShell>
-      <ScriptEditorToolbar>
-        <ScriptEditorToolbarGroup>
-          <ScriptEditorHiddenFileInput
-            ref={fileInputRef}
-            type="file"
-            accept={SCRIPT_DOCUMENT_ACCEPT}
-            onChange={(event) => {
-              void handleFile(event.target.files?.[0])
-              event.currentTarget.value = ''
-            }}
-          />
-          <ScriptEditorActionButton type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={14} />
-            导入文档
-          </ScriptEditorActionButton>
-          {fileName && <ScriptEditorInlineMeta>{fileName}</ScriptEditorInlineMeta>}
-          {fileError && <ScriptEditorErrorText>{fileError}</ScriptEditorErrorText>}
-        </ScriptEditorToolbarGroup>
-        <ScriptEditorToolbarGroup>
-          <ScriptEditorActionButton size="sm" onClick={() => onSave(workspace)} disabled={isSaving}>
-            <Save size={14} />
-            {isSaving ? t('common.saving') : t('common.save')}
-          </ScriptEditorActionButton>
-        </ScriptEditorToolbarGroup>
-      </ScriptEditorToolbar>
-
       <ScriptEditorBodyGrid>
         <ScriptEditorSideRail>
           <ScriptEditorOutlinePanel>

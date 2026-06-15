@@ -37,6 +37,14 @@ func TestBuiltInDescriptorDeclaresAdapterCapabilities(t *testing.T) {
 		"model.list":       true,
 		"model.resolve":    true,
 		"chat.completions": true,
+		"chat.stream":      true,
+		"responses":        true,
+		"image.generate":   true,
+		"video.generate":   true,
+		"video.task":       true,
+		"video.cancel":     true,
+		"audio.speech":     true,
+		"audio.transcribe": true,
 		"usage.query":      true,
 	}
 	for _, cap := range got.Capabilities {

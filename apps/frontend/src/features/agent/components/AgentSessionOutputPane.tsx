@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, CircleDot, ClipboardList, Loader2, Sparkles } from 'lucide-react'
 import { Badge, Button } from '@movscript/ui/primitives'
+import type { ContentSourceWorkspaceData } from '@movscript/core/content'
 
-import { loadContentSourceWorkspaceData, selectContentSourceWorkspaceCandidate } from '@/features/content-source-workspace/application/contentSourceWorkspaceElectron'
-import type { ContentSourceWorkspaceData } from '@/features/content-source-workspace/domain/contentSourceWorkspaceData'
-import type { PreviewAssetCandidate, PreviewAssetReferenceUnit, PreviewCandidate, PreviewContentUnit, SelectionState } from '@/features/content-source-workspace/domain/sourceWorkspaceTypes'
+import { loadContentSourceWorkspaceData, selectContentSourceWorkspaceCandidate } from '@/features/content/integrations/contentSourceWorkspaceElectron'
+import type { PreviewAssetCandidate, PreviewAssetReferenceUnit, PreviewCandidate, PreviewContentUnit, SelectionState } from '@/features/content/integrations/sourceWorkspaceTypes'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   buildAgentSessionGenerationProjection,

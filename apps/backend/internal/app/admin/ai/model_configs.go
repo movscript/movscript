@@ -483,7 +483,7 @@ func cloneConditionalEnum(items []ai.ParamConditionalEnum) []ai.ParamConditional
 	return out
 }
 
-func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, error) {
+func (s *Service) TestModelConfig(ctx context.Context, userID uint, id string) (TestResult, error) {
 	cfg, err := s.GetModelConfig(ctx, id)
 	if err != nil {
 		return TestResult{}, err
@@ -514,6 +514,7 @@ func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, e
 	}
 	modelID := ai.ResolveModelID(cfg.ModelIDOverride, def)
 	start := time.Now()
+	ctx = ai.WithProviderUserID(ctx, userID)
 	_, err = provider.TextGenerate(ctx, ai.TextRequest{
 		Model:     modelID,
 		Messages:  []ai.Message{{Role: "user", Content: "Hi"}},
@@ -525,12 +526,12 @@ func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, e
 	return TestResult{Success: true, Message: "模型响应正常", LatencyMs: time.Since(start).Milliseconds()}, nil
 }
 
-func (s *Service) DebugModelConfig(ctx context.Context, id string) (ai.DebugCallResult, error) {
+func (s *Service) DebugModelConfig(ctx context.Context, userID uint, id string) (ai.DebugCallResult, error) {
 	cfg, err := s.GetModelConfig(ctx, id)
 	if err != nil {
 		return ai.DebugCallResult{}, err
 	}
-	return s.registry.DebugCall(ctx, cfg.ToModel()), nil
+	return s.registry.DebugCall(ctx, userID, cfg.ToModel()), nil
 }
 
 func newModelConfig(credentialID uint, input dto.AIModelConfigInput) domainai.ModelConfig {

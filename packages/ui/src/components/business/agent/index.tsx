@@ -28,5 +28,4 @@ export * from "./run-activity";
 export * from "./run";
 export * from "./composer";
 export * from "./message";
-export * from "./run-interaction";
 export * from "./settings";

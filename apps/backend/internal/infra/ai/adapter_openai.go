@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
@@ -1457,6 +1458,52 @@ func (a *OpenAIAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 	}
 }
 
+func (a *OpenAIAdapter) VideoCancel(ctx context.Context, req VideoCancelRequest) (VideoResponse, error) {
+	taskID := strings.TrimSpace(req.TaskID)
+	if taskID == "" {
+		return VideoResponse{}, fmt.Errorf("video task id is required")
+	}
+	endpoint := strings.TrimRight(a.BaseURL, "/") + "/videos/" + taskID + "/cancel"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+	reqHeaders := map[string]string{
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+	}
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: taskID, Endpoint: endpoint, Method: "POST",
+			RequestHeaders: reqHeaders, LatencyMs: latency, Error: err.Error(),
+		})
+		return VideoResponse{TaskID: taskID}, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: taskID, Endpoint: endpoint, Method: "POST",
+		RequestHeaders: reqHeaders, ResponseStatus: resp.StatusCode, ResponseBody: string(body), LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		return VideoResponse{TaskID: taskID}, fmt.Errorf("cancel video task API error %d: %s", resp.StatusCode, string(body))
+	}
+	status := VideoStatusCancelled
+	message := ""
+	var raw map[string]any
+	if len(strings.TrimSpace(string(body))) > 0 {
+		_ = jsonUnmarshal(body, &raw)
+		if rawStatus := normalizeVideoStatus(stringField(raw, "status")); rawStatus != "" {
+			status = rawStatus
+		}
+		message = stringField(raw, "message", "error")
+	}
+	return VideoResponse{TaskID: taskID, Status: status, Message: message, Debug: takeDebug(ctx)}, nil
+}
+
 func (a *OpenAIAdapter) downloadVideoContent(ctx context.Context, taskID string) (VideoResponse, error) {
 	contentURL := a.BaseURL + "/videos/" + taskID + "/content"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, contentURL, nil)
@@ -1506,6 +1553,137 @@ func (a *OpenAIAdapter) downloadVideoContent(ctx context.Context, taskID string)
 	return VideoResponse{TaskID: taskID, ContentBytes: data}, nil
 }
 
+func (a *OpenAIAdapter) Synthesize(ctx context.Context, req media.TTSRequest) (media.TTSResponse, error) {
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
+		return media.TTSResponse{}, fmt.Errorf("text is required")
+	}
+	model := firstNonEmptyAI(req.Model, "tts-1")
+	voice := firstNonEmptyAI(req.Voice, "alloy")
+	responseFormat := openAIAudioResponseFormat(req.AudioFormat)
+	body := map[string]any{
+		"model": model,
+		"input": text,
+		"voice": voice,
+	}
+	if responseFormat != "" {
+		body["response_format"] = responseFormat
+	}
+	if speed, ok := numberParam(req.Params, "speed"); ok {
+		body["speed"] = speed
+	}
+	if instructions := stringParam(req.Params, "instructions", ""); instructions != "" {
+		body["instructions"] = instructions
+	}
+
+	raw, status, latency, err := a.postOpenAIJSONWithErrorLabel(ctx, "/audio/speech", body, "openai audio speech")
+	if err != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: model, Endpoint: strings.TrimRight(a.BaseURL, "/") + "/audio/speech", Method: "POST",
+			RequestBody: mustJSON(redactAudioSpeechDebugBody(body)), ResponseStatus: status, ResponseBody: string(raw), LatencyMs: latency, Error: err.Error(),
+		})
+		return media.TTSResponse{}, err
+	}
+	mimeType := mimeTypeForOpenAIAudioFormat(responseFormat)
+	recordDebugIfEmpty(ctx, DebugCallResult{
+		Success: true, ModelID: model, Endpoint: strings.TrimRight(a.BaseURL, "/") + "/audio/speech", Method: "POST",
+		RequestBody: mustJSON(redactAudioSpeechDebugBody(body)), ResponseStatus: status,
+		ResponseBody: fmt.Sprintf("(binary audio content, %d bytes)", len(raw)), LatencyMs: latency,
+	})
+	return media.TTSResponse{
+		Audio:    raw,
+		MimeType: mimeType,
+	}, nil
+}
+
+func (a *OpenAIAdapter) Transcribe(ctx context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
+	if len(req.Audio) == 0 {
+		return media.SubtitleResponse{}, fmt.Errorf("audio is required")
+	}
+	model := firstNonEmptyAI(req.Model, "whisper-1")
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	filename := "audio" + extFromAudioMime(req.MimeType)
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	if _, err := part.Write(req.Audio); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	_ = writer.WriteField("model", model)
+	_ = writer.WriteField("response_format", stringParam(req.Params, "response_format", "verbose_json"))
+	if lang := strings.TrimSpace(req.Language); lang != "" {
+		_ = writer.WriteField("language", lang)
+	}
+	if prompt := stringParam(req.Params, "prompt", ""); prompt != "" {
+		_ = writer.WriteField("prompt", prompt)
+	}
+	if temperature, ok := numberParam(req.Params, "temperature"); ok {
+		_ = writer.WriteField("temperature", fmt.Sprintf("%g", temperature))
+	}
+	if err := writer.Close(); err != nil {
+		return media.SubtitleResponse{}, err
+	}
+
+	endpoint := strings.TrimRight(a.BaseURL, "/") + "/audio/transcriptions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+	reqHeaders := map[string]string{
+		"Content-Type":  writer.FormDataContentType(),
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+	}
+	debugBody := fmt.Sprintf("(multipart: model=%s file=%s bytes=%d)", model, filename, len(req.Audio))
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: model, Endpoint: endpoint, Method: "POST",
+			RequestHeaders: reqHeaders, RequestBody: debugBody, LatencyMs: latency, Error: err.Error(),
+		})
+		return media.SubtitleResponse{}, err
+	}
+	defer resp.Body.Close()
+	data, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return media.SubtitleResponse{}, readErr
+	}
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: model, Endpoint: endpoint, Method: "POST",
+		RequestHeaders: reqHeaders, RequestBody: debugBody, ResponseStatus: resp.StatusCode, ResponseBody: string(data), LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		return media.SubtitleResponse{}, fmt.Errorf("openai audio transcription HTTP %d: %s", resp.StatusCode, string(data))
+	}
+	timing, transcript := parseOpenAITranscript(data, req.Language)
+	content := []byte(transcript)
+	if len(content) == 0 {
+		content = data
+	}
+	return media.SubtitleResponse{
+		Timing:   timing,
+		Format:   "json",
+		Content:  content,
+		MimeType: "application/json",
+	}, nil
+}
+
+func (a *OpenAIAdapter) Align(ctx context.Context, req media.AlignRequest) (media.SubtitleResponse, error) {
+	return a.Transcribe(ctx, media.TranscribeRequest{
+		AudioResourceID: req.AudioResourceID,
+		Audio:           req.Audio,
+		MimeType:        req.MimeType,
+		Language:        req.Language,
+		Model:           req.Model,
+		Params:          req.Params,
+	})
+}
+
 func (a *OpenAIAdapter) Ping(ctx context.Context) error {
 	_, err := a.client.Models.List(ctx)
 	return err
@@ -1535,6 +1713,94 @@ func stringField(m map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func openAIAudioResponseFormat(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.TrimPrefix(value, "audio/")
+	switch value {
+	case "mp3", "mpeg":
+		return "mp3"
+	case "opus", "aac", "flac", "wav", "pcm":
+		return value
+	default:
+		return "mp3"
+	}
+}
+
+func mimeTypeForOpenAIAudioFormat(format string) string {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "wav", "pcm":
+		return "audio/wav"
+	case "opus":
+		return "audio/ogg"
+	case "aac":
+		return "audio/aac"
+	case "flac":
+		return "audio/flac"
+	default:
+		return "audio/mpeg"
+	}
+}
+
+func redactAudioSpeechDebugBody(body map[string]any) map[string]any {
+	out := make(map[string]any, len(body))
+	for key, value := range body {
+		if key == "input" {
+			if text, ok := value.(string); ok {
+				out[key] = truncateDebugString(text, 240)
+			} else {
+				out[key] = value
+			}
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func parseOpenAITranscript(data []byte, language string) (media.TimingMetadata, string) {
+	var raw map[string]any
+	_ = json.Unmarshal(data, &raw)
+	text := stringField(raw, "text", "transcript")
+	segments := parseOpenAITimedUnits(raw["segments"], "segment")
+	words := parseOpenAITimedUnits(raw["words"], "word")
+	if len(segments) == 0 && text != "" {
+		segments = []media.TimedTextUnit{{ID: "segment_1", Text: text}}
+	}
+	return media.TimingMetadata{
+		Source:   media.TimingSourceSTT,
+		Provider: "openai-compatible",
+		Language: firstNonEmptyAI(strings.TrimSpace(language), stringField(raw, "language")),
+		Segments: segments,
+		Words:    words,
+	}, text
+}
+
+func parseOpenAITimedUnits(value any, prefix string) []media.TimedTextUnit {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]media.TimedTextUnit, 0, len(items))
+	for i, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		unit := media.TimedTextUnit{
+			ID:      fmt.Sprintf("%s_%d", prefix, i+1),
+			Text:    firstNonEmptyAI(stringField(m, "text"), stringField(m, "word")),
+			StartMs: secondsToMs(floatField(m, "start", "start_time")),
+			EndMs:   secondsToMs(floatField(m, "end", "end_time")),
+			Speaker: stringField(m, "speaker", "speaker_id"),
+		}
+		if confidence, ok := numberParam(m, "confidence"); ok {
+			unit.Confidence = &confidence
+		}
+		out = append(out, unit)
+	}
+	return out
 }
 
 // isOSeriesModel reports whether the model ID is an OpenAI o-series reasoning model

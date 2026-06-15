@@ -14,8 +14,9 @@ export function projectRouteHeaderTitle(pathname: string): ReactNode | undefined
     icon: LucideIcon
     title: ReactNode
   }> = [
-    { match: (value) => value === ROUTES.project.contentCanvas, icon: GitBranch, title: '新版编排画布' },
-    { match: (value) => value === ROUTES.project.contentCanvasNext, icon: GitBranch, title: '新版编排画布' },
+    { match: (value) => value === ROUTES.project.content, icon: GitBranch, title: 'Content' },
+    { match: (value) => value === ROUTES.project.contentLegacy, icon: GitBranch, title: 'Content' },
+    { match: (value) => value === ROUTES.project.contentLegacyNext, icon: GitBranch, title: 'Content' },
   ]
   return routeHeaderTitleFrom(pathname, routeTitles)
 }

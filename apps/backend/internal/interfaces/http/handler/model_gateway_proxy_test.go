@@ -113,6 +113,87 @@ func TestOpenAIProxyForwardsUnknownFieldsAndRewritesModel(t *testing.T) {
 	}
 }
 
+func TestOpenAIProxyUsesCurrentUserNewAPIRelayTarget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("MOVSCRIPT_NEW_API_BASE_URL", "https://new-api.example")
+	t.Setenv("MOVSCRIPT_NEW_API_RELAY_TOKEN", "user-relay-token")
+
+	var upstreamURL string
+	var upstreamAuth string
+	var upstreamBody map[string]any
+	previousClient := openAIProxyHTTPClient
+	openAIProxyHTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		upstreamURL = r.URL.String()
+		upstreamAuth = r.Header.Get("Authorization")
+		if err := json.NewDecoder(r.Body).Decode(&upstreamBody); err != nil {
+			t.Fatalf("decode upstream body: %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"id":"chatcmpl_newapi","object":"chat.completion"}`)),
+		}, nil
+	})}
+	t.Cleanup(func() { openAIProxyHTTPClient = previousClient })
+
+	db := testutil.OpenSQLite(t, "handler-model-gateway-proxy-newapi.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+	)
+	credential := persistencemodel.AICredential{
+		AdapterType:  ai.AdapterOpenAICompat,
+		DisplayName:  "new-api routes",
+		EncryptedKey: "should-not-be-used",
+		BaseURL:      "https://legacy-provider.example/v1",
+		IsEnabled:    true,
+	}
+	if err := db.Create(&credential).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	model := persistencemodel.AIModelConfig{
+		CredentialID:       credential.ID,
+		ModelDefID:         "logical-chat",
+		ModelIDOverride:    "provider-chat",
+		CustomCapabilities: ai.CapabilityText,
+		IsEnabled:          true,
+	}
+	if err := db.Create(&model).Error; err != nil {
+		t.Fatalf("create model: %v", err)
+	}
+
+	db = db.Session(&gorm.Session{SkipHooks: true})
+	registry := ai.NewRegistryWithProviderMode(db, nil, "new-api")
+	handler := NewModelGatewayHandler(db, ai.NewAIService(db, registry))
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.ContextUserKey, domainauth.UserProfile{ID: 42, Username: "agent", Status: domainauth.UserStatusActive})
+		c.Next()
+	})
+	router.POST("/v1/openai-proxy/*path", handler.OpenAIProxy)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/openai-proxy/chat/completions", strings.NewReader(`{
+		"model":"logical-chat",
+		"messages":[{"role":"user","content":"hi"}]
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("proxy status = %d, body=%s", res.Code, res.Body.String())
+	}
+	if upstreamURL != "https://new-api.example/v1/chat/completions" {
+		t.Fatalf("upstream url = %q, want new-api relay endpoint", upstreamURL)
+	}
+	if upstreamAuth != "Bearer sk-user-relay-token" {
+		t.Fatalf("upstream authorization = %q, want current user relay token", upstreamAuth)
+	}
+	if upstreamBody["model"] != "provider-chat" {
+		t.Fatalf("model was not rewritten for new-api relay: %#v", upstreamBody["model"])
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

@@ -19,7 +19,7 @@ export const resourceKeys = {
     search: string
     type: string
     page: number
-  }) => ['content-source-workspace-candidate-resources', input.search, input.type, input.page] as const,
+  }) => ['content-canvas-candidate-resources', input.search, input.type, input.page] as const,
   shotLibraryPicker: (input: {
     search: string
     page: number

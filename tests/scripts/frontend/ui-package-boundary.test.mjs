@@ -58,9 +58,7 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/panel/styles.css',
     'packages/ui/src/components/business/agent/panel/frame/styles.css',
     'packages/ui/src/components/business/agent/panel/card/styles.css',
-    'packages/ui/src/components/business/agent/panel/composer-mention/styles.css',
     'packages/ui/src/components/business/agent/panel/shell-layout/styles.css',
-    'packages/ui/src/components/business/agent/panel/thread-message/styles.css',
     'packages/ui/src/components/business/agent/panel/context/styles.css',
     'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
     'packages/ui/src/components/business/agent/page/styles.css',
@@ -72,18 +70,8 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/shell/primitives/tool/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
     'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/code/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/feedback/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/chat/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/panel/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/item/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/menu/styles.css',
     'packages/ui/src/components/business/agent/chat/history/styles.css',
     'packages/ui/src/components/business/agent/chat/toolbar/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/styles.css',
@@ -144,10 +132,6 @@ function readAgentChatSource() {
 function readAgentChatCss() {
   return [
     'packages/ui/src/components/business/agent/chat/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/panel/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/item/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/menu/styles.css',
     'packages/ui/src/components/business/agent/chat/history/styles.css',
     'packages/ui/src/components/business/agent/chat/toolbar/styles.css',
   ].map(readProjectFile).join('\n')
@@ -277,12 +261,6 @@ function readAgentSource() {
     'packages/ui/src/components/business/agent/message/section/index.tsx',
     'packages/ui/src/components/business/agent/message/chat/index.tsx',
     'packages/ui/src/components/business/agent/message/model-setup/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/code/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/feedback/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/card/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/badge/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/thumbnail/index.tsx',
   ].map(readProjectFile).join('\n')
 }
 
@@ -1159,9 +1137,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/panel/styles.css',
     'packages/ui/src/components/business/agent/panel/frame/styles.css',
     'packages/ui/src/components/business/agent/panel/card/styles.css',
-    'packages/ui/src/components/business/agent/panel/composer-mention/styles.css',
     'packages/ui/src/components/business/agent/panel/shell-layout/styles.css',
-    'packages/ui/src/components/business/agent/panel/thread-message/styles.css',
     'packages/ui/src/components/business/agent/panel/context/styles.css',
     'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
     'packages/ui/src/components/business/agent/page/styles.css',
@@ -1173,12 +1149,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/shell/primitives/tool/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
     'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/code/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/feedback/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/chat/index.tsx',
     'packages/ui/src/components/business/agent/chat/types.ts',
@@ -1270,17 +1240,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/message/section/index.tsx',
     'packages/ui/src/components/business/agent/message/chat/index.tsx',
     'packages/ui/src/components/business/agent/message/model-setup/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/code/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/code/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/feedback/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/feedback/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/card/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/badge/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
-    'packages/ui/src/components/business/agent/run-interaction/thumbnail/index.tsx',
-    'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
     'packages/ui/src/components/business/agent/settings/index.tsx',
     'packages/ui/src/components/business/agent/settings/styles.css',
     'packages/ui/src/components/business/agent/responsive/styles.css',
@@ -3478,22 +3437,20 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentConsoleRealtimeLogUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogUi.css')
   const agentConsoleUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx')
   const agentConsoleUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.css')
+  const agentComposerPanelUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentComposerPanelUi.css')
+  const agentConversationTabsUiCss = [
+    'apps/frontend/src/features/agent/components/AgentConversationTabsUi.css',
+    'apps/frontend/src/features/agent/components/conversation-tabs-ui/panel/styles.css',
+    'apps/frontend/src/features/agent/components/conversation-tabs-ui/item/styles.css',
+    'apps/frontend/src/features/agent/components/conversation-tabs-ui/menu/styles.css',
+  ].map(readProjectFile).join('\n')
+  const agentPanelThreadMessageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelThreadMessageUi.css')
   const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
   const projectAgentContentPanelSource = readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx')
 
   for (const sharedClass of [
     'ai-agent-panel',
-    'ai-agent-panel-conversation-tabs',
-    'ai-agent-panel-conversation-tab',
-    'ai-agent-panel-conversation-tab-main',
-    'ai-agent-panel-conversation-tab-session-light',
-    'ai-agent-panel-conversation-tab-title',
-    'ai-agent-panel-conversation-tab-count',
-    'ai-agent-panel-conversation-tab-close',
-    'ai-agent-panel-tab-context-menu-anchor',
-    'ai-agent-panel-tab-context-dropdown',
-    'ai-agent-panel-tab-context-menu-danger',
     'ai-agent-panel-card',
     'ai-agent-panel-content-card',
     'ai-agent-panel-input-card',
@@ -3501,9 +3458,6 @@ test('agent panel and page surfaces use package agent styles', () => {
     'ai-agent-panel-card-header',
     'ai-agent-panel-card-title',
     'ai-agent-panel-card-subtitle',
-    'ai-agent-panel-composer',
-    'ai-agent-panel-mention-editor',
-    'ai-agent-mention-chip',
     'ai-agent-panel-shell',
     'ai-agent-panel-main',
     'ai-agent-panel-chat-header',
@@ -3519,6 +3473,51 @@ test('agent panel and page surfaces use package agent styles', () => {
   ]) {
     assert.match(`${agentCss}\n${agentChatCss}`, cssClassSelectorPattern(sharedClass), `${sharedClass} agent styles must live in @movscript/ui agent`)
   }
+  for (const conversationTabClass of [
+    'ai-agent-panel-conversation-tabs',
+    'ai-agent-panel-conversation-tab',
+    'ai-agent-panel-conversation-tab-main',
+    'ai-agent-panel-conversation-tab-session-light',
+    'ai-agent-panel-conversation-tab-title',
+    'ai-agent-panel-conversation-tab-count',
+    'ai-agent-panel-conversation-tab-close',
+    'ai-agent-panel-tab-context-menu-anchor',
+    'ai-agent-panel-tab-context-dropdown',
+    'ai-agent-panel-tab-context-menu-danger',
+  ]) {
+    assert.match(agentConversationTabsUiCss, cssClassSelectorPattern(conversationTabClass), `${conversationTabClass} styles must be owned by the app agent conversation tabs UI`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(conversationTabClass), `${conversationTabClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const composerPanelClass of [
+    'ai-agent-panel-composer',
+    'ai-agent-panel-mention-editor',
+    'ai-agent-mention-chip',
+  ]) {
+    assert.match(agentComposerPanelUiCss, cssClassSelectorPattern(composerPanelClass), `${composerPanelClass} styles must be owned by the app agent composer UI`)
+  }
+  for (const composerPanelDetailClass of [
+    'ai-agent-panel-mention-editor',
+    'ai-agent-mention-chip',
+  ]) {
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(composerPanelDetailClass), `${composerPanelDetailClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const composerPanelSelector of [
+    '.ms-agent-composer.ms-agent-composer--panel',
+    '.ms-agent-composer--panel .ms-agent-composer__rich-field',
+  ]) {
+    assert.match(agentComposerPanelUiCss, new RegExp(composerPanelSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${composerPanelSelector} must be owned by the app agent composer UI`)
+  }
+  assert.doesNotMatch(agentCss, /\.ms-agent-composer\.ms-agent-composer--panel/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-composer--panel \.ms-agent-composer__rich-field/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/composer-mention')), false, 'agent composer panel styles must be feature-owned')
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentComposerPanelUi\.css";/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/thread-message')), false, 'agent panel thread message styles must be feature-owned')
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelThreadMessageUi\.css";/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/tabs/styles.css')), false, 'agent conversation tab styles must be feature-owned')
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConversationTabsUi\.css";/)
+  assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant\s*\{/)
+  assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant \.ms-agent-generated-media-preview/)
+  assert.doesNotMatch(agentCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant\s*\{/)
   assert.match(agentChatShellViewSource, /import '\.\/AgentChatShellView\.css'/)
   for (const pageChatClass of [
     'agent-page-chat-main',
@@ -4846,9 +4845,16 @@ test('agent generation and provider session interactions use package tone contra
   const generationCardsCss = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.css')
   const agentPlanOverviewTaskSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/task/index.tsx')
   const agentPlanOverviewTaskCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/task/styles.css')
-  const agentRunInteractionSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/index.tsx')
-  const agentRunInteractionApprovalStatusSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/status/index.ts')
-  const agentRunInteractionApprovalCardSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/card/index.tsx')
+  const agentRunInteractionSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/index.tsx')
+  const agentRunInteractionApprovalStatusSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/status/index.ts')
+  const agentRunInteractionApprovalCardSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/card/index.tsx')
+  const agentRunInteractionApprovalCodeSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/code/index.tsx')
+  const agentRunInteractionCss = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/styles.css')
+  const agentRunInteractionCardCss = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/card/styles.css')
+  const agentRunInteractionThumbCss = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/thumbnail/styles.css')
+  const agentRunInteractionBubbleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentRunInteractionBubble.tsx')
+  const agentPackageIndexSource = readProjectFile('packages/ui/src/components/business/agent/index.tsx')
+  const agentPackageStylesSource = readProjectFile('packages/ui/src/components/business/agent/styles.css')
   const agentSemanticUiSource = readProjectFile('apps/frontend/src/features/agent/presentation/agentSemanticUi.ts')
   const providerSessionInteractionsSource = readProjectFile('apps/frontend/src/features/agent/components/providerSessionInteractions.tsx')
   const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
@@ -4903,6 +4909,11 @@ test('agent generation and provider session interactions use package tone contra
   assert.doesNotMatch(generationCardsSource, /text-destructive/)
   assert.doesNotMatch(generationCardsSource, /\bReviewCallout\b/)
   assert.doesNotMatch(providerSessionInteractionsSource, /AgentSurfaceBlock/)
+  assert.match(providerSessionInteractionsSource, /from ['"]@\/features\/agent\/components\/run-interaction-ui['"]/)
+  assert.match(agentRunInteractionBubbleSource, /from ['"]@\/features\/agent\/components\/run-interaction-ui['"]/)
+  assert.doesNotMatch(agentPackageIndexSource, /export \* from "\.\/run-interaction"/)
+  assert.doesNotMatch(agentPackageStylesSource, /@import "\.\/run-interaction\/styles\.css"/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/run-interaction')), false)
   assert.match(providerSessionInteractionsSource, /AgentRunInteractionProviderSessionPanel/)
   assert.doesNotMatch(providerSessionInteractionsSource, /AgentRunInteractionRuntimePanel/)
   assert.match(providerSessionInteractionsSource, /AgentRunInteractionRequestCard/)
@@ -4914,12 +4925,19 @@ test('agent generation and provider session interactions use package tone contra
   assert.match(providerSessionInteractionsSource, /AgentRunInteractionActionButton/)
   assert.doesNotMatch(providerSessionInteractionsSource, /agentRunInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge|InputChoice|InputItem|InputRail|InputBadge|InputAnswer|RejectAction)Class/)
   assert.doesNotMatch(agentRunInteractionSource, /export \* from "\.\/status"/)
+  assert.match(agentRunInteractionCss, /@import "\.\/card\/styles\.css"/)
+  assert.match(agentRunInteractionCardCss, /\.ms-agent-run-interaction-request-card\s*\{/)
+  assert.match(agentRunInteractionThumbCss, /\.ms-agent-run-interaction-thumb\s*\{/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalSectionClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalBadgeClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalInputChoiceClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /toneSurfaceClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /toneTextClass/)
-  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionRequestCard[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionRequestCard[\s\S]*?<Frame/)
+  assert.doesNotMatch(agentRunInteractionApprovalCardSource, /\bAgentSurfaceBlock\b/)
+  assert.match(agentRunInteractionApprovalCardSource, /from "@movscript\/ui\/primitives"/)
+  assert.doesNotMatch(agentRunInteractionApprovalCodeSource, /@movscript\/ui\/business\/agent/)
+  assert.match(agentRunInteractionApprovalCodeSource, /ms-agent-field ms-agent-data-block ms-agent-run-interaction-code/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionChoiceButton[\s\S]*?<Button/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionTextInput[\s\S]*?<Input/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionStateBadge[\s\S]*?<Badge/)

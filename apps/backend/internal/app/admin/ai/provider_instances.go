@@ -11,6 +11,7 @@ import (
 	domainai "github.com/movscript/movscript/internal/domain/ai"
 	infraai "github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
+	"github.com/movscript/movscript/internal/infra/newapi"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
@@ -77,44 +78,25 @@ func (s *Service) TestProviderInstance(ctx context.Context, id string) (TestResu
 
 func (s *Service) testNewAPIGatewayProviderInstance(ctx context.Context) (TestResult, error) {
 	start := time.Now()
-	creds, err := s.repo.ListCredentials(ctx)
-	if err != nil {
-		return TestResult{}, err
-	}
-	configuredCredentials := 0
-	enabledRoutes := 0
-	for _, cred := range creds {
-		if !cred.IsEnabled || strings.TrimSpace(cred.AdapterType) == infraai.AdapterLocal {
-			continue
-		}
-		instance := providerInstanceFromCredential(cred)
-		if !instance.Configured {
-			continue
-		}
-		configuredCredentials++
-		for _, model := range cred.Models {
-			if model.IsEnabled {
-				enabledRoutes++
-			}
-		}
-	}
-	if configuredCredentials == 0 {
+	_ = ctx
+	cfg := newapi.LoadConfigFromEnv()
+	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return TestResult{
 			Success:   false,
-			Message:   "new-api gateway has no enabled credential-backed provider instances; configure AI Gateway credentials in Admin",
+			Message:   "new-api gateway is not configured; set MOVSCRIPT_NEW_API_BASE_URL to the external new-api service",
 			LatencyMs: time.Since(start).Milliseconds(),
 		}, nil
 	}
-	if enabledRoutes == 0 {
+	if strings.TrimSpace(cfg.RelayTokenFallback) == "" && (strings.TrimSpace(cfg.AdminToken) == "" || cfg.AdminUserID <= 0) {
 		return TestResult{
 			Success:   false,
-			Message:   fmt.Sprintf("new-api gateway has %d enabled credential-backed provider instance(s), but no enabled model routes", configuredCredentials),
+			Message:   "new-api gateway is configured, but relay provisioning is incomplete; set MOVSCRIPT_NEW_API_RELAY_TOKEN or MOVSCRIPT_NEW_API_ADMIN_TOKEN with MOVSCRIPT_NEW_API_ADMIN_USER_ID",
 			LatencyMs: time.Since(start).Milliseconds(),
 		}, nil
 	}
 	return TestResult{
 		Success:   true,
-		Message:   fmt.Sprintf("new-api gateway directory ready: %d enabled credential-backed provider instance(s), %d enabled model route(s). Use each ai_gateway:credential instance test for live provider ping.", configuredCredentials, enabledRoutes),
+		Message:   fmt.Sprintf("new-api gateway ready: forwarding to %s", cfg.RelayBaseURL()),
 		LatencyMs: time.Since(start).Milliseconds(),
 	}, nil
 }

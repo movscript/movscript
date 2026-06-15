@@ -28,6 +28,57 @@
     var(--ms-color-background);
 }
 
+.script-workbench-project-shell .workbench-project-header {
+  padding: 8px 20px 6px;
+}
+
+.script-workbench-project-shell .workbench-project-header__main {
+  min-height: 32px;
+}
+
+.script-workbench-project-shell .workbench-project-header__identity {
+  gap: 10px;
+}
+
+.script-workbench-project-shell .workbench-project-header__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.script-workbench-project-shell .workbench-project-header__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.script-workbench-project-shell .workbench-project-header__copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.script-workbench-project-shell .workbench-project-header__kicker,
+.script-workbench-project-shell .workbench-project-header__title,
+.script-workbench-project-shell .workbench-project-header__description {
+  margin: 0;
+  line-height: 18px;
+}
+
+.script-workbench-project-shell .workbench-project-header__kicker {
+  flex: 0 0 auto;
+}
+
+.script-workbench-project-shell .workbench-project-header__title {
+  flex: 0 1 auto;
+  font-size: 15px;
+}
+
+.script-workbench-project-shell .workbench-project-header__description {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
 .script-workbench-main {
   display: flex;
   width: 100%;
@@ -41,32 +92,58 @@
 
 .script-workbench-topbar {
   --script-workbench-content-max: min(100%, 1460px);
-  padding: var(--script-workbench-content-y) var(--script-workbench-content-x) 8px;
+  padding: 10px var(--script-workbench-content-x) 8px;
 }
 
 .script-workbench-topbar .script-detail-header__top {
   align-items: center;
+  flex-wrap: nowrap;
+  gap: 16px;
 }
 
 .script-workbench-topbar .script-detail-header__badges {
-  margin-bottom: 4px;
+  margin: 0;
 }
 
 .script-workbench-topbar .script-detail-header__title {
   max-width: min(72ch, 100%);
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.script-workbench-topbar .script-detail-header__metrics {
+.script-workbench-topbar .script-detail-header__copy {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.script-workbench-topbar .script-detail-header__badges {
+  order: 2;
+  flex: 0 0 auto;
+}
+
+.script-workbench-topbar .script-detail-header__actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.script-workbench-topbar .script-editor-form__inline-meta,
+.script-workbench-topbar .script-editor-form__error-text {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.script-workbench-topbar .script-detail-header__metrics {
+  display: none;
 }
 
 .script-workbench-topbar .app-metric-card {
@@ -78,7 +155,24 @@
 
 .script-workbench-mode-tabs {
   --script-workbench-content-max: min(100%, 1460px);
-  padding: 0 var(--script-workbench-content-x) 8px;
+  width: auto;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 68%, transparent);
+  border-radius: var(--ms-radius-full);
+  background: color-mix(in srgb, var(--ms-color-muted) 24%, transparent);
+  padding: 2px;
+}
+
+.script-workbench-mode-tabs .script-detail-tabs__trigger {
+  min-width: 58px;
+  padding: 5px 10px;
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.script-workbench-mode-tabs .script-detail-tabs__trigger[data-active="true"] {
+  background: var(--ms-color-background);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
 }
 
 .script-workbench-inspector {
@@ -403,6 +497,21 @@
 }
 
 @media (max-width: 1023px) {
+  .script-workbench-project-shell .workbench-project-header__copy {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .script-workbench-project-shell .workbench-project-header__description {
+    flex-basis: 100%;
+  }
+
+  .script-workbench-topbar .script-detail-header__top,
+  .script-workbench-topbar .script-detail-header__copy,
+  .script-workbench-topbar .script-detail-header__actions {
+    flex-wrap: wrap;
+  }
+
   .script-workbench-topbar .script-detail-header__title {
     white-space: normal;
   }

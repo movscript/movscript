@@ -115,8 +115,9 @@ export function AuthenticatedAppRouter() {
                   <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
                   <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
                   <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
-                  <Route path={ROUTES.project.contentCanvas} element={<ProjectGuard><ContentCanvasWorkspacePage /></ProjectGuard>} />
-                  <Route path={ROUTES.project.contentCanvasNext} element={<Navigate to={ROUTES.project.contentCanvas} replace />} />
+                  <Route path={ROUTES.project.content} element={<ProjectGuard><ContentCanvasWorkspacePage /></ProjectGuard>} />
+                  <Route path={ROUTES.project.contentLegacy} element={<Navigate to={ROUTES.project.content} replace />} />
+                  <Route path={ROUTES.project.contentLegacyNext} element={<Navigate to={ROUTES.project.content} replace />} />
 
                   {runtimeRoutes.map((route) => {
                     const manageNavItem = runtimeNavItems.find((item) => item.to === route.path && (item.section ?? 'manage') === 'manage')

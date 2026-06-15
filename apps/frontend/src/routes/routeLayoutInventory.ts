@@ -101,7 +101,7 @@ function currentRouteLayoutOwner(spec: RouteLayoutSpec): string {
   if (spec.kind === 'overlay-action') return 'overlay route action'
   if (spec.surface === 'canvas') return 'canvas shell'
   if (spec.surface === 'agent') return 'agent shell'
-  if (spec.workbenchId) return `${spec.workbenchId} workbench`
+  if (spec.projectEntryId) return `${spec.projectEntryId} project entry`
   return 'app route shell'
 }
 

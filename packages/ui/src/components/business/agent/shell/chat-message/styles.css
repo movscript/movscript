@@ -510,56 +510,6 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section {
-  position: relative;
-  margin-top: 6px;
-  border: 0;
-  border-left: 2px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
-  border-radius: 0;
-  background: transparent;
-  padding: 3px 0 3px 10px;
-  box-shadow: none;
-}
-
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section--result,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section--result {
-  border-left-color: color-mix(in srgb, var(--ms-color-primary) 48%, var(--ms-color-border));
-}
-
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section--process,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section--process {
-  border-left-color: color-mix(in srgb, var(--ms-color-muted-foreground) 48%, var(--ms-color-border));
-}
-
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section--diagnostic,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section--diagnostic {
-  border-left-color: color-mix(in srgb, var(--ms-color-danger) 56%, var(--ms-color-border));
-}
-
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section__title,
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section__summary,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section__title,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section__summary {
-  min-height: 20px;
-  margin-bottom: 4px;
-  color: color-mix(in srgb, var(--ms-color-foreground) 82%, var(--ms-color-muted-foreground));
-  font-size: var(--ms-text-caption);
-  font-weight: 650;
-  line-height: 20px;
-}
-
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section__body,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section__body {
-  margin-top: 4px;
-}
-
-.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section pre,
-.ai-agent-panel-shell .ms-agent-message--system .ms-agent-message-section pre {
-  margin: 0;
-  line-height: 18px;
-}
-
 .ms-agent-chat-attachment-grid {
   display: grid;
   gap: 6px;

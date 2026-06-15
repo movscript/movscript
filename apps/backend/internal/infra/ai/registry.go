@@ -115,7 +115,18 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 // GetFileUploader returns a FileUploader configured for the credential associated with a model config.
 // Returns nil if FilesAPIEnabled is not set on the credential.
 // Uses the independent Files API key/URL when configured, falling back to the main credential.
-func (r *Registry) GetFileUploader(cfg persistencemodel.AIModelConfig) FileUploader {
+func (r *Registry) GetFileUploader(ctx context.Context, userID uint, cfg persistencemodel.AIModelConfig) FileUploader {
+	if r.providerMode == "new-api" {
+		newAPICfg := newapi.LoadConfigFromEnv()
+		if newAPICfg.RelayBaseURL() == "" {
+			return nil
+		}
+		token, err := newapi.NewIdentityService(r.db, r.encryptionKey, newAPICfg, nil).RelayTokenForUser(ctx, userID)
+		if err != nil {
+			return nil
+		}
+		return NewFileUploader(newAPICfg.RelayBaseURL(), token)
+	}
 	var cred persistencemodel.AICredential
 	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
 		return nil
@@ -259,13 +270,27 @@ func splitKlingKey(key string) [2]string {
 // DebugCall makes the actual API call for a model config and returns raw HTTP details.
 // For text models it sends a minimal generation request; for image it sends a real generation
 // (may incur cost); for video it only validates auth via a list request (no billable task created).
-func (r *Registry) DebugCall(ctx context.Context, cfg persistencemodel.AIModelConfig) DebugCallResult {
+func (r *Registry) DebugCall(ctx context.Context, userID uint, cfg persistencemodel.AIModelConfig) DebugCallResult {
 	var cred persistencemodel.AICredential
 	if err := r.db.First(&cred, cfg.CredentialID).Error; err != nil {
 		return DebugCallResult{Error: "credential not found"}
 	}
 
 	def := resolveDefFromConfig(cfg, cred.AdapterType)
+	modelID := cfg.ModelIDOverride
+	if modelID == "" {
+		modelID = def.ModelID
+	}
+	if r.providerMode == "new-api" {
+		if userID == 0 {
+			return DebugCallResult{ModelID: modelID, Error: "movscript user id is required for new-api debug calls"}
+		}
+		provider, _, err := r.BuildForConfig(cfg)
+		if err != nil {
+			return DebugCallResult{ModelID: modelID, Error: err.Error()}
+		}
+		return debugCallProvider(ctx, userID, provider, def, modelID)
+	}
 
 	apiKey := ""
 	if cred.EncryptedKey != "" {
@@ -281,11 +306,6 @@ func (r *Registry) DebugCall(ctx context.Context, cfg persistencemodel.AIModelCo
 		if def := GetAdapterDef(cred.AdapterType); def != nil {
 			baseURL = def.DefaultBaseURL
 		}
-	}
-
-	modelID := cfg.ModelIDOverride
-	if modelID == "" {
-		modelID = def.ModelID
 	}
 
 	hasText, hasImage := false, false
@@ -370,6 +390,45 @@ func (r *Registry) DebugCall(ctx context.Context, cfg persistencemodel.AIModelCo
 		return debugHTTPGet(ctx, endpoint, map[string]string{
 			"Authorization": "Bearer " + apiKey,
 		}, modelID)
+	}
+}
+
+func debugCallProvider(ctx context.Context, userID uint, provider Provider, def *ModelDef, modelID string) DebugCallResult {
+	ctx, result := WithDebugRecorder(WithProviderUserID(ctx, userID))
+	if modelHasCapability(def, CapabilityText) {
+		_, err := provider.TextGenerate(ctx, TextRequest{
+			Model:     modelID,
+			Messages:  []Message{{Role: "user", Content: "Hi"}},
+			MaxTokens: 1,
+		})
+		if err != nil && result.Error == "" {
+			result.Error = err.Error()
+		}
+		if result.ModelID == "" {
+			result.ModelID = modelID
+		}
+		return *result
+	}
+	if modelHasCapability(def, CapabilityImage) {
+		_, err := provider.ImageGenerate(ctx, ImageRequest{
+			Model:  modelID,
+			Prompt: "a simple red circle on white background",
+			Size:   "1280x720",
+			N:      1,
+		})
+		if err != nil && result.Error == "" {
+			result.Error = err.Error()
+		}
+		if result.ModelID == "" {
+			result.ModelID = modelID
+		}
+		return *result
+	}
+	return DebugCallResult{
+		Success: true,
+		ModelID: modelID,
+		Method:  "SKIP",
+		Error:   "new-api debug only performs live calls for text/image model configs",
 	}
 }
 

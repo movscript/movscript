@@ -184,7 +184,12 @@ func (h *AIHandler) PreviewModelConfigContract(c *gin.Context) {
 func (h *AIHandler) TestModelConfig(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	result, err := h.service.TestModelConfig(ctx, c.Param("modelId"))
+	user := currentUser(c)
+	var userID uint
+	if user != nil {
+		userID = user.ID
+	}
+	result, err := h.service.TestModelConfig(ctx, userID, c.Param("modelId"))
 	if err != nil {
 		if errors.Is(err, adminai.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -213,7 +218,12 @@ func (h *AIHandler) TestModelConfig(c *gin.Context) {
 func (h *AIHandler) DebugModelConfig(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
-	result, err := h.service.DebugModelConfig(ctx, c.Param("modelId"))
+	user := currentUser(c)
+	var userID uint
+	if user != nil {
+		userID = user.ID
+	}
+	result, err := h.service.DebugModelConfig(ctx, userID, c.Param("modelId"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return

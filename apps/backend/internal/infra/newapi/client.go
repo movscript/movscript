@@ -29,11 +29,6 @@ type User struct {
 	Username string `json:"username"`
 }
 
-type Subscription struct {
-	PlanID int    `json:"plan_id"`
-	Status string `json:"status"`
-}
-
 type Token struct {
 	ID             int    `json:"id"`
 	Name           string `json:"name"`
@@ -104,29 +99,6 @@ func (c *Client) FindUser(ctx context.Context, username string) (User, bool, err
 		}
 	}
 	return User{}, false, nil
-}
-
-func (c *Client) UserHasActivePlan(ctx context.Context, userID int, planID int) (bool, error) {
-	path := fmt.Sprintf("/api/subscription/admin/users/%d/subscriptions", userID)
-	var env Envelope
-	if err := c.adminRequest(ctx, http.MethodGet, path, nil, &env); err != nil {
-		return false, err
-	}
-	var subs []Subscription
-	if len(env.Data) > 0 {
-		_ = json.Unmarshal(env.Data, &subs)
-	}
-	for _, sub := range subs {
-		if sub.PlanID == planID && sub.Status == "active" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (c *Client) BindSubscription(ctx context.Context, userID int, planID int) error {
-	path := fmt.Sprintf("/api/subscription/admin/users/%d/subscriptions", userID)
-	return c.adminRequest(ctx, http.MethodPost, path, map[string]any{"plan_id": planID}, nil)
 }
 
 func (c *Client) EnsureRelayToken(ctx context.Context, user User, movscriptUserID uint) (int, string, error) {

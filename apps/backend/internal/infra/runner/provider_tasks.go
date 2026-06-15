@@ -171,7 +171,7 @@ func (w *Worker) cancelProviderTask(ctx context.Context, job *persistencemodel.J
 	}
 	cancelCtx, cancel := context.WithTimeout(ctx, providerPollTimeout)
 	defer cancel()
-	resp, err := w.aiService.CallVideoCancel(cancelCtx, job.ModelConfigID, taskID, taskKind)
+	resp, err := w.aiService.CallVideoCancel(cancelCtx, job.UserID, job.ModelConfigID, taskID, taskKind)
 	if err != nil {
 		return resp, err
 	}

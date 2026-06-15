@@ -271,7 +271,7 @@ func TestProviderInstancesIncludeStartupAndAIGatewayInstances(t *testing.T) {
 	}
 }
 
-func TestProviderInstancesExposeNewAPIStartupGatewayAsReadOnlyAggregate(t *testing.T) {
+func TestProviderInstancesExposeNewAPIStartupGatewayAsExternalAggregate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		DependencyProfile: "external",
@@ -324,11 +324,117 @@ func TestProviderInstancesExposeNewAPIStartupGatewayAsReadOnlyAggregate(t *testi
 	if found == nil {
 		t.Fatalf("provider instances missing ai_gateway:new-api: %+v", body.Items)
 	}
-	if found.Type != "ai_gateway" || found.Adapter != "new-api" || found.ConfigEditable || len(found.ConfigFields) != 0 || len(found.SecretFields) != 0 {
-		t.Fatalf("new-api startup provider instance = %+v, want read-only aggregate without fake credential fields", *found)
+	if found.Type != "ai_gateway" || found.Adapter != "new-api" {
+		t.Fatalf("new-api startup provider instance = %+v, want ai gateway new-api aggregate", *found)
 	}
 	if bodyText := res.Body.String(); strings.Contains(bodyText, "model_credentials") || strings.Contains(bodyText, "model_credential_keys") {
 		t.Fatalf("new-api startup provider instance exposed fake credential fields: %s", bodyText)
+	}
+	for _, field := range found.ConfigFields {
+		if field.Key == "base_url" || field.Key == "api_key" {
+			t.Fatalf("new-api startup provider instance exposed local provider credential config field: %+v", *found)
+		}
+	}
+	for _, field := range found.SecretFields {
+		if field.Key == "api_key" {
+			t.Fatalf("new-api startup provider instance exposed local provider credential secret field: %+v", *found)
+		}
+	}
+}
+
+func TestNewAPIGatewayModeAllowsCredentialContainerWithoutProviderSecret(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		DependencyProfile: "external",
+		AIGatewayProvider: "new-api",
+	}
+	router, db := newTestAICredentialRouterWithConfig(t, cfg)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials", strings.NewReader(`{
+		"adapter_type":"openai_compat",
+		"display_name":"new-api routes",
+		"credentials":{}
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+	router.ServeHTTP(createRes, createReq)
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected new-api credential container to be created without provider secret, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+
+	var count int64
+	if err := db.Model(&persistencemodel.AICredential{}).Count(&count).Error; err != nil {
+		t.Fatalf("count credentials: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("credential count = %d, want 1", count)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/provider-instances", nil)
+	listRes := httptest.NewRecorder()
+	router.ServeHTTP(listRes, listReq)
+	if listRes.Code != http.StatusOK {
+		t.Fatalf("expected provider instances response, got %d: %s", listRes.Code, listRes.Body.String())
+	}
+	bodyText := listRes.Body.String()
+	if !strings.Contains(bodyText, "ai_gateway:new-api") {
+		t.Fatalf("provider instances missing new-api aggregate: %s", bodyText)
+	}
+	if strings.Contains(bodyText, "ai_gateway:credential:") {
+		t.Fatalf("new-api mode should not expose credential containers as provider instances: %s", bodyText)
+	}
+}
+
+func TestNewAPIGatewayModeListsRemoteModelsThroughNewAPI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("new-api upstream path = %q, want /v1/models", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"gpt-4.1"},{"id":"sora-2"}]}`))
+	}))
+	defer upstream.Close()
+	t.Setenv("MOVSCRIPT_NEW_API_BASE_URL", upstream.URL)
+	t.Setenv("MOVSCRIPT_NEW_API_RELAY_TOKEN", "admin-relay-token")
+
+	cfg := &config.Config{
+		DependencyProfile: "external",
+		AIGatewayProvider: "new-api",
+	}
+	router, _ := newTestAICredentialRouterWithConfig(t, cfg)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials", strings.NewReader(`{
+		"adapter_type":"openai_compat",
+		"display_name":"new-api routes",
+		"credentials":{}
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+	router.ServeHTTP(createRes, createReq)
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected credential container to be created, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/credentials/1/remote-models", nil)
+	listRes := httptest.NewRecorder()
+	router.ServeHTTP(listRes, listReq)
+	if listRes.Code != http.StatusOK {
+		t.Fatalf("expected remote models response, got %d: %s", listRes.Code, listRes.Body.String())
+	}
+	if gotAuth != "Bearer sk-admin-relay-token" {
+		t.Fatalf("new-api relay Authorization = %q, want fallback relay token", gotAuth)
+	}
+	var body struct {
+		Models []string `json:"models"`
+	}
+	if err := json.Unmarshal(listRes.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode remote models: %v", err)
+	}
+	if len(body.Models) != 2 || body.Models[0] != "gpt-4.1" || body.Models[1] != "sora-2" {
+		t.Fatalf("remote models = %+v, want new-api upstream models", body.Models)
 	}
 }
 
@@ -360,8 +466,10 @@ func TestProviderInstanceTestReusesCredentialPing(t *testing.T) {
 	}
 }
 
-func TestProviderInstanceTestNewAPIGatewayAggregatesCredentialBackedRoutes(t *testing.T) {
+func TestProviderInstanceTestNewAPIGatewayReportsExternalForwardReady(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	t.Setenv("MOVSCRIPT_NEW_API_BASE_URL", "https://new-api.example.com")
+	t.Setenv("MOVSCRIPT_NEW_API_RELAY_TOKEN", "test-relay-token")
 	cfg := &config.Config{AIGatewayProvider: "new-api"}
 	router, db := newTestAICredentialRouterWithConfig(t, cfg)
 	cred := persistencemodel.AICredential{
@@ -397,8 +505,8 @@ func TestProviderInstanceTestNewAPIGatewayAggregatesCredentialBackedRoutes(t *te
 	if err := json.Unmarshal(testRes.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode new-api provider test response: %v", err)
 	}
-	if !body.Success || !strings.Contains(body.Message, "credential-backed provider instance") || !strings.Contains(body.Message, "enabled model route") {
-		t.Fatalf("new-api provider test body = %+v, want aggregate readiness success", body)
+	if !body.Success || !strings.Contains(body.Message, "forwarding to https://new-api.example.com/v1") {
+		t.Fatalf("new-api provider test body = %+v, want external forward readiness success", body)
 	}
 	if strings.Contains(testRes.Body.String(), "encrypted-main-key") {
 		t.Fatalf("new-api provider test leaked credential secret: %s", testRes.Body.String())
@@ -408,7 +516,7 @@ func TestProviderInstanceTestNewAPIGatewayAggregatesCredentialBackedRoutes(t *te
 	}
 }
 
-func TestProviderInstanceTestNewAPIGatewayReportsEmptyDirectory(t *testing.T) {
+func TestProviderInstanceTestNewAPIGatewayReportsMissingExternalService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{AIGatewayProvider: "new-api"}
 	router, db := newTestAICredentialRouterWithConfig(t, cfg)
@@ -427,8 +535,8 @@ func TestProviderInstanceTestNewAPIGatewayReportsEmptyDirectory(t *testing.T) {
 	if err := json.Unmarshal(testRes.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode new-api provider test response: %v", err)
 	}
-	if body.Success || !strings.Contains(body.Message, "no enabled credential-backed provider instances") {
-		t.Fatalf("new-api provider test body = %+v, want empty directory failure", body)
+	if body.Success || !strings.Contains(body.Message, "MOVSCRIPT_NEW_API_BASE_URL") {
+		t.Fatalf("new-api provider test body = %+v, want missing external service failure", body)
 	}
 	if countAuditAction(t, db, "provider_instance.admin_tested") != 1 {
 		t.Fatalf("expected provider instance test audit log")
@@ -1065,7 +1173,11 @@ func newTestAICredentialRouterWithConfig(t *testing.T, cfg *config.Config) (*gin
 	t.Helper()
 	db := testutil.OpenSQLite(t, "handler-ai-credentials.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AuditLog{}, &persistencemodel.AdminSetting{}, &persistencemodel.ExternalResourceSource{})
 	db = db.Session(&gorm.Session{SkipHooks: true})
-	registry := ai.NewRegistry(db, nil)
+	providerMode := ""
+	if cfg != nil {
+		providerMode = cfg.AIGatewayProvider
+	}
+	registry := ai.NewRegistryWithProviderMode(db, nil, providerMode)
 	h := NewAIHandlerWithConfig(db, cfg, testHandlerEncryptionKeyHex, registry)
 
 	router := gin.New()

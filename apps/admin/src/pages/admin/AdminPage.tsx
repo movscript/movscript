@@ -1457,6 +1457,7 @@ export function ModelManagementPage() {
   })
   const providerInstances = providerInstancesData?.items ?? []
   const startupProviderInstances = providerInstances.filter((item) => !item.legacy_ref)
+  const isNewAPIGatewayMode = startupProviderInstances.some((item) => item.id === 'ai_gateway:new-api')
   const providerInstanceByCredentialId = new Map(
     providerInstances
       .filter((item) => item.legacy_ref?.kind === 'ai_credential')
@@ -1472,6 +1473,21 @@ export function ModelManagementPage() {
 
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
+    onMutate: () => setModelAdminError(''),
+    onSuccess: () => {
+      setModelAdminError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
+    },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
+  })
+
+  const createNewAPIRouteCredential = useMutation({
+    mutationFn: () => api.post('/admin/credentials', {
+      adapter_type: 'openai_compat',
+      display_name: 'new-api routes',
+      credentials: {},
+    }),
     onMutate: () => setModelAdminError(''),
     onSuccess: () => {
       setModelAdminError('')
@@ -1726,8 +1742,20 @@ export function ModelManagementPage() {
 
       {viewMode === 'providers' && addStep === 'idle' && (
         <div className="flex justify-end">
-          <Button onClick={() => setAddStep('pick')}>
-            <Plus size={14} className="mr-1.5" /> {t('admin.models.addCredential')}
+          <Button
+            onClick={() => {
+              if (isNewAPIGatewayMode) {
+                createNewAPIRouteCredential.mutate()
+                return
+              }
+              setAddStep('pick')
+            }}
+            disabled={createNewAPIRouteCredential.isPending}
+          >
+            <Plus size={14} className="mr-1.5" />
+            {isNewAPIGatewayMode
+              ? t('admin.models.addNewAPIRouteGroup', { defaultValue: '添加 new-api 模型组' })
+              : t('admin.models.addCredential')}
           </Button>
         </div>
       )}
@@ -1910,10 +1938,10 @@ export function ModelManagementPage() {
                       </span>
                     )}
                   </div>
-                  {cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
+                  {!isNewAPIGatewayMode && cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
                 </div>
 
-                {cred.masked_key && (
+                {!isNewAPIGatewayMode && cred.masked_key && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <button onClick={() => setShowKey((s) => ({ ...s, [cred.ID]: !s[cred.ID] }))}>
                       {showKey[cred.ID] ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -1924,7 +1952,9 @@ export function ModelManagementPage() {
 
                 <button
                   onClick={() => runTest(testKey, () => (
-                    providerInstance
+                    isNewAPIGatewayMode
+                      ? api.post('/admin/provider-instances/ai_gateway:new-api/test', {}).then((r) => r.data)
+                      : providerInstance
                       ? api.post(`/admin/provider-instances/${providerInstance.id}/test`, {}).then((r) => r.data)
                       : api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
                   ))}
@@ -1955,6 +1985,7 @@ export function ModelManagementPage() {
               {/* Expanded: model configs + add panel */}
               {expandedId === cred.ID && (
                 <div className="border-t border-border px-4 py-3 space-y-3 bg-card">
+                  {!isNewAPIGatewayMode && (
                   <div className="border border-border rounded-lg bg-background p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-medium text-muted-foreground">{t('admin.models.credentialAuth')}</p>
@@ -2022,6 +2053,7 @@ export function ModelManagementPage() {
                       </div>
                     )}
                   </div>
+                  )}
 
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">{t('admin.models.enabledModels')}</p>
@@ -2653,7 +2685,7 @@ export function ModelManagementPage() {
                   )}
 
                   {/* Files API config — shown only for adapters that support it */}
-                  {adapter?.supports_files_api && (() => {
+                  {!isNewAPIGatewayMode && adapter?.supports_files_api && (() => {
                     const isEditing = filesAPIEditFor === cred.ID
                     return (
                       <div className="border-t border-border pt-3">

@@ -1,5 +1,0 @@
-export { previewMoments } from './sourceWorkspacePreviewFixtures'
-export { shotWorkspaceDetails } from './sourceWorkspaceShotDetailsFixtures'
-export { assetReferenceUnits } from './sourceWorkspaceAssetReferenceFixtures'
-export { expressionUnitsByMoment, audioCuesByMoment } from './sourceWorkspaceExpressionFixtures'
-export { hierarchyTree } from './sourceWorkspaceHierarchyFixtures'

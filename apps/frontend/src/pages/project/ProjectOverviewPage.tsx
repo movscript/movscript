@@ -1,20 +1,24 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, ArrowRight, Blocks, CheckCircle2, Database, Download, LayoutDashboard, Loader2, Power, RefreshCw, Store } from 'lucide-react'
+import { AlertCircle, ArrowRight, Blocks, Database, Download, FileText, LayoutDashboard, Loader2, Power, RefreshCw, Store } from 'lucide-react'
 import { AppContentLayout, ProjectSurfaceHeader } from '@movscript/ui/layout'
 import { Badge, Button, Progress, StatusBadge, Switch } from '@movscript/ui/primitives'
 import { toneTextClass } from '@movscript/ui/semantic'
 
-import { projectWorkbenchDefinitions, type ProjectWorkbenchDefinition } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
+import { projectEntryDefinitions, type ProjectEntryDefinition } from '@/features/project/domain/projectEntryRegistry'
+import { scriptKeys } from '@/features/scripts/application/scriptQueryKeys'
+import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
 import {
   projectBlockedSummaryRecipe,
   projectLaneStateRecipe,
-  projectReadinessRecipe,
 } from '@/features/project/presentation/projectSemanticUi'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityKind, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
-import { ROUTES } from '@/routes/projectRoutes'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
+import type { Script } from '@/types'
 import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
 import {
   installProviderMarketplacePluginToProject,
@@ -72,7 +76,7 @@ interface ProjectOverviewData {
 }
 
 interface WorkLane {
-  definition: ProjectWorkbenchDefinition
+  definition: ProjectEntryDefinition
   count: number
   detail: string
   progress: number
@@ -157,11 +161,11 @@ function laneLabel(state: LaneState) {
   return '未开始'
 }
 
-function nextActionLabel(definition: ProjectWorkbenchDefinition) {
+function nextActionLabel(definition: ProjectEntryDefinition) {
   if (definition.id === 'project_standards') return '进入项目规范'
   if (definition.id === 'orchestration_production') return '进入剧本工作台'
-  if (definition.id === 'content_orchestration') return '进入内容编排'
-  return '进入工作台'
+  if (definition.id === 'content') return '进入 Content'
+  return '进入入口'
 }
 
 export default function ProjectOverviewPage() {
@@ -172,10 +176,22 @@ export default function ProjectOverviewPage() {
   const [projectInstallError, setProjectInstallError] = useState<string>()
   const [skillTogglingId, setSkillTogglingId] = useState<string>()
   const [skillToggleError, setSkillToggleError] = useState<string>()
+  const currentUser = useUserStore((state) => state.currentUser)
+  const currentOrgID = useUserStore((state) => state.currentOrgID)
+  const orgMemberships = useUserStore((state) => state.orgMemberships)
+  const workspaceContext = useMemo(
+    () => workspaceOwnerContext({ currentUser, currentOrgID, orgMemberships }),
+    [currentOrgID, currentUser?.ID, orgMemberships],
+  )
 
   const { data = emptyData, isFetching } = useQuery({
     queryKey: ['project-overview', projectId],
     queryFn: () => loadProjectOverviewData(projectId!),
+    enabled: !!projectId,
+  })
+  const scriptsQuery = useQuery<Script[]>({
+    queryKey: scriptKeys.projectScripts(projectId, workspaceContext),
+    queryFn: () => listWorkspaceScripts(projectId!, workspaceContext),
     enabled: !!projectId,
   })
   const workspaceRootQuery = useQuery({ queryKey: ['project-overview-workspace-root'], queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: !!projectId })
@@ -264,7 +280,7 @@ export default function ProjectOverviewPage() {
     const contentSignals = data.contentUnits.length + data.keyframes.length + data.assetSlots.length
     const contentProgress = percentage(counts.readyContentUnits + counts.readyKeyframes + counts.lockedAssets, Math.max(1, contentSignals))
 
-    return projectWorkbenchDefinitions.map((definition) => {
+    return projectEntryDefinitions.map((definition) => {
       if (definition.id === 'project_standards') {
         return {
           definition,
@@ -274,7 +290,7 @@ export default function ProjectOverviewPage() {
           state: standardsProgress >= 70 ? 'ready' : standardsProgress > 0 ? 'active' : 'empty',
         }
       }
-      if (definition.id === 'content_orchestration') {
+      if (definition.id === 'content') {
         return {
           definition,
           count: contentSignals,
@@ -293,9 +309,12 @@ export default function ProjectOverviewPage() {
     })
   }, [counts, data, project?.aspect_ratio, project?.project_style, project?.visual_style])
 
-  const readiness = lanes.length > 0 ? Math.round(lanes.reduce((sum, lane) => sum + lane.progress, 0) / lanes.length) : 0
   const blockedCount = lanes.filter((lane) => lane.state === 'blocked').length
   const nextLane = lanes.find((lane) => lane.state === 'blocked') ?? lanes.find((lane) => lane.state === 'active') ?? lanes[0]
+  const homeEntryLanes = [
+    lanes.find((lane) => lane.definition.id === 'project_standards'),
+    lanes.find((lane) => lane.definition.id === 'content'),
+  ].filter((lane): lane is WorkLane => Boolean(lane))
   const projectPluginCount = projectPluginsQuery.data?.plugins.length ?? 0
   const preparedProjectPluginCount = projectPluginsQuery.data?.plugins.filter((plugin) => plugin.prepared).length ?? 0
   const projectSkills = projectPluginsQuery.data?.skills ?? []
@@ -306,6 +325,7 @@ export default function ProjectOverviewPage() {
       ? '...'
       : '未观测'
   const observedSkillErrors = observedSkillsQuery.data?.ok ? observedSkillsQuery.data.errorCount : 0
+  const scripts = useMemo(() => (scriptsQuery.data ?? []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID), [scriptsQuery.data])
 
   return (
     <AppContentLayout variant="contained" width="wide" contentClassName="space-y-5 py-5">
@@ -338,46 +358,6 @@ export default function ProjectOverviewPage() {
           </>
         )}
       />
-
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-        <div className="rounded-lg border border-border bg-background p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-                <CheckCircle2 size={16} className="text-muted-foreground" />
-                项目生产状态
-              </div>
-              <p className="mt-1 type-label text-muted-foreground">按当前项目数据估算，不替代具体工作台内的审核状态。</p>
-            </div>
-            <StatusBadge {...projectReadinessRecipe(readiness)}>{readiness}%</StatusBadge>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <Metric label="剧本版本" value={data.scriptVersions.length} detail={`${data.segments.length} 个编排段`} />
-            <Metric label="制作/情节" value={data.productions.length} detail={`${data.sceneMoments.length} 个情节`} />
-            <Metric label="内容/素材" value={data.contentUnits.length} detail={`${counts.missingAssets} 个素材缺口`} />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border bg-background p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="type-body font-semibold text-foreground">下一步</h2>
-            <StatusBadge {...projectLaneStateRecipe(nextLane?.state ?? 'empty')}>
-              {laneLabel(nextLane?.state ?? 'empty')}
-            </StatusBadge>
-          </div>
-          <p className="mt-3 type-title font-semibold text-foreground">{nextLane?.definition.title ?? '暂无建议'}</p>
-          <p className="mt-2 line-clamp-3 type-label leading-5 text-muted-foreground">
-            {nextLane?.definition.purpose ?? '项目对象准备完成后会显示下一步入口。'}
-          </p>
-          <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
-          <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
-            <Link to={nextLane?.definition.route ?? ROUTES.project.scripts}>
-              {nextLane ? nextActionLabel(nextLane.definition) : '进入工作台'}
-              <ArrowRight size={14} />
-            </Link>
-          </Button>
-        </div>
-      </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -432,8 +412,39 @@ export default function ProjectOverviewPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-3">
-        {lanes.map((lane) => (
+      <section className="rounded-lg border border-border bg-background p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 type-body font-semibold text-foreground">
+              <FileText size={16} className="text-muted-foreground" />
+              剧本列表
+            </div>
+            <p className="mt-1 type-label text-muted-foreground">
+              从一份剧本进入编辑、版本管理和后续编排上下文。
+            </p>
+          </div>
+          <Button asChild size="sm" variant="outline" className="gap-2">
+            <Link to={ROUTES.project.scripts}>
+              打开剧本工作台
+              <ArrowRight size={14} />
+            </Link>
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {scriptsQuery.isLoading ? (
+            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取剧本...</div>
+          ) : scripts.length === 0 ? (
+            <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">
+              当前项目还没有剧本。进入剧本工作台后可以创建或导入正文。
+            </div>
+          ) : scripts.map((script) => (
+            <ScriptListCard key={script.ID} script={script} />
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-3 lg:grid-cols-2">
+        {homeEntryLanes.map((lane) => (
           <WorkbenchCard key={lane.definition.id} lane={lane} />
         ))}
       </section>
@@ -463,6 +474,38 @@ function Metric({ label, value, detail }: { label: string; value: number; detail
       <p className="mt-1 text-2xl font-semibold leading-7 text-foreground tabular-nums">{value}</p>
       <p className="mt-1 truncate type-caption text-muted-foreground">{detail}</p>
     </div>
+  )
+}
+
+function ScriptListCard({ script }: { script: Script }) {
+  const bodyLength = (script.raw_source || script.content || '').trim().length
+  const description = script.summary || script.description || script.plot_summary || '暂无摘要'
+
+  return (
+    <Button asChild variant="ghost" className="h-auto justify-start rounded-md border border-border bg-muted/10 p-0 text-left hover:bg-muted/30">
+      <Link
+        to={withRouteParams(ROUTES.project.scripts, { script_id: script.ID })}
+        className="flex min-h-[148px] w-full flex-col items-stretch p-4"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground">
+            <FileText size={17} />
+          </span>
+          <Badge variant="outline">{script.script_type || '剧本'}</Badge>
+        </div>
+        <div className="mt-4 min-w-0 flex-1">
+          <h3 className="truncate type-body font-semibold text-foreground">{script.title || `剧本 #${script.ID}`}</h3>
+          <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{description}</p>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3 type-caption text-muted-foreground">
+          <span>{bodyLength > 0 ? `${bodyLength} 字` : '未导入正文'}</span>
+          <span className="inline-flex items-center gap-1 text-foreground">
+            进入工作台
+            <ArrowRight size={13} />
+          </span>
+        </div>
+      </Link>
+    </Button>
   )
 }
 

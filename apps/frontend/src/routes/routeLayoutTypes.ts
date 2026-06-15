@@ -41,7 +41,7 @@ export interface RouteLayoutSpec {
   scrollMode: RouteScrollMode
   shellLayout: RouteShellLayout
   contentWidth?: 'narrow' | 'normal' | 'wide' | 'xwide' | 'full'
-  workbenchId?: 'project_standards' | 'orchestration_production' | 'content_orchestration'
+  projectEntryId?: 'project_standards' | 'orchestration_production' | 'content'
   panes: RouteLayoutPaneSpec[]
   notes?: string
 }

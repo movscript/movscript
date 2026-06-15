@@ -402,7 +402,7 @@ func (s *Service) cancelValidatedJob(ctx context.Context, job domainjob.Job, mar
 	providerStatus := ai.VideoStatusCancelled
 	message := "cancelled by user"
 	if job.ProviderTaskID != "" {
-		resp, err := s.ai.CallVideoCancel(ctx, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind)
+		resp, err := s.ai.CallVideoCancel(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind)
 		if err != nil {
 			return job, wrapErr(ErrProviderCancellationFailed, err)
 		}

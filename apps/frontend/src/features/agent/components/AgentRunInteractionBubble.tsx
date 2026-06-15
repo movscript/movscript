@@ -1,7 +1,7 @@
 import React from 'react'
 import { Bot, Image } from 'lucide-react'
+import { AgentChatMessage } from '@movscript/ui/business/agent'
 import {
-  AgentChatMessage,
   AgentRunInteractionApprovalBadge,
   AgentRunInteractionApprovalBadgeLabel,
   AgentRunInteractionApprovalBadgeRow,
@@ -18,7 +18,7 @@ import {
   AgentRunInteractionApprovalThumbnail,
   AgentRunInteractionApprovalThumbnailFallback,
   AgentRunInteractionApprovalTitle
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/run-interaction-ui'
 import {
   WorkspaceDiff,
   isWorkspaceApplyPreview,

@@ -3,7 +3,7 @@ package model
 import "gorm.io/gorm"
 
 // NewAPIIdentity links a MovScript user to the external new-api user/token
-// used for relay billing.
+// used for request relay attribution.
 type NewAPIIdentity struct {
 	gorm.Model
 	UserID             uint   `gorm:"not null;uniqueIndex" json:"user_id"`

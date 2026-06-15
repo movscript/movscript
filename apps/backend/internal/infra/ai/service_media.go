@@ -269,7 +269,8 @@ func (s *AIService) CallVideoPollWithUsage(ctx context.Context, userID, modelCon
 }
 
 // CallVideoCancel requests provider-side cancellation for an async video task.
-func (s *AIService) CallVideoCancel(ctx context.Context, modelConfigID uint, taskID, taskKind string) (VideoResponse, error) {
+func (s *AIService) CallVideoCancel(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string) (VideoResponse, error) {
+	ctx = withProviderUserID(ctx, userID)
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
@@ -287,12 +288,12 @@ func (s *AIService) CallVideoCancel(ctx context.Context, modelConfigID uint, tas
 }
 
 // GetFileUploader returns the provider-side Files API uploader configured for a persistencemodel.
-func (s *AIService) GetFileUploader(modelConfigID uint) FileUploader {
+func (s *AIService) GetFileUploader(ctx context.Context, userID, modelConfigID uint) FileUploader {
 	var cfg persistencemodel.AIModelConfig
 	if err := s.db.First(&cfg, modelConfigID).Error; err != nil {
 		return nil
 	}
-	return s.registry.GetFileUploader(cfg)
+	return s.registry.GetFileUploader(ctx, userID, cfg)
 }
 
 func (s *AIService) loadVideoConfig(modelConfigID uint) (persistencemodel.AIModelConfig, Provider, *ModelDef, error) {

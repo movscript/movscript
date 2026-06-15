@@ -10,7 +10,7 @@ export const OnboardingPage = React.lazy(() => import('@/pages/onboarding/Onboar
 export const AppSettingsPage = React.lazy(() => import('@/pages/app-settings/AppSettingsPage'))
 export const CanvasListPage = React.lazy(() => import('@/pages/canvas/CanvasListPage'))
 export const CanvasEditorPage = React.lazy(() => import('@/pages/canvas/CanvasEditorPage'))
-export const ContentCanvasWorkspacePage = React.lazy(() => import('@/features/content-canvas/components/ContentCanvasWorkspacePage'))
+export const ContentCanvasWorkspacePage = React.lazy(() => import('@/features/content/components/ContentCanvasWorkspacePage'))
 export const RefImageGenPage = React.lazy(() => import('@/pages/tools/RefImageGenPage'))
 export const RefVideoGenPage = React.lazy(() => import('@/pages/tools/RefVideoGenPage'))
 export const MotionImitationPage = React.lazy(() => import('@/pages/tools/MotionImitationPage'))

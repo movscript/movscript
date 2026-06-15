@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -40,10 +41,12 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown adapter type: " + req.AdapterType})
 		return
 	}
-	for _, field := range def.CredFields {
-		if field.Required && req.Credentials[field.Key] == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "missing required credential: " + field.Key})
-			return
+	if !h.newAPIGatewayMode() {
+		for _, field := range def.CredFields {
+			if field.Required && req.Credentials[field.Key] == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "missing required credential: " + field.Key})
+				return
+			}
 		}
 	}
 
@@ -68,6 +71,10 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		Metadata:   credentialAuditMetadata(cred.ID, cred.AdapterType, cred.DisplayName, cred.BaseURL, cred.IsEnabled, cred.FilesAPIEnabled),
 	})
 	c.JSON(http.StatusCreated, cred)
+}
+
+func (h *AIHandler) newAPIGatewayMode() bool {
+	return h != nil && h.cfg != nil && strings.TrimSpace(h.cfg.AIGatewayProvider) == "new-api"
 }
 
 func (h *AIHandler) UpdateCredential(c *gin.Context) {

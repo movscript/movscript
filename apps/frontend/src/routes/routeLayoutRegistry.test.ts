@@ -66,22 +66,22 @@ import {
   routeLayoutInventoryItemForRouteId,
 } from './routeLayoutInventory'
 
-test('route layout registry declares current high-density workbench routes', () => {
-  assert.deepEqual(workbenchRoute('/project/standards'), {
+test('route layout registry declares current project entry routes', () => {
+  assert.deepEqual(projectEntryRoute('/project/standards'), {
     routeId: 'project.standards',
-    workbenchId: 'project_standards',
+    projectEntryId: 'project_standards',
     scrollMode: 'workspace',
     viewportScroll: 'owned',
   })
-  assert.deepEqual(workbenchRoute('/project/scripts/workbench'), {
+  assert.deepEqual(projectEntryRoute('/project/scripts/workbench'), {
     routeId: 'project.scripts',
-    workbenchId: 'orchestration_production',
+    projectEntryId: 'orchestration_production',
     scrollMode: 'workspace',
     viewportScroll: 'owned',
   })
-  assert.deepEqual(workbenchRoute('/project/content-orchestration/canvas'), {
-    routeId: 'project.contentCanvas',
-    workbenchId: 'content_orchestration',
+  assert.deepEqual(projectEntryRoute('/project/content'), {
+    routeId: 'project.content',
+    projectEntryId: 'content',
     scrollMode: 'canvas',
     viewportScroll: 'owned',
   })
@@ -91,8 +91,8 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/canvases/42').surface, 'canvas')
   assert.equal(routeLayoutSpecForPathname('/canvases/42').scrollMode, 'canvas')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/canvases/42').scrollMode), 'owned')
-  assert.equal(routeLayoutSpecForPathname('/project/content-orchestration/canvas').surface, 'project')
-  assert.equal(routeLayoutSpecForPathname('/project/content-orchestration/canvas').scrollMode, 'canvas')
+  assert.equal(routeLayoutSpecForPathname('/project/content').surface, 'project')
+  assert.equal(routeLayoutSpecForPathname('/project/content').scrollMode, 'canvas')
 
   assert.equal(routeLayoutSpecForPathname('/project/agent').surface, 'agent')
   assert.equal(routeLayoutSpecForPathname('/project/agent').scrollMode, 'workspace')
@@ -203,12 +203,12 @@ test('route layout registry declares shared tool workbench resource panes', () =
   }
 })
 
-test('route layout registry declares content canvas managed panes', () => {
-  const route = routeLayoutSpecForPathname('/project/content-orchestration/canvas-next')
-  assert.equal(route.routeId, 'project.contentCanvasNext')
+test('route layout registry declares content managed panes', () => {
+  const route = routeLayoutSpecForPathname('/project/content')
+  assert.equal(route.routeId, 'project.content')
   assert.equal(route.surface, 'project')
   assert.equal(route.scrollMode, 'canvas')
-  assert.equal(route.workbenchId, 'content_orchestration')
+  assert.equal(route.projectEntryId, 'content')
 
   const settingCatalogPane = route.panes.find((pane) => pane.id === CONTENT_CANVAS_SETTING_CATALOG_PANE_ID)
   assert.equal(settingCatalogPane?.owner, 'workbench')
@@ -277,7 +277,7 @@ test('route layout registry has one exported spec per registered route id', () =
   const routeIds = registeredRouteLayoutSpecs.map((spec) => spec.routeId)
   assert.equal(new Set(routeIds).size, routeIds.length)
   assert.ok(routeIds.includes('project.scripts'))
-  assert.ok(routeIds.includes('project.contentCanvas'))
+  assert.ok(routeIds.includes('project.content'))
   assert.ok(!routeIds.includes('project.production.redirect'))
   assert.ok(!routeIds.includes('project.productionOrchestration.redirect'))
   assert.ok(routeIds.includes('canvas.editor'))
@@ -330,11 +330,11 @@ test('route layout inventory declares high-risk drag surfaces and coordinate ada
   ])
 })
 
-function workbenchRoute(pathname: string) {
+function projectEntryRoute(pathname: string) {
   const spec = routeLayoutSpecForPathname(pathname)
   return {
     routeId: spec.routeId,
-    workbenchId: spec.workbenchId,
+    projectEntryId: spec.projectEntryId,
     scrollMode: spec.scrollMode,
     viewportScroll: appRouteViewportScrollForMode(spec.scrollMode),
   }
