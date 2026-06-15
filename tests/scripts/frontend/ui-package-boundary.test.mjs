@@ -57,8 +57,6 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/styles.css',
     'packages/ui/src/components/business/agent/panel/styles.css',
     'packages/ui/src/components/business/agent/panel/frame/styles.css',
-    'packages/ui/src/components/business/agent/panel/card/styles.css',
-    'packages/ui/src/components/business/agent/panel/shell-layout/styles.css',
     'packages/ui/src/components/business/agent/panel/context/styles.css',
     'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
     'packages/ui/src/components/business/agent/page/styles.css',
@@ -71,9 +69,6 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
     'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
-    'packages/ui/src/components/business/agent/chat/styles.css',
-    'packages/ui/src/components/business/agent/chat/history/styles.css',
-    'packages/ui/src/components/business/agent/chat/toolbar/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/feed/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/menu/styles.css',
@@ -130,11 +125,7 @@ function readAgentChatSource() {
 }
 
 function readAgentChatCss() {
-  return [
-    'packages/ui/src/components/business/agent/chat/styles.css',
-    'packages/ui/src/components/business/agent/chat/history/styles.css',
-    'packages/ui/src/components/business/agent/chat/toolbar/styles.css',
-  ].map(readProjectFile).join('\n')
+  return ''
 }
 
 function readAgentActivityFeedSource() {
@@ -1136,8 +1127,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/styles.css',
     'packages/ui/src/components/business/agent/panel/styles.css',
     'packages/ui/src/components/business/agent/panel/frame/styles.css',
-    'packages/ui/src/components/business/agent/panel/card/styles.css',
-    'packages/ui/src/components/business/agent/panel/shell-layout/styles.css',
     'packages/ui/src/components/business/agent/panel/context/styles.css',
     'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
     'packages/ui/src/components/business/agent/page/styles.css',
@@ -1152,16 +1141,10 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/chat/index.tsx',
     'packages/ui/src/components/business/agent/chat/types.ts',
-    'packages/ui/src/components/business/agent/chat/styles.css',
     'packages/ui/src/components/business/agent/chat/tabs/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/styles.css',
     'packages/ui/src/components/business/agent/chat/tabs/panel/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/panel/styles.css',
     'packages/ui/src/components/business/agent/chat/tabs/item/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/item/styles.css',
-    'packages/ui/src/components/business/agent/chat/tabs/menu/styles.css',
-    'packages/ui/src/components/business/agent/chat/history/styles.css',
-    'packages/ui/src/components/business/agent/chat/toolbar/styles.css',
+    'packages/ui/src/components/business/agent/chat/history/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/types.ts',
     'packages/ui/src/components/business/agent/activity-feed/styles.css',
@@ -2265,8 +2248,9 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(agentCssEntry, /@import "\.\/work\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/composer\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/responsive\/styles\.css";/)
-  assert.match(agentCss, /\.ai-agent-panel-card\s*\{/)
+  assert.doesNotMatch(agentCss, /\.ai-agent-panel-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.ai-agent-panel-card\s*\{/)
+  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentPanelCardUi.css'), /\.ai-agent-panel-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.content-workspace-shell\s*\{/)
 })
 
@@ -3438,12 +3422,16 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentConsoleUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.tsx')
   const agentConsoleUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleUi.css')
   const agentComposerPanelUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentComposerPanelUi.css')
+  const agentChatToolbarUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatToolbarUi.css')
+  const agentConversationHistoryUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationHistoryUi.css')
   const agentConversationTabsUiCss = [
     'apps/frontend/src/features/agent/components/AgentConversationTabsUi.css',
     'apps/frontend/src/features/agent/components/conversation-tabs-ui/panel/styles.css',
     'apps/frontend/src/features/agent/components/conversation-tabs-ui/item/styles.css',
     'apps/frontend/src/features/agent/components/conversation-tabs-ui/menu/styles.css',
   ].map(readProjectFile).join('\n')
+  const agentPanelCardUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelCardUi.css')
+  const agentPanelShellLayoutUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelShellLayoutUi.css')
   const agentPanelThreadMessageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelThreadMessageUi.css')
   const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
@@ -3451,21 +3439,6 @@ test('agent panel and page surfaces use package agent styles', () => {
 
   for (const sharedClass of [
     'ai-agent-panel',
-    'ai-agent-panel-card',
-    'ai-agent-panel-content-card',
-    'ai-agent-panel-input-card',
-    'ai-agent-panel-empty-history',
-    'ai-agent-panel-card-header',
-    'ai-agent-panel-card-title',
-    'ai-agent-panel-card-subtitle',
-    'ai-agent-panel-shell',
-    'ai-agent-panel-main',
-    'ai-agent-panel-chat-header',
-    'ai-agent-panel-chat-toolbar',
-    'ai-agent-panel-chat-toolbar-tabs',
-    'ai-agent-panel-chat-toolbar-actions',
-    'ai-agent-panel-list-header',
-    'ai-agent-panel-list-header-actions',
     'ai-agent-panel-context-resize-handle',
     'ai-agent-panel-context-body',
     'ai-agent-panel-context-card',
@@ -3473,6 +3446,30 @@ test('agent panel and page surfaces use package agent styles', () => {
   ]) {
     assert.match(`${agentCss}\n${agentChatCss}`, cssClassSelectorPattern(sharedClass), `${sharedClass} agent styles must live in @movscript/ui agent`)
   }
+  for (const panelCardClass of [
+    'ai-agent-panel-card',
+    'ai-agent-panel-content-card',
+    'ai-agent-panel-input-card',
+    'ai-agent-panel-card-header',
+    'ai-agent-panel-card-title',
+    'ai-agent-panel-card-subtitle',
+  ]) {
+    assert.match(agentPanelCardUiCss, cssClassSelectorPattern(panelCardClass), `${panelCardClass} styles must be owned by the app agent panel card UI`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(panelCardClass), `${panelCardClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const panelShellLayoutClass of [
+    'ai-agent-panel-shell',
+    'ai-agent-panel-main',
+    'ai-agent-panel-list-header',
+    'ai-agent-panel-list-header-actions',
+  ]) {
+    assert.match(agentPanelShellLayoutUiCss, cssClassSelectorPattern(panelShellLayoutClass), `${panelShellLayoutClass} styles must be owned by the app agent panel shell layout UI`)
+  }
+  assert.doesNotMatch(agentCss, /^\.ai-agent-panel-shell\s*\{/m, 'agent panel shell root layout styles must not remain in @movscript/ui agent')
+  assert.doesNotMatch(agentCss, /^\.ms-agent-shell\.ai-agent-panel-shell\s*\{/m, 'agent panel shell host layout styles must not remain in @movscript/ui agent')
+  assert.doesNotMatch(agentCss, /^\.ai-agent-panel-shell \.ai-agent-panel-main\s*\{/m, 'agent panel main layout styles must not remain in @movscript/ui agent')
+  assert.doesNotMatch(agentCss, cssClassSelectorPattern('ai-agent-panel-list-header'), 'agent panel list header styles must not remain in @movscript/ui agent')
+  assert.doesNotMatch(agentCss, cssClassSelectorPattern('ai-agent-panel-list-header-actions'), 'agent panel list header action styles must not remain in @movscript/ui agent')
   for (const conversationTabClass of [
     'ai-agent-panel-conversation-tabs',
     'ai-agent-panel-conversation-tab',
@@ -3487,6 +3484,41 @@ test('agent panel and page surfaces use package agent styles', () => {
   ]) {
     assert.match(agentConversationTabsUiCss, cssClassSelectorPattern(conversationTabClass), `${conversationTabClass} styles must be owned by the app agent conversation tabs UI`)
     assert.doesNotMatch(agentCss, cssClassSelectorPattern(conversationTabClass), `${conversationTabClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const conversationHistoryClass of [
+    'ai-agent-panel-empty-history',
+    'ai-agent-panel-empty-history-divider',
+    'ai-agent-panel-empty-history-header',
+    'ai-agent-panel-empty-history-list',
+    'ai-agent-panel-empty-history-item',
+    'ai-agent-panel-empty-history-more',
+    'ai-agent-panel-empty-history-empty',
+    'ai-agent-panel-empty-history-close',
+  ]) {
+    assert.match(agentConversationHistoryUiCss, cssClassSelectorPattern(conversationHistoryClass), `${conversationHistoryClass} styles must be owned by the app agent conversation history UI`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(conversationHistoryClass), `${conversationHistoryClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const chatToolbarClass of [
+    'ai-agent-panel-chat-header',
+    'ai-agent-panel-chat-toolbar',
+    'ai-agent-panel-chat-toolbar-tabs',
+    'ai-agent-panel-chat-toolbar-actions',
+    'ai-provider-controls',
+    'ai-provider-controls__button',
+    'ai-provider-controls__menu',
+    'ai-provider-mark',
+    'ai-agent-program-header-actions',
+    'project-agent-mode',
+  ]) {
+    assert.match(agentChatToolbarUiCss, cssClassSelectorPattern(chatToolbarClass), `${chatToolbarClass} styles must be owned by the app agent chat toolbar UI`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(chatToolbarClass), `${chatToolbarClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const chatToolbarSelector of [
+    '.ai-agent-panel-status-trigger[data-status-expanded="true"]',
+    '.ai-agent-program-header-actions__status[data-active="true"]',
+  ]) {
+    assert.match(agentChatToolbarUiCss, new RegExp(chatToolbarSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${chatToolbarSelector} styles must be owned by the app agent chat toolbar UI`)
+    assert.doesNotMatch(agentCss, new RegExp(chatToolbarSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${chatToolbarSelector} styles must not remain in @movscript/ui agent`)
   }
   for (const composerPanelClass of [
     'ai-agent-panel-composer',
@@ -3515,6 +3547,15 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelThreadMessageUi\.css";/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/tabs/styles.css')), false, 'agent conversation tab styles must be feature-owned')
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConversationTabsUi\.css";/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/history/styles.css')), false, 'agent conversation history styles must be feature-owned')
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConversationHistoryUi\.css";/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/styles.css')), false, 'agent chat aggregate styles must not remain as an empty package entry')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/toolbar/styles.css')), false, 'agent chat toolbar styles must be feature-owned')
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentChatToolbarUi\.css";/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/card/styles.css')), false, 'agent panel card styles must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/shell-layout/styles.css')), false, 'agent panel shell layout styles must be feature-owned')
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelCardUi\.css";/)
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelShellLayoutUi\.css";/)
   assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant\s*\{/)
   assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant \.ms-agent-generated-media-preview/)
   assert.doesNotMatch(agentCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant\s*\{/)

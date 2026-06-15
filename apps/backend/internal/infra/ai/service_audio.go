@@ -114,3 +114,57 @@ func (s *AIService) CallTranscribe(ctx context.Context, userID, modelConfigID ui
 	}
 	return media.SubtitleResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityAudioSTT)
 }
+
+func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, req media.AlignRequest, usage UsageContext) (media.SubtitleResponse, error) {
+	ctx = withProviderUserID(ctx, userID)
+	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityAudioSTT)
+	if err != nil {
+		return media.SubtitleResponse{}, err
+	}
+	if len(candidates) == 0 {
+		return media.SubtitleResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityAudioSTT)
+	}
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityAudioSTT), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityAudioSTT)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		subtitleProvider, ok := provider.(media.SubtitleProvider)
+		if !ok {
+			lastErr = fmt.Errorf("model config id=%d does not support subtitle alignment", attempt.cfg.ID)
+			continue
+		}
+		attemptReq := req
+		if attemptReq.Model == "" {
+			attemptReq.Model = resolveModelID(cfg, def)
+		}
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, CapabilityAudioSTT, 0, 0, 0, 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return media.SubtitleResponse{}, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		resp, err := subtitleProvider.Align(ctx, attemptReq)
+		finishAttempt(err)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		estimate := estimateUsageCost(cfg, def, CapabilityAudioSTT, 0, 0, 0, 1)
+		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
+			return media.SubtitleResponse{}, err
+		}
+		return resp, nil
+	}
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return media.SubtitleResponse{}, lastErr
+	}
+	return media.SubtitleResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityAudioSTT)
+}

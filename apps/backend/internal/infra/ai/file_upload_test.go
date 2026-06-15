@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/crypto"
-	"github.com/movscript/movscript/internal/infra/newapi"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"

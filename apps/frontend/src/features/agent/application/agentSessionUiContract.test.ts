@@ -101,7 +101,7 @@ test('agent chat composer uses the same chrome in page and detail surfaces', () 
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const shellPartsSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShellParts.tsx'), 'utf8')
-  const panelShellLayoutCss = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/shell-layout/styles.css'), 'utf8')
+  const panelShellLayoutCss = readFileSync(resolve('src/features/agent/components/AgentPanelShellLayoutUi.css'), 'utf8')
 
   assert.match(dataSourceShellSource, /<AgentChatShellView/)
   assert.match(shellViewSource, /<AgentChatDataSourceComposerPanel[\s\S]*?chrome="flush"/)

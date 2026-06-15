@@ -43,7 +43,7 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
   const workspaceSource = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/index.tsx'), 'utf8')
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
   const agentPanelStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/frame/styles.css'), 'utf8')
-  const agentHistoryStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/chat/history/styles.css'), 'utf8')
+  const agentHistoryStyles = readFileSync(resolve('src/features/agent/components/AgentConversationHistoryUi.css'), 'utf8')
 
   assert.match(workspaceSource, /export type ResizablePanelEdge = "left" \| "right" \| "top" \| "bottom"/)
   assert.match(workspaceSource, /RESIZABLE_PANEL_RESIZING_BODY_CLASS = "ui-resizable-panel-resizing"/)
@@ -60,7 +60,7 @@ test('shared resizable panel controller supports horizontal and vertical pane ed
 })
 
 test('agent chat tabs and history keep fixed rows with scroll overflow', () => {
-  const agentHistoryStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/chat/history/styles.css'), 'utf8')
+  const agentHistoryStyles = readFileSync(resolve('src/features/agent/components/AgentConversationHistoryUi.css'), 'utf8')
   const agentTabItemStyles = readFileSync(resolve('src/features/agent/components/conversation-tabs-ui/item/styles.css'), 'utf8')
 
   assert.match(agentHistoryStyles, /\.ai-agent-panel-empty-history \{[\s\S]*flex: 0 0 min\(260px, 42%\);/)
