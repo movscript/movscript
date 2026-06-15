@@ -1,7 +1,7 @@
-.ms-agent-run-interaction-badge {
+.agent-run-interaction-badge {
   font-size: var(--ms-text-tiny);
 }
 
-.ms-agent-run-interaction-badge__label {
+.agent-run-interaction-badge-label {
   color: color-mix(in srgb, var(--ms-color-foreground) 80%, transparent);
 }

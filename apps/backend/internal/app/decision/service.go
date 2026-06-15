@@ -33,6 +33,12 @@ type TargetInput struct {
 	TargetRef  string
 }
 
+type QueryTargetsInput struct {
+	ProjectID  uint
+	TargetKind string
+	TargetRefs []string
+}
+
 type ReplaceCandidatesInput struct {
 	TargetInput
 	Candidates []json.RawMessage
@@ -64,6 +70,17 @@ func (s *Service) Get(ctx context.Context, input TargetInput) (domaindecision.Co
 		return domaindecision.Context{}, err
 	}
 	return s.repo.Get(ctx, target)
+}
+
+func (s *Service) Query(ctx context.Context, input QueryTargetsInput) ([]domaindecision.Context, error) {
+	target, err := normalizeQueryTargets(input)
+	if err != nil {
+		return nil, err
+	}
+	if len(target.TargetRefs) == 0 {
+		return []domaindecision.Context{}, nil
+	}
+	return s.repo.ListByTargetRefs(ctx, target)
 }
 
 func (s *Service) ReplaceCandidates(ctx context.Context, input ReplaceCandidatesInput) (domaindecision.Context, error) {
@@ -181,6 +198,30 @@ func normalizeTarget(input TargetInput) (TargetInput, error) {
 		return TargetInput{}, ErrInvalidTarget
 	}
 	return target, nil
+}
+
+func normalizeQueryTargets(input QueryTargetsInput) (QueryTargetsInput, error) {
+	out := QueryTargetsInput{
+		ProjectID:  input.ProjectID,
+		TargetKind: strings.TrimSpace(input.TargetKind),
+		TargetRefs: make([]string, 0, len(input.TargetRefs)),
+	}
+	if out.ProjectID == 0 || out.TargetKind == "" {
+		return QueryTargetsInput{}, ErrInvalidTarget
+	}
+	seen := map[string]struct{}{}
+	for _, ref := range input.TargetRefs {
+		normalized := strings.TrimSpace(ref)
+		if normalized == "" {
+			return QueryTargetsInput{}, ErrInvalidTarget
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out.TargetRefs = append(out.TargetRefs, normalized)
+	}
+	return out, nil
 }
 
 func normalizeCandidate(candidate json.RawMessage) (json.RawMessage, error) {

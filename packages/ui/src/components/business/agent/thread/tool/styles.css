@@ -1,10 +1,19 @@
 .ms-agent-tool {
+  --agent-tool-header-min-width: initial;
+  --agent-tool-header-overflow: visible;
+  --agent-tool-title-max-width: none;
+  --agent-tool-title-min-width: initial;
+  --agent-tool-title-overflow: visible;
+  --agent-tool-title-text-overflow: clip;
+  --agent-tool-title-white-space: normal;
   --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 36%, var(--ms-color-surface));
 }
 
 .ms-agent-tool__header {
   align-items: center;
   gap: 8px;
+  min-width: var(--agent-tool-header-min-width);
+  overflow: var(--agent-tool-header-overflow);
   padding: 8px 10px;
 }
 
@@ -17,9 +26,14 @@
 }
 
 .ms-agent-tool__title {
+  min-width: var(--agent-tool-title-min-width);
+  max-width: var(--agent-tool-title-max-width);
+  overflow: var(--agent-tool-title-overflow);
   font-size: var(--ms-text-item);
   font-weight: 650;
   line-height: var(--ms-leading-item);
+  text-overflow: var(--agent-tool-title-text-overflow);
+  white-space: var(--agent-tool-title-white-space);
 }
 
 .ms-agent-tool__meta {

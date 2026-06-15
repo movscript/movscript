@@ -16,12 +16,15 @@
 @import "@/features/agent/components/AgentConsoleUi.css";
 @import "@/features/agent/components/AgentConsoleNavUi.css";
 @import "@/features/agent/components/AgentConsoleRealtimeLogUi.css";
+@import "@/features/agent/components/AgentChatItemsUi.css";
 @import "@/features/agent/components/AgentChatToolbarUi.css";
 @import "@/features/agent/components/AgentComposerPanelUi.css";
 @import "@/features/agent/components/AgentConversationHistoryUi.css";
 @import "@/features/agent/components/AgentConversationTabsUi.css";
 @import "@/features/agent/components/AgentPageUi.css";
 @import "@/features/agent/components/AgentPanelCardUi.css";
+@import "@/features/agent/components/AgentPanelContextUi.css";
+@import "@/features/agent/components/AgentPanelProviderSessionUi.css";
 @import "@/features/agent/components/AgentPanelShellLayoutUi.css";
 @import "@/features/agent/components/AgentPanelThreadMessageUi.css";
 @import "@/features/agent/components/GenerationCards.css";

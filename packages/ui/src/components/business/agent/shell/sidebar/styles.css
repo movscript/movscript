@@ -104,6 +104,24 @@
 }
 
 .ms-agent-conversation {
+  --agent-conversation-active-indicator-background: var(--ms-color-accent);
+  --agent-conversation-icon-align-self: start;
+  --agent-conversation-icon-margin-top: 2px;
+  --agent-conversation-indicator-background: transparent;
+  --agent-conversation-indicator-display: block;
+  --agent-conversation-meta-color: inherit;
+  --agent-conversation-meta-font-size: var(--ms-text-label);
+  --agent-conversation-meta-font-weight: inherit;
+  --agent-conversation-meta-line-height: 16px;
+  --agent-conversation-meta-min-width: initial;
+  --agent-conversation-meta-text-align: inherit;
+  --agent-conversation-title-active-color: var(--ms-color-foreground);
+  --agent-conversation-title-active-font-weight: 550;
+  --agent-conversation-title-color: var(--ms-color-foreground);
+  --agent-conversation-title-font-size: var(--ms-text-item);
+  --agent-conversation-title-font-weight: 550;
+  --agent-conversation-title-hover-color: var(--agent-conversation-title-color);
+  --agent-conversation-title-line-height: var(--ms-leading-item);
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr) auto;
   width: 100%;
@@ -144,14 +162,15 @@
 }
 
 .ms-agent-conversation__indicator {
+  display: var(--agent-conversation-indicator-display);
   width: 4px;
   height: 24px;
   border-radius: var(--ms-radius-full);
-  background: transparent;
+  background: var(--agent-conversation-indicator-background);
 }
 
 .ms-agent-conversation[data-active="true"] .ms-agent-conversation__indicator {
-  background: var(--ms-color-accent);
+  background: var(--agent-conversation-active-indicator-background);
 }
 
 .ms-agent-conversation__body {
@@ -163,38 +182,36 @@
 
 .ms-agent-conversation__icon {
   display: inline-flex;
-  align-self: start;
-  margin-top: 2px;
+  align-self: var(--agent-conversation-icon-align-self);
+  margin-top: var(--agent-conversation-icon-margin-top);
   color: inherit;
 }
 
 .ms-agent-conversation__title {
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-item);
-  font-weight: 550;
-  line-height: var(--ms-leading-item);
+  color: var(--agent-conversation-title-color);
+  font-size: var(--agent-conversation-title-font-size);
+  font-weight: var(--agent-conversation-title-font-weight);
+  line-height: var(--agent-conversation-title-line-height);
 }
 
-.ms-agent-conversation--editing {
-  cursor: text;
+.ms-agent-conversation:hover .ms-agent-conversation__title {
+  color: var(--agent-conversation-title-hover-color);
 }
 
-.ms-agent-conversation__title-input {
-  min-width: 0;
-  width: 100%;
-  border: 0;
-  border-radius: var(--ms-radius-sm);
-  background: color-mix(in srgb, var(--ms-color-background) 88%, var(--ms-color-foreground) 12%);
-  color: var(--ms-color-foreground);
-  padding: 1px 4px;
-  font-size: var(--ms-text-item);
-  font-weight: 550;
-  line-height: var(--ms-leading-item);
-  outline: 1px solid color-mix(in srgb, var(--ms-color-primary) 45%, transparent);
+.ms-agent-conversation[data-active="true"] .ms-agent-conversation__title {
+  color: var(--agent-conversation-title-active-color);
+  font-weight: var(--agent-conversation-title-active-font-weight);
 }
 
 .ms-agent-conversation__description,
 .ms-agent-conversation__meta {
-  font-size: var(--ms-text-label);
-  line-height: 16px;
+  font-size: var(--agent-conversation-meta-font-size);
+  line-height: var(--agent-conversation-meta-line-height);
+}
+
+.ms-agent-conversation__meta {
+  min-width: var(--agent-conversation-meta-min-width);
+  color: var(--agent-conversation-meta-color);
+  font-weight: var(--agent-conversation-meta-font-weight);
+  text-align: var(--agent-conversation-meta-text-align);
 }

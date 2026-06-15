@@ -32,6 +32,13 @@ func LoadConfigFromEnv() Config {
 	}
 }
 
+func (c Config) ResolveTokenGroup(group string) string {
+	if group = strings.TrimSpace(group); group != "" {
+		return group
+	}
+	return defaultString(strings.TrimSpace(c.TokenGroup), "auto")
+}
+
 func (c Config) RelayBaseURL() string {
 	base := strings.TrimRight(strings.TrimSpace(c.BaseURL), "/")
 	if base == "" {

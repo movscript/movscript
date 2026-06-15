@@ -7,6 +7,7 @@ import { Badge, Button, Progress, StatusBadge, Switch } from '@movscript/ui/prim
 import { toneTextClass } from '@movscript/ui/semantic'
 
 import { projectEntryDefinitions, type ProjectEntryDefinition } from '@/features/project/domain/projectEntryRegistry'
+import { projectOverviewKeys } from '@/features/project/application/projectQueries'
 import { scriptKeys } from '@/features/scripts/application/scriptQueryKeys'
 import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
 import {
@@ -185,7 +186,7 @@ export default function ProjectOverviewPage() {
   )
 
   const { data = emptyData, isFetching } = useQuery({
-    queryKey: ['project-overview', projectId],
+    queryKey: projectOverviewKeys.detail(projectId),
     queryFn: () => loadProjectOverviewData(projectId!),
     enabled: !!projectId,
   })
@@ -194,23 +195,26 @@ export default function ProjectOverviewPage() {
     queryFn: () => listWorkspaceScripts(projectId!, workspaceContext),
     enabled: !!projectId,
   })
-  const workspaceRootQuery = useQuery({ queryKey: ['project-overview-workspace-root'], queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: !!projectId })
+  const workspaceRootQuery = useQuery({ queryKey: projectOverviewKeys.workspaceRoot, queryFn: () => requireWorkspaceRootAPI().getRoot(), enabled: !!projectId })
   const projectPluginContext = useMemo<ProjectPluginContext>(() => ({
     ...(workspaceRootQuery.data?.workspaceDir ? { workspaceDir: workspaceRootQuery.data.workspaceDir } : {}),
     ...(projectId ? { projectId } : {}),
   }), [projectId, workspaceRootQuery.data?.workspaceDir])
   const projectPluginsQuery = useQuery({
-    queryKey: ['project-overview-plugins', projectPluginContext.workspaceDir, projectPluginContext.projectId],
+    queryKey: projectOverviewKeys.plugins(projectPluginContext.workspaceDir, projectPluginContext.projectId),
     queryFn: () => loadProjectPluginSnapshot(projectPluginContext),
     enabled: !!projectId && !!workspaceRootQuery.data?.workspaceDir,
   })
   const observedSkillsQuery = useQuery({
-    queryKey: ['project-overview-observed-skills', projectPluginsQuery.data?.projectCwd, projectPluginsQuery.data?.skills.filter((skill) => skill.enabled).length],
+    queryKey: projectOverviewKeys.observedSkills(
+      projectPluginsQuery.data?.projectCwd,
+      projectPluginsQuery.data?.skills.filter((skill) => skill.enabled).length,
+    ),
     queryFn: () => observeProjectSkills(projectPluginsQuery.data!.projectCwd),
     enabled: !!projectId && !!projectPluginsQuery.data?.projectCwd,
   })
   const marketplaceQuery = useQuery({
-    queryKey: ['project-overview-plugin-marketplace'],
+    queryKey: projectOverviewKeys.pluginMarketplace,
     queryFn: () => loadProviderPluginMarketplaceState(),
     enabled: marketplaceOpen,
   })
@@ -390,9 +394,9 @@ export default function ProjectOverviewPage() {
           <PluginInfoTile label="启用 Skills" value={projectPluginsQuery.isLoading ? '读取中' : `${enabledProjectSkillCount}/${projectSkills.length}`} detail=".codex/skills + .agents/skills" />
         </div>
         {skillToggleError ? (
-          <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 type-label text-destructive">
+          <PluginStateBanner tone="danger" icon={<AlertCircle size={12} />} className="mt-4">
             {skillToggleError}
-          </div>
+          </PluginStateBanner>
         ) : null}
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {projectPluginsQuery.isLoading ? (

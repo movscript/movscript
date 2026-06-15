@@ -9,7 +9,7 @@ import {
   AppSettingsContentStack,
   AppSettingsEndpointSurface,
   AppSettingsSection,
-} from '@movscript/ui/business/app'
+} from '@/features/settings/components/AppSettingsUi'
 import { externalResourceKeys } from '@/features/resources/application/resourceQueryKeys'
 import {
   EMPTY_EXTERNAL_RESOURCE_SOURCES,

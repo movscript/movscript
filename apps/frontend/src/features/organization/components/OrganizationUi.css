@@ -73,8 +73,10 @@
   padding: var(--ms-space-4);
 }
 
-.organization-select-action-tile .ms-button__content {
+.organization-select-action-tile__content {
   display: flex;
+  min-width: 0;
+  width: 100%;
   flex-direction: column;
   align-items: stretch;
   justify-content: space-between;
@@ -124,10 +126,6 @@
   justify-content: flex-start;
   padding: var(--ms-space-3) var(--ms-space-4);
   text-align: left;
-}
-
-.organization-select-membership-button .ms-button__content {
-  width: 100%;
 }
 
 .organization-select-membership-button__icon {

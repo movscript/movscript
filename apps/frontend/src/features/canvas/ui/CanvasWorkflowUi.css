@@ -284,7 +284,7 @@
   background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
 }
 
-.canvas-workflow-history-table__row .ms-button__content {
+.canvas-workflow-history-table__row-content {
   display: contents;
 }
 
@@ -769,10 +769,6 @@
   font-size: var(--ms-text-label);
   font-weight: 500;
   line-height: var(--ms-leading-label);
-}
-
-.canvas-runtime-input-dialog__label .ms-label__required {
-  display: none;
 }
 
 .canvas-runtime-input-dialog__label-text {

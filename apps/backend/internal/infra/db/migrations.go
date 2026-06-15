@@ -367,8 +367,45 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.NewAPIIdentity{})
 			},
 		},
+		{
+			Version: "000045",
+			Name:    "add_new_api_identity_group",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.NewAPIIdentity{})
+			},
+		},
+		{
+			Version: "000046",
+			Name:    "index_new_api_identity_by_user_group",
+			Up: func(db *gorm.DB) error {
+				return migrateNewAPIIdentityUserGroupIndex(db)
+			},
+		},
 	}
 	return core
+}
+
+func migrateNewAPIIdentityUserGroupIndex(db *gorm.DB) error {
+	if err := db.AutoMigrate(&persistencemodel.NewAPIIdentity{}); err != nil {
+		return err
+	}
+	migrator := db.Migrator()
+	for _, index := range []string{"idx_new_api_identities_user_id", "idx_new_api_identities_new_api_username"} {
+		if migrator.HasIndex(&persistencemodel.NewAPIIdentity{}, index) {
+			if err := migrator.DropIndex(&persistencemodel.NewAPIIdentity{}, index); err != nil {
+				return err
+			}
+		}
+	}
+	if err := db.AutoMigrate(&persistencemodel.NewAPIIdentity{}); err != nil {
+		return err
+	}
+	if !migrator.HasIndex(&persistencemodel.NewAPIIdentity{}, "uidx_new_api_identity_user_group") {
+		if err := migrator.CreateIndex(&persistencemodel.NewAPIIdentity{}, "uidx_new_api_identity_user_group"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func renameAIModelConfigPricingModeColumn(db *gorm.DB) error {

@@ -40,6 +40,26 @@ func TestAIServiceModelCatalogContractMergesLogicalModels(t *testing.T) {
 	}
 }
 
+func TestAIServiceModelCatalogDefaultFilterIncludesSubtitleAlign(t *testing.T) {
+	db := testutil.OpenSQLite(t, "ai-model-catalog-align-default.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+	)
+	createProviderVariant(t, db, 1, "Align provider", "align-model", 10, CapabilitySubAlign)
+	service := NewAIService(db, NewRegistry(db, nil))
+
+	models, err := service.ListModels(context.Background(), providercontract.AIModelListFilter{})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	for _, model := range models {
+		if model.ModelID == "align-model" {
+			return
+		}
+	}
+	t.Fatalf("ListModels(default) = %#v, want subtitle_align model", models)
+}
+
 func TestAIServiceModelCatalogContractResolvesProviderBinding(t *testing.T) {
 	resetFailoverTestState()
 	db := testutil.OpenSQLite(t, "ai-model-binding-contract.db",

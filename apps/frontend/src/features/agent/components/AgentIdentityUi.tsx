@@ -129,7 +129,7 @@ export function IdentityBadge({
 
   return (
     <span
-      className={cn('ms-identity-badge', `ms-identity-badge--${size}`, `ms-identity-badge--${variant}`, className)}
+      className={cn('agent-identity-badge', `agent-identity-badge--${size}`, `agent-identity-badge--${variant}`, className)}
       data-identity-kind={kind}
       data-identity-id={asset.id}
       title={title}
@@ -143,9 +143,9 @@ export function IdentityBadge({
     >
       <IdentityMark asset={asset} kind={kind} />
       {shouldShowLabel ? (
-        <span className="ms-identity-badge__copy">
-          <span className="ms-identity-badge__label">{variant === 'stack' ? displayLabel : asset.shortLabel}</span>
-          {variant === 'stack' && detail ? <span className="ms-identity-badge__detail">{detail}</span> : null}
+        <span className="agent-identity-badge-copy">
+          <span className="agent-identity-badge-label">{variant === 'stack' ? displayLabel : asset.shortLabel}</span>
+          {variant === 'stack' && detail ? <span className="agent-identity-badge-detail">{detail}</span> : null}
         </span>
       ) : null}
     </span>
@@ -164,7 +164,7 @@ export function IdentityMark({ kind, id, asset: assetProp, className, style, ...
 
   return (
     <span
-      className={cn('ms-identity-mark', className)}
+      className={cn('agent-identity-mark', className)}
       data-identity-kind={kind}
       data-identity-id={asset.id}
       style={{
@@ -176,7 +176,7 @@ export function IdentityMark({ kind, id, asset: assetProp, className, style, ...
       {...props}
     >
       <img
-        className="ms-identity-mark__image"
+        className="agent-identity-mark-image"
         src={asset.assetPath}
         alt=""
         aria-hidden="true"
@@ -185,7 +185,7 @@ export function IdentityMark({ kind, id, asset: assetProp, className, style, ...
           event.currentTarget.src = fallbackAsset.assetPath
         }}
       />
-      <span className="ms-identity-mark__fallback" aria-hidden="true">{asset.shortLabel}</span>
+      <span className="agent-identity-mark-fallback" aria-hidden="true">{asset.shortLabel}</span>
     </span>
   )
 }

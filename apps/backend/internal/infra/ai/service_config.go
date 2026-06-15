@@ -148,8 +148,23 @@ type OpenAIProxyTarget struct {
 }
 
 func (s *AIService) OpenAIProxyTarget(ctx context.Context, userID uint, modelConfigID uint) (OpenAIProxyTarget, error) {
+	var lastErr error
+	for _, capability := range textRuntimeCapabilities() {
+		target, err := s.OpenAIProxyTargetForCapability(ctx, userID, modelConfigID, capability)
+		if err == nil {
+			return target, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return OpenAIProxyTarget{}, lastErr
+	}
+	return OpenAIProxyTarget{}, fmt.Errorf("no text runtime capability requested")
+}
+
+func (s *AIService) OpenAIProxyTargetForCapability(ctx context.Context, userID uint, modelConfigID uint, requiredCap string) (OpenAIProxyTarget, error) {
 	ctx = withProviderUserID(ctx, userID)
-	cfg, provider, def, _, err := s.loadTextConfig(modelConfigID)
+	cfg, provider, def, err := s.loadConfig(modelConfigID, requiredCap)
 	if err != nil {
 		return OpenAIProxyTarget{}, err
 	}

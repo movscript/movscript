@@ -57,9 +57,6 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/styles.css',
     'packages/ui/src/components/business/agent/panel/styles.css',
     'packages/ui/src/components/business/agent/panel/frame/styles.css',
-    'packages/ui/src/components/business/agent/panel/context/styles.css',
-    'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
-    'packages/ui/src/components/business/agent/page/styles.css',
     'packages/ui/src/components/business/agent/shell/styles.css',
     'packages/ui/src/components/business/agent/shell/layout/styles.css',
     'packages/ui/src/components/business/agent/shell/sidebar/styles.css',
@@ -116,11 +113,8 @@ function readAgentCss() {
 
 function readAgentChatSource() {
   return [
-    'packages/ui/src/components/business/agent/chat/index.tsx',
-    'packages/ui/src/components/business/agent/chat/types.ts',
-    'packages/ui/src/components/business/agent/chat/tabs/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/panel/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/item/index.tsx',
+    'apps/frontend/src/features/agent/components/AgentConversationTabsUi.tsx',
+    'apps/frontend/src/features/agent/components/conversation-tabs-ui/dragPayload.ts',
   ].map(readProjectFile).join('\n')
 }
 
@@ -207,11 +201,6 @@ function readAgentSource() {
     'packages/ui/src/components/business/agent/shell/primitives/suggestion/index.tsx',
     'packages/ui/src/components/business/agent/shell/primitives/context/index.tsx',
     'packages/ui/src/components/business/agent/shell/primitives/inline/index.tsx',
-    'packages/ui/src/components/business/agent/chat/index.tsx',
-    'packages/ui/src/components/business/agent/chat/types.ts',
-    'packages/ui/src/components/business/agent/chat/tabs/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/panel/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/item/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/types.ts',
     'packages/ui/src/components/business/agent/activity-feed/feed/index.tsx',
@@ -290,7 +279,6 @@ function readAppSource() {
     'packages/ui/src/components/business/app/work-mode/card/index.tsx',
     'packages/ui/src/components/business/app/work-mode/switch-guide/index.tsx',
     'packages/ui/src/components/business/app/onboarding/index.tsx',
-    'packages/ui/src/components/business/app/settings/index.tsx',
     'packages/ui/src/components/business/app/shell/index.tsx',
     'packages/ui/src/components/business/app/user-profile/index.tsx',
     'packages/ui/src/components/business/app/toast/index.tsx',
@@ -330,7 +318,6 @@ function readAppCss() {
     'packages/ui/src/components/business/app/work-mode/card/styles.css',
     'packages/ui/src/components/business/app/work-mode/switch-guide/styles.css',
     'packages/ui/src/components/business/app/onboarding/styles.css',
-    'packages/ui/src/components/business/app/settings/styles.css',
     'packages/ui/src/components/business/app/shell/styles.css',
     'packages/ui/src/components/business/app/user-profile/styles.css',
     'packages/ui/src/components/business/app/projects/styles.css',
@@ -845,8 +832,8 @@ test('agent identity UI is feature-owned instead of a package business domain', 
   assert.match(agentIdentitySource, /export function IdentityMark/)
   assert.match(agentIdentitySource, /const identityAssetBasePath = '\/assets\/identity'/)
   assert.match(agentIdentitySource, /import '\.\/AgentIdentityUi\.css'/)
-  assert.match(agentIdentityCss, cssClassSelectorPattern('ms-identity-badge'))
-  assert.match(agentIdentityCss, cssClassSelectorPattern('ms-identity-mark'))
+  assert.match(agentIdentityCss, cssClassSelectorPattern('agent-identity-badge'))
+  assert.match(agentIdentityCss, cssClassSelectorPattern('agent-identity-mark'))
   assert.match(agentFeatureSources, /from '@\/features\/agent\/components\/AgentIdentityUi'/)
   assert.doesNotMatch(agentFeatureSources, /@movscript\/ui\/business\/identity/)
 })
@@ -1127,9 +1114,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/styles.css',
     'packages/ui/src/components/business/agent/panel/styles.css',
     'packages/ui/src/components/business/agent/panel/frame/styles.css',
-    'packages/ui/src/components/business/agent/panel/context/styles.css',
-    'packages/ui/src/components/business/agent/panel/provider-session/styles.css',
-    'packages/ui/src/components/business/agent/page/styles.css',
     'packages/ui/src/components/business/agent/shell/styles.css',
     'packages/ui/src/components/business/agent/shell/layout/styles.css',
     'packages/ui/src/components/business/agent/shell/sidebar/styles.css',
@@ -1139,12 +1123,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
     'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
-    'packages/ui/src/components/business/agent/chat/index.tsx',
-    'packages/ui/src/components/business/agent/chat/types.ts',
-    'packages/ui/src/components/business/agent/chat/tabs/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/panel/index.tsx',
-    'packages/ui/src/components/business/agent/chat/tabs/item/index.tsx',
-    'packages/ui/src/components/business/agent/chat/history/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/types.ts',
     'packages/ui/src/components/business/agent/activity-feed/styles.css',
@@ -1286,8 +1264,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/app/work-mode/switch-guide/index.tsx',
     'packages/ui/src/components/business/app/work-mode/switch-guide/styles.css',
     'packages/ui/src/components/business/app/work-mode/styles.css',
-    'packages/ui/src/components/business/app/settings/index.tsx',
-    'packages/ui/src/components/business/app/settings/styles.css',
     'packages/ui/src/components/business/app/toast/index.tsx',
     'packages/ui/src/components/business/app/toast/styles.css',
     'packages/ui/src/components/business/app/projects/styles.css',
@@ -2240,7 +2216,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(workbenchCardCss, /\.workbench-summary-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.workbench-summary-card\s*\{/)
   assert.match(agentCssEntry, /@import "\.\/panel\/styles\.css";/)
-  assert.match(agentCssEntry, /@import "\.\/page\/styles\.css";/)
+  assert.doesNotMatch(agentCssEntry, /@import "\.\/page\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/shell\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/thread\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/context\/styles\.css";/)
@@ -2875,12 +2851,12 @@ test('agent generated result, candidate, and feedback UI are feature-owned inste
   assert.match(generatedResultCardSource, /<GeneratedResultCardShell data-testid="agent-generated-result-card"/)
   assert.match(generatedResultCardSource, /<GeneratedMediaPreviewButton[\s\S]*?data-testid="agent-generated-media-preview"/)
   assert.match(generatedCandidateDialogSource, /<GeneratedCandidateDialogContent data-testid=\{viewerAttachment \? 'agent-generated-resource-candidate' : 'agent-generated-bulk-candidate'\}/)
-  assert.match(generatedResultCardCss, /\.ms-agent-generated-result-card\s*\{/)
-  assert.match(generatedResultCardCss, /\.ms-agent-generated-result-item\s*\{/)
-  assert.match(generatedResultCardCss, /\.ms-agent-generated-media-preview\s*\{/)
-  assert.match(generatedCandidateDialogCss, /\.ms-agent-generated-candidate-dialog\s*\{/)
-  assert.match(generatedCandidateDialogCss, /\.ms-agent-generated-candidate-target-list\s*\{/)
-  assert.match(generatedCandidateDialogCss, /\.ms-agent-generated-viewer-panel\s*\{/)
+  assert.match(generatedResultCardCss, /\.agent-generated-result-card\s*\{/)
+  assert.match(generatedResultCardCss, /\.agent-generated-result-item\s*\{/)
+  assert.match(generatedResultCardCss, /\.agent-generated-media-preview\s*\{/)
+  assert.match(generatedCandidateDialogCss, /\.agent-generated-candidate-dialog\s*\{/)
+  assert.match(generatedCandidateDialogCss, /\.agent-generated-candidate-target-list\s*\{/)
+  assert.match(generatedCandidateDialogCss, /\.agent-generated-viewer-panel\s*\{/)
   assert.match(generationCardsCss, /\.agent-generated-card\s*\{/)
   assert.match(generationCardsCss, /\.agent-generated-progress-bar\s*\{/)
   assert.doesNotMatch(generatedResultCardSource, /\bAgentGeneratedResult/)
@@ -3165,7 +3141,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsUiSource, /export function AgentSettingsReadinessPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsActionItemsPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsActionItemRow/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileCard/)
+  assert.doesNotMatch(agentSettingsUiSource, /export function AgentSettingsConfigFileCard/)
+  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsConfigFileUi.tsx'), /export function AgentSettingsConfigFileCard/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileDiffPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileSummaryList/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsSkillCard/)
@@ -3384,7 +3361,7 @@ test('agent message and pill primitives share internal base classes', () => {
 test('agent panel and page surfaces use package agent styles', () => {
   const agentCss = readAgentCss()
   const agentChatCss = readAgentChatCss()
-  const agentPageCss = readProjectFile('packages/ui/src/components/business/agent/page/styles.css')
+  const primitiveFormCss = readProjectFile('packages/ui/src/components/primitives/form/styles.css')
   const agentChatShellViewSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatShellView.tsx')
   const agentChatShellViewCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatShellView.css')
   const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
@@ -3431,20 +3408,64 @@ test('agent panel and page surfaces use package agent styles', () => {
     'apps/frontend/src/features/agent/components/conversation-tabs-ui/menu/styles.css',
   ].map(readProjectFile).join('\n')
   const agentPanelCardUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelCardUi.css')
+  const agentPanelContextUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelContextUi.css')
+  const agentPanelProviderSessionUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelProviderSessionUi.css')
   const agentPanelShellLayoutUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelShellLayoutUi.css')
   const agentPanelThreadMessageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelThreadMessageUi.css')
+  const agentChatItemsUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatItemsUi.css')
   const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
   const projectAgentContentPanelSource = readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx')
 
   for (const sharedClass of [
     'ai-agent-panel',
+  ]) {
+    assert.match(`${agentCss}\n${agentChatCss}`, cssClassSelectorPattern(sharedClass), `${sharedClass} agent styles must live in @movscript/ui agent`)
+  }
+  for (const appChatItemClass of [
+    'ms-agent-chat-thread-fill',
+    'ms-agent-chat-thread-error',
+    'ms-agent-chat-capability-events',
+    'ms-agent-chat-thread-items',
+    'ms-agent-chat-section-title',
+    'ms-agent-chat-meta-list',
+    'ms-agent-chat-inline-list',
+    'ms-agent-chat-message-text',
+    'ms-agent-chat-empty-text',
+    'ms-agent-chat-chip-row',
+    'ms-agent-chat-request-form',
+    'ms-agent-chat-request-menu',
+    'ms-agent-chat-action-layer',
+    'ms-agent-chat-pre',
+    'ms-agent-chat-media-grid',
+    'ms-agent-chat-media-tile',
+    'ms-agent-chat-inspect',
+  ]) {
+    assert.match(agentChatItemsUiCss, cssClassSelectorPattern(appChatItemClass), `${appChatItemClass} styles must be owned by app agent chat item UI`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(appChatItemClass), `${appChatItemClass} styles must not remain in @movscript/ui agent`)
+  }
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentChatItemsUi\.css";/)
+  for (const panelContextClass of [
     'ai-agent-panel-context-resize-handle',
     'ai-agent-panel-context-body',
     'ai-agent-panel-context-card',
     'ai-agent-panel-context-stack',
   ]) {
-    assert.match(`${agentCss}\n${agentChatCss}`, cssClassSelectorPattern(sharedClass), `${sharedClass} agent styles must live in @movscript/ui agent`)
+    assert.match(agentPanelContextUiCss, cssClassSelectorPattern(panelContextClass), `${panelContextClass} styles must be owned by the app agent panel context UI`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(panelContextClass), `${panelContextClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const providerSessionSelector of [
+    '.ai-agent-panel-shell .ms-agent-conversation',
+    '.ai-agent-panel-shell .ms-agent-tool',
+    '.ai-agent-panel-shell details',
+    '.ai-agent-panel-shell pre',
+    '.ai-agent-panel-shell .ms-agent-tool__header',
+    '.ai-agent-panel-shell .ms-agent-tool__title',
+    '.ai-agent-panel-shell .ms-agent-empty',
+    '.ai-agent-panel-shell code',
+  ]) {
+    assert.match(agentPanelProviderSessionUiCss, new RegExp(providerSessionSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${providerSessionSelector} styles must be owned by the app agent panel provider-session UI`)
+    assert.doesNotMatch(agentCss, new RegExp(providerSessionSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${providerSessionSelector} styles must not remain in @movscript/ui agent`)
   }
   for (const panelCardClass of [
     'ai-agent-panel-card',
@@ -3524,12 +3545,20 @@ test('agent panel and page surfaces use package agent styles', () => {
     'ai-agent-panel-composer',
     'ai-agent-panel-mention-editor',
     'ai-agent-mention-chip',
+    'ai-agent-model-select',
+    'ai-agent-model-select__value',
+    'ai-agent-model-select__option',
+    'ai-agent-model-select__id',
   ]) {
     assert.match(agentComposerPanelUiCss, cssClassSelectorPattern(composerPanelClass), `${composerPanelClass} styles must be owned by the app agent composer UI`)
   }
   for (const composerPanelDetailClass of [
     'ai-agent-panel-mention-editor',
     'ai-agent-mention-chip',
+    'ai-agent-model-select',
+    'ai-agent-model-select__value',
+    'ai-agent-model-select__option',
+    'ai-agent-model-select__id',
   ]) {
     assert.doesNotMatch(agentCss, cssClassSelectorPattern(composerPanelDetailClass), `${composerPanelDetailClass} styles must not remain in @movscript/ui agent`)
   }
@@ -3546,18 +3575,30 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/thread-message')), false, 'agent panel thread message styles must be feature-owned')
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelThreadMessageUi\.css";/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/tabs/styles.css')), false, 'agent conversation tab styles must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat')), false, 'agent chat tabs and history orchestration must be feature-owned')
+  assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/index.tsx'), /export \* from "\.\/chat"/)
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConversationTabsUi\.css";/)
+  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx'), /from '@\/features\/agent\/components\/AgentConversationTabsUi'/)
+  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentChatDataSourceShellParts.tsx'), /from '@\/features\/agent\/components\/AgentConversationTabsUi'/)
+  assert.doesNotMatch(readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx'), /from '@movscript\/ui\/business\/agent'/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/history/index.tsx')), false, 'agent conversation history panel must be feature-owned')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/history/styles.css')), false, 'agent conversation history styles must be feature-owned')
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentConversationHistoryUi\.css";/)
+  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentChatPanelLayout.tsx'), /from '@\/features\/agent\/components\/AgentConversationHistoryUi'/)
+  assert.doesNotMatch(readProjectFile('apps/frontend/src/features/agent/components/AgentChatPanelLayout.tsx'), /AgentConversationHistoryPanel[\s\S]*from '@movscript\/ui\/business\/agent'/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/styles.css')), false, 'agent chat aggregate styles must not remain as an empty package entry')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/chat/toolbar/styles.css')), false, 'agent chat toolbar styles must be feature-owned')
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentChatToolbarUi\.css";/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/card/styles.css')), false, 'agent panel card styles must be feature-owned')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/shell-layout/styles.css')), false, 'agent panel shell layout styles must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/context/styles.css')), false, 'agent panel context styles must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/provider-session/styles.css')), false, 'agent panel provider-session styles must be feature-owned')
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelCardUi\.css";/)
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelContextUi\.css";/)
+  assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelProviderSessionUi\.css";/)
   assert.match(readProjectFile('apps/frontend/src/index.css'), /@import "@\/features\/agent\/components\/AgentPanelShellLayoutUi\.css";/)
   assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant\s*\{/)
-  assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant \.ms-agent-generated-media-preview/)
+  assert.match(agentPanelThreadMessageUiCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant \.agent-generated-media-preview/)
   assert.doesNotMatch(agentCss, /\.ai-agent-panel-shell \.ms-agent-message--assistant\s*\{/)
   assert.match(agentChatShellViewSource, /import '\.\/AgentChatShellView\.css'/)
   for (const pageChatClass of [
@@ -3572,7 +3613,7 @@ test('agent panel and page surfaces use package agent styles', () => {
     'project-agent-chat-shell',
   ]) {
     assert.match(agentChatShellViewCss, cssClassSelectorPattern(pageChatClass), `${pageChatClass} styles must live with AgentChatShellView`)
-    assert.doesNotMatch(agentPageCss, cssClassSelectorPattern(pageChatClass), `${pageChatClass} styles must not live in @movscript/ui agent page CSS`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(pageChatClass), `${pageChatClass} styles must not live in @movscript/ui agent CSS`)
   }
   assert.match(agentConsoleSource, /agent-console-page/)
   assert.match(movScriptWorkspaceFilesSource, /AgentPageShell/)
@@ -3580,6 +3621,11 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.match(agentPageUiSource, /<AppPageShell chrome="immersive"/)
   assert.match(agentPageUiCss, cssClassSelectorPattern('agent-page-shell'))
   assert.match(agentPageUiCss, cssClassSelectorPattern('agent-page-header-content'))
+  assert.doesNotMatch(agentCss, /@import "\.\/page\/styles\.css";/, 'agent page CSS must not be included in the package agent stylesheet')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/page/styles.css')), false, 'agent page CSS must be owned by AgentPageUi.css')
+  assert.match(primitiveFormCss, cssClassSelectorPattern('mention-editor'), 'shared mention editor base styles must live in primitive form styles')
+  assert.doesNotMatch(agentCss, cssClassSelectorPattern('mention-editor'), 'shared mention editor base styles must not live in @movscript/ui agent CSS')
+  assert.doesNotMatch(agentPageUiCss, cssClassSelectorPattern('mention-editor'), 'shared mention editor base styles must not live in app agent page CSS')
   assert.match(movScriptWorkspaceFilesSource, /from '@\/features\/agent\/components\/AgentPageWorkspaceUi'/)
   for (const pageSource of [
     agentsPageSource,
@@ -3606,7 +3652,7 @@ test('agent panel and page surfaces use package agent styles', () => {
     'agent-three-pane-page-pane',
     'agent-three-pane-page-item',
   ]) {
-    assert.doesNotMatch(agentPageCss, cssClassSelectorPattern(migratedAgentPageClass), `${migratedAgentPageClass} styles must not live in @movscript/ui agent page CSS`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(migratedAgentPageClass), `${migratedAgentPageClass} styles must not live in @movscript/ui agent CSS`)
   }
   for (const migratedWorkspaceClass of [
     'agent-workspaces-page-body',
@@ -3723,6 +3769,8 @@ test('agent text primitives share internal text classes', () => {
   assert.match(primitiveCss, cssClassSelectorPattern('ms-agent-text--truncate'))
   assert.doesNotMatch(uiCss, cssClassSelectorPattern('ms-agent-text--truncate'))
   assert.match(agentSource, /ms-agent-text ms-agent-text--truncate ms-agent-conversation__title/)
+  assert.doesNotMatch(agentCss, cssClassSelectorPattern('ms-agent-conversation--editing'), 'unused conversation editing styles must not remain in @movscript/ui agent')
+  assert.doesNotMatch(agentCss, cssClassSelectorPattern('ms-agent-conversation__title-input'), 'unused conversation title input styles must not remain in @movscript/ui agent')
   assert.match(agentSource, /ms-agent-text ms-agent-text--truncate ms-agent-title/)
 })
 
@@ -4178,6 +4226,9 @@ test('projects shell primitives use @movscript/ui', () => {
 
 test('onboarding and app settings use package surface primitives', () => {
   const appSettingsSource = readProjectFile('apps/frontend/src/features/settings/components/AppSettingsPage.tsx')
+  const appSettingsUiSource = readProjectFile('apps/frontend/src/features/settings/components/AppSettingsUi.tsx')
+  const appSettingsUiCss = readProjectFile('apps/frontend/src/features/settings/components/AppSettingsUi.css')
+  const externalResourceSettingsSource = readProjectFile('apps/frontend/src/features/settings/components/ExternalResourceSourceSettingsSection.tsx')
   const authSource = readProjectFile('apps/frontend/src/features/auth/components/AuthPage.tsx')
   const inviteSource = readProjectFile('apps/frontend/src/features/auth/components/InvitePage.tsx')
   const onboardingSource = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPage.tsx')
@@ -4233,7 +4284,8 @@ test('onboarding and app settings use package surface primitives', () => {
     'AppSettingsShell',
   ]) {
     assert.match(appSettingsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by app settings`)
-    assert.match(uiAppSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be package-owned`)
+    assert.match(appSettingsUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be settings feature-owned`)
+    assert.doesNotMatch(uiAppSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui app business`)
   }
   for (const exportName of [
     'OnboardingActionButton',
@@ -4275,6 +4327,10 @@ test('onboarding and app settings use package surface primitives', () => {
     'auth-password-field',
     'auth-submit-button',
     'auth-inline-meta',
+  ]) {
+    assert.match(uiAppCss, cssClassSelectorPattern(className), `${className} style must remain package-owned`)
+  }
+  for (const className of [
     'app-settings-shell',
     'app-settings-header',
     'app-settings-main',
@@ -4283,8 +4339,14 @@ test('onboarding and app settings use package surface primitives', () => {
     'app-settings-info-surface',
     'app-settings-action-row',
   ]) {
-    assert.match(uiAppCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
+    assert.match(appSettingsUiCss, cssClassSelectorPattern(className), `${className} style must be settings feature-owned`)
+    assert.doesNotMatch(uiAppCss, cssClassSelectorPattern(className), `${className} style must not remain in @movscript/ui app business CSS`)
   }
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/settings')), false, 'app settings UI must be feature-owned')
+  assert.doesNotMatch(uiAppSource, /from "\.\/settings"/, 'app settings module must not be re-exported from @movscript/ui app business')
+  assert.doesNotMatch(uiAppCss, /settings\/styles\.css/, 'app settings CSS must not be imported by @movscript/ui app business CSS')
+  assert.match(appSettingsSource, /from ['"]@\/features\/settings\/components\/AppSettingsUi['"]/)
+  assert.match(externalResourceSettingsSource, /from ['"]@\/features\/settings\/components\/AppSettingsUi['"]/)
   for (const source of [authSource, inviteSource, onboardingSource]) {
     assert.match(source, /from ['"]@movscript\/ui\/business\/app['"]/, 'Work mode consumers must import from @movscript/ui/business/app')
     assert.match(source, /\bWorkModePrompt\b/, 'Work mode prompt must be consumed from package UI')
@@ -4326,13 +4388,13 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.match(appSettingsSource, /<AppSettingsBackButton[\s\S]*?<ArrowLeft/)
   assert.match(appSettingsSource, /<AppSettingsChoiceTile[\s\S]*?onClick=\{\(\) => chooseLaunchMode\(mode\)\}/)
   assert.match(appSettingsSource, /<AppSettingsChoiceTile[\s\S]*?onClick=\{\(\) => chooseWorkMode\(mode\)\}/)
-  assert.match(uiAppSource, /function AppSettingsField[\s\S]*?<Label/)
-  assert.match(uiAppSource, /const AppSettingsInput[\s\S]*?<Input/)
-  assert.match(uiAppSource, /const AppSettingsChoiceTile[\s\S]*?<AppChoiceTile/)
-  assert.match(uiAppSource, /function AppSettingsFeedbackText[\s\S]*?toneTextClass/)
-  assert.match(uiAppSource, /function AppSettingsEndpointSurface[\s\S]*?<AppSettingsInfoSurface/)
-  assert.match(uiAppSource, /function AppSettingsInfoSurface[\s\S]*?<AppSurfaceItem/)
-  assert.match(uiAppSource, /const AppSettingsActionButton[\s\S]*?<Button/)
+  assert.match(appSettingsUiSource, /function AppSettingsField[\s\S]*?<Label/)
+  assert.match(appSettingsUiSource, /const AppSettingsInput[\s\S]*?<Input/)
+  assert.match(appSettingsUiSource, /const AppSettingsChoiceTile[\s\S]*?<AppChoiceTile/)
+  assert.match(appSettingsUiSource, /function AppSettingsFeedbackText[\s\S]*?toneTextClass/)
+  assert.match(appSettingsUiSource, /function AppSettingsEndpointSurface[\s\S]*?<AppSettingsInfoSurface/)
+  assert.match(appSettingsUiSource, /function AppSettingsInfoSurface[\s\S]*?<AppSurfaceItem/)
+  assert.match(appSettingsUiSource, /const AppSettingsActionButton[\s\S]*?<Button/)
   assert.doesNotMatch(appSettingsSource, /rounded-\[inherit\]/)
   assert.doesNotMatch(inviteSource, /w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0/)
   assert.doesNotMatch(inviteSource, /text-destructive/)
@@ -4621,7 +4683,7 @@ test('top app controls use package form controls', () => {
   assert.doesNotMatch(appShellSource, /\b(?:AppIconFrame|AppInlineMeta|AppSurfaceItem)\b/)
   assert.match(appRouteBoundariesSource, /class ErrorBoundary[\s\S]*?<AppErrorFallback/)
   assert.match(backendBootBoundarySource, /<AppBackendBootOverlayFrame[\s\S]*?tone=\{isError \? 'danger' : 'info'\}/)
-  assert.match(canvasShellRouteSource, /function CanvasHeaderTitle[\s\S]*?<Input[\s\S]*?value=\{canvasName\}/)
+  assert.match(canvasShellRouteSource, /function CanvasHeaderTitle[\s\S]*?<Input[\s\S]*?value=\{effectiveCanvasName\}/)
   assert.match(canvasShellRouteSource, /function CanvasHeaderNavigation[\s\S]*?<AppWindowIconButton[\s\S]*?canvasBackPath\(search\)/)
   assert.match(canvasShellRouteSource, /function CanvasHeaderContextActions[\s\S]*?<AppWindowIconButton[\s\S]*?ROUTES\.resources/)
   assert.match(shellLayoutSource, /const toolSidebarLayoutControls[\s\S]*?<AppWindowIconButton[\s\S]*?app-window-sidebar-toggle/)
@@ -4967,8 +5029,8 @@ test('agent generation and provider session interactions use package tone contra
   assert.doesNotMatch(providerSessionInteractionsSource, /agentRunInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge|InputChoice|InputItem|InputRail|InputBadge|InputAnswer|RejectAction)Class/)
   assert.doesNotMatch(agentRunInteractionSource, /export \* from "\.\/status"/)
   assert.match(agentRunInteractionCss, /@import "\.\/card\/styles\.css"/)
-  assert.match(agentRunInteractionCardCss, /\.ms-agent-run-interaction-request-card\s*\{/)
-  assert.match(agentRunInteractionThumbCss, /\.ms-agent-run-interaction-thumb\s*\{/)
+  assert.match(agentRunInteractionCardCss, /\.agent-run-interaction-request-card\s*\{/)
+  assert.match(agentRunInteractionThumbCss, /\.agent-run-interaction-thumb\s*\{/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalSectionClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalBadgeClass/)
   assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalInputChoiceClass/)
@@ -4978,7 +5040,7 @@ test('agent generation and provider session interactions use package tone contra
   assert.doesNotMatch(agentRunInteractionApprovalCardSource, /\bAgentSurfaceBlock\b/)
   assert.match(agentRunInteractionApprovalCardSource, /from "@movscript\/ui\/primitives"/)
   assert.doesNotMatch(agentRunInteractionApprovalCodeSource, /@movscript\/ui\/business\/agent/)
-  assert.match(agentRunInteractionApprovalCodeSource, /ms-agent-field ms-agent-data-block ms-agent-run-interaction-code/)
+  assert.match(agentRunInteractionApprovalCodeSource, /ms-agent-field ms-agent-data-block agent-run-interaction-code/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionChoiceButton[\s\S]*?<Button/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionTextInput[\s\S]*?<Input/)
   assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionStateBadge[\s\S]*?<Badge/)
@@ -5172,20 +5234,15 @@ test('scripts workspace surfaces use package structural primitives', () => {
     'ScriptEditorActionButton',
     'ScriptEditorBodyGrid',
     'ScriptEditorBodyTextarea',
-    'ScriptEditorErrorText',
     'ScriptEditorFieldLabel',
     'ScriptEditorFormShell',
     'ScriptEditorHelperText',
-    'ScriptEditorHiddenFileInput',
-    'ScriptEditorInlineMeta',
     'ScriptEditorInput',
     'ScriptEditorMainField',
     'ScriptEditorSidePanel',
     'ScriptEditorSideRail',
     'ScriptEditorStrongText',
     'ScriptEditorSummaryTextarea',
-    'ScriptEditorToolbar',
-    'ScriptEditorToolbarGroup',
     'ScriptEditorVersionState',
     'ScriptEditorVersionSubtitle',
     'ScriptEditorVersionTitle',
@@ -5194,8 +5251,19 @@ test('scripts workspace surfaces use package structural primitives', () => {
     assert.match(scriptsPageFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
     assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must stay behind @movscript/ui/business/scripts`)
   }
+  for (const exportName of [
+    'ScriptEditorErrorText',
+    'ScriptEditorHiddenFileInput',
+    'ScriptEditorInlineMeta',
+    'ScriptEditorToolbar',
+    'ScriptEditorToolbarGroup',
+  ]) {
+    assert.match(scriptsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by scripts workspace`)
+    assert.match(scriptsPageFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
+    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must stay behind @movscript/ui/business/scripts`)
+  }
   assert.match(businessIndexSource, /export \* as scripts from "\.\/scripts";/)
-  assert.match(scriptFormSource, /<ScriptEditorHiddenFileInput[\s\S]*?ref=\{fileInputRef\}[\s\S]*?type="file"/)
+  assert.match(scriptsSource, /<ScriptEditorHiddenFileInput[\s\S]*?ref=\{fileInputRef\}[\s\S]*?type="file"/)
   assert.match(scriptFormSource, /<ScriptEditorSidePanel variant="muted">[\s\S]*?保存为版本/)
   assert.doesNotMatch(scriptFormSource, /\b(?:AppSurfaceItem|Button|Input|Label|Textarea|toneTextClass)\b/)
   assert.doesNotMatch(scriptFormSource, /className=|<(?:aside|div|label|p|span|strong)\b/)

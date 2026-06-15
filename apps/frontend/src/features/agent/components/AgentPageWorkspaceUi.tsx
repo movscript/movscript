@@ -168,7 +168,7 @@ export function AgentWorkspaceStateSpinner({ className, ...props }: ComponentPro
 }
 
 export function AgentWorkspaceListItemButton({ className, ...props }: ButtonProps) {
-  return <Button type="button" variant="ghost" className={cn('agent-workspace-list-item', className)} {...props} />
+  return <Button type="button" variant="ghost" fullWidth align="start" className={cn('agent-workspace-list-item', className)} {...props} />
 }
 
 export function AgentWorkspaceListItemContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

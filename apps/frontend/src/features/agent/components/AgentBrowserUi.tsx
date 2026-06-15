@@ -42,7 +42,7 @@ export function AgentBrowserTabSurface({
 }
 
 export function AgentBrowserTabButton({ className, ...props }: ComponentProps<typeof Button>) {
-  return <Button type="button" variant="ghost" size="sm" className={cn('agent-browser-tab-button', className)} {...props} />
+  return <Button type="button" variant="ghost" size="sm" fullWidth align="start" className={cn('agent-browser-tab-button', className)} {...props} />
 }
 
 export function AgentBrowserTabCloseButton({ className, ...props }: ComponentProps<typeof Button>) {

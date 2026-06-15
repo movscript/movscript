@@ -6,7 +6,7 @@ import { cn } from "@/shared/ui/cn";
 
 export const AgentRunInteractionApprovalPreviewStack = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-preview-stack", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-preview-stack", className)} {...props} />;
   }
 );
 
@@ -16,5 +16,5 @@ export function AgentRunInteractionApprovalSideEffect({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("ms-agent-run-interaction-side-effect", className)} {...props} />;
+  return <div className={cn("agent-run-interaction-side-effect", className)} {...props} />;
 }

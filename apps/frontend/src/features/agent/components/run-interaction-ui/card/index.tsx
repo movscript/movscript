@@ -46,7 +46,7 @@ export const AgentRunInteractionProviderSessionPanel = React.forwardRef<HTMLElem
         density="normal"
         emphasis="plain"
         data-variant="surface"
-        className={agentRunInteractionSurfaceClass("surface", cn("ms-agent-run-interaction-panel", className))}
+        className={agentRunInteractionSurfaceClass("surface", cn("agent-run-interaction-panel", className))}
         {...props}
       />
     );
@@ -57,7 +57,7 @@ AgentRunInteractionProviderSessionPanel.displayName = "AgentRunInteractionProvid
 
 export const AgentRunInteractionProviderSessionHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-panel__header", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-panel__header", className)} {...props} />;
   }
 );
 
@@ -65,14 +65,14 @@ AgentRunInteractionProviderSessionHeader.displayName = "AgentRunInteractionProvi
 
 export const AgentRunInteractionProviderSessionTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-panel__title", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-panel__title", className)} {...props} />;
   }
 );
 
 AgentRunInteractionProviderSessionTitle.displayName = "AgentRunInteractionProviderSessionTitle";
 
 export function AgentRunInteractionProviderSessionStatusBadge({ className, ...props }: StatusBadgeProps) {
-  return <StatusBadge className={cn("ms-agent-run-interaction-status-badge", className)} {...props} />;
+  return <StatusBadge className={cn("agent-run-interaction-status-badge", className)} {...props} />;
 }
 
 export const AgentRunInteractionSection = React.forwardRef<
@@ -88,7 +88,7 @@ export const AgentRunInteractionSection = React.forwardRef<
       density="normal"
       emphasis={agentRunInteractionSurfaceEmphasis(variant)}
       data-variant={variant}
-      className={agentRunInteractionSurfaceClass(variant, cn("ms-agent-run-interaction-section", state && agentRunInteractionApprovalSectionClass(state), className))}
+      className={agentRunInteractionSurfaceClass(variant, cn("agent-run-interaction-section", state && agentRunInteractionApprovalSectionClass(state), className))}
       {...props}
     />
   );
@@ -98,7 +98,7 @@ AgentRunInteractionSection.displayName = "AgentRunInteractionSection";
 
 export const AgentRunInteractionSectionHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-section__header", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-section__header", className)} {...props} />;
   }
 );
 
@@ -110,7 +110,7 @@ export const AgentRunInteractionSectionTitle = React.forwardRef<
     state?: AgentRunInteractionApprovalSectionState;
   }
 >(({ className, state, ...props }, ref) => {
-  return <div ref={ref} className={cn("ms-agent-run-interaction-section__title", state && agentRunInteractionApprovalTitleClass(state), className)} {...props} />;
+  return <div ref={ref} className={cn("agent-run-interaction-section__title", state && agentRunInteractionApprovalTitleClass(state), className)} {...props} />;
 });
 
 AgentRunInteractionSectionTitle.displayName = "AgentRunInteractionSectionTitle";
@@ -121,14 +121,14 @@ export const AgentRunInteractionSectionActions = React.forwardRef<
     visible?: boolean;
   }
 >(({ className, visible = true, ...props }, ref) => {
-  return <div ref={ref} className={cn("ms-agent-run-interaction-section__actions", !visible && "ms-agent-run-interaction-section__actions--hidden", className)} {...props} />;
+  return <div ref={ref} className={cn("agent-run-interaction-section__actions", !visible && "agent-run-interaction-section__actions--hidden", className)} {...props} />;
 });
 
 AgentRunInteractionSectionActions.displayName = "AgentRunInteractionSectionActions";
 
 export const AgentRunInteractionStack = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-stack", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-stack", className)} {...props} />;
   }
 );
 
@@ -136,7 +136,7 @@ AgentRunInteractionStack.displayName = "AgentRunInteractionStack";
 
 export const AgentRunInteractionApprovalCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-card", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-card", className)} {...props} />;
   }
 );
 
@@ -144,7 +144,7 @@ AgentRunInteractionApprovalCard.displayName = "AgentRunInteractionApprovalCard";
 
 export const AgentRunInteractionApprovalRow = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-card__row", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-card__row", className)} {...props} />;
   }
 );
 
@@ -152,7 +152,7 @@ AgentRunInteractionApprovalRow.displayName = "AgentRunInteractionApprovalRow";
 
 export const AgentRunInteractionApprovalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-card__body", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-card__body", className)} {...props} />;
   }
 );
 
@@ -160,7 +160,7 @@ AgentRunInteractionApprovalBody.displayName = "AgentRunInteractionApprovalBody";
 
 export const AgentRunInteractionApprovalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-card__header", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-card__header", className)} {...props} />;
   }
 );
 
@@ -168,7 +168,7 @@ AgentRunInteractionApprovalHeader.displayName = "AgentRunInteractionApprovalHead
 
 export const AgentRunInteractionApprovalTitle = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-run-interaction-card__title", className)} {...props} />;
+    return <span ref={ref} className={cn("agent-run-interaction-card__title", className)} {...props} />;
   }
 );
 
@@ -176,7 +176,7 @@ AgentRunInteractionApprovalTitle.displayName = "AgentRunInteractionApprovalTitle
 
 export const AgentRunInteractionApprovalBadgeRow = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-card__badges", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-card__badges", className)} {...props} />;
   }
 );
 
@@ -184,7 +184,7 @@ AgentRunInteractionApprovalBadgeRow.displayName = "AgentRunInteractionApprovalBa
 
 export const AgentRunInteractionApprovalMeta = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-card__meta", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-card__meta", className)} {...props} />;
   }
 );
 
@@ -192,7 +192,7 @@ AgentRunInteractionApprovalMeta.displayName = "AgentRunInteractionApprovalMeta";
 
 export const AgentRunInteractionApprovalPrompt = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-run-interaction-card__prompt", className)} {...props} />;
+    return <p ref={ref} className={cn("agent-run-interaction-card__prompt", className)} {...props} />;
   }
 );
 
@@ -200,7 +200,7 @@ AgentRunInteractionApprovalPrompt.displayName = "AgentRunInteractionApprovalProm
 
 export const AgentRunInteractionApprovalText = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-run-interaction-card__text", className)} {...props} />;
+    return <p ref={ref} className={cn("agent-run-interaction-card__text", className)} {...props} />;
   }
 );
 
@@ -226,10 +226,10 @@ export const AgentRunInteractionRequestCard = React.forwardRef<
       density="normal"
       emphasis={agentRunInteractionSurfaceEmphasis(variant)}
       data-variant={variant}
-      className={agentRunInteractionSurfaceClass(variant, cn("ms-agent-run-interaction-request-card", itemClass, className))}
+      className={agentRunInteractionSurfaceClass(variant, cn("agent-run-interaction-request-card", itemClass, className))}
       {...props}
     >
-      <span className={cn("ms-agent-run-interaction-request-card__rail", railClass)} aria-hidden="true" />
+      <span className={cn("agent-run-interaction-request-card__rail", railClass)} aria-hidden="true" />
       {children}
     </Frame>
   );
@@ -239,7 +239,7 @@ AgentRunInteractionRequestCard.displayName = "AgentRunInteractionRequestCard";
 
 export const AgentRunInteractionRequestHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-request-card__header", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-request-card__header", className)} {...props} />;
   }
 );
 
@@ -247,7 +247,7 @@ AgentRunInteractionRequestHeader.displayName = "AgentRunInteractionRequestHeader
 
 export const AgentRunInteractionRequestCopy = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-request-card__copy", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-request-card__copy", className)} {...props} />;
   }
 );
 
@@ -255,7 +255,7 @@ AgentRunInteractionRequestCopy.displayName = "AgentRunInteractionRequestCopy";
 
 export const AgentRunInteractionRequestActions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-request-card__actions", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-request-card__actions", className)} {...props} />;
   }
 );
 
@@ -263,7 +263,7 @@ AgentRunInteractionRequestActions.displayName = "AgentRunInteractionRequestActio
 
 export const AgentRunInteractionRequestTitle = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-run-interaction-request-card__title", className)} {...props} />;
+    return <span ref={ref} className={cn("agent-run-interaction-request-card__title", className)} {...props} />;
   }
 );
 
@@ -279,7 +279,7 @@ export const AgentRunInteractionRequestSummary = React.forwardRef<
     <p
       ref={ref}
       aria-hidden={hiddenContent || undefined}
-      className={cn("ms-agent-run-interaction-request-card__summary", hiddenContent && "ms-agent-run-interaction-request-card__summary--hidden", className)}
+      className={cn("agent-run-interaction-request-card__summary", hiddenContent && "agent-run-interaction-request-card__summary--hidden", className)}
       {...props}
     />
   );
@@ -289,7 +289,7 @@ AgentRunInteractionRequestSummary.displayName = "AgentRunInteractionRequestSumma
 
 export const AgentRunInteractionRequestPrompt = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-run-interaction-request-card__prompt", className)} {...props} />;
+    return <p ref={ref} className={cn("agent-run-interaction-request-card__prompt", className)} {...props} />;
   }
 );
 
@@ -297,14 +297,14 @@ AgentRunInteractionRequestPrompt.displayName = "AgentRunInteractionRequestPrompt
 
 export const AgentRunInteractionRequestDetail = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-run-interaction-request-card__detail", className)} {...props} />;
+    return <p ref={ref} className={cn("agent-run-interaction-request-card__detail", className)} {...props} />;
   }
 );
 
 AgentRunInteractionRequestDetail.displayName = "AgentRunInteractionRequestDetail";
 
 export function AgentRunInteractionMetaBadge({ className, ...props }: BadgeProps) {
-  return <Badge variant="outline" className={cn("ms-agent-run-interaction-meta-badge", className)} {...props} />;
+  return <Badge variant="outline" className={cn("agent-run-interaction-meta-badge", className)} {...props} />;
 }
 
 export function AgentRunInteractionStateBadge({
@@ -317,11 +317,11 @@ export function AgentRunInteractionStateBadge({
   requestKind?: AgentRunInteractionRequestKind;
 }) {
   const statusClass = requestKind === "input" ? agentRunInteractionApprovalInputBadgeClass(status ?? "pending") : agentRunInteractionApprovalBadgeClass(status);
-  return <Badge variant="outline" className={cn("ms-agent-run-interaction-state-badge", statusClass, className)} {...props} />;
+  return <Badge variant="outline" className={cn("agent-run-interaction-state-badge", statusClass, className)} {...props} />;
 }
 
 export function AgentRunInteractionStatusBadge({ className, ...props }: StatusBadgeProps) {
-  return <StatusBadge className={cn("ms-agent-run-interaction-status-badge", className)} {...props} />;
+  return <StatusBadge className={cn("agent-run-interaction-status-badge", className)} {...props} />;
 }
 
 export function AgentRunInteractionChoiceButton({
@@ -335,14 +335,14 @@ export function AgentRunInteractionChoiceButton({
     <Button
       size="xs"
       variant={selected ? "soft" : "outline"}
-      className={cn("ms-agent-run-interaction-choice-button", agentRunInteractionApprovalInputChoiceClass(Boolean(selected)), className)}
+      className={cn("agent-run-interaction-choice-button", agentRunInteractionApprovalInputChoiceClass(Boolean(selected)), className)}
       {...props}
     />
   );
 }
 
 export function AgentRunInteractionTextInput({ className, ...props }: InputProps) {
-  return <Input controlSize="sm" variant="subtle" className={cn("ms-agent-run-interaction-text-input", className)} {...props} />;
+  return <Input controlSize="sm" variant="subtle" className={cn("agent-run-interaction-text-input", className)} {...props} />;
 }
 
 export function AgentRunInteractionActionButton({
@@ -352,7 +352,7 @@ export function AgentRunInteractionActionButton({
 }: ButtonProps & {
   actionTone?: "default" | "reject";
 }) {
-  return <Button className={cn("ms-agent-run-interaction-action-button", actionTone === "reject" && agentRunInteractionApprovalRejectActionClass(), className)} {...props} />;
+  return <Button className={cn("agent-run-interaction-action-button", actionTone === "reject" && agentRunInteractionApprovalRejectActionClass(), className)} {...props} />;
 }
 
 export function AgentRunInteractionImpactText({
@@ -362,19 +362,19 @@ export function AgentRunInteractionImpactText({
 }: React.HTMLAttributes<HTMLDivElement> & {
   status?: string;
 }) {
-  return <div className={cn("ms-agent-run-interaction-impact", agentRunInteractionApprovalImpactClass(status ?? "pending"), className)} {...props} />;
+  return <div className={cn("agent-run-interaction-impact", agentRunInteractionApprovalImpactClass(status ?? "pending"), className)} {...props} />;
 }
 
 export const AgentRunInteractionImpactLabel = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-run-interaction-impact__label", className)} {...props} />;
+    return <span ref={ref} className={cn("agent-run-interaction-impact__label", className)} {...props} />;
   }
 );
 
 AgentRunInteractionImpactLabel.displayName = "AgentRunInteractionImpactLabel";
 
 export function AgentRunInteractionAnswerText({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("ms-agent-run-interaction-answer", agentRunInteractionApprovalInputAnswerClass(), className)} {...props} />;
+  return <p className={cn("agent-run-interaction-answer", agentRunInteractionApprovalInputAnswerClass(), className)} {...props} />;
 }
 
 export function AgentRunInteractionMarkerDot({

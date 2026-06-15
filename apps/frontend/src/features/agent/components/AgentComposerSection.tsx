@@ -545,7 +545,7 @@ export function AgentComposerSection({
                 variant={debugBeforeSend ? 'soft' : 'ghost'}
                 onClick={() => onDebugBeforeSendChange(!debugBeforeSend)}
                 disabled={answeringPendingInput}
-                className="ms-agent-composer__debug-action px-2 type-tiny"
+                className="ms-agent-composer__debug-action agent-composer-debug-action px-2 type-tiny"
                 title={t('agents.chat.previewPayload')}
               >
                 <Eye size={12} />

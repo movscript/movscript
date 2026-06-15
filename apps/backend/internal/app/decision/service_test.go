@@ -84,6 +84,47 @@ func TestServiceStoresCandidatesAndSelectionInBackend(t *testing.T) {
 	}
 }
 
+func TestServiceQueriesDecisionsByTargetRefs(t *testing.T) {
+	db := testutil.OpenSQLite(t, "decision-query.db",
+		&persistencemodel.User{},
+		&persistencemodel.Project{},
+		&persistencemodel.DecisionContext{},
+	)
+	project := persistencemodel.Project{Name: "Demo", OwnerID: 1}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	service := NewService(db)
+	for _, ref := range []string{"content_units/cu_a", "content_units/cu_b"} {
+		if _, err := service.ReplaceCandidates(context.Background(), ReplaceCandidatesInput{
+			TargetInput: TargetInput{ProjectID: project.ID, TargetKind: "content_unit", TargetRef: ref},
+			Candidates:  []json.RawMessage{json.RawMessage(`{"id":"candidate_a","resource_id":101}`)},
+		}); err != nil {
+			t.Fatalf("replace candidates for %s: %v", ref, err)
+		}
+	}
+
+	results, err := service.Query(context.Background(), QueryTargetsInput{
+		ProjectID:  project.ID,
+		TargetKind: "content_unit",
+		TargetRefs: []string{"content_units/cu_a", "content_units/missing", "content_units/cu_a", "content_units/cu_b"},
+	})
+	if err != nil {
+		t.Fatalf("query decisions: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("result count = %d, want 2", len(results))
+	}
+	seen := map[string]bool{}
+	for _, result := range results {
+		seen[result.TargetRef] = true
+	}
+	if !seen["content_units/cu_a"] || !seen["content_units/cu_b"] || seen["content_units/missing"] {
+		t.Fatalf("unexpected query refs: %#v", seen)
+	}
+}
+
 func TestServiceRejectsSelectionForMissingCandidate(t *testing.T) {
 	db := testutil.OpenSQLite(t, "decision.db",
 		&persistencemodel.User{},

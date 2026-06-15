@@ -3,14 +3,13 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import {
   AgentBody,
   AgentConversationItem,
-  AgentConversationTabsPanel,
   AgentEmpty,
   AgentHeader,
   AgentThreadFill,
-  type AgentConversationTabItem,
 } from '@movscript/ui/business/agent'
 import { Button } from '@movscript/ui/primitives'
 import { AgentComposerSection, type AgentComposerSectionProps } from '@/features/agent/components/AgentComposerSection'
+import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@/features/agent/components/AgentConversationTabsUi'
 import { ProviderControls } from '@/features/agent/components/ProviderControls'
 import { AgentChatRecentCapabilityEventCard } from '@/features/agent/components/agent-chat-events/AgentChatRecentCapabilityEventCard'
 import { AgentPinnedStatusShelf, type AgentPinnedStatusSummaryItem } from '@/features/agent/components/AgentPinnedStatusShelf'
@@ -321,12 +320,12 @@ export function AgentComposerActionLayer({
       data-testid="agent-composer-action-layer"
       aria-live="polite"
     >
-      <div className="ms-agent-chat-action-layer__surface">
+      <div className="ms-agent-chat-action-layer-surface">
         {pageCount > 1 ? (
-          <div className="ms-agent-chat-action-layer__pager">
+          <div className="ms-agent-chat-action-layer-pager">
             <button
               type="button"
-              className="ms-agent-run-interaction-pager__button"
+              className="agent-run-interaction-pager__button"
               disabled={safePage <= 0}
               onClick={() => setPage(previousPage)}
               aria-label="Previous tool request"
@@ -334,10 +333,10 @@ export function AgentComposerActionLayer({
             >
               <ChevronLeft size={12} />
             </button>
-            <span className="ms-agent-run-interaction-pager__count">{safePage + 1}/{pageCount}</span>
+            <span className="agent-run-interaction-pager__count">{safePage + 1}/{pageCount}</span>
             <button
               type="button"
-              className="ms-agent-run-interaction-pager__button"
+              className="agent-run-interaction-pager__button"
               disabled={safePage >= pageCount - 1}
               onClick={() => setPage(nextPage)}
               aria-label="Next tool request"

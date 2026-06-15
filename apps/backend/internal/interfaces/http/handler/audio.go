@@ -46,9 +46,15 @@ func (h *AudioHandler) ListModels(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	alignModels, err := h.listAudioModelsForCapabilities(c, ai.CapabilitySubAlign, ai.CapabilityAudioSTT)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"tts":        ttsModels,
 		"transcribe": sttModels,
+		"align":      alignModels,
 	})
 }
 
@@ -60,6 +66,25 @@ func (h *AudioHandler) listAudioModels(c *gin.Context, capability string) ([]ai.
 	models := make([]ai.PublicModel, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		models = append(models, audioPublicModelFromDescriptor(descriptor))
+	}
+	return models, nil
+}
+
+func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabilities ...string) ([]ai.PublicModel, error) {
+	seen := map[uint]bool{}
+	models := []ai.PublicModel{}
+	for _, capability := range capabilities {
+		next, err := h.listAudioModels(c, capability)
+		if err != nil {
+			return nil, err
+		}
+		for _, model := range next {
+			if seen[model.ID] {
+				continue
+			}
+			seen[model.ID] = true
+			models = append(models, model)
+		}
 	}
 	return models, nil
 }
@@ -154,6 +179,41 @@ func (h *AudioHandler) Transcribe(c *gin.Context) {
 		OrgID:           currentOrgID(c),
 		ModelConfigID:   req.ModelConfigID,
 		AudioResourceID: req.AudioResourceID,
+		Language:        req.Language,
+		Model:           req.Model,
+		Params:          req.Params,
+	})
+	if err != nil {
+		writeAudioError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *AudioHandler) Align(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var req struct {
+		ModelConfigID   uint            `json:"model_config_id"`
+		AudioResourceID uint            `json:"audio_resource_id"`
+		Script          string          `json:"script"`
+		Language        string          `json:"language"`
+		Model           string          `json:"model"`
+		Params          json.RawMessage `json:"params"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	result, err := h.service.Align(c.Request.Context(), appaudio.AlignInput{
+		UserID:          user.ID,
+		OrgID:           currentOrgID(c),
+		ModelConfigID:   req.ModelConfigID,
+		AudioResourceID: req.AudioResourceID,
+		Script:          req.Script,
 		Language:        req.Language,
 		Model:           req.Model,
 		Params:          req.Params,

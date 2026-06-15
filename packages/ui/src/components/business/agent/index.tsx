@@ -20,7 +20,6 @@ export * from "./shell/layout";
 export * from "./shell/sidebar";
 export * from "./shell/primitives";
 export * from "./page";
-export * from "./chat";
 export * from "./activity-feed";
 export * from "./diagnostic";
 export * from "./plan-overview";

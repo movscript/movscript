@@ -5,17 +5,14 @@
   max-width: 100%;
 }
 
-.ai-agent-panel-shell .ms-agent-tool__header {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.ai-agent-panel-shell .ms-agent-tool__title {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ai-agent-panel-shell .ms-agent-tool {
+  --agent-tool-header-min-width: 0;
+  --agent-tool-header-overflow: hidden;
+  --agent-tool-title-min-width: 0;
+  --agent-tool-title-max-width: 100%;
+  --agent-tool-title-overflow: hidden;
+  --agent-tool-title-text-overflow: ellipsis;
+  --agent-tool-title-white-space: nowrap;
 }
 
 .ai-agent-panel-shell .ms-agent-conversation {

@@ -43,7 +43,6 @@
 .agent-browser-tab-surface {
   --agent-browser-tab-hover-background: color-mix(in srgb, var(--ms-color-muted) 34%, var(--agent-browser-background));
   --agent-browser-tab-hover-border: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
-  --ms-button-subtle-hover-background: transparent;
   --ui-surface-radius: var(--agent-browser-control-radius);
   position: relative;
   display: flex;
@@ -93,12 +92,6 @@
 .agent-browser-tab-button:hover:not(:disabled),
 .agent-browser-tab-button:active:not(:disabled) {
   transform: none;
-}
-
-.agent-browser-tab-button .ms-button__content {
-  min-width: 0;
-  flex: 1 1 auto;
-  justify-content: flex-start;
 }
 
 .agent-browser-tab-icon {

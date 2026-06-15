@@ -117,17 +117,17 @@ func (s *AIService) CallTranscribe(ctx context.Context, userID, modelConfigID ui
 
 func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, req media.AlignRequest, usage UsageContext) (media.SubtitleResponse, error) {
 	ctx = withProviderUserID(ctx, userID)
-	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityAudioSTT)
+	candidates, capability, err := s.runtimeAlignModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return media.SubtitleResponse{}, err
 	}
 	if len(candidates) == 0 {
-		return media.SubtitleResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityAudioSTT)
+		return media.SubtitleResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilitySubAlign)
 	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityAudioSTT), candidates)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
 	var lastErr error
 	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityAudioSTT)
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
 			lastErr = err
 			continue
@@ -142,7 +142,7 @@ func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, r
 			attemptReq.Model = resolveModelID(cfg, def)
 		}
 		if usage.ReservationID == nil {
-			estimate := estimateUsageCost(cfg, def, CapabilityAudioSTT, 0, 0, 0, 1)
+			estimate := estimateUsageCost(cfg, def, capability, 0, 0, 0, 1)
 			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
 			if err != nil {
 				return media.SubtitleResponse{}, err
@@ -156,7 +156,7 @@ func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, r
 			lastErr = err
 			continue
 		}
-		estimate := estimateUsageCost(cfg, def, CapabilityAudioSTT, 0, 0, 0, 1)
+		estimate := estimateUsageCost(cfg, def, capability, 0, 0, 0, 1)
 		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
 			return media.SubtitleResponse{}, err
 		}
@@ -167,4 +167,19 @@ func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, r
 		return media.SubtitleResponse{}, lastErr
 	}
 	return media.SubtitleResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityAudioSTT)
+}
+
+func (s *AIService) runtimeAlignModelAttemptCandidates(modelConfigID uint) ([]runtimeModelCandidate, string, error) {
+	alignCandidates, alignErr := s.runtimeModelCandidates(modelConfigID, CapabilitySubAlign)
+	if alignErr == nil && len(alignCandidates) > 0 {
+		return alignCandidates, CapabilitySubAlign, nil
+	}
+	sttCandidates, sttErr := s.runtimeModelCandidates(modelConfigID, CapabilityAudioSTT)
+	if sttErr == nil && len(sttCandidates) > 0 {
+		return sttCandidates, CapabilityAudioSTT, nil
+	}
+	if alignErr != nil {
+		return nil, "", alignErr
+	}
+	return nil, "", sttErr
 }

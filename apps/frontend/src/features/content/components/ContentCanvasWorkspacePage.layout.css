@@ -1,0 +1,109 @@
+.content-canvas-workspace-inspector {
+  grid-column: 3;
+  grid-row: 2 / 4;
+  position: relative;
+  border-left: 1px solid var(--cc-border);
+  background: color-mix(in srgb, var(--cc-panel) 82%, transparent);
+  padding: 14px;
+}
+
+.content-canvas-workspace-timeline {
+  grid-column: 2;
+  grid-row: 3;
+  position: relative;
+  align-self: end;
+  height: 100%;
+  border-top: 1px solid var(--cc-border);
+  background: color-mix(in srgb, var(--cc-panel) 86%, transparent);
+  padding: 14px;
+}
+
+.content-canvas-resize-handle {
+  position: absolute;
+  z-index: 5;
+  border: 0;
+  background: transparent;
+  outline: 0;
+}
+
+.content-canvas-resize-handle::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: transparent;
+  transition:
+    background 0.14s var(--ms-easing-standard),
+    opacity 0.14s var(--ms-easing-standard);
+}
+
+.content-canvas-resize-handle:hover::after,
+.content-canvas-resize-handle:focus-visible::after,
+.content-canvas-resize-handle[data-active="true"]::after,
+.content-canvas-resize-handle.panel-resize-handle--active::after {
+  background: color-mix(in srgb, var(--cc-accent) 48%, var(--cc-border));
+}
+
+.content-canvas-resize-handle--top,
+.content-canvas-resize-handle--bottom {
+  left: 0;
+  right: 0;
+  height: 11px;
+  cursor: row-resize;
+}
+
+.content-canvas-resize-handle--top {
+  bottom: -6px;
+}
+
+.content-canvas-resize-handle--bottom {
+  top: -6px;
+}
+
+.content-canvas-resize-handle--top::after,
+.content-canvas-resize-handle--bottom::after {
+  left: 14px;
+  right: 14px;
+  top: 5px;
+  height: 1px;
+}
+
+.content-canvas-resize-handle--left,
+.content-canvas-resize-handle--right {
+  top: 0;
+  bottom: 0;
+  width: 11px;
+  cursor: col-resize;
+}
+
+.content-canvas-resize-handle--left {
+  right: -6px;
+}
+
+.content-canvas-resize-handle--right {
+  left: -6px;
+}
+
+.content-canvas-resize-handle--left::after,
+.content-canvas-resize-handle--right::after {
+  top: 14px;
+  bottom: 14px;
+  left: 5px;
+  width: 1px;
+}
+
+.content-canvas-workspace-page[data-main-node="setting"] .content-canvas-workspace-timeline {
+  display: none;
+}
+
+.content-canvas-placeholder {
+  display: grid;
+  height: 100%;
+  place-content: center;
+  border: 1px dashed var(--cc-border);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cc-accent) 6%, transparent), transparent),
+    color-mix(in srgb, var(--cc-panel) 58%, transparent);
+  padding: 18px;
+  text-align: center;
+}

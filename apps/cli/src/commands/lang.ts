@@ -40,9 +40,7 @@ interface WorkspaceOptions {
   commit?: string
 }
 
-interface InterpretOptions extends WorkspaceOptions {
-  debugArtifacts?: boolean
-}
+interface InterpretOptions extends WorkspaceOptions {}
 
 interface GetModelOptions extends WorkspaceOptions {
   entityId?: string
@@ -1330,8 +1328,7 @@ Examples:
 
   interpreter
     .command('interpret')
-    .description('Validate the current source workspace and optionally write interpreter debug artifacts')
-    .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
+    .description('Validate the current source workspace and derive interpreter data in memory')
     .option('--json', 'Print JSON output')
     .action((options: InterpretOptions, command: Command) => {
       return interpretWorkspaceFromCliOptions(options, command)
@@ -1412,8 +1409,7 @@ Examples:
 
   program
     .command('interpret')
-    .description('Validate the current source workspace and optionally write interpreter debug artifacts')
-    .option('--no-debug-artifacts', 'Skip writing .interpret debug artifacts')
+    .description('Validate the current source workspace and derive interpreter data in memory')
     .option('--json', 'Print JSON output')
     .action((options: InterpretOptions, command: Command) => {
       return interpretWorkspaceFromCliOptions(options, command)
@@ -2382,7 +2378,6 @@ async function interpretWorkspaceFromCliOptions(options: InterpretOptions, comma
   const merged = mergeGlobalOptions(options, command)
   const result = await interpretMovScriptWorkspace({
     fileRepository: createCliFileRepository(merged),
-    debugArtifacts: options.debugArtifacts,
   })
   printResult(result, merged)
   if (isRecord(result) && result.status === 'failed') process.exitCode = 2

@@ -2,16 +2,6 @@
   background: transparent;
 }
 
-.mention-editor {
-  min-width: 0;
-}
-
-.mention-editor:empty::before {
-  color: color-mix(in srgb, var(--ms-color-muted-foreground) 40%, transparent);
-  content: attr(data-placeholder);
-  pointer-events: none;
-}
-
 .agent-page-header-content {
   display: flex;
   min-height: 72px;

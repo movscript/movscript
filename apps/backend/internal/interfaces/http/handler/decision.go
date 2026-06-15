@@ -31,6 +31,27 @@ func (h *DecisionHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func (h *DecisionHandler) Query(c *gin.Context) {
+	var body struct {
+		TargetKind string   `json:"target_kind" binding:"required"`
+		TargetRefs []string `json:"target_refs" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := h.service.Query(c.Request.Context(), appdecision.QueryTargetsInput{
+		ProjectID:  parseID(c.Param("id")),
+		TargetKind: body.TargetKind,
+		TargetRefs: body.TargetRefs,
+	})
+	if err != nil {
+		h.writeDecisionError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func (h *DecisionHandler) ReplaceCandidates(c *gin.Context) {
 	var body struct {
 		TargetKind string            `json:"target_kind" binding:"required"`

@@ -12,6 +12,7 @@ import (
 
 type repository interface {
 	Get(ctx context.Context, target TargetInput) (domaindecision.Context, error)
+	ListByTargetRefs(ctx context.Context, target QueryTargetsInput) ([]domaindecision.Context, error)
 	Upsert(ctx context.Context, input upsertContextInput) (domaindecision.Context, error)
 }
 
@@ -37,6 +38,20 @@ func (r *gormRepository) Get(ctx context.Context, target TargetInput) (domaindec
 		return domaindecision.Context{}, err
 	}
 	return domaindecision.ContextFromModel(row), nil
+}
+
+func (r *gormRepository) ListByTargetRefs(ctx context.Context, target QueryTargetsInput) ([]domaindecision.Context, error) {
+	var rows []persistencemodel.DecisionContext
+	if err := r.db.WithContext(ctx).
+		Where("project_id = ? AND target_kind = ? AND target_ref IN ?", target.ProjectID, target.TargetKind, target.TargetRefs).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]domaindecision.Context, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domaindecision.ContextFromModel(row))
+	}
+	return out, nil
 }
 
 func (r *gormRepository) Upsert(ctx context.Context, input upsertContextInput) (domaindecision.Context, error) {

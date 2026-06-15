@@ -7,7 +7,10 @@ const generatedResultCardSource = [
   readSource('apps/frontend/src/features/agent/components/GeneratedResultCard.tsx'),
   readSource('apps/frontend/src/features/agent/components/GeneratedCandidateAttachDialog.tsx'),
 ].join('\n')
-const appSettingsSource = readSource('apps/frontend/src/features/settings/components/AppSettingsPage.tsx')
+const appSettingsSource = [
+  readSource('apps/frontend/src/features/settings/components/AppSettingsPage.tsx'),
+  readSource('apps/frontend/src/features/settings/components/ExternalResourceSourceSettingsSection.tsx'),
+].join('\n')
 const agentSessionOutputSource = readSource('apps/frontend/src/features/agent/components/AgentSessionOutputPane.tsx')
 const resourceQueryKeysSource = readSource('apps/frontend/src/features/resources/application/resourceQueryKeys.ts')
 const agentSessionOutputQueryKeysSource = readSource('apps/frontend/src/features/agent/application/agentSessionOutputQueryKeys.ts')

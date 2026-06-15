@@ -190,6 +190,7 @@ func TestProviderInstancesExposeAIGatewayCredentialsWithoutSecrets(t *testing.T)
 				Key        string `json:"key"`
 				Configured bool   `json:"configured"`
 			} `json:"secret_fields"`
+			Capabilities []string `json:"capabilities"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(listRes.Body.Bytes(), &body); err != nil {
@@ -214,6 +215,11 @@ func TestProviderInstancesExposeAIGatewayCredentialsWithoutSecrets(t *testing.T)
 	}
 	if !seenAPIKey || !seenFilesKey {
 		t.Fatalf("provider instance secret status = %+v, want api_key and files_api_key configured", item.SecretFields)
+	}
+	for _, capability := range []string{"image.edit", "video.task", "video.poll", "video.cancel", "audio.speech", "audio.transcribe", "audio.align"} {
+		if !hasCapability(item.Capabilities, capability) {
+			t.Fatalf("provider instance capabilities = %#v, want %s", item.Capabilities, capability)
+		}
 	}
 }
 
@@ -271,6 +277,15 @@ func TestProviderInstancesIncludeStartupAndAIGatewayInstances(t *testing.T) {
 	}
 }
 
+func hasCapability(capabilities []string, capability string) bool {
+	for _, item := range capabilities {
+		if item == capability {
+			return true
+		}
+	}
+	return false
+}
+
 func TestProviderInstancesExposeNewAPIStartupGatewayAsExternalAggregate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -288,10 +303,11 @@ func TestProviderInstancesExposeNewAPIStartupGatewayAsExternalAggregate(t *testi
 	}
 	var body struct {
 		Items []struct {
-			ID             string `json:"id"`
-			Type           string `json:"type"`
-			Adapter        string `json:"adapter"`
-			ConfigEditable bool   `json:"config_editable"`
+			ID             string   `json:"id"`
+			Type           string   `json:"type"`
+			Adapter        string   `json:"adapter"`
+			Capabilities   []string `json:"capabilities"`
+			ConfigEditable bool     `json:"config_editable"`
 			ConfigFields   []struct {
 				Key string `json:"key"`
 			} `json:"config_fields"`
@@ -304,10 +320,11 @@ func TestProviderInstancesExposeNewAPIStartupGatewayAsExternalAggregate(t *testi
 		t.Fatalf("decode provider instances: %v", err)
 	}
 	var found *struct {
-		ID             string `json:"id"`
-		Type           string `json:"type"`
-		Adapter        string `json:"adapter"`
-		ConfigEditable bool   `json:"config_editable"`
+		ID             string   `json:"id"`
+		Type           string   `json:"type"`
+		Adapter        string   `json:"adapter"`
+		Capabilities   []string `json:"capabilities"`
+		ConfigEditable bool     `json:"config_editable"`
 		ConfigFields   []struct {
 			Key string `json:"key"`
 		} `json:"config_fields"`
@@ -326,6 +343,11 @@ func TestProviderInstancesExposeNewAPIStartupGatewayAsExternalAggregate(t *testi
 	}
 	if found.Type != "ai_gateway" || found.Adapter != "new-api" {
 		t.Fatalf("new-api startup provider instance = %+v, want ai gateway new-api aggregate", *found)
+	}
+	for _, capability := range []string{"chat.stream", "image.edit", "video.poll", "audio.align"} {
+		if !hasCapability(found.Capabilities, capability) {
+			t.Fatalf("new-api startup capabilities = %#v, want %s", found.Capabilities, capability)
+		}
 	}
 	if bodyText := res.Body.String(); strings.Contains(bodyText, "model_credentials") || strings.Contains(bodyText, "model_credential_keys") {
 		t.Fatalf("new-api startup provider instance exposed fake credential fields: %s", bodyText)

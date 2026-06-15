@@ -11,7 +11,10 @@ const generatedResultCardSource = [
 ].join('\n')
 const attachPanelSource = readSource('apps/frontend/src/shared/ui/ResourceCandidateAttachPanel.tsx')
 const resourcesPageSource = readSource('apps/frontend/src/features/resources/components/ResourcesPage.tsx')
-const appSettingsSource = readSource('apps/frontend/src/features/settings/components/AppSettingsPage.tsx')
+const appSettingsSource = [
+  readSource('apps/frontend/src/features/settings/components/AppSettingsPage.tsx'),
+  readSource('apps/frontend/src/features/settings/components/ExternalResourceSourceSettingsSection.tsx'),
+].join('\n')
 const canvasIntegrationSource = readSource('apps/frontend/src/features/canvas/integrations/resources.ts')
 const canvasRuntimeSource = readSource('apps/frontend/src/features/canvas/runtime/useCanvasRuntimeExecutor.ts')
 

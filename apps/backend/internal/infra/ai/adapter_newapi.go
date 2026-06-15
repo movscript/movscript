@@ -141,7 +141,7 @@ func (a *NewAPIForwardAdapter) adapterForContext(ctx context.Context) (*OpenAIAd
 	if userID == 0 {
 		return nil, fmt.Errorf("movscript user id is required for new-api forwarding")
 	}
-	token, err := a.identity.RelayTokenForUser(ctx, userID)
+	token, err := a.identity.RelayTokenForUserGroup(ctx, userID, providerNewAPIGroupFromContext(ctx))
 	if err != nil {
 		return nil, err
 	}

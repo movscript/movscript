@@ -13,7 +13,7 @@ import {
   resolveAgentConversationTabDrop,
   startAgentConversationTabDrag,
   writeAgentConversationTabDragPayload,
-} from '../../../../../../packages/ui/src/components/business/agent/chat/tabs/panel/dragPayload'
+} from '@/features/agent/components/conversation-tabs-ui/dragPayload'
 
 class MemoryDataTransfer {
   private readonly values = new Map<string, string>()
@@ -138,7 +138,7 @@ test('agent conversation tab pointer events are adapted outside the UI component
 
 test('agent conversation tabs panel does not use raw text drag payloads', () => {
   const tabsPanelSource = readFileSync(
-    resolve('../../packages/ui/src/components/business/agent/chat/tabs/panel/index.tsx'),
+    resolve('src/features/agent/components/AgentConversationTabsUi.tsx'),
     'utf8',
   )
 

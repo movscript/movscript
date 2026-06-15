@@ -7,7 +7,6 @@ export * from "./state";
 export * from "./auth";
 export * from "./work-mode";
 export * from "./onboarding";
-export * from "./settings";
 export * from "./shell";
 export * from "./user-profile";
 export * from "./toast";

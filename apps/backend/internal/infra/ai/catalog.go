@@ -385,6 +385,24 @@ func elevenLabsSTTParams() []ParamDef {
 	}
 }
 
+func openAICompatAudioSpeechParams() []ParamDef {
+	return []ParamDef{
+		{Key: "response_format", Label: "音频格式", Type: "select",
+			Options: []string{"mp3", "opus", "aac", "flac", "wav", "pcm"}, Default: "mp3"},
+		{Key: "speed", Label: "语速", Type: "number", Default: 1, Min: 0.25, Max: 4, Step: 0.01},
+		{Key: "instructions", Label: "语音指令", Type: "text", Default: ""},
+	}
+}
+
+func openAICompatAudioTranscribeParams() []ParamDef {
+	return []ParamDef{
+		{Key: "response_format", Label: "返回格式", Type: "select",
+			Options: []string{"json", "text", "srt", "verbose_json", "vtt"}, Default: "verbose_json"},
+		{Key: "prompt", Label: "提示词", Type: "text", Default: ""},
+		{Key: "temperature", Label: "温度", Type: "number", Default: 0, Min: 0, Max: 1, Step: 0.1},
+	}
+}
+
 // AdapterDefs lists all supported adapter definitions.
 var AdapterDefs = []AdapterDef{
 	{
@@ -415,6 +433,9 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: openAICompatVideoParams()},
 			{Capability: CapabilityVideoV2V, Params: openAICompatVideoParams()},
+			{Capability: CapabilityAudioTTS, Params: openAICompatAudioSpeechParams()},
+			{Capability: CapabilityAudioSTT, Params: openAICompatAudioTranscribeParams()},
+			{Capability: CapabilitySubAlign, Params: openAICompatAudioTranscribeParams()},
 		},
 	},
 	{

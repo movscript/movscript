@@ -18,7 +18,7 @@ const AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE = 512
 export function AgentChatSectionTitle({ title, meta }: { title: string; meta?: Array<string | undefined | null | false> }) {
   return (
     <div className="ms-agent-chat-section-title">
-      <span className="ms-agent-chat-section-title__text">{title}</span>
+      <span className="ms-agent-chat-section-title-text">{title}</span>
       <AgentChatItemMeta values={meta ?? []} />
     </div>
   )
@@ -43,7 +43,7 @@ export function AgentChatInlineList({ label, values }: { label: string; values: 
     <AgentMessageSection title={label} tone="process" defaultOpen={agentChatListDefaultOpen(compactValues.length)}>
       <div className="ms-agent-chat-inline-list">
         {compactValues.map((value, index) => (
-          <div key={`${index}:${value}`} className="ms-agent-chat-inline-list__item">{value}</div>
+          <div key={`${index}:${value}`} className="ms-agent-chat-inline-list-item">{value}</div>
         ))}
       </div>
     </AgentMessageSection>
@@ -79,7 +79,7 @@ export function AgentChatImagePreviewGrid({
               loading="lazy"
               decoding="async"
               thumbnailMaxSize={AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE}
-              className="ms-agent-chat-media-tile__image"
+              className="ms-agent-chat-media-tile-image"
             />
           </a>
         ))}
@@ -117,7 +117,7 @@ export function AgentChatMediaPreviewGrid({
                 controls
                 playsInline
                 preload="metadata"
-                className="ms-agent-chat-media-tile__video"
+                className="ms-agent-chat-media-tile-video"
               />
             ) : (
               <ResourceFileAudio
@@ -125,10 +125,10 @@ export function AgentChatMediaPreviewGrid({
                 aria-label={item.label}
                 controls
                 preload="metadata"
-                className="ms-agent-chat-media-tile__audio"
+                className="ms-agent-chat-media-tile-audio"
               />
             )}
-            <div className="ms-agent-chat-media-tile__caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
+            <div className="ms-agent-chat-media-tile-caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
               {item.mimeType ? `${item.label} ${item.mimeType}` : item.label}
             </div>
           </div>
@@ -189,7 +189,7 @@ export function AgentChatInspectBlock({
       defaultOpen={false}
     >
       <div className="ms-agent-chat-inspect" data-testid="agent-chat-inspect">
-        <div className="ms-agent-chat-inspect__toolbar">
+        <div className="ms-agent-chat-inspect-toolbar">
           <span>Protocol payload</span>
           <Button
             type="button"
@@ -205,8 +205,8 @@ export function AgentChatInspectBlock({
         </div>
         <AgentChatResultStack>
           {visibleEntries.map((entry) => (
-            <div key={entry.label} className="ms-agent-chat-inspect__entry" data-tone={entry.tone ?? 'neutral'}>
-              <div className="ms-agent-chat-inspect__label">{entry.label}</div>
+            <div key={entry.label} className="ms-agent-chat-inspect-entry" data-tone={entry.tone ?? 'neutral'}>
+              <div className="ms-agent-chat-inspect-label">{entry.label}</div>
               <pre className="ms-agent-chat-pre">{agentChatValuePreview(entry.value, 8000)}</pre>
             </div>
           ))}

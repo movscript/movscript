@@ -98,19 +98,19 @@ export function AgentChatServerRequestCard({
             <>
               {allowOptions.length > 0 ? (
                 <details className="ms-agent-chat-request-menu">
-                  <summary className="ms-agent-chat-request-menu__summary">
+                  <summary className="ms-agent-chat-request-menu-summary">
                     More allow options
                   </summary>
                   <div
                     role="menu"
-                    className="ms-agent-chat-request-menu__content"
+                    className="ms-agent-chat-request-menu-content"
                   >
                     {allowOptions.map((option) => (
                       <button
                         key={option.key}
                         type="button"
                         role="menuitem"
-                        className="ms-agent-chat-request-menu__item"
+                        className="ms-agent-chat-request-menu-item"
                         onClick={option.onClick}
                       >
                         {option.label}

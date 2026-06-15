@@ -1,10 +1,10 @@
-.ms-identity-badge,
-.ms-identity-badge__copy,
-.ms-identity-mark {
+.agent-identity-badge,
+.agent-identity-badge-copy,
+.agent-identity-mark {
   min-width: 0;
 }
 
-.ms-identity-badge {
+.agent-identity-badge {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
@@ -21,44 +21,44 @@
   white-space: nowrap;
 }
 
-.ms-identity-badge--compact {
+.agent-identity-badge--compact {
   gap: 0;
   padding: 2px;
 }
 
-.ms-identity-badge--stack {
+.agent-identity-badge--stack {
   align-items: flex-start;
   border-radius: var(--ms-radius-md);
   padding: 4px 8px 4px 4px;
 }
 
-.ms-identity-badge--xs .ms-identity-mark {
+.agent-identity-badge--xs .agent-identity-mark {
   width: 16px;
   height: 16px;
 }
 
-.ms-identity-badge--sm .ms-identity-mark {
+.agent-identity-badge--sm .agent-identity-mark {
   width: 20px;
   height: 20px;
 }
 
-.ms-identity-badge--md .ms-identity-mark {
+.agent-identity-badge--md .agent-identity-mark {
   width: 28px;
   height: 28px;
 }
 
-.ms-identity-badge__copy {
+.agent-identity-badge-copy {
   display: inline-flex;
   flex-direction: column;
 }
 
-.ms-identity-badge__label,
-.ms-identity-badge__detail {
+.agent-identity-badge-label,
+.agent-identity-badge-detail {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.ms-identity-badge__detail {
+.agent-identity-badge-detail {
   max-width: 16rem;
   color: var(--ms-color-muted-foreground);
   font-size: 11px;
@@ -66,7 +66,7 @@
   line-height: 14px;
 }
 
-.ms-identity-mark {
+.agent-identity-mark {
   position: relative;
   display: inline-flex;
   width: 24px;
@@ -81,7 +81,7 @@
   color: var(--ui-identity-color, var(--ms-color-foreground));
 }
 
-.ms-identity-mark__image {
+.agent-identity-mark-image {
   position: relative;
   z-index: 1;
   display: block;
@@ -90,7 +90,7 @@
   object-fit: cover;
 }
 
-.ms-identity-mark__fallback {
+.agent-identity-mark-fallback {
   position: absolute;
   inset: 0;
   display: inline-flex;

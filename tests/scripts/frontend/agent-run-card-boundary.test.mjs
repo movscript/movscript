@@ -9,7 +9,7 @@ function readSource(relativePath) {
 
 const agentRunSource = readSource('packages/ui/src/components/business/agent/run/index.tsx')
 const agentRunCss = readSource('packages/ui/src/components/business/agent/run/styles.css')
-const providerSessionCss = readSource('packages/ui/src/components/business/agent/panel/provider-session/styles.css')
+const providerSessionCss = readSource('apps/frontend/src/features/agent/components/AgentPanelProviderSessionUi.css')
 
 test('unused agent run cards are not shipped from packages/ui', () => {
   assert.equal(existsSync(resolve('packages/ui/src/components/business/agent/run/card')), false)

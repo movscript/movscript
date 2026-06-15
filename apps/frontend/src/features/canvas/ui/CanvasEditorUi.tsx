@@ -470,6 +470,8 @@ export const CanvasPaletteItemButton = forwardRef<HTMLButtonElement, ButtonProps
     ref={ref}
     variant={variant}
     size={size}
+    fullWidth
+    align="start"
     className={cn("canvas-palette-item", className)}
     {...props}
   >

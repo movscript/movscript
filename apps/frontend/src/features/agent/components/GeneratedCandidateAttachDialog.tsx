@@ -57,11 +57,11 @@ import { cn } from '@/shared/ui/cn'
 import './GeneratedCandidateAttachDialog.css'
 
 function GeneratedCandidateDialogContent({ className, ...props }: ComponentPropsWithoutRef<typeof DialogContent>) {
-  return <DialogContent className={cn('ms-agent-generated-candidate-dialog', className)} {...props} />
+  return <DialogContent className={cn('agent-generated-candidate-dialog', className)} {...props} />
 }
 
 function GeneratedCandidateDialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <DialogHeader className={cn('ms-agent-generated-candidate-dialog__header', className)} {...props} />
+  return <DialogHeader className={cn('agent-generated-candidate-dialog-header', className)} {...props} />
 }
 
 function GeneratedCandidateDialogTitle({ className, ...props }: ComponentPropsWithoutRef<typeof DialogTitle>) {
@@ -73,47 +73,47 @@ function GeneratedCandidateDialogDescription({ className, ...props }: ComponentP
 }
 
 function GeneratedCandidateDialogBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-dialog__body', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-dialog-body', className)} {...props} />
 }
 
 function GeneratedCandidateDialogSidebar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-dialog__sidebar', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-dialog-sidebar', className)} {...props} />
 }
 
 function GeneratedCandidateDialogMain({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-dialog__main', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-dialog-main', className)} {...props} />
 }
 
 function GeneratedCandidateDialogSectionHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-dialog__section-header', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-dialog-section-header', className)} {...props} />
 }
 
 function GeneratedCandidateDialogList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-dialog__list', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-dialog-list', className)} {...props} />
 }
 
 function GeneratedCandidateDialogControls({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-dialog__controls', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-dialog-controls', className)} {...props} />
 }
 
 function GeneratedCandidateDialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <DialogFooter className={cn('ms-agent-generated-candidate-dialog__footer', className)} {...props} />
+  return <DialogFooter className={cn('agent-generated-candidate-dialog-footer', className)} {...props} />
 }
 
 function GeneratedCandidateBadge({ className, ...props }: ComponentPropsWithoutRef<typeof Badge>) {
-  return <Badge className={cn('ms-agent-generated-candidate-dialog__badge', className)} {...props} />
+  return <Badge className={cn('agent-generated-candidate-dialog-badge', className)} {...props} />
 }
 
 function GeneratedCandidateActionButton({ className, ...props }: ComponentPropsWithoutRef<typeof Button>) {
-  return <Button className={cn('ms-agent-generated-candidate-dialog__action', className)} {...props} />
+  return <Button className={cn('agent-generated-candidate-dialog-action', className)} {...props} />
 }
 
 function GeneratedCandidateSearchInput({ className, controlSize = 'sm', ...props }: ComponentPropsWithoutRef<typeof Input>) {
-  return <Input controlSize={controlSize} className={cn('ms-agent-generated-candidate-dialog__search', className)} {...props} />
+  return <Input controlSize={controlSize} className={cn('agent-generated-candidate-dialog-search', className)} {...props} />
 }
 
 function GeneratedCandidateEmptyState({ className, ...props }: ComponentPropsWithoutRef<typeof AppTextEmptyState>) {
-  return <AppTextEmptyState className={cn('ms-agent-generated-candidate-dialog__empty', className)} {...props} />
+  return <AppTextEmptyState className={cn('agent-generated-candidate-dialog-empty', className)} {...props} />
 }
 
 function GeneratedCandidateResourceItem({
@@ -124,70 +124,70 @@ function GeneratedCandidateResourceItem({
   return (
     <div
       data-attached={attached ? 'true' : undefined}
-      className={cn('ms-agent-generated-candidate-resource-item', className)}
+      className={cn('agent-generated-candidate-resource-item', className)}
       {...props}
     />
   )
 }
 
 function GeneratedCandidateResourceRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-resource-item__row', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-resource-item-row', className)} {...props} />
 }
 
 function GeneratedCandidateResourceIcon({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('ms-agent-generated-candidate-resource-item__icon', className)} {...props} />
+  return <span className={cn('agent-generated-candidate-resource-item-icon', className)} {...props} />
 }
 
 function GeneratedCandidateResourceBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-resource-item__body', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-resource-item-body', className)} {...props} />
 }
 
 function GeneratedCandidateResourceName({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-candidate-resource-item__name', className)} {...props} />
+  return <p className={cn('agent-generated-candidate-resource-item-name', className)} {...props} />
 }
 
 function GeneratedCandidateResourceMeta({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-candidate-resource-item__meta', className)} {...props} />
+  return <p className={cn('agent-generated-candidate-resource-item-meta', className)} {...props} />
 }
 
 function GeneratedCandidateTargetListFrame({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-target-list', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-target-list', className)} {...props} />
 }
 
 function GeneratedCandidateTargetList({ className, ...props }: ComponentPropsWithoutRef<typeof WorkbenchList>) {
-  return <WorkbenchList className={cn('ms-agent-generated-candidate-target-list__items', className)} {...props} />
+  return <WorkbenchList className={cn('agent-generated-candidate-target-list-items', className)} {...props} />
 }
 
 function GeneratedCandidateTargetItem({ className, density = 'compact', ...props }: ComponentPropsWithoutRef<typeof WorkbenchListItem>) {
-  return <WorkbenchListItem density={density} className={cn('ms-agent-generated-candidate-target-list__item', className)} {...props} />
+  return <WorkbenchListItem density={density} className={cn('agent-generated-candidate-target-list-item', className)} {...props} />
 }
 
 function GeneratedCandidateEmptyMessage({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-candidate-empty-message', className)} {...props} />
+  return <p className={cn('agent-generated-candidate-empty-message', className)} {...props} />
 }
 
 function GeneratedCandidateTargetRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-target-row', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-target-row', className)} {...props} />
 }
 
 function GeneratedCandidateTargetTitle({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-candidate-target-title', className)} {...props} />
+  return <p className={cn('agent-generated-candidate-target-title', className)} {...props} />
 }
 
 function GeneratedCandidateTargetId({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('ms-agent-generated-candidate-target-id', className)} {...props} />
+  return <span className={cn('agent-generated-candidate-target-id', className)} {...props} />
 }
 
 function GeneratedCandidateTargetMeta({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-candidate-target-meta', className)} {...props} />
+  return <p className={cn('agent-generated-candidate-target-meta', className)} {...props} />
 }
 
 function GeneratedCandidateTargetDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-candidate-target-description', className)} {...props} />
+  return <p className={cn('agent-generated-candidate-target-description', className)} {...props} />
 }
 
 function GeneratedCandidateSelectedTarget({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-candidate-selected-target', className)} {...props} />
+  return <div className={cn('agent-generated-candidate-selected-target', className)} {...props} />
 }
 
 function GeneratedCandidateStatusMessage({
@@ -195,31 +195,31 @@ function GeneratedCandidateStatusMessage({
   tone = 'neutral',
   ...props
 }: HTMLAttributes<HTMLParagraphElement> & { tone?: 'neutral' | 'success' | 'danger' }) {
-  return <p data-tone={tone} className={cn('ms-agent-generated-candidate-status-message', className)} {...props} />
+  return <p data-tone={tone} className={cn('agent-generated-candidate-status-message', className)} {...props} />
 }
 
 function GeneratedViewerSidePanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-viewer-panel', className)} {...props} />
+  return <div className={cn('agent-generated-viewer-panel', className)} {...props} />
 }
 
 function GeneratedViewerSideHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-viewer-panel__header', className)} {...props} />
+  return <div className={cn('agent-generated-viewer-panel-header', className)} {...props} />
 }
 
 function GeneratedViewerSideActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-viewer-panel__actions', className)} {...props} />
+  return <div className={cn('agent-generated-viewer-panel-actions', className)} {...props} />
 }
 
 function GeneratedViewerSideContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-viewer-panel__content', className)} {...props} />
+  return <div className={cn('agent-generated-viewer-panel-content', className)} {...props} />
 }
 
 function GeneratedViewerActionButton({ className, size = 'xs', ...props }: ComponentPropsWithoutRef<typeof Button>) {
-  return <Button size={size} className={cn('ms-agent-generated-viewer-panel__action', className)} {...props} />
+  return <Button size={size} className={cn('agent-generated-viewer-panel-action', className)} {...props} />
 }
 
 function GeneratedViewerBadge({ className, ...props }: ComponentPropsWithoutRef<typeof Badge>) {
-  return <Badge className={cn('ms-agent-generated-viewer-panel__badge', className)} {...props} />
+  return <Badge className={cn('agent-generated-viewer-panel-badge', className)} {...props} />
 }
 
 export function GeneratedCandidateAttachDialog({

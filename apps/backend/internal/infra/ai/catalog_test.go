@@ -139,6 +139,23 @@ func TestModelPresetsIncludeElevenLabsAudioModels(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatAdapterDefaultsIncludeAudioAndAlignParams(t *testing.T) {
+	ttsParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityAudioTTS})
+	if !hasParam(ttsParams, "response_format") || !hasParam(ttsParams, "speed") || !hasParam(ttsParams, "instructions") {
+		t.Fatalf("openai-compatible TTS params = %#v, want response_format, speed, instructions", ttsParams)
+	}
+
+	transcribeParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilityAudioSTT})
+	if !hasParam(transcribeParams, "response_format") || !hasParam(transcribeParams, "prompt") || !hasParam(transcribeParams, "temperature") {
+		t.Fatalf("openai-compatible STT params = %#v, want response_format, prompt, temperature", transcribeParams)
+	}
+
+	alignParams := DefaultParamsForAdapter(AdapterOpenAICompat, []string{CapabilitySubAlign})
+	if !hasParam(alignParams, "response_format") || !hasParam(alignParams, "prompt") || !hasParam(alignParams, "temperature") {
+		t.Fatalf("openai-compatible align params = %#v, want transcription params", alignParams)
+	}
+}
+
 func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {
 	aliasKeys := map[string]bool{}
 	for alias := range generationParamAliasMap() {

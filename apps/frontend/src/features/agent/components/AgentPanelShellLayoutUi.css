@@ -1,4 +1,13 @@
 .ai-agent-panel-shell {
+  --agent-header-actions-gap: 6px;
+  --agent-header-actions-max-width: 184px;
+  --agent-header-actions-min-width: 0;
+  --agent-header-actions-overflow: visible;
+  --agent-header-content-flex: 1 1 auto;
+  --agent-header-content-max-width: 100%;
+  --agent-header-content-min-width: 0;
+  --agent-header-content-overflow: hidden;
+
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   width: 100%;
@@ -76,13 +85,6 @@
   padding: 0 8px;
 }
 
-.ai-agent-panel-shell .ms-agent-header__content {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
 .ai-agent-panel-list-header-actions {
   display: inline-flex;
   min-width: 0;
@@ -93,13 +95,6 @@
 
 .ai-agent-panel-list-header {
   justify-content: flex-end;
-}
-
-.ai-agent-panel-shell .ms-agent-header__actions {
-  min-width: 0;
-  max-width: 184px;
-  gap: 6px;
-  overflow: visible;
 }
 
 .ai-agent-panel-shell .ms-agent-title {

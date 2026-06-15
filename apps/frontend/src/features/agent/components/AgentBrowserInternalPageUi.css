@@ -62,12 +62,6 @@
   transform: none;
 }
 
-.agent-browser-nav-button .ms-button__content {
-  min-width: 0;
-  flex: 1 1 auto;
-  justify-content: flex-start;
-}
-
 .agent-browser-nav-button__copy {
   min-width: 0;
   flex: 1 1 auto;
@@ -212,7 +206,7 @@
   gap: 6px;
 }
 
-.agent-browser-action-button .ms-button__content {
+.agent-browser-action-button {
   gap: 6px;
 }
 

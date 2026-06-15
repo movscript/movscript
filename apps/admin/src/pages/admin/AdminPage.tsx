@@ -140,6 +140,7 @@ function inputLimitErrors(maxInputImages: number, maxInputVideos: number, t: (ke
 }
 
 const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
+const canUseGatewayNewAPIGroup = runtimeCapabilities.gatewayNewAPIGroup
 
 type PriceDef = {
   pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
@@ -169,12 +170,13 @@ type GatewayKeyForm = {
   projectId: string
   allowedModelIds: number[]
   allowedScopes: string[]
+  newAPIGroup: string
 }
 
 const DEFAULT_GATEWAY_SCOPES = ['model:chat']
 
 function emptyGatewayKeyForm(): GatewayKeyForm {
-  return { name: '', projectId: '', allowedModelIds: [], allowedScopes: DEFAULT_GATEWAY_SCOPES }
+  return { name: '', projectId: '', allowedModelIds: [], allowedScopes: DEFAULT_GATEWAY_SCOPES, newAPIGroup: '' }
 }
 
 function parseGatewayJSON<T>(raw: string, fallback: T): T {
@@ -193,12 +195,16 @@ function gatewayModelLabel(model: AIModelConfig, credentials: AICredential[]): s
 }
 
 function toGatewayPayload(form: GatewayKeyForm, includeProjectClear = false) {
-  return {
+  const payload: Record<string, unknown> = {
     name: form.name.trim(),
     project_id: form.projectId.trim() ? Number(form.projectId) : includeProjectClear ? null : undefined,
     allowed_model_ids: form.allowedModelIds,
     allowed_scopes: form.allowedScopes.length ? form.allowedScopes : DEFAULT_GATEWAY_SCOPES,
   }
+  if (canUseGatewayNewAPIGroup) {
+    payload.runtime = { new_api_group: form.newAPIGroup.trim() }
+  }
+  return payload
 }
 
 function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] }) {
@@ -259,6 +265,7 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
       projectId: key.project_id ? String(key.project_id) : '',
       allowedModelIds: parseGatewayJSON<number[]>(key.allowed_model_ids, []),
       allowedScopes: parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES),
+      newAPIGroup: key.new_api_group ?? '',
     })
   }
 
@@ -306,6 +313,13 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
             <Input value={form.projectId} onChange={(event) => onChange({ ...form, projectId: event.target.value.replace(/\D/g, '') })} placeholder={t('admin.gatewayKeys.allProjects')} className="h-8 text-xs" />
           </div>
         </div>
+        {canUseGatewayNewAPIGroup && (
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.newAPIGroup')}</Label>
+            <Input value={form.newAPIGroup} onChange={(event) => onChange({ ...form, newAPIGroup: event.target.value })} placeholder={t('admin.gatewayKeys.newAPIGroupPlaceholder')} className="h-8 text-xs" />
+            <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.newAPIGroupHint')}</p>
+          </div>
+        )}
         <div>
           <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.scopes')}</Label>
           <div className="flex flex-wrap gap-2">
@@ -355,6 +369,9 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
           <div>
             <p className="text-sm font-medium text-foreground">{t('admin.gatewayKeys.title')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.description')}</p>
+            {canUseGatewayNewAPIGroup && (
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.newAPIBoundary')}</p>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -433,6 +450,9 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
                     <div>{t('admin.gatewayKeys.projectId')}: {key.project_id ? `#${key.project_id}` : t('admin.gatewayKeys.allProjects')}</div>
                     <div>{t('admin.gatewayKeys.models')}: {modelIDs.length ? modelIDs.map((id) => `#${id}`).join(', ') : t('admin.gatewayKeys.allModels')}</div>
                     <div>{t('admin.gatewayKeys.scopes')}: {scopes.join(', ')}</div>
+                    {canUseGatewayNewAPIGroup && (
+                      <div>{t('admin.gatewayKeys.newAPIGroup')}: {key.new_api_group?.trim() || t('admin.gatewayKeys.newAPIGroupDefault')}</div>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                     {key.last_used_at ? new Date(key.last_used_at).toLocaleString(i18n.language) : '-'}

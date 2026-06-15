@@ -107,13 +107,6 @@
   flex: 0 0 auto;
 }
 
-.ai-agent-panel-conversation-tab-main .ms-button__content {
-  min-width: 0;
-  justify-content: flex-start;
-  font-size: inherit;
-  line-height: inherit;
-}
-
 .ai-agent-panel-conversation-tab-main:hover:not(:disabled) {
   transform: none;
 }

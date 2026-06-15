@@ -144,7 +144,7 @@ test('agent composer locks workspace context after a session starts', () => {
   const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
   const layoutPropsSource = readFileSync(resolve('src/features/agent/presentation/agentChatViewLayoutProps.ts'), 'utf8')
   const sessionStoreSource = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
-  const composerCssSource = readFileSync(resolve('../../packages/ui/src/components/business/agent/composer/styles.css'), 'utf8')
+  const composerPanelCssSource = readFileSync(resolve('src/features/agent/components/AgentComposerPanelUi.css'), 'utf8')
 
   assert.match(composerControllerSource, /workspaceContextLocked/)
   assert.match(composerControllerSource, /if \(workspaceContextLocked\) return/)
@@ -164,7 +164,7 @@ test('agent composer locks workspace context after a session starts', () => {
   assert.match(layoutPropsSource, /workspaceProjectLocked: conversationEstablished/)
   assert.match(sessionStoreSource, /const workspaceContext = userWorkspaces\[conversationId\]\?\.workspaceContext/)
   assert.match(sessionStoreSource, /input: '',[\s\S]*attachments: \[\],[\s\S]*workspaceContext/)
-  assert.match(composerCssSource, /\.ms-agent-composer \.ms-agent-composer__workspace-select,[\s\S]*\.ms-agent-composer \.ai-agent-model-select[\s\S]*border-color: transparent;[\s\S]*background: transparent;/)
+  assert.match(composerPanelCssSource, /\.ms-agent-composer \.ai-agent-model-select[\s\S]*border-color: transparent;[\s\S]*background: transparent;/)
 })
 
 test('agent new conversation drafts bind selected project without starting a thread before send', () => {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
+	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 const maxOpenAIProxyBodyBytes = 64 << 20
@@ -55,9 +56,10 @@ func (h *ModelGatewayHandler) OpenAIProxy(c *gin.Context) {
 	}
 
 	route, err := h.service.PrepareOpenAIProxy(c.Request.Context(), modelgatewayapp.OpenAIProxyInput{
-		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
-		Model:     model,
-		ProjectID: projectID,
+		Principal:    modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
+		Model:        model,
+		ProjectID:    projectID,
+		Capabilities: openAIProxyCapabilitiesForPath(proxyPath),
 	})
 	if err != nil {
 		writeGatewayChatError(c, err, "")
@@ -97,6 +99,27 @@ func (h *ModelGatewayHandler) OpenAIProxy(c *gin.Context) {
 	copyOpenAIProxyResponseHeaders(c.Writer.Header(), resp.Header)
 	c.Status(resp.StatusCode)
 	copyOpenAIProxyResponseBody(c.Writer, resp.Body)
+}
+
+func openAIProxyCapabilitiesForPath(path string) []string {
+	path = strings.ToLower(strings.TrimSpace(path))
+	path = "/" + strings.TrimLeft(path, "/")
+	switch {
+	case strings.HasPrefix(path, "/chat/completions"), strings.HasPrefix(path, "/responses"):
+		return []string{ai.CapabilityText, ai.CapabilityReasoning}
+	case strings.HasPrefix(path, "/images/edits"), strings.HasPrefix(path, "/images/variations"):
+		return []string{ai.CapabilityImageEdit}
+	case strings.HasPrefix(path, "/images/generations"):
+		return []string{ai.CapabilityImage}
+	case strings.HasPrefix(path, "/audio/speech"):
+		return []string{ai.CapabilityAudioTTS}
+	case strings.HasPrefix(path, "/audio/transcriptions"), strings.HasPrefix(path, "/audio/translations"):
+		return []string{ai.CapabilityAudioSTT}
+	case strings.HasPrefix(path, "/videos"):
+		return []string{ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V}
+	default:
+		return []string{ai.CapabilityText, ai.CapabilityReasoning}
+	}
 }
 
 func validOpenAIProxyPath(path string) bool {

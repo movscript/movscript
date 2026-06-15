@@ -277,7 +277,7 @@ test('account settings page layout is owned by named shell styles', () => {
   assert.match(settingsStyles, /\.account-settings-page__frame \{[\s\S]*display: grid;[\s\S]*grid-template-columns: 220px minmax\(0, 1fr\);[\s\S]*border-radius:/)
   assert.match(settingsStyles, /\.account-settings-page__sidebar \{[\s\S]*flex-direction: column;/)
   assert.match(settingsStyles, /\.account-settings-page__nav \{[\s\S]*padding: var\(--ms-space-3\) var\(--ms-space-2\);/)
-  assert.match(settingsStyles, /\.account-settings-page__nav-button \.ms-button__content,[\s\S]*\.account-settings-page__exit-button \.ms-button__content \{[\s\S]*justify-content: flex-start;/)
+  assert.match(settingsSource, /fullWidth[\s\S]*align="start"[\s\S]*className="account-settings-page__nav-button"/)
   assert.match(settingsStyles, /\.account-settings-page__footer \{[\s\S]*margin-top: auto;[\s\S]*border-top: 1px solid var\(--ms-color-border\);/)
   assert.match(settingsStyles, /\.account-settings-page__main \{[\s\S]*min-height: 0;[\s\S]*overflow-y: auto;[\s\S]*var\(--app-shell-stack-overlap, 0px\)/)
   assert.match(settingsStyles, /\.account-settings-page__main\[data-content-kind="console"\] \{[\s\S]*padding:/)

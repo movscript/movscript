@@ -41,11 +41,6 @@ export {
 } from './node/sourceStore.js'
 
 export {
-  writeDebugArtifacts,
-  type MovScriptDebugArtifactInterpretManifest,
-} from './node/debugArtifacts.js'
-
-export {
   findUncoveredGitSourceFileChanges,
   validateGitFileChangeCoverage,
 } from './node/fileCoverage.js'

@@ -7,7 +7,7 @@ import { cn } from "@/shared/ui/cn";
 
 export const AgentRunInteractionApprovalBadge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   ({ className, variant = "outline", ...props }, ref) => {
-    return <Badge ref={ref} variant={variant} className={cn("ms-agent-run-interaction-badge", className)} {...props} />;
+    return <Badge ref={ref} variant={variant} className={cn("agent-run-interaction-badge", className)} {...props} />;
   }
 );
 
@@ -15,7 +15,7 @@ AgentRunInteractionApprovalBadge.displayName = "AgentRunInteractionApprovalBadge
 
 export const AgentRunInteractionApprovalBadgeLabel = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-run-interaction-badge__label", className)} {...props} />;
+    return <span ref={ref} className={cn("agent-run-interaction-badge-label", className)} {...props} />;
   }
 );
 

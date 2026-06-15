@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { hydrateAppWindowContext } from '@/shared/infrastructure/appWindowContext'
+import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 
 export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolean }) {
@@ -11,7 +12,7 @@ export function AppStartupTasks({ settingsHydrated }: { settingsHydrated: boolea
   }, [settingsHydrated])
 
   useEffect(() => {
-    const unsubscribe = window.api?.onBackendAuthSessionExpired?.(() => {
+    const unsubscribe = readElectronApi()?.onBackendAuthSessionExpired?.(() => {
       useUserStore.getState().setCurrentUser(null)
     })
     return unsubscribe ?? undefined

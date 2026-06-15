@@ -2581,6 +2581,7 @@
     "gatewayKeys": {
       "title": "网关 API Key",
       "description": "为 OpenAI 兼容网关创建和管理调用 key，可限制项目、模型和 scope。",
+      "newAPIBoundary": "商业版只在这里绑定 new-api 分组；厂商渠道、倍率、余额和套餐规则仍在 new-api 控制台管理。",
       "refresh": "刷新",
       "create": "创建 Key",
       "name": "名称",
@@ -2592,6 +2593,10 @@
       "modelHint": "未选择模型时允许使用所有已启用模型。",
       "scopes": "Scope",
       "scope": "范围",
+      "newAPIGroup": "new-api 分组",
+      "newAPIGroupPlaceholder": "例如：standard、premium-video",
+      "newAPIGroupHint": "留空时使用后端默认分组；该字段只决定这个 Key 转发到 new-api 时使用哪个模型分组。",
+      "newAPIGroupDefault": "默认分组",
       "prefix": "Key 前缀",
       "lastUsed": "最后使用",
       "actions": "操作",

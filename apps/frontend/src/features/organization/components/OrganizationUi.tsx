@@ -66,13 +66,15 @@ export function OrganizationSelectActionTile({
 }) {
   return (
     <AppChoiceTile variant="ghost" className={cn("organization-select-action-tile", className)} {...props}>
-      <span className="organization-select-action-tile__header">
-        <AppIconFrame size="sm" className="organization-select-action-tile__icon">
-          {icon}
-        </AppIconFrame>
-        <span className="organization-select-action-tile__title">{title}</span>
+      <span className="organization-select-action-tile__content">
+        <span className="organization-select-action-tile__header">
+          <AppIconFrame size="sm" className="organization-select-action-tile__icon">
+            {icon}
+          </AppIconFrame>
+          <span className="organization-select-action-tile__title">{title}</span>
+        </span>
+        <span className="organization-select-action-tile__description">{description}</span>
       </span>
-      <span className="organization-select-action-tile__description">{description}</span>
     </AppChoiceTile>
   );
 }
@@ -96,7 +98,7 @@ export function OrganizationSelectMembershipButton({
 }) {
   return (
     <AppSurfaceItem asChild className="organization-select-membership-item">
-      <Button variant="ghost" className={cn("organization-select-membership-button", className)} {...props}>
+      <Button variant="ghost" fullWidth align="start" className={cn("organization-select-membership-button", className)} {...props}>
         <AppIconFrame size="sm" className="organization-select-membership-button__icon">
           {icon}
         </AppIconFrame>

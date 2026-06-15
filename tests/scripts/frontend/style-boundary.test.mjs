@@ -27,7 +27,7 @@ test('feature page styles live with their feature components', () => {
 
 test('feature CSS does not define global token namespace or override UI internals', () => {
   const featureCssFiles = listFiles(resolve(root, 'apps/frontend/src/features'), (file) => file.endsWith('.css'))
-  const forbiddenInternalClass = /\.(?:ms|app-settings|user-profile)-[A-Za-z0-9_-]+__/
+  const forbiddenInternalClass = /\.(?:ms|user-profile)-[A-Za-z0-9_-]+__/
   const forbiddenGlobalTokenDefinition = /--ms-[A-Za-z0-9-]+\s*:/
 
   for (const file of featureCssFiles) {

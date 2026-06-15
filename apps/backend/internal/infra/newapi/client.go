@@ -101,12 +101,13 @@ func (c *Client) FindUser(ctx context.Context, username string) (User, bool, err
 	return User{}, false, nil
 }
 
-func (c *Client) EnsureRelayToken(ctx context.Context, user User, movscriptUserID uint) (int, string, error) {
+func (c *Client) EnsureRelayToken(ctx context.Context, user User, movscriptUserID uint, group string) (int, string, error) {
 	client, err := c.loginClient(ctx, user.Username)
 	if err != nil {
 		return 0, "", err
 	}
-	tokenName := "movscript-forward-" + strconv.FormatUint(uint64(movscriptUserID), 10)
+	group = c.cfg.ResolveTokenGroup(group)
+	tokenName := relayTokenName(movscriptUserID, group)
 	if token, ok, err := c.findToken(ctx, client, user.ID, tokenName); err != nil {
 		return 0, "", err
 	} else if ok {
@@ -118,7 +119,7 @@ func (c *Client) EnsureRelayToken(ctx context.Context, user User, movscriptUserI
 		"expired_time":    -1,
 		"remain_quota":    c.cfg.TokenQuota,
 		"unlimited_quota": false,
-		"group":           c.cfg.TokenGroup,
+		"group":           group,
 	}
 	if err := c.userRequest(ctx, client, user.ID, http.MethodPost, "/api/token/", payload, nil); err != nil {
 		return 0, "", err
@@ -132,6 +133,37 @@ func (c *Client) EnsureRelayToken(ctx context.Context, user User, movscriptUserI
 	}
 	key, err := c.getTokenKey(ctx, client, user.ID, token.ID)
 	return token.ID, key, err
+}
+
+func relayTokenName(movscriptUserID uint, group string) string {
+	base := "movscript-forward-" + strconv.FormatUint(uint64(movscriptUserID), 10)
+	group = strings.TrimSpace(group)
+	if group == "" || group == "auto" {
+		return base
+	}
+	return base + "-" + safeRelayTokenNamePart(group)
+}
+
+func safeRelayTokenNamePart(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-_")
+	if out == "" {
+		return "group"
+	}
+	return out
 }
 
 func (c *Client) loginClient(ctx context.Context, username string) (*http.Client, error) {

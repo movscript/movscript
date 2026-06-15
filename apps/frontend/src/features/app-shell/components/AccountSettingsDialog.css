@@ -39,18 +39,6 @@
   padding: var(--ms-space-3) var(--ms-space-2);
 }
 
-.account-settings-page__nav-button,
-.account-settings-page__admin-button,
-.account-settings-page__exit-button {
-  gap: 10px;
-}
-
-.account-settings-page__nav-button .ms-button__content,
-.account-settings-page__admin-button .ms-button__content,
-.account-settings-page__exit-button .ms-button__content {
-  justify-content: flex-start;
-}
-
 .account-settings-page__nav-button {
   display: flex;
   height: auto;

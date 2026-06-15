@@ -26,7 +26,7 @@ export const AgentRunInteractionApprovalThumbnail = React.forwardRef<HTMLElement
         density="normal"
         emphasis={agentRunInteractionSurfaceEmphasis(variant)}
         data-variant={variant}
-        className={cn("ms-agent-frame ms-agent-surface-block", `ms-agent-surface-block--${variant}`, "ms-agent-run-interaction-thumb", className)}
+        className={cn("ms-agent-frame ms-agent-surface-block", `ms-agent-surface-block--${variant}`, "agent-run-interaction-thumb", className)}
         {...props}
       />
     );
@@ -37,7 +37,7 @@ AgentRunInteractionApprovalThumbnail.displayName = "AgentRunInteractionApprovalT
 
 export const AgentRunInteractionApprovalThumbnailFallback = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-interaction-thumb__fallback", className)} {...props} />;
+    return <div ref={ref} className={cn("agent-run-interaction-thumb__fallback", className)} {...props} />;
   }
 );
 

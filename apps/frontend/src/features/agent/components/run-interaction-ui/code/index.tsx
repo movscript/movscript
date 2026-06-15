@@ -11,7 +11,7 @@ export function AgentRunInteractionApprovalCodeBlock({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("ms-agent-field ms-agent-data-block ms-agent-run-interaction-code", className)} {...props}>
+    <div className={cn("ms-agent-field ms-agent-data-block agent-run-interaction-code", className)} {...props}>
       <AppCodeBlock>{children}</AppCodeBlock>
     </div>
   );

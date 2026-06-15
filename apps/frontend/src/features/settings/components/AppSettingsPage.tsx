@@ -20,7 +20,7 @@ import {
   AppSettingsMain,
   AppSettingsSection,
   AppSettingsShell
-} from '@movscript/ui/business/app'
+} from '@/features/settings/components/AppSettingsUi'
 import { Textarea } from '@movscript/ui/primitives'
 import { getDefaultAPIBaseURL, getLocalAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL, type AppSettings } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'

@@ -2698,6 +2698,7 @@
     "gatewayKeys": {
       "title": "Gateway API Keys",
       "description": "Create and manage keys for the OpenAI-compatible gateway, with optional project, model, and scope limits.",
+      "newAPIBoundary": "Enterprise only binds the new-api group here. Provider channels, pricing multipliers, balances, and plan rules stay in the new-api console.",
       "refresh": "Refresh",
       "create": "Create Key",
       "name": "Name",
@@ -2709,6 +2710,10 @@
       "modelHint": "When no model is selected, all enabled models are allowed.",
       "scopes": "Scopes",
       "scope": "Scope",
+      "newAPIGroup": "new-api group",
+      "newAPIGroupPlaceholder": "Example: standard, premium-video",
+      "newAPIGroupHint": "Leave blank to use the backend default group. This only selects the new-api model group used by this key.",
+      "newAPIGroupDefault": "default group",
       "prefix": "Key prefix",
       "lastUsed": "Last used",
       "actions": "Actions",

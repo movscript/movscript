@@ -31,68 +31,68 @@ const AGENT_GENERATED_RESULT_INITIAL_RENDER_LIMIT = 4
 type GeneratedMediaPreviewSurface = 'muted' | 'dark'
 
 function GeneratedResultCardShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-card', className)} {...props} />
+  return <div className={cn('agent-generated-result-card', className)} {...props} />
 }
 
 function GeneratedResultList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-card__list', className)} {...props} />
+  return <div className={cn('agent-generated-result-card-list', className)} {...props} />
 }
 
 function GeneratedResultHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-card__header', className)} {...props} />
+  return <div className={cn('agent-generated-result-card-header', className)} {...props} />
 }
 
 function GeneratedResultTitle({ children, className, ...props }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={cn('ms-agent-generated-result-card__title', className)} {...props}>
-      <SparklesIcon className="ms-agent-generated-result-card__title-icon" />
-      <span className="ms-agent-generated-result-card__title-text">{children}</span>
+    <div className={cn('agent-generated-result-card-title', className)} {...props}>
+      <SparklesIcon className="agent-generated-result-card-title-icon" />
+      <span className="agent-generated-result-card-title-text">{children}</span>
     </div>
   )
 }
 
 function GeneratedResultActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-card__actions', className)} {...props} />
+  return <div className={cn('agent-generated-result-card-actions', className)} {...props} />
 }
 
 function GeneratedResultCountBadge({ className, ...props }: BadgeProps) {
-  return <Badge className={cn('ms-agent-generated-result-card__count', className)} {...props} />
+  return <Badge className={cn('agent-generated-result-card-count', className)} {...props} />
 }
 
 function GeneratedResultActionButton({ className, size = 'xs', ...props }: ButtonProps) {
-  return <Button size={size} className={cn('ms-agent-generated-result-card__action', className)} {...props} />
+  return <Button size={size} className={cn('agent-generated-result-card-action', className)} {...props} />
 }
 
 function GeneratedResultItem({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-item', className)} {...props} />
+  return <div className={cn('agent-generated-result-item', className)} {...props} />
 }
 
 function GeneratedResultItemRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-item__row', className)} {...props} />
+  return <div className={cn('agent-generated-result-item-row', className)} {...props} />
 }
 
 function GeneratedResultItemIcon({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('ms-agent-generated-result-item__icon', className)} {...props} />
+  return <span className={cn('agent-generated-result-item-icon', className)} {...props} />
 }
 
 function GeneratedResultItemBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-item__body', className)} {...props} />
+  return <div className={cn('agent-generated-result-item-body', className)} {...props} />
 }
 
 function GeneratedResultItemName({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-result-item__name', className)} {...props} />
+  return <p className={cn('agent-generated-result-item-name', className)} {...props} />
 }
 
 function GeneratedResultItemMeta({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-result-item__meta', className)} {...props} />
+  return <p className={cn('agent-generated-result-item-meta', className)} {...props} />
 }
 
 function GeneratedResultMissingNotice({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('ms-agent-generated-result-missing-notice', className)} {...props} />
+  return <div className={cn('agent-generated-result-missing-notice', className)} {...props} />
 }
 
 function GeneratedResultHelperText({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ms-agent-generated-result-card__helper', className)} {...props} />
+  return <p className={cn('agent-generated-result-card-helper', className)} {...props} />
 }
 
 function GeneratedMediaPreviewButton({
@@ -100,16 +100,22 @@ function GeneratedMediaPreviewButton({
   surface = 'muted',
   variant = 'ghost',
   size = 'md',
+  children,
   ...props
 }: ButtonProps & { surface?: GeneratedMediaPreviewSurface }) {
   return (
     <Button
+      asChild
       variant={variant}
       size={size}
       data-surface={surface}
-      className={cn('ms-agent-generated-media-preview ms-agent-generated-media-preview--button', className)}
+      fullWidth
+      align="start"
+      className={cn('agent-generated-media-preview agent-generated-media-preview-button', className)}
       {...props}
-    />
+    >
+      <button>{children}</button>
+    </Button>
   )
 }
 

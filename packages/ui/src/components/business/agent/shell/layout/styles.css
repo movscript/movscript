@@ -47,12 +47,19 @@
 
 .ms-agent-header__content {
   display: flex;
+  flex: var(--agent-header-content-flex, initial);
   flex-direction: column;
   gap: 3px;
+  min-width: var(--agent-header-content-min-width, initial);
+  max-width: var(--agent-header-content-max-width, none);
+  overflow: var(--agent-header-content-overflow, visible);
 }
 
 .ms-agent-header__actions {
-  gap: 8px;
+  min-width: var(--agent-header-actions-min-width, initial);
+  max-width: var(--agent-header-actions-max-width, none);
+  gap: var(--agent-header-actions-gap, 8px);
+  overflow: var(--agent-header-actions-overflow, visible);
 }
 
 .ms-agent-title,

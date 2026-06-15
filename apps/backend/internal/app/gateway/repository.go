@@ -54,7 +54,7 @@ func (r *gormRepository) CreateAPIKey(ctx context.Context, key *domaingateway.AP
 
 func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *domaingateway.APIKey) error {
 	row := key.ToModel()
-	if err := r.db.WithContext(ctx).Model(&row).Select("name", "project_id", "allowed_model_ids", "allowed_scopes", "is_enabled").Updates(row).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&row).Select(apiKeyUpdateColumns()).Updates(row).Error; err != nil {
 		return err
 	}
 	*key = domaingateway.APIKeyFromModel(row)

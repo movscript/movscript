@@ -97,7 +97,7 @@ export default function MovScriptWorkspaceFilesPage() {
     retry: false,
   })
   const mediaQuery = useQuery<ElectronMovScriptWorkspaceMediaFileReadResult>({
-    queryKey: [...movScriptWorkspaceKeys.file(selectedPath), 'media-preview'],
+    queryKey: movScriptWorkspaceKeys.mediaPreview(selectedPath),
     queryFn: () => requireWorkspaceFilesAPI().readMedia({ path: selectedPath ?? '' }),
     enabled: Boolean(selectedPath && isSelectedImage),
     retry: false,

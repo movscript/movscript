@@ -11,7 +11,16 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestCallAlignUsesSubtitleProviderWithCurrentUserContext(t *testing.T) {
+func TestCallAlignUsesSubtitleAlignCapabilityWithCurrentUserContext(t *testing.T) {
+	testCallAlignUsesCapability(t, CapabilitySubAlign)
+}
+
+func TestCallAlignFallsBackToAudioTranscribeCapability(t *testing.T) {
+	testCallAlignUsesCapability(t, CapabilityAudioSTT)
+}
+
+func testCallAlignUsesCapability(t *testing.T, capability string) {
+	t.Helper()
 	db := testutil.OpenSQLite(t, "ai-call-align.db",
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
@@ -32,7 +41,7 @@ func TestCallAlignUsesSubtitleProviderWithCurrentUserContext(t *testing.T) {
 		CredentialID:       cred.ID,
 		ModelDefID:         "logical-align",
 		ModelIDOverride:    "provider-align",
-		CustomCapabilities: CapabilityAudioSTT,
+		CustomCapabilities: capability,
 		IsEnabled:          true,
 	}
 	if err := db.Create(&cfg).Error; err != nil {

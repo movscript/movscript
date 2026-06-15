@@ -123,21 +123,59 @@ func providerInstanceFromCredential(cred domainai.Credential) ProviderInstance {
 		},
 		ConfigFields: configFields,
 		SecretFields: secretFields,
-		Capabilities: []string{
-			"model.list",
-			"model.resolve",
-			"chat.completions",
-			"responses",
-			"image.generate",
-			"video.generate",
-			"file.upload",
-			"usage.reserve",
-			"usage.settle",
-			"audit.record",
-			"health.probe",
-			"runtime_health.snapshot",
-		},
+		Capabilities: providerInstanceAIGatewayCapabilities(def),
 	}
+}
+
+func providerInstanceAIGatewayCapabilities(def *infraai.AdapterDef) []string {
+	caps := []string{
+		"model.list",
+		"model.resolve",
+		"chat.completions",
+		"chat.stream",
+		"responses",
+		"image.generate",
+		"video.generate",
+		"file.upload",
+		"usage.reserve",
+		"usage.settle",
+		"audit.record",
+		"health.probe",
+		"runtime_health.snapshot",
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(caps)+4)
+	add := func(capability string) {
+		if capability == "" || seen[capability] {
+			return
+		}
+		seen[capability] = true
+		out = append(out, capability)
+	}
+	for _, capability := range caps {
+		add(capability)
+	}
+	if def == nil {
+		return out
+	}
+	if def.AdapterType == infraai.AdapterOpenAICompat {
+		add("video.task")
+		add("video.poll")
+		add("video.cancel")
+	}
+	for _, set := range def.ParamSets {
+		switch set.Capability {
+		case infraai.CapabilityImageEdit:
+			add("image.edit")
+		case infraai.CapabilityAudioTTS:
+			add("audio.speech")
+		case infraai.CapabilityAudioSTT:
+			add("audio.transcribe")
+		case infraai.CapabilitySubAlign:
+			add("audio.align")
+		}
+	}
+	return out
 }
 
 func providerInstanceFieldsFromCredential(cred domainai.Credential, def *infraai.AdapterDef) ([]ProviderInstanceField, []ProviderInstanceField) {

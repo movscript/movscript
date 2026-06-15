@@ -3,6 +3,60 @@
   --ms-agent-composer-fill: var(--ms-color-background);
   --ms-agent-composer-control-fill: color-mix(in srgb, var(--ms-color-background) 72%, transparent);
   --ms-agent-composer-control-border: color-mix(in srgb, var(--ms-color-border) 58%, transparent);
+  --agent-composer-action-color: var(--ms-color-muted-foreground);
+  --agent-composer-action-size: 26px;
+  --agent-composer-action-icon-size: 12px;
+  --agent-composer-approval-background: var(--ms-agent-composer-control-fill);
+  --agent-composer-approval-border-color: var(--ms-agent-composer-control-border);
+  --agent-composer-approval-color: var(--ms-color-muted-foreground);
+  --agent-composer-approval-font-size: var(--ms-text-tiny);
+  --agent-composer-approval-font-weight: inherit;
+  --agent-composer-approval-gap: normal;
+  --agent-composer-approval-height: 28px;
+  --agent-composer-approval-line-height: var(--ms-leading-tiny);
+  --agent-composer-approval-min-width: 4.75rem;
+  --agent-composer-approval-padding-inline: 0.5rem;
+  --agent-composer-approval-hover-background: color-mix(in srgb, var(--ms-color-muted) 70%, transparent);
+  --agent-composer-approval-hover-color: var(--ms-color-foreground);
+  --agent-composer-debug-action-max-width: none;
+  --agent-composer-debug-action-min-width: initial;
+  --agent-composer-field-font-size: var(--ms-text-label);
+  --agent-composer-field-font-weight: 400;
+  --agent-composer-field-line-height: var(--ms-leading-label);
+  --agent-composer-field-max-height: 180px;
+  --agent-composer-field-min-height: auto;
+  --agent-composer-field-padding: 14px 18px 12px;
+  --agent-composer-field-resize: vertical;
+  --agent-composer-submit-background: var(--ms-color-foreground);
+  --agent-composer-submit-box-shadow: 0 8px 18px color-mix(in srgb, var(--ms-color-foreground) 16%, transparent);
+  --agent-composer-submit-color: var(--ms-color-background);
+  --agent-composer-submit-height: 30px;
+  --agent-composer-submit-margin-left: initial;
+  --agent-composer-submit-width: 30px;
+  --agent-composer-submit-group-gap: 4px;
+  --agent-composer-toolbar-align-items: center;
+  --agent-composer-toolbar-border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 52%, transparent);
+  --agent-composer-toolbar-gap: 6px;
+  --agent-composer-toolbar-padding: 9px 14px 11px;
+  --agent-composer-toolbar-wrap: wrap;
+  --agent-composer-toolbar-child-min-width: initial;
+  --agent-composer-toolbar-divider-display: none;
+  --agent-composer-toolbar-divider-background: color-mix(in srgb, var(--ms-color-border) 42%, transparent);
+  --agent-composer-toolbar-divider-height: 26px;
+  --agent-composer-toolstrip-align-items: center;
+  --agent-composer-toolstrip-flex-basis: auto;
+  --agent-composer-toolstrip-gap: 6px;
+  --agent-composer-toolstrip-wrap: wrap;
+  --agent-composer-voice-action-background: transparent;
+  --agent-composer-voice-action-border: 0;
+  --agent-composer-voice-action-border-radius: var(--ms-radius-full);
+  --agent-composer-voice-action-color: var(--agent-composer-action-color);
+  --agent-composer-voice-action-height: 28px;
+  --agent-composer-voice-action-opacity: 1;
+  --agent-composer-voice-action-width: 28px;
+  --agent-composer-voice-action-disabled-opacity: 0.72;
+  --agent-composer-workspace-row-border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 44%, transparent);
+  --agent-composer-workspace-row-padding: 10px 18px 0;
   gap: 0;
   margin: 0 0 16px;
   overflow: hidden;
@@ -30,16 +84,17 @@
 .ms-agent-composer__field {
   width: 100%;
   min-width: 0;
-  max-height: 180px;
-  resize: vertical;
+  min-height: var(--agent-composer-field-min-height);
+  max-height: var(--agent-composer-field-max-height);
+  resize: var(--agent-composer-field-resize);
   border: 0;
   background: transparent;
   color: var(--ms-color-foreground);
-  padding: 14px 18px 12px;
+  padding: var(--agent-composer-field-padding);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
-  font-size: var(--ms-text-label);
-  font-weight: 400;
-  line-height: var(--ms-leading-label);
+  font-size: var(--agent-composer-field-font-size);
+  font-weight: var(--agent-composer-field-font-weight);
+  line-height: var(--agent-composer-field-line-height);
 }
 
 .ms-agent-composer__field:focus {
@@ -48,10 +103,22 @@
 
 .ms-agent-composer__toolbar {
   display: flex;
-  gap: 6px;
-  align-items: center;
-  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 52%, transparent);
-  padding: 9px 14px 11px;
+  flex-wrap: var(--agent-composer-toolbar-wrap);
+  gap: var(--agent-composer-toolbar-gap);
+  align-items: var(--agent-composer-toolbar-align-items);
+  border-top: var(--agent-composer-toolbar-border-top);
+  padding: var(--agent-composer-toolbar-padding);
+}
+
+.ms-agent-composer__toolbar > * {
+  min-width: var(--agent-composer-toolbar-child-min-width);
+}
+
+.ms-agent-composer__toolstrip {
+  flex-basis: var(--agent-composer-toolstrip-flex-basis);
+  flex-wrap: var(--agent-composer-toolstrip-wrap);
+  align-items: var(--agent-composer-toolstrip-align-items);
+  gap: var(--agent-composer-toolstrip-gap);
 }
 
 .ms-agent-composer__workspace-row {
@@ -59,8 +126,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 44%, transparent);
-  padding: 10px 18px 0;
+  border-top: var(--agent-composer-workspace-row-border-top);
+  padding: var(--agent-composer-workspace-row-padding);
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
@@ -82,7 +149,7 @@
 }
 
 .ms-agent-composer .ms-agent-composer__workspace-select,
-.ms-agent-composer .ai-agent-model-select {
+.ms-agent-composer .ms-agent-composer__workspace-select {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -92,57 +159,6 @@
   display: inline-flex;
   align-items: center;
   color: var(--ms-color-muted-foreground);
-}
-
-.ai-agent-model-select {
-  width: min(180px, 48vw);
-  padding-inline: 10px 8px;
-}
-
-.ai-agent-model-select__value,
-.ai-agent-model-select__option {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-}
-
-.ai-agent-model-select__value {
-  flex: 1 1 auto;
-}
-
-.ai-agent-model-select .ms-identity-mark,
-.ai-agent-model-select__option .ms-identity-mark {
-  width: 12px;
-  height: 12px;
-}
-
-.ai-agent-model-select__option-copy {
-  display: inline-flex;
-  min-width: 0;
-  flex-direction: column;
-}
-
-.ai-agent-model-select__id,
-.ai-agent-model-select__meta {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-agent-model-select__id {
-  color: var(--ms-color-foreground);
-  font-family: var(--ms-font-mono);
-  font-size: var(--ms-text-tiny);
-  font-weight: 650;
-  line-height: 14px;
-}
-
-.ai-agent-model-select__meta {
-  color: var(--ms-color-muted-foreground);
-  font-size: 10px;
-  line-height: var(--ms-leading-tiny);
 }
 
 .ms-agent-composer__drop-overlay {
@@ -163,11 +179,11 @@
 }
 
 .ms-agent-composer__action {
-  width: 26px;
-  height: 26px;
+  width: var(--agent-composer-action-size);
+  height: var(--agent-composer-action-size);
   border-radius: var(--ms-radius-full);
   background: transparent;
-  color: var(--ms-color-muted-foreground);
+  color: var(--agent-composer-action-color);
 }
 
 .ms-agent-shell--compact .ms-agent-composer__action {
@@ -183,37 +199,44 @@
 }
 
 .ms-agent-composer__submit {
-  width: 30px;
-  height: 30px;
+  width: var(--agent-composer-submit-width);
+  height: var(--agent-composer-submit-height);
+  margin-left: var(--agent-composer-submit-margin-left);
   border-radius: var(--ms-radius-full);
-  background: var(--ms-color-foreground);
-  color: var(--ms-color-background);
+  background: var(--agent-composer-submit-background);
+  color: var(--agent-composer-submit-color);
   border-color: transparent;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--ms-color-foreground) 16%, transparent);
+  box-shadow: var(--agent-composer-submit-box-shadow);
 }
 
 .ms-agent-composer__submit-group {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
+  gap: var(--agent-composer-submit-group-gap);
 }
 
-.ms-agent-composer__approval-trigger {
-  height: 28px;
-  min-width: 4.75rem;
-  padding-inline: 0.5rem;
-  border-color: var(--ms-agent-composer-control-border);
+.ms-agent-composer__approval-trigger,
+.ms-agent-composer__goal-trigger {
+  height: var(--agent-composer-approval-height);
+  min-width: var(--agent-composer-approval-min-width);
+  gap: var(--agent-composer-approval-gap);
+  padding-inline: var(--agent-composer-approval-padding-inline);
+  border-color: var(--agent-composer-approval-border-color);
   border-radius: var(--ms-radius-full);
-  background: var(--ms-agent-composer-control-fill);
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
+  background: var(--agent-composer-approval-background);
+  color: var(--agent-composer-approval-color);
+  font-size: var(--agent-composer-approval-font-size);
+  font-weight: var(--agent-composer-approval-font-weight);
+  line-height: var(--agent-composer-approval-line-height);
+  white-space: nowrap;
 }
 
-.ms-agent-composer__approval-trigger:hover {
-  background: color-mix(in srgb, var(--ms-color-muted) 70%, transparent);
-  color: var(--ms-color-foreground);
+.ms-agent-composer__approval-trigger:hover,
+.ms-agent-composer__goal-trigger:hover,
+.ms-agent-composer__goal-trigger[data-active="true"] {
+  background: var(--agent-composer-approval-hover-background);
+  color: var(--agent-composer-approval-hover-color);
 }
 
 .ms-agent-shell--compact .ms-agent-composer__submit {
@@ -238,13 +261,37 @@
 
 .ms-agent-composer__action svg,
 .ms-agent-composer__submit svg,
-.ms-agent-composer__approval-trigger svg {
-  width: 12px;
-  height: 12px;
+.ms-agent-composer__approval-trigger svg,
+.ms-agent-composer__goal-trigger svg,
+.ms-agent-composer__voice-action svg {
+  width: var(--agent-composer-action-icon-size);
+  height: var(--agent-composer-action-icon-size);
 }
 
-.ms-agent-composer__action svg,
-.ms-agent-composer__submit svg {
-  width: 12px;
-  height: 12px;
+.ms-agent-composer__toolbar-divider {
+  display: var(--agent-composer-toolbar-divider-display);
+  width: 1px;
+  height: var(--agent-composer-toolbar-divider-height);
+  flex: 0 0 auto;
+  background: var(--agent-composer-toolbar-divider-background);
+}
+
+.ms-agent-composer__voice-action {
+  width: var(--agent-composer-voice-action-width);
+  height: var(--agent-composer-voice-action-height);
+  border: var(--agent-composer-voice-action-border);
+  border-radius: var(--agent-composer-voice-action-border-radius);
+  background: var(--agent-composer-voice-action-background);
+  color: var(--agent-composer-voice-action-color);
+  opacity: var(--agent-composer-voice-action-opacity);
+}
+
+.ms-agent-composer__voice-action:disabled {
+  cursor: default;
+  opacity: var(--agent-composer-voice-action-disabled-opacity);
+}
+
+.ms-agent-composer__debug-action {
+  min-width: var(--agent-composer-debug-action-min-width);
+  max-width: var(--agent-composer-debug-action-max-width);
 }

@@ -1,4 +1,4 @@
-.ms-agent-run-interaction-card {
+.agent-run-interaction-card {
   margin-top: 6px;
   min-width: 0;
   background: transparent;
@@ -6,19 +6,19 @@
   box-shadow: none;
 }
 
-.ms-agent-run-interaction-card__row {
+.agent-run-interaction-card__row {
   display: flex;
   min-width: 0;
   align-items: flex-start;
   gap: 8px;
 }
 
-.ms-agent-run-interaction-card__body {
+.agent-run-interaction-card__body {
   min-width: 0;
   flex: 1 1 12rem;
 }
 
-.ms-agent-run-interaction-card__header {
+.agent-run-interaction-card__header {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -26,7 +26,7 @@
   gap: 4px 6px;
 }
 
-.ms-agent-run-interaction-card__title {
+.agent-run-interaction-card__title {
   min-width: 0;
   flex: 1 1 12rem;
   overflow: hidden;
@@ -37,7 +37,7 @@
   white-space: nowrap;
 }
 
-.ms-agent-run-interaction-card__badges {
+.agent-run-interaction-card__badges {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -45,7 +45,7 @@
   margin-top: 4px;
 }
 
-.ms-agent-run-interaction-card__meta {
+.agent-run-interaction-card__meta {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -55,7 +55,7 @@
   font-size: var(--ms-text-tiny);
 }
 
-.ms-agent-run-interaction-card__prompt {
+.agent-run-interaction-card__prompt {
   display: -webkit-box;
   margin: 8px 0 0;
   overflow: hidden;
@@ -66,23 +66,23 @@
   line-height: var(--ms-leading-body);
 }
 
-.ms-agent-run-interaction-card__text {
+.agent-run-interaction-card__text {
   margin: 4px 0 0;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-body);
 }
 
-.ms-agent-run-interaction-panel {
+.agent-run-interaction-panel {
   margin: 0.5rem 0.25rem;
   padding: 0.625rem;
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
-.ms-agent-run-interaction-panel__header,
-.ms-agent-run-interaction-section__header,
-.ms-agent-run-interaction-request-card__header {
+.agent-run-interaction-panel__header,
+.agent-run-interaction-section__header,
+.agent-run-interaction-request-card__header {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -90,13 +90,13 @@
   gap: 0.5rem;
 }
 
-.ms-agent-run-interaction-panel__header,
-.ms-agent-run-interaction-section__header {
+.agent-run-interaction-panel__header,
+.agent-run-interaction-section__header {
   margin-bottom: 0.375rem;
 }
 
-.ms-agent-run-interaction-panel__title,
-.ms-agent-run-interaction-section__title {
+.agent-run-interaction-panel__title,
+.agent-run-interaction-section__title {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -108,49 +108,49 @@
   white-space: nowrap;
 }
 
-.ms-agent-run-interaction-panel__title > svg,
-.ms-agent-run-interaction-section__title > svg {
+.agent-run-interaction-panel__title > svg,
+.agent-run-interaction-section__title > svg {
   flex-shrink: 0;
 }
 
-.ms-agent-run-interaction-status-badge {
+.agent-run-interaction-status-badge {
   flex-shrink: 0;
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
 }
 
-.ms-agent-run-interaction-section {
+.agent-run-interaction-section {
   padding: 0.5rem;
 }
 
-.ms-agent-run-interaction-section + .ms-agent-run-interaction-section {
+.agent-run-interaction-section + .agent-run-interaction-section {
   margin-top: 0.5rem;
 }
 
-.ms-agent-run-interaction-section__actions {
+.agent-run-interaction-section__actions {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 0.25rem;
 }
 
-.ms-agent-run-interaction-section__actions--hidden {
+.agent-run-interaction-section__actions--hidden {
   visibility: hidden;
 }
 
-.ms-agent-run-interaction-stack {
+.agent-run-interaction-stack {
   display: grid;
   gap: 0.375rem;
 }
 
-.ms-agent-run-interaction-request-card {
+.agent-run-interaction-request-card {
   position: relative;
   overflow: hidden;
   padding: 0.625rem;
   color: var(--ms-color-foreground);
 }
 
-.ms-agent-run-interaction-request-card__rail {
+.agent-run-interaction-request-card__rail {
   position: absolute;
   inset-block: 0.375rem;
   left: 0;
@@ -159,7 +159,7 @@
   opacity: 0.7;
 }
 
-.ms-agent-run-interaction-request-card__copy {
+.agent-run-interaction-request-card__copy {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -167,14 +167,14 @@
   gap: 0.375rem;
 }
 
-.ms-agent-run-interaction-request-card__actions {
+.agent-run-interaction-request-card__actions {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 0.25rem;
 }
 
-.ms-agent-run-interaction-request-card__title {
+.agent-run-interaction-request-card__title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -185,7 +185,7 @@
   font-weight: 500;
 }
 
-.ms-agent-run-interaction-request-card__summary {
+.agent-run-interaction-request-card__summary {
   margin-top: 0.125rem;
   min-height: 1rem;
   color: var(--ms-color-muted-foreground);
@@ -194,11 +194,11 @@
   line-height: 1.625;
 }
 
-.ms-agent-run-interaction-request-card__summary--hidden {
+.agent-run-interaction-request-card__summary--hidden {
   visibility: hidden;
 }
 
-.ms-agent-run-interaction-request-card__prompt {
+.agent-run-interaction-request-card__prompt {
   margin-top: 0.375rem;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-tiny);
@@ -206,7 +206,7 @@
   line-height: 1.625;
 }
 
-.ms-agent-run-interaction-request-card__detail {
+.agent-run-interaction-request-card__detail {
   margin-top: 0.25rem;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
@@ -214,7 +214,7 @@
   line-height: 1.625;
 }
 
-.ms-agent-run-interaction-meta-badge {
+.agent-run-interaction-meta-badge {
   height: 1rem;
   flex-shrink: 0;
   padding-inline: 0.25rem;
@@ -222,7 +222,7 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.ms-agent-run-interaction-state-badge {
+.agent-run-interaction-state-badge {
   height: 1.25rem;
   flex-shrink: 0;
   padding-inline: 0.375rem;
@@ -230,7 +230,7 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.ms-agent-run-interaction-choice-button {
+.agent-run-interaction-choice-button {
   height: auto;
   justify-content: flex-start;
   white-space: normal;
@@ -243,12 +243,12 @@
   box-shadow: none;
 }
 
-.ms-agent-run-interaction-choice-button:hover {
+.agent-run-interaction-choice-button:hover {
   border-color: color-mix(in srgb, var(--ms-color-border) 60%, transparent);
   background: color-mix(in srgb, var(--ms-color-muted) 25%, transparent);
 }
 
-.ms-agent-run-interaction-text-input {
+.agent-run-interaction-text-input {
   height: 1.75rem;
   min-width: 0;
   flex: 1 1 auto;
@@ -256,7 +256,7 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.ms-agent-run-interaction-action-button {
+.agent-run-interaction-action-button {
   height: 1.5rem;
   padding-inline: 0.375rem;
   font-size: var(--ms-text-tiny);
@@ -264,12 +264,12 @@
   box-shadow: none;
 }
 
-.ms-agent-run-interaction-section__actions .ms-agent-run-interaction-action-button {
+.agent-run-interaction-section__actions .agent-run-interaction-action-button {
   flex-shrink: 0;
   padding-inline: 0.5rem;
 }
 
-.ms-agent-run-interaction-pager__button {
+.agent-run-interaction-pager__button {
   display: inline-flex;
   width: 1.5rem;
   height: 1.5rem;
@@ -283,18 +283,18 @@
   cursor: pointer;
 }
 
-.ms-agent-run-interaction-pager__button:disabled {
+.agent-run-interaction-pager__button:disabled {
   cursor: default;
   opacity: 0.45;
 }
 
-.ms-agent-run-interaction-pager__button:not(:disabled):hover {
+.agent-run-interaction-pager__button:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--ms-color-border) 92%, transparent);
   background: color-mix(in srgb, var(--ms-color-muted) 28%, transparent);
   color: var(--ms-color-foreground);
 }
 
-.ms-agent-run-interaction-pager__count {
+.agent-run-interaction-pager__count {
   min-width: 2rem;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
@@ -303,7 +303,7 @@
   text-align: center;
 }
 
-.ms-agent-run-interaction-impact {
+.agent-run-interaction-impact {
   margin-top: 0.25rem;
   border-radius: var(--ms-radius-sm);
   border-width: 1px;
@@ -313,11 +313,11 @@
   line-height: 1.625;
 }
 
-.ms-agent-run-interaction-impact__label {
+.agent-run-interaction-impact__label {
   font-weight: 500;
 }
 
-.ms-agent-run-interaction-answer {
+.agent-run-interaction-answer {
   margin-top: 0.375rem;
   border-radius: var(--ms-radius-sm);
   padding: 0.25rem 0.5rem;

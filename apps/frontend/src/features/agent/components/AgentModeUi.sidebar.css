@@ -293,6 +293,22 @@
 }
 
 .agent-mode-conversation {
+  --agent-conversation-icon-align-self: center;
+  --agent-conversation-icon-margin-top: 0;
+  --agent-conversation-indicator-display: none;
+  --agent-conversation-meta-color: var(--agent-mode-sidebar-muted);
+  --agent-conversation-meta-font-size: var(--ms-text-label);
+  --agent-conversation-meta-font-weight: 500;
+  --agent-conversation-meta-line-height: var(--ms-leading-label);
+  --agent-conversation-meta-min-width: 48px;
+  --agent-conversation-meta-text-align: right;
+  --agent-conversation-title-active-color: var(--ms-color-foreground);
+  --agent-conversation-title-active-font-weight: 600;
+  --agent-conversation-title-color: var(--agent-mode-sidebar-text);
+  --agent-conversation-title-font-size: var(--ms-text-label);
+  --agent-conversation-title-font-weight: 500;
+  --agent-conversation-title-hover-color: var(--ms-color-foreground);
+  --agent-conversation-title-line-height: var(--ms-leading-label);
   grid-template-columns: minmax(0, 1fr) auto;
   min-height: 34px;
   gap: 10px;
@@ -313,29 +329,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
-.agent-mode-conversation .ms-agent-conversation__indicator {
-  display: none;
-}
-
-.agent-mode-conversation .ms-agent-conversation__icon {
-  align-self: center;
-  margin-top: 0;
-}
-
-.agent-mode-conversation .ms-agent-conversation__title {
-  color: var(--agent-mode-sidebar-text);
-  font-size: var(--ms-text-label);
-  font-weight: 500;
-  line-height: var(--ms-leading-label);
-}
-
 .agent-mode-conversation:hover {
   background: color-mix(in srgb, var(--ms-color-surface) 48%, transparent);
-  color: var(--ms-color-foreground);
-}
-
-.agent-mode-conversation:hover .ms-agent-conversation__title,
-.agent-mode-conversation[data-active="true"] .ms-agent-conversation__title {
   color: var(--ms-color-foreground);
 }
 
@@ -344,10 +339,6 @@
   background: color-mix(in srgb, var(--ms-color-surface) 86%, var(--ms-color-background));
   color: var(--ms-color-foreground);
   box-shadow: none;
-}
-
-.agent-mode-conversation[data-active="true"] .ms-agent-conversation__title {
-  font-weight: 600;
 }
 
 .agent-mode-conversation__title-line {
@@ -369,14 +360,6 @@
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-label);
   font-weight: 500;
-}
-
-.agent-mode-conversation .ms-agent-conversation__meta {
-  min-width: 48px;
-  color: var(--agent-mode-sidebar-muted);
-  font-size: var(--ms-text-label);
-  font-weight: 500;
-  text-align: right;
 }
 
 .agent-mode-conversation__icon-stack {

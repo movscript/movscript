@@ -159,7 +159,7 @@ func capabilities(providerType string, adapter string) []string {
 	case contract.TypeAIGateway + ":" + contract.AdapterBuiltin:
 		return []string{"model.list", "model.resolve", "chat.completions", "image.generate", "video.generate", "file.upload", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
 	case contract.TypeAIGateway + ":" + contract.AdapterNewAPI:
-		return []string{"model.list", "model.resolve", "chat.completions", "chat.stream", "responses", "image.generate", "video.generate", "video.task", "video.cancel", "audio.speech", "audio.transcribe", "file.upload", "usage.query", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
+		return []string{"model.list", "model.resolve", "chat.completions", "chat.stream", "responses", "image.generate", "image.edit", "video.generate", "video.task", "video.poll", "video.cancel", "audio.speech", "audio.transcribe", "audio.align", "file.upload", "usage.query", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
 	case contract.TypeCache + ":" + contract.AdapterMemory,
 		contract.TypeCache + ":" + contract.AdapterRedis:
 		return []string{"cache.get_json", "cache.set_json", "cache.delete", "cache.version"}

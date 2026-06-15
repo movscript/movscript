@@ -194,6 +194,79 @@ func TestOpenAIProxyUsesCurrentUserNewAPIRelayTarget(t *testing.T) {
 	}
 }
 
+func TestOpenAIProxyRoutesImageGenerationByImageCapability(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var upstreamPath string
+	var upstreamBody map[string]any
+	previousClient := openAIProxyHTTPClient
+	openAIProxyHTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		upstreamPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&upstreamBody); err != nil {
+			t.Fatalf("decode upstream body: %v", err)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"url":"https://image.example/out.png"}]}`)),
+		}, nil
+	})}
+	t.Cleanup(func() { openAIProxyHTTPClient = previousClient })
+
+	db := testutil.OpenSQLite(t, "handler-model-gateway-proxy-image.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+	)
+	credential := persistencemodel.AICredential{
+		AdapterType: ai.AdapterOpenAICompat,
+		DisplayName: "OpenAI compatible image",
+		BaseURL:     "https://upstream.example/v1",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&credential).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	model := persistencemodel.AIModelConfig{
+		CredentialID:       credential.ID,
+		ModelDefID:         "logical-image",
+		ModelIDOverride:    "provider-image",
+		CustomCapabilities: ai.CapabilityImage,
+		IsEnabled:          true,
+	}
+	if err := db.Create(&model).Error; err != nil {
+		t.Fatalf("create model: %v", err)
+	}
+
+	db = db.Session(&gorm.Session{SkipHooks: true})
+	registry := ai.NewRegistry(db, nil)
+	handler := NewModelGatewayHandler(db, ai.NewAIService(db, registry))
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.ContextUserKey, domainauth.UserProfile{ID: 1, Username: "agent", Status: domainauth.UserStatusActive})
+		c.Next()
+	})
+	router.POST("/v1/openai-proxy/*path", handler.OpenAIProxy)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/openai-proxy/images/generations", strings.NewReader(`{
+		"model":"logical-image",
+		"prompt":"paint the moon"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("proxy status = %d, body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1/images/generations" {
+		t.Fatalf("upstream path = %q, want image generations endpoint", upstreamPath)
+	}
+	if upstreamBody["model"] != "provider-image" {
+		t.Fatalf("model was not rewritten for image proxy: %#v", upstreamBody["model"])
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

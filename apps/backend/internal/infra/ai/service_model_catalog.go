@@ -154,6 +154,7 @@ func allModelCatalogCapabilities() []string {
 		CapabilityAudio,
 		CapabilityAudioTTS,
 		CapabilityAudioSTT,
+		CapabilitySubAlign,
 	}
 }
 

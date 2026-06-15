@@ -59,7 +59,7 @@ export function AgentBrowserNavButton({
   trailing?: ReactNode
 }) {
   return (
-    <Button type="button" variant="outline" className="agent-browser-nav-button" {...props}>
+    <Button type="button" variant="outline" fullWidth align="start" className="agent-browser-nav-button" {...props}>
       <AppIconFrame size="lg">{icon}</AppIconFrame>
       <span className="agent-browser-nav-button__copy">
         <span className="agent-browser-nav-button__title">{title}</span>

@@ -8,3 +8,8 @@ export function listenToWindowEvent<K extends keyof WindowEventMap>(
   window.addEventListener(type, eventListener, options)
   return () => window.removeEventListener(type, eventListener, options)
 }
+
+export function publishWindowEvent<K extends keyof WindowEventMap>(event: WindowEventMap[K]): boolean {
+  if (typeof window === 'undefined') return false
+  return window.dispatchEvent(event)
+}

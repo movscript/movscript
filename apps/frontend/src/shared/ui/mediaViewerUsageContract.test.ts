@@ -407,7 +407,7 @@ test('agent chat attachment previews use authorized resource media primitives', 
 })
 
 test('agent chat attachment media previews preserve intrinsic media dimensions', () => {
-  const source = readFileSync(resolve('../../packages/ui/src/components/business/agent/shell/chat-message/styles.css'), 'utf8')
+  const source = readFileSync(resolve('src/features/agent/components/AgentChatItemsUi.css'), 'utf8')
 
   assert.match(source, /\.ms-agent-chat-media-grid \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/)
   assert.match(source, /\.ms-agent-chat-media-tile \{[\s\S]*width: fit-content;[\s\S]*max-width: 100%;/)

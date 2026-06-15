@@ -7,7 +7,13 @@ const packageCanvasSource = readSource('packages/ui/src/components/business/canv
 const packageCanvasCss = readSource('packages/ui/src/components/business/canvas/styles.css')
 const workflowPanelsSource = readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowPanels.tsx')
 const runtimeInputDialogsSource = readSource('apps/frontend/src/features/canvas/components/CanvasRuntimeInputDialogs.tsx')
-const workflowUiSource = readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.tsx')
+const workflowUiSource = [
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowHistoryUi.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowSidePanelUi.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowRunResultsUi.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasRuntimeInputDialogUi.tsx'),
+].join('\n')
 const workflowUiCss = readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.css')
 const resourceShelfSource = readSource('apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx')
 const resourceShelfUiSource = readSource('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.tsx')

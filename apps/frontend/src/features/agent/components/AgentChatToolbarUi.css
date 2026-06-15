@@ -17,12 +17,6 @@
   min-width: 0;
 }
 
-.ai-agent-panel-shell .ai-agent-panel-chat-header > .ms-agent-header__content {
-  width: 100%;
-  flex-basis: 100%;
-  align-self: stretch;
-}
-
 .ai-agent-panel-chat-toolbar {
   display: flex;
   width: 100%;
@@ -82,10 +76,6 @@
 .ai-provider-controls__button[data-active="true"] {
   background: var(--ms-color-muted);
   color: var(--ms-color-foreground);
-}
-
-.ai-provider-controls__menu .ms-dropdown__item {
-  gap: 8px;
 }
 
 .ai-provider-mark {

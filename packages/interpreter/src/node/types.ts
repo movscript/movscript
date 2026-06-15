@@ -165,9 +165,8 @@ export interface MovScriptWorkspaceInterpretResult {
 
 export interface MovScriptWorkspaceInterpretInput {
   fileRepository: MovScriptWorkspaceFileRepository
-  decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision'>
+  decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision' | 'getContentUnitDecisions'>
   now?: Date
   commit?: string
   checkpointHash?: string
-  debugArtifacts?: boolean
 }

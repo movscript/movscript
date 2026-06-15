@@ -470,7 +470,7 @@ function RunInteractionPager({
     <AgentRunInteractionSectionActions>
       <button
         type="button"
-        className="ms-agent-run-interaction-pager__button"
+        className="agent-run-interaction-pager__button"
         disabled={page <= 0}
         onClick={() => onPageChange(previousPage)}
         aria-label={previousLabel}
@@ -478,10 +478,10 @@ function RunInteractionPager({
       >
         <ChevronLeft size={12} />
       </button>
-      <span className="ms-agent-run-interaction-pager__count">{page + 1}/{pageCount}</span>
+      <span className="agent-run-interaction-pager__count">{page + 1}/{pageCount}</span>
       <button
         type="button"
-        className="ms-agent-run-interaction-pager__button"
+        className="agent-run-interaction-pager__button"
         disabled={page >= pageCount - 1}
         onClick={() => onPageChange(nextPage)}
         aria-label={nextLabel}

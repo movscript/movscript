@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ElectronAppUpdateStatus } from '@/shared/contracts/electronApi'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
+import { listenToWindowEvent, publishWindowEvent } from '@/shared/infrastructure/windowEvents'
 
 export const APP_UPDATE_STATUS_EVENT = 'movscript:app-update-status'
 
@@ -34,7 +35,7 @@ export function useAppUpdateStatus(): AppUpdateStatus {
       setStatus(normalizeAppUpdateStatus(event.detail))
     }
 
-    window.addEventListener(APP_UPDATE_STATUS_EVENT, handleUpdateStatus)
+    const cleanupUpdateStatusListener = listenToWindowEvent(APP_UPDATE_STATUS_EVENT, handleUpdateStatus)
     const api = readElectronApi()
     const unsubscribe = api?.onAppUpdateStatus?.((nextStatus) => {
       setStatus(normalizeAppUpdateStatus(nextStatus))
@@ -44,7 +45,7 @@ export function useAppUpdateStatus(): AppUpdateStatus {
     }).catch(() => {})
 
     return () => {
-      window.removeEventListener(APP_UPDATE_STATUS_EVENT, handleUpdateStatus)
+      cleanupUpdateStatusListener()
       unsubscribe?.()
     }
   }, [])
@@ -65,7 +66,7 @@ export async function openAppUpdateDownload(): Promise<AppUpdateStatus> {
 }
 
 export function announceAppUpdateStatus(status: AppUpdateStatus): void {
-  window.dispatchEvent(new CustomEvent(APP_UPDATE_STATUS_EVENT, {
+  publishWindowEvent(new CustomEvent(APP_UPDATE_STATUS_EVENT, {
     detail: normalizeAppUpdateStatus(status),
   }))
 }

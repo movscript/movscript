@@ -290,6 +290,7 @@ export interface GatewayAPIKey {
   allowed_model_ids: string
   allowed_scopes: string
   is_enabled: boolean
+  new_api_group?: string
   last_used_at?: string
   CreatedAt: string
   UpdatedAt: string

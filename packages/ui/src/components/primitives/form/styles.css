@@ -42,6 +42,16 @@
   resize: vertical;
 }
 
+.mention-editor {
+  min-width: 0;
+}
+
+.mention-editor:empty::before {
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 40%, transparent);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
 .ms-checkbox-field {
   display: flex;
   height: 38px;

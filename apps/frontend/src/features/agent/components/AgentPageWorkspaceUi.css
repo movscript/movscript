@@ -304,11 +304,6 @@
   transition: background-color var(--ms-duration-fast) var(--ms-easing-standard), border-color var(--ms-duration-fast) var(--ms-easing-standard);
 }
 
-.agent-workspace-list-item > .ms-button__content {
-  display: block;
-  width: 100%;
-}
-
 .agent-workspace-list-item__content {
   display: flex;
   min-width: 0;

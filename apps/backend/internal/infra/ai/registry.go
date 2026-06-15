@@ -121,7 +121,7 @@ func (r *Registry) GetFileUploader(ctx context.Context, userID uint, cfg persist
 		if newAPICfg.RelayBaseURL() == "" {
 			return nil
 		}
-		token, err := newapi.NewIdentityService(r.db, r.encryptionKey, newAPICfg, nil).RelayTokenForUser(ctx, userID)
+		token, err := newapi.NewIdentityService(r.db, r.encryptionKey, newAPICfg, nil).RelayTokenForUserGroup(ctx, userID, providerNewAPIGroupFromContext(ctx))
 		if err != nil {
 			return nil
 		}

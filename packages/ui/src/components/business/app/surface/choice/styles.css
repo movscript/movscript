@@ -1,4 +1,8 @@
 .app-choice-tile {
+  --ms-button-content-display: block;
+  --ms-button-content-min-width: 0;
+  --ms-button-content-width: 100%;
+
   height: auto;
   justify-content: flex-start;
   border: 1px solid var(--ms-color-border);
@@ -9,10 +13,4 @@
 
 .app-choice-tile[data-selected="true"] {
   border-color: color-mix(in srgb, var(--ms-color-primary) 70%, var(--ms-color-border));
-}
-
-.app-choice-tile .ms-button__content {
-  display: block;
-  width: 100%;
-  min-width: 0;
 }

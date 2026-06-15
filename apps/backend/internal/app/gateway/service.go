@@ -104,9 +104,10 @@ type ResponsesInput struct {
 }
 
 type OpenAIProxyInput struct {
-	Principal Principal
-	Model     string
-	ProjectID *uint
+	Principal    Principal
+	Model        string
+	ProjectID    *uint
+	Capabilities []string
 }
 
 type OpenAIProxyRoute struct {
@@ -258,6 +259,7 @@ func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, er
 	if err != nil {
 		return ChatResult{}, err
 	}
+	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
 	resp, err := s.ai.CallTextWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
@@ -277,6 +279,7 @@ func (s *Service) CallResponses(ctx context.Context, input ResponsesInput) (Chat
 	}
 	responsesReq := input.Responses
 	responsesReq.Text = textReq
+	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
 	resp, err := s.ai.CallResponsesWithUsage(ctx, input.Principal.UserID, modelConfigID, responsesReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
@@ -289,6 +292,7 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 	if err != nil {
 		return ChatStreamResult{}, err
 	}
+	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
 	events, err := s.ai.CallTextStreamWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatStreamResult{}, err
@@ -300,11 +304,12 @@ func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput
 	if s.ai == nil {
 		return OpenAIProxyRoute{}, ErrModelUnavailable
 	}
-	modelConfigID, responseModel, err := s.ResolveTextModel(ctx, input.Model)
+	capabilities := compactOpenAIProxyCapabilities(input.Capabilities)
+	modelConfigID, responseModel, capability, err := s.resolveOpenAIProxyModel(ctx, input.Model, capabilities)
 	if err != nil {
 		return OpenAIProxyRoute{}, err
 	}
-	route, err := s.resolveRuntimeTextRoute(ctx, modelConfigID)
+	route, err := s.resolveRuntimeRoute(ctx, modelConfigID, capability)
 	if err != nil {
 		return OpenAIProxyRoute{}, err
 	}
@@ -313,7 +318,8 @@ func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput
 			return OpenAIProxyRoute{}, err
 		}
 	}
-	target, err := s.ai.OpenAIProxyTarget(ctx, input.Principal.UserID, route.ModelConfigID)
+	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
+	target, err := s.ai.OpenAIProxyTargetForCapability(ctx, input.Principal.UserID, route.ModelConfigID, capability)
 	if err != nil {
 		return OpenAIProxyRoute{}, fmt.Errorf("%w: %v", ErrModelUnavailable, err)
 	}
@@ -347,11 +353,15 @@ func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, strin
 }
 
 func (s *Service) resolveRuntimeTextRoute(ctx context.Context, modelConfigID uint) (providercontract.AIGatewayModelRoute, error) {
+	return s.resolveRuntimeRoute(ctx, modelConfigID, ai.CapabilityText, ai.CapabilityReasoning)
+}
+
+func (s *Service) resolveRuntimeRoute(ctx context.Context, modelConfigID uint, capabilities ...string) (providercontract.AIGatewayModelRoute, error) {
 	if s.routing == nil {
 		return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
 	}
 	var lastErr error
-	for _, capability := range []string{ai.CapabilityText, ai.CapabilityReasoning} {
+	for _, capability := range compactOpenAIProxyCapabilities(capabilities) {
 		route, err := s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
 			ModelConfigID: modelConfigID,
 			Capability:    capability,
@@ -365,6 +375,71 @@ func (s *Service) resolveRuntimeTextRoute(ctx context.Context, modelConfigID uin
 		return providercontract.AIGatewayModelRoute{}, lastErr
 	}
 	return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
+}
+
+func (s *Service) resolveOpenAIProxyModel(ctx context.Context, modelID string, capabilities []string) (uint, string, string, error) {
+	if s.catalog == nil {
+		return 0, strings.TrimSpace(modelID), "", ErrModelUnavailable
+	}
+	var lastErr error
+	for _, capability := range capabilities {
+		modelConfigID, responseModel, err := s.resolveModelForCapability(ctx, modelID, capability)
+		if err == nil {
+			return modelConfigID, responseModel, capability, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return 0, strings.TrimSpace(modelID), "", lastErr
+	}
+	return 0, strings.TrimSpace(modelID), "", ErrModelUnavailable
+}
+
+func (s *Service) resolveModelForCapability(ctx context.Context, modelID string, capability string) (uint, string, error) {
+	descriptors, err := s.catalog.ListModels(ctx, providercontract.AIModelListFilter{Capability: capability})
+	if err != nil {
+		return 0, strings.TrimSpace(modelID), err
+	}
+	models := make([]ChatModel, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		models = append(models, chatModelFromDescriptor(descriptor))
+	}
+	var defaultID uint
+	var defaultErr error
+	if strings.TrimSpace(modelID) == "" {
+		if s.routing == nil {
+			defaultErr = ErrModelUnavailable
+		} else {
+			route, err := s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{Capability: capability})
+			if err != nil {
+				defaultErr = err
+			} else {
+				defaultID = route.ModelConfigID
+			}
+		}
+	}
+	id, responseModel, err := ResolveTextModel(models, modelID, defaultID, defaultErr)
+	if err != nil {
+		return id, responseModel, ModelNotFoundError{Message: err.Error()}
+	}
+	return id, responseModel, nil
+}
+
+func compactOpenAIProxyCapabilities(capabilities []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(capabilities))
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if capability == "" || seen[capability] {
+			continue
+		}
+		seen[capability] = true
+		out = append(out, capability)
+	}
+	if len(out) == 0 {
+		return []string{ai.CapabilityText, ai.CapabilityReasoning}
+	}
+	return out
 }
 
 func (s *Service) ResolveTextModel(ctx context.Context, modelID string) (uint, string, error) {

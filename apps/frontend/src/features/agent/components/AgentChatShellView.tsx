@@ -3,8 +3,8 @@ import {
   AgentEmpty,
   AgentMain,
   AgentShell,
-  type AgentConversationTabItem,
 } from '@movscript/ui/business/agent'
+import type { AgentConversationTabItem } from '@/features/agent/components/AgentConversationTabsUi'
 import {
   AgentChatDataSourcePanelCard,
   AgentChatDataSourceComposerPanel,

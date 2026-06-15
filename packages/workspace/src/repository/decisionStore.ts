@@ -57,6 +57,7 @@ export interface MovScriptContentUnitDecisionSelectionResult {
 
 export interface MovScriptDecisionStore {
   getContentUnitDecision(input: MovScriptContentUnitDecisionTarget): Promise<MovScriptDecisionContext | undefined>
+  getContentUnitDecisions?(input: { contentUnitIds: Array<string | number> }): Promise<Map<string, MovScriptDecisionContext>>
   replaceContentUnitCandidates(input: MovScriptContentUnitDecisionCandidatesInput): Promise<MovScriptDecisionContext>
   upsertContentUnitCandidate(input: MovScriptContentUnitDecisionCandidateInput): Promise<MovScriptDecisionContext>
   selectContentUnitCandidate(input: MovScriptContentUnitDecisionSelectionInput): Promise<MovScriptDecisionContext>
@@ -128,6 +129,29 @@ export function createMovScriptBackendDecisionStore(
         hasSelection: Boolean(context?.selection),
       })
       return context
+    },
+    async getContentUnitDecisions(input) {
+      const ids = uniqueContentUnitIds(input.contentUnitIds)
+      if (ids.length === 0) return new Map()
+      const contexts = await request<MovScriptDecisionContext[]>('/decisions/query', {
+        method: 'POST',
+        body: JSON.stringify({
+          target_kind: 'content_unit',
+          target_refs: ids.map(contentUnitDecisionTargetRef),
+        }),
+      }) ?? []
+      console.info('[movscript-decision-store] get content unit decisions', {
+        projectId: options.projectId,
+        requestedCount: ids.length,
+        foundCount: contexts.length,
+      })
+      const byTargetRef = new Map(contexts.map((context) => [context.target_ref, context]))
+      const out = new Map<string, MovScriptDecisionContext>()
+      for (const id of ids) {
+        const context = byTargetRef.get(contentUnitDecisionTargetRef(id))
+        if (context) out.set(String(id), context)
+      }
+      return out
     },
     async replaceContentUnitCandidates(input) {
       const targetRef = contentUnitDecisionTargetRef(input.contentUnitId)
@@ -205,17 +229,18 @@ export function createMovScriptBackendDecisionStore(
 
 export async function overlayMovScriptDecisionDocuments(
   documents: MovScriptWorkspaceDocument[],
-  decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision'>,
+  decisionStore?: Pick<MovScriptDecisionStore, 'getContentUnitDecision' | 'getContentUnitDecisions'>,
 ): Promise<MovScriptWorkspaceDocument[]> {
   if (!decisionStore) return documents
   const sourceDocuments = documents.filter((document) => !isMovScriptContentUnitDecisionPath(document.path))
   const baseIndex = deriveMovScriptWorkspaceDomainIndex(sourceDocuments)
   const contentUnits = baseIndex.byKind.get('content_unit') ?? []
+  const decisionsByContentUnitId = await getOverlayDecisionContexts(decisionStore, contentUnits)
   const overlays: MovScriptWorkspaceDocument[] = []
   const rows: Array<{ contentUnitId: string | number; targetRef: string; candidateCount: number; candidateIds: Array<string | number> }> = []
   for (const contentUnit of contentUnits) {
     if (contentUnit.id === undefined) continue
-    const context = await decisionStore.getContentUnitDecision({ contentUnitId: contentUnit.id })
+    const context = decisionsByContentUnitId.get(String(contentUnit.id))
     if (!context) continue
     const contentUnitRef = entityDir(contentUnit.path)
     rows.push({
@@ -248,6 +273,35 @@ export async function overlayMovScriptDecisionDocuments(
     ...sourceDocuments.filter((document) => !overlayPaths.has(document.path)),
     ...overlays,
   ].sort((left, right) => left.path.localeCompare(right.path))
+}
+
+async function getOverlayDecisionContexts(
+  decisionStore: Pick<MovScriptDecisionStore, 'getContentUnitDecision' | 'getContentUnitDecisions'>,
+  contentUnits: { id?: string | number }[],
+): Promise<Map<string, MovScriptDecisionContext>> {
+  const contentUnitIds = uniqueContentUnitIds(contentUnits.map((unit) => unit.id).filter((id): id is string | number => id !== undefined))
+  if (contentUnitIds.length === 0) return new Map()
+  if (decisionStore.getContentUnitDecisions) {
+    return decisionStore.getContentUnitDecisions({ contentUnitIds })
+  }
+  const out = new Map<string, MovScriptDecisionContext>()
+  for (const contentUnitId of contentUnitIds) {
+    const context = await decisionStore.getContentUnitDecision({ contentUnitId })
+    if (context) out.set(String(contentUnitId), context)
+  }
+  return out
+}
+
+function uniqueContentUnitIds(values: Array<string | number>): Array<string | number> {
+  const seen = new Set<string>()
+  const out: Array<string | number> = []
+  for (const value of values) {
+    const key = String(value)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(value)
+  }
+  return out
 }
 
 export function contentUnitDecisionTargetRef(contentUnitId: string | number): string {

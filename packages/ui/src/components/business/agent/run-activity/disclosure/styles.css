@@ -1,5 +1,5 @@
 .ms-agent-run-activity {
-  margin-top: 8px;
+  margin-top: var(--agent-run-activity-margin-top, 8px);
   font-size: var(--ms-text-label);
 }
 
@@ -10,7 +10,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  min-height: var(--agent-run-activity-summary-min-height, auto);
+  padding: var(--agent-run-activity-summary-padding, 8px 10px);
 }
 
 .ms-agent-run-activity__summary::marker,
@@ -51,8 +52,8 @@
 }
 
 .ms-agent-run-activity__content {
-  border-top: 1px solid color-mix(in srgb, color-mix(in srgb, var(--ms-color-border) 78%, transparent) 80%, transparent);
-  padding: 8px 10px;
+  border-top: var(--agent-run-activity-content-border-top, 1px solid color-mix(in srgb, color-mix(in srgb, var(--ms-color-border) 78%, transparent) 80%, transparent));
+  padding: var(--agent-run-activity-content-padding, 8px 10px);
 }
 
 .ms-agent-run-activity__content > * + * {

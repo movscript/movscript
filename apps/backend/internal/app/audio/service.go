@@ -57,6 +57,17 @@ type TranscribeInput struct {
 	Params          json.RawMessage
 }
 
+type AlignInput struct {
+	UserID          uint
+	OrgID           *uint
+	ModelConfigID   uint
+	AudioResourceID uint
+	Script          string
+	Language        string
+	Model           string
+	Params          json.RawMessage
+}
+
 type TranscribeResult struct {
 	Timing      media.TimingMetadata `json:"timing"`
 	Text        string               `json:"text"`
@@ -159,26 +170,10 @@ func (s *Service) Transcribe(ctx context.Context, input TranscribeInput) (Transc
 	if err != nil {
 		return TranscribeResult{}, err
 	}
-	resource, err := s.resources.GetVisible(ctx, input.AudioResourceID, input.UserID, input.OrgID)
+	data, mimeType, err := s.loadAudioResource(ctx, input.AudioResourceID, input.UserID, input.OrgID)
 	if err != nil {
 		return TranscribeResult{}, err
 	}
-	if resource.StorageKey == "" {
-		return TranscribeResult{}, fmt.Errorf("%w: audio resource has no storage key", ErrInvalidRequest)
-	}
-	if resource.Type != "audio" && !strings.HasPrefix(resource.MimeType, "audio/") && !strings.HasPrefix(resource.MimeType, "video/") {
-		return TranscribeResult{}, fmt.Errorf("%w: resource must be audio or video", ErrInvalidRequest)
-	}
-	body, _, contentType, err := s.store.GetObject(ctx, resource.StorageKey, -1, -1)
-	if err != nil {
-		return TranscribeResult{}, err
-	}
-	defer body.Close()
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return TranscribeResult{}, err
-	}
-	mimeType := firstNonEmpty(resource.MimeType, contentType)
 	resp, err := s.aiService.CallTranscribe(ctx, input.UserID, input.ModelConfigID, media.TranscribeRequest{
 		AudioResourceID: input.AudioResourceID,
 		Audio:           data,
@@ -195,6 +190,70 @@ func (s *Service) Transcribe(ctx context.Context, input TranscribeInput) (Transc
 		Text:        strings.TrimSpace(string(resp.Content)),
 		ProviderRef: resp.ProviderRef,
 	}, nil
+}
+
+func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult, error) {
+	if input.UserID == 0 {
+		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
+	}
+	if input.ModelConfigID == 0 {
+		return TranscribeResult{}, fmt.Errorf("%w: model_config_id is required", ErrInvalidRequest)
+	}
+	if input.AudioResourceID == 0 {
+		return TranscribeResult{}, fmt.Errorf("%w: audio_resource_id is required", ErrInvalidRequest)
+	}
+	script := strings.TrimSpace(input.Script)
+	if script == "" {
+		return TranscribeResult{}, fmt.Errorf("%w: script is required", ErrInvalidRequest)
+	}
+	params, err := parseParams(input.Params)
+	if err != nil {
+		return TranscribeResult{}, err
+	}
+	data, mimeType, err := s.loadAudioResource(ctx, input.AudioResourceID, input.UserID, input.OrgID)
+	if err != nil {
+		return TranscribeResult{}, err
+	}
+	resp, err := s.aiService.CallAlign(ctx, input.UserID, input.ModelConfigID, media.AlignRequest{
+		AudioResourceID: input.AudioResourceID,
+		Audio:           data,
+		MimeType:        mimeType,
+		Script:          script,
+		Language:        strings.TrimSpace(input.Language),
+		Model:           strings.TrimSpace(input.Model),
+		Params:          params,
+	}, ai.UsageContext{OrgID: input.OrgID})
+	if err != nil {
+		return TranscribeResult{}, fmt.Errorf("%w: %v", ErrProvider, err)
+	}
+	return TranscribeResult{
+		Timing:      resp.Timing,
+		Text:        strings.TrimSpace(string(resp.Content)),
+		ProviderRef: resp.ProviderRef,
+	}, nil
+}
+
+func (s *Service) loadAudioResource(ctx context.Context, resourceID uint, userID uint, orgID *uint) ([]byte, string, error) {
+	resource, err := s.resources.GetVisible(ctx, resourceID, userID, orgID)
+	if err != nil {
+		return nil, "", err
+	}
+	if resource.StorageKey == "" {
+		return nil, "", fmt.Errorf("%w: audio resource has no storage key", ErrInvalidRequest)
+	}
+	if resource.Type != "audio" && !strings.HasPrefix(resource.MimeType, "audio/") && !strings.HasPrefix(resource.MimeType, "video/") {
+		return nil, "", fmt.Errorf("%w: resource must be audio or video", ErrInvalidRequest)
+	}
+	body, _, contentType, err := s.store.GetObject(ctx, resource.StorageKey, -1, -1)
+	if err != nil {
+		return nil, "", err
+	}
+	defer body.Close()
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, firstNonEmpty(resource.MimeType, contentType), nil
 }
 
 func parseParams(raw json.RawMessage) (map[string]any, error) {
