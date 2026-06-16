@@ -104,6 +104,80 @@ test('interpreter derived artifacts are derived from canonical source only', () 
     && item.target.id === 'cu_wet_hair_ref'))
 })
 
+test('interpreter tracks production_ref and segment_ref content units as video outputs', () => {
+  const documents = sourceDocuments()
+  documents.push({
+    path: 'content_units/cu_opening_video/content_unit.json',
+    data: {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_opening_video',
+      title: 'Opening segment video',
+      content_unit_type: 'segment_ref',
+      output_kind: 'video',
+      target_kind: 'segment',
+      target_ref: 'productions/p8f3/segments/a19d',
+      segment_ref: 'a19d',
+      edit_prompt: { text: 'Compose the opening segment video.' },
+    },
+  })
+  documents.push({
+    path: 'content_units/cu_episode_final/content_unit.json',
+    data: {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_episode_final',
+      title: 'Episode final video',
+      content_unit_type: 'production_ref',
+      output_kind: 'video',
+      target_kind: 'production',
+      target_ref: 'p8f3',
+      production_ref: 'p8f3',
+      edit_prompt: { text: 'Compose final episode using {{segment:a19d}}.' },
+    },
+  })
+  const index = deriveMovScriptWorkspaceDomainIndex(documents)
+  const artifacts = deriveMovScriptWorkspaceArtifacts({
+    index,
+    changedEntities: [{
+      entityKind: 'production',
+      id: 'p8f3',
+      path: 'productions/p8f3/production.json',
+      state: 'modified',
+    }],
+    semanticChanges: [{
+      entity: { kind: 'production', id: 'p8f3' },
+      kind: 'semantic_input_changed',
+      businessKind: 'production_structure_changed',
+      propagation: 'downstream_reference',
+      fields: ['*'],
+      sourceChange: { operation: 'modified', path: 'productions/p8f3/production.json' },
+    }],
+    interpretationId: 'interpret_test',
+    createdAt: '2026-06-07T00:00:00.000Z',
+  })
+
+  const productionArtifact = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'cu_episode_final')
+  const segmentArtifact = artifacts.contentUnitArtifacts.find((artifact) => artifact.contentUnitId === 'cu_opening_video')
+  assert.equal(productionArtifact?.runtimePanel.content_unit_type, 'production_ref')
+  assert.equal(productionArtifact?.runtimePanel.output_kind, 'video')
+  assert.equal(productionArtifact?.runtimePanel.status, 'blocked')
+  assert.equal(productionArtifact?.dependencyReport.blockers?.some((blocker) => blocker.code === 'upstream_selection_missing'), true)
+  assert.equal(segmentArtifact?.runtimePanel.content_unit_type, 'segment_ref')
+  assert.equal(segmentArtifact?.runtimePanel.output_kind, 'video')
+  assert.equal(segmentArtifact?.runtimePanel.status, 'ready')
+  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'uses'
+    && relation.from.id === 'cu_episode_final'
+    && relation.to.entityKind === 'production'
+    && relation.to.id === 'p8f3'))
+  assert.ok(artifacts.relationGraph.relations.some((relation) => relation.type === 'uses'
+    && relation.from.id === 'cu_episode_final'
+    && relation.to.entityKind === 'segment'
+    && relation.to.id === 'a19d'))
+  const changedProduction = artifacts.impactReport.changedEntities.find((entity) => entity.entityKind === 'production' && entity.id === 'p8f3')
+  assert.equal(changedProduction?.affectedContentUnits.some((entity) => entity.id === 'cu_episode_final'), true)
+})
+
 test('production work plan derives candidate selection and stale review items in memory', () => {
   const documents = sourceDocuments()
   documents.push({

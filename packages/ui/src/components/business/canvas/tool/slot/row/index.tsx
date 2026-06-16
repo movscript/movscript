@@ -30,7 +30,7 @@ export function CanvasToolSlotRow({
       variant="muted"
       data-input-port-id={direction === "input" ? slot.inputPortId ?? `tool-in:${slot.id}` : undefined}
       data-output-port-id={direction === "output" ? slot.outputPortId ?? `tool-out:${slot.id}` : undefined}
-      className={cn("canvas-tool-slot-row", isFailed && "canvas-tool-slot-row--failed")}
+      className={cn("ms-action-row ms-type-tiny canvas-tool-slot-row", isFailed && "canvas-tool-slot-row--failed")}
     >
       {direction === "input" ? (
         <CanvasToolPortHandle
@@ -42,13 +42,13 @@ export function CanvasToolSlotRow({
           renderPortHandle={renderPortHandle}
         />
       ) : null}
-      <span className={cn("canvas-tool-slot-row__icon", isFailed && "canvas-tool-slot-row__icon--failed")}>{icon}</span>
-      <span className="canvas-tool-slot-row__label">{slot.label}</span>
-      <span className={cn("canvas-tool-slot-row__summary", isFailed && "canvas-tool-slot-row__summary--failed")}>
+      <span className={cn("ms-inline-center canvas-tool-slot-row__icon", isFailed && "canvas-tool-slot-row__icon--failed")}>{icon}</span>
+      <span className="ms-text-truncate canvas-tool-slot-row__label">{slot.label}</span>
+      <span className={cn("ms-text-truncate canvas-tool-slot-row__summary", isFailed && "canvas-tool-slot-row__summary--failed")}>
         {slot.summary ?? canvasToolSlotStateLabel(slot.state)}
       </span>
-      {isPending ? <span className="canvas-tool-slot-row__state-icon">{pendingIcon}</span> : null}
-      {isReady ? <span className="canvas-tool-slot-row__state-icon canvas-tool-slot-row__state-icon--ready">{readyIcon}</span> : null}
+      {isPending ? <span className="ms-inline-center canvas-tool-slot-row__state-icon">{pendingIcon}</span> : null}
+      {isReady ? <span className="ms-inline-center canvas-tool-slot-row__state-icon canvas-tool-slot-row__state-icon--ready">{readyIcon}</span> : null}
       {direction === "output" ? (
         <CanvasToolPortHandle
           side="right"

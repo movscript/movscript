@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { mkdtemp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import type { NodeMovScriptEngine } from '@movscript/engine/node'
 import type {
@@ -9,11 +12,14 @@ import type {
 
 import {
   __setProjectEngineFactoryForTest,
+  __setProjectEngineWorkspaceUpdatedBroadcasterForTest,
   createMovScriptEngineContentCandidate,
   loadMovScriptEngineContentWorkspace,
   loadMovScriptEngineContentWorkspaceSnapshot,
   projectEngineRegistry,
   saveMovScriptEngineWorkspaceProductionSnapshot,
+  syncMovScriptEngineContentWorkspace,
+  upsertMovScriptEngineWorkspaceSetting,
 } from './projectEngineRegistry'
 
 test('project engine registry reuses one engine per project context', () => {
@@ -110,10 +116,11 @@ test('content candidate mutations invalidate cached project engines', async () =
 
   try {
     const first = projectEngineRegistry.get({ workspaceDir: '/workspace', projectId: 7 })
-    await createMovScriptEngineContentCandidate({
-      workspaceDir: '/workspace',
-      projectId: 7,
-      contentUnitId: 'cu_phone',
+	    await createMovScriptEngineContentCandidate({
+	      workspaceDir: '/workspace',
+	      projectId: 7,
+	      expectedWorkspaceVersions: {},
+	      contentUnitId: 'cu_phone',
       candidateId: 'cand_a',
       source: 'ai_generate',
       status: 'queued',
@@ -149,10 +156,11 @@ test('workspace domain mutations run through project engines and invalidate cach
 
   try {
     const first = projectEngineRegistry.get({ workspaceDir: '/workspace', projectId: 7 })
-    await saveMovScriptEngineWorkspaceProductionSnapshot({
-      workspaceDir: '/workspace',
-      projectId: 7,
-      payload: {
+	    await saveMovScriptEngineWorkspaceProductionSnapshot({
+	      workspaceDir: '/workspace',
+	      projectId: 7,
+	      expectedWorkspaceVersions: {},
+	      payload: {
         productionId: 'pilot',
         snapshot: {
           production: { id: 'pilot', title: 'Pilot' },
@@ -170,6 +178,198 @@ test('workspace domain mutations run through project engines and invalidate cach
   }
 })
 
+test('workspace mutations are serialized per project context', async () => {
+  const calls: string[] = []
+  let releaseFirst: (() => void) | undefined
+  const firstStarted = deferred<void>()
+  const restoreEngine = __setProjectEngineFactoryForTest(() => fakeEngine({
+    upsertSetting: async (input) => {
+      const id = String((input as { id?: unknown }).id)
+      calls.push(`start:${id}`)
+      if (id === 'first') {
+        firstStarted.resolve()
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      calls.push(`end:${id}`)
+      return { path: `settings/${id}/setting.json`, record: { id } }
+    },
+  }))
+  const restoreBroadcast = __setProjectEngineWorkspaceUpdatedBroadcasterForTest(() => undefined)
+
+  try {
+	    const first = upsertMovScriptEngineWorkspaceSetting({
+	      workspaceDir: '/workspace',
+	      projectId: 7,
+	      expectedWorkspaceVersions: {},
+	      payload: { id: 'first' } as never,
+	    })
+    await firstStarted.promise
+
+	    const second = upsertMovScriptEngineWorkspaceSetting({
+	      workspaceDir: '/workspace',
+	      projectId: 7,
+	      expectedWorkspaceVersions: {},
+	      payload: { id: 'second' } as never,
+	    })
+    await Promise.resolve()
+
+    assert.deepEqual(calls, ['start:first'])
+    releaseFirst?.()
+    await Promise.all([first, second])
+    assert.deepEqual(calls, ['start:first', 'end:first', 'start:second', 'end:second'])
+  } finally {
+    restoreBroadcast()
+    restoreEngine()
+  }
+})
+
+test('workspace mutation queues do not block different projects', async () => {
+  const calls: string[] = []
+  let releaseFirst: (() => void) | undefined
+  const firstStarted = deferred<void>()
+  const restoreEngine = __setProjectEngineFactoryForTest((context) => fakeEngine({
+    upsertSetting: async () => {
+      calls.push(`start:${context.projectId}`)
+      if (context.projectId === 7) {
+        firstStarted.resolve()
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      calls.push(`end:${context.projectId}`)
+      return { path: `settings/${context.projectId}/setting.json`, record: { id: context.projectId } }
+    },
+  }))
+  const restoreBroadcast = __setProjectEngineWorkspaceUpdatedBroadcasterForTest(() => undefined)
+
+  try {
+	    const first = upsertMovScriptEngineWorkspaceSetting({
+	      workspaceDir: '/workspace',
+	      projectId: 7,
+	      expectedWorkspaceVersions: {},
+	      payload: { id: 'first' } as never,
+	    })
+    await firstStarted.promise
+
+	    await upsertMovScriptEngineWorkspaceSetting({
+	      workspaceDir: '/workspace',
+	      projectId: 8,
+	      expectedWorkspaceVersions: {},
+	      payload: { id: 'second' } as never,
+	    })
+    assert.deepEqual(calls, ['start:7', 'start:8', 'end:8'])
+
+    releaseFirst?.()
+    await first
+    assert.deepEqual(calls, ['start:7', 'start:8', 'end:8', 'end:7'])
+  } finally {
+    restoreBroadcast()
+    restoreEngine()
+  }
+})
+
+test('interpret sync emits a project workspace update event after completion', async () => {
+  const events: unknown[] = []
+  const restoreEngine = __setProjectEngineFactoryForTest(() => fakeEngine({
+    interpret: async () => ({ ok: true }),
+  }))
+  const restoreBroadcast = __setProjectEngineWorkspaceUpdatedBroadcasterForTest((event) => {
+    events.push(event)
+  })
+
+  try {
+    await syncMovScriptEngineContentWorkspace({ workspaceDir: '/workspace', projectId: 7, userId: 1 })
+    assert.equal(events.length, 1)
+    assert.deepEqual(events[0], {
+      type: 'MovScriptEngineWorkspaceUpdated',
+      reason: 'interpret-synced',
+      sequence: (events[0] as { sequence: number }).sequence,
+      updatedAt: (events[0] as { updatedAt: string }).updatedAt,
+      movScriptHomeDir: '/workspace',
+      workspaceDir: '/workspace',
+      userId: 1,
+      projectId: 7,
+    })
+  } finally {
+    restoreBroadcast()
+    restoreEngine()
+  }
+})
+
+test('workspace mutations interpret and reject stale expected workspace versions before writing', async () => {
+  const projectDir = await mkdtemp(join(tmpdir(), 'movscript-project-engine-lock-'))
+  const targetPath = 'settings/project_standards/setting.json'
+  const absoluteTargetPath = join(projectDir, targetPath)
+  await mkdir(join(projectDir, 'settings', 'project_standards'), { recursive: true })
+  await writeFile(absoluteTargetPath, '{"title":"Initial"}', 'utf8')
+  const initialStat = await stat(absoluteTargetPath)
+	  const initialVersion = `${Math.trunc(Number(initialStat.mtimeMs))}:${initialStat.size}`
+  await writeFile(absoluteTargetPath, '{"title":"External"}', 'utf8')
+
+  const calls: string[] = []
+  const restoreEngine = __setProjectEngineFactoryForTest(() => fakeEngine({
+    projectDir,
+    interpret: async () => {
+      calls.push('interpret')
+      return {}
+    },
+    upsertSetting: async () => {
+      calls.push('write')
+      return { path: targetPath, record: { id: 'project_standards' } }
+    },
+  }))
+  const restoreBroadcast = __setProjectEngineWorkspaceUpdatedBroadcasterForTest(() => undefined)
+
+  try {
+    await assert.rejects(
+      upsertMovScriptEngineWorkspaceSetting({
+        workspaceDir: '/workspace',
+        projectId: 7,
+        expectedWorkspaceVersions: { [targetPath]: initialVersion },
+        payload: { id: 'project_standards' } as never,
+      }),
+      /workspace file changed/,
+    )
+    assert.deepEqual(calls, ['interpret'])
+  } finally {
+    restoreBroadcast()
+    restoreEngine()
+    await rm(projectDir, { recursive: true, force: true })
+	  }
+	})
+
+test('workspace mutations reject missing expected workspace versions', async () => {
+  const calls: string[] = []
+  const restoreEngine = __setProjectEngineFactoryForTest(() => fakeEngine({
+    interpret: async () => {
+      calls.push('interpret')
+      return {}
+    },
+    upsertSetting: async () => {
+      calls.push('write')
+      return { path: 'settings/project_standards/setting.json', record: { id: 'project_standards' } }
+    },
+  }))
+  const restoreBroadcast = __setProjectEngineWorkspaceUpdatedBroadcasterForTest(() => undefined)
+
+  try {
+    await assert.rejects(
+      upsertMovScriptEngineWorkspaceSetting({
+        workspaceDir: '/workspace',
+        projectId: 7,
+        payload: { id: 'project_standards' } as never,
+      }),
+      /expectedWorkspaceVersions is required/,
+    )
+    assert.deepEqual(calls, ['interpret'])
+  } finally {
+    restoreBroadcast()
+    restoreEngine()
+  }
+})
+
 function fakeEngine(input: {
   projectDir?: string
   documents?: Array<{ path: string; data: unknown }>
@@ -178,6 +378,8 @@ function fakeEngine(input: {
   onCreate?: () => void
   createContentCandidate?: MovScriptWorkspaceService['createContentCandidate']
   saveProductionSnapshot?: MovScriptWorkspaceService['saveProductionSnapshot']
+  upsertSetting?: MovScriptWorkspaceService['upsertSetting']
+  interpret?: NodeMovScriptEngine['interpret']
 } = {}): NodeMovScriptEngine {
   input.onCreate?.()
   const byKind = new Map(Object.entries(input.byKind ?? {}))
@@ -218,6 +420,10 @@ function fakeEngine(input: {
       path: '',
       record: candidateInput as unknown as Record<string, unknown>,
     })),
+    upsertSetting: input.upsertSetting ?? (async (settingInput) => ({
+      path: '',
+      record: settingInput as unknown as Record<string, unknown>,
+    })),
     saveProductionSnapshot: input.saveProductionSnapshot ?? (async (snapshotInput) => ({
       productionPath: '',
       writtenPaths: [],
@@ -229,7 +435,18 @@ function fakeEngine(input: {
     projectDir: input.projectDir ?? '/workspace/project',
     workspaceService: service,
     review: async () => input.reviewResult ?? {},
+    interpret: input.interpret ?? (async () => ({})),
   } as Partial<NodeMovScriptEngine> as NodeMovScriptEngine
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void; reject: (error: unknown) => void } {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
 }
 
 function entity(

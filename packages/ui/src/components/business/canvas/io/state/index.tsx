@@ -24,19 +24,19 @@ export function CanvasIOStateTile({
   return (
     <AppSurfaceItem
       variant="muted"
-      className={cn("canvas-io-state-tile", !isReady && "canvas-io-state-tile--empty", isFailed && "canvas-io-state-tile--failed")}
+      className={cn("ms-stack canvas-io-state-tile", !isReady && "canvas-io-state-tile--empty", isFailed && "canvas-io-state-tile--failed")}
     >
-      <AppMediaFrame variant="stage" className="canvas-io-state-tile__media">
+      <AppMediaFrame variant="stage" className="ms-center canvas-io-state-tile__media">
         {isPending ? (
-          <span className="canvas-io-state-tile__pending-icon">{pendingIcon}</span>
+          <span className="ms-inline-center canvas-io-state-tile__pending-icon">{pendingIcon}</span>
         ) : isReady ? (
-          <span className="canvas-io-state-tile__ready-icon">{readyIcon}</span>
+          <span className="ms-inline-center canvas-io-state-tile__ready-icon">{readyIcon}</span>
         ) : (
-          <span className={cn("canvas-io-state-tile__empty-icon", isFailed && "canvas-io-state-tile__empty-icon--failed")}>{emptyIcon}</span>
+          <span className={cn("ms-inline-center canvas-io-state-tile__empty-icon", isFailed && "canvas-io-state-tile__empty-icon--failed")}>{emptyIcon}</span>
         )}
       </AppMediaFrame>
       <div className="canvas-io-state-tile__body">
-        <p className={cn("canvas-io-state-tile__label", isFailed && "canvas-io-state-tile__label--failed")}>{label}</p>
+        <p className={cn("ms-text-truncate ms-type-tiny canvas-io-state-tile__label", isFailed && "canvas-io-state-tile__label--failed")}>{label}</p>
       </div>
     </AppSurfaceItem>
   );

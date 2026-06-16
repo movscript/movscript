@@ -3,23 +3,13 @@
 }
 
 .ms-agent-session-status__header {
-  display: flex;
-  align-items: center;
   gap: 6px;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
   font-weight: 600;
-}
-
-.ms-agent-session-status__icon {
-  display: inline-flex;
-  flex-shrink: 0;
 }
 
 .ms-agent-session-status__detail {
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-item);
-  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-code-block {

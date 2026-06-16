@@ -163,7 +163,7 @@ test('agent chat active thread state is owned by the session registry', () => {
   const threadRuntimeEffectsSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadRuntimeEffects.ts'), 'utf8')
   const threadBootstrapSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadBootstrap.ts'), 'utf8')
   const conversationRegistrySource = readFileSync(resolve('src/features/agent/application/useAgentChatConversationRegistry.ts'), 'utf8')
-  const shellModelSource = readFileSync(resolve('src/features/agent/presentation/agentChatDataSourceShellModel.ts'), 'utf8')
+  const shellModelSource = readAgentChatShellModelSource()
 
   assert.match(appServerShellSource, /selectActiveAgentConversationRegistryRecord/)
   assert.match(appServerShellSource, /const readActiveThreadId = useCallback\(\(\) => activeThreadId, \[activeThreadId\]\)/)
@@ -261,7 +261,7 @@ test('project agent chat surface labels empty conversations by project selection
   const projectAgentWorkspaceSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeWorkspace.tsx'), 'utf8')
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
   const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
-  const shellModelSource = readFileSync(resolve('src/features/agent/presentation/agentChatDataSourceShellModel.ts'), 'utf8')
+  const shellModelSource = readAgentChatShellModelSource()
   const unifiedShellSource = readFileSync(resolve('src/features/agent/components/AgentUnifiedChatShell.tsx'), 'utf8')
   const appServerShellSource = readFileSync(resolve('src/features/agent/components/AppServerChatShell.tsx'), 'utf8')
   const chatSurfaceSource = projectAgentWorkspaceSource.match(/function ProjectAgentChatSurface[\s\S]*?return \(/)?.[0] ?? ''
@@ -284,6 +284,7 @@ test('project agent mode project groups only render groups with open conversatio
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const projectAgentSidebarPartsSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarParts.tsx'), 'utf8')
 
@@ -299,6 +300,7 @@ test('project agent mode app-server conversations use thread titles and project 
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const projectAgentConversationModelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeConversationModel.ts'), 'utf8')
   const projectAgentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
@@ -329,10 +331,11 @@ test('project agent mode app-server conversations use thread titles and project 
 test('agent chat detailed tabs and agent mode groups share registry-open conversations', () => {
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
   const threadTabsSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadTabs.ts'), 'utf8')
-  const shellModelSource = readFileSync(resolve('src/features/agent/presentation/agentChatDataSourceShellModel.ts'), 'utf8')
+  const shellModelSource = readAgentChatShellModelSource()
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const openThreadCandidatesSource = sourceBetween(threadTabsSource, 'const openThreadCandidates = useMemo', 'const closeThreadTab = useCallback')
   const agentModeOpenConversationsSource = sourceBetween(projectAgentSource, 'const rawOpenConversations = useMemo', 'const providerSessionStatusLights')
@@ -351,7 +354,8 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
   assert.match(shellModelSource, /export function agentChatThreadFromRegistryRecord/)
   assert.doesNotMatch(dataSourceShellSource, /function agentChatThreadFromRegistryRecord/)
   assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatThreadTabs'/)
-  assert.match(dataSourceShellSource, /useAgentChatThreadTabs\(\{[\s\S]*conversations,[\s\S]*projectId: positiveInteger\(currentProject\?\.ID\),[\s\S]*providerIdentity,[\s\S]*sourceThreadList,[\s\S]*threads,[\s\S]*userId,[\s\S]*\}\)/)
+  assert.match(dataSourceShellSource, /useAgentChatThreadTabs\(\{[\s\S]*conversations,[\s\S]*projectId: currentProject\?\.ID,[\s\S]*providerIdentity,[\s\S]*sourceThreadList,[\s\S]*threads,[\s\S]*userId,[\s\S]*\}\)/)
+  assert.match(openThreadCandidatesSource, /const normalizedProjectId = useMemo\(\(\) => positiveInteger\(projectId\), \[projectId\]\)/)
   assert.match(agentModeOpenConversationsSource, /conversation\.archived !== true && conversationsById\[conversation\.id\]\?\.open !== false/)
   assert.match(conversationsByScopeSource, /for \(const conversation of openConversations\)/)
   assert.match(conversationsByScopeSource, /const projectId = conversationProjectId\(conversation, \{[\s\S]*conversationsById/)
@@ -361,6 +365,7 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
 test('agent chat pending server requests survive shell remounts without stale replay', () => {
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
   const runtimeCacheSource = readFileSync(resolve('src/features/agent/application/agentChatRuntimeCache.ts'), 'utf8')
+  const serverRequestReplaySource = readFileSync(resolve('src/features/agent/application/agentChatServerRequestReplay.ts'), 'utf8')
   const serverRequestsSource = readFileSync(resolve('src/features/agent/application/useAgentChatServerRequests.ts'), 'utf8')
 
   assert.match(runtimeCacheSource, /const persistentPendingServerRequests = new Map<string, AgentChatRuntimePendingServerRequest\[\]>\(\)/)
@@ -372,7 +377,9 @@ test('agent chat pending server requests survive shell remounts without stale re
   assert.doesNotMatch(dataSourceShellSource, /function storePersistentServerRequest/)
   assert.doesNotMatch(dataSourceShellSource, /const replayPersistentServerRequests = useCallback/)
   assert.match(serverRequestsSource, /const replayPersistentServerRequests = useCallback/)
-  assert.match(serverRequestsSource, /type: 'updatePendingServerRequests'[\s\S]*upsertAgentChatPendingServerRequest\(next, entry\.request, entry\.resolve\)/)
+  assert.match(serverRequestsSource, /type: 'updatePendingServerRequests'[\s\S]*replayAgentChatPersistentServerRequests\(\{ current, persistent: entries \}\)\.pendingServerRequests/)
+  assert.match(serverRequestReplaySource, /export function replayAgentChatPersistentServerRequests/)
+  assert.match(serverRequestReplaySource, /upsertAgentChatPendingServerRequest\(next, entry\.request, entry\.resolve\)/)
   assert.match(serverRequestsSource, /useEffect\(\(\) => \{[\s\S]*replayPersistentServerRequests\(\)[\s\S]*\}, \[activeThreadId, dataSource, replayPersistentServerRequests\]\)/)
   assert.match(runtimeCacheSource, /export function applyAgentChatPersistentServerRequestNotification/)
   assert.match(runtimeCacheSource, /agentChatPendingServerRequestMatchesResolvedEvent\(entry\.request, event\)/)
@@ -468,7 +475,10 @@ test('agent chat queued composer inputs stay editable until sent or steered', ()
   const shellViewSource = readFileSync(resolve('src/features/agent/components/AgentChatShellView.tsx'), 'utf8')
   const shellCoreStateSource = readFileSync(resolve('src/features/agent/application/useAgentChatShellCoreState.ts'), 'utf8')
   const turnControlsSource = readFileSync(resolve('src/features/agent/application/useAgentChatTurnControls.ts'), 'utf8')
-  const dataSourceShellModelSource = readFileSync(resolve('src/features/agent/presentation/agentChatDataSourceShellModel.ts'), 'utf8')
+  const dataSourceShellModelSource = [
+    readAgentChatShellModelSource(),
+    readFileSync(resolve('src/features/agent/presentation/agentChatQueuedInputModel.ts'), 'utf8'),
+  ].join('\n')
   const composerSource = readFileSync(resolve('src/features/agent/components/AgentComposerSection.tsx'), 'utf8')
   const queuedInputPreviewSource = readFileSync(resolve('src/features/agent/components/AgentQueuedInputPreview.tsx'), 'utf8')
   const coreIndexSource = readFileSync(resolve('../../packages/core/src/agent/chat/index.ts'), 'utf8')
@@ -584,8 +594,15 @@ function appServerProvider(input: {
       id: input.profileId,
       label: input.profileId,
       providerKey: input.kind,
-      home: `.movscript/.${input.kind}`,
+      home: `.${input.kind}`,
       lifecycle: 'movscript-owned',
     },
   }
+}
+
+function readAgentChatShellModelSource(): string {
+  return [
+    readFileSync(resolve('src/features/agent/presentation/agentChatDataSourceShellModel.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/presentation/agentChatThreadProjectionModel.ts'), 'utf8'),
+  ].join('\n')
 }

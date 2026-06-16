@@ -106,7 +106,7 @@ export function accountSettingsRouteHeaderTitle(tab: AccountSettingsPageTab): Re
 }
 
 function isAccountSettingsShellPath(pathname: string): boolean {
-  return accountSettingsTabForLocation(pathname, '') !== undefined
+  return accountSettingsTabForLocation(pathname, '') !== undefined || pathname === ROUTES.agentSettings
 }
 
 function normalizeSettingsReturnPath(value: unknown): string | undefined {

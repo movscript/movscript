@@ -6,7 +6,7 @@ import { AppControlGroup } from "../../../app";
 
 export function WorkbenchAppShell({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("workbench-app-shell", className)} {...props}>
+    <div className={cn("ms-stack workbench-app-shell", className)} {...props}>
       {children}
     </div>
   );
@@ -40,12 +40,12 @@ export const WorkbenchAppTabButton = forwardRef<HTMLButtonElement, ButtonProps &
     type="button"
     variant={variant ?? (active ? "soft" : "ghost")}
     size={size}
-    className={cn("workbench-app-tab-button", className)}
+    className={cn("type-body workbench-app-tab-button", className)}
     data-active={active ? "true" : "false"}
     {...props}
   >
-    {icon ? <span className="workbench-app-tab-button__icon">{icon}</span> : null}
-    <span className="workbench-app-tab-button__label">{children}</span>
+    {icon ? <span className="ms-inline-center workbench-app-tab-button__icon">{icon}</span> : null}
+    <span className="ms-text-truncate workbench-app-tab-button__label">{children}</span>
   </Button>
 ));
 
@@ -60,9 +60,9 @@ export function WorkbenchAppSummary({
   icon?: ReactNode;
 }) {
   return (
-    <div className={cn("workbench-app-summary", className)} {...props}>
-      {icon ? <span className="workbench-app-summary__icon">{icon}</span> : null}
-      <span className="workbench-app-summary__text">{children}</span>
+    <div className={cn("ms-action-row type-label workbench-app-summary", className)} {...props}>
+      {icon ? <span className="ms-inline-center workbench-app-summary__icon">{icon}</span> : null}
+      <span className="ms-text-truncate workbench-app-summary__text">{children}</span>
     </div>
   );
 }

@@ -114,7 +114,6 @@ services:
       MOVSCRIPT_GITEA_BRANCH: "${MOVSCRIPT_GITEA_BRANCH:-main}"
       MOVSCRIPT_GITEA_USER_EMAIL_DOMAIN: "${MOVSCRIPT_GITEA_USER_EMAIL_DOMAIN:-users.movscript.local}"
       MOVSCRIPT_GITEA_USER_TOKEN_NAME: "${MOVSCRIPT_GITEA_USER_TOKEN_NAME:-movscript-desktop}"
-      MOVSCRIPT_AI_GATEWAY_PROVIDER: "${MOVSCRIPT_AI_GATEWAY_PROVIDER:-new-api}"
     depends_on:
       db:
         condition: service_healthy

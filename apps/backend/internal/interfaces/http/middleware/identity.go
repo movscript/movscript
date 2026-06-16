@@ -21,6 +21,7 @@ const ContextUserKey = "currentUser"
 const ContextPreferredOrgIDKey = "preferredOrgID"
 const SessionCookieName = "movscript_session"
 const GitProxyTokenQueryParam = "git_token"
+const AccessTokenQueryParam = "access_token"
 
 // Identity reads a self-hosted session cookie, signed Bearer token, or Git BasicAuth token and loads the user into gin context.
 func Identity(db *gorm.DB, tokens *auth.Manager, encryptionKey ...[]byte) gin.HandlerFunc {
@@ -43,6 +44,10 @@ func Identity(db *gorm.DB, tokens *auth.Manager, encryptionKey ...[]byte) gin.Ha
 			}
 		}
 		raw, ok := auth.BearerToken(c.GetHeader("Authorization"))
+		if !ok {
+			raw = strings.TrimSpace(c.Query(AccessTokenQueryParam))
+			ok = raw != ""
+		}
 		if !ok {
 			if session, err := c.Cookie(SessionCookieName); err == nil && session != "" {
 				if profile, err := authService.UserForSession(c.Request.Context(), session); err == nil {

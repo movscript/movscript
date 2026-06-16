@@ -140,6 +140,142 @@
   color: var(--cc-accent);
 }
 
+.content-canvas-inspector-create-form {
+  display: grid;
+  gap: 10px;
+}
+
+.content-canvas-inspector-create-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--cc-text);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-inspector-create-form input,
+.content-canvas-inspector-create-form select {
+  height: 34px;
+  width: 100%;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 94%, transparent);
+  color: var(--cc-text);
+  padding: 0 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.content-canvas-inspector-create-form input:focus,
+.content-canvas-inspector-create-form select:focus {
+  border-color: color-mix(in srgb, var(--cc-accent) 48%, var(--cc-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 10%, transparent);
+}
+
+.content-canvas-inspector-create-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 52%, var(--cc-border));
+  border-radius: 7px;
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-inspector-create-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.content-canvas-expression-kind-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.content-canvas-expression-kind-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cc-panel) 90%, transparent);
+  color: var(--cc-text);
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.content-canvas-expression-kind-list span[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--cc-accent) 50%, var(--cc-border));
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+}
+
+.content-canvas-expression-kind-list small {
+  color: var(--cc-muted);
+  font-size: 9px;
+  font-weight: 760;
+}
+
+.content-canvas-inspector-node-list {
+  display: grid;
+  gap: 7px;
+}
+
+.content-canvas-inspector-node-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 92%, transparent);
+  color: var(--cc-text);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.content-canvas-inspector-node-list button:hover {
+  border-color: color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border));
+  background: var(--cc-accent-soft);
+}
+
+.content-canvas-inspector-node-list__icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+}
+
+.content-canvas-inspector-node-list strong,
+.content-canvas-inspector-node-list small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-inspector-node-list strong {
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.content-canvas-inspector-node-list small,
+.content-canvas-inspector-node-list__empty {
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
 .content-canvas-prompt-editor {
   display: grid;
   gap: 7px;
@@ -157,6 +293,140 @@
 .content-canvas-prompt-editor textarea {
   min-height: 178px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.content-canvas-prompt-reference-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 7px;
+}
+
+.content-canvas-prompt-reference-strip button {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 92%, transparent);
+  color: var(--cc-text);
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.content-canvas-prompt-reference-strip button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--cc-accent) 42%, var(--cc-border));
+  background: var(--cc-accent-soft);
+}
+
+.content-canvas-prompt-reference-strip button:disabled {
+  cursor: default;
+}
+
+.content-canvas-prompt-reference-strip button[data-missing="true"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 42%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-warning) 10%, var(--cc-panel));
+}
+
+.content-canvas-prompt-reference-strip img,
+.content-canvas-prompt-reference-strip video,
+.content-canvas-prompt-reference-strip__fallback {
+  width: 42px;
+  height: 38px;
+  border-radius: 7px;
+  background: var(--cc-accent-soft);
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.content-canvas-prompt-reference-strip__fallback {
+  display: grid;
+  place-items: center;
+  color: var(--cc-accent);
+}
+
+.content-canvas-prompt-reference-strip strong,
+.content-canvas-prompt-reference-strip small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-prompt-reference-strip strong {
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.content-canvas-prompt-reference-strip small {
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.content-canvas-generation-task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 24%, var(--cc-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-accent) 7%, transparent);
+  padding: 9px 10px;
+}
+
+.content-canvas-generation-task[data-status="selected"] {
+  border-color: color-mix(in srgb, var(--cc-success) 28%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-success) 8%, transparent);
+}
+
+.content-canvas-generation-task[data-status="stale"],
+.content-canvas-generation-task[data-status="needs_candidate"] {
+  border-color: color-mix(in srgb, var(--cc-warning) 30%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-warning) 8%, transparent);
+}
+
+.content-canvas-generation-task span,
+.content-canvas-generation-task strong,
+.content-canvas-generation-task small,
+.content-canvas-generation-task em {
+  min-width: 0;
+}
+
+.content-canvas-generation-task span {
+  display: grid;
+  gap: 2px;
+}
+
+.content-canvas-generation-task small,
+.content-canvas-generation-task em {
+  overflow: hidden;
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-generation-task strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-generation-task b {
+  justify-self: end;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cc-panel) 76%, transparent);
+  color: var(--cc-text);
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 820;
 }
 
 .content-canvas-reference-assets {
@@ -216,6 +486,17 @@
   padding: 9px 10px;
 }
 
+.content-canvas-candidate-summary[data-decision="selected"],
+.content-canvas-candidate-summary[data-decision="locked"] {
+  border-color: color-mix(in srgb, var(--cc-success) 28%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-success) 8%, transparent);
+}
+
+.content-canvas-candidate-summary[data-decision="stale"] {
+  border-color: color-mix(in srgb, var(--cc-danger) 30%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-danger) 8%, transparent);
+}
+
 .content-canvas-candidate-summary span,
 .content-canvas-candidate-summary em {
   color: var(--cc-muted);
@@ -231,6 +512,86 @@
   font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.content-canvas-candidate-summary small {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-candidate-current {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cc-panel) 90%, transparent);
+  padding: 10px;
+}
+
+.content-canvas-candidate-current[data-empty="true"] {
+  border-style: dashed;
+}
+
+.content-canvas-candidate-current span,
+.content-canvas-candidate-current strong,
+.content-canvas-candidate-current small,
+.content-canvas-candidate-current em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-candidate-current small {
+  display: block;
+  color: var(--cc-muted);
+  font-size: 10px;
+  font-weight: 820;
+}
+
+.content-canvas-candidate-current strong {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 840;
+}
+
+.content-canvas-candidate-current em {
+  display: block;
+  margin-top: 3px;
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.content-canvas-candidate-current b {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cc-warning) 13%, transparent);
+  color: color-mix(in srgb, var(--cc-warning) 78%, var(--cc-text));
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 840;
+  white-space: nowrap;
+}
+
+.content-canvas-candidate-current b[data-decision="selected"],
+.content-canvas-candidate-current b[data-decision="locked"] {
+  background: color-mix(in srgb, var(--cc-success) 12%, transparent);
+  color: color-mix(in srgb, var(--cc-success) 78%, var(--cc-text));
+}
+
+.content-canvas-candidate-current b[data-decision="stale"] {
+  background: color-mix(in srgb, var(--cc-danger) 11%, transparent);
+  color: color-mix(in srgb, var(--cc-danger) 78%, var(--cc-text));
 }
 
 .content-canvas-candidate-list {
@@ -293,4 +654,29 @@
 .content-canvas-candidate-list button[data-selected="true"] em {
   background: color-mix(in srgb, var(--cc-accent) 18%, transparent);
   color: var(--cc-accent);
+}
+
+.content-canvas-candidate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.content-canvas-candidate-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: 1px solid var(--cc-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-panel) 88%, transparent);
+  color: var(--cc-text);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.content-canvas-candidate-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }

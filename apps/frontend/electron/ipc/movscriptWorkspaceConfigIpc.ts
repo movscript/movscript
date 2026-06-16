@@ -6,11 +6,11 @@ import {
   writeMovScriptWorkspaceConfig,
   type MovScriptWorkspaceConfig,
 } from '@movscript/core/workspace/node'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
-import type { ElectronMovScriptWorkspaceConfigSaveInput } from '../../src/shared/contracts/electronApi'
+import { resolveMovScriptHomeDir } from '../services/movscriptHomeInput'
+import type { ElectronMovScriptHomeInput, ElectronMovScriptWorkspaceConfigSaveInput } from '../../src/shared/contracts/electronApi'
 
 export function registerMovScriptWorkspaceConfigIpcHandlers(): void {
-  ipcMain.handle('movscript:workspace-config-get', (_event, input?: { workspaceDir?: string; providerProfileKey?: string }) => {
+  ipcMain.handle('movscript:workspace-config-get', (_event, input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => {
     return readWorkspaceConfig(input)
   })
   ipcMain.handle('movscript:workspace-config-save', (_event, input: ElectronMovScriptWorkspaceConfigSaveInput) => {
@@ -18,13 +18,13 @@ export function registerMovScriptWorkspaceConfigIpcHandlers(): void {
   })
 }
 
-function workspaceConfigPath(input?: { workspaceDir?: string; providerProfileKey?: string }) {
-  const paths = resolveMovScriptWorkspacePaths(input?.workspaceDir || resolveDesktopDefaultMovScriptWorkspaceDir(), { configDirName: input?.providerProfileKey })
+function workspaceConfigPath(input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) {
+  const paths = resolveMovScriptWorkspacePaths(resolveMovScriptHomeDir(input), { configDirName: input?.providerProfileKey })
   ensureMovScriptWorkspace(paths)
   return paths.configPath
 }
 
-function readWorkspaceConfig(input?: { workspaceDir?: string; providerProfileKey?: string }): MovScriptWorkspaceConfig {
+function readWorkspaceConfig(input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }): MovScriptWorkspaceConfig {
   return readMovScriptWorkspaceConfig(workspaceConfigPath(input))
 }
 
@@ -36,6 +36,7 @@ function saveWorkspaceConfig(input: ElectronMovScriptWorkspaceConfigSaveInput): 
     updatedAt: new Date().toISOString(),
   }
   applyNullableField(next, 'modelConfig', input.modelConfig)
+  applyNullableField(next, 'agentCatalog', input.agentCatalog)
   applyNullableField(next, 'toolProviders', input.toolProviders)
   applyNullableField(next, 'modelProviders', input.modelProviders)
   applyNullableField(next, 'permissions', input.permissions)

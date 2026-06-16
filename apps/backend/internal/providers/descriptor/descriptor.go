@@ -17,11 +17,13 @@ type Descriptor struct {
 	Capabilities []string `json:"capabilities"`
 }
 
+type builtInProvider struct {
+	providerType string
+	adapter      string
+}
+
 func BuiltIns() []Descriptor {
-	pairs := []struct {
-		providerType string
-		adapter      string
-	}{
+	pairs := []builtInProvider{
 		{contract.TypeDatabase, contract.AdapterSQLite},
 		{contract.TypeDatabase, contract.AdapterPostgres},
 		{contract.TypeBlobStorage, contract.AdapterFilesystem},
@@ -31,8 +33,6 @@ func BuiltIns() []Descriptor {
 		{contract.TypeWorkspaceRepository, contract.AdapterGitHubEnterprise},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitLab},
 		{contract.TypeAIGateway, contract.AdapterLocal},
-		{contract.TypeAIGateway, contract.AdapterBuiltin},
-		{contract.TypeAIGateway, contract.AdapterNewAPI},
 		{contract.TypeCache, contract.AdapterMemory},
 		{contract.TypeCache, contract.AdapterRedis},
 		{contract.TypeCache, contract.AdapterNoop},
@@ -48,6 +48,7 @@ func BuiltIns() []Descriptor {
 		{contract.TypeAgentRuntime, contract.AdapterMova},
 		{contract.TypeAgentRuntime, contract.AdapterAppServer},
 	}
+	pairs = append(pairs, editionBuiltInProviders()...)
 	out := make([]Descriptor, 0, len(pairs))
 	for _, pair := range pairs {
 		out = append(out, BuiltIn(pair.providerType, pair.adapter))
@@ -58,6 +59,9 @@ func BuiltIns() []Descriptor {
 func BuiltIn(providerType string, adapter string) Descriptor {
 	providerType = strings.TrimSpace(providerType)
 	adapter = strings.TrimSpace(adapter)
+	if desc, ok := editionBuiltIn(providerType, adapter); ok {
+		return desc
+	}
 	return Descriptor{
 		ID:           id(providerType, adapter),
 		Kind:         "provider_descriptor",
@@ -97,10 +101,6 @@ func label(providerType string, adapter string) string {
 		return "GitLab"
 	case contract.TypeAIGateway + ":" + contract.AdapterLocal:
 		return "Local AI Gateway"
-	case contract.TypeAIGateway + ":" + contract.AdapterBuiltin:
-		return "Built-in AI Gateway"
-	case contract.TypeAIGateway + ":" + contract.AdapterNewAPI:
-		return "new-api"
 	case contract.TypeCache + ":" + contract.AdapterMemory:
 		return "Memory"
 	case contract.TypeCache + ":" + contract.AdapterRedis:
@@ -156,10 +156,6 @@ func capabilities(providerType string, adapter string) []string {
 		return []string{"repository.ensure", "repository.collaborator.ensure", "repository.access.probe", "repository.clone_url", "repository.clone_url.strategy", "git.http_proxy", "health.probe"}
 	case contract.TypeAIGateway + ":" + contract.AdapterLocal:
 		return []string{"model.list", "model.resolve", "chat.completions", "image.generate", "video.generate", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
-	case contract.TypeAIGateway + ":" + contract.AdapterBuiltin:
-		return []string{"model.list", "model.resolve", "chat.completions", "image.generate", "video.generate", "file.upload", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
-	case contract.TypeAIGateway + ":" + contract.AdapterNewAPI:
-		return []string{"model.list", "model.resolve", "chat.completions", "chat.stream", "responses", "image.generate", "image.edit", "video.generate", "video.task", "video.poll", "video.cancel", "audio.speech", "audio.transcribe", "audio.align", "file.upload", "usage.query", "usage.reserve", "usage.settle", "audit.record", "health.probe", "runtime_health.snapshot"}
 	case contract.TypeCache + ":" + contract.AdapterMemory,
 		contract.TypeCache + ":" + contract.AdapterRedis:
 		return []string{"cache.get_json", "cache.set_json", "cache.delete", "cache.version"}

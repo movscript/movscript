@@ -202,6 +202,7 @@ test('shell layout consumes mode pane state through the route pane controller', 
   const projectAgentModePageSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarView.tsx'), 'utf8'),
   ].join('\n')
   const projectAgentContentPanelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentContentPanel.tsx'), 'utf8')
   const agentTerminalPanelSource = readFileSync(resolve('src/features/agent/components/AgentTerminalPanel.tsx'), 'utf8')
@@ -230,15 +231,13 @@ test('shell layout consumes mode pane state through the route pane controller', 
   assert.match(appShellSource, /agentContentPane\.collapsed/)
   assert.match(appShellSource, /fallbackState: 'default'/)
   assert.match(appShellSource, /const agentSidebarVisible = agentChrome && !agentSidebarPane\.hidden/)
-  assert.match(appShellSource, /const agentLeftSlotWidth = !agentSidebarVisible[\s\S]*agentSidebarPane\.size/)
-  assert.match(appShellSource, /const agentLeftSlotStyle = \{[\s\S]*agentLeftSlotWidth/)
-  assert.match(appShellSource, /const agentRightCollapsedWidth = agentContentPane\.pane\?\.collapsedSize \?\? 0/)
-  assert.match(appShellSource, /const agentRightSlotStyle = \{[\s\S]*agentRightCollapsedWidth[\s\S]*agentContentPane\.size/)
-  assert.match(appShellSource, /onClick=\{agentContentPanelClosed \? agentContentPane\.show : agentContentPane\.collapse\}/)
+  assert.match(appShellSource, /const agentLeftSlotStyle = appShellHiddenSlotStyle\(!agentSidebarVisible, agentSidebarPane\.size\)/)
+  assert.match(appShellSource, /const agentRightSlotStyle = appShellCollapsedSlotStyle\(\{[\s\S]*collapsed: agentContentPane\.collapsed,[\s\S]*size: agentContentPane\.size,[\s\S]*collapsedSize: agentContentPane\.pane\?\.collapsedSize,/)
+  assert.match(appShellSource, /<AppShellAgentContentToggle[\s\S]*closed=\{agentContentPanelClosed\}[\s\S]*onShow=\{agentContentPane\.show\}[\s\S]*onCollapse=\{agentContentPane\.collapse\}/)
   assert.doesNotMatch(appShellSource, /showAgentContentPanelShortcut/)
   assert.match(appShellSource, /sidebarCollapsed=\{false\}/)
   assert.match(appShellSource, /leftPaneHidden=\{!agentSidebarVisible\}/)
-  assert.match(appShellSource, /onClick=\{agentSidebarVisible \? agentSidebarPane\.hide : agentSidebarPane\.show\}/)
+  assert.match(appShellSource, /<AppShellLeftPaneToggle hidden=\{!agentSidebarVisible\} onShow=\{agentSidebarPane\.show\} onHide=\{agentSidebarPane\.hide\}/)
   assert.match(appShellSource, /<ProjectAgentModeSidebar[\s\S]*width=\{agentSidebarPane\.size\}[\s\S]*onWidthChange=\{agentSidebarPane\.setSize\}/)
   assert.match(appShellSource, /<ProjectAgentContentPanel[\s\S]*collapsed=\{agentContentPane\.collapsed\}[\s\S]*onCollapsedChange=\{\(collapsed\) => \{[\s\S]*agentContentPane\.collapse\(\)[\s\S]*agentContentPane\.show\(\)[\s\S]*width=\{agentContentPane\.size\}[\s\S]*onWidthChange=\{agentContentPane\.setSize\}/)
   assert.match(appShellSource, /<AgentTerminalPanel[\s\S]*open=\{terminalOpen\}[\s\S]*onOpenChange=\{\(open\) => \{[\s\S]*terminalPane\.show\(\)[\s\S]*terminalPane\.hide\(\)/)
@@ -435,5 +434,5 @@ test('agent workspace split pages use the shared split primitive', () => {
   assert.match(agentConsoleSurfaceSource, /AgentConsoleLogLineText/)
   assert.doesNotMatch(agentConsoleSurfaceSource, /className="agent-console-log-/)
   assert.match(agentConsoleStyles, /\.agent-console-page-body \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/)
-  assert.match(agentConsoleStyles, /\.agent-console-main-grid\[data-layout="control-logs"\] > \.agent-console-main-column,[\s\S]*overflow-y: auto;/)
+  assert.doesNotMatch(agentConsoleStyles, /\.agent-console-main-grid\[data-layout="control-logs"\] > \.agent-console-main-column,[\s\S]*overflow-y: auto;/)
 })

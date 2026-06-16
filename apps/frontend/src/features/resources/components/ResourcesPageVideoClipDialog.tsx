@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Pause, Play, Scissors, X as XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RawResource } from '@/types'
 import { api } from '@/shared/infrastructure/api'
-import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
-import { loadResourceBlob } from '@/shared/ui/resourceBlob'
 import { UrlVideo } from '@/shared/ui/UrlMedia'
 import { toast } from '@/shared/ui/toastStore'
 import {
@@ -16,8 +14,10 @@ import {
   MAX_CLIP_DURATION_MS,
   parseClipTimecode,
 } from '@/features/resources/domain/videoClipUi'
-import { clipResourceVideo, getResourceVideoClipStatus, resourceVideoClipApiAvailable } from '@/features/resources/application/resourceVideoClipElectron'
+import { clipResourceVideo } from '@/features/resources/application/resourceVideoClipElectron'
 import { clipErrorMessage, sourceErrorMessage } from '@/features/resources/application/resourceVideoClipMessages'
+import { useResourceVideoClipSource } from '@/features/resources/application/useResourceVideoClipSource'
+import { useResourceVideoClipStatus } from '@/features/resources/application/useResourceVideoClipStatus'
 import { formatResourceBytes } from '@/features/resources/components/resourceLibraryFormatting'
 import { clamp, formatTime, RangeField } from '@/features/resources/components/ResourcesPageVideoClipDialogParts'
 import { Dialog } from '@movscript/ui/primitives'
@@ -70,8 +70,16 @@ export function VideoClipDialog({
 }) {
   const { t } = useTranslation()
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [sourceBlob, setSourceBlob] = useState<Blob | null>(null)
-  const [sourceUrl, setSourceUrl] = useState('')
+  const {
+    sourceBlob,
+    sourceUrl,
+    loadingSource,
+    sourceProgress,
+    sourceError,
+    sourceErrorSize,
+    sourceErrorRetryable,
+    retrySourceLoad,
+  } = useResourceVideoClipSource(resource)
   const [duration, setDuration] = useState(0)
   const [startMs, setStartMs] = useState(0)
   const [endMs, setEndMs] = useState(0)
@@ -79,22 +87,14 @@ export function VideoClipDialog({
   const [outputName, setOutputName] = useState(defaultClipOutputName(resource.name))
   const [mode, setMode] = useState<'accurate' | 'fast'>('accurate')
   const [playing, setPlaying] = useState(false)
-  const [loadingSource, setLoadingSource] = useState(true)
-  const [sourceProgress, setSourceProgress] = useState<{ loaded: number; total?: number }>({ loaded: 0 })
-  const [sourceLoadAttempt, setSourceLoadAttempt] = useState(0)
-  const [sourceError, setSourceError] = useState('')
-  const [sourceErrorRetryable, setSourceErrorRetryable] = useState(false)
   const [clipError, setClipError] = useState('')
   const [clipPhase, setClipPhase] = useState<ClipPhase>('idle')
-  const [clipStatus, setClipStatus] = useState<{ loading: boolean; available: boolean; version?: string; error?: string; code?: 'FFMPEG_NOT_FOUND' | 'FFMPEG_UNAVAILABLE'; expectedBundledPath?: string; platform?: string; arch?: string }>({
-    loading: true,
-    available: false,
-  })
+  const clipStatus = useResourceVideoClipStatus()
 
   const uploadClip = useMutation({
     mutationFn: async () => {
       if (!sourceBlob) throw new Error(t('pages.resources.clipSourceMissing'))
-      if (!resourceVideoClipApiAvailable()) throw new Error(t('pages.resources.clipDesktopOnly'))
+      if (!clipStatus.available) throw new Error(t('pages.resources.clipDesktopOnly'))
       setClipError('')
       setClipPhase('preparing')
       const sourceData = await sourceBlob.arrayBuffer()
@@ -132,100 +132,6 @@ export function VideoClipDialog({
     },
   })
 
-  useEffect(() => {
-    let active = true
-    let objectUrl = ''
-    const controller = new AbortController()
-    setLoadingSource(true)
-    setSourceError('')
-    setSourceErrorRetryable(false)
-    setSourceProgress({ loaded: 0, total: resource.size || undefined })
-    const initialSourceError = clipSourceError(resource.size)
-    if (initialSourceError) {
-      setSourceError(sourceErrorMessage(initialSourceError, resource.size, t))
-      setSourceErrorRetryable(false)
-      setLoadingSource(false)
-      setSourceBlob(null)
-      setSourceUrl('')
-      return () => {
-        active = false
-      }
-    }
-    loadResourceBlob(resource, {
-      signal: controller.signal,
-      onDownloadProgress: (event) => {
-        if (!active) return
-        setSourceProgress({
-          loaded: event.loaded,
-          total: event.total || resource.size || undefined,
-        })
-      },
-    })
-      .then((blob) => {
-        if (!active) return
-        const downloadedSourceError = clipSourceError(blob.size)
-        if (downloadedSourceError) {
-          setSourceError(sourceErrorMessage(downloadedSourceError, blob.size, t))
-          setSourceErrorRetryable(false)
-          return
-        }
-        objectUrl = createObjectUrl(blob)
-        setSourceBlob(blob)
-        setSourceUrl(objectUrl)
-      })
-      .catch(() => {
-        if (active) {
-          setSourceError(t('pages.resources.clipLoadSourceFailed'))
-          setSourceErrorRetryable(true)
-        }
-      })
-      .finally(() => {
-        if (active) setLoadingSource(false)
-      })
-    return () => {
-      active = false
-      controller.abort()
-      revokeObjectUrl(objectUrl)
-    }
-  }, [resource, sourceLoadAttempt, t])
-
-  useEffect(() => {
-    let active = true
-    if (!resourceVideoClipApiAvailable()) {
-      setClipStatus({ loading: false, available: false, error: t('pages.resources.clipDesktopOnly') })
-      return
-    }
-    setClipStatus({ loading: true, available: false })
-    getResourceVideoClipStatus()
-      .then((status) => {
-        if (!active) return
-        if (!status) {
-          setClipStatus({ loading: false, available: false, error: t('pages.resources.clipDesktopOnly') })
-          return
-        }
-        setClipStatus({
-          loading: false,
-          available: status.available,
-          version: status.version,
-          error: status.available
-            ? undefined
-            : status.code === 'FFMPEG_NOT_FOUND'
-              ? t('pages.resources.clipFFmpegMissing')
-              : status.error || t('pages.resources.clipFFmpegMissing'),
-          code: status.code,
-          expectedBundledPath: status.expectedBundledPath,
-          platform: status.platform,
-          arch: status.arch,
-        })
-      })
-      .catch(() => {
-        if (active) setClipStatus({ loading: false, available: false, error: t('pages.resources.clipFFmpegMissing') })
-      })
-    return () => {
-      active = false
-    }
-  }, [t])
-
   const durationMs = Math.max(0, Math.round(duration * 1000))
   const selectedDurationMs = Math.max(0, endMs - startMs)
   const rangeMax = Math.max(durationMs, 1000)
@@ -238,6 +144,18 @@ export function VideoClipDialog({
   const sourceProgressPct = sourceProgress.total ? Math.min(100, Math.max(0, sourceProgress.loaded / sourceProgress.total * 100)) : 0
   const selectedPct = durationMs > 0 ? Math.min(100, Math.max(0, selectedDurationMs / durationMs * 100)) : 0
   const phaseLabel = clipPhase === 'idle' ? '' : t(`pages.resources.clipPhases.${clipPhase}`)
+  const sourceErrorText = sourceError
+    ? sourceError === 'load_failed'
+      ? t('pages.resources.clipLoadSourceFailed')
+      : sourceErrorMessage(sourceError, sourceErrorSize ?? resource.size, t)
+    : ''
+  const clipStatusErrorText = clipStatus.loading || clipStatus.available
+    ? ''
+    : clipStatus.unavailableReason === 'desktop_unavailable'
+      ? t('pages.resources.clipDesktopOnly')
+      : clipStatus.unavailableReason === 'status_failed' || clipStatus.code === 'FFMPEG_NOT_FOUND'
+        ? t('pages.resources.clipFFmpegMissing')
+        : clipStatus.error || t('pages.resources.clipFFmpegMissing')
 
   function handleMetadata() {
     const nextDuration = videoRef.current?.duration ?? 0
@@ -325,14 +243,14 @@ export function VideoClipDialog({
                         : formatResourceBytes(sourceProgress.loaded)}
                     </ResourceDialogText>
                   </ResourceClipStageState>
-                ) : sourceError ? (
+                ) : sourceErrorText ? (
                   <ResourceClipStageState>
-                    <ResourceClipStageText>{sourceError}</ResourceClipStageText>
+                    <ResourceClipStageText>{sourceErrorText}</ResourceClipStageText>
                     {sourceErrorRetryable && (
                       <ResourcePageActionButton
                         size="sm"
                         variant="outline"
-                        onClick={() => setSourceLoadAttempt(attempt => attempt + 1)}
+                        onClick={retrySourceLoad}
                         aria-label={t('pages.resources.clipRetryLoad')}
                       >
                         {t('pages.resources.clipRetryLoad')}
@@ -505,7 +423,7 @@ export function VideoClipDialog({
                       ? t('pages.resources.clipFFmpegReady', { version: clipStatus.version || 'ffmpeg' })
                       : (
                         <ResourceClipStatusText>
-                          {clipStatus.error || t('pages.resources.clipFFmpegMissing')}
+                          {clipStatusErrorText}
                           {clipStatus.expectedBundledPath && (
                             <ResourceClipExpectedPath>
                               {t('pages.resources.clipFFmpegExpectedPath', { path: clipStatus.expectedBundledPath })}
@@ -514,9 +432,9 @@ export function VideoClipDialog({
                         </ResourceClipStatusText>
                       )}
                 </ResourceStateMessage>
-                {(clipError || !resourceVideoClipApiAvailable()) && (
+                {(clipError || clipStatus.unavailableReason === 'desktop_unavailable') && (
                   <ResourceStateMessage tone="danger">
-                    {clipError || t('pages.resources.clipDesktopOnly')}
+                    {clipError || clipStatusErrorText}
                   </ResourceStateMessage>
                 )}
               </ResourceDialogStack>

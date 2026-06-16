@@ -27,7 +27,7 @@ func (s *AIService) ListModels(ctx context.Context, filter providercontract.AIMo
 	for _, model := range models {
 		out = append(out, publicModelToContractDescriptor(model))
 	}
-	return out, nil
+	return s.editionFilterModelCatalog(ctx, filter, out)
 }
 
 func (s *AIService) ResolveModel(ctx context.Context, request providercontract.AIModelResolveRequest) (providercontract.AIModelBinding, error) {

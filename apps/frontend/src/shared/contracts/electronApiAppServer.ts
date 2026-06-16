@@ -217,6 +217,8 @@ export type ElectronProviderSessionSummary = {
     updatedAt: string
     archived?: boolean
   }
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
   workspaceContext?: ElectronMovScriptWorkspaceContext
   providerSessionCwd?: string

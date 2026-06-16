@@ -1,30 +1,23 @@
-import {
-  useMemo } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle,
+import {
+  AlertTriangle,
   Blocks,
   Bot,
   Cable,
   ClipboardList,
-  Play,
-  Power,
   RefreshCw,
-  RotateCw,
   Settings,
-  Square,
   Terminal,
-  Trash2 } from 'lucide-react'
+  Trash2,
+} from 'lucide-react'
 import {
   AgentPageShell,
   AgentPageShellHeader,
 } from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
-  AgentConsoleBoundaryCard,
-  AgentConsoleCallout,
-  AgentConsoleDescription,
   AgentConsoleDivider,
-  AgentConsoleEmptyText,
   AgentConsoleGrid,
   AgentConsoleHeader,
   AgentConsoleHeaderActions,
@@ -32,53 +25,32 @@ import {
   AgentConsoleHeaderDescription,
   AgentConsoleHeaderTitle,
   AgentConsoleHeaderTitleRow,
-  AgentConsoleHistoryClearActions,
-  AgentConsoleHistoryClearBody,
-  AgentConsoleHistoryClearDetail,
-  AgentConsoleHistoryClearIcon,
-  AgentConsoleHistoryClearLayout,
-  AgentConsoleHistoryClearSurface,
-  AgentConsoleHistoryClearTitle,
   AgentConsoleIcon,
-  AgentConsoleInlineError,
-  AgentConsoleIntroRow,
-  AgentConsoleIssueRowSurface,
-  type AgentConsoleIssueTone,
-  AgentConsoleLocalToolActions,
-  AgentConsoleLocalToolCard,
-  AgentConsoleLocalToolControls,
-  AgentConsoleLocalToolCopy,
-  AgentConsoleLocalToolDetail,
-  AgentConsoleLocalToolFields,
-  AgentConsoleLocalToolHeader,
-  AgentConsoleLocalToolTitle,
   AgentConsoleMainColumn,
   AgentConsoleMainGrid,
-  AgentConsoleManagementLink,
-  AgentConsoleMetricCard,
   AgentConsoleMetricGrid,
   AgentConsolePageBody,
-  AgentConsolePanel,
-  AgentConsolePanelActions,
-  AgentConsoleSectionSpacer,
   AgentConsoleSidebar,
   AgentConsoleStack,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
-  AgentConsoleTestResult,
-  AgentConsoleToolbar,
 } from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
+import {
+  AgentControlMatrixPanel,
+  BoundaryCard,
+  ConsoleMetricCard,
+  ConsolePanel,
+  EmptyText,
+  HistoryClearControl,
+  IssueRow,
+  ManagementLink,
+} from '@/features/agent/components/AgentConsolePageSections'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAgentControlCenter } from '@/features/agent/presentation/useAgentControlCenter'
-import { providerRoute } from '@/features/agent/application/providerRoutes'
-import {
-  agentSeverityStatusRecipe,
-} from '@/features/agent/presentation/agentSemanticUi'
 import {
   errorMessage,
   modelDisplay,
-  type AgentControlIssue,
 } from '@/features/agent/application/agentControlCenter'
 import {
   resolveAppServerProfile,
@@ -93,9 +65,6 @@ import {
   useAppServerRealtimeLogs,
 } from '@/features/agent/components/AgentConsoleRealtimeLogPanel'
 import { AgentSessionIntegrationPanel } from '@/features/agent/components/AgentConsoleSessionIntegrationPanel'
-
-type ConsoleIssueTone = AgentConsoleIssueTone
-type ConsoleIssue = AgentControlIssue
 
 export default function AgentConsolePage() {
   const controlCenter = useAgentControlCenter()
@@ -158,8 +127,9 @@ export default function AgentConsolePage() {
     }),
     [appServerProvidersForManagement],
   )
-  const agentsConfigRoute = appServerProvider ? providerRoute(appServerProvider) : ROUTES.agents
   const appServerLogs = useAppServerRealtimeLogs(appServerLogProfiles)
+  const hostedAgentsRoute = agentConsoleHostedTabRoute('console:agents')
+  const hostedWorkspaceRoute = agentConsoleHostedTabRoute('console:workspace')
 
   return (
     <AgentPageShell data-testid="agent-console-page">
@@ -180,9 +150,9 @@ export default function AgentConsolePage() {
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
             <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={agentsConfigRoute}>
+              <Link to={hostedAgentsRoute}>
                 <Settings size={14} />
-                Agents
+                选择 / 配置 Agent
               </Link>
             </AgentConsoleActionButton>
             <AgentConsoleActionButton
@@ -210,35 +180,35 @@ export default function AgentConsolePage() {
       <AgentConsolePageBody>
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
-            title="Agents"
-            value={`${enabledProvidersForConsole.length} 个启用`}
-            detail={`默认 Agent：${defaultProvider?.label ?? '未设置'}；模型连接在 Model Providers 管理`}
-            tone={enabledProvidersForConsole.length > 0 ? 'ready' : 'action'}
+            title="当前 Agent"
+            value={appServerProvider?.label ?? '未选择'}
+            detail={`${appServerRunning ? '运行中' : '未启动'}；同一时间只会有 1 个 Agent 生效，配置入口已连接`}
+            tone={appServerProvider?.enabled ? appServerRunning ? 'ready' : 'warning' : 'action'}
           />
           <ConsoleMetricCard
-            title="Agent Runtime Sessions"
-            value={providerSessionsQuery.error ? '索引不可用' : `${onlineProviderSessionCount}/${providerSessions.length} 在线`}
-            detail="按 runtime/profile 聚合会话实例；不同 runtime adapter 接入统一 registry"
-            tone={providerSessionsQuery.error ? 'action' : 'ready'}
-          />
-          <ConsoleMetricCard
-            title="Runtime Profile"
+            title="Model Runtime"
             value={modelQuery.data?.configured ? modelDisplay(modelQuery.data.model) : '模型未配置'}
-            detail={modelQuery.error ? errorMessage(modelQuery.error) : `${modelQuery.data?.apiKind ?? '模型'} / Skills / Tools / Limits 属于 profile 层`}
+            detail={modelQuery.error ? errorMessage(modelQuery.error) : `${modelQuery.data?.apiKind ?? '模型'}；来自当前 workspace provider 配置`}
             tone={modelQuery.data?.configured ? 'ready' : 'action'}
           />
           <ConsoleMetricCard
+            title="App Server"
+            value={providerSessionsQuery.error ? '索引不可用' : appServerRunning ? '运行中' : '未启动'}
+            detail={appServerStatusQuery.data?.endpoint ?? `${providerSessions.length} 个 Runtime ThreadRef 索引记录`}
+            tone={providerSessionsQuery.error ? 'action' : appServerRunning ? 'ready' : 'warning'}
+          />
+          <ConsoleMetricCard
             title="Capabilities"
-            value={capabilityHealth.checkedProviderCount > 0 ? `${toolSummary.available} 工具 / ${skillSummary.enabled} Skills` : '等待运行中 Agent'}
+            value={capabilityHealth.checkedProviderCount > 0 ? `${toolSummary.available} 工具 / ${skillSummary.enabled} Skills` : '等待运行中 Provider'}
             detail={capabilityHealth.checkedProviderCount > 0
               ? `${pluginSummary.enabled} Plugins；已检查 ${capabilityHealth.checkedProviderCount}/${capabilityHealth.providerCount} 个运行中 Agent`
-              : '启动任一 app-server provider 后读取统一能力入口'}
+              : '启动任一 app-server provider 后读取真实能力入口'}
             tone={capabilityHealth.warningCount > 0 ? 'warning' : capabilityHealth.checkedProviderCount > 0 ? 'ready' : 'warning'}
           />
           <ConsoleMetricCard
             title="Conversation"
-            value={`${threadSummary.total} 个会话`}
-            detail={`${threadSummary.running} 运行中 / ${threadSummary.requiresAction} 待处理 / ${runSummary.total} 个 Run`}
+            value={`${threadSummary.total} 个会话 / ${runSummary.total} 个 Run`}
+            detail={`${threadSummary.running + runSummary.active} 运行中 / ${threadSummary.requiresAction + runSummary.requiresAction} 待处理 / ${threadSummary.failed + runSummary.failed} 失败`}
             tone={threadSummary.requiresAction || runSummary.failed ? 'warning' : 'ready'}
           />
         </AgentConsoleMetricGrid>
@@ -247,7 +217,7 @@ export default function AgentConsolePage() {
           <AgentConsoleMainColumn pane="config">
             <AgentControlMatrixPanel
               appServerLabel={appServerProvider?.label ?? 'App Server Agent'}
-              appServerConfigRoute={agentsConfigRoute}
+              appServerConfigRoute={hostedAgentsRoute}
               appServerEnabled={appServerProvider?.enabled === true}
               appServerRunning={appServerRunning}
               appServerProfileId={appServerProfile?.id ?? 'none'}
@@ -312,13 +282,13 @@ export default function AgentConsolePage() {
                 {appServerProvidersForManagement.map((provider) => (
                   <ManagementLink
                     key={provider.id}
-                    to={providerRoute(provider)}
+                    to={hostedAgentsRoute}
                     icon={<Terminal size={14} />}
                     title={provider.label}
                     detail={`管理 ${provider.label} 的 app-server、托管 home 和运行状态。`}
                   />
                 ))}
-                <ManagementLink to={ROUTES.workspaceConfig} icon={<Settings size={14} />} title="Workspace" detail="查看 source 与 .movscript/providers 配置。" />
+                <ManagementLink to={hostedWorkspaceRoute} icon={<Settings size={14} />} title="Workspace" detail="查看 source 与 providers 配置。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Terminal size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
                 <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Plugins" detail="插件是全局扩展入口，也可以贡献 Provider Skills、Tools 和 UI 扩展。" />
@@ -344,216 +314,10 @@ export default function AgentConsolePage() {
   )
 }
 
-function AgentControlMatrixPanel({
-  appServerLabel,
-  appServerConfigRoute,
-  appServerEnabled,
-  appServerRunning,
-  appServerProfileId,
-  appServerEndpoint,
-  loading,
-  action,
-  error,
-  onRefresh,
-  onStartAppServer,
-  onStopAppServer,
-  onRestartAppServer,
-}: {
-  appServerLabel: string
-  appServerConfigRoute: string
-  appServerEnabled: boolean
-  appServerRunning: boolean
-  appServerProfileId: string
-  appServerEndpoint?: string
-  loading: boolean
-  action: string | null
-  error: string | null
-  onRefresh: () => void
-  onStartAppServer: () => void
-  onStopAppServer: () => void
-  onRestartAppServer: () => void
-}) {
-  return (
-    <ConsolePanel
-      title="Agent Control Matrix"
-      icon={<Power size={14} />}
-      action={(
-        <AgentConsolePanelActions>
-          {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
-          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
-            <RefreshCw size={14} />
-            刷新状态
-          </AgentConsoleActionButton>
-        </AgentConsolePanelActions>
-      )}
-    >
-      <AgentConsoleIntroRow>
-        <AgentConsoleDescription>
-          控制台是 Provider 生命周期入口：这里启动、停止和刷新 Provider 状态；运行中的 app-server 需要先停止再修改配置。
-        </AgentConsoleDescription>
-        <AgentConsoleToolbar>
-          <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
-            {appServerRunning ? '1 个运行中' : '未启动'}
-          </AgentConsoleStatusBadge>
-        </AgentConsoleToolbar>
-      </AgentConsoleIntroRow>
-
-      {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
-
-      <AgentConsoleGrid columns="server">
-        <AgentConsoleLocalToolCard invalid={Boolean(error) || !appServerEnabled}>
-          <AgentConsoleLocalToolHeader>
-            <AgentConsoleLocalToolCopy>
-              <AgentConsoleLocalToolTitle>{appServerLabel}</AgentConsoleLocalToolTitle>
-              <AgentConsoleLocalToolDetail>profile={appServerProfileId} / {appServerEndpoint ?? 'endpoint pending'}</AgentConsoleLocalToolDetail>
-            </AgentConsoleLocalToolCopy>
-            <AgentConsoleLocalToolControls>
-              <AgentConsoleStatusBadge intent={appServerEnabled ? 'success' : 'neutral'} emphasis="soft">
-                {appServerEnabled ? '启用' : '停用'}
-              </AgentConsoleStatusBadge>
-              <AgentConsoleStatusBadge intent={appServerRunning ? 'success' : 'warning'} emphasis="soft">
-                {appServerRunning ? '运行中' : '未启动'}
-              </AgentConsoleStatusBadge>
-            </AgentConsoleLocalToolControls>
-          </AgentConsoleLocalToolHeader>
-          <AgentConsoleLocalToolFields>
-            <AgentConsoleCallout compact>
-              app-server 由 MovScript 托管，home path 由对应 runtime profile 投影给启动进程；可在 Agents 中配置继承本机账号或使用托管 home。
-            </AgentConsoleCallout>
-          </AgentConsoleLocalToolFields>
-          <AgentConsoleLocalToolActions>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStartAppServer} disabled={!appServerEnabled || action === 'start-app-server'}>
-              <Play size={14} />
-              {appServerRunning ? '重连' : '启动'}
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onStopAppServer} disabled={!appServerRunning || action === 'stop-app-server'}>
-              <Square size={14} />
-              停止
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onRestartAppServer} disabled={!appServerEnabled || !appServerRunning || action === 'restart-app-server'}>
-              <RotateCw size={14} />
-              重启
-            </AgentConsoleActionButton>
-            <AgentConsoleActionButton asChild size="sm" variant="outline">
-              <Link to={appServerConfigRoute}>
-                <Settings size={14} />
-                配置
-              </Link>
-            </AgentConsoleActionButton>
-          </AgentConsoleLocalToolActions>
-        </AgentConsoleLocalToolCard>
-      </AgentConsoleGrid>
-    </ConsolePanel>
-  )
-}
-
-function ConsoleMetricCard({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: ConsoleIssueTone }) {
-  return <AgentConsoleMetricCard title={title} value={value} detail={detail} tone={tone} />
-}
-
-function ConsolePanel({ title, icon, action, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
-  return <AgentConsolePanel title={title} icon={icon} action={action}>{children}</AgentConsolePanel>
-}
-
-function BoundaryCard({ title, detail }: { title: string; detail: string }) {
-  return <AgentConsoleBoundaryCard title={title} detail={detail} />
-}
-
-function IssueRow({ issue }: { issue: ConsoleIssue }) {
-  const issueRecipe = agentSeverityStatusRecipe(issue.tone)
-  const body = (
-    <AgentConsoleIssueRowSurface
-      tone={issue.tone === 'action' ? 'action' : 'warning'}
-      title={issue.title}
-      detail={issue.detail}
-      badge={<AgentConsoleStatusBadge intent={issueRecipe.intent} emphasis={issueRecipe.emphasis}>{issue.tone === 'action' ? '处理' : '关注'}</AgentConsoleStatusBadge>}
-    />
-  )
-  return issue.to ? <Link to={issue.to}>{body}</Link> : body
-}
-
-function ManagementLink({ to, icon, title, detail }: { to: string; icon: React.ReactNode; title: string; detail: string }) {
-  return (
-    <AgentConsoleManagementLink icon={icon} title={title} detail={detail}>
-      <Link to={to} />
-    </AgentConsoleManagementLink>
-  )
-}
-
-function HistoryClearControl({
-  threadCount,
-  runCount,
-  executingRunCount,
-  confirming,
-  clearing,
-  error,
-  result,
-  onClear,
-  onCancel,
-}: {
-  threadCount: number
-  runCount: number
-  executingRunCount: number
-  confirming: boolean
-  clearing: boolean
-  error: string | null
-  result: string | null
-  onClear: () => void
-  onCancel: () => void
-}) {
-  const hasHistory = threadCount > 0 || runCount > 0
-  const blocked = executingRunCount > 0
-  return (
-    <AgentConsoleHistoryClearSurface>
-      <AgentConsoleHistoryClearLayout>
-        <AgentConsoleHistoryClearIcon />
-        <AgentConsoleHistoryClearBody>
-          <AgentConsoleHistoryClearTitle>历史会话记录</AgentConsoleHistoryClearTitle>
-          <AgentConsoleHistoryClearDetail>
-            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除 provider 会话、Run、计划、运行态记录和 trace 文件。
-          </AgentConsoleHistoryClearDetail>
-          {blocked && (
-            <AgentConsoleCallout tone="warning" compact>
-              有 {executingRunCount} 个正在执行的 Run，先取消后再清空。
-            </AgentConsoleCallout>
-          )}
-          {error && (
-            <AgentConsoleCallout data-testid="agent-console-history-clear-error" role="alert" tone="danger" compact>
-              {error}
-            </AgentConsoleCallout>
-          )}
-          {result && (
-            <AgentConsoleCallout data-testid="agent-console-history-clear-result" role="status" tone="success" compact>
-              {result}
-            </AgentConsoleCallout>
-          )}
-          <AgentConsoleHistoryClearActions>
-            {confirming && (
-              <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onCancel} disabled={clearing}>
-                取消
-              </AgentConsoleActionButton>
-            )}
-            <AgentConsoleActionButton
-              type="button"
-              size="sm"
-              variant={confirming ? 'solid' : 'outline'}
-              onClick={onClear}
-              disabled={!hasHistory || blocked || clearing}
-              data-testid="agent-console-clear-history"
-             intent={confirming ? 'danger' : 'neutral'}>
-              {clearing ? '清空中...' : confirming ? '确认清空历史' : '清空历史会话'}
-            </AgentConsoleActionButton>
-          </AgentConsoleHistoryClearActions>
-        </AgentConsoleHistoryClearBody>
-      </AgentConsoleHistoryClearLayout>
-    </AgentConsoleHistoryClearSurface>
-  )
-}
-
-function EmptyText({ children }: { children: React.ReactNode }) {
-  return <AgentConsoleEmptyText>{children}</AgentConsoleEmptyText>
-}
-
 function agentSettingsSectionPath(sectionId: string): string {
   return `${ROUTES.agentSettings}#${encodeURIComponent(sectionId)}`
+}
+
+function agentConsoleHostedTabRoute(tab: string): string {
+  return `${ROUTES.appSettings}?tab=${encodeURIComponent(tab)}`
 }

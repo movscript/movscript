@@ -245,14 +245,14 @@
     "resetDefault": "恢复默认",
     "savedReloading": "已保存，正在重新加载客户端…",
     "saved": "已保存。",
-    "movScriptWorkspaceTitle": "MovScript 工作区",
-    "movScriptWorkspaceHint": "选择本机 MovScript 项目仓库根目录；源文件在 productions/、scripts/、content_units/ 和 settings/，本机配置在 .movscript/。",
-    "movScriptWorkspaceDir": "工作区目录",
-    "movScriptWorkspaceDirHelp": "留空时使用桌面端默认目录；填写后，该目录本身就是工作区根，.movscript 会在其中创建。",
-    "movScriptWorkspaceDirPlaceholder": "/Users/me/Projects/story-workspace",
-    "movScriptWorkspaceEffectiveRoot": "当前工作区",
-    "movScriptWorkspaceDefaultRoot": "桌面端默认目录",
-    "movScriptWorkspaceUseDefault": "使用默认目录",
+    "movScriptWorkspaceTitle": "MovScript Home",
+    "movScriptWorkspaceHint": "选择 MovScript 本机 home/control 目录。项目文件、provider 配置、后端认证和本地后端数据都位于该目录下。",
+    "movScriptWorkspaceDir": "MovScript home 目录",
+    "movScriptWorkspaceDirHelp": "留空时使用桌面端默认目录。这里不是普通项目源码根目录；MovScript 会在其中创建 local/user/org 项目目录。",
+    "movScriptWorkspaceDirPlaceholder": "/Users/me/.movscript",
+    "movScriptWorkspaceEffectiveRoot": "当前 MovScript home",
+    "movScriptWorkspaceDefaultRoot": "桌面端默认 home",
+    "movScriptWorkspaceUseDefault": "使用默认 home",
     "returnToLogin": "返回登录",
     "adminConsole": "管理后台",
     "adminConsoleHost": "桌面端独立窗口",
@@ -280,7 +280,7 @@
     "shotLibraryApiTitle": "镜头库 API",
     "shotLibraryApiHint": "镜头库可以同时连接多个实现同一套 REST 接口的后端，不必依赖当前登录服务。",
     "shotLibrarySources": "镜头库来源配置",
-    "shotLibrarySourcesHelp": "JSON 格式。每个来源需要 id、name、baseURL；可选 enabled、readOnly、authToken。baseURL 不包含 /api/v1。",
+    "shotLibrarySourcesHelp": "JSON 格式。每个来源需要 id、name、baseURL；可选 enabled、readOnly、authToken。authToken 会保存在桌面端 workspace secrets 中，不写入浏览器设置。baseURL 不包含 /api/v1。",
     "shotLibraryStandardApi": "标准接口"
   },
   "backendBoot": {
@@ -1622,8 +1622,8 @@
         "codex": "Codex"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "配置 .movscript/providers/mova 下的 Mova runtime profile；托管 app-server home 使用 .movscript/.mova。",
-        "codex": "配置 .movscript/providers/codex 下的 Codex runtime profile；托管 app-server home 使用 .movscript/.codex。"
+        "mova": "配置 providers/mova 下的 Mova runtime profile；托管 app-server home 使用 .mova。",
+        "codex": "配置 providers/codex 下的 Codex runtime profile；托管 app-server home 使用 .codex。"
       },
       "modelPanel": "模型路由",
       "modelLabel": "后端文本模型",

@@ -532,7 +532,7 @@ test('app-server manual URL cache is scoped by provider profile', () => {
       id: 'mova-movscript-home',
       label: 'Mova',
       providerKey: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
       lifecycle: 'movscript-owned',
     },
   }
@@ -547,7 +547,7 @@ test('app-server manual URL cache is scoped by provider profile', () => {
       id: 'codex-movscript-home',
       label: 'Codex',
       providerKey: 'codex',
-      home: '.movscript/.codex',
+      home: '.codex',
       lifecycle: 'movscript-owned',
     },
   }
@@ -580,7 +580,7 @@ test('app-server env URL keys prefer provider profile identity over provider kin
       id: 'studio-home',
       label: 'Studio Mova',
       providerKey: 'studio-agent',
-      home: '.movscript/.studio-agent',
+      home: '.studio-agent',
       lifecycle: 'movscript-owned',
     },
   }
@@ -609,7 +609,7 @@ test('app-server ensure sends neutral provider home through neutral Electron API
       id: 'mova-movscript-home',
       label: 'Mova',
       providerKey: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
       lifecycle: 'movscript-owned',
     },
   }
@@ -683,7 +683,7 @@ test('default Mova provider initializes through a managed Electron relay endpoin
       id: 'mova-movscript-home',
       label: 'Mova',
       providerKey: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
       lifecycle: 'movscript-owned',
     },
   }

@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from 'react'
 import { AgentChatShellView } from '@/features/agent/components/AgentChatShellView'
 import type { AgentChatDataSourceShellProps } from '@/features/agent/application/agentChatDataSourceShellTypes'
 import { useAgentChatDataSourceLoadEffect } from '@/features/agent/application/useAgentChatDataSourceLoadEffect'
@@ -6,6 +5,7 @@ import { useAgentChatConversationRegistry } from '@/features/agent/application/u
 import { useAgentChatDraftConversation } from '@/features/agent/application/useAgentChatDraftConversation'
 import { useAgentChatEscapeKey } from '@/features/agent/application/useAgentChatEscapeKey'
 import { useAgentChatPanelCommands } from '@/features/agent/application/useAgentChatPanelCommands'
+import { useAgentChatRuntimeController } from '@/features/agent/application/useAgentChatRuntimeController'
 import { useAgentChatRunProfileSettings } from '@/features/agent/application/useAgentChatRunProfileSettings'
 import { useAgentChatServerRequests } from '@/features/agent/application/useAgentChatServerRequests'
 import { useAgentChatShellCoreState } from '@/features/agent/application/useAgentChatShellCoreState'
@@ -17,9 +17,6 @@ import { useAgentChatThreadRuntimeEffects } from '@/features/agent/application/u
 import { useAgentChatThreadTabs } from '@/features/agent/application/useAgentChatThreadTabs'
 import { useAgentChatThreadViewport } from '@/features/agent/application/useAgentChatThreadViewport'
 import { useAgentChatTurnControls } from '@/features/agent/application/useAgentChatTurnControls'
-import { type AgentChatThread, type AgentChatThreadReadInput } from '@movscript/core/agent/chat'
-import { selectAgentChatRuntimeView } from '@movscript/core/agent/chat'
-import { positiveInteger } from '@/features/agent/presentation/agentChatDataSourceShellModel'
 import { useAgentChatShellPresentationState } from '@/features/agent/presentation/useAgentChatShellPresentationState'
 export function AgentChatDataSourceShell({
   userId,
@@ -141,12 +138,24 @@ export function AgentChatDataSourceShell({
     threadScopeKey,
   })
 
-  const setActiveThreadIdValue = useCallback((threadId: string | null) => {
-    setActiveThreadIdRefValue(threadId)
-    dispatchRuntime({ type: 'setActiveThreadId', threadId })
-  }, [dispatchRuntime, setActiveThreadIdRefValue])
-  const readActiveRuntimeThreadId = useCallback(() => activeThreadIdRef.current, [])
-  const nextRecentCapabilityEventSequence = useCallback(() => ++recentCapabilityEventSequenceRef.current, [])
+  const {
+    activeThread,
+    activeTurn,
+    nextRecentCapabilityEventSequence,
+    readActiveRuntimeThreadId,
+    setActiveThreadIdValue,
+    upsertThread,
+    upsertThreadReadResult,
+    visibleItems: runtimeVisibleItems,
+    visiblePendingServerRequests,
+    visibleStatusItems,
+  } = useAgentChatRuntimeController({
+    activeThreadIdRef,
+    dispatchRuntime,
+    recentCapabilityEventSequenceRef,
+    runtime,
+    setActiveThreadIdRefValue,
+  })
 
   useAgentChatDataSourceLoadEffect({
     activeThreadIdRef,
@@ -163,14 +172,6 @@ export function AgentChatDataSourceShell({
     setSending,
     setStoppingTurn,
   })
-
-  const upsertThread = useCallback((thread: AgentChatThread) => {
-    dispatchRuntime({ type: 'upsertThread', thread })
-  }, [])
-
-  const upsertThreadReadResult = useCallback((thread: AgentChatThread, input: AgentChatThreadReadInput) => {
-    dispatchRuntime({ type: 'upsertThreadReadResult', thread, input })
-  }, [])
 
   const {
     clearUnavailableActiveThread,
@@ -289,13 +290,6 @@ export function AgentChatDataSourceShell({
     upsertThreadReadResult,
   })
 
-  const {
-    activeThread,
-    activeTurn,
-    visibleItems: runtimeVisibleItems,
-    visiblePendingServerRequests,
-    visibleStatusItems,
-  } = useMemo(() => selectAgentChatRuntimeView(runtime), [runtime])
   const {
     canShowOlderThreadItems,
     handleThreadScroll,
@@ -435,7 +429,7 @@ export function AgentChatDataSourceShell({
     markThreadClosed,
     markThreadOpen,
     openThreadIds,
-    projectId: positiveInteger(currentProject?.ID),
+    projectId: currentProject?.ID,
     providerIdentity,
     readHistoryThread,
     setActiveThreadIdValue,

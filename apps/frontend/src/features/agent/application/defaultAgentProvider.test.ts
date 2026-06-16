@@ -101,7 +101,7 @@ function providerFixture(): ProviderConfig {
       id: 'mova-movscript-home',
       label: 'MovScript Mova',
       providerKey: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
       lifecycle: 'movscript-owned',
     },
   }

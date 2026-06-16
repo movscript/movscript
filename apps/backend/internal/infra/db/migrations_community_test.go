@@ -14,6 +14,12 @@ func TestCommunityRuntimeDoesNotContributeMigrationModels(t *testing.T) {
 	}
 }
 
+func TestCommunityRuntimeDoesNotContributeEditionMigrations(t *testing.T) {
+	if got := editionMigrations(); len(got) != 0 {
+		t.Fatalf("editionMigrations() length = %d, want 0", len(got))
+	}
+}
+
 func TestJobRunnerIndexesCreated(t *testing.T) {
 	db := testutil.OpenSQLite(t, "job_runner_indexes.db")
 	if err := RunMigrations(db); err != nil {

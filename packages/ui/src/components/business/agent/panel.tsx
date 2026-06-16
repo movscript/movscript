@@ -37,7 +37,7 @@ export function AgentPanelShell({
   return (
     <div
       ref={panelRef}
-      className="ai-agent-panel"
+      className="ms-stack ai-agent-panel"
       data-dock-layout={dockLayout ? "true" : "false"}
       data-chrome={resolvedChrome}
       data-collapsed={collapsed ? "true" : undefined}
@@ -51,7 +51,7 @@ export function AgentPanelShell({
         />
       ) : null}
 
-      <div className="ai-agent-panel__body">{children}</div>
+      <div className="ms-stack ai-agent-panel__body">{children}</div>
     </div>
   );
 }

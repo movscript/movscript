@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes } from "react";
 
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { Frame } from "../../../../primitives";
 
 export const AppSurfaceItem = forwardRef<HTMLElement, HTMLAttributes<HTMLDivElement> & {
   asChild?: boolean;
@@ -19,7 +19,7 @@ export const AppSurfaceItem = forwardRef<HTMLElement, HTMLAttributes<HTMLDivElem
     },
     ref,
   ) => (
-    <Surface
+    <Frame
       ref={ref}
       asChild={asChild}
       kind={variant === "overlay" ? "overlay" : "item"}
@@ -30,7 +30,7 @@ export const AppSurfaceItem = forwardRef<HTMLElement, HTMLAttributes<HTMLDivElem
       {...props}
     >
       {children}
-    </Surface>
+    </Frame>
   ),
 );
 

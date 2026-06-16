@@ -1,8 +1,12 @@
 import { FileAudio, FileText, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ResourceLibraryPickerPanel, type ResourceLibraryPickerItem, type ResourceLibraryPickerOption } from '@movscript/ui/business/resource'
 import type { RawResource } from '@/types'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
+import {
+  ResourceLibraryPickerPanel,
+  type ResourceLibraryPickerItem,
+  type ResourceLibraryPickerOption,
+} from '@/shared/ui/ResourceLibraryPickerUi'
 
 export type ResourceTypeFilter = 'all' | RawResource['type']
 

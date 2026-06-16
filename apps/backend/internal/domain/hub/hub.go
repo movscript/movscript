@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,99 +24,157 @@ const (
 )
 
 type Package struct {
-	ID              string     `json:"id"`
-	Title           string     `json:"title"`
-	Kind            string     `json:"kind"`
-	Category        string     `json:"category"`
-	Creator         string     `json:"creator"`
-	License         string     `json:"license"`
-	Signal          string     `json:"signal"`
-	Summary         string     `json:"summary"`
-	Tags            []string   `json:"tags"`
-	Downloads       int64      `json:"downloads"`
-	Rating          float64    `json:"rating"`
-	Version         string     `json:"version"`
-	FileSize        string     `json:"fileSize"`
-	FileSizeBytes   int64      `json:"fileSizeBytes"`
-	FileName        string     `json:"fileName"`
-	ContentType     string     `json:"contentType"`
-	Compatibility   string     `json:"compatibility"`
-	UpdatedAt       string     `json:"updatedAt"`
-	InstallCommand  string     `json:"installCommand"`
-	Repository      string     `json:"repository,omitempty"`
-	Status          string     `json:"status"`
-	SubmittedBy     string     `json:"submittedBy,omitempty"`
-	ReviewedBy      string     `json:"reviewedBy,omitempty"`
-	ReviewNote      string     `json:"reviewNote,omitempty"`
-	StorageProvider string     `json:"storageProvider,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	PublishedAt     *time.Time `json:"publishedAt,omitempty"`
-	TakenDownAt     *time.Time `json:"takenDownAt,omitempty"`
+	ID                  string              `json:"id"`
+	Title               string              `json:"title"`
+	Kind                string              `json:"kind"`
+	Category            string              `json:"category"`
+	Creator             string              `json:"creator"`
+	CreatorVerified     bool                `json:"creatorVerified,omitempty"`
+	CreatorStatus       string              `json:"creatorStatus,omitempty"`
+	License             string              `json:"license"`
+	Signal              string              `json:"signal"`
+	Summary             string              `json:"summary"`
+	Tags                []string            `json:"tags"`
+	Downloads           int64               `json:"downloads"`
+	Rating              float64             `json:"rating"`
+	Version             string              `json:"version"`
+	FileSize            string              `json:"fileSize"`
+	FileSizeBytes       int64               `json:"fileSizeBytes"`
+	FileName            string              `json:"fileName"`
+	ContentType         string              `json:"contentType"`
+	SHA256              string              `json:"sha256,omitempty"`
+	RequiredProductID   string              `json:"requiredProductId,omitempty"`
+	Compatibility       string              `json:"compatibility"`
+	MinWorkbenchVersion string              `json:"minWorkbenchVersion,omitempty"`
+	MaxWorkbenchVersion string              `json:"maxWorkbenchVersion,omitempty"`
+	Dependencies        []PackageDependency `json:"dependencies,omitempty"`
+	UpdatedAt           string              `json:"updatedAt"`
+	InstallCommand      string              `json:"installCommand"`
+	Repository          string              `json:"repository,omitempty"`
+	Status              string              `json:"status"`
+	SubmittedBy         string              `json:"submittedBy,omitempty"`
+	ReviewedBy          string              `json:"reviewedBy,omitempty"`
+	ReviewNote          string              `json:"reviewNote,omitempty"`
+	StorageProvider     string              `json:"storageProvider,omitempty"`
+	ScanStatus          string              `json:"scanStatus,omitempty"`
+	ScanSeverity        string              `json:"scanSeverity,omitempty"`
+	ScanSummary         string              `json:"scanSummary,omitempty"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	PublishedAt         *time.Time          `json:"publishedAt,omitempty"`
+	TakenDownAt         *time.Time          `json:"takenDownAt,omitempty"`
 }
 
 type HubPackage struct {
-	ID              uint
-	PackageID       string
-	Title           string
-	Kind            string
-	Category        string
-	Creator         string
-	License         string
-	Signal          string
-	Summary         string
-	Tags            string
-	Downloads       int64
-	Rating          float64
-	Version         string
-	FileSizeBytes   int64
-	FileName        string
-	ContentType     string
-	Compatibility   string
-	Repository      string
-	Status          string
-	SubmittedBy     string
-	ReviewedBy      string
-	ReviewNote      string
-	StagingProvider string
-	StagingKey      string
-	PublicProvider  string
-	PublicKey       string
-	PublishedAt     *int64
-	TakenDownAt     *int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  uint
+	PackageID           string
+	Title               string
+	Kind                string
+	Category            string
+	Creator             string
+	CreatorVerified     bool
+	CreatorStatus       string
+	License             string
+	Signal              string
+	Summary             string
+	Tags                string
+	Downloads           int64
+	Rating              float64
+	Version             string
+	FileSizeBytes       int64
+	FileName            string
+	ContentType         string
+	SHA256              string
+	RequiredProductID   string
+	Compatibility       string
+	MinWorkbenchVersion string
+	MaxWorkbenchVersion string
+	Dependencies        string
+	ManifestJSON        string
+	Repository          string
+	Status              string
+	SubmittedBy         string
+	ReviewedBy          string
+	ReviewNote          string
+	StagingProvider     string
+	StagingKey          string
+	PublicProvider      string
+	PublicKey           string
+	ScanStatus          string
+	ScanSeverity        string
+	ScanSummary         string
+	PublishedAt         *int64
+	TakenDownAt         *int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
-type CreateWorkspaceInput struct {
-	Title           string
-	Kind            string
-	Category        string
-	Creator         string
-	License         string
-	Summary         string
-	Tags            []string
-	Version         string
-	FileSizeBytes   int64
-	FileName        string
-	ContentType     string
-	Compatibility   string
-	Repository      string
-	SubmittedBy     string
-	StagingProvider string
-	StagingKey      string
+type CreateDraftInput struct {
+	Title               string
+	Kind                string
+	Category            string
+	Creator             string
+	License             string
+	Summary             string
+	Tags                []string
+	Version             string
+	FileSizeBytes       int64
+	FileName            string
+	ContentType         string
+	SHA256              string
+	RequiredProductID   string
+	Compatibility       string
+	MinWorkbenchVersion string
+	MaxWorkbenchVersion string
+	Dependencies        []PackageDependency
+	ManifestJSON        string
+	Repository          string
+	SubmittedBy         string
+	StagingProvider     string
+	StagingKey          string
 }
+
+type CreateWorkspaceInput = CreateDraftInput
 
 type PatchInput struct {
-	Title         *string
-	Category      *string
-	Signal        *string
-	Summary       *string
-	Tags          []string
-	Rating        *float64
-	Compatibility *string
-	Repository    *string
-	Status        *string
-	ReviewNote    *string
+	Title               *string
+	Category            *string
+	Signal              *string
+	Summary             *string
+	Tags                []string
+	Rating              *float64
+	Compatibility       *string
+	MinWorkbenchVersion *string
+	MaxWorkbenchVersion *string
+	Dependencies        []PackageDependency
+	Repository          *string
+	RequiredProductID   *string
+	Status              *string
+	ReviewNote          *string
+}
+
+type PackageDependency struct {
+	ID       string `json:"id"`
+	Version  string `json:"version,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
+}
+
+type Manifest struct {
+	Schema              string              `json:"schema,omitempty"`
+	ID                  string              `json:"id,omitempty"`
+	Name                string              `json:"name,omitempty"`
+	Version             string              `json:"version,omitempty"`
+	Description         string              `json:"description,omitempty"`
+	Author              string              `json:"author,omitempty"`
+	Homepage            string              `json:"homepage,omitempty"`
+	Kind                string              `json:"kind,omitempty"`
+	Category            string              `json:"category,omitempty"`
+	License             string              `json:"license,omitempty"`
+	Tags                []string            `json:"tags,omitempty"`
+	Compatibility       string              `json:"compatibility,omitempty"`
+	MinWorkbenchVersion string              `json:"minWorkbenchVersion,omitempty"`
+	MaxWorkbenchVersion string              `json:"maxWorkbenchVersion,omitempty"`
+	RequiredProductID   string              `json:"requiredProductId,omitempty"`
+	Dependencies        []PackageDependency `json:"dependencies,omitempty"`
 }
 
 func ToPackage(row HubPackage) Package {
@@ -125,61 +185,81 @@ func ToPackage(row HubPackage) Package {
 		provider = row.StagingProvider
 	}
 	return Package{
-		ID:              row.PackageID,
-		Title:           row.Title,
-		Kind:            row.Kind,
-		Category:        row.Category,
-		Creator:         row.Creator,
-		License:         row.License,
-		Signal:          row.Signal,
-		Summary:         row.Summary,
-		Tags:            DecodeTags(row.Tags),
-		Downloads:       row.Downloads,
-		Rating:          row.Rating,
-		Version:         row.Version,
-		FileSize:        FormatSize(row.FileSizeBytes),
-		FileSizeBytes:   row.FileSizeBytes,
-		FileName:        row.FileName,
-		ContentType:     row.ContentType,
-		Compatibility:   row.Compatibility,
-		UpdatedAt:       row.UpdatedAt.Format("2006-01-02"),
-		InstallCommand:  "mov hub install " + row.PackageID,
-		Repository:      row.Repository,
-		Status:          row.Status,
-		SubmittedBy:     row.SubmittedBy,
-		ReviewedBy:      row.ReviewedBy,
-		ReviewNote:      row.ReviewNote,
-		StorageProvider: provider,
-		CreatedAt:       row.CreatedAt,
-		PublishedAt:     publishedAt,
-		TakenDownAt:     takenDownAt,
+		ID:                  row.PackageID,
+		Title:               row.Title,
+		Kind:                row.Kind,
+		Category:            row.Category,
+		Creator:             row.Creator,
+		CreatorVerified:     row.CreatorVerified,
+		CreatorStatus:       row.CreatorStatus,
+		License:             row.License,
+		Signal:              row.Signal,
+		Summary:             row.Summary,
+		Tags:                DecodeTags(row.Tags),
+		Downloads:           row.Downloads,
+		Rating:              row.Rating,
+		Version:             row.Version,
+		FileSize:            FormatSize(row.FileSizeBytes),
+		FileSizeBytes:       row.FileSizeBytes,
+		FileName:            row.FileName,
+		ContentType:         row.ContentType,
+		SHA256:              row.SHA256,
+		RequiredProductID:   row.RequiredProductID,
+		Compatibility:       row.Compatibility,
+		MinWorkbenchVersion: row.MinWorkbenchVersion,
+		MaxWorkbenchVersion: row.MaxWorkbenchVersion,
+		Dependencies:        DecodeDependencies(row.Dependencies),
+		UpdatedAt:           row.UpdatedAt.Format("2006-01-02"),
+		InstallCommand:      "mov hub install " + row.PackageID,
+		Repository:          row.Repository,
+		Status:              row.Status,
+		SubmittedBy:         row.SubmittedBy,
+		ReviewedBy:          row.ReviewedBy,
+		ReviewNote:          row.ReviewNote,
+		StorageProvider:     provider,
+		ScanStatus:          row.ScanStatus,
+		ScanSeverity:        row.ScanSeverity,
+		ScanSummary:         row.ScanSummary,
+		CreatedAt:           row.CreatedAt,
+		PublishedAt:         publishedAt,
+		TakenDownAt:         takenDownAt,
+	}
+}
+
+func NewDraftPackage(id string, in CreateDraftInput) HubPackage {
+	contentType := DefaultString(in.ContentType, "application/octet-stream")
+	return HubPackage{
+		PackageID:           id,
+		Title:               strings.TrimSpace(in.Title),
+		Kind:                DefaultString(strings.TrimSpace(in.Kind), KindPlugin),
+		Category:            strings.TrimSpace(in.Category),
+		Creator:             strings.TrimSpace(in.Creator),
+		License:             DefaultString(strings.TrimSpace(in.License), "Free Community License"),
+		Signal:              "待审核",
+		Summary:             strings.TrimSpace(in.Summary),
+		Tags:                EncodeTags(in.Tags),
+		Rating:              4.0,
+		Version:             DefaultString(strings.TrimSpace(in.Version), "0.1.0"),
+		FileSizeBytes:       in.FileSizeBytes,
+		FileName:            SafeFilename(in.FileName, id+".movpkg"),
+		ContentType:         contentType,
+		SHA256:              normalizeSHA256(in.SHA256),
+		RequiredProductID:   strings.TrimSpace(in.RequiredProductID),
+		Compatibility:       DefaultString(strings.TrimSpace(in.Compatibility), "Workbench >= 0.4"),
+		MinWorkbenchVersion: strings.TrimSpace(in.MinWorkbenchVersion),
+		MaxWorkbenchVersion: strings.TrimSpace(in.MaxWorkbenchVersion),
+		Dependencies:        EncodeDependencies(in.Dependencies),
+		ManifestJSON:        strings.TrimSpace(in.ManifestJSON),
+		Repository:          strings.TrimSpace(in.Repository),
+		Status:              StatusPending,
+		SubmittedBy:         strings.TrimSpace(in.SubmittedBy),
+		StagingProvider:     in.StagingProvider,
+		StagingKey:          in.StagingKey,
 	}
 }
 
 func NewWorkspacePackage(id string, in CreateWorkspaceInput) HubPackage {
-	contentType := DefaultString(in.ContentType, "application/octet-stream")
-	return HubPackage{
-		PackageID:       id,
-		Title:           strings.TrimSpace(in.Title),
-		Kind:            DefaultString(strings.TrimSpace(in.Kind), KindPlugin),
-		Category:        strings.TrimSpace(in.Category),
-		Creator:         strings.TrimSpace(in.Creator),
-		License:         DefaultString(strings.TrimSpace(in.License), "Free Community License"),
-		Signal:          "待审核",
-		Summary:         strings.TrimSpace(in.Summary),
-		Tags:            EncodeTags(in.Tags),
-		Rating:          4.0,
-		Version:         DefaultString(strings.TrimSpace(in.Version), "0.1.0"),
-		FileSizeBytes:   in.FileSizeBytes,
-		FileName:        SafeFilename(in.FileName, id+".movpkg"),
-		ContentType:     contentType,
-		Compatibility:   DefaultString(strings.TrimSpace(in.Compatibility), "Workbench >= 0.4"),
-		Repository:      strings.TrimSpace(in.Repository),
-		Status:          StatusPending,
-		SubmittedBy:     strings.TrimSpace(in.SubmittedBy),
-		StagingProvider: in.StagingProvider,
-		StagingKey:      in.StagingKey,
-	}
+	return NewDraftPackage(id, in)
 }
 
 func ApplyPatch(row *HubPackage, reviewer string, in PatchInput, now time.Time) {
@@ -205,8 +285,20 @@ func ApplyPatch(row *HubPackage, reviewer string, in PatchInput, now time.Time) 
 	if in.Compatibility != nil {
 		row.Compatibility = strings.TrimSpace(*in.Compatibility)
 	}
+	if in.MinWorkbenchVersion != nil {
+		row.MinWorkbenchVersion = strings.TrimSpace(*in.MinWorkbenchVersion)
+	}
+	if in.MaxWorkbenchVersion != nil {
+		row.MaxWorkbenchVersion = strings.TrimSpace(*in.MaxWorkbenchVersion)
+	}
+	if in.Dependencies != nil {
+		row.Dependencies = EncodeDependencies(in.Dependencies)
+	}
 	if in.Repository != nil {
 		row.Repository = strings.TrimSpace(*in.Repository)
+	}
+	if in.RequiredProductID != nil {
+		row.RequiredProductID = strings.TrimSpace(*in.RequiredProductID)
 	}
 	if in.Status != nil {
 		row.Status = strings.TrimSpace(*in.Status)
@@ -246,31 +338,122 @@ func SeedPackages() []Package {
 
 func NewSeedPackageRow(item Package) HubPackage {
 	row := HubPackage{
-		PackageID:      item.ID,
-		Title:          item.Title,
-		Kind:           item.Kind,
-		Category:       item.Category,
-		Creator:        item.Creator,
-		License:        item.License,
-		Signal:         item.Signal,
-		Summary:        item.Summary,
-		Tags:           EncodeTags(item.Tags),
-		Downloads:      item.Downloads,
-		Rating:         item.Rating,
-		Version:        item.Version,
-		FileSizeBytes:  item.FileSizeBytes,
-		FileName:       item.FileName,
-		ContentType:    item.ContentType,
-		Compatibility:  item.Compatibility,
-		Repository:     item.Repository,
-		Status:         StatusPublished,
-		PublicProvider: "seed",
-		PublicKey:      "seed/" + item.ID + ".movhub.json",
-		PublishedAt:    UnixPtr(item.CreatedAt),
+		PackageID:           item.ID,
+		Title:               item.Title,
+		Kind:                item.Kind,
+		Category:            item.Category,
+		Creator:             item.Creator,
+		License:             item.License,
+		Signal:              item.Signal,
+		Summary:             item.Summary,
+		Tags:                EncodeTags(item.Tags),
+		Downloads:           item.Downloads,
+		Rating:              item.Rating,
+		Version:             item.Version,
+		FileSizeBytes:       item.FileSizeBytes,
+		FileName:            item.FileName,
+		ContentType:         item.ContentType,
+		SHA256:              normalizeSHA256(item.SHA256),
+		RequiredProductID:   strings.TrimSpace(item.RequiredProductID),
+		Compatibility:       item.Compatibility,
+		MinWorkbenchVersion: strings.TrimSpace(item.MinWorkbenchVersion),
+		MaxWorkbenchVersion: strings.TrimSpace(item.MaxWorkbenchVersion),
+		Dependencies:        EncodeDependencies(item.Dependencies),
+		Repository:          item.Repository,
+		Status:              StatusPublished,
+		PublicProvider:      "seed",
+		PublicKey:           "seed/" + item.ID + ".movhub.json",
+		PublishedAt:         UnixPtr(item.CreatedAt),
 	}
 	row.CreatedAt = item.CreatedAt
 	row.UpdatedAt = item.CreatedAt
 	return row
+}
+
+func EncodeDependencies(deps []PackageDependency) string {
+	cleaned := CleanDependencies(deps)
+	if len(cleaned) == 0 {
+		return "[]"
+	}
+	raw, _ := json.Marshal(cleaned)
+	return string(raw)
+}
+
+func DecodeDependencies(raw string) []PackageDependency {
+	var deps []PackageDependency
+	if err := json.Unmarshal([]byte(DefaultString(raw, "[]")), &deps); err != nil {
+		return []PackageDependency{}
+	}
+	return CleanDependencies(deps)
+}
+
+func CleanDependencies(deps []PackageDependency) []PackageDependency {
+	cleaned := make([]PackageDependency, 0, len(deps))
+	seen := map[string]bool{}
+	for _, dep := range deps {
+		id := strings.TrimSpace(dep.ID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		cleaned = append(cleaned, PackageDependency{
+			ID:       id,
+			Version:  strings.TrimSpace(dep.Version),
+			Optional: dep.Optional,
+		})
+	}
+	return cleaned
+}
+
+func CompatibilityFromWorkbenchRange(minVersion, maxVersion string) string {
+	minVersion = strings.TrimSpace(minVersion)
+	maxVersion = strings.TrimSpace(maxVersion)
+	switch {
+	case minVersion != "" && maxVersion != "":
+		return "Workbench >= " + minVersion + " < " + maxVersion
+	case minVersion != "":
+		return "Workbench >= " + minVersion
+	case maxVersion != "":
+		return "Workbench < " + maxVersion
+	default:
+		return ""
+	}
+}
+
+func ExtractMinWorkbenchVersion(compatibility string) string {
+	matches := regexp.MustCompile(`(?i)(?:workbench\s*)?>=\s*([0-9]+(?:\.[0-9]+){0,2})`).FindStringSubmatch(compatibility)
+	if len(matches) == 2 {
+		return matches[1]
+	}
+	return ""
+}
+
+func IsValidSemverish(version string) bool {
+	return regexp.MustCompile(`^[0-9]+(?:\.[0-9]+){0,2}$`).MatchString(strings.TrimSpace(version))
+}
+
+func VersionLess(left, right string) bool {
+	l := parseVersionParts(left)
+	r := parseVersionParts(right)
+	for i := 0; i < len(l); i++ {
+		if l[i] < r[i] {
+			return true
+		}
+		if l[i] > r[i] {
+			return false
+		}
+	}
+	return false
+}
+
+func parseVersionParts(version string) [3]int {
+	var out [3]int
+	parts := strings.Split(strings.TrimSpace(version), ".")
+	for i := 0; i < len(parts) && i < len(out); i++ {
+		n, _ := strconv.Atoi(parts[i])
+		out[i] = n
+	}
+	return out
 }
 
 func EncodeTags(tags []string) string {
@@ -299,6 +482,19 @@ func DecodeTags(raw string) []string {
 func SplitTags(v string) []string {
 	parts := strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == '，' || r == '\n' })
 	return DecodeTags(EncodeTags(parts))
+}
+
+func normalizeSHA256(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if len(v) != 64 {
+		return ""
+	}
+	for _, r := range v {
+		if !(r >= 'a' && r <= 'f' || r >= '0' && r <= '9') {
+			return ""
+		}
+	}
+	return v
 }
 
 func Slugify(v string) string {

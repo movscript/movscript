@@ -29,6 +29,7 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
   | 'updateMovScriptEngineStoryboardTimeline'
   | 'writeMovScriptEngineHierarchyNode'
   | 'syncMovScriptEngineContentWorkspace'
+  | 'onMovScriptEngineWorkspaceUpdated'
 > {
   return {
     loadMovScriptEngineContentWorkspaceSnapshot: (input) => ipcRenderer.invoke('movscript:engine-content-workspace-snapshot', input),
@@ -57,5 +58,12 @@ export function createMovScriptEngineAPI(ipcRenderer: IpcRenderer): Pick<
     updateMovScriptEngineStoryboardTimeline: (input) => ipcRenderer.invoke('movscript:engine-storyboard-timeline-update', input),
     writeMovScriptEngineHierarchyNode: (input) => ipcRenderer.invoke('movscript:engine-hierarchy-node-write', input),
     syncMovScriptEngineContentWorkspace: (input) => ipcRenderer.invoke('movscript:engine-content-workspace-sync', input),
+    onMovScriptEngineWorkspaceUpdated: (handler) => {
+      const listener = (_event: unknown, event: Parameters<typeof handler>[0]) => handler(event)
+      ipcRenderer.on('movscript:engine-workspace-updated', listener)
+      return () => {
+        ipcRenderer.removeListener('movscript:engine-workspace-updated', listener)
+      }
+    },
   }
 }

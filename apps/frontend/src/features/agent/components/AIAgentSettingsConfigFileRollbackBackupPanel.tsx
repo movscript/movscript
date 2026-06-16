@@ -7,7 +7,7 @@ import {
   AgentSettingsFieldHelp,
   AgentSettingsIcon,
   AgentSettingsStack,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import type { AgentSettingsConfigFileBackup } from '@/features/agent/state/agentStore'
 
 export function AIAgentSettingsConfigFileRollbackBackupPanel({

@@ -17,7 +17,7 @@ export function CanvasIOBodyBlock({
     <AppSurfaceItem
       variant="muted"
       density="compact"
-      className={cn("canvas-io-body-block", !value && "canvas-io-body-block--empty", isFailed && "canvas-io-body-block--failed")}
+      className={cn("ms-type-tiny canvas-io-body-block", !value && "canvas-io-body-block--empty", isFailed && "canvas-io-body-block--failed")}
     >
       {value ? <p className="canvas-io-body-block__value">{value}</p> : <p className="canvas-io-body-block__empty">{emptyLabel}</p>}
     </AppSurfaceItem>

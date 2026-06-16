@@ -18,7 +18,7 @@ AgentActivityLineItem.displayName = "AgentActivityLineItem";
 
 export const AgentActivityLineRow = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-activity-line-row", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-activity-line-row", className)} {...props} />;
   }
 );
 
@@ -30,7 +30,7 @@ export interface AgentActivityKindLabelProps extends React.HTMLAttributes<HTMLSp
 
 export const AgentActivityKindLabel = React.forwardRef<HTMLSpanElement, AgentActivityKindLabelProps>(
   ({ className, kind = "default", ...props }, ref) => {
-    return <span ref={ref} data-kind={kind} className={cn("ms-agent-activity-kind-label", className)} {...props} />;
+    return <span ref={ref} data-kind={kind} className={cn("ms-type-tiny ms-agent-activity-kind-label", className)} {...props} />;
   }
 );
 
@@ -38,7 +38,7 @@ AgentActivityKindLabel.displayName = "AgentActivityKindLabel";
 
 export const AgentActivityLineText = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-activity-line-text", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-text-truncate ms-agent-activity-line-text", className)} {...props} />;
   }
 );
 
@@ -46,7 +46,7 @@ AgentActivityLineText.displayName = "AgentActivityLineText";
 
 export const AgentActivityDuration = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-activity-duration", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-type-tiny ms-agent-activity-duration", className)} {...props} />;
   }
 );
 

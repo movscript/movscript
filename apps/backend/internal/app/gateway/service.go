@@ -259,7 +259,7 @@ func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, er
 	if err != nil {
 		return ChatResult{}, err
 	}
-	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
+	ctx = s.providerRouteContextForPrincipal(ctx, input.Principal)
 	resp, err := s.ai.CallTextWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
@@ -279,7 +279,7 @@ func (s *Service) CallResponses(ctx context.Context, input ResponsesInput) (Chat
 	}
 	responsesReq := input.Responses
 	responsesReq.Text = textReq
-	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
+	ctx = s.providerRouteContextForPrincipal(ctx, input.Principal)
 	resp, err := s.ai.CallResponsesWithUsage(ctx, input.Principal.UserID, modelConfigID, responsesReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
@@ -292,7 +292,7 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 	if err != nil {
 		return ChatStreamResult{}, err
 	}
-	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
+	ctx = s.providerRouteContextForPrincipal(ctx, input.Principal)
 	events, err := s.ai.CallTextStreamWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatStreamResult{}, err
@@ -318,7 +318,10 @@ func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput
 			return OpenAIProxyRoute{}, err
 		}
 	}
-	ctx = ai.WithProviderNewAPIGroup(ctx, s.newAPIGroupForPrincipal(ctx, input.Principal))
+	ctx = s.providerRouteContextForPrincipal(ctx, input.Principal)
+	if input.Principal.Key != nil && input.Principal.Key.OrgID != nil {
+		ctx = ai.WithProviderOrgID(ctx, *input.Principal.Key.OrgID)
+	}
 	target, err := s.ai.OpenAIProxyTargetForCapability(ctx, input.Principal.UserID, route.ModelConfigID, capability)
 	if err != nil {
 		return OpenAIProxyRoute{}, fmt.Errorf("%w: %v", ErrModelUnavailable, err)
@@ -420,9 +423,22 @@ func (s *Service) resolveModelForCapability(ctx context.Context, modelID string,
 	}
 	id, responseModel, err := ResolveTextModel(models, modelID, defaultID, defaultErr)
 	if err != nil {
+		if route, routeErr := s.resolveModelIDRouteForCapability(ctx, modelID, capability); routeErr == nil {
+			return route.ModelConfigID, strings.TrimSpace(modelID), nil
+		}
 		return id, responseModel, ModelNotFoundError{Message: err.Error()}
 	}
 	return id, responseModel, nil
+}
+
+func (s *Service) resolveModelIDRouteForCapability(ctx context.Context, modelID string, capability string) (providercontract.AIGatewayModelRoute, error) {
+	if s.routing == nil || strings.TrimSpace(modelID) == "" || strings.TrimSpace(modelID) == DefaultChatModel {
+		return providercontract.AIGatewayModelRoute{}, ErrModelUnavailable
+	}
+	return s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
+		ModelID:    strings.TrimSpace(modelID),
+		Capability: capability,
+	})
 }
 
 func compactOpenAIProxyCapabilities(capabilities []string) []string {

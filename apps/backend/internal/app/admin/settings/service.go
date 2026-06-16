@@ -58,9 +58,10 @@ func DefaultSystemHealthThresholds() SystemHealthThresholds {
 }
 
 type AuthSettings struct {
-	RegistrationEnabled      bool             `json:"registration_enabled"`
-	RequireEmailVerification bool             `json:"require_email_verification"`
-	Email                    SMTPMailSettings `json:"email"`
+	RegistrationEnabled      bool              `json:"registration_enabled"`
+	RequireEmailVerification bool              `json:"require_email_verification"`
+	Email                    SMTPMailSettings  `json:"email"`
+	Turnstile                TurnstileSettings `json:"turnstile"`
 }
 
 type SMTPMailSettings struct {
@@ -76,10 +77,18 @@ type SMTPMailSettings struct {
 	UseStartTLS bool   `json:"use_start_tls"`
 }
 
+type TurnstileSettings struct {
+	Enabled      bool   `json:"enabled"`
+	SiteKey      string `json:"site_key,omitempty"`
+	SecretKey    string `json:"secret_key,omitempty"`
+	SecretKeySet bool   `json:"secret_key_set"`
+}
+
 type authSettingsStored struct {
-	RegistrationEnabled      bool             `json:"registration_enabled"`
-	RequireEmailVerification bool             `json:"require_email_verification"`
-	Email                    SMTPMailSettings `json:"email"`
+	RegistrationEnabled      bool              `json:"registration_enabled"`
+	RequireEmailVerification bool              `json:"require_email_verification"`
+	Email                    SMTPMailSettings  `json:"email"`
+	Turnstile                TurnstileSettings `json:"turnstile"`
 }
 
 type GenerationToolsSettings struct {
@@ -123,6 +132,7 @@ func DefaultAuthSettings() AuthSettings {
 			FromName:    "Movscript",
 			UseStartTLS: true,
 		},
+		Turnstile: TurnstileSettings{},
 	}
 }
 
@@ -153,12 +163,19 @@ func (s *Service) AuthSettings(ctx context.Context) (AuthSettings, error) {
 	settings.RegistrationEnabled = stored.RegistrationEnabled
 	settings.RequireEmailVerification = stored.RequireEmailVerification
 	settings.Email = normalizeSMTPMailSettings(stored.Email)
+	settings.Turnstile = normalizeTurnstileSettings(stored.Turnstile)
 	if settings.Email.Password != "" && len(s.encryptionKey) > 0 {
 		if plain, err := crypto.Decrypt(settings.Email.Password, s.encryptionKey); err == nil {
 			settings.Email.Password = plain
 		}
 	}
 	settings.Email.PasswordSet = settings.Email.Password != ""
+	if settings.Turnstile.SecretKey != "" && len(s.encryptionKey) > 0 {
+		if plain, err := crypto.Decrypt(settings.Turnstile.SecretKey, s.encryptionKey); err == nil {
+			settings.Turnstile.SecretKey = plain
+		}
+	}
+	settings.Turnstile.SecretKeySet = settings.Turnstile.SecretKey != ""
 	return settings, nil
 }
 
@@ -168,6 +185,7 @@ func (s *Service) PublicAuthSettings(ctx context.Context) (AuthSettings, error) 
 		return settings, err
 	}
 	settings.Email.Password = ""
+	settings.Turnstile.SecretKey = ""
 	return settings, nil
 }
 
@@ -180,6 +198,10 @@ func (s *Service) UpdateAuthSettings(ctx context.Context, settings AuthSettings)
 	if settings.Email.Password == "" && current.Email.Password != "" {
 		settings.Email.Password = current.Email.Password
 	}
+	settings.Turnstile = normalizeTurnstileSettings(settings.Turnstile)
+	if settings.Turnstile.SecretKey == "" && current.Turnstile.SecretKey != "" {
+		settings.Turnstile.SecretKey = current.Turnstile.SecretKey
+	}
 	if err := validateAuthSettings(settings); err != nil {
 		return settings, err
 	}
@@ -187,6 +209,7 @@ func (s *Service) UpdateAuthSettings(ctx context.Context, settings AuthSettings)
 		RegistrationEnabled:      settings.RegistrationEnabled,
 		RequireEmailVerification: settings.RequireEmailVerification,
 		Email:                    settings.Email,
+		Turnstile:                settings.Turnstile,
 	}
 	if stored.Email.Password != "" && len(s.encryptionKey) > 0 {
 		encrypted, err := crypto.Encrypt(stored.Email.Password, s.encryptionKey)
@@ -194,6 +217,13 @@ func (s *Service) UpdateAuthSettings(ctx context.Context, settings AuthSettings)
 			return settings, err
 		}
 		stored.Email.Password = encrypted
+	}
+	if stored.Turnstile.SecretKey != "" && len(s.encryptionKey) > 0 {
+		encrypted, err := crypto.Encrypt(stored.Turnstile.SecretKey, s.encryptionKey)
+		if err != nil {
+			return settings, err
+		}
+		stored.Turnstile.SecretKey = encrypted
 	}
 	raw, err := json.Marshal(stored)
 	if err != nil {
@@ -204,6 +234,8 @@ func (s *Service) UpdateAuthSettings(ctx context.Context, settings AuthSettings)
 	}
 	settings.Email.PasswordSet = settings.Email.Password != ""
 	settings.Email.Password = ""
+	settings.Turnstile.SecretKeySet = settings.Turnstile.SecretKey != ""
+	settings.Turnstile.SecretKey = ""
 	return settings, nil
 }
 
@@ -424,6 +456,13 @@ func normalizeSMTPMailSettings(settings SMTPMailSettings) SMTPMailSettings {
 	return settings
 }
 
+func normalizeTurnstileSettings(settings TurnstileSettings) TurnstileSettings {
+	settings.SiteKey = strings.TrimSpace(settings.SiteKey)
+	settings.SecretKey = strings.TrimSpace(settings.SecretKey)
+	settings.SecretKeySet = settings.SecretKey != ""
+	return settings
+}
+
 func normalizeGenerationToolServers(servers []GenerationToolServer, scope string) []GenerationToolServer {
 	scope = strings.TrimSpace(scope)
 	if scope != "org" {
@@ -616,6 +655,9 @@ func validateAuthSettings(settings AuthSettings) error {
 		if err := mail.ValidateSMTPConfig(settings.SMTPConfig()); err != nil {
 			return ErrInvalidAuthSettings
 		}
+	}
+	if settings.Turnstile.Enabled && (settings.Turnstile.SiteKey == "" || settings.Turnstile.SecretKey == "") {
+		return ErrInvalidAuthSettings
 	}
 	return nil
 }

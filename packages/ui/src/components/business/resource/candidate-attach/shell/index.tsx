@@ -6,7 +6,7 @@ import { Button, type ButtonProps } from "../../../../primitives/button";
 
 export function ResourceCandidateAttachShell({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("resource-candidate-attach", className)} {...props}>
+    <div className={cn("ms-stack resource-candidate-attach", className)} {...props}>
       {children}
     </div>
   );
@@ -24,9 +24,9 @@ export function ResourceCandidateAttachHeader({
 }) {
   return (
     <div className={cn("resource-candidate-attach__header", className)} {...props}>
-      <div className="resource-candidate-attach__title-row">
-        <p className="resource-candidate-attach__title">{title}</p>
-        <Badge className="resource-candidate-attach__count">{count}</Badge>
+      <div className="ms-action-row resource-candidate-attach__title-row">
+        <p className="ms-type-caption resource-candidate-attach__title">{title}</p>
+        <Badge className="ms-type-tiny resource-candidate-attach__count">{count}</Badge>
       </div>
       {children}
     </div>
@@ -50,7 +50,7 @@ export function ResourceCandidateAttachMessage({
   tone?: "neutral" | "success" | "danger";
 }) {
   return (
-    <p data-tone={tone} className={cn("resource-candidate-attach__message", className)} {...props}>
+    <p data-tone={tone} className={cn("ms-type-tiny resource-candidate-attach__message", className)} {...props}>
       {children}
     </p>
   );
@@ -58,7 +58,7 @@ export function ResourceCandidateAttachMessage({
 
 export function ResourceCandidateAttachFooter({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("resource-candidate-attach__footer", className)} {...props}>
+    <div className={cn("ms-action-row resource-candidate-attach__footer", className)} {...props}>
       {children}
     </div>
   );

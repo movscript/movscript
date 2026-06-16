@@ -5,7 +5,6 @@ import {
 } from '@movscript/workspace'
 import {
   MOVSCRIPT_WORKSPACE_BACKEND_DIR_NAME,
-  MOVSCRIPT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,
@@ -19,7 +18,6 @@ export async function mockGenerationCandidateTargets(page: Page) {
     assetTargetPath,
     keyframeTargetPath,
     workspaceRoot,
-    workspaceDirName,
     manifestFileName,
     manifestSchema,
     providersDirName,
@@ -76,12 +74,13 @@ export async function mockGenerationCandidateTargets(page: Page) {
     globalState.api = {
       ...currentApi,
       getMovScriptWorkspaceRoot: async () => ({
+        movScriptHomeDir: workspaceRoot,
         workspaceDir: workspaceRoot,
         rootDir: workspaceRoot,
-        controlDir: `${workspaceRoot}/${workspaceDirName}`,
-        manifestPath: `${workspaceRoot}/${workspaceDirName}/${manifestFileName}`,
-        providersDir: `${workspaceRoot}/${workspaceDirName}/${providersDirName}`,
-        backendDir: `${workspaceRoot}/${workspaceDirName}/${backendDirName}`,
+        controlDir: workspaceRoot,
+        manifestPath: `${workspaceRoot}/${manifestFileName}`,
+        providersDir: `${workspaceRoot}/${providersDirName}`,
+        backendDir: `${workspaceRoot}/${backendDirName}`,
         manifest: {
           schema: manifestSchema,
           workspaceId: 'e2e',
@@ -139,7 +138,6 @@ export async function mockGenerationCandidateTargets(page: Page) {
     assetTargetPath,
     keyframeTargetPath,
     workspaceRoot,
-    workspaceDirName: MOVSCRIPT_WORKSPACE_DIR_NAME,
     manifestFileName: MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
     manifestSchema: MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
     providersDirName: MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME,

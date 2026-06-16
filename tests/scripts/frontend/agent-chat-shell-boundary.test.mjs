@@ -12,9 +12,11 @@ const draftConversationSource = readSource('apps/frontend/src/features/agent/app
 const escapeKeySource = readSource('apps/frontend/src/features/agent/application/useAgentChatEscapeKey.ts')
 const appServerShellSource = readSource('apps/frontend/src/features/agent/components/AppServerChatShell.tsx')
 const runtimeCacheSource = readSource('apps/frontend/src/features/agent/application/agentChatRuntimeCache.ts')
+const runtimeControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentChatRuntimeController.ts')
 const panelCommandsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatPanelCommands.ts')
 const recentResourcesSource = readSource('apps/frontend/src/features/agent/application/useAgentChatRecentResources.ts')
 const runProfileSettingsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatRunProfileSettings.ts')
+const serverRequestReplaySource = readSource('apps/frontend/src/features/agent/application/agentChatServerRequestReplay.ts')
 const serverRequestsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatServerRequests.ts')
 const dataSourceLoadEffectSource = readSource('apps/frontend/src/features/agent/application/useAgentChatDataSourceLoadEffect.ts')
 const shellCoreStateSource = readSource('apps/frontend/src/features/agent/application/useAgentChatShellCoreState.ts')
@@ -26,7 +28,11 @@ const threadRuntimeEffectsSource = readSource('apps/frontend/src/features/agent/
 const threadTabsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatThreadTabs.ts')
 const turnControlsSource = readSource('apps/frontend/src/features/agent/application/useAgentChatTurnControls.ts')
 const conversationRegistrySource = readSource('apps/frontend/src/features/agent/application/useAgentChatConversationRegistry.ts')
-const shellModelSource = readSource('apps/frontend/src/features/agent/presentation/agentChatDataSourceShellModel.ts')
+const shellModelSource = [
+  readSource('apps/frontend/src/features/agent/presentation/agentChatDataSourceShellModel.ts'),
+  readSource('apps/frontend/src/features/agent/presentation/agentChatThreadProjectionModel.ts'),
+].join('\n')
+const queuedInputModelSource = readSource('apps/frontend/src/features/agent/presentation/agentChatQueuedInputModel.ts')
 const shellPresentationStateSource = readSource('apps/frontend/src/features/agent/presentation/useAgentChatShellPresentationState.ts')
 const shellPartsSource = readSource('apps/frontend/src/features/agent/components/AgentChatDataSourceShellParts.tsx')
 
@@ -128,8 +134,14 @@ test('agent chat turn controls and queued sends are owned by the application lay
 test('agent chat runtime caches are owned by the application layer', () => {
   assert.match(serverRequestsSource, /from '@\/features\/agent\/application\/agentChatRuntimeCache'/)
   assert.match(threadListSource, /from '@\/features\/agent\/application\/agentChatRuntimeCache'/)
+  assert.match(shellSource, /from '@\/features\/agent\/application\/useAgentChatRuntimeController'/)
+  assert.match(shellSource, /useAgentChatRuntimeController\(\{[\s\S]*activeThreadIdRef,[\s\S]*dispatchRuntime,[\s\S]*runtime,[\s\S]*setActiveThreadIdRefValue,[\s\S]*\}\)/)
   assert.match(runtimeCacheSource, /const persistentPendingServerRequests = new Map<string/)
   assert.match(runtimeCacheSource, /const sourceThreadListCache = new Map<string/)
+  assert.match(runtimeControllerSource, /export function useAgentChatRuntimeController/)
+  assert.match(runtimeControllerSource, /selectAgentChatRuntimeView\(runtime\)/)
+  assert.match(runtimeControllerSource, /dispatchRuntime\(\{ type: 'setActiveThreadId', threadId \}\)/)
+  assert.match(runtimeControllerSource, /dispatchRuntime\(\{ type: 'upsertThread', thread \}\)/)
   assert.match(runtimeCacheSource, /export function storeAgentChatPersistentServerRequest/)
   assert.match(runtimeCacheSource, /export function readAgentChatPersistentServerRequests/)
   assert.match(runtimeCacheSource, /export function applyAgentChatPersistentServerRequestNotification/)
@@ -140,6 +152,7 @@ test('agent chat runtime caches are owned by the application layer', () => {
   assert.doesNotMatch(shellSource, /function storePersistentServerRequest/)
   assert.doesNotMatch(shellSource, /function readSourceThreadListCache/)
   assert.doesNotMatch(shellSource, /function applyPersistentServerRequestNotification/)
+  assert.doesNotMatch(shellSource, /selectAgentChatRuntimeView\(runtime\)/)
   assert.doesNotMatch(shellSource, /from '@\/features\/agent\/application\/agentChatRuntimeCache'/)
 })
 
@@ -153,7 +166,11 @@ test('agent chat server request replay and decision requests are owned by the ap
   assert.doesNotMatch(shellSource, /applyAgentChatPersistentServerRequestNotification/)
   assert.doesNotMatch(shellSource, /const replayPersistentServerRequests = useCallback/)
   assert.match(serverRequestsSource, /readAgentChatPersistentServerRequests\(threadScopeKey\)/)
-  assert.match(serverRequestsSource, /upsertAgentChatPendingServerRequest\(next, entry\.request, entry\.resolve\)/)
+  assert.match(serverRequestsSource, /from '@\/features\/agent\/application\/agentChatServerRequestReplay'/)
+  assert.match(serverRequestsSource, /replayAgentChatPersistentServerRequests\(\{ current, persistent: entries \}\)\.pendingServerRequests/)
+  assert.match(serverRequestReplaySource, /export function replayAgentChatPersistentServerRequests/)
+  assert.match(serverRequestReplaySource, /upsertAgentChatPendingServerRequest\(next, entry\.request, entry\.resolve\)/)
+  assert.match(serverRequestReplaySource, /agentChatPendingServerRequestEntryKey\(entry\)/)
   assert.match(serverRequestsSource, /storeAgentChatPersistentServerRequest\(threadScopeKey, request, resolve\)/)
   assert.match(serverRequestsSource, /subscribeAgentPanelDecisionRequest\(\(payload\) => \{/)
   assert.match(serverRequestsSource, /consumeAgentPanelDecisionRequest\(\) \?\? payload/)
@@ -293,6 +310,20 @@ test('agent chat data source shell delegates pure model helpers', () => {
   assert.match(shellSource, /from '@\/features\/agent\/presentation\/useAgentChatShellPresentationState'/)
   assert.doesNotMatch(shellSource, /from '@\/features\/agent\/presentation\/agentChatDataSourceShellModel'/)
   assert.match(shellModelConsumerSource, /from '@\/features\/agent\/presentation\/agentChatDataSourceShellModel'/)
+  const queuedInputHelperNames = new Set([
+    'resolveAgentChatGoalObjective',
+    'agentChatQueuedInputsWithText',
+    'removeAgentChatQueuedInput',
+    'markAgentChatQueuedInputEditing',
+    'updateAgentChatQueuedInputText',
+    'cancelAgentChatQueuedInputEdit',
+    'markAgentChatQueuedInputsSending',
+    'failAgentChatQueuedInputs',
+    'removeAgentChatQueuedInputs',
+    'selectDraftAgentChatQueuedInputsForThread',
+    'buildAgentChatQueuedInputDraft',
+    'buildAgentChatQueuedTurnSubmission',
+  ])
   for (const helperName of [
     'agentChatComposerConversationId',
     'createAgentChatDraftConversationId',
@@ -333,9 +364,16 @@ test('agent chat data source shell delegates pure model helpers', () => {
     'resolveAgentChatNextThreadAfterClose',
     'selectAgentChatClosedHistoryThreads',
   ]) {
-    assert.match(shellModelSource, new RegExp(`export function ${helperName}\\b`))
+    if (queuedInputHelperNames.has(helperName)) {
+      assert.match(shellModelSource, new RegExp(`\\b${helperName}\\b`))
+      assert.match(queuedInputModelSource, new RegExp(`export function ${helperName}\\b`))
+    } else {
+      assert.match(shellModelSource, new RegExp(`export function ${helperName}\\b`))
+    }
     assert.doesNotMatch(shellSource, new RegExp(`function ${helperName}\\b`))
   }
+  assert.match(shellModelSource, /from '@\/features\/agent\/presentation\/agentChatQueuedInputModel'/)
+  assert.match(queuedInputModelSource, /export interface AgentChatQueuedInputState/)
   assert.doesNotMatch(shellSource, /record\.userId === userId && record\.open === false/)
   assert.doesNotMatch(shellSource, /record\.userId === userId && record\.open !== false && agentConversationRecordMatchesProviderIdentity/)
   assert.doesNotMatch(shellSource, /\.sort\(\(a, b\) => b\.updatedAt - a\.updatedAt\)/)

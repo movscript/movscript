@@ -7,7 +7,7 @@ import { cn } from "../../../../../lib/cn";
 
 export const AgentActivityDividerActions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-activity-divider-actions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-activity-divider-actions", className)} {...props} />;
   }
 );
 
@@ -31,7 +31,7 @@ AgentActivityMenuContent.displayName = "AgentActivityMenuContent";
 
 export const AgentActivityMenuIcon = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-activity-menu-icon", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-inline-center ms-agent-activity-menu-icon", className)} {...props} />;
   }
 );
 

@@ -1,23 +1,15 @@
 .canvas-io-port-row {
   position: relative;
-  display: flex;
-  min-width: 0;
   height: 32px;
-  align-items: center;
   gap: 6px;
   margin-top: var(--ms-space-1);
   overflow: visible;
   padding: 0 var(--ms-space-2);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
 }
 
 .canvas-io-port-row__label {
   min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-weight: 500;
   color: var(--ms-color-foreground);
 }

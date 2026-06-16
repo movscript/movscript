@@ -6,13 +6,14 @@ import (
 	"testing"
 )
 
-func TestLoadDefaultCacheBackendIsMemory(t *testing.T) {
+func TestLoadDefaultCacheBackendMatchesEditionDefaults(t *testing.T) {
 	t.Setenv("CACHE_BACKEND", "")
 	t.Setenv("MOVSCRIPT_DEPENDENCY_PROFILE", "")
 	t.Setenv("MOVSCRIPT_APP_MODE", "")
 	cfg := Load()
-	if cfg.CacheBackend != "memory" {
-		t.Fatalf("default CacheBackend = %q, want memory", cfg.CacheBackend)
+	want := defaultDependencyProviders(defaultDependencyProfile("cloud")).Cache
+	if cfg.CacheBackend != want {
+		t.Fatalf("default CacheBackend = %q, want %q", cfg.CacheBackend, want)
 	}
 }
 
@@ -35,8 +36,9 @@ func TestLoadExternalDependencyProfileSelectsExternalProviders(t *testing.T) {
 	cfg := Load()
 
 	got := cfg.EffectiveDependencyProviders()
-	if got.Profile != "external" || got.Database != "postgres" || got.ObjectStorage != "minio" || got.WorkspaceStorage != "gitea" || got.AIGateway != "new-api" || got.VectorIndex != "local-index" || got.Cache != "redis" || got.MediaProcessing != "external-worker" || got.AgentRuntime != "remote-runtime" {
-		t.Fatalf("EffectiveDependencyProviders() = %+v, want external postgres/minio/gitea/new-api/local-index/redis/external-worker/remote-runtime", got)
+	want := defaultDependencyProviders("external")
+	if got != want {
+		t.Fatalf("EffectiveDependencyProviders() = %+v, want %+v", got, want)
 	}
 }
 
@@ -135,7 +137,7 @@ func TestEffectiveProviderAssemblyMapsExternalProfileToTeamCloud(t *testing.T) {
 		WorkspaceStorageBackend: "gitea",
 		GiteaBaseURL:            "http://gitea:3000",
 		GiteaToken:              "token",
-		AIGatewayProvider:       "new-api",
+		AIGatewayProvider:       "local",
 		CacheBackend:            "redis",
 		RedisAddr:               "redis:6379",
 		MediaProcessingProvider: "external-worker",
@@ -161,7 +163,7 @@ func TestEffectiveProviderAssemblyKeepsCustomProfileDistinctFromDeploymentMode(t
 		DeploymentMode:    "self-hosted-team",
 		DBDriver:          "postgres",
 		StorageBackend:    "minio",
-		AIGatewayProvider: "builtin",
+		AIGatewayProvider: "local",
 		CacheBackend:      "memory",
 	}
 
@@ -177,7 +179,6 @@ func TestLoadDependencyProfileAllowsComponentOverrides(t *testing.T) {
 	t.Setenv("STORAGE_BACKEND", "filesystem")
 	t.Setenv("MOVSCRIPT_WORKSPACE_STORAGE_BACKEND", "git-http-backend")
 	t.Setenv("MOVSCRIPT_WORKSPACE_CLONE_URL_STRATEGY", "direct")
-	t.Setenv("MOVSCRIPT_AI_GATEWAY_PROVIDER", "local")
 	t.Setenv("MOVSCRIPT_VECTOR_INDEX_PROVIDER", "qdrant")
 	t.Setenv("MOVSCRIPT_QDRANT_BASE_URL", "http://qdrant.local")
 	t.Setenv("CACHE_BACKEND", "memory")
@@ -188,7 +189,8 @@ func TestLoadDependencyProfileAllowsComponentOverrides(t *testing.T) {
 
 	cfg := Load()
 	got := cfg.EffectiveDependencyProviders()
-	if got.Profile != "external" || got.Database != "sqlite" || got.ObjectStorage != "filesystem" || got.WorkspaceStorage != "http" || got.AIGateway != "local" || got.VectorIndex != "qdrant" || got.Cache != "memory" || got.MediaProcessing != "desktop-managed" || got.AgentRuntime != "remote-runtime" {
+	wantAIGateway := defaultDependencyProviders("external").AIGateway
+	if got.Profile != "external" || got.Database != "sqlite" || got.ObjectStorage != "filesystem" || got.WorkspaceStorage != "http" || got.AIGateway != wantAIGateway || got.VectorIndex != "qdrant" || got.Cache != "memory" || got.MediaProcessing != "desktop-managed" || got.AgentRuntime != "remote-runtime" {
 		t.Fatalf("EffectiveDependencyProviders() = %+v, want explicit component overrides", got)
 	}
 	if cfg.AgentRuntimeBaseURL != "http://runtime.local" {
@@ -274,6 +276,7 @@ func TestValidateStartupAcceptsValidConfig(t *testing.T) {
 		EncryptionKey:     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:   "test-auth-secret",
 		AuthTokenTTLHours: 24,
+		NewAPIBaseURL:     "http://new-api.local",
 		StorageBackend:    "minio",
 		MinIOEndpoint:     "localhost:9000",
 		MinIOAccessKey:    "access",
@@ -296,6 +299,7 @@ func TestValidateStartupAcceptsFilesystemStorage(t *testing.T) {
 		EncryptionKey:         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:       "test-auth-secret",
 		AuthTokenTTLHours:     24,
+		NewAPIBaseURL:         "http://new-api.local",
 		StorageBackend:        "filesystem",
 		FilesystemStorageRoot: t.TempDir(),
 	}
@@ -312,6 +316,7 @@ func TestValidateStartupAcceptsSQLiteConfig(t *testing.T) {
 		EncryptionKey:         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:       "test-auth-secret",
 		AuthTokenTTLHours:     24,
+		NewAPIBaseURL:         "http://new-api.local",
 		StorageBackend:        "filesystem",
 		FilesystemStorageRoot: t.TempDir(),
 	}
@@ -328,6 +333,7 @@ func TestValidateStartupAcceptsLocalGitHTTPWorkspaceStorage(t *testing.T) {
 		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:         "test-auth-secret",
 		AuthTokenTTLHours:       24,
+		NewAPIBaseURL:           "http://new-api.local",
 		StorageBackend:          "filesystem",
 		FilesystemStorageRoot:   t.TempDir(),
 		WorkspaceStorageBackend: "http",
@@ -348,6 +354,7 @@ func TestValidateStartupAcceptsCacheBackends(t *testing.T) {
 			EncryptionKey:         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			AuthTokenSecret:       "test-auth-secret",
 			AuthTokenTTLHours:     24,
+			NewAPIBaseURL:         "http://new-api.local",
 			StorageBackend:        "filesystem",
 			FilesystemStorageRoot: t.TempDir(),
 			CacheBackend:          backend,
@@ -367,6 +374,7 @@ func TestValidateStartupRequiresGiteaManagementCredentialForGiteaWorkspaceStorag
 		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:         "test-auth-secret",
 		AuthTokenTTLHours:       24,
+		NewAPIBaseURL:           "http://new-api.local",
 		StorageBackend:          "filesystem",
 		FilesystemStorageRoot:   t.TempDir(),
 		WorkspaceStorageBackend: "gitea",
@@ -390,6 +398,7 @@ func TestValidateStartupAcceptsGitHubEnterpriseWorkspaceStorage(t *testing.T) {
 		EncryptionKey:              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:            "test-auth-secret",
 		AuthTokenTTLHours:          24,
+		NewAPIBaseURL:              "http://new-api.local",
 		StorageBackend:             "filesystem",
 		FilesystemStorageRoot:      t.TempDir(),
 		WorkspaceStorageBackend:    "github-enterprise",
@@ -433,6 +442,7 @@ func TestValidateStartupAcceptsGitLabWorkspaceStorage(t *testing.T) {
 		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:         "test-auth-secret",
 		AuthTokenTTLHours:       24,
+		NewAPIBaseURL:           "http://new-api.local",
 		StorageBackend:          "filesystem",
 		FilesystemStorageRoot:   t.TempDir(),
 		WorkspaceStorageBackend: "gitlab",
@@ -455,6 +465,7 @@ func TestValidateStartupRequiresGitLabToken(t *testing.T) {
 		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:         "test-auth-secret",
 		AuthTokenTTLHours:       24,
+		NewAPIBaseURL:           "http://new-api.local",
 		StorageBackend:          "filesystem",
 		FilesystemStorageRoot:   t.TempDir(),
 		WorkspaceStorageBackend: "gitlab",
@@ -476,6 +487,7 @@ func TestValidateStartupAcceptsGiteaAdminBasicCredential(t *testing.T) {
 		EncryptionKey:           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		AuthTokenSecret:         "test-auth-secret",
 		AuthTokenTTLHours:       24,
+		NewAPIBaseURL:           "http://new-api.local",
 		StorageBackend:          "filesystem",
 		FilesystemStorageRoot:   t.TempDir(),
 		WorkspaceStorageBackend: "gitea",
@@ -511,7 +523,7 @@ func TestValidateStartupRejectsInvalidDependencyProfile(t *testing.T) {
 	}
 }
 
-func TestValidateStartupRejectsInvalidAIGatewayProvider(t *testing.T) {
+func TestValidateStartupHandlesUnknownAIGatewayProviderByEdition(t *testing.T) {
 	cfg := &Config{
 		DBDriver:              "sqlite",
 		DBPath:                t.TempDir() + "/movscript.db",
@@ -524,8 +536,19 @@ func TestValidateStartupRejectsInvalidAIGatewayProvider(t *testing.T) {
 		CacheBackend:          "memory",
 		AIGatewayProvider:     "mystery",
 	}
-	if err := cfg.ValidateStartup(); err == nil {
-		t.Fatal("ValidateStartup returned nil for invalid AI gateway provider")
+	_, editionOwnsAIGateway := editionAIGatewayProvider(cfg)
+	err := cfg.ValidateStartup()
+	if editionOwnsAIGateway {
+		if err == nil {
+			t.Fatal("ValidateStartup returned nil for unknown edition AI gateway provider")
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("ValidateStartup returned error = %v", err)
+	}
+	if cfg.AIGatewayProvider != "local" {
+		t.Fatalf("AIGatewayProvider = %q, want local", cfg.AIGatewayProvider)
 	}
 }
 

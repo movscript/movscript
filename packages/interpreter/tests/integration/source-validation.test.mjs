@@ -299,6 +299,56 @@ test('workspace source review validates scence_moment_ref primary refs', async (
   assert.ok(review.issues.some((issue) => issue.message.includes('scence_moment_ref content_unit requires scene_moment_ref')))
 })
 
+test('workspace source review validates production_ref and segment_ref as video primary refs', async () => {
+  const files = new Map([
+    ['productions/p8f3/production.json', JSON.stringify({
+      schema: 'movscript.production.v1',
+      kind: 'production',
+      id: 'p8f3',
+      title: 'Episode 1',
+    })],
+    ['productions/p8f3/segments/a19d/segment.json', JSON.stringify({
+      schema: 'movscript.segment.v1',
+      kind: 'segment',
+      id: 'a19d',
+      title: 'Opening',
+      order: 1,
+    })],
+    ['content_units/final_video/content_unit.json', JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'final_video',
+      title: 'Final video',
+      content_unit_type: 'production_ref',
+      output_kind: 'video',
+      target_kind: 'production',
+      target_ref: 'p8f3',
+      edit_prompt: { text: 'Compose the production.' },
+    })],
+    ['content_units/opening_video/content_unit.json', JSON.stringify({
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'opening_video',
+      title: 'Opening video',
+      content_unit_type: 'segment_ref',
+      output_kind: 'video',
+      target_kind: 'segment',
+      target_ref: 'productions/p8f3/segments/a19d',
+      edit_prompt: { text: 'Compose the segment.' },
+    })],
+  ])
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const review = await reviewMovScriptWorkspace({
+    fileRepository: repository,
+    now: new Date('2026-06-07T00:00:00.000Z'),
+  })
+
+  assert.equal(review.readyToInterpret, true)
+  assert.equal(review.issues.some((issue) => issue.message.includes('production_ref content_unit')), false)
+  assert.equal(review.issues.some((issue) => issue.message.includes('segment_ref content_unit')), false)
+})
+
 test('workspace source review rejects unresolved content unit prompt refs', async () => {
   const files = new Map([
     ['productions/p8f3/production.json', JSON.stringify({ schema: 'movscript.production.v1', kind: 'production', id: 'p8f3', title: 'Episode 1' })],

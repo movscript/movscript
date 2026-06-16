@@ -55,7 +55,14 @@
 
 .ms-action-row {
   display: flex;
+  min-width: 0;
   align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.ms-grid-stack {
+  display: grid;
+  min-width: 0;
   gap: var(--ms-space-2);
 }
 
@@ -65,33 +72,58 @@
   justify-content: center;
 }
 
+.ms-fill {
+  width: 100%;
+  height: 100%;
+}
+
 .ms-inline-center {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
 }
 
-.type-tiny {
+.ms-inline-center > svg {
+  display: block;
+}
+
+.type-tiny,
+.ms-type-tiny {
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
 }
 
-.type-caption {
+.type-caption,
+.ms-type-caption {
   font-size: var(--ms-text-caption);
   line-height: var(--ms-leading-caption);
 }
 
-.type-label {
+.type-label,
+.ms-type-label {
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
-.type-body {
+.ms-type-item {
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
+}
+
+.type-body,
+.ms-type-body {
   font-size: var(--ms-text-body);
   line-height: var(--ms-leading-body);
 }
 
-.type-title {
+.ms-type-section {
+  font-size: var(--ms-text-section);
+  line-height: var(--ms-leading-section);
+}
+
+.type-title,
+.ms-type-title {
   font-size: 20px;
   line-height: 28px;
 }
@@ -113,6 +145,17 @@
 .ms-inline-badge--truncate {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ms-text-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 .ms-sr-only {

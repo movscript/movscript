@@ -20,9 +20,6 @@
 
 .generation-result-resource-chip__label {
   max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .generation-result-resource-chip--prompt .generation-result-resource-chip__label {
@@ -30,16 +27,11 @@
 }
 
 .generation-result-context-summary {
-  display: grid;
   gap: 6px;
-  font-size: var(--ms-text-caption);
-  line-height: 16px;
 }
 
 .generation-result-context-row {
-  display: flex;
   min-width: 0;
-  align-items: center;
   gap: 8px;
 }
 
@@ -48,7 +40,6 @@
 }
 
 .generation-result-context-row__icon {
-  display: inline-flex;
   flex-shrink: 0;
   color: var(--ms-color-muted-foreground);
 }
@@ -68,16 +59,10 @@
 }
 
 .generation-result-context-row__value {
-  min-width: 0;
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .generation-result-context-row__values {
-  display: flex;
-  min-width: 0;
   flex: 1 1 auto;
   flex-wrap: wrap;
   gap: 4px;

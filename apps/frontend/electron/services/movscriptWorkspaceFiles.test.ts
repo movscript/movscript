@@ -17,7 +17,7 @@ test('listing the MovScript workspace root initializes core control directories'
     const listed = await listMovScriptWorkspaceFiles({ workspaceDir })
     const entryNames = listed.entries.map((entry) => entry.name).sort()
     assert.equal(listed.path, '')
-    assert.ok(entryNames.includes('.movscript'), `entries: ${entryNames.join(', ')}`)
+    assert.deepEqual(entryNames, ['backend', 'bin', 'manifest.json', 'providers'])
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
@@ -26,17 +26,18 @@ test('listing the MovScript workspace root initializes core control directories'
 test('manages MovScript workspace files under the project workspace root', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-'))
   try {
-    const written = await writeMovScriptWorkspaceFile({
-      workspaceDir,
-      userId: 1,
-      projectId: 6,
-      path: 'edit/project.json',
-      content: '{"title":"Project"}',
-    })
+	    const written = await writeMovScriptWorkspaceFile({
+	      workspaceDir,
+	      userId: 1,
+	      projectId: 6,
+	      path: 'edit/project.json',
+	      content: '{"title":"Project"}',
+	      expectedVersion: null,
+	    })
 
     assert.equal(written.path, 'edit/project.json')
     assert.equal(written.content, '{"title":"Project"}')
-    assert.equal(written.rootPath, join(workspaceDir, '.movscript', 'user', '1', 'projects', 'project_6'))
+    assert.equal(written.rootPath, join(workspaceDir, 'user', '1', 'projects', 'project_6'))
 
     const read = await readMovScriptWorkspaceFile({ workspaceDir, userId: 1, projectId: 6, path: 'edit/project.json' })
     assert.equal(read.content, '{"title":"Project"}')
@@ -52,21 +53,66 @@ test('manages MovScript workspace files under the project workspace root', async
   }
 })
 
+test('rejects stale workspace file writes when expected version no longer matches', async () => {
+  const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-lock-'))
+  try {
+	    const written = await writeMovScriptWorkspaceFile({
+	      workspaceDir,
+	      projectId: 6,
+	      path: 'edit/project.json',
+	      content: '{"title":"Project"}',
+	      expectedVersion: null,
+	    })
+    await writeFile(join(written.rootPath, 'edit', 'project.json'), '{"title":"External"}', 'utf8')
+
+    await assert.rejects(
+      writeMovScriptWorkspaceFile({
+        workspaceDir,
+        projectId: 6,
+        path: 'edit/project.json',
+        content: '{"title":"Saved"}',
+        expectedVersion: written.version,
+      }),
+      /workspace file changed/,
+    )
+  } finally {
+    await rm(workspaceDir, { recursive: true, force: true })
+	  }
+	})
+	
+test('rejects workspace file writes without an expected version', async () => {
+  const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-lock-required-'))
+  try {
+    await assert.rejects(
+      writeMovScriptWorkspaceFile({
+        workspaceDir,
+        projectId: 6,
+        path: 'edit/project.json',
+        content: '{"title":"Project"}',
+      }),
+      /expectedVersion is required/,
+    )
+  } finally {
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
 test('manages organization MovScript workspace files under org project root', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-org-'))
   try {
-    const written = await writeMovScriptWorkspaceFile({
-      workspaceDir,
-      userId: 1,
-      orgId: 3,
-      projectId: 6,
-      path: 'scripts/script_1/script.md',
-      content: 'Org script',
-    })
+	    const written = await writeMovScriptWorkspaceFile({
+	      workspaceDir,
+	      userId: 1,
+	      orgId: 3,
+	      projectId: 6,
+	      path: 'scripts/script_1/script.md',
+	      content: 'Org script',
+	      expectedVersion: null,
+	    })
 
     assert.equal(written.path, 'scripts/script_1/script.md')
     assert.equal(written.content, 'Org script')
-    assert.equal(written.rootPath, join(workspaceDir, '.movscript', 'org', '3', 'projects', 'project_6'))
+    assert.equal(written.rootPath, join(workspaceDir, 'org', '3', 'projects', 'project_6'))
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
@@ -75,14 +121,15 @@ test('manages organization MovScript workspace files under org project root', as
 test('manages anonymous MovScript workspace files under local project root', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-local-'))
   try {
-    const written = await writeMovScriptWorkspaceFile({
-      workspaceDir,
-      projectId: 6,
-      path: 'scripts/script_1/script.md',
-      content: 'Local script',
-    })
+	    const written = await writeMovScriptWorkspaceFile({
+	      workspaceDir,
+	      projectId: 6,
+	      path: 'scripts/script_1/script.md',
+	      content: 'Local script',
+	      expectedVersion: null,
+	    })
 
-    assert.equal(written.rootPath, join(workspaceDir, '.movscript', 'local', 'projects', 'project_6'))
+    assert.equal(written.rootPath, join(workspaceDir, 'local', 'projects', 'project_6'))
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
@@ -107,11 +154,12 @@ test('rejects workspace file paths outside the project workspace root', async ()
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-'))
   try {
     await assert.rejects(
-      writeMovScriptWorkspaceFile({
-        workspaceDir,
-        path: '../outside.json',
-        content: '{}',
-      }),
+	      writeMovScriptWorkspaceFile({
+	        workspaceDir,
+	        path: '../outside.json',
+	        content: '{}',
+	        expectedVersion: null,
+	      }),
       /workspace file path must stay inside/,
     )
   } finally {
@@ -122,12 +170,13 @@ test('rejects workspace file paths outside the project workspace root', async ()
 test('previews large workspace images without using the text editor read limit', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-media-'))
   try {
-    const setup = await writeMovScriptWorkspaceFile({
-      workspaceDir,
-      projectId: 6,
-      path: 'artifacts/.keep',
-      content: '',
-    })
+	    const setup = await writeMovScriptWorkspaceFile({
+	      workspaceDir,
+	      projectId: 6,
+	      path: 'artifacts/.keep',
+	      content: '',
+	      expectedVersion: null,
+	    })
     const imagePath = join(setup.rootPath, 'artifacts', 'large.png')
     await writeFile(imagePath, Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47]),

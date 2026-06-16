@@ -15,7 +15,7 @@ AgentContextPanel.displayName = "AgentContextPanel";
 
 export const AgentMetric = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-stack ms-agent-field ms-agent-metric", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-grid-stack ms-agent-field ms-agent-metric", className)} {...props} />;
   }
 );
 
@@ -23,7 +23,7 @@ AgentMetric.displayName = "AgentMetric";
 
 export const AgentWorkspace = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-stack ms-agent-workspace", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-grid-stack ms-agent-workspace", className)} {...props} />;
   }
 );
 
@@ -31,7 +31,7 @@ AgentWorkspace.displayName = "AgentWorkspace";
 
 export const AgentContextBar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-cluster ms-agent-cluster--wrap ms-agent-contextbar", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-cluster--wrap ms-agent-contextbar", className)} {...props} />;
   }
 );
 
@@ -47,7 +47,7 @@ export const AgentContextChip = React.forwardRef<HTMLDivElement, AgentContextChi
       <div
         ref={ref}
         data-tone={tone}
-        className={cn("ms-agent-pill ms-agent-contextchip", `ms-agent-contextchip--${tone}`, className)}
+        className={cn("ms-agent-pill ms-type-caption ms-agent-contextchip", `ms-agent-contextchip--${tone}`, className)}
         {...props}
       />
     );

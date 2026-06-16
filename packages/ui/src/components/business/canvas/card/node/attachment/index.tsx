@@ -39,7 +39,7 @@ export function CanvasNodeAttachmentItem({
     <AppInlineMeta asChild className={cn("canvas-node-attachment-item", className)}>
       <div {...props}>
         {media}
-        <span className="canvas-node-attachment-item__label">{label}</span>
+        <span className="ms-text-truncate ms-type-label canvas-node-attachment-item__label">{label}</span>
         {trailing}
       </div>
     </AppInlineMeta>
@@ -69,7 +69,7 @@ export function CanvasNodeAttachmentStatus({
   children: ReactNode;
 }) {
   return (
-    <span className={cn("canvas-node-attachment-status", className)} {...props}>
+    <span className={cn("ms-type-tiny canvas-node-attachment-status", className)} {...props}>
       {children}
     </span>
   );
@@ -83,7 +83,7 @@ export function CanvasNodeAttachmentHint({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("canvas-node-attachment-hint", className)} {...props}>
+    <div className={cn("ms-type-caption canvas-node-attachment-hint", className)} {...props}>
       {children}
     </div>
   );

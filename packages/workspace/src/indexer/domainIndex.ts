@@ -27,6 +27,8 @@ export const SEMANTIC_ENTITY_KINDS = [
 export interface MovScriptWorkspaceDocument {
   path: string
   data: unknown
+  version?: string
+  updatedAt?: string
 }
 
 export interface MovScriptWorkspaceIndexedEntity {
@@ -262,7 +264,7 @@ function indexedEntitiesFromDocument(document: MovScriptWorkspaceDocument): MovS
   if (!isRecord(document.data)) return []
 
   const entityKind = entityKindFromSchema(stringField(document.data.schema)) ?? entityKindFromPath(path)
-  return entityKind ? [indexedEntity(entityKind, document.data, path, 0)] : []
+  return entityKind ? [indexedEntity(entityKind, workspaceRecordWithDocumentMetadata(document.data, document), path, 0)] : []
 }
 
 function indexedEntity(
@@ -282,6 +284,18 @@ function indexedEntity(
     ...(id !== undefined ? { id } : {}),
     ...(clientId ? { clientId } : {}),
     ...(schema ? { schema } : {}),
+  }
+}
+
+function workspaceRecordWithDocumentMetadata(
+  record: Record<string, unknown>,
+  document: MovScriptWorkspaceDocument,
+): Record<string, unknown> {
+  return {
+    ...record,
+    __workspace_path: document.path,
+    ...(document.version !== undefined ? { __workspace_version: document.version } : {}),
+    ...(document.updatedAt !== undefined ? { __workspace_updated_at: document.updatedAt } : {}),
   }
 }
 

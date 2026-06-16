@@ -1,7 +1,7 @@
 import type { DetailsHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { Frame, FrameBody, FrameHeader } from "../../../../primitives";
 
 export function AppDisclosure({
   title,
@@ -14,9 +14,9 @@ export function AppDisclosure({
   bodyClassName?: string;
 }) {
   return (
-    <Surface as="details" kind="panel" density="normal" emphasis="plain" className={cn("app-disclosure", className)} {...props}>
-      <summary className="ms-frame__header app-disclosure__summary">{title}</summary>
-      <div className={cn("ms-frame__body app-disclosure__body", bodyClassName)}>{children}</div>
-    </Surface>
+    <Frame as="details" kind="panel" density="normal" emphasis="plain" className={cn("app-disclosure", className)} {...props}>
+      <FrameHeader as="summary" className="app-disclosure__summary">{title}</FrameHeader>
+      <FrameBody className={cn("app-disclosure__body", bodyClassName)}>{children}</FrameBody>
+    </Frame>
   );
 }

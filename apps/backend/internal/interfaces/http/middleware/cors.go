@@ -25,7 +25,7 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Org-ID", "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Org-ID", "X-MovScript-Route-Tier", "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"},
 		ExposeHeaders:    []string{"X-Total-Count", "Set-Cookie"},
 		AllowCredentials: true,
 		CustomSchemas:    []string{"movscript-admin://"},

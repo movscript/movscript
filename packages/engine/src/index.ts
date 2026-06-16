@@ -677,6 +677,8 @@ function defaultContentUnitOutputKind(contentUnitType: string): string {
       return 'image'
     case 'scence_moment_ref':
     case 'scene_moment_ref':
+    case 'production_ref':
+    case 'segment_ref':
     case 'shot_ref':
       return 'video'
     default:

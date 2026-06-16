@@ -2,8 +2,12 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../lib/cn";
 import { toneTextClass, type SemanticTone } from "../../../../semantic";
-import { Button, EmptyState, type ButtonProps } from "../../../primitives";
+import { Button, EmptyState, Surface, type ButtonProps, type SurfaceEmphasis } from "../../../primitives";
 import type { IconComponent } from "../../../primitives/types";
+
+function appStatusSurfaceEmphasis(emphasis: "soft" | "outline"): SurfaceEmphasis {
+  return emphasis === "outline" ? "outlined" : "soft";
+}
 
 export function AppStateMessage({
   icon,
@@ -18,10 +22,17 @@ export function AppStateMessage({
   tone?: SemanticTone;
 }) {
   return (
-    <div className={cn("app-state-message", `app-state-message--${tone}`, className)} {...props}>
-      {icon ? <span className="app-state-message__icon">{icon}</span> : null}
+    <Surface
+      kind="item"
+      tone={tone}
+      density="normal"
+      emphasis="soft"
+      className={cn("ms-action-row ms-type-body app-state-message", `app-state-message--${tone}`, className)}
+      {...props}
+    >
+      {icon ? <span className="ms-inline-center app-state-message__icon">{icon}</span> : null}
       <span className="app-state-message__content">{children ?? text}</span>
-    </div>
+    </Surface>
   );
 }
 
@@ -35,10 +46,13 @@ export function AppStatusSurface({
   emphasis?: "soft" | "outline";
 }) {
   return (
-    <div
-      data-tone={tone}
-      data-emphasis={emphasis}
-      className={cn("app-status-surface", className)}
+    <Surface
+      kind="item"
+      tone={tone}
+      density="normal"
+      emphasis={appStatusSurfaceEmphasis(emphasis)}
+      data-app-emphasis={emphasis}
+      className={cn("ms-type-label app-status-surface", className)}
       {...props}
     />
   );
@@ -59,7 +73,7 @@ export function AppStatusToggleButton({
       variant="ghost"
       data-tone={tone}
       data-selected={selected ? "true" : "false"}
-      className={cn("app-status-toggle-button", className)}
+      className={cn("ms-type-label app-status-toggle-button", className)}
       {...props}
     />
   );
@@ -67,9 +81,9 @@ export function AppStatusToggleButton({
 
 export function AppInlineError({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("app-inline-error", className)} {...props}>
+    <Surface kind="item" tone="danger" density="compact" emphasis="soft" className={cn("ms-type-label app-inline-error", className)} {...props}>
       {children}
-    </div>
+    </Surface>
   );
 }
 
@@ -82,7 +96,7 @@ export function AppFeedbackText({
   as?: "p" | "span" | "div";
   tone?: SemanticTone;
 }) {
-  return <Element className={cn("app-feedback-text", toneTextClass(tone), className)} {...props} />;
+  return <Element className={cn("ms-type-label app-feedback-text", toneTextClass(tone), className)} {...props} />;
 }
 
 export function AppRequiredMark({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
@@ -91,9 +105,9 @@ export function AppRequiredMark({ className, ...props }: HTMLAttributes<HTMLSpan
 
 export function AppTextEmptyState({ children, className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("app-text-empty-state", className)} {...props}>
+    <Surface as="p" kind="item" tone="neutral" density="normal" emphasis="muted" className={cn("ms-type-caption app-text-empty-state", className)} {...props}>
       {children}
-    </p>
+    </Surface>
   );
 }
 
@@ -120,8 +134,8 @@ export function AppEmptyState({
       action={action}
       className={cn("app-empty-state", compact && "app-empty-state--compact", className)}
       iconClassName="app-empty-state__icon"
-      titleClassName="app-empty-state__title"
-      descriptionClassName="app-empty-state__detail"
+      titleClassName="ms-type-body app-empty-state__title"
+      descriptionClassName="ms-type-label app-empty-state__detail"
       actionClassName="app-empty-state__action"
       {...props}
     />

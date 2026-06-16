@@ -25,6 +25,7 @@ func (h *JobHandler) Retry(c *gin.Context) {
 		h.writeJobActionError(c, err)
 		return
 	}
+	h.publishJobStatus(job, "manual retry requested")
 	c.JSON(http.StatusOK, job)
 }
 
@@ -45,6 +46,7 @@ func (h *JobHandler) Cancel(c *gin.Context) {
 		h.writeJobActionError(c, err)
 		return
 	}
+	h.publishJobStatus(job, "cancelled by user")
 	c.JSON(http.StatusOK, job)
 }
 
@@ -78,6 +80,7 @@ func (h *JobHandler) AdminRetry(c *gin.Context) {
 		ProjectID:  job.ProjectID,
 		Metadata:   jobActionAuditMetadata(job),
 	})
+	h.publishJobStatus(job, "admin retry requested")
 	c.JSON(http.StatusOK, job)
 }
 
@@ -99,6 +102,7 @@ func (h *JobHandler) AdminCancel(c *gin.Context) {
 		ProjectID:  job.ProjectID,
 		Metadata:   jobActionAuditMetadata(job),
 	})
+	h.publishJobStatus(job, "cancelled by admin")
 	c.JSON(http.StatusOK, job)
 }
 

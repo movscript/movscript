@@ -1,7 +1,7 @@
 import { NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
-import { CanvasGroupFrame, CanvasGroupHeader } from '@movscript/ui/business/canvas'
+import { CanvasGroupFrame, CanvasGroupHeader } from './CanvasEditorFlowUi'
 import type { NodeDataWithHandlers } from './canvasNodeTypes'
 
 export function GroupNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {

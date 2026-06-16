@@ -3,7 +3,6 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 640px;
   margin-top: 8px;
-  font-size: var(--ms-text-label);
 }
 
 .ms-agent-activity-feed > * + * {
@@ -13,23 +12,17 @@
 .ms-agent-activity-feed__totals {
   padding-top: 6px;
   color: color-mix(in srgb, var(--ms-color-muted-foreground) 80%, transparent);
-  font-size: var(--ms-text-tiny);
 }
 
 .ms-agent-activity-status-line {
-  display: flex;
   justify-content: flex-start;
   padding-left: 32px;
 }
 
 .ms-agent-activity-status-line__content {
-  display: inline-flex;
   max-width: 80%;
-  align-items: center;
   gap: 6px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: 16px;
 }
 
 .ms-agent-activity-status-line__dot {
@@ -39,10 +32,4 @@
   border-radius: var(--ms-radius-full);
   animation: ms-agent-pulse 1.4s ease-in-out infinite;
   background: color-mix(in srgb, var(--ms-color-muted-foreground) 60%, transparent);
-}
-
-.ms-agent-activity-status-line__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

@@ -1,4 +1,5 @@
 import type { AppSettings } from '@/shared/contracts/appSettings'
+import type { ElectronRuntimeConfig } from '@/shared/contracts/electronApi'
 import { readBrowserStorageItem } from '@/shared/infrastructure/browserStorage'
 import {
   isLocalLaunchMode,
@@ -9,6 +10,7 @@ import {
 const DEFAULT_API_ORIGIN = 'http://localhost:8765'
 const LOCAL_API_ORIGIN = 'http://localhost:8766'
 export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
+let runtimeConfigSnapshot: ElectronRuntimeConfig | null = null
 
 export type { AppSettings }
 export { isLocalLaunchMode, normalizeAPIBaseURL, trimTrailingSlash }
@@ -42,16 +44,45 @@ export function getLocalAPIBaseURL(): string {
 }
 
 export function getAPIBaseURL(): string {
-  return readStoredAPIBaseURL() || getDefaultAPIBaseURL()
+  return runtimeConfigSnapshot?.apiBaseURL || readStoredAPIBaseURL() || getDefaultAPIBaseURL()
 }
 
 export function getAPIV1BaseURL(): string {
-  return `${getAPIBaseURL()}/api/v1`
+  return runtimeConfigSnapshot?.apiV1BaseURL || `${getAPIBaseURL()}/api/v1`
 }
 
-export const API_BASE_URL = getAPIBaseURL()
-export const API_V1_BASE_URL = getAPIV1BaseURL()
+export function getRuntimeConfigSnapshot(): ElectronRuntimeConfig | null {
+  return runtimeConfigSnapshot
+}
+
+export function setRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig | null | undefined): void {
+  runtimeConfigSnapshot = snapshot ? normalizeRuntimeConfigSnapshot(snapshot) : null
+}
+
+export async function refreshRuntimeConfigSnapshot(): Promise<ElectronRuntimeConfig | null> {
+  if (typeof window === 'undefined' || !window.api?.getRuntimeConfig) return runtimeConfigSnapshot
+  const snapshot = await window.api.getRuntimeConfig()
+  setRuntimeConfigSnapshot(snapshot)
+  return runtimeConfigSnapshot
+}
 
 function readImportMetaEnv(): Record<string, string | undefined> {
   return (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+}
+
+function normalizeRuntimeConfigSnapshot(snapshot: ElectronRuntimeConfig): ElectronRuntimeConfig {
+  const apiBaseURL = normalizeAPIBaseURL(snapshot.apiBaseURL)
+  const localAPIBaseURL = normalizeAPIBaseURL(snapshot.localAPIBaseURL)
+  return {
+    ...snapshot,
+    movScriptHomeDir: snapshot.movScriptHomeDir?.trim() || snapshot.workspaceDir.trim(),
+    workspaceDir: snapshot.workspaceDir.trim(),
+    apiBaseURL,
+    apiV1BaseURL: snapshot.apiV1BaseURL?.trim() ? normalizeAPIBaseURL(snapshot.apiV1BaseURL) + '/api/v1' : `${apiBaseURL}/api/v1`,
+    localAPIBaseURL,
+    backendStatus: {
+      ...snapshot.backendStatus,
+      baseURL: normalizeAPIBaseURL(snapshot.backendStatus.baseURL),
+    },
+  }
 }

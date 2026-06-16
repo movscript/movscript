@@ -16,7 +16,7 @@ MovScript 后端不应该被定义为“所有能力都自己实现的全能服�
 
 因此：
 
-- `new-api` 是 AI Gateway Provider，不是 MovScript 自己要重写的模型平台。
+- `商业外部 AI 网关` 是 AI Gateway Provider，不是 MovScript 自己要重写的模型平台。
 - `Gitea` 是 Workspace Repository Provider，不是 MovScript 自己要重写的 Git 协作系统。
 - `MinIO`、S3、filesystem 是 Blob Storage Provider，不是用户心智里的素材库。
 - Redis、向量库、媒体处理器、外部素材源都是可替换基础设施能力。
@@ -105,7 +105,7 @@ profile: team-cloud
 database: postgres
 blob_storage: minio 或 s3
 workspace_repository: gitea
-ai_gateway: new-api
+ai_gateway: 商业外部 AI 网关
 cache: redis
 agent_runtime: remote-runtime
 host: server / container / k8s
@@ -116,7 +116,7 @@ host: server / container / k8s
 - Web/Electron frontend 只连接远端 backend。
 - 管理员在 Admin 配置模型、存储、Git、用量和审计。
 - 普通创作者只看到项目、素材、镜头、模型、工作流和任务。
-- 企业部署可以替换 new-api、Gitea、MinIO，但不改变 MovScript 的业务语义。
+- 企业部署可以替换 商业外部 AI 网关、Gitea、MinIO，但不改变 MovScript 的业务语义。
 
 ### 3.3 Custom Profile
 
@@ -127,7 +127,7 @@ Custom profile 用于开发者、私有化和迁移期。
 - SQLite + Gitea
 - Postgres + filesystem
 - builtin AI gateway + Redis
-- new-api + local Git HTTP
+- 商业外部 AI 网关 + local Git HTTP
 
 Custom profile 不应该成为普通用户入口，只用于部署和开发。
 
@@ -240,7 +240,7 @@ notification_provider
 
 示例：
 
-- `provider.ai-gateway.new-api`
+- `provider.ai-gateway.商业外部 AI 网关`
 - `provider.workspace.gitea`
 - `provider.blob.minio`
 - `provider.blob.s3`
@@ -301,7 +301,7 @@ Provider Adapter 不应该直接随意调用系统内部对象，而应该通过
 
 ### 6.1 AI Gateway Provider Contract
 
-用于接入 new-api、builtin gateway、local gateway 或未来其他模型平台。
+用于接入 商业外部 AI 网关、builtin gateway、local gateway 或未来其他模型平台。
 
 最小接口：
 
@@ -332,7 +332,7 @@ MovScript 后端负责：
 - 调用审计。
 - 任务状态。
 
-new-api 负责：
+商业外部 AI 网关 负责：
 
 - 上游模型聚合。
 - 上游 key 管理，取决于部署策略。
@@ -576,7 +576,7 @@ apps/backend/internal/
 │       ├── aigateway/
 │       │   ├── builtin/
 │       │   ├── local/
-│       │   └── newapi/
+│       │   └── externalgateway/
 │       ├── workspace/
 │       │   ├── localgit/
 │       │   └── gitea/
@@ -679,8 +679,8 @@ worker 通过队列或数据库 lease 拉任务。
 
 ```json
 {
-  "id": "provider.ai-gateway.new-api",
-  "name": "new-api",
+  "id": "provider.ai-gateway.商业外部 AI 网关",
+  "name": "商业外部 AI 网关",
   "kind": "provider_descriptor",
   "providerType": "ai_gateway",
   "version": "1.0.0",
@@ -718,7 +718,7 @@ worker 通过队列或数据库 lease 拉任务。
   },
   "adminUI": {
     "category": "AI Management",
-    "label": "new-api Gateway"
+    "label": "商业外部 AI 网关 Gateway"
   }
 }
 ```
@@ -863,7 +863,7 @@ SQLite
 MinIO
 S3
 Gitea
-new-api
+商业外部 AI 网关
 Redis
 app-server
 Vector DB
@@ -887,7 +887,7 @@ Vector DB
   - `personal-local`。
   - `team-cloud`。
   - `custom`。
-- 在 Admin 和 Frontend 文案中避免把 MinIO/Gitea/new-api 暴露给普通用户。
+- 在 Admin 和 Frontend 文案中避免把 MinIO/Gitea/商业外部 AI 网关 暴露给普通用户。
 
 验收：
 
@@ -902,7 +902,7 @@ Vector DB
 
 - 新建 `internal/providers/contract`。
 - 抽出 AI gateway、workspace repository、blob storage、cache 的接口。
-- 当前 builtin/local/new-api/Gitea/MinIO/filesystem 先作为内置 provider adapter。
+- 当前 builtin/local/商业外部 AI 网关/Gitea/MinIO/filesystem 先作为内置 provider adapter。
 - `bootstrap` 只面向 contract 组装，不直接散落选择逻辑。
 
 验收：
@@ -925,7 +925,7 @@ Vector DB
 
 验收：
 
-- new-api 作为 `ai_gateway_provider` 被描述和配置。
+- 商业外部 AI 网关 作为 `ai_gateway_provider` 被描述和配置。
 - Gitea 作为 `workspace_repository_provider` 被描述和配置。
 - filesystem/minio 作为 `blob_storage_provider` 被描述和配置。
 
@@ -1012,7 +1012,7 @@ Vector DB
 - `/api/v1/admin/provider-instances`：返回 Admin 侧可管理的 Provider Instance。当前合并启动组装基础设施实例，并将既有 AI credentials 映射为 `ai_gateway` instances、保留 legacy credential ref。
 - `/api/v1/admin/usage-logs`、`/api/v1/admin/usage-logs/summary` 和 usage export：Admin usage service 已通过 `AIGatewayUsageReporter` contract 查询 list/export/summary；现有 GORM usage log repository 作为本地 reporter 实现，HTTP JSON/CSV 形状保持兼容。
 - `/api/v1/admin/debug/llm-calls` 和 `/api/v1/admin/debug/llm-calls/summary`：Admin debug service 已通过 `AIGatewayAuditLogReader` contract 查询 LLM call log list/summary；现有 GORM LLM call log repository 作为本地 reader 实现，日志保留期设置、清理和过期时间更新仍由 debug service 管理。
-- `/api/v1/admin/provider-instances/:id/test`：提供 Provider Instance 级测试连接入口。当前 AI Gateway credential instance 通过 `AIGatewayHealthProbe` contract 执行 credential/provider ping；启动级 `ai_gateway:new-api` 是只读聚合实例，测试会验证是否存在启用且配置完整的 credential-backed provider instances 和 enabled model routes，并提示具体 live ping 应在 `ai_gateway:credential:{id}` 上执行；Postgres 通过 `PingContext` 验证数据库网络、认证和 DB 权限；Gitea workspace repository instance 通过 adapter `Health(ctx)` 执行 `/api/v1/user` 认证探测；pgvector vector index instance 通过 Postgres 连接、`vector` extension/table ensure 和 count probe 验证 pgvector 可访问；Qdrant vector index instance 通过 collection probe/ensure 验证外部向量库可访问；External Resource source instance 通过 Pexels/Pixabay adapter `Health(ctx)` 执行最小搜索 probe；MinIO 通过 bucket health probe 验证对象存储可访问；Redis 通过 cache round trip 验证读写；Media Processing `external-worker` 通过配置的 base URL/token 执行 `/health` probe；Agent Runtime `remote-runtime` 通过 `/health` 验证连通性，并在远端支持 `/capabilities` 时动态暴露 session proxy/permission probe 能力；启动组装实例仍支持 local filesystem、local Git HTTP、memory/noop cache、SQLite 等轻量测试。
+- `/api/v1/admin/provider-instances/:id/test`：提供 Provider Instance 级测试连接入口。当前 AI Gateway credential instance 通过 `AIGatewayHealthProbe` contract 执行 credential/provider ping；启动级 `ai_gateway:商业外部 AI 网关` 是只读聚合实例，测试会验证是否存在启用且配置完整的 credential-backed provider instances 和 enabled model routes，并提示具体 live ping 应在 `ai_gateway:credential:{id}` 上执行；Postgres 通过 `PingContext` 验证数据库网络、认证和 DB 权限；Gitea workspace repository instance 通过 adapter `Health(ctx)` 执行 `/api/v1/user` 认证探测；pgvector vector index instance 通过 Postgres 连接、`vector` extension/table ensure 和 count probe 验证 pgvector 可访问；Qdrant vector index instance 通过 collection probe/ensure 验证外部向量库可访问；External Resource source instance 通过 Pexels/Pixabay adapter `Health(ctx)` 执行最小搜索 probe；MinIO 通过 bucket health probe 验证对象存储可访问；Redis 通过 cache round trip 验证读写；Media Processing `external-worker` 通过配置的 base URL/token 执行 `/health` probe；Agent Runtime `remote-runtime` 通过 `/health` 验证连通性，并在远端支持 `/capabilities` 时动态暴露 session proxy/permission probe 能力；启动组装实例仍支持 local filesystem、local Git HTTP、memory/noop cache、SQLite 等轻量测试。
 - `/api/v1/admin/debug/model-runtime-health`：真实路由已通过 `AIGatewayHealthProbe.ListGatewayRuntimeHealth` contract 读取 AI Gateway runtime health snapshot，旧 handler 构造路径保留直接快照 fallback 以兼容窄测试和迁移期。
 - `/api/v1/admin/provider-instances/:id/config`：提供启动组装基础设施 Provider Instance 的配置草案读写。草案存入 `AdminSetting`，普通 config 字段明文保存，secret 字段使用现有 AES-GCM 加密；响应和审计只暴露字段配置状态，不返回 secret 明文。该接口表示“期望配置”，当前运行实例仍来自启动配置，保存后需要重启才会应用。
 - `/api/v1/admin/provider-instances/:id/config/apply`：将配置草案发布为启动 env overlay。默认写入 `MOVSCRIPT_DATA_DIR/provider-startup.env`，也可由 `MOVSCRIPT_PROVIDER_ENV_PATH` 指定；后端启动时会在普通 `.env` 后加载该 overlay，并让其中 provider env 覆盖同名变量。响应和审计只返回 env key 列表，不返回 secret 值；响应会根据 deployment profile 返回 `activation_mode`，本地模式提示重启本地 backend，团队云模式提示执行部署 rollout，custom profile 提示手动重启后端进程。
@@ -1029,7 +1029,7 @@ Vector DB
 - External Resource Provider Instances：`/api/v1/admin/provider-instances` 已将数据库中的 `external_resource_sources` 映射为 `external_resource:source:{id}` Provider Instance，只暴露 API key 配置状态，不返回 secret 明文；`/api/v1/admin/provider-instances/:id/test` 会复用 Pexels/Pixabay HTTP adapter 的 `HealthChecker` 执行最小搜索 probe，并记录 provider instance test audit。
 - Blob Storage Provider Health：`BlobStorage` contract 已补齐 `Health(ctx)`，filesystem adapter 检查本地 storage root，MinIO adapter 通过 `BucketExists` 执行真实 bucket 访问 probe；`blob_storage:minio` Provider Instance test 不再只是构造 client。
 - Database Provider Health：`database:postgres` Provider Instance test 已从 no-op 升级为 `database/sql` `PingContext`，用于验证 Postgres 网络连通、认证和目标 DB 权限；失败信息会对 `DB_PASSWORD` 做脱敏。
-- AI Gateway new-api Provider Instance Boundary：`ai_gateway:new-api` 启动实例已收敛为只读聚合目录，不再暴露 `model_credentials`/`model_credential_keys` 这类假启动字段；真实 base URL/API key 仍由 `ai_gateway:credential:{id}` 管理和测试，聚合实例 test 只验证目录中是否存在 enabled credential-backed provider instances 与 enabled model routes。
+- AI Gateway 商业外部 AI 网关 Provider Instance Boundary：`ai_gateway:商业外部 AI 网关` 启动实例已收敛为只读聚合目录，不再暴露 `model_credentials`/`model_credential_keys` 这类假启动字段；真实 base URL/API key 仍由 `ai_gateway:credential:{id}` 管理和测试，聚合实例 test 只验证目录中是否存在 enabled credential-backed provider instances 与 enabled model routes。
 - Frontend Model Providers：普通用户侧 `/model-providers` 默认展示后端 AI Gateway 提供的模型路由，并说明供应商凭证、Base URL 和 API Key 由 Admin 后台统一管理；workspace 级 Base URL/API Key 只保留在“高级本地覆盖”折叠区，用于临时接入后端目录之外的模型服务。
 - Frontend Agent Model Settings：Agent 设置与 Agent Console 中的默认模型入口已从 “Provider 模型 / Base URL / API Key” 心智收敛为“后端模型路由 + 高级直连覆盖”。后端 AI Gateway 目录是默认路径，直连 Base URL、直连模型 ID 和直连 API key 仅作为临时连接后端目录之外模型服务的高级能力保留；Debug Bundle、配置导入导出和待处理项文案也已改为“模型路由配置”。
 - Frontend App Settings External Resources：普通用户侧 App Settings 已不再创建/更新 Pexels、Pixabay API Key；该区块只展示外部资源来源启用状态，并跳转 Admin Provider Instances 管理外部资源 provider credential，同时保留进入“外部资源”搜索页的入口。
@@ -1039,14 +1039,14 @@ Vector DB
 后续决策与扩展：
 
 - Workspace Repository Provider Contract 已覆盖 ensure repository、clone URL、clone URL strategy、Git HTTP proxy target 和远端 access probe；Gitea/local Git HTTP/GitHub Enterprise/GitLab 的 provider 细节已从 handler/service 拼装中继续下沉，Gitea、GitHub Enterprise 与 GitLab Provider Instance test 已能真实探测认证，GitHub Enterprise/GitLab adapter 也已补齐对已有外部用户的 collaborator ensure/access probe 和 Git Smart HTTP proxy。临时授权 clone URL 已由 core backend 统一在 Git proxy 入口实现，避免把每个 Git provider 的 token 生命周期塞回 core。后续需要产品决策的是 GitHub Enterprise/GitLab 的 user 生命周期保持完全外部化，还是新增显式的外部身份映射/邀请流程。
-- Health/Test 已从配置存在性检查升级为真实 provider/readiness probe：AI Gateway credential ping、`ai_gateway:new-api` 聚合目录 readiness、Postgres `PingContext`、Gitea `/api/v1/user` 认证探测、GitHub Enterprise `/api/v3/user` 认证探测、GitLab `/api/v4/user` 认证探测、Gitea/GitHub Enterprise/GitLab collaborator permission probe、pgvector schema/table/count probe、Qdrant collection probe/ensure、MinIO bucket probe、Redis cache round trip、Pexels/Pixabay external resource source probe、Media Processing `external-worker` `/health` probe、Agent Runtime `remote-runtime` `/health` probe 与可选 `/capabilities` probe 都已进入同一套 contract。后续新增 adapter 时继续挂到 contract，不再在 core backend 里写散落的 provider 检查逻辑。
+- Health/Test 已从配置存在性检查升级为真实 provider/readiness probe：AI Gateway credential ping、`ai_gateway:商业外部 AI 网关` 聚合目录 readiness、Postgres `PingContext`、Gitea `/api/v1/user` 认证探测、GitHub Enterprise `/api/v3/user` 认证探测、GitLab `/api/v4/user` 认证探测、Gitea/GitHub Enterprise/GitLab collaborator permission probe、pgvector schema/table/count probe、Qdrant collection probe/ensure、MinIO bucket probe、Redis cache round trip、Pexels/Pixabay external resource source probe、Media Processing `external-worker` `/health` probe、Agent Runtime `remote-runtime` `/health` probe 与可选 `/capabilities` probe 都已进入同一套 contract。后续新增 adapter 时继续挂到 contract，不再在 core backend 里写散落的 provider 检查逻辑。
 - Vector、media、external resource、agent runtime Provider Contract 已建立接口边界；shot reference service 已通过 `VectorIndexProvider` contract 调用本地 `LocalVectorStore`、pgvector 或 Qdrant adapter，`vector_index:local-index`、`vector_index:pgvector` 和 `vector_index:qdrant` 已进入启动组装、Provider Instance、Admin env overlay 和 ShotReference runtime 注入。Pexels/Pixabay 已有 `ExternalResourceProvider` adapter 和 assembly 构造入口；media processing 已通过 `MediaProcessingProvider` contract 统一组装和测试 control-plane health，`external-worker` 已具备真实 `/health` 连通性探测，后端 resource/runner/backend image 不再自动调用或内置 FFmpeg，复杂剪辑/时间线导出归 Electron desktop runtime，团队云端处理交给外部 media worker；agent runtime 已通过 `AgentRuntimeProvider` contract 统一组装和测试 control-plane health，`remote-runtime` 已具备真实 `/health` 连通性探测、可选 `/capabilities` 动态能力探测，以及按 `movscript.agent-runtime.v1` 固定 endpoint 实现的 core backend session proxy 和 permission decision 审计闭环。后续扩展是把 Mova/app-server 这类桌面 runtime 的更深控制面能力纳入同一套 contract，而不是临时反代猜测路径。
 
 ## 14. 不建议做的事
 
-### 14.1 不要重写 new-api
+### 14.1 不要重写 商业外部 AI 网关
 
-MovScript 应该通过 AI Gateway Provider Contract 接入 new-api。除非 new-api 无法满足核心路由、计费或审计需求，否则不要把模型平台重写一遍。
+MovScript 应该通过 AI Gateway Provider Contract 接入 商业外部 AI 网关。除非 商业外部 AI 网关 无法满足核心路由、计费或审计需求，否则不要把模型平台重写一遍。
 
 ### 14.2 不要重写 Gitea
 

@@ -31,8 +31,8 @@ export function ResourceMediaThumb({
 
 export function ResourceMediaHoverOverlay({ icon, className, ...props }: HTMLAttributes<HTMLDivElement> & { icon: ReactNode }) {
   return (
-    <div className={cn("resource-media-hover-overlay", className)} {...props}>
-      <span className="resource-media-hover-overlay__icon">{icon}</span>
+    <div className={cn("ms-center resource-media-hover-overlay", className)} {...props}>
+      <span className="ms-inline-center resource-media-hover-overlay__icon">{icon}</span>
     </div>
   );
 }
@@ -46,7 +46,7 @@ export function ResourceMediaFillFrame({
   fit?: ResourceMediaFit;
 }) {
   return (
-    <AppMediaFrame variant="fill" data-fit={fit} className={cn("resource-media-fill-frame", className)} {...props}>
+    <AppMediaFrame variant="fill" data-fit={fit} className={cn("ms-fill ms-center resource-media-fill-frame", className)} {...props}>
       {children}
     </AppMediaFrame>
   );

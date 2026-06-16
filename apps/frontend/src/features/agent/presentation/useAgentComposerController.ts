@@ -2,18 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent, RefObject } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
-import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
+import { attachmentFromResource, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { fetchResourceById } from '@/features/agent/application/agentResourceLookup'
 import {
-  RESOURCE_MENTION_RE,
   RESOURCE_MENTION_TRIGGER_RE,
   normalizeInlineSpacing,
   readMentionEditorState,
   resourceMentionToken,
   setCaretAtEnd,
 } from '@/features/agent/presentation/agentMentionEditorModel'
+import {
+  buildComposerAttachmentEntries,
+  buildMentionCandidates,
+  buildResourceAttachmentIndex,
+  mentionedResourceIdsFromInput,
+  sameAgentMentionRange,
+  type AgentMentionRange,
+} from '@/features/agent/presentation/agentComposerAttachmentModel'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
-import { registerAgentLocalFile, releaseAgentLocalFile } from '@/features/agent/application/agentLocalFileRegistry'
+import { registerAgentLocalFile } from '@/features/agent/application/agentLocalFileRegistry'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
@@ -25,14 +32,16 @@ import {
 } from '@/features/agent/presentation/agentComposerDropInteraction'
 import { invalidateResourceMutationResult, resourceLibraryChangedResult } from '@/features/resources/application/resourceMutationInvalidation'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
-
-const USER_WORKSPACE_VALUE = '__user__'
-
-export interface AgentWorkspaceContextSelectOption {
-  value: string
-  label: string
-  meta?: string
-}
+import { releaseLocalAttachmentSource, releaseLocalAttachmentSources } from '@/features/agent/presentation/agentComposerAttachmentLifecycle'
+import { agentComposerClipboardFiles } from '@/features/agent/presentation/agentComposerClipboardFiles'
+import {
+  buildAgentWorkspaceContextSelectOptions,
+  mergeCurrentProject,
+  normalizeAgentWorkspaceContext,
+  positiveInteger,
+  USER_WORKSPACE_VALUE,
+  type AgentWorkspaceContextSelectOption,
+} from '@/features/agent/presentation/agentComposerWorkspaceModel'
 
 interface UseAgentComposerControllerInput {
   userId: string
@@ -57,7 +66,7 @@ export function useAgentComposerController({
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
   const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
-  const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
+  const [mentionRange, setMentionRange] = useState<AgentMentionRange | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadingFileNames, setUploadingFileNames] = useState<string[]>([])
   const [uploadedFileCount, setUploadedFileCount] = useState(0)
@@ -75,52 +84,21 @@ export function useAgentComposerController({
     queryFn: () => api.get('/projects').then((response) => response.data),
   })
   const projects = useMemo(() => mergeCurrentProject(projectsData, currentProject), [currentProject, projectsData])
-  const workspaceProjectOptions = useMemo<AgentWorkspaceContextSelectOption[]>(() => [
-    { value: USER_WORKSPACE_VALUE, label: '全局', meta: '不绑定项目' },
-    ...projects
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((project) => ({
-        value: String(project.ID),
-        label: project.name || `项目 #${project.ID}`,
-        meta: project.ID === currentProject?.ID
-          ? '当前项目'
-          : project.description || undefined,
-      })),
-  ], [currentProject?.ID, projects])
-  const resourceAttachmentIndex = useMemo(() => {
-    const map = new Map<number, AgentAttachment>()
-    for (const attachment of attachments) {
-      if (attachment.resourceId !== undefined) map.set(attachment.resourceId, attachment)
-    }
-    for (const resource of recentResources) {
-      if (!map.has(resource.ID)) map.set(resource.ID, attachmentFromResource(resource))
-    }
-    return map
-  }, [attachments, recentResources])
+  const workspaceProjectOptions = useMemo<AgentWorkspaceContextSelectOption[]>(
+    () => buildAgentWorkspaceContextSelectOptions(projects, currentProject),
+    [currentProject, projects],
+  )
+  const resourceAttachmentIndex = useMemo(
+    () => buildResourceAttachmentIndex(attachments, recentResources),
+    [attachments, recentResources],
+  )
 
-  const mentionedResourceIds = useMemo(() => {
-    const ids = new Set<number>()
-    for (const match of input.matchAll(RESOURCE_MENTION_RE)) {
-      const id = Number(match[1])
-      if (Number.isInteger(id) && id > 0) ids.add(id)
-    }
-    return ids
-  }, [input])
+  const mentionedResourceIds = useMemo(() => mentionedResourceIdsFromInput(input), [input])
 
-  const mentionCandidates = useMemo(() => {
-    const map = new Map<number, AgentAttachment>()
-    for (const resource of recentResources) {
-      map.set(resource.ID, attachmentFromResource(resource))
-    }
-    for (const attachment of attachments) {
-      if (attachment.resourceId !== undefined) map.set(attachment.resourceId, attachment)
-    }
-    return Array.from(map.values()).filter((attachment) =>
-      attachment.resourceId !== undefined
-      && (attachment.type === 'image' || attachment.type === 'video' || attachment.type === 'audio')
-    )
-  }, [attachments, recentResources])
+  const mentionCandidates = useMemo(
+    () => buildMentionCandidates(attachments, recentResources),
+    [attachments, recentResources],
+  )
 
   const mentionResults = useMemo(() => {
     if (!mentionRange) return []
@@ -130,21 +108,11 @@ export function useAgentComposerController({
       .slice(0, 24)
   }, [mentionCandidates, mentionRange])
 
-  const composerAttachmentEntries = useMemo(() => {
-    const map = new Map<string, { attachment: AgentAttachment; explicit: boolean; mentioned: boolean }>()
-    for (const attachment of attachments) {
-      map.set(attachmentKey(attachment), { attachment, explicit: true, mentioned: false })
-    }
-    for (const resourceId of mentionedResourceIds) {
-      const attachment = resourceAttachmentIndex.get(resourceId) ?? placeholderAttachment(resourceId)
-      const key = attachmentKey(attachment)
-      const existing = map.get(key)
-      map.set(key, existing
-        ? { ...existing, mentioned: true, attachment: existing.attachment.resourceId !== undefined ? existing.attachment : attachment }
-        : { attachment, explicit: false, mentioned: true })
-    }
-    return Array.from(map.values())
-  }, [attachments, mentionedResourceIds, resourceAttachmentIndex])
+  const composerAttachmentEntries = useMemo(() => buildComposerAttachmentEntries({
+    attachments,
+    mentionedResourceIds,
+    resourceAttachmentIndex,
+  }), [attachments, mentionedResourceIds, resourceAttachmentIndex])
 
   const composerAttachments = useMemo(() => composerAttachmentEntries.map((entry) => entry.attachment), [composerAttachmentEntries])
 
@@ -271,37 +239,6 @@ export function useAgentComposerController({
     })
   }
 
-  function clipboardFiles(event: ClipboardEvent): File[] {
-    const directFiles = Array.from(event.clipboardData.files)
-    if (directFiles.length > 0) return directFiles.map(normalizeClipboardFile)
-
-    return Array.from(event.clipboardData.items)
-      .filter((item) => item.kind === 'file')
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => !!file)
-      .map(normalizeClipboardFile)
-  }
-
-  function normalizeClipboardFile(file: File, index: number): File {
-    if (file.name.trim()) return file
-    return new File([file], `clipboard-${Date.now().toString(36)}-${index + 1}${extensionForMime(file.type)}`, {
-      type: file.type || 'application/octet-stream',
-      lastModified: file.lastModified,
-    })
-  }
-
-  function extensionForMime(mimeType: string) {
-    if (mimeType === 'image/png') return '.png'
-    if (mimeType === 'image/jpeg') return '.jpg'
-    if (mimeType === 'image/webp') return '.webp'
-    if (mimeType === 'image/gif') return '.gif'
-    if (mimeType === 'video/mp4') return '.mp4'
-    if (mimeType === 'audio/mpeg') return '.mp3'
-    if (mimeType === 'audio/wav') return '.wav'
-    if (mimeType.startsWith('text/')) return '.txt'
-    return ''
-  }
-
   function hasComposerDropData(event: DragEvent) {
     return Boolean(agentComposerDropKind(event.dataTransfer))
   }
@@ -364,7 +301,7 @@ export function useAgentComposerController({
   }
 
   async function handleComposerPaste(event: ClipboardEvent) {
-    const files = clipboardFiles(event)
+    const files = agentComposerClipboardFiles(event)
     if (files.length === 0) return
     event.preventDefault()
     event.stopPropagation()
@@ -383,7 +320,7 @@ export function useAgentComposerController({
       end: caret,
       query: match[1],
     }
-    setMentionRange((current) => sameMentionRange(current, nextRange) ? current : nextRange)
+    setMentionRange((current) => sameAgentMentionRange(current, nextRange) ? current : nextRange)
   }
 
   function insertResourceMention(attachment: AgentAttachment) {
@@ -466,57 +403,4 @@ export function useAgentComposerController({
     updateMentionState,
     uploadFiles,
   }
-}
-
-function releaseLocalAttachmentSources(items: AgentAttachment[]) {
-  for (const item of items) {
-    releaseLocalAttachmentSource(item)
-  }
-}
-
-function releaseLocalAttachmentSource(attachment: AgentAttachment | undefined) {
-  if (attachment?.source?.kind !== 'local_file') return
-  releaseAgentLocalFile(attachment.source.fileId)
-}
-
-function normalizeAgentWorkspaceContext(
-  context: MovScriptWorkspaceContext | undefined,
-  lockedProject?: Project | null,
-): MovScriptWorkspaceContext {
-  const projectId = positiveInteger(context?.projectId)
-  if ((context?.scope === 'project' || projectId !== undefined) && projectId !== undefined) {
-    return {
-      scope: 'project',
-      projectId,
-    }
-  }
-  if (lockedProject?.ID) {
-    return {
-      scope: 'project',
-      projectId: lockedProject.ID,
-    }
-  }
-  return {
-    scope: 'global',
-  }
-}
-
-function positiveInteger(value: unknown): number | undefined {
-  const numeric = Number(value)
-  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
-}
-
-function sameMentionRange(
-  current: { start: number; end: number; query: string } | null,
-  next: { start: number; end: number; query: string },
-): boolean {
-  return !!current
-    && current.start === next.start
-    && current.end === next.end
-    && current.query === next.query
-}
-
-function mergeCurrentProject(projects: Project[], currentProject: Project | null): Project[] {
-  if (!currentProject || projects.some((project) => project.ID === currentProject.ID)) return projects
-  return [currentProject, ...projects]
 }

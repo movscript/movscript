@@ -10,8 +10,6 @@
 }
 
 .ms-review-callout__header {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
@@ -22,14 +20,10 @@
 
 .ms-review-callout__title {
   color: var(--ms-tone-color);
-  font-size: var(--ms-text-label);
   font-weight: 600;
-  line-height: var(--ms-leading-label);
 }
 
 .ms-review-stat {
   border-color: transparent;
   padding: 4px 6px;
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
 }

@@ -1,21 +1,15 @@
 .generation-input-actions {
-  display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  align-items: center;
   gap: 8px;
   border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 42%, transparent);
   padding-top: 10px;
 }
 
 .generation-input-actions__hint {
-  display: inline-flex;
   min-width: 0;
-  align-items: center;
   gap: 5px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: 18px;
 }
 
 .generation-input-actions__spacer {

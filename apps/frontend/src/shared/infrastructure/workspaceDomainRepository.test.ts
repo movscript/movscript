@@ -66,16 +66,36 @@ test('workspace domain repository uses Electron engine workspace API when availa
         snapshot: input.payload,
       }
     },
-    upsertMovScriptEngineWorkspaceProjectStandards: async (input: Record<string, unknown>) => {
-      calls.push({ method: 'upsertProjectStandards', input })
-      return {
-        path: 'project_standards.json',
-        entityKind: 'project',
-        record: input.payload,
-      }
-    },
-    createMovScriptEngineWorkspaceAssetSlotCandidate: async (input: Record<string, unknown>) => {
-      calls.push({ method: 'createAssetSlotCandidate', input })
+	    upsertMovScriptEngineWorkspaceProjectStandards: async (input: Record<string, unknown>) => {
+	      calls.push({ method: 'upsertProjectStandards', input })
+	      return {
+	        path: 'project_standards.json',
+	        entityKind: 'project',
+	        record: input.payload,
+	      }
+	    },
+	    upsertMovScriptEngineWorkspaceContentUnit: async (input: Record<string, unknown>) => {
+	      calls.push({ method: 'upsertContentUnit', input })
+	      return {
+	        path: 'content_units/content_unit_1/content_unit.json',
+	        entityKind: 'content_unit',
+	        record: input.payload,
+	      }
+	    },
+	    updateMovScriptEngineContentUnitEditPrompt: async (input: Record<string, unknown>) => {
+	      calls.push({ method: 'updateContentUnitEditPrompt', input })
+	      return input
+	    },
+	    selectMovScriptEngineWorkspaceCandidate: async (input: Record<string, unknown>) => {
+	      calls.push({ method: 'selectCandidate', input })
+	      return input.payload
+	    },
+	    appendMovScriptEngineWorkspaceCandidate: async (input: Record<string, unknown>) => {
+	      calls.push({ method: 'appendCandidate', input })
+	      return input.payload
+	    },
+	    createMovScriptEngineWorkspaceAssetSlotCandidate: async (input: Record<string, unknown>) => {
+	      calls.push({ method: 'createAssetSlotCandidate', input })
       return {
         path: 'settings/setting_1/assets/asset_1/asset.json',
         record: input.payload,
@@ -96,9 +116,16 @@ test('workspace domain repository uses Electron engine workspace API when availa
   })
 
   try {
-    const service = createElectronMovScriptWorkspaceService({ projectId: 9, orgId: 22 })
-    const entities = await service.queryEntities({ entityKind: 'script' })
-    await service.upsertSetting({ payload: { id: 'setting_1', title: 'A' } })
+	    const service = createElectronMovScriptWorkspaceService({ projectId: 9, orgId: 22 })
+	    const entities = await service.queryEntities({ entityKind: 'script' })
+	    await service.upsertSetting({
+	      payload: {
+	        id: 'setting_1',
+	        title: 'A',
+	        __workspace_path: 'settings/setting_1/setting.json',
+	        __workspace_version: 'v1',
+	      },
+	    })
 
     assert.equal(entities[0]?.id, 'script_1')
     assert.deepEqual(calls[0], {
@@ -112,10 +139,18 @@ test('workspace domain repository uses Electron engine workspace API when availa
     assert.deepEqual(calls[1], {
       method: 'upsertSetting',
       input: {
-        projectId: 9,
-        orgId: 22,
-        payload: { payload: { id: 'setting_1', title: 'A' } },
-      },
+	        projectId: 9,
+	        orgId: 22,
+	        expectedWorkspaceVersions: { 'settings/setting_1/setting.json': 'v1' },
+	        payload: {
+	          payload: {
+	            id: 'setting_1',
+	            title: 'A',
+	            __workspace_path: 'settings/setting_1/setting.json',
+	            __workspace_version: 'v1',
+	          },
+	        },
+	      },
     })
   } finally {
     Object.defineProperty(globalThis, 'window', {

@@ -3,8 +3,10 @@ import {
   domainAppendCandidate,
   domainBuildContentUnitBackendPrompt,
   domainComposeSceneMomentFromEditPlan,
+  domainComposeProductionFromTimeline,
   domainInterpretContentUnitArtifact,
   domainInterpret,
+  domainApplyProductionTimelineCommands,
   domainCreateAssetSlotCandidate,
   domainCreateContentCandidate,
   domainCreateContentCandidateBatch,
@@ -25,7 +27,10 @@ import {
   domainReadContentUnitRuntimePanel,
   domainReadContentUnitSelectionValidity,
   domainReadPreviewTimeline,
+  domainReadProductionTimeline,
   domainReadSceneMomentEditPlan,
+  domainReadSceneMomentTimeline,
+  domainApplySceneMomentTimelineCommands,
   domainReadProductionWorkPlan,
   domainReadScriptSource,
   domainRegenerationPlan,
@@ -210,8 +215,18 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainBuildContentUnitBackendPrompt(args))
     case 'domain_read_preview_timeline':
       return toolText(await domainReadPreviewTimeline(args))
+    case 'domain_read_production_timeline':
+      return toolText(await domainReadProductionTimeline(args))
     case 'domain_read_scene_moment_edit_plan':
       return toolText(await domainReadSceneMomentEditPlan(args))
+    case 'domain_read_scene_moment_timeline':
+      return toolText(await domainReadSceneMomentTimeline(args))
+    case 'domain_apply_production_timeline_commands':
+      return toolText(await domainApplyProductionTimelineCommands(args))
+    case 'domain_apply_scene_moment_timeline_commands':
+      return toolText(await domainApplySceneMomentTimelineCommands(args))
+    case 'domain_compose_production_from_timeline':
+      return toolText(await domainComposeProductionFromTimeline(args))
     case 'domain_compose_scene_moment_from_edit_plan':
       return toolText(await domainComposeSceneMomentFromEditPlan(args))
     case 'domain_read_content_unit_runtime_panel':

@@ -7,7 +7,7 @@ import { cn } from "../../../../../lib/cn";
 
 export const AgentPlanOverviewShell = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-type-label ms-agent-plan-overview", className)} {...props} />;
   }
 );
 
@@ -15,7 +15,7 @@ AgentPlanOverviewShell.displayName = "AgentPlanOverviewShell";
 
 export const AgentPlanOverviewHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-plan-overview__header", className)} {...props} />;
   }
 );
 
@@ -36,9 +36,9 @@ export interface AgentPlanOverviewTitleProps extends React.HTMLAttributes<HTMLDi
 export const AgentPlanOverviewTitle = React.forwardRef<HTMLDivElement, AgentPlanOverviewTitleProps>(
   ({ className, icon, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("ms-agent-plan-overview__title", className)} {...props}>
-        {icon ? <span className="ms-agent-plan-overview__title-icon">{icon}</span> : null}
-        <span className="ms-agent-plan-overview__title-text">{children}</span>
+      <div ref={ref} className={cn("ms-action-row ms-agent-plan-overview__title", className)} {...props}>
+        {icon ? <span className="ms-inline-center ms-agent-plan-overview__title-icon">{icon}</span> : null}
+        <span className="ms-text-truncate ms-type-label ms-agent-plan-overview__title-text">{children}</span>
       </div>
     );
   }
@@ -48,7 +48,7 @@ AgentPlanOverviewTitle.displayName = "AgentPlanOverviewTitle";
 
 export const AgentPlanOverviewStats = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview__stats", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-type-tiny ms-agent-plan-overview__stats", className)} {...props} />;
   }
 );
 
@@ -56,7 +56,7 @@ AgentPlanOverviewStats.displayName = "AgentPlanOverviewStats";
 
 export const AgentPlanOverviewDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-plan-overview__description", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-type-tiny ms-agent-plan-overview__description", className)} {...props} />;
   }
 );
 
@@ -64,7 +64,7 @@ AgentPlanOverviewDescription.displayName = "AgentPlanOverviewDescription";
 
 export const AgentPlanOverviewStatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
   ({ className, ...props }, ref) => {
-    return <StatusBadge ref={ref} className={cn("ms-agent-plan-overview__status", className)} {...props} />;
+    return <StatusBadge ref={ref} className={cn("ms-type-tiny ms-agent-plan-overview__status", className)} {...props} />;
   }
 );
 
@@ -72,7 +72,7 @@ AgentPlanOverviewStatusBadge.displayName = "AgentPlanOverviewStatusBadge";
 
 export const AgentPlanOverviewActionBar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview__actions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-plan-overview__actions", className)} {...props} />;
   }
 );
 
@@ -80,7 +80,7 @@ AgentPlanOverviewActionBar.displayName = "AgentPlanOverviewActionBar";
 
 export const AgentPlanOverviewActionButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, size = "xs", ...props }, ref) => {
-    return <Button ref={ref} size={size} className={cn("ms-agent-plan-overview__action", className)} {...props} />;
+    return <Button ref={ref} size={size} className={cn("ms-type-tiny ms-agent-plan-overview__action", className)} {...props} />;
   }
 );
 

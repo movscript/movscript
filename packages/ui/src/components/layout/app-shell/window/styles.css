@@ -136,7 +136,7 @@
   height: 20px;
   max-width: 160px;
   align-items: center;
-  gap: 4px;
+  gap: var(--ms-space-1);
   border-radius: var(--ms-radius-control);
   padding-inline: 6px;
   color: var(--ms-color-muted-foreground);

@@ -5,14 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/movscript/movscript/internal/infra/crypto"
-	"github.com/movscript/movscript/internal/infra/newapi"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/movscript/movscript/internal/infra/crypto"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"gorm.io/gorm"
 )
 
 // Registry builds Provider instances from AICredential + resolved ModelDef.
@@ -28,7 +28,13 @@ func NewRegistry(db *gorm.DB, encryptionKey []byte) *Registry {
 }
 
 func NewRegistryWithProviderMode(db *gorm.DB, encryptionKey []byte, providerMode string) *Registry {
-	return &Registry{db: db, encryptionKey: encryptionKey, providerMode: strings.TrimSpace(providerMode)}
+	providerMode = strings.TrimSpace(providerMode)
+	if normalized, ok := editionRegistryProviderMode(providerMode); ok {
+		providerMode = normalized
+	} else if providerMode != "" {
+		providerMode = AdapterLocal
+	}
+	return &Registry{db: db, encryptionKey: encryptionKey, providerMode: providerMode}
 }
 
 // BuildForConfig constructs a Provider for the given AIModelConfig.
@@ -63,12 +69,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	if r.providerMode == "local" || cred.AdapterType == AdapterLocal {
 		return NewLocalAdapter(), nil
 	}
-	if r.providerMode == "new-api" {
-		cfg := newapi.LoadConfigFromEnv()
-		if cfg.BaseURL == "" {
-			return nil, fmt.Errorf("MOVSCRIPT_NEW_API_BASE_URL is required when MOVSCRIPT_AI_GATEWAY_PROVIDER=new-api")
-		}
-		return NewNewAPIForwardAdapter(r.db, r.encryptionKey, cfg, nil), nil
+	if provider, handled, err := r.editionBuildProvider(cred, def); handled || err != nil {
+		return provider, err
 	}
 	apiKey := ""
 	if cred.EncryptedKey != "" && len(r.encryptionKey) > 0 {
@@ -116,16 +118,8 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 // Returns nil if FilesAPIEnabled is not set on the credential.
 // Uses the independent Files API key/URL when configured, falling back to the main credential.
 func (r *Registry) GetFileUploader(ctx context.Context, userID uint, cfg persistencemodel.AIModelConfig) FileUploader {
-	if r.providerMode == "new-api" {
-		newAPICfg := newapi.LoadConfigFromEnv()
-		if newAPICfg.RelayBaseURL() == "" {
-			return nil
-		}
-		token, err := newapi.NewIdentityService(r.db, r.encryptionKey, newAPICfg, nil).RelayTokenForUserGroup(ctx, userID, providerNewAPIGroupFromContext(ctx))
-		if err != nil {
-			return nil
-		}
-		return NewFileUploader(newAPICfg.RelayBaseURL(), token)
+	if uploader, handled := r.editionFileUploader(ctx, userID, cfg); handled {
+		return uploader
 	}
 	var cred persistencemodel.AICredential
 	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
@@ -281,17 +275,9 @@ func (r *Registry) DebugCall(ctx context.Context, userID uint, cfg persistencemo
 	if modelID == "" {
 		modelID = def.ModelID
 	}
-	if r.providerMode == "new-api" {
-		if userID == 0 {
-			return DebugCallResult{ModelID: modelID, Error: "movscript user id is required for new-api debug calls"}
-		}
-		provider, _, err := r.BuildForConfig(cfg)
-		if err != nil {
-			return DebugCallResult{ModelID: modelID, Error: err.Error()}
-		}
-		return debugCallProvider(ctx, userID, provider, def, modelID)
+	if result, handled := r.editionDebugCall(ctx, userID, cfg, cred, def, modelID); handled {
+		return result
 	}
-
 	apiKey := ""
 	if cred.EncryptedKey != "" {
 		var err error
@@ -428,7 +414,7 @@ func debugCallProvider(ctx context.Context, userID uint, provider Provider, def 
 		Success: true,
 		ModelID: modelID,
 		Method:  "SKIP",
-		Error:   "new-api debug only performs live calls for text/image model configs",
+		Error:   "debug only performs live calls for text/image model configs",
 	}
 }
 

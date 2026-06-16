@@ -1,0 +1,371 @@
+import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { Bot, CheckCircle2, Clapperboard, HardDrive, LayoutDashboard, RefreshCw, Server, Settings, Wrench } from 'lucide-react'
+import { Textarea } from '@movscript/ui/primitives'
+import {
+  AppSettingsActionButton,
+  AppSettingsActionRow,
+  AppSettingsAdminSurface,
+  AppSettingsChoiceGrid,
+  AppSettingsChoiceTile,
+  AppSettingsContentStack,
+  AppSettingsEndpointSurface,
+  AppSettingsFeedbackText,
+  AppSettingsField,
+  AppSettingsFooterText,
+  AppSettingsInput,
+  AppSettingsIntro,
+  AppSettingsSection,
+} from '@/features/settings/components/AppSettingsUi'
+import { ExternalResourceSourceSettingsSection } from '@/features/settings/components/ExternalResourceSourceSettingsSection'
+import { ROUTES } from '@/routes/projectRoutes'
+import type { AppSettings } from '@/shared/infrastructure/config'
+import type {
+  AppSettingsTestState,
+  ShotLibrarySourceParseResult,
+} from '@/features/settings/presentation/appSettingsPageModel'
+
+interface AppSettingsContentProps {
+  apiBaseURL: string
+  canOpenAdmin: boolean
+  chooseLaunchMode: (mode: AppSettings['launchMode']) => void
+  chooseWorkMode: (mode: AppSettings['workMode']) => void
+  collectResourceBlobs: (dryRun: boolean) => void
+  hasChanged: boolean
+  isValid: boolean
+  localMode: boolean
+  normalized: string
+  openAdminConsole: () => void
+  parsedShotSources: ShotLibrarySourceParseResult
+  resetShotLibrarySources: () => void
+  resetToDefault: () => void
+  resourceGCState: AppSettingsTestState
+  saveSettings: () => void
+  saveShotLibrarySources: () => void
+  saveWorkspaceRoot: () => void
+  saved: boolean
+  setAPIBaseURLInput: (value: string) => void
+  setSaved: (saved: boolean) => void
+  setShotSourcesSaved: (saved: boolean) => void
+  setShotSourcesText: (value: string) => void
+  setMovScriptHomeDirInput: (value: string) => void
+  setWorkspaceSaved: (saved: boolean) => void
+  settings: AppSettings
+  shotSourcesChanged: boolean
+  shotSourcesSaved: boolean
+  shotSourcesText: string
+  shotSourcesValid: boolean
+  showLoginFooter: boolean
+  testConnection: () => void
+  testState: AppSettingsTestState
+  useDefaultWorkspaceRoot: () => void
+  movScriptHomeDir: string
+  movScriptHomeDirChanged: boolean
+  workspaceSaved: boolean
+}
+
+export function AppSettingsContent({
+  apiBaseURL,
+  canOpenAdmin,
+  chooseLaunchMode,
+  chooseWorkMode,
+  collectResourceBlobs,
+  hasChanged,
+  isValid,
+  localMode,
+  normalized,
+  openAdminConsole,
+  parsedShotSources,
+  resetShotLibrarySources,
+  resetToDefault,
+  resourceGCState,
+  saveSettings,
+  saveShotLibrarySources,
+  saveWorkspaceRoot,
+  saved,
+  setAPIBaseURLInput,
+  setSaved,
+  setShotSourcesSaved,
+  setShotSourcesText,
+  setMovScriptHomeDirInput,
+  setWorkspaceSaved,
+  settings,
+  shotSourcesChanged,
+  shotSourcesSaved,
+  shotSourcesText,
+  shotSourcesValid,
+  showLoginFooter,
+  testConnection,
+  testState,
+  useDefaultWorkspaceRoot,
+  movScriptHomeDir,
+  movScriptHomeDirChanged,
+  workspaceSaved,
+}: AppSettingsContentProps) {
+  const { t } = useTranslation()
+
+  return (
+    <AppSettingsContentStack>
+      <AppSettingsIntro title={t('appSettings.title')} description={t('appSettings.description')} />
+
+      <AppSettingsSection
+        icon={Settings}
+        title={t('appSettings.launchModeTitle')}
+        description={t('appSettings.launchModeHint')}
+      >
+        <AppSettingsChoiceGrid>
+          {(['cloud', 'local'] as const).map((mode) => {
+            const selected = settings.launchMode === mode
+            return (
+              <AppSettingsChoiceTile
+                key={mode}
+                type="button"
+                selected={selected}
+                onClick={() => chooseLaunchMode(mode)}
+                title={mode === 'cloud' ? t('appSettings.cloudMode') : t('appSettings.localMode')}
+                detail={mode === 'cloud' ? t('appSettings.cloudModeHelp') : t('appSettings.localModeHelp')}
+              />
+            )
+          })}
+        </AppSettingsChoiceGrid>
+      </AppSettingsSection>
+
+      <AppSettingsSection
+        icon={Bot}
+        title={t('appSettings.workModeTitle')}
+        description={t('appSettings.workModeHint')}
+      >
+        <AppSettingsChoiceGrid>
+          {(['project', 'tool', 'agent'] as const).map((mode) => {
+            const selected = settings.workMode === mode
+            const Icon = mode === 'agent' ? Bot : mode === 'tool' ? Wrench : LayoutDashboard
+            return (
+              <AppSettingsChoiceTile
+                key={mode}
+                type="button"
+                selected={selected}
+                onClick={() => chooseWorkMode(mode)}
+                icon={<Icon size={14} />}
+                title={mode === 'agent'
+                  ? t('appSettings.agentWorkMode')
+                  : mode === 'tool'
+                    ? t('appSettings.toolWorkMode', { defaultValue: '工具模式' })
+                    : t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
+                detail={mode === 'agent'
+                  ? t('appSettings.agentWorkModeHelp')
+                  : mode === 'tool'
+                    ? t('appSettings.toolWorkModeHelp', { defaultValue: '直接进入工具、资源和任务入口，不显示右侧 AI 会话面板。' })
+                    : t('appSettings.projectWorkModeHelp', { defaultValue: '选择项目后进入项目总览，再进入剧本、编排和项目规范。' })}
+              />
+            )
+          })}
+        </AppSettingsChoiceGrid>
+      </AppSettingsSection>
+
+      <AppSettingsSection
+        icon={HardDrive}
+        title={t('appSettings.movScriptWorkspaceTitle')}
+        description={t('appSettings.movScriptWorkspaceHint')}
+      >
+        <AppSettingsField
+          label={t('appSettings.movScriptWorkspaceDir')}
+          htmlFor="movScriptWorkspaceDir"
+          help={t('appSettings.movScriptWorkspaceDirHelp')}
+        >
+          <AppSettingsInput
+            id="movScriptWorkspaceDir"
+            value={movScriptHomeDir}
+            onChange={(e) => {
+              setMovScriptHomeDirInput(e.target.value)
+              setWorkspaceSaved(false)
+            }}
+            placeholder={t('appSettings.movScriptWorkspaceDirPlaceholder')}
+            spellCheck={false}
+          />
+        </AppSettingsField>
+
+        <AppSettingsEndpointSurface
+          label={t('appSettings.movScriptWorkspaceEffectiveRoot')}
+          value={settings.movScriptWorkspaceDir?.trim() || t('appSettings.movScriptWorkspaceDefaultRoot')}
+        />
+
+        {workspaceSaved && (
+          <AppSettingsFeedbackText tone="success" icon={<CheckCircle2 size={14} />}>
+            {t('appSettings.saved')}
+          </AppSettingsFeedbackText>
+        )}
+
+        <AppSettingsActionRow>
+          <AppSettingsActionButton onClick={saveWorkspaceRoot} disabled={!movScriptHomeDirChanged}>
+            {t('common.save')}
+          </AppSettingsActionButton>
+          <AppSettingsActionButton type="button" variant="ghost" onClick={useDefaultWorkspaceRoot}>
+            {t('appSettings.movScriptWorkspaceUseDefault')}
+          </AppSettingsActionButton>
+        </AppSettingsActionRow>
+      </AppSettingsSection>
+
+      <AppSettingsSection
+        icon={Server}
+        title={t('appSettings.cloudApiTitle')}
+        description={t('appSettings.cloudApiHint')}
+      >
+        <AppSettingsField
+          label={t('appSettings.apiBaseURL')}
+          htmlFor="apiBaseURL"
+          help={t('appSettings.apiBaseURLHelp')}
+          error={!isValid && apiBaseURL.trim() ? t('appSettings.invalidURL') : undefined}
+        >
+          <AppSettingsInput
+            id="apiBaseURL"
+            value={apiBaseURL}
+            onChange={(e) => {
+              setAPIBaseURLInput(e.target.value)
+              setSaved(false)
+            }}
+            placeholder="https://api.example.com"
+            spellCheck={false}
+          />
+        </AppSettingsField>
+
+        <AppSettingsEndpointSurface
+          label={t('appSettings.effectiveEndpoint')}
+          value={isValid ? `${normalized}/api/v1` : '-'}
+        />
+
+        {localMode && isValid && canOpenAdmin && (
+          <AppSettingsAdminSurface
+            label={t('appSettings.adminConsole')}
+            url={t('appSettings.adminConsoleHost')}
+            help={t('appSettings.adminConsoleHelp')}
+            action={
+              <AppSettingsActionButton
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={openAdminConsole}
+              >
+                {t('appSettings.openAdminConsole')}
+              </AppSettingsActionButton>
+            }
+          />
+        )}
+
+        {testState.message && (
+          <AppSettingsFeedbackText tone={testState.status === 'error' ? 'danger' : testState.status === 'success' ? 'success' : 'neutral'}>
+            {testState.message}
+          </AppSettingsFeedbackText>
+        )}
+
+        {saved && (
+          <AppSettingsFeedbackText tone="success" icon={<CheckCircle2 size={14} />}>
+            {t('appSettings.savedReloading')}
+          </AppSettingsFeedbackText>
+        )}
+
+        <AppSettingsActionRow>
+          <AppSettingsActionButton onClick={saveSettings} disabled={!isValid || !hasChanged}>
+            {t('common.save')}
+          </AppSettingsActionButton>
+          <AppSettingsActionButton variant="outline" onClick={testConnection} disabled={!isValid || testState.status === 'testing'}>
+            {testState.status === 'testing' && <RefreshCw size={14} className="mr-2 animate-spin" />}
+            {t('appSettings.testConnection')}
+          </AppSettingsActionButton>
+          <AppSettingsActionButton variant="ghost" onClick={resetToDefault}>
+            {t('appSettings.resetDefault')}
+          </AppSettingsActionButton>
+        </AppSettingsActionRow>
+      </AppSettingsSection>
+
+      {localMode && canOpenAdmin && (
+        <AppSettingsSection
+          icon={HardDrive}
+          title={t('appSettings.resourceStorageTitle')}
+          description={t('appSettings.resourceStorageHint')}
+        >
+          <AppSettingsEndpointSurface
+            label={t('appSettings.resourceBlobGCEndpoint')}
+            value="/api/v1/admin/resource-storage/blobs/gc"
+          />
+
+          {resourceGCState.message && (
+            <AppSettingsFeedbackText tone={resourceGCState.status === 'error' ? 'danger' : resourceGCState.status === 'success' ? 'success' : 'neutral'}>
+              {resourceGCState.message}
+            </AppSettingsFeedbackText>
+          )}
+
+          <AppSettingsActionRow>
+            <AppSettingsActionButton
+              variant="outline"
+              onClick={() => collectResourceBlobs(true)}
+              disabled={hasChanged || resourceGCState.status === 'testing'}
+            >
+              {resourceGCState.status === 'testing' && <RefreshCw size={14} className="mr-2 animate-spin" />}
+              {t('appSettings.resourceBlobGCDryRun')}
+            </AppSettingsActionButton>
+            <AppSettingsActionButton
+              variant="ghost"
+              onClick={() => collectResourceBlobs(false)}
+              disabled={hasChanged || resourceGCState.status === 'testing'}
+            >
+              {t('appSettings.resourceBlobGCRun')}
+            </AppSettingsActionButton>
+          </AppSettingsActionRow>
+        </AppSettingsSection>
+      )}
+
+      <ExternalResourceSourceSettingsSection canOpenAdmin={isValid && canOpenAdmin} />
+
+      <AppSettingsSection
+        icon={Clapperboard}
+        title={t('appSettings.shotLibraryApiTitle')}
+        description={t('appSettings.shotLibraryApiHint')}
+      >
+        <AppSettingsField
+          label={t('appSettings.shotLibrarySources')}
+          htmlFor="shotLibrarySources"
+          help={t('appSettings.shotLibrarySourcesHelp')}
+          error={!parsedShotSources.ok ? parsedShotSources.error : undefined}
+        >
+          <Textarea
+            id="shotLibrarySources"
+            className="app-settings-textarea app-settings-textarea--code"
+            value={shotSourcesText}
+            onChange={(event) => {
+              setShotSourcesText(event.target.value)
+              setShotSourcesSaved(false)
+            }}
+            rows={8}
+            spellCheck={false}
+          />
+        </AppSettingsField>
+
+        <AppSettingsEndpointSurface
+          label={t('appSettings.shotLibraryStandardApi')}
+          value="/api/v1/shot-references"
+        />
+
+        {shotSourcesSaved && (
+          <AppSettingsFeedbackText tone="success" icon={<CheckCircle2 size={14} />}>
+            {t('appSettings.saved')}
+          </AppSettingsFeedbackText>
+        )}
+
+        <AppSettingsActionRow>
+          <AppSettingsActionButton onClick={saveShotLibrarySources} disabled={!shotSourcesValid || !shotSourcesChanged}>
+            {t('common.save')}
+          </AppSettingsActionButton>
+          <AppSettingsActionButton variant="ghost" onClick={resetShotLibrarySources}>
+            {t('appSettings.resetDefault')}
+          </AppSettingsActionButton>
+        </AppSettingsActionRow>
+      </AppSettingsSection>
+
+      {showLoginFooter && (
+        <AppSettingsFooterText>
+          <Link to={ROUTES.root} className="text-foreground underline-offset-4 hover:underline">{t('appSettings.returnToLogin')}</Link>
+        </AppSettingsFooterText>
+      )}
+    </AppSettingsContentStack>
+  )
+}

@@ -16,7 +16,7 @@ export function CanvasIOPortRow({
     <AppSurfaceItem
       data-input-port-id={port.type === "target" ? port.id : undefined}
       data-output-port-id={port.type === "source" ? port.id : undefined}
-      className="canvas-io-port-row"
+      className="ms-action-row ms-type-tiny canvas-io-port-row"
     >
       <CanvasPortDot
         side={port.side}
@@ -28,7 +28,7 @@ export function CanvasIOPortRow({
         handleType={port.type}
         renderPortHandle={renderPortHandle}
       />
-      <span className="canvas-io-port-row__label">{port.label}</span>
+      <span className="ms-text-truncate canvas-io-port-row__label">{port.label}</span>
       {port.required ? <span className="canvas-io-port-row__required">*</span> : null}
       <AppInlineMeta asChild className="canvas-io-port-row__data-type">
         <span>{port.dataType}</span>

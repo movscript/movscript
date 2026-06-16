@@ -40,7 +40,22 @@ export interface ContentCanvasNode {
   sourcePath: string
   record: Record<string, unknown>
   candidates: ContentCanvasCandidate[]
+  generationTask?: ContentCanvasGenerationTask
   position: { x: number; y: number }
+}
+
+export interface ContentCanvasGenerationTask {
+  id: string
+  nodeId: string
+  contentUnitType: string
+  outputKind: string
+  title: string
+  prompt: string
+  status: 'none' | 'ready' | 'needs_candidate' | 'selected' | 'stale'
+  sourcePath: string
+  record: Record<string, unknown>
+  candidates: ContentCanvasCandidate[]
+  selectedCandidate?: ContentCanvasCandidate
 }
 
 export interface ContentCanvasCandidate {
@@ -53,6 +68,50 @@ export interface ContentCanvasCandidate {
   source: string
   selected: boolean
   notes: string
+}
+
+export type OpenCutTimelineDocumentLike = {
+  schema?: string
+  project?: {
+    currentSceneId?: string
+    metadata?: {
+      duration?: number
+    }
+    scenes?: Array<{
+      id?: string
+      name?: string
+      tracks?: Array<{
+        id?: string
+        name?: string
+        type?: string
+        hidden?: boolean
+        muted?: boolean
+        elements?: OpenCutTimelineElementLike[]
+      }>
+    }>
+  }
+}
+
+export type OpenCutTimelineElementLike = {
+  id?: string
+  name?: string
+  type?: string
+  startTime?: number
+  duration?: number
+  trimStart?: number
+  trimEnd?: number
+  hidden?: boolean
+  muted?: boolean
+  metadata?: {
+    movscript?: {
+      resourceId?: number
+      contentUnitId?: string | number
+      selected?: boolean
+      stale?: boolean
+      outputKind?: string
+      trackType?: string
+    }
+  }
 }
 
 export type ContentCanvasEdgeType =
@@ -141,6 +200,7 @@ export interface ContentCanvasProjectData {
   settingStates?: MovScriptWorkspaceIndexedEntity[]
   audioCues?: MovScriptWorkspaceIndexedEntity[]
   contentUnitCandidates: Record<string, ContentCanvasCandidate[]>
+  editingTimelinesByNodeId?: Record<string, OpenCutTimelineDocumentLike>
   assetReferenceUnits?: ContentSourceWorkspaceData['assetReferenceUnits']
   productionWorkPlan?: ProductionWorkPlanView
 }

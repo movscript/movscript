@@ -6,6 +6,10 @@ import test from 'node:test'
 const projectQueriesSource = readSource('apps/frontend/src/features/project/application/projectQueries.ts')
 const projectMutationSource = readSource('apps/frontend/src/features/project/application/projectMutationInvalidation.ts')
 const projectsPageSource = readSource('apps/frontend/src/features/project/components/ProjectsPage.tsx')
+const projectOverviewPageSource = readSource('apps/frontend/src/pages/project/ProjectOverviewPage.tsx')
+const projectOverviewCardsSource = readSource('apps/frontend/src/features/project/components/ProjectOverviewCards.tsx')
+const projectOverviewDataSource = readSource('apps/frontend/src/features/project/application/projectOverviewData.ts')
+const projectOverviewModelSource = readSource('apps/frontend/src/features/project/presentation/projectOverviewModel.ts')
 const appTopControlsSource = readSource('apps/frontend/src/features/app-shell/components/AppTopControls.tsx')
 const projectRequiredDialogSource = readSource('apps/frontend/src/features/app-shell/components/ProjectRequiredDialog.tsx')
 const sidebarSource = readSource('apps/frontend/src/features/app-shell/components/Sidebar.tsx')
@@ -14,6 +18,8 @@ const globalHomeSource = readSource('apps/frontend/src/pages/home/GlobalHomePage
 const projectAgentModeSource = [
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+  readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
+  readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
 ].join('\n')
 
 test('project surfaces delegate query keys and invalidation', () => {
@@ -49,12 +55,59 @@ test('project surfaces delegate query keys and invalidation', () => {
   assert.match(projectsPageSource, /projectKeys\.list\(currentOrgID\)/)
   assert.match(projectsPageSource, /projectKeys\.progress\(currentOrgID, project\.ID\)/)
   assert.match(projectsPageSource, /invalidateProjectMutationResult\(qc, projectListChangedResult\(\{ orgId: currentOrgID, changedIds: \[newProject\.ID\] \}\)\)/)
-  assert.match(appTopControlsSource, /invalidateProjectMutationResult\(queryClient, projectListChangedResult\(\{ orgId: currentOrgID, changedIds: \[project\.ID\] \}\)\)/)
+  assert.doesNotMatch(appTopControlsSource, /projectListChangedResult/)
+  assert.doesNotMatch(appTopControlsSource, /api\.post\('\/projects'/)
   assert.match(projectRequiredDialogSource, /invalidateProjectMutationResult\(queryClient, projectListChangedResult\(\{ orgId: currentOrgID, changedIds: \[project\.ID\] \}\)\)/)
   assert.doesNotMatch(sidebarSource, /projectKeys\.detail|useProjectStore|ROUTES\.project\./)
   assert.match(orgSelectSource, /removeProjectCaches\(queryClient\)/)
   assert.match(globalHomeSource, /projectKeys\.list\(currentOrgID\)/)
   assert.match(projectAgentModeSource, /projectKeys\.list\(currentOrgID\)/)
+})
+
+test('project overview delegates data loading and lane model derivation', () => {
+  assert.match(projectOverviewPageSource, /from '@\/features\/project\/application\/projectOverviewData'/)
+  assert.match(projectOverviewPageSource, /from '@\/features\/project\/presentation\/projectOverviewModel'/)
+  assert.match(projectOverviewPageSource, /queryFn: \(\) => loadProjectOverviewData\(projectId!\)/)
+  assert.match(projectOverviewPageSource, /buildProjectOverviewModel\(\{ data, project \}\)/)
+  assert.doesNotMatch(projectOverviewPageSource, /listSemanticEntities/)
+  assert.doesNotMatch(projectOverviewPageSource, /function safeList/)
+  assert.doesNotMatch(projectOverviewPageSource, /function percentage/)
+  assert.doesNotMatch(projectOverviewPageSource, /function hasLockedResource/)
+
+  assert.match(projectOverviewDataSource, /export async function loadProjectOverviewData/)
+  assert.match(projectOverviewDataSource, /listSemanticEntities\(projectId, semanticEntityConfig\(kind\)\)/)
+  assert.match(projectOverviewModelSource, /export function buildProjectOverviewModel/)
+  assert.match(projectOverviewModelSource, /projectEntryDefinitions\.map/)
+  assert.match(projectOverviewModelSource, /export function projectOverviewLaneLabel/)
+  assert.match(projectOverviewModelSource, /export function projectOverviewNextActionLabel/)
+})
+
+test('project overview delegates card and marketplace UI components', () => {
+  assert.match(projectOverviewPageSource, /from '@\/features\/project\/components\/ProjectOverviewCards'/)
+  for (const componentName of [
+    'ProjectOverviewMetric',
+    'ProjectOverviewPluginInfoTile',
+    'ProjectOverviewScriptCard',
+    'ProjectOverviewWorkbenchCard',
+    'ProjectPluginMarketplaceDialog',
+    'ProjectSkillCard',
+  ]) {
+    assert.match(projectOverviewCardsSource, new RegExp(`export function ${componentName}\\b`))
+    assert.match(projectOverviewPageSource, new RegExp(`<${componentName}\\b`))
+  }
+
+  for (const removedPageLocal of [
+    'function Metric',
+    'function ScriptListCard',
+    'function PluginInfoTile',
+    'function WorkbenchCard',
+    'function projectSkillSourceLabel',
+  ]) {
+    assert.doesNotMatch(projectOverviewPageSource, new RegExp(removedPageLocal))
+  }
+  assert.match(projectOverviewCardsSource, /function projectSkillSourceLabel/)
+  assert.match(projectOverviewCardsSource, /withRouteParams\(ROUTES\.project\.scripts/)
+  assert.match(projectOverviewCardsSource, /PluginDialogOverlay/)
 })
 
 function readSource(path) {

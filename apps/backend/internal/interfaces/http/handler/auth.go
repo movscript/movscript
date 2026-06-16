@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -31,7 +33,10 @@ type AuthHandler struct {
 	mailSender      mail.Sender
 	gitIdentities   *gitidentityapp.Service
 	localAppMode    bool
+	configTurnstile adminsettings.TurnstileSettings
 }
+
+var turnstileHTTPClient = http.DefaultClient
 
 func NewAuthHandler(db *gorm.DB, tokens *auth.Manager) *AuthHandler {
 	return &AuthHandler{db: db, service: authapp.NewService(db, tokens), settingsService: adminsettings.NewService(db), mailSender: mail.SMTPSender{}}
@@ -50,14 +55,27 @@ func NewAuthHandlerWithConfigAndEncryption(db *gorm.DB, tokens *auth.Manager, cf
 			mailSender:      mail.SMTPSender{},
 			gitIdentities:   newGitIdentityService(db, cfg, encryptionKey),
 			localAppMode:    true,
+			configTurnstile: turnstileSettingsFromConfig(cfg),
 		}
 	}
 	handler := NewAuthHandler(db, tokens)
 	if cfg != nil {
 		handler.settingsService = adminsettings.NewService(db, cfg.EncryptionKey)
 		handler.gitIdentities = newGitIdentityService(db, cfg, encryptionKey)
+		handler.configTurnstile = turnstileSettingsFromConfig(cfg)
 	}
 	return handler
+}
+
+func turnstileSettingsFromConfig(cfg *config.Config) adminsettings.TurnstileSettings {
+	if cfg == nil {
+		return adminsettings.TurnstileSettings{}
+	}
+	return adminsettings.TurnstileSettings{
+		Enabled:   cfg.TurnstileEnabled,
+		SiteKey:   cfg.TurnstileSiteKey,
+		SecretKey: cfg.TurnstileSecretKey,
+	}
 }
 
 func newGitIdentityService(db *gorm.DB, cfg *config.Config, encryptionKey []byte) *gitidentityapp.Service {
@@ -117,17 +135,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		ChallengeID string `json:"challengeId"`
 		Code        string `json:"code"`
 		LocalAdmin  bool   `json:"localAdmin"`
+		Turnstile   string `json:"turnstile"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	settings, err := h.settingsService.PublicAuthSettings(c.Request.Context())
+	settings, err := h.settingsService.AuthSettings(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取注册设置失败"})
 		return
 	}
+	settings = h.mergeConfigAuthSettings(settings)
 	bootstrapRequired, err := h.service.BootstrapRequired(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取初始化状态失败"})
@@ -137,6 +157,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if !bootstrapRegistration && !settings.RegistrationEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
 		return
+	}
+	if !bootstrapRegistration {
+		if ok := h.requireTurnstile(c, settings.Turnstile, req.Turnstile); !ok {
+			return
+		}
 	}
 	input := authapp.RegisterInput{Username: req.Username, Password: req.Password, BootstrapSystemAdmin: bootstrapRegistration}
 	if settings.RequireEmailVerification && !bootstrapRegistration {
@@ -237,6 +262,7 @@ func (h *AuthHandler) Config(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取认证配置失败"})
 		return
 	}
+	settings = h.mergeConfigAuthSettings(settings)
 	bootstrapRequired, err := h.service.BootstrapRequired(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取初始化状态失败"})
@@ -246,8 +272,12 @@ func (h *AuthHandler) Config(c *gin.Context) {
 		"registration_enabled":       settings.RegistrationEnabled,
 		"require_email_verification": settings.RequireEmailVerification,
 		"email_verification_enabled": settings.Email.Enabled,
-		"local_bootstrap_enabled":    h.localAppMode,
-		"bootstrap_required":         bootstrapRequired,
+		"turnstile": gin.H{
+			"enabled":  settings.Turnstile.Enabled,
+			"site_key": settings.Turnstile.SiteKey,
+		},
+		"local_bootstrap_enabled": h.localAppMode,
+		"bootstrap_required":      bootstrapRequired,
 		"providers": gin.H{
 			"email": settings.Email.Enabled,
 		},
@@ -270,11 +300,22 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
+		Username  string `json:"username" binding:"required"`
+		Password  string `json:"password" binding:"required"`
+		Turnstile string `json:"turnstile"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	settings, err := h.settingsService.AuthSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取认证配置失败"})
+		return
+	}
+	settings = h.mergeConfigAuthSettings(settings)
+	if ok := h.requireTurnstile(c, settings.Turnstile, req.Turnstile); !ok {
 		return
 	}
 
@@ -300,9 +341,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 func (h *AuthHandler) StartCode(c *gin.Context) {
 	var req struct {
-		Channel string `json:"channel"`
-		Target  string `json:"target" binding:"required"`
-		Purpose string `json:"purpose"`
+		Channel   string `json:"channel"`
+		Target    string `json:"target" binding:"required"`
+		Purpose   string `json:"purpose"`
+		Turnstile string `json:"turnstile"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -313,6 +355,8 @@ func (h *AuthHandler) StartCode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取邮箱设置失败"})
 		return
 	}
+	settings = h.mergeConfigAuthSettings(settings)
+	bootstrapCodeRequest := false
 	if strings.TrimSpace(req.Purpose) == "register" && !settings.RegistrationEnabled && !h.localAppMode {
 		bootstrapRequired, err := h.service.BootstrapRequired(c.Request.Context())
 		if err != nil {
@@ -323,10 +367,31 @@ func (h *AuthHandler) StartCode(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
 			return
 		}
+		bootstrapCodeRequest = true
+	}
+	if !bootstrapCodeRequest {
+		if ok := h.requireTurnstile(c, settings.Turnstile, req.Turnstile); !ok {
+			return
+		}
 	}
 	if !settings.Email.Enabled {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证码未启用"})
 		return
+	}
+	if strings.TrimSpace(req.Purpose) == "register" {
+		exists, err := h.service.EmailExists(c.Request.Context(), req.Target)
+		if err != nil {
+			if errors.Is(err, authapp.ErrInvalidInput) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱地址无效"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "邮箱地址已被占用"})
+			return
+		}
 	}
 	result, err := h.service.StartChallenge(c.Request.Context(), authapp.ChallengeStartInput{Channel: req.Channel, Target: req.Target})
 	if err != nil {
@@ -465,6 +530,66 @@ func (h *AuthHandler) verifyChallengeRequest(c *gin.Context, challengeID, code s
 		return domainauth.AuthChallenge{}, authapp.ErrInvalidChallenge
 	}
 	return h.service.VerifyChallenge(c.Request.Context(), authapp.ChallengeVerifyInput{ChallengeID: uint(id), Code: code})
+}
+
+func (h *AuthHandler) mergeConfigAuthSettings(settings adminsettings.AuthSettings) adminsettings.AuthSettings {
+	configured := h.configTurnstile
+	if configured.Enabled || configured.SiteKey != "" || configured.SecretKey != "" {
+		if configured.Enabled {
+			settings.Turnstile.Enabled = true
+		}
+		if configured.SiteKey != "" {
+			settings.Turnstile.SiteKey = configured.SiteKey
+		}
+		if configured.SecretKey != "" {
+			settings.Turnstile.SecretKey = configured.SecretKey
+		}
+		settings.Turnstile.SecretKeySet = settings.Turnstile.SecretKey != ""
+	}
+	return settings
+}
+
+type turnstileVerifyResponse struct {
+	Success bool `json:"success"`
+}
+
+func (h *AuthHandler) requireTurnstile(c *gin.Context, settings adminsettings.TurnstileSettings, token string) bool {
+	settings = h.mergeConfigAuthSettings(adminsettings.AuthSettings{Turnstile: settings}).Turnstile
+	if !settings.Enabled {
+		return true
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		token = strings.TrimSpace(c.Query("turnstile"))
+	}
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Turnstile token 为空"})
+		return false
+	}
+	if strings.TrimSpace(settings.SecretKey) == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Turnstile 未配置 secret key"})
+		return false
+	}
+	res, err := turnstileHTTPClient.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
+		"secret":   {settings.SecretKey},
+		"response": {token},
+		"remoteip": {c.ClientIP()},
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return false
+	}
+	defer res.Body.Close()
+	var body turnstileVerifyResponse
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return false
+	}
+	if !body.Success {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Turnstile 校验失败，请刷新重试"})
+		return false
+	}
+	return true
 }
 
 func toAuthUser(user domainauth.UserProfile) authUser {

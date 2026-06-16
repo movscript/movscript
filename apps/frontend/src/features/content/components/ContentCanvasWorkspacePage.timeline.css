@@ -30,6 +30,27 @@
   font-size: 11px;
 }
 
+.content-canvas-timeline__header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  border: 1px solid var(--cc-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--cc-panel) 88%, transparent);
+  color: var(--cc-text);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.content-canvas-timeline__header button:hover {
+  border-color: color-mix(in srgb, var(--cc-accent) 38%, var(--cc-border));
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+}
+
 .content-canvas-timeline__ruler {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -85,16 +106,50 @@
   position: absolute;
   top: 7px;
   height: 26px;
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr) 5px;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--cc-accent) 38%, var(--cc-border));
   border-radius: 7px;
   background: color-mix(in srgb, var(--cc-accent) 12%, var(--cc-panel));
   color: var(--cc-text);
-  padding: 0 8px;
+  padding: 0 6px;
   font-size: 11px;
   font-weight: 760;
+  text-align: left;
+}
+
+.content-canvas-timeline__item-copy {
+  min-width: 0;
+}
+
+.content-canvas-timeline__item-copy strong,
+.content-canvas-timeline__item-copy small {
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.content-canvas-timeline__item-copy strong {
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.content-canvas-timeline__item-copy small {
+  color: var(--cc-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 10px;
+}
+
+.content-canvas-timeline__item-handle {
+  width: 3px;
+  height: 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 45%, transparent);
 }
 
 .content-canvas-timeline__track[data-track="audio"] .content-canvas-timeline__track-label,
@@ -114,6 +169,17 @@
 .content-canvas-timeline__track[data-track="subtitle"] .content-canvas-timeline__item {
   border-color: color-mix(in srgb, var(--cc-info) 42%, var(--cc-border));
   background: color-mix(in srgb, var(--cc-info) 12%, var(--cc-panel));
+}
+
+.content-canvas-timeline__item[data-status="needs_candidate"],
+.content-canvas-timeline__item[data-status="missing"] {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.content-canvas-timeline__item[data-status="stale"] {
+  border-color: color-mix(in srgb, var(--cc-danger) 48%, var(--cc-border));
+  background: color-mix(in srgb, var(--cc-danger) 10%, var(--cc-panel));
 }
 
 .content-canvas-timeline__empty {

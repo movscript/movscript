@@ -12,7 +12,6 @@
 .work-mode-card__button {
   width: 100%;
   height: auto;
-  justify-content: flex-start;
   border-radius: inherit;
   padding: 20px;
   text-align: left;
@@ -41,9 +40,7 @@
 .work-mode-card__title {
   margin: 0;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: var(--ms-leading-section);
 }
 
 .work-mode-card__description {
@@ -54,14 +51,10 @@
 }
 
 .work-mode-card__action {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
   margin-top: 20px;
   color: var(--ms-color-primary);
-  font-size: var(--ms-text-body);
   font-weight: 500;
-  line-height: var(--ms-leading-body);
 }
 
 .work-mode-card__action-icon {

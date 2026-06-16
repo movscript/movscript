@@ -15,6 +15,7 @@ import {
   type MovScriptWorkspaceRootManifest,
   type MovScriptWorkspaceRootPaths,
   type MovScriptWorkspaceScope,
+  type MovScriptSourceWorkspaceRootPaths,
 } from '../root.js'
 
 export interface MovScriptProjectWorkspacePaths {
@@ -63,6 +64,10 @@ export function resolveMovScriptWorkspaceRootPaths(workspaceDir = process.cwd())
     interpretManifestsDir: join(interpretDir, 'manifests'),
     providersDir: join(controlDir, MOVSCRIPT_WORKSPACE_PROVIDER_CONFIGS_DIR_NAME),
   }
+}
+
+export function resolveMovScriptSourceWorkspaceRootPaths(workspaceDir = process.cwd()): MovScriptSourceWorkspaceRootPaths {
+  return resolveMovScriptWorkspaceRootPaths(workspaceDir)
 }
 
 export function ensureMovScriptWorkspaceRoot(paths: MovScriptWorkspaceRootPaths): MovScriptWorkspaceRootManifest {

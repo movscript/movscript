@@ -93,7 +93,7 @@ export async function clearWorkspaceSessionThreadHistory(sessions: ProviderSessi
   const scopedSessions = sessions
     .map((session) => ({
       sessionId: session.session.id.trim(),
-      workspaceDir: session.workspaceDir?.trim(),
+      movScriptHomeDir: session.movScriptHomeDir?.trim() || session.workspaceDir?.trim(),
     }))
     .filter((session) => session.sessionId)
 
@@ -105,7 +105,7 @@ export async function clearWorkspaceSessionThreadHistory(sessions: ProviderSessi
     providerSessionClient
       .forSession({
         sessionId: session.sessionId,
-        ...(session.workspaceDir ? { workspaceDir: session.workspaceDir } : {}),
+        ...(session.movScriptHomeDir ? { movScriptHomeDir: session.movScriptHomeDir, workspaceDir: session.movScriptHomeDir } : {}),
       })
       .deleteAllThreads()
   )))

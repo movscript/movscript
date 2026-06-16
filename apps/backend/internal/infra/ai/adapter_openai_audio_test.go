@@ -5,19 +5,16 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/media"
-	"github.com/movscript/movscript/internal/infra/newapi"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 )
 
 func TestOpenAIAdapterSynthesizeUsesAudioSpeechEndpoint(t *testing.T) {
 	var gotBody map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testutil.NewHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/audio/speech" {
 			t.Fatalf("path = %q, want /v1/audio/speech", r.URL.Path)
 		}
@@ -58,7 +55,7 @@ func TestOpenAIAdapterTranscribeUsesAudioTranscriptionsEndpoint(t *testing.T) {
 	var gotModel string
 	var gotLanguage string
 	var gotFileCount int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testutil.NewHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/audio/transcriptions" {
 			t.Fatalf("path = %q, want /v1/audio/transcriptions", r.URL.Path)
 		}
@@ -97,104 +94,9 @@ func TestOpenAIAdapterTranscribeUsesAudioTranscriptionsEndpoint(t *testing.T) {
 	}
 }
 
-func TestNewAPIForwardAdapterAudioUsesCurrentUserRelayToken(t *testing.T) {
-	var gotAuth string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/audio/speech" {
-			t.Fatalf("path = %q, want /v1/audio/speech", r.URL.Path)
-		}
-		gotAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "audio/mpeg")
-		_, _ = w.Write([]byte("relay-audio"))
-	}))
-	defer server.Close()
-
-	adapter := NewNewAPIForwardAdapter(nil, nil, newapi.Config{
-		BaseURL:            server.URL,
-		RelayTokenFallback: "relay-token",
-	}, nil)
-	resp, err := adapter.Synthesize(withProviderUserID(context.Background(), 42), media.TTSRequest{
-		Model: "tts-model",
-		Text:  "hello",
-		Voice: "alloy",
-	})
-	if err != nil {
-		t.Fatalf("Synthesize() error = %v", err)
-	}
-	if gotAuth != "Bearer sk-relay-token" {
-		t.Fatalf("authorization = %q, want normalized relay token", gotAuth)
-	}
-	if string(resp.Audio) != "relay-audio" {
-		t.Fatalf("audio = %q, want relay audio", string(resp.Audio))
-	}
-}
-
-func TestNewAPIForwardAdapterUsesContextGroupForRelayToken(t *testing.T) {
-	var createdToken map[string]any
-	var gotAuth string
-	tokenCreated := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/user/search":
-			_, _ = io.WriteString(w, `{"success":true,"data":{"items":[{"id":9,"username":"movscript-42"}]}}`)
-		case r.Method == http.MethodPost && r.URL.Path == "/api/user/login":
-			_, _ = io.WriteString(w, `{"success":true,"data":{}}`)
-		case r.Method == http.MethodGet && r.URL.Path == "/api/token/search":
-			if r.URL.Query().Get("keyword") != "movscript-forward-42-premium-video" {
-				t.Fatalf("token search keyword = %q, want group-specific token", r.URL.Query().Get("keyword"))
-			}
-			if tokenCreated {
-				_, _ = io.WriteString(w, `{"success":true,"data":{"items":[{"id":17,"name":"movscript-forward-42-premium-video"}]}}`)
-				return
-			}
-			_, _ = io.WriteString(w, `{"success":true,"data":{"items":[]}}`)
-		case r.Method == http.MethodPost && r.URL.Path == "/api/token/":
-			if err := json.NewDecoder(r.Body).Decode(&createdToken); err != nil {
-				t.Fatalf("decode token payload: %v", err)
-			}
-			tokenCreated = true
-			_, _ = io.WriteString(w, `{"success":true,"data":{}}`)
-		case r.Method == http.MethodPost && r.URL.Path == "/api/token/17/key":
-			_, _ = io.WriteString(w, `{"success":true,"data":{"key":"premium-relay-token"}}`)
-		case r.Method == http.MethodPost && r.URL.Path == "/v1/audio/speech":
-			gotAuth = r.Header.Get("Authorization")
-			w.Header().Set("Content-Type", "audio/mpeg")
-			_, _ = w.Write([]byte("relay-audio"))
-		default:
-			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
-		}
-	}))
-	defer server.Close()
-
-	db := testutil.OpenSQLite(t, "newapi-forward-group.db", &persistencemodel.NewAPIIdentity{})
-	key := []byte(strings.Repeat("1", 32))
-	adapter := NewNewAPIForwardAdapter(db, key, newapi.Config{
-		BaseURL:        server.URL,
-		AdminToken:     "admin-token",
-		AdminUserID:    1,
-		UserPrefix:     "movscript-",
-		UserPassword:   "password",
-		TokenQuota:     100,
-		TokenGroup:     "auto",
-		HTTPTimeoutSec: 3,
-	}, server.Client())
-
-	ctx := WithProviderNewAPIGroup(withProviderUserID(context.Background(), 42), "premium/video")
-	if _, err := adapter.Synthesize(ctx, media.TTSRequest{Model: "tts-model", Text: "hello", Voice: "alloy"}); err != nil {
-		t.Fatalf("Synthesize() error = %v", err)
-	}
-	if createdToken["group"] != "premium/video" {
-		t.Fatalf("created token group = %#v, want provider context group", createdToken["group"])
-	}
-	if gotAuth != "Bearer sk-premium-relay-token" {
-		t.Fatalf("authorization = %q, want group relay token", gotAuth)
-	}
-}
-
 func TestOpenAIAdapterVideoCancelUsesOpenAICompatibleEndpoint(t *testing.T) {
 	var gotAuth string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testutil.NewHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/videos/task_123/cancel" {
 			t.Fatalf("path = %q, want /v1/videos/task_123/cancel", r.URL.Path)
 		}
@@ -217,61 +119,5 @@ func TestOpenAIAdapterVideoCancelUsesOpenAICompatibleEndpoint(t *testing.T) {
 	}
 	if resp.TaskID != "task_123" || resp.Status != VideoStatusCancelled || resp.Message != "stopped" {
 		t.Fatalf("response = %#v, want cancelled task", resp)
-	}
-}
-
-func TestNewAPIForwardAdapterVideoCancelUsesCurrentUserRelayToken(t *testing.T) {
-	var gotAuth string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/videos/task_abc/cancel" {
-			t.Fatalf("path = %q, want /v1/videos/task_abc/cancel", r.URL.Path)
-		}
-		gotAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"status":"cancelled"}`)
-	}))
-	defer server.Close()
-
-	adapter := NewNewAPIForwardAdapter(nil, nil, newapi.Config{
-		BaseURL:            server.URL,
-		RelayTokenFallback: "relay-token",
-	}, nil)
-	resp, err := adapter.VideoCancel(withProviderUserID(context.Background(), 42), VideoCancelRequest{TaskID: "task_abc"})
-	if err != nil {
-		t.Fatalf("VideoCancel() error = %v", err)
-	}
-	if gotAuth != "Bearer sk-relay-token" {
-		t.Fatalf("authorization = %q, want normalized relay token", gotAuth)
-	}
-	if resp.Status != VideoStatusCancelled {
-		t.Fatalf("status = %q, want cancelled", resp.Status)
-	}
-}
-
-func TestNewAPIForwardAdapterFetchModelsUsesFallbackRelayToken(t *testing.T) {
-	var gotAuth string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/models" {
-			t.Fatalf("path = %q, want /v1/models", r.URL.Path)
-		}
-		gotAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"object":"list","data":[{"id":"gpt-5.2"},{"id":"kling-v2"}]}`)
-	}))
-	defer server.Close()
-
-	adapter := NewNewAPIForwardAdapter(nil, nil, newapi.Config{
-		BaseURL:            server.URL,
-		RelayTokenFallback: "relay-token",
-	}, nil)
-	ids, err := adapter.FetchModels(context.Background())
-	if err != nil {
-		t.Fatalf("FetchModels() error = %v", err)
-	}
-	if gotAuth != "Bearer sk-relay-token" {
-		t.Fatalf("authorization = %q, want normalized relay token", gotAuth)
-	}
-	if len(ids) != 2 || ids[0] != "gpt-5.2" || ids[1] != "kling-v2" {
-		t.Fatalf("ids = %#v, want model list from new-api", ids)
 	}
 }

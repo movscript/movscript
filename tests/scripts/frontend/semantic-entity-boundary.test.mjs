@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const inlineEditorSource = readSource('apps/frontend/src/shared/ui/SemanticEntityInlineEditor.tsx')
+const inlineEditorFieldsSource = readSource('apps/frontend/src/shared/ui/SemanticEntityInlineEditorFields.tsx')
 const semanticEntityMutationSource = readSource('apps/frontend/src/shared/application/semanticEntityMutationInvalidation.ts')
 const semanticEntityQueryKeysSource = readSource('apps/frontend/src/shared/application/semanticEntityQueryKeys.ts')
 
@@ -36,6 +37,23 @@ test('semantic entity editor delegates query keys and invalidation', () => {
   assert.match(semanticEntityMutationSource, /semanticEntityKeys\.list\(event\.kind, event\.projectId\)/)
   assert.match(semanticEntityMutationSource, /semanticEntityKeys\.sourceLock\(event\.projectId, event\.kind, event\.recordId\)/)
   assert.match(semanticEntityMutationSource, /export function invalidateSemanticEntityMutationResult/)
+})
+
+test('semantic entity editor delegates field sections and source lock notice', () => {
+  assert.match(inlineEditorSource, /from '@\/shared\/ui\/SemanticEntityInlineEditorFields'/)
+  assert.match(inlineEditorSource, /<SemanticEntityInlineEditorFieldSections/)
+  assert.doesNotMatch(inlineEditorSource, /function FieldControl/)
+  assert.doesNotMatch(inlineEditorSource, /function SourceLockNotice/)
+  assert.doesNotMatch(inlineEditorSource, /DetailEntityFieldControl/)
+  assert.doesNotMatch(inlineEditorSource, /DetailEntitySourceLockNotice/)
+  assert.doesNotMatch(inlineEditorSource, /AppDisclosure/)
+
+  assert.match(inlineEditorFieldsSource, /export function SemanticEntityInlineEditorFieldSections/)
+  assert.match(inlineEditorFieldsSource, /function FieldControl/)
+  assert.match(inlineEditorFieldsSource, /function SourceLockNotice/)
+  assert.match(inlineEditorFieldsSource, /DetailEntityFieldControl/)
+  assert.match(inlineEditorFieldsSource, /DetailEntitySourceLockNotice/)
+  assert.match(inlineEditorFieldsSource, /AppDisclosure/)
 })
 
 function readSource(path) {

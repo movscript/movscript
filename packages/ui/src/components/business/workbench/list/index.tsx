@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { cn } from "../../../../lib/cn";
-import { Surface, type SurfaceProps } from "../../../primitives";
+import { Frame, type SurfaceProps } from "../../../primitives";
 import type { WorkbenchDensity } from "../types";
 
 export function WorkbenchList({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -22,7 +22,7 @@ export function WorkbenchListItem({
   density?: WorkbenchDensity;
 }) {
   return (
-    <Surface
+    <Frame
       as="button"
       type="button"
       kind="item"
@@ -35,7 +35,7 @@ export function WorkbenchListItem({
       {...props}
     >
       {children}
-    </Surface>
+    </Frame>
   );
 }
 
@@ -55,7 +55,7 @@ export function WorkbenchSurfaceItem({
   children?: ReactNode;
 }) {
   return (
-    <Surface
+    <Frame
       asChild={asChild}
       kind="item"
       tone="brand"
@@ -67,6 +67,6 @@ export function WorkbenchSurfaceItem({
       {...props}
     >
       {children}
-    </Surface>
+    </Frame>
   );
 }

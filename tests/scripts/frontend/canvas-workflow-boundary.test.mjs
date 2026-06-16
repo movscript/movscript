@@ -5,36 +5,55 @@ import test from 'node:test'
 
 const packageCanvasSource = readSource('packages/ui/src/components/business/canvas/index.tsx')
 const packageCanvasCss = readSource('packages/ui/src/components/business/canvas/styles.css')
-const workflowPanelsSource = readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowPanels.tsx')
+const workflowPanelsSource = [
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowPanels.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowReferencePicker.tsx'),
+].join('\n')
 const runtimeInputDialogsSource = readSource('apps/frontend/src/features/canvas/components/CanvasRuntimeInputDialogs.tsx')
 const workflowUiSource = [
   readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.tsx'),
   readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowHistoryUi.tsx'),
   readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowSidePanelUi.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowReferenceCardUi.tsx'),
   readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowRunResultsUi.tsx'),
   readSource('apps/frontend/src/features/canvas/ui/CanvasRuntimeInputDialogUi.tsx'),
 ].join('\n')
-const workflowUiCss = readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.css')
+const workflowUiCss = [
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.css'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowReferenceCardUi.css'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasWorkflowRunResultsUi.css'),
+].join('\n')
 const resourceShelfSource = readSource('apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx')
 const resourceShelfUiSource = readSource('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.tsx')
 const resourceShelfUiCss = readSource('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.css')
-const editorPageSource = readSource('apps/frontend/src/features/canvas/components/CanvasEditorPage.tsx')
+const editorPageSource = [
+  readSource('apps/frontend/src/features/canvas/components/CanvasEditorPage.tsx'),
+  readSource('apps/frontend/src/features/canvas/components/CanvasWorkspace.tsx'),
+  readSource('apps/frontend/src/features/canvas/components/CanvasEditorWorkspaceView.tsx'),
+].join('\n')
 const editorChromeSource = readSource('apps/frontend/src/features/canvas/components/CanvasEditorChromeBar.tsx')
 const editorViewportSource = readSource('apps/frontend/src/features/canvas/components/CanvasEditorViewport.tsx')
 const editorPaletteSource = readSource('apps/frontend/src/features/canvas/components/CanvasEditorNodePalette.tsx')
-const editorUiSource = readSource('apps/frontend/src/features/canvas/ui/CanvasEditorUi.tsx')
+const editorUiSource = [
+  readSource('apps/frontend/src/features/canvas/ui/CanvasEditorUi.tsx'),
+  readSource('apps/frontend/src/features/canvas/ui/CanvasEditorPaletteUi.tsx'),
+].join('\n')
 const editorUiCss = readSource('apps/frontend/src/features/canvas/ui/CanvasEditorUi.css')
 
 test('canvas workflow UI is feature-owned, not package canvas API', () => {
   assert.equal(existsSync(resolve('packages/ui/src/components/business/canvas/workflow/index.tsx')), false)
   assert.equal(existsSync(resolve('packages/ui/src/components/business/canvas/workflow/styles.css')), false)
+  assert.equal(existsSync(resolve('packages/ui/src/components/business/canvas/card/node/workflow-reference/index.tsx')), false)
+  assert.equal(existsSync(resolve('packages/ui/src/components/business/canvas/card/node/workflow-reference/styles.css')), false)
   assert.doesNotMatch(packageCanvasSource, /from "\.\/workflow"/)
+  assert.doesNotMatch(packageCanvasSource, /CanvasWorkflowReferenceCard/)
   assert.doesNotMatch(packageCanvasCss, /@import "\.\/workflow\/styles\.css"/)
 
   for (const exportName of [
     'CanvasWorkflowHistoryView',
     'CanvasWorkflowResizeHandle',
     'CanvasWorkflowReferencePickerShell',
+    'CanvasWorkflowReferenceCard',
     'CanvasWorkflowRunResultsView',
     'CanvasRuntimeInputDialogShell',
   ]) {
@@ -49,6 +68,7 @@ test('canvas workflow UI is feature-owned, not package canvas API', () => {
   assert.match(workflowPanelsSource, /from '@\/features\/canvas\/ui\/CanvasWorkflowUi'/)
   assert.match(runtimeInputDialogsSource, /from '@\/features\/canvas\/ui\/CanvasWorkflowUi'/)
   assert.match(workflowUiCss, /\.canvas-workflow-side-panel__resize-handle\.panel-resize-handle--left \{/)
+  assert.match(workflowUiCss, /\.canvas-workflow-reference-card \{/)
   assert.match(workflowUiCss, /\.canvas-runtime-input-dialog-overlay \{/)
 })
 

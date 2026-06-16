@@ -91,15 +91,15 @@ importers:
 
   apps/cli:
     dependencies:
-      '@movscript/interpreter':
-        specifier: workspace:*
-        version: link:../../packages/interpreter
       '@movscript/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@movscript/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@movscript/interpreter':
+        specifier: workspace:*
+        version: link:../../packages/interpreter
       '@movscript/language':
         specifier: workspace:*
         version: link:../../packages/language
@@ -289,36 +289,17 @@ importers:
         specifier: ^5.4.21
         version: 5.4.21(@types/node@22.19.17)
 
-  packages/interpreter:
-    dependencies:
-      '@movscript/decision':
-        specifier: workspace:*
-        version: link:../decision
-      '@movscript/language':
-        specifier: workspace:*
-        version: link:../language
-      '@movscript/workspace':
-        specifier: workspace:*
-        version: link:../workspace
-    devDependencies:
-      '@types/node':
-        specifier: 22.19.17
-        version: 22.19.17
-      tsup:
-        specifier: 8.5.1
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
   packages/core:
     dependencies:
-      '@movscript/interpreter':
+      '@movscript/editing':
         specifier: workspace:*
-        version: link:../interpreter
+        version: link:../editing
       '@movscript/engine':
         specifier: workspace:*
         version: link:../engine
+      '@movscript/interpreter':
+        specifier: workspace:*
+        version: link:../interpreter
       '@movscript/language':
         specifier: workspace:*
         version: link:../language
@@ -348,6 +329,18 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/editing:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/engine:
     dependencies:
       '@movscript/interpreter':
@@ -356,6 +349,28 @@ importers:
       '@movscript/prompt':
         specifier: workspace:*
         version: link:../prompt
+      '@movscript/workspace':
+        specifier: workspace:*
+        version: link:../workspace
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.17
+        version: 22.19.17
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/interpreter:
+    dependencies:
+      '@movscript/decision':
+        specifier: workspace:*
+        version: link:../decision
+      '@movscript/language':
+        specifier: workspace:*
+        version: link:../language
       '@movscript/workspace':
         specifier: workspace:*
         version: link:../workspace

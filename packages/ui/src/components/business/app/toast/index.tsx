@@ -19,7 +19,7 @@ export const AppToastShell = forwardRef<HTMLDivElement, AppToastShellProps>(
     <AppSurfaceItem
       ref={ref}
       variant="overlay"
-      className={cn("app-toast", toneSurfaceClass(tone), className)}
+      className={cn("ms-stack ms-type-body app-toast", toneSurfaceClass(tone), className)}
       {...props}
     >
       {children}
@@ -35,7 +35,7 @@ export function AppToastRow({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("app-toast__row", className)} {...props}>
+    <div className={cn("ms-action-row app-toast__row", className)} {...props}>
       {children}
     </div>
   );
@@ -50,7 +50,7 @@ export function AppToastIcon({
   tone?: AppToastTone;
 }) {
   return (
-    <span className={cn("app-toast__icon", toneTextClass(tone), className)} {...props}>
+    <span className={cn("ms-inline-center app-toast__icon", toneTextClass(tone), className)} {...props}>
       {children}
     </span>
   );
@@ -58,7 +58,7 @@ export function AppToastIcon({
 
 export const AppToastMessage = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
-    <div ref={ref} className={cn("app-toast__message", className)} {...props}>
+    <div ref={ref} className={cn("ms-type-body app-toast__message", className)} {...props}>
       {children}
     </div>
   ),
@@ -72,7 +72,7 @@ export function AppToastDetail({
   ...props
 }: HTMLAttributes<HTMLPreElement>) {
   return (
-    <AppCodeBlock className={cn("app-toast__detail", className)} {...props}>
+    <AppCodeBlock className={cn("ms-type-caption app-toast__detail", className)} {...props}>
       {children}
     </AppCodeBlock>
   );
@@ -96,7 +96,7 @@ export const AppToastIconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttrib
 AppToastIconButton.displayName = "AppToastIconButton";
 
 export const AppToastViewport = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => <div ref={ref} className={cn("app-toast-viewport", className)} {...props} />,
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("ms-stack app-toast-viewport", className)} {...props} />,
 );
 
 AppToastViewport.displayName = "AppToastViewport";

@@ -1,0 +1,270 @@
+.canvas-workflow-run-results-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, black 50%, transparent);
+  padding: var(--ms-space-4);
+}
+
+.canvas-workflow-run-results-shell {
+  display: flex;
+  width: 100%;
+  max-width: 896px;
+  max-height: 86vh;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--ms-shadow-lg);
+}
+
+.canvas-workflow-run-results-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ms-space-4);
+  border-bottom: 1px solid var(--ms-color-border);
+  padding: var(--ms-space-4) 20px;
+}
+
+.canvas-workflow-run-results-header__body {
+  min-width: 0;
+}
+
+.canvas-workflow-run-results-header__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: var(--ms-leading-body);
+}
+
+.canvas-workflow-run-results-header__description {
+  margin: var(--ms-space-1) 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-workflow-run-results-header__action,
+.canvas-workflow-run-results-close {
+  flex-shrink: 0;
+}
+
+.canvas-workflow-run-results-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.canvas-workflow-run-results-empty {
+  min-height: 220px;
+}
+
+.canvas-workflow-run-results-grid {
+  display: grid;
+  gap: var(--ms-space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.canvas-workflow-run-results-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.canvas-workflow-run-results-card[data-removed="true"] {
+  opacity: 0.55;
+}
+
+.canvas-workflow-run-results-media {
+  display: flex;
+  height: 176px;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-workflow-run-results-removed {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-workflow-run-results-code {
+  width: 100%;
+  max-height: 100%;
+  padding: var(--ms-space-3);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-workflow-run-results-card__body {
+  display: grid;
+  gap: var(--ms-space-3);
+  padding: var(--ms-space-3);
+}
+
+.canvas-workflow-run-results-card__content {
+  min-width: 0;
+}
+
+.canvas-workflow-run-results-card__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.canvas-workflow-run-results-card__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: var(--ms-leading-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-workflow-run-results-card__type {
+  flex-shrink: 0;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-workflow-run-results-card__meta {
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-workflow-run-results-card__actions {
+  display: flex;
+  gap: var(--ms-space-2);
+}
+
+.canvas-workflow-run-results-card__action {
+  flex: 1;
+}
+
+@media (max-width: 720px) {
+  .canvas-workflow-run-results-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.canvas-runtime-input-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, black 50%, transparent);
+}
+
+.canvas-runtime-input-dialog {
+  display: grid;
+  width: min(100% - 32px, 420px);
+  gap: var(--ms-space-4);
+  padding: 24px;
+  box-shadow: var(--ms-shadow-lg);
+}
+
+.canvas-runtime-input-dialog[data-size="node"] {
+  width: min(100% - 32px, 460px);
+  max-height: 80vh;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.canvas-runtime-input-dialog__header {
+  min-width: 0;
+}
+
+.canvas-runtime-input-dialog__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: var(--ms-leading-body);
+}
+
+.canvas-runtime-input-dialog__description {
+  margin: 2px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-runtime-input-dialog__body {
+  display: grid;
+  gap: var(--ms-space-4);
+  min-height: 0;
+}
+
+.canvas-runtime-input-dialog[data-size="node"] .canvas-runtime-input-dialog__body {
+  overflow-y: auto;
+  padding-right: var(--ms-space-1);
+}
+
+.canvas-runtime-input-dialog__field {
+  min-width: 0;
+}
+
+.canvas-runtime-input-dialog__label {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-1);
+  margin-bottom: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-runtime-input-dialog__label-text {
+  min-width: 0;
+}
+
+.canvas-runtime-input-dialog__port-type {
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 70%, transparent);
+  font-weight: 400;
+}
+
+.canvas-runtime-input-dialog__required {
+  color: var(--ms-color-danger);
+}
+
+.canvas-runtime-input-dialog__checkbox {
+  height: 36px;
+  padding-inline: var(--ms-space-3);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-runtime-input-dialog__textarea[data-code="true"] {
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-runtime-input-dialog__actions {
+  display: flex;
+  gap: var(--ms-space-2);
+  padding-top: var(--ms-space-1);
+}
+
+.canvas-runtime-input-dialog[data-size="node"] .canvas-runtime-input-dialog__actions {
+  padding-top: var(--ms-space-1);
+}
+
+.canvas-runtime-input-dialog__action[data-stretch="true"] {
+  flex: 1;
+}

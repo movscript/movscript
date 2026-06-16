@@ -96,6 +96,7 @@ func (w *Worker) scheduleSubmittedProviderTask(job *persistencemodel.Job, resp a
 	job.ProviderTaskKind = resp.TaskKind
 	job.ProviderTaskStatus = status
 	sm.finish(StateWaitingProviderTask, fmt.Sprintf("provider task %s accepted; next poll at %s", resp.TaskID, nextRun.Format(time.RFC3339)))
+	w.publishGenerationJobStatus(job, fmt.Sprintf("provider task %s accepted", resp.TaskID))
 	log.Printf("[job] job #%d submitted provider task %s; poll at %s", job.ID, resp.TaskID, nextRun.Format(time.RFC3339))
 }
 
@@ -115,6 +116,7 @@ func (w *Worker) scheduleProviderPoll(job *persistencemodel.Job, message string,
 		return
 	}
 	sm.finish(StateWaitingProviderTask, fmt.Sprintf("%s; next poll at %s", firstNonEmpty(message, "provider task still running"), nextRun.Format(time.RFC3339)))
+	w.publishGenerationJobStatus(job, firstNonEmpty(message, "provider task still running"))
 	log.Printf("[job] job #%d provider task %s pending; next poll at %s", job.ID, job.ProviderTaskID, nextRun.Format(time.RFC3339))
 }
 
@@ -140,6 +142,7 @@ func (w *Worker) markProviderTaskFailed(job *persistencemodel.Job, resp ai.Video
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
+	w.publishGenerationJobStatus(job, msg)
 	log.Printf("[job] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
 }
 
@@ -159,6 +162,7 @@ func (w *Worker) markProviderTaskCancelled(job *persistencemodel.Job, resp ai.Vi
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
+	w.publishGenerationJobStatus(job, msg)
 	log.Printf("[job] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
 }
 
@@ -237,6 +241,7 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *persistencemodel
 	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
+	w.publishGenerationJobStatus(job, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }
@@ -286,6 +291,7 @@ func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemod
 	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
+	w.publishGenerationJobStatus(job, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }

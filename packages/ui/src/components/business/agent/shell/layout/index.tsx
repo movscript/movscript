@@ -28,7 +28,7 @@ AgentShell.displayName = "AgentShell";
 
 export const AgentMain = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(
   ({ className, ...props }, ref) => {
-    return <main ref={ref} className={cn("ms-agent-main", className)} {...props} />;
+    return <main ref={ref} className={cn("ms-grid-stack ms-agent-main", className)} {...props} />;
   }
 );
 
@@ -36,7 +36,7 @@ AgentMain.displayName = "AgentMain";
 
 export const AgentHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-bar ms-agent-header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-bar ms-agent-header", className)} {...props} />;
   }
 );
 
@@ -44,7 +44,7 @@ AgentHeader.displayName = "AgentHeader";
 
 export const AgentHeaderContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-titleblock ms-agent-header__content", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-stack ms-agent-titleblock ms-agent-header__content", className)} {...props} />;
   }
 );
 
@@ -52,7 +52,7 @@ AgentHeaderContent.displayName = "AgentHeaderContent";
 
 export const AgentHeaderActions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-actions ms-agent-header__actions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-actions ms-agent-header__actions", className)} {...props} />;
   }
 );
 
@@ -60,7 +60,7 @@ AgentHeaderActions.displayName = "AgentHeaderActions";
 
 export const AgentTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => {
-    return <h1 ref={ref} className={cn("ms-agent-text ms-agent-text--truncate ms-agent-title", className)} {...props} />;
+    return <h1 ref={ref} className={cn("ms-type-section ms-agent-text ms-text-truncate ms-agent-title", className)} {...props} />;
   }
 );
 
@@ -68,7 +68,7 @@ AgentTitle.displayName = "AgentTitle";
 
 export const AgentSubtitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-subtitle", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-type-item ms-agent-text ms-text-truncate ms-agent-text--muted ms-agent-subtitle", className)} {...props} />;
   }
 );
 
@@ -84,10 +84,12 @@ export const AgentStatus = React.forwardRef<HTMLSpanElement, AgentStatusProps>(
       <span
         ref={ref}
         data-state={state}
-        className={cn("ms-agent-pill ms-agent-status", `ms-agent-status--${state}`, className)}
+        className={cn("ms-type-label ms-agent-pill ms-agent-status", `ms-agent-status--${state}`, className)}
         {...props}
       >
-        <CircleIcon className="ms-agent-status__icon" />
+        <span className="ms-inline-center ms-agent-status__icon" aria-hidden="true">
+          <CircleIcon />
+        </span>
         <span>{children}</span>
       </span>
     );
@@ -106,7 +108,7 @@ AgentBody.displayName = "AgentBody";
 
 export const AgentThread = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-thread", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-stack ms-agent-thread", className)} {...props} />;
   }
 );
 
@@ -123,8 +125,8 @@ AgentThreadFill.displayName = "AgentThreadFill";
 export const AgentEmpty = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("ms-agent-empty", className)} {...props}>
-        <span className="ms-agent-avatar ms-agent-empty__icon" aria-hidden="true">
+      <div ref={ref} className={cn("ms-stack ms-center ms-agent-empty", className)} {...props}>
+        <span className="ms-inline-center ms-agent-avatar ms-agent-empty__icon" aria-hidden="true">
           <SparklesIcon />
         </span>
         {children}

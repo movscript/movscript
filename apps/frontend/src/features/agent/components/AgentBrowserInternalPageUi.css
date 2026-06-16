@@ -232,6 +232,11 @@
   color: var(--ms-color-foreground);
 }
 
+.agent-browser-content-nav__tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .agent-browser-content-nav__summary {
   display: grid;
   min-width: 0;
@@ -352,7 +357,7 @@
   display: grid;
   min-height: 66px;
   min-width: 0;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid var(--ms-color-border);

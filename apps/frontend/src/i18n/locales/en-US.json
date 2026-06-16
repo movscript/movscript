@@ -245,14 +245,14 @@
     "resetDefault": "Reset Default",
     "savedReloading": "Saved. Reloading the client...",
     "saved": "Saved.",
-    "movScriptWorkspaceTitle": "MovScript Workspace",
-    "movScriptWorkspaceHint": "Choose the local MovScript project repository root. Source files live in productions/, scripts/, content_units/, and settings/; local config lives in .movscript/.",
-    "movScriptWorkspaceDir": "Workspace directory",
-    "movScriptWorkspaceDirHelp": "Leave empty to use the desktop default. When set, this directory is the workspace root and .movscript is created inside it.",
-    "movScriptWorkspaceDirPlaceholder": "/Users/me/Projects/story-workspace",
-    "movScriptWorkspaceEffectiveRoot": "Current workspace",
-    "movScriptWorkspaceDefaultRoot": "Desktop default directory",
-    "movScriptWorkspaceUseDefault": "Use Default Directory",
+    "movScriptWorkspaceTitle": "MovScript Home",
+    "movScriptWorkspaceHint": "Choose MovScript's local home/control directory. Project files, provider config, backend auth, and local backend data live under this directory.",
+    "movScriptWorkspaceDir": "MovScript home directory",
+    "movScriptWorkspaceDirHelp": "Leave empty to use the desktop default. This is not a generic project source root; MovScript creates local/user/org project folders inside it.",
+    "movScriptWorkspaceDirPlaceholder": "/Users/me/.movscript",
+    "movScriptWorkspaceEffectiveRoot": "Current MovScript home",
+    "movScriptWorkspaceDefaultRoot": "Desktop default home",
+    "movScriptWorkspaceUseDefault": "Use Default Home",
     "returnToLogin": "Back to login",
     "adminConsole": "Admin Console",
     "adminConsoleHost": "Desktop window",
@@ -280,7 +280,7 @@
     "shotLibraryApiTitle": "Shot Library API",
     "shotLibraryApiHint": "The shot library can read from multiple backends that implement the same REST API, independent of the current login service.",
     "shotLibrarySources": "Shot library source config",
-    "shotLibrarySourcesHelp": "JSON format. Each source requires id, name, and baseURL; enabled, readOnly, and authToken are optional. baseURL excludes /api/v1.",
+    "shotLibrarySourcesHelp": "JSON format. Each source requires id, name, and baseURL; enabled, readOnly, and authToken are optional. authToken is kept in the desktop workspace secrets store, not browser settings. baseURL excludes /api/v1.",
     "shotLibraryStandardApi": "Standard API"
   },
   "backendBoot": {
@@ -1622,8 +1622,8 @@
         "codex": "Codex"
       },
       "providerProfileConfigDescriptions": {
-        "mova": "Configures the Mova runtime profile under .movscript/providers/mova; its managed app-server home is .movscript/.mova.",
-        "codex": "Configures the Codex runtime profile under .movscript/providers/codex; its managed app-server home is .movscript/.codex."
+        "mova": "Configures the Mova runtime profile under providers/mova; its managed app-server home is .mova.",
+        "codex": "Configures the Codex runtime profile under providers/codex; its managed app-server home is .codex."
       },
       "modelPanel": "Model Routing",
       "modelLabel": "Backend text model",

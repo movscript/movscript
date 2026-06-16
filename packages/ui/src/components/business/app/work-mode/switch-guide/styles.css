@@ -10,9 +10,7 @@
 
 .onboarding-switch-guide__bar {
   position: relative;
-  display: flex;
   height: 34px;
-  align-items: center;
   justify-content: flex-end;
   gap: 6px;
   border: 1px solid var(--ms-color-border);
@@ -25,11 +23,8 @@
 }
 
 .onboarding-switch-guide__button {
-  display: flex;
   width: 24px;
   height: 24px;
-  align-items: center;
-  justify-content: center;
   border-radius: var(--ms-radius-sm);
   color: var(--ms-color-muted-foreground);
 }

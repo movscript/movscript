@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
-import { AgentComposer, AgentComposerAction, AgentComposerSubmit, AgentComposerToolbar } from '@movscript/ui/business/agent'
+import { AgentComposer, AgentComposerAction, AgentComposerSubmit, AgentComposerToolbar } from '@/shared/ui/AgentComposerUi'
 import {
   GenerationActionHint,
   GenerationAttachmentList,

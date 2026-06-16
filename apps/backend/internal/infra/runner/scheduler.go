@@ -63,6 +63,7 @@ func (w *Worker) processOne(ctx context.Context) {
 
 	maxAttempts := effectiveMaxAttempts(&job)
 	newJobStateMachine(w, &job).enter(StateClaimed, fmt.Sprintf("worker claimed job (attempt %d/%d)", job.AttemptCount, maxAttempts))
+	w.publishGenerationJobStatus(&job, "job claimed by worker")
 	log.Printf("[job] picked job #%d type=%s user=%d attempt=%d/%d", job.ID, job.JobType, job.UserID, job.AttemptCount, maxAttempts)
 
 	if err := w.execute(ctx, &job); err != nil {
@@ -174,6 +175,7 @@ func (w *Worker) completeFailure(job *persistencemodel.Job, err error) {
 			"finished_at":       nil,
 		})
 		newJobStateMachine(w, job).finish(StateRetryScheduled, fmt.Sprintf("retry scheduled at %s", nextRun.Format(time.RFC3339)))
+		w.publishGenerationJobStatus(job, fmt.Sprintf("retry scheduled at %s", nextRun.Format(time.RFC3339)))
 		log.Printf("[job] job #%d failed attempt %d/%d, retry at %s: %v", job.ID, job.AttemptCount, maxAttempts, nextRun.Format(time.RFC3339), err)
 		return
 	}
@@ -190,6 +192,7 @@ func (w *Worker) completeFailure(job *persistencemodel.Job, err error) {
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, err.Error())
 	}
+	w.publishGenerationJobStatus(job, err.Error())
 	log.Printf("[job] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
 }
 
@@ -262,6 +265,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 				continue
 			}
 			newJobStateMachine(w, job).finish(StateWaitingProviderTask, msg)
+			w.publishGenerationJobStatus(job, msg)
 			log.Printf("[job] stale provider task job #%d scheduled for polling", job.ID)
 			continue
 		}
@@ -285,6 +289,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 				continue
 			}
 			newJobStateMachine(w, job).finish(StateRetryScheduled, msg)
+			w.publishGenerationJobStatus(job, msg)
 			log.Printf("[job] stale running job #%d requeued", job.ID)
 			continue
 		}
@@ -306,6 +311,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 			continue
 		}
 		newJobStateMachine(w, job).fail(fmt.Errorf("%s", msg))
+		w.publishGenerationJobStatus(job, msg)
 		log.Printf("[job] stale running job #%d marked failed", job.ID)
 	}
 }

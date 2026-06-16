@@ -32,4 +32,6 @@ export interface AdminRuntimeCapabilities {
   customPricingMode: boolean
   userQuotaManagement: boolean
   gatewayNewAPIGroup: boolean
+  hideModelManagement?: boolean
+  modelManagementRedirect?: string
 }

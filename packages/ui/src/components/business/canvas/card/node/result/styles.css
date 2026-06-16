@@ -17,12 +17,7 @@
 }
 
 .canvas-node-result-stage[data-centered="true"] {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
 }
 
 .canvas-node-result-stage[data-centered="true"] > svg,
@@ -31,13 +26,9 @@
 }
 
 .canvas-node-result-message {
-  display: flex;
   min-height: 128px;
   width: 100%;
-  align-items: center;
   padding: var(--ms-space-4) var(--ms-space-3);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
 }
 
 .canvas-node-result-message[data-tone="danger"] {
@@ -45,31 +36,24 @@
 }
 
 .canvas-node-text-result-header {
+  gap: var(--ms-space-2);
   padding: var(--ms-space-3) var(--ms-space-3) var(--ms-space-2);
 }
 
 .canvas-node-text-result-header__status {
-  margin-bottom: var(--ms-space-2);
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: var(--ms-space-2);
 }
 
 .canvas-node-text-result-badge {
   border-radius: var(--ms-radius-full);
   padding: 2px 6px;
-  font-size: var(--ms-text-tiny);
   font-weight: 500;
-  line-height: var(--ms-leading-tiny);
 }
 
 .canvas-node-text-result-prompt {
   display: -webkit-box;
   overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-body);
   white-space: pre-wrap;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -79,16 +63,8 @@
   padding: 0 var(--ms-space-3) var(--ms-space-3);
 }
 
-.canvas-node-text-result-surface {
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-body);
-}
-
 .canvas-node-text-result-surface[data-state="loading"] {
-  display: flex;
   height: 80px;
-  align-items: center;
-  justify-content: center;
   padding: 0;
   color: var(--ms-color-muted-foreground);
 }

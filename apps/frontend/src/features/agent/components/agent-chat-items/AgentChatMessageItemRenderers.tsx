@@ -1,4 +1,4 @@
-import { AgentChatContentStack, AgentChatMessage, AgentMessageSection } from '@movscript/ui/business/agent'
+import { AgentChatContentStack, AgentChatMessage, AgentMessageSection } from '@/shared/ui/AgentMessageUi'
 import {
   type AgentChatThreadItem,
   agentChatAgentMessageView,

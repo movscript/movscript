@@ -23,6 +23,7 @@ import {
   resolveDesktopDefaultMovScriptWorkspaceDir,
   setDesktopDefaultMovScriptWorkspaceDir,
 } from './movscriptWorkspaceDefaults'
+import { getMovScriptWorkspaceRoot } from './movscriptWorkspaceRoot'
 
 test('workspace config initialization creates the MovScript workspace root manifest', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-root-'))
@@ -115,6 +116,16 @@ test('workspace root manifest is stored in the MovScript home directory', () => 
   })
 })
 
+test('electron workspace root result names the MovScript home directory explicitly', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-home-result-'))
+  const result = getMovScriptWorkspaceRoot({ workspaceDir })
+
+  assert.equal(result.movScriptHomeDir, workspaceDir)
+  assert.equal(result.workspaceDir, workspaceDir)
+  assert.equal(result.controlDir, workspaceDir)
+  assert.equal(result.rootDir, workspaceDir)
+})
+
 test('default user workspace is the .movscript home directory itself', () => {
   const fallback = fallbackUserMovScriptWorkspaceDir()
   assert.equal(fallback.split(/[\\/]/).at(-1), '.movscript')
@@ -148,12 +159,13 @@ test('desktop MovScript workspace root can be configured from app settings', () 
     assert.equal(resolveDesktopDefaultMovScriptWorkspaceDir(), configuredRoot)
 
     process.env.MOVSCRIPT_WORKSPACE_DIR = envRoot
-    assert.equal(resolveDesktopDefaultMovScriptWorkspaceDir(), envRoot)
+    assert.equal(resolveDesktopDefaultMovScriptWorkspaceDir(), configuredRoot)
 
     process.env.MOVSCRIPT_HOME = homeRoot
-    assert.equal(resolveDesktopDefaultMovScriptWorkspaceDir(), homeRoot)
+    assert.equal(resolveDesktopDefaultMovScriptWorkspaceDir(), configuredRoot)
 
     setDesktopDefaultMovScriptWorkspaceDir('')
+    assert.equal(resolveDesktopDefaultMovScriptWorkspaceDir(), homeRoot)
   } finally {
     setDesktopDefaultMovScriptWorkspaceDir(undefined)
     if (previousHome === undefined) delete process.env.MOVSCRIPT_HOME
@@ -177,4 +189,36 @@ test('workspace config stores the project movscript-lang cwd without inspecting 
   const config = readMovScriptWorkspaceConfig(paths.configPath)
   assert.equal(config.movscriptLang?.cwd, '../movscript-lang')
   assert.equal(resolveMovScriptLangCwd(config, workspaceDir), join(workspaceDir, '../movscript-lang'))
+})
+
+test('workspace config stores Electron-managed agent catalog state', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-agent-catalog-'))
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir)
+  ensureMovScriptWorkspace(paths)
+
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: 'movscript.workspace-config.v2',
+    updatedAt: '2026-06-09T00:00:00.000Z',
+    agentCatalog: {
+      activeConfigFileId: 'agent-default',
+      configFiles: [{
+        schema: 'movscript.agent.config_file.v1',
+        id: 'agent-default',
+        name: 'Default Agent',
+        description: '',
+        version: 1,
+        enabledPackIds: ['core'],
+        skillIds: ['read'],
+        toolGrants: [{ name: 'shell', mode: 'read' }],
+        limits: { maxSteps: 12 },
+        approvalDefaults: { command: 'on_request' },
+        metadata: { managed: true },
+      }],
+    },
+  })
+
+  const config = readMovScriptWorkspaceConfig(paths.configPath)
+  assert.equal(config.agentCatalog?.activeConfigFileId, 'agent-default')
+  assert.equal(config.agentCatalog?.configFiles?.[0]?.id, 'agent-default')
+  assert.deepEqual(config.agentCatalog?.configFiles?.[0]?.toolGrants, [{ name: 'shell', mode: 'read' }])
 })

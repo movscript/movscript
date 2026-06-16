@@ -71,11 +71,6 @@
       "import": "./dist/business/generation.mjs",
       "require": "./dist/business/generation.js"
     },
-    "./business/jobs": {
-      "types": "./dist/business/jobs.d.ts",
-      "import": "./dist/business/jobs.mjs",
-      "require": "./dist/business/jobs.js"
-    },
     "./business/resource": {
       "types": "./dist/business/resource.d.ts",
       "import": "./dist/business/resource.mjs",
@@ -85,11 +80,6 @@
       "types": "./dist/business/review.d.ts",
       "import": "./dist/business/review.mjs",
       "require": "./dist/business/review.js"
-    },
-    "./business/scripts": {
-      "types": "./dist/business/scripts.d.ts",
-      "import": "./dist/business/scripts.mjs",
-      "require": "./dist/business/scripts.js"
     },
     "./business/workbench": {
       "types": "./dist/business/workbench.d.ts",
@@ -104,10 +94,8 @@
     "./styles/business/app.css": "./src/styles/business/app.css",
     "./styles/business/canvas.css": "./src/styles/business/canvas.css",
     "./styles/business/generation.css": "./src/styles/business/generation.css",
-    "./styles/business/jobs.css": "./src/styles/business/jobs.css",
     "./styles/business/resource.css": "./src/styles/business/resource.css",
     "./styles/business/review.css": "./src/styles/business/review.css",
-    "./styles/business/scripts.css": "./src/styles/business/scripts.css",
     "./styles/business/workbench.css": "./src/styles/business/workbench.css"
   },
   "scripts": {

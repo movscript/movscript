@@ -4,12 +4,16 @@ import { isProviderSessionThreadListQueryKey } from '@/features/agent/applicatio
 import { providerSessionClient, type AgentRunRole, type AgentRunStatus, type ProviderSessionSummary, type AgentSessionSummary, type AgentThread, type AgentThreadListPage, type AgentThreadSummary } from '@/shared/infrastructure/providerSessionClient'
 
 type StartProvisionalConversationInput = Parameters<typeof providerSessionClient.startProvisionalConversation>[0] & {
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
 }
 
 export interface ProviderSessionRunListItem {
   id: string
   sessionId?: string
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
   threadId: string
   status: AgentRunStatus
@@ -180,6 +184,7 @@ export async function listProviderSessionSummariesFromWorkspace(input: { provide
 }
 
 export function providerSessionRunSummariesFromProviderSession(summary: ProviderSessionSummary): ProviderSessionRunListItem[] {
+  const movScriptHomeDir = providerSessionHomeDir(summary)
   return (summary.runs ?? []).flatMap((run) => {
     const status = providerSessionRunStatus(run.status)
     if (!status) return []
@@ -187,7 +192,7 @@ export function providerSessionRunSummariesFromProviderSession(summary: Provider
     return [{
       id: run.id.trim(),
       sessionId: run.sessionId?.trim() || summary.session.id,
-      ...(summary.workspaceDir?.trim() ? { workspaceDir: summary.workspaceDir.trim() } : {}),
+      ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
       threadId: run.threadId.trim(),
       status,
       ...(providerSessionRunRole(run.role) ? { role: providerSessionRunRole(run.role) } : {}),
@@ -285,9 +290,10 @@ export async function startSharedProvisionalConversation(input: StartProvisional
 
   const promise = (async () => {
     const sessionId = input.sessionId?.trim() || makeProviderSessionId()
+    const movScriptHomeDir = input.movScriptHomeDir?.trim() || input.workspaceDir?.trim()
     const client = providerSessionClient.forSession({
       sessionId,
-      ...(input.workspaceDir?.trim() ? { workspaceDir: input.workspaceDir.trim() } : {}),
+      ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
     })
     await client.ensureRunning()
     return client.startProvisionalConversation(provisionalConversationThreadInput(input, sessionId))
@@ -301,11 +307,16 @@ export async function startSharedProvisionalConversation(input: StartProvisional
 function provisionalConversationKey(input: StartProvisionalConversationInput = {}) {
   return JSON.stringify({
     sessionId: input.sessionId?.trim() ?? '',
-    workspaceDir: input.workspaceDir?.trim() ?? '',
+    movScriptHomeDir: input.movScriptHomeDir?.trim() || input.workspaceDir?.trim() || '',
+    workspaceDir: input.movScriptHomeDir?.trim() || input.workspaceDir?.trim() || '',
     title: input.title?.trim() ?? '',
     projectId: typeof input.projectId === 'number' ? input.projectId : null,
     expiresAt: input.expiresAt ?? null,
   })
+}
+
+function providerSessionHomeDir(summary: ProviderSessionSummary): string | undefined {
+  return summary.movScriptHomeDir?.trim() || summary.workspaceDir?.trim() || undefined
 }
 
 function makeProviderSessionId(): string {

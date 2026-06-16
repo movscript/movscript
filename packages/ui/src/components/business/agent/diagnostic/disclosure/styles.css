@@ -1,5 +1,4 @@
 .ms-agent-diagnostic-disclosure__summary {
-  display: flex;
   cursor: pointer;
   list-style: none;
   align-items: center;
@@ -7,7 +6,6 @@
   gap: 8px;
   padding: 6px 8px;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
   font-weight: 600;
 }
 
@@ -17,21 +15,17 @@
 }
 
 .ms-agent-diagnostic-disclosure__title {
-  display: inline-flex;
   min-width: 0;
-  align-items: center;
   gap: 6px;
 }
 
 .ms-agent-diagnostic-disclosure__icon {
-  display: inline-flex;
   flex: 0 0 auto;
 }
 
 .ms-agent-diagnostic-disclosure__count {
   flex: 0 0 auto;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
   font-weight: 500;
 }
 

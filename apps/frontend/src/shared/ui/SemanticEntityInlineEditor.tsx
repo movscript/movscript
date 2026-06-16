@@ -18,19 +18,16 @@ import { semanticEntityKeys } from '@/shared/application/semanticEntityQueryKeys
 import { invalidateSemanticEntityMutationResult, semanticEntityChangedResult } from '@/shared/application/semanticEntityMutationInvalidation'
 import { toast } from '@/shared/ui/toastStore'
 import { type AccentTone } from '@movscript/ui/semantic'
-import { AppDisclosure } from '@movscript/ui/business/app'
 import {
   DetailEntityEditorActions,
   DetailEntityEditorEmptyState,
   DetailEntityEditorHeader,
   DetailEntityEditorHero,
   DetailEntityEditorShell,
-  DetailEntityFieldControl,
-  DetailEntityFieldGrid,
   DetailEntityForm,
   DetailEntityHorizontalRail,
-  DetailEntitySourceLockNotice
 } from '@/shared/ui/SemanticEntityInlineEditorUi'
+import { SemanticEntityInlineEditorFieldSections } from '@/shared/ui/SemanticEntityInlineEditorFields'
 import {
   buildInitialForm,
   buildPayload,
@@ -387,42 +384,25 @@ export function SemanticEntityInlineEditor({
         accentClassName={hero.accentClassName}
       >
         {!collapsed ? <DetailEntityForm id={formId} onSubmit={submit} divided>
-          {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
-          <DetailEntityFieldGrid columns="responsive">
-            {basicFields.map((field) => (
-              <FieldControl
-                key={field.key}
-                configKind={config.kind}
-                idScope={idScope}
-                field={field}
-                value={form[field.key]}
-                optionsOverride={lookupOptions[field.key]}
-                disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
-                invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-                lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
-                onChange={(value) => updateField(field.key, value)}
-              />
-            ))}
-          </DetailEntityFieldGrid>
-          {advancedFields.length > 0 ? (
-            <AppDisclosure title="全部字段" bodyClassName="detail-entity-field-grid" className="detail-entity-field-grid--advanced">
-              {advancedFields.map((field) => (
-                <FieldControl
-                  key={field.key}
-                  configKind={config.kind}
-                  idScope={idScope}
-                  field={field}
-                  advanced
-                  value={form[field.key]}
-                  optionsOverride={lookupOptions[field.key]}
-                  disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
-                  invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-                  lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
-                  onChange={(value) => updateField(field.key, value)}
-                />
-              ))}
-            </AppDisclosure>
-          ) : null}
+          <SemanticEntityInlineEditorFieldSections
+            configKind={config.kind}
+            idScope={idScope}
+            fields={fields}
+            basicFields={basicFields}
+            advancedFields={advancedFields}
+            form={form}
+            lookupOptions={lookupOptions}
+            recordExists={Boolean(record)}
+            isEditing={isEditing}
+            isImmutableRecord={isImmutableRecord}
+            lockedFields={lockedFields}
+            sourceLock={sourceLock}
+            sourceLockReason={sourceLockReason}
+            advancedTitle="全部字段"
+            advancedClassName="detail-entity-field-grid--advanced"
+            columns="responsive"
+            onChange={updateField}
+          />
         </DetailEntityForm> : null}
       </DetailEntityEditorHero>
     )
@@ -440,96 +420,24 @@ export function SemanticEntityInlineEditor({
         />
       ) : null}
       {!collapsed ? <DetailEntityForm id={formId} onSubmit={submit}>
-        {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
-        <DetailEntityFieldGrid>
-          {basicFields.map((field) => (
-            <FieldControl
-              key={field.key}
-              configKind={config.kind}
-              idScope={idScope}
-              field={field}
-              value={form[field.key]}
-              optionsOverride={lookupOptions[field.key]}
-              disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
-              invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-              lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
-              onChange={(value) => updateField(field.key, value)}
-            />
-          ))}
-        </DetailEntityFieldGrid>
-        {advancedFields.length > 0 ? (
-          <AppDisclosure title="高级字段" bodyClassName="detail-entity-field-grid">
-            {advancedFields.map((field) => (
-              <FieldControl
-                key={field.key}
-                configKind={config.kind}
-                idScope={idScope}
-                field={field}
-                advanced
-                value={form[field.key]}
-                optionsOverride={lookupOptions[field.key]}
-                disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
-                invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-                lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
-                onChange={(value) => updateField(field.key, value)}
-              />
-            ))}
-          </AppDisclosure>
-        ) : null}
+        <SemanticEntityInlineEditorFieldSections
+          configKind={config.kind}
+          idScope={idScope}
+          fields={fields}
+          basicFields={basicFields}
+          advancedFields={advancedFields}
+          form={form}
+          lookupOptions={lookupOptions}
+          recordExists={Boolean(record)}
+          isEditing={isEditing}
+          isImmutableRecord={isImmutableRecord}
+          lockedFields={lockedFields}
+          sourceLock={sourceLock}
+          sourceLockReason={sourceLockReason}
+          advancedTitle="高级字段"
+          onChange={updateField}
+        />
       </DetailEntityForm> : null}
     </DetailEntityEditorShell>
   )
-}
-
-function FieldControl({
-  configKind,
-  idScope,
-  field,
-  value,
-  optionsOverride,
-  advanced = false,
-  disabled = false,
-  invalid = false,
-  lockReason,
-  onChange,
-}: {
-  configKind: SemanticEntityConfig['kind']
-  idScope?: string
-  field: SemanticEntityConfig['fields'][number]
-  value: string | boolean
-  optionsOverride?: Array<{ value: string; label: string }>
-  advanced?: boolean
-  disabled?: boolean
-  invalid?: boolean
-  lockReason?: string
-  onChange: (value: string | boolean) => void
-}) {
-  const id = `semantic-inline-${idScope ?? configKind}-${field.key}`
-  return (
-    <DetailEntityFieldControl
-      id={id}
-      field={field}
-      value={value}
-      optionsOverride={optionsOverride}
-      advanced={advanced}
-      disabled={disabled}
-      invalid={invalid}
-      lockReason={lockReason}
-      onChange={onChange}
-    />
-  )
-}
-
-function SourceLockNotice({ fields, sourceLock, reason }: { fields: SemanticEntityConfig['fields']; sourceLock: SourceLockStatus; reason?: string }) {
-  return (
-    <DetailEntitySourceLockNotice
-      reason={reason ?? '已有下游对象引用当前记录'}
-      fieldsText={sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}
-      suffix="其他内容仍可继续编辑。"
-    />
-  )
-}
-
-function fieldLabel(fields: SemanticEntityConfig['fields'], key: string) {
-  return fields.find((field) => field.key === key)?.label ?? key
 }

@@ -39,7 +39,7 @@ export const MetricCard = React.forwardRef<HTMLDivElement, MetricCardProps>(
       <div className={cn("ms-stat-card__row", rowClassName)}>
         <div className={cn("ms-stat-card__copy", copyClassName)}>
           <p className={cn("ms-stat-card__label", labelClassName)}>{label}</p>
-          <p className={cn("ms-stat-card__value", valueClassName)}>{value}</p>
+          <p className={cn("ms-tabular-nums ms-stat-card__value", valueClassName)}>{value}</p>
         </div>
         {icon ? <span className={cn("ms-center ms-stat-card__icon", iconClassName)}>{icon}</span> : null}
       </div>

@@ -9,7 +9,7 @@ import {
 } from '@movscript/workspace/layout'
 
 export type MovScriptPromptOutputKind = 'image' | 'video' | 'audio' | 'text' | 'metadata'
-export type MovScriptPromptRefKind = 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'shot' | 'content_unit'
+export type MovScriptPromptRefKind = 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'expression_unit' | 'shot' | 'content_unit'
 export type MovScriptPromptRefRole = 'input'
 
 export interface MovScriptPromptRef {
@@ -536,6 +536,10 @@ function flatPrimaryRefIds(record: Record<string, unknown>, kind: MovScriptPromp
       return compactStrings(record.keyframe_ref)
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
+    case 'production':
+      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
+    case 'segment':
+      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
     case 'expression_unit':
@@ -588,6 +592,8 @@ function findEntityByRef(
 function promptRefKind(value: string | undefined): MovScriptPromptRefKind | undefined {
   switch (value) {
     case 'asset':
+    case 'production':
+    case 'segment':
     case 'keyframe':
     case 'storyboard':
     case 'scene_moment':
@@ -602,6 +608,10 @@ function promptRefKind(value: string | undefined): MovScriptPromptRefKind | unde
 
 function primaryRefKindForContentUnitType(contentUnitType: string): MovScriptPromptRefKind | undefined {
   switch (contentUnitType) {
+    case 'production_ref':
+      return 'production'
+    case 'segment_ref':
+      return 'segment'
     case 'asset_ref':
       return 'asset'
     case 'keyframe_ref':

@@ -7,7 +7,7 @@ import {
   AgentSettingsIcon,
   AgentSettingsStatusBadge,
   agentSettingsStatusRecipe,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { AppInlineError } from '@movscript/ui/business/app'
 import { AgentSettingsConfigFileEditorHeader } from '@/features/agent/components/AgentSettingsConfigFileUi'
 import type { ProviderCatalogConfigFile } from '@/shared/infrastructure/providerSessionClient'

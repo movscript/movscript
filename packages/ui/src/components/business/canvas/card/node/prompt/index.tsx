@@ -147,7 +147,7 @@ export const CanvasNodePromptEditor = forwardRef<HTMLDivElement, HTMLAttributes<
       ref={ref}
       contentEditable
       suppressContentEditableWarning
-      className={cn("canvas-node-prompt-editor mention-editor", className)}
+      className={cn("ms-type-body canvas-node-prompt-editor mention-editor", className)}
       {...props}
     />
   )
@@ -177,7 +177,7 @@ export function CanvasNodeMentionMenuEmpty({
   children: ReactNode;
 }) {
   return (
-    <p className={cn("canvas-node-mention-menu-empty", className)} {...props}>
+    <p className={cn("ms-type-label canvas-node-mention-menu-empty", className)} {...props}>
       {children}
     </p>
   );
@@ -193,12 +193,12 @@ export const CanvasNodeMentionMenuItem = forwardRef<HTMLButtonElement, ButtonPro
     type="button"
     variant="ghost"
     size="sm"
-    className={cn("canvas-node-mention-menu-item", className)}
+    className={cn("ms-type-label canvas-node-mention-menu-item", className)}
     {...props}
   >
     {media}
-    <span className="canvas-node-mention-menu-item__label">{label}</span>
-    {meta ? <span className="canvas-node-mention-menu-item__meta">{meta}</span> : null}
+    <span className="ms-text-truncate canvas-node-mention-menu-item__label">{label}</span>
+    {meta ? <span className="ms-type-tiny canvas-node-mention-menu-item__meta">{meta}</span> : null}
   </Button>
 ));
 

@@ -1,0 +1,67 @@
+.account-profile {
+  display: grid;
+  gap: 24px;
+}
+
+.account-profile-header__title {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-section);
+  font-weight: 600;
+  line-height: var(--ms-leading-section);
+}
+
+.account-profile-header__description {
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.account-profile-card {
+  display: grid;
+  max-width: 24rem;
+  gap: 24px;
+}
+
+.account-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-4);
+}
+
+.account-profile-identity__copy {
+  display: grid;
+  min-width: 0;
+}
+
+.account-profile-identity__name {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--account-profile-identity-name-font-size, var(--ms-text-section));
+  font-weight: 600;
+  line-height: var(--ms-leading-section);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-profile-identity__role {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--account-profile-identity-role-font-size, var(--ms-text-body));
+  line-height: var(--ms-leading-body);
+}
+
+.account-profile-actions {
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: 24px;
+}
+
+.account-profile-logout-button {
+  gap: var(--ms-space-2);
+  font-size: var(--account-profile-logout-button-font-size, var(--ms-text-body));
+  line-height: var(--ms-leading-body);
+}
+
+.account-profile-logout-button__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}

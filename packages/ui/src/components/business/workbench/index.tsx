@@ -1,5 +1,4 @@
 export { WorkbenchSection } from "./section";
-export { WorkbenchPanel } from "./panel";
 export { WorkbenchList, WorkbenchListItem, WorkbenchSurfaceItem } from "./list";
 export {
   WorkbenchEntityCard,
@@ -12,10 +11,6 @@ export {
   type WorkbenchSummaryPreviewState,
 } from "./card";
 export { WorkbenchEmptyState, WorkbenchKeyValue, WorkbenchMetric } from "./data-display";
-export {
-  WorkbenchScenePreviewPanel,
-  type WorkbenchScenePreviewPanelProps,
-} from "./scene-preview";
 export {
   workbenchDecisionIntent,
   workbenchPriorityLabel,
@@ -40,9 +35,6 @@ export {
   WorkbenchProjectPane,
   WorkbenchProjectShell,
   WorkbenchProjectViewport,
-  WorkbenchQueueList,
-  WorkbenchQueueMiniMetric,
-  WorkbenchSpecializedQueue,
   type WorkbenchProjectAction,
   type WorkbenchProjectHeaderProps,
 } from "./chrome";
@@ -53,7 +45,6 @@ export type {
   WorkbenchGate,
   WorkbenchIconComponent,
   WorkbenchLinkRow,
-  WorkbenchQueueItem,
   WorkbenchStatus,
   WorkbenchPriority,
 } from "./types";

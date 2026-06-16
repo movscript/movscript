@@ -13,6 +13,10 @@
   height: 100vh;
 }
 
+.canvas-flow {
+  --ui-canvas-flow-background-color: var(--ms-color-border);
+}
+
 .canvas-editor-chrome {
   flex-shrink: 0;
   border-top: 0;

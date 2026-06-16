@@ -447,7 +447,7 @@ func TestBuildProviderHealthSnapshotReportsMissingConfig(t *testing.T) {
 		DBDriver:                "postgres",
 		StorageBackend:          "minio",
 		WorkspaceStorageBackend: "gitea",
-		AIGatewayProvider:       "new-api",
+		AIGatewayProvider:       "local",
 		CacheBackend:            "redis",
 		MediaProcessingProvider: providercontract.AdapterExternalMediaWorker,
 		AgentRuntimeProvider:    providercontract.AdapterRemoteAgentRuntime,

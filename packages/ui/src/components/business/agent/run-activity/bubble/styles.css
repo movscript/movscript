@@ -1,6 +1,5 @@
 .ms-agent-run-activity-bubble {
   margin-top: 8px;
-  font-size: var(--ms-text-label);
 }
 
 .ms-agent-run-activity-detail-button {
@@ -8,5 +7,4 @@
   flex: 0 0 auto;
   padding-right: 6px;
   padding-left: 6px;
-  font-size: var(--ms-text-tiny);
 }

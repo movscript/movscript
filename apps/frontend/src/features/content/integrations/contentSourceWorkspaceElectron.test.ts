@@ -81,12 +81,13 @@ test('content source workspace runtime port includes workspace owner context', a
   assert.deepEqual(calls, [
     { method: 'snapshot', input: { userId: 1, projectId: 13 } },
     {
-      method: 'select',
-      input: {
-        userId: 1,
-        projectId: 13,
-        contentUnitId: 'cu-video',
-        candidateId: 'cand-a',
+	      method: 'select',
+	      input: {
+	        userId: 1,
+	        projectId: 13,
+	        expectedWorkspaceVersions: {},
+	        contentUnitId: 'cu-video',
+	        candidateId: 'cand-a',
         reason: 'content_source_workspace_selection',
       },
     },
@@ -101,17 +102,18 @@ test('content source workspace selection writes through the Electron engine API'
       calls.push(input)
     },
   }, async () => {
-    await selectContentSourceWorkspaceCandidate({
-      projectId: 456,
-      contentUnitId: 'cu_phone',
-      candidateId: 'cand_a',
+	    await selectContentSourceWorkspaceCandidate({
+	      projectId: 456,
+	      contentUnitId: 'cu_phone',
+	      candidateId: 'cand_a',
       resourceId: 81,
     })
   })
 
-  assert.deepEqual(calls[0], {
-    projectId: 456,
-    contentUnitId: 'cu_phone',
+	  assert.deepEqual(calls[0], {
+	    projectId: 456,
+	    expectedWorkspaceVersions: {},
+	    contentUnitId: 'cu_phone',
     candidateId: 'cand_a',
     resourceId: 81,
     reason: 'content_source_workspace_selection',
@@ -153,8 +155,9 @@ test('content source workspace candidate creator sends engine candidate plans', 
   })
 
   const plan = calls[0] as Record<string, unknown>
-  assert.equal(plan.projectId, 457)
-  assert.equal(plan.contentUnitId, 'cu_phone')
+	  assert.equal(plan.projectId, 457)
+	  assert.deepEqual(plan.expectedWorkspaceVersions, {})
+	  assert.equal(plan.contentUnitId, 'cu_phone')
   assert.equal(plan.source, 'resource_library')
   assert.equal(plan.status, 'imported')
   assert.deepEqual(plan.outputs, [{ kind: 'video', resource_id: 81, mime_type: 'video/mp4' }])
@@ -183,44 +186,44 @@ test('content source workspace editors write patches through the Electron engine
       calls.push({ method: 'timeline', input })
     },
   }, async () => {
-    await updateContentSourceWorkspaceEditPrompt({
-      projectId: 789,
-      targetPath: 'content_units/cu_asset_phone/content_unit.json',
-      text: 'Updated {{asset:phone_screen}} reference prompt.',
-    })
-    await updateContentSourceWorkspaceExpressionUnit({
-      projectId: 321,
-      targetPath: 'productions/pilot/expression_unit.json',
-      title: 'Hesitation beat',
+	    await updateContentSourceWorkspaceEditPrompt({
+	      projectId: 789,
+	      targetPath: 'content_units/cu_asset_phone/content_unit.json',
+	      text: 'Updated {{asset:phone_screen}} reference prompt.',
+	    })
+	    await updateContentSourceWorkspaceExpressionUnit({
+	      projectId: 321,
+	      targetPath: 'productions/pilot/expression_unit.json',
+	      title: 'Hesitation beat',
       kind: 'micro_expression',
       text: 'Do I answer?',
       summary: 'The hand pauses before the call.',
       speaker: 'hero',
       note: 'Keep it tiny.',
     })
-    await updateContentSourceWorkspaceAudioCue({
-      projectId: 654,
-      targetPath: 'productions/pilot/audio_cue.json',
-      title: 'Phone buzz',
+	    await updateContentSourceWorkspaceAudioCue({
+	      projectId: 654,
+	      targetPath: 'productions/pilot/audio_cue.json',
+	      title: 'Phone buzz',
       cueKind: 'sound_effect',
       promptHint: 'A sharp phone vibration.',
       shotRef: 'productions/pilot/shots/phone',
       timing: { start: 'after_action', duration_sec: 1.2 },
       assetRefs: ['phone_screen'],
     })
-    await updateContentSourceWorkspaceTransition({
-      projectId: 987,
-      targetPath: 'productions/pilot/shot.json',
-      transition: {
+	    await updateContentSourceWorkspaceTransition({
+	      projectId: 987,
+	      targetPath: 'productions/pilot/shot.json',
+	      transition: {
         in: 'insert_cut',
         out: 'sound_bridge',
         notes: 'Tie to audio cue.',
       },
     })
-    await updateContentSourceWorkspaceStoryboardTimeline({
-      projectId: 988,
-      targetPath: 'productions/pilot/storyboard.json',
-      timeline: {
+	    await updateContentSourceWorkspaceStoryboardTimeline({
+	      projectId: 988,
+	      targetPath: 'productions/pilot/storyboard.json',
+	      timeline: {
         caption: 'Phone glow.',
         gapAfterSec: 0.2,
         durationSec: 3,
@@ -230,17 +233,19 @@ test('content source workspace editors write patches through the Electron engine
 
   assert.deepEqual(calls[0], {
     method: 'prompt',
-    input: {
-      projectId: 789,
-      targetPath: 'content_units/cu_asset_phone/content_unit.json',
+	    input: {
+	      projectId: 789,
+	      expectedWorkspaceVersions: { 'content_units/cu_asset_phone/content_unit.json': null },
+	      targetPath: 'content_units/cu_asset_phone/content_unit.json',
       editPrompt: { text: 'Updated {{asset:phone_screen}} reference prompt.' },
     },
   })
   assert.deepEqual(calls[1], {
     method: 'expression',
-    input: {
-      projectId: 321,
-      targetPath: 'productions/pilot/expression_unit.json',
+	    input: {
+	      projectId: 321,
+	      expectedWorkspaceVersions: { 'productions/pilot/expression_unit.json': null },
+	      targetPath: 'productions/pilot/expression_unit.json',
       patch: {
         title: 'Hesitation beat',
         expressionKind: 'micro_expression',
@@ -253,9 +258,10 @@ test('content source workspace editors write patches through the Electron engine
   })
   assert.deepEqual(calls[2], {
     method: 'audio',
-    input: {
-      projectId: 654,
-      targetPath: 'productions/pilot/audio_cue.json',
+	    input: {
+	      projectId: 654,
+	      expectedWorkspaceVersions: { 'productions/pilot/audio_cue.json': null },
+	      targetPath: 'productions/pilot/audio_cue.json',
       patch: {
         title: 'Phone buzz',
         cueKind: 'sound_effect',
@@ -269,9 +275,10 @@ test('content source workspace editors write patches through the Electron engine
   })
   assert.deepEqual(calls[3], {
     method: 'transition',
-    input: {
-      projectId: 987,
-      targetPath: 'productions/pilot/shot.json',
+	    input: {
+	      projectId: 987,
+	      expectedWorkspaceVersions: { 'productions/pilot/shot.json': null },
+	      targetPath: 'productions/pilot/shot.json',
       transition: {
         in: 'insert_cut',
         out: 'sound_bridge',
@@ -281,9 +288,10 @@ test('content source workspace editors write patches through the Electron engine
   })
   assert.deepEqual(calls[4], {
     method: 'timeline',
-    input: {
-      projectId: 988,
-      targetPath: 'productions/pilot/storyboard.json',
+	    input: {
+	      projectId: 988,
+	      expectedWorkspaceVersions: { 'productions/pilot/storyboard.json': null },
+	      targetPath: 'productions/pilot/storyboard.json',
       timeline: {
         caption: 'Phone glow.',
         gap_after_sec: 0.2,
@@ -321,8 +329,11 @@ test('content source workspace hierarchy add and sync use engine APIs', async ()
 
   assert.equal(calls[0].method, 'write')
   const writeInput = calls[0].input as Record<string, unknown>
-  assert.equal(writeInput.projectId, 777)
-  assert.equal(writeInput.targetPath, 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json')
+	  assert.equal(writeInput.projectId, 777)
+	  assert.equal(writeInput.targetPath, 'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json')
+	  assert.deepEqual(writeInput.expectedWorkspaceVersions, {
+	    'productions/pilot/segments/opening/scene_moments/rain_call/shots/phone_insert/shot.json': null,
+	  })
   const record = writeInput.record as Record<string, unknown>
   assert.equal(record.schema, 'movscript.shot.v1')
   assert.equal(record.kind, 'shot')

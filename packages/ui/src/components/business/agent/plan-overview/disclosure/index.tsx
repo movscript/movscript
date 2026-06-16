@@ -13,7 +13,7 @@ AgentPlanOverviewDisclosure.displayName = "AgentPlanOverviewDisclosure";
 
 export const AgentPlanOverviewDisclosureSummary = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(
   ({ className, ...props }, ref) => {
-    return <summary ref={ref} className={cn("ms-agent-plan-overview-disclosure__summary", className)} {...props} />;
+    return <summary ref={ref} className={cn("ms-action-row ms-type-tiny ms-agent-plan-overview-disclosure__summary", className)} {...props} />;
   }
 );
 
@@ -21,7 +21,7 @@ AgentPlanOverviewDisclosureSummary.displayName = "AgentPlanOverviewDisclosureSum
 
 export const AgentPlanOverviewDisclosureBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview-disclosure__body", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-stack ms-type-tiny ms-agent-plan-overview-disclosure__body", className)} {...props} />;
   }
 );
 
@@ -29,7 +29,7 @@ AgentPlanOverviewDisclosureBody.displayName = "AgentPlanOverviewDisclosureBody";
 
 export const AgentPlanOverviewFilterRow = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview-filter-row", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-plan-overview-filter-row", className)} {...props} />;
   }
 );
 

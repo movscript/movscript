@@ -14,7 +14,7 @@ AgentDiagnosticToolItem.displayName = "AgentDiagnosticToolItem";
 
 export const AgentDiagnosticToolHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-diagnostic-tool__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-diagnostic-tool__header", className)} {...props} />;
   }
 );
 
@@ -22,7 +22,7 @@ AgentDiagnosticToolHeader.displayName = "AgentDiagnosticToolHeader";
 
 export const AgentDiagnosticToolName = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-diagnostic-tool__name", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-text-truncate ms-type-caption ms-agent-diagnostic-tool__name", className)} {...props} />;
   }
 );
 
@@ -30,7 +30,7 @@ AgentDiagnosticToolName.displayName = "AgentDiagnosticToolName";
 
 export const AgentDiagnosticToolText = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-diagnostic-tool__text", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-type-tiny ms-agent-diagnostic-tool__text", className)} {...props} />;
   }
 );
 

@@ -9,7 +9,7 @@ import {
   UserProfileIdentity,
   UserProfileLogoutButton,
   UserProfileShell
-} from '@movscript/ui/business/app'
+} from '@/features/user/components/UserProfilePageUi'
 
 export function UserProfilePanel() {
   const { t } = useTranslation()

@@ -1,0 +1,340 @@
+.jobs-status-badge--with-icon {
+  gap: 4px;
+}
+
+.job-spin-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  animation: job-spin-icon-rotate 1s linear infinite;
+}
+
+@keyframes job-spin-icon-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.job-detail-panel {
+  background: var(--ms-color-background);
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.job-detail-panel__body {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.job-detail-summary {
+  min-width: 0;
+}
+
+.job-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-detail-prompt,
+.job-detail-meta,
+.job-trace-entry__message,
+.job-trace-entry__meta {
+  color: var(--ms-color-muted-foreground);
+}
+
+.job-detail-prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--ms-text-label);
+  line-height: 1.4;
+}
+
+.job-detail-meta {
+  margin: 4px 0 0;
+  font-size: var(--ms-text-label);
+  line-height: 1.4;
+}
+
+.job-detail-key-value-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.job-detail-block__title {
+  margin: 0 0 8px;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.job-detail-block + .job-detail-block {
+  margin-top: 4px;
+}
+
+.job-trace-entry {
+  padding: 8px 12px;
+}
+
+.job-trace-entry + .job-trace-entry {
+  margin-top: 8px;
+}
+
+.job-trace-entry__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.job-trace-entry__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.job-trace-entry__status,
+.job-trace-entry__meta {
+  font-size: var(--ms-text-tiny);
+  line-height: 1.35;
+}
+
+.job-trace-entry__message {
+  margin: 4px 0 0;
+  font-size: var(--ms-text-caption);
+  line-height: 1.4;
+}
+
+.job-trace-entry__meta {
+  margin: 4px 0 0;
+  opacity: 0.7;
+}
+
+.job-code-history {
+  max-height: 224px;
+  overflow: auto;
+  padding: 12px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 1.55;
+}
+
+@media (min-width: 640px) {
+  .job-detail-key-value-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.job-card {
+  overflow: hidden;
+  background: var(--ms-color-background);
+  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard), background-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.job-card:not(.job-card--selected) {
+  border-color: var(--ms-color-border);
+}
+
+.job-card:not(.job-card--selected):hover {
+  border-color: color-mix(in srgb, var(--ms-color-foreground) 20%, transparent);
+}
+
+.job-card--selected {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 60%, transparent);
+  background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
+}
+
+.job-card__body {
+  padding: 0;
+}
+
+.job-list-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding: 12px 16px;
+}
+
+.job-type-icon {
+  margin-top: 2px;
+  flex: 0 0 auto;
+  color: var(--ms-color-muted-foreground);
+}
+
+.job-title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.job-title-block__title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-title-block__description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 2px 0 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 1.45;
+}
+
+.job-action-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-timestamp {
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 50%, transparent);
+  font-size: var(--ms-text-label);
+  line-height: 1.4;
+}
+
+.job-context-bar {
+  min-height: 0;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 10%, transparent);
+  padding: 8px 16px;
+}
+
+.job-context-bar:empty {
+  display: none;
+}
+
+.job-list-media-area {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  background: var(--ms-color-surface-raised);
+}
+
+.job-list-media-area__preview {
+  position: relative;
+  width: 100%;
+  height: 192px;
+  overflow: hidden;
+  background: var(--ms-color-muted);
+}
+
+.job-list-media-area__preview > * {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.job-grid-media-area {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--ms-color-muted);
+}
+
+.job-grid-media-area > .job-grid-media-area__preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.job-overlay-action {
+  position: absolute;
+  top: 8px;
+  z-index: 10;
+}
+
+.job-overlay-action[data-position="left"] {
+  left: 8px;
+}
+
+.job-overlay-action[data-position="right"] {
+  right: 8px;
+}
+
+.job-card-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  color: var(--ms-color-muted-foreground);
+}
+
+.job-card-state[data-layout="stack"] {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.job-card-state[data-tone="danger"] {
+  color: var(--ms-color-danger);
+}
+
+.job-card-state__body > p {
+  margin: 0;
+  font-size: var(--ms-text-body);
+  line-height: 1.4;
+}
+
+.job-card-state[data-layout="stack"] .job-card-state__body > p {
+  font-size: var(--ms-text-tiny);
+}
+
+.job-grid-caption {
+  padding: 6px 8px;
+}
+
+.job-grid-title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-grid-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 2px 0 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 1.45;
+}
+
+.job-grid-caption .job-context-bar {
+  margin-top: 4px;
+  border-bottom: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.job-grid-caption .job-timestamp {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ms-text-tiny);
+}

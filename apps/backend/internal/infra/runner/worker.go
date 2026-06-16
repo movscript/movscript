@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/movscript/movscript/internal/app/systemstream"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/storage"
@@ -19,12 +20,13 @@ import (
 
 // Worker is a pool of goroutines that execute pending Job records.
 type Worker struct {
-	db            *gorm.DB
-	aiService     *ai.AIService
-	store         storage.Storage
-	encryptionKey []byte
-	client        *http.Client
-	workerID      string
+	db             *gorm.DB
+	aiService      *ai.AIService
+	store          storage.Storage
+	encryptionKey  []byte
+	client         *http.Client
+	workerID       string
+	systemMessages *systemstream.Hub
 }
 
 const (
@@ -40,14 +42,19 @@ const (
 
 var errJobCancelled = errors.New("generation job cancelled")
 
-func NewWorker(db *gorm.DB, aiService *ai.AIService, store storage.Storage, encryptionKey []byte) *Worker {
+func NewWorker(db *gorm.DB, aiService *ai.AIService, store storage.Storage, encryptionKey []byte, systemMessages ...*systemstream.Hub) *Worker {
+	var hub *systemstream.Hub
+	if len(systemMessages) > 0 {
+		hub = systemMessages[0]
+	}
 	return &Worker{
-		db:            db,
-		aiService:     aiService,
-		store:         store,
-		encryptionKey: encryptionKey,
-		client:        &http.Client{Timeout: 10 * time.Minute},
-		workerID:      newWorkerID(),
+		db:             db,
+		aiService:      aiService,
+		store:          store,
+		encryptionKey:  encryptionKey,
+		client:         &http.Client{Timeout: 10 * time.Minute},
+		workerID:       newWorkerID(),
+		systemMessages: hub,
 	}
 }
 

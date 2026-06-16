@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	catalogapp "github.com/movscript/movscript/internal/app/catalog"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
@@ -24,7 +25,16 @@ func NewModelsHandler(modelCatalog providercontract.AIGatewayModelCatalog, cache
 func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 	providerVariants := c.Query("provider_variants") == "true" || c.Query("include_provider_variants") == "true"
 	capability := c.Query("capability")
-	models, err := h.service.ListByCapability(c.Request.Context(), capability, providerVariants)
+	ctx := c.Request.Context()
+	routeGroup, err := modelCatalogRequestedRouteGroup(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if routeGroup != "" {
+		ctx = ai.WithProviderRouteGroup(ctx, routeGroup)
+	}
+	models, err := h.service.ListByCapabilityForRoute(ctx, capability, routeGroup, providerVariants)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

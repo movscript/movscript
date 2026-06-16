@@ -5,6 +5,7 @@ import { createPluginCatalogPackStoreAPI } from './api/pluginCatalogPackStore'
 import { createProjectPluginStoreAPI } from './api/projectPluginStore'
 import { createBackendAPI } from './api/backend'
 import { createBackendAuthAPI } from './api/backendAuth'
+import { createRuntimeConfigAPI } from './api/runtimeConfig'
 import { createAppUpdateAPI } from './api/appUpdate'
 import { createAppServerAPI } from './api/appServer'
 import { createDialogAPI } from './api/dialog'
@@ -15,6 +16,7 @@ import { createSettingsAPI } from './api/settings'
 import { createVideoAPI } from './api/video'
 import { createWindowAPI } from './api/window'
 import { createLocalTerminalAPI } from './api/localTerminal'
+import { createCrossPageNotificationAPI } from './api/crossPageNotifications'
 
 export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Platform): ElectronAPI {
   return {
@@ -22,8 +24,10 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createDialogAPI(ipcRenderer),
     ...createMCPAPI(ipcRenderer),
     ...createSettingsAPI(ipcRenderer),
+    ...createRuntimeConfigAPI(ipcRenderer),
     ...createBackendAPI(ipcRenderer),
     ...createBackendAuthAPI(ipcRenderer),
+    ...createCrossPageNotificationAPI(ipcRenderer),
     ...createAppUpdateAPI(ipcRenderer),
     ...createWindowAPI(ipcRenderer),
     ...createEmbeddedBrowserAPI(ipcRenderer),

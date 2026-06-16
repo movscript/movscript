@@ -1,9 +1,17 @@
+import type { ProviderCatalogConfigFile } from '../agent/protocol.js'
+
 export const MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA = 'movscript.workspace-config.v2'
+
+export interface MovScriptWorkspaceAgentCatalogConfig {
+  activeConfigFileId?: string
+  configFiles?: ProviderCatalogConfigFile[]
+}
 
 export interface MovScriptWorkspaceConfig {
   schema: typeof MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA
   updatedAt: string
   modelConfig?: Record<string, unknown>
+  agentCatalog?: MovScriptWorkspaceAgentCatalogConfig
   catalog?: {
     skillsDir?: string
     toolsDir?: string

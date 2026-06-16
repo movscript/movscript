@@ -1,334 +1,26 @@
-import { Box, Building2, CircleDot, FileImage, Film, Image, KeyRound, Palette, Rows3, ScrollText, Shirt, Sparkles, SquareStack, Star, TextCursorInput, UserRound, Video, WandSparkles, type LucideIcon } from 'lucide-react'
-import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
-import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
-import { CANVAS_WORLD_HEIGHT, CANVAS_WORLD_WIDTH, SCENE_RELATION_RADIUS_X, SCENE_RELATION_RADIUS_Y, type CandidateSelections, type InspectorSelection, type RadialNode, type SceneSettingGroup, type SettingKind, type TimelineItem, type TimelineTrack, type TimelineTrackKind, type TreeNodeData } from './contentCanvasWorkspaceTypes'
+import type { ContentCanvasGraph, ContentCanvasNode, OpenCutTimelineDocumentLike, OpenCutTimelineElementLike } from '../domain/contentCanvasTypes'
+import type { CandidateDecision, CandidateSelections, RadialNode, SettingKind, TimelineItem, TimelineTrack, TimelineTrackKind, TreeNodeData } from './contentCanvasWorkspaceTypes'
+import { contentCanvasCodeForKind, contentCanvasGraphIndex } from './contentCanvasWorkspaceGraphModel'
 
-export const SCENE_MAIN_NODE: RadialNode = {
-  id: 'scene-main',
-  code: 'SCN',
-  title: '电话打断告白',
-  description: 'scene_moment 主节点',
-  x: 0,
-  y: 0,
-  Icon: Film,
-  variant: 'primary',
-}
+export {
+  clampCanvasZoom,
+  clampRadialCoordinate,
+  clampRadialYCoordinate,
+  contentCanvasGraphIndex,
+  emptyContentCanvasGraph,
+  iconForContentNode,
+  mergeSceneSettingGroups,
+  radialNodeFromContentNode,
+  radialNodesAround,
+  radialPoint,
+  reconcileContentCanvasInspectorSelection,
+  sceneSettingGroupFromNode,
+  sceneSettingGroupsUsedByScene,
+  selectedSelectionId,
+  SCENE_MAIN_NODE,
+} from './contentCanvasWorkspaceGraphModel'
 
-export function selectedSelectionId(selection: InspectorSelection) {
-  if (selection.kind === 'setting') return selection.setting.id
-  return selection.node.id
-}
-
-export function clampRadialCoordinate(value: number) {
-  if (!Number.isFinite(value)) return 0
-  return Math.min(Math.max(Math.round(value), -CANVAS_WORLD_WIDTH / 2 + 76), CANVAS_WORLD_WIDTH / 2 - 76)
-}
-
-export function clampRadialYCoordinate(value: number) {
-  if (!Number.isFinite(value)) return 0
-  return Math.min(Math.max(Math.round(value), -CANVAS_WORLD_HEIGHT / 2 + 46), CANVAS_WORLD_HEIGHT / 2 - 46)
-}
-
-export function clampCanvasZoom(value: number) {
-  if (!Number.isFinite(value)) return 1
-  return Math.min(Math.max(Math.round(value * 100) / 100, 0.5), 1.8)
-}
-
-export function emptyContentCanvasGraph(): ContentCanvasGraph {
-  return { nodes: [], edges: [] }
-}
-
-export function contentCanvasGraphIndex(graph: ContentCanvasGraph) {
-  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
-  const connectedByNodeId = new Map<string, ContentCanvasNode[]>()
-  const edgesByNodeId = new Map<string, ContentCanvasEdge[]>()
-  for (const edge of graph.edges) {
-    const source = nodeById.get(edge.source)
-    const target = nodeById.get(edge.target)
-    if (!source || !target) continue
-    appendMapArray(connectedByNodeId, edge.source, target)
-    appendMapArray(connectedByNodeId, edge.target, source)
-    appendMapArray(edgesByNodeId, edge.source, edge)
-    appendMapArray(edgesByNodeId, edge.target, edge)
-  }
-  return { nodeById, connectedByNodeId, edgesByNodeId }
-}
-
-function appendMapArray<T>(map: Map<string, T[]>, key: string, value: T) {
-  map.set(key, [...(map.get(key) ?? []), value])
-}
-
-export function radialNodesAround(
-  main: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
-  allowedKinds: ContentCanvasNodeKind[],
-): RadialNode[] {
-  if (main.kind === 'setting') {
-    const states = (graphIndex.connectedByNodeId.get(main.id) ?? [])
-      .filter((node) => node.kind === 'state')
-      .slice(0, 8)
-    return states.flatMap((state, stateIndex) => {
-      const statePoint = radialPoint(stateIndex, states.length, 180, 118, -Math.PI / 18)
-      const stateNode = radialNodeFromContentNode(state, statePoint.x, statePoint.y, 'state')
-      const assets = (graphIndex.connectedByNodeId.get(state.id) ?? [])
-        .filter((node) => node.kind === 'asset')
-        .slice(0, 4)
-        .map((asset, assetIndex) => {
-          const assetPoint = childRadialPoint(
-            statePoint,
-            assetIndex,
-            assetsForStateCount(graphIndex, state.id),
-            statePoint.x >= 0 ? 0 : Math.PI,
-          )
-          return {
-            ...radialNodeFromContentNode(asset, assetPoint.x, assetPoint.y, 'asset'),
-            parentId: state.id,
-          }
-        })
-      return [stateNode, ...assets]
-    })
-  }
-  const allowed = new Set<ContentCanvasNodeKind>(allowedKinds)
-  const direct = graphIndex.connectedByNodeId.get(main.id) ?? []
-  const expanded = direct.flatMap((node) => {
-    if (allowed.has(node.kind)) return [node]
-    if (main.kind === 'scene_moment' && node.kind === 'shot') {
-      return [
-        node,
-        ...(graphIndex.connectedByNodeId.get(node.id) ?? []).filter((child) => allowed.has(child.kind)),
-      ]
-    }
-    if (main.kind === 'setting' && node.kind === 'state') {
-      return [
-        node,
-        ...(graphIndex.connectedByNodeId.get(node.id) ?? []).filter((child) => allowed.has(child.kind)),
-      ]
-    }
-    return []
-  })
-  const unique = [...new Map(expanded.filter((node) => node.id !== main.id).map((node) => [node.id, node])).values()]
-  return unique.slice(0, 10).map((node, index, items) => {
-    const point = main.kind === 'scene_moment'
-      ? radialPoint(index, items.length, SCENE_RELATION_RADIUS_X, SCENE_RELATION_RADIUS_Y)
-      : radialPoint(index, items.length)
-    return radialNodeFromContentNode(node, point.x, point.y, radialVariantForKind(node.kind))
-  })
-}
-
-function assetsForStateCount(graphIndex: ReturnType<typeof contentCanvasGraphIndex>, stateId: string) {
-  return Math.max(1, (graphIndex.connectedByNodeId.get(stateId) ?? []).filter((node) => node.kind === 'asset').length)
-}
-
-export function radialPoint(index: number, total: number, radiusX = 250, radiusY = 160, startAngle = -Math.PI / 2) {
-  const angle = ((Math.PI * 2) / Math.max(total, 1)) * index + startAngle
-  return {
-    x: Math.round(Math.cos(angle) * radiusX),
-    y: Math.round(Math.sin(angle) * radiusY),
-  }
-}
-
-function childRadialPoint(parent: { x: number; y: number }, index: number, total: number, startAngle = -Math.PI / 2) {
-  const spread = Math.min(Math.PI, (Math.PI * 2) / Math.max(total, 1))
-  const angle = total <= 1
-    ? startAngle
-    : startAngle - spread / 2 + (spread / Math.max(total - 1, 1)) * index
-  return {
-    x: clampRadialCoordinate(parent.x + Math.cos(angle) * 132),
-    y: clampRadialYCoordinate(parent.y + Math.sin(angle) * 82),
-  }
-}
-
-export function radialNodeFromContentNode(node: ContentCanvasNode, x: number, y: number, variant = radialVariantForKind(node.kind)): RadialNode {
-  const Icon = iconForContentNode(node)
-  return {
-    id: node.id,
-    code: codeForKind(node.kind),
-    title: node.title,
-    description: node.summary || node.subtitle || node.sourcePath,
-    x,
-    y,
-    Icon,
-    variant,
-    source: node,
-  }
-}
-
-export function sceneSettingGroupFromNode(
-  setting: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
-  position: ContentCanvasNodePosition,
-): SceneSettingGroup {
-  const states = (graphIndex.connectedByNodeId.get(setting.id) ?? [])
-    .filter((node) => node.kind === 'state')
-    .slice(0, 8)
-    .map((state) => ({
-      state,
-      assets: (graphIndex.connectedByNodeId.get(state.id) ?? [])
-        .filter((node) => node.kind === 'asset')
-        .slice(0, 6),
-    }))
-  return {
-    id: `scene-setting-group:${setting.id}`,
-    setting,
-    states,
-    x: clampRadialCoordinate(position.x),
-    y: clampRadialYCoordinate(position.y),
-  }
-}
-
-export function mergeSceneSettingGroups(automaticGroups: SceneSettingGroup[], manualGroups: SceneSettingGroup[]) {
-  const groups = new Map<string, SceneSettingGroup>()
-  for (const group of automaticGroups) groups.set(group.setting.id, group)
-  for (const group of manualGroups) groups.set(group.setting.id, group)
-  return [...groups.values()]
-}
-
-export function sceneSettingGroupsUsedByScene(
-  scene: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
-): SceneSettingGroup[] {
-  const scopedNodeIds = sceneScopedNodeIds(scene, graphIndex)
-  const assetIds = new Set<string>()
-  const stateIds = new Set<string>()
-  for (const nodeId of scopedNodeIds) {
-    for (const edge of graphIndex.edgesByNodeId.get(nodeId) ?? []) {
-      const source = graphIndex.nodeById.get(edge.source)
-      const target = graphIndex.nodeById.get(edge.target)
-      if (edge.relation === 'content_unit_asset' || edge.relation === 'audio_cue_asset') {
-        if (source?.kind === 'asset') assetIds.add(source.id)
-        if (target?.kind === 'asset') assetIds.add(target.id)
-      }
-      if (edge.relation === 'setting_state_reference') {
-        if (source?.kind === 'state') stateIds.add(source.id)
-        if (target?.kind === 'state') stateIds.add(target.id)
-      }
-    }
-  }
-
-  const settings = new Map<string, ContentCanvasNode>()
-  for (const assetId of assetIds) {
-    const state = parentStateForAsset(assetId, graphIndex)
-    if (!state) continue
-    const setting = parentSettingForState(state.id, graphIndex)
-    if (setting) settings.set(setting.id, setting)
-  }
-  for (const stateId of stateIds) {
-    const setting = parentSettingForState(stateId, graphIndex)
-    if (setting) settings.set(setting.id, setting)
-  }
-
-  return [...settings.values()].slice(0, 6).map((setting, index, items) => {
-    const point = radialPoint(index, items.length, 295, 172, Math.PI / 6)
-    return sceneSettingGroupFromNode(setting, graphIndex, point)
-  })
-}
-
-function sceneScopedNodeIds(
-  scene: ContentCanvasNode,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
-) {
-  const scopedKinds = new Set<ContentCanvasNodeKind>(['scene_moment', 'expression_unit', 'shot', 'storyboard', 'keyframe', 'content_unit', 'audio_cue'])
-  const scoped = new Set<string>([scene.id])
-  const queue = [scene.id]
-  while (queue.length) {
-    const nodeId = queue.shift()
-    if (!nodeId) continue
-    for (const edge of graphIndex.edgesByNodeId.get(nodeId) ?? []) {
-      const nextId = edge.source === nodeId ? edge.target : edge.source
-      if (scoped.has(nextId)) continue
-      const nextNode = graphIndex.nodeById.get(nextId)
-      if (!nextNode || !scopedKinds.has(nextNode.kind)) continue
-      if (edge.kind === 'hierarchy' || edge.relation === 'content_unit_scene' || isSceneScopedRelation(edge.relation)) {
-        scoped.add(nextId)
-        queue.push(nextId)
-      }
-    }
-  }
-  return scoped
-}
-
-function isSceneScopedRelation(relation: ContentCanvasEdge['relation']) {
-  return relation === 'expression_unit_shot'
-    || relation === 'expression_unit_storyboard'
-    || relation === 'expression_unit_content_unit'
-    || relation === 'content_unit_shot'
-    || relation === 'content_unit_keyframe'
-    || relation === 'content_unit_storyboard'
-    || relation === 'audio_cue_shot'
-    || relation === 'audio_cue_storyboard'
-}
-
-function parentStateForAsset(
-  assetId: string,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
-) {
-  for (const edge of graphIndex.edgesByNodeId.get(assetId) ?? []) {
-    const otherId = edge.source === assetId ? edge.target : edge.source
-    const other = graphIndex.nodeById.get(otherId)
-    if (other?.kind === 'state' && (edge.kind === 'hierarchy' || edge.relation === 'setting_state_reference')) return other
-  }
-  return undefined
-}
-
-function parentSettingForState(
-  stateId: string,
-  graphIndex: ReturnType<typeof contentCanvasGraphIndex>,
-) {
-  for (const edge of graphIndex.edgesByNodeId.get(stateId) ?? []) {
-    const otherId = edge.source === stateId ? edge.target : edge.source
-    const other = graphIndex.nodeById.get(otherId)
-    if (other?.kind === 'setting' && edge.kind === 'hierarchy') return other
-  }
-  return undefined
-}
-
-export function radialVariantForKind(kind: ContentCanvasNodeKind): RadialNode['variant'] {
-  if (kind === 'state') return 'state'
-  if (kind === 'asset') return 'asset'
-  if (kind === 'expression_unit') return 'expression'
-  if (kind === 'shot') return 'shot'
-  if (kind === 'keyframe') return 'keyframe'
-  if (kind === 'storyboard') return 'storyboard'
-  return undefined
-}
-
-export function iconForContentNode(node: Pick<ContentCanvasNode, 'kind' | 'subtitle'>): LucideIcon {
-  if (node.kind === 'scene_moment') return Film
-  if (node.kind === 'production') return Box
-  if (node.kind === 'segment') return Rows3
-  if (node.kind === 'state') return CircleDot
-  if (node.kind === 'asset') return Image
-  if (node.kind === 'shot') return Video
-  if (node.kind === 'storyboard') return FileImage
-  if (node.kind === 'keyframe') return KeyRound
-  if (node.kind === 'expression_unit') return SquareStack
-  if (node.kind === 'content_unit') return TextCursorInput
-  if (node.kind === 'audio_cue') return WandSparkles
-  if (node.kind === 'setting') {
-    const subtype = node.subtitle.toLowerCase()
-    if (subtype.includes('character') || subtype.includes('角色')) return UserRound
-    if (subtype.includes('location') || subtype.includes('场景')) return Building2
-    if (subtype.includes('prop') || subtype.includes('道具')) return Box
-    if (subtype.includes('costume') || subtype.includes('服装')) return Shirt
-    if (subtype.includes('visual') || subtype.includes('视觉')) return Palette
-    if (subtype.includes('rule') || subtype.includes('规则')) return ScrollText
-    if (subtype.includes('sound') || subtype.includes('声音')) return WandSparkles
-  }
-  return Star
-}
-
-function codeForKind(kind: ContentCanvasNodeKind) {
-  if (kind === 'scene_moment') return 'SCN'
-  if (kind === 'production') return 'PRO'
-  if (kind === 'segment') return 'SEG'
-  if (kind === 'expression_unit') return 'EXP'
-  if (kind === 'content_unit') return 'UNIT'
-  if (kind === 'storyboard') return 'BOARD'
-  if (kind === 'keyframe') return 'KEY'
-  return kind.toUpperCase().slice(0, 5)
-}
-
-export function contentCanvasStructureTree(graph: ContentCanvasGraph, activeSceneId?: string): TreeNodeData[] {
+export function contentCanvasStructureTree(graph: ContentCanvasGraph, activeSceneId?: string, activeProductionId?: string): TreeNodeData[] {
   const productions = graph.nodes.filter((node) => node.kind === 'production')
   const segments = graph.nodes.filter((node) => node.kind === 'segment')
   const scenes = graph.nodes.filter((node) => node.kind === 'scene_moment')
@@ -339,26 +31,32 @@ export function contentCanvasStructureTree(graph: ContentCanvasGraph, activeScen
     if (child) appendMapArray(childrenBySource, edge.source, child)
   }
   const roots = productions.length ? productions : segments.length ? segments : scenes
-  return roots.map((node) => structureNodeFromContentNode(node, childrenBySource, activeSceneId))
+  return roots.map((node) => structureNodeFromContentNode(node, childrenBySource, activeSceneId, activeProductionId))
 }
 
 function structureNodeFromContentNode(
   node: ContentCanvasNode,
   childrenBySource: Map<string, ContentCanvasNode[]>,
   activeSceneId?: string,
+  activeProductionId?: string,
 ): TreeNodeData {
   const children = (childrenBySource.get(node.id) ?? [])
     .filter((child) => child.kind === 'segment' || child.kind === 'scene_moment')
-    .map((child) => structureNodeFromContentNode(child, childrenBySource, activeSceneId))
+    .map((child) => structureNodeFromContentNode(child, childrenBySource, activeSceneId, activeProductionId))
   return {
     id: node.id,
+    kind: node.kind,
     title: node.title,
     meta: `${node.kind} · ${node.subtitle}`,
-    code: codeForKind(node.kind),
+    code: contentCanvasCodeForKind(node.kind),
     tone: node.kind === 'segment' ? 'violet' : 'blue',
-    active: node.id === activeSceneId,
+    active: node.id === activeSceneId || node.id === activeProductionId,
     children,
   }
+}
+
+function appendMapArray<T>(map: Map<string, T[]>, key: string, value: T) {
+  map.set(key, [...(map.get(key) ?? []), value])
 }
 
 export function sceneTimelineItemsFromGraph(
@@ -382,15 +80,99 @@ export function sceneTimelineItemsFromGraph(
   ] satisfies TimelineTrack[]).filter((track) => track.items.length > 0)
 }
 
+export function timelineItemsFromOpenCutDocument(document: OpenCutTimelineDocumentLike | undefined): TimelineTrack[] {
+  if (document?.schema !== 'opencut.timeline.v1') return []
+  const scenes = document.project?.scenes ?? []
+  const scene = scenes.find((candidate) => candidate.id && candidate.id === document.project?.currentSceneId) ?? scenes[0]
+  if (!scene) return []
+  const duration = Math.max(
+    12,
+    numberField(document.project?.metadata?.duration) ?? 0,
+    ...scene.tracks?.flatMap((track) => (track.elements ?? []).map((element) =>
+      (numberField(element.startTime) ?? 0) + (numberField(element.duration) ?? 0),
+    )) ?? [],
+  )
+  const tracks: TimelineTrack[] = []
+  for (const track of scene.tracks ?? []) {
+    if (track.hidden === true) continue
+    const kind = timelineTrackKindForOpenCutTrack(track.type)
+    if (!kind) continue
+    const items = (track.elements ?? [])
+      .filter((element) => element.hidden !== true)
+      .map((element, index) => timelineItemFromOpenCutElement(element, `${track.id ?? kind}_${index}`, duration))
+      .filter((item): item is TimelineItem => item !== undefined)
+      .sort((left, right) => (left.startSec ?? 0) - (right.startSec ?? 0) || left.id.localeCompare(right.id))
+    if (items.length > 0) {
+      tracks.push({
+        kind,
+        label: timelineTrackLabel(kind),
+        items,
+      })
+    }
+  }
+  return tracks.sort((left, right) => timelineTrackRank(left.kind) - timelineTrackRank(right.kind))
+}
+
+function timelineItemFromOpenCutElement(
+  element: OpenCutTimelineElementLike,
+  fallbackId: string,
+  totalDuration: number,
+): TimelineItem | undefined {
+  const kind = timelineTrackKindForOpenCutElement(element.type)
+  if (!kind) return undefined
+  const startSec = numberField(element.startTime) ?? 0
+  const durationSec = Math.max(0.1, numberField(element.duration) ?? 4)
+  const movscript = element.metadata?.movscript
+  return {
+    id: element.id ?? fallbackId,
+    title: element.name?.trim() || element.id || fallbackId,
+    type: kind === 'subtitle' ? 'text' : kind,
+    startSec,
+    durationSec,
+    trimStartSec: numberField(element.trimStart),
+    trimEndSec: numberField(element.trimEnd),
+    resourceId: numberField(movscript?.resourceId),
+    contentUnitId: movscript?.contentUnitId !== undefined ? String(movscript.contentUnitId) : undefined,
+    status: movscript?.stale === true ? 'stale' : movscript?.selected === true ? 'selected' : numberField(movscript?.resourceId) !== undefined ? 'ready' : 'missing',
+    start: Math.min(94, Math.max(2, (startSec / totalDuration) * 94 + 2)),
+    width: Math.max(6, Math.min(96, (durationSec / totalDuration) * 94)),
+  }
+}
+
+function timelineTrackKindForOpenCutTrack(type: string | undefined): TimelineTrackKind | undefined {
+  if (type === 'video') return 'video'
+  if (type === 'audio') return 'audio'
+  if (type === 'text') return 'subtitle'
+  return undefined
+}
+
+function timelineTrackKindForOpenCutElement(type: string | undefined): TimelineTrackKind | undefined {
+  if (type === 'video' || type === 'image') return 'video'
+  if (type === 'audio') return 'audio'
+  if (type === 'text') return 'subtitle'
+  return undefined
+}
+
+function timelineTrackLabel(kind: TimelineTrackKind): string {
+  if (kind === 'audio') return '音频'
+  if (kind === 'subtitle') return '字幕'
+  return '视频'
+}
+
+function timelineTrackRank(kind: TimelineTrackKind): number {
+  if (kind === 'audio') return 0
+  if (kind === 'video') return 1
+  return 2
+}
+
 function timelineItemsFromNodes(nodes: ContentCanvasNode[]): TimelineItem[] {
   const items = nodes.slice(0, 8)
-  const width = items.length ? Math.max(10, Math.floor(80 / items.length)) : 18
-  return items.map((node, index) => ({
-    id: node.id,
-    title: node.title,
-    type: node.kind,
-    width,
-    start: Math.min(86, 4 + index * Math.max(10, width)),
+  const timelineItems = items.map((node, index) => timelineItemFromNode(node, index))
+  const duration = Math.max(12, ...timelineItems.map((item) => (item.startSec ?? 0) + (item.durationSec ?? 4)))
+  return timelineItems.map((item) => ({
+    ...item,
+    start: Math.min(92, Math.max(2, ((item.startSec ?? 0) / duration) * 94 + 2)),
+    width: Math.max(8, Math.min(94, ((item.durationSec ?? 4) / duration) * 94)),
   }))
 }
 
@@ -410,6 +192,57 @@ function timelineTrackKindForNode(node: ContentCanvasNode): TimelineTrackKind {
   if (value.includes('subtitle') || value.includes('caption') || value.includes('字幕')) return 'subtitle'
   if (value.includes('audio') || value.includes('voice') || value.includes('dialogue') || value.includes('sound') || value.includes('music') || value.includes('声音') || value.includes('音频')) return 'audio'
   return 'video'
+}
+
+function timelineItemFromNode(node: ContentCanvasNode, index: number): TimelineItem {
+  const timing = recordField(node.record.timing_intent)
+    ?? recordField(node.record.timing)
+    ?? recordField(node.generationTask?.record.timing_intent)
+    ?? recordField(node.generationTask?.record.timing)
+  const selected = node.generationTask?.selectedCandidate ?? node.candidates.find((candidate) => candidate.selected)
+  const durationSec = numberField(timing?.duration_sec ?? timing?.durationSec)
+    ?? durationFromInOut(timing)
+    ?? numberField(selected?.resourceKind === 'video' ? node.record.duration_sec : undefined)
+    ?? 4
+  const startSec = numberField(timing?.timeline_start_sec ?? timing?.timelineStartSec ?? timing?.start_time_sec ?? timing?.startTimeSec) ?? index * durationSec
+  return {
+    id: node.id,
+    title: node.title,
+    type: node.kind,
+    width: 18,
+    start: 2,
+    startSec,
+    durationSec,
+    trimStartSec: numberField(timing?.trim_start_sec ?? timing?.trimStartSec ?? timing?.in_sec ?? timing?.start_sec),
+    trimEndSec: numberField(timing?.trim_end_sec ?? timing?.trimEndSec),
+    resourceId: selected?.resourceId,
+    status: timelineStatusForNode(node),
+    contentUnitId: node.kind === 'content_unit' ? node.entityKey : node.generationTask?.id,
+  }
+}
+
+function timelineStatusForNode(node: ContentCanvasNode): TimelineItem['status'] {
+  const status = node.generationTask?.status
+  if (status === 'selected' || status === 'stale' || status === 'needs_candidate') return status
+  if (node.status === 'missing') return 'missing'
+  return node.candidates.some((candidate) => candidate.selected) ? 'selected' : 'ready'
+}
+
+function durationFromInOut(timing: Record<string, unknown> | undefined): number | undefined {
+  const start = numberField(timing?.start_sec ?? timing?.startSec ?? timing?.in_sec ?? timing?.inSec)
+  const end = numberField(timing?.end_sec ?? timing?.endSec ?? timing?.out_sec ?? timing?.outSec)
+  if (start === undefined || end === undefined || end <= start) return undefined
+  return end - start
+}
+
+function recordField(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function numberField(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return undefined
 }
 
 export function settingKindFromNode(node: ContentCanvasNode): SettingKind | 'relationship' {
@@ -433,11 +266,12 @@ export function contentStatusLabel(status: ContentCanvasNode['status']) {
 
 export function promptFromContentNode(node: ContentCanvasNode | undefined) {
   if (!node) return undefined
+  if (node.generationTask?.prompt) return node.generationTask.prompt
   return stringField(node.record, 'prompt', 'prompt_text', 'generation_prompt', 'description') || node.summary
 }
 
 export function candidatesForNode(node: ContentCanvasNode | undefined) {
-  return node?.candidates ?? []
+  return node?.generationTask?.candidates ?? node?.candidates ?? []
 }
 
 export function selectedCandidateForNode(node: ContentCanvasNode | undefined, candidateSelections: CandidateSelections) {
@@ -450,11 +284,79 @@ export function selectedCandidateForNode(node: ContentCanvasNode | undefined, ca
 }
 
 export function nodeCandidateBadge(node: ContentCanvasNode | undefined, candidateSelections: CandidateSelections) {
+  const decision = candidateDecisionForNode(node, candidateSelections)
+  return decision ? `${decision.label} · ${decision.candidateCount} 候选` : ''
+}
+
+export function candidateDecisionForNode(node: ContentCanvasNode | undefined, candidateSelections: CandidateSelections): CandidateDecision | null {
+  if (!node) return null
   const candidates = candidatesForNode(node)
-  if (!node || candidates.length === 0) return ''
-  const selectedCandidate = selectedCandidateForNode(node, candidateSelections)
-  const selectedLabel = selectedCandidate ? `已选 ${selectedCandidate.title}` : '未选择'
-  return `${selectedLabel} · ${candidates.length} 候选`
+  const hasExplicitSelection = Boolean(candidateSelections[node.id]) || candidates.some((candidate) => candidate.selected)
+  if (isCandidateDecisionStale(node)) {
+    return {
+      tone: 'stale',
+      label: '需复查',
+      summary: candidates.length ? '上游内容可能已变化，请复核当前候选是否仍然有效。' : '上游内容可能已变化，需要重新生成候选。',
+      actionLabel: candidates.length ? '复核候选' : '重新生成',
+      candidateCount: candidates.length,
+      hasExplicitSelection,
+    }
+  }
+  if (isCandidateDecisionLocked(node)) {
+    return {
+      tone: 'locked',
+      label: '已锁定',
+      summary: hasExplicitSelection ? '当前候选已确认并锁定。' : '节点已锁定，但还没有明确候选选择。',
+      actionLabel: '解锁',
+      candidateCount: candidates.length,
+      hasExplicitSelection,
+    }
+  }
+  if (candidates.length === 0) {
+    return {
+      tone: 'empty',
+      label: '待生成',
+      summary: '还没有可比较的候选结果。',
+      actionLabel: '生成候选',
+      candidateCount: 0,
+      hasExplicitSelection: false,
+    }
+  }
+  if (!hasExplicitSelection) {
+    return {
+      tone: 'pending',
+      label: '待选择',
+      summary: '已有候选结果，但尚未确认当前选择。',
+      actionLabel: '选择候选',
+      candidateCount: candidates.length,
+      hasExplicitSelection,
+    }
+  }
+  return {
+    tone: 'selected',
+    label: '已选择',
+    summary: '当前候选已经被选中，可继续锁定或用于下游表达。',
+    actionLabel: '锁定选择',
+    candidateCount: candidates.length,
+    hasExplicitSelection,
+  }
+}
+
+function isCandidateDecisionLocked(node: ContentCanvasNode) {
+  if (node.generationTask?.status === 'selected') return false
+  return booleanField(node.record, 'locked', 'is_locked', 'isLocked', 'decision_locked', 'decisionLocked')
+    || stringField(node.record, 'decision_state', 'decisionState', 'selection_state', 'selectionState', 'state').toLowerCase() === 'locked'
+}
+
+function isCandidateDecisionStale(node: ContentCanvasNode) {
+  if (node.generationTask?.status === 'stale') return true
+  if (node.status === 'missing') return true
+  const state = stringField(node.record, 'decision_state', 'decisionState', 'selection_state', 'selectionState', 'state', 'status').toLowerCase()
+  return booleanField(node.record, 'stale', 'is_stale', 'isStale', 'invalidated', 'outdated', 'needs_review', 'needsReview')
+    || state === 'stale'
+    || state === 'invalidated'
+    || state === 'outdated'
+    || state === 'needs_review'
 }
 
 type NodeMediaKind = 'image' | 'video' | 'audio' | 'text' | 'board' | 'keyframe' | 'scene' | 'unknown'
@@ -526,4 +428,18 @@ export function stringField(record: Record<string, unknown> | undefined, ...keys
     if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   }
   return ''
+}
+
+function booleanField(record: Record<string, unknown> | undefined, ...keys: string[]) {
+  if (!record) return false
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (normalized === 'true' || normalized === 'yes' || normalized === '1') return true
+      if (normalized === 'false' || normalized === 'no' || normalized === '0') return false
+    }
+  }
+  return false
 }

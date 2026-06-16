@@ -146,6 +146,67 @@ test('resolves upstream content units from flat primary refs', async () => {
   assert.deepEqual(result.prompt.resource_ids, [123])
 })
 
+test('resolves production and segment prompt refs from specialized video content units', async () => {
+  const index = indexFromDocuments([
+    document('productions/p1/production.json', {
+      schema: 'movscript.production.v1',
+      kind: 'production',
+      id: 'p1',
+      title: 'Pilot',
+    }),
+    document('productions/p1/segments/opening/segment.json', {
+      schema: 'movscript.segment.v1',
+      kind: 'segment',
+      id: 'opening',
+      title: 'Opening',
+      order: 1,
+    }),
+    document('content_units/cu_opening_video/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_opening_video',
+      title: 'Opening assembly',
+      content_unit_type: 'segment_ref',
+      output_kind: 'video',
+      target_kind: 'segment',
+      target_ref: 'productions/p1/segments/opening',
+      segment_ref: 'opening',
+      edit_prompt: { text: 'Compose the opening segment.' },
+    }),
+    document('content_units/cu_pilot_final/content_unit.json', {
+      schema: 'movscript.content_unit.v1',
+      kind: 'content_unit',
+      id: 'cu_pilot_final',
+      title: 'Pilot final',
+      content_unit_type: 'production_ref',
+      output_kind: 'video',
+      target_kind: 'production',
+      target_ref: 'p1',
+      production_ref: 'p1',
+      edit_prompt: { text: 'Use {{segment:opening}} as the opening assembly.' },
+    }),
+  ])
+
+  const result = await buildContentUnitBackendPromptById({
+    index,
+    contentUnitId: 'cu_pilot_final',
+    decisionProvider: decisionProvider({
+      cu_opening_video: {
+        candidates: [{ id: 'candidate_opening', outputs: [{ kind: 'video', resource_id: 701 }] }],
+        selection: { candidate_id: 'candidate_opening', resource_id: 701 },
+      },
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.prompt.output_kind, 'video')
+  assert.equal(result.prompt.text, 'Use [[resource::701]] as the opening assembly.')
+  assert.deepEqual(result.prompt.resource_ids, [701])
+  assert.equal(result.prompt.refs[0]?.kind, 'segment')
+  assert.equal(result.prompt.refs[0]?.resolved?.entityKind, 'segment')
+  assert.equal(result.prompt.refs[0]?.upstream_content_unit_id, 'cu_opening_video')
+})
+
 test('returns a blocker when an upstream ref has not been produced in backend decisions', async () => {
   const index = indexFromDocuments([
     document('settings/hero/states/rain/assets/wet_hair/asset.json', {

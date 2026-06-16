@@ -71,6 +71,8 @@ function normalizeContentUnitRecord(
     order: finiteNumber(unit.order) ?? finiteNumber(current.order),
     description: stringValue(unit.description ?? current.description) ?? '',
     asset_ref: stringValue(unit.asset_ref ?? unit.assetRef ?? current.asset_ref),
+    production_ref: stringValue(unit.production_ref ?? unit.productionRef ?? current.production_ref),
+    segment_ref: stringValue(unit.segment_ref ?? unit.segmentRef ?? current.segment_ref),
     keyframe_ref: stringValue(unit.keyframe_ref ?? unit.keyframeRef ?? current.keyframe_ref),
     storyboard_ref: stringValue(unit.storyboard_ref ?? unit.storyboardRef ?? current.storyboard_ref),
     scene_moment_ref: stringValue(unit.scene_moment_ref ?? unit.sceneMomentRef ?? current.scene_moment_ref),
@@ -96,6 +98,8 @@ function defaultOutputKind(contentUnitType: string): string {
       return 'image'
     case 'scence_moment_ref':
     case 'scene_moment_ref':
+    case 'production_ref':
+    case 'segment_ref':
     case 'shot_ref':
       return 'video'
     case 'expression_unit_ref':
@@ -128,6 +132,10 @@ function primaryRefKindForContentUnitType(contentUnitType: string): string | und
       return 'keyframe'
     case 'storyboard_ref':
       return 'storyboard'
+    case 'production_ref':
+      return 'production'
+    case 'segment_ref':
+      return 'segment'
     case 'scence_moment_ref':
     case 'scene_moment_ref':
       return 'scene_moment'
@@ -152,6 +160,10 @@ function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind
       return compactStrings(record.keyframe_ref)
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
+    case 'production':
+      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
+    case 'segment':
+      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
     case 'expression_unit':

@@ -6,6 +6,7 @@ import (
 	"context"
 
 	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
+	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 type APIKeyCreateRuntimeInput struct{}
@@ -25,10 +26,14 @@ func (p *PolicyService) enforceKeyRuntimeLimits(ctx context.Context, key *domain
 	return nil
 }
 
-func APIKeyNewAPIGroup(key *domaingateway.APIKey) string {
+func APIKeyProviderRouteGroup(key *domaingateway.APIKey) string {
 	return ""
 }
 
-func (s *Service) newAPIGroupForPrincipal(ctx context.Context, principal Principal) string {
-	return APIKeyNewAPIGroup(principal.Key)
+func (s *Service) providerRouteGroupForPrincipal(ctx context.Context, principal Principal) string {
+	return APIKeyProviderRouteGroup(principal.Key)
+}
+
+func (s *Service) providerRouteContextForPrincipal(ctx context.Context, principal Principal) context.Context {
+	return ai.WithProviderRouteGroup(ctx, s.providerRouteGroupForPrincipal(ctx, principal))
 }

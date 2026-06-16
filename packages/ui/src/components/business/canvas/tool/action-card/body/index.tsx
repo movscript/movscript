@@ -24,10 +24,10 @@ export function CanvasToolActionCardBody({
   const showConfigSection = configs !== undefined;
 
   return (
-    <div className="canvas-tool-action-card__body">
+    <div className="ms-grid-stack canvas-tool-action-card__body">
       <div>
         <CanvasToolSectionTitle icon={<TextIcon size={12} />} label={labels?.inputs ?? "输入"} />
-        <div className="canvas-tool-action-card__stack">
+        <div className="ms-grid-stack canvas-tool-action-card__stack">
           {visibleInputs.length > 0 ? (
             visibleInputs.map((slot) => (
               <CanvasToolSlotRow
@@ -51,7 +51,7 @@ export function CanvasToolActionCardBody({
       {showConfigSection ? (
         <div className="canvas-tool-action-card__config-column">
           <CanvasToolSectionTitle icon={<SettingsIcon size={12} />} label={labels?.configs ?? "配置"} />
-          <div className="canvas-tool-action-card__stack">
+          <div className="ms-grid-stack canvas-tool-action-card__stack">
             {visibleConfigs.length > 0 ? (
               visibleConfigs.map((item) => <CanvasToolConfigPill key={item.id} item={item} />)
             ) : (
@@ -63,7 +63,7 @@ export function CanvasToolActionCardBody({
 
       <div className="canvas-tool-action-card__output-section">
         <CanvasToolSectionTitle icon={<ImageIcon size={12} />} label={labels?.outputs ?? "输出"} />
-        <div className="canvas-tool-action-card__output-grid">
+        <div className="ms-grid-stack canvas-tool-action-card__output-grid">
           {visibleOutputs.length > 0 ? (
             visibleOutputs.map((slot) => (
               <CanvasToolOutputTile

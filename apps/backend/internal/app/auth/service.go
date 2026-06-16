@@ -300,6 +300,14 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	return result, nil
 }
 
+func (s *Service) EmailExists(ctx context.Context, email string) (bool, error) {
+	email = normalizeEmail(email)
+	if email == "" {
+		return false, ErrInvalidInput
+	}
+	return s.repo.EmailExists(ctx, email)
+}
+
 func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInput) (domainauth.AuthChallenge, error) {
 	challenge, err := s.repo.FindChallenge(ctx, input.ChallengeID)
 	if err != nil {

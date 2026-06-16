@@ -1,11 +1,7 @@
 .ms-agent-empty {
-  display: flex;
   min-height: 100%;
   max-width: 560px;
   margin: 0 auto;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
   gap: 14px;
   color: var(--ms-color-muted-foreground);
   text-align: center;

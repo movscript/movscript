@@ -2,7 +2,6 @@ import { Bot, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  AgentChatMessage,
   AgentRunActivityBubble,
   AgentRunActivityChatBadge,
   AgentRunActivityCodeDisclosure,
@@ -20,6 +19,7 @@ import {
   AgentRunActivityStatusBadge,
   AgentRunActivityStatusDot
 } from '@movscript/ui/business/agent'
+import { AgentChatMessage } from '@/shared/ui/AgentMessageUi'
 import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'

@@ -6,7 +6,7 @@ import { AppInlineMeta, AppMediaFrame, AppSurfaceItem } from "../../../app";
 
 export function GenerationSlotList({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("generation-input-slots", className)} {...props}>
+    <div className={cn("ms-stack generation-input-slots", className)} {...props}>
       {children}
     </div>
   );
@@ -35,15 +35,15 @@ export function GenerationInputSlotCard({
       variant="muted"
       density="compact"
       data-state={state}
-      className={cn("generation-input-slot", className)}
+      className={cn("ms-stack generation-input-slot", className)}
       {...props}
     >
-      <div className="generation-input-slot__header">
+      <div className="ms-action-row generation-input-slot__header">
         <span className="generation-input-slot__index">{indexLabel}</span>
         <span className="generation-input-slot__icon">{icon}</span>
-        <span className="generation-input-slot__label">{label}</span>
-        {requiredLabel ? <span className="generation-input-slot__meta">{requiredLabel}</span> : null}
-        {limitLabel ? <span className="generation-input-slot__meta">{limitLabel}</span> : null}
+        <span className="ms-text-truncate ms-type-label generation-input-slot__label">{label}</span>
+        {requiredLabel ? <span className="ms-type-caption generation-input-slot__meta">{requiredLabel}</span> : null}
+        {limitLabel ? <span className="ms-type-caption generation-input-slot__meta">{limitLabel}</span> : null}
       </div>
       {children}
     </AppSurfaceItem>
@@ -52,7 +52,7 @@ export function GenerationInputSlotCard({
 
 export function GenerationSlotAttachmentList({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("generation-input-slot__attachments", className)} {...props}>
+    <div className={cn("ms-action-row generation-input-slot__attachments", className)} {...props}>
       {children}
     </div>
   );
@@ -78,7 +78,7 @@ export function GenerationSlotAttachmentTag({
       <AppMediaFrame variant="thumb" className="generation-input-slot-tag__media">
         {media}
       </AppMediaFrame>
-      <span className="generation-input-slot-tag__label">{label}</span>
+      <span className="ms-text-truncate generation-input-slot-tag__label">{label}</span>
       <Button
         type="button"
         onClick={onRemove}
@@ -102,8 +102,8 @@ export function GenerationSlotEmpty({
   icon: ReactNode;
 }) {
   return (
-    <div className={cn("generation-input-slot__empty", className)} {...props}>
-      <span className="generation-input-slot__empty-icon">{icon}</span>
+    <div className={cn("ms-action-row ms-type-caption generation-input-slot__empty", className)} {...props}>
+      <span className="ms-inline-center generation-input-slot__empty-icon">{icon}</span>
       <span>{children}</span>
     </div>
   );

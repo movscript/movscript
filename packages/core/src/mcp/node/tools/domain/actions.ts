@@ -3,7 +3,19 @@ import { isRecord, stringValue } from '../../../tools/shared/record.js'
 import type { MovScriptContentCandidateWriteInput } from '@movscript/workspace'
 import { saveMovScriptProductionWorkspaceSnapshot } from '@movscript/workspace'
 import { createNodeMovScriptWorkspaceFileRepository } from '@movscript/workspace/node'
+import type { ContentCandidateRecord, ContentSelectionRecord, ContentSourceWorkspaceSnapshot, WorkspacePreviewTimelineArtifact, WorkspacePreviewTimelineItem } from '../../../../content/index.js'
 import type { SemanticEntityKind } from '@movscript/language/domain'
+import {
+  buildOpenCutComposeInputs,
+  createOpenCutEditingService,
+  createOpenCutTimelineFromMovScriptEditPlan,
+  defaultOpenCutTransform,
+  type MovScriptEditPlanArtifact,
+  type OpenCutCommand,
+  type OpenCutTimelineDocument,
+  type OpenCutVideoElement,
+  type OpenCutVideoTrack,
+} from '@movscript/editing'
 import {
   createMovScriptDomainRuntime,
   invalidateMovScriptDomainRuntime,
@@ -14,6 +26,18 @@ import { composeResourceVideosToResource } from '../resource-media/actions.js'
 
 type Args = Record<string, unknown>
 type ContentCandidateStatus = NonNullable<MovScriptContentCandidateWriteInput['status']>
+type ProductionTimelineClip = {
+  id: string
+  sceneMomentId?: string | number
+  sceneMomentPath?: string
+  sceneMomentTitle?: string
+  contentUnitId: string | number
+  candidateId?: string | number
+  resourceId: number
+  title: string
+  order: number
+  durationSec: number
+}
 type SceneMomentEditPlan = {
   status?: string
   sceneMomentId?: string | number
@@ -113,8 +137,77 @@ export async function domainReadPreviewTimeline(args: Args): Promise<unknown> {
   return service(args).readPreviewTimeline(requiredId(args.productionId ?? args.production_id, 'productionId'))
 }
 
+export async function domainReadProductionTimeline(args: Args): Promise<unknown> {
+  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const bundle = await productionTimelineBundle(args, productionId)
+  return {
+    status: bundle.blockers.length === 0 ? 'ok' : 'blocked',
+    production_id: productionId,
+    preview_timeline: bundle.previewTimeline,
+    timeline_document: bundle.timelineDocument,
+    compose_inputs: buildOpenCutComposeInputs(bundle.timelineDocument),
+    clips: bundle.clips,
+    blockers: bundle.blockers,
+  }
+}
+
 export async function domainReadSceneMomentEditPlan(args: Args): Promise<unknown> {
   return service(args).readSceneMomentEditPlan(requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId'))
+}
+
+export async function domainReadSceneMomentTimeline(args: Args): Promise<unknown> {
+  const sceneMomentId = requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId')
+  const editPlan = await requiredSceneMomentEditPlan(args, sceneMomentId)
+  const timelineDocument = createOpenCutTimelineFromMovScriptEditPlan(editPlan, {
+    projectId: stringValue(args.timelineProjectId ?? args.timeline_project_id),
+    projectName: stringValue(args.projectName ?? args.project_name),
+    sceneName: stringValue(args.sceneName ?? args.scene_name),
+    defaultDurationSec: numberValue(args.defaultDurationSec ?? args.default_duration_sec),
+  })
+  return {
+    status: 'ok',
+    scene_moment_id: sceneMomentId,
+    edit_plan_status: editPlan.status,
+    edit_plan: editPlan,
+    timeline_document: timelineDocument,
+    compose_inputs: buildOpenCutComposeInputs(timelineDocument),
+  }
+}
+
+export async function domainApplySceneMomentTimelineCommands(args: Args): Promise<unknown> {
+  const timelineDocument = openCutTimelineDocumentFromArgs(args)
+    ?? createOpenCutTimelineFromMovScriptEditPlan(
+      await requiredSceneMomentEditPlan(args, requiredId(args.sceneMomentId ?? args.scene_moment_id, 'sceneMomentId')),
+    )
+  const commands = openCutCommandsFromArgs(args)
+  const editing = createOpenCutEditingService(timelineDocument, {
+    idFactory: (prefix) => `${prefix}_${randomUUID().slice(0, 8)}`,
+  })
+  for (const command of commands) editing.applyCommand(command)
+  const nextDocument = editing.getDocument()
+  return {
+    status: 'ok',
+    command_count: commands.length,
+    timeline_document: nextDocument,
+    compose_inputs: editing.buildComposeInputs(),
+  }
+}
+
+export async function domainApplyProductionTimelineCommands(args: Args): Promise<unknown> {
+  const timelineDocument = openCutTimelineDocumentFromArgs(args)
+    ?? (await productionTimelineBundle(args, requiredId(args.productionId ?? args.production_id, 'productionId'))).timelineDocument
+  const commands = openCutCommandsFromArgs(args)
+  const editing = createOpenCutEditingService(timelineDocument, {
+    idFactory: (prefix) => `${prefix}_${randomUUID().slice(0, 8)}`,
+  })
+  for (const command of commands) editing.applyCommand(command)
+  const nextDocument = editing.getDocument()
+  return {
+    status: 'ok',
+    command_count: commands.length,
+    timeline_document: nextDocument,
+    compose_inputs: editing.buildComposeInputs(),
+  }
 }
 
 export async function domainComposeSceneMomentFromEditPlan(args: Args): Promise<unknown> {
@@ -131,7 +224,8 @@ export async function domainComposeSceneMomentFromEditPlan(args: Args): Promise<
     }
   }
 
-  const videoItems = editPlanVideoItems(editPlan)
+  const timelineDocument = openCutTimelineDocumentFromArgs(args)
+  const videoItems = timelineDocument ? timelineVideoItems(timelineDocument) : editPlanVideoItems(editPlan)
   if (videoItems.length === 0) {
     return {
       status: 'blocked',
@@ -160,6 +254,7 @@ export async function domainComposeSceneMomentFromEditPlan(args: Args): Promise<
       scene_moment_id: sceneMomentId,
       scene_moment_path: editPlan.sceneMomentPath,
       input_resource_ids: videoItems.map((item) => item.resource_id),
+      timeline_document: timelineDocument,
       ignored_tracks: editPlan.tracks?.filter((track) => track.type !== 'video').map((track) => track.type).filter(isString) ?? [],
       composed,
     },
@@ -182,6 +277,7 @@ export async function domainComposeSceneMomentFromEditPlan(args: Args): Promise<
         compose: {
           video_items: videoItems,
           resource_id: resourceId,
+          ...(timelineDocument ? { timeline_document: timelineDocument } : {}),
         },
       },
     })
@@ -212,6 +308,96 @@ export async function domainComposeSceneMomentFromEditPlan(args: Args): Promise<
     compose: composed,
     candidate,
     message: `Composed scene_moment ${String(sceneMomentId)} from ${videoItems.length} selected video item(s) to content unit ${String(contentUnitId)} candidate ${String(candidateId)}.`,
+  }
+}
+
+export async function domainComposeProductionFromTimeline(args: Args): Promise<unknown> {
+  const productionId = requiredId(args.productionId ?? args.production_id, 'productionId')
+  const contentUnitId = requiredId(args.contentUnitId ?? args.content_unit_id, 'contentUnitId')
+  const candidateId = idValue(args.candidateId ?? args.candidate_id ?? `production_comp_${randomUUID().slice(0, 8)}`)
+  const timelineDocument = openCutTimelineDocumentFromArgs(args)
+    ?? (await productionTimelineBundle(args, productionId)).timelineDocument
+  const videoItems = timelineVideoItems(timelineDocument)
+  if (videoItems.length === 0) {
+    return {
+      status: 'blocked',
+      production_id: productionId,
+      content_unit_id: contentUnitId,
+      blockers: [{ code: 'video_track_missing', message: `production ${String(productionId)} timeline has no selected scene_moment video resources` }],
+      timeline_document: timelineDocument,
+    }
+  }
+
+  const filename = stringValue(args.filename ?? args.name) ?? `production-${String(productionId)}-${String(candidateId)}.mp4`
+  const composed = await composeResourceVideosToResource({
+    ...args,
+    items: videoItems,
+    filename,
+  })
+  const resourceId = numberValue(composed.resource_id ?? composed.video_resource_id)
+  if (resourceId === undefined) throw new Error('production compose did not return a video resource_id')
+
+  const outputs: MovScriptContentCandidateWriteInput['outputs'] = [{
+    kind: 'video',
+    resource_id: resourceId,
+    mime_type: stringValue(composed.mime_type) ?? 'video/mp4',
+    ...(numberValue(composed.duration_sec) !== undefined ? { duration_sec: numberValue(composed.duration_sec) } : {}),
+    metadata: {
+      operation: 'production_timeline_compose',
+      production_id: productionId,
+      input_resource_ids: videoItems.map((item) => item.resource_id),
+      timeline_document: timelineDocument,
+      composed,
+    },
+  }]
+  const candidate = await runtimeMutation(args, async (runtime) => {
+    const created = await runtime.createContentCandidate({
+      contentUnitId,
+      candidateId,
+      source: stringValue(args.source) ?? 'production_timeline_compose',
+      status: contentCandidateStatus(args.status) ?? 'succeeded',
+      producer: {
+        kind: 'agent',
+        tool: 'domain_compose_production_from_timeline',
+        production_id: productionId,
+      },
+      outputs,
+      promptSnapshot: {
+        schema: 'movscript.production_compose_prompt_snapshot.v1',
+        compose: {
+          video_items: videoItems,
+          resource_id: resourceId,
+          timeline_document: timelineDocument,
+        },
+      },
+    })
+    if (booleanValue(args.adopt ?? args.select) === true) {
+      await runtime.decideContentUnitCandidate({
+        contentUnitId,
+        candidateId,
+        decision: 'adopt',
+        resourceId,
+        reason: stringValue(args.reason) ?? 'Adopted composed production candidate from timeline.',
+        metadata: {
+          tool: 'domain_compose_production_from_timeline',
+          production_id: productionId,
+        },
+      })
+    }
+    return created
+  })
+
+  return {
+    status: 'created',
+    production_id: productionId,
+    content_unit_id: contentUnitId,
+    candidate_id: candidateId,
+    resource_id: resourceId,
+    video_resource_id: resourceId,
+    adopted: booleanValue(args.adopt ?? args.select) === true,
+    compose: composed,
+    candidate,
+    message: `Composed production ${String(productionId)} from ${videoItems.length} scene_moment video item(s) to content unit ${String(contentUnitId)} candidate ${String(candidateId)}.`,
   }
 }
 
@@ -913,6 +1099,368 @@ function editPlanVideoItems(editPlan: SceneMomentEditPlan): Array<Record<string,
     ?.filter((item) => item.track_type === 'video' && numberValue(item.resource_id) !== undefined)
     .map((item) => ({ resource_id: numberValue(item.resource_id) }))
     ?? []
+}
+
+async function requiredSceneMomentEditPlan(args: Args, sceneMomentId: string | number): Promise<MovScriptEditPlanArtifact> {
+  const editPlan = await service(args).readSceneMomentEditPlan(sceneMomentId)
+  if (!isRecord(editPlan)) throw new Error(`scene_moment ${String(sceneMomentId)} edit plan was not found; run domain_interpret first`)
+  return editPlan as unknown as MovScriptEditPlanArtifact
+}
+
+function openCutTimelineDocumentFromArgs(args: Args): OpenCutTimelineDocument | undefined {
+  const value = args.timelineDocument ?? args.timeline_document ?? args.document
+  if (!isRecord(value)) return undefined
+  if (value.schema !== 'opencut.timeline.v1') throw new Error('timeline_document.schema must be opencut.timeline.v1')
+  return value as unknown as OpenCutTimelineDocument
+}
+
+function openCutCommandsFromArgs(args: Args): OpenCutCommand[] {
+  const value = args.commands ?? args.command
+  const commands = Array.isArray(value) ? value : value === undefined ? [] : [value]
+  if (commands.length === 0) throw new Error('commands must contain at least one OpenCut timeline command')
+  return commands.map((command, index) => {
+    if (!isRecord(command) || !stringValue(command.type)) throw new Error(`commands[${index}] must be an OpenCut timeline command object`)
+    return command as unknown as OpenCutCommand
+  })
+}
+
+function timelineVideoItems(document: OpenCutTimelineDocument): Array<Record<string, unknown>> {
+  return buildOpenCutComposeInputs(document).map((input) => ({
+    resource_id: input.resource_id,
+    ...(numberValue(input.start_sec) !== undefined ? { start_sec: input.start_sec } : {}),
+    ...(numberValue(input.end_sec) !== undefined ? { end_sec: input.end_sec } : {}),
+    ...(numberValue(input.duration_sec) !== undefined ? { duration_sec: input.duration_sec } : {}),
+    trim_start_sec: input.trim_start_sec,
+    trim_end_sec: input.trim_end_sec,
+    timeline_start_sec: input.timeline_start_sec,
+    timeline_duration_sec: input.timeline_duration_sec,
+    element_id: input.elementId,
+    track_id: input.trackId,
+    content_unit_id: input.content_unit_id,
+  }))
+}
+
+async function productionTimelineBundle(args: Args, productionId: string | number): Promise<{
+  previewTimeline: WorkspacePreviewTimelineArtifact | undefined
+  timelineDocument: OpenCutTimelineDocument
+  clips: ProductionTimelineClip[]
+  blockers: Array<Record<string, unknown>>
+}> {
+  const runtime = service(args)
+  const snapshot = await runtime.loadContentWorkspaceSnapshot()
+  const previewTimeline = snapshot.previewTimelines.find((timeline) => sameId(timeline.productionId, productionId))
+  const blockers: Array<Record<string, unknown>> = []
+  if (!previewTimeline) {
+    blockers.push({ code: 'preview_timeline_missing', message: `production ${String(productionId)} preview timeline was not found; run domain_interpret first` })
+  }
+  const clips = previewTimeline ? await productionTimelineClips(runtime, snapshot, previewTimeline, blockers) : []
+  const timelineDocument = openCutProductionTimelineDocument({
+    productionId,
+    productionPath: previewTimeline?.productionPath,
+    projectName: stringValue(args.projectName ?? args.project_name),
+    clips,
+    now: stringValue(args.now),
+    defaultDurationSec: numberValue(args.defaultDurationSec ?? args.default_duration_sec) ?? 4,
+  })
+  return { previewTimeline, timelineDocument, clips, blockers }
+}
+
+async function productionTimelineClips(
+  runtime: MovScriptDomainRuntime,
+  snapshot: ContentSourceWorkspaceSnapshot,
+  previewTimeline: WorkspacePreviewTimelineArtifact,
+  blockers: Array<Record<string, unknown>>,
+): Promise<ProductionTimelineClip[]> {
+  const contentUnitsById = new Map(snapshot.contentUnits.map((unit) => [String(unit.id ?? pathSegmentAfter(unit.path, 'content_units') ?? unit.path), unit]))
+  const candidatesByContentUnitId = contentCandidateRecordsByContentUnitId(snapshot.indexDocuments)
+  const selectionsByContentUnitId = await productionTimelineSelectionsByContentUnitId(runtime, snapshot, previewTimeline)
+  const sceneItems = previewTimeline.items
+    .filter((item) => item.itemType === 'scene_moment')
+    .sort((left, right) => left.order - right.order)
+  return sceneItems.flatMap((item, index) => {
+    const contentUnitIds = productionSceneMomentContentUnitIds(snapshot, item)
+    if (contentUnitIds.length === 0) {
+      blockers.push({
+        code: 'scene_moment_content_unit_missing',
+        scene_moment_id: item.entity.id,
+        scene_moment_path: item.entity.path,
+        message: `scene_moment ${String(item.entity.id ?? item.entity.path)} has no scene_moment_ref video content unit`,
+      })
+      return []
+    }
+
+    for (const contentUnitId of contentUnitIds) {
+      const contentUnit = contentUnitsById.get(String(contentUnitId))
+      const selection = selectionsByContentUnitId.get(String(contentUnitId))
+      const candidateId = selection?.candidate_id
+      const candidate = candidateId !== undefined
+        ? candidatesByContentUnitId.get(String(contentUnitId))?.find((entry) => sameId(entry.id, candidateId))
+        : undefined
+      const resourceId = selectedVideoResourceId(candidate)
+      if (resourceId !== undefined) {
+        const durationSec = numberValue(firstCandidateOutput(candidate)?.duration_sec) ?? 4
+        return [{
+          id: `production_clip_${safeId(String(item.entity.id ?? index))}_${safeId(String(contentUnitId))}`,
+          sceneMomentId: item.entity.id,
+          sceneMomentPath: item.entity.path,
+          sceneMomentTitle: previewTimelineItemTitle(item),
+          contentUnitId,
+          candidateId,
+          resourceId,
+          title: previewTimelineItemTitle(item) ?? String(item.entity.id ?? item.entity.path ?? `Scene ${index + 1}`),
+          order: item.order,
+          durationSec,
+        }]
+      }
+      blockers.push({
+        code: candidateId === undefined ? 'scene_moment_selection_missing' : 'scene_moment_resource_missing',
+        scene_moment_id: item.entity.id,
+        scene_moment_path: item.entity.path,
+        content_unit_id: contentUnitId,
+        candidate_id: candidateId,
+        output_kind: stringValue(contentUnit?.record.output_kind),
+        message: candidateId === undefined
+          ? `scene_moment ${String(item.entity.id ?? item.entity.path)} content unit ${String(contentUnitId)} has no selected candidate`
+          : `scene_moment ${String(item.entity.id ?? item.entity.path)} selected candidate ${String(candidateId)} has no video resource_id`,
+      })
+    }
+    return []
+  })
+}
+
+async function productionTimelineSelectionsByContentUnitId(
+  runtime: MovScriptDomainRuntime,
+  snapshot: ContentSourceWorkspaceSnapshot,
+  previewTimeline: WorkspacePreviewTimelineArtifact,
+): Promise<Map<string, { candidate_id?: string | number }>> {
+  const output = selectionRecordsByContentUnitId(snapshot.indexDocuments)
+  const contentUnitIds = Array.from(new Map(previewTimeline.items
+    .filter((item) => item.itemType === 'scene_moment')
+    .flatMap((item) => productionSceneMomentContentUnitIds(snapshot, item))
+    .map((id) => [String(id), id])).values())
+  if (contentUnitIds.length === 0 || !runtime.decisionStore) return output
+  const contexts = runtime.decisionStore.getContentUnitDecisions
+    ? await runtime.decisionStore.getContentUnitDecisions({ contentUnitIds }).catch(() => undefined)
+    : undefined
+  if (contexts) {
+    for (const [contentUnitId, context] of contexts) {
+      const selection = decisionContextSelection(context)
+      if (selection) output.set(String(contentUnitId), selection)
+    }
+    return output
+  }
+  for (const contentUnitId of contentUnitIds) {
+    const context = await runtime.decisionStore.getContentUnitDecision({ contentUnitId }).catch(() => undefined)
+    const selection = decisionContextSelection(context)
+    if (selection) output.set(String(contentUnitId), selection)
+  }
+  return output
+}
+
+function decisionContextSelection(context: unknown): { candidate_id?: string | number } | undefined {
+  if (!isRecord(context) || !isRecord(context.selection)) return undefined
+  const candidateId = idValue(context.selection.candidate_id)
+  return candidateId === undefined ? undefined : { candidate_id: candidateId }
+}
+
+function openCutProductionTimelineDocument(input: {
+  productionId: string | number
+  productionPath?: string
+  projectName?: string
+  clips: ProductionTimelineClip[]
+  now?: string
+  defaultDurationSec: number
+}): OpenCutTimelineDocument {
+  const now = input.now ?? new Date().toISOString()
+  let cursor = 0
+  const elements = input.clips.map((clip): OpenCutVideoElement => {
+    const duration = clip.durationSec > 0 ? clip.durationSec : input.defaultDurationSec
+    const element: OpenCutVideoElement = {
+      id: clip.id,
+      name: clip.title,
+      type: 'video',
+      mediaId: `movscript_resource_${clip.resourceId}`,
+      duration,
+      startTime: cursor,
+      trimStart: 0,
+      trimEnd: 0,
+      sourceDuration: duration,
+      muted: false,
+      hidden: false,
+      transform: defaultOpenCutTransform(),
+      opacity: 1,
+      effects: [],
+      metadata: {
+        movscript: {
+          sceneMomentId: clip.sceneMomentId,
+          sceneMomentPath: clip.sceneMomentPath,
+          contentUnitId: clip.contentUnitId,
+          candidateId: clip.candidateId,
+          resourceId: clip.resourceId,
+          outputKind: 'video',
+          trackType: 'video',
+          targetKind: 'production',
+          targetRef: String(input.productionId),
+          selected: true,
+          stale: false,
+        },
+        productionPath: input.productionPath,
+      },
+    }
+    cursor += duration
+    return element
+  })
+  const track: OpenCutVideoTrack = {
+    id: 'track_production_video_0',
+    name: 'production video',
+    type: 'video',
+    isMain: true,
+    muted: false,
+    hidden: false,
+    elements,
+  }
+  return {
+    schema: 'opencut.timeline.v1',
+    protocol: {
+      upstream: 'opencut',
+      compatibility: 'timeline',
+      version: 1,
+    },
+    project: {
+      metadata: {
+        id: `movscript_production_${String(input.productionId)}`,
+        name: input.projectName ?? `MovScript production ${String(input.productionId)}`,
+        duration: cursor,
+        createdAt: now,
+        updatedAt: now,
+      },
+      scenes: [{
+        id: `production_${String(input.productionId)}`,
+        name: input.projectName ?? `Production ${String(input.productionId)}`,
+        isMain: true,
+        tracks: [track],
+        bookmarks: [],
+        createdAt: now,
+        updatedAt: now,
+      }],
+      currentSceneId: `production_${String(input.productionId)}`,
+      settings: {
+        fps: 30,
+        canvasSize: { width: 1920, height: 1080 },
+        originalCanvasSize: null,
+        background: { type: 'color', color: '#000000' },
+      },
+      version: 1,
+      timelineViewState: {
+        zoomLevel: 1,
+        scrollLeft: 0,
+        playheadTime: 0,
+      },
+    },
+  }
+}
+
+function productionSceneMomentContentUnitIds(
+  snapshot: ContentSourceWorkspaceSnapshot,
+  item: WorkspacePreviewTimelineItem,
+): Array<string | number> {
+  const fromTimeline = previewTimelineItemContentUnitIds(item)
+  const scanned = snapshot.contentUnits
+    .filter((unit) => isSceneMomentVideoContentUnit(unit.record) && sceneMomentRefMatches(unit.record, item))
+    .map((unit) => unit.id ?? pathSegmentAfter(unit.path, 'content_units'))
+    .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
+  return Array.from(new Map([...fromTimeline, ...scanned].map((id) => [String(id), id])).values())
+}
+
+function previewTimelineItemTitle(item: WorkspacePreviewTimelineItem): string | undefined {
+  return stringValue((item as WorkspacePreviewTimelineItem & { title?: unknown }).title)
+}
+
+function previewTimelineItemContentUnitIds(item: WorkspacePreviewTimelineItem): Array<string | number> {
+  const value = (item as WorkspacePreviewTimelineItem & { contentUnitIds?: unknown }).contentUnitIds
+  return Array.isArray(value)
+    ? value.filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
+    : []
+}
+
+function isSceneMomentVideoContentUnit(record: Record<string, unknown>): boolean {
+  const type = stringValue(record.content_unit_type)
+  if (type !== 'scene_moment_ref' && type !== 'scence_moment_ref') return false
+  const outputKind = stringValue(record.output_kind)
+  return outputKind === undefined || outputKind === 'video'
+}
+
+function sceneMomentRefMatches(record: Record<string, unknown>, item: WorkspacePreviewTimelineItem): boolean {
+  const refs = [record.scene_moment_ref, record.scence_moment_ref].flatMap((value) => {
+    if (typeof value === 'number') return [String(value)]
+    if (typeof value === 'string' && value.trim()) return [value.trim()]
+    return []
+  })
+  return refs.some((ref) =>
+    sameId(ref, item.entity.id)
+    || ref === item.entity.path
+    || lastPathSegment(ref) === lastPathSegment(item.entity.path)
+    || (item.entity.path !== undefined && ref.endsWith(item.entity.path)),
+  )
+}
+
+function contentCandidateRecordsByContentUnitId(documents: ContentSourceWorkspaceSnapshot['indexDocuments']): Map<string, ContentCandidateRecord[]> {
+  const output = new Map<string, ContentCandidateRecord[]>()
+  for (const document of documents) {
+    if (!document.path.endsWith('/content_candidate.json') || !isRecord(document.data)) continue
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringValue(document.data.content_unit_ref))
+    if (!contentUnitId) continue
+    output.set(contentUnitId, [...(output.get(contentUnitId) ?? []), document.data as ContentCandidateRecord])
+  }
+  return output
+}
+
+function selectionRecordsByContentUnitId(documents: ContentSourceWorkspaceSnapshot['indexDocuments']): Map<string, ContentSelectionRecord> {
+  const output = new Map<string, ContentSelectionRecord>()
+  for (const document of documents) {
+    if (!isRecord(document.data)) continue
+    const selection = optionalRecord(document.data.selection)
+    if (!selection) continue
+    const contentUnitId = contentUnitIdForRuntimeDocument(document.path, stringValue(document.data.target_ref))
+    if (!contentUnitId) continue
+    output.set(contentUnitId, selection as ContentSelectionRecord)
+  }
+  return output
+}
+
+function contentUnitIdForRuntimeDocument(path: string, ref?: string): string | undefined {
+  if (ref) return lastPathSegment(ref) ?? ref
+  return pathSegmentAfter(path, 'content_units')
+}
+
+function selectedVideoResourceId(candidate: ContentCandidateRecord | undefined): number | undefined {
+  const output = firstCandidateOutput(candidate)
+  if (stringValue(output?.kind) !== undefined && stringValue(output?.kind) !== 'video') return undefined
+  return numberValue(output?.resource_id)
+}
+
+function firstCandidateOutput(candidate: ContentCandidateRecord | undefined): Record<string, unknown> | undefined {
+  const outputs = Array.isArray(candidate?.outputs) ? candidate.outputs : []
+  return outputs.find(isRecord)
+}
+
+function pathSegmentAfter(path: string | undefined, segment: string): string | undefined {
+  if (!path) return undefined
+  const parts = path.split('/').filter(Boolean)
+  const index = parts.indexOf(segment)
+  return index >= 0 ? parts[index + 1] : undefined
+}
+
+function lastPathSegment(path: string | undefined): string | undefined {
+  return path?.split('/').filter(Boolean).at(-1)
+}
+
+function safeId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '_') || 'item'
+}
+
+function sameId(left: unknown, right: unknown): boolean {
+  return left !== undefined && right !== undefined && String(left) === String(right)
 }
 
 function errorMessage(error: unknown): string {

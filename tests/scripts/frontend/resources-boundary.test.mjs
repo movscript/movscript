@@ -6,8 +6,12 @@ import test from 'node:test'
 const resourcesPageSource = readSource('apps/frontend/src/features/resources/components/ResourcesPage.tsx')
 const resourcesPageDialogsSource = readSource('apps/frontend/src/features/resources/components/ResourcesPageDialogs.tsx')
 const resourcesPageItemsSource = readSource('apps/frontend/src/features/resources/components/ResourcesPageItems.tsx')
+const resourcePageUiSource = readSource('apps/frontend/src/features/resources/components/ResourcePageUi.tsx')
+const resourcePageDialogUiSource = readSource('apps/frontend/src/features/resources/components/ResourcePageDialogUi.tsx')
 const contextMenuDismissSource = readSource('apps/frontend/src/features/resources/application/useResourceContextMenuDismiss.ts')
 const videoClipElectronSource = readSource('apps/frontend/src/features/resources/application/resourceVideoClipElectron.ts')
+const videoClipSourceHookSource = readSource('apps/frontend/src/features/resources/application/useResourceVideoClipSource.ts')
+const videoClipStatusHookSource = readSource('apps/frontend/src/features/resources/application/useResourceVideoClipStatus.ts')
 const videoClipDialogSource = readSource('apps/frontend/src/features/resources/components/ResourcesPageVideoClipDialog.tsx')
 const genResultCardSource = readSource('apps/frontend/src/shared/ui/GenResultCard.tsx')
 const resourceQueryCacheSource = readSource('apps/frontend/src/features/resources/application/resourceQueryCache.ts')
@@ -33,15 +37,34 @@ test('resources page delegates video clip Electron API access', () => {
   assert.doesNotMatch(resourcesPageSource, /from '@\/features\/resources\/application\/resourceVideoClipElectron'/)
   assert.match(videoClipDialogSource, /from '@\/features\/resources\/application\/resourceVideoClipElectron'/)
   assert.match(videoClipDialogSource, /clipResourceVideo\(/)
-  assert.match(videoClipDialogSource, /getResourceVideoClipStatus\(/)
-  assert.match(videoClipDialogSource, /resourceVideoClipApiAvailable\(\)/)
+  assert.match(videoClipDialogSource, /from '@\/features\/resources\/application\/useResourceVideoClipStatus'/)
+  assert.match(videoClipDialogSource, /useResourceVideoClipStatus\(\)/)
+  assert.doesNotMatch(videoClipDialogSource, /getResourceVideoClipStatus\(/)
+  assert.doesNotMatch(videoClipDialogSource, /resourceVideoClipApiAvailable\(\)/)
   assert.doesNotMatch(resourcesPageSource, /window\.api/)
   assert.doesNotMatch(videoClipDialogSource, /window\.api/)
 
+  assert.match(videoClipStatusHookSource, /getResourceVideoClipStatus\(\)/)
+  assert.match(videoClipStatusHookSource, /resourceVideoClipApiAvailable\(\)/)
   assert.match(videoClipElectronSource, /readElectronApi\(\)\?\.clipVideo/)
   assert.match(videoClipElectronSource, /readElectronApi\(\)\?\.getVideoClipStatus/)
   assert.doesNotMatch(videoClipElectronSource, /window\.api/)
   assert.match(videoClipElectronSource, /export function resourceVideoClipApiAvailable/)
+})
+
+test('resources video clip dialog delegates source blob loading lifecycle', () => {
+  assert.match(videoClipDialogSource, /from '@\/features\/resources\/application\/useResourceVideoClipSource'/)
+  assert.match(videoClipDialogSource, /useResourceVideoClipSource\(resource\)/)
+  assert.doesNotMatch(videoClipDialogSource, /loadResourceBlob/)
+  assert.doesNotMatch(videoClipDialogSource, /createObjectUrl/)
+  assert.doesNotMatch(videoClipDialogSource, /revokeObjectUrl/)
+  assert.doesNotMatch(videoClipDialogSource, /sourceLoadAttempt/)
+
+  assert.match(videoClipSourceHookSource, /export function useResourceVideoClipSource/)
+  assert.match(videoClipSourceHookSource, /loadResourceBlob\(resource/)
+  assert.match(videoClipSourceHookSource, /createObjectUrl\(blob\)/)
+  assert.match(videoClipSourceHookSource, /revokeObjectUrl\(objectUrl\)/)
+  assert.match(videoClipSourceHookSource, /retrySourceLoad: \(\) => setSourceLoadAttempt/)
 })
 
 test('resources page delegates dialog implementations', () => {
@@ -53,6 +76,17 @@ test('resources page delegates dialog implementations', () => {
   assert.doesNotMatch(resourcesPageSource, /function RenameResourceDialog/)
   assert.doesNotMatch(resourcesPageSource, /function ShareToProjectDialog/)
   assert.doesNotMatch(resourcesPageSource, /ResourceDialogContent/)
+})
+
+test('resource page dialog, clip, and permission primitives are split from the wrapper barrel', () => {
+  assert.match(resourcePageUiSource, /export \* from '@\/features\/resources\/components\/ResourcePageDialogUi'/)
+  assert.doesNotMatch(resourcePageUiSource, /export function ResourceDialogContent/)
+  assert.doesNotMatch(resourcePageUiSource, /export function ResourceClipLayout/)
+  assert.doesNotMatch(resourcePageUiSource, /export function ResourcePermissionSection/)
+
+  assert.match(resourcePageDialogUiSource, /export function ResourceDialogContent/)
+  assert.match(resourcePageDialogUiSource, /export function ResourceClipLayout/)
+  assert.match(resourcePageDialogUiSource, /export function ResourcePermissionSection/)
 })
 
 test('resource cache reads are delegated to application helpers', () => {

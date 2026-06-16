@@ -1,11 +1,9 @@
 .ms-agent-plan-overview-list {
-  display: grid;
   gap: 4px;
   margin-top: 8px;
 }
 
 .ms-agent-plan-overview-task {
-  display: flex;
   min-width: 0;
   scroll-margin-top: 16px;
   align-items: flex-start;
@@ -21,7 +19,6 @@
 }
 
 .ms-agent-plan-overview-task__status-icon {
-  flex-shrink: 0;
   margin-top: 2px;
 }
 
@@ -31,20 +28,13 @@
 }
 
 .ms-agent-plan-overview-task__header {
-  display: flex;
   min-width: 0;
-  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
 .ms-agent-plan-overview-task__title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-tiny);
   font-weight: 600;
 }
 
@@ -52,15 +42,12 @@
   flex: 0 0 auto;
   border-radius: var(--ms-radius-sm);
   padding: 2px 6px;
-  font-size: var(--ms-text-tiny);
 }
 
 .ms-agent-plan-overview-task__meta {
-  display: flex;
   min-width: 0;
   flex-wrap: wrap;
   gap: 2px 6px;
   margin-top: 2px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
 }

@@ -5,6 +5,20 @@ export type ElectronBackendStatus = {
   message?: string
 }
 
+export type ElectronRuntimeConfig = {
+  movScriptHomeDir: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
+  workspaceDir: string
+  apiBaseURL: string
+  apiV1BaseURL: string
+  localAPIBaseURL: string
+  backendStatus: ElectronBackendStatus
+}
+
+export type ElectronAppSettingsSecrets = {
+  shotLibrarySourceAuthTokens: Record<string, string>
+}
+
 export type ElectronBackendAuthSessionInput = {
   baseURL?: string
   token?: string | null

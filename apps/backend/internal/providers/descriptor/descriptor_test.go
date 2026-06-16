@@ -17,7 +17,7 @@ func TestBuiltInDescriptorLabelsStartupAdapters(t *testing.T) {
 		{contract.TypeWorkspaceRepository, contract.AdapterGitea, "Gitea"},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitHubEnterprise, "GitHub Enterprise"},
 		{contract.TypeWorkspaceRepository, contract.AdapterGitLab, "GitLab"},
-		{contract.TypeAIGateway, contract.AdapterNewAPI, "new-api"},
+		{contract.TypeAIGateway, contract.AdapterLocal, "Local AI Gateway"},
 		{contract.TypeCache, contract.AdapterRedis, "Redis"},
 	}
 	for _, tt := range tests {
@@ -32,29 +32,21 @@ func TestBuiltInDescriptorLabelsStartupAdapters(t *testing.T) {
 }
 
 func TestBuiltInDescriptorDeclaresAdapterCapabilities(t *testing.T) {
-	got := BuiltIn(contract.TypeAIGateway, contract.AdapterNewAPI)
+	got := BuiltIn(contract.TypeAIGateway, contract.AdapterLocal)
 	want := map[string]bool{
 		"model.list":       true,
 		"model.resolve":    true,
 		"chat.completions": true,
-		"chat.stream":      true,
-		"responses":        true,
 		"image.generate":   true,
-		"image.edit":       true,
 		"video.generate":   true,
-		"video.task":       true,
-		"video.poll":       true,
-		"video.cancel":     true,
-		"audio.speech":     true,
-		"audio.transcribe": true,
-		"audio.align":      true,
-		"usage.query":      true,
+		"usage.reserve":    true,
+		"usage.settle":     true,
 	}
 	for _, cap := range got.Capabilities {
 		delete(want, cap)
 	}
 	if len(want) != 0 {
-		t.Fatalf("new-api capabilities = %+v, missing %+v", got.Capabilities, want)
+		t.Fatalf("local AI gateway capabilities = %+v, missing %+v", got.Capabilities, want)
 	}
 
 	vector := BuiltIn(contract.TypeVectorIndex, contract.AdapterPgVector)
@@ -111,7 +103,7 @@ func TestBuiltInsIncludesStartupProviderSurface(t *testing.T) {
 		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitea,
 		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitHubEnterprise,
 		contract.TypeWorkspaceRepository + ":" + contract.AdapterGitLab,
-		contract.TypeAIGateway + ":" + contract.AdapterNewAPI,
+		contract.TypeAIGateway + ":" + contract.AdapterLocal,
 		contract.TypeCache + ":" + contract.AdapterRedis,
 		contract.TypeVectorIndex + ":" + contract.AdapterLocalIndex,
 		contract.TypeMediaProcessing + ":" + contract.AdapterDesktopManagedMedia,

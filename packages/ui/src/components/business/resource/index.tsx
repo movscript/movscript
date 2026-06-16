@@ -27,11 +27,6 @@ export {
   type ResourceCandidateTargetTypeOption,
 } from "./candidate-attach";
 export {
-  ResourceLibraryPickerPanel,
-  type ResourceLibraryPickerItem,
-  type ResourceLibraryPickerOption,
-} from "./library-picker";
-export {
   ResourceMediaAudioPanel,
   ResourceMediaCodeBlock,
   ResourceMediaDialog,

@@ -18,12 +18,7 @@
 
 .canvas-node-attachment-item__label {
   max-width: 140px;
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .canvas-node-attachment-remove {
@@ -41,14 +36,10 @@
 .canvas-node-attachment-status {
   flex-shrink: 0;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
 }
 
 .canvas-node-attachment-hint {
   padding-top: var(--ms-space-2);
   border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 50%, transparent);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
 }

@@ -375,11 +375,7 @@ func providerInstanceAdapterEnvPatch(instance ProviderInstance) map[string]strin
 	case "workspace_repository:gitlab":
 		return map[string]string{"MOVSCRIPT_WORKSPACE_STORAGE_BACKEND": "gitlab", "MOVSCRIPT_WORKSPACE_BACKEND": "gitlab"}
 	case "ai_gateway:local":
-		return map[string]string{"MOVSCRIPT_AI_GATEWAY_PROVIDER": "local"}
-	case "ai_gateway:builtin":
-		return map[string]string{"MOVSCRIPT_AI_GATEWAY_PROVIDER": "builtin"}
-	case "ai_gateway:new-api":
-		return map[string]string{"MOVSCRIPT_AI_GATEWAY_PROVIDER": "new-api"}
+		return map[string]string{}
 	case "vector_index:local-index":
 		return map[string]string{"MOVSCRIPT_VECTOR_INDEX_PROVIDER": "local-index"}
 	case "vector_index:pgvector":

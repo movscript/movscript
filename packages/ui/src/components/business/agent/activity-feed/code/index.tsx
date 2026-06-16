@@ -18,8 +18,8 @@ export function AgentActivityCodePanel({
 }: AgentActivityCodePanelProps) {
   return (
     <AgentSurfaceBlock className={cn("ms-agent-activity-code-panel", className)} {...props}>
-      <div className="ms-agent-activity-code-panel__header">{title}</div>
-      <AgentDataBlock className="ms-agent-activity-code-panel__body">
+      <div className="ms-type-tiny ms-agent-activity-code-panel__header">{title}</div>
+      <AgentDataBlock className="ms-type-tiny ms-agent-activity-code-panel__body">
         <AppCodeBlock>{children}</AppCodeBlock>
       </AgentDataBlock>
     </AgentSurfaceBlock>

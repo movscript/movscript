@@ -6,7 +6,6 @@
   cursor: pointer;
   padding: 4px 8px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
   font-weight: 600;
 }
 
@@ -15,38 +14,26 @@
   border-top: 1px solid color-mix(in srgb, color-mix(in srgb, var(--ms-color-border) 78%, transparent) 60%, transparent);
   padding: 6px 8px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-plan-overview-notice {
   margin-top: 8px;
   padding: 6px 8px;
   color: var(--ms-color-danger);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-plan-overview-notice__title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-weight: 600;
 }
 
 .ms-agent-plan-overview-text {
   margin-top: 2px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-plan-overview-warning {
   margin-top: 4px;
   color: var(--ms-color-warning);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-plan-overview-error {

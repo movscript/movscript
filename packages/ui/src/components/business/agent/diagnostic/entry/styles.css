@@ -1,5 +1,4 @@
 .ms-agent-diagnostic-entry__header {
-  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -8,17 +7,11 @@
 }
 
 .ms-agent-diagnostic-entry__title {
-  min-width: 0;
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ms-agent-diagnostic-entry__meta {
   flex: 0 0 auto;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
 }

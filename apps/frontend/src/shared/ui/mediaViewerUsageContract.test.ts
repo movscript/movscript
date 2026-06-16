@@ -130,9 +130,9 @@ test('API base URL media resolution is isolated to the shared resource resolver'
 
   assert.match(mediaViewerSource, /import \{ resolveResourceUrl \}/)
   assert.doesNotMatch(mediaViewerSource, /API_BASE/)
-  assert.match(resourceUrlSource, /API_BASE_URL as API_BASE/)
+  assert.match(resourceUrlSource, /getAPIBaseURL/)
   assert.match(resourceUrlSource, /from '@movscript\/core\/resources'/)
-  assert.match(resourceUrlSource, /resolveCoreResourceUrl\(resource, API_BASE\)/)
+  assert.match(resourceUrlSource, /resolveCoreResourceUrl\(resource, getAPIBaseURL\(\)\)/)
 
   const offenders = listSourceFiles(resolve('src'))
     .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))

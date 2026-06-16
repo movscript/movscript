@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitBranch, Save, ScrollText, Upload } from 'lucide-react'
-import { ScriptDetailHeader, ScriptDetailTabs } from '@movscript/ui/business/scripts'
 import { WorkbenchProjectBody, WorkbenchProjectShell } from '@movscript/ui/business/workbench'
 import { Badge, Button } from '@movscript/ui/primitives'
 import { createScriptVersion, listScriptVersions, type ScriptVersion } from '@/shared/infrastructure/api/scriptVersions'
@@ -19,6 +18,8 @@ import {
   ScriptEditorErrorText,
   ScriptEditorHiddenFileInput,
   ScriptEditorInlineMeta,
+  ScriptDetailHeader,
+  ScriptDetailTabs,
   ScriptWorkspaceInspector,
   ScriptWorkspaceShell,
 } from '@/features/scripts/components/ScriptsPageUi'
@@ -88,7 +89,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   })
 
   const scripts = rawScripts ?? []
-
   useEffect(() => {
     const scriptId = Number(searchParams.get('script_id'))
     if (!scriptId || scripts.length === 0) return

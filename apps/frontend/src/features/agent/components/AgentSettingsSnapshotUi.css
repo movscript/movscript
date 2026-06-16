@@ -1,0 +1,77 @@
+.agent-settings-snapshot-import {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-import__presets {
+  align-items: center;
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-import__scope-grid {
+  display: grid;
+  gap: var(--ms-space-2);
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-import__scope {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-import__scope--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.agent-settings-snapshot-import__scope-control {
+  width: 100%;
+  align-items: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.agent-settings-snapshot-summary__grid {
+  display: grid;
+  gap: var(--ms-space-2);
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-audit-trail {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.agent-settings-audit-trail__empty {
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-settings-audit-trail__help {
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-settings-audit-trail__list {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-settings-audit-trail__entry {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-impact {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-impact__header .agent-settings-item-title {
+  margin: 0;
+}
+
+.agent-settings-snapshot-impact__list {
+  display: grid;
+  gap: 6px;
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-snapshot-impact__item {
+  padding: 6px var(--ms-space-2);
+}

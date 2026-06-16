@@ -25,6 +25,23 @@ test('movscript-lang latest mode sets registry dist-tag dependencies', async () 
   }
 })
 
+test('movscript-lang latest mode keeps dependencies linked to local workspace packages', async () => {
+  const root = await createFixtureRoot()
+  try {
+    await createWorkspacePackage(root, '@movscript/interpreter')
+
+    const result = await updateMovscriptLangIntegration({ root, mode: 'latest' })
+
+    assert.equal(result.specs['@movscript/interpreter'], 'workspace:*')
+    assert.equal(result.specs['@movscript/language'], 'latest')
+    const corePackage = await readJson(path.join(root, 'packages/core/package.json'))
+    assert.equal(corePackage.dependencies['@movscript/interpreter'], 'workspace:*')
+    assert.equal(corePackage.dependencies['@movscript/language'], 'latest')
+  } finally {
+    await rm(path.resolve(root, '..'), { recursive: true, force: true })
+  }
+})
+
 test('movscript-lang version mode accepts an explicit dependency spec', async () => {
   const root = await createFixtureRoot()
   try {
@@ -89,6 +106,13 @@ async function createFixtureRoot() {
     },
   })
   return root
+}
+
+async function createWorkspacePackage(root, packageName) {
+  const packageDir = packageName.replace('@movscript/', '')
+  const packagePath = path.join(root, 'packages', packageDir)
+  await mkdir(packagePath, { recursive: true })
+  await writeJson(path.join(packagePath, 'package.json'), { name: packageName, version: '0.1.0' })
 }
 
 async function readJson(filePath) {

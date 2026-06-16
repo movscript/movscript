@@ -17,8 +17,9 @@ import {
   resolveMovScriptWorkspaceRootPaths,
 } from '@movscript/core/workspace/node'
 import { resolveMovScriptAppServerPluginSource } from './appServerPluginBootstrap'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import type {
+  ElectronMovScriptHomeInput,
   ElectronProjectLocalSkill,
   ElectronProjectPluginInstallInput,
   ElectronProjectPluginSnapshot,
@@ -76,8 +77,7 @@ type ProjectPluginLock = {
   }>
 }
 
-type ProjectPluginPathInput = {
-  workspaceDir?: string
+type ProjectPluginPathInput = ElectronMovScriptHomeInput & {
   projectId?: string | number
   userId?: string | number
   orgId?: string | number
@@ -91,6 +91,7 @@ export function getProjectPluginSnapshot(input: ProjectPluginPathInput & { deskt
   const skills = listLocalProjectSkills(paths, lock)
   return {
     schema: PROJECT_PLUGIN_MANIFEST_SCHEMA,
+    movScriptHomeDir: paths.workspaceDir,
     workspaceDir: paths.workspaceDir,
     projectCwd: paths.projectCwd,
     manifestPath: paths.manifestPath,
@@ -197,8 +198,7 @@ export function setProjectSkillEnabled(input: ElectronProjectSkillToggleInput & 
 }
 
 function resolveProjectPluginPaths(input?: ProjectPluginPathInput | string, desktopDataDirInput?: string) {
-  const workspaceDirInput = typeof input === 'string' ? input : input?.workspaceDir
-  const workspaceDir = resolve(workspaceDirInput?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir())
+  const workspaceDir = resolveMovScriptHomeDir(input)
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   const projectCwd = typeof input === 'object' && input?.projectId !== undefined
     ? resolveMovScriptProjectCwd({

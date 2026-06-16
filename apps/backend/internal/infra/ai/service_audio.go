@@ -8,7 +8,7 @@ import (
 )
 
 func (s *AIService) CallTTS(ctx context.Context, userID, modelConfigID uint, req media.TTSRequest, usage UsageContext) (media.TTSResponse, error) {
-	ctx = withProviderUserID(ctx, userID)
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityAudioTTS)
 	if err != nil {
 		return media.TTSResponse{}, err
@@ -62,7 +62,7 @@ func (s *AIService) CallTTS(ctx context.Context, userID, modelConfigID uint, req
 }
 
 func (s *AIService) CallTranscribe(ctx context.Context, userID, modelConfigID uint, req media.TranscribeRequest, usage UsageContext) (media.SubtitleResponse, error) {
-	ctx = withProviderUserID(ctx, userID)
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityAudioSTT)
 	if err != nil {
 		return media.SubtitleResponse{}, err
@@ -116,7 +116,7 @@ func (s *AIService) CallTranscribe(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallAlign(ctx context.Context, userID, modelConfigID uint, req media.AlignRequest, usage UsageContext) (media.SubtitleResponse, error) {
-	ctx = withProviderUserID(ctx, userID)
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	candidates, capability, err := s.runtimeAlignModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return media.SubtitleResponse{}, err

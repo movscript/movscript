@@ -1,8 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Save, TestTube2, Trash2 } from 'lucide-react'
+import { AgentDataBlock } from '@movscript/ui/business/agent'
 import {
-  AgentDataBlock,
   AgentSettingsActionButton,
   AgentSettingsActionRow,
   AgentSettingsCallout,
@@ -21,7 +21,7 @@ import {
   AgentSettingsToggleRow,
   AgentSettingsToneText,
   agentSettingsStatusRecipe,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { AppInlineError } from '@movscript/ui/business/app'
 import { Select, SelectContent, SelectItem, SelectValue } from '@movscript/ui/primitives'
 import { redactAgentTraceDebugText, type ProviderModelAPIKind } from '@movscript/core/agent'

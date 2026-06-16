@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { Frame } from "../../../../primitives";
 
 export function CanvasCardShell({
   selected,
@@ -12,7 +12,7 @@ export function CanvasCardShell({
   children: ReactNode;
 }) {
   return (
-    <Surface
+    <Frame
       kind="card"
       density="normal"
       emphasis="raised"
@@ -22,6 +22,6 @@ export function CanvasCardShell({
       {...props}
     >
       {children}
-    </Surface>
+    </Frame>
   );
 }

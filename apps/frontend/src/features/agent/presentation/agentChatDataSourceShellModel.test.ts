@@ -95,7 +95,7 @@ test('agent chat conversation registry index filters by user and provider identi
 test('agent chat model selection prefers thread overrides then execution settings', () => {
   const modelOptions = [
     { id: 1, model: 'model-a' },
-    { id: 2, model: 'model-b' },
+    { id: 2, model: 'model-b', is_default: true },
   ]
 
   assert.deepEqual(buildAgentChatModelSelectionForRequest({
@@ -144,6 +144,16 @@ test('agent chat model selection prefers thread overrides then execution setting
     modelOptions,
     threadId: 'thread-a',
   }), {})
+
+  assert.deepEqual(buildAgentChatModelSelectionForRequest({
+    baseSelection: {},
+    modelIdForOption,
+    modelOptions,
+    selectedModelId: null,
+    threadModelOverrides: {},
+  }), {
+    model: 'model-b',
+  })
 })
 
 test('agent chat draft controls and empty thread labels stay presentation-model owned', () => {
@@ -345,12 +355,12 @@ test('agent chat thread candidates can be scoped to the current project', () => 
     },
     sourceThreadList: [
       agentThread({ id: 'source-project', preview: 'Source project' }),
-      agentThread({ id: 'source-cwd-project', preview: 'Source cwd project', cwd: '/workspace/.movscript/local/projects/project_42' }),
-      agentThread({ id: 'source-other', preview: 'Source other', cwd: '/workspace/.movscript/local/projects/project_7' }),
-      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/.movscript/local/projects/project_42' }),
+      agentThread({ id: 'source-cwd-project', preview: 'Source cwd project', cwd: '/workspace/local/projects/project_42' }),
+      agentThread({ id: 'source-other', preview: 'Source other', cwd: '/workspace/local/projects/project_7' }),
+      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/local/projects/project_42' }),
     ],
     threads: [
-      agentThread({ id: 'runtime-project', preview: 'Runtime project', cwd: '/workspace/.movscript/local/projects/project_42' }),
+      agentThread({ id: 'runtime-project', preview: 'Runtime project', cwd: '/workspace/local/projects/project_42' }),
       agentThread({ id: 'runtime-other', preview: 'Runtime other' }),
     ],
     userId: 'user-1',
@@ -367,8 +377,8 @@ test('agent chat thread candidates can be scoped to the current project', () => 
     conversations,
     projectId: 42,
     sourceThreadList: [
-      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/.movscript/local/projects/project_42' }),
-      agentThread({ id: 'closed-other', preview: 'Closed other', cwd: '/workspace/.movscript/local/projects/project_7' }),
+      agentThread({ id: 'closed-project', preview: 'Closed project', cwd: '/workspace/local/projects/project_42' }),
+      agentThread({ id: 'closed-other', preview: 'Closed other', cwd: '/workspace/local/projects/project_7' }),
     ],
   }).map((thread) => thread.id), ['closed-project'])
 })

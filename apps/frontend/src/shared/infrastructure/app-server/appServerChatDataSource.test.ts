@@ -5,6 +5,10 @@ import { createAppServerChatDataSource } from '@/shared/infrastructure/app-serve
 import { appServerThreadTurnItemServerRequestResponseFromAgentChat } from '@/shared/infrastructure/app-server/appServerThreadTurnItemProtocolAdapter'
 import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { agentRunProfilePresetById } from '@/features/agent/domain/agentRunProfilePreset'
+import {
+  resetCrossPageNotificationDedupeForTests,
+  subscribeCrossPageNotifications,
+} from '@/shared/application/crossPageNotifications'
 
 test('app-server thread-turn-item data source maps provider-neutral thread lifecycle operations to app-server requests', async () => {
   const requests: Array<{ method: string; params: unknown }> = []
@@ -245,13 +249,13 @@ test('app-server protocol data source exposes provider thread and session tree i
 
 test('app-server protocol data source preserves thread cwd for project grouping', async () => {
   const client = {
-    readThread: async () => ({ thread: appServerThread({ id: 'thread_project', cwd: '/workspace/.movscript/user/7/projects/project_42' }) }),
+    readThread: async () => ({ thread: appServerThread({ id: 'thread_project', cwd: '/workspace/user/7/projects/project_42' }) }),
   } as unknown as AppServerRpcClient
 
   const dataSource = createAppServerChatDataSource(client)
   const thread = await dataSource.readThread('thread_project')
 
-  assert.equal(thread.cwd, '/workspace/.movscript/user/7/projects/project_42')
+  assert.equal(thread.cwd, '/workspace/user/7/projects/project_42')
 })
 
 test('app-server protocol data source does not fabricate session tree ids from thread ids', async () => {
@@ -775,13 +779,13 @@ test('app-server protocol data source forwards the scoped thread cwd', async () 
   } as unknown as AppServerRpcClient
 
   const dataSource = createAppServerChatDataSource(client, {
-    defaultThreadCwd: '/workspace/.movscript/workdirs/users/7/projects/42',
+    defaultThreadCwd: '/workspace/user/7/projects/project_42',
   })
   await dataSource.startThread()
   await dataSource.startThread({ cwd: '/custom/cwd' })
 
   assert.deepEqual(calls, [
-    { cwd: '/workspace/.movscript/workdirs/users/7/projects/42', threadSource: 'user' },
+    { cwd: '/workspace/user/7/projects/project_42', threadSource: 'user' },
     { cwd: '/custom/cwd', threadSource: 'user' },
   ])
 })
@@ -796,13 +800,13 @@ test('app-server protocol data source injects workspace boundary instructions fo
   } as unknown as AppServerRpcClient
 
   const dataSource = createAppServerChatDataSource(client, {
-    defaultThreadCwd: '/workspace/.movscript/local/projects/project_42',
+    defaultThreadCwd: '/workspace/local/projects/project_42',
     workspaceContext: { scope: 'project', projectId: 42 },
   })
   await dataSource.startThread()
 
   const developerInstructions = String(calls[0]?.developerInstructions ?? '')
-  assert.equal(calls[0]?.cwd, '/workspace/.movscript/local/projects/project_42')
+  assert.equal(calls[0]?.cwd, '/workspace/local/projects/project_42')
   assert.match(developerInstructions, /MovScript workspace boundary/)
   assert.match(developerInstructions, /Only edit files and call project-scoped MovScript MCP tools for projectId\/project_id 42/)
   assert.match(developerInstructions, /Do not pass userId\/user_id\/orgId\/org_id/)
@@ -819,7 +823,7 @@ test('app-server protocol data source injects global workspace MCP project-id gu
   } as unknown as AppServerRpcClient
 
   const dataSource = createAppServerChatDataSource(client, {
-    defaultThreadCwd: '/workspace/.movscript/local',
+    defaultThreadCwd: '/workspace/local',
     workspaceContext: { scope: 'global' },
   })
   await dataSource.startThread()
@@ -942,6 +946,40 @@ test('app-server thread-turn-item data source exposes global server request subs
   if (typeof dispose === 'function') dispose()
   assert.equal(handlers.length, 0)
   assert.equal(notificationHandlers.length, 0)
+})
+
+test('app-server protocol data source publishes global MCP status to cross-page notifications', () => {
+  resetCrossPageNotificationDedupeForTests()
+  const notificationHandlers: Array<(notification: { method: string; params?: unknown }) => void> = []
+  const client = {
+    onNotification: (handler: (notification: { method: string; params?: unknown }) => void) => {
+      notificationHandlers.push(handler)
+      return () => undefined
+    },
+    onServerRequest: () => () => undefined,
+  } as unknown as AppServerRpcClient
+  const dataSource = createAppServerChatDataSource(client, {
+    provider: 'mova',
+    label: 'Mova',
+  })
+  const crossPageEvents: unknown[] = []
+  const unsubscribe = subscribeCrossPageNotifications((event) => {
+    crossPageEvents.push(event)
+  })
+
+  dataSource.subscribeServerRequests?.({
+    onNotification: () => undefined,
+    onServerRequest: () => undefined,
+  })
+  notificationHandlers[0]?.({
+    method: 'mcpServer/startupStatus/updated',
+    params: { name: 'filesystem', status: 'ready', error: null },
+  })
+  unsubscribe()
+
+  assert.equal(crossPageEvents.length, 1)
+  assert.equal((crossPageEvents[0] as { topic?: string }).topic, 'mcp-status')
+  assert.deepEqual((crossPageEvents[0] as { scope?: unknown }).scope, { kind: 'global' })
 })
 
 function appServerThread(patch: Record<string, unknown> = {}) {

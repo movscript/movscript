@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/movscript/movscript/internal/infra/cache"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
@@ -54,6 +55,32 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 	}
 	if len(model.SupportedParams) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchema["type"] != "object" {
 		t.Fatalf("model contract fields = %#v, want params/input/schema preserved", model)
+	}
+}
+
+func TestServiceListByCapabilityForRoutePassesRouteGroupAndSkipsCache(t *testing.T) {
+	fake := &fakeModelCatalog{
+		models: []providercontract.AIModelDescriptor{{ModelID: "gpt-5.2", DisplayName: "GPT 5.2"}},
+	}
+	cache := cache.NewMemory()
+	service := NewService(fake, cache)
+
+	for range 2 {
+		models, err := service.ListByCapabilityForRoute(context.Background(), "text", "priority", false)
+		if err != nil {
+			t.Fatalf("ListByCapabilityForRoute() error = %v", err)
+		}
+		if len(models) != 1 {
+			t.Fatalf("models count = %d, want 1", len(models))
+		}
+	}
+	if len(fake.filters) != 2 {
+		t.Fatalf("contract calls = %d, want 2", len(fake.filters))
+	}
+	for _, filter := range fake.filters {
+		if filter.RouteGroup != "priority" {
+			t.Fatalf("filter route group = %q, want priority", filter.RouteGroup)
+		}
 	}
 }
 

@@ -33,7 +33,7 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var preferredOrgID *uint
-		if raw := strings.TrimSpace(c.GetHeader("X-Org-ID")); raw != "" {
+		if raw := firstNonEmptyString(c.GetHeader("X-Org-ID"), c.Query("org_id")); raw != "" {
 			parsed, err := strconv.ParseUint(raw, 10, 64)
 			if err != nil || parsed == 0 {
 				c.AbortWithStatusJSON(http.StatusBadRequest, api.InvalidInput("无效的组织 ID"))
@@ -70,6 +70,15 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 		c.Set(ContextOrgMemberKey, member)
 		c.Next()
 	}
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func isAdminAPIPath(path string) bool {

@@ -1,12 +1,8 @@
 .generation-input-slots {
-  display: grid;
-  min-width: 0;
   gap: 8px;
 }
 
 .generation-input-slot {
-  display: grid;
-  min-width: 0;
   gap: 8px;
   --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
   --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 56%, transparent);
@@ -24,9 +20,6 @@
 }
 
 .generation-input-slot__header {
-  display: flex;
-  min-width: 0;
-  align-items: center;
   gap: 6px;
 }
 
@@ -37,26 +30,17 @@
 }
 
 .generation-input-slot__label {
-  min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
   font-weight: 600;
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .generation-input-slot__meta,
 .generation-input-slot__empty {
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: 18px;
 }
 
 .generation-input-slot__attachments {
-  display: flex;
   min-width: 0;
   flex-wrap: wrap;
   gap: 6px;
@@ -74,21 +58,11 @@
   flex-shrink: 0;
 }
 
-.generation-input-slot-tag__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .generation-input-slot-tag__remove {
   flex-shrink: 0;
 }
 
 .generation-input-slot__empty {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
   gap: 6px;
 }
 

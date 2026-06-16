@@ -1,4 +1,5 @@
 export const MOVSCRIPT_WORKSPACE_DIR_NAME = '.movscript'
+export const MOVSCRIPT_SOURCE_WORKSPACE_CONTROL_DIR_NAME = MOVSCRIPT_WORKSPACE_DIR_NAME
 export const MOVSCRIPT_DEFAULT_WORKSPACE_DIR_NAME = 'MovScript'
 export const MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME = 'manifest.json'
 export const MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA = 'movscript.project-workspace.v1'
@@ -53,3 +54,10 @@ export interface MovScriptWorkspaceContextPaths {
   interpretBaseDir: string
   providerSessionCwd: string
 }
+
+export type MovScriptSourceWorkspaceContextInput = MovScriptWorkspaceContextInput
+export type MovScriptSourceWorkspaceContext = MovScriptWorkspaceContext
+export type MovScriptSourceWorkspaceRootPaths = MovScriptWorkspaceRootPaths
+export type MovScriptSourceWorkspaceRootManifest = MovScriptWorkspaceRootManifest
+export type MovScriptSourceWorkspaceContextPaths = MovScriptWorkspaceContextPaths
+export type MovScriptSourceWorkspaceScope = MovScriptWorkspaceScope

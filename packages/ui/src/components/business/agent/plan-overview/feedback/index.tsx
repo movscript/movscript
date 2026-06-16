@@ -16,15 +16,15 @@ export function AgentPlanOverviewCodeDisclosure({
 }: AgentPlanOverviewCodeDisclosureProps) {
   return (
     <details className={cn("ms-agent-plan-overview-code", className)} {...props}>
-      <summary className="ms-agent-plan-overview-code__summary">{title}</summary>
-      <AppCodeBlock className="ms-agent-plan-overview-code__content">{children}</AppCodeBlock>
+      <summary className="ms-type-tiny ms-agent-plan-overview-code__summary">{title}</summary>
+      <AppCodeBlock className="ms-type-tiny ms-agent-plan-overview-code__content">{children}</AppCodeBlock>
     </details>
   );
 }
 
 export const AgentPlanOverviewNotice = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview-notice", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-type-tiny ms-agent-plan-overview-notice", className)} {...props} />;
   }
 );
 
@@ -32,7 +32,7 @@ AgentPlanOverviewNotice.displayName = "AgentPlanOverviewNotice";
 
 export const AgentPlanOverviewNoticeTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-plan-overview-notice__title", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-text-truncate ms-agent-plan-overview-notice__title", className)} {...props} />;
   }
 );
 
@@ -40,7 +40,7 @@ AgentPlanOverviewNoticeTitle.displayName = "AgentPlanOverviewNoticeTitle";
 
 export const AgentPlanOverviewText = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-plan-overview-text", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-type-tiny ms-agent-plan-overview-text", className)} {...props} />;
   }
 );
 
@@ -48,7 +48,7 @@ AgentPlanOverviewText.displayName = "AgentPlanOverviewText";
 
 export const AgentPlanOverviewWarningText = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-plan-overview-warning", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-type-tiny ms-agent-plan-overview-warning", className)} {...props} />;
   }
 );
 

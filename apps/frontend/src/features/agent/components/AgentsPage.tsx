@@ -13,6 +13,7 @@ import {
 } from '@/features/agent/components/AgentPageUi'
 import {
   AgentConsoleActionButton,
+  AgentConsoleCallout,
   AgentConsoleDocumentBody,
   AgentConsoleHeader,
   AgentConsoleHeaderActions,
@@ -111,14 +112,14 @@ export default function AgentsPage() {
           <AgentConsoleHeaderCopy>
             <AgentConsoleHeaderTitleRow>
               <IdentityMark kind="agent" id="mova" />
-              <AgentConsoleHeaderTitle>Agents</AgentConsoleHeaderTitle>
+              <AgentConsoleHeaderTitle>当前 Agent</AgentConsoleHeaderTitle>
               <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
-                {enabledCount} 个启用
+                {activeProvider?.label ?? '未选择'}
               </AgentConsoleStatusBadge>
               {(defaultWorkspaceConfigQuery.isLoading || workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理 app-server providers 的启用状态、账号来源和运行生命周期；运行中配置会锁定。
+              选择唯一生效的 app-server Agent，并管理账号来源和运行生命周期；运行中配置会锁定。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -150,6 +151,10 @@ export default function AgentsPage() {
               )
             })}
           </AgentConsoleTabList>
+
+          <AgentConsoleCallout compact tone="neutral">
+            同一时间只会有一个 Agent 生效。当前选择：{activeProvider?.label ?? activeProviderKey}。
+          </AgentConsoleCallout>
 
           {defaultWorkspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(defaultWorkspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
           {workspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(workspaceConfigQuery.error)}</AgentConsoleInlineError> : null}

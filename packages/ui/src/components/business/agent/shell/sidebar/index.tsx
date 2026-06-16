@@ -14,7 +14,7 @@ AgentSidebar.displayName = "AgentSidebar";
 
 export const AgentSidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-bar ms-agent-sidebar__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-bar ms-agent-sidebar__header", className)} {...props} />;
   }
 );
 
@@ -22,7 +22,7 @@ AgentSidebarHeader.displayName = "AgentSidebarHeader";
 
 export const AgentSidebarSection = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-sidebar__section", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-stack ms-agent-sidebar__section", className)} {...props} />;
   }
 );
 
@@ -30,7 +30,7 @@ AgentSidebarSection.displayName = "AgentSidebarSection";
 
 export const AgentSidebarTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => {
-    return <h2 ref={ref} className={cn("ms-agent-sidebar__title", className)} {...props} />;
+    return <h2 ref={ref} className={cn("ms-type-label ms-agent-sidebar__title", className)} {...props} />;
   }
 );
 
@@ -52,7 +52,7 @@ export const AgentNavItem = React.forwardRef<HTMLButtonElement, AgentNavItemProp
         aria-current={active ? "page" : undefined}
         data-active={active ? "true" : undefined}
         data-density={density}
-        className={cn("ms-agent-nav-item", className)}
+        className={cn("ms-control ms-type-item ms-agent-nav-item", density === "compact" && "ms-type-label", className)}
         {...(asChild ? { fallback: "button" } : {})}
         {...props}
       >
@@ -82,20 +82,20 @@ export const AgentConversationItem = React.forwardRef<HTMLButtonElement, AgentCo
         aria-current={active ? "page" : undefined}
         data-active={active ? "true" : undefined}
         data-has-icon={icon ? "true" : undefined}
-        className={cn("ms-agent-conversation", className)}
+        className={cn("ms-control ms-agent-conversation", className)}
         {...props}
       >
         <span className="ms-agent-conversation__indicator" aria-hidden="true" />
-        {icon ? <span className="ms-agent-conversation__icon">{icon}</span> : null}
-        <span className="ms-agent-conversation__body">
-          <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{title}</span>
+        {icon ? <span className="ms-inline-center ms-agent-conversation__icon">{icon}</span> : null}
+        <span className="ms-stack ms-agent-conversation__body">
+          <span className="ms-agent-text ms-text-truncate ms-type-item ms-agent-conversation__title">{title}</span>
           {description ? (
-            <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">
+            <span className="ms-agent-text ms-text-truncate ms-agent-text--muted ms-type-label ms-agent-conversation__description">
               {description}
             </span>
           ) : null}
         </span>
-        {meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{meta}</span> : null}
+        {meta ? <span className="ms-agent-text ms-text-truncate ms-agent-text--muted ms-type-label ms-agent-conversation__meta">{meta}</span> : null}
       </button>
     );
   }

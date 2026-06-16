@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   ensureMovScriptWorkspaceRoot,
@@ -12,6 +12,8 @@ import type {
   ElectronMovScriptWorkspaceMediaFileReadResult,
   ElectronMovScriptWorkspaceFileWriteInput,
 } from '../../src/shared/contracts/electronApi'
+import { resolveMovScriptHomeDir } from './movscriptHomeInput'
+import { writeTextFileAtomic } from './atomicWrite'
 
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 const MAX_MEDIA_PREVIEW_FILE_BYTES = 32 * 1024 * 1024
@@ -61,12 +63,14 @@ export async function readMovScriptWorkspaceFile(input: ElectronMovScriptWorkspa
   if (!fileStat.isFile()) throw new Error('workspace file path must point to a file')
   if (fileStat.size > MAX_TEXT_FILE_BYTES) throw new Error(`workspace file is too large to edit: ${fileStat.size} bytes`)
   const content = await readFile(target.absolutePath, 'utf8')
+  const version = workspaceFileVersion(Number(fileStat.mtimeMs), fileStat.size)
   return {
     rootPath: target.rootPath,
     path: toWorkspaceRelativePath(target.rootPath, target.absolutePath),
     content,
     size: fileStat.size,
     updatedAt: fileStat.mtime.toISOString(),
+    version,
   }
 }
 
@@ -95,9 +99,10 @@ export async function writeMovScriptWorkspaceFile(input: ElectronMovScriptWorksp
   const target = await resolveMovScriptWorkspaceFilePath(input)
   const existingStat = await lstatSafe(target.absolutePath)
   if (existingStat?.isSymbolicLink()) throw new Error('workspace file symlinks are not supported')
-  await mkdir(dirname(target.absolutePath), { recursive: true })
-  await writeFile(target.absolutePath, input.content, 'utf8')
+  assertExpectedWorkspaceFileVersion(target.absolutePath, await statSafe(target.absolutePath), input.expectedVersion)
+  await writeTextFileAtomic(target.absolutePath, input.content)
   return readMovScriptWorkspaceFile({
+    movScriptHomeDir: input.movScriptHomeDir,
     workspaceDir: input.workspaceDir,
     ...(input.userId !== undefined ? { userId: input.userId } : {}),
     ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
@@ -115,7 +120,7 @@ export async function deleteMovScriptWorkspaceFile(input: ElectronMovScriptWorks
 }
 
 async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorkspaceFilesInput): Promise<{ rootPath: string; absolutePath: string; relativePath: string }> {
-  const workspaceDir = input?.workspaceDir?.trim() || await resolveDefaultMovScriptWorkspaceDir()
+  const workspaceDir = resolveMovScriptHomeDir(input)
   const workspaceRoot = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(workspaceRoot)
   const rootPath = input?.projectId !== undefined
@@ -137,11 +142,6 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   }
 }
 
-async function resolveDefaultMovScriptWorkspaceDir(): Promise<string> {
-  const { resolveDesktopDefaultMovScriptWorkspaceDir } = await import('./movscriptWorkspaceDefaults')
-  return resolveDesktopDefaultMovScriptWorkspaceDir()
-}
-
 function assertInsideRoot(rootPath: string, absolutePath: string): void {
   const rootRelativePath = relative(rootPath, absolutePath)
   if (rootRelativePath === '') return
@@ -152,6 +152,22 @@ function assertInsideRoot(rootPath: string, absolutePath: string): void {
 function toWorkspaceRelativePath(rootPath: string, absolutePath: string): string {
   const next = relative(rootPath, absolutePath)
   return next === '' ? '' : next.split('\\').join('/')
+}
+
+function assertExpectedWorkspaceFileVersion(
+  absolutePath: string,
+  fileStat: Awaited<ReturnType<typeof stat>> | undefined,
+  expectedVersion: string | null | undefined,
+): void {
+  if (expectedVersion === undefined) throw new Error('workspace file expectedVersion is required')
+  const currentVersion = fileStat ? workspaceFileVersion(Number(fileStat.mtimeMs), Number(fileStat.size)) : null
+  if (currentVersion !== expectedVersion) {
+    throw new Error(`workspace file changed: ${absolutePath}`)
+  }
+}
+
+function workspaceFileVersion(mtimeMs: number, size: number): string {
+  return `${Math.trunc(mtimeMs)}:${size}`
 }
 
 function imageMimeTypeForPath(path: string): string | undefined {

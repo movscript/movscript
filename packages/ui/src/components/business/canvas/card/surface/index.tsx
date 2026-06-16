@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { Frame } from "../../../../primitives";
 import type { CanvasSurfaceDensity, CanvasSurfaceVariant } from "../types";
 
 export function CanvasSurfaceItem({
@@ -17,7 +17,7 @@ export function CanvasSurfaceItem({
   children: ReactNode;
 }) {
   return (
-    <Surface
+    <Frame
       asChild={asChild}
       kind="item"
       density={density === "compact" ? "compact" : "normal"}
@@ -28,6 +28,6 @@ export function CanvasSurfaceItem({
       {...props}
     >
       {children}
-    </Surface>
+    </Frame>
   );
 }

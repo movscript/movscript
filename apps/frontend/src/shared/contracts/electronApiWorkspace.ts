@@ -16,6 +16,7 @@ export type ElectronMovScriptWorkspaceConfig = {
   schema: MovScriptWorkspaceConfig['schema']
   updatedAt: string
   modelConfig?: Record<string, unknown>
+  agentCatalog?: MovScriptWorkspaceConfig['agentCatalog']
   toolProviders?: Array<Record<string, unknown>>
   modelProviders?: Array<Record<string, unknown>>
   permissions?: Record<string, unknown>
@@ -23,20 +24,28 @@ export type ElectronMovScriptWorkspaceConfig = {
   providers?: Record<string, Record<string, unknown>>
 }
 
+export type ElectronMovScriptHomeInput = {
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
+  workspaceDir?: string
+}
+
 export type ElectronMovScriptWorkspaceConfigSaveInput = {
   providerProfileKey?: string
-  workspaceDir?: string
   modelConfig?: Record<string, unknown> | null
+  agentCatalog?: MovScriptWorkspaceConfig['agentCatalog'] | null
   toolProviders?: Array<Record<string, unknown>> | null
   modelProviders?: Array<Record<string, unknown>> | null
   permissions?: Record<string, unknown> | null
   environment?: Record<string, string> | null
   providers?: Record<string, Record<string, unknown>> | null
-}
+} & ElectronMovScriptHomeInput
 
 export type ElectronMovScriptWorkspaceRootManifest = MovScriptWorkspaceRootManifest
 
 export type ElectronMovScriptWorkspaceRootResult = {
+  movScriptHomeDir: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir: string
   rootDir: string
   controlDir: string
@@ -56,8 +65,7 @@ export type ElectronMovScriptWorkspaceFileEntry = {
   updatedAt: string
 }
 
-export type ElectronMovScriptWorkspaceFilesInput = {
-  workspaceDir?: string
+export type ElectronMovScriptWorkspaceFilesInput = ElectronMovScriptHomeInput & {
   userId?: number | string
   orgId?: number | string
   projectId?: number | string
@@ -76,6 +84,7 @@ export type ElectronMovScriptWorkspaceFileReadResult = {
   content: string
   size: number
   updatedAt: string
+  version: string
 }
 
 export type ElectronMovScriptWorkspaceMediaFileReadResult = {
@@ -89,16 +98,30 @@ export type ElectronMovScriptWorkspaceMediaFileReadResult = {
 
 export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspaceFilesInput & {
   content: string
+  expectedVersion: string | null
 }
 
-export type ElectronMovScriptWorkspaceInterpretActionInput = {
-  workspaceDir?: string
+export type ElectronMovScriptWorkspaceInterpretActionInput = ElectronMovScriptHomeInput & {
   userId?: number | string
   orgId?: number | string
   projectId?: number | string
+  expectedWorkspaceVersions?: Record<string, string | null>
 }
 
 export type ElectronMovScriptEngineProjectInput = ElectronMovScriptWorkspaceInterpretActionInput
+
+export type ElectronMovScriptEngineWorkspaceUpdatedEvent = ElectronMovScriptEngineProjectInput & {
+  type: 'MovScriptEngineWorkspaceUpdated'
+  reason:
+    | 'workspace-mutated'
+    | 'content-candidate-created'
+    | 'content-candidate-selected'
+    | 'source-updated'
+    | 'hierarchy-node-written'
+    | 'interpret-synced'
+  sequence: number
+  updatedAt: string
+}
 
 export type ElectronMovScriptEngineWorkspaceQueryEntitiesInput = ElectronMovScriptEngineProjectInput & {
   query?: Parameters<MovScriptWorkspaceService['queryEntities']>[0]
@@ -156,11 +179,8 @@ export type ElectronMovScriptEngineWorkspaceCandidateCreateInput = ElectronMovSc
   payload: Parameters<MovScriptWorkspaceService['createAssetSlotCandidate']>[0]
 }
 
-export type ElectronMovScriptEngineContentCandidateCreateInput = {
+export type ElectronMovScriptEngineContentCandidateCreateInput = ElectronMovScriptEngineProjectInput & {
   projectId: number | string
-  workspaceDir?: string
-  userId?: number | string
-  orgId?: number | string
   contentUnitId: string | number
   candidateId: string | number
   source: 'ai_generate' | 'resource_library'
@@ -180,11 +200,8 @@ export type ElectronMovScriptEngineContentCandidateCreateInput = {
   createdAt: string
 }
 
-export type ElectronMovScriptEngineContentCandidateSelectInput = {
+export type ElectronMovScriptEngineContentCandidateSelectInput = ElectronMovScriptEngineProjectInput & {
   projectId: number | string
-  workspaceDir?: string
-  userId?: number | string
-  orgId?: number | string
   contentUnitId: string | number
   candidateId: string | number
   resourceId?: number
@@ -211,9 +228,8 @@ export type ElectronMovScriptEngineHierarchyNodeWriteInput = ElectronMovScriptEn
   record: Record<string, unknown>
 }
 
-export type ElectronProjectGitActionInput = {
+export type ElectronProjectGitActionInput = ElectronMovScriptHomeInput & {
   projectId: number | string
-  workspaceDir?: string
   userId?: number | string
   orgId?: number | string
 }

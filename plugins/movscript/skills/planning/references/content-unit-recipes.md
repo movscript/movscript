@@ -16,6 +16,8 @@ Create the necessary upstream structure first, then create the content unit. Do 
 - `asset_ref`: image output, requires `asset_ref`. Use to stabilize a reusable character, location, prop, style, or state asset.
 - `keyframe_ref`: image output, uses `scene_moment_ref`, `shot_ref`, `storyboard_ref`, and `keyframe_ref` or `keyframe_refs`. Use to stabilize visual anchors for a shot or storyboard.
 - `storyboard_ref`: image output, requires `storyboard_ref`. Use to stabilize storyboard panels/images for composition, blocking, timing, and shot rhythm before keyframes or final video.
+- `production_ref`: video output, targets one complete production. Prefer `target_kind: production`, `target_ref`, and `production_ref` for new final production records. Use for the selected final assembly candidate produced by production timeline composition.
+- `segment_ref`: video output, targets a segment-level video. Prefer `target_kind: segment`, `target_ref`, and `segment_ref` for new segment assembly records.
 - `scene_moment_ref` / legacy `scence_moment_ref`: video output, targets one complete scene moment. Prefer `target_kind: scene_moment` and `target_ref` for new records. Use when directly generating one complete scene moment video without material breakdown first.
 - `expression_unit_ref`: output kind may be video, audio, text, image, or metadata. Prefer `target_kind: expression_unit` and `target_ref` for new records. Use for visual material, voice material, subtitle text, sfx/music/ambience, or interaction metadata that will later be composed by an edit plan.
 - `shot_ref`: legacy video output for one camera unit. Do not use for new final-shape plans unless interacting with old data.
@@ -94,6 +96,8 @@ shot intent
 Current source supports these flat refs on content units:
 
 - `scene_moment_ref`
+- `production_ref`
+- `segment_ref`
 - `expression_unit_ref`
 - `shot_ref`
 - `storyboard_ref`

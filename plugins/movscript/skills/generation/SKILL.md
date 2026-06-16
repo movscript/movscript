@@ -30,7 +30,12 @@ toolGrants:
   - mcp__movscript__domain_query_entities
   - mcp__movscript__domain_query_assets
   - mcp__movscript__domain_query_production_context
+  - mcp__movscript__domain_read_production_timeline
+  - mcp__movscript__domain_apply_production_timeline_commands
+  - mcp__movscript__domain_compose_production_from_timeline
   - mcp__movscript__domain_read_scene_moment_edit_plan
+  - mcp__movscript__domain_read_scene_moment_timeline
+  - mcp__movscript__domain_apply_scene_moment_timeline_commands
   - mcp__movscript__domain_compose_scene_moment_from_edit_plan
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_content_unit_runtime_panel

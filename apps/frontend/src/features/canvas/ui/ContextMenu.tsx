@@ -8,7 +8,7 @@ import {
   canvasContextMenuStyleFromPosition,
 } from '@/features/canvas/presentation/canvasContextMenuPlacement'
 import { Boxes, Trash2, Ungroup } from 'lucide-react'
-import { CanvasContextMenuView, type CanvasContextMenuAction, type CanvasContextMenuSection } from '@movscript/ui/business/canvas'
+import { CanvasContextMenuView, type CanvasContextMenuAction, type CanvasContextMenuSection } from './CanvasContextMenuUi'
 
 const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval', 'resource_sink', 'canvas'])
 const CONTEXT_MENU_MEDIA_NODE_TYPES = new Set<NodeType>(['text'])

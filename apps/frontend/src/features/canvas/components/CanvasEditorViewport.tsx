@@ -22,7 +22,7 @@ import {
   CanvasDropOverlay,
   CanvasSelectionFrame,
   CanvasViewportActionButton,
-} from '@movscript/ui/business/canvas'
+} from '@/features/canvas/ui/CanvasEditorFlowUi'
 import {
   CanvasViewportBoundsLayer,
   CanvasViewportEmptyOverlay,

@@ -34,8 +34,28 @@ type Config struct {
 	MCPToken           string // optional Bearer token for MCP endpoint; empty = no auth
 	AuthTokenSecret    string
 	AuthTokenTTLHours  int
+	AdminUsername      string
+	AdminPassword      string
+	TurnstileEnabled   bool
+	TurnstileSiteKey   string
+	TurnstileSecretKey string
 	HubAdminToken      string
+	SCIMToken          string
+	SCIMOrgID          uint
+	OIDCAuthURL        string
+	OIDCTokenURL       string
+	OIDCUserInfoURL    string
+	OIDCClientID       string
+	OIDCClientSecret   string
+	OIDCRedirectURL    string
+	OIDCScopes         []string
+	SAMLEntryURL       string
+	SAMLACSURL         string
+	SAMLEntityID       string
+	SAMLIDPIssuer      string
+	SAMLIDPCertificate string
 	CORSAllowedOrigins []string
+	AdminStaticDir     string
 	ProviderEnvPath    string
 
 	// Provider activation
@@ -100,6 +120,26 @@ type Config struct {
 	ImageVerifyBaseURL string
 	ImageVerifyAPIKey  string
 	AIGatewayProvider  string
+	MeteringProvider   string
+
+	// Enterprise AI gateway and metering extension fields. Community builds keep
+	// them empty unless an edition hook populates them.
+	NewAPIBaseURL        string
+	NewAPIAdminToken     string
+	NewAPIAdminTokenFile string
+	NewAPIAdminUserID    int
+	NewAPIAdminUsername  string
+	NewAPIAdminPassword  string
+	NewAPIPublicURL      string
+	NewAPIPlanMap        string
+	NewAPIGroupMap       string
+	NewAPIRouteGroupMap  string
+	NewAPIUserPrefix     string
+	NewAPIOrgUserPrefix  string
+	NewAPIUserPassword   string
+	NewAPITokenQuota     int
+	NewAPITokenGroup     string
+	NewAPIRechargeGroup  string
 
 	// Filesystem object storage
 	FilesystemStorageRoot string
@@ -199,6 +239,9 @@ func Load() *Config {
 		MCPToken:           getEnv("MCP_TOKEN", ""),
 		AuthTokenSecret:    authSecret,
 		AuthTokenTTLHours:  getEnvInt("AUTH_TOKEN_TTL_HOURS", 24),
+		TurnstileEnabled:   getEnvBool("MOVSCRIPT_TURNSTILE_ENABLED", false),
+		TurnstileSiteKey:   getEnv("MOVSCRIPT_TURNSTILE_SITE_KEY", ""),
+		TurnstileSecretKey: getEnv("MOVSCRIPT_TURNSTILE_SECRET_KEY", ""),
 		HubAdminToken:      getEnv("HUB_ADMIN_TOKEN", ""),
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
 		ProviderEnvPath:    providerEnvPath,
@@ -260,7 +303,7 @@ func Load() *Config {
 		StorageBackend:        getEnv("STORAGE_BACKEND", providers.ObjectStorage),
 		ImageVerifyBaseURL:    getEnv("IMAGE_VERIFY_BASE_URL", ""),
 		ImageVerifyAPIKey:     getEnv("IMAGE_VERIFY_API_KEY", ""),
-		AIGatewayProvider:     getEnv("MOVSCRIPT_AI_GATEWAY_PROVIDER", providers.AIGateway),
+		AIGatewayProvider:     providers.AIGateway,
 		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", filepath.Join(dataDir, "resources")),
 
 		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "minio:9000"),
@@ -269,6 +312,7 @@ func Load() *Config {
 		MinIOBucket:    getEnv("MINIO_BUCKET", "movscript"),
 		MinIOUseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
 	}
+	editionApplyLoadedConfig(cfg)
 	cfg.Dependencies = cfg.EffectiveDependencyProviders()
 	return cfg
 }
@@ -283,6 +327,9 @@ func (c *Config) ValidateStartup() error {
 	}
 	if c.AuthTokenTTLHours <= 0 {
 		problems = append(problems, "AUTH_TOKEN_TTL_HOURS must be greater than 0")
+	}
+	if c.TurnstileEnabled && (strings.TrimSpace(c.TurnstileSiteKey) == "" || strings.TrimSpace(c.TurnstileSecretKey) == "") {
+		problems = append(problems, "MOVSCRIPT_TURNSTILE_SITE_KEY and MOVSCRIPT_TURNSTILE_SECRET_KEY are required when MOVSCRIPT_TURNSTILE_ENABLED=true")
 	}
 	if c.MaxUploadBytes < 0 {
 		problems = append(problems, "MAX_UPLOAD_BYTES must be greater than or equal to 0")
@@ -346,11 +393,12 @@ func (c *Config) ValidateStartup() error {
 	default:
 		problems = append(problems, "MOVSCRIPT_WORKSPACE_STORAGE_BACKEND must be one of: http, gitea, github-enterprise, gitlab")
 	}
-	switch strings.TrimSpace(c.AIGatewayProvider) {
-	case "", "builtin", "local", "new-api":
-	default:
-		problems = append(problems, "MOVSCRIPT_AI_GATEWAY_PROVIDER must be one of: builtin, local, new-api")
+	if provider, ok := editionAIGatewayProvider(c); ok {
+		c.AIGatewayProvider = provider
+	} else {
+		c.AIGatewayProvider = providercontract.AdapterLocal
 	}
+	problems = append(problems, editionValidateStartup(c)...)
 	if workspaceStorageBackend == "gitea" {
 		if c.GiteaBaseURL == "" {
 			problems = append(problems, "MOVSCRIPT_GITEA_BASE_URL is required when MOVSCRIPT_WORKSPACE_STORAGE_BACKEND=gitea")
@@ -442,7 +490,7 @@ func (c *Config) ValidateStartup() error {
 }
 
 func (c *Config) SafeSummary() map[string]any {
-	return map[string]any{
+	summary := map[string]any{
 		"app_mode":                     c.AppMode,
 		"deployment_mode":              c.DeploymentMode,
 		"dependency_profile":           c.DependencyProfile,
@@ -499,6 +547,10 @@ func (c *Config) SafeSummary() map[string]any {
 		"git_http_root":                c.GitHTTPRoot,
 		"git_binary":                   c.GitBinary,
 	}
+	for key, value := range editionSafeSummary(c) {
+		summary[key] = value
+	}
+	return summary
 }
 
 func (c *Config) EffectiveDependencyProviders() DependencyProviders {
@@ -517,12 +569,16 @@ func (c *Config) EffectiveDependencyProviders() DependencyProviders {
 	if agentRuntime == "" {
 		agentRuntime = defaultDependencyProviders(profile).AgentRuntime
 	}
+	aiGateway := providercontract.AdapterLocal
+	if provider, ok := editionAIGatewayProvider(c); ok {
+		aiGateway = provider
+	}
 	return DependencyProviders{
 		Profile:          profile,
 		Database:         strings.TrimSpace(c.DBDriver),
 		ObjectStorage:    strings.TrimSpace(c.StorageBackend),
 		WorkspaceStorage: normalizeWorkspaceStorageBackend(c.WorkspaceStorageBackend),
-		AIGateway:        strings.TrimSpace(c.AIGatewayProvider),
+		AIGateway:        aiGateway,
 		VectorIndex:      normalizeVectorIndexProvider(c.VectorIndexProvider),
 		Cache:            strings.TrimSpace(c.CacheBackend),
 		MediaProcessing:  mediaProcessing,
@@ -540,7 +596,7 @@ func (c *Config) EffectiveProviderAssembly() ProviderAssembly {
 			providerAssemblyItem(providercontract.TypeDatabase, deps.Database, configuredDatabase(c, deps.Database), deps.Profile),
 			providerAssemblyItem(providercontract.TypeBlobStorage, deps.ObjectStorage, configuredBlobStorage(c, deps.ObjectStorage), deps.Profile),
 			providerAssemblyItem(providercontract.TypeWorkspaceRepository, deps.WorkspaceStorage, configuredWorkspaceRepository(c, deps.WorkspaceStorage), deps.Profile),
-			providerAssemblyItem(providercontract.TypeAIGateway, deps.AIGateway, deps.AIGateway != "", deps.Profile),
+			providerAssemblyItem(providercontract.TypeAIGateway, deps.AIGateway, configuredAIGateway(c, deps.AIGateway), deps.Profile),
 			providerAssemblyItem(providercontract.TypeVectorIndex, deps.VectorIndex, configuredVectorIndex(c, deps.VectorIndex), deps.Profile),
 			providerAssemblyItem(providercontract.TypeCache, deps.Cache, configuredCache(c, deps.Cache), deps.Profile),
 			providerAssemblyItem(providercontract.TypeMediaProcessing, deps.MediaProcessing, configuredMediaProcessing(c, deps.MediaProcessing), deps.Profile),
@@ -630,6 +686,13 @@ func configuredBlobStorage(c *Config, adapter string) bool {
 	}
 }
 
+func configuredAIGateway(c *Config, adapter string) bool {
+	if configured, handled := editionConfiguredAIGateway(c, adapter); handled {
+		return configured
+	}
+	return strings.TrimSpace(adapter) != ""
+}
+
 func configuredWorkspaceRepository(c *Config, adapter string) bool {
 	if c == nil {
 		return false
@@ -716,6 +779,9 @@ func providerConfigFields(c *Config, providerType string, adapter string) []Prov
 	if c == nil {
 		c = &Config{}
 	}
+	if fields, handled := editionProviderConfigFields(c, providerType, adapter); handled {
+		return fields
+	}
 	switch providerType + ":" + strings.TrimSpace(adapter) {
 	case providercontract.TypeDatabase + ":" + providercontract.AdapterSQLite:
 		return []ProviderConfigField{field("db_path", true, strings.TrimSpace(c.DBPath) != "")}
@@ -764,9 +830,7 @@ func providerConfigFields(c *Config, providerType string, adapter string) []Prov
 			field("gitlab_branch", false, strings.TrimSpace(c.GitLabBranch) != ""),
 			field("workspace_clone_url_strategy", false, strings.TrimSpace(c.WorkspaceCloneURLStrategy) != ""),
 		}
-	case providercontract.TypeAIGateway + ":" + providercontract.AdapterLocal,
-		providercontract.TypeAIGateway + ":" + providercontract.AdapterBuiltin,
-		providercontract.TypeAIGateway + ":" + providercontract.AdapterNewAPI:
+	case providercontract.TypeAIGateway + ":" + providercontract.AdapterLocal:
 		return nil
 	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterLocalIndex:
 		return nil
@@ -799,6 +863,9 @@ func providerSecretFields(c *Config, providerType string, adapter string) []Prov
 	if c == nil {
 		c = &Config{}
 	}
+	if fields, handled := editionProviderSecretFields(c, providerType, adapter); handled {
+		return fields
+	}
 	switch providerType + ":" + strings.TrimSpace(adapter) {
 	case providercontract.TypeDatabase + ":" + providercontract.AdapterPostgres:
 		return []ProviderSecretField{field("db_password", false, strings.TrimSpace(c.DBPassword) != "")}
@@ -829,7 +896,27 @@ func providerSecretFields(c *Config, providerType string, adapter string) []Prov
 	}
 }
 
+func (c *Config) OIDCEnabled() bool {
+	return strings.TrimSpace(c.OIDCAuthURL) != "" ||
+		strings.TrimSpace(c.OIDCTokenURL) != "" ||
+		strings.TrimSpace(c.OIDCUserInfoURL) != "" ||
+		strings.TrimSpace(c.OIDCClientID) != "" ||
+		strings.TrimSpace(c.OIDCClientSecret) != "" ||
+		strings.TrimSpace(c.OIDCRedirectURL) != ""
+}
+
+func (c *Config) SAMLEnabled() bool {
+	return strings.TrimSpace(c.SAMLEntryURL) != "" ||
+		strings.TrimSpace(c.SAMLACSURL) != "" ||
+		strings.TrimSpace(c.SAMLEntityID) != "" ||
+		strings.TrimSpace(c.SAMLIDPIssuer) != "" ||
+		strings.TrimSpace(c.SAMLIDPCertificate) != ""
+}
+
 func defaultDeploymentMode(appMode string) string {
+	if mode, ok := editionDefaultDeploymentMode(appMode); ok {
+		return mode
+	}
 	switch appMode {
 	case "local":
 		return "personal-local"
@@ -859,6 +946,9 @@ func normalizeDependencyProfile(profile string) string {
 }
 
 func defaultDependencyProviders(profile string) DependencyProviders {
+	if providers, ok := editionDefaultDependencyProviders(profile); ok {
+		return providers
+	}
 	switch normalizeDependencyProfile(profile) {
 	case "local":
 		return DependencyProviders{
@@ -878,7 +968,7 @@ func defaultDependencyProviders(profile string) DependencyProviders {
 			Database:         "postgres",
 			ObjectStorage:    "minio",
 			WorkspaceStorage: "gitea",
-			AIGateway:        "new-api",
+			AIGateway:        providercontract.AdapterLocal,
 			VectorIndex:      providercontract.AdapterLocalIndex,
 			Cache:            "redis",
 			MediaProcessing:  providercontract.AdapterExternalMediaWorker,
@@ -890,7 +980,7 @@ func defaultDependencyProviders(profile string) DependencyProviders {
 			Database:         "postgres",
 			ObjectStorage:    "minio",
 			WorkspaceStorage: "http",
-			AIGateway:        "builtin",
+			AIGateway:        providercontract.AdapterLocal,
 			VectorIndex:      providercontract.AdapterLocalIndex,
 			Cache:            "memory",
 			MediaProcessing:  providercontract.AdapterDesktopManagedMedia,
@@ -937,6 +1027,13 @@ func getEnvInt(key string, fallback int) int {
 	return fallback
 }
 
+func getEnvBool(key string, fallback bool) bool {
+	if v := strings.TrimSpace(strings.ToLower(os.Getenv(key))); v != "" {
+		return v == "1" || v == "true" || v == "yes" || v == "on"
+	}
+	return fallback
+}
+
 func getEnvInt64(key string, fallback int64) int64 {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
@@ -972,7 +1069,7 @@ func getEnvCSV(key string, fallback []string) []string {
 }
 
 func defaultCORSAllowedOrigins() []string {
-	return []string{
+	return editionDefaultCORSAllowedOrigins([]string{
 		"http://localhost:3001",
 		"http://127.0.0.1:3001",
 		"http://localhost:5173",
@@ -980,7 +1077,7 @@ func defaultCORSAllowedOrigins() []string {
 		"http://localhost:5174",
 		"http://127.0.0.1:5174",
 		"movscript-admin://app",
-	}
+	})
 }
 
 func defaultDataDir() string {

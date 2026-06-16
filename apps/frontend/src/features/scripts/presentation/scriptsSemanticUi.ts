@@ -2,12 +2,6 @@ import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/pr
 
 export type ScriptsStatusRecipe = UiStatusRecipe
 
-export function scriptLibraryStatusRecipe(hasVersions: boolean, bodyLength: number): ScriptsStatusRecipe {
-  if (hasVersions) return scriptsLibraryStatus.recipe('versioned')
-  if (bodyLength > 0) return scriptsLibraryStatus.recipe('workspaceed')
-  return scriptsLibraryStatus.recipe('default')
-}
-
 export function scriptReadinessRecipe(readiness: number): ScriptsStatusRecipe {
   return scriptsReadinessStatus.recipe(readiness >= 80 ? 'ready' : 'missing')
 }
@@ -23,12 +17,6 @@ export function scriptVersionStatusRecipe(saved: boolean): ScriptsStatusRecipe {
 export function scriptReadinessItemRecipe(done: boolean): ScriptsStatusRecipe {
   return scriptsReadinessStatus.recipe(done ? 'ready' : 'missing')
 }
-
-const scriptsLibraryStatus = defineFeatureStatusRecipeGroup('scripts.library.status', {
-  versioned: 'success',
-  workspaceed: 'warning',
-  default: 'neutral',
-})
 
 const scriptsReadinessStatus = defineFeatureStatusRecipeGroup('scripts.readiness.status', {
   ready: 'success',

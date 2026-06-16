@@ -28,21 +28,21 @@ export function ResourceAssetCard({
   selected?: boolean;
 }) {
   return (
-    <div className={cn("resource-asset-card", className)} data-selected={selected ? "true" : undefined} {...props}>
+    <div className={cn("ms-stack resource-asset-card", className)} data-selected={selected ? "true" : undefined} {...props}>
       <div className="resource-asset-card__preview">
         {preview}
         {selectControl ? <div className="resource-asset-card__select">{selectControl}</div> : null}
         {actionControl ? <div className="resource-asset-card__action">{actionControl}</div> : null}
         {sharedBadge ? <div className="resource-asset-card__shared">{sharedBadge}</div> : null}
       </div>
-      <div className="resource-asset-card__name-row">
-        {typeIcon ? <span className="resource-asset-card__type-icon">{typeIcon}</span> : null}
-        <span className="resource-asset-card__name">{name}</span>
+      <div className="ms-action-row resource-asset-card__name-row">
+        {typeIcon ? <span className="ms-inline-center resource-asset-card__type-icon">{typeIcon}</span> : null}
+        <span className="ms-text-truncate ms-type-label resource-asset-card__name">{name}</span>
       </div>
       {(size || owner || children) ? (
-        <div className="resource-asset-card__meta-row">
-          {size ? <span className="resource-asset-card__size">{size}</span> : null}
-          {owner ? <span className="resource-asset-card__owner">{owner}</span> : null}
+        <div className="ms-action-row resource-asset-card__meta-row">
+          {size ? <span className="ms-type-label resource-asset-card__size">{size}</span> : null}
+          {owner ? <span className="ms-text-truncate ms-type-label resource-asset-card__owner">{owner}</span> : null}
           {children}
         </div>
       ) : null}
@@ -56,7 +56,7 @@ export function ResourceAssetSelectCheckbox({
 }: CheckboxFieldProps) {
   return (
     <CheckboxField
-      className={cn("resource-asset-card__select-control", className)}
+      className={cn("ms-center resource-asset-card__select-control", className)}
       {...props}
     />
   );

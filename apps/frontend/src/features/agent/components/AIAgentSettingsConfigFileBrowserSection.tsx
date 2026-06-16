@@ -5,7 +5,7 @@ import {
   AgentSettingsActionRow,
   AgentSettingsIcon,
   AgentSettingsStateMessage,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import {
   AgentSettingsConfigFileBrowser,
   AgentSettingsConfigFileEditorSection,

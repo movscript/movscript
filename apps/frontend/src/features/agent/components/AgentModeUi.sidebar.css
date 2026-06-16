@@ -257,17 +257,12 @@
 }
 
 .agent-mode-icon {
-  display: inline-flex;
   flex-shrink: 0;
   color: inherit;
 }
 
 .agent-mode-label {
-  min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .agent-mode-meta {

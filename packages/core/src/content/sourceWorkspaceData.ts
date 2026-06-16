@@ -1,5 +1,6 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type { MovScriptProductionWorkPlan } from '@movscript/interpreter'
+import type { OpenCutTimelineDocument } from '@movscript/editing'
 
 import type {
   AudioCue,
@@ -35,6 +36,7 @@ export interface ContentSourceWorkspaceData {
   audioCuesByMoment: Record<string, AudioCue[]>
   shotWorkspaceDetails: Record<string, ShotWorkspaceDetails>
   assetReferenceUnits: Record<string, PreviewAssetReferenceUnit>
+  editingTimelines: ContentSourceWorkspaceEditingTimeline[]
   productionWorkPlan?: ProductionWorkPlanView
 }
 
@@ -64,6 +66,15 @@ export interface WorkspacePreviewTimelineItem {
   }
   order: number
   parentId?: string
+}
+
+export interface ContentSourceWorkspaceEditingTimeline {
+  targetKind: 'scene_moment' | 'production'
+  targetId: string | number
+  targetPath?: string
+  status?: string
+  blockers?: unknown[]
+  timelineDocument: OpenCutTimelineDocument
 }
 
 export interface WorkspaceDocument {
@@ -107,6 +118,7 @@ export interface ContentSourceWorkspaceSnapshot {
   audioCues: MovScriptWorkspaceIndexedEntity[]
   contentUnits: MovScriptWorkspaceIndexedEntity[]
   previewTimelines: WorkspacePreviewTimelineArtifact[]
+  editingTimelines?: ContentSourceWorkspaceEditingTimeline[]
   productionWorkPlan?: MovScriptProductionWorkPlan | ProductionWorkPlanView
 }
 
@@ -262,6 +274,7 @@ export function buildContentSourceWorkspaceData(input: ContentSourceWorkspaceSna
     audioCuesByMoment,
     shotWorkspaceDetails,
     assetReferenceUnits,
+    editingTimelines: input.editingTimelines ?? [],
     productionWorkPlan,
   }
 }
@@ -1536,7 +1549,9 @@ function contentUnitForEntity(
   return contentUnitsByPrimaryRef.get(primaryRefKey(entityKind, entity.id))?.[0]
 }
 
-function primaryKindForContentUnitType(type: string | undefined): 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
+function primaryKindForContentUnitType(type: string | undefined): 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
+  if (type === 'production_ref') return 'production'
+  if (type === 'segment_ref') return 'segment'
   if (type === 'asset_ref') return 'asset'
   if (type === 'keyframe_ref') return 'keyframe'
   if (type === 'storyboard_ref') return 'storyboard'
@@ -1553,6 +1568,10 @@ function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind
       return compactStrings(record.keyframe_ref)
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
+    case 'production':
+      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
+    case 'segment':
+      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
     case 'shot':

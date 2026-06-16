@@ -133,11 +133,9 @@ const expectedUiOwnedDefinitions = [
   '--ms-agent-composer-control-border',
   '--ms-agent-composer-control-fill',
   '--ms-agent-composer-fill',
-  '--ms-agent-composer-panel-border',
-  '--ms-agent-composer-panel-control',
-  '--ms-agent-composer-panel-fill',
-  '--ms-agent-composer-panel-muted',
-  '--ms-button-subtle-hover-background',
+  '--ms-button-content-display',
+  '--ms-button-content-min-width',
+  '--ms-button-content-width',
   '--ms-tone-color',
 ]
 

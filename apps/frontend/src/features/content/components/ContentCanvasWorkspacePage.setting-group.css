@@ -1,0 +1,124 @@
+.content-canvas-setting-group {
+  position: absolute;
+  left: calc(50% + var(--group-x));
+  top: calc(50% + var(--group-y));
+  width: var(--group-width);
+  height: var(--group-height);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  z-index: 2;
+}
+
+.content-canvas-setting-group[data-dragging="true"] {
+  cursor: grabbing;
+  z-index: 5;
+}
+
+.content-canvas-setting-group__frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed color-mix(in srgb, var(--cc-text) 18%, transparent);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  transition: border-color 120ms ease;
+}
+
+.content-canvas-setting-group__frame::before,
+.content-canvas-setting-group__frame::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: color-mix(in srgb, var(--cc-accent) 48%, transparent);
+}
+
+.content-canvas-setting-group__frame::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: 8px;
+}
+
+.content-canvas-setting-group__frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+  border-bottom-right-radius: 8px;
+}
+
+.content-canvas-setting-group:hover .content-canvas-setting-group__frame {
+  border-color: color-mix(in srgb, var(--cc-text) 32%, transparent);
+}
+
+.content-canvas-setting-group__frame[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--cc-accent) 70%, transparent);
+}
+
+.content-canvas-setting-group__frame[data-selected="true"]::before,
+.content-canvas-setting-group__frame[data-selected="true"]::after {
+  border-color: color-mix(in srgb, var(--cc-accent) 78%, transparent);
+}
+
+.content-canvas-setting-group__header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  min-height: 30px;
+  border-right: 1px solid var(--cc-border);
+  border-bottom: 1px solid var(--cc-border);
+  border-bottom-right-radius: 7px;
+  background: color-mix(in srgb, var(--cc-panel) 92%, transparent);
+  padding: 0 10px;
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-weight: 650;
+  pointer-events: none;
+}
+
+.content-canvas-setting-group__marker {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--cc-accent);
+}
+
+.content-canvas-setting-group__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cc-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-canvas-setting-group__meta {
+  color: var(--cc-muted);
+  white-space: nowrap;
+}
+
+.content-canvas-setting-group__nodes {
+  position: absolute;
+  inset: 0;
+}
+
+.content-canvas-setting-group__nodes .content-canvas-radial-node {
+  --node-width: 156px;
+  --node-height: 68px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--ms-color-foreground) 7%, transparent);
+  cursor: pointer;
+}
+
+.content-canvas-setting-group__nodes .content-canvas-radial-node__copy em {
+  -webkit-line-clamp: 1;
+}

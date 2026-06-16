@@ -5,14 +5,6 @@ export type WorkbenchIconComponent = ComponentType<{ size?: string | number; cla
 export type WorkbenchStatus = "blocked" | "review" | "ready" | "running";
 export type WorkbenchPriority = "high" | "medium" | "low";
 
-export interface WorkbenchQueueItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  status: WorkbenchStatus;
-  priority: WorkbenchPriority;
-}
-
 export interface WorkbenchDecisionRow {
   label: string;
   value: string;

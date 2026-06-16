@@ -11,13 +11,13 @@ import {
   ProjectWorkspaceReviewStatusBadge
 } from '../ProjectStandardsUi'
 import {
-  ReviewWorkspaceArtifactList,
-  ReviewWorkspaceArtifactPanel,
-  ReviewWorkspaceFieldDiffList,
-  ReviewWorkspaceFieldDiffRow,
-  ReviewWorkspaceShell,
-  ReviewWorkspaceSummaryCallout
-} from '@movscript/ui/business/review'
+  ProjectStandardsWorkspaceReviewArtifactList,
+  ProjectStandardsWorkspaceReviewArtifactPanel,
+  ProjectStandardsWorkspaceReviewFieldDiffList,
+  ProjectStandardsWorkspaceReviewFieldDiffRow,
+  ProjectStandardsWorkspaceReviewShell,
+  ProjectStandardsWorkspaceReviewSummaryCallout,
+} from './ProjectStandardsWorkspaceReviewUi'
 
 import type { WorkspaceArtifact } from '@/shared/infrastructure/providerSessionClient'
 import type { ProjectStandardsReviewWorkspace } from '@/features/project-standards/application/projectStandardsModel'
@@ -38,7 +38,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
   onApplyWorkspace: (workspace: WorkspaceArtifact) => void
 }) {
   return (
-    <ReviewWorkspaceShell
+    <ProjectStandardsWorkspaceReviewShell
       kind="project_standards_workspace"
       title="项目规范审阅"
       description="审阅 project_standards_workspace 中的 project_style，包含固定规范和扩展 custom_rules。"
@@ -46,7 +46,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
       countLabel={`workspace ${workspaceCount}`}
       layout="contained-scroll"
     >
-      <ReviewWorkspaceArtifactList scroll>
+      <ProjectStandardsWorkspaceReviewArtifactList scroll>
         {loading ? (
           <ProjectWorkspaceReviewLoadingState icon={<Loader2 size={12} className="animate-spin" />} text="读取工作区…" />
         ) : null}
@@ -54,7 +54,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
           <EmptyWorkspaceBlock title="暂无项目规范工作区" detail="从上方发起项目规范工作区后，AI 对核心规范和扩展规则的建议会进入这里审阅。" />
         ) : null}
         {workspaces.map(({ workspace, workspaceView, styleRows }) => (
-          <ReviewWorkspaceArtifactPanel
+          <ProjectStandardsWorkspaceReviewArtifactPanel
             key={workspace.id}
             title={workspace.title}
             className="last:mb-0"
@@ -68,7 +68,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
           >
             {workspaceView ? (
               <>
-                <ReviewWorkspaceSummaryCallout
+                <ProjectStandardsWorkspaceReviewSummaryCallout
                   title="项目规范工作区"
                   summary={workspaceView.summary}
                   badges={
@@ -92,9 +92,9 @@ export function ProjectStandardsWorkspaceReviewPanel({
                 />
 
                 {styleRows.length > 0 ? (
-                  <ReviewWorkspaceFieldDiffList columns={2}>
+                  <ProjectStandardsWorkspaceReviewFieldDiffList columns={2}>
                     {styleRows.map((row) => (
-                      <ReviewWorkspaceFieldDiffRow
+                      <ProjectStandardsWorkspaceReviewFieldDiffRow
                         key={row.key}
                         label={row.label}
                         before={row.before || '未设置'}
@@ -102,7 +102,7 @@ export function ProjectStandardsWorkspaceReviewPanel({
                         change={row.changed ? 'modified' : 'unchanged'}
                       />
                     ))}
-                  </ReviewWorkspaceFieldDiffList>
+                  </ProjectStandardsWorkspaceReviewFieldDiffList>
                 ) : (
                   <ProjectWorkspaceReviewEmptyText>
                     这份工作区还没有填写 project_style。
@@ -131,10 +131,10 @@ export function ProjectStandardsWorkspaceReviewPanel({
                 无法解析这份工作区的差异。
               </ProjectWorkspaceReviewEmptyText>
             )}
-          </ReviewWorkspaceArtifactPanel>
+          </ProjectStandardsWorkspaceReviewArtifactPanel>
         ))}
-      </ReviewWorkspaceArtifactList>
-    </ReviewWorkspaceShell>
+      </ProjectStandardsWorkspaceReviewArtifactList>
+    </ProjectStandardsWorkspaceReviewShell>
   )
 }
 

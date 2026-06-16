@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
 import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import type {
   ElectronProjectGitActionInput,
   ElectronProjectGitActionResult,
@@ -40,7 +40,7 @@ export async function pullProjectGitWorkspace(input: ElectronProjectGitActionInp
 
 async function runProjectGitOperation(operation: ProjectGitOperation, input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
   const projectId = normalizeProjectId(input?.projectId)
-  const workspaceDir = input?.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir()
+  const workspaceDir = resolveMovScriptHomeDir(input)
   const session = resolveMovScriptBackendSession({ workspaceDir })
   const orgId = normalizeOptionalId(input?.orgId)
   if (!session.token) {

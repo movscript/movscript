@@ -17,7 +17,7 @@ test('app-server launch identity reuses only matching config and runtime inputs'
   const distribution = appServerDistributionFixture({ hash: 'hash-a' })
   const target = appServerLaunchIdentity({
     executablePath: 'mova',
-    home: '/workspace/.movscript/.mova',
+    home: '/workspace/.mova',
     workspaceDir: '/workspace',
     providerSessionCwd: '/workspace',
     configDistribution: distribution,
@@ -25,21 +25,21 @@ test('app-server launch identity reuses only matching config and runtime inputs'
 
   assert.equal(appServerLaunchCanReuse({
     executablePath: 'mova',
-    home: '/workspace/.movscript/.mova',
+    home: '/workspace/.mova',
     workspaceDir: '/workspace',
     providerSessionCwd: '/workspace',
     configDistribution: distribution,
   }, target), true)
   assert.equal(appServerLaunchCanReuse({
     executablePath: 'mova',
-    home: '/workspace/.movscript/.mova',
+    home: '/workspace/.mova',
     workspaceDir: '/workspace',
     providerSessionCwd: '/workspace',
     configDistribution: appServerDistributionFixture({ hash: 'hash-b' }),
   }, target), false)
   assert.equal(appServerLaunchCanReuse({
     executablePath: '/usr/local/bin/mova',
-    home: '/workspace/.movscript/.mova',
+    home: '/workspace/.mova',
     workspaceDir: '/workspace',
     providerSessionCwd: '/workspace',
     configDistribution: distribution,
@@ -172,10 +172,10 @@ function appServerDistributionFixture(patch: Partial<AppServerConfigDistribution
   return {
     ok: true,
     providerKey: 'mova',
-    sourceConfigPath: '/workspace/.movscript/providers/mova/config.json',
-    home: '/workspace/.movscript/.mova',
-    configTomlPath: '/workspace/.movscript/.mova/config.toml',
-    authJsonPath: '/workspace/.movscript/.mova/auth.json',
+    sourceConfigPath: '/workspace/providers/mova/config.json',
+    home: '/workspace/.mova',
+    configTomlPath: '/workspace/.mova/config.toml',
+    authJsonPath: '/workspace/.mova/auth.json',
     homeEnvNames: ['MOVA_HOME', 'CODEX_HOME'],
     baseURL: 'https://api.openai.com/v1',
     apiKind: 'openai_responses',

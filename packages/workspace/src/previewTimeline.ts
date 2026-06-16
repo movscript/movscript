@@ -175,8 +175,12 @@ function hasSpecializedContentUnitAdapter(contentUnitType: string): boolean {
   return primaryRefKindForContentUnitType(contentUnitType) !== undefined
 }
 
-function primaryRefKindForContentUnitType(contentUnitType: string): 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
+function primaryRefKindForContentUnitType(contentUnitType: string): 'production' | 'segment' | 'asset' | 'keyframe' | 'storyboard' | 'scene_moment' | 'shot' | undefined {
   switch (contentUnitType) {
+    case 'production_ref':
+      return 'production'
+    case 'segment_ref':
+      return 'segment'
     case 'asset_ref':
       return 'asset'
     case 'keyframe_ref':
@@ -213,6 +217,10 @@ function primaryRefIdsForContentUnitRecord(record: Record<string, unknown>, kind
       return compactStrings(record.keyframe_ref)
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
+    case 'production':
+      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
+    case 'segment':
+      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.scene_moment_ref, record.scence_moment_ref)
     case 'shot':

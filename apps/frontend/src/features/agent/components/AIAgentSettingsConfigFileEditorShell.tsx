@@ -7,7 +7,7 @@ import {
   AgentSettingsKeyValue,
   AgentSettingsStack,
   AgentSettingsStateMessage,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import {
   AgentSettingsConfigFileEditor,
   AgentSettingsConfigFileEditorPane,

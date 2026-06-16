@@ -101,6 +101,7 @@ export type ElectronMovScriptWorkspaceFileRepositoryContext = {
   userId?: string | number
   orgId?: string | number
   projectId?: string | number
+  expectedWorkspaceVersions?: Record<string, string | null>
 }
 
 let movScriptWorkspaceServiceFactoryForTest:
@@ -151,45 +152,48 @@ function createElectronMovScriptEngineWorkspaceService(
     async queryAssets(query) {
       return api.queryMovScriptEngineWorkspaceAssets({ ...context, query })
     },
-    async upsertSetting(payload) {
-      return api.upsertMovScriptEngineWorkspaceSetting({ ...context, payload })
-    },
-    async upsertAsset(payload) {
-      return api.upsertMovScriptEngineWorkspaceAsset({ ...context, payload })
-    },
-    async upsertScript(payload) {
-      return api.upsertMovScriptEngineWorkspaceScript({ ...context, payload })
-    },
+	    async upsertSetting(payload) {
+	      return api.upsertMovScriptEngineWorkspaceSetting({ ...mutationContext(context, payload), payload })
+	    },
+	    async upsertAsset(payload) {
+	      return api.upsertMovScriptEngineWorkspaceAsset({ ...mutationContext(context, payload), payload })
+	    },
+	    async upsertScript(payload) {
+	      return api.upsertMovScriptEngineWorkspaceScript({ ...mutationContext(context, payload), payload })
+	    },
     async readScriptSource(payload) {
       return api.readMovScriptEngineWorkspaceScriptSource({ ...context, payload })
     },
-    async deleteEntity(payload) {
-      return api.deleteMovScriptEngineWorkspaceEntity({ ...context, payload })
-    },
-    async saveProductionSnapshot(payload) {
-      return api.saveMovScriptEngineWorkspaceProductionSnapshot({ ...context, payload })
-    },
-    async upsertProjectStandards(payload) {
-      return api.upsertMovScriptEngineWorkspaceProjectStandards({ ...context, payload })
-    },
-    async upsertContentUnit(payload) {
-      return api.upsertMovScriptEngineWorkspaceContentUnit({ ...context, payload })
-    },
-    async updateContentUnitEditPrompt(payload) {
-      return api.updateMovScriptEngineContentUnitEditPrompt({ ...context, ...payload })
-    },
-    async selectCandidate(payload) {
-      return api.selectMovScriptEngineWorkspaceCandidate({ ...context, payload })
-    },
-    async appendCandidate(payload) {
-      return api.appendMovScriptEngineWorkspaceCandidate({ ...context, payload })
-    },
-    async createAssetSlotCandidate(payload) {
-      return api.createMovScriptEngineWorkspaceAssetSlotCandidate({ ...context, payload })
-    },
-    async createKeyframeCandidate(payload) {
-      return api.createMovScriptEngineWorkspaceKeyframeCandidate({ ...context, payload })
-    },
+	    async deleteEntity(payload) {
+	      return api.deleteMovScriptEngineWorkspaceEntity({ ...mutationContext(context, payload), payload })
+	    },
+	    async saveProductionSnapshot(payload) {
+	      return api.saveMovScriptEngineWorkspaceProductionSnapshot({ ...mutationContext(context, payload), payload })
+	    },
+	    async upsertProjectStandards(payload) {
+	      return api.upsertMovScriptEngineWorkspaceProjectStandards({ ...mutationContext(context, payload), payload })
+	    },
+	    async upsertContentUnit(payload) {
+	      return api.upsertMovScriptEngineWorkspaceContentUnit({ ...mutationContext(context, payload), payload })
+	    },
+	    async updateContentUnitEditPrompt(payload) {
+	      return api.updateMovScriptEngineContentUnitEditPrompt({
+	        ...mutationContext(context, payload, payload.targetPath),
+	        ...payload,
+	      })
+	    },
+	    async selectCandidate(payload) {
+	      return api.selectMovScriptEngineWorkspaceCandidate({ ...mutationContext(context, payload), payload })
+	    },
+	    async appendCandidate(payload) {
+	      return api.appendMovScriptEngineWorkspaceCandidate({ ...mutationContext(context, payload), payload })
+	    },
+	    async createAssetSlotCandidate(payload) {
+	      return api.createMovScriptEngineWorkspaceAssetSlotCandidate({ ...mutationContext(context, payload), payload })
+	    },
+	    async createKeyframeCandidate(payload) {
+	      return api.createMovScriptEngineWorkspaceKeyframeCandidate({ ...mutationContext(context, payload), payload })
+	    },
   }
   return new Proxy(service, {
     get(target, property, receiver) {
@@ -223,6 +227,48 @@ function defaultWorkspaceOwnerContext(
     ...context,
     ...currentWorkspaceOwnerContext(),
   }
+}
+
+function mutationContext(
+  context: ElectronMovScriptWorkspaceFileRepositoryContext,
+  payload: unknown,
+  ...knownPaths: Array<string | undefined>
+): ElectronMovScriptWorkspaceFileRepositoryContext {
+  return {
+    ...context,
+    expectedWorkspaceVersions: expectedWorkspaceVersionsForMutation(context, payload, knownPaths),
+  }
+}
+
+function expectedWorkspaceVersionsForMutation(
+  context: ElectronMovScriptWorkspaceFileRepositoryContext,
+  payload: unknown,
+  knownPaths: Array<string | undefined>,
+): Record<string, string | null> {
+  const versions: Record<string, string | null> = { ...(context.expectedWorkspaceVersions ?? {}) }
+  for (const path of knownPaths) {
+    if (path && !(path in versions)) versions[path] = null
+  }
+  collectWorkspaceVersions(payload, versions)
+  return versions
+}
+
+function collectWorkspaceVersions(value: unknown, versions: Record<string, string | null>, depth = 0): void {
+  if (depth > 6 || !isRecord(value)) return
+  const path = stringValue(value.__workspace_path ?? value.workspace_path ?? value.path ?? value.targetPath)
+  const rawVersion = value.__workspace_version ?? value.workspace_version
+  if (path && (typeof rawVersion === 'string' || rawVersion === null)) versions[path] = rawVersion
+  for (const child of Object.values(value)) {
+    if (Array.isArray(child)) {
+      for (const item of child) collectWorkspaceVersions(item, versions, depth + 1)
+      continue
+    }
+    collectWorkspaceVersions(child, versions, depth + 1)
+  }
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined
 }
 
 function isWorkspaceElectronAPI(value: unknown): value is WorkspaceElectronAPI {

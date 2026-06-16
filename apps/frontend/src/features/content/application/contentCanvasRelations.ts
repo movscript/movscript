@@ -261,7 +261,7 @@ function currentProductFactsForNode(node: ContentCanvasNode): Array<ContentCanva
   }
   if (node.kind === 'asset') {
     return [
-      stringFact('asset-slot', '资源槽位', node.record.slot ?? node.record.slot_key ?? node.record.owner_id),
+      stringFact('asset-slot', '资源槽位', node.record.slot ?? node.record.slot_key ?? node.record.setting_state_id ?? node.record.settingStateId),
       stringFact('asset-kind', '素材类型', node.record.asset_kind ?? node.record.kind),
       stringFact('asset-lock-policy', '确认策略', node.record.lock_policy ?? node.record.lockPolicy),
       stringFact('asset-prompt-hint', '提示线索', node.record.prompt_hint ?? node.record.promptHint),

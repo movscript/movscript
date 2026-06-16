@@ -1,7 +1,9 @@
 import { createHash } from 'crypto'
 import { existsSync } from 'fs'
 import { join, resolve } from 'path'
-import { app } from 'electron'
+import * as electron from 'electron'
+import { resolveMovScriptWorkspaceRootPaths } from '@movscript/core/workspace/node'
+import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../movscriptWorkspaceDefaults'
 
 export function resolveBackendBinary(): string {
   const envPath = process.env.MOVSCRIPT_BACKEND_BIN?.trim()
@@ -9,12 +11,12 @@ export function resolveBackendBinary(): string {
 
   const binary = process.platform === 'win32' ? 'movscript-server.exe' : 'movscript-server'
   const legacyBinary = process.platform === 'win32' ? 'server.exe' : 'server'
-  const candidates = app.isPackaged
+  const candidates = electron.app.isPackaged
     ? [
         join(process.resourcesPath, 'backend', binary),
         join(process.resourcesPath, 'backend', legacyBinary),
-        join(app.getAppPath(), '..', 'backend', binary),
-        join(app.getAppPath(), '..', 'backend', legacyBinary),
+        join(electron.app.getAppPath(), '..', 'backend', binary),
+        join(electron.app.getAppPath(), '..', 'backend', legacyBinary),
       ]
     : [
         resolve(process.cwd(), '../backend/bin', binary),
@@ -29,15 +31,17 @@ export function resolveBackendBinary(): string {
 }
 
 export function resolveBackendCwd(binaryPath: string): string {
-  if (app.isPackaged) return join(binaryPath, '..')
+  if (electron.app.isPackaged) return join(binaryPath, '..')
   return resolve(process.cwd(), '../backend')
 }
 
-export function resolveLocalDataDir(): string {
-  return process.env.MOVSCRIPT_DATA_DIR?.trim() || join(app.getPath('userData'), 'local-backend')
+export function resolveLocalDataDir(movScriptHomeDir = resolveDesktopDefaultMovScriptWorkspaceDir()): string {
+  const explicit = process.env.MOVSCRIPT_DATA_DIR?.trim()
+  if (explicit) return explicit
+  return join(resolveMovScriptWorkspaceRootPaths(movScriptHomeDir).backendDir, 'local-data')
 }
 
 export function resolveLocalSecret(dataDir: string): string {
-  const seed = `${app.getPath('userData')}:${dataDir}:movscript-local-backend`
+  const seed = `${electron.app.getPath('userData')}:${dataDir}:movscript-local-backend`
   return createHash('sha256').update(seed).digest('hex')
 }

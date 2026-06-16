@@ -14,7 +14,7 @@ export function CanvasMediaFill({
   fit?: CanvasMediaFit;
 }) {
   return (
-    <div data-fit={fit} className={cn("canvas-media-fill", className)} {...props}>
+    <div data-fit={fit} className={cn("ms-fill canvas-media-fill", className)} {...props}>
       {children}
     </div>
   );

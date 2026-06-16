@@ -1,9 +1,6 @@
 .workbench-app-shell {
   --workbench-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
-  display: flex;
   height: 100%;
-  min-height: 0;
-  flex-direction: column;
   overflow: hidden;
   background: var(--workbench-page-background);
 }
@@ -35,39 +32,20 @@
   height: 36px;
   padding-right: var(--ms-space-3);
   padding-left: var(--ms-space-3);
-  font-size: var(--ms-text-body);
   font-weight: 500;
-  line-height: var(--ms-leading-body);
 }
 
 .workbench-app-tab-button__icon {
-  display: inline-flex;
   flex-shrink: 0;
-}
-
-.workbench-app-tab-button__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .workbench-app-summary {
   display: none;
-  align-items: center;
-  gap: var(--ms-space-2);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
 }
 
 .workbench-app-summary__icon {
-  display: inline-flex;
   flex-shrink: 0;
-}
-
-.workbench-app-summary__text {
-  min-width: 0;
 }
 
 .workbench-app-content {

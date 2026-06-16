@@ -68,6 +68,9 @@ func (h *AdminSettingsHandler) UpdateAuthSettings(c *gin.Context) {
 			"from_email":                 updated.Email.FromEmail,
 			"use_tls":                    updated.Email.UseTLS,
 			"use_start_tls":              updated.Email.UseStartTLS,
+			"turnstile_enabled":          updated.Turnstile.Enabled,
+			"turnstile_site_key_set":     updated.Turnstile.SiteKey != "",
+			"turnstile_secret_key_set":   updated.Turnstile.SecretKeySet,
 		},
 	})
 	c.JSON(http.StatusOK, updated)

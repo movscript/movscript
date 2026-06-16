@@ -40,7 +40,11 @@ The current tracked specialized types are:
 - `asset_ref`: image output for reusable asset reference candidates.
 - `keyframe_ref`: image output for shot/keyframe visual anchor candidates.
 - `storyboard_ref`: image output for storyboard panel/image candidates.
+- `production_ref`: video output for a complete production.
+- `segment_ref`: video output for a segment-level assembly.
 - `scence_moment_ref`: video output for directly generating one complete scene moment.
+- `scene_moment_ref`: video output for directly generating one complete scene moment.
+- `expression_unit_ref`: output kind depends on the material role.
 - `shot_ref`: video output for directly generating one camera unit.
 
 Unknown content unit types may be valid generic slots, but they are not fully tracked by interpreter dependency, hash, stale-selection, or regeneration artifacts.

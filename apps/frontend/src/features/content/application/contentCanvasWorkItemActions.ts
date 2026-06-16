@@ -56,7 +56,7 @@ function planActionForTarget(actionLabel: string, targetNode: ContentCanvasNode)
     return {
       ...base,
       kind: 'create_content_unit_from_asset',
-      label: '从素材创建制作项',
+      label: '准备素材生成',
       executable: true,
     }
   }
@@ -65,7 +65,7 @@ function planActionForTarget(actionLabel: string, targetNode: ContentCanvasNode)
     return {
       ...base,
       kind: 'create_content_unit_from_scene_moment',
-      label: '从情节创建制作项',
+      label: '准备情节生成',
       executable: true,
     }
   }

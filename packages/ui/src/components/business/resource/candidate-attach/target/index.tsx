@@ -22,7 +22,7 @@ export function ResourceCandidateTargetList({
 
 export function ResourceCandidateTargetEmpty({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <AppTextEmptyState className={cn("resource-candidate-target-empty", className)} {...props}>
+    <AppTextEmptyState className={cn("ms-type-tiny resource-candidate-target-empty", className)} {...props}>
       {children}
     </AppTextEmptyState>
   );
@@ -45,12 +45,12 @@ export function ResourceCandidateTargetItem({
 }) {
   return (
     <WorkbenchListItem active={active} density="compact" className={cn("resource-candidate-target-item", className)} {...props}>
-      <div className="resource-candidate-target-item__row">
-        <p className="resource-candidate-target-item__title">{title}</p>
-        {idLabel ? <span className="resource-candidate-target-item__id">{idLabel}</span> : null}
+      <div className="ms-action-row resource-candidate-target-item__row">
+        <p className="ms-text-truncate ms-type-tiny resource-candidate-target-item__title">{title}</p>
+        {idLabel ? <span className="ms-text-truncate ms-type-tiny resource-candidate-target-item__id">{idLabel}</span> : null}
       </div>
-      {meta ? <p className="resource-candidate-target-item__meta">{meta}</p> : null}
-      {description ? <p className="resource-candidate-target-item__description">{description}</p> : null}
+      {meta ? <p className="ms-text-truncate ms-type-tiny resource-candidate-target-item__meta">{meta}</p> : null}
+      {description ? <p className="ms-type-tiny resource-candidate-target-item__description">{description}</p> : null}
     </WorkbenchListItem>
   );
 }
@@ -68,9 +68,9 @@ export function ResourceCandidateSelectedTarget({
 }) {
   return (
     <WorkbenchSurfaceItem active density="compact" className={cn("resource-candidate-selected-target", className)} {...props}>
-      <p className="resource-candidate-selected-target__title">{title}</p>
-      {meta ? <p className="resource-candidate-selected-target__meta">{meta}</p> : null}
-      {description ? <p className="resource-candidate-selected-target__description">{description}</p> : null}
+      <p className="ms-text-truncate ms-type-tiny resource-candidate-selected-target__title">{title}</p>
+      {meta ? <p className="ms-text-truncate ms-type-tiny resource-candidate-selected-target__meta">{meta}</p> : null}
+      {description ? <p className="ms-type-tiny resource-candidate-selected-target__description">{description}</p> : null}
     </WorkbenchSurfaceItem>
   );
 }

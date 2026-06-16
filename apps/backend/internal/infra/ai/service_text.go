@@ -18,7 +18,7 @@ func (s *AIService) CallText(ctx context.Context, userID, modelConfigID uint, re
 }
 
 func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (TextResponse, error) {
-	ctx = withProviderUserID(ctx, userID)
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
 	if err != nil {
 		return TextResponse{}, err
@@ -83,7 +83,7 @@ func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID
 }
 
 func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelConfigID uint, req ResponsesRequest, usage UsageContext) (TextResponse, error) {
-	ctx = withProviderUserID(ctx, userID)
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
 	if err != nil {
 		return TextResponse{}, err
@@ -195,8 +195,6 @@ func providerBaseURLForLog(provider Provider) string {
 	switch p := provider.(type) {
 	case *OpenAIAdapter:
 		return redactProviderBaseURL(p.BaseURL)
-	case *NewAPIForwardAdapter:
-		return redactProviderBaseURL(p.BaseURL)
 	default:
 		return ""
 	}
@@ -225,7 +223,7 @@ func (s *AIService) CallTextStream(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (<-chan TextStreamEvent, error) {
-	ctx = withProviderUserID(ctx, userID)
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
 	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
 	if err != nil {
 		return nil, err

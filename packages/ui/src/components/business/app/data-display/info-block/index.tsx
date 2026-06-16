@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { AppSurfaceItem } from "../../surface/item";
 
 export function AppInfoBlock({
   label,
@@ -26,9 +26,9 @@ export function AppInfoBlock({
   );
   if (surface === "card") {
     return (
-      <Surface kind="item" density="normal" emphasis="raised" className={cn("app-surface-item app-info-block", prominent && "app-info-block--prominent", className)} {...props}>
+      <AppSurfaceItem className={cn("app-info-block", prominent && "app-info-block--prominent", className)} {...props}>
         {content}
-      </Surface>
+      </AppSurfaceItem>
     );
   }
 

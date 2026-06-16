@@ -19,7 +19,7 @@ import { UserManagementPage } from '@admin/pages/admin/UserManagementPage'
 import { OrgManagementPage } from '@admin/pages/admin/OrgManagementPage'
 import { ShotVectorPage } from '@admin/pages/admin/ShotVectorPage'
 import { SystemSettingsPage } from '@admin/pages/admin/SystemSettingsPage'
-import { runtimeNavItems, runtimeRoutes } from '@admin-runtime'
+import { runtimeCapabilities, runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
 import { APP_SETTINGS_STORAGE_KEY, normalizeAPIBaseURL } from '@/lib/config'
@@ -241,6 +241,9 @@ const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: bool
   { to: '/debug', labelKey: 'admin.tabs.debug', icon: Bug },
 ]
 
+const runtimeRoutePaths = new Set(runtimeRoutes.map((route) => route.path))
+const runtimeNavPaths = new Set(runtimeNavItems.map((item) => item.to))
+
 const adminBasename = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
   ? '/admin'
   : undefined
@@ -425,7 +428,10 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   if (!user || getSystemRole(user) !== 'super_admin') return <Navigate to="/login" replace state={{ from: location.pathname }} />
 
   const navItems = [
-    ...baseNavItems.map((item) => ({ ...item, label: t(item.labelKey) })),
+    ...baseNavItems
+      .filter((item) => !(runtimeCapabilities.hideModelManagement && item.to === '/models'))
+      .filter((item) => !runtimeNavPaths.has(item.to))
+      .map((item) => ({ ...item, label: t(item.labelKey) })),
     ...runtimeNavItems,
   ]
   const sidebarToggleLabel = collapsed ? t('admin.shell.expandSidebar') : t('admin.shell.collapseSidebar')
@@ -535,8 +541,10 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<AdminShell><AdminPage /></AdminShell>} />
-        <Route path="/models" element={<AdminShell><ModelManagementPage /></AdminShell>} />
-        <Route path="/user-management" element={<AdminShell><UserManagementPage /></AdminShell>} />
+        <Route path="/models" element={runtimeCapabilities.hideModelManagement ? <Navigate to={runtimeCapabilities.modelManagementRedirect || '/'} replace /> : <AdminShell><ModelManagementPage /></AdminShell>} />
+        {!runtimeRoutePaths.has('/user-management') && (
+          <Route path="/user-management" element={<AdminShell><UserManagementPage /></AdminShell>} />
+        )}
         <Route path="/orgs" element={<AdminShell><OrgManagementPage /></AdminShell>} />
         <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />
         <Route path="/audit-logs" element={<AdminShell><AuditLogsPage /></AdminShell>} />

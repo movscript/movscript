@@ -5,10 +5,7 @@
 @import "./plan-overview/styles.css";
 @import "./run-activity/styles.css";
 @import "./thread/styles.css";
-@import "./context/styles.css";
 @import "./run/styles.css";
-@import "./composer/styles.css";
-@import "./settings/styles.css";
 @import "./responsive/styles.css";
 
 .ms-agent-frame {

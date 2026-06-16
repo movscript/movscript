@@ -15,7 +15,6 @@ import {
   usesAppServerProtocol,
   useProviderConfigStore,
 } from '@/shared/infrastructure/providerConfigStore'
-import { providerRoute } from '@/features/agent/application/providerRoutes'
 
 const agentConsoleSections = [
   {
@@ -60,7 +59,7 @@ const agentConsoleSections = [
     tab: 'console:workspace',
     to: ROUTES.workspaceConfig,
     label: 'Workspace',
-    description: 'source、.movscript/providers',
+    description: 'source、providers',
     icon: FileCog,
     match: [ROUTES.workspaceConfig, ROUTES.workspaceReview],
   },
@@ -72,12 +71,10 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const settings = normalizeProviderSettings(savedSettings)
   const enabledProviderList = enabledProviders(settings)
-  const enabledCount = enabledProviderList.length
   const defaultProvider = settings.providers.find((provider) => provider.id === settings.defaultProviderId)
-  const appServerProvider = usesAppServerProtocol(defaultProvider)
+  const currentAgentProvider = usesAppServerProtocol(defaultProvider)
     ? defaultProvider
     : enabledProviderList.find(usesAppServerProtocol)
-  const agentsRoute = appServerProvider ? providerRoute(appServerProvider) : ROUTES.agents
   return (
     <AgentConsoleNavShell compact={compact}>
       <nav aria-label="Agent 控制台全局导航">
@@ -88,12 +85,9 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
               ? settingsConsoleTab === section.tab
               : sectionIsActive(section, location.pathname)
             const description = section.label === 'Agents'
-              ? `${enabledCount} 个 Provider 启用`
+              ? `当前：${currentAgentProvider?.label ?? '未选择'}`
               : section.description
-            const defaultTo = section.label === 'Agents' ? agentsRoute : section.to
-            const to = settingsConsoleTab
-              ? settingsHostedConsoleRoute(section.tab)
-              : defaultTo
+            const to = settingsHostedConsoleRoute(section.tab)
             return (
               <AgentConsoleNavLinkWrapper key={section.to}>
                 <Link to={to}>

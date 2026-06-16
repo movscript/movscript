@@ -14,7 +14,7 @@ AgentDiagnosticEntry.displayName = "AgentDiagnosticEntry";
 
 export const AgentDiagnosticEntryHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-diagnostic-entry__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-diagnostic-entry__header", className)} {...props} />;
   }
 );
 
@@ -22,7 +22,7 @@ AgentDiagnosticEntryHeader.displayName = "AgentDiagnosticEntryHeader";
 
 export const AgentDiagnosticEntryTitle = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-diagnostic-entry__title", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-text-truncate ms-type-caption ms-agent-diagnostic-entry__title", className)} {...props} />;
   }
 );
 
@@ -30,7 +30,7 @@ AgentDiagnosticEntryTitle.displayName = "AgentDiagnosticEntryTitle";
 
 export const AgentDiagnosticEntryMeta = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-diagnostic-entry__meta", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-type-tiny ms-agent-diagnostic-entry__meta", className)} {...props} />;
   }
 );
 

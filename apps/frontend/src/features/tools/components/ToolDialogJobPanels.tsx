@@ -13,7 +13,7 @@ import {
   JobGridMediaArea,
   JobGridMediaPreview,
   JobGridTitle
-} from '@movscript/ui/business/jobs'
+} from '@/shared/ui/JobDisplayUi'
 import {
   ToolDialogCopyButton,
   ToolDialogDebugEndpoint,

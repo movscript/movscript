@@ -77,13 +77,13 @@ test('buildAppServerDeps verifies checkout refs and exposes provider env paths',
   }
 })
 
-test('updateBinaryDepsManifests updates community and enterprise manifests from remote refs', () => {
+test('updateBinaryDepsManifests updates primary and explicit extra manifests from remote refs', () => {
   const parent = mkdtempSync(join(tmpdir(), 'movscript-binary-deps-update-'))
   const root = join(parent, 'movscript')
-  const enterprise = join(parent, 'enterprise')
+  const extra = join(parent, 'extra-release')
   try {
     mkdirSync(root, { recursive: true })
-    mkdirSync(enterprise, { recursive: true })
+    mkdirSync(extra, { recursive: true })
     const oldCodex = 'a'.repeat(40)
     const oldMova = 'b'.repeat(40)
     const newCodex = 'c'.repeat(40)
@@ -96,10 +96,11 @@ test('updateBinaryDepsManifests updates community and enterprise manifests from 
       ],
     }
     writeFileSync(join(root, 'binary-deps.manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
-    writeFileSync(join(enterprise, 'binary-deps.manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
+    writeFileSync(join(extra, 'binary-deps.manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 
     const result = updateBinaryDepsManifests(root, {
       branch: 'main',
+      extraManifests: ['../extra-release/binary-deps.manifest.json'],
       spawn: (command, args) => {
         assert.equal(command, 'git')
         const remote = args.find((arg) => arg.includes('github.com'))
@@ -110,7 +111,7 @@ test('updateBinaryDepsManifests updates community and enterprise manifests from 
 
     assert.equal(result.updatedManifests.length, 2)
     assert.deepEqual(readManifestRefs(join(root, 'binary-deps.manifest.json')), { codex: newCodex, mova: newMova })
-    assert.deepEqual(readManifestRefs(join(enterprise, 'binary-deps.manifest.json')), { codex: newCodex, mova: newMova })
+    assert.deepEqual(readManifestRefs(join(extra, 'binary-deps.manifest.json')), { codex: newCodex, mova: newMova })
   } finally {
     rmSync(parent, { recursive: true, force: true })
   }

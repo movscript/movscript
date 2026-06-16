@@ -31,6 +31,8 @@ import {
 } from './contentProductionHelpers.js'
 
 const CONTENT_UNIT_ADAPTERS: Record<string, ContentUnitAdapter> = {
+  production_ref: refAdapter('production_ref', 'production', 'video'),
+  segment_ref: refAdapter('segment_ref', 'segment', 'video'),
   asset_ref: refAdapter('asset_ref', 'asset', 'image'),
   keyframe_ref: refAdapter('keyframe_ref', 'keyframe', 'image'),
   storyboard_ref: refAdapter('storyboard_ref', 'storyboard', 'image'),

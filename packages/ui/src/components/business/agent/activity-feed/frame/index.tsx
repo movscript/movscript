@@ -37,7 +37,7 @@ AgentActivityFrame.displayName = "AgentActivityFrame";
 
 export const AgentActivityFrameHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-activity-frame__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-activity-frame__header", className)} {...props} />;
   }
 );
 
@@ -45,7 +45,7 @@ AgentActivityFrameHeader.displayName = "AgentActivityFrameHeader";
 
 export const AgentActivityFrameTitle = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-activity-frame__title", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-text-truncate ms-type-caption ms-agent-activity-frame__title", className)} {...props} />;
   }
 );
 
@@ -61,7 +61,7 @@ AgentActivityFrameLines.displayName = "AgentActivityFrameLines";
 
 export const AgentActivityFrameLine = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-activity-frame__line", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-type-caption ms-agent-activity-frame__line", className)} {...props} />;
   }
 );
 

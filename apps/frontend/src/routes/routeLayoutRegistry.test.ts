@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import test from 'node:test'
 
 import { APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
@@ -66,6 +68,19 @@ import {
   routeLayoutInventoryItemForRouteId,
 } from './routeLayoutInventory'
 
+test('route layout panes delegate app shell pane specs to the app shell pane module', () => {
+  const routeLayoutPanesSource = readFileSync(resolve('src/routes/routeLayoutPanes.ts'), 'utf8')
+  const routeAppShellPanesSource = readFileSync(resolve('src/routes/routeAppShellPanes.ts'), 'utf8')
+
+  assert.match(routeLayoutPanesSource, /from '\.\/routeAppShellPanes'/)
+  assert.match(routeAppShellPanesSource, /export const APP_SHELL_TOOL_PANES/)
+  assert.match(routeAppShellPanesSource, /export const APP_SHELL_SETTINGS_PANES/)
+  assert.match(routeAppShellPanesSource, /export const APP_SHELL_AGENT_PANES/)
+  assert.match(routeAppShellPanesSource, /const terminalDockPane/)
+  assert.doesNotMatch(routeLayoutPanesSource, /export const APP_SHELL_TOOL_PANES: RouteLayoutPaneSpec/)
+  assert.doesNotMatch(routeLayoutPanesSource, /export const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec/)
+})
+
 test('route layout registry declares current project entry routes', () => {
   assert.deepEqual(projectEntryRoute('/project/standards'), {
     routeId: 'project.standards',
@@ -113,7 +128,8 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(routeLayoutSpecForPathname('/resources').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
   assert.match(routeLayoutSpecForPathname('/resources').notes ?? '', /shared resource drag contract/)
-  assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'tool')
+  assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'settings')
+  assert.equal(routeLayoutSpecForPathname('/agents/mova').chrome, 'agent')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/agents/mova').scrollMode), 'auto')
 
@@ -135,12 +151,14 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
     assert.ok(!settingsRoute.panes.some((pane) => pane.id === 'app-shell.assistant-dock'))
   }
 
-  const agentSettingsRoute = routeLayoutSpecForPathname('/agent/settings')
-  assert.equal(agentSettingsRoute.surface, 'settings')
-  assert.equal(agentSettingsRoute.chrome, 'agent')
-  assert.equal(agentSettingsRoute.preserveWorkMode, true)
-  assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
-  assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+  for (const pathname of ['/agent/settings', '/agents/mova']) {
+    const agentSettingsRoute = routeLayoutSpecForPathname(pathname)
+    assert.equal(agentSettingsRoute.surface, 'settings')
+    assert.equal(agentSettingsRoute.chrome, 'agent')
+    assert.equal(agentSettingsRoute.preserveWorkMode, true)
+    assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
+    assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+  }
 })
 
 test('registered route layout specs expose pane ownership for app shell surfaces', () => {

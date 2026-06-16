@@ -22,18 +22,18 @@ test('provider session index is stored under the provider profile sessions direc
       label: 'Codex',
       endpoint: 'ws://127.0.0.1:41234',
       executablePath: 'codex',
-      home: join(workspaceDir, '.movscript', '.codex'),
+      home: join(workspaceDir, '.codex'),
       status: 'running',
       now: new Date('2026-06-05T01:02:03.000Z'),
     })
 
-    const recordPath = join(workspaceDir, '.movscript', 'providers', 'codex', 'sessions', 'codex-movscript-home.json')
+    const recordPath = join(workspaceDir, 'providers', 'codex', 'sessions', 'codex-movscript-home.json')
     assert.equal(existsSync(recordPath), true)
     const raw = JSON.parse(readFileSync(recordPath, 'utf8'))
     assert.equal(raw.schema, MOVSCRIPT_PROVIDER_SESSION_SCHEMA)
     assert.equal(raw.providerProfileKey, 'codex')
     assert.equal(raw.providerProfileId, 'codex-movscript-home')
-    assert.equal(raw.home, join(workspaceDir, '.movscript', '.codex'))
+    assert.equal(raw.home, join(workspaceDir, '.codex'))
     assert.equal(legacyProviderHomeKey in raw, false)
     assert.equal(raw.state.status, 'running')
 
@@ -92,7 +92,7 @@ test('provider session index exposes project id from workspace context and cwd',
         scope: 'project',
         projectId: 42,
       },
-      providerSessionCwd: join(workspaceDir, '.movscript', 'user', '7', 'projects', 'project_42'),
+      providerSessionCwd: join(workspaceDir, 'user', '7', 'projects', 'project_42'),
       status: 'running',
       now: new Date('2026-06-05T01:02:05.000Z'),
     })

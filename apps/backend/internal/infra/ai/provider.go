@@ -39,3 +39,5 @@ type TextStreamProvider = providercontract.AIGatewayTextStreamProvider
 type ResponsesProvider = providercontract.AIGatewayResponsesProvider
 type VideoTaskProvider = providercontract.AIGatewayVideoTaskProvider
 type VideoTaskCancelProvider = providercontract.AIGatewayVideoTaskCancelProvider
+type AudioSpeechProvider = providercontract.AIGatewayAudioSpeechProvider
+type AudioSubtitleProvider = providercontract.AIGatewayAudioSubtitleProvider

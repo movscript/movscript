@@ -42,3 +42,8 @@
   border-radius: 0;
   color: var(--ms-color-muted-foreground);
 }
+
+.app-media-frame[data-variant="fill"] > * {
+  width: 100%;
+  height: 100%;
+}

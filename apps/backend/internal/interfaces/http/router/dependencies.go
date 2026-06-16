@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/movscript/movscript/internal/app/systemstream"
 	"github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/auth"
@@ -12,15 +13,16 @@ import (
 )
 
 type Dependencies struct {
-	DB            *gorm.DB
-	Config        *config.Config
-	Store         storage.Storage
-	Tokens        *auth.Manager
-	Registry      *ai.Registry
-	AIService     *ai.AIService
-	ImageVerifier ai.ImageVerificationClient
-	Cache         cache.Cache
-	VectorIndex   providercontract.VectorIndexProvider
-	Entitlements  entitlement.EntitlementService
-	EncryptionKey []byte
+	DB             *gorm.DB
+	Config         *config.Config
+	Store          storage.Storage
+	Tokens         *auth.Manager
+	Registry       *ai.Registry
+	AIService      *ai.AIService
+	ImageVerifier  ai.ImageVerificationClient
+	Cache          cache.Cache
+	VectorIndex    providercontract.VectorIndexProvider
+	Entitlements   entitlement.EntitlementService
+	SystemMessages *systemstream.Hub
+	EncryptionKey  []byte
 }

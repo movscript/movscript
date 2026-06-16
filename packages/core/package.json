@@ -113,6 +113,7 @@
     "test": "pnpm build && node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@movscript/editing": "workspace:*",
     "@movscript/interpreter": "workspace:*",
     "@movscript/engine": "workspace:*",
     "@movscript/language": "workspace:*",

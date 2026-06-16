@@ -4,18 +4,9 @@
 }
 
 .resource-media-audio-panel__title {
-  display: flex;
-  align-items: center;
   gap: 12px;
   margin-bottom: 16px;
   color: var(--ms-color-foreground);
-}
-
-.resource-media-audio-panel__title > span {
-  overflow: hidden;
-  font-size: var(--ms-text-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .resource-media-audio-panel audio {
@@ -39,6 +30,4 @@
 
 .resource-media-fallback-panel > p {
   margin: 0;
-  font-size: var(--ms-text-body);
-  line-height: 1.4;
 }

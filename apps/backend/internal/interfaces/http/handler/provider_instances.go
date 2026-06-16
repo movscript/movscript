@@ -17,7 +17,6 @@ import (
 	"github.com/movscript/movscript/internal/infra/config"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	providerassembly "github.com/movscript/movscript/internal/providers/assembly"
-	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
 var providerActivationHTTPClient = &http.Client{Timeout: 20 * time.Second}
@@ -27,9 +26,6 @@ func (h *AIHandler) ListProviderInstances(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
-	}
-	if h.newAPIGatewayMode() {
-		instances = filterNonAIGatewayCredentialInstances(instances)
 	}
 	instances = append(startupProviderInstances(h.cfg), instances...)
 	c.JSON(http.StatusOK, gin.H{"items": instances})
@@ -262,17 +258,6 @@ func providerSecretFields(fields []config.ProviderSecretField) []adminai.Provide
 	out := make([]adminai.ProviderInstanceField, 0, len(fields))
 	for _, field := range fields {
 		out = append(out, adminai.ProviderInstanceField{Key: field.Key, Required: field.Required, Configured: field.Configured})
-	}
-	return out
-}
-
-func filterNonAIGatewayCredentialInstances(instances []adminai.ProviderInstance) []adminai.ProviderInstance {
-	out := make([]adminai.ProviderInstance, 0, len(instances))
-	for _, instance := range instances {
-		if instance.Type == providercontract.TypeAIGateway && instance.LegacyRef != nil && instance.LegacyRef.Kind == "ai_credential" {
-			continue
-		}
-		out = append(out, instance)
 	}
 	return out
 }

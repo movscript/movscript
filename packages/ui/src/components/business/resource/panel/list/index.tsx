@@ -6,7 +6,7 @@ import { AppMediaFrame, AppSurfaceItem } from "../../../app";
 
 export function ResourcePanelList({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("resource-panel-list", className)} {...props}>
+    <div className={cn("ms-grid-stack resource-panel-list", className)} {...props}>
       {children}
     </div>
   );
@@ -20,7 +20,7 @@ export const ResourceListItemShell = forwardRef<HTMLDivElement, HTMLAttributes<H
     asChild
     data-selected={selected ? "true" : undefined}
     data-draggable={draggableActive ? "true" : undefined}
-    className={cn("resource-panel-list-item", className)}
+    className={cn("ms-action-row resource-panel-list-item", className)}
   >
     <div ref={ref} {...props}>
       {children}
@@ -47,7 +47,7 @@ export function ResourcePanelThumb({
 
 export function ResourcePanelThumbFallback({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("resource-panel-thumb__fallback", className)} {...props}>
+    <div className={cn("ms-fill ms-center resource-panel-thumb__fallback", className)} {...props}>
       {children}
     </div>
   );
@@ -55,7 +55,7 @@ export function ResourcePanelThumbFallback({ children, className, ...props }: HT
 
 export function ResourcePanelItemName({ children, className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return (
-    <span className={cn("resource-panel-list-item__name", className)} {...props}>
+    <span className={cn("ms-text-truncate ms-type-label resource-panel-list-item__name", className)} {...props}>
       {children}
     </span>
   );
@@ -63,7 +63,7 @@ export function ResourcePanelItemName({ children, className, ...props }: HTMLAtt
 
 export function ResourcePanelSelectedLabel({ children, className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return (
-    <span className={cn("resource-panel-list-item__selected", className)} {...props}>
+    <span className={cn("ms-type-tiny resource-panel-list-item__selected", className)} {...props}>
       {children}
     </span>
   );

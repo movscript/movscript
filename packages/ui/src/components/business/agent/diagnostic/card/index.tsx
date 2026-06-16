@@ -15,7 +15,7 @@ AgentDiagnosticCard.displayName = "AgentDiagnosticCard";
 
 export const AgentDiagnosticHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-diagnostic-card__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-agent-diagnostic-card__header", className)} {...props} />;
   }
 );
 
@@ -31,7 +31,7 @@ AgentDiagnosticHeaderBody.displayName = "AgentDiagnosticHeaderBody";
 
 export const AgentDiagnosticTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-diagnostic-card__title", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-type-label ms-agent-diagnostic-card__title", className)} {...props} />;
   }
 );
 
@@ -39,7 +39,7 @@ AgentDiagnosticTitle.displayName = "AgentDiagnosticTitle";
 
 export const AgentDiagnosticDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-diagnostic-card__description", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-type-caption ms-agent-diagnostic-card__description", className)} {...props} />;
   }
 );
 

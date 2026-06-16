@@ -192,8 +192,7 @@
 
 .ms-stat-card__label,
 .ms-stat-card__value,
-.ms-stat-card__detail,
-.ms-agent-text--truncate {
+.ms-stat-card__detail {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -203,7 +202,6 @@
   color: var(--ms-color-foreground);
   margin-top: var(--ms-space-1);
   font-size: 20px;
-  font-variant-numeric: tabular-nums;
   font-weight: 650;
   line-height: 28px;
 }

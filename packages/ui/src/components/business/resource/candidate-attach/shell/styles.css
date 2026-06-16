@@ -1,8 +1,6 @@
 .resource-candidate-attach {
-  display: flex;
   min-height: 0;
   height: 100%;
-  flex-direction: column;
 }
 
 .resource-candidate-attach__header {
@@ -12,8 +10,6 @@
 }
 
 .resource-candidate-attach__title-row {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
@@ -21,13 +17,7 @@
 .resource-candidate-attach__title {
   margin: 0;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-caption);
   font-weight: 500;
-  line-height: 16px;
-}
-
-.resource-candidate-attach__count {
-  font-size: var(--ms-text-tiny);
 }
 
 .resource-candidate-attach__body {
@@ -39,7 +29,6 @@
 
 .resource-candidate-attach__message {
   margin: 8px 0 0;
-  font-size: var(--ms-text-tiny);
   line-height: 1.625;
 }
 
@@ -56,9 +45,7 @@
 }
 
 .resource-candidate-attach__footer {
-  display: flex;
   flex-shrink: 0;
-  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   border-top: 1px solid var(--ms-color-border);

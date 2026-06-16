@@ -26,7 +26,7 @@ export function ResourceAssetSlotCard({
 
 export function ResourceAssetSlotHeader({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("resource-panel-asset-slot__header", className)} {...props}>
+    <div className={cn("ms-action-row resource-panel-asset-slot__header", className)} {...props}>
       {children}
     </div>
   );
@@ -42,7 +42,7 @@ export function ResourceAssetSlotBody({ children, className, ...props }: HTMLAtt
 
 export function ResourceAssetSlotTitle({ children, className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("resource-panel-asset-slot__title", className)} {...props}>
+    <p className={cn("ms-text-truncate ms-type-label resource-panel-asset-slot__title", className)} {...props}>
       {children}
     </p>
   );
@@ -50,7 +50,7 @@ export function ResourceAssetSlotTitle({ children, className, ...props }: HTMLAt
 
 export function ResourceAssetSlotMeta({ children, className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("resource-panel-asset-slot__meta", className)} {...props}>
+    <p className={cn("ms-text-truncate ms-type-tiny resource-panel-asset-slot__meta", className)} {...props}>
       {children}
     </p>
   );

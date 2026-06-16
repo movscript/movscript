@@ -16,7 +16,7 @@ import {
   AgentSettingsSelectTrigger,
   AgentSettingsStack,
   AgentSettingsStateMessage,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { AppInlineError } from '@movscript/ui/business/app'
 import { Select, SelectContent, SelectItem, SelectValue } from '@movscript/ui/primitives'
 import type { SkillConfigWorkspace } from '@movscript/core/agent'

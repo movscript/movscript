@@ -38,7 +38,6 @@ export {
   CanvasNodeTextResultHeader,
   CanvasNodeTextResultSurface,
   CanvasNodeTextResultView,
-  CanvasWorkflowReferenceCard,
   canvasNodeCardPortHandleStyle,
   canvasNodeSemanticSourceHandleStyle,
   canvasNodeSemanticTargetHandleStyle,
@@ -58,8 +57,5 @@ export type {
   CanvasNodePromptInputViewProps,
   CanvasNodeSemanticPort,
   CanvasNodeResultStatus,
-  CanvasWorkflowReferenceAction,
-  CanvasWorkflowReferenceCardProps,
-  CanvasWorkflowReferencePort,
 } from "./node";
 export type { CanvasPortHandleRenderer, CanvasPortTone, CanvasSurfaceDensity, CanvasSurfaceVariant } from "./types";

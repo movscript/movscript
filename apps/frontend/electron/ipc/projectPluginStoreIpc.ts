@@ -4,10 +4,10 @@ import {
   installProjectPlugin,
   setProjectSkillEnabled,
 } from '../services/projectPluginStore'
-import type { ElectronProjectPluginInstallInput, ElectronProjectSkillToggleInput } from '../../src/shared/contracts/electronApi'
+import type { ElectronMovScriptHomeInput, ElectronProjectPluginInstallInput, ElectronProjectSkillToggleInput } from '../../src/shared/contracts/electronApi'
 
 export function registerProjectPluginStoreIpcHandlers(): void {
-  ipcMain.handle('project-plugin-store:snapshot', (_event, input?: { workspaceDir?: string; projectId?: string | number; userId?: string | number; orgId?: string | number }) => {
+  ipcMain.handle('project-plugin-store:snapshot', (_event, input?: ElectronMovScriptHomeInput & { projectId?: string | number; userId?: string | number; orgId?: string | number }) => {
     return getProjectPluginSnapshot({ ...input, desktopDataDir: app.getPath('userData') })
   })
   ipcMain.handle('project-plugin-store:install', (_event, input: ElectronProjectPluginInstallInput) => {

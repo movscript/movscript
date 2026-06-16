@@ -250,7 +250,7 @@ func TestBackendProviderInstancesEndpointReturnsRedactedConfigStatus(t *testing.
 		WorkspaceStorageBackend: "gitea",
 		GiteaBaseURL:            "http://gitea:3000",
 		GiteaToken:              "token",
-		AIGatewayProvider:       "new-api",
+		AIGatewayProvider:       "local",
 		CacheBackend:            "redis",
 		RedisAddr:               "redis:6379",
 		RedisPassword:           "redis-secret",
@@ -405,7 +405,7 @@ func TestBackendProviderDescriptorsEndpointReturnsBuiltIns(t *testing.T) {
 			t.Fatalf("descriptor = %+v, want startup assembly", desc)
 		}
 	}
-	if !seen["ai_gateway:new-api"] || !seen["workspace_repository:gitea"] || !seen["blob_storage:minio"] {
+	if !seen["ai_gateway:local"] || !seen["workspace_repository:gitea"] || !seen["blob_storage:minio"] {
 		t.Fatalf("provider descriptors missing expected built-ins: %+v", body)
 	}
 }
@@ -417,7 +417,7 @@ func TestRegisterPreflightAllowsLocalViteOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodOptions, "/api/v1/auth/register", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
 	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-	req.Header.Set("Access-Control-Request-Headers", "content-type")
+	req.Header.Set("Access-Control-Request-Headers", "content-type,x-movscript-route-tier")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -427,5 +427,8 @@ func TestRegisterPreflightAllowsLocalViteOrigin(t *testing.T) {
 	}
 	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
 		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://localhost:5173")
+	}
+	if got := w.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(strings.ToLower(got), "x-movscript-route-tier") {
+		t.Fatalf("Access-Control-Allow-Headers = %q, want x-movscript-route-tier", got)
 	}
 }

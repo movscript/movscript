@@ -2,45 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import {
   ArrowRight,
   ArrowLeft,
-  ClipboardList,
-  Globe2,
-  HardDrive,
-  Home,
-  LayoutTemplate,
-  Loader2,
-  PenLine,
-  MoreHorizontal,
-  Plus,
   RefreshCw,
-  ScanSearch,
-  Search,
   Square,
-  X,
-  XCircle,
 } from 'lucide-react'
 import {
-  AgentBrowserAddressForm,
-  AgentBrowserHeader,
-  AgentBrowserIconButton,
-  AgentBrowserInlineError,
-  AgentBrowserInput,
-  AgentBrowserLauncherForm,
-  AgentBrowserLauncherIcon,
-  AgentBrowserLauncherSubmitButton,
-  AgentBrowserMenuItemIcon,
-  AgentBrowserMenuContent,
   AgentBrowserRoot,
-  AgentBrowserTabBar,
-  AgentBrowserTabButton,
-  AgentBrowserTabCloseButton,
-  AgentBrowserTabIcon,
-  AgentBrowserTabList,
-  AgentBrowserTabSurface,
-  AgentBrowserToolbar,
-  AgentBrowserUrlMeta,
   AgentBrowserViewport,
 } from '@/features/agent/components/AgentBrowserUi'
-import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui/primitives'
 import type { Project } from '@/types'
 import { activateEmbeddedBrowser, closeEmbeddedBrowser, embeddedBrowserAvailable, goBackEmbeddedBrowser, goForwardEmbeddedBrowser, hideEmbeddedBrowser, navigateEmbeddedBrowser, reloadEmbeddedBrowser, stopEmbeddedBrowser, subscribeEmbeddedBrowserState } from '@/features/agent/application/embeddedBrowserElectron'
 import { agentBrowserBoundsFromViewportElement, subscribeAgentBrowserBoundsSync, type AgentBrowserBounds } from '@/features/agent/presentation/agentBrowserBounds'
@@ -56,9 +24,9 @@ import {
   type AgentBrowserWebTabState,
 } from '@/features/agent/state/agentContentAreaStore'
 import { AgentBrowserTabContent } from '@/features/agent/components/AgentBrowserTabContent'
+import { AgentBrowserPanelHeader } from '@/features/agent/components/AgentBrowserPanelHeader'
 import {
   EMPTY_AGENT_BROWSER_WEB_STATE,
-  agentBrowserTabTitle,
   createAgentBrowserTabId,
   isSingleDefaultBlankBrowserState,
   isSingleDefaultProjectHomeBrowserState,
@@ -388,174 +356,35 @@ export function AgentBrowserPanel({ contentAreaId, conversationId, project = nul
 
   return (
     <AgentBrowserRoot>
-      <AgentBrowserHeader>
-        <AgentBrowserTabBar>
-          <AgentBrowserTabList>
-            {tabs.map((tab) => {
-              const active = tab.id === activeTabId
-              const webState = tab.kind === 'web' ? webStates[tab.id] : undefined
-              const Icon = tab.kind === 'project_home' ? Home : tab.kind === 'resources' ? HardDrive : tab.kind === 'external_resources' ? ScanSearch : tab.kind === 'canvas_list' ? LayoutTemplate : tab.kind === 'project_standards' ? PenLine : tab.kind === 'session_output' ? ClipboardList : Globe2
-              return (
-                <AgentBrowserTabSurface
-                  key={tab.id}
-                  active={active}
-                >
-                  <AgentBrowserTabButton
-                    title={tab.kind === 'web' ? webState?.url ?? tab.url ?? tab.title : tab.title}
-                    onClick={() => setActiveTabId(tab.id)}
-                  >
-                    <AgentBrowserTabIcon loading={webState?.loading}>
-                      {webState?.loading ? <Loader2 size={12} /> : <Icon size={12} />}
-                    </AgentBrowserTabIcon>
-                    <span>{agentBrowserTabTitle(tab, webState, project?.name)}</span>
-                  </AgentBrowserTabButton>
-                  <AgentBrowserTabCloseButton
-                    aria-label="关闭标签"
-                    title="关闭标签"
-                    onClick={() => closeTab(tab.id)}
-                  >
-                    <X size={11} />
-                  </AgentBrowserTabCloseButton>
-                </AgentBrowserTabSurface>
-              )
-            })}
-          </AgentBrowserTabList>
-          <AgentBrowserIconButton title="新建网页标签" aria-label="新建网页标签" onClick={openBlankWebTab}>
-            <Plus size={14} />
-          </AgentBrowserIconButton>
-          <AgentBrowserIconButton title="打开资源库" aria-label="打开资源库" onClick={openResourceLibraryTab}>
-            <HardDrive size={14} />
-          </AgentBrowserIconButton>
-          <AgentBrowserIconButton title="打开外部资源" aria-label="打开外部资源" onClick={openExternalResourceLibraryTab}>
-            <ScanSearch size={14} />
-          </AgentBrowserIconButton>
-          <AgentBrowserIconButton title="打开会话产出" aria-label="打开会话产出" onClick={openSessionOutputTab}>
-            <ClipboardList size={14} />
-          </AgentBrowserIconButton>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <AgentBrowserIconButton title="浏览器操作" aria-label="浏览器操作">
-                <MoreHorizontal size={14} />
-              </AgentBrowserIconButton>
-            </DropdownMenuTrigger>
-            <AgentBrowserMenuContent>
-              <DropdownMenuItem onClick={() => setLauncherOpen((open) => !open)}>
-                <AgentBrowserMenuItemIcon>
-                  <Search size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开网页
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openProjectHomeTab}>
-                {hasProject ? (
-                  <>
-                    <AgentBrowserMenuItemIcon>
-                      <Home size={13} />
-                    </AgentBrowserMenuItemIcon>
-                    打开内容导航
-                  </>
-                ) : (
-                  <>
-                    <AgentBrowserMenuItemIcon>
-                      <Globe2 size={13} />
-                    </AgentBrowserMenuItemIcon>
-                    新建空白网页
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openResourceLibraryTab}>
-                <AgentBrowserMenuItemIcon>
-                  <HardDrive size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开资源库
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openExternalResourceLibraryTab}>
-                <AgentBrowserMenuItemIcon>
-                  <ScanSearch size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开外部资源
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openCanvasListTab}>
-                <AgentBrowserMenuItemIcon>
-                  <LayoutTemplate size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开画布列表
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openProjectStandardsTab}>
-                <AgentBrowserMenuItemIcon>
-                  <PenLine size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开项目规范
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openSessionOutputTab}>
-                <AgentBrowserMenuItemIcon>
-                  <ClipboardList size={13} />
-                </AgentBrowserMenuItemIcon>
-                打开会话产出
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openBlankWebTab}>
-                <AgentBrowserMenuItemIcon>
-                  <Globe2 size={13} />
-                </AgentBrowserMenuItemIcon>
-                新建空白网页
-              </DropdownMenuItem>
-            </AgentBrowserMenuContent>
-          </DropdownMenu>
-        </AgentBrowserTabBar>
-        {activeTab?.kind === 'web' && (activeWebState?.url || activeTab.url) ? (
-          <AgentBrowserToolbar>
-            {toolbarActions.map((item) => {
-              const Icon = item.icon
-              return (
-                <AgentBrowserIconButton
-                  key={item.label}
-                  disabled={item.disabled}
-                  title={item.label}
-                  aria-label={item.label}
-                  onClick={item.action}
-                >
-                  <Icon size={13} />
-                </AgentBrowserIconButton>
-              )
-            })}
-            <AgentBrowserUrlMeta asChild>
-              <AgentBrowserAddressForm onSubmit={submitToolbarAddress}>
-                <AgentBrowserInput
-                  value={toolbarAddressWorkspace}
-                  onChange={(event) => setToolbarAddressWorkspace(event.target.value)}
-                  placeholder="网址或搜索"
-                  aria-label="网页地址"
-                  disabled={!available}
-                />
-                <AgentBrowserLauncherSubmitButton disabled={!available || !toolbarAddressWorkspace.trim()}>
-                  打开
-                </AgentBrowserLauncherSubmitButton>
-              </AgentBrowserAddressForm>
-            </AgentBrowserUrlMeta>
-          </AgentBrowserToolbar>
-        ) : null}
-        {launcherOpen ? (
-          <AgentBrowserLauncherForm onSubmit={openWebFromLauncher}>
-            <AgentBrowserLauncherIcon>
-              <Search size={13} />
-            </AgentBrowserLauncherIcon>
-            <AgentBrowserInput
-              value={addressWorkspace}
-              onChange={(event) => setAddressWorkspace(event.target.value)}
-              placeholder="输入网址或搜索"
-              autoFocus
-            />
-            <AgentBrowserLauncherSubmitButton disabled={!addressWorkspace.trim()}>
-              打开
-            </AgentBrowserLauncherSubmitButton>
-          </AgentBrowserLauncherForm>
-        ) : null}
-        {error ? (
-          <AgentBrowserInlineError icon={<XCircle size={13} />}>
-            {error}
-          </AgentBrowserInlineError>
-        ) : null}
-      </AgentBrowserHeader>
+      <AgentBrowserPanelHeader
+        tabs={tabs}
+        activeTabId={activeTabId}
+        activeTab={activeTab}
+        activeWebState={activeWebState}
+        webStates={webStates}
+        projectName={project?.name}
+        hasProject={hasProject}
+        available={available}
+        launcherOpen={launcherOpen}
+        addressWorkspace={addressWorkspace}
+        toolbarAddressWorkspace={toolbarAddressWorkspace}
+        error={error}
+        toolbarActions={toolbarActions}
+        onSetLauncherOpen={setLauncherOpen}
+        onSetAddressWorkspace={setAddressWorkspace}
+        onSetToolbarAddressWorkspace={setToolbarAddressWorkspace}
+        onOpenProjectHomeTab={openProjectHomeTab}
+        onOpenBlankWebTab={openBlankWebTab}
+        onOpenResourceLibraryTab={openResourceLibraryTab}
+        onOpenExternalResourceLibraryTab={openExternalResourceLibraryTab}
+        onOpenCanvasListTab={openCanvasListTab}
+        onOpenProjectStandardsTab={openProjectStandardsTab}
+        onOpenSessionOutputTab={openSessionOutputTab}
+        onSetActiveTabId={setActiveTabId}
+        onCloseTab={closeTab}
+        onOpenWebFromLauncher={openWebFromLauncher}
+        onSubmitToolbarAddress={submitToolbarAddress}
+      />
       <AgentBrowserViewport ref={viewportRef}>
         <AgentBrowserTabContent
           activeTab={activeTab}

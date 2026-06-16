@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
   Boxes,
   Clapperboard,
+  FilePlus2,
   FileText,
   FolderOpen,
   HardDrive,
@@ -54,9 +55,11 @@ import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspace
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
-import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
+import { createWorkspaceScript, listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
+import { scriptKeys } from '@/features/scripts/application/scriptQueryKeys'
 import { agentBrowserKeys } from '@/features/agent/application/agentQueryKeys'
 import type { Project, Script } from '@/types'
+import { toast } from '@/shared/ui/toastStore'
 
 interface ProjectNavigationGroup {
   key: string
@@ -66,6 +69,7 @@ interface ProjectNavigationGroup {
   tone: 'plan' | 'script' | 'asset' | 'production' | 'content'
   items: ProjectNavigationLink[]
   loading: boolean
+  action?: ReactNode
 }
 
 interface ProjectNavigationLink {
@@ -91,6 +95,8 @@ export function ProjectHomeBrowserPage({
   onOpenCanvasList: () => void
 }) {
   const projectId = project?.ID
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const currentUser = useUserStore((state) => state.currentUser)
   const currentOrgID = useUserStore((state) => state.currentOrgID)
   const orgMemberships = useUserStore((state) => state.orgMemberships)
@@ -104,6 +110,29 @@ export function ProjectHomeBrowserPage({
   const productionsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'productions'), queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')), enabled: !!projectId })
   const sceneMomentsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'sceneMoments'), queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')), enabled: !!projectId })
   const contentUnitsQuery = useQuery<SemanticEntityRecord[]>({ queryKey: agentBrowserKeys.navigationEntity(projectId, 'contentUnits'), queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')), enabled: !!projectId })
+  const createScript = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('请选择项目')
+      const scriptNumber = (scriptsQuery.data?.length ?? 0) + 1
+      return createWorkspaceScript(projectId, {
+        title: `新剧本 ${scriptNumber}`,
+        script_type: 'uncategorized',
+        content: '',
+        raw_source: '',
+        summary: '',
+      }, workspaceContext)
+    },
+    onSuccess: (created) => {
+      if (!projectId) return
+      void queryClient.invalidateQueries({
+        queryKey: agentBrowserKeys.navigationScripts(projectId, workspaceContext.userId, workspaceContext.orgId),
+      })
+      void queryClient.invalidateQueries({ queryKey: scriptKeys.projectScriptScope(projectId) })
+      toast.success('剧本已创建')
+      navigate(withRouteParams(ROUTES.project.scripts, { script_id: created.ID }))
+    },
+    onError: () => toast.error('创建剧本失败，请重试'),
+  })
 
   if (!project) {
     return (
@@ -143,6 +172,15 @@ export function ProjectHomeBrowserPage({
       icon: FileText,
       tone: 'script',
       loading: scriptsQuery.isLoading,
+      action: (
+        <AgentBrowserContentToolButton
+          icon={<FilePlus2 size={13} />}
+          disabled={createScript.isPending}
+          onClick={() => createScript.mutate()}
+        >
+          {createScript.isPending ? '创建中' : '新建剧本'}
+        </AgentBrowserContentToolButton>
+      ),
       items: (scriptsQuery.data ?? [])
         .slice()
         .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
@@ -318,6 +356,7 @@ function ProjectNavigationGroupSection({
           </AgentBrowserContentGroupTitleRow>
           <AgentBrowserContentGroupDescription>{group.description}</AgentBrowserContentGroupDescription>
         </AgentBrowserContentGroupCopy>
+        {group.action}
         <AgentBrowserBadge>{group.loading ? '读取中' : `${group.items.length}`}</AgentBrowserBadge>
       </AgentBrowserContentGroupHeader>
       <AgentBrowserContentGroupItems>

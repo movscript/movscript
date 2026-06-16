@@ -38,6 +38,7 @@ import { emptyJobMonitorFilters, jobUrlSearchParams } from '@/lib/adminJobQueryP
 import { auditLogsHref, relativePastDateInput, usageLogsHref } from '@/lib/adminLogQueryParams'
 import { gatewayKeyAuditHref, gatewayKeyUsageHref } from '@/lib/adminGatewayKeyLinks'
 import { adminHref } from '@/lib/adminRoutes'
+import { hasNewAPIGatewayProviderInstance } from '@/lib/adminNewAPIGatewayMode'
 import {
   emptyProjectListFilters,
   projectFiltersFromSearchParams,
@@ -137,6 +138,30 @@ function inputLimitErrors(maxInputImages: number, maxInputVideos: number, t: (ke
   if (!isValidInputLimit(maxInputImages)) errors.push(t('admin.models.maxImagesInvalid'))
   if (!isValidInputLimit(maxInputVideos)) errors.push(t('admin.models.maxVideosInvalid'))
   return errors
+}
+
+function modelConfigCapabilities(config: Pick<AIModelConfig, 'custom_capabilities'>): string[] {
+  return config.custom_capabilities.split(',').map((capability) => capability.trim()).filter(Boolean)
+}
+
+function isAgentTextModelConfig(config: Pick<AIModelConfig, 'custom_capabilities' | 'is_enabled'>): boolean {
+  if (!config.is_enabled) return false
+  const capabilities = modelConfigCapabilities(config)
+  return capabilities.includes('text') || capabilities.includes('reasoning')
+}
+
+function defaultAgentModelConfigId(credentials: AICredential[]): number | null {
+  const candidates = credentials.flatMap((credential) => credential.models ?? []).filter(isAgentTextModelConfig)
+  if (candidates.length === 0) return null
+  const [selected] = [...candidates].sort((left, right) => (
+    (right.priority ?? 0) - (left.priority ?? 0) || left.ID - right.ID
+  ))
+  return selected?.ID ?? null
+}
+
+function nextDefaultAgentModelPriority(credentials: AICredential[]): number {
+  const candidates = credentials.flatMap((credential) => credential.models ?? []).filter(isAgentTextModelConfig)
+  return Math.max(0, ...candidates.map((config) => config.priority ?? 0)) + 1
 }
 
 const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
@@ -546,10 +571,12 @@ function AdapterPicker({
 
 function CredentialForm({
   adapter,
+  newAPIGatewayMode = false,
   onBack,
   onSuccess,
 }: {
   adapter: AdapterDef
+  newAPIGatewayMode?: boolean
   onBack: () => void
   onSuccess: (adapterType: string) => void
 }) {
@@ -576,9 +603,9 @@ function CredentialForm({
     const base: Record<string, unknown> = {
       adapter_type: adapter.adapter_type,
       display_name: displayName,
-      credentials: fields,
+      credentials: newAPIGatewayMode ? {} : fields,
     }
-    if (adapter.supports_files_api) {
+    if (!newAPIGatewayMode && adapter.supports_files_api) {
       base.files_api_enabled = filesAPIEnabled
       if (filesAPIBaseURL) base.files_api_base_url = filesAPIBaseURL
       if (filesAPIKey) base.files_api_key = filesAPIKey
@@ -620,7 +647,13 @@ function CredentialForm({
         onChange={(e) => setDisplayName(e.target.value)}
       />
 
-      {baseURLField && (
+      {newAPIGatewayMode && (
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          {t('admin.credentials.newAPIGatewayCredentialHint')}
+        </div>
+      )}
+
+      {!newAPIGatewayMode && baseURLField && (
         <div>
           <Label className="text-xs text-muted-foreground block mb-1">
             {credentialFieldLabel(baseURLField.key, baseURLField.label, t)}{baseURLField.required && <AppRequiredMark />}
@@ -633,7 +666,7 @@ function CredentialForm({
         </div>
       )}
 
-      {keyFields.map((field) => (
+      {!newAPIGatewayMode && keyFields.map((field) => (
         <div key={field.key}>
           <Label className="text-xs text-muted-foreground block mb-1">
             {credentialFieldLabel(field.key, field.label, t)}{field.required && <AppRequiredMark />}
@@ -659,7 +692,7 @@ function CredentialForm({
       )}
 
       {/* Files API — shown only for adapters that support it */}
-      {adapter.supports_files_api && (
+      {!newAPIGatewayMode && adapter.supports_files_api && (
         <div className="border border-border rounded-lg p-3 space-y-2 bg-background">
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
@@ -700,18 +733,21 @@ function CredentialForm({
       )}
 
       <div className="flex gap-2">
-        <button
-          onClick={handleCreateAndTest}
-          disabled={create.isPending || testState.loading}
-          className="flex-1 bg-primary text-primary-foreground rounded px-4 py-2 text-sm hover:bg-primary/90 disabled:opacity-50"
-        >
-          {testState.loading ? t('admin.credentials.testing') : t('admin.credentials.createAndTest')}
-        </button>
+        {!newAPIGatewayMode && (
+          <button
+            onClick={handleCreateAndTest}
+            disabled={create.isPending || testState.loading}
+            className="flex-1 bg-primary text-primary-foreground rounded px-4 py-2 text-sm hover:bg-primary/90 disabled:opacity-50"
+          >
+            {testState.loading ? t('admin.credentials.testing') : t('admin.credentials.createAndTest')}
+          </button>
+        )}
         <Button
           onClick={() => create.mutate(buildPayload())}
           disabled={create.isPending || testState.loading}
+          className={newAPIGatewayMode ? 'flex-1' : undefined}
         >
-          {create.isPending ? '…' : t('admin.credentials.createDirectly')}
+          {create.isPending ? '…' : (newAPIGatewayMode ? t('admin.credentials.createRouteShell') : t('admin.credentials.createDirectly'))}
         </Button>
         <Button variant="outline" onClick={onBack}>
           {t('common.back')}
@@ -1474,11 +1510,11 @@ export function ModelManagementPage() {
     queryKey: ['admin', 'provider-instances'],
     queryFn: () => api.get('/admin/provider-instances').then((r) => r.data),
     enabled: viewMode === 'providers',
-  })
-  const providerInstances = providerInstancesData?.items ?? []
-  const startupProviderInstances = providerInstances.filter((item) => !item.legacy_ref)
-  const isNewAPIGatewayMode = startupProviderInstances.some((item) => item.id === 'ai_gateway:new-api')
-  const providerInstanceByCredentialId = new Map(
+	})
+	const providerInstances = providerInstancesData?.items ?? []
+	const startupProviderInstances = providerInstances.filter((item) => !item.legacy_ref)
+  const isNewAPIGatewayMode = hasNewAPIGatewayProviderInstance(startupProviderInstances)
+	const providerInstanceByCredentialId = new Map(
     providerInstances
       .filter((item) => item.legacy_ref?.kind === 'ai_credential')
       .map((item) => [item.legacy_ref?.id, item] as const),
@@ -1493,21 +1529,6 @@ export function ModelManagementPage() {
 
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
-    onMutate: () => setModelAdminError(''),
-    onSuccess: () => {
-      setModelAdminError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-      qc.invalidateQueries({ queryKey: ['admin', 'provider-instances'] })
-    },
-    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
-  })
-
-  const createNewAPIRouteCredential = useMutation({
-    mutationFn: () => api.post('/admin/credentials', {
-      adapter_type: 'openai_compat',
-      display_name: 'new-api routes',
-      credentials: {},
-    }),
     onMutate: () => setModelAdminError(''),
     onSuccess: () => {
       setModelAdminError('')
@@ -1617,6 +1638,17 @@ export function ModelManagementPage() {
       setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       setEditingConfig(null)
+    },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
+  })
+
+  const setDefaultAgentModel = useMutation({
+    mutationFn: ({ modelId, priority }: { modelId: number; priority: number }) =>
+      api.patch(`/admin/model-configs/${modelId}`, { priority }),
+    onMutate: () => setModelAdminError(''),
+    onSuccess: () => {
+      setModelAdminError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
     },
     onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
@@ -1742,7 +1774,7 @@ export function ModelManagementPage() {
 
       <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
         {viewMode === 'providers'
-          ? t('admin.models.providersHint')
+          ? (isNewAPIGatewayMode ? t('admin.models.newAPIGatewayProvidersHint') : t('admin.models.providersHint'))
           : t('admin.models.gatewayHint')}
       </div>
 
@@ -1762,21 +1794,12 @@ export function ModelManagementPage() {
 
       {viewMode === 'providers' && addStep === 'idle' && (
         <div className="flex justify-end">
-          <Button
-            onClick={() => {
-              if (isNewAPIGatewayMode) {
-                createNewAPIRouteCredential.mutate()
-                return
-              }
-              setAddStep('pick')
-            }}
-            disabled={createNewAPIRouteCredential.isPending}
-          >
-            <Plus size={14} className="mr-1.5" />
-            {isNewAPIGatewayMode
-              ? t('admin.models.addNewAPIRouteGroup', { defaultValue: '添加 new-api 模型组' })
-              : t('admin.models.addCredential')}
-          </Button>
+	          <Button
+	            onClick={() => setAddStep('pick')}
+	          >
+	            <Plus size={14} className="mr-1.5" />
+	            {isNewAPIGatewayMode ? t('admin.models.addNewAPIRoute') : t('admin.models.addCredential')}
+	          </Button>
         </div>
       )}
 
@@ -1790,11 +1813,12 @@ export function ModelManagementPage() {
       {viewMode === 'providers' && addStep === 'fill' && selectedAdapter && (
         <CredentialForm
           adapter={selectedAdapter}
+          newAPIGatewayMode={isNewAPIGatewayMode}
           onBack={() => setAddStep('pick')}
           onSuccess={(adapterType) => {
             setAddStep('idle')
             setSelectedAdapter(null)
-            setRelayHint(adapterType === 'volcen' ? adapterType : null)
+            setRelayHint(!isNewAPIGatewayMode && adapterType === 'volcen' ? adapterType : null)
           }}
         />
       )}
@@ -1891,6 +1915,14 @@ export function ModelManagementPage() {
               </div>
             </div>
           )}
+          {credentials.some((cred) => (cred.models ?? []).some(isAgentTextModelConfig)) && (
+            <div className="rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{t('admin.models.agentDefaultModelTitle', { defaultValue: 'Agent 默认模型' })}</span>
+              <span className="ml-2">
+                {t('admin.models.agentDefaultModelHint', { defaultValue: '用户会话框的自动模型会优先使用这里标记的文本/推理模型。' })}
+              </span>
+            </div>
+          )}
           {credentials.map((cred) => {
           const providerInstance = providerInstanceByCredentialId.get(cred.ID)
           const testKey = providerInstance ? `provider-instance-${providerInstance.id}` : `cred-${cred.ID}`
@@ -1958,10 +1990,10 @@ export function ModelManagementPage() {
                       </span>
                     )}
                   </div>
-                  {!isNewAPIGatewayMode && cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
+	                  {!isNewAPIGatewayMode && cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
                 </div>
 
-                {!isNewAPIGatewayMode && cred.masked_key && (
+	                {!isNewAPIGatewayMode && cred.masked_key && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <button onClick={() => setShowKey((s) => ({ ...s, [cred.ID]: !s[cred.ID] }))}>
                       {showKey[cred.ID] ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -1970,23 +2002,25 @@ export function ModelManagementPage() {
                   </div>
                 )}
 
-                <button
-                  onClick={() => runTest(testKey, () => (
-                    isNewAPIGatewayMode
-                      ? api.post('/admin/provider-instances/ai_gateway:new-api/test', {}).then((r) => r.data)
-                      : providerInstance
-                      ? api.post(`/admin/provider-instances/${providerInstance.id}/test`, {}).then((r) => r.data)
-                      : api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
-                  ))}
-                  disabled={testingId === testKey}
-                  className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5"
-                >
-                  {testingId === testKey ? t('admin.credentials.testing') : t('admin.models.connectionTest')}
-                </button>
-                {testRes && (
-                  <AppFeedbackText as="span" tone={testRes.success ? 'neutral' : 'danger'}>
-                    {testRes.success ? `✓ ${testRes.latency_ms}ms` : t('admin.models.testFailedMark')}
-                  </AppFeedbackText>
+                {!isNewAPIGatewayMode && (
+                  <>
+                    <button
+                      onClick={() => runTest(testKey, () => (
+  	                    providerInstance
+  	                      ? api.post(`/admin/provider-instances/${providerInstance.id}/test`, {}).then((r) => r.data)
+  	                      : api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
+                      ))}
+                      disabled={testingId === testKey}
+                      className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5"
+                    >
+                      {testingId === testKey ? t('admin.credentials.testing') : t('admin.models.connectionTest')}
+                    </button>
+                    {testRes && (
+                      <AppFeedbackText as="span" tone={testRes.success ? 'neutral' : 'danger'}>
+                        {testRes.success ? `✓ ${testRes.latency_ms}ms` : t('admin.models.testFailedMark')}
+                      </AppFeedbackText>
+                    )}
+                  </>
                 )}
 
                 <AppStatusToggleButton
@@ -2005,19 +2039,26 @@ export function ModelManagementPage() {
               {/* Expanded: model configs + add panel */}
               {expandedId === cred.ID && (
                 <div className="border-t border-border px-4 py-3 space-y-3 bg-card">
-                  {!isNewAPIGatewayMode && (
-                  <div className="border border-border rounded-lg bg-background p-3 space-y-2">
+	                  <div className="border border-border rounded-lg bg-background p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium text-muted-foreground">{t('admin.models.credentialAuth')}</p>
-                      <button
-                        onClick={() => credentialEditFor === cred.ID ? setCredentialEditFor(null) : openCredentialAuthEdit(cred)}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {credentialEditFor === cred.ID ? t('admin.models.collapse') : t('admin.models.edit')}
-                      </button>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {isNewAPIGatewayMode ? t('admin.models.newAPIGatewayRouteAuth') : t('admin.models.credentialAuth')}
+                      </p>
+                      {!isNewAPIGatewayMode && (
+                        <button
+                          onClick={() => credentialEditFor === cred.ID ? setCredentialEditFor(null) : openCredentialAuthEdit(cred)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          {credentialEditFor === cred.ID ? t('admin.models.collapse') : t('admin.models.edit')}
+                        </button>
+                      )}
                     </div>
 
-                    {credentialEditFor !== cred.ID ? (
+                    {isNewAPIGatewayMode ? (
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t('admin.models.newAPIGatewayRouteAuthHint')}
+                      </p>
+                    ) : credentialEditFor !== cred.ID ? (
                       <div className="grid gap-1 text-xs text-muted-foreground">
                         <p className="truncate">
                           {t('common.baseUrl')}: <span className="font-mono">{cred.base_url || adapter?.default_base_url || t('canvas.unset')}</span>
@@ -2050,11 +2091,11 @@ export function ModelManagementPage() {
                           </div>
                         ))}
                         {updateCredentialAuth.isError && (
-                          <AppFeedbackText>
-                            {translateApiError((updateCredentialAuth.error as any)?.response?.data)}
-                          </AppFeedbackText>
-                        )}
-                        <div className="flex gap-2">
+	                          <AppFeedbackText>
+	                            {translateApiError((updateCredentialAuth.error as any)?.response?.data)}
+	                          </AppFeedbackText>
+	                        )}
+	                        <div className="flex gap-2">
                           <Button
                             size="sm"
                             disabled={updateCredentialAuth.isPending}
@@ -2071,11 +2112,10 @@ export function ModelManagementPage() {
                           </Button>
                         </div>
                       </div>
-                    )}
-                  </div>
-                  )}
+	                    )}
+	                  </div>
 
-                  <div className="flex items-center justify-between">
+	                  <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">{t('admin.models.enabledModels')}</p>
                     {addingFor !== cred.ID && (
                       <button
@@ -2410,11 +2450,14 @@ export function ModelManagementPage() {
                     const isEditing = editingConfig?.ID === cfg.ID
                     const displayName = cfg.custom_display_name || cfg.model_def_id
                     const selectorName = cfg.short_name || displayName
-                    const caps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
+                    const caps = modelConfigCapabilities(cfg)
                     const pricing = cfg.custom_pricing_mode || ''
                     const editParamAudit = isEditing ? buildParamContractAudit(editForm.supported_params, adapterParamsForCapabilities(adapter, editForm.capabilities)) : null
                     const editInputLimitErrors = inputLimitErrors(editForm.max_input_images, editForm.max_input_videos, t)
                     const editInputLimitsValid = editInputLimitErrors.length === 0
+                    const isAgentTextModel = isAgentTextModelConfig(cfg)
+                    const agentDefaultModelId = defaultAgentModelConfigId(credentials)
+                    const isAgentDefaultModel = isAgentTextModel && cfg.ID === agentDefaultModelId
 
                     return (
                       <div key={cfg.ID} className="border border-border rounded bg-background">
@@ -2440,6 +2483,23 @@ export function ModelManagementPage() {
                           {pricing && (
                             <span className="text-muted-foreground/50">{PRICING_LABEL_KEYS[pricing] ? t(PRICING_LABEL_KEYS[pricing]) : pricing}</span>
                           )}
+                          {isAgentDefaultModel && (
+                            <Badge tone="success">{t('admin.models.agentDefaultModelBadge', { defaultValue: 'Agent 默认' })}</Badge>
+                          )}
+                          {isAgentTextModel && (
+                            <button
+                              onClick={() => setDefaultAgentModel.mutate({
+                                modelId: cfg.ID,
+                                priority: nextDefaultAgentModelPriority(credentials),
+                              })}
+                              disabled={setDefaultAgentModel.isPending || isAgentDefaultModel}
+                              className="text-muted-foreground/50 hover:text-foreground border border-border rounded px-1.5 py-0.5 disabled:opacity-50"
+                            >
+                              {isAgentDefaultModel
+                                ? t('admin.models.agentDefaultModelCurrent', { defaultValue: '当前默认' })
+                                : t('admin.models.setAgentDefaultModel', { defaultValue: '设为 Agent 默认' })}
+                            </button>
+                          )}
                           <button
                             onClick={() => runTest(modelTestKey, () =>
                               api.post(`/admin/credentials/${cred.ID}/models/${cfg.ID}/test`, {}).then((r) => r.data)
@@ -2463,7 +2523,7 @@ export function ModelManagementPage() {
                           </button>
                           <button
                             onClick={() => {
-                              const nextCaps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
+                              const nextCaps = modelConfigCapabilities(cfg)
                               setEditingConfig(cfg)
                               setEditForm({
                                 display_name: cfg.custom_display_name,
@@ -2705,7 +2765,7 @@ export function ModelManagementPage() {
                   )}
 
                   {/* Files API config — shown only for adapters that support it */}
-                  {!isNewAPIGatewayMode && adapter?.supports_files_api && (() => {
+	                  {!isNewAPIGatewayMode && adapter?.supports_files_api && (() => {
                     const isEditing = filesAPIEditFor === cred.ID
                     return (
                       <div className="border-t border-border pt-3">
@@ -2807,7 +2867,7 @@ export function ModelManagementPage() {
 
           {credentials.length === 0 && addStep === 'idle' && (
             <p className="text-sm text-muted-foreground text-center py-8">
-              {t('admin.models.noCredentialsHint')}
+              {isNewAPIGatewayMode ? t('admin.models.noNewAPIRoutesHint') : t('admin.models.noCredentialsHint')}
             </p>
           )}
         </div>
@@ -5137,13 +5197,13 @@ export default function AdminPage() {
   const usage7dHref = usageLogsHref({ since: relativePastDateInput(7) })
 
   const overviewCards = [
-    {
+    ...(!runtimeCapabilities.hideModelManagement ? [{
       label: t('admin.home.metrics.enabledModels'),
       value: formatAdminNumber(overview?.models.enabled_configs),
       detail: t('admin.home.metrics.credentials', { count: formatAdminNumber(overview?.models.credentials) }),
       icon: Settings2,
       href: '/models',
-    },
+    }] : []),
     {
       label: t('admin.home.metrics.projects'),
       value: formatAdminNumber(overview?.projects.total),
@@ -5176,7 +5236,7 @@ export default function AdminPage() {
   ]
 
   const sectionCards = [
-    { label: t('admin.tabs.models'), detail: t('admin.home.sections.models'), icon: Settings2, href: '/models' },
+    ...(!runtimeCapabilities.hideModelManagement ? [{ label: t('admin.tabs.models'), detail: t('admin.home.sections.models'), icon: Settings2, href: '/models' }] : []),
     { label: t('admin.tabs.users'), detail: t('admin.home.sections.users'), icon: UsersRound, href: '/user-management' },
     { label: t('admin.tabs.orgs'), detail: t('admin.home.sections.orgs'), icon: Building2, href: '/orgs' },
     { label: t('admin.tabs.projects'), detail: t('admin.home.sections.projects', { count: formatAdminNumber(overview?.projects.total) }), icon: FolderKanban, href: '/projects' },

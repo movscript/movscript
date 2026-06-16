@@ -8,5 +8,5 @@ export function AgentDiagnosticWarnings({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <ReviewCallout tone="warning" compact className={cn("ms-agent-diagnostic-warnings", className)} {...props} />;
+  return <ReviewCallout tone="warning" compact className={cn("ms-type-caption ms-agent-diagnostic-warnings", className)} {...props} />;
 }

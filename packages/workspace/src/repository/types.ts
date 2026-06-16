@@ -15,11 +15,13 @@ export interface MovScriptWorkspaceRepositoryReadResult {
   content: string
   size?: number
   updatedAt?: string
+  version?: string
 }
 
 export interface MovScriptWorkspaceRepositoryWriteInput {
   path: string
   content: string
+  expectedVersion?: string | null
 }
 
 export interface MovScriptWorkspaceRepositoryListResult {

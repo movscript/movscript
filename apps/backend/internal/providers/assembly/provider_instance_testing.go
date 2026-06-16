@@ -40,53 +40,60 @@ func TestStartupProviderInstance(ctx context.Context, cfg *config.Config, id str
 		return ProviderTestResult{Success: false, Message: "startup configuration is missing required settings", LatencyMs: time.Since(start).Milliseconds()}, nil
 	}
 
-	var err error
-	switch instance.Type + ":" + instance.Adapter {
-	case providercontract.TypeDatabase + ":" + providercontract.AdapterSQLite:
-		err = testSQLiteConfig(cfg)
-	case providercontract.TypeDatabase + ":" + providercontract.AdapterPostgres:
-		err = testPostgresConfig(ctx, cfg)
-	case providercontract.TypeBlobStorage + ":" + providercontract.AdapterFilesystem:
-		err = testFilesystemStorage(ctx, cfg)
-	case providercontract.TypeBlobStorage + ":" + providercontract.AdapterMinIO:
-		err = testBlobStorageHealth(ctx, cfg)
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHTTP:
-		err = testLocalGitHTTPConfig(cfg)
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitea:
-		err = testGiteaConfig(ctx, cfg)
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubEnterprise:
-		err = testGitHubEnterpriseConfig(ctx, cfg)
-	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitLab:
-		err = testGitLabConfig(ctx, cfg)
-	case providercontract.TypeAIGateway + ":" + providercontract.AdapterLocal,
-		providercontract.TypeAIGateway + ":" + providercontract.AdapterBuiltin,
-		providercontract.TypeAIGateway + ":" + providercontract.AdapterNewAPI:
-		err = nil
-	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterLocalIndex:
-		err = nil
-	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterPgVector:
-		err = testPgVectorConfig(ctx, cfg)
-	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterQdrant:
-		err = testQdrantConfig(ctx, cfg)
-	case providercontract.TypeCache + ":" + providercontract.AdapterMemory,
-		providercontract.TypeCache + ":" + providercontract.AdapterNoop,
-		providercontract.TypeCache + ":" + providercontract.AdapterRedis:
-		err = testCache(ctx, cfg)
-	case providercontract.TypeMediaProcessing + ":" + providercontract.AdapterDesktopManagedMedia,
-		providercontract.TypeMediaProcessing + ":" + providercontract.AdapterExternalMediaWorker:
-		err = testMediaProcessingConfig(ctx, cfg)
-	case providercontract.TypeAgentRuntime + ":" + providercontract.AdapterDesktopManagedAgent,
-		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterRemoteAgentRuntime,
-		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterMova,
-		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterAppServer:
-		err = testAgentRuntimeConfig(ctx, cfg)
-	default:
+	err, handled := coreStartupProviderInstanceTest(ctx, cfg, instance)
+	if !handled {
+		err, handled = editionStartupProviderInstanceTest(ctx, cfg, instance)
+	}
+	if !handled {
 		err = fmt.Errorf("provider instance %q is not testable yet", id)
 	}
 	if err != nil {
 		return ProviderTestResult{Success: false, Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}, nil
 	}
 	return ProviderTestResult{Success: true, Message: "provider instance test passed", LatencyMs: time.Since(start).Milliseconds()}, nil
+}
+
+func coreStartupProviderInstanceTest(ctx context.Context, cfg *config.Config, instance config.ProviderInstance) (error, bool) {
+	switch instance.Type + ":" + instance.Adapter {
+	case providercontract.TypeDatabase + ":" + providercontract.AdapterSQLite:
+		return testSQLiteConfig(cfg), true
+	case providercontract.TypeDatabase + ":" + providercontract.AdapterPostgres:
+		return testPostgresConfig(ctx, cfg), true
+	case providercontract.TypeBlobStorage + ":" + providercontract.AdapterFilesystem:
+		return testFilesystemStorage(ctx, cfg), true
+	case providercontract.TypeBlobStorage + ":" + providercontract.AdapterMinIO:
+		return testBlobStorageHealth(ctx, cfg), true
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHTTP:
+		return testLocalGitHTTPConfig(cfg), true
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitea:
+		return testGiteaConfig(ctx, cfg), true
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitHubEnterprise:
+		return testGitHubEnterpriseConfig(ctx, cfg), true
+	case providercontract.TypeWorkspaceRepository + ":" + providercontract.AdapterGitLab:
+		return testGitLabConfig(ctx, cfg), true
+	case providercontract.TypeAIGateway + ":" + providercontract.AdapterLocal:
+		return nil, true
+	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterLocalIndex:
+		return nil, true
+	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterPgVector:
+		return testPgVectorConfig(ctx, cfg), true
+	case providercontract.TypeVectorIndex + ":" + providercontract.AdapterQdrant:
+		return testQdrantConfig(ctx, cfg), true
+	case providercontract.TypeCache + ":" + providercontract.AdapterMemory,
+		providercontract.TypeCache + ":" + providercontract.AdapterNoop,
+		providercontract.TypeCache + ":" + providercontract.AdapterRedis:
+		return testCache(ctx, cfg), true
+	case providercontract.TypeMediaProcessing + ":" + providercontract.AdapterDesktopManagedMedia,
+		providercontract.TypeMediaProcessing + ":" + providercontract.AdapterExternalMediaWorker:
+		return testMediaProcessingConfig(ctx, cfg), true
+	case providercontract.TypeAgentRuntime + ":" + providercontract.AdapterDesktopManagedAgent,
+		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterRemoteAgentRuntime,
+		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterMova,
+		providercontract.TypeAgentRuntime + ":" + providercontract.AdapterAppServer:
+		return testAgentRuntimeConfig(ctx, cfg), true
+	default:
+		return nil, false
+	}
 }
 
 func findStartupProviderInstance(cfg *config.Config, id string) (config.ProviderInstance, bool) {
@@ -97,7 +104,6 @@ func findStartupProviderInstance(cfg *config.Config, id string) (config.Provider
 	}
 	return config.ProviderInstance{}, false
 }
-
 func testBlobStorageHealth(ctx context.Context, cfg *config.Config) error {
 	store, err := BuildBlobStorage(cfg)
 	if err != nil {

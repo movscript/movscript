@@ -22,9 +22,7 @@
 .ms-dropdown__item:focus,
 .ms-dropdown__sub-trigger:focus,
 .ms-dialog__close:focus-visible,
-.ms-agent-conversation:focus-visible,
-.ms-agent-composer__field:focus-visible,
-.ms-agent-suggestion:focus-visible {
+.ms-agent-composer__field:focus-visible {
   outline: 2px solid var(--ms-color-primary);
   outline-offset: 2px;
 }
@@ -32,8 +30,7 @@
 .ms-control:disabled,
 .ms-control[aria-disabled="true"],
 .ms-field-control:disabled,
-.ms-field-control[data-disabled],
-.ms-agent-suggestion:disabled {
+.ms-field-control[data-disabled] {
   cursor: not-allowed;
   opacity: 0.56;
 }

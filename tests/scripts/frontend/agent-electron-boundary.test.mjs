@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-const agentConsoleSource = readSource('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
+const agentConsoleSource = [
+  readSource('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
+].join('\n')
 const agentConsoleLogPanelSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')
 const appServerLogElectronSource = readSource('apps/frontend/src/features/agent/application/appServerLogElectron.ts')
 const agentTerminalSource = readSource('apps/frontend/src/features/agent/components/AgentTerminalPanel.tsx')
@@ -15,6 +18,7 @@ const workspaceReviewSource = readSource('apps/frontend/src/features/agent/compo
 const movScriptWorkspaceElectronSource = readSource('apps/frontend/src/features/agent/application/movScriptWorkspaceElectron.ts')
 const movScriptWorkspaceQueryKeysSource = readSource('apps/frontend/src/features/agent/application/movScriptWorkspaceQueryKeys.ts')
 const movScriptWorkspaceMutationSource = readSource('apps/frontend/src/features/agent/application/movScriptWorkspaceMutationInvalidation.ts')
+const generationAssertionsSource = readSource('apps/frontend/src/e2e/generationAssertions.ts')
 
 test('agent console delegates app-server log Electron subscription', () => {
   assert.match(agentConsoleSource, /from '@\/features\/agent\/components\/AgentConsoleRealtimeLogPanel'/)
@@ -63,6 +67,13 @@ test('MovScript workspace pages delegate Electron file APIs', () => {
   assert.match(movScriptWorkspaceMutationSource, /WorkspaceFilesChanged/)
   assert.match(movScriptWorkspaceMutationSource, /WorkspaceFileChanged/)
   assert.match(movScriptWorkspaceMutationSource, /export function invalidateMovScriptWorkspaceMutationResult/)
+})
+
+test('MovScript workspace e2e root mocks model the selected directory as MovScript home', () => {
+  assert.match(generationAssertionsSource, /movScriptHomeDir: workspaceRoot/)
+  assert.match(generationAssertionsSource, /controlDir: workspaceRoot/)
+  assert.match(generationAssertionsSource, /manifestPath: `\$\{workspaceRoot\}\/\$\{manifestFileName\}`/)
+  assert.doesNotMatch(generationAssertionsSource, /controlDir: `\$\{workspaceRoot\}\/\$\{workspaceDirName\}`/)
 })
 
 test('agent browser delegates embedded browser Electron API access', () => {

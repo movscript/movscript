@@ -5,4 +5,3 @@ export * from "./prompt";
 export * from "./attachment";
 export * from "./approval";
 export * from "./params";
-export * from "./workflow-reference";

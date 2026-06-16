@@ -15,9 +15,9 @@ export function ResourceMediaAudioPanel({
 }) {
   return (
     <AppSurfaceItem className={cn("resource-media-audio-panel", className)} {...props}>
-      <div className="resource-media-audio-panel__title">
+      <div className="ms-action-row resource-media-audio-panel__title">
         {icon}
-        <span>{name}</span>
+        <span className="ms-text-truncate ms-type-body">{name}</span>
       </div>
       {children}
     </AppSurfaceItem>
@@ -36,7 +36,7 @@ export function ResourceMediaFallbackPanel({
   return (
     <AppSurfaceItem className={cn("resource-media-fallback-panel", className)} {...props}>
       <div className="resource-media-fallback-panel__icon">{icon}</div>
-      <p>{name}</p>
+      <p className="ms-type-body">{name}</p>
     </AppSurfaceItem>
   );
 }

@@ -1,5 +1,7 @@
 import { resolveMovScriptProjectCwd } from '@movscript/core/workspace/node'
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
+import { stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import {
   buildContentSourceWorkspaceData,
   loadContentSourceWorkspaceSnapshotFromEngine,
@@ -39,8 +41,9 @@ import type {
   ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput,
   ElectronMovScriptEngineWorkspaceUpsertScriptInput,
   ElectronMovScriptEngineWorkspaceUpsertSettingInput,
+  ElectronMovScriptEngineWorkspaceUpdatedEvent,
 } from '../../src/shared/contracts/electronApi'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 import { writeMovScriptWorkspaceFile } from './movscriptWorkspaceFiles'
 
 type NormalizedProjectEngineInput = {
@@ -95,6 +98,9 @@ class ProjectEngineRegistry {
 
 export const projectEngineRegistry = new ProjectEngineRegistry()
 const engineContextByCacheKey = new Map<string, NormalizedProjectEngineInput>()
+const projectOperationQueues = new Map<string, Promise<void>>()
+let workspaceUpdateSequence = 0
+let workspaceUpdatedBroadcaster: (event: ElectronMovScriptEngineWorkspaceUpdatedEvent) => void = broadcastProjectWorkspaceUpdated
 
 let projectEngineFactoryForTest:
   | ((context: NormalizedProjectEngineInput) => NodeMovScriptEngine)
@@ -112,13 +118,25 @@ export function __setProjectEngineFactoryForTest(
   }
 }
 
+export function __setProjectEngineWorkspaceUpdatedBroadcasterForTest(
+  broadcaster: ((event: ElectronMovScriptEngineWorkspaceUpdatedEvent) => void) | undefined,
+): () => void {
+  const previous = workspaceUpdatedBroadcaster
+  workspaceUpdatedBroadcaster = broadcaster ?? broadcastProjectWorkspaceUpdated
+  return () => {
+    workspaceUpdatedBroadcaster = previous
+  }
+}
+
 export async function loadMovScriptEngineContentWorkspaceSnapshot(
   input: ElectronMovScriptEngineProjectInput,
 ): Promise<ContentSourceWorkspaceSnapshot> {
+  const context = normalizeProjectEngineInput(input)
   const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(projectEngineRegistry.get(input))
   console.log('[movscript-engine] load content workspace snapshot', {
     projectId: input.projectId,
-    workspaceDir: input.workspaceDir,
+    movScriptHomeDir: context.workspaceDir,
+    workspaceDir: context.workspaceDir,
     userId: input.userId,
     orgId: input.orgId,
     contentUnits: snapshot.contentUnits.length,
@@ -256,138 +274,149 @@ export async function createMovScriptEngineWorkspaceKeyframeCandidate(
 export async function createMovScriptEngineContentCandidate(
   input: ElectronMovScriptEngineContentCandidateCreateInput,
 ): Promise<ContentCandidateRecord> {
-  console.log('[movscript-engine] create content candidate backend request', {
-    projectId: input.projectId,
-    workspaceDir: input.workspaceDir,
-    userId: input.userId,
-    orgId: input.orgId,
-    contentUnitId: input.contentUnitId,
-    candidateId: input.candidateId,
-    source: input.source,
-    status: input.status,
-    outputs: input.outputs,
-  })
-  const result = await projectEngineRegistry.get(input).workspaceService.createContentCandidate({
-    contentUnitId: input.contentUnitId,
-    candidateId: input.candidateId,
-    source: input.source,
-    status: input.status,
-    producer: input.producer,
-    outputs: input.outputs,
-    promptSnapshot: input.promptSnapshot,
-    createdAt: input.createdAt,
-  })
-  console.log('[movscript-engine] create content candidate backend saved', {
-    projectId: input.projectId,
-    userId: input.userId,
-    orgId: input.orgId,
-    contentUnitId: input.contentUnitId,
-    candidateId: result.record.id,
-    source: result.record.source,
-    status: result.record.status,
-    outputs: result.record.outputs,
-  })
-  projectEngineRegistry.invalidate(input)
-  return result.record as ContentCandidateRecord
+  return workspaceMutation(input, async (engine) => {
+    const context = normalizeProjectEngineInput(input)
+    console.log('[movscript-engine] create content candidate backend request', {
+      projectId: input.projectId,
+      movScriptHomeDir: context.workspaceDir,
+      workspaceDir: context.workspaceDir,
+      userId: input.userId,
+      orgId: input.orgId,
+      contentUnitId: input.contentUnitId,
+      candidateId: input.candidateId,
+      source: input.source,
+      status: input.status,
+      outputs: input.outputs,
+    })
+    const result = await engine.workspaceService.createContentCandidate({
+      contentUnitId: input.contentUnitId,
+      candidateId: input.candidateId,
+      source: input.source,
+      status: input.status,
+      producer: input.producer,
+      outputs: input.outputs,
+      promptSnapshot: input.promptSnapshot,
+      createdAt: input.createdAt,
+    })
+    console.log('[movscript-engine] create content candidate backend saved', {
+      projectId: input.projectId,
+      userId: input.userId,
+      orgId: input.orgId,
+      contentUnitId: input.contentUnitId,
+      candidateId: result.record.id,
+      source: result.record.source,
+      status: result.record.status,
+      outputs: result.record.outputs,
+    })
+    return result.record as ContentCandidateRecord
+  }, 'content-candidate-created')
 }
 
 export async function selectMovScriptEngineContentUnitCandidate(
   input: ElectronMovScriptEngineContentCandidateSelectInput,
 ): Promise<void> {
-  await projectEngineRegistry.get(input).workspaceService.selectContentUnitCandidate({
+  await workspaceMutation(input, (engine) => engine.workspaceService.selectContentUnitCandidate({
     contentUnitId: input.contentUnitId,
     candidateId: input.candidateId,
     ...(input.resourceId !== undefined ? { resourceId: input.resourceId } : {}),
     reason: input.reason,
-  })
-  projectEngineRegistry.invalidate(input)
+  }), 'content-candidate-selected')
 }
 
 export async function updateMovScriptEngineContentUnitEditPrompt(
   input: ElectronMovScriptEngineContentUnitEditPromptInput,
 ): Promise<Awaited<ReturnType<MovScriptWorkspaceService['updateContentUnitEditPrompt']>>> {
-  const result = await projectEngineRegistry.get(input).workspaceService.updateContentUnitEditPrompt({
+  return workspaceMutation(input, (engine) => engine.workspaceService.updateContentUnitEditPrompt({
     targetPath: input.targetPath,
     editPrompt: input.editPrompt,
-  })
-  projectEngineRegistry.invalidate(input)
-  return result
+  }), 'source-updated')
 }
 
 export async function updateMovScriptEngineExpressionUnit(
   input: ElectronMovScriptEngineExpressionUnitInput,
 ): Promise<void> {
-  await projectEngineRegistry.get(input).workspaceService.updateExpressionUnitSource({
+  await workspaceMutation(input, (engine) => engine.workspaceService.updateExpressionUnitSource({
     targetPath: input.targetPath,
     patch: input.patch,
-  })
-  projectEngineRegistry.invalidate(input)
+  }), 'source-updated')
 }
 
 export async function updateMovScriptEngineAudioCue(
   input: ElectronMovScriptEngineAudioCueInput,
 ): Promise<void> {
-  await projectEngineRegistry.get(input).workspaceService.updateAudioCueSource({
+  await workspaceMutation(input, (engine) => engine.workspaceService.updateAudioCueSource({
     targetPath: input.targetPath,
     patch: input.patch,
-  })
-  projectEngineRegistry.invalidate(input)
+  }), 'source-updated')
 }
 
 export async function updateMovScriptEngineTransition(
   input: ElectronMovScriptEngineTransitionInput,
 ): Promise<void> {
-  await projectEngineRegistry.get(input).workspaceService.updateEntityTransition({
+  await workspaceMutation(input, (engine) => engine.workspaceService.updateEntityTransition({
     targetPath: input.targetPath,
     transition: input.transition,
-  })
-  projectEngineRegistry.invalidate(input)
+  }), 'source-updated')
 }
 
 export async function updateMovScriptEngineStoryboardTimeline(
   input: ElectronMovScriptEngineStoryboardTimelineInput,
 ): Promise<void> {
-  await projectEngineRegistry.get(input).workspaceService.updateStoryboardTimeline({
+  await workspaceMutation(input, (engine) => engine.workspaceService.updateStoryboardTimeline({
     targetPath: input.targetPath,
     timeline: input.timeline,
-  })
-  projectEngineRegistry.invalidate(input)
+  }), 'source-updated')
 }
 
 export async function writeMovScriptEngineHierarchyNode(
   input: ElectronMovScriptEngineHierarchyNodeWriteInput,
 ): Promise<void> {
-  await writeMovScriptWorkspaceFile({
-    ...input,
-    content: `${JSON.stringify(input.record, null, 2)}\n`,
-    path: input.targetPath,
-  })
-  projectEngineRegistry.invalidate(input)
+  await workspaceMutation(input, async () => {
+    await writeMovScriptWorkspaceFile({
+      ...input,
+      content: `${JSON.stringify(input.record, null, 2)}\n`,
+      path: input.targetPath,
+	      expectedVersion: input.expectedWorkspaceVersions?.[input.targetPath] ?? null,
+    })
+  }, 'hierarchy-node-written')
 }
 
 export async function syncMovScriptEngineContentWorkspace(
   input: ElectronMovScriptEngineProjectInput,
 ): Promise<void> {
-  await projectEngineRegistry.get(input).interpret()
-  projectEngineRegistry.invalidate(input)
+  await workspaceMutation(input, (engine) => engine.interpret().then(() => undefined), 'interpret-synced', {
+    interpretBeforeWrite: false,
+    requireExpectedWorkspaceVersions: false,
+  })
 }
 
 async function workspaceMutation<T>(
   input: ElectronMovScriptEngineProjectInput,
   action: (engine: NodeMovScriptEngine) => Promise<T>,
+  reason: ElectronMovScriptEngineWorkspaceUpdatedEvent['reason'] = 'workspace-mutated',
+  options: { interpretBeforeWrite?: boolean; requireExpectedWorkspaceVersions?: boolean } = {},
 ): Promise<T> {
-  try {
-    return await action(projectEngineRegistry.get(input))
-  } finally {
-    projectEngineRegistry.invalidate(input)
-  }
+  return enqueueProjectEngineOperation(input, async () => {
+    try {
+      const engine = projectEngineRegistry.get(input)
+      if (options.interpretBeforeWrite ?? true) await engine.interpret()
+      await assertExpectedWorkspaceVersions(engine, input.expectedWorkspaceVersions, options.requireExpectedWorkspaceVersions ?? true)
+      const result = await action(engine)
+      projectEngineRegistry.invalidate(input)
+      emitProjectWorkspaceUpdated(input, reason)
+      return result
+    } catch (error) {
+      projectEngineRegistry.invalidate(input)
+      throw error
+    }
+  })
 }
 
 export function normalizeProjectEngineInput(
   input?: ElectronMovScriptEngineProjectInput,
 ): NormalizedProjectEngineInput {
   return {
-    workspaceDir: input?.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir(),
+    workspaceDir: resolveMovScriptHomeDir(input),
     ...(input?.userId !== undefined ? { userId: input.userId } : {}),
     ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
     ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),
@@ -401,6 +430,89 @@ function projectEngineKey(input: NormalizedProjectEngineInput): string {
     input.orgId ?? '',
     input.projectId ?? '',
   ].map((part) => String(part)).join('\u001f')
+}
+
+function enqueueProjectEngineOperation<T>(
+  input: ElectronMovScriptEngineProjectInput,
+  action: () => Promise<T>,
+): Promise<T> {
+  const key = projectEngineKey(normalizeProjectEngineInput(input))
+  const previous = projectOperationQueues.get(key) ?? Promise.resolve()
+  const current = previous.catch(() => undefined).then(action)
+  const tail = current.then(() => undefined, () => undefined)
+  projectOperationQueues.set(key, tail)
+  void tail.finally(() => {
+    if (projectOperationQueues.get(key) === tail) projectOperationQueues.delete(key)
+  })
+  return current
+}
+
+function emitProjectWorkspaceUpdated(
+  input: ElectronMovScriptEngineProjectInput,
+  reason: ElectronMovScriptEngineWorkspaceUpdatedEvent['reason'],
+): void {
+  const context = normalizeProjectEngineInput(input)
+  workspaceUpdatedBroadcaster({
+    type: 'MovScriptEngineWorkspaceUpdated',
+    reason,
+    sequence: ++workspaceUpdateSequence,
+    updatedAt: new Date().toISOString(),
+    movScriptHomeDir: context.workspaceDir,
+    workspaceDir: context.workspaceDir,
+    ...(context.userId !== undefined ? { userId: context.userId } : {}),
+    ...(context.orgId !== undefined ? { orgId: context.orgId } : {}),
+    ...(context.projectId !== undefined ? { projectId: context.projectId } : {}),
+  })
+}
+
+function broadcastProjectWorkspaceUpdated(event: ElectronMovScriptEngineWorkspaceUpdatedEvent): void {
+  void import('electron').then((electron) => {
+    const browserWindow = (electron as { BrowserWindow?: { getAllWindows?: () => Array<{ isDestroyed: () => boolean; webContents: { send: (channel: string, event: ElectronMovScriptEngineWorkspaceUpdatedEvent) => void } }> } }).BrowserWindow
+    const windows = typeof browserWindow?.getAllWindows === 'function' ? browserWindow.getAllWindows() : []
+    for (const win of windows) {
+      if (!win.isDestroyed()) win.webContents.send('movscript:engine-workspace-updated', event)
+    }
+  }).catch(() => undefined)
+}
+
+async function assertExpectedWorkspaceVersions(
+  engine: NodeMovScriptEngine,
+  expectedVersions: Record<string, string | null> | undefined,
+  required: boolean,
+): Promise<void> {
+  if (!expectedVersions) {
+    if (required) throw new Error('expectedWorkspaceVersions is required')
+    return
+  }
+  for (const [path, expectedVersion] of Object.entries(expectedVersions)) {
+    const currentVersion = await readWorkspaceFileVersion(engine.projectDir, path)
+    if (currentVersion !== expectedVersion) {
+      throw new Error(`workspace file changed: ${path}`)
+    }
+  }
+}
+
+async function readWorkspaceFileVersion(projectDir: string, path: string): Promise<string | null> {
+  const absolutePath = resolve(projectDir, path)
+  if (!isInsideProjectDir(projectDir, absolutePath)) throw new Error('workspace path must stay inside the project workspace root')
+  const fileStat = await stat(absolutePath).catch((error: unknown) => {
+    if (isNotFoundError(error)) return undefined
+    throw error
+  })
+	  return fileStat ? workspaceFileVersion(Number(fileStat.mtimeMs), fileStat.size) : null
+}
+
+function workspaceFileVersion(mtimeMs: number, size: number): string {
+  return `${Math.trunc(mtimeMs)}:${size}`
+}
+
+function isInsideProjectDir(projectDir: string, absolutePath: string): boolean {
+  const normalizedRoot = resolve(projectDir)
+  return absolutePath === normalizedRoot || absolutePath.startsWith(`${normalizedRoot}/`)
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'ENOENT'
 }
 
 function backendDecisionStoreHeaders(

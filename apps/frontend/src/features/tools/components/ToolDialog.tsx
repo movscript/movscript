@@ -7,7 +7,7 @@ import { api } from '@/shared/infrastructure/api'
 import type { RawResource, NodeType, Job, PublicModel, PaginatedResponse } from '@/types'
 import {
   Wand2,
-  Bug, History, ChevronLeft, ChevronRight,
+  Bug,
   AlertTriangle,
   PanelRightClose,
   FolderArchive,
@@ -20,14 +20,7 @@ import type { InputSlotDef } from '@/shared/ui/GenInputCard'
 import { GenInputCard } from '@/shared/ui/GenInputCard'
 import {
   ToolDialogBody,
-  ToolDialogEmptyState,
   ToolDialogFrame,
-  ToolDialogHistoryCount,
-  ToolDialogHistoryHeader,
-  ToolDialogHistoryList,
-  ToolDialogHistoryPager,
-  ToolDialogHistoryShell,
-  ToolDialogHistoryTitle,
   ToolDialogMain,
   ToolDialogPanel,
   ToolDialogPanelHeader,
@@ -62,7 +55,7 @@ import {
   generationParamDefaults,
   resolveGenerationJobType,
 } from '@movscript/core/generation'
-import { GenerationCard, GenerationHistoryGridItem } from './ToolDialogJobPanels'
+import { ToolDialogHistorySection } from './ToolDialogHistorySection'
 
 function buildGenerationJobTitle(jobType: string): string {
   const labels: Record<string, string> = {
@@ -386,69 +379,18 @@ export function ToolDialog({
       </ToolDialogPanel>
 
       {showHistory ? (
-        <ToolDialogHistoryShell>
-          <ToolDialogHistoryHeader>
-            <ToolDialogHistoryTitle icon={<History size={14} className="text-muted-foreground" />}>
-              {t('shared.toolNode.generationHistory')}
-            </ToolDialogHistoryTitle>
-            {historyTotal > 0 && (
-              <ToolDialogHistoryCount>
-                {historyTotal}
-              </ToolDialogHistoryCount>
-            )}
-            <div className="flex-1" />
-            <ToolDialogHistoryPager>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="上一页"
-                disabled={historyPage <= 1}
-                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={14} />
-              </Button>
-              <span className="tabular-nums">{historyPage}/{historyPageCount}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="下一页"
-                disabled={historyPage >= historyPageCount}
-                onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))}
-              >
-                <ChevronRight size={14} />
-              </Button>
-            </ToolDialogHistoryPager>
-          </ToolDialogHistoryHeader>
-
-          {jobs.length === 0 ? (
-            <ToolDialogEmptyState
-              icon={Wand2}
-              title={t('pages.jobs.empty')}
-            />
-          ) : (
-            <ToolDialogHistoryList>
-              {jobs.map((job) => (
-                layout === 'reference-workbench' ? (
-                  <GenerationHistoryGridItem
-                    key={job.ID}
-                    job={job}
-                    onReuse={() => setPrompt(job.prompt)}
-                  />
-                ) : (
-                  <GenerationCard
-                    key={job.ID}
-                    job={job}
-                    outputType={outputType}
-                    onReuse={() => setPrompt(job.prompt)}
-                    debugMode={debugMode}
-                  />
-                )
-              ))}
-            </ToolDialogHistoryList>
-          )}
-        </ToolDialogHistoryShell>
+        <ToolDialogHistorySection
+          jobs={jobs}
+          historyPage={historyPage}
+          historyPageCount={historyPageCount}
+          historyTotal={historyTotal}
+          layout={layout}
+          outputType={outputType}
+          debugMode={debugMode}
+          onPreviousPage={() => setHistoryPage(p => Math.max(1, p - 1))}
+          onNextPage={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))}
+          onReusePrompt={setPrompt}
+        />
       ) : null}
     </ToolDialogMain>
   )

@@ -1,13 +1,10 @@
 .ms-agent-run-activity {
   margin-top: var(--agent-run-activity-margin-top, 8px);
-  font-size: var(--ms-text-label);
 }
 
 .ms-agent-run-activity__summary {
-  display: flex;
   cursor: pointer;
   list-style: none;
-  align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-height: var(--agent-run-activity-summary-min-height, auto);
@@ -20,35 +17,23 @@
 }
 
 .ms-agent-run-activity__title {
-  display: inline-flex;
   min-width: 0;
-  align-items: center;
   gap: 6px;
   color: var(--ms-color-foreground);
   font-weight: 600;
 }
 
 .ms-agent-run-activity__icon {
-  display: inline-flex;
   flex: 0 0 auto;
-}
-
-.ms-agent-run-activity__title-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ms-agent-run-activity__meta {
-  display: inline-flex;
   flex: 0 0 auto;
-  align-items: center;
   gap: 6px;
 }
 
 .ms-agent-run-activity__summary-text {
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
 }
 
 .ms-agent-run-activity__content {
@@ -63,5 +48,4 @@
 .ms-agent-run-activity-empty {
   padding: 6px 8px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
 }

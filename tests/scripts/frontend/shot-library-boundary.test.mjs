@@ -4,8 +4,10 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const pageSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryPage.tsx')
+const pageSectionsSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryPageSections.tsx')
 const browserChromeSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryBrowserChrome.tsx')
 const importDialogSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryImportDialog.tsx')
+const importDialogSectionsSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryImportDialogSections.tsx')
 const referenceDetailSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryReferenceDetail.tsx')
 const referenceCardSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryReferenceCard.tsx')
 const workspaceFieldsSource = readSource('apps/frontend/src/features/shot-library/components/ShotLibraryWorkspaceFields.tsx')
@@ -63,11 +65,14 @@ test('shot library page delegates workspace conversion model', () => {
 })
 
 test('shot library page delegates browser chrome components', () => {
-  assert.match(pageSource, /from '@\/features\/shot-library\/components\/ShotLibraryBrowserChrome'/)
+  assert.match(pageSource, /from '@\/features\/shot-library\/components\/ShotLibraryPageSections'/)
+  assert.doesNotMatch(pageSource, /from '@\/features\/shot-library\/components\/ShotLibraryBrowserChrome'/)
+  assert.match(pageSectionsSource, /from '@\/features\/shot-library\/components\/ShotLibraryBrowserChrome'/)
   assert.doesNotMatch(pageSource, /function ShotLibraryMetric\(/)
   assert.doesNotMatch(pageSource, /function ShotLibrarySourceBar\(/)
   assert.doesNotMatch(pageSource, /function ShotFacetFilters\(/)
   assert.doesNotMatch(pageSource, /function setFacetValue\(/)
+  assert.doesNotMatch(pageSectionsSource, /function setFacetValue\(/)
 
   assert.match(browserChromeSource, /export function ShotLibraryMetric/)
   assert.match(browserChromeSource, /export function ShotLibrarySourceBar/)
@@ -76,7 +81,9 @@ test('shot library page delegates browser chrome components', () => {
 })
 
 test('shot library page delegates reference cards and video preview helpers', () => {
-  assert.match(pageSource, /from '@\/features\/shot-library\/components\/ShotLibraryReferenceCard'/)
+  assert.match(pageSource, /from '@\/features\/shot-library\/components\/ShotLibraryPageSections'/)
+  assert.doesNotMatch(pageSource, /from '@\/features\/shot-library\/components\/ShotLibraryReferenceCard'/)
+  assert.match(pageSectionsSource, /from '@\/features\/shot-library\/components\/ShotLibraryReferenceCard'/)
   assert.doesNotMatch(pageSource, /from '@\/features\/shot-library\/components\/shotLibraryVideoPreview'/)
   assert.doesNotMatch(pageSource, /function ShotReferenceCard\(/)
   assert.doesNotMatch(pageSource, /function ShotReferenceThumbnail\(/)
@@ -99,7 +106,9 @@ test('shot library page delegates workspace form fields', () => {
   assert.doesNotMatch(pageSource, /function StructuredShotEditor\(/)
   assert.doesNotMatch(pageSource, /function TextWorkspaceField\(/)
 
-  assert.match(importDialogSource, /from '@\/features\/shot-library\/components\/ShotLibraryWorkspaceFields'/)
+  assert.match(importDialogSource, /from '@\/features\/shot-library\/components\/ShotLibraryImportDialogSections'/)
+  assert.doesNotMatch(importDialogSource, /from '@\/features\/shot-library\/components\/ShotLibraryWorkspaceFields'/)
+  assert.match(importDialogSectionsSource, /from '@\/features\/shot-library\/components\/ShotLibraryWorkspaceFields'/)
   assert.match(referenceDetailSource, /from '@\/features\/shot-library\/components\/ShotLibraryWorkspaceFields'/)
   assert.match(workspaceFieldsSource, /export function ManualField/)
   assert.match(workspaceFieldsSource, /export function TagInputField/)
@@ -121,8 +130,10 @@ test('shot library page delegates import dialog components', () => {
   assert.match(importDialogSource, /export function ShotWorkspaceClipPlayer/)
   assert.match(importDialogSource, /subscribeShotLibraryMeasuredBox/)
   assert.match(importDialogSource, /calculateShotWorkspaceGridMetrics/)
-  assert.match(importDialogSource, /function ShotImportResourceGrid/)
-  assert.match(importDialogSource, /function ShotImportWorkspaceEditor/)
+  assert.doesNotMatch(importDialogSource, /function ShotImportResourceGrid/)
+  assert.doesNotMatch(importDialogSource, /function ShotImportWorkspaceEditor/)
+  assert.match(importDialogSectionsSource, /export function ShotImportResourceGrid/)
+  assert.match(importDialogSectionsSource, /export function ShotImportWorkspaceEditor/)
 })
 
 test('shot library page delegates reference detail components', () => {

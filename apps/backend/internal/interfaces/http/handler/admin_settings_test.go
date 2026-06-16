@@ -37,6 +37,11 @@ func TestAdminAuthSettingsUpdateMasksPasswordAndAudits(t *testing.T) {
 			"from_email": "noreply@example.com",
 			"from_name": "Movscript",
 			"use_start_tls": true
+		},
+		"turnstile": {
+			"enabled": true,
+			"site_key": "turnstile-site",
+			"secret_key": "turnstile-secret"
 		}
 	}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -45,7 +50,7 @@ func TestAdminAuthSettingsUpdateMasksPasswordAndAudits(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected settings update, got %d: %s", res.Code, res.Body.String())
 	}
-	if strings.Contains(res.Body.String(), "smtp-secret") {
+	if strings.Contains(res.Body.String(), "smtp-secret") || strings.Contains(res.Body.String(), "turnstile-secret") {
 		t.Fatalf("settings response leaked smtp password: %s", res.Body.String())
 	}
 	if countAuditAction(t, db, "settings.auth.admin_updated") != 1 {
@@ -58,7 +63,10 @@ func TestAdminAuthSettingsUpdateMasksPasswordAndAudits(t *testing.T) {
 	if getRes.Code != http.StatusOK {
 		t.Fatalf("expected settings get, got %d: %s", getRes.Code, getRes.Body.String())
 	}
-	if strings.Contains(getRes.Body.String(), "smtp-secret") || !strings.Contains(getRes.Body.String(), `"password_set":true`) {
+	if strings.Contains(getRes.Body.String(), "smtp-secret") ||
+		strings.Contains(getRes.Body.String(), "turnstile-secret") ||
+		!strings.Contains(getRes.Body.String(), `"password_set":true`) ||
+		!strings.Contains(getRes.Body.String(), `"secret_key_set":true`) {
 		t.Fatalf("unexpected settings get response: %s", getRes.Body.String())
 	}
 }

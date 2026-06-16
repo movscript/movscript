@@ -10,7 +10,7 @@ import {
   AgentSettingsIcon,
   AgentSettingsInput,
   AgentSettingsSelectTrigger,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { Select, SelectContent, SelectItem, SelectValue } from '@movscript/ui/primitives'
 import { AgentSettingsConfigFileEditorSection } from '@/features/agent/components/AgentSettingsConfigFileUi'
 import {

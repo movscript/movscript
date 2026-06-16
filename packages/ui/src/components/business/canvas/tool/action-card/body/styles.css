@@ -1,12 +1,9 @@
 .canvas-tool-action-card__body {
-  display: grid;
-  gap: 8px;
   overflow: visible;
   padding: 0 var(--canvas-card-content-x) 12px;
 }
 
 .canvas-tool-action-card__stack {
-  display: grid;
   gap: 4px;
   margin-top: 4px;
 }
@@ -17,7 +14,6 @@
 }
 
 .canvas-tool-action-card__output-grid {
-  display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 4px;

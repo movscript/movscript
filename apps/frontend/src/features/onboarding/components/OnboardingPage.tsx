@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Bot, Cloud, HardDrive, LayoutDashboard, Loader2, User } from 'lucide-react'
+import { WorkModePrompt, type WorkModeChoice } from '@movscript/ui/business/app'
 import {
   OnboardingActionButton,
   OnboardingFieldError,
@@ -15,9 +16,7 @@ import {
   OnboardingMain,
   OnboardingShell,
   OnboardingWorkModeSummary,
-  WorkModePrompt,
-  type WorkModeChoice
-} from '@movscript/ui/business/app'
+} from '@/features/onboarding/components/OnboardingPageUi'
 import { api } from '@/shared/infrastructure/api'
 import { getDefaultAPIBaseURL, getLocalAPIBaseURL, normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { translateApiError } from '@/shared/infrastructure/apiError'

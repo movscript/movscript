@@ -18,8 +18,6 @@
 }
 
 .resource-panel-asset-slot__header {
-  display: flex;
-  align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
@@ -31,22 +29,15 @@
 
 .resource-panel-asset-slot__title,
 .resource-panel-asset-slot__meta {
-  overflow: hidden;
   margin: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .resource-panel-asset-slot__title {
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  line-height: 1.25;
 }
 
 .resource-panel-asset-slot__meta {
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: 16px;
 }
 
 .resource-panel-asset-slot__drag {

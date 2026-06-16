@@ -3,7 +3,7 @@ package hub
 import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
 func HubPackageFromModel(pkg persistencemodel.HubPackage) HubPackage {
-	return HubPackage{
+	out := HubPackage{
 		ID:              pkg.ID,
 		PackageID:       pkg.PackageID,
 		Title:           pkg.Title,
@@ -35,6 +35,8 @@ func HubPackageFromModel(pkg persistencemodel.HubPackage) HubPackage {
 		CreatedAt:       pkg.CreatedAt,
 		UpdatedAt:       pkg.UpdatedAt,
 	}
+	editionApplyHubPackageFromModel(pkg, &out)
+	return out
 }
 
 func (pkg HubPackage) ToModel() persistencemodel.HubPackage {
@@ -74,4 +76,5 @@ func (pkg HubPackage) ApplyToModel(target *persistencemodel.HubPackage) {
 	target.PublicKey = pkg.PublicKey
 	target.PublishedAt = pkg.PublishedAt
 	target.TakenDownAt = pkg.TakenDownAt
+	pkg.editionApplyToModel(target)
 }

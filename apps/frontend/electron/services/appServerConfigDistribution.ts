@@ -445,7 +445,7 @@ function resolveLocalAppServerHome(config: MovScriptWorkspaceConfig, providerKey
 
 function inferAppServerKeyFromHome(home: string): string {
   const normalized = home.replace(/\\/g, '/')
-  const match = normalized.match(/(?:^|\/)\.movscript\/\.([a-z0-9_-]+)(?:\/|$)/i)
+  const match = normalized.match(/(?:^|\/)(?:\.movscript\/)?\.([a-z0-9][a-z0-9_-]*)(?:\/|$)/i)
   if (match?.[1]) return match[1]
   return 'mova'
 }

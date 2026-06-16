@@ -1,174 +1,34 @@
 import { useEffect, useState } from 'react'
-import type { ComponentProps, HTMLAttributes, ReactNode } from 'react'
 import { AlertCircle, Check, Loader2, Wand2 } from 'lucide-react'
-import { AgentSurfaceBlock } from '@movscript/ui/business/agent'
-import { AppProgressBar, type AppProgressBarProps } from '@movscript/ui/business/app'
-import { ReviewStat } from '@movscript/ui/business/review'
-import { StatusBadge, type StatusBadgeProps } from '@movscript/ui/primitives'
-import { toneSurfaceClass, toneTextClass, type SemanticTone } from '@movscript/ui/semantic'
 import type { ChatGenerationJob, ChatGenerationParamAudit, ChatGenerationValidationError } from '@/features/agent/state/agentStore'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel } from '@/features/agent/domain/agentGenerationDisplay'
 import { agentGenerationStatusRecipe, agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import { cn } from '@/shared/ui/cn'
-
-type AgentGeneratedIntent = SemanticTone
-
-function AgentGeneratedCard({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <AgentSurfaceBlock variant="card" className={cn('agent-generated-card', className)} {...props} />
-}
-
-function AgentGeneratedCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('agent-generated-card__header', className)} {...props} />
-}
-
-function AgentGeneratedHeaderCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('agent-generated-card__header-copy', className)} {...props} />
-}
-
-function AgentGeneratedIconSlot({
-  intent,
-  muted,
-  spinning,
-  className,
-  ...props
-}: HTMLAttributes<HTMLSpanElement> & {
-  intent?: AgentGeneratedIntent
-  muted?: boolean
-  spinning?: boolean
-}) {
-  return (
-    <span
-      className={cn(
-        'agent-generated-icon-slot',
-        intent && toneTextClass(intent),
-        muted && 'agent-generated-icon-slot--muted',
-        spinning && 'agent-generated-icon-slot--spinning',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
-
-function AgentGeneratedTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('agent-generated-title', className)} {...props} />
-}
-
-function AgentGeneratedHeaderMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('agent-generated-header-meta', className)} {...props} />
-}
-
-function AgentGeneratedCountBadge({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('agent-generated-count-badge', className)} {...props} />
-}
-
-function AgentGeneratedStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('agent-generated-stack', className)} {...props} />
-}
-
-function AgentGeneratedStatGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('agent-generated-stat-grid', className)} {...props} />
-}
-
-function AgentGeneratedDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('agent-generated-description', className)} {...props} />
-}
-
-function AgentGeneratedSupportText({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('agent-generated-support-text', className)} {...props} />
-}
-
-function AgentGeneratedItem({
-  intent,
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  intent?: AgentGeneratedIntent
-}) {
-  return (
-    <AgentSurfaceBlock
-      variant="subtle"
-      className={cn('agent-generated-item', intent && toneSurfaceClass(intent), className)}
-      {...props}
-    />
-  )
-}
-
-function AgentGeneratedItemHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('agent-generated-item__header', className)} {...props} />
-}
-
-function AgentGeneratedItemCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('agent-generated-item__copy', className)} {...props} />
-}
-
-function AgentGeneratedItemTitle({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('agent-generated-item__title', className)} {...props} />
-}
-
-function AgentGeneratedItemMeta({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('agent-generated-item__meta', className)} {...props} />
-}
-
-function AgentGeneratedItemDetail({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('agent-generated-item__detail', className)} {...props} />
-}
-
-function AgentGeneratedItemProgressBar({ className, ...props }: AppProgressBarProps) {
-  return <AgentGeneratedProgressBar className={cn('agent-generated-item__progress', className)} {...props} />
-}
-
-function AgentGeneratedStatPill({
-  label,
-  value,
-}: {
-  label: ReactNode
-  value: ReactNode
-}) {
-  return (
-    <AgentGeneratedItem>
-      <AgentGeneratedItemMeta>{label}</AgentGeneratedItemMeta>
-      <AgentGeneratedItemTitle>{value}</AgentGeneratedItemTitle>
-    </AgentGeneratedItem>
-  )
-}
-
-function AgentGeneratedStat({
-  intent,
-  className,
-  ...props
-}: Omit<ComponentProps<typeof ReviewStat>, 'tone'> & {
-  intent: AgentGeneratedIntent
-}) {
-  return <ReviewStat tone={intent} className={cn('agent-generated-stat', className)} {...props} />
-}
-
-function AgentGeneratedStatusBadge({ className, ...props }: StatusBadgeProps) {
-  return <StatusBadge className={cn('agent-generated-status-badge', className)} {...props} />
-}
-
-function AgentGeneratedProgressBar({ className, ...props }: AppProgressBarProps) {
-  return <AppProgressBar className={cn('agent-generated-progress-bar', className)} {...props} />
-}
-
-function AgentGeneratedIntentText({
-  as: Element = 'span',
-  intent,
-  className,
-  children,
-  ...props
-}: HTMLAttributes<HTMLElement> & {
-  as?: 'div' | 'p' | 'span'
-  intent: AgentGeneratedIntent
-  children?: ReactNode
-}) {
-  return (
-    <Element className={cn('agent-generated-intent-text', toneTextClass(intent), className)} {...props}>
-      {children}
-    </Element>
-  )
-}
+import {
+  AgentGeneratedCard,
+  AgentGeneratedCardHeader,
+  AgentGeneratedCountBadge,
+  AgentGeneratedDescription,
+  AgentGeneratedHeaderCopy,
+  AgentGeneratedHeaderMeta,
+  AgentGeneratedIconSlot,
+  AgentGeneratedIntentText,
+  AgentGeneratedItem,
+  AgentGeneratedItemCopy,
+  AgentGeneratedItemDetail,
+  AgentGeneratedItemHeader,
+  AgentGeneratedItemMeta,
+  AgentGeneratedItemProgressBar,
+  AgentGeneratedItemTitle,
+  AgentGeneratedProgressBar,
+  AgentGeneratedStack,
+  AgentGeneratedStat,
+  AgentGeneratedStatGrid,
+  AgentGeneratedStatPill,
+  AgentGeneratedStatusBadge,
+  AgentGeneratedSupportText,
+  AgentGeneratedTitle,
+} from '@/features/agent/components/GenerationCardUi'
 
 export function GenerationProgressCard({ state }: { state: GenerationProgressState }) {
   const [now, setNow] = useState(() => new Date().toISOString())

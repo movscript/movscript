@@ -3,11 +3,11 @@ import {
   resolveMovScriptWorkspaceRootPaths,
   type MovScriptWorkspaceRootManifest,
 } from '@movscript/core/workspace/node'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
-import type { ElectronMovScriptWorkspaceRootResult } from '../../src/shared/contracts/electronApi'
+import { resolveMovScriptHomeDir } from './movscriptHomeInput'
+import type { ElectronMovScriptHomeInput, ElectronMovScriptWorkspaceRootResult } from '../../src/shared/contracts/electronApi'
 
-export function getMovScriptWorkspaceRoot(input?: { workspaceDir?: string }): ElectronMovScriptWorkspaceRootResult {
-  const paths = resolveMovScriptWorkspaceRootPaths(input?.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir())
+export function getMovScriptWorkspaceRoot(input?: ElectronMovScriptHomeInput): ElectronMovScriptWorkspaceRootResult {
+  const paths = resolveMovScriptWorkspaceRootPaths(resolveMovScriptHomeDir(input))
   const manifest = ensureMovScriptWorkspaceRoot(paths)
   return workspaceRootResult(paths, manifest)
 }
@@ -17,6 +17,7 @@ function workspaceRootResult(
   manifest: MovScriptWorkspaceRootManifest,
 ): ElectronMovScriptWorkspaceRootResult {
   return {
+    movScriptHomeDir: paths.workspaceDir,
     workspaceDir: paths.workspaceDir,
     rootDir: paths.rootDir,
     controlDir: paths.controlDir,

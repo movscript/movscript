@@ -29,29 +29,21 @@
   min-width: var(--agent-tool-title-min-width);
   max-width: var(--agent-tool-title-max-width);
   overflow: var(--agent-tool-title-overflow);
-  font-size: var(--ms-text-item);
   font-weight: 650;
-  line-height: var(--ms-leading-item);
   text-overflow: var(--agent-tool-title-text-overflow);
   white-space: var(--agent-tool-title-white-space);
 }
 
 .ms-agent-tool__meta {
   margin-left: auto;
-  font-size: var(--ms-text-label);
-  line-height: 16px;
 }
 
 .ms-agent-tool__content {
   padding: 10px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-item);
-  line-height: 20px;
 }
 
 .ms-agent-steps {
-  display: flex;
-  flex-direction: column;
   gap: 7px;
   margin: 0;
   padding: 0;
@@ -63,8 +55,6 @@
   align-items: flex-start;
   gap: 8px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-item);
-  line-height: 19px;
 }
 
 .ms-agent-step::before {

@@ -15,5 +15,12 @@ export function AgentDiagnosticCodeBlock({
   className,
   ...props
 }: AgentDiagnosticCodeBlockProps) {
-  return <AppCodeBlock data-size={size} data-tone={tone} className={cn("ms-agent-diagnostic-code", className)} {...props} />;
+  return (
+    <AppCodeBlock
+      data-size={size}
+      data-tone={tone}
+      className={cn("ms-agent-diagnostic-code", size === "sm" ? "ms-type-tiny" : "ms-type-caption", className)}
+      {...props}
+    />
+  );
 }

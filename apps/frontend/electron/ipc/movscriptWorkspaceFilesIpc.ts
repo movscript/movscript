@@ -6,7 +6,7 @@ import {
   readMovScriptWorkspaceMediaFile,
   writeMovScriptWorkspaceFile,
 } from '../services/movscriptWorkspaceFiles'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from '../services/movscriptWorkspaceDefaults'
+import { resolveMovScriptHomeDir } from '../services/movscriptHomeInput'
 import { projectEngineRegistry } from '../services/projectEngineRegistry'
 import type {
   ElectronMovScriptWorkspaceInterpretActionInput,
@@ -48,7 +48,7 @@ function actionInput(input?: ElectronMovScriptWorkspaceInterpretActionInput): {
   projectId?: number | string
 } {
   return {
-    workspaceDir: input?.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir(),
+    workspaceDir: resolveMovScriptHomeDir(input),
     ...(input?.userId !== undefined ? { userId: input.userId } : {}),
     ...(input?.orgId !== undefined ? { orgId: input.orgId } : {}),
     ...(input?.projectId !== undefined ? { projectId: input.projectId } : {}),

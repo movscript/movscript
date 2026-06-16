@@ -66,7 +66,7 @@ func newHandlers(deps Dependencies) handlers {
 		resourceAdmin:     handler.NewResourceAdminHandler(db, store),
 		canvases:          handler.NewCanvasHandler(db, registry, aiService, store),
 		models:            handler.NewModelsHandler(aiService, cacheStore),
-		jobs:              handler.NewJobHandler(db, aiService),
+		jobs:              handler.NewJobHandler(db, aiService, deps.SystemMessages),
 		modelGateway:      handler.NewModelGatewayHandler(db, aiService),
 		debug:             handler.NewDebugHandlerWithGatewayHealth(db, deps.EncryptionKey, aiService),
 		plugin:            handler.NewPluginHandler(db),
@@ -83,6 +83,6 @@ func newHandlers(deps Dependencies) handlers {
 		agentTelemetry:    handler.NewAgentTelemetryHandler(nil),
 		agentRuntime:      handler.NewAgentRuntimeHandler(db, cfg),
 		audio:             handler.NewAudioHandler(db, aiService, store),
-		ws:                wsiface.NewHandler(),
+		ws:                wsiface.NewHandler(deps.SystemMessages),
 	}
 }

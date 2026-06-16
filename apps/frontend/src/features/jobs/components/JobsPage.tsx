@@ -10,6 +10,10 @@ import {
 } from 'lucide-react'
 import { jobKeys } from '@/features/jobs/application/jobQueryKeys'
 import { invalidateJobMutationResult, jobListChangedResult } from '@/features/jobs/application/jobMutationInvalidation'
+import {
+  installGenerationJobStatusStream,
+  publishGenerationJobStatus,
+} from '@/features/jobs/application/generationJobStatusStream'
 import { useTranslation } from 'react-i18next'
 import {
   JobsActionButton,
@@ -26,8 +30,10 @@ import {
   JobsPagerButton,
   JobsSelectedDetailRegion,
   JobsViewToggle,
-  JobSpinIcon
-} from '@movscript/ui/business/jobs'
+} from '@/features/jobs/components/JobsPageUi'
+import {
+  JobSpinIcon,
+} from '@/shared/ui/JobDisplayUi'
 import {
   CATEGORIES,
   CategorySection,
@@ -56,6 +62,10 @@ export default function JobsPage() {
   const hasActiveJobs = (jobs: Job[]) =>
     jobs.some((j) => j.status === 'pending' || j.status === 'running')
 
+  useEffect(() => {
+    return installGenerationJobStatusStream(qc)
+  }, [qc])
+
   const { data, isLoading } = useQuery<JobsQueryResult>({
     queryKey: jobKeys.list({ category: activeCategory, status: statusFilter, page }),
     queryFn: async () => {
@@ -82,6 +92,16 @@ export default function JobsPage() {
   const cancelMutation = useMutation({
     mutationFn: (id: number) => api.post(`/jobs/${id}/cancel`).then((r) => r.data as Job),
     onSuccess: (job) => {
+      publishGenerationJobStatus({
+        jobId: job.ID,
+        job,
+        status: job.status,
+        projectId: job.project_id,
+        jobType: job.job_type,
+        providerTaskId: job.provider_task_id,
+        source: 'jobs-page-cancel',
+        updatedAt: job.UpdatedAt,
+      })
       invalidateJobMutationResult(qc, jobListChangedResult({ changedIds: [job.ID] }))
     },
     onError: (err: any) => {
@@ -91,6 +111,16 @@ export default function JobsPage() {
   const retryMutation = useMutation({
     mutationFn: (id: number) => api.post(`/jobs/${id}/retry`).then((r) => r.data as Job),
     onSuccess: (job) => {
+      publishGenerationJobStatus({
+        jobId: job.ID,
+        job,
+        status: job.status,
+        projectId: job.project_id,
+        jobType: job.job_type,
+        providerTaskId: job.provider_task_id,
+        source: 'jobs-page-retry',
+        updatedAt: job.UpdatedAt,
+      })
       invalidateJobMutationResult(qc, jobListChangedResult({ changedIds: [job.ID] }))
     },
     onError: (err: any) => {

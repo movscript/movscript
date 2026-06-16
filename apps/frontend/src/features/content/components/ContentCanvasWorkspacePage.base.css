@@ -10,6 +10,7 @@
   --cc-info: var(--ms-color-info, var(--ms-color-primary));
   --cc-success: var(--ms-color-success, var(--ms-color-primary));
   --cc-warning: var(--ms-color-warning, var(--ms-color-primary));
+  --cc-danger: var(--ms-color-danger, var(--cc-warning));
   --content-canvas-setting-catalog-height: 176px;
   --content-canvas-structure-width: 292px;
   --content-canvas-inspector-width: 336px;
@@ -153,9 +154,12 @@
 
 .content-canvas-catalog {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, 188px);
+  grid-auto-rows: 82px;
   gap: 10px;
+  align-content: start;
   min-height: 0;
+  justify-content: start;
   overflow: auto;
 }
 
@@ -163,10 +167,11 @@
   position: relative;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) auto;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: 32px 20px 16px;
   align-items: start;
   gap: 6px 9px;
-  min-height: 74px;
+  width: 188px;
+  height: 82px;
   border: 1px solid var(--cc-border);
   border-radius: 8px;
   background: var(--cc-panel);
@@ -220,9 +225,12 @@
 }
 
 .content-canvas-catalog-card__status {
+  max-width: 42px;
+  overflow: hidden;
   color: var(--cc-muted);
   font-size: 12px;
   font-weight: 760;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -248,4 +256,57 @@
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.content-canvas-create-dialog {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.content-canvas-create-dialog__form {
+  display: grid;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.content-canvas-create-dialog__field {
+  display: grid;
+  gap: 6px;
+  color: var(--cc-text);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-create-dialog__select {
+  height: 36px;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.content-canvas-create-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.content-canvas-create-dialog__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 72px;
+  height: 32px;
+  border: 1px solid var(--cc-border);
+  border-radius: 7px;
+  background: var(--cc-panel);
+  color: var(--cc-text);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.content-canvas-create-dialog__button--primary {
+  border-color: color-mix(in srgb, var(--cc-accent) 52%, var(--cc-border));
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
 }

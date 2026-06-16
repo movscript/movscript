@@ -45,9 +45,9 @@ export function AppPager({
   const safePage = Math.min(Math.max(1, page), safePageCount);
 
   return (
-    <div className={cn("app-pager", className)} {...props}>
-      <span className="app-pager__summary">{summary}</span>
-      <div className="app-pager__controls">
+    <div className={cn("ms-action-row ms-type-caption app-pager", className)} {...props}>
+      <span className="ms-text-truncate app-pager__summary">{summary}</span>
+      <div className="ms-action-row app-pager__controls">
         <Button
           type="button"
           size="icon-xs"
@@ -58,7 +58,7 @@ export function AppPager({
         >
           <ChevronLeftIcon />
         </Button>
-        <span className="app-pager__status">{safePage}/{safePageCount}</span>
+        <span className="ms-text-truncate ms-tabular-nums app-pager__status">{safePage}/{safePageCount}</span>
         <Button
           type="button"
           size="icon-xs"
@@ -83,7 +83,7 @@ export function AppTopControlsRoot({
   density?: "default" | "compact";
   extraClassName?: string;
 }) {
-  return <div data-density={density} className={cn("app-top-controls", extraClassName, className)} {...props} />;
+  return <div data-density={density} className={cn("ms-action-row app-top-controls", extraClassName, className)} {...props} />;
 }
 
 export const AppTopControlButton = forwardRef<HTMLButtonElement, ButtonProps & {
@@ -110,17 +110,17 @@ export const AppTopControlButton = forwardRef<HTMLButtonElement, ButtonProps & {
 AppTopControlButton.displayName = "AppTopControlButton";
 
 export function AppTopMenuLabelPrimary({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("app-top-menu-label__primary", className)} {...props} />;
+  return <span className={cn("ms-text-truncate ms-type-label app-top-menu-label__primary", className)} {...props} />;
 }
 
 export function AppTopMenuLabelSecondary({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("app-top-menu-label__secondary", className)} {...props} />;
+  return <span className={cn("ms-text-truncate ms-type-caption app-top-menu-label__secondary", className)} {...props} />;
 }
 
 export function AppTopMenuItemText({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("app-top-menu-item__text", className)} {...props} />;
+  return <span className={cn("ms-text-truncate app-top-menu-item__text", className)} {...props} />;
 }
 
 export function AppTopMenuLeadingIcon({ icon: Icon }: { icon: IconComponent }) {
-  return <Icon size={14} className="app-top-menu-item__leading-icon" />;
+  return <Icon size={14} className="ms-inline-center app-top-menu-item__leading-icon" />;
 }

@@ -6,6 +6,7 @@ import {
   SelectTrigger,
 } from '@movscript/ui/primitives'
 import type { PublicModel } from '@/types'
+import { selectDefaultAgentModel } from '@/features/agent/application/agentDefaultModelSelection'
 
 export interface AgentComposerModelSelectorProps {
   disabled?: boolean
@@ -22,7 +23,8 @@ export function AgentComposerModelSelector({
 }: AgentComposerModelSelectorProps) {
   if (modelOptions.length === 0 || modelValue === undefined || !onModelChange) return null
 
-  const selectedModel = modelOptions.find((model) => model.id === modelValue) ?? modelOptions[0]
+  const defaultModel = selectDefaultAgentModel(modelOptions)
+  const selectedModel = modelOptions.find((model) => model.id === modelValue) ?? defaultModel
   const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
 
   return (

@@ -20,6 +20,8 @@ export type ProjectLocalSkill = ElectronProjectLocalSkill
 export const PROJECT_PLUGIN_MARKETPLACE_NAME = 'movscript-project'
 
 export type ProjectPluginContext = {
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
   projectId?: string | number
   userId?: string | number
@@ -81,7 +83,12 @@ export async function setProjectSkillEnabled(
 }
 
 function normalizeProjectPluginContext(context: ProjectPluginContext | string): ProjectPluginContext {
-  return typeof context === 'string' ? { workspaceDir: context } : context
+  if (typeof context === 'string') return { movScriptHomeDir: context, workspaceDir: context }
+  const movScriptHomeDir = context.movScriptHomeDir ?? context.workspaceDir
+  return {
+    ...context,
+    ...(movScriptHomeDir ? { movScriptHomeDir, workspaceDir: movScriptHomeDir } : {}),
+  }
 }
 
 function sourcePathFromProviderInstallResult(value: unknown): string | undefined {

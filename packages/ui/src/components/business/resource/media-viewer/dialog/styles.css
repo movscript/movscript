@@ -5,13 +5,10 @@
 
 .resource-media-dialog__content {
   inset: 0;
-  display: flex;
   width: auto;
   max-width: none;
   max-height: none;
   transform: none;
-  align-items: center;
-  justify-content: center;
   border: 0;
   background: transparent;
   padding: 16px;
@@ -19,10 +16,8 @@
 }
 
 .resource-media-dialog {
-  display: flex;
   width: min(1120px, calc(100vw - 32px));
   max-height: 90vh;
-  flex-direction: column;
   overflow: hidden;
   padding: 0;
   box-shadow: var(--ms-shadow-lg);
@@ -33,7 +28,6 @@
 }
 
 .resource-media-dialog__header {
-  display: flex;
   flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
@@ -49,13 +43,8 @@
 .resource-media-dialog__title {
   display: block;
   margin: 0;
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-body);
   font-weight: 500;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .resource-media-dialog__metadata {
@@ -64,10 +53,7 @@
 }
 
 .resource-media-dialog__actions {
-  display: flex;
   flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
 }
 
 .resource-media-dialog__body {
@@ -78,10 +64,7 @@
 }
 
 .resource-media-stage {
-  display: flex;
   min-height: 320px;
-  align-items: center;
-  justify-content: center;
   padding: 16px;
 }
 

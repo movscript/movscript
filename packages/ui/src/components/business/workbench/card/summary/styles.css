@@ -13,23 +13,13 @@
 }
 
 .workbench-summary-card__title {
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
   font-weight: 600;
-  line-height: 17px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .workbench-summary-card__description {
   margin-top: 4px;
-  overflow: hidden;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .workbench-summary-card__aside {
@@ -59,11 +49,6 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-}
-
-.workbench-summary-card__preview-label {
-  font-size: 10px;
-  line-height: 1;
 }
 
 .workbench-summary-card__preview-list {

@@ -20,6 +20,7 @@ import {
   contentUnitWorkStatus,
   contentWorkbenchUnitRequiresKeyframe,
   findHierarchyNode,
+  loadContentSourceWorkspaceSnapshotFromEngine,
   normalizeAssetSlotStatus,
   pickPreviewTimelineItemForUnit,
   pickContentWorkbenchUploadTarget,
@@ -476,6 +477,78 @@ test('core content source workspace builds project workbench data without deskto
   assert.equal(findHierarchyNode(data.hierarchyTree, 'storyboard/main')?.storyboardTimeline?.caption, 'Phone glow.')
 })
 
+test('core content source workspace exposes production OpenCut timelines from preview selections', async () => {
+  const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
+  const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
+  const contentUnit = entity('content_unit', 'cu_rain_call', 'content_units/cu_rain_call/content_unit.json', {
+    title: 'Rain call render',
+    content_unit_type: 'scene_moment_ref',
+    output_kind: 'video',
+    scene_moment_ref: 'rain_call',
+  })
+  const candidate = {
+    schema: 'movscript.content_candidate.v1',
+    id: 'cand_scene',
+    content_unit_ref: 'content_units/cu_rain_call',
+    status: 'succeeded',
+    outputs: [{ kind: 'video', resource_id: 612, duration_sec: 7 }],
+  }
+  const fakeEngine = {
+    workspaceService: {
+      loadIndex: async () => ({
+        documents: [
+          { path: production.path, data: production.record },
+          { path: moment.path, data: moment.record },
+          { path: contentUnit.path, data: contentUnit.record },
+          { path: 'content_units/cu_rain_call/candidates/cand_scene/content_candidate.json', data: candidate },
+          {
+            path: '.movscript/decisions/content_units/cu_rain_call/decision_context.json',
+            data: {
+              target_ref: 'content_units/cu_rain_call',
+              selection: { candidate_id: 'cand_scene' },
+            },
+          },
+        ],
+      }),
+      querySettings: async () => [],
+      queryEntities: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      queryProductionContext: async () => ({
+        productions: [production],
+        segments: [],
+        scene_moments: [moment],
+        shots: [],
+        storyboards: [],
+        audio_cues: [],
+        expression_units: [],
+        content_units: [contentUnit],
+        keyframes: [],
+      }),
+      readPreviewTimeline: async () => ({
+        schema: 'movscript.preview_timeline.v1',
+        productionId: 'pilot',
+        productionPath: 'productions/pilot',
+        items: [timelineItem('scene_moment:rain_call', 'scene_moment', moment, 1)],
+      }),
+      readSceneMomentEditPlan: async () => undefined,
+    },
+    review: async () => ({ productionWorkPlan: undefined }),
+  }
+
+  const snapshot = await loadContentSourceWorkspaceSnapshotFromEngine(fakeEngine)
+  const productionTimeline = snapshot.editingTimelines?.find((timeline) => timeline.targetKind === 'production')
+
+  assert.equal(productionTimeline?.targetId, 'pilot')
+  assert.equal(productionTimeline?.status, 'ready_to_compose')
+  assert.equal(productionTimeline?.blockers?.length, 0)
+  assert.equal(productionTimeline?.timelineDocument.schema, 'opencut.timeline.v1')
+  const track = productionTimeline?.timelineDocument.project.scenes[0]?.tracks[0]
+  assert.equal(track?.type, 'video')
+  assert.equal(track?.elements[0]?.mediaId, 'movscript_resource_612')
+  assert.equal(track?.elements[0]?.duration, 7)
+  assert.equal(track?.elements[0]?.metadata?.movscript?.targetKind, 'production')
+})
+
 test('core content source workspace plans writes independently from desktop services', () => {
   const parentNode = {
     id: 'rain_call_shots_group',
@@ -550,6 +623,11 @@ test('content source workspace runtime owns project state without fixture fallba
   await runtime.selectCandidate({ contentUnitId: 'cu_phone', candidateId: 'cand_b', resourceId: 'res_b' })
   assert.equal(runtime.getState().sourceSyncStatus, 'dirty')
   assert.equal(calls.includes('select:cu_phone:cand_b:content_source_workspace_selection'), true)
+  const selectOperation = runtime.getState().lastOperation
+  assert.match(selectOperation.operationId, /^content-source-workspace:1:content_unit_selection$/)
+  assert.equal(selectOperation.status, 'committed')
+  assert.deepEqual(selectOperation.target, { kind: 'content_unit_selection', id: 'cu_phone' })
+  assert.equal(selectOperation.optimisticPatch, 'select_content_unit_candidate')
 
   const targetContentUnitId = runtime.getState().data?.previewMoments[0].shots[0].contentUnit.id ?? 'cu_phone'
   await runtime.createCandidate({ contentUnitId: targetContentUnitId, outputKind: 'video', promptText: 'Make the shot.' })
@@ -561,6 +639,12 @@ test('content source workspace runtime owns project state without fixture fallba
     text: 'New prompt.',
   })
   assert.equal(calls.includes('prompt:content_units/cu_phone/content_unit.json:New prompt.'), true)
+  const promptOperation = runtime.getState().lastOperation
+  assert.notEqual(promptOperation.operationId, selectOperation.operationId)
+  assert.equal(promptOperation.status, 'committed')
+  assert.equal(promptOperation.target.kind, 'content_unit_prompt')
+  assert.equal(promptOperation.target.path, 'content_units/cu_phone/content_unit.json')
+  assert.deepEqual(promptOperation.changedPaths, ['content_units/cu_phone/content_unit.json'])
 
   await runtime.sync()
   assert.equal(runtime.getState().sourceSyncStatus, 'synced')
@@ -627,6 +711,43 @@ test('content source workspace runtime rolls back optimistic edits when port com
     failingRuntime.getState().data?.previewMoments[0].shots[0].contentUnit.editPrompt,
     originalPrompt,
   )
+  assert.equal(failingRuntime.getState().failedOperation.status, 'rolled_back')
+  assert.equal(failingRuntime.getState().failedOperation.target.kind, 'content_unit_prompt')
+  assert.deepEqual(failingRuntime.getState().failedOperation.changedPaths, ['content_units/cu_phone/content_unit.json'])
+  assert.equal(failingRuntime.getState().failedOperation.error, 'write failed')
+})
+
+test('content source workspace runtime records commit metadata and reload policy', async () => {
+  const calls = []
+  const loads = []
+  const runtime = createContentSourceWorkspaceRuntime({
+    port: contentSourceWorkspaceRuntimePort({
+      calls,
+      loadSnapshot: async (projectId) => {
+        loads.push(`load:${projectId}`)
+        return contentSourceWorkspaceSnapshot()
+      },
+      updateContentUnitEditPrompt: async () => ({
+        changedPaths: ['content_units/cu_phone/content_unit.json', 42],
+        snapshotVersion: 14,
+        reloadPolicy: 'reload',
+      }),
+    }),
+  })
+
+  await runtime.loadProject(14)
+  await runtime.updateEditPrompt({
+    contentUnitId: 'cu_phone',
+    targetPath: 'content_units/cu_phone/content_unit.json',
+    text: 'Reload after commit.',
+  })
+
+  assert.deepEqual(loads, ['load:14', 'load:14'])
+  assert.equal(runtime.getState().sourceSyncStatus, 'clean')
+  assert.equal(runtime.getState().lastOperation.status, 'committed')
+  assert.equal(runtime.getState().lastOperation.snapshotVersion, 14)
+  assert.equal(runtime.getState().lastOperation.reloadPolicy, 'reload')
+  assert.deepEqual(runtime.getState().lastOperation.changedPaths, ['content_units/cu_phone/content_unit.json'])
 })
 
 test('core content package publishes workbench data rules without frontend dependencies', () => {
@@ -667,7 +788,7 @@ function entity(entityKind, id, path, fields) {
   }
 }
 
-function contentSourceWorkspaceRuntimePort({ calls = [], loadSnapshot }) {
+function contentSourceWorkspaceRuntimePort({ calls = [], loadSnapshot, ...overrides }) {
   return {
     loadSnapshot,
     async selectContentUnitCandidate(input) {
@@ -684,21 +805,27 @@ function contentSourceWorkspaceRuntimePort({ calls = [], loadSnapshot }) {
     },
     async updateContentUnitEditPrompt(input) {
       calls.push(`prompt:${input.targetPath}:${input.editPrompt.text}`)
+      return overrides.updateContentUnitEditPrompt?.(input)
     },
     async updateExpressionUnit(input) {
       calls.push(`expression:${input.targetPath}:${input.patch.title}`)
+      return overrides.updateExpressionUnit?.(input)
     },
     async updateAudioCue(input) {
       calls.push(`audio:${input.targetPath}:${input.patch.title}`)
+      return overrides.updateAudioCue?.(input)
     },
     async updateEntityTransition(input) {
       calls.push(`transition:${input.targetPath}:${input.transition.in}`)
+      return overrides.updateEntityTransition?.(input)
     },
     async updateStoryboardTimeline(input) {
       calls.push(`timeline:${input.targetPath}:${input.timeline.caption}`)
+      return overrides.updateStoryboardTimeline?.(input)
     },
     async writeHierarchyNode(input) {
       calls.push(`write:${input.targetPath}:${input.record.schema}`)
+      return overrides.writeHierarchyNode?.(input)
     },
     async interpretWorkspace(projectId) {
       calls.push(`interpret:${projectId}`)

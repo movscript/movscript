@@ -4,12 +4,17 @@ import (
 	"context"
 	"log"
 	"log/slog"
+	"os"
 
 	"github.com/movscript/movscript/internal/bootstrap"
 	"github.com/movscript/movscript/internal/infra/observability"
 )
 
 func main() {
+	if editionHandleCommand(os.Args) {
+		return
+	}
+
 	app, err := bootstrap.New()
 	if err != nil {
 		log.Fatal(err)

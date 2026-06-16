@@ -7,6 +7,7 @@ import { registerMovScriptEngineIpcHandlers } from './movscriptEngineIpc'
 import { registerMovScriptWorkspaceRootIpcHandlers } from './movscriptWorkspaceRootIpc'
 import { registerBackendIpcHandlers } from './backendIpc'
 import { registerBackendAuthIpcHandlers } from './backendAuthIpc'
+import { registerRuntimeConfigIpcHandlers } from './runtimeConfigIpc'
 import { registerAppServerIpcHandlers } from './appServerIpc'
 import { registerAppUpdateIpcHandlers } from './appUpdateIpc'
 import { registerDialogIpcHandlers } from './dialogIpc'
@@ -29,6 +30,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerMCPIpcHandlers()
   registerBackendIpcHandlers()
   registerBackendAuthIpcHandlers()
+  registerRuntimeConfigIpcHandlers()
   registerAppUpdateIpcHandlers()
   registerWindowIpcHandlers()
   registerEmbeddedBrowserIpcHandlers()

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AgentChatResultStack, AgentChatTinyBadge, AgentMessageSection } from '@movscript/ui/business/agent'
+import { AgentChatResultStack, AgentChatTinyBadge, AgentMessageSection } from '@/shared/ui/AgentMessageUi'
 import { Button } from '@movscript/ui/primitives'
 import {
   agentChatContentDefaultOpen,

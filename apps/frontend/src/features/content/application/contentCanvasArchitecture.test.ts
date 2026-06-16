@@ -9,8 +9,13 @@ import {
   updateContentCanvasRightPanePointer,
 } from './contentCanvasInteractions'
 import {
+  createChildContentCanvasNode,
+  createContentUnitFromSceneMoment,
   suggestedContentCanvasChildNodePosition,
 } from './contentCanvasCommands'
+import {
+  ensureContentUnitForRef,
+} from './contentCanvasContentUnitCommands'
 import {
   arrangeContentCanvasNodeLayouts,
   contentCanvasChangedPositionPatches,
@@ -54,6 +59,9 @@ import {
   planContentCanvasWorkItemActions,
 } from './contentCanvasWorkItemActions'
 import {
+  loadContentCanvasProject,
+} from './loadContentCanvasProject'
+import {
   buildContentCanvasNavigatorItems,
 } from './contentCanvasNavigation'
 import {
@@ -64,27 +72,369 @@ import {
   kindShortCode,
 } from '../components/ContentCanvasPresentationModel'
 import {
+  candidateDecisionForNode,
+  contentCanvasGraphIndex,
+  candidatesForNode,
+  promptFromContentNode,
+  radialNodeFromContentNode,
+  reconcileContentCanvasInspectorSelection,
+  sceneSettingGroupFromNode,
+  timelineItemsFromOpenCutDocument,
+} from '../components/contentCanvasWorkspaceModel'
+import {
   buildContentCanvasGraph,
 } from '../domain/contentCanvasGraph'
 import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode } from '../domain/contentCanvasTypes'
 
+test('content canvas timeline renders OpenCut-compatible timeline documents', () => {
+  const tracks = timelineItemsFromOpenCutDocument({
+    schema: 'opencut.timeline.v1',
+    project: {
+      currentSceneId: 'scene_1',
+      metadata: { duration: 12 },
+      scenes: [{
+        id: 'scene_1',
+        tracks: [
+          {
+            id: 'voice',
+            type: 'audio',
+            elements: [{
+              id: 'voice_1',
+              name: 'Narration',
+              type: 'audio',
+              startTime: 0,
+              duration: 6,
+              trimStart: 1,
+              trimEnd: 0.5,
+              metadata: { movscript: { resourceId: 21, contentUnitId: 'cu_voice', selected: true } },
+            }],
+          },
+          {
+            id: 'picture',
+            type: 'video',
+            elements: [{
+              id: 'clip_1',
+              name: 'Opening shot',
+              type: 'video',
+              startTime: 2,
+              duration: 4,
+              trimStart: 0.25,
+              trimEnd: 0,
+              metadata: { movscript: { resourceId: 34, contentUnitId: 'cu_scene', selected: true } },
+            }],
+          },
+          {
+            id: 'subs',
+            type: 'text',
+            elements: [{
+              id: 'caption_1',
+              name: 'Caption',
+              type: 'text',
+              startTime: 2,
+              duration: 3,
+              metadata: { movscript: { contentUnitId: 'cu_caption', stale: true } },
+            }],
+          },
+        ],
+      }],
+    },
+  })
+
+  assert.deepEqual(tracks.map((track) => track.kind), ['audio', 'video', 'subtitle'])
+  assert.equal(tracks[0]?.items[0]?.resourceId, 21)
+  assert.equal(tracks[0]?.items[0]?.trimStartSec, 1)
+  assert.equal(tracks[1]?.items[0]?.title, 'Opening shot')
+  assert.equal(tracks[1]?.items[0]?.contentUnitId, 'cu_scene')
+  assert.equal(tracks[2]?.items[0]?.status, 'stale')
+})
+
+test('content canvas project loader maps workspace editing timelines to scene and production nodes', async () => {
+  const production = {
+    entityKind: 'production',
+    id: 'pilot',
+    path: 'productions/pilot/production.json',
+    record: { id: 'pilot', title: 'Pilot' },
+  }
+  const sceneMoment = {
+    entityKind: 'scene_moment',
+    id: 'rain_call',
+    path: 'productions/pilot/segments/intro/scene_moments/rain_call/scene_moment.json',
+    record: { id: 'rain_call', title: 'Rain call' },
+  }
+  const timelineDocument = {
+    schema: 'opencut.timeline.v1',
+    project: {
+      currentSceneId: 'scene_moment_rain_call',
+      metadata: { duration: 8 },
+      scenes: [{
+        id: 'scene_moment_rain_call',
+        tracks: [{
+          id: 'video',
+          type: 'video',
+          elements: [{
+            id: 'clip_1',
+            name: 'Rain call clip',
+            type: 'video',
+            startTime: 0,
+            duration: 8,
+            metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
+          }],
+        }],
+      }],
+    },
+  }
+  const productionTimelineDocument = {
+    schema: 'opencut.timeline.v1',
+    project: {
+      currentSceneId: 'production_pilot',
+      metadata: { duration: 8 },
+      scenes: [{
+        id: 'production_pilot',
+        tracks: [{
+          id: 'video',
+          type: 'video',
+          elements: [{
+            id: 'production_clip_1',
+            name: 'Rain call clip',
+            type: 'video',
+            startTime: 0,
+            duration: 8,
+            metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
+          }],
+        }],
+      }],
+    },
+  }
+  const gateway = {
+    service: {
+      queryEntities: async (query: { entityKind?: string }) => {
+        if (query.entityKind === 'project') return []
+        if (query.entityKind === 'production') return [production]
+        if (query.entityKind === 'scene_moment') return [sceneMoment]
+        return []
+      },
+      querySettings: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+    },
+    loadContentSourceWorkspaceData: async () => ({
+      source: 'workspace',
+      hierarchyTree: [],
+      previewMoments: [],
+      expressionUnitsByMoment: {},
+      audioCuesByMoment: {},
+      shotWorkspaceDetails: {},
+      assetReferenceUnits: {},
+      editingTimelines: [{
+        targetKind: 'scene_moment',
+        targetId: 'rain_call',
+        targetPath: sceneMoment.path,
+        status: 'ready_to_compose',
+        timelineDocument,
+      }, {
+        targetKind: 'production',
+        targetId: 'pilot',
+        targetPath: production.path,
+        status: 'ready_to_compose',
+        timelineDocument: productionTimelineDocument,
+      }],
+    }),
+  } as never
+
+  const project = await loadContentCanvasProject(7, gateway)
+
+  assert.equal(project.editingTimelinesByNodeId?.rain_call, timelineDocument)
+  assert.equal(project.editingTimelinesByNodeId?.['scene_moment:rain_call'], timelineDocument)
+  assert.equal(project.editingTimelinesByNodeId?.pilot, productionTimelineDocument)
+  assert.equal(project.editingTimelinesByNodeId?.['production:pilot'], productionTimelineDocument)
+})
+
+test('content canvas view plan delegates hidden relation summaries', () => {
+  const viewPlanSource = readFileSync(resolve('src/features/content/application/contentCanvasViewPlan.ts'), 'utf8')
+  const summariesSource = readFileSync(resolve('src/features/content/application/contentCanvasViewSummaries.ts'), 'utf8')
+  const issuesSource = readFileSync(resolve('src/features/content/application/contentCanvasViewPlanIssues.ts'), 'utf8')
+  const edgesSource = readFileSync(resolve('src/features/content/application/contentCanvasViewPlanEdges.ts'), 'utf8')
+
+  assert.match(viewPlanSource, /from '\.\/contentCanvasViewSummaries'/)
+  assert.match(viewPlanSource, /from '\.\/contentCanvasViewPlanIssues'/)
+  assert.match(viewPlanSource, /from '\.\/contentCanvasViewPlanEdges'/)
+  assert.match(summariesSource, /export function contentCanvasCollapsedSummaries/)
+  assert.match(summariesSource, /export function contentCanvasHiddenEdgeSummaries/)
+  assert.match(summariesSource, /function hiddenEdgeRelationLabel/)
+  assert.match(issuesSource, /export function issueNodeIdsForFilters/)
+  assert.match(issuesSource, /export function issueNodeIdsForGraph/)
+  assert.match(issuesSource, /function workItemMatchesFilters/)
+  assert.match(edgesSource, /export function applyContentCanvasEdgeBudget/)
+  assert.match(edgesSource, /export function contentCanvasModeAllowsEdge/)
+  assert.match(edgesSource, /function edgeRenderRank/)
+  assert.doesNotMatch(viewPlanSource, /function hiddenEdgeRelationLabel/)
+  assert.doesNotMatch(viewPlanSource, /function anchorVisibleNodeForHiddenNode/)
+  assert.doesNotMatch(viewPlanSource, /function collapsedKindLabel/)
+  assert.doesNotMatch(viewPlanSource, /function workItemMatchesFilters/)
+  assert.doesNotMatch(viewPlanSource, /function workItemMatchesTargetKind/)
+  assert.doesNotMatch(viewPlanSource, /function edgeRenderRank/)
+  assert.doesNotMatch(viewPlanSource, /function defaultEdgeRenderLimitForDensity/)
+})
+
 test('content canvas workspace page delegates pane layout to route layout controllers', () => {
   const pageSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePage.tsx'), 'utf8')
-  const cssSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePage.css'), 'utf8')
+  const controllerSource = readFileSync(resolve('src/features/content/components/useContentCanvasWorkspaceController.ts'), 'utf8')
+  const detailsSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspaceDetails.tsx'), 'utf8')
+  const panelsSource = readFileSync(resolve('src/features/content/components/ContentCanvasWorkspacePanels.tsx'), 'utf8')
+  const viewModelSource = readFileSync(resolve('src/features/content/components/contentCanvasWorkspaceViewModel.ts'), 'utf8')
+  const workspaceModelSource = readFileSync(resolve('src/features/content/components/contentCanvasWorkspaceModel.ts'), 'utf8')
+  const workspaceGraphModelSource = readFileSync(resolve('src/features/content/components/contentCanvasWorkspaceGraphModel.ts'), 'utf8')
+  const commandsSource = readFileSync(resolve('src/features/content/application/contentCanvasCommands.ts'), 'utf8')
+  const createNodeCommandsSource = readFileSync(resolve('src/features/content/application/contentCanvasCreateNodeCommands.ts'), 'utf8')
+  const candidateCommandsSource = readFileSync(resolve('src/features/content/application/contentCanvasCandidateCommands.ts'), 'utf8')
+  const graphSource = readFileSync(resolve('src/features/content/domain/contentCanvasGraph.ts'), 'utf8')
+  const graphCandidatesSource = readFileSync(resolve('src/features/content/domain/contentCanvasGraphCandidates.ts'), 'utf8')
+  const graphLayoutSource = readFileSync(resolve('src/features/content/domain/contentCanvasGraphLayout.ts'), 'utf8')
+  const graphSummarySource = readFileSync(resolve('src/features/content/domain/contentCanvasGraphSummary.ts'), 'utf8')
+  const workItemsGraphSource = readFileSync(resolve('src/features/content/domain/contentCanvasGraphWorkItems.ts'), 'utf8')
+  const graphAssetsSource = readFileSync(resolve('src/features/content/domain/contentCanvasGraphAssets.ts'), 'utf8')
+  const graphReferencesSource = readFileSync(resolve('src/features/content/domain/contentCanvasGraphReferences.ts'), 'utf8')
+  const loadProjectSource = readFileSync(resolve('src/features/content/application/loadContentCanvasProject.ts'), 'utf8')
+  const gatewaySource = readFileSync(resolve('src/features/content/application/contentCanvasWorkspaceGateway.ts'), 'utf8')
+  const electronGatewaySource = readFileSync(resolve('src/features/content/integrations/contentCanvasWorkspaceElectronGateway.ts'), 'utf8')
+  const layoutSource = readFileSync(resolve('src/features/content/components/contentCanvasWorkspaceLayout.tsx'), 'utf8')
+  const starCanvasSource = readFileSync(resolve('src/features/content/components/ContentCanvasStarCanvas.tsx'), 'utf8')
+  const cssSource = [
+    'ContentCanvasWorkspacePage.base.css',
+    'ContentCanvasWorkspacePage.layout.css',
+  ].map((filename) => readFileSync(resolve('src/features/content/components', filename), 'utf8')).join('\n')
 
-  assert.match(pageSource, /useRouteLayoutPaneController/)
-  assert.match(pageSource, /useResizablePanel/)
-  assert.match(pageSource, /readContentCanvasViewState/)
-  assert.match(pageSource, /mergeContentCanvasNodePositions/)
-  assert.match(pageSource, /clearContentCanvasNodePositions/)
-  assert.match(pageSource, /CONTENT_CANVAS_SETTING_CATALOG_PANE_ID/)
-  assert.match(pageSource, /CONTENT_CANVAS_STRUCTURE_PANE_ID/)
-  assert.match(pageSource, /CONTENT_CANVAS_INSPECTOR_PANE_ID/)
-  assert.match(pageSource, /CONTENT_CANVAS_TIMELINE_PANE_ID/)
-  assert.match(pageSource, /PanelResizeHandle/)
-  assert.match(pageSource, /onNodePositionCommit/)
-  assert.match(pageSource, /data-dragging/)
+  assert.match(pageSource, /useContentCanvasPaneLayout/)
+  assert.match(pageSource, /useContentCanvasRadialLayout/)
+  assert.match(pageSource, /useContentCanvasWorkspaceController/)
+  assert.match(pageSource, /SettingCatalogPanel/)
+  assert.match(pageSource, /CanvasStagePanel/)
+  assert.doesNotMatch(pageSource, /useQuery/)
+  assert.doesNotMatch(pageSource, /useProjectStore/)
+  assert.doesNotMatch(pageSource, /useState/)
   assert.doesNotMatch(pageSource, /\blocalStorage\b/)
+
+  assert.match(starCanvasSource, /data-dragging/)
+  assert.doesNotMatch(starCanvasSource, /visibleSettingGroups\.map\(\(group\) => \(\{[\s\S]*source: visibleMain/)
+  assert.match(starCanvasSource, /function settingGroupLayout/)
+  assert.match(starCanvasSource, /SETTING_GROUP_NODE_WIDTH/)
+
+  assert.match(controllerSource, /useQuery/)
+  assert.match(controllerSource, /buildContentCanvasWorkspaceViewModel/)
+  assert.doesNotMatch(controllerSource, /connectSceneMomentSettingFromCanvas/)
+  assert.match(controllerSource, /setManualSceneSettingGroupsBySceneId\(\(currentByScene\) => \{/)
+  assert.match(controllerSource, /return \{ \.\.\.currentByScene, \[sceneKey\]: nextGroups \}/)
+  assert.match(controllerSource, /childNodesByHierarchy/)
+  assert.match(controllerSource, /draftAssetPrompts/)
+  assert.match(controllerSource, /selectContentUnitCandidateFromCanvas/)
+  assert.match(controllerSource, /updateContentUnitPromptFromCanvas/)
+  assert.match(controllerSource, /contentUnitNodeForGenerationTask/)
+  assert.match(controllerSource, /label: '添加素材'/)
+  assert.match(controllerSource, /label: '放入 Scene Moment'/)
+  assert.match(controllerSource, /createKeyframeForShot/)
+  assert.match(controllerSource, /kind: 'create_keyframe'/)
+  assert.match(detailsSource, /function GenerationTaskPanel/)
+  assert.match(detailsSource, /title="制作项"/)
+  assert.match(detailsSource, /submitLabel="创建关键帧"/)
+
+  assert.match(viewModelSource, /export function buildContentCanvasWorkspaceViewModel/)
+  assert.match(viewModelSource, /reconcileContentCanvasInspectorSelection/)
+  assert.doesNotMatch(viewModelSource, /useState/)
+  assert.doesNotMatch(viewModelSource, /useQuery/)
+  assert.match(workspaceModelSource, /from '\.\/contentCanvasWorkspaceGraphModel'/)
+  assert.doesNotMatch(workspaceModelSource, /function fallbackContentCanvasInspectorSelection/)
+  assert.doesNotMatch(workspaceModelSource, /function sceneScopedNodeIds/)
+  assert.match(workspaceGraphModelSource, /export function contentCanvasGraphIndex/)
+  assert.match(workspaceGraphModelSource, /export function radialNodesAround/)
+  assert.match(workspaceGraphModelSource, /export function reconcileContentCanvasInspectorSelection/)
+  assert.match(workspaceGraphModelSource, /function sceneScopedNodeIds/)
+  assert.match(workspaceGraphModelSource, /childNodesByHierarchy/)
+  assert.match(workspaceGraphModelSource, /edge\.kind === 'hierarchy'\) appendMapArray\(childNodesByHierarchy/)
+
+  assert.match(gatewaySource, /export interface ContentCanvasWorkspaceGateway/)
+  assert.match(commandsSource, /ContentCanvasWorkspaceGateway/)
+  assert.match(commandsSource, /from '.\/contentCanvasCreateNodeCommands'/)
+  assert.doesNotMatch(commandsSource, /async function createSettingFromCanvas/)
+  assert.doesNotMatch(commandsSource, /async function createStoryboardFromShot/)
+  assert.doesNotMatch(commandsSource, /function requiredShotRefs/)
+  assert.match(createNodeCommandsSource, /export async function createRootContentCanvasNode/)
+  assert.match(createNodeCommandsSource, /export async function createChildContentCanvasNode/)
+  assert.match(createNodeCommandsSource, /export function suggestedContentCanvasChildNodePosition/)
+  assert.match(createNodeCommandsSource, /async function createStoryboardFromShot/)
+  assert.match(createNodeCommandsSource, /function requiredShotRefs/)
+  assert.match(commandsSource, /from '.\/contentCanvasCandidateCommands'/)
+  assert.doesNotMatch(commandsSource, /function contentCanvasCandidateFromContentRecord/)
+  assert.doesNotMatch(commandsSource, /function selectCandidateNodeFromCanvas/)
+  assert.match(candidateCommandsSource, /export async function createCandidateFromContentUnit/)
+  assert.match(candidateCommandsSource, /export async function selectContentUnitCandidateFromCanvas/)
+  assert.match(candidateCommandsSource, /export async function selectCandidateNodeFromCanvas/)
+  assert.match(candidateCommandsSource, /buildContentSourceWorkspaceCandidateCreatePlan/)
+  assert.match(graphSource, /from '.\/contentCanvasGraphWorkItems'/)
+  assert.doesNotMatch(graphSource, /owner_type/)
+  assert.doesNotMatch(graphSource, /owner_id/)
+  assert.doesNotMatch(graphSource, /function createWorkItemNodes/)
+  assert.doesNotMatch(graphSource, /function createActorNodes/)
+  assert.match(workItemsGraphSource, /export function createWorkItemNodes/)
+  assert.match(workItemsGraphSource, /export function createActorNodes/)
+  assert.match(workItemsGraphSource, /export function targetNodeForWorkItem/)
+  assert.match(graphSource, /from '.\/contentCanvasGraphSummary'/)
+  assert.doesNotMatch(graphSource, /function buildContentCanvasGraphIndexes/)
+  assert.doesNotMatch(graphSource, /function buildContentCanvasGraphSummary/)
+  assert.doesNotMatch(graphSource, /function withStructureSummaryMetrics/)
+  assert.match(graphSummarySource, /export function withGraphIndexesAndSummary/)
+  assert.match(graphSummarySource, /export function withStructureSummaryMetrics/)
+  assert.match(graphSource, /from '.\/contentCanvasGraphCandidates'/)
+  assert.doesNotMatch(graphSource, /function createCandidateNodes/)
+  assert.doesNotMatch(graphSource, /function createSelectionNodes/)
+  assert.doesNotMatch(graphSource, /function createResourceNodes/)
+  assert.match(graphCandidatesSource, /export function createCandidateNodes/)
+  assert.match(graphCandidatesSource, /export function createSelectionNodes/)
+  assert.match(graphCandidatesSource, /export function resourceNodeIdFor/)
+  assert.match(graphSource, /from '.\/contentCanvasGraphLayout'/)
+  assert.doesNotMatch(graphSource, /function appendSequenceEdges/)
+  assert.doesNotMatch(graphSource, /function assignDeterministicPositions/)
+  assert.match(graphLayoutSource, /export function appendSequenceEdges/)
+  assert.match(graphLayoutSource, /export function assignDeterministicPositions/)
+  assert.match(graphSource, /from '.\/contentCanvasGraphAssets'/)
+  assert.match(graphSource, /appendAssetDownstreamEdges\(edges, data\.assetReferenceUnits/)
+  assert.doesNotMatch(graphSource, /function assetNodeForReferenceUnit/)
+  assert.doesNotMatch(graphSource, /function targetNodeForAssetDownstream/)
+  assert.doesNotMatch(graphSource, /function assetDownstreamLabel/)
+  assert.match(graphAssetsSource, /export function appendAssetDownstreamEdges/)
+  assert.match(graphAssetsSource, /relation: 'asset_downstream'/)
+  assert.match(graphSource, /from '.\/contentCanvasGraphReferences'/)
+  assert.match(graphSource, /appendContentCanvasReferenceEdges\(\{ data, edges, entityNodes, nodeByEntityKindAndKey, nodeByPath \}\)/)
+  assert.doesNotMatch(graphSource, /function referencedNodeFor/)
+  assert.doesNotMatch(graphSource, /function settingStateRefsForRecord/)
+  assert.doesNotMatch(graphSource, /function expressionStoryboardRefs/)
+  assert.match(graphReferencesSource, /export function appendContentCanvasReferenceEdges/)
+  assert.match(graphReferencesSource, /relation: 'content_unit_scene'/)
+  assert.match(graphReferencesSource, /relation: 'expression_unit_shot'/)
+  assert.match(graphReferencesSource, /relation: 'audio_cue_shot'/)
+  assert.match(graphReferencesSource, /relation: 'setting_state_reference'/)
+  assert.match(loadProjectSource, /ContentCanvasWorkspaceGateway/)
+  assert.doesNotMatch(commandsSource, /createElectronMovScriptWorkspaceService/)
+  assert.doesNotMatch(commandsSource, /readElectronApi/)
+  assert.doesNotMatch(commandsSource, /currentWorkspaceOwnerContext/)
+  assert.doesNotMatch(loadProjectSource, /createElectronMovScriptWorkspaceService/)
+  assert.doesNotMatch(loadProjectSource, /readElectronApi/)
+  assert.doesNotMatch(loadProjectSource, /currentWorkspaceOwnerContext/)
+  assert.match(electronGatewaySource, /createElectronMovScriptWorkspaceService/)
+  assert.match(electronGatewaySource, /readElectronApi/)
+
+  assert.match(panelsSource, /PanelResizeHandle/)
+  assert.match(panelsSource, /ContentCanvasResizeHandle/)
+  assert.match(panelsSource, /onNodePositionCommit/)
+  assert.doesNotMatch(panelsSource, /defaultValue="雨夜"/)
+
+  assert.match(layoutSource, /useRouteLayoutPaneController/)
+  assert.match(layoutSource, /useResizablePanel/)
+  assert.match(layoutSource, /readContentCanvasViewState/)
+  assert.match(layoutSource, /mergeContentCanvasNodePositions/)
+  assert.match(layoutSource, /clearContentCanvasNodePositions/)
+  assert.match(layoutSource, /CONTENT_CANVAS_SETTING_CATALOG_PANE_ID/)
+  assert.match(layoutSource, /CONTENT_CANVAS_STRUCTURE_PANE_ID/)
+  assert.match(layoutSource, /CONTENT_CANVAS_INSPECTOR_PANE_ID/)
+  assert.match(layoutSource, /CONTENT_CANVAS_TIMELINE_PANE_ID/)
 
   assert.match(cssSource, /var\(--content-canvas-setting-catalog-height\)/)
   assert.match(cssSource, /var\(--content-canvas-structure-width\)/)
@@ -112,6 +462,41 @@ test('content canvas graph state keeps unchanged node references during structur
   assert.equal(changed.nodesById['asset:1'], second.nodesById['asset:1'])
   assert.equal(second.nodeIds, first.nodeIds)
   assert.equal(second.outgoingEdgeIdsByNodeId['shot:1'], first.outgoingEdgeIdsByNodeId['shot:1'])
+})
+
+test('content canvas inspector selection rehydrates from the latest workspace graph', () => {
+  const previousSetting = nodeFixture({ id: 'setting:1', entityKey: '1', kind: 'setting', title: 'Setting old', position: { x: 0, y: 0 } })
+  const nextSetting = nodeFixture({ id: 'setting:1', entityKey: '1', kind: 'setting', title: 'Setting updated', position: { x: 0, y: 0 } })
+  const scene = nodeFixture({ id: 'scene_moment:1', entityKey: '1', kind: 'scene_moment', title: 'Scene 1', position: { x: 720, y: 0 } })
+  const graph = graphFixture({ nodes: [scene, nextSetting], edges: [] })
+  const nextSelection = reconcileContentCanvasInspectorSelection({
+    graphIndex: contentCanvasGraphIndex(graph),
+    sceneMainNode: radialNodeFromContentNode(scene, 0, 0, 'primary'),
+    selection: { kind: 'setting', nodeId: previousSetting.id },
+    settingMainNode: radialNodeFromContentNode(nextSetting, 0, 0, 'primary'),
+  })
+
+  assert.equal(nextSelection.kind, 'setting')
+  if (nextSelection.kind === 'setting') {
+    assert.equal(nextSelection.setting, nextSetting)
+    assert.equal(nextSelection.setting.title, 'Setting updated')
+  }
+})
+
+test('content canvas inspector selection falls back only when the selected node disappeared', () => {
+  const staleShot = nodeFixture({ id: 'shot:deleted', entityKey: 'deleted', kind: 'shot', title: 'Deleted shot', position: { x: 0, y: 0 } })
+  const scene = nodeFixture({ id: 'scene_moment:1', entityKey: '1', kind: 'scene_moment', title: 'Scene 1', position: { x: 720, y: 0 } })
+  const sceneMainNode = radialNodeFromContentNode(scene, 0, 0, 'primary')
+  const nextSelection = reconcileContentCanvasInspectorSelection({
+    graphIndex: contentCanvasGraphIndex(graphFixture({ nodes: [scene], edges: [] })),
+    sceneMainNode,
+    selection: { kind: 'other', nodeId: staleShot.id },
+  })
+
+  assert.equal(nextSelection.kind, 'scene_moment')
+  if (nextSelection.kind === 'scene_moment') {
+    assert.equal(nextSelection.node, sceneMainNode)
+  }
 })
 
 test('content canvas presentation exposes stable type short codes for dense nodes', () => {
@@ -1449,6 +1834,11 @@ test('content canvas work item actions map only safe targets to executable comma
     ['unsupported', 'content_unit:1', '选择候选', false],
     ['unsupported', 'content_unit:1', '复核输入', false],
   ])
+  assert.deepEqual(plans.filter((plan) => plan.executable).map((plan) => plan.label), [
+    '准备素材生成',
+    '准备情节生成',
+    '选择候选',
+  ])
 })
 
 test('content canvas work item actions disable already selected candidates', () => {
@@ -1980,6 +2370,412 @@ test('content canvas graph maps dependency and non-invalidating impact edge sema
   assert.equal(graph.edges.find((edge) => edge.relation === 'asset_downstream')?.type, 'affects')
 })
 
+test('content canvas read model hydrates asset generation task from matching content unit', () => {
+  const graph = buildContentCanvasGraph({
+    projectId: 7,
+    project: null,
+    productions: [],
+    segments: [],
+    sceneMoments: [],
+    shots: [],
+    storyboards: [],
+    expressionUnits: [],
+    contentUnits: [
+      entityFixture('content_unit', 'cu_phone', 'content_units/cu_phone/content_unit.json', {
+        id: 'cu_phone',
+        title: 'Phone generation',
+        content_unit_type: 'asset_ref',
+        output_kind: 'image',
+        asset_ref: 'phone',
+        edit_prompt: { text: 'Generate phone reference' },
+      }),
+    ],
+    keyframes: [],
+    assets: [
+      entityFixture('asset', 'phone', 'assets/phone/asset.json', { id: 'phone', title: 'Phone reference', asset_kind: 'image' }),
+    ],
+    settings: [],
+    contentUnitCandidates: {
+      cu_phone: [{
+        id: 'cand_1',
+        title: 'Candidate 1',
+        resourceId: 88,
+        resourceKind: 'image',
+        source: 'model',
+        selected: true,
+        notes: 'selected',
+      }],
+    },
+  })
+
+  const asset = graph.nodes.find((node) => node.id === 'asset:phone')
+  assert.equal(asset?.generationTask?.id, 'cu_phone')
+  assert.equal(asset?.generationTask?.contentUnitType, 'asset_ref')
+  assert.equal(asset?.generationTask?.status, 'selected')
+  assert.deepEqual(asset?.metrics, [
+    '素材 image',
+    '制作项 image',
+    '候选 1',
+    '已选择候选',
+  ])
+})
+
+test('content canvas read model hydrates keyframe generation task from path ref by default', () => {
+  const keyframePath = 'productions/prod/segments/seg/scene_moments/scene/shots/shot/keyframes/kf_1/keyframe.json'
+  const graph = buildContentCanvasGraph({
+    projectId: 7,
+    project: null,
+    productions: [],
+    segments: [],
+    sceneMoments: [],
+    shots: [],
+    storyboards: [],
+    expressionUnits: [],
+    contentUnits: [
+      entityFixture('content_unit', 'cu_kf', 'content_units/cu_kf/content_unit.json', {
+        id: 'cu_kf',
+        title: 'Keyframe generation',
+        content_unit_type: 'keyframe_ref',
+        keyframe_ref: keyframePath,
+        edit_prompt: { text: 'Generate keyframe anchor' },
+      }),
+    ],
+    keyframes: [
+      entityFixture('keyframe', 'kf_1', keyframePath, { id: 'kf_1', title: 'Keyframe 1' }),
+    ],
+    assets: [],
+    settings: [],
+    contentUnitCandidates: {},
+  })
+
+  const keyframe = graph.nodes.find((node) => node.id === 'keyframe:kf_1')
+  assert.equal(keyframe?.generationTask?.id, 'cu_kf')
+  assert.equal(keyframe?.generationTask?.outputKind, 'image')
+  assert.equal(keyframe?.generationTask?.prompt, 'Generate keyframe anchor')
+  assert.deepEqual(keyframe?.metrics, [
+    '制作项 image',
+    '待生成候选',
+  ])
+})
+
+test('content canvas node helpers use hydrated generation task as the default user-facing generation surface', () => {
+  const node = nodeFixture({
+    id: 'asset:phone',
+    entityKey: 'phone',
+    kind: 'asset',
+    title: 'Phone',
+    position: { x: 0, y: 0 },
+    generationTask: {
+      id: 'cu_phone',
+      nodeId: 'content_unit:cu_phone',
+      contentUnitType: 'asset_ref',
+      outputKind: 'image',
+      title: 'Phone generation',
+      prompt: 'Generate the phone reference.',
+      status: 'needs_candidate',
+      sourcePath: 'content_units/cu_phone/content_unit.json',
+      record: {
+        id: 'cu_phone',
+        content_unit_type: 'asset_ref',
+      },
+      candidates: [{
+        id: 'candidate_1',
+        title: 'Candidate 1',
+        source: 'model',
+        selected: false,
+        notes: 'draft',
+      }],
+    },
+  })
+
+  assert.equal(promptFromContentNode(node), 'Generate the phone reference.')
+  assert.deepEqual(candidatesForNode(node).map((candidate) => candidate.id), ['candidate_1'])
+  assert.deepEqual(candidateDecisionForNode(node, {}), {
+    tone: 'pending',
+    label: '待选择',
+    summary: '已有候选结果，但尚未确认当前选择。',
+    actionLabel: '选择候选',
+    candidateCount: 1,
+    hasExplicitSelection: false,
+  })
+})
+
+test('content canvas content unit ensure reuses existing matching ref instead of duplicating', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const existing = {
+    path: 'content_units/existing/content_unit.json',
+    record: {
+      id: 'existing',
+      content_unit_type: 'asset_ref',
+      asset_ref: 'settings/hero/states/day/assets/phone/asset.json',
+    },
+  }
+  const gateway = {
+    service: {
+      queryEntities: async () => [{
+        entityKind: 'content_unit',
+        entityKey: 'existing',
+        path: existing.path,
+        record: existing.record,
+      }],
+      upsertContentUnit: async (payload: unknown) => {
+        calls.push({ kind: 'upsertContentUnit', payload })
+        return { path: '', record: {} }
+      },
+    },
+  } as never
+
+  const result = await ensureContentUnitForRef(gateway, {
+    id: 'canvas_asset_phone',
+    refKind: 'asset',
+    ref: 'phone',
+    contentUnitType: 'asset_ref',
+    outputKind: 'image',
+    title: 'Phone 制作项',
+    description: 'Create a phone reference.',
+    prompt: 'Generate phone.',
+  })
+
+  assert.deepEqual(result, existing)
+  assert.deepEqual(calls, [])
+})
+
+test('content canvas scene moment generation command ensures a scene_moment_ref content unit', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    service: {
+      queryEntities: async () => [],
+      querySettings: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      upsertSetting: async () => ({ record: {}, path: '' }),
+      updateContentUnitEditPrompt: async () => ({ record: {}, path: '' }),
+      upsertContentUnit: async (payload: unknown) => {
+        calls.push({ kind: 'upsertContentUnit', payload })
+        return {
+          path: 'content_units/canvas_scene_scene_1/content_unit.json',
+          record: { id: 'canvas_scene_scene_1' },
+        }
+      },
+    },
+    loadContentSourceWorkspaceData: async () => ({
+      source: 'workspace',
+      hierarchyTree: [],
+      previewMoments: [],
+      expressionUnitsByMoment: {},
+      audioCuesByMoment: {},
+      shotWorkspaceDetails: {},
+      assetReferenceUnits: {},
+    }),
+    createProduction: async () => undefined,
+    createSegment: async () => undefined,
+    createSceneMoment: async () => undefined,
+    createShot: async () => undefined,
+    createExpressionUnit: async () => undefined,
+    createKeyframe: async () => undefined,
+    createStoryboard: async () => undefined,
+    createContentUnitCandidate: async () => ({}),
+    selectContentUnitCandidate: async () => undefined,
+    writeHierarchyNode: async () => undefined,
+  } as never
+  const scene = nodeFixture({
+    id: 'scene_moment:scene_1',
+    entityKey: 'scene_1',
+    kind: 'scene_moment',
+    title: 'Scene 1',
+    sourcePath: 'productions/prod/segments/seg/scene_moments/scene_1/scene_moment.json',
+    position: { x: 0, y: 0 },
+  })
+
+  const result = await createContentUnitFromSceneMoment(7, scene, gateway)
+
+  assert.equal(result.message, '已确保情节制作项')
+  assert.deepEqual(result.changedNodeIds, ['content_unit:canvas_scene_scene_1'])
+  assert.deepEqual((calls[0].payload as { unit: Record<string, unknown> }).unit, {
+    id: 'canvas_scene_scene_1',
+    title: 'Scene 1 制作项',
+    content_unit_type: 'scene_moment_ref',
+    output_kind: 'video',
+    description: '从编排画布基于情节「Scene 1」创建。',
+    scene_moment_ref: 'productions/prod/segments/seg/scene_moments/scene_1/scene_moment.json',
+    edit_prompt: {
+      text: '将情节「Scene 1」转化为可制作镜头，保留上游叙事目标和已有素材约束。',
+    },
+    model_intent: {
+      source: 'content_canvas',
+      scene_moment_node_id: 'scene_moment:scene_1',
+    },
+  })
+})
+
+test('content canvas keyframe creation also ensures a keyframe_ref content unit', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    service: {
+      queryEntities: async () => [],
+      querySettings: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      upsertSetting: async () => ({ record: {}, path: '' }),
+      updateContentUnitEditPrompt: async () => ({ record: {}, path: '' }),
+      upsertContentUnit: async (payload: unknown) => {
+        calls.push({ kind: 'upsertContentUnit', payload })
+        return {
+          path: 'content_units/canvas_keyframe_kf_1/content_unit.json',
+          record: { id: 'canvas_keyframe_kf_1' },
+        }
+      },
+    },
+    loadContentSourceWorkspaceData: async () => ({
+      source: 'workspace',
+      hierarchyTree: [],
+      previewMoments: [],
+      expressionUnitsByMoment: {},
+      audioCuesByMoment: {},
+      shotWorkspaceDetails: {},
+      assetReferenceUnits: {},
+    }),
+    createProduction: async () => undefined,
+    createSegment: async () => undefined,
+    createSceneMoment: async () => undefined,
+    createShot: async () => undefined,
+    createExpressionUnit: async () => undefined,
+    createKeyframe: async (payload: unknown) => {
+      calls.push({ kind: 'createKeyframe', payload })
+    },
+    createStoryboard: async () => undefined,
+    createContentUnitCandidate: async () => ({}),
+    selectContentUnitCandidate: async () => undefined,
+    writeHierarchyNode: async () => undefined,
+  } as never
+  const shot = nodeFixture({
+    id: 'shot:shot_1',
+    entityKey: 'shot_1',
+    kind: 'shot',
+    title: 'Shot 1',
+    sourcePath: 'productions/prod/segments/seg/scene_moments/scene/shots/shot_1/shot.json',
+    record: {
+      production_id: 'prod',
+      segment_id: 'seg',
+      scene_moment_id: 'scene',
+    },
+    position: { x: 0, y: 0 },
+  })
+
+  const result = await createChildContentCanvasNode(7, shot, 'keyframe', {
+    input: { id: 'kf_1', title: 'Keyframe 1' },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['createKeyframe', 'upsertContentUnit'])
+  assert.equal(result.message, '已创建关键帧并确保制作项')
+  assert.deepEqual(result.changedNodeIds, ['keyframe:kf_1', 'content_unit:canvas_keyframe_kf_1'])
+  assert.deepEqual((calls[1].payload as { unit: Record<string, unknown> }).unit, {
+    id: 'canvas_keyframe_kf_1',
+    title: 'Keyframe 1 制作项',
+    content_unit_type: 'keyframe_ref',
+    output_kind: 'image',
+    description: '从编排画布基于关键帧「kf_1」创建。',
+    keyframe_ref: 'productions/prod/segments/seg/scene_moments/scene/shots/shot_1/keyframes/kf_1/keyframe.json',
+    edit_prompt: {
+      text: '为镜头「Shot 1」的关键帧生成视觉锚点候选，保持镜头构图、连续性和上游素材约束。',
+    },
+    model_intent: {
+      source: 'content_canvas',
+      keyframe_id: 'kf_1',
+      shot_id: 'shot_1',
+      shot_node_id: 'shot:shot_1',
+    },
+  })
+})
+
+test('content canvas asset creation also ensures an asset_ref content unit', async () => {
+  const calls: Array<{ kind: string; payload: unknown }> = []
+  const gateway = {
+    service: {
+      queryEntities: async () => [],
+      querySettings: async () => [],
+      queryAssets: async () => ({ assets: [] }),
+      upsertSetting: async () => ({ record: {}, path: '' }),
+      updateContentUnitEditPrompt: async () => ({ record: {}, path: '' }),
+      upsertAsset: async (payload: unknown) => {
+        calls.push({ kind: 'upsertAsset', payload })
+        return {
+          path: 'settings/hero/states/day/assets/phone/asset.json',
+          record: { id: 'phone' },
+        }
+      },
+      upsertContentUnit: async (payload: unknown) => {
+        calls.push({ kind: 'upsertContentUnit', payload })
+        return {
+          path: 'content_units/canvas_asset_phone/content_unit.json',
+          record: { id: 'canvas_asset_phone' },
+        }
+      },
+    },
+    loadContentSourceWorkspaceData: async () => ({
+      source: 'workspace',
+      hierarchyTree: [],
+      previewMoments: [],
+      expressionUnitsByMoment: {},
+      audioCuesByMoment: {},
+      shotWorkspaceDetails: {},
+      assetReferenceUnits: {},
+    }),
+    createProduction: async () => undefined,
+    createSegment: async () => undefined,
+    createSceneMoment: async () => undefined,
+    createShot: async () => undefined,
+    createExpressionUnit: async () => undefined,
+    createKeyframe: async () => undefined,
+    createStoryboard: async () => undefined,
+    createContentUnitCandidate: async () => ({}),
+    selectContentUnitCandidate: async () => undefined,
+    writeHierarchyNode: async () => undefined,
+  } as never
+  const state = nodeFixture({
+    id: 'state:day',
+    entityKey: 'day',
+    kind: 'state',
+    title: 'Day state',
+    sourcePath: 'settings/hero/states/day/setting_state.json',
+    record: {
+      setting_id: 'hero',
+    },
+    position: { x: 0, y: 0 },
+  })
+
+  const result = await createChildContentCanvasNode(7, state, 'asset', {
+    input: { id: 'phone', title: 'Phone' },
+  }, gateway)
+
+  assert.deepEqual(calls.map((call) => call.kind), ['upsertAsset', 'upsertContentUnit'])
+  assert.equal(result.message, '已创建素材并确保制作项')
+  assert.deepEqual((calls[0].payload as { payload: Record<string, unknown> }).payload, {
+    id: 'phone',
+    title: 'Phone',
+    setting_id: 'hero',
+    setting_state_id: 'day',
+    slot: 'phone',
+    asset_kind: 'image',
+    prompt_hint: '从设定状态「Day state」创建。',
+  })
+  assert.deepEqual((calls[1].payload as { unit: Record<string, unknown> }).unit, {
+    id: 'canvas_asset_phone',
+    title: 'Phone 制作项',
+    content_unit_type: 'asset_ref',
+    output_kind: 'image',
+    description: '从编排画布基于素材「Phone」创建。',
+    asset_ref: 'settings/hero/states/day/assets/phone/asset.json',
+    edit_prompt: {
+      text: '为设定状态「Day state」下的素材「Phone」生成可复用参考图。',
+    },
+    model_intent: {
+      source: 'content_canvas',
+      asset_id: 'phone',
+      state_id: 'day',
+      state_node_id: 'state:day',
+    },
+  })
+})
+
 test('content canvas issue view can filter work items by actor and severity', () => {
   const graph = graphFixture({
     nodes: [
@@ -2215,7 +3011,7 @@ test('content canvas graph includes setting state and audio cue reference constr
     keyframes: [],
     assets: [entityFixture('asset', 'thunder', 'settings/hero/states/rain/assets/thunder/asset.json', {
       id: 'thunder',
-      owner_type: 'setting_state',
+      setting_id: 'hero',
       setting_state_id: 'rain',
       title: 'Thunder ref',
     })],
@@ -2235,6 +3031,8 @@ test('content canvas graph includes setting state and audio cue reference constr
   assert.ok(graph.nodes.find((node) => node.id === 'state:rain'))
   assert.ok(graph.nodes.find((node) => node.id === 'audio_cue:phone_buzz'))
   assert.ok(graph.edges.find((edge) => edge.id === 'setting:hero->state:rain'))
+  assert.ok(graph.edges.find((edge) => edge.id === 'state:rain->asset:thunder'))
+  assert.ok(!graph.edges.find((edge) => edge.id === 'setting:hero->asset:thunder'))
   assert.ok(graph.edges.find((edge) => edge.id === 'scene_moment:scene->audio_cue:phone_buzz'))
   assert.ok(graph.edges.find((edge) => edge.relation === 'audio_cue_storyboard' && edge.source === 'audio_cue:phone_buzz' && edge.target === 'storyboard:main'))
   assert.ok(graph.edges.find((edge) => edge.relation === 'audio_cue_shot' && edge.source === 'audio_cue:phone_buzz' && edge.target === 'shot:shot'))
@@ -2279,6 +3077,30 @@ test('content canvas graph derives sequence edges for siblings without changing 
   assert.deepEqual(shotLedger.upstream.map((item) => [item.nodeId, item.relation]), [
     ['scene_moment:scene', '结构上级'],
     ['shot:shot_a', '上一项'],
+  ])
+})
+
+test('content canvas setting group renders only structurally mounted state and asset nodes', () => {
+  const setting = nodeFixture({ id: 'setting:hero', entityKey: 'hero', kind: 'setting', title: 'Hero', position: { x: 0, y: 0 } })
+  const mountedState = nodeFixture({ id: 'state:day', entityKey: 'day', kind: 'state', title: 'Day state', position: { x: 0, y: 0 } })
+  const referencedState = nodeFixture({ id: 'state:rain', entityKey: 'rain', kind: 'state', title: 'Rain state', position: { x: 0, y: 0 } })
+  const mountedAsset = nodeFixture({ id: 'asset:phone', entityKey: 'phone', kind: 'asset', title: 'Phone', position: { x: 0, y: 0 } })
+  const referencedAsset = nodeFixture({ id: 'asset:thunder', entityKey: 'thunder', kind: 'asset', title: 'Thunder', position: { x: 0, y: 0 } })
+  const graph = graphFixture({
+    nodes: [setting, mountedState, referencedState, mountedAsset, referencedAsset],
+    edges: [
+      { id: 'setting-state', source: setting.id, target: mountedState.id, kind: 'hierarchy' },
+      { id: 'state-asset', source: mountedState.id, target: mountedAsset.id, kind: 'hierarchy' },
+      { id: 'story-state-ref', source: 'storyboard:main', target: referencedState.id, kind: 'reference', relation: 'setting_state_reference' },
+      { id: 'audio-asset-ref', source: 'audio_cue:buzz', target: referencedAsset.id, kind: 'reference', relation: 'audio_cue_asset' },
+    ],
+  })
+  const group = sceneSettingGroupFromNode(setting, contentCanvasGraphIndex(graph), { x: 24, y: -16 })
+
+  assert.equal(group.x, 24)
+  assert.equal(group.y, -16)
+  assert.deepEqual(group.states.map((item) => [item.state.id, item.assets.map((asset) => asset.id)]), [
+    ['state:day', ['asset:phone']],
   ])
 })
 

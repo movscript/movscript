@@ -1,5 +1,24 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  appServerProviderKindForProvider,
+  normalizeAppServerProfile,
+  normalizeProviderKey,
+  providerLabel,
+  type PersistedAppServerProfile,
+} from '@/shared/infrastructure/providerConfigAppServerProfile'
+import {
+  CODEX_PROVIDER_ID,
+  CODEX_MOVSCRIPT_HOME_PROFILE_ID,
+  DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
+  DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
+  DEFAULT_PROVIDER_SETTINGS,
+  MOVA_PROVIDER_ID,
+  MOVA_MOVSCRIPT_HOME_PROFILE_ID,
+  MOVSCRIPT_MANAGED_CODEX_HOME,
+  MOVSCRIPT_MANAGED_MOVA_HOME,
+  PROVIDER_CONFIG_STORAGE_KEY,
+} from '@/shared/infrastructure/providerConfigDefaults'
 
 export type BuiltInProviderKind = 'codex' | 'mova' | 'claude'
 export type ProviderKind = BuiltInProviderKind | (string & {})
@@ -34,8 +53,6 @@ export interface AppServerProfile {
   workspaceDir?: string
   lifecycle: AppServerLifecycle
 }
-
-type PersistedAppServerProfile = Partial<AppServerProfile>
 
 export interface ProviderConfig {
   id: string
@@ -74,13 +91,20 @@ interface ProviderConfigStore {
   reset: () => void
 }
 
-export const CODEX_PROVIDER_ID = 'codex'
-export const MOVA_PROVIDER_ID = 'mova'
-export const PROVIDER_CONFIG_STORAGE_KEY = 'movscript-provider-config'
-export const CODEX_MOVSCRIPT_HOME_PROFILE_ID = 'codex-movscript-home'
-export const MOVA_MOVSCRIPT_HOME_PROFILE_ID = 'mova-movscript-home'
-export const MOVSCRIPT_MANAGED_CODEX_HOME = '.codex'
-export const MOVSCRIPT_MANAGED_MOVA_HOME = '.mova'
+export {
+  CODEX_PROVIDER_ID,
+  CODEX_MOVSCRIPT_HOME_PROFILE_ID,
+  DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
+  DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
+  DEFAULT_PROVIDER_SETTINGS,
+  MOVA_PROVIDER_ID,
+  MOVA_MOVSCRIPT_HOME_PROFILE_ID,
+  MOVSCRIPT_MANAGED_CODEX_HOME,
+  MOVSCRIPT_MANAGED_MOVA_HOME,
+  PROVIDER_CONFIG_STORAGE_KEY,
+}
+
+export { normalizeAppServerProfile } from '@/shared/infrastructure/providerConfigAppServerProfile'
 
 export interface ProviderThreadRef {
   providerId: string
@@ -88,77 +112,6 @@ export interface ProviderThreadRef {
   providerInstanceId: string
   threadId: string
   workspaceDir?: string
-}
-
-export const DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE: AppServerProfile = {
-  id: CODEX_MOVSCRIPT_HOME_PROFILE_ID,
-  label: 'MovScript Codex',
-  providerKey: 'codex',
-  executableCommand: 'codex',
-  executableEnvVar: 'MOVSCRIPT_CODEX_APP_SERVER_BIN',
-  compatibilityBinEnvNames: ['MOVSCRIPT_CODEX_BIN'],
-  candidateRootRelativePaths: [
-    '../codex/codex-rs/target/debug',
-    '../../codex/codex-rs/target/debug',
-    '../../../codex/codex-rs/target/debug',
-  ],
-  candidateBinaryNames: [
-    'app-server',
-    'codex-app-server',
-    'codex',
-  ],
-  pathFallbackReady: false,
-  home: MOVSCRIPT_MANAGED_CODEX_HOME,
-  lifecycle: 'movscript-owned',
-}
-
-export const DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE: AppServerProfile = {
-  id: MOVA_MOVSCRIPT_HOME_PROFILE_ID,
-  label: 'MovScript Mova',
-  providerKey: 'mova',
-  executableCommand: 'mova',
-  executableEnvVar: 'MOVSCRIPT_MOVA_APP_SERVER_BIN',
-  compatibilityBinEnvNames: ['MOVSCRIPT_MOVA_BIN'],
-  candidateRootRelativePaths: [
-    '../mova/codex-rs/target/debug',
-    '../../mova/codex-rs/target/debug',
-    '../../../mova/codex-rs/target/debug',
-  ],
-  candidateBinaryNames: [
-    'app-server',
-    'mova-app-server',
-    ['codex', 'app-server'].join('-'),
-    'codex',
-  ],
-  pathFallbackReady: false,
-  home: MOVSCRIPT_MANAGED_MOVA_HOME,
-  compatibilityHomeEnvNames: ['CODEX_HOME'],
-  lifecycle: 'movscript-owned',
-}
-
-export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
-  defaultProviderId: MOVA_PROVIDER_ID,
-  newConversationProviderId: undefined,
-  providers: [
-    {
-      id: MOVA_PROVIDER_ID,
-      kind: 'mova',
-      protocol: 'app-server',
-      messageAdapter: 'thread-turn-item',
-      label: 'MovScript Mova',
-      enabled: true,
-      appServerProfile: DEFAULT_MOVA_MOVSCRIPT_HOME_PROFILE,
-    },
-    {
-      id: CODEX_PROVIDER_ID,
-      kind: 'codex',
-      protocol: 'app-server',
-      messageAdapter: 'thread-turn-item',
-      label: 'MovScript Codex',
-      enabled: true,
-      appServerProfile: DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE,
-    },
-  ],
 }
 
 export const useProviderConfigStore = create<ProviderConfigStore>()(
@@ -355,58 +308,6 @@ function defaultProviderFallback(): ProviderConfig {
   return fallback
 }
 
-export function normalizeAppServerProfile(
-  profile: PersistedAppServerProfile | null | undefined,
-  kind: AppServerProviderKind,
-  fallback: AppServerProfile | PersistedAppServerProfile = defaultAppServerProfile(kind),
-): AppServerProfile {
-  const defaultProfile = defaultAppServerProfile(kind)
-  const id = normalizedAppServerProfileId(profile?.id?.trim() || fallback.id || defaultProfile.id, kind)
-  const home = managedAppServerHome(
-    profile?.home?.trim() || fallback.home || defaultProfile.home,
-    kind,
-  )
-  return {
-    id,
-    label: profile?.label?.trim() || fallback.label || defaultProfile.label,
-    providerKey: kind,
-    ...(profile?.executablePath?.trim() ? { executablePath: profile.executablePath.trim() } : fallback.executablePath ? { executablePath: fallback.executablePath } : {}),
-    ...(profile?.executableCommand?.trim() ? { executableCommand: profile.executableCommand.trim() } : fallback.executableCommand ? { executableCommand: fallback.executableCommand } : {}),
-    ...(profile?.executableEnvVar?.trim() ? { executableEnvVar: normalizeEnvironmentVariableName(profile.executableEnvVar) ?? profile.executableEnvVar.trim() } : fallback.executableEnvVar ? { executableEnvVar: fallback.executableEnvVar } : {}),
-    ...normalizedStringListField('compatibilityBinEnvNames', profile?.compatibilityBinEnvNames ?? fallback.compatibilityBinEnvNames, normalizeEnvironmentVariableName),
-    ...normalizedStringListField('candidateRootRelativePaths', profile?.candidateRootRelativePaths ?? fallback.candidateRootRelativePaths),
-    ...normalizedStringListField('candidateBinaryNames', profile?.candidateBinaryNames ?? fallback.candidateBinaryNames),
-    ...(typeof profile?.pathFallbackReady === 'boolean' ? { pathFallbackReady: profile.pathFallbackReady } : typeof fallback.pathFallbackReady === 'boolean' ? { pathFallbackReady: fallback.pathFallbackReady } : {}),
-    home,
-    ...normalizedCompatibilityHomeEnvNamesField(profile?.compatibilityHomeEnvNames ?? fallback.compatibilityHomeEnvNames),
-    ...(profile?.workspaceDir?.trim() ? { workspaceDir: profile.workspaceDir.trim() } : fallback.workspaceDir ? { workspaceDir: fallback.workspaceDir } : {}),
-    lifecycle: 'movscript-owned',
-  }
-}
-
-function normalizedCompatibilityHomeEnvNamesField(value: string[] | undefined): { compatibilityHomeEnvNames?: string[] } {
-  return normalizedStringListField('compatibilityHomeEnvNames', value, normalizeEnvironmentVariableName)
-}
-
-function normalizedStringListField<K extends string>(
-  key: K,
-  value: string[] | undefined,
-  normalize: (value: string) => string | undefined = (item) => item.trim() || undefined,
-): { [P in K]?: string[] } {
-  const values: string[] = []
-  for (const item of value ?? []) {
-    const normalized = typeof item === 'string' ? normalize(item) : undefined
-    if (!normalized) continue
-    if (!values.includes(normalized)) values.push(normalized)
-  }
-  return values.length > 0 ? { [key]: values } as { [P in K]?: string[] } : {}
-}
-
-function normalizeEnvironmentVariableName(value: string): string | undefined {
-  const normalized = value.trim().toUpperCase()
-  return /^[A-Z_][A-Z0-9_]*$/.test(normalized) ? normalized : undefined
-}
-
 function persistedAppServerProfileForKind(
   provider: ProviderConfig | PersistedProviderConfig | undefined,
 ): AppServerProfile | PersistedAppServerProfile | undefined {
@@ -414,59 +315,8 @@ function persistedAppServerProfileForKind(
   return provider.appServerProfile
 }
 
-function appServerProviderKindForProvider(
-  provider: ProviderConfig | PersistedProviderConfig | undefined,
-  fallback: ProviderKind,
-): AppServerProviderKind {
-  return normalizeAppServerProviderKind(provider?.appServerProfile?.providerKey) ?? normalizeAppServerProviderKind(fallback) ?? MOVA_PROVIDER_ID
-}
-
 function normalizeProviderKind(kind: unknown): ProviderKind | undefined {
   return normalizeProviderKey(kind) as ProviderKind | undefined
-}
-
-function normalizeAppServerProviderKind(kind: unknown): AppServerProviderKind | undefined {
-  return normalizeProviderKey(kind) as AppServerProviderKind | undefined
-}
-
-function normalizeProviderKey(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const key = value.trim().toLowerCase()
-  return /^[a-z][a-z0-9_-]{0,63}$/.test(key) ? key : undefined
-}
-
-function defaultAppServerProfile(kind: AppServerProviderKind): AppServerProfile {
-  return {
-    id: `${kind}-movscript-home`,
-    label: `MovScript ${providerLabel(kind)}`,
-    providerKey: kind,
-    home: managedAppServerHomePath(kind),
-    lifecycle: 'movscript-owned',
-  }
-}
-
-function normalizedAppServerProfileId(id: string, kind: AppServerProviderKind): string {
-  return normalizeProviderKey(id) ?? `${kind}-movscript-home`
-}
-
-function managedAppServerHome(value: string, kind: AppServerProviderKind): string {
-  const managedHome = managedAppServerHomePath(kind)
-  const trimmed = normalizeMovScriptManagedHome(value.trim())
-  if (!trimmed || trimmed === '~' || trimmed.startsWith('~/') || trimmed.startsWith('/')) {
-    return managedHome
-  }
-  return trimmed === managedHome
-    || trimmed.startsWith(`${managedHome}/`)
-    ? trimmed
-    : managedHome
-}
-
-function managedAppServerHomePath(kind: AppServerProviderKind): string {
-  return `.${kind}`
-}
-
-function normalizeMovScriptManagedHome(value: string): string {
-  return value.replace(/^\.movscript[\\/](\.[^\\/]+)/, '$1')
 }
 
 export function providerInstanceId(provider: ProviderConfig): string {
@@ -496,12 +346,4 @@ export function providerThreadRefKey(ref: ProviderThreadRef): string {
     ref.workspaceDir ?? '',
     ref.threadId,
   ].join(':')
-}
-
-function providerLabel(kind: string): string {
-  return kind
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ') || kind
 }

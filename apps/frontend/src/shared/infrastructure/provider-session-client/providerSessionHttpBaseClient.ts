@@ -12,6 +12,8 @@ export interface ProviderSessionHttpClientOptions {
   requestTimeoutMs?: number
   transport?: ProviderSessionTransport
   providerProfileKey?: string
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
   sessionId?: string
 }
@@ -20,6 +22,8 @@ export class ProviderSessionHttpBaseClient {
   readonly baseURL: string
   readonly transportKind: ProviderSessionTransport['kind']
   readonly providerProfileKey?: string
+  readonly movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   readonly workspaceDir?: string
   readonly sessionId?: string
   protected readonly transport: ProviderSessionTransport
@@ -30,11 +34,13 @@ export class ProviderSessionHttpBaseClient {
     transport?: ProviderSessionTransport,
     options: ProviderSessionHttpClientOptions = {},
   ) {
-    this.transport = transport ?? options.transport ?? providerSessionTransport({ workspaceDir: options.workspaceDir, sessionId: options.sessionId })
+    const movScriptHomeDir = options.movScriptHomeDir ?? options.workspaceDir
+    this.transport = transport ?? options.transport ?? providerSessionTransport({ movScriptHomeDir, workspaceDir: options.workspaceDir, sessionId: options.sessionId })
     this.baseURL = this.transport.endpointLabel
     this.transportKind = this.transport.kind
     this.providerProfileKey = options.providerProfileKey
-    this.workspaceDir = options.workspaceDir
+    this.movScriptHomeDir = movScriptHomeDir
+    this.workspaceDir = movScriptHomeDir
     this.sessionId = options.sessionId
     this.healthTimeoutMs = normalizePositiveTimeoutMs(options.healthTimeoutMs) ?? DEFAULT_PROVIDER_SESSION_HEALTH_TIMEOUT_MS
     this.requestTimeoutMs = normalizePositiveTimeoutMs(options.requestTimeoutMs) ?? DEFAULT_PROVIDER_SESSION_REQUEST_TIMEOUT_MS

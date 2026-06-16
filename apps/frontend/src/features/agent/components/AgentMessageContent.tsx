@@ -21,7 +21,7 @@ import {
 } from '@movscript/ui/business/agent'
 
 export { attachmentDisplayUrl, formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
-export { AgentMessageSection } from '@movscript/ui/business/agent'
+export { AgentMessageSection } from '@/shared/ui/AgentMessageUi'
 
 type MarkdownSegment =
   | { type: 'code'; key: string; lang: string; code: string }

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/movscript/movscript/internal/domain/media"
 )
 
 type fakeBlobStorage struct{}
@@ -57,6 +59,15 @@ func (fakeAIGateway) VideoPoll(context.Context, VideoPollRequest) (VideoResponse
 }
 func (fakeAIGateway) VideoCancel(context.Context, VideoCancelRequest) (VideoResponse, error) {
 	return VideoResponse{}, nil
+}
+func (fakeAIGateway) Synthesize(context.Context, media.TTSRequest) (media.TTSResponse, error) {
+	return media.TTSResponse{}, nil
+}
+func (fakeAIGateway) Transcribe(context.Context, media.TranscribeRequest) (media.SubtitleResponse, error) {
+	return media.SubtitleResponse{}, nil
+}
+func (fakeAIGateway) Align(context.Context, media.AlignRequest) (media.SubtitleResponse, error) {
+	return media.SubtitleResponse{}, nil
 }
 
 type fakeAIGatewayFileUploader struct{}
@@ -124,6 +135,8 @@ var (
 	_ AIGatewayResponsesProvider       = fakeAIGateway{}
 	_ AIGatewayVideoTaskProvider       = fakeAIGateway{}
 	_ AIGatewayVideoTaskCancelProvider = fakeAIGateway{}
+	_ AIGatewayAudioSpeechProvider     = fakeAIGateway{}
+	_ AIGatewayAudioSubtitleProvider   = fakeAIGateway{}
 	_ AIGatewayFileUploader            = fakeAIGatewayFileUploader{}
 	_ VectorIndexProvider              = fakeVectorIndex{}
 	_ MediaProcessingProvider          = fakeMediaProcessing{}

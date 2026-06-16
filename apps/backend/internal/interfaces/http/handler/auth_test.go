@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -88,6 +89,7 @@ func TestAuthRegisterRequiresEnabledRegistrationAndEmailChallenge(t *testing.T) 
 	handler := NewAuthHandler(db, tokens)
 	mailer := &recordingMailSender{}
 	handler.mailSender = mailer
+	handler.configTurnstile = adminsettings.TurnstileSettings{Enabled: true, SiteKey: "site-key", SecretKey: "secret-key"}
 	router := gin.New()
 	router.POST("/auth/code/start", handler.StartCode)
 	router.POST("/auth/register", handler.Register)
@@ -112,14 +114,38 @@ func TestAuthRegisterRequiresEnabledRegistrationAndEmailChallenge(t *testing.T) 
 		t.Fatalf("update auth settings: %v", err)
 	}
 
+	previousClient := turnstileHTTPClient
+	turnstileHTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse turnstile form: %v", err)
+		}
+		if r.Form.Get("secret") != "secret-key" || r.Form.Get("response") != "ok" {
+			t.Fatalf("unexpected turnstile form: %v", r.Form)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"success":true}`)),
+		}, nil
+	})}
+	t.Cleanup(func() { turnstileHTTPClient = previousClient })
+
 	noCodeRes := httptest.NewRecorder()
-	router.ServeHTTP(noCodeRes, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"username":"alice","password":"secret123"}`)))
+	router.ServeHTTP(noCodeRes, httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"username":"alice","password":"secret123","turnstile":"ok"}`)))
 	if noCodeRes.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing challenge rejected, got %d: %s", noCodeRes.Code, noCodeRes.Body.String())
 	}
 
+	missingTurnstileRes := httptest.NewRecorder()
+	missingTurnstileReq := httptest.NewRequest(http.MethodPost, "/auth/code/start", strings.NewReader(`{"target":"alice@example.com","purpose":"register"}`))
+	missingTurnstileReq.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(missingTurnstileRes, missingTurnstileReq)
+	if missingTurnstileRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing turnstile rejected, got %d: %s", missingTurnstileRes.Code, missingTurnstileRes.Body.String())
+	}
+
 	startRes := httptest.NewRecorder()
-	startReq := httptest.NewRequest(http.MethodPost, "/auth/code/start", strings.NewReader(`{"target":"alice@example.com","purpose":"register"}`))
+	startReq := httptest.NewRequest(http.MethodPost, "/auth/code/start", strings.NewReader(`{"target":"alice@example.com","purpose":"register","turnstile":"ok"}`))
 	startReq.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(startRes, startReq)
 	if startRes.Code != http.StatusOK {
@@ -127,6 +153,29 @@ func TestAuthRegisterRequiresEnabledRegistrationAndEmailChallenge(t *testing.T) 
 	}
 	if !strings.Contains(mailer.last.Text, "Movscript verification code") {
 		t.Fatalf("mail body did not include verification copy: %q", mailer.last.Text)
+	}
+}
+
+func TestAuthConfigExposesTurnstileSiteKeyOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-auth-turnstile-config.db", &persistencemodel.AdminSetting{}, &persistencemodel.User{})
+	tokens, err := auth.NewManager("0123456789abcdef0123456789abcdef", 3600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewAuthHandler(db, tokens)
+	handler.configTurnstile = adminsettings.TurnstileSettings{Enabled: true, SiteKey: "site-key", SecretKey: "secret-key"}
+	router := gin.New()
+	router.GET("/auth/config", handler.Config)
+
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/auth/config", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected auth config, got %d: %s", res.Code, res.Body.String())
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, `"site_key":"site-key"`) || strings.Contains(body, "secret-key") {
+		t.Fatalf("turnstile config leaked or missed key: %s", body)
 	}
 }
 

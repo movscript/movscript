@@ -7,7 +7,7 @@
 - `apps/backend`：当前系统后端。
 - `apps/admin`：当前系统管理层。
 - `apps/frontend`：当前用户前端与 Electron 桌面端。
-- 不包含 `new-api`。
+- 不包含 `商业外部 AI 网关`。
 
 ## 核心判断
 
@@ -367,7 +367,7 @@ Shot Library 不是存储系统，而是建立在 Resource 之上的创作知识
 
 - AI provider：OpenAI、Claude、Gemini、Kling、Volcen 等上游。
 - Agent provider runtime：Mova/Codex app-server。
-- Storage/provider dependency：MinIO、filesystem、Gitea、Redis、new-api 等部署依赖。
+- Storage/provider dependency：MinIO、filesystem、Gitea、Redis、商业外部 AI 网关 等部署依赖。
 
 建议命名分开：
 

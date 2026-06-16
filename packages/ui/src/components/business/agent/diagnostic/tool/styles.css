@@ -1,21 +1,16 @@
 .ms-agent-diagnostic-tool {
   padding: 6px 8px;
-  font-size: var(--ms-text-caption);
 }
 
 .ms-agent-diagnostic-tool__header {
-  display: flex;
   min-width: 0;
   align-items: center;
   gap: 4px;
 }
 
 .ms-agent-diagnostic-tool__name {
-  overflow: hidden;
   color: var(--ms-color-foreground);
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ms-agent-diagnostic-tool__text {
@@ -25,6 +20,4 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-body);
 }

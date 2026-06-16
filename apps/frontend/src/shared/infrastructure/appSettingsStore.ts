@@ -6,9 +6,11 @@ import {
   getDefaultAPIBaseURL,
   getLocalAPIBaseURL,
   normalizeAPIBaseURL,
+  refreshRuntimeConfigSnapshot,
   type AppSettings,
 } from '@/shared/infrastructure/config'
 import type { ShotLibrarySourceConfig } from '@/shared/contracts/appSettings'
+import type { ElectronAppSettingsSecrets } from '@/shared/contracts/electronApi'
 import { normalizeAppSettings } from '@movscript/core/shared'
 
 interface AppSettingsStore {
@@ -42,10 +44,42 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
 export async function saveElectronAppSettings(settings: AppSettings): Promise<void> {
   if (typeof window === 'undefined') return
   await readElectronApi()?.setAppSettings?.(settings)
+  await refreshRuntimeConfigSnapshot().catch(() => null)
 }
 
 function syncElectronSettings(settings: AppSettings): void {
   void saveElectronAppSettings(settings)
+}
+
+export function sanitizeAppSettingsForPersistence(settings: AppSettings): AppSettings {
+  return {
+    ...settings,
+    shotLibrarySources: settings.shotLibrarySources?.map((source) => ({
+      id: source.id,
+      name: source.name,
+      baseURL: source.baseURL,
+      enabled: source.enabled,
+      readOnly: source.readOnly,
+    })),
+  }
+}
+
+export function mergeAppSettingsSecrets(settings: AppSettings, secrets: ElectronAppSettingsSecrets): AppSettings {
+  if (!settings.shotLibrarySources?.length) return settings
+  const shotLibrarySources = settings.shotLibrarySources.map((source) => {
+    const authToken = secrets.shotLibrarySourceAuthTokens[source.id]?.trim()
+    return authToken ? { ...source, authToken } : source
+  })
+  return normalizeSettings({ ...settings, shotLibrarySources })
+}
+
+async function hydrateElectronAppSettingsSecrets(): Promise<void> {
+  const api = readElectronApi()
+  if (!api?.getAppSettingsSecrets) return
+  const secrets = await api.getAppSettingsSecrets()
+  const current = useAppSettingsStore.getState().settings
+  const next = mergeAppSettingsSecrets(current, secrets)
+  useAppSettingsStore.setState({ settings: next })
 }
 
 export const useAppSettingsStore = create<AppSettingsStore>()(
@@ -120,7 +154,7 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
     }),
     {
       name: APP_SETTINGS_STORAGE_KEY,
-      partialize: (state) => ({ settings: state.settings, savedAt: state.savedAt }),
+      partialize: (state) => ({ settings: sanitizeAppSettingsForPersistence(state.settings), savedAt: state.savedAt }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AppSettingsStore> | undefined
         const settings = normalizeSettings(persisted?.settings)
@@ -135,7 +169,9 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
         if (!state) return
         state.settings = normalizeSettings(state.settings)
         state.hydrated = true
-        syncElectronSettings(state.settings)
+        void hydrateElectronAppSettingsSecrets()
+          .then(() => syncElectronSettings(useAppSettingsStore.getState().settings))
+          .catch(() => null)
       },
     }
   )

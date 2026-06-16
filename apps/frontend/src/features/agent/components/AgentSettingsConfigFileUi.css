@@ -12,61 +12,11 @@
   background: color-mix(in srgb, var(--ms-color-primary) 8%, transparent);
 }
 
-.agent-settings-config-file-card__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--ms-space-2);
-}
-
-.agent-settings-config-file-card__title-row {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.agent-settings-config-file-card__title {
-  margin: 0;
-  overflow: hidden;
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  font-weight: 500;
-  line-height: var(--ms-leading-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-settings-config-file-card__id {
-  margin: 2px 0 0;
-  overflow: hidden;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-settings-config-file-card__description {
-  display: -webkit-box;
-  margin: var(--ms-space-1) 0 0;
-  overflow: hidden;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
 .agent-settings-config-file-card__summary-grid {
   display: grid;
   gap: var(--ms-space-2);
   margin-top: var(--ms-space-2);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
 }
 
 @media (min-width: 640px) {
@@ -141,18 +91,6 @@
   gap: 4px;
 }
 
-.agent-settings-config-file-list-item__title {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  font-weight: 600;
-  line-height: var(--ms-leading-label);
-  text-overflow: ellipsis;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
 .agent-settings-config-file-list-item__badges {
   display: inline-flex;
   flex-wrap: wrap;
@@ -160,71 +98,9 @@
   gap: 4px;
 }
 
-.agent-settings-config-file-list-item__id,
-.agent-settings-config-file-list-item__description,
-.agent-settings-config-file-list-item__summary {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
-  text-overflow: ellipsis;
-}
-
-.agent-settings-config-file-list-item__id,
-.agent-settings-config-file-list-item__summary {
-  white-space: nowrap;
-}
-
-.agent-settings-config-file-list-item__description {
-  display: -webkit-box;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
 .agent-settings-config-file-editor-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--ms-space-2);
   border-bottom: 1px solid var(--ms-color-border);
   padding-bottom: var(--ms-space-3);
-}
-
-.agent-settings-config-file-editor-header__title-row {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ms-space-2);
-}
-
-.agent-settings-config-file-editor-header__title {
-  margin: 0;
-  color: var(--ms-color-foreground);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 24px;
-}
-
-.agent-settings-config-file-editor-header__description {
-  margin: 4px 0 0;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
-}
-
-.agent-settings-config-file-editor-header__badges,
-.agent-settings-config-file-editor-header__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ms-space-1);
-}
-
-.agent-settings-config-file-editor-header__actions {
-  gap: var(--ms-space-2);
 }
 
 .agent-settings-config-file-editor-section {
@@ -234,21 +110,6 @@
 
 .agent-settings-config-file-editor-section__header {
   margin-bottom: var(--ms-space-3);
-}
-
-.agent-settings-config-file-editor-section__title {
-  margin: 0;
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  font-weight: 600;
-  line-height: var(--ms-leading-label);
-}
-
-.agent-settings-config-file-editor-section__description {
-  margin: 4px 0 0;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
 }
 
 .agent-settings-config-file-editor-section__body {
@@ -271,14 +132,6 @@
 
 .agent-settings-config-file-summary__value {
   margin: 2px 0 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-settings-config-file-diff-section {
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
 }
 
 .agent-settings-config-file-diff-section__lines {

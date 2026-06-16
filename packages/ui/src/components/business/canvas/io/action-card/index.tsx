@@ -2,6 +2,7 @@ import { accentSoftClass, accentTextClass } from "../../../../../semantic";
 import { cn } from "../../../../../lib/cn";
 import { AppIconFrame, AppInlineMeta } from "../../../app";
 import { Button } from "../../../../primitives/button";
+import { FrameActions, FrameBody, FrameHeader, FrameHeading } from "../../../../primitives/frame";
 import { Input } from "../../../../primitives/input";
 import { CheckIcon, CircleIcon, LoaderIcon, MoreHorizontalIcon, PlayIcon } from "../../../../primitives/icons";
 import { NativeSelect } from "../../../../primitives/select";
@@ -38,27 +39,27 @@ export function CanvasIOActionCard({
   const isPending = state === "pending";
 
   return (
-    <CanvasCardShell selected={selected} className={cn("canvas-io-action-card", className)}>
-      <header className={cn("canvas-io-action-card__header", accentSoftClass(tone))}>
-        <div className="canvas-io-action-card__heading">
+    <CanvasCardShell selected={selected} className={cn("ms-type-label canvas-io-action-card", className)}>
+      <FrameHeader as="header" className={cn("canvas-io-action-card__header", accentSoftClass(tone))}>
+        <FrameHeading className="canvas-io-action-card__heading">
           <AppIconFrame>
             <Icon size={14} className={accentTextClass(tone)} />
           </AppIconFrame>
           <div className="canvas-io-action-card__title-block">
-            <div className="canvas-io-action-card__title-row">
+            <div className="ms-action-row canvas-io-action-card__title-row">
               <CanvasIOPortKindBadge portType={port.type} tone={tone} />
-              <p className="canvas-io-action-card__title">{title}</p>
+              <p className="ms-frame__title ms-text-truncate ms-type-body canvas-io-action-card__title">{title}</p>
               {status ? <AppInlineMeta className="canvas-io-action-card__status">{status}</AppInlineMeta> : null}
             </div>
-            {subtitle ? <p className="canvas-io-action-card__subtitle">{subtitle}</p> : null}
+            {subtitle ? <p className="ms-frame__description ms-text-truncate ms-type-caption canvas-io-action-card__subtitle">{subtitle}</p> : null}
           </div>
           <Button size="icon-xs" variant="ghost" className="canvas-io-action-card__menu-button" aria-label="More">
             <MoreHorizontalIcon size={14} />
           </Button>
-        </div>
-      </header>
+        </FrameHeading>
+      </FrameHeader>
 
-      <div className="canvas-io-action-card__body">
+      <FrameBody className="ms-grid-stack canvas-io-action-card__body">
         <div>
           <CanvasIOSectionTitle icon={<Icon size={12} />} label={bodyLabel} />
           <CanvasIOPortRow port={port} state={state} renderPortHandle={renderPortHandle} />
@@ -66,11 +67,12 @@ export function CanvasIOActionCard({
 
         {editableFields ? (
           <div className="canvas-io-action-card__editable-fields nodrag nopan">
-            <label className="canvas-io-action-card__editable-field">
-              <span>{editableFields.nameLabel}</span>
+            <label className="ms-grid-stack ms-type-tiny canvas-io-action-card__editable-field">
+              <span className="ms-text-truncate">{editableFields.nameLabel}</span>
               <Input
                 controlSize="sm"
                 variant="subtle"
+                className="ms-type-tiny"
                 value={editableFields.nameValue}
                 placeholder={editableFields.namePlaceholder}
                 onChange={editableFields.onNameChange}
@@ -78,11 +80,12 @@ export function CanvasIOActionCard({
                 onClick={(event) => event.stopPropagation()}
               />
             </label>
-            <label className="canvas-io-action-card__editable-field canvas-io-action-card__editable-field--order">
-              <span>{editableFields.orderLabel}</span>
+            <label className="ms-grid-stack ms-type-tiny canvas-io-action-card__editable-field canvas-io-action-card__editable-field--order">
+              <span className="ms-text-truncate">{editableFields.orderLabel}</span>
               <Input
                 controlSize="sm"
                 variant="subtle"
+                className="ms-type-tiny"
                 type="number"
                 min={1}
                 step={1}
@@ -93,11 +96,12 @@ export function CanvasIOActionCard({
               />
             </label>
             {editableFields.typeOptions?.length ? (
-              <label className="canvas-io-action-card__editable-field canvas-io-action-card__editable-field--type">
-                <span>{editableFields.typeLabel}</span>
+              <label className="ms-grid-stack ms-type-tiny canvas-io-action-card__editable-field canvas-io-action-card__editable-field--type">
+                <span className="ms-text-truncate">{editableFields.typeLabel}</span>
                 <NativeSelect
                   controlSize="sm"
                   variant="subtle"
+                  className="ms-type-tiny"
                   value={editableFields.typeValue}
                   onChange={editableFields.onTypeChange}
                   onMouseDown={(event) => event.stopPropagation()}
@@ -113,7 +117,7 @@ export function CanvasIOActionCard({
         ) : null}
 
         <div className="canvas-io-action-card__metrics">
-          <div className="canvas-io-action-card__meta-list">
+          <div className="ms-grid-stack canvas-io-action-card__meta-list">
             {metaItems.length > 0 ? (
               metaItems.slice(0, 2).map((item) => <CanvasIOMetaPill key={item.id} item={item} />)
             ) : (
@@ -130,10 +134,10 @@ export function CanvasIOActionCard({
         </div>
 
         <CanvasIOBodyBlock state={state} value={bodyValue} emptyLabel={emptyLabel ?? stateLabel} />
-      </div>
+      </FrameBody>
 
       {primaryAction || footer ? (
-        <footer className="canvas-io-action-card__footer">
+        <FrameActions className="canvas-io-action-card__footer">
           {primaryAction ? (
             <Button
               size="sm"
@@ -150,7 +154,7 @@ export function CanvasIOActionCard({
             </Button>
           ) : null}
           {footer ? <div className={primaryAction ? "canvas-io-action-card__footer-extra" : undefined}>{footer}</div> : null}
-        </footer>
+        </FrameActions>
       ) : null}
     </CanvasCardShell>
   );

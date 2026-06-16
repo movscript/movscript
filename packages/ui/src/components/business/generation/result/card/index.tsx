@@ -49,14 +49,14 @@ export function GenerationResultCard({
     <AppSurfaceItem className={cn("generation-result-card", compact && "generation-result-card--compact", className)}>
       {prompt ? (
         <div className={cn("generation-result-card__prompt", compact && "generation-result-card__prompt--compact")}>
-          <div className="generation-result-card__prompt-header">
-            <div className="generation-result-card__status-row">
-              <StatusBadge intent={generationResultStatusIntent(status)} className="generation-result-card__status">
+          <div className="ms-action-row generation-result-card__prompt-header">
+            <div className="ms-action-row generation-result-card__status-row">
+              <StatusBadge intent={generationResultStatusIntent(status)} className="ms-type-tiny generation-result-card__status">
                 {statusLabel}
               </StatusBadge>
-              {timestampLabel ? <span className="generation-result-card__timestamp">{timestampLabel}</span> : null}
+              {timestampLabel ? <span className="ms-text-truncate ms-type-caption generation-result-card__timestamp">{timestampLabel}</span> : null}
             </div>
-            <div className="generation-result-card__actions">
+            <div className="ms-action-row generation-result-card__actions">
               {status === "done" && !compact ? <CheckIcon className={cn("generation-result-card__done-icon", toneTextClass("success"))} /> : null}
               {onReuse ? (
                 <Button
@@ -72,8 +72,8 @@ export function GenerationResultCard({
               ) : null}
             </div>
           </div>
-          <p className={cn("generation-result-card__prompt-text", compact && "generation-result-card__prompt-text--compact")}>{prompt}</p>
-          {timestampLabel && !compact ? <span className="generation-result-card__timestamp generation-result-card__timestamp--standalone">{timestampLabel}</span> : null}
+          <p className={cn("ms-type-body generation-result-card__prompt-text", compact && "ms-type-label generation-result-card__prompt-text--compact")}>{prompt}</p>
+          {timestampLabel && !compact ? <span className="ms-text-truncate ms-type-label generation-result-card__timestamp generation-result-card__timestamp--standalone">{timestampLabel}</span> : null}
         </div>
       ) : null}
 
@@ -85,8 +85,8 @@ export function GenerationResultCard({
 
       <div className={cn("generation-result-card__output", compact && "generation-result-card__output--compact")}>
         {isRunning ? (
-          <AppSurfaceItem variant="muted" className={cn("generation-result-card__state generation-result-card__state--loading", compact && "generation-result-card__state--compact")}>
-            <div className="generation-result-card__state-content">
+          <AppSurfaceItem variant="muted" className={cn("ms-center generation-result-card__state generation-result-card__state--loading", compact && "generation-result-card__state--compact")}>
+            <div className="ms-stack ms-type-label generation-result-card__state-content">
               <LoaderIcon className="generation-result-card__spin-icon" />
               <p>{loadingLabel}</p>
             </div>
@@ -97,14 +97,14 @@ export function GenerationResultCard({
           <AppStateMessage
             tone="danger"
             icon={<XIcon className="generation-result-card__state-icon" />}
-            className={cn("generation-result-card__error", compact && "generation-result-card__error--compact")}
+            className={cn("ms-center ms-type-body generation-result-card__error", compact && "ms-type-label generation-result-card__error--compact")}
           >
             {failedLabel}
           </AppStateMessage>
         ) : null}
 
         {!isRunning && status === "cancelled" ? (
-          <AppSurfaceItem variant="muted" className={cn("generation-result-card__state generation-result-card__state--cancelled", compact && "generation-result-card__state--compact")}>
+          <AppSurfaceItem variant="muted" className={cn("ms-center ms-action-row ms-type-body generation-result-card__state generation-result-card__state--cancelled", compact && "generation-result-card__state--compact")}>
             <XIcon className="generation-result-card__state-icon" />
             <p>{cancelledLabel}</p>
           </AppSurfaceItem>

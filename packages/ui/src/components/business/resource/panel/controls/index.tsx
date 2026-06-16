@@ -16,7 +16,7 @@ export const ResourcePanelTabButton = forwardRef<HTMLButtonElement, ButtonProps 
     variant={active ? "soft" : "ghost"}
     size="sm"
     data-active={active ? "true" : undefined}
-    className={cn("resource-panel__tab", className)}
+    className={cn("ms-type-label resource-panel__tab", className)}
     {...props}
   />
 ));
@@ -27,8 +27,8 @@ export const ResourcePanelSearchField = forwardRef<HTMLInputElement, InputProps 
   icon?: ReactNode;
 }>(({ icon, className, ...props }, ref) => (
   <div className="resource-panel-search">
-    {icon ? <span className="resource-panel-search__icon">{icon}</span> : null}
-    <Input ref={ref} className={cn("resource-panel-search__input", className)} {...props} />
+    {icon ? <span className="ms-inline-center resource-panel-search__icon">{icon}</span> : null}
+    <Input ref={ref} className={cn("ms-type-label resource-panel-search__input", className)} {...props} />
   </div>
 ));
 
@@ -50,7 +50,7 @@ export const ResourcePanelSegmentButton = forwardRef<HTMLButtonElement, ButtonPr
     type="button"
     variant={active ? "solid" : "ghost"}
     size="xs"
-    className={cn("resource-panel-segments__button", className)}
+    className={cn("ms-type-caption resource-panel-segments__button", className)}
     {...props}
   />
 ));
@@ -59,7 +59,7 @@ ResourcePanelSegmentButton.displayName = "ResourcePanelSegmentButton";
 
 export const ResourcePanelSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
   ({ className, controlSize = "sm", ...props }, ref) => (
-    <NativeSelect ref={ref} controlSize={controlSize} className={cn("resource-panel__select", className)} {...props} />
+    <NativeSelect ref={ref} controlSize={controlSize} className={cn("ms-type-label resource-panel__select", className)} {...props} />
   )
 );
 

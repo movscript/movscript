@@ -39,7 +39,6 @@ export {
   CanvasNodeTextResultHeader,
   CanvasNodeTextResultSurface,
   CanvasNodeTextResultView,
-  CanvasWorkflowReferenceCard,
   CanvasPortDot,
   CanvasSurfaceItem,
   canvasNodeCardPortHandleStyle,
@@ -58,35 +57,9 @@ export {
   type CanvasNodeParamControlsViewProps,
   type CanvasNodeParamModelControl,
   type CanvasNodePromptInputViewProps,
-  type CanvasWorkflowReferenceAction,
-  type CanvasWorkflowReferenceCardProps,
-  type CanvasWorkflowReferencePort,
   type CanvasSurfaceDensity,
   type CanvasSurfaceVariant,
 } from "./card";
-export {
-  CanvasContextMenuItem,
-  CanvasContextMenuItemIcon,
-  CanvasContextMenuRoot,
-  CanvasContextMenuSectionTitle,
-  CanvasContextMenuSeparator,
-  CanvasContextMenuView,
-  type CanvasContextMenuAction,
-  type CanvasContextMenuSection,
-  type CanvasContextMenuViewProps,
-} from "./context-menu";
-export {
-  CanvasDropOverlay,
-  CanvasGroupHeader,
-  CanvasGroupFrame,
-  CanvasResizeHandleButton,
-  CanvasSelectionFrame,
-  CanvasViewportActionButton,
-} from "./flow";
-export {
-  CanvasGenerationBody,
-  type CanvasGenerationModelOption,
-} from "./generation";
 export {
   CanvasMediaFill,
   CanvasMediaEmptyIcon,

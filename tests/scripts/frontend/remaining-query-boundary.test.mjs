@@ -10,6 +10,7 @@ const projectQueriesSource = readSource('apps/frontend/src/features/project/appl
 const projectStandardsSource = readSource('apps/frontend/src/features/project-standards/components/ProjectStandardsPage.tsx')
 const projectStandardsBoardModelSource = readSource('apps/frontend/src/features/project-standards/presentation/projectStandardsBoardModel.ts')
 const projectStandardsModelSource = readSource('apps/frontend/src/features/project-standards/application/projectStandardsModel.ts')
+const projectStandardsPromptRulesSource = readSource('apps/frontend/src/features/project-standards/application/projectStandardsPromptRules.ts')
 const projectStandardsQueryKeysSource = readSource('apps/frontend/src/features/project-standards/application/projectStandardsQueryKeys.ts')
 const projectStandardsWorkspaceSource = readSource('apps/frontend/src/features/project-standards/domain/projectStandardsWorkspaceWorkspace.ts')
 const resourcePanelSource = readSource('apps/frontend/src/shared/ui/ResourcePanel.tsx')
@@ -45,6 +46,19 @@ test('project standards page delegates board grouping model', () => {
   assert.doesNotMatch(projectStandardsSource, /type StandardWorkbenchCard =/)
   assert.doesNotMatch(projectStandardsSource, /const CORE_STANDARD_GROUPS =/)
   assert.doesNotMatch(projectStandardsSource, /function coreCards\(/)
+})
+
+test('project standards model delegates prompt rules and core standards', () => {
+  assert.match(projectStandardsModelSource, /from '@\/features\/project-standards\/application\/projectStandardsPromptRules'/)
+  assert.match(projectStandardsModelSource, /export \* from '@\/features\/project-standards\/application\/projectStandardsPromptRules'/)
+  assert.match(projectStandardsPromptRulesSource, /export const CORE_STANDARD_DEFS/)
+  assert.match(projectStandardsPromptRulesSource, /export function projectPromptRules/)
+  assert.match(projectStandardsPromptRulesSource, /export function buildProjectPromptPreview/)
+  assert.match(projectStandardsPromptRulesSource, /export function parseProjectStyleRecord/)
+  assert.doesNotMatch(projectStandardsModelSource, /export const CORE_STANDARD_DEFS/)
+  assert.doesNotMatch(projectStandardsModelSource, /export function projectPromptRules/)
+  assert.doesNotMatch(projectStandardsModelSource, /export function buildProjectPromptPreview/)
+  assert.doesNotMatch(projectStandardsModelSource, /export function parseProjectStyleRecord/)
 })
 
 function readSource(path) {

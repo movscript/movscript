@@ -1,9 +1,6 @@
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Bot, Home, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Terminal } from 'lucide-react'
 import { WorkspaceShell, useResizablePanel } from '@movscript/ui/layout'
-import { AppWindowIconButton } from '@movscript/ui/business/app'
-import i18n from '@/i18n'
 import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Sidebar'
 import { Header } from '@/features/app-shell/components/Header'
 import { ProjectGitHeaderActions } from '@/features/app-shell/components/ProjectGitHeaderActions'
@@ -29,7 +26,19 @@ import { GlobalNavigationEffects } from '@/features/app-shell/application/Global
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { openHomeWindow } from '@/shared/infrastructure/appWindowContext'
+import {
+  AppShellAgentContentToggle,
+  AppShellHistoryNavigationControls,
+  AppShellHomeControl,
+  AppShellLeftPaneToggle,
+  AppShellProjectAgentToggle,
+  AppShellSettingsExitControl,
+  AppShellTerminalToggle,
+} from '@/features/app-shell/application/AppShellLayoutControls'
+import {
+  appShellCollapsedSlotStyle,
+  appShellHiddenSlotStyle,
+} from '@/features/app-shell/application/AppShellLayoutSlots'
 import {
   clampAgentModeContentPanelWidth,
   clampAgentModeSidebarWidth,
@@ -112,8 +121,10 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   const projectAgentPanelClosed = projectAgentPane.collapsed || projectAgentPane.hidden
   const agentSidebarVisible = agentChrome && !agentSidebarPane.hidden
   const accountSettingsActiveTab = accountSettingsTabForLocation(pathname, search)
+  const agentSettingsActive = pathname === ROUTES.agentSettings
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
-  const settingsExitPath = accountSettingsActiveTab
+  const settingsActive = !!accountSettingsActiveTab || agentSettingsActive
+  const settingsExitPath = settingsActive
     ? readSettingsReturnPath() ?? routeForWorkMode(workMode, !!currentProject)
     : undefined
   const toolCenterContent = accountSettingsActiveTab
@@ -149,87 +160,30 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   })
   const { active: terminalResizeActive, ...terminalResizeHandleProps } = terminalResize.resizeHandleProps
   const terminalHeaderControl = (
-    <AppWindowIconButton
-      type="button"
-      className="app-window-terminal-toggle"
-      data-active={terminalOpen ? 'true' : undefined}
-      onClick={terminalOpen ? terminalPane.hide : terminalPane.show}
-      title={terminalOpen ? '收起 Terminal' : '展开 Terminal'}
-      aria-label={terminalOpen ? '收起 Terminal' : '展开 Terminal'}
-    >
-      <Terminal size={13} />
-    </AppWindowIconButton>
+    <AppShellTerminalToggle open={terminalOpen} onToggle={terminalOpen ? terminalPane.hide : terminalPane.show} />
   )
-  const homeHeaderControl = (
-    <AppWindowIconButton
-      type="button"
-      className="app-window-sidebar-toggle app-window-home-button"
-      onClick={() => {
-        void openHomeWindow()
-      }}
-      title="回到首页"
-      aria-label="回到首页"
-    >
-      <Home size={13} />
-    </AppWindowIconButton>
+  const homeHeaderControl = <AppShellHomeControl />
+  const settingsExitControl = (
+    <AppShellSettingsExitControl
+      active={settingsActive}
+      onExit={() => navigate(settingsExitPath ?? routeForWorkMode(workMode, !!currentProject), { replace: true })}
+    />
   )
-  const settingsExitControl = accountSettingsActiveTab ? (
-    <AppWindowIconButton
-      type="button"
-      className="app-window-sidebar-toggle app-window-business-back"
-      onClick={() => navigate(settingsExitPath ?? routeForWorkMode(workMode, !!currentProject), { replace: true })}
-      title="退出设置"
-      aria-label="退出设置"
-    >
-      <ArrowLeft size={14} />
-    </AppWindowIconButton>
-  ) : null
-  const projectHistoryNavigationControls = (
-    <>
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle project-window-controls__nav"
-        onClick={() => window.history.back()}
-        title="后退"
-        aria-label="后退"
-      >
-        <ArrowLeft size={14} />
-      </AppWindowIconButton>
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle project-window-controls__nav"
-        onClick={() => window.history.forward()}
-        title="前进"
-        aria-label="前进"
-      >
-        <ArrowRight size={14} />
-      </AppWindowIconButton>
-    </>
-  )
+  const projectHistoryNavigationControls = <AppShellHistoryNavigationControls navClassName="project-window-controls__nav" />
   const agentContentPanelClosed = agentContentPane.collapsed || agentContentPane.hidden
   const agentContentPanelHeaderControl = (
-    <AppWindowIconButton
-      type="button"
-      className="app-window-agent-content-toggle"
-      data-active={!agentContentPanelClosed ? 'true' : undefined}
-      onClick={agentContentPanelClosed ? agentContentPane.show : agentContentPane.collapse}
-      title={agentContentPanelClosed ? i18n.t('agents.chat.expandAgentContentPanel') : i18n.t('agents.chat.collapseAgentContentPanel')}
-      aria-label={agentContentPanelClosed ? i18n.t('agents.chat.expandAgentContentPanel') : i18n.t('agents.chat.collapseAgentContentPanel')}
-    >
-      {agentContentPanelClosed ? <PanelRightOpen size={13} /> : <PanelRightClose size={13} />}
-    </AppWindowIconButton>
+    <AppShellAgentContentToggle
+      closed={agentContentPanelClosed}
+      onShow={agentContentPane.show}
+      onCollapse={agentContentPane.collapse}
+    />
   )
   const projectAgentPanelHeaderControl = (
-    <AppWindowIconButton
-      type="button"
-      className="app-window-agent-content-toggle"
-      data-active={!projectAgentPanelClosed ? 'true' : undefined}
-      onClick={projectAgentPanelClosed ? projectAgentPane.show : projectAgentPane.collapse}
-      title={projectAgentPanelClosed ? i18n.t('agents.chat.expandProjectAgentPanel') : i18n.t('agents.chat.collapseProjectAgentPanel')}
-      aria-label={projectAgentPanelClosed ? i18n.t('agents.chat.expandProjectAgentPanel') : i18n.t('agents.chat.collapseProjectAgentPanel')}
-    >
-      {projectAgentPanelClosed ? <Bot size={13} /> : <PanelRightClose size={13} />}
-    </AppWindowIconButton>
+    <AppShellProjectAgentToggle
+      closed={projectAgentPanelClosed}
+      onShow={projectAgentPane.show}
+      onCollapse={projectAgentPane.collapse}
+    />
   )
   const terminalPanel = (
     <div
@@ -274,79 +228,22 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
   }, [settingsSidebarPane])
   const toolSidebarLayoutControls = (
     <div className="tool-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle"
-        onClick={toolSidebarHidden ? showToolSidebar : hideToolSidebar}
-        title={toolSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
-        aria-label={toolSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
-      >
-        {toolSidebarHidden ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-      </AppWindowIconButton>
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle tool-sidebar-window-controls__nav"
-        onClick={() => window.history.back()}
-        title="后退"
-        aria-label="后退"
-      >
-        <ArrowLeft size={14} />
-      </AppWindowIconButton>
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle tool-sidebar-window-controls__nav"
-        onClick={() => window.history.forward()}
-        title="前进"
-        aria-label="前进"
-      >
-        <ArrowRight size={14} />
-      </AppWindowIconButton>
+      <AppShellLeftPaneToggle hidden={toolSidebarHidden} onShow={showToolSidebar} onHide={hideToolSidebar} />
+      <AppShellHistoryNavigationControls navClassName="tool-sidebar-window-controls__nav" />
     </div>
   )
   const settingsSidebarLayoutControls = (
     <div className="tool-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle"
-        onClick={settingsSidebarHidden ? showSettingsSidebar : hideSettingsSidebar}
-        title={settingsSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
-        aria-label={settingsSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
-      >
-        {settingsSidebarHidden ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-      </AppWindowIconButton>
+      <AppShellLeftPaneToggle hidden={settingsSidebarHidden} onShow={showSettingsSidebar} onHide={hideSettingsSidebar} />
     </div>
   )
   const agentSidebarLayoutControls = (
     <div className="agent-sidebar-window-controls flex shrink-0 items-center gap-1">
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle"
-        onClick={agentSidebarVisible ? agentSidebarPane.hide : agentSidebarPane.show}
-        title={agentSidebarVisible ? '隐藏左侧栏' : '显示左侧栏'}
-        aria-label={agentSidebarVisible ? '隐藏左侧栏' : '显示左侧栏'}
-      >
-        {agentSidebarVisible ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
-      </AppWindowIconButton>
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle agent-sidebar-window-controls__nav"
-        onClick={() => window.history.back()}
-        title="后退"
-        aria-label="后退"
-      >
-        <ArrowLeft size={14} />
-      </AppWindowIconButton>
-      <AppWindowIconButton
-        type="button"
-        className="app-window-sidebar-toggle agent-sidebar-window-controls__nav"
-        onClick={() => window.history.forward()}
-        title="前进"
-        aria-label="前进"
-      >
-        <ArrowRight size={14} />
-      </AppWindowIconButton>
+      <AppShellLeftPaneToggle hidden={!agentSidebarVisible} onShow={agentSidebarPane.show} onHide={agentSidebarPane.hide} />
+      {agentSettingsActive ? null : <AppShellHistoryNavigationControls navClassName="agent-sidebar-window-controls__nav" />}
     </div>
   )
+  const agentNavigationControls = <>{homeHeaderControl}{settingsExitControl}</>
   const toolLeftHeader = toolChrome && !toolSidebarHidden ? (
     <Header
       showAppControls={false}
@@ -417,7 +314,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
     <Header
       showAppControls={false}
       showFallbackBrand={false}
-      navigationControls={homeHeaderControl}
+      navigationControls={agentNavigationControls}
       layoutControls={agentSidebarLayoutControls}
       leftControlsLayout="fill"
     />
@@ -428,7 +325,7 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
       showWindowControls={!agentLeftHeader}
       showAppControls={!agentModeContentPanelOpen}
       showFallbackBrand={false}
-      navigationControls={!agentSidebarVisible ? homeHeaderControl : undefined}
+      navigationControls={!agentSidebarVisible ? agentNavigationControls : undefined}
       layoutControls={!agentSidebarVisible ? agentSidebarLayoutControls : undefined}
       contextActions={<>{agentContentPanelClosed ? agentContentPanelHeaderControl : null}{terminalHeaderControl}</>}
     />
@@ -441,37 +338,19 @@ export function ShellLayout({ children, requireOrg = true }: { children: React.R
       contextActions={<>{agentContentPanelHeaderControl}{terminalHeaderControl}</>}
     />
   ) : undefined
-  const agentRightCollapsedWidth = agentContentPane.pane?.collapsedSize ?? 0
-  const agentRightSlotStyle = {
-    width: agentContentPane.collapsed ? agentRightCollapsedWidth : agentContentPane.size,
-    minWidth: agentContentPane.collapsed ? agentRightCollapsedWidth : agentContentPane.size,
-    flexBasis: agentContentPane.collapsed ? agentRightCollapsedWidth : agentContentPane.size,
-  }
-  const agentLeftSlotWidth = !agentSidebarVisible
-    ? 0
-    : agentSidebarPane.size
-  const agentLeftSlotStyle = {
-    width: agentLeftSlotWidth,
-    minWidth: agentLeftSlotWidth,
-    flexBasis: agentLeftSlotWidth,
-  }
-  const toolLeftSlotStyle = {
-    width: toolSidebarHidden ? 0 : toolSidebarPane.size,
-    minWidth: toolSidebarHidden ? 0 : toolSidebarPane.size,
-    flexBasis: toolSidebarHidden ? 0 : toolSidebarPane.size,
-  }
-  const projectRightCollapsedWidth = projectAgentPane.pane?.collapsedSize ?? 0
-  const projectRightSlotStyle = {
-    width: projectAgentPane.collapsed ? projectRightCollapsedWidth : projectAgentPane.size,
-    minWidth: projectAgentPane.collapsed ? projectRightCollapsedWidth : projectAgentPane.size,
-    flexBasis: projectAgentPane.collapsed ? projectRightCollapsedWidth : projectAgentPane.size,
-  }
-
-  const settingsLeftSlotStyle = {
-    width: settingsSidebarHidden ? 0 : settingsSidebarPane.size,
-    minWidth: settingsSidebarHidden ? 0 : settingsSidebarPane.size,
-    flexBasis: settingsSidebarHidden ? 0 : settingsSidebarPane.size,
-  }
+  const agentRightSlotStyle = appShellCollapsedSlotStyle({
+    collapsed: agentContentPane.collapsed,
+    size: agentContentPane.size,
+    collapsedSize: agentContentPane.pane?.collapsedSize,
+  })
+  const agentLeftSlotStyle = appShellHiddenSlotStyle(!agentSidebarVisible, agentSidebarPane.size)
+  const toolLeftSlotStyle = appShellHiddenSlotStyle(toolSidebarHidden, toolSidebarPane.size)
+  const projectRightSlotStyle = appShellCollapsedSlotStyle({
+    collapsed: projectAgentPane.collapsed,
+    size: projectAgentPane.size,
+    collapsedSize: projectAgentPane.pane?.collapsedSize,
+  })
+  const settingsLeftSlotStyle = appShellHiddenSlotStyle(settingsSidebarHidden, settingsSidebarPane.size)
 
   const shellSurface: AppRouteSurface = routeSurface
   const shell = (

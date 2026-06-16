@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"time"
+
+	"github.com/movscript/movscript/internal/domain/media"
 )
 
 const (
@@ -45,7 +47,6 @@ const (
 	AdapterGitLab              = "gitlab"
 	AdapterLocal               = "local"
 	AdapterBuiltin             = "builtin"
-	AdapterNewAPI              = "new-api"
 	AdapterMemory              = "memory"
 	AdapterRedis               = "redis"
 	AdapterNoop                = "noop"
@@ -410,6 +411,7 @@ type AIModelListFilter struct {
 	Capability       string   `json:"capability,omitempty"`
 	Capabilities     []string `json:"capabilities,omitempty"`
 	ProviderVariants bool     `json:"provider_variants,omitempty"`
+	RouteGroup       string   `json:"route_group,omitempty"`
 }
 
 type AIModelDescriptor struct {
@@ -866,6 +868,10 @@ type AIGatewayVideoTaskProvider interface {
 type AIGatewayVideoTaskCancelProvider interface {
 	VideoCancel(ctx context.Context, req VideoCancelRequest) (VideoResponse, error)
 }
+
+type AIGatewayAudioSpeechProvider = media.TTSProvider
+
+type AIGatewayAudioSubtitleProvider = media.SubtitleProvider
 
 type AIGatewayFileUploader interface {
 	UploadFile(ctx context.Context, data []byte, filename, mimeType, purpose string) (string, error)

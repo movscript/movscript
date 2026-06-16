@@ -1,3 +1,17 @@
 .ms-agent-suggestions {
   gap: 8px;
 }
+
+.ms-agent-suggestion {
+  min-height: 34px;
+  border-radius: var(--ms-radius-full);
+  color: var(--ms-color-foreground);
+  padding: 7px 11px;
+  font-family: var(--ms-font-sans);
+  font-weight: 600;
+}
+
+.ms-agent-suggestion:hover {
+  border-color: color-mix(in srgb, var(--ms-color-accent) 38%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  background: color-mix(in srgb, var(--ms-color-accent) 8%, var(--ms-color-surface));
+}

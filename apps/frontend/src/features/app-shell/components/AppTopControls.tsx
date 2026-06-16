@@ -133,7 +133,7 @@ export function AppTopControls({
                     ? t('header.actions.downloadAppUpdate', { defaultValue: '下载更新' })
                     : t('header.actions.refreshApp', { defaultValue: '检查更新' })}
               </AppTopMenuItemText>
-              {hasAppUpdate ? <span className="app-top-menu-item__update-dot" aria-hidden="true" /> : null}
+              {hasAppUpdate ? <span className="ms-inline-center app-top-menu-item__update-dot" aria-hidden="true" /> : null}
             </DropdownMenuItem>
           ) : null}
           {showSettingsAction ? (
@@ -160,7 +160,7 @@ export function AppTopControls({
           <DropdownMenuLabel>
             <div className="ms-dropdown__label">
               <AppTopMenuLabelPrimary>
-                <span className="app-top-menu-label__icon-text">
+                <span className="ms-inline-center app-top-menu-label__icon-text">
                   <Languages size={12} />
                   {t('header.language')}
                 </span>
@@ -179,7 +179,7 @@ export function AppTopControls({
           <DropdownMenuLabel>
             <div className="ms-dropdown__label">
               <AppTopMenuLabelPrimary>
-                <span className="app-top-menu-label__icon-text">
+                <span className="ms-inline-center app-top-menu-label__icon-text">
                   <Palette size={12} />
                   {t('header.theme.select')}
                 </span>

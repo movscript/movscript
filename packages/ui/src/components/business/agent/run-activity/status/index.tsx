@@ -6,7 +6,7 @@ import { cn } from "../../../../../lib/cn";
 
 export const AgentRunActivityStatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
   ({ className, ...props }, ref) => {
-    return <StatusBadge ref={ref} className={cn("ms-agent-run-activity-status", className)} {...props} />;
+    return <StatusBadge ref={ref} className={cn("ms-type-tiny ms-agent-run-activity-status", className)} {...props} />;
   }
 );
 
@@ -22,7 +22,7 @@ AgentRunActivityStatusDot.displayName = "AgentRunActivityStatusDot";
 
 export const AgentRunActivityChatBadge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   ({ className, variant = "outline", ...props }, ref) => {
-    return <Badge ref={ref} variant={variant} className={cn("ms-agent-run-activity-chat-badge", className)} {...props} />;
+    return <Badge ref={ref} variant={variant} className={cn("ms-type-tiny ms-agent-run-activity-chat-badge", className)} {...props} />;
   }
 );
 

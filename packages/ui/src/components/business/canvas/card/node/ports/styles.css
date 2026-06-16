@@ -5,19 +5,14 @@
 }
 
 .canvas-node-port-list__items {
-  display: grid;
   gap: var(--ms-space-1);
 }
 
 .canvas-node-port-row {
   position: relative;
-  display: flex;
   min-height: 30px;
-  align-items: center;
   gap: 6px;
   padding: 6px var(--ms-space-3);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
   box-shadow: var(--ms-shadow-sm);
 }
 
@@ -32,10 +27,7 @@
 }
 
 .canvas-node-port-content {
-  display: flex;
-  min-width: 0;
   flex: 1;
-  align-items: center;
   gap: 6px;
 }
 
@@ -49,12 +41,8 @@
 }
 
 .canvas-node-port-label {
-  min-width: 0;
-  overflow: hidden;
   color: var(--ms-color-foreground);
   font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .canvas-node-port-required-mark {

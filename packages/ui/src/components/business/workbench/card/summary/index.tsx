@@ -2,7 +2,7 @@ import { Children, cloneElement, isValidElement, type ButtonHTMLAttributes, type
 
 import { cn } from "../../../../../lib/cn";
 import { toneSurfaceClass, toneTextClass, type SemanticTone } from "../../../../../semantic";
-import { Surface } from "../../../../primitives";
+import { Frame } from "../../../../primitives";
 
 export type WorkbenchSummaryPreviewState = "locked" | "candidate";
 
@@ -27,7 +27,7 @@ export function WorkbenchSummaryCard({
   action?: ReactNode;
 }) {
   return (
-    <Surface
+    <Frame
       as="button"
       type="button"
       kind="item"
@@ -40,8 +40,8 @@ export function WorkbenchSummaryCard({
     >
       <div className="ms-workbench-row workbench-summary-card__header">
         <div className="ms-workbench-copy workbench-summary-card__main">
-          <p className="workbench-summary-card__title">{title}</p>
-          {description ? <p className="workbench-summary-card__description">{description}</p> : null}
+          <p className="ms-text-truncate ms-type-label workbench-summary-card__title">{title}</p>
+          {description ? <p className="ms-text-truncate ms-type-caption workbench-summary-card__description">{description}</p> : null}
         </div>
         {status || action ? (
           <div className="ms-workbench-side workbench-summary-card__aside">
@@ -51,7 +51,7 @@ export function WorkbenchSummaryCard({
         ) : null}
       </div>
       {children ? <div className="workbench-summary-card__body">{children}</div> : null}
-    </Surface>
+    </Frame>
   );
 }
 
@@ -80,7 +80,7 @@ export function WorkbenchSummaryPreviewStrip({
   );
   return (
     <div className={cn("workbench-summary-card__preview-row", className)} {...props}>
-      <span className={cn("workbench-summary-card__preview-label", toneTextClass(tone))}>
+      <span className={cn("ms-type-tiny workbench-summary-card__preview-label", toneTextClass(tone))}>
         {label}
       </span>
       <div className="workbench-summary-card__preview-list">

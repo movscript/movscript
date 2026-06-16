@@ -1,13 +1,13 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type { ContentSourceWorkspaceData } from '@movscript/core/content'
-import { createElectronMovScriptWorkspaceService } from '@/shared/infrastructure/workspaceDomainRepository'
-import { currentWorkspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
-import { loadContentSourceWorkspaceData } from '@/features/content/integrations/contentSourceWorkspaceElectron'
-import type { ContentCanvasCandidate, ContentCanvasProjectData } from '../domain/contentCanvasTypes'
+import type { ContentCanvasCandidate, ContentCanvasProjectData, OpenCutTimelineDocumentLike } from '../domain/contentCanvasTypes'
+import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 
-export async function loadContentCanvasProject(projectId: number): Promise<ContentCanvasProjectData> {
-  const service = createElectronMovScriptWorkspaceService({ projectId })
-  const ownerContext = currentWorkspaceOwnerContext()
+export async function loadContentCanvasProject(
+  projectId: number,
+  gateway: ContentCanvasWorkspaceGateway,
+): Promise<ContentCanvasProjectData> {
+  const { service } = gateway
   const [
     projects,
     productions,
@@ -37,7 +37,7 @@ export async function loadContentCanvasProject(projectId: number): Promise<Conte
     service.queryEntities({ entityKind: 'setting_state' }),
     service.queryEntities({ entityKind: 'audio_cue' }),
     service.queryAssets({ includeCandidates: true, limit: 120 }),
-    loadContentSourceWorkspaceData(projectId, ownerContext).catch((error) => {
+    gateway.loadContentSourceWorkspaceData(projectId).catch((error) => {
       console.warn('[content-canvas] load content workspace data failed', {
         projectId,
         error,
@@ -47,6 +47,9 @@ export async function loadContentCanvasProject(projectId: number): Promise<Conte
   ])
 
   const contentUnitCandidates = contentWorkspaceData ? contentUnitCandidatesFromWorkspace(contentWorkspaceData) : {}
+  const editingTimelinesByNodeId = contentWorkspaceData
+    ? editingTimelinesByNodeIdFromWorkspace(contentWorkspaceData, sceneMoments, productions, projectId)
+    : {}
   console.log('[content-canvas] load project content candidates', {
     projectId,
     hasContentWorkspaceData: Boolean(contentWorkspaceData),
@@ -58,6 +61,7 @@ export async function loadContentCanvasProject(projectId: number): Promise<Conte
       candidateCount: candidates.length,
       candidateIds: candidates.map((candidate) => candidate.id),
     })),
+    editingTimelineKeys: Object.keys(editingTimelinesByNodeId),
   })
 
   return {
@@ -76,9 +80,32 @@ export async function loadContentCanvasProject(projectId: number): Promise<Conte
     audioCues: sortEntities(audioCues),
     assets: sortEntities(assetResult.assets),
     contentUnitCandidates: contentUnitCandidates,
+    editingTimelinesByNodeId,
     assetReferenceUnits: contentWorkspaceData?.assetReferenceUnits,
     productionWorkPlan: contentWorkspaceData?.productionWorkPlan,
   }
+}
+
+function editingTimelinesByNodeIdFromWorkspace(
+  data: ContentSourceWorkspaceData,
+  sceneMoments: MovScriptWorkspaceIndexedEntity[],
+  productions: MovScriptWorkspaceIndexedEntity[],
+  projectId: number,
+): Record<string, OpenCutTimelineDocumentLike> {
+  const output: Record<string, OpenCutTimelineDocumentLike> = {}
+  for (const timeline of data.editingTimelines ?? []) {
+    const document = timeline.timelineDocument as OpenCutTimelineDocumentLike
+    const targetId = String(timeline.targetId)
+    output[targetId] = document
+    output[`${timeline.targetKind}:${targetId}`] = document
+    const targets = timeline.targetKind === 'scene_moment' ? sceneMoments : productions
+    const target = targets.find((item) =>
+      String(item.id ?? item.record.ID ?? item.record.id ?? '') === targetId
+      || (timeline.targetPath !== undefined && item.path === timeline.targetPath),
+    )
+    if (target) output[contentCanvasNodeIdForEntity(target, projectId)] = document
+  }
+  return output
 }
 
 function contentUnitCandidatesFromWorkspace(data: ContentSourceWorkspaceData): Record<string, ContentCanvasCandidate[]> {
@@ -155,6 +182,27 @@ function sortEntities(items: MovScriptWorkspaceIndexedEntity[]) {
 
 function titleOf(entity: MovScriptWorkspaceIndexedEntity) {
   return String(entity.record.title ?? entity.record.name ?? entity.record.label ?? entity.id ?? entity.path)
+}
+
+function contentCanvasNodeIdForEntity(entity: MovScriptWorkspaceIndexedEntity, projectId: number): string {
+  return `${contentCanvasKind(entity)}:${entityKey(entity, projectId)}`
+}
+
+function contentCanvasKind(entity: MovScriptWorkspaceIndexedEntity): string {
+  if (entity.entityKind === 'asset') return 'asset'
+  if (entity.entityKind === 'setting_state') return 'state'
+  return entity.entityKind
+}
+
+function entityKey(entity: MovScriptWorkspaceIndexedEntity, projectId: number): string {
+  if (entity.entityKind === 'project') return String(entity.id ?? entity.record.project_id ?? projectId)
+  return idValue(entity.id ?? entity.record.ID ?? entity.record.id) ?? `${entity.entityKind}:${entity.path}`
+}
+
+function idValue(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
 }
 
 function numberValue(value: unknown): number | undefined {

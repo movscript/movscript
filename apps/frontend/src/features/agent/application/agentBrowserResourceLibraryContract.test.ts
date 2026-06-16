@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 test('agent browser opens resource library inside the agent content panel', () => {
   const agentBrowserPanelSource = [
     readFileSync(resolve('src/features/agent/components/AgentBrowserPanel.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentBrowserPanelHeader.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentBrowserTabContent.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentBrowserPanelModel.ts'), 'utf8'),
   ].join('\n')

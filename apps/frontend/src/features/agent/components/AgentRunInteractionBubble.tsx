@@ -1,6 +1,6 @@
 import React from 'react'
 import { Bot, Image } from 'lucide-react'
-import { AgentChatMessage } from '@movscript/ui/business/agent'
+import { AgentChatMessage } from '@/shared/ui/AgentMessageUi'
 import {
   AgentRunInteractionApprovalBadge,
   AgentRunInteractionApprovalBadgeLabel,

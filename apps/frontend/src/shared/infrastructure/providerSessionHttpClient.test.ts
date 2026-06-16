@@ -1,9 +1,174 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
-import { isProviderSessionNotFoundError, ProviderSessionClient, ProviderSessionHTTPError, type AgentMessage, type AgentRun, type ProviderManifest, type ProviderSessionEventV2, type AgentTaskGraphSnapshot, type AgentThread } from '@/shared/infrastructure/providerSessionHttpClient'
+import { isProviderSessionNotFoundError, ProviderSessionClient, ProviderSessionHTTPError, type AgentMessage, type AgentRun, type ProviderCatalogConfigFile, type ProviderManifest, type ProviderSessionEventV2, type AgentTaskGraphSnapshot, type AgentThread } from '@/shared/infrastructure/providerSessionHttpClient'
+import {
+  providerSessionThreadListPath,
+  providerSessionThreadMessagesPath,
+  providerSessionTimelinePath,
+  providerSessionWorkspaceScope,
+} from '@/shared/infrastructure/provider-session-client/providerSessionHttpRoutes'
 import type { ProviderSessionTransport } from '@/shared/infrastructure/providerSessionTransport'
 import { resetAgentTelemetrySink, setAgentTelemetrySink, type AgentPerformanceMetricSample } from '@/features/agent/state/agentPerformanceStore'
+
+test('provider session workspace config electron API is owned by the workspace config helper', () => {
+  const clientSource = readFileSync(resolve('src/shared/infrastructure/providerSessionHttpClient.ts'), 'utf8')
+  const workspaceConfigSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionWorkspaceConfigClient.ts'), 'utf8')
+
+  assert.match(clientSource, /from '@\/shared\/infrastructure\/provider-session-client\/providerSessionWorkspaceConfigClient'/)
+  assert.match(clientSource, /listProviderSessionsFromElectronWorkspace\(input, this\)/)
+  assert.match(clientSource, /getProviderSessionWorkspaceConfig\(input, this\)/)
+  assert.match(clientSource, /saveProviderSessionWorkspaceConfig\(input, this\)/)
+  assert.match(clientSource, /inspectProviderSessionCatalogFromWorkspace\(this/)
+  assert.match(clientSource, /saveProviderSessionConfigFile\(input, this/)
+  assert.match(clientSource, /deleteProviderSessionConfigFile\(input, this/)
+  assert.match(clientSource, /saveActiveProviderSessionConfigFile\(input, this/)
+  assert.match(clientSource, /getProviderSessionProviderModelConfig\(this\)/)
+  assert.match(clientSource, /saveProviderSessionProviderModelConfig\(input, this\)/)
+  assert.match(clientSource, /clearProviderSessionProviderModelConfig\(this\)/)
+  assert.doesNotMatch(clientSource, /readElectronApi/)
+  assert.doesNotMatch(clientSource, /getMovScriptWorkspaceConfig/)
+  assert.doesNotMatch(clientSource, /saveMovScriptWorkspaceConfig/)
+  assert.match(workspaceConfigSource, /readElectronApi/)
+  assert.match(workspaceConfigSource, /providerSessionWorkspaceScope\(input, context\)/)
+  assert.match(workspaceConfigSource, /providerModelConfigPublicFromWorkspaceConfig/)
+  assert.match(workspaceConfigSource, /mergeProviderCatalogInspectWithWorkspaceConfig/)
+  assert.match(workspaceConfigSource, /agentCatalog/)
+})
+
+test('provider session run APIs are owned by the run client helper', () => {
+  const clientSource = readFileSync(resolve('src/shared/infrastructure/providerSessionHttpClient.ts'), 'utf8')
+  const runClientSource = readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionRunClient.ts'), 'utf8')
+
+  assert.match(clientSource, /extends ProviderSessionRunClient/)
+  assert.match(clientSource, /from '@\/shared\/infrastructure\/provider-session-client\/providerSessionRunClient'/)
+  assert.doesNotMatch(clientSource, /async listRuns\(/)
+  assert.doesNotMatch(clientSource, /async cancelRun\(/)
+  assert.doesNotMatch(clientSource, /async createTaskGraph\(/)
+  assert.doesNotMatch(clientSource, /async dispatchTaskGraph\(/)
+  assert.doesNotMatch(clientSource, /async answerRunInput\(/)
+  assert.match(runClientSource, /export abstract class ProviderSessionRunClient/)
+  assert.match(runClientSource, /async listRuns\(/)
+  assert.match(runClientSource, /async cancelRun\(/)
+  assert.match(runClientSource, /async createTaskGraph\(/)
+  assert.match(runClientSource, /async dispatchTaskGraph\(/)
+  assert.match(runClientSource, /async answerRunInput\(/)
+})
+
+test('provider session http routes own query assembly and workspace scope fallback', () => {
+  assert.equal(
+    providerSessionThreadListPath({ limit: 1, cursor: 'thread_2', includeProvisional: true }),
+    '/threads?cursor=thread_2&limit=1&includeProvisional=true',
+  )
+  assert.equal(
+    providerSessionThreadMessagesPath('thread/1', { afterOrdinal: 2, limit: 1, direction: 'desc' }),
+    '/threads/thread%2F1/messages?afterOrdinal=2&limit=1&direction=desc',
+  )
+  assert.equal(
+    providerSessionTimelinePath('session_1', { threadId: 'thread_1', before: 'cursor_1', limit: 5 }),
+    '/sessions/session_1/timeline?threadId=thread_1&before=cursor_1&limit=5',
+  )
+  assert.deepEqual(providerSessionWorkspaceScope({ workspaceDir: '/tmp/ws' }, { providerProfileKey: 'codex' }), {
+    providerProfileKey: 'codex',
+    movScriptHomeDir: '/tmp/ws',
+    workspaceDir: '/tmp/ws',
+  })
+})
+
+test('provider session inspect overlays Electron-managed agent catalog state', async () => {
+  const runtimeConfigFile = providerCatalogConfigFileFixture('runtime-config')
+  const electronConfigFile = providerCatalogConfigFileFixture('electron-config')
+  const previousWindow = (globalThis as { window?: unknown }).window
+  ;(globalThis as { window?: unknown }).window = {
+    api: {
+      getMovScriptWorkspaceConfig: async () => ({
+        schema: 'movscript.workspace-config.v2',
+        updatedAt: '2026-06-16T00:00:00.000Z',
+        agentCatalog: {
+          activeConfigFileId: electronConfigFile.id,
+          configFiles: [electronConfigFile],
+        },
+      }),
+    },
+  }
+  const transport: ProviderSessionTransport = {
+    kind: 'http',
+    endpointLabel: 'http://local.test',
+    request: async (path) => {
+      if (path === '/inspect') {
+        return jsonResponse({
+          skills: [],
+          packs: [],
+          configFiles: [runtimeConfigFile],
+          activeConfigFileId: runtimeConfigFile.id,
+          activeProviderManifest: providerManifestFixture(runtimeConfigFile.id),
+        })
+      }
+      return new Response('missing', { status: 404 })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  try {
+    const inspect = await new ProviderSessionClient(transport, { providerProfileKey: 'mova' }).inspect()
+
+    assert.equal(inspect.activeConfigFileId, electronConfigFile.id)
+    assert.deepEqual(inspect.configFiles.map((configFile) => configFile.id), [runtimeConfigFile.id, electronConfigFile.id])
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
+})
+
+test('provider session config file save persists to Electron when runtime sync fails', async () => {
+  const configFile = providerCatalogConfigFileFixture('electron-saved')
+  const savedInputs: unknown[] = []
+  const previousWindow = (globalThis as { window?: unknown }).window
+  ;(globalThis as { window?: unknown }).window = {
+    api: {
+      getMovScriptWorkspaceConfig: async () => ({
+        schema: 'movscript.workspace-config.v2',
+        updatedAt: '2026-06-16T00:00:00.000Z',
+        agentCatalog: {
+          activeConfigFileId: 'previous',
+          configFiles: [providerCatalogConfigFileFixture('previous')],
+        },
+      }),
+      saveMovScriptWorkspaceConfig: async (input: unknown) => {
+        savedInputs.push(input)
+        return {
+          schema: 'movscript.workspace-config.v2',
+          updatedAt: '2026-06-16T00:00:01.000Z',
+          agentCatalog: (input as { agentCatalog?: unknown }).agentCatalog,
+        }
+      },
+    },
+  }
+  const transport: ProviderSessionTransport = {
+    kind: 'http',
+    endpointLabel: 'http://local.test',
+    request: async () => new Response('runtime unavailable', { status: 503 }),
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  try {
+    const result = await new ProviderSessionClient(transport, { providerProfileKey: 'mova' }).saveProviderConfigFile({
+      configFile,
+      activate: true,
+    })
+
+    assert.equal(result.configFile.id, configFile.id)
+    assert.equal(savedInputs.length, 1)
+    const savedAgentCatalog = (savedInputs[0] as { agentCatalog?: { activeConfigFileId?: string; configFiles?: ProviderCatalogConfigFile[] } }).agentCatalog
+    assert.equal(savedAgentCatalog?.activeConfigFileId, configFile.id)
+    assert.deepEqual(savedAgentCatalog?.configFiles?.map((item) => item.id), ['previous', configFile.id])
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
+})
 
 test('provider session client delegates requests through the provider session transport', async () => {
   const metrics: AgentPerformanceMetricSample[] = []
@@ -165,7 +330,7 @@ test('provider session client lists provider sessions through Electron workspace
       workspaceDir: '/tmp/ws',
     })
 
-    assert.deepEqual(calls, [{ workspaceDir: '/tmp/ws' }])
+    assert.deepEqual(calls, [{ movScriptHomeDir: '/tmp/ws', workspaceDir: '/tmp/ws' }])
     assert.equal(result.sessions[0]?.session.id, 'session_1')
     assert.equal(result.sessions[0]?.state?.status, 'running')
 
@@ -228,6 +393,7 @@ test('provider session client scopes workspace config reads and writes by provid
         method: 'get',
         input: {
           providerProfileKey: 'mova',
+          movScriptHomeDir: '/tmp/movscript-workspace',
           workspaceDir: '/tmp/movscript-workspace',
         },
       },
@@ -235,6 +401,7 @@ test('provider session client scopes workspace config reads and writes by provid
         method: 'save',
         input: {
           providerProfileKey: 'mova',
+          movScriptHomeDir: '/tmp/movscript-workspace',
           workspaceDir: '/tmp/movscript-workspace',
           providers: { mova: { enabled: false } },
         },
@@ -1364,6 +1531,30 @@ function jsonResponse(value: unknown): Response {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function providerCatalogConfigFileFixture(id: string): ProviderCatalogConfigFile {
+  return {
+    schema: 'movscript.agent.config_file.v1',
+    id,
+    version: '1.0.0',
+    name: id,
+    enabledPackIds: [],
+    skillIds: [],
+    toolGrants: [],
+    metadata: { managed: true },
+  }
+}
+
+function providerManifestFixture(id: string): ProviderManifest {
+  return {
+    schema: 'movscript.agent.current',
+    id,
+    version: '1.0.0',
+    name: id,
+    tools: [],
+    skills: [],
+  }
 }
 
 function createAbortError(): Error {

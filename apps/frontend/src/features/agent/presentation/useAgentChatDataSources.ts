@@ -6,6 +6,7 @@ import type { PublicModel, RawResource } from '@/types'
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
 import { resourceKeys } from '@/features/resources/application/resourceQueryKeys'
+import { resolveAgentModelId } from '@/features/agent/application/agentDefaultModelSelection'
 
 interface UseAgentChatDataSourcesInput {
   settings: AgentSettings
@@ -31,7 +32,7 @@ export function useAgentChatDataSources({
     if (!exists) updateSettings({ modelId: null })
   }, [settings.modelId, textModels, updateSettings])
 
-  const modelId = settings.modelId ?? textModels[0]?.id ?? null
+  const modelId = resolveAgentModelId({ models: textModels, selectedModelId: settings.modelId })
   const activeModel = textModels.find((model) => model.id === modelId)
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
 

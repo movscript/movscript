@@ -391,6 +391,7 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 		groupIndex[key] = len(result)
 		result = append(result, item)
 	}
+	markDefault(result, nil)
 	return result, nil
 }
 

@@ -32,6 +32,7 @@ export function WorkModeCard({
       <Button
         type="button"
         variant="ghost"
+        align="start"
         onClick={() => onSelect(mode)}
         className="work-mode-card__button"
       >
@@ -41,9 +42,9 @@ export function WorkModeCard({
           </AppIconFrame>
           <WorkModeSwitchGuide activeMode={mode} compact agentIcon={agentIcon} projectIcon={projectIcon} />
         </div>
-        <h2 className="work-mode-card__title">{title}</h2>
+        <h2 className="ms-type-section work-mode-card__title">{title}</h2>
         <p className="work-mode-card__description">{description}</p>
-        <span className="work-mode-card__action">
+        <span className="ms-inline-center ms-type-body work-mode-card__action">
           {action}
           <ArrowRightIcon className="work-mode-card__action-icon" />
         </span>

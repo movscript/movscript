@@ -1,7 +1,17 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
-import { ArrowRightIcon, Button, RefreshIcon } from "../../../../primitives";
+import {
+  ArrowRightIcon,
+  Button,
+  FrameActions,
+  FrameBody,
+  FrameDescription,
+  FrameHeader,
+  FrameHeading,
+  FrameTitle,
+  RefreshIcon,
+} from "../../../../primitives";
 import type { WorkbenchIconComponent } from "../../types";
 
 export interface WorkbenchProjectAction {
@@ -39,20 +49,20 @@ export function WorkbenchProjectHeader({
   primaryAction,
 }: WorkbenchProjectHeaderProps) {
   return (
-    <header data-testid="project-workbench-header" className="workbench-project-header">
-      <div className="workbench-project-header__main">
-        <div className="workbench-project-header__identity">
-          <span className="workbench-project-header__icon">
+    <FrameHeader as="header" data-testid="project-workbench-header" className="workbench-project-header">
+      <div className="ms-action-row workbench-project-header__main">
+        <FrameHeading className="workbench-project-header__identity">
+          <span className="ms-inline-center workbench-project-header__icon">
             <Icon size={18} />
           </span>
-          <div className="workbench-project-header__copy">
-            {kicker ? <p className="workbench-project-header__kicker">{kicker}</p> : null}
-            <h1 className="workbench-project-header__title">{title}</h1>
-            {description ? <p className="workbench-project-header__description">{description}</p> : null}
-            {badges ? <div className="workbench-project-header__badges">{badges}</div> : null}
+          <div className="ms-workbench-copy workbench-project-header__copy">
+            {kicker ? <p className="ms-text-truncate ms-type-caption workbench-project-header__kicker">{kicker}</p> : null}
+            <FrameTitle as="h1" className="ms-text-truncate ms-type-section workbench-project-header__title">{title}</FrameTitle>
+            {description ? <FrameDescription className="ms-text-truncate ms-type-label workbench-project-header__description">{description}</FrameDescription> : null}
+            {badges ? <div className="ms-action-row workbench-project-header__badges">{badges}</div> : null}
           </div>
-        </div>
-        <div className="workbench-project-header__actions">
+        </FrameHeading>
+        <FrameActions className="workbench-project-header__actions">
           {onRefresh ? (
             <Button variant="outline" size="sm" onClick={onRefresh}>
               <RefreshIcon className={refreshing ? "workbench-project-header__refresh-icon is-spinning" : "workbench-project-header__refresh-icon"} />
@@ -66,10 +76,10 @@ export function WorkbenchProjectHeader({
               {primaryAction.label}
             </Button>
           ) : null}
-        </div>
+        </FrameActions>
       </div>
-      {headerBody ? <div className="workbench-project-header__body">{headerBody}</div> : null}
-    </header>
+      {headerBody ? <FrameBody className="workbench-project-header__body">{headerBody}</FrameBody> : null}
+    </FrameHeader>
   );
 }
 
@@ -84,7 +94,7 @@ export function WorkbenchProjectShell({
   workbenchId?: string;
 }) {
   return (
-    <div data-testid="project-workbench-shell" data-workbench-id={workbenchId} className={cn("workbench-project-shell", className)}>
+    <div data-testid="project-workbench-shell" data-workbench-id={workbenchId} className={cn("ms-stack workbench-project-shell", className)}>
       <WorkbenchProjectHeader {...headerProps} />
       {children}
     </div>
@@ -106,7 +116,7 @@ export function WorkbenchProjectBody({
 }) {
   return (
     <div
-      className={cn("workbench-project-body", className)}
+      className={cn("ms-workbench-copy workbench-project-body", layout === "workspace" && "ms-stack", className)}
       data-layout={layout}
       data-padding={padding}
       data-scroll={scroll}
@@ -123,9 +133,9 @@ export function WorkbenchProjectViewport({
 }: HTMLAttributes<HTMLDivElement> & {
   direction?: "row" | "column";
 }) {
-  return <div className={cn("workbench-project-viewport", className)} data-direction={direction} {...props} />;
+  return <div className={cn("ms-workbench-row workbench-project-viewport", className)} data-direction={direction} {...props} />;
 }
 
 export function WorkbenchProjectPane({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("workbench-project-pane", className)} {...props} />;
+  return <div className={cn("ms-workbench-copy workbench-project-pane", className)} {...props} />;
 }

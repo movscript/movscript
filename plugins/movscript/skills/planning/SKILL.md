@@ -51,7 +51,7 @@ Use this skill when a user asks to plan or change MovScript creative structure: 
 - Treat content units as top-level project production slots with flat refs. Do not nest content unit semantics under storyboard paths.
 - If the user wants a fast draft and consistency requirements are low, it is valid to create a scene-moment-level content unit directly and generate without expression-unit breakdown. Use `content_unit_type: scene_moment_ref`, `target_kind: scene_moment`, and `target_ref` for the scene moment.
 - When the scene moment needs multiple materials, create expression-unit-level content units with `content_unit_type: expression_unit_ref`, `target_kind: expression_unit`, and `target_ref` for each visual, voice, subtitle, or audio material.
-- Prefer specialized content unit types only when interpreter tracking is needed: `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scene_moment_ref`, or `expression_unit_ref`. Unknown `content_unit_type` values are valid generic slots but untracked for upstream hash/stale checks.
+- Prefer specialized content unit types only when interpreter tracking is needed: `production_ref`, `segment_ref`, `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scene_moment_ref`, or `expression_unit_ref`. Unknown `content_unit_type` values are valid generic slots but untracked for upstream hash/stale checks.
 - Interpret after each coherent semantic planning step when downstream diagnostic/artifact tools need refreshed context, not after every field. Skip interpret for read-only planning, draft analysis, or blocking `domain_inspect` issues.
 - Affected downstream content units require review, not automatic regeneration.
 
@@ -109,4 +109,4 @@ Tie the recommendation to the user's intent: continue planning for story/camera 
 
 - Open `references/production-planning-examples.md` for multi-step production planning from loose story material.
 - Open `references/planning-workflows.md` for scope selection, minimal prerequisite design, continuity planning, and reference-shot imitation planning.
-- Open `references/content-unit-recipes.md` when creating content units or choosing between `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scene_moment_ref`, `expression_unit_ref`, and generic untracked slots.
+- Open `references/content-unit-recipes.md` when creating content units or choosing between `production_ref`, `segment_ref`, `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scene_moment_ref`, `expression_unit_ref`, and generic untracked slots.

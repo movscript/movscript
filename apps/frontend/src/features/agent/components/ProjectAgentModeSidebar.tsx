@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { SquarePen } from 'lucide-react'
-import {
-  AgentModeIconSlot,
-  AgentModeLabel,
-  AgentModePrimaryNavItem,
-  AgentModeResizeHandle,
-  AgentModeSidebar,
-  AgentModeSidebarScroll,
-  AgentModeSidebarTop,
-} from '@/features/agent/components/AgentModeUi'
 import { useResizablePanel } from '@movscript/ui/layout'
 import { useTranslation } from 'react-i18next'
 
@@ -19,14 +9,13 @@ import {
   appServerConversationIdForThread,
   appServerConversationRecordsFromSourceThreads,
   conversationFromRegistryRecord,
-  conversationProjectId,
 } from '@/features/agent/components/ProjectAgentModeConversationModel'
 import {
-  ProjectAgentModeChatConversationsSection,
-  ProjectAgentModeHistorySection,
-  ProjectAgentModeProjectGroupsSection,
-  type AgentModeHistoryItem,
-} from '@/features/agent/components/ProjectAgentModeSidebarParts'
+  buildProjectAgentModeConversationScopes,
+  buildProjectAgentModeHistoryItems,
+  sortAgentModeOpenConversations,
+} from '@/features/agent/components/ProjectAgentModeSidebarModel'
+import { ProjectAgentModeSidebarView } from '@/features/agent/components/ProjectAgentModeSidebarView'
 import { openAppServerThread } from '@/features/agent/components/AppServerChatShell'
 import {
   agentConversationRegistryInputFromThreadSummary,
@@ -201,10 +190,7 @@ export function ProjectAgentModeSidebar({
     () => conversations.filter((conversation) => conversation.archived !== true && conversationsById[conversation.id]?.open !== false),
     [conversations, conversationsById],
   )
-  const openConversations = useMemo(() => {
-    const sourceIndex = new Map(rawOpenConversations.map((conversation, index) => [conversation.id, index]))
-    return rawOpenConversations.sort((a, b) => b.updatedAt - a.updatedAt || (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0))
-  }, [rawOpenConversations])
+  const openConversations = useMemo(() => sortAgentModeOpenConversations(rawOpenConversations), [rawOpenConversations])
   const providerSessionStatusLights = useAgentConversationTabProviderSessionStatusLights(openConversations)
   const archivedConversations = useMemo(
     () => conversations
@@ -241,33 +227,17 @@ export function ProjectAgentModeSidebar({
     for (const item of projects) names.set(item.ID, item.name)
     return names
   }, [projects])
-  const conversationsByScope = useMemo(() => {
-    const projectGroupsById = new Map<number, { projectId: number; projectName: string; conversations: Conversation[] }>()
-    const chatConversations: Conversation[] = []
-    for (const conversation of openConversations) {
-      const projectId = conversationProjectId(conversation, {
-        conversationsById,
-        providerSessionThreadsById,
-        conversationThreadBindings,
-        providerSessionsById,
-        pageTasks,
-      })
-      if (projectId === undefined) {
-        chatConversations.push(conversation)
-        continue
-      }
-      const group = projectGroupsById.get(projectId) ?? {
-        projectId,
-        projectName: projectNamesById.get(projectId) ?? `${t('agents.chat.agentModeSidebar.projectFallback')} #${projectId}`,
-        conversations: [],
-      }
-      group.conversations.push(conversation)
-      projectGroupsById.set(projectId, group)
-    }
-    const projectGroups = Array.from(projectGroupsById.values())
-      .sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage))
-    return { projectGroups, chatConversations }
-  }, [conversationThreadBindings, conversationsById, i18n.resolvedLanguage, providerSessionsById, providerSessionThreadsById, openConversations, pageTasks, projectNamesById, t])
+  const conversationsByScope = useMemo(() => buildProjectAgentModeConversationScopes({
+    conversationThreadBindings,
+    conversationsById,
+    locale: i18n.resolvedLanguage,
+    openConversations,
+    pageTasks,
+    projectFallbackLabel: t('agents.chat.agentModeSidebar.projectFallback'),
+    projectNamesById,
+    providerSessionThreadsById,
+    providerSessionsById,
+  }), [conversationThreadBindings, conversationsById, i18n.resolvedLanguage, providerSessionsById, providerSessionThreadsById, openConversations, pageTasks, projectNamesById, t])
   const { projectGroups, chatConversations } = conversationsByScope
   const visibleProjectGroups = projectGroups
   const sortedChatConversations = chatConversations
@@ -275,28 +245,14 @@ export function ProjectAgentModeSidebar({
     ? sortedChatConversations
     : sortedChatConversations.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenChatConversationCount = Math.max(0, sortedChatConversations.length - visibleChatConversations.length)
-  const historyItems = useMemo<AgentModeHistoryItem[]>(() => [
-    ...archivedConversations.map((conversation) => ({
-      type: 'conversation' as const,
-      id: conversation.id,
-      timestamp: conversation.updatedAt,
-      conversation,
-    })),
-    ...closedConversations.map((conversation) => ({
-      type: 'conversation' as const,
-      id: conversation.id,
-      timestamp: conversation.updatedAt,
-      conversation,
-    })),
-    ...sourceThreads
-      .filter((thread) => shouldHydrateAgentThreadSummary(thread) && !archivedProviderThreadIds.has(thread.id) && !closedProviderThreadIds.has(thread.id) && !openProviderThreadIds.has(thread.id))
-      .map((thread) => ({
-        type: 'provider-thread' as const,
-        id: thread.id,
-        timestamp: Date.parse(thread.updatedAt) || 0,
-        thread,
-      })),
-  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedProviderThreadIds, closedConversations, closedProviderThreadIds, sourceThreads, openProviderThreadIds])
+  const historyItems = useMemo(() => buildProjectAgentModeHistoryItems({
+    archivedConversations,
+    archivedProviderThreadIds,
+    closedConversations,
+    closedProviderThreadIds,
+    openProviderThreadIds,
+    sourceThreads,
+  }), [archivedConversations, archivedProviderThreadIds, closedConversations, closedProviderThreadIds, sourceThreads, openProviderThreadIds])
   const visibleHistoryItems = showAllHistoryConversations
     ? historyItems
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
@@ -454,114 +410,62 @@ export function ProjectAgentModeSidebar({
   }
 
   return (
-    <AgentModeSidebar
+    <ProjectAgentModeSidebarView
+      headerActions={headerActions}
       resizing={sidebarResize.resizing}
-      width={sidebarWidth}
-    >
-      <AgentModeSidebarTop>
-        {headerActions ? (
-          <div className="agent-mode-sidebar__header-actions">
-            {headerActions}
-          </div>
-        ) : null}
-        <AgentModePrimaryNavItem
-          onClick={startNewConversation}
-          title={t('agents.chat.agentModeSidebar.startConversation')}
-        >
-          <AgentModeIconSlot><SquarePen size={18} /></AgentModeIconSlot>
-          <AgentModeLabel>新对话</AgentModeLabel>
-        </AgentModePrimaryNavItem>
-      </AgentModeSidebarTop>
-
-      <AgentModeSidebarScroll>
-        <div className="agent-mode-sidebar-project-heading">
-          <span>项目</span>
-        </div>
-        <ProjectAgentModeProjectGroupsSection
-          groups={visibleProjectGroups}
-          openProjectGroups={openProjectGroups}
-          expandedProjectThreadGroups={expandedProjectThreadGroups}
-          activeConversationId={activeConversationId}
-          locale={locale}
-          now={relativeTimeNow}
-          providerSessionStatusLights={providerSessionStatusLights}
-          labels={{
-            noProjectConversations: t('agents.chat.agentModeSidebar.noProjectConversations'),
-            archiveConversation: t('agents.chat.archiveConversation'),
-            collapseProjectConversations: t('agents.chat.agentModeSidebar.collapseProjectConversations'),
-            expandProjectConversations: t('agents.chat.agentModeSidebar.expandProjectConversations'),
-          }}
-          onToggleProjectGroup={toggleProjectGroup}
-          onToggleProjectThreadGroup={toggleProjectThreadGroup}
-          onSelectConversation={selectConversation}
-          onArchiveConversation={archiveConversationFromSidebar}
-          getConversationTitle={(conversation) => conversationDisplayTitle(conversation, t)}
-        />
-
-        <ProjectAgentModeChatConversationsSection
-          open={conversationsOpen}
-          conversations={sortedChatConversations}
-          visibleConversations={visibleChatConversations}
-          hiddenConversationCount={hiddenChatConversationCount}
-          showAllConversations={showAllChatConversations}
-          activeConversationId={activeConversationId}
-          locale={locale}
-          now={relativeTimeNow}
-          providerSessionStatusLights={providerSessionStatusLights}
-          labels={{
-            conversations: t('agents.chat.agentModeSidebar.conversations'),
-            startConversation: t('agents.chat.agentModeSidebar.startConversation'),
-            archiveConversation: t('agents.chat.archiveConversation'),
-            showFewerConversations: t('agents.chat.agentModeSidebar.showFewerConversations'),
-            showMoreConversations: (count) => t('agents.chat.agentModeSidebar.showMoreConversations', { count }),
-          }}
-          onOpenChange={setConversationsOpen}
-          onStartConversation={startNewConversation}
-          onToggleShowAll={() => setShowAllChatConversations((value) => !value)}
-          onSelectConversation={selectConversation}
-          onArchiveConversation={archiveConversationFromSidebar}
-          getConversationTitle={(conversation) => conversationDisplayTitle(conversation, t)}
-        />
-
-        <ProjectAgentModeHistorySection
-          open={historyOpen}
-          items={historyItems}
-          visibleItems={visibleHistoryItems}
-          hiddenItemCount={hiddenHistoryItemCount}
-          showAllItems={showAllHistoryConversations}
-          activeConversationId={activeConversationId}
-          locale={locale}
-          now={relativeTimeNow}
-          loading={sourceThreadsLoading}
-          labels={{
-            history: t('agents.chat.conversationHistory'),
-            loading: t('common.loadingShort'),
-            noHistoryConversations: t('agents.chat.noHistoryConversations'),
-            archiveConversation: t('agents.chat.archiveConversation'),
-            deleteConversation: t('agents.chat.deleteConversation'),
-            showFewerConversations: t('agents.chat.agentModeSidebar.showFewerConversations'),
-            showMoreConversations: (count) => t('agents.chat.agentModeSidebar.showMoreConversations', { count }),
-          }}
-          onOpenChange={setHistoryOpen}
-          onToggleShowAll={() => setShowAllHistoryConversations((value) => !value)}
-          onSelectConversation={selectConversation}
-          onDeleteConversation={deleteConversationFromSidebar}
-          onRestoreThread={restoreHistoryThread}
-          onDeleteThread={deleteHistoryThread}
-          getConversationTitle={(conversation) => conversationDisplayTitle(conversation, t)}
-          getThreadTitle={(thread) => providerThreadTitle(thread, t)}
-          getThreadDescription={(thread) => [
-            t('agents.chat.messagesCount', { count: thread.messageCount }),
-            thread.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: thread.projectId }) : null,
-          ].filter(Boolean).join(' · ')}
-        />
-
-      </AgentModeSidebarScroll>
-
-      <AgentModeResizeHandle
-        {...sidebarResize.resizeHandleProps}
-        side="right"
-      />
-    </AgentModeSidebar>
+      sidebarWidth={sidebarWidth}
+      resizeHandleProps={sidebarResize.resizeHandleProps}
+      projectGroups={visibleProjectGroups}
+      openProjectGroups={openProjectGroups}
+      expandedProjectThreadGroups={expandedProjectThreadGroups}
+      activeConversationId={activeConversationId}
+      locale={locale}
+      now={relativeTimeNow}
+      providerSessionStatusLights={providerSessionStatusLights}
+      chatConversationsOpen={conversationsOpen}
+      sortedChatConversations={sortedChatConversations}
+      visibleChatConversations={visibleChatConversations}
+      hiddenChatConversationCount={hiddenChatConversationCount}
+      showAllChatConversations={showAllChatConversations}
+      historyOpen={historyOpen}
+      historyItems={historyItems}
+      visibleHistoryItems={visibleHistoryItems}
+      hiddenHistoryItemCount={hiddenHistoryItemCount}
+      showAllHistoryConversations={showAllHistoryConversations}
+      sourceThreadsLoading={sourceThreadsLoading}
+      labels={{
+        startConversation: t('agents.chat.agentModeSidebar.startConversation'),
+        projectHeading: '项目',
+        noProjectConversations: t('agents.chat.agentModeSidebar.noProjectConversations'),
+        archiveConversation: t('agents.chat.archiveConversation'),
+        collapseProjectConversations: t('agents.chat.agentModeSidebar.collapseProjectConversations'),
+        expandProjectConversations: t('agents.chat.agentModeSidebar.expandProjectConversations'),
+        conversations: t('agents.chat.agentModeSidebar.conversations'),
+        showFewerConversations: t('agents.chat.agentModeSidebar.showFewerConversations'),
+        showMoreConversations: (count) => t('agents.chat.agentModeSidebar.showMoreConversations', { count }),
+        history: t('agents.chat.conversationHistory'),
+        loading: t('common.loadingShort'),
+        noHistoryConversations: t('agents.chat.noHistoryConversations'),
+        deleteConversation: t('agents.chat.deleteConversation'),
+      }}
+      onStartConversation={startNewConversation}
+      onToggleProjectGroup={toggleProjectGroup}
+      onToggleProjectThreadGroup={toggleProjectThreadGroup}
+      onSelectConversation={selectConversation}
+      onArchiveConversation={archiveConversationFromSidebar}
+      onChatConversationsOpenChange={setConversationsOpen}
+      onToggleShowAllChatConversations={() => setShowAllChatConversations((value) => !value)}
+      onHistoryOpenChange={setHistoryOpen}
+      onToggleShowAllHistoryConversations={() => setShowAllHistoryConversations((value) => !value)}
+      onDeleteConversation={deleteConversationFromSidebar}
+      onRestoreThread={restoreHistoryThread}
+      onDeleteThread={deleteHistoryThread}
+      getConversationTitle={(conversation) => conversationDisplayTitle(conversation, t)}
+      getThreadTitle={(thread) => providerThreadTitle(thread, t)}
+      getThreadDescription={(thread) => [
+        t('agents.chat.messagesCount', { count: thread.messageCount }),
+        thread.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: thread.projectId }) : null,
+      ].filter(Boolean).join(' · ')}
+    />
   )
 }

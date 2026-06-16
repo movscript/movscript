@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 function readAppShellContractSource(): string {
@@ -8,6 +8,8 @@ function readAppShellContractSource(): string {
     readFileSync(resolve('src/App.tsx'), 'utf8'),
     readFileSync(resolve('src/features/app-shell/application/AppRouterConfig.tsx'), 'utf8'),
     readFileSync(resolve('src/features/app-shell/application/AppShellLayout.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/app-shell/application/AppShellLayoutControls.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/app-shell/application/AppShellLayoutSlots.ts'), 'utf8'),
     readFileSync(resolve('src/features/app-shell/application/AppCanvasListShellRoute.tsx'), 'utf8'),
     readFileSync(resolve('src/features/app-shell/application/AppToolShellRoute.tsx'), 'utf8'),
   ].join('\n')
@@ -40,7 +42,7 @@ test('app sidebar resizing is owned by the shared layout controller', () => {
 })
 
 test('shared resizable panel controller supports horizontal and vertical pane edges', () => {
-  const workspaceSource = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/index.tsx'), 'utf8')
+  const workspaceSource = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/resize.ts'), 'utf8')
   const workspaceStyles = readFileSync(resolve('../../packages/ui/src/components/layout/workspace/styles.css'), 'utf8')
   const agentPanelStyles = readFileSync(resolve('../../packages/ui/src/components/business/agent/panel/frame/styles.css'), 'utf8')
   const agentHistoryStyles = readFileSync(resolve('src/features/agent/components/AgentConversationHistoryUi.css'), 'utf8')
@@ -92,24 +94,29 @@ test('app window header exposes semantic icon regions and left control fill layo
   assert.match(windowHeaderStyles, /\.app-window-header__left-controls\[data-layout="fill"\] \{[\s\S]*min-width: 0;[\s\S]*flex: 1 1 auto;/)
   assert.match(windowHeaderStyles, /\.app-window-header-action-group \{[\s\S]*display: inline-flex;[\s\S]*gap: var\(--ms-space-1\);/)
   assert.match(windowHeaderStyles, /\.app-window-header-action-group\[data-role="context"\]::before/)
-  assert.match(appSource, /const homeHeaderControl = \(/)
-  assert.match(appSource, /className="app-window-sidebar-toggle app-window-home-button"[\s\S]*openHomeWindow/)
-  assert.match(appSource, /const settingsExitControl = accountSettingsActiveTab \? \(/)
+  assert.match(appSource, /const homeHeaderControl = <AppShellHomeControl \/>/)
+  assert.match(appSource, /export function AppShellHomeControl\(\)[\s\S]*className="app-window-sidebar-toggle app-window-home-button"[\s\S]*openHomeWindow/)
+  assert.match(appSource, /const settingsExitControl = \(/)
+  assert.match(appSource, /const agentSettingsActive = pathname === ROUTES\.agentSettings/)
+  assert.match(appSource, /const settingsActive = !!accountSettingsActiveTab \|\| agentSettingsActive/)
+  assert.match(appSource, /<AppShellSettingsExitControl[\s\S]*active=\{settingsActive\}/)
   assert.match(appSource, /title="退出设置"/)
   assert.match(appSource, /navigationControls=\{<>\{homeHeaderControl\}\{settingsExitControl\}<\/>\}/)
-  assert.match(appSource, /const settingsSidebarLayoutControls = \([\s\S]*title=\{settingsSidebarHidden \? '显示左侧栏' : '隐藏左侧栏'\}[\s\S]*\)/)
+  assert.match(appSource, /const settingsSidebarLayoutControls = \([\s\S]*<AppShellLeftPaneToggle hidden=\{settingsSidebarHidden\}/)
   assert.match(appSource, /layoutControls=\{accountSettingsActiveTab \? settingsSidebarLayoutControls : toolSidebarLayoutControls\}/)
   assert.match(appSource, /const toolCenterLayoutControls = toolChrome && toolSidebarHidden[\s\S]*\? accountSettingsActiveTab \? settingsSidebarLayoutControls : toolSidebarLayoutControls/)
   assert.match(appSource, /const settingsCenterHeader = \([\s\S]*navigationControls=\{settingsSidebarHidden \? <>\{homeHeaderControl\}\{settingsExitControl\}<\/> : undefined\}/)
-  assert.match(appSource, /const projectHistoryNavigationControls = \([\s\S]*project-window-controls__nav[\s\S]*window\.history\.back[\s\S]*project-window-controls__nav[\s\S]*window\.history\.forward/)
+  assert.match(appSource, /const projectHistoryNavigationControls = <AppShellHistoryNavigationControls navClassName="project-window-controls__nav" \/>/)
+  assert.match(appSource, /export function AppShellHistoryNavigationControls[\s\S]*window\.history\.back[\s\S]*window\.history\.forward/)
   assert.match(appSource, /const homeCenterHeader = \(\s*<Header\s*showWindowControls\s*showAppControls\s*showFallbackBrand=\{false\}\s*showAppUpdateAction\s*\/>\s*\)/)
   assert.match(appSource, /navigationControls=\{<>\{homeHeaderControl\}\{projectHistoryNavigationControls\}<\/>\}[\s\S]*primaryActions=\{<ProjectGitHeaderActions compact \/>\}[\s\S]*contextActions=\{terminalHeaderControl\}/)
-  assert.match(appSource, /navigationControls=\{!agentSidebarVisible \? homeHeaderControl : undefined\}/)
+  assert.match(appSource, /const agentNavigationControls = <>\{homeHeaderControl\}\{settingsExitControl\}<\/>/)
+  assert.match(appSource, /navigationControls=\{!agentSidebarVisible \? agentNavigationControls : undefined\}/)
+  assert.match(appSource, /\{agentSettingsActive \? null : <AppShellHistoryNavigationControls navClassName="agent-sidebar-window-controls__nav" \/>\}/)
   assert.match(appSource, /className="tool-sidebar-window-controls/)
   assert.doesNotMatch(headerSource, /showProjectControls/)
   assert.doesNotMatch(appSource, /showProjectControls=/)
-  assert.match(appSource, /className="app-window-sidebar-toggle tool-sidebar-window-controls__nav"[\s\S]*window\.history\.back/)
-  assert.match(appSource, /className="app-window-sidebar-toggle tool-sidebar-window-controls__nav"[\s\S]*window\.history\.forward/)
+  assert.match(appSource, /<AppShellHistoryNavigationControls navClassName="tool-sidebar-window-controls__nav" \/>/)
   assert.doesNotMatch(agentModeStyles, /\.app-window-header:has\(\.agent-sidebar-window-controls\)/)
 })
 
@@ -167,15 +174,11 @@ test('route shell viewport scroll is derived from the route layout registry', ()
   assert.doesNotMatch(appSource, /<AppRouteViewport scroll="owned"/)
 })
 
-test('enterprise app top controls extend the shared component instead of shadowing it', () => {
+test('app top controls are driven by the shared runtime contract', () => {
   const contractSource = readFileSync(resolve('src/runtime/contract.ts'), 'utf8')
   const communityRuntimeSource = readFileSync(resolve('src/runtime/community.tsx'), 'utf8')
-  const enterpriseRuntimeSource = readFileSync(resolve('../../../enterprise/overlays/movscript/apps/frontend/src/edition/enterprise.tsx'), 'utf8')
   const appTopControlsSource = readFileSync(resolve('src/features/app-shell/components/AppTopControls.tsx'), 'utf8')
   const appTopControlsStyles = readFileSync(resolve('../../packages/ui/src/components/business/app/navigation/styles.css'), 'utf8')
-  const enterpriseTopControlsOverlay = resolve('../../../enterprise/overlays/movscript/apps/frontend/src/features/app-shell/components/AppTopControls.tsx')
-  const enterpriseAppNavigationOverlay = resolve('../../../enterprise/overlays/movscript/packages/ui/src/components/business/app/navigation/index.tsx')
-  const enterpriseAppNavigationStylesOverlay = resolve('../../../enterprise/overlays/movscript/packages/ui/src/components/business/app/navigation/styles.css')
 
   assert.match(contractSource, /export interface FrontendAppTopControls/)
   assert.match(contractSource, /globalMenuItems\?: FrontendAppTopControlsMenuItem\[\]/)
@@ -184,11 +187,6 @@ test('enterprise app top controls extend the shared component instead of shadowi
   assert.doesNotMatch(contractSource, /projectMenuVariant/)
   assert.doesNotMatch(contractSource, /modeButtonVariant/)
   assert.match(communityRuntimeSource, /export const runtimeAppTopControls: FrontendAppTopControls = \{\}/)
-  assert.match(enterpriseRuntimeSource, /export const runtimeAppTopControls: FrontendAppTopControls = \{[\s\S]*settingsAction: 'appSettingsRoute'/)
-  assert.match(enterpriseRuntimeSource, /globalMenuItems: \[[\s\S]*id: 'billing'[\s\S]*icon: CreditCard[\s\S]*to: '\/billing'/)
-  assert.doesNotMatch(enterpriseRuntimeSource, /languageControl/)
-  assert.doesNotMatch(enterpriseRuntimeSource, /projectMenuVariant/)
-  assert.doesNotMatch(enterpriseRuntimeSource, /modeButtonVariant/)
   assert.match(appTopControlsSource, /const \[globalMenuOpen, setGlobalMenuOpen\] = useState\(false\)/)
   assert.match(appTopControlsSource, /const globalMenuItems = runtimeAppTopControls\.globalMenuItems \?\? \[\]/)
   assert.doesNotMatch(appTopControlsSource, /switchMode/)
@@ -211,9 +209,6 @@ test('enterprise app top controls extend the shared component instead of shadowi
   assert.doesNotMatch(readFileSync(resolve('../../packages/ui/src/components/business/app/navigation/index.tsx'), 'utf8'), /AppTopProjectMenuContent/)
   assert.match(appTopControlsStyles, /\.app-top-control-button\[data-state="open"\]/)
   assert.match(appTopControlsStyles, /\.app-top-global-menu \{[\s\S]*width: 15rem;/)
-  assert.equal(existsSync(enterpriseTopControlsOverlay), false)
-  assert.equal(existsSync(enterpriseAppNavigationOverlay), false)
-  assert.equal(existsSync(enterpriseAppNavigationStylesOverlay), false)
 })
 
 test('app header icon architecture document maps page controls to semantic regions', () => {

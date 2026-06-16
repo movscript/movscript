@@ -13,9 +13,11 @@ const readinessSource = readSource('apps/frontend/src/features/agent/application
 const configFileSource = [
   readSource('apps/frontend/src/features/agent/application/agentSettingsConfigFile.ts'),
   readSource('apps/frontend/src/features/agent/application/agentSettingsConfigFileManagement.ts'),
+  readSource('apps/frontend/src/features/agent/application/agentSettingsConfigFileDiff.ts'),
   readSource('apps/frontend/src/features/agent/application/agentSettingsConfigFileExport.ts'),
   readSource('apps/frontend/src/features/agent/application/agentSettingsConfigFileWorkspaces.ts'),
   readSource('apps/frontend/src/features/agent/application/agentSettingsConfigFileTypes.ts'),
+  readSource('apps/frontend/src/features/agent/application/agentSettingsSnapshotImportSelection.ts'),
 ].join('\n')
 const providerModelSource = readSource('apps/frontend/src/features/agent/application/agentSettingsProviderModel.ts')
 const pageModelSource = readSource('apps/frontend/src/features/agent/presentation/agentSettingsPageModel.ts')
@@ -28,6 +30,10 @@ const modelControllerSource = readSource('apps/frontend/src/features/agent/appli
 const snapshotControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsSnapshotController.ts')
 const workspaceConfigControllerSource = readSource('apps/frontend/src/features/agent/application/useAgentSettingsWorkspaceConfigController.ts')
 const pagePartsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsPageParts.tsx')
+const apiModePanelsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsApiModePanels.tsx')
+const auditPanelSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsAuditPanel.tsx')
+const diffPanelsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsDiffPanels.tsx')
+const rowsSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsRows.tsx')
 const snapshotPanelSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsSnapshotPanel.tsx')
 const browserActionsSource = readSource('apps/frontend/src/shared/ui/browserActions.ts')
 const headerSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsHeaderSection.tsx')
@@ -40,6 +46,17 @@ const configFileRollbackBackupPanelSource = readSource('apps/frontend/src/featur
 const configFileDetailsSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsConfigFileDetailsSection.tsx')
 const skillSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsSkillSection.tsx')
 const toolPermissionsSectionSource = readSource('apps/frontend/src/features/agent/components/AIAgentSettingsToolPermissionsSection.tsx')
+const settingsSharedUiSource = [
+  readSource('apps/frontend/src/features/agent/components/AgentSettingsUi.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentSettingsStatusUi.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentSettingsConfigFileUi.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentSettingsSkillUi.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentSettingsSnapshotUi.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentSettingsToolPermissionsUi.tsx'),
+].join('\n')
+const settingsSharedUiCss = readSource('apps/frontend/src/features/agent/components/AgentSettingsUi.css')
+const settingsStatusUiCss = readSource('apps/frontend/src/features/agent/components/AgentSettingsStatusUi.css')
+const settingsToolPermissionsUiCss = readSource('apps/frontend/src/features/agent/components/AgentSettingsToolPermissionsUi.css')
 
 test('agent settings page delegates readiness and action item derivation', () => {
   assert.match(pageSource, /from '@\/features\/agent\/application\/agentSettingsReadiness'/)
@@ -366,8 +383,10 @@ test('agent settings page delegates page constants and small utilities', () => {
 
 test('agent settings browser side effects are centralized in shared UI helpers', () => {
   assert.match(pageSource, /from '@\/shared\/ui\/browserActions'/)
-  assert.match(pagePartsSource, /from '@\/shared\/ui\/browserActions'/)
-  for (const source of [pageSource, pagePartsSource, summaryCopySource]) {
+  assert.match(apiModePanelsSource, /from '@\/shared\/ui\/browserActions'/)
+  assert.match(auditPanelSource, /from '@\/shared\/ui\/browserActions'/)
+  assert.match(diffPanelsSource, /from '@\/shared\/ui\/browserActions'/)
+  for (const source of [pageSource, apiModePanelsSource, auditPanelSource, diffPanelsSource, summaryCopySource]) {
     assert.doesNotMatch(source, /navigator\.clipboard/)
     assert.doesNotMatch(source, /document\.createElement/)
     assert.doesNotMatch(source, /document\.body/)
@@ -391,17 +410,17 @@ test('agent settings browser side effects are centralized in shared UI helpers',
 
 test('agent settings page delegates row and diff view sections', () => {
   assert.match(settingsSurfaceSource, /from '@\/features\/agent\/components\/AIAgentSettingsPageParts'/)
-  for (const componentName of [
-    'SkillRow',
-    'ConfigFileDiffPanel',
-    'ToolPermissionsDiffPreview',
-    'ToolPermissionsRow',
-  ]) {
-    assert.match(pagePartsSource, new RegExp(`export function ${componentName}\\b`))
+  assert.match(pagePartsSource, /export \* from '@\/features\/agent\/components\/AIAgentSettingsRows'/)
+  assert.match(pagePartsSource, /export \* from '@\/features\/agent\/components\/AIAgentSettingsDiffPanels'/)
+  assert.match(rowsSource, /export function SkillRow\b/)
+  assert.match(rowsSource, /export function ToolPermissionsRow\b/)
+  assert.match(diffPanelsSource, /export function ConfigFileDiffPanel\b/)
+  assert.match(diffPanelsSource, /export function ToolPermissionsDiffPreview\b/)
+  for (const componentName of ['SkillRow', 'ConfigFileDiffPanel', 'ToolPermissionsDiffPreview', 'ToolPermissionsRow']) {
     assert.doesNotMatch(pageSource, new RegExp(`function ${componentName}\\b`))
   }
 
-  assert.match(pagePartsSource, /export function configFileListSummary/)
+  assert.match(diffPanelsSource, /export function configFileListSummary/)
   assert.doesNotMatch(pageSource, /function configFileListSummary\b/)
   assert.doesNotMatch(pageSource, /function ConfigFileRow\b/)
   assert.doesNotMatch(pageSource, /function configFileSummaryItems\b/)
@@ -414,7 +433,8 @@ test('agent settings page delegates snapshot and API mode panels', () => {
   assert.match(snapshotPanelSource, /export function SettingsSnapshotPanel\b/)
   assert.match(pageSource, /<SettingsSnapshotPanel\b/)
   assert.doesNotMatch(pageSource, /function SettingsSnapshotPanel\b/)
-  assert.match(pagePartsSource, /export function SettingsAuditTrailPanel\b/)
+  assert.match(pagePartsSource, /export \* from '@\/features\/agent\/components\/AIAgentSettingsAuditPanel'/)
+  assert.match(auditPanelSource, /export function SettingsAuditTrailPanel\b/)
   assert.doesNotMatch(pageSource, /<SettingsAuditTrailPanel\b/)
 
   for (const componentName of [
@@ -427,8 +447,9 @@ test('agent settings page delegates snapshot and API mode panels', () => {
     assert.doesNotMatch(pageSource, new RegExp(`function ${componentName}\\b`))
   }
 
-  assert.match(pagePartsSource, /const API_MODE_CAPABILITY_MATRIX/)
-  assert.match(pagePartsSource, /const API_MODE_MIGRATION_STEPS/)
+  assert.match(pagePartsSource, /export \* from '@\/features\/agent\/components\/AIAgentSettingsApiModePanels'/)
+  assert.match(apiModePanelsSource, /const API_MODE_CAPABILITY_MATRIX/)
+  assert.match(apiModePanelsSource, /const API_MODE_MIGRATION_STEPS/)
   assert.doesNotMatch(pageSource, /const API_MODE_CAPABILITY_MATRIX/)
   assert.doesNotMatch(pageSource, /const API_MODE_MIGRATION_STEPS/)
   assert.doesNotMatch(pageSource, /function formatSettingsAuditAction/)
@@ -489,7 +510,7 @@ test('agent settings page delegates model configuration panel', () => {
     'ApiModeMigrationGuide',
     'ApiModeSwitchPlanPanel',
   ]) {
-    assert.match(pagePartsSource, new RegExp(`export function ${componentName}\\b`))
+    assert.match(apiModePanelsSource, new RegExp(`export function ${componentName}\\b`))
     assert.match(modelPanelSource, new RegExp(`<${componentName}\\b`))
   }
   assert.match(modelPanelSource, /id="agent-settings-model"/)
@@ -624,6 +645,48 @@ test('agent settings page delegates tool permissions section', () => {
   assert.match(toolPermissionsSectionSource, /<ToolPermissionsRow\b/)
   assert.match(toolPermissionsSectionSource, /<ToolPermissionsDiffPreview\b/)
   assert.match(toolPermissionsSectionSource, /TOOL_PERMISSIONS_FILTER_OPTIONS\.map/)
+})
+
+test('agent settings shared UI rows use common layout utilities', () => {
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-row-between"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-title-row"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-action-group"/)
+  assert.match(settingsSharedUiSource, /"ms-action-row agent-settings-header"/)
+  assert.match(settingsSharedUiSource, /"ms-action-row agent-settings-header__title-row"/)
+  assert.match(settingsSharedUiSource, /"ms-action-row agent-settings-header__actions"/)
+  assert.match(settingsSharedUiSource, /"ms-action-row agent-settings-action-row"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-readiness-row"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-action-header"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-model-route__header"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-tool-permissions-presets__header"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-tool-permissions-presets__list"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-tool-permissions-presets__item"/)
+  assert.match(settingsSharedUiSource, /className="ms-action-row agent-settings-tool-permissions-bulk"/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-header\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-header\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-header__title-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-header__actions,\s*\n\.agent-settings-action-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-header__actions,\s*\n\.agent-settings-action-row\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-row-between\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-row-between\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-title-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-title-row\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-action-group\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsSharedUiCss, /\.agent-settings-action-group\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsStatusUiCss, /\.agent-settings-readiness-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsStatusUiCss, /\.agent-settings-readiness-row\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsStatusUiCss, /\.agent-settings-action-header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsStatusUiCss, /\.agent-settings-action-header\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsStatusUiCss, /\.agent-settings-model-route__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsStatusUiCss, /\.agent-settings-model-route__header\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-presets__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-presets__header\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-presets__list\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-presets__list\s*\{[^}]*gap:/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-presets__item\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-bulk\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(settingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-bulk\s*\{[^}]*gap:/)
 })
 
 function readSource(path) {

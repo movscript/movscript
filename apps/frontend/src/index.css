@@ -7,10 +7,8 @@
 @import "@movscript/ui/styles/business/agent.css";
 @import "@movscript/ui/styles/business/canvas.css";
 @import "@movscript/ui/styles/business/generation.css";
-@import "@movscript/ui/styles/business/jobs.css";
 @import "@movscript/ui/styles/business/resource.css";
 @import "@movscript/ui/styles/business/review.css";
-@import "@movscript/ui/styles/business/scripts.css";
 @import "@movscript/ui/styles/business/workbench.css";
 @import "@/features/agent/components/AgentAttachmentPreviewUi.css";
 @import "@/features/agent/components/AgentConsoleUi.css";
@@ -22,6 +20,7 @@
 @import "@/features/agent/components/AgentConversationHistoryUi.css";
 @import "@/features/agent/components/AgentConversationTabsUi.css";
 @import "@/features/agent/components/AgentPageUi.css";
+@import "@/features/agent/components/AgentSettingsUi.css";
 @import "@/features/agent/components/AgentPanelCardUi.css";
 @import "@/features/agent/components/AgentPanelContextUi.css";
 @import "@/features/agent/components/AgentPanelProviderSessionUi.css";

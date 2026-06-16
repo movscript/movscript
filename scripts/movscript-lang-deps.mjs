@@ -22,6 +22,7 @@ export async function updateMovscriptLangIntegration(input = {}) {
     throw new Error(`Unsupported movscript-lang dependency mode: ${String(mode)}`)
   }
 
+  const workspacePackageSpecs = mode === 'latest' ? await workspaceSpecsForPackages(root) : {}
   const updatedPackagePaths = []
   const updatedPackages = []
 
@@ -29,7 +30,7 @@ export async function updateMovscriptLangIntegration(input = {}) {
     const packagePath = path.join(root, target)
     const packageJson = await readJson(packagePath).catch(() => undefined)
     if (!packageJson) continue
-    const dependencySpecs = dependencySpecsForMode(root, input, path.dirname(packagePath))
+    const dependencySpecs = dependencySpecsForMode(root, input, path.dirname(packagePath), workspacePackageSpecs)
     packageJson.dependencies = {
       ...(isRecord(packageJson.dependencies) ? packageJson.dependencies : {}),
     }
@@ -45,7 +46,7 @@ export async function updateMovscriptLangIntegration(input = {}) {
 
   return {
     mode,
-    specs: updatedPackages[0]?.specs ?? dependencySpecsForMode(root, input, root),
+    specs: updatedPackages[0]?.specs ?? dependencySpecsForMode(root, input, root, workspacePackageSpecs),
     packagePaths: updatedPackagePaths,
     packages: updatedPackages,
   }
@@ -70,9 +71,11 @@ export function parseMovscriptLangDepsCliArgs(argv) {
   return { mode }
 }
 
-function dependencySpecsForMode(root, input, fromDir) {
+function dependencySpecsForMode(root, input, fromDir, workspacePackageSpecs = {}) {
   if (input.mode === 'latest') {
-    return Object.fromEntries(MOVSCRIPT_LANG_PACKAGES.map((packageName) => [packageName, 'latest']))
+    return Object.fromEntries(MOVSCRIPT_LANG_PACKAGES.map((packageName) => {
+      return [packageName, workspacePackageSpecs[packageName] ?? 'latest']
+    }))
   }
   if (input.mode === 'version') {
     const spec = requiredVersionSpec(input.versionSpec)
@@ -85,6 +88,15 @@ function dependencySpecsForMode(root, input, fromDir) {
     const specPath = relative.startsWith('.') ? relative : `./${relative}`
     return [packageName, `link:${specPath}`]
   }))
+}
+
+async function workspaceSpecsForPackages(root) {
+  const entries = await Promise.all(MOVSCRIPT_LANG_PACKAGES.map(async (packageName) => {
+    const packageDir = packageName.replace('@movscript/', '')
+    const packageJson = await readJson(path.join(root, 'packages', packageDir, 'package.json')).catch(() => undefined)
+    return packageJson?.name === packageName ? [packageName, 'workspace:*'] : undefined
+  }))
+  return Object.fromEntries(entries.filter(Boolean))
 }
 
 function requiredVersionSpec(value) {

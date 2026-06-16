@@ -15,8 +15,6 @@
   margin: 0;
   padding: 10px 12px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-label);
-  line-height: 18px;
 }
 
 .generation-input-mention-menu__list {
@@ -48,9 +46,5 @@
 }
 
 .generation-input-mention-menu__label {
-  overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

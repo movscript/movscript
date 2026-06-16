@@ -52,6 +52,39 @@ function readProjectFile(relativePath) {
   return readFileSync(absolutePath, 'utf8')
 }
 
+function readScriptsPageFeatureCss() {
+  return [
+    'apps/frontend/src/features/scripts/components/ScriptsPageUi.css',
+    'apps/frontend/src/features/scripts/components/ScriptsPageEditor.css',
+    'apps/frontend/src/features/scripts/components/ScriptsPagePanels.css',
+  ].map(readProjectFile).join('\n')
+}
+
+function readScriptsPageFeatureSource() {
+  return [
+    'apps/frontend/src/features/scripts/components/ScriptsPageUi.tsx',
+    'apps/frontend/src/features/scripts/components/ScriptsPageWorkspaceUi.tsx',
+    'apps/frontend/src/features/scripts/components/ScriptsPageEditorUi.tsx',
+    'apps/frontend/src/features/scripts/components/ScriptsPageDetailUi.tsx',
+    'apps/frontend/src/features/scripts/components/ScriptsPageVersionBlockUi.tsx',
+  ].map(readProjectFile).join('\n')
+}
+
+function readResourcePageFeatureCss() {
+  return [
+    'apps/frontend/src/features/resources/components/ResourcePageUi.css',
+    'apps/frontend/src/features/resources/components/ResourcePageDialogs.css',
+  ].map(readProjectFile).join('\n')
+}
+
+function readCanvasWorkflowFeatureCss() {
+  return [
+    'apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.css',
+    'apps/frontend/src/features/canvas/ui/CanvasWorkflowReferenceCardUi.css',
+    'apps/frontend/src/features/canvas/ui/CanvasWorkflowRunResultsUi.css',
+  ].map(readProjectFile).join('\n')
+}
+
 function readAgentCss() {
   return [
     'packages/ui/src/components/business/agent/styles.css',
@@ -62,9 +95,9 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/shell/sidebar/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/foundation/styles.css',
+    'packages/ui/src/components/business/agent/shell/primitives/context/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/tool/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
-    'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/feed/styles.css',
@@ -72,7 +105,8 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/activity-feed/round/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/line/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/frame/styles.css',
-    'packages/ui/src/components/business/agent/activity-feed/code/styles.css',    'packages/ui/src/components/business/agent/diagnostic/styles.css',
+    'packages/ui/src/components/business/agent/activity-feed/code/styles.css',
+    'packages/ui/src/components/business/agent/diagnostic/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/card/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/summary/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/disclosure/styles.css',
@@ -80,7 +114,6 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/diagnostic/code/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/badge/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/tool/styles.css',
-    'packages/ui/src/components/business/agent/diagnostic/warnings/styles.css',
     'packages/ui/src/components/business/agent/plan-overview/styles.css',
     'packages/ui/src/components/business/agent/plan-overview/shell/styles.css',
     'packages/ui/src/components/business/agent/plan-overview/task/styles.css',
@@ -92,21 +125,15 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/run-activity/item/styles.css',
     'packages/ui/src/components/business/agent/run-activity/status/styles.css',
     'packages/ui/src/components/business/agent/run-activity/code/styles.css',
-    'packages/ui/src/components/business/agent/run-activity/notice/styles.css',
     'packages/ui/src/components/business/agent/run-activity/bubble/styles.css',
     'packages/ui/src/components/business/agent/thread/styles.css',
     'packages/ui/src/components/business/agent/thread/foundation/styles.css',
     'packages/ui/src/components/business/agent/thread/empty/styles.css',
-    'packages/ui/src/components/business/agent/thread/message/styles.css',
     'packages/ui/src/components/business/agent/thread/tool/styles.css',
     'packages/ui/src/components/business/agent/thread/suggestion/styles.css',
-    'packages/ui/src/components/business/agent/context/styles.css',
     'packages/ui/src/components/business/agent/run/styles.css',
     'packages/ui/src/components/business/agent/run/foundation/styles.css',
     'packages/ui/src/components/business/agent/run/data-block/styles.css',
-    'packages/ui/src/components/business/agent/composer/index.tsx',
-    'packages/ui/src/components/business/agent/composer/styles.css',
-    'packages/ui/src/components/business/agent/settings/styles.css',
     'packages/ui/src/components/business/agent/responsive/styles.css',
   ].map(readProjectFile).join('\n')
 }
@@ -168,8 +195,7 @@ function readAgentDiagnosticCss() {
     'packages/ui/src/components/business/agent/diagnostic/entry/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/code/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/badge/styles.css',
-    'packages/ui/src/components/business/agent/diagnostic/tool/styles.css',
-    'packages/ui/src/components/business/agent/diagnostic/warnings/styles.css',  ].map(readProjectFile).join('\n')
+    'packages/ui/src/components/business/agent/diagnostic/tool/styles.css',  ].map(readProjectFile).join('\n')
 }
 
 function readAgentRunSource() {
@@ -234,13 +260,6 @@ function readAgentSource() {
     'packages/ui/src/components/business/agent/run-activity/code/index.tsx',
     'packages/ui/src/components/business/agent/run-activity/notice/index.tsx',
     'packages/ui/src/components/business/agent/run-activity/bubble/index.tsx',
-    'packages/ui/src/components/business/agent/composer/index.tsx',
-    'packages/ui/src/components/business/agent/settings/index.tsx',
-    'packages/ui/src/components/business/agent/message/index.tsx',
-    'packages/ui/src/components/business/agent/message/base/index.tsx',
-    'packages/ui/src/components/business/agent/message/section/index.tsx',
-    'packages/ui/src/components/business/agent/message/chat/index.tsx',
-    'packages/ui/src/components/business/agent/message/model-setup/index.tsx',
   ].map(readProjectFile).join('\n')
 }
 
@@ -272,15 +291,12 @@ function readAppSource() {
     'packages/ui/src/components/business/app/data-display/metric/index.tsx',
     'packages/ui/src/components/business/app/data-display/table/index.tsx',
     'packages/ui/src/components/business/app/state/index.tsx',
-    'packages/ui/src/components/business/app/auth/index.tsx',
     'packages/ui/src/components/business/app/work-mode/index.tsx',
     'packages/ui/src/components/business/app/work-mode/types.ts',
     'packages/ui/src/components/business/app/work-mode/prompt/index.tsx',
     'packages/ui/src/components/business/app/work-mode/card/index.tsx',
     'packages/ui/src/components/business/app/work-mode/switch-guide/index.tsx',
-    'packages/ui/src/components/business/app/onboarding/index.tsx',
     'packages/ui/src/components/business/app/shell/index.tsx',
-    'packages/ui/src/components/business/app/user-profile/index.tsx',
     'packages/ui/src/components/business/app/toast/index.tsx',
   ].map(readProjectFile).join('\n')
 }
@@ -312,15 +328,11 @@ function readAppCss() {
     'packages/ui/src/components/business/app/data-display/metric/styles.css',
     'packages/ui/src/components/business/app/data-display/table/styles.css',
     'packages/ui/src/components/business/app/state/styles.css',
-    'packages/ui/src/components/business/app/auth/styles.css',
     'packages/ui/src/components/business/app/work-mode/styles.css',
     'packages/ui/src/components/business/app/work-mode/prompt/styles.css',
     'packages/ui/src/components/business/app/work-mode/card/styles.css',
     'packages/ui/src/components/business/app/work-mode/switch-guide/styles.css',
-    'packages/ui/src/components/business/app/onboarding/styles.css',
     'packages/ui/src/components/business/app/shell/styles.css',
-    'packages/ui/src/components/business/app/user-profile/styles.css',
-    'packages/ui/src/components/business/app/projects/styles.css',
     'packages/ui/src/components/business/app/toast/styles.css',
   ].map(readProjectFile).join('\n')
 }
@@ -330,14 +342,6 @@ function readReviewSource() {
     'packages/ui/src/components/business/review/index.tsx',
     'packages/ui/src/components/business/review/types.ts',
     'packages/ui/src/components/business/review/callout/index.tsx',
-    'packages/ui/src/components/business/review/workspace/index.tsx',
-    'packages/ui/src/components/business/review/workspace/workspace/index.tsx',
-    'packages/ui/src/components/business/review/workspace/shell/index.tsx',
-    'packages/ui/src/components/business/review/workspace/empty-state/index.tsx',
-    'packages/ui/src/components/business/review/workspace/impact/index.tsx',
-    'packages/ui/src/components/business/review/workspace/footer-actions/index.tsx',
-    'packages/ui/src/components/business/review/workspace/apply-gate/index.tsx',
-    'packages/ui/src/components/business/review/workspace/upstream/index.tsx',
   ].map(readProjectFile).join('\n')
 }
 
@@ -345,54 +349,26 @@ function readReviewCss() {
   return [
     'packages/ui/src/components/business/review/styles.css',
     'packages/ui/src/components/business/review/callout/styles.css',
-    'packages/ui/src/components/business/review/workspace/styles.css',
-    'packages/ui/src/components/business/review/workspace/workspace/styles.css',
-    'packages/ui/src/components/business/review/workspace/empty-state/styles.css',
-    'packages/ui/src/components/business/review/workspace/impact/styles.css',
-    'packages/ui/src/components/business/review/workspace/footer-actions/styles.css',
-    'packages/ui/src/components/business/review/workspace/apply-gate/styles.css',
-    'packages/ui/src/components/business/review/workspace/upstream/styles.css',
   ].map(readProjectFile).join('\n')
 }
 
 function readJobsSource() {
   return [
-    'packages/ui/src/components/business/jobs/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/shell/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/header/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/filters/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/collection/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/pager/index.tsx',
-    'packages/ui/src/components/business/jobs/status/index.tsx',
-    'packages/ui/src/components/business/jobs/detail/index.tsx',
-    'packages/ui/src/components/business/jobs/card/index.tsx',
-    'packages/ui/src/components/business/jobs/card/shell/index.tsx',
-    'packages/ui/src/components/business/jobs/card/header/index.tsx',
-    'packages/ui/src/components/business/jobs/card/media/index.tsx',
-    'packages/ui/src/components/business/jobs/card/state/index.tsx',
-    'packages/ui/src/components/business/jobs/card/grid/index.tsx',
+    'apps/frontend/src/features/jobs/components/JobsPage.tsx',
+    'apps/frontend/src/features/jobs/components/JobsPageParts.tsx',
+    'apps/frontend/src/features/jobs/components/JobsPageCards.tsx',
+    'apps/frontend/src/features/tools/components/ToolDialogJobPanels.tsx',
   ].map(readProjectFile).join('\n')
 }
 
 function readJobsCss() {
   return [
-    'packages/ui/src/components/business/jobs/styles.css',
-    'packages/ui/src/components/business/jobs/layout/styles.css',
-    'packages/ui/src/components/business/jobs/layout/shell/styles.css',
-    'packages/ui/src/components/business/jobs/layout/header/styles.css',
-    'packages/ui/src/components/business/jobs/layout/filters/styles.css',
-    'packages/ui/src/components/business/jobs/layout/collection/styles.css',
-    'packages/ui/src/components/business/jobs/layout/pager/styles.css',
-    'packages/ui/src/components/business/jobs/status/styles.css',
-    'packages/ui/src/components/business/jobs/detail/styles.css',
-    'packages/ui/src/components/business/jobs/card/styles.css',
-    'packages/ui/src/components/business/jobs/card/shell/styles.css',
-    'packages/ui/src/components/business/jobs/card/header/styles.css',
-    'packages/ui/src/components/business/jobs/card/media/styles.css',
-    'packages/ui/src/components/business/jobs/card/state/styles.css',
-    'packages/ui/src/components/business/jobs/card/grid/styles.css',
+    'apps/frontend/src/shared/ui/JobDisplayUi.css',
   ].map(readProjectFile).join('\n')
+}
+
+function readJobsDisplayUiSource() {
+  return readProjectFile('apps/frontend/src/shared/ui/JobDisplayUi.tsx')
 }
 
 function readResourcePanelSource() {
@@ -446,23 +422,13 @@ function readResourceCss() {
 
 function readResourceLibraryPickerSource() {
   return [
-    'packages/ui/src/components/business/resource/library-picker/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/types.ts',
-    'packages/ui/src/components/business/resource/library-picker/header/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/toolbar/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/list/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/row/index.tsx',
+    'apps/frontend/src/shared/ui/ResourceLibraryPicker.tsx',
+    'apps/frontend/src/shared/ui/ResourceLibraryPickerUi.tsx',
   ].map(readProjectFile).join('\n')
 }
 
 function readResourceLibraryPickerCss() {
-  return [
-    'packages/ui/src/components/business/resource/library-picker/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/shell/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/toolbar/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/list/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/row/styles.css',
-  ].map(readProjectFile).join('\n')
+  return readProjectFile('apps/frontend/src/shared/ui/ResourceLibraryPickerUi.css')
 }
 
 function readResourceMediaViewerSource() {
@@ -623,32 +589,11 @@ function readGenerationResultCss() {
   ].map(readProjectFile).join('\n')
 }
 
-function readScriptsLibrarySource() {
-  return [
-    'packages/ui/src/components/business/scripts/library/index.tsx',
-    'packages/ui/src/components/business/scripts/library/rail/index.tsx',
-    'packages/ui/src/components/business/scripts/library/empty-state/index.tsx',
-    'packages/ui/src/components/business/scripts/library/group/index.tsx',
-    'packages/ui/src/components/business/scripts/library/item/index.tsx',
-  ].map(readProjectFile).join('\n')
-}
-
-function readScriptsLibraryCss() {
-  return [
-    'packages/ui/src/components/business/scripts/library/styles.css',
-    'packages/ui/src/components/business/scripts/library/rail/styles.css',
-    'packages/ui/src/components/business/scripts/library/empty-state/styles.css',
-    'packages/ui/src/components/business/scripts/library/group/styles.css',
-    'packages/ui/src/components/business/scripts/library/item/styles.css',
-  ].map(readProjectFile).join('\n')
-}
-
 function readWorkbenchChromeSource() {
   return [
     'packages/ui/src/components/business/workbench/chrome/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/app-shell/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/project-shell/index.tsx',
-    'packages/ui/src/components/business/workbench/chrome/queue/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/decision/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/metric-strip/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/context/index.tsx',
@@ -661,7 +606,6 @@ function readWorkbenchChromeCss() {
     'packages/ui/src/components/business/workbench/chrome/styles.css',
     'packages/ui/src/components/business/workbench/chrome/app-shell/styles.css',
     'packages/ui/src/components/business/workbench/chrome/project-shell/styles.css',
-    'packages/ui/src/components/business/workbench/chrome/queue/styles.css',
     'packages/ui/src/components/business/workbench/chrome/decision/styles.css',
     'packages/ui/src/components/business/workbench/chrome/metric-strip/styles.css',
     'packages/ui/src/components/business/workbench/chrome/context/styles.css',
@@ -750,10 +694,8 @@ test('@movscript/ui public imports use narrow entrypoints', () => {
     './business/app',
     './business/canvas',
     './business/generation',
-    './business/jobs',
     './business/resource',
     './business/review',
-    './business/scripts',
     './business/workbench',
     './styles/base.css',
     './styles/semantic.css',
@@ -763,21 +705,27 @@ test('@movscript/ui public imports use narrow entrypoints', () => {
     './styles/business/app.css',
     './styles/business/canvas.css',
     './styles/business/generation.css',
-    './styles/business/jobs.css',
     './styles/business/resource.css',
     './styles/business/review.css',
-    './styles/business/scripts.css',
     './styles/business/workbench.css',
   ]
 
   for (const exportPath of requiredExports) {
     assert.ok(packageJson.exports[exportPath], `package export ${exportPath} must exist`)
   }
+  assert.equal(packageJson.exports['./business/jobs'], undefined, 'jobs business UI must be app-owned, not a package export')
+  assert.equal(packageJson.exports['./styles/business/jobs.css'], undefined, 'jobs CSS must be app-owned, not a package style export')
 
   assert.equal(packageJson.exports['./business'], undefined, 'package must not expose a root @movscript/ui/business entry')
+  assert.equal(packageJson.exports['./business/scripts'], undefined, 'scripts UI is feature-owned and must not be exported from @movscript/ui')
   assert.equal(packageJson.exports['./styles'], undefined, 'package must not expose a root @movscript/ui/styles entry')
+  assert.equal(packageJson.exports['./styles/business/scripts.css'], undefined, 'scripts CSS is feature-owned and must not be exported from @movscript/ui')
   assert.doesNotMatch(viteConfigSources, /['"]@movscript\/ui\/business['"]\s*:/, 'Vite aliases must not expose a root @movscript/ui/business entry')
   assert.doesNotMatch(viteConfigSources, /['"]@movscript\/ui\/styles['"]\s*:/, 'Vite aliases must not expose a root @movscript/ui/styles entry')
+  assert.doesNotMatch(viteConfigSources, /['"]@movscript\/ui\/business\/jobs['"]\s*:/, 'Vite aliases must not expose app-owned jobs UI')
+  assert.doesNotMatch(viteConfigSources, /['"]@movscript\/ui\/styles\/business\/jobs\.css['"]\s*:/, 'Vite aliases must not expose app-owned jobs CSS')
+  assert.doesNotMatch(viteConfigSources, /['"]@movscript\/ui\/business\/scripts['"]\s*:/, 'Vite aliases must not expose feature-owned scripts UI')
+  assert.doesNotMatch(viteConfigSources, /['"]@movscript\/ui\/styles\/business\/scripts\.css['"]\s*:/, 'Vite aliases must not expose feature-owned scripts CSS')
   assert.match(viteConfigSources, /['"]@movscript\/ui\/business\/agent['"]\s*:/, 'Vite aliases must expose business domain entries explicitly')
   assert.match(viteConfigSources, /['"]@movscript\/ui\/business\/app['"]\s*:/, 'Vite aliases must expose business domain entries explicitly')
   assert.match(viteConfigSources, /['"]@movscript\/ui\/styles\/base\.css['"]\s*:/, 'Vite aliases must expose style file entries explicitly')
@@ -859,21 +807,29 @@ test('packages/ui has an auditable quality gate for package boundaries', () => {
 
 test('page-level resource UI is accessed through the resources feature wrapper', () => {
   const wrapperSource = readProjectFile('apps/frontend/src/features/resources/components/ResourcePageUi.tsx')
-  const wrapperCss = readProjectFile('apps/frontend/src/features/resources/components/ResourcePageUi.css')
+  const dialogUiSource = readProjectFile('apps/frontend/src/features/resources/components/ResourcePageDialogUi.tsx')
+  const resourceFeatureUiSource = [
+    wrapperSource,
+    dialogUiSource,
+  ].join('\n')
+  const wrapperCss = readResourcePageFeatureCss()
   const resourceFeatureSources = walkFiles('apps/frontend/src/features/resources/components', (relativePath) => /\.(ts|tsx)$/.test(relativePath))
     .filter((relativePath) => relativePath !== 'apps/frontend/src/features/resources/components/ResourcePageUi.tsx')
   const resourcePackageBarrel = readProjectFile('packages/ui/src/components/business/resource/index.tsx')
   const resourcePackageCss = readProjectFile('packages/ui/src/components/business/resource/styles.css')
   const resourcePagePackageDir = path.join(root, 'packages/ui/src/components/business/resource/page')
   const resourceAssetCandidatePackageDir = path.join(root, 'packages/ui/src/components/business/resource/asset-candidate')
-  const legacyAgentPageSource = readProjectFile('packages/ui/src/components/business/agent/page/index.tsx')
-  const legacyAgentSettingsSource = readProjectFile('packages/ui/src/components/business/agent/settings/index.tsx')
+  const agentSettingsFeatureUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsUi.tsx')
+  const agentSettingsFeatureUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsUi.css')
+  const legacyAgentPageDir = path.join(root, 'packages/ui/src/components/business/agent/page')
+  const legacyAgentSettingsDir = path.join(root, 'packages/ui/src/components/business/agent/settings')
 
   assert.doesNotMatch(wrapperSource, /from '@movscript\/ui\/business\/resource'/)
   assert.match(wrapperSource, /from '@movscript\/ui\/layout'/)
   assert.match(wrapperSource, /from '@movscript\/ui\/primitives'/)
   assert.match(wrapperSource, /from '@\/shared\/ui\/cn'/)
   assert.match(wrapperSource, /import '\.\/ResourcePageUi\.css'/)
+  assert.match(wrapperSource, /export \* from '@\/features\/resources\/components\/ResourcePageDialogUi'/)
   assert.match(wrapperCss, /\.resource-page\s*\{/)
   assert.match(wrapperCss, /\.resource-page__filter-bar\s*\{/)
   assert.match(wrapperCss, /\.resource-page__asset-grid\s*\{/)
@@ -889,15 +845,16 @@ test('page-level resource UI is accessed through the resources feature wrapper',
   assert.doesNotMatch(resourcePackageBarrel, /\bResourcePrep[A-Za-z0-9_]*\b/, 'ResourcePrep* page-level components must be removed from packages/ui')
   assert.doesNotMatch(resourcePackageBarrel, /\bResourceAssetCandidate[A-Za-z0-9_]*\b|\bResourceAssetDetail[A-Za-z0-9_]*\b/, 'unused resource asset-candidate/detail components must be removed from packages/ui')
   for (const exportName of ['ResourceDialogContent', 'ResourceClipLayout', 'ResourcePermissionSection', 'ResourceFolderTreeItem', 'ResourceContextMenu']) {
-    assert.match(wrapperSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be owned by resources feature UI`)
+    assert.match(resourceFeatureUiSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be owned by resources feature UI`)
     assert.doesNotMatch(resourcePackageBarrel, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from packages/ui resource barrel`)
   }
   for (const selector of ['resource-dialog-content', 'resource-clip-layout', 'resource-permission-section', 'resource-folder-tree-item', 'resource-context-menu']) {
     assert.match(wrapperCss, new RegExp(`\\.${selector}`), `${selector} styles must live with the resources feature wrapper`)
   }
-  assert.match(legacyAgentPageSource, /@deprecated Agent page orchestration belongs in app features/)
-  assert.doesNotMatch(legacyAgentPageSource, /\bAgentPageTitleRow\b/, 'unused AgentPageTitleRow wrapper must not remain in packages/ui')
-  assert.match(legacyAgentSettingsSource, /@deprecated Agent settings page composition belongs in the frontend feature/)
+  assert.equal(existsSync(legacyAgentPageDir), false, 'agent page orchestration must be feature-owned')
+  assert.equal(existsSync(legacyAgentSettingsDir), false, 'agent settings page composition must be feature-owned')
+  assert.match(agentSettingsFeatureUiSource, /export function AgentSettingsPanel/)
+  assert.match(agentSettingsFeatureUiCss, /\.agent-settings-shell-panel__body\s*\{/)
   for (const barrelSource of [
     resourcePackageBarrel,
     readProjectFile('packages/ui/src/components/business/index.ts'),
@@ -987,6 +944,8 @@ test('unused content and tools UI domains are not shipped from packages/ui', () 
     'packages/ui/src/components/business/content/styles.css',
     'packages/ui/src/components/business/content/filter-bar/index.tsx',
     'packages/ui/src/components/business/content/filter-bar/styles.css',
+    'packages/ui/src/components/business/content/workbench/unit-track/index.tsx',
+    'packages/ui/src/components/business/content/workbench/unit-track/styles.css',
     'packages/ui/src/business/content.ts',
     'packages/ui/src/styles/business/content.css',
     'packages/ui/src/components/business/tools/index.tsx',
@@ -1098,7 +1057,10 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/layout/app-shell/sidebar/index.tsx',
     'packages/ui/src/components/layout/app-shell/sidebar/styles.css',
     'packages/ui/src/components/layout/workspace/index.tsx',
+    'packages/ui/src/components/layout/workspace/resize.ts',
     'packages/ui/src/components/layout/workspace/styles.css',
+    'packages/ui/src/components/layout/workspace/content-workspace.css',
+    'packages/ui/src/components/layout/workspace/overlap-pane.css',
     'packages/ui/src/components/business/index.ts',
     'packages/ui/src/components/business/agent/index.tsx',
     'packages/ui/src/components/business/agent/types.ts',
@@ -1119,9 +1081,9 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/shell/sidebar/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/foundation/styles.css',
+    'packages/ui/src/components/business/agent/shell/primitives/context/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/tool/styles.css',
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
-    'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
     'packages/ui/src/components/business/agent/shell/code-block/styles.css',
     'packages/ui/src/components/business/agent/activity-feed/index.tsx',
     'packages/ui/src/components/business/agent/activity-feed/types.ts',
@@ -1154,7 +1116,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/diagnostic/tool/index.tsx',
     'packages/ui/src/components/business/agent/diagnostic/tool/styles.css',
     'packages/ui/src/components/business/agent/diagnostic/warnings/index.tsx',
-    'packages/ui/src/components/business/agent/diagnostic/warnings/styles.css',
     'packages/ui/src/components/business/agent/plan-overview/index.tsx',
     'packages/ui/src/components/business/agent/plan-overview/styles.css',
     'packages/ui/src/components/business/agent/plan-overview/shell/index.tsx',
@@ -1178,31 +1139,19 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/run-activity/code/index.tsx',
     'packages/ui/src/components/business/agent/run-activity/code/styles.css',
     'packages/ui/src/components/business/agent/run-activity/notice/index.tsx',
-    'packages/ui/src/components/business/agent/run-activity/notice/styles.css',
     'packages/ui/src/components/business/agent/run-activity/bubble/index.tsx',
     'packages/ui/src/components/business/agent/run-activity/bubble/styles.css',
     'packages/ui/src/components/business/agent/thread/styles.css',
     'packages/ui/src/components/business/agent/thread/foundation/styles.css',
     'packages/ui/src/components/business/agent/thread/empty/styles.css',
-    'packages/ui/src/components/business/agent/thread/message/styles.css',
     'packages/ui/src/components/business/agent/thread/tool/styles.css',
     'packages/ui/src/components/business/agent/thread/suggestion/styles.css',
-    'packages/ui/src/components/business/agent/context/styles.css',
     'packages/ui/src/components/business/agent/run/index.tsx',
     'packages/ui/src/components/business/agent/run/styles.css',
     'packages/ui/src/components/business/agent/run/foundation/styles.css',
     'packages/ui/src/components/business/agent/run/data-block/index.tsx',
     'packages/ui/src/components/business/agent/run/data-block/styles.css',
     'packages/ui/src/components/business/agent/run/code/index.tsx',
-    'packages/ui/src/components/business/agent/composer/index.tsx',
-    'packages/ui/src/components/business/agent/composer/styles.css',
-    'packages/ui/src/components/business/agent/message/index.tsx',
-    'packages/ui/src/components/business/agent/message/base/index.tsx',
-    'packages/ui/src/components/business/agent/message/section/index.tsx',
-    'packages/ui/src/components/business/agent/message/chat/index.tsx',
-    'packages/ui/src/components/business/agent/message/model-setup/index.tsx',
-    'packages/ui/src/components/business/agent/settings/index.tsx',
-    'packages/ui/src/components/business/agent/settings/styles.css',
     'packages/ui/src/components/business/agent/responsive/styles.css',
     'packages/ui/src/components/business/app/index.tsx',
     'packages/ui/src/components/business/app/styles.css',
@@ -1266,7 +1215,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/app/work-mode/styles.css',
     'packages/ui/src/components/business/app/toast/index.tsx',
     'packages/ui/src/components/business/app/toast/styles.css',
-    'packages/ui/src/components/business/app/projects/styles.css',
     'packages/ui/src/components/business/canvas/index.tsx',
     'packages/ui/src/components/business/canvas/styles.css',
     'packages/ui/src/components/business/canvas/card/index.tsx',
@@ -1295,9 +1243,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/canvas/card/port/styles.css',
     'packages/ui/src/components/business/canvas/card/decision/index.tsx',
     'packages/ui/src/components/business/canvas/card/decision/styles.css',
-    'packages/ui/src/components/business/canvas/flow/styles.css',
-    'packages/ui/src/components/business/canvas/generation/index.tsx',
-    'packages/ui/src/components/business/canvas/generation/styles.css',
     'packages/ui/src/components/business/canvas/media/index.tsx',
     'packages/ui/src/components/business/canvas/media/styles.css',
     'packages/ui/src/components/business/canvas/mention/index.tsx',
@@ -1393,36 +1338,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/generation/result/card/context/styles.css',
     'packages/ui/src/components/business/generation/result/card/output/styles.css',
     'packages/ui/src/components/business/generation/result/card/debug/styles.css',
-    'packages/ui/src/components/business/jobs/index.tsx',
-    'packages/ui/src/components/business/jobs/styles.css',
-    'packages/ui/src/components/business/jobs/layout/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/styles.css',
-    'packages/ui/src/components/business/jobs/layout/shell/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/shell/styles.css',
-    'packages/ui/src/components/business/jobs/layout/header/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/header/styles.css',
-    'packages/ui/src/components/business/jobs/layout/filters/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/filters/styles.css',
-    'packages/ui/src/components/business/jobs/layout/collection/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/collection/styles.css',
-    'packages/ui/src/components/business/jobs/layout/pager/index.tsx',
-    'packages/ui/src/components/business/jobs/layout/pager/styles.css',
-    'packages/ui/src/components/business/jobs/status/index.tsx',
-    'packages/ui/src/components/business/jobs/status/styles.css',
-    'packages/ui/src/components/business/jobs/detail/index.tsx',
-    'packages/ui/src/components/business/jobs/detail/styles.css',
-    'packages/ui/src/components/business/jobs/card/index.tsx',
-    'packages/ui/src/components/business/jobs/card/styles.css',
-    'packages/ui/src/components/business/jobs/card/shell/index.tsx',
-    'packages/ui/src/components/business/jobs/card/shell/styles.css',
-    'packages/ui/src/components/business/jobs/card/header/index.tsx',
-    'packages/ui/src/components/business/jobs/card/header/styles.css',
-    'packages/ui/src/components/business/jobs/card/media/index.tsx',
-    'packages/ui/src/components/business/jobs/card/media/styles.css',
-    'packages/ui/src/components/business/jobs/card/state/index.tsx',
-    'packages/ui/src/components/business/jobs/card/state/styles.css',
-    'packages/ui/src/components/business/jobs/card/grid/index.tsx',
-    'packages/ui/src/components/business/jobs/card/grid/styles.css',
     'packages/ui/src/components/business/resource/index.tsx',
     'packages/ui/src/components/business/resource/styles.css',
     'packages/ui/src/components/business/resource/asset-card/index.tsx',
@@ -1440,17 +1355,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/resource/candidate-attach/controls/styles.css',
     'packages/ui/src/components/business/resource/candidate-attach/target/index.tsx',
     'packages/ui/src/components/business/resource/candidate-attach/target/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/types.ts',
-    'packages/ui/src/components/business/resource/library-picker/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/header/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/toolbar/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/list/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/row/index.tsx',
-    'packages/ui/src/components/business/resource/library-picker/shell/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/toolbar/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/list/styles.css',
-    'packages/ui/src/components/business/resource/library-picker/row/styles.css',
     'packages/ui/src/components/business/resource/media-viewer/index.tsx',
     'packages/ui/src/components/business/resource/media-viewer/styles.css',
     'packages/ui/src/components/business/resource/media-viewer/types.ts',
@@ -1477,43 +1381,11 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/review/types.ts',
     'packages/ui/src/components/business/review/callout/index.tsx',
     'packages/ui/src/components/business/review/callout/styles.css',
-    'packages/ui/src/components/business/review/workspace/index.tsx',
-    'packages/ui/src/components/business/review/workspace/styles.css',
-    'packages/ui/src/components/business/review/workspace/shell/index.tsx',
-    'packages/ui/src/components/business/review/workspace/empty-state/index.tsx',
-    'packages/ui/src/components/business/review/workspace/empty-state/styles.css',
-    'packages/ui/src/components/business/review/workspace/impact/index.tsx',
-    'packages/ui/src/components/business/review/workspace/impact/styles.css',
-    'packages/ui/src/components/business/review/workspace/footer-actions/index.tsx',
-    'packages/ui/src/components/business/review/workspace/footer-actions/styles.css',
-    'packages/ui/src/components/business/review/workspace/apply-gate/index.tsx',
-    'packages/ui/src/components/business/review/workspace/apply-gate/styles.css',
-    'packages/ui/src/components/business/scripts/index.tsx',
-    'packages/ui/src/components/business/scripts/styles.css',
-    'packages/ui/src/components/business/scripts/create-form/index.tsx',
-    'packages/ui/src/components/business/scripts/create-form/styles.css',
-    'packages/ui/src/components/business/scripts/detail-header/index.tsx',
-    'packages/ui/src/components/business/scripts/detail-header/styles.css',
-    'packages/ui/src/components/business/scripts/tabs/index.tsx',
-    'packages/ui/src/components/business/scripts/tabs/styles.css',
-    'packages/ui/src/components/business/scripts/library/index.tsx',
-    'packages/ui/src/components/business/scripts/library/styles.css',
-    'packages/ui/src/components/business/scripts/library/rail/index.tsx',
-    'packages/ui/src/components/business/scripts/library/rail/styles.css',
-    'packages/ui/src/components/business/scripts/library/empty-state/index.tsx',
-    'packages/ui/src/components/business/scripts/library/empty-state/styles.css',
-    'packages/ui/src/components/business/scripts/library/group/index.tsx',
-    'packages/ui/src/components/business/scripts/library/group/styles.css',
-    'packages/ui/src/components/business/scripts/library/item/index.tsx',
-    'packages/ui/src/components/business/scripts/library/item/styles.css',
-    'packages/ui/src/components/business/scripts/version/index.tsx',
-    'packages/ui/src/components/business/scripts/version/styles.css',
     'packages/ui/src/components/business/workbench/index.tsx',
     'packages/ui/src/components/business/workbench/styles.css',
     'packages/ui/src/components/business/workbench/types.ts',
     'packages/ui/src/components/business/workbench/status.ts',
     'packages/ui/src/components/business/workbench/foundation/styles.css',
-    'packages/ui/src/components/business/workbench/panel/index.tsx',
     'packages/ui/src/components/business/workbench/section/index.tsx',
     'packages/ui/src/components/business/workbench/section/styles.css',
     'packages/ui/src/components/business/workbench/list/index.tsx',
@@ -1536,8 +1408,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/workbench/chrome/app-shell/styles.css',
     'packages/ui/src/components/business/workbench/chrome/project-shell/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/project-shell/styles.css',
-    'packages/ui/src/components/business/workbench/chrome/queue/index.tsx',
-    'packages/ui/src/components/business/workbench/chrome/queue/styles.css',
     'packages/ui/src/components/business/workbench/chrome/decision/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/decision/styles.css',
     'packages/ui/src/components/business/workbench/chrome/metric-strip/index.tsx',
@@ -1546,8 +1416,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/workbench/chrome/context/styles.css',
     'packages/ui/src/components/business/workbench/chrome/gate/index.tsx',
     'packages/ui/src/components/business/workbench/chrome/gate/styles.css',
-    'packages/ui/src/components/business/workbench/scene-preview/index.tsx',
-    'packages/ui/src/components/business/workbench/scene-preview/styles.css',
   ]
   const removedFlatComponentFiles = [
     'packages/ui/src/theme/index.ts',
@@ -1607,10 +1475,8 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'app',
     'canvas',
     'generation',
-    'jobs',
     'resource',
     'review',
-    'scripts',
     'workbench',
   ].map((domain) => readProjectFile(`packages/ui/src/styles/business/${domain}.css`)).join('\n')
   const uiCss = readProjectFile('packages/ui/src/base.css')
@@ -1622,13 +1488,21 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const primitiveSurfaceSource = readProjectFile('packages/ui/src/components/primitives/surface.tsx')
   const primitiveCss = readPrimitiveCss()
   const agentCssEntry = readProjectFile('packages/ui/src/components/business/agent/styles.css')
+  const agentPrimitiveCssEntry = readProjectFile('packages/ui/src/components/business/agent/shell/primitives/styles.css')
   const agentCss = readAgentCss()
+  const agentPanelSource = readProjectFile('packages/ui/src/components/business/agent/panel.tsx')
+  const agentPanelFrameCss = readProjectFile('packages/ui/src/components/business/agent/panel/frame/styles.css')
   const agentChatCss = readAgentChatCss()
   const layoutCss = readProjectFile('packages/ui/src/components/layout/styles.css')
   const appShellLayoutCss = readProjectFile('packages/ui/src/components/layout/app-shell/styles.css')
   const appShellWindowCss = readProjectFile('packages/ui/src/components/layout/app-shell/window/styles.css')
   const workspaceLayoutSource = readProjectFile('packages/ui/src/components/layout/workspace/index.tsx')
-  const workspaceLayoutCss = readProjectFile('packages/ui/src/components/layout/workspace/styles.css')
+  const workspaceResizeSource = readProjectFile('packages/ui/src/components/layout/workspace/resize.ts')
+  const workspaceLayoutCss = [
+    readProjectFile('packages/ui/src/components/layout/workspace/styles.css'),
+    readProjectFile('packages/ui/src/components/layout/workspace/content-workspace.css'),
+    readProjectFile('packages/ui/src/components/layout/workspace/overlap-pane.css'),
+  ].join('\n')
   const businessAppCss = readAppCss()
   const businessIndexSource = readProjectFile('packages/ui/src/components/business/index.ts')
   const canvasCss = readProjectFile('packages/ui/src/components/business/canvas/styles.css')
@@ -1642,16 +1516,18 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const canvasCardCss = readProjectFile('packages/ui/src/components/business/canvas/card/styles.css')
   const canvasCardShellSource = readProjectFile('packages/ui/src/components/business/canvas/card/shell/index.tsx')
   const canvasCardShellCss = readProjectFile('packages/ui/src/components/business/canvas/card/shell/styles.css')
-  const canvasFlowCss = readProjectFile('packages/ui/src/components/business/canvas/flow/styles.css')
-  const canvasGenerationSource = readProjectFile('packages/ui/src/components/business/canvas/generation/index.tsx')
-  const canvasGenerationCss = readProjectFile('packages/ui/src/components/business/canvas/generation/styles.css')
   const canvasMediaSource = readProjectFile('packages/ui/src/components/business/canvas/media/index.tsx')
   const canvasMediaCss = readProjectFile('packages/ui/src/components/business/canvas/media/styles.css')
   const canvasResourceShelfUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.tsx')
   const canvasResourceShelfUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelfUi.css')
   const canvasResourceShelfPackageDir = path.join(root, 'packages/ui/src/components/business/canvas/resource-shelf')
-  const canvasEditorUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorUi.tsx')
+  const canvasEditorUiSource = [
+    readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorUi.tsx'),
+    readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorPaletteUi.tsx'),
+  ].join('\n')
   const canvasEditorUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorUi.css')
+  const canvasEditorFlowUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.tsx')
+  const canvasEditorFlowUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.css')
   const canvasEditorPackageDir = path.join(root, 'packages/ui/src/components/business/canvas/editor')
   const canvasListUiSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListUi.tsx')
   const canvasListUiCss = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListUi.css')
@@ -1674,36 +1550,30 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const generationModelSelectorCss = readProjectFile('packages/ui/src/components/business/generation/model-selector/styles.css')
   const generationResultSource = readGenerationResultSource()
   const generationResultCss = readGenerationResultCss()
-  const jobsPackageSource = readJobsSource()
-  const jobsPackageCss = readJobsCss()
+  const jobsFeatureSource = readJobsSource()
+  const jobsDisplayUiSource = readJobsDisplayUiSource()
+  const jobsDisplayUiCss = readJobsCss()
   const resourcePackageSource = readProjectFile('packages/ui/src/components/business/resource/index.tsx')
+  const resourceAssetCardSource = readProjectFile('packages/ui/src/components/business/resource/asset-card/index.tsx')
+  const resourceAssetCardCss = readProjectFile('packages/ui/src/components/business/resource/asset-card/styles.css')
   const resourceCss = readResourceCss()
+  const resourceCandidateAttachSource = readResourceCandidateAttachSource()
+  const resourceCandidateAttachCss = readResourceCandidateAttachCss()
   const resourceLibraryPickerSource = readResourceLibraryPickerSource()
   const resourceLibraryPickerCss = readResourceLibraryPickerCss()
   const resourceMediaViewerSource = readResourceMediaViewerSource()
   const resourceMediaViewerCss = readResourceMediaViewerCss()
   const resourcePanelPackageSource = readResourcePanelSource()
   const resourcePanelPackageCss = readResourcePanelCss()
-  const scriptsPackageSource = readProjectFile('packages/ui/src/components/business/scripts/index.tsx')
-  const scriptsPackageCss = readProjectFile('packages/ui/src/components/business/scripts/styles.css')
-  const scriptsDetailHeaderSource = readProjectFile('packages/ui/src/components/business/scripts/detail-header/index.tsx')
-  const scriptsDetailHeaderCss = readProjectFile('packages/ui/src/components/business/scripts/detail-header/styles.css')
-  const scriptsTabsSource = readProjectFile('packages/ui/src/components/business/scripts/tabs/index.tsx')
-  const scriptsTabsCss = readProjectFile('packages/ui/src/components/business/scripts/tabs/styles.css')
-  const scriptsLibrarySource = readScriptsLibrarySource()
-  const scriptsLibraryCss = readScriptsLibraryCss()
-  const scriptsVersionSource = readProjectFile('packages/ui/src/components/business/scripts/version/index.tsx')
-  const scriptsVersionCss = readProjectFile('packages/ui/src/components/business/scripts/version/styles.css')
-  const scriptsPageCss = readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageUi.css')
+  const scriptsPageFeatureSource = readScriptsPageFeatureSource()
+  const scriptsPageCss = readScriptsPageFeatureCss()
   const workbenchCss = readProjectFile('packages/ui/src/components/business/workbench/styles.css')
   const workbenchIndexSource = readProjectFile('packages/ui/src/components/business/workbench/index.tsx')
   const workbenchTypesSource = readProjectFile('packages/ui/src/components/business/workbench/types.ts')
   const workbenchStatusSource = readProjectFile('packages/ui/src/components/business/workbench/status.ts')
-  const workbenchPanelSource = readProjectFile('packages/ui/src/components/business/workbench/panel/index.tsx')
+  const workbenchPanelPath = path.join(root, 'packages/ui/src/components/business/workbench/panel')
   const workbenchChromeSource = readWorkbenchChromeSource()
   const workbenchChromeCss = readWorkbenchChromeCss()
-  const workbenchScenePreviewSource = readProjectFile('packages/ui/src/components/business/workbench/scene-preview/index.tsx')
-  const workbenchScenePreviewCss = readProjectFile('packages/ui/src/components/business/workbench/scene-preview/styles.css')
   const workbenchCardCss = readWorkbenchCardCss()
 
   for (const relativePath of requiredFiles) {
@@ -1929,12 +1799,16 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(uiCss, /\.ms-field-control\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-card\s*\{/)
   assert.match(layoutCss, /\.project-surface-header\s*\{/)
+  assert.match(workspaceLayoutSource, /export \* from "\.\/resize"/)
+  assert.match(workspaceResizeSource, /export function useResizablePanel/)
+  assert.match(workspaceResizeSource, /export function usePersistentOverlapPaneController/)
   assert.match(workspaceLayoutSource, /export function WorkspaceShell/)
   assert.match(workspaceLayoutSource, /export function ContentWorkspaceLayout/)
   assert.match(workspaceLayoutSource, /export function MasterDetail/)
+  assert.match(workspaceLayoutCss, /@import "\.\/content-workspace\.css";/)
+  assert.match(workspaceLayoutCss, /@import "\.\/overlap-pane\.css";/)
   assert.match(workspaceLayoutCss, /\.app-shell\s*\{/)
   assert.match(workspaceLayoutCss, cssClassSelectorPattern('content-workspace-shell'))
-  assert.doesNotMatch(scriptsPackageCss, /@import "\.\/page\/styles\.css";/)
   assert.match(scriptsPageCss, /\.script-workbench-layout\s*\{/)
   assert.doesNotMatch(uiCss, /\.app-page\s*\{/)
   assert.doesNotMatch(uiCss, /\.project-surface-header\s*\{/)
@@ -1942,11 +1816,11 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(uiBusinessStyleEntries, /@import "\.\.\/\.\.\/components\/business\/generation\/styles\.css";/)
   assert.match(uiBusinessStyleEntries, /@import "\.\.\/\.\.\/components\/business\/resource\/styles\.css";/)
   assert.match(uiBusinessStyleEntries, /@import "\.\.\/\.\.\/components\/business\/review\/styles\.css";/)
-  assert.match(uiBusinessStyleEntries, /@import "\.\.\/\.\.\/components\/business\/scripts\/styles\.css";/)
+  assert.doesNotMatch(uiBusinessStyleEntries, /@import "\.\.\/\.\.\/components\/business\/scripts\/styles\.css";/)
   assert.match(uiBusinessStyleEntries, /@import "\.\.\/\.\.\/components\/business\/workbench\/styles\.css";/)
   assert.match(canvasCss, /@import "\.\/card\/styles\.css";/)
   assert.doesNotMatch(canvasCss, /@import "\.\/entity\/styles\.css";/)
-  assert.match(canvasCss, /@import "\.\/flow\/styles\.css";/)
+  assert.doesNotMatch(canvasCss, /@import "\.\/flow\/styles\.css";/)
   assert.match(canvasCss, /@import "\.\/io\/styles\.css";/)
   assert.match(canvasCss, /@import "\.\/tool\/styles\.css";/)
   assert.match(canvasCardCss, /@import "\.\/shell\/styles\.css";/)
@@ -1954,19 +1828,24 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(canvasCardCss, /@import "\.\/port\/styles\.css";/)
   assert.match(canvasCardCss, /@import "\.\/decision\/styles\.css";/)
   assert.match(canvasCardShellCss, /\.canvas-card-shell\s*\{/)
-  assert.match(canvasFlowCss, /\.canvas-flow\s*\{/)
-  assert.match(canvasCss, /@import "\.\/generation\/styles\.css";/)
-  assert.match(canvasGenerationSource, /export function CanvasGenerationBody/)
-  assert.match(canvasGenerationSource, /\bNativeSelect\b/)
-  assert.match(canvasGenerationSource, /\bTextarea\b/)
-  assert.match(canvasGenerationSource, /\bButton\b/)
-  assert.match(canvasGenerationCss, /\.canvas-generation-body\s*\{/)
-  assert.match(canvasGenerationCss, /\.canvas-generation-body__output\s*\{[\s\S]*height:\s*128px/)
-  assert.match(canvasGenerationCss, /\.canvas-generation-body__output > \*\s*\{[\s\S]*object-fit:\s*cover/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/canvas/flow')), false, 'canvas flow UI must not remain in packages/ui')
+  assert.doesNotMatch(canvasPackageSource, /from "\.\/flow"/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasSelectionFrame/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasDropOverlay/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasGroupFrame/)
+  assert.match(canvasEditorFlowUiSource, /export const CanvasViewportActionButton/)
+  assert.match(canvasEditorFlowUiCss, /\.canvas-flow\s*\{/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/canvas/generation/index.tsx')), false, 'unused canvas generation UI must not remain in packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/canvas/generation/styles.css')), false, 'unused canvas generation CSS must not remain in packages/ui')
+  assert.doesNotMatch(canvasCss, /@import "\.\/generation\/styles\.css";|canvas-generation-/)
+  assert.doesNotMatch(canvasPackageSource, /CanvasGenerationBody|CanvasGenerationModelOption|from "\.\/generation"/)
   assert.match(canvasCss, /@import "\.\/media\/styles\.css";/)
   assert.match(canvasMediaSource, /export function CanvasMediaFill/)
+  assert.match(canvasMediaSource, /"ms-fill canvas-media-fill"/)
   assert.match(canvasMediaSource, /export function CanvasMediaNodeFrame/)
   assert.match(canvasMediaSource, /export function CanvasResourceShelfThumbFrame/)
+  assert.doesNotMatch(canvasMediaCss, /\.canvas-media-fill\s*\{[^}]*width:\s*100%/)
+  assert.doesNotMatch(canvasMediaCss, /\.canvas-media-fill\s*\{[^}]*height:\s*100%/)
   assert.match(canvasMediaCss, /\.canvas-media-fill\[data-fit="cover"\] > \*\s*\{[\s\S]*object-fit:\s*cover/)
   assert.match(canvasMediaCss, /\.canvas-media-fill\[data-fit="contain"\] > \*\s*\{[\s\S]*object-fit:\s*contain/)
   assert.match(canvasMediaCss, /\.canvas-media-node-frame\s*\{[\s\S]*min-height:\s*80px/)
@@ -2028,8 +1907,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(businessAppCss, /\.app-choice-tile\s*\{/)
   assert.match(businessAppCss, /\.app-window-icon-button\s*\{/)
   assert.match(businessAppCss, /\.app-pager\s*\{/)
-  assert.match(businessAppCss, /\.projects-region\s*\{/)
-  assert.match(businessAppCss, /\.projects-list-row\s*\{/)
   assert.match(businessAppCss, /\.onboarding-switch-guide\s*\{/)
   assert.doesNotMatch(uiCss, /\.app-surface-item\s*\{/)
   assert.doesNotMatch(uiCss, /\.app-choice-tile\s*\{/)
@@ -2054,9 +1931,9 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(semanticEntityInlineEditorUiCss, /\.detail-entity-editor-hero\s*\{/)
   assert.doesNotMatch(businessIndexSource, /export \* as detail from "\.\/detail";/)
   assert.match(businessIndexSource, /export \* as generation from "\.\/generation";/)
-  assert.match(businessIndexSource, /export \* as jobs from "\.\/jobs";/)
+  assert.doesNotMatch(businessIndexSource, /export \* as jobs from "\.\/jobs";/)
   assert.match(businessIndexSource, /export \* as resource from "\.\/resource";/)
-  assert.match(businessIndexSource, /export \* as scripts from "\.\/scripts";/)
+  assert.doesNotMatch(businessIndexSource, /export \* as scripts from "\.\/scripts";/)
   assert.match(businessIndexSource, /export \* as workbench from "\.\/workbench";/)
   assert.doesNotMatch(businessIndexSource, /\b(?:DetailEntityFieldControl|GenerationResultCard|JobsPageShell|ResourcePanelShell|ToolPageFrame|ScriptDetailHeader|WorkbenchPanel)\b/)
   assert.doesNotMatch(uiCss, /\.detail-header\s*\{/)
@@ -2067,6 +1944,15 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(generationInputSource, /GenerationPromptEditor/)
   assert.match(generationInputSource, /GenerationAttachmentTag/)
   assert.match(generationInputSource, /GenerationInputSlotCard/)
+  assert.match(generationInputSource, /GenerationSlotList[\s\S]*?"ms-stack generation-input-slots"/)
+  assert.match(generationInputSource, /GenerationInputSlotCard[\s\S]*?"ms-stack generation-input-slot"/)
+  assert.match(generationInputSource, /GenerationInputSlotCard[\s\S]*?className="ms-action-row generation-input-slot__header"/)
+  assert.match(generationInputSource, /GenerationInputSlotCard[\s\S]*?className="ms-text-truncate ms-type-label generation-input-slot__label"/)
+  assert.match(generationInputSource, /GenerationInputSlotCard[\s\S]*?className="ms-type-caption generation-input-slot__meta"/)
+  assert.match(generationInputSource, /GenerationSlotAttachmentList[\s\S]*?"ms-action-row generation-input-slot__attachments"/)
+  assert.match(generationInputSource, /GenerationSlotAttachmentTag[\s\S]*?className="ms-text-truncate generation-input-slot-tag__label"/)
+  assert.match(generationInputSource, /GenerationSlotEmpty[\s\S]*?"ms-action-row ms-type-caption generation-input-slot__empty"/)
+  assert.match(generationInputSource, /GenerationSlotEmpty[\s\S]*?className="ms-inline-center generation-input-slot__empty-icon"/)
   assert.match(generationInputSource, /GenerationActionBar/)
   assert.match(readProjectFile('packages/ui/src/components/business/generation/input/index.tsx'), /export \* from "\.\/prompt";/)
   assert.match(readProjectFile('packages/ui/src/components/business/generation/input/index.tsx'), /export \* from "\.\/actions";/)
@@ -2074,14 +1960,42 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(readProjectFile('packages/ui/src/components/business/generation/input/styles.css'), /@import "\.\/slots\/styles\.css";/)
   assert.match(generationInputCss, /\.generation-input\s*\{/)
   assert.match(generationInputCss, /\.generation-input-slot\s*\{/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__label\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__label\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__label\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__(?:meta|empty)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__(?:meta|empty)\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__attachments\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot-tag__label\s*\{[^}]*white-space/)
+  assert.doesNotMatch(generationInputCss, /\.generation-input-slot__empty\s*\{[^}]*display:\s*inline-flex/)
   assert.match(generationModelSelectorSource, /export function GenerationModelSelector/)
   assert.match(generationModelSelectorSource, /\bSelectTrigger\b/)
   assert.match(generationModelSelectorSource, /\bButton\b/)
   assert.match(generationModelSelectorCss, /\.generation-model-selector\s*\{/)
   assert.match(generationResultSource, /export function GenerationResultCard/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-center generation-result-card__state generation-result-card__state--loading"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?className="ms-stack ms-type-label generation-result-card__state-content"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-center ms-type-body generation-result-card__error"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-center ms-action-row ms-type-body generation-result-card__state generation-result-card__state--cancelled"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?className="ms-action-row generation-result-card__prompt-header"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?className="ms-action-row generation-result-card__status-row"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?className="ms-type-tiny generation-result-card__status"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?className="ms-action-row generation-result-card__actions"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-text-truncate ms-type-caption generation-result-card__timestamp"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-type-body generation-result-card__prompt-text"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-type-label generation-result-card__prompt-text--compact"/)
+  assert.match(generationResultSource, /GenerationResultCard[\s\S]*?"ms-text-truncate ms-type-label generation-result-card__timestamp generation-result-card__timestamp--standalone"/)
+  assert.doesNotMatch(generationResultSource, /className="ms-stack type-label generation-result-card__state-content"/)
   assert.match(generationResultSource, /export function GenerationInlineResourceChip/)
   assert.match(generationResultSource, /export function GenerationContextSummary/)
   assert.match(generationResultSource, /export function GenerationContextRow/)
+  assert.match(generationResultSource, /GenerationInlineResourceChip[\s\S]*?"ms-text-truncate generation-result-resource-chip__label"/)
+  assert.match(generationResultSource, /GenerationContextSummary[\s\S]*?"ms-stack type-caption generation-result-context-summary"/)
+  assert.match(generationResultSource, /GenerationContextRow[\s\S]*?"ms-action-row generation-result-context-row"/)
+  assert.match(generationResultSource, /GenerationContextRow[\s\S]*?"ms-inline-center generation-result-context-row__icon"/)
+  assert.match(generationResultSource, /GenerationContextValue[\s\S]*?"ms-text-truncate generation-result-context-row__value"/)
+  assert.match(generationResultSource, /GenerationContextValueList[\s\S]*?"ms-action-row generation-result-context-row__values"/)
   assert.match(generationResultSource, /export function generationResultStatusIntent/)
   assert.match(generationResultSource, /<StatusBadge\b[\s\S]*?intent=\{generationResultStatusIntent\(status\)\}/)
   assert.doesNotMatch(generationResultSource, /generationResultStatusTone/)
@@ -2089,25 +2003,144 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(generationResultCss, /\.generation-result-card\s*\{/)
   assert.match(generationResultCss, /\.generation-result-resource-chip\s*\{/)
   assert.match(generationResultCss, /\.generation-result-context-summary\s*\{/)
-  assert.match(jobsPackageSource, /export function JobsPageShell/)
-  assert.match(jobsPackageSource, /export function JobCardShell/)
-  assert.match(jobsPackageSource, /export function JobDetailPanel/)
-  assert.match(jobsPackageSource, /export function JobStatusBadge/)
-  assert.match(jobsPackageCss, /\.jobs-page-shell\s*\{/)
-  assert.match(jobsPackageCss, /\.job-card\s*\{/)
-  assert.match(jobsPackageCss, /\.job-detail-panel\s*\{/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-resource-chip__label\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-context-summary\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-context-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-context-row__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-context-row__value\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-context-row__values\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__prompt-header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__status-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__actions\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__status\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__timestamp\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__timestamp\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__timestamp--standalone\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__prompt-text\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__prompt-text\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__prompt-text--compact\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__prompt-text--compact\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__state\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__state-content\s*\{[^}]*flex-direction:\s*column/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__state-content\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__error\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__error\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__error--compact\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__state--cancelled\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__state--cancelled\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__error\s*\{[^}]*justify-content:/)
+  assert.doesNotMatch(generationResultCss, /\.generation-result-card__media > \*\s*\{/)
+  assert.doesNotMatch(jobsFeatureSource, /@movscript\/ui\/business\/jobs/)
+  assert.doesNotMatch(jobsDisplayUiSource, /export function JobsPageShell/)
+  assert.match(jobsDisplayUiSource, /export function JobCardShell/)
+  assert.match(jobsDisplayUiSource, /export function JobDetailPanel/)
+  assert.match(jobsDisplayUiSource, /export function JobStatusBadge/)
+  assert.doesNotMatch(jobsDisplayUiCss, /\.jobs-page-shell\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-card\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-detail-panel\s*\{/)
   assert.match(resourceCss, /@import "\.\/asset-card\/styles\.css";/)
   assert.doesNotMatch(resourceCss, /@import "\.\/setting\/styles\.css";/)
   assert.doesNotMatch(resourceCss, /@import "\.\/attachments\/styles\.css";/)
-  assert.match(resourceCss, /@import "\.\/library-picker\/styles\.css";/)
+  assert.doesNotMatch(resourceCss, /@import "\.\/library-picker\/styles\.css";/)
   assert.match(resourceCss, /@import "\.\/media-viewer\/styles\.css";/)
   assert.match(resourceCss, /@import "\.\/panel\/styles\.css";/)
   assert.doesNotMatch(resourceCss, /@import "\.\/preview-drawer\/styles\.css";/)
   assert.doesNotMatch(resourceCss, /@import "\.\/script-reference\/styles\.css";/)
   assert.match(resourceCss, /\.resource-asset-card\s*\{/)
+  assert.match(resourceAssetCardSource, /className=\{cn\("ms-stack resource-asset-card"/)
+  assert.match(resourceAssetCardSource, /className="ms-action-row resource-asset-card__name-row"/)
+  assert.match(resourceAssetCardSource, /className="ms-inline-center resource-asset-card__type-icon"/)
+  assert.match(resourceAssetCardSource, /className="ms-text-truncate ms-type-label resource-asset-card__name"/)
+  assert.match(resourceAssetCardSource, /className="ms-action-row resource-asset-card__meta-row"/)
+  assert.match(resourceAssetCardSource, /className="ms-type-label resource-asset-card__size"/)
+  assert.match(resourceAssetCardSource, /className="ms-text-truncate ms-type-label resource-asset-card__owner"/)
+  assert.match(resourceAssetCardSource, /"ms-center resource-asset-card__select-control"/)
+  assert.match(uiCss, /\.ms-fill\s*\{[\s\S]*?width:\s*100%[\s\S]*?height:\s*100%/)
+  assert.match(readProjectFile('apps/frontend/src/features/resources/components/ResourcePageUi.tsx'), /ms-fill ms-center resource-asset-card__fallback/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__fallback\s*\{[^}]*width:\s*100%/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__fallback\s*\{[^}]*height:\s*100%/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__name-row\s*\{[^}]*color:/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__name\s*\{[^}]*text-overflow:\s*ellipsis/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__name\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__size,\n\.resource-asset-card__owner\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__owner\s*\{[^}]*text-overflow:\s*ellipsis/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__type-icon\s*\{[^}]*flex-shrink:\s*0/)
+  assert.doesNotMatch(resourceAssetCardCss, /\.resource-asset-card__select-control\s*\{[^}]*justify-content:/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateAttachShell[\s\S]*?cn\("ms-stack resource-candidate-attach"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateAttachHeader[\s\S]*?className="ms-action-row resource-candidate-attach__title-row"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateAttachHeader[\s\S]*?className="ms-type-caption resource-candidate-attach__title"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateAttachHeader[\s\S]*?className="ms-type-tiny resource-candidate-attach__count"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateAttachMessage[\s\S]*?"ms-type-tiny resource-candidate-attach__message"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateAttachFooter[\s\S]*?"ms-action-row resource-candidate-attach__footer"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateEmpty[\s\S]*?"ms-type-tiny resource-candidate-attach__empty"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateItem[\s\S]*?className="ms-action-row resource-candidate-item__row"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateItem[\s\S]*?"ms-text-truncate ms-type-tiny resource-candidate-item__name"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateItem[\s\S]*?"ms-type-tiny resource-candidate-item__badge"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateItem[\s\S]*?"ms-text-truncate ms-type-tiny resource-candidate-item__meta"/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach__title-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach__count\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach__message\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach__footer\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-attach__empty\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-item__row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-item__badge\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-item__name\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-item__name\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-item__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-item__meta\s*\{[^}]*text-overflow:/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateTargetEmpty[\s\S]*?"ms-type-tiny resource-candidate-target-empty"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateTargetItem[\s\S]*?"ms-text-truncate ms-type-tiny resource-candidate-target-item__title"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateTargetItem[\s\S]*?"ms-text-truncate ms-type-tiny resource-candidate-target-item__id"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateTargetItem[\s\S]*?"ms-text-truncate ms-type-tiny resource-candidate-target-item__meta"/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateSelectedTarget[\s\S]*?"ms-text-truncate ms-type-tiny resource-candidate-selected-target__title"/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-target-empty\s*\{[^}]*font-size:/)
+  assert.match(resourceCandidateAttachSource, /ResourceCandidateTargetItem[\s\S]*?className="ms-action-row resource-candidate-target-item__row"/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-target-item__row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-target-item__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-target-item__title\s*\{[^}]*white-space:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-target-item__(?:title|meta|description),[\s\S]*?text-overflow:\s*ellipsis/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-selected-target__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceCandidateAttachCss, /\.resource-candidate-selected-target__title\s*\{[^}]*white-space:/)
   assert.match(resourcePanelPackageSource, /export function ResourcePanelShell/)
   assert.match(resourcePanelPackageSource, /export const ResourceListItemShell/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelList[\s\S]*?"ms-grid-stack resource-panel-list"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelTabButton[\s\S]*?"ms-type-label resource-panel__tab"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelSearchField[\s\S]*?"ms-inline-center resource-panel-search__icon"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelSearchField[\s\S]*?"ms-type-label resource-panel-search__input"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelSegmentButton[\s\S]*?"ms-type-caption resource-panel-segments__button"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelSelect[\s\S]*?"ms-type-label resource-panel__select"/)
+  assert.match(resourcePanelPackageSource, /ResourceListItemShell[\s\S]*?"ms-action-row resource-panel-list-item"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelThumbFallback[\s\S]*?"ms-fill ms-center resource-panel-thumb__fallback"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelItemName[\s\S]*?"ms-text-truncate ms-type-label resource-panel-list-item__name"/)
+  assert.match(resourcePanelPackageSource, /ResourcePanelSelectedLabel[\s\S]*?"ms-type-tiny resource-panel-list-item__selected"/)
+  assert.match(resourcePanelPackageSource, /ResourceAssetSlotHeader[\s\S]*?"ms-action-row resource-panel-asset-slot__header"/)
+  assert.match(resourcePanelPackageSource, /ResourceAssetSlotTitle[\s\S]*?"ms-text-truncate ms-type-label resource-panel-asset-slot__title"/)
+  assert.match(resourcePanelPackageSource, /ResourceAssetSlotMeta[\s\S]*?"ms-text-truncate ms-type-tiny resource-panel-asset-slot__meta"/)
   assert.match(resourcePanelPackageCss, /\.resource-panel\s*\{/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-list\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel__tab\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-search__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-search__input\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-segments\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-segments__button\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel__select\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-list-item\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-thumb__fallback\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-thumb__fallback\s*\{[^}]*width:\s*100%/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-thumb__fallback\s*\{[^}]*height:\s*100%/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-list-item__name\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-list-item__name\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-list-item__selected\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__header\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__title,\n\.resource-panel-asset-slot__meta\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourcePanelPackageCss, /\.resource-panel-asset-slot__meta\s*\{[^}]*line-height:/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/resource/attachments')), false, 'unused resource attachment UI must not remain in packages/ui')
   assert.doesNotMatch(resourcePackageSource, /from "\.\/attachments"/)
   assert.doesNotMatch(resourcePackageSource, /\bResourceAttachment(?:ActionTile|Fallback|Grid|HiddenInput|RemoveButton|Root|Tile)\b/)
@@ -2120,39 +2153,73 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/resource/script-reference')), false, 'unused resource script reference UI must not remain in packages/ui')
   assert.doesNotMatch(resourcePackageSource, /from "\.\/script-reference"/)
   assert.doesNotMatch(resourcePackageSource, /\bResourceScriptReference(?:Panel|Item|Trigger|Header|Selector|Content)\b/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/resource/library-picker')), false, 'resource library picker UI must be shared app-owned')
+  assert.doesNotMatch(resourcePackageSource, /from "\.\/library-picker"/)
   assert.match(resourceLibraryPickerCss, /\.resource-library-picker\s*\{/)
   assert.match(resourceLibraryPickerSource, /export function ResourceLibraryPickerPanel/)
+  assert.match(resourceLibraryPickerSource, /from ['"]@\/shared\/ui\/ResourceLibraryPickerUi['"]/)
+  assert.match(resourceLibraryPickerSource, /from ['"]@movscript\/ui\/business\/app['"]/)
+  assert.match(resourceLibraryPickerSource, /from ['"]@movscript\/ui\/business\/workbench['"]/)
+  assert.match(readProjectFile('apps/frontend/src/features/resources/components/ResourcePageUi.tsx'), /ms-center resource-asset-card__fallback/)
   assert.match(resourceMediaViewerSource, /export function ResourceMediaDialog/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaDialog[\s\S]*?"ms-stack resource-media-dialog"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaDialog[\s\S]*?className="ms-center resource-media-dialog__content"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaDialog[\s\S]*?className="ms-action-row resource-media-dialog__header"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaDialog[\s\S]*?className="ms-text-truncate ms-type-body resource-media-dialog__title"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaStage[\s\S]*?"ms-center resource-media-stage"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaAudioPanel[\s\S]*?className="ms-action-row resource-media-audio-panel__title"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaAudioPanel[\s\S]*?className="ms-text-truncate ms-type-body"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaFallbackPanel[\s\S]*?className="ms-type-body"/)
   assert.match(resourceMediaViewerSource, /export function ResourceMediaThumb/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaHoverOverlay[\s\S]*?"ms-center resource-media-hover-overlay"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaHoverOverlay[\s\S]*?"ms-inline-center resource-media-hover-overlay__icon"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaFillFrame[\s\S]*?"ms-fill ms-center resource-media-fill-frame"/)
   assert.match(resourceMediaViewerSource, /export function ResourceMediaTextPreviewPanel/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaTextThumb[\s\S]*?className="ms-action-row resource-media-text-thumb__header"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaTextThumb[\s\S]*?className="ms-text-truncate ms-type-tiny"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaTextPreviewPanel[\s\S]*?className="ms-center ms-type-body resource-media-text-preview__loading"/)
+  assert.match(resourceMediaViewerSource, /ResourceMediaCodeBlock[\s\S]*?variant === "thumb" \? "ms-type-tiny" : "ms-type-body"/)
   assert.match(resourceMediaViewerCss, /\.resource-media-dialog\s*\{/)
   assert.match(resourceMediaViewerCss, /\.resource-media-thumb\s*\{/)
   assert.match(resourceMediaViewerCss, /\.resource-media-stage\s*\{/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-dialog\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-dialog__content\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-dialog__title\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-dialog__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-dialog__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-audio-panel__title\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-audio-panel__title > span\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-audio-panel__title > span\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-fallback-panel > p\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-fallback-panel > p\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-text-thumb__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-text-thumb__header > span\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-text-thumb__header > span\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-text-preview__loading\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-text-preview__loading\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-code--(?:thumb|preview)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-code--(?:thumb|preview)\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-stage\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-fill-frame\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-hover-overlay\s*\{[^}]*display:\s*flex/)
+  assert.match(readProjectFile('apps/frontend/src/shared/ui/MediaViewer.tsx'), /className="ms-stack ms-center resource-media-video-placeholder"[\s\S]*?className="ms-text-truncate ms-type-caption"[\s\S]*?className="ms-type-tiny"/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-video-placeholder\s*\{[^}]*width:\s*100%/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-video-placeholder\s*\{[^}]*height:\s*100%/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-video-placeholder\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-video-placeholder\s*\{[^}]*flex-direction:\s*column/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-video-placeholder > span\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(resourceMediaViewerCss, /\.resource-media-video-placeholder > small\s*\{[^}]*font-size:/)
   assert.doesNotMatch(uiCss, /\.resource-asset-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.tool-header\s*\{/)
   assert.doesNotMatch(uiCss, /\.tool-page-frame\s*\{/)
-  assert.match(scriptsPackageSource, /from "\.\/detail-header"/)
-  assert.match(scriptsPackageSource, /from "\.\/tabs"/)
-  assert.match(scriptsPackageSource, /from "\.\/library"/)
-  assert.match(scriptsPackageSource, /from "\.\/version"/)
-  assert.match(scriptsPackageCss, /@import "\.\/detail-header\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/tabs\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/library\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/version\/styles\.css";/)
-  assert.match(scriptsDetailHeaderSource, /export function ScriptDetailHeader/)
-  assert.match(scriptsTabsSource, /export function ScriptDetailTabs/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryRail/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryGroup/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryItem/)
-  assert.match(scriptsVersionSource, /export function ScriptVersionCard/)
-  assert.match(scriptsDetailHeaderCss, /\.script-detail-header\s*\{/)
-  assert.match(scriptsTabsCss, /\.script-detail-tabs\s*\{/)
-  assert.match(scriptsLibraryCss, /\.script-library-rail\s*\{/)
-  assert.match(scriptsLibraryCss, /\.script-library-item\s*\{/)
-  assert.match(scriptsVersionCss, /\.script-version-card\s*\{/)
+  assert.match(scriptsPageFeatureSource, /export function ScriptDetailHeader/)
+  assert.match(scriptsPageFeatureSource, /export function ScriptDetailTabs/)
+  assert.match(scriptsPageFeatureSource, /export function ScriptVersionCard/)
+  assert.match(scriptsPageCss, /\.script-detail-header\s*\{/)
+  assert.match(scriptsPageCss, /\.script-detail-tabs\s*\{/)
+  assert.match(scriptsPageCss, /\.script-version-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.script-detail-header\s*\{/)
   assert.doesNotMatch(uiCss, /\.script-detail-tabs\s*\{/)
-  assert.doesNotMatch(uiCss, /\.script-library-rail\s*\{/)
   assert.doesNotMatch(uiCss, /\.script-version-card\s*\{/)
   assert.match(workbenchCss, /@import "\.\/foundation\/styles\.css";/)
   assert.match(workbenchCss, /@import "\.\/section\/styles\.css";/)
@@ -2161,17 +2228,17 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(workbenchCss, /@import "\.\/data-display\/styles\.css";/)
   assert.doesNotMatch(workbenchCss, /preparation\/styles\.css/)
   assert.match(workbenchCss, /@import "\.\/chrome\/styles\.css";/)
-  assert.match(workbenchCss, /@import "\.\/scene-preview\/styles\.css";/)
-  assert.match(workbenchIndexSource, /export \{ WorkbenchPanel \} from "\.\/panel"/)
+  assert.doesNotMatch(workbenchCss, /@import "\.\/scene-preview\/styles\.css";/)
+  assert.equal(existsSync(workbenchPanelPath), false, 'unused WorkbenchPanel wrapper must not remain in packages/ui')
+  assert.doesNotMatch(workbenchIndexSource, /\bWorkbenchPanel\b/)
   assert.match(workbenchIndexSource, /WorkbenchAppShell/)
   assert.match(workbenchIndexSource, /WorkbenchAppTabBar/)
   assert.match(workbenchIndexSource, /WorkbenchAppTabButton/)
   assert.match(workbenchIndexSource, /WorkbenchProjectShell/)
   assert.doesNotMatch(workbenchIndexSource, /WorkbenchPreparation/)
-  assert.match(workbenchIndexSource, /WorkbenchScenePreviewPanel/)
+  assert.doesNotMatch(workbenchIndexSource, /WorkbenchScenePreviewPanel/)
   assert.match(workbenchIndexSource, /workbenchStatusLabel/)
   assert.doesNotMatch(businessIndexSource, /WorkbenchPreparation/)
-  assert.match(workbenchPanelSource, /<WorkbenchSection/)
   assert.match(workbenchStatusSource, /export function workbenchStatusIntent/)
   assert.match(workbenchStatusSource, /export function workbenchPriorityIntent/)
   assert.match(workbenchStatusSource, /export function workbenchDecisionIntent/)
@@ -2180,16 +2247,57 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(workbenchChromeSource, /workbenchDecisionIntent\(row\.state\)/)
   assert.match(workbenchChromeSource, /row\.state === "attention"/)
   assert.match(workbenchChromeSource, /row\.state === "positive"/)
+  assert.match(workbenchChromeSource, /WorkbenchInfoPanel[\s\S]*?className="ms-stack workbench-info-panel__rows"/)
+  assert.match(workbenchChromeSource, /WorkbenchInfoPanel[\s\S]*?className="ms-type-body workbench-info-panel__row"/)
+  assert.match(workbenchChromeSource, /WorkbenchDecisionPanel[\s\S]*?className="ms-grid-stack workbench-decision-panel"/)
+  assert.match(workbenchChromeSource, /WorkbenchDecisionPanel[\s\S]*?className="ms-action-row workbench-decision-panel__header"/)
+  assert.match(workbenchChromeSource, /WorkbenchDecisionPanel[\s\S]*?className="ms-type-label workbench-decision-panel__label"/)
+  assert.match(workbenchChromeSource, /WorkbenchDecisionPanel[\s\S]*?className="ms-type-body workbench-decision-panel__value"/)
+  assert.match(workbenchChromeSource, /WorkbenchActionRail[\s\S]*?<aside className="ms-stack workbench-action-rail"/)
+  assert.match(workbenchChromeSource, /WorkbenchActionRail[\s\S]*?className="ms-type-label workbench-action-rail__title"/)
+  assert.match(workbenchChromeSource, /WorkbenchActionRail[\s\S]*?className="ms-stack workbench-action-rail__list"/)
+  assert.match(workbenchChromeSource, /WorkbenchActionRail[\s\S]*?className="ms-type-label workbench-action-rail__output"/)
+  assert.match(workbenchChromeSource, /WorkbenchActionRail[\s\S]*?<Button[\s\S]*?align="start"[\s\S]*?workbench-action-rail__button/)
   assert.doesNotMatch(workbenchTypesSource, /tone\?: "default" \| "info" \| "success" \| "warning"/)
   assert.doesNotMatch(workbenchStatusSource, /WorkbenchDecisionRow\["tone"\]/)
   assert.doesNotMatch(workbenchChromeSource, /\brow\.tone\b/)
   assert.doesNotMatch(workbenchStatusSource, /\bSemanticTone\b/)
   assert.doesNotMatch(workbenchStatusSource, /export function workbench(?:ScenarioStatus|ScenarioPriority|Decision)Tone/)
   assert.match(workbenchChromeSource, /export function WorkbenchProjectShell/)
+  assert.match(workbenchChromeSource, /WorkbenchAppShell[\s\S]*?className=\{cn\("ms-stack workbench-app-shell"/)
+  assert.match(workbenchChromeSource, /WorkbenchAppTabButton[\s\S]*?className=\{cn\("type-body workbench-app-tab-button"/)
+  assert.match(workbenchChromeSource, /WorkbenchAppTabButton[\s\S]*?className="ms-inline-center workbench-app-tab-button__icon"/)
+  assert.match(workbenchChromeSource, /WorkbenchAppTabButton[\s\S]*?className="ms-text-truncate workbench-app-tab-button__label"/)
+  assert.match(workbenchChromeSource, /WorkbenchAppSummary[\s\S]*?className=\{cn\("ms-action-row type-label workbench-app-summary"/)
+  assert.match(workbenchChromeSource, /WorkbenchAppSummary[\s\S]*?className="ms-inline-center workbench-app-summary__icon"/)
+  assert.match(workbenchChromeSource, /WorkbenchAppSummary[\s\S]*?className="ms-text-truncate workbench-app-summary__text"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectShell[\s\S]*?className=\{cn\("ms-stack workbench-project-shell"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?<FrameHeader as="header"[\s\S]*?project-workbench-header/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?className="ms-action-row workbench-project-header__main"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?<FrameHeading className="workbench-project-header__identity"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?className="ms-inline-center workbench-project-header__icon"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?className="ms-text-truncate ms-type-caption workbench-project-header__kicker"/)
+  assert.match(workbenchChromeSource, /className="ms-workbench-copy workbench-project-header__copy"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?<FrameTitle as="h1" className="ms-text-truncate ms-type-section workbench-project-header__title"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?<FrameDescription className="ms-text-truncate ms-type-label workbench-project-header__description"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?className="ms-action-row workbench-project-header__badges"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?<FrameActions className="workbench-project-header__actions"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectHeader[\s\S]*?<FrameBody className="workbench-project-header__body"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectBody[\s\S]*?className=\{cn\("ms-workbench-copy workbench-project-body"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectViewport[\s\S]*?className=\{cn\("ms-workbench-row workbench-project-viewport"/)
+  assert.match(workbenchChromeSource, /WorkbenchProjectPane[\s\S]*?className=\{cn\("ms-workbench-copy workbench-project-pane"/)
   assert.match(workbenchChromeSource, /export function WorkbenchMetricStrip/)
   assert.match(workbenchChromeSource, /export function WorkbenchGateChecklist/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/workbench/chrome/queue/index.tsx')), false, 'unused workbench queue UI must not remain in packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/workbench/chrome/queue/styles.css')), false, 'unused workbench queue CSS must not remain in packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/workbench/scene-preview/index.tsx')), false, 'unused workbench scene preview UI must not remain in packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/workbench/scene-preview/styles.css')), false, 'unused workbench scene preview CSS must not remain in packages/ui')
+  assert.doesNotMatch(workbenchIndexSource, /Workbench(?:QueueList|SpecializedQueue|QueueMiniMetric|QueueItem)/)
+  assert.doesNotMatch(workbenchTypesSource, /WorkbenchQueueItem/)
+  assert.doesNotMatch(workbenchChromeSource, /Workbench(?:QueueList|SpecializedQueue|QueueMiniMetric|QueueItem)|from "\.\/queue"/)
+  assert.doesNotMatch(workbenchChromeCss, /queue\/styles\.css|workbench-queue-/)
+  assert.doesNotMatch(workbenchCss, /scene-preview\/styles\.css|workbench-scene-preview-panel/)
   assert.match(workbenchChromeSource, /workbenchStatusIntent/)
-  assert.match(workbenchChromeSource, /workbenchPriorityIntent/)
   assert.match(workbenchChromeSource, /workbenchDecisionIntent/)
   assert.match(workbenchChromeSource, /function gateActionIntent/)
   assert.doesNotMatch(workbenchChromeSource, /workbench(?:ScenarioStatus|ScenarioPriority|Decision)Tone/)
@@ -2197,12 +2305,9 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(workbenchChromeSource, /<WorkbenchStatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(workbenchChromeSource, /function statusTone/)
   assert.doesNotMatch(workbenchChromeSource, /function priorityTone/)
-  assert.match(workbenchScenePreviewSource, /export function WorkbenchScenePreviewPanel/)
-  assert.match(workbenchScenePreviewSource, /WorkbenchThumbnail/)
-  assert.match(workbenchScenePreviewSource, /content-workbench-scene-preview/)
   assert.match(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/project-shell\/styles\.css";/)
   assert.match(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/app-shell\/styles\.css";/)
-  assert.match(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/queue\/styles\.css";/)
+  assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/queue\/styles\.css";/)
   assert.match(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/decision\/styles\.css";/)
   assert.match(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/metric-strip\/styles\.css";/)
   assert.match(readProjectFile('packages/ui/src/components/business/workbench/chrome/styles.css'), /@import "\.\/context\/styles\.css";/)
@@ -2211,19 +2316,55 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(workbenchChromeCss, /\.workbench-app-shell\s*\{/)
   assert.match(workbenchChromeCss, /\.workbench-app-tab-bar\s*\{/)
   assert.match(workbenchChromeCss, /\.workbench-app-tab-button\s*\{/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-app-shell\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-app-tab-button\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-app-tab-button__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-app-tab-button__label\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-app-summary\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-app-summary__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-shell\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__main\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__kicker\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__description\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__badges\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__icon\s*\{[^}]*flex-shrink:\s*0/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-header__copy\s*\{/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-body\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-body\s*\{[^}]*flex:\s*1 1 auto/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-viewport\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-viewport\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-viewport\[data-direction="row"\]/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-pane\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-project-pane\s*\{[^}]*flex:\s*1 1 auto/)
   assert.match(workbenchChromeCss, /\.workbench-metric-strip\s*\{/)
-  assert.match(workbenchScenePreviewCss, /\.workbench-scene-preview-panel\s*\{/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-decision-panel__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-decision-panel\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-info-panel__row\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-decision-panel__label\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-decision-panel__value\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-action-rail__section\s*\{/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-action-rail__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-action-rail__button\s*\{[^}]*justify-content:\s*flex-start/)
+  assert.doesNotMatch(workbenchChromeCss, /\.workbench-action-rail__button \.ms-button__content/)
   assert.match(workbenchCardCss, /\.workbench-summary-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.workbench-summary-card\s*\{/)
   assert.match(agentCssEntry, /@import "\.\/panel\/styles\.css";/)
   assert.doesNotMatch(agentCssEntry, /@import "\.\/page\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/shell\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/thread\/styles\.css";/)
-  assert.match(agentCssEntry, /@import "\.\/context\/styles\.css";/)
+  assert.doesNotMatch(agentCssEntry, /@import "\.\/context\/styles\.css";/)
+  assert.match(agentPrimitiveCssEntry, /@import "\.\/context\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/run\/styles\.css";/)
   assert.doesNotMatch(agentCssEntry, /@import "\.\/work\/styles\.css";/)
-  assert.match(agentCssEntry, /@import "\.\/composer\/styles\.css";/)
+  assert.doesNotMatch(agentCssEntry, /@import "\.\/composer\/styles\.css";/)
   assert.match(agentCssEntry, /@import "\.\/responsive\/styles\.css";/)
+  assert.match(agentPanelSource, /className="ms-stack ai-agent-panel"/)
+  assert.match(agentPanelSource, /className="ms-stack ai-agent-panel__body"/)
+  assert.doesNotMatch(agentPanelFrameCss, /\.ai-agent-panel\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPanelFrameCss, /\.ai-agent-panel\s*\{[^}]*flex-direction:\s*column/)
+  assert.doesNotMatch(agentPanelFrameCss, /\.ai-agent-panel__body\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPanelFrameCss, /\.ai-agent-panel__body\s*\{[^}]*flex-direction:\s*column/)
   assert.doesNotMatch(agentCss, /\.ai-agent-panel-card\s*\{/)
   assert.doesNotMatch(uiCss, /\.ai-agent-panel-card\s*\{/)
   assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentPanelCardUi.css'), /\.ai-agent-panel-card\s*\{/)
@@ -2295,11 +2436,12 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
     .join('\n')
   const businessIndexSource = readProjectFile('packages/ui/src/components/business/index.ts')
   const appBusinessSource = readAppSource()
+  const appBusinessCss = readAppCss()
   const scriptsPageSource = [
     readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPage.tsx'),
     readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageParts.tsx'),
   ].join('\n')
-  const scriptsPageFeatureSource = readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageUi.tsx')
+  const scriptsPageFeatureSource = readScriptsPageFeatureSource()
   const canvasListSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListView.tsx')
 
   assert.doesNotMatch(frontendSources, /@\/components\/app\/AppPage/)
@@ -2317,8 +2459,21 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
   assert.match(appBusinessSource, /export function AppCreateDialog/)
   assert.match(appBusinessSource, /export function AppMarkerDot/)
   assert.match(appBusinessSource, /export function AppPager/)
+  assert.match(appBusinessSource, /ms-text-truncate ms-tabular-nums app-pager__status/)
   assert.match(appBusinessSource, /export function AppProgressBar/)
   assert.match(appBusinessSource, /export const AppToastShell/)
+  assert.match(appBusinessSource, /AppToastShell[\s\S]*?"ms-stack ms-type-body app-toast"/)
+  assert.match(appBusinessSource, /AppToastRow[\s\S]*?"ms-action-row app-toast__row"/)
+  assert.match(appBusinessSource, /AppToastIcon[\s\S]*?"ms-inline-center app-toast__icon"/)
+  assert.match(appBusinessSource, /AppToastMessage[\s\S]*?"ms-type-body app-toast__message"/)
+  assert.match(appBusinessSource, /AppToastDetail[\s\S]*?"ms-type-caption app-toast__detail"/)
+  assert.match(appBusinessSource, /AppToastViewport[\s\S]*?"ms-stack app-toast-viewport"/)
+  assert.doesNotMatch(appBusinessCss, /\.app-toast\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(appBusinessCss, /\.app-toast\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(appBusinessCss, /\.app-toast__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(appBusinessCss, /\.app-toast__detail\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(appBusinessCss, /\.app-toast-viewport\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(appBusinessCss, /\.app-toast-viewport\s*\{[^}]*flex-direction:/)
   assert.match(scriptsPageFeatureSource, /export function ScriptCreateDialog\b/)
   assert.match(scriptsPageSource, /\bScriptVersionHistoryPanel\b/)
   assert.doesNotMatch(scriptsPageSource, /\b(?:AppCreateDialog|AppProgressBar)\b/)
@@ -2335,12 +2490,13 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
   const uiAppShellWindowCss = readProjectFile('packages/ui/src/components/layout/app-shell/window/styles.css')
   const uiAppShellSidebarCss = readProjectFile('packages/ui/src/components/layout/app-shell/sidebar/styles.css')
   const uiWorkspaceLayoutCss = readProjectFile('packages/ui/src/components/layout/workspace/styles.css')
+  const uiWorkspaceContentCss = readProjectFile('packages/ui/src/components/layout/workspace/content-workspace.css')
+  const uiWorkspaceOverlapCss = readProjectFile('packages/ui/src/components/layout/workspace/overlap-pane.css')
   const uiBusinessAppCss = readAppCss()
   const uiAgentCss = readAgentCss()
   const uiAgentChatCss = readAgentChatCss()
   const uiCanvasCss = readProjectFile('packages/ui/src/components/business/canvas/styles.css')
   const uiCanvasCardCss = readProjectFile('packages/ui/src/components/business/canvas/card/styles.css')
-  const uiCanvasFlowCss = readProjectFile('packages/ui/src/components/business/canvas/flow/styles.css')
   const uiResourceCss = readProjectFile('packages/ui/src/components/business/resource/styles.css')
   const uiWorkbenchCss = readProjectFile('packages/ui/src/components/business/workbench/styles.css')
   const uiWorkbenchFoundationCss = readProjectFile('packages/ui/src/components/business/workbench/foundation/styles.css')
@@ -2348,7 +2504,8 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
   const uiWorkbenchListCss = readProjectFile('packages/ui/src/components/business/workbench/list/styles.css')
   const uiWorkbenchCardCss = readWorkbenchCardCss()
   const uiWorkbenchDataDisplayCss = readProjectFile('packages/ui/src/components/business/workbench/data-display/styles.css')
-  const scriptsPageFeatureCss = readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageUi.css')
+  const scriptsPageFeatureCss = readScriptsPageFeatureCss()
+  const projectPageFeatureCss = readProjectFile('apps/frontend/src/features/project/components/ProjectPageUi.css')
   const uiOwnedCss = [
     uiCss,
     primitiveCss,
@@ -2357,12 +2514,13 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     uiAppShellWindowCss,
     uiAppShellSidebarCss,
     uiWorkspaceLayoutCss,
+    uiWorkspaceContentCss,
+    uiWorkspaceOverlapCss,
     uiBusinessAppCss,
     uiAgentCss,
     uiAgentChatCss,
     uiCanvasCss,
     uiCanvasCardCss,
-    uiCanvasFlowCss,
     uiResourceCss,
     uiWorkbenchCss,
     uiWorkbenchFoundationCss,
@@ -2403,7 +2561,6 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     'type-label',
     'type-body',
     'type-title',
-    'canvas-flow',
     'workbench-section',
     'workbench-list',
     'workbench-entity-card',
@@ -2413,8 +2570,6 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     'workbench-metric',
     'workbench-key-value',
     'workbench-empty-state',
-    'projects-region',
-    'projects-list-row',
     'onboarding-switch-guide',
     'mention-editor',
     'content-workspace-shell',
@@ -2442,6 +2597,14 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     assert.doesNotMatch(appCss, new RegExp(`^\\.${selector}\\s*\\{`, 'm'), `${selector} must not be redefined as a desktop-owned base selector`)
   }
   for (const selector of [
+    'projects-region',
+    'projects-list-row',
+  ]) {
+    assert.match(projectPageFeatureCss, cssClassSelectorPattern(selector), `${selector} styles must live with ProjectPageUi`)
+    assert.doesNotMatch(uiOwnedCss, cssClassSelectorPattern(selector), `${selector} styles must not live in @movscript/ui`)
+    assert.doesNotMatch(appCss, new RegExp(`^\\.${selector}\\s*\\{`, 'm'), `${selector} must not be redefined as a desktop-owned base selector`)
+  }
+  for (const selector of [
     'script-workbench-shell',
     'script-workbench-frame',
     'script-workbench-layout',
@@ -2457,11 +2620,10 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
 test('app and workbench package primitives share internal base style classes', () => {
   const appSource = readAppSource()
   const layoutSource = readProjectFile('packages/ui/src/components/layout/index.tsx')
-  const workbenchPanelSource = readProjectFile('packages/ui/src/components/business/workbench/panel/index.tsx')
   const workbenchSectionSource = readProjectFile('packages/ui/src/components/business/workbench/section/index.tsx')
   const workbenchCardSource = readWorkbenchCardSource()
   const workbenchDataDisplaySource = readProjectFile('packages/ui/src/components/business/workbench/data-display/index.tsx')
-  const workbenchSource = `${workbenchPanelSource}\n${workbenchSectionSource}\n${workbenchCardSource}\n${workbenchDataDisplaySource}`
+  const workbenchSource = `${workbenchSectionSource}\n${workbenchCardSource}\n${workbenchDataDisplaySource}`
   const reviewSource = readReviewSource()
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const primitiveCss = readPrimitiveCss()
@@ -2469,6 +2631,7 @@ test('app and workbench package primitives share internal base style classes', (
   const keyValueSource = readProjectFile('packages/ui/src/components/primitives/key-value.tsx')
   const metricCardSource = readProjectFile('packages/ui/src/components/primitives/metric-card.tsx')
   const emptyStateSource = readProjectFile('packages/ui/src/components/primitives/empty-state.tsx')
+  const appInfoBlockSource = readProjectFile('packages/ui/src/components/business/app/data-display/info-block/index.tsx')
   const businessAppCss = readAppCss()
   const layoutCss = readProjectFile('packages/ui/src/components/layout/styles.css')
   const workbenchDataDisplayCss = readProjectFile('packages/ui/src/components/business/workbench/data-display/styles.css')
@@ -2486,14 +2649,43 @@ test('app and workbench package primitives share internal base style classes', (
   assert.match(primitiveIndexSource, /EmptyState/)
   assert.match(metricCardSource, /export const MetricCard/)
   assert.match(metricCardSource, /className=\{cn\("ms-stat-card"/)
+  assert.match(metricCardSource, /ms-tabular-nums ms-stat-card__value/)
+  assert.match(uiCss, /\.ms-tabular-nums\s*\{[\s\S]*?font-variant-numeric:\s*tabular-nums/)
+  assert.doesNotMatch(primitiveCss, /\.ms-stat-card__value\s*\{[^}]*font-variant-numeric:/)
   assert.match(primitiveCss, /\.ms-stat-card__icon\s*\{[\s\S]*border-radius:\s*var\(--ms-radius-sm\)/)
   assert.match(emptyStateSource, /export const EmptyState/)
   assert.match(emptyStateSource, /className=\{cn\("ms-empty-state"/)
   assert.match(emptyStateSource, /emphasis="unframed"/)
   assert.match(appSource, /AppMetricCard[\s\S]*?<MetricCard/)
   assert.match(appSource, /AppEmptyState[\s\S]*?<EmptyState/)
-  assert.match(businessAppCss, /\.app-state-message,\n\.app-text-empty-state\s*\{[\s\S]*border-radius:\s*var\(--ms-radius-sm\)/)
+  assert.match(appSource, /AppStateMessage[\s\S]*?<Surface[\s\S]*?kind="item"[\s\S]*?emphasis="soft"/)
+  assert.match(appSource, /AppStateMessage[\s\S]*?"ms-action-row ms-type-body app-state-message"/)
+  assert.match(appSource, /AppStateMessage[\s\S]*?className="ms-inline-center app-state-message__icon"/)
+  assert.match(appSource, /AppStatusSurface[\s\S]*?"ms-type-label app-status-surface"/)
+  assert.match(appSource, /AppStatusToggleButton[\s\S]*?"ms-type-label app-status-toggle-button"/)
+  assert.match(appSource, /AppInlineError[\s\S]*?<Surface[\s\S]*?tone="danger"[\s\S]*?emphasis="soft"[\s\S]*?"ms-type-label app-inline-error"/)
+  assert.match(appSource, /AppFeedbackText[\s\S]*?"ms-type-label app-feedback-text"/)
+  assert.match(appSource, /AppTextEmptyState[\s\S]*?<Surface[\s\S]*?as="p"[\s\S]*?emphasis="muted"[\s\S]*?"ms-type-caption app-text-empty-state"/)
+  assert.match(appSource, /titleClassName="ms-type-body app-empty-state__title"/)
+  assert.match(appSource, /descriptionClassName="ms-type-label app-empty-state__detail"/)
+  assert.match(businessAppCss, /\.app-state-message,\n\.app-inline-error,\n\.app-status-surface\s*\{[\s\S]*color:\s*var\(--ui-surface-tone-color\)/)
+  assert.doesNotMatch(businessAppCss, /\.app-state-message,\n\.app-inline-error,\n\.app-status-surface\s*\{[\s\S]*border:\s*1px solid var\(--ui-surface-border\)/)
+  assert.doesNotMatch(businessAppCss, /\.app-state-message,\n\.app-inline-error,\n\.app-status-surface\s*\{[\s\S]*background:\s*var\(--ui-surface-background\)/)
   assert.match(businessAppCss, /\.app-inline-error\s*\{[\s\S]*border-radius:\s*var\(--ms-radius-sm\)/)
+  assert.doesNotMatch(businessAppCss, /\.app-state-message\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(businessAppCss, /\.app-state-message\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-status-toggle-button\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-status-toggle-button\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(businessAppCss, /\.app-status-toggle-button\s*\{[^}]*transition:/)
+  assert.doesNotMatch(businessAppCss, /\.app-status-toggle-button:disabled\s*\{/)
+  assert.doesNotMatch(businessAppCss, /\.app-inline-error\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-feedback-text\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-status-surface\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-text-empty-state\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-empty-state__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-empty-state__detail\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(businessAppCss, /\.app-state-message__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(businessAppCss, /\.app-status-toggle-button\s*\{[^}]*display:\s*inline-flex/)
   assert.match(appSource, /export function AppDataTable\b/)
   assert.match(appSource, /export function AppDataTableHeader\b/)
   assert.match(appSource, /export function AppDataTableRow\b/)
@@ -2547,7 +2739,9 @@ test('app and workbench package primitives share internal base style classes', (
   assert.match(appSource, /AppWindowIconButton[\s\S]*?<Button[\s\S]*?className=\{cn\("app-window-icon-button"/)
   assert.match(appSource, /export const AppSurfaceItem/)
   assert.match(appSource, /AppSurfaceItem[\s\S]*?asChild = false/)
-  assert.match(appSource, /AppSurfaceItem[\s\S]*?<Surface[\s\S]*?asChild=\{asChild\}/)
+  assert.match(appSource, /AppSurfaceItem[\s\S]*?<Frame[\s\S]*?asChild=\{asChild\}/)
+  assert.match(appInfoBlockSource, /function AppInfoBlock[\s\S]*?<AppSurfaceItem[\s\S]*?className=\{cn\("app-info-block"/)
+  assert.doesNotMatch(appInfoBlockSource, /<Surface/)
   assert.match(primitiveCss, /\[data-kind="item"\]\s*\{[\s\S]*--ui-surface-border:\s*color-mix\(in srgb, var\(--ms-color-border\) 80%, transparent\)/)
   assert.match(primitiveCss, /\[data-kind="item"\]\s*\{[\s\S]*--ui-surface-radius:\s*var\(--ms-radius-sm\)/)
   assert.doesNotMatch(businessAppCss, /\.app-surface-item\s*\{[^}]*--ui-surface-(?:background|border|radius|shadow)/)
@@ -2566,13 +2760,15 @@ test('app and workbench package primitives share internal base style classes', (
   assert.match(appSource, /export function AppInlineMeta/)
   assert.match(appSource, /AppInlineMeta[\s\S]*?asChild = false/)
   assert.match(appSource, /export function AppDisclosure/)
-  assert.match(appSource, /AppDisclosure[\s\S]*?<Surface[\s\S]*?as="details"[\s\S]*?className=\{cn\("app-disclosure"/)
+  assert.match(appSource, /AppDisclosure[\s\S]*?<Frame[\s\S]*?as="details"[\s\S]*?className=\{cn\("app-disclosure"/)
+  assert.match(appSource, /AppDisclosure[\s\S]*?<FrameHeader as="summary" className="app-disclosure__summary"/)
   assert.match(businessAppCss, /\.app-surface-item\s*\{/)
   assert.match(businessAppCss, /\.app-choice-tile\s*\{/)
   assert.match(businessAppCss, /\.app-window-icon-button\s*\{/)
   assert.match(businessAppCss, /\.app-media-frame\s*\{/)
   assert.match(businessAppCss, /\.app-media-frame\[data-variant="stage-dark"\]\s*\{/)
   assert.match(businessAppCss, /\.app-media-frame\[data-variant="placeholder"\]\s*\{/)
+  assert.match(businessAppCss, /\.app-media-frame\[data-variant="fill"\] > \*\s*\{[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;/)
   assert.match(businessAppCss, /\.app-progress-bar\s*\{/)
   assert.match(businessAppCss, /\.app-progress-bar\[data-tone="danger"\]\s*\{/)
   assert.match(businessAppCss, /\.app-progress-bar\[data-indeterminate="true"\] \.app-progress-bar__fill\s*\{/)
@@ -2594,7 +2790,10 @@ test('app and workbench package primitives share internal base style classes', (
   assert.doesNotMatch(uiCss, /\.app-empty-state__(?:icon|title|detail)\s*\{/)
   assert.doesNotMatch(uiCss, /\.workbench-empty-state__(?:icon|title|description)\s*\{/)
   assert.doesNotMatch(uiCss, /\.workbench-key-value__(?:label|value)\s*\{/)
-  assert.match(reviewSource, /ms-surface__heading ms-review-callout__header/)
+  assert.match(reviewSource, /ReviewCallout[\s\S]*?<Frame[\s\S]*?kind="panel"[\s\S]*?emphasis="plain"[\s\S]*?className=\{cn\("ms-review-callout"/)
+  assert.match(reviewSource, /ReviewCallout[\s\S]*?<FrameHeading className="ms-action-row ms-surface__heading ms-review-callout__header"/)
+  assert.match(reviewSource, /ReviewCallout[\s\S]*?className="ms-type-label ms-review-callout__title"/)
+  assert.doesNotMatch(reviewSource, /ReviewCallout[\s\S]*?<div \{\.\.\.props\}/)
   assert.match(workbenchSectionSource, /WorkbenchSection[\s\S]*?<Frame[\s\S]*?as="section"[\s\S]*?kind="section"[\s\S]*?className=\{cn\("workbench-section"/)
 })
 
@@ -2654,30 +2853,38 @@ test('workbench list and card primitives share internal base classes', () => {
     assert.match(workbenchCss, cssClassSelectorPattern(sharedClass), `${sharedClass} base styles must live in @movscript/ui workbench`)
   }
   assert.doesNotMatch(uiCss, /\.ms-workbench-list\s*\{/)
-  assert.match(workbenchSource, /<Surface[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-list-item"/)
-  assert.match(workbenchSource, /<Surface[\s\S]*?tone="brand"[\s\S]*?interaction=\{active \? "selected" : "selectable"\}/)
+  assert.match(workbenchSource, /<Frame[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-list-item"/)
+  assert.match(workbenchSource, /<Frame[\s\S]*?tone="brand"[\s\S]*?interaction=\{active \? "selected" : "selectable"\}/)
   assert.match(primitiveCss, /\[data-kind="item"\]\[data-emphasis="plain"\]\s*\{[\s\S]*--ui-surface-background:\s*var\(--ms-color-background\)/)
   assert.doesNotMatch(workbenchListCss, /\.ms-workbench-selectable\s*\{[^}]*--ui-surface-background/)
   assert.doesNotMatch(workbenchListCss, /\.ms-workbench-selectable:hover\s*\{[\s\S]*--ui-surface-/)
   assert.doesNotMatch(workbenchListCss, /\.ms-workbench-selectable\[data-active="true"\]\s*\{[\s\S]*--ui-surface-/)
   assert.match(workbenchIndexSource, /WorkbenchSurfaceItem/)
   assert.match(workbenchListSource, /export function WorkbenchSurfaceItem/)
-  assert.match(workbenchSource, /WorkbenchSurfaceItem[\s\S]*?<Surface[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-list-item"/)
-  assert.match(workbenchSource, /<Surface[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-entity-card"/)
+  assert.match(workbenchSource, /WorkbenchSurfaceItem[\s\S]*?<Frame[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-list-item"/)
+  assert.match(workbenchSource, /<Frame[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-entity-card"/)
   assert.match(workbenchSource, /ms-workbench-row workbench-entity-card__row/)
   assert.match(workbenchSource, /workbench-entity-card__row[\s\S]*?workbench-entity-card__content[\s\S]*?\{children\}/)
   assert.match(workbenchCardCss, /\.workbench-entity-card\s*\{[\s\S]*flex-direction:\s*column/)
   assert.match(workbenchCardCss, /\.workbench-entity-card__row\s*\{[\s\S]*align-items:\s*stretch/)
   assert.match(workbenchIndexSource, /WorkbenchSummaryCard/)
   assert.match(workbenchCardSource, /export function WorkbenchSummaryCard/)
-  assert.match(workbenchSource, /<Surface[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-summary-card"/)
+  assert.match(workbenchSource, /<Frame[\s\S]*?className=\{cn\("ms-workbench-selectable workbench-summary-card"/)
   assert.match(workbenchSource, /ms-workbench-row workbench-summary-card__header/)
+  assert.match(workbenchSource, /className="ms-text-truncate ms-type-label workbench-summary-card__title"/)
+  assert.match(workbenchSource, /className="ms-text-truncate ms-type-caption workbench-summary-card__description"/)
+  assert.match(workbenchSource, /"ms-type-tiny workbench-summary-card__preview-label"/)
   assert.match(workbenchCardCss, /\.workbench-summary-card\s*\{[\s\S]*display:\s*flex[\s\S]*flex-direction:\s*column/)
   assert.match(workbenchCardCss, /\.workbench-summary-card__body\s*\{[\s\S]*display:\s*grid[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
   assert.match(workbenchCardCss, /\.workbench-summary-card__preview-stack\s*\{[\s\S]*width:\s*100%/)
   assert.match(workbenchCardCss, /\.workbench-summary-card__preview-row\s*\{[\s\S]*display:\s*grid/)
   assert.match(workbenchCardCss, /\.workbench-summary-card__preview-list\s*\{[\s\S]*display:\s*flex/)
   assert.match(workbenchCardCss, /\.workbench-summary-card__status-grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+  assert.doesNotMatch(workbenchCardCss, /\.workbench-summary-card__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchCardCss, /\.workbench-summary-card__title\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(workbenchCardCss, /\.workbench-summary-card__description\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(workbenchCardCss, /\.workbench-summary-card__description\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(workbenchCardCss, /\.workbench-summary-card__preview-label\s*\{/)
   assert.match(workbenchSource, /<Surface[\s\S]*?className=\{cn\("ms-workbench-media-frame workbench-thumbnail"/)
   assert.match(primitiveCss, /\[data-kind="media"\]\[data-emphasis="muted"\]\s*\{[\s\S]*--ui-surface-background:\s*color-mix\(in srgb, var\(--ms-color-muted\) 42%, transparent\)/)
   assert.doesNotMatch(workbenchCardCss, /\.workbench-thumbnail\s*\{[^}]*--ui-surface-/)
@@ -2693,16 +2900,57 @@ test('review and workbench badges use package status badge primitive', () => {
     assert.match(uiCss, cssClassSelectorPattern(sharedClass), `${sharedClass} base styles must live in @movscript/ui`)
   }
   assert.match(reviewSource, /StatusBadge/)
+  assert.match(reviewSource, /FrameHeading/)
   assert.match(workbenchCardSource, /StatusBadge/)
   assert.doesNotMatch(`${reviewSource}\n${workbenchCardSource}`, /semanticToneClass\([^\n)]*['"]badge['"]/)
   assert.doesNotMatch(`${reviewSource}\n${workbenchCardSource}`, /<StatusBadge\b[^\n>]*\btone=/)
-  assert.match(reviewSource, /ms-review-stat/)
+  assert.match(reviewSource, /ms-inline-badge ms-inline-badge--center ms-type-tiny ms-review-stat/)
   assert.doesNotMatch(reviewSource, /\b(?:ReviewDecisionBadge|ChangeActionBadge|changeActionTone|changeActionRowClass|ReviewDecision|ChangeAction)\b/)
   assert.match(workbenchCardSource, /ms-inline-badge--center ms-inline-badge--truncate workbench-status-badge/)
   assert.match(reviewCss, /\.ms-review-callout\s*\{/)
   assert.doesNotMatch(reviewCss, /\.ms-(?:change-action|review-decision-badge)\b/)
+  assert.doesNotMatch(reviewCss, /\.ms-review-callout__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(reviewCss, /\.ms-review-callout__header\s*\{[^}]*align-items:\s*center/)
+  assert.doesNotMatch(reviewCss, /\.ms-review-callout__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(reviewCss, /\.ms-review-callout__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(reviewCss, /\.ms-review-stat\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(reviewCss, /\.ms-review-stat\s*\{[^}]*line-height:/)
   assert.doesNotMatch(uiCss, /\.ms-review-callout\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-change-action-row\s*\{/)
+})
+
+test('review workspace UI is feature-owned, not shipped from packages/ui', () => {
+  const reviewSource = readReviewSource()
+  const reviewCss = readReviewCss()
+  const projectStandardsWorkspaceReviewSource = readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewUi.tsx')
+  const projectStandardsWorkspaceReviewCss = readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewUi.css')
+
+  for (const removedPath of [
+    'packages/ui/src/components/business/review/workspace/index.tsx',
+    'packages/ui/src/components/business/review/workspace/styles.css',
+    'packages/ui/src/components/business/review/workspace/upstream/index.tsx',
+    'packages/ui/src/components/business/review/workspace/upstream/styles.css',
+    'packages/ui/src/components/business/review/workspace/workspace/index.tsx',
+    'packages/ui/src/components/business/review/workspace/workspace/styles.css',
+    'packages/ui/src/components/business/review/workspace/shell/index.tsx',
+    'packages/ui/src/components/business/review/workspace/empty-state/index.tsx',
+    'packages/ui/src/components/business/review/workspace/empty-state/styles.css',
+    'packages/ui/src/components/business/review/workspace/impact/index.tsx',
+    'packages/ui/src/components/business/review/workspace/impact/styles.css',
+    'packages/ui/src/components/business/review/workspace/footer-actions/index.tsx',
+    'packages/ui/src/components/business/review/workspace/footer-actions/styles.css',
+    'packages/ui/src/components/business/review/workspace/apply-gate/index.tsx',
+    'packages/ui/src/components/business/review/workspace/apply-gate/styles.css',
+  ]) {
+    assert.equal(existsSync(path.join(root, removedPath)), false, `${removedPath} must not remain in packages/ui`)
+  }
+
+  assert.doesNotMatch(reviewSource, /ReviewWorkspace/)
+  assert.doesNotMatch(reviewCss, /workspace\/styles\.css|review-workspace-/)
+  assert.match(projectStandardsWorkspaceReviewSource, /export function ProjectStandardsWorkspaceReviewShell/)
+  assert.match(projectStandardsWorkspaceReviewSource, /export function ProjectStandardsWorkspaceReviewArtifactPanel/)
+  assert.match(projectStandardsWorkspaceReviewSource, /export function ProjectStandardsWorkspaceReviewFieldDiffRow/)
+  assert.match(projectStandardsWorkspaceReviewCss, /\.project-standards-workspace-review-shell--contained-scroll/)
 })
 
 test('icon frames and centered controls share internal center classes', () => {
@@ -2739,6 +2987,7 @@ test('card and agent package surfaces share internal frame classes', () => {
   const frameSource = readProjectFile('packages/ui/src/components/primitives/frame.tsx')
   const dialogSource = readProjectFile('packages/ui/src/components/primitives/dialog.tsx')
   const agentSource = readAgentSource()
+  const agentCss = readAgentCss()
   const uiCss = readProjectFile('packages/ui/src/base.css')
 
   assert.match(frameSource, /export const Frame\b/)
@@ -2754,6 +3003,22 @@ test('card and agent package surfaces share internal frame classes', () => {
   assert.match(dialogSource, /ms-frame__description ms-dialog__description/)
   assert.match(agentSource, /ms-frame/)
   assert.match(agentSource, /ms-agent-tool/)
+  assert.match(agentSource, /AgentToolCall[\s\S]*?<Frame[\s\S]*?className=\{cn\("ms-agent-frame ms-agent-tool"/)
+  assert.match(agentSource, /AgentToolCall[\s\S]*?<FrameHeader className="ms-agent-tool__header"/)
+  assert.match(agentSource, /AgentToolCall[\s\S]*?ms-agent-text ms-text-truncate ms-type-item ms-frame__title ms-agent-tool__title/)
+  assert.match(agentSource, /AgentToolCall[\s\S]*?ms-type-label ms-agent-tool__meta/)
+  assert.match(agentSource, /AgentToolCall[\s\S]*?<FrameBody className="ms-type-item ms-agent-tool__content"/)
+  assert.match(agentSource, /AgentStepList[\s\S]*?className=\{cn\("ms-stack ms-agent-steps"/)
+  assert.match(agentSource, /AgentStep[\s\S]*?className=\{cn\("ms-type-item ms-agent-step"/)
+  assert.doesNotMatch(agentSource, /AgentToolCall[\s\S]*?<Surface/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-tool__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-tool__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-tool__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-tool__content\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-steps\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-steps\s*\{[^}]*flex-direction:\s*column/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-step\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-step\s*\{[^}]*line-height:/)
   assert.doesNotMatch(agentSource, /ms-agent-instruction/)
   assert.doesNotMatch(agentSource, /ms-agent-rail-section/)
   assert.match(uiCss, /\.ms-frame\s*\{/)
@@ -2761,12 +3026,21 @@ test('card and agent package surfaces share internal frame classes', () => {
   assert.match(uiCss, /\.ms-frame__title\s*\{/)
   assert.match(uiCss, /\.ms-stack\s*\{/)
   assert.match(uiCss, /\.ms-action-row\s*\{/)
+  assert.match(uiCss, /\.ms-action-row\s*\{[\s\S]*?min-width:\s*0/)
+  assert.match(uiCss, /\.ms-grid-stack\s*\{[\s\S]*?display:\s*grid/)
+  assert.match(uiCss, /\.ms-grid-stack\s*\{[\s\S]*?min-width:\s*0/)
+  assert.match(uiCss, /\.ms-inline-center\s*\{[\s\S]*?flex-shrink:\s*0/)
+  assert.match(uiCss, /\.ms-inline-center > svg\s*\{[\s\S]*?display:\s*block/)
+  assert.match(uiCss, /\.ms-text-truncate\s*\{/)
 })
 
 test('agent package data blocks share internal field classes', () => {
   const agentSource = readAgentSource()
   const activityFeedSource = readAgentActivityFeedSource()
+  const activityFeedUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentActivityFeed.tsx')
+  const activityFeedCss = readAgentActivityFeedCss()
   const diagnosticSource = readAgentDiagnosticSource()
+  const diagnosticCss = readAgentDiagnosticCss()
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const agentCss = readAgentCss()
 
@@ -2776,12 +3050,109 @@ test('agent package data blocks share internal field classes', () => {
   assert.match(agentSource, /export const AgentDataBlock/)
   assert.match(agentSource, /AgentDataBlockProps[\s\S]*?asChild\?: boolean/)
   assert.match(agentSource, /if \(asChild\) \{[\s\S]*?<AsChildSlot/)
-  assert.match(activityFeedSource, /AgentActivityCodePanel[\s\S]*?<AgentDataBlock className="ms-agent-activity-code-panel__body"/)
+  assert.match(activityFeedSource, /AgentActivityCodePanel[\s\S]*?<AgentDataBlock className="ms-type-tiny ms-agent-activity-code-panel__body"/)
+  assert.match(activityFeedSource, /AgentActivityFeedRoot[\s\S]*?"ms-type-label ms-agent-activity-feed"/)
+  assert.match(activityFeedSource, /AgentActivityTotals[\s\S]*?"ms-type-tiny ms-agent-activity-feed__totals"/)
+  assert.match(activityFeedSource, /AgentActivityStatusLine[\s\S]*?"ms-action-row ms-agent-activity-status-line"/)
+  assert.match(activityFeedSource, /AgentActivityStatusLine[\s\S]*?"ms-action-row ms-type-caption ms-agent-activity-status-line__content"/)
+  assert.match(activityFeedSource, /AgentActivityStatusLine[\s\S]*?"ms-text-truncate ms-agent-activity-status-line__label"/)
+  assert.match(activityFeedSource, /AgentActivityDividerActions[\s\S]*?"ms-action-row ms-agent-activity-divider-actions"/)
+  assert.match(activityFeedSource, /AgentActivityMenuIcon[\s\S]*?"ms-inline-center ms-agent-activity-menu-icon"/)
+  assert.match(activityFeedSource, /AgentActivityRoundHeader[\s\S]*?"ms-action-row ms-type-tiny ms-agent-activity-round__header"/)
+  assert.match(activityFeedSource, /AgentActivityRoundHeader[\s\S]*?"ms-action-row ms-text-truncate ms-type-tiny ms-agent-activity-round__label"/)
+  assert.match(activityFeedSource, /AgentActivityRoundEmpty[\s\S]*?"ms-type-caption ms-agent-activity-round__empty"/)
+  assert.match(activityFeedSource, /AgentActivityLineRow[\s\S]*?"ms-action-row ms-agent-activity-line-row"/)
+  assert.match(activityFeedSource, /AgentActivityKindLabel[\s\S]*?"ms-type-tiny ms-agent-activity-kind-label"/)
+  assert.match(activityFeedSource, /AgentActivityLineText[\s\S]*?"ms-text-truncate ms-agent-activity-line-text"/)
+  assert.match(activityFeedSource, /AgentActivityDuration[\s\S]*?"ms-type-tiny ms-agent-activity-duration"/)
+  assert.match(activityFeedSource, /AgentActivityFrameHeader[\s\S]*?"ms-action-row ms-agent-activity-frame__header"/)
+  assert.match(activityFeedSource, /AgentActivityFrameTitle[\s\S]*?"ms-text-truncate ms-type-caption ms-agent-activity-frame__title"/)
+  assert.match(activityFeedSource, /AgentActivityFrameLine[\s\S]*?"ms-type-caption ms-agent-activity-frame__line"/)
+  assert.match(activityFeedSource, /className="ms-type-tiny ms-agent-activity-code-panel__header"/)
+  assert.match(activityFeedUiSource, /className="ms-text-truncate ms-agent-activity-round__label-text"/)
+  assert.match(activityFeedUiSource, /className="ms-action-row ms-agent-activity-round__pager"/)
+  assert.match(activityFeedUiSource, /className="ms-inline-center ms-agent-activity-round__pager-button"/)
+  assert.match(activityFeedUiSource, /className="ms-type-tiny ms-tabular-nums ms-agent-activity-round__pager-count"/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-feed\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-feed__totals\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-status-line\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-status-line__content\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-status-line__content\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-status-line__content\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-status-line__label\s*\{/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-divider-actions\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-menu-icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__pager-count\s*\{[^}]*font-variant-numeric:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-line-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-frame__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-frame__title\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-frame__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-frame__line\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-code-panel__header\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-code-panel__body\s*\{[^}]*line-height:/)
   assert.match(diagnosticSource, /AgentDiagnosticSummaryItem[\s\S]*?<AgentDataBlock className=\{cn\("ms-agent-diagnostic-summary-item"/)
+  assert.match(diagnosticSource, /className="ms-type-tiny ms-agent-diagnostic-summary-item__label"/)
+  assert.match(diagnosticSource, /className="ms-text-truncate ms-type-caption ms-agent-diagnostic-summary-item__value"/)
+  assert.match(diagnosticSource, /AgentDiagnosticHeader[\s\S]*?"ms-action-row ms-agent-diagnostic-card__header"/)
+  assert.match(diagnosticSource, /AgentDiagnosticTitle[\s\S]*?"ms-action-row ms-type-label ms-agent-diagnostic-card__title"/)
+  assert.match(diagnosticSource, /AgentDiagnosticDescription[\s\S]*?"ms-type-caption ms-agent-diagnostic-card__description"/)
+  assert.match(diagnosticSource, /AgentDiagnosticDisclosure[\s\S]*?className="ms-action-row ms-type-caption ms-agent-diagnostic-disclosure__summary"/)
+  assert.match(diagnosticSource, /AgentDiagnosticDisclosure[\s\S]*?className="ms-action-row ms-agent-diagnostic-disclosure__title"/)
+  assert.match(diagnosticSource, /AgentDiagnosticDisclosure[\s\S]*?className="ms-inline-center ms-agent-diagnostic-disclosure__icon"/)
+  assert.match(diagnosticSource, /AgentDiagnosticDisclosure[\s\S]*?className="ms-type-tiny ms-agent-diagnostic-disclosure__count"/)
+  assert.match(diagnosticSource, /AgentDiagnosticCodeBlock[\s\S]*?size === "sm" \? "ms-type-tiny" : "ms-type-caption"/)
+  assert.match(diagnosticSource, /AgentDiagnosticBadge[\s\S]*?"ms-type-tiny ms-agent-diagnostic-badge"/)
+  assert.match(diagnosticSource, /AgentDiagnosticStatusBadge[\s\S]*?"ms-type-tiny ms-agent-diagnostic-badge"/)
+  assert.match(diagnosticSource, /AgentDiagnosticWarnings[\s\S]*?"ms-type-caption ms-agent-diagnostic-warnings"/)
+  assert.match(diagnosticSource, /AgentDiagnosticEntryHeader[\s\S]*?"ms-action-row ms-agent-diagnostic-entry__header"/)
+  assert.match(diagnosticSource, /AgentDiagnosticEntryTitle[\s\S]*?"ms-text-truncate ms-type-caption ms-agent-diagnostic-entry__title"/)
+  assert.match(diagnosticSource, /AgentDiagnosticEntryMeta[\s\S]*?"ms-type-tiny ms-agent-diagnostic-entry__meta"/)
+  assert.match(diagnosticSource, /AgentDiagnosticToolHeader[\s\S]*?"ms-action-row ms-agent-diagnostic-tool__header"/)
+  assert.match(diagnosticSource, /AgentDiagnosticToolName[\s\S]*?"ms-text-truncate ms-type-caption ms-agent-diagnostic-tool__name"/)
+  assert.match(diagnosticSource, /AgentDiagnosticToolText[\s\S]*?"ms-type-tiny ms-agent-diagnostic-tool__text"/)
   assert.doesNotMatch(activityFeedSource, /ms-agent-field ms-agent-data-block/)
   assert.doesNotMatch(diagnosticSource, /ms-agent-field ms-agent-data-block/)
   assert.match(agentCss, /\.ms-agent-field\s*\{/)
   assert.match(agentCss, /\.ms-agent-data-block\s*\{/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__header\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__label\s*\{[^}]*text-overflow:\s*ellipsis/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__pager-count\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__empty\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-kind-label\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-line-text\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-duration\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(activityFeedCss, /\.ms-agent-activity-round__pager-button\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(diagnosticCss, /@import "\.\/warnings\/styles\.css"/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-summary-item__label\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-summary-item__value\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-summary-item__value\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-disclosure__summary\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-disclosure__summary\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-disclosure__title\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-disclosure__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-disclosure__count\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-code\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-code\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-code\[data-size="sm"\]\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-badge\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-badge\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-warnings\s*\{/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-card\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-card__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-card__title\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-card__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-card__description\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-card__description\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-entry__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-entry__title\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-entry__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-entry__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-tool\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-tool__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-tool__name\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-tool__text\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(diagnosticCss, /\.ms-agent-diagnostic-tool__text\s*\{[^}]*line-height:/)
   assert.doesNotMatch(uiCss, /\.ms-agent-field\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-agent-data-block\s*\{/)
 })
@@ -2789,6 +3160,15 @@ test('agent package data blocks share internal field classes', () => {
 test('agent run activity package API only exposes consumed pieces', () => {
   const runActivitySource = readProjectFile('packages/ui/src/components/business/agent/run-activity/index.tsx')
   const runActivityDisclosureSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/disclosure/index.tsx')
+  const runActivityDisclosureCss = readProjectFile('packages/ui/src/components/business/agent/run-activity/disclosure/styles.css')
+  const runActivityItemSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/item/index.tsx')
+  const runActivityItemCss = readProjectFile('packages/ui/src/components/business/agent/run-activity/item/styles.css')
+  const runActivityStatusSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/status/index.tsx')
+  const runActivityStatusCss = readProjectFile('packages/ui/src/components/business/agent/run-activity/status/styles.css')
+  const runActivityCodeSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/code/index.tsx')
+  const runActivityCodeCss = readProjectFile('packages/ui/src/components/business/agent/run-activity/code/styles.css')
+  const runActivityNoticeSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/notice/index.tsx')
+  const runActivityStylesSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/styles.css')
   const runActivityBubbleSource = readProjectFile('packages/ui/src/components/business/agent/run-activity/bubble/index.tsx')
   const runActivityBubbleCss = readProjectFile('packages/ui/src/components/business/agent/run-activity/bubble/styles.css')
   const runActivityPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AgentRunActivityPanel.tsx')
@@ -2818,6 +3198,46 @@ test('agent run activity package API only exposes consumed pieces', () => {
   }
 
   assert.doesNotMatch(runActivityBubbleCss, /ms-agent-run-activity-bubble__(?:frame|button)/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/run-activity/notice/styles.css')), false)
+  assert.doesNotMatch(runActivityStylesSource, /notice\/styles\.css/)
+  assert.match(runActivityItemSource, /ms-action-row ms-agent-run-activity-item__row/)
+  assert.match(runActivityItemSource, /ms-action-row ms-agent-run-activity-item__header/)
+  assert.match(runActivityItemSource, /ms-text-truncate ms-type-caption ms-agent-run-activity-item__title/)
+  assert.match(runActivityItemSource, /ms-action-row ms-type-tiny ms-agent-run-activity-item__meta/)
+  assert.match(runActivityItemSource, /ms-type-caption ms-agent-run-activity-item__summary/)
+  assert.doesNotMatch(runActivityItemCss, /\.ms-agent-run-activity-item__row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(runActivityItemCss, /\.ms-agent-run-activity-item__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(runActivityItemCss, /\.ms-agent-run-activity-item__title\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(runActivityItemCss, /\.ms-agent-run-activity-item__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(runActivityItemCss, /\.ms-agent-run-activity-item__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(runActivityItemCss, /\.ms-agent-run-activity-item__summary\s*\{[^}]*line-height:/)
+  assert.match(runActivityDisclosureSource, /ms-type-label ms-agent-run-activity/)
+  assert.match(runActivityDisclosureSource, /ms-action-row ms-agent-run-activity__summary/)
+  assert.match(runActivityDisclosureSource, /ms-action-row ms-agent-run-activity__title/)
+  assert.match(runActivityDisclosureSource, /ms-inline-center ms-agent-run-activity__icon/)
+  assert.match(runActivityDisclosureSource, /ms-text-truncate ms-agent-run-activity__title-text/)
+  assert.match(runActivityDisclosureSource, /ms-action-row ms-agent-run-activity__meta/)
+  assert.match(runActivityDisclosureSource, /ms-type-tiny ms-agent-run-activity__summary-text/)
+  assert.match(runActivityDisclosureSource, /ms-type-caption ms-agent-run-activity-empty/)
+  assert.doesNotMatch(runActivityDisclosureCss, /\.ms-agent-run-activity\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(runActivityDisclosureCss, /\.ms-agent-run-activity__summary\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(runActivityDisclosureCss, /\.ms-agent-run-activity__title\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(runActivityDisclosureCss, /\.ms-agent-run-activity__title-text\s*\{/)
+  assert.doesNotMatch(runActivityDisclosureCss, /\.ms-agent-run-activity__meta\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(runActivityDisclosureCss, /\.ms-agent-run-activity__summary-text\s*\{[^}]*font-size:/)
+  assert.match(runActivityBubbleSource, /ms-type-label ms-agent-run-activity-bubble/)
+  assert.match(runActivityBubbleSource, /ms-type-tiny ms-agent-run-activity-detail-button/)
+  assert.doesNotMatch(runActivityBubbleCss, /\.ms-agent-run-activity-bubble\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(runActivityBubbleCss, /\.ms-agent-run-activity-detail-button\s*\{[^}]*font-size:/)
+  assert.match(runActivityCodeSource, /ms-type-tiny ms-agent-run-activity-code__summary/)
+  assert.match(runActivityCodeSource, /ms-type-tiny ms-agent-run-activity-code__content/)
+  assert.doesNotMatch(runActivityCodeCss, /\.ms-agent-run-activity-code__summary\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(runActivityCodeCss, /\.ms-agent-run-activity-code__content\s*\{[^}]*line-height:/)
+  assert.match(runActivityNoticeSource, /ms-type-caption ms-agent-run-activity-notice/)
+  assert.match(runActivityStatusSource, /ms-type-tiny ms-agent-run-activity-status/)
+  assert.match(runActivityStatusSource, /ms-type-tiny ms-agent-run-activity-chat-badge/)
+  assert.doesNotMatch(runActivityStatusCss, /\.ms-agent-run-activity-status\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(runActivityStatusCss, /\.ms-agent-run-activity-chat-badge\s*\{[^}]*font-size:/)
 })
 
 test('agent generated result, candidate, and feedback UI are feature-owned instead of package API', () => {
@@ -2825,9 +3245,13 @@ test('agent generated result, candidate, and feedback UI are feature-owned inste
   const agentStylesSource = readProjectFile('packages/ui/src/components/business/agent/styles.css')
   const generatedResultCardSource = readProjectFile('apps/frontend/src/features/agent/components/GeneratedResultCard.tsx')
   const generatedResultCardCss = readProjectFile('apps/frontend/src/features/agent/components/GeneratedResultCard.css')
-  const generatedCandidateDialogSource = readProjectFile('apps/frontend/src/features/agent/components/GeneratedCandidateAttachDialog.tsx')
+  const generatedCandidateDialogSource = [
+    readProjectFile('apps/frontend/src/features/agent/components/GeneratedCandidateAttachDialog.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/GeneratedCandidateAttachDialogUi.tsx'),
+  ].join('\n')
   const generatedCandidateDialogCss = readProjectFile('apps/frontend/src/features/agent/components/GeneratedCandidateAttachDialog.css')
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
+  const generationCardUiSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCardUi.tsx')
   const generationCardsCss = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.css')
 
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/generated')), false)
@@ -2843,11 +3267,11 @@ test('agent generated result, candidate, and feedback UI are feature-owned inste
   assert.match(generatedCandidateDialogSource, /function GeneratedCandidateDialogContent/)
   assert.match(generatedCandidateDialogSource, /function GeneratedCandidateTargetItem/)
   assert.match(generatedCandidateDialogSource, /function GeneratedViewerSidePanel/)
-  assert.match(generationCardsSource, /function AgentGeneratedCard/)
-  assert.match(generationCardsSource, /function AgentGeneratedProgressBar[\s\S]*?<AppProgressBar/)
-  assert.match(generationCardsSource, /function AgentGeneratedStatusBadge[\s\S]*?<StatusBadge/)
-  assert.match(generationCardsSource, /function AgentGeneratedCard[\s\S]*?<AgentSurfaceBlock/)
-  assert.match(generationCardsSource, /function AgentGeneratedItem[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(generationCardUiSource, /function AgentGeneratedCard/)
+  assert.match(generationCardUiSource, /function AgentGeneratedProgressBar[\s\S]*?<AppProgressBar/)
+  assert.match(generationCardUiSource, /function AgentGeneratedStatusBadge[\s\S]*?<StatusBadge/)
+  assert.match(generationCardUiSource, /function AgentGeneratedCard[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(generationCardUiSource, /function AgentGeneratedItem[\s\S]*?<AgentSurfaceBlock/)
   assert.match(generatedResultCardSource, /<GeneratedResultCardShell data-testid="agent-generated-result-card"/)
   assert.match(generatedResultCardSource, /<GeneratedMediaPreviewButton[\s\S]*?data-testid="agent-generated-media-preview"/)
   assert.match(generatedCandidateDialogSource, /<GeneratedCandidateDialogContent data-testid=\{viewerAttachment \? 'agent-generated-resource-candidate' : 'agent-generated-bulk-candidate'\}/)
@@ -2870,7 +3294,10 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentSource = readAgentSource()
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const agentCss = readAgentCss()
-  const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
+  const agentConsoleSource = [
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
+  ].join('\n')
   const agentConsoleRealtimeLogPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx')
   const agentConsoleCapabilityPanelsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleCapabilityPanels.tsx')
   const agentConsoleSurfaceSource = `${agentConsoleSource}\n${agentConsoleCapabilityPanelsSource}`
@@ -2879,14 +3306,40 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentSettingsPartsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPageParts.tsx')
+  const agentSettingsApiModePanelsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsApiModePanels.tsx')
+  const agentSettingsAuditPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsAuditPanel.tsx')
+  const agentSettingsDiffPanelsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsDiffPanels.tsx')
+  const agentSettingsRowsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsRows.tsx')
   const agentSettingsSnapshotPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsSnapshotPanel.tsx')
   const agentSettingsModelPanelSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsModelPanel.tsx')
   const agentSettingsSkillSectionSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsSkillSection.tsx')
   const agentSettingsToolPermissionsSectionSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsToolPermissionsSection.tsx')
   const agentSettingsConfigFileDetailsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsConfigFileDetailsSection.tsx')
   const agentSettingsOverviewPanelsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsOverviewPanels.tsx')
-  const agentSettingsUiSource = readProjectFile('packages/ui/src/components/business/agent/settings/index.tsx')
+  const agentSettingsUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsUi.tsx')
+  const agentSettingsSkillUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsSkillUi.tsx')
+  const agentSettingsStatusUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsStatusUi.tsx')
+  const agentSettingsStatusUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsStatusUi.css')
+  const agentSettingsToolPermissionsUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsToolPermissionsUi.tsx')
+  const agentSettingsToolPermissionsUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsToolPermissionsUi.css')
+  const agentSettingsSnapshotUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsSnapshotUi.tsx')
+  const agentSettingsUiTypesSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsUi.types.ts')
+  const agentSettingsUiRecipesSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsUi.recipes.ts')
+  const agentSettingsConfigFileUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsConfigFileUi.tsx')
+  const agentSettingsConfigFileUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsConfigFileUi.css')
+  const agentSettingsUiModuleSource = [
+    agentSettingsUiSource,
+    agentSettingsSkillUiSource,
+    agentSettingsStatusUiSource,
+    agentSettingsToolPermissionsUiSource,
+    agentSettingsSnapshotUiSource,
+    agentSettingsConfigFileUiSource,
+    agentSettingsUiTypesSource,
+    agentSettingsUiRecipesSource,
+  ].join('\n')
+  const agentSettingsUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsUi.css')
   const agentBrowserSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserPanel.tsx')
+  const agentBrowserHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserPanelHeader.tsx')
   const agentBrowserTabContentSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserTabContent.tsx')
   const agentBrowserProjectHomeSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserProjectHomePage.tsx')
   const agentBrowserBlankWebTabSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserBlankWebTab.tsx')
@@ -2894,16 +3347,19 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentBrowserUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserUi.css')
   const agentBrowserInternalPageUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserInternalPageUi.tsx')
   const agentBrowserInternalPageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserInternalPageUi.css')
-  const agentBrowserSurfaceSource = `${agentBrowserSource}\n${agentBrowserTabContentSource}\n${agentBrowserProjectHomeSource}\n${agentBrowserBlankWebTabSource}`
+  const agentBrowserSurfaceSource = `${agentBrowserSource}\n${agentBrowserHeaderSource}\n${agentBrowserTabContentSource}\n${agentBrowserProjectHomeSource}\n${agentBrowserBlankWebTabSource}`
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const pinnedStatusUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusUi.tsx')
   const pinnedStatusUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusUi.css')
   const agentConsoleNavSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleNav.tsx')
   const agentConsoleNavUiSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleNavUi.tsx')
   const agentConsoleNavUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleNavUi.css')
+  const agentComposerUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.tsx')
+  const agentComposerUiCss = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.css')
   const agentResultSurfaceSources = [
     'apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanOverviewPanel.tsx',
+    'apps/frontend/src/features/agent/components/AgentPlanOverviewWorkerSection.tsx',
     'apps/frontend/src/features/agent/components/GeneratedResultCard.tsx',
     'apps/frontend/src/features/agent/components/GeneratedCandidateAttachDialog.tsx',
     'apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx',
@@ -2917,6 +3373,10 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentSettingsSectionSource = [
     agentSettingsSource,
     agentSettingsPartsSource,
+    agentSettingsApiModePanelsSource,
+    agentSettingsAuditPanelSource,
+    agentSettingsDiffPanelsSource,
+    agentSettingsRowsSource,
     agentSettingsSnapshotPanelSource,
     agentSettingsModelPanelSource,
     agentSettingsSkillSectionSource,
@@ -2924,7 +3384,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
     agentSettingsConfigFileDetailsSource,
     agentSettingsOverviewPanelsSource,
   ].join('\n')
-  const agentSettingsOwnershipSource = `${agentSettingsSectionSource}\n${agentSettingsUiSource}`
+  const agentSettingsOwnershipSource = `${agentSettingsSectionSource}\n${agentSettingsUiModuleSource}`
   const migratedSettingsSurfaceIds = [
     'agent-settings-config-file-limits',
     'agent-settings-config-file-skill-activation',
@@ -2941,20 +3401,30 @@ test('agent surface blocks own reusable shell and row styling', () => {
 
   assert.match(agentSource, /export const AgentSurfaceBlock/)
   assert.match(agentSource, /AgentSurfaceBlockProps[\s\S]*?asChild\?: boolean/)
-  assert.match(agentSource, /export const AgentComposerDropOverlay/)
+  assert.match(agentComposerUiSource, /export const AgentComposerDropOverlay/)
+  assert.match(agentComposerUiSource, /export const AgentComposerToolbar/)
+  assert.match(agentComposerUiSource, /export const AgentComposerAction/)
+  assert.match(agentComposerUiSource, /export const AgentComposerSubmit/)
+  assert.doesNotMatch(agentSource, /export \* from "\.\/composer"/)
   assert.match(agentSource, /ms-agent-frame ms-agent-surface-block/)
   assert.match(agentSource, /emphasis=\{variant === "card" \? "raised" : variant === "subtle" \? "muted" : "plain"\}/)
   assert.match(agentSource, /export const AgentInlineEmpty/)
   assert.match(agentCss, /\.ms-agent-frame\s*\{[\s\S]*--ui-surface-border:\s*color-mix\(in srgb, var\(--ms-color-border\) 78%, transparent\)/)
   assert.match(agentCss, /\.ms-agent-surface-block\s*\{/)
   assert.doesNotMatch(agentCss, /\.ms-agent-surface-block(?:--(?:subtle|card))?\s*\{[^}]*--ui-surface-/)
-  assert.match(agentCss, /\.ms-agent-composer__drop-overlay\s*\{/)
+  assert.match(agentComposerUiCss, /\.ms-agent-composer__drop-overlay\s*\{/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-composer__drop-overlay\s*\{/)
   assert.match(agentCss, /\.ms-agent-inline-empty\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-agent-surface-block\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-agent-surface-block--subtle\s*\{/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/console')), false, 'agent console UI must not remain in packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/settings')), false, 'agent settings UI must not remain in packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/composer')), false, 'agent composer UI must be app-owned')
   assert.doesNotMatch(agentSource, /export \* from "\.\/console"/)
+  assert.doesNotMatch(agentSource, /export \* from "\.\/settings"/)
+  assert.doesNotMatch(agentCss, /@import "\.\/composer\/styles\.css"/)
   assert.doesNotMatch(agentCss, /@import "\.\/console\/styles\.css"/)
+  assert.doesNotMatch(agentCss, /@import "\.\/settings\/styles\.css"/)
   assert.match(agentConsoleUiSource, /AgentSurfaceBlock/)
   assert.match(movScriptWorkspaceFilesSource, /MovScriptWorkspaceFilesPage/)
   assert.match(movScriptWorkspaceFilesSource, /<AgentPageShell data-testid="movscript-workspace-files-page">/)
@@ -3030,7 +3500,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentCss, /\.agent-browser-tab-button\s*\{/)
   assert.match(agentBrowserInternalPageUiCss, /\.agent-browser-project-page\s*\{/)
   assert.match(agentBrowserInternalPageUiCss, /\.agent-session-output\s*\{/)
-  assert.match(agentBrowserSource, /tabs\.map\(\(tab\)[\s\S]*?<AgentBrowserTabSurface/)
+  assert.match(agentBrowserSurfaceSource, /tabs\.map\(\(tab\)[\s\S]*?<AgentBrowserTabSurface/)
   assert.match(agentBrowserSurfaceSource, /navItems\.map\(\(item\)[\s\S]*?<AgentBrowserNavButton/)
   assert.match(agentBrowserSurfaceSource, /rows\.map\(\(\[label, value\]\)[\s\S]*?<AgentBrowserKeyValue/)
   assert.doesNotMatch(agentBrowserSurfaceSource, /\b(?:AgentDataBlock|AgentSurfaceBlock|AppIconFrame|AppInlineError|AppInlineMeta|AppKeyValue|Badge|Button|Input|cn)\b/)
@@ -3114,8 +3584,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentResultSurfaceSources, /rounded-md border border-border bg-background(?:\/70)?/)
   for (const testId of migratedSettingsSurfaceIds) {
     if (testId === 'agent-settings-model-compatibility-probes') {
-      assert.match(agentSettingsPartsSource, /<AgentSettingsStatusPanel[\s\S]*?testId="agent-settings-model-compatibility-probes"/)
-      assert.match(agentSettingsUiSource, /<AgentSurfaceBlock[^>]+data-testid=\{testId\}/)
+      assert.match(agentSettingsApiModePanelsSource, /<AgentSettingsStatusPanel[\s\S]*?testId="agent-settings-model-compatibility-probes"/)
+      assert.match(agentSettingsStatusUiSource, /<AgentSurfaceBlock[^>]+data-testid=\{testId\}/)
     } else if (testId === 'agent-settings-config-file-skill-activation') {
       assert.match(agentSettingsSectionSource, /<AgentSettingsStack data-testid="agent-settings-config-file-skill-activation"/)
     } else if (testId === 'agent-settings-config-file-limits') {
@@ -3126,6 +3596,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
     assert.doesNotMatch(agentSettingsSectionSource, new RegExp(`<div[^>]+data-testid="${testId}"[^>]+rounded-md border border-border bg-background`), `${testId} must not use a raw desktop shell`)
   }
   assert.match(agentSettingsUiSource, /export function AgentSettingsPanel/)
+  assert.match(agentSettingsUiCss, /\.agent-settings-shell-panel__body\s*\{/)
+  assert.doesNotMatch(agentCss, /\.agent-settings-shell-panel__body\s*\{/)
   assert.match(agentSettingsUiSource, /function AgentSettingsPanel[\s\S]*?<AppPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsScopeRail/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsScopeBadge/)
@@ -3133,38 +3605,61 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsUiSource, /export function AgentSettingsKeyValue/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsCallout/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsToneText/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToggleRow/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsApiModeCapabilityMatrix/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsStatusPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsMigrationGuide/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsSwitchPlanPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsReadinessPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsActionItemsPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsActionItemRow/)
-  assert.doesNotMatch(agentSettingsUiSource, /export function AgentSettingsConfigFileCard/)
-  assert.match(readProjectFile('apps/frontend/src/features/agent/components/AgentSettingsConfigFileUi.tsx'), /export function AgentSettingsConfigFileCard/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileDiffPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileSummaryList/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsSkillCard/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsDiffPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotImportScopePanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotSummaryPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsAuditTrailPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotImpactPanel/)
+  assert.match(agentSettingsUiCss, /\.agent-settings-row-between\s*\{/)
+  assert.match(agentSettingsUiCss, /\.agent-settings-title-row\s*\{/)
+  assert.match(agentSettingsUiCss, /\.agent-settings-card-title\s*\{/)
+  assert.match(agentSettingsUiCss, /\.agent-settings-card-description\s*\{/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsToggleRow/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsApiModeCapabilityMatrix/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsStatusPanel/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsMigrationGuide/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsSwitchPlanPanel/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsReadinessPanel/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsActionItemsPanel/)
+  assert.match(agentSettingsStatusUiSource, /export function AgentSettingsActionItemRow/)
+  assert.doesNotMatch(agentSettingsUiSource, /export function AgentSettingsConfigFile(?:Card|DiffPanel|SummaryList)/)
+  assert.match(agentSettingsConfigFileUiSource, /export function AgentSettingsConfigFileCard/)
+  assert.match(agentSettingsConfigFileUiSource, /export function AgentSettingsConfigFileDiffPanel/)
+  assert.match(agentSettingsConfigFileUiSource, /export function AgentSettingsConfigFileSummaryList/)
+  assert.match(agentSettingsConfigFileUiSource, /agent-settings-row-between/)
+  assert.match(agentSettingsConfigFileUiSource, /agent-settings-title-row/)
+  assert.match(agentSettingsConfigFileUiSource, /agent-settings-card-description/)
+  assert.match(agentSettingsConfigFileUiSource, /agent-settings-card-title agent-settings-card-title--strong agent-settings-card-title--wrap/)
+  assert.doesNotMatch(agentSettingsConfigFileUiCss, /agent-settings-config-file-card__(?:title|id|description|header|title-row)/)
+  assert.doesNotMatch(agentSettingsConfigFileUiCss, /agent-settings-config-file-list-item__(?:title|id|description|summary)/)
+  assert.doesNotMatch(agentSettingsConfigFileUiCss, /agent-settings-config-file-editor-header__title/)
+  assert.match(agentSettingsToolPermissionsUiSource, /agent-settings-row-between/)
+  assert.match(agentSettingsToolPermissionsUiSource, /agent-settings-card-description/)
+  assert.match(agentSettingsToolPermissionsUiSource, /ms-action-row ms-type-tiny agent-settings-tool-permissions-row__meta/)
+  assert.doesNotMatch(agentSettingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-row__meta\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentSettingsToolPermissionsUiCss, /\.agent-settings-tool-permissions-row__meta\s*\{[^}]*gap:/)
+  assert.doesNotMatch(agentSettingsToolPermissionsUiSource, /agent-settings-tool-permissions-row__(?:header|title-row|title|meta-line|description)/)
+  assert.doesNotMatch(agentSettingsToolPermissionsUiSource, /agent-settings-tool-permissions-(?:presets|bulk)__(?:title|help)/)
+  assert.match(agentSettingsStatusUiSource, /agent-settings-card-title/)
+  assert.match(agentSettingsStatusUiSource, /agent-settings-card-meta/)
+  assert.match(agentSettingsStatusUiSource, /ms-action-row agent-settings-row-between agent-settings-action-header/)
+  assert.doesNotMatch(agentSettingsStatusUiCss, /\.agent-settings-action-header\s*\{[^}]*justify-content:\s*space-between/)
+  assert.doesNotMatch(agentSettingsStatusUiSource, /agent-settings-model-route__(?:title|source|model)/)
+  assert.match(agentSettingsSkillUiSource, /export function AgentSettingsSkillCard/)
+  assert.match(agentSettingsToolPermissionsUiSource, /export function AgentSettingsToolPermissionsDiffPanel/)
+  assert.match(agentSettingsSnapshotUiSource, /export function AgentSettingsSnapshotImportScopePanel/)
+  assert.match(agentSettingsSnapshotUiSource, /export function AgentSettingsSnapshotSummaryPanel/)
+  assert.match(agentSettingsSnapshotUiSource, /export function AgentSettingsAuditTrailPanel/)
+  assert.match(agentSettingsSnapshotUiSource, /export function AgentSettingsSnapshotImpactPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsFormGrid/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsFormField/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsFilterPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsFilterPresetPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsBulkActionPanel/)
-  assert.match(agentSettingsUiSource, /statusProps: AgentSettingsStatusProps/)
+  assert.match(agentSettingsToolPermissionsUiSource, /export function AgentSettingsToolPermissionsFilterPanel/)
+  assert.match(agentSettingsToolPermissionsUiSource, /export function AgentSettingsToolPermissionsFilterPresetPanel/)
+  assert.match(agentSettingsToolPermissionsUiSource, /export function AgentSettingsToolPermissionsBulkActionPanel/)
+  assert.match(agentSettingsUiTypesSource, /statusProps: AgentSettingsStatusProps/)
   assert.match(agentSettingsSectionSource, /statusProps: agentSettingsStatusRecipe/)
   assert.match(agentSettingsSource, /<AgentSettingsStateMessage[\s\S]*?text=\{t\('common\.loading'\)\}/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsKeyValue[\s\S]*?label=\{t\('agents\.settings\.fields\.modelId'\)\}/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsCallout[\s\S]*?data-testid="agent-settings-provider-model-id-secret-warning"/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsToneText[\s\S]*?tone="warning"[\s\S]*?agents\.settings\.toolPermissionsWorkspaceIssues/)
   assert.doesNotMatch(agentSettingsSectionSource, /\b(?:AppStateMessage|AppKeyValue|ReviewCallout|toneTextClass)\b/)
-  assert.match(agentSettingsPartsSource, /badgeProps=\{agentSettingsApiModeBadgeRecipe\(mode\.badge\)\}/)
-  assert.doesNotMatch(agentSettingsUiSource, /<StatusBadge\b[^>]*\btone=/)
+  assert.match(agentSettingsApiModePanelsSource, /badgeProps=\{agentSettingsApiModeBadgeRecipe\(mode\.badge\)\}/)
+  assert.doesNotMatch(agentSettingsUiModuleSource, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(agentSettingsUiSource, /\bbadgeTone\b/)
   assert.doesNotMatch(agentSettingsUiSource, /\btrustTone\b/)
   assert.doesNotMatch(agentSettingsSectionSource, /agentSettingsStatusTone|agentSettingsApiModeBadgeTone/)
@@ -3176,47 +3671,47 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsSectionSource, /<AgentSettingsToolPermissionsFilterPanel[\s\S]*?filterOptions=\{TOOL_PERMISSIONS_FILTER_OPTIONS\.map/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets=\{filterPresets\.map/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?onClick: \(\) => onBulkEdit\('allow_available'\)/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Input[\s\S]*?data-testid="agent-settings-tool-permissions-search"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Select[\s\S]*?onValueChange=\{onFilterChange\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?data-testid="agent-settings-tool-permissions-bulk-actions"/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Input[\s\S]*?data-testid="agent-settings-tool-permissions-search"/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Select[\s\S]*?onValueChange=\{onFilterChange\}/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?data-testid="agent-settings-tool-permissions-bulk-actions"/)
   assert.doesNotMatch(agentSettingsSectionSource, /agentSettings\.toolPermissionsFilterPresets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
   assert.match(agentSettingsSectionSource, /<Select value=\{selectedModelId\} onValueChange=\{setSelectedModelId\}>[\s\S]*?textModels\.map\(\(model\) => \([\s\S]*?<SelectItem key=\{model\.id\} value=\{publicModelId\(model\)\}>/)
   assert.doesNotMatch(agentSettingsSectionSource, /AgentSettingsModelOptionButton/)
   assert.match(agentSettingsSnapshotPanelSource, /function SettingsSnapshotImportScopeSelector[\s\S]*?<AgentSettingsSnapshotImportScopePanel/)
   assert.match(agentSettingsSnapshotPanelSource, /function SettingsSnapshotSummary[\s\S]*?<AgentSettingsSnapshotSummaryPanel/)
-  assert.match(agentSettingsPartsSource, /function SettingsAuditTrailPanel[\s\S]*?<AgentSettingsAuditTrailPanel/)
+  assert.match(agentSettingsAuditPanelSource, /function SettingsAuditTrailPanel[\s\S]*?<AgentSettingsAuditTrailPanel/)
   assert.match(agentSettingsSnapshotPanelSource, /function SettingsSnapshotImpactPreview[\s\S]*?<AgentSettingsSnapshotImpactPanel/)
   assert.doesNotMatch(agentSettingsSource, /function SettingsSnapshotImportScopeSelector/)
   assert.doesNotMatch(agentSettingsSource, /function SettingsSnapshotSummary/)
   assert.doesNotMatch(agentSettingsSource, /function SettingsAuditTrailPanel/)
   assert.doesNotMatch(agentSettingsSource, /function SettingsSnapshotImpactPreview/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsSnapshotImportScopePanel[\s\S]*?<CheckboxField[\s\S]*?data-testid="agent-settings-snapshot-import-scope"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsSnapshotSummaryPanel[\s\S]*?<AppKeyValue/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsAuditTrailPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-audit-entry"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsSnapshotImpactPanel[\s\S]*?<StatusBadge/)
+  assert.match(agentSettingsSnapshotUiSource, /function AgentSettingsSnapshotImportScopePanel[\s\S]*?<CheckboxField[\s\S]*?data-testid="agent-settings-snapshot-import-scope"/)
+  assert.match(agentSettingsSnapshotUiSource, /function AgentSettingsSnapshotSummaryPanel[\s\S]*?<AppKeyValue/)
+  assert.match(agentSettingsSnapshotUiSource, /function AgentSettingsAuditTrailPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-audit-entry"/)
+  assert.match(agentSettingsSnapshotUiSource, /function AgentSettingsSnapshotImpactPanel[\s\S]*?<StatusBadge/)
   assert.doesNotMatch(agentSettingsSnapshotPanelSource, /function SettingsSnapshotImportScopeSelector[\s\S]{0,2200}<CheckboxField/)
   assert.doesNotMatch(agentSettingsSnapshotPanelSource, /function SettingsSnapshotSummary[\s\S]{0,1200}<AppKeyValue/)
-  assert.doesNotMatch(agentSettingsPartsSource, /function SettingsAuditTrailPanel[\s\S]{0,2400}<AgentSurfaceBlock/)
+  assert.doesNotMatch(agentSettingsAuditPanelSource, /function SettingsAuditTrailPanel[\s\S]{0,2400}<AgentSurfaceBlock/)
   assert.doesNotMatch(agentSettingsSnapshotPanelSource, /function SettingsSnapshotImpactPreview[\s\S]{0,1800}<StatusBadge/)
   assert.match(agentSettingsSectionSource, /<AgentSettingsFormGrid columns="model" data-testid="agent-settings-config-file-limits"/)
   assert.match(agentSettingsSectionSource, /CONFIG_FILE_LIMIT_KEYS\.map\(\(key\) => \([\s\S]*?data-testid=\{`agent-settings-config-file-limit-\$\{key\}`\}/)
   assert.match(agentSettingsUiSource, /function AgentSettingsFormGrid[\s\S]*?data-columns=\{columns\}/)
   assert.match(agentSettingsUiSource, /function AgentSettingsFormField[\s\S]*?<div className=\{cn\("agent-settings-form-field"/)
   assert.match(agentSettingsSectionSource, /ToolPermissionsDiffPreview/)
-  assert.match(agentSettingsPartsSource, /function ToolPermissionsDiffPreview[\s\S]*?AgentSettingsToolPermissionsDiffPanel/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-tool-permissions-diff"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<StatusBadge/)
-  assert.doesNotMatch(agentSettingsPartsSource, /function ToolPermissionsDiffPreview[\s\S]{0,2200}<AgentSurfaceBlock/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsRow/)
+  assert.match(agentSettingsDiffPanelsSource, /function ToolPermissionsDiffPreview[\s\S]*?AgentSettingsToolPermissionsDiffPanel/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-tool-permissions-diff"/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<StatusBadge/)
+  assert.doesNotMatch(agentSettingsDiffPanelsSource, /function ToolPermissionsDiffPreview[\s\S]{0,2200}<AgentSurfaceBlock/)
+  assert.match(agentSettingsToolPermissionsUiSource, /export function AgentSettingsToolPermissionsRow/)
   assert.match(agentSettingsSectionSource, /ToolPermissionsRow/)
-  assert.match(agentSettingsPartsSource, /function ToolPermissionsRow[\s\S]*?AgentSettingsToolPermissionsRow/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<Select/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<AppInlineMeta/)
-  assert.doesNotMatch(agentSettingsPartsSource, /function ToolPermissionsRow[\s\S]{0,2200}<AgentSurfaceBlock/)
-  assert.doesNotMatch(agentSettingsPartsSource, /function ToolPermissionsRow[\s\S]{0,2200}<Select/)
-  assert.doesNotMatch(agentSettingsPartsSource, /function ToolPermissionsRow[\s\S]{0,2200}<AppInlineMeta/)
-  assert.doesNotMatch(agentSettingsPartsSource, /function ToolPermissionsRow[\s\S]{0,2600}rounded bg-background px-1\.5 py-0\.5/)
+  assert.match(agentSettingsRowsSource, /function ToolPermissionsRow[\s\S]*?AgentSettingsToolPermissionsRow/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<Select/)
+  assert.match(agentSettingsToolPermissionsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<AppInlineMeta/)
+  assert.doesNotMatch(agentSettingsRowsSource, /function ToolPermissionsRow[\s\S]{0,2200}<AgentSurfaceBlock/)
+  assert.doesNotMatch(agentSettingsRowsSource, /function ToolPermissionsRow[\s\S]{0,2200}<Select/)
+  assert.doesNotMatch(agentSettingsRowsSource, /function ToolPermissionsRow[\s\S]{0,2200}<AppInlineMeta/)
+  assert.doesNotMatch(agentSettingsRowsSource, /function ToolPermissionsRow[\s\S]{0,2600}rounded bg-background px-1\.5 py-0\.5/)
 })
 
 test('agent message and pill primitives share internal base classes', () => {
@@ -3228,29 +3723,57 @@ test('agent message and pill primitives share internal base classes', () => {
   const attachmentPreviewUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentAttachmentPreviewUi.css')
   const mentionEditorSource = readProjectFile('apps/frontend/src/features/agent/components/AgentMentionEditor.tsx')
   const chatBubblesSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatBubbles.tsx')
+  const agentMessageUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentMessageUi.tsx')
+  const agentMessageUiCss = readProjectFile('apps/frontend/src/shared/ui/AgentMessageUi.css')
+  const agentStylesSource = readProjectFile('packages/ui/src/components/business/agent/styles.css')
+  const agentPrimitiveStylesSource = readProjectFile('packages/ui/src/components/business/agent/shell/primitives/styles.css')
+  const agentPrimitiveContextCss = readProjectFile('packages/ui/src/components/business/agent/shell/primitives/context/styles.css')
+  const agentThreadSuggestionCss = readProjectFile('packages/ui/src/components/business/agent/thread/suggestion/styles.css')
 
-  for (const sharedClass of ['ms-agent-avatar', 'ms-agent-pill', 'ms-agent-bubble', 'ms-agent-inline-code', 'ms-agent-inline-resource', 'ms-agent-media-thumb']) {
+  for (const sharedClass of ['ms-agent-avatar', 'ms-agent-pill', 'ms-agent-inline-code', 'ms-agent-inline-resource', 'ms-agent-media-thumb']) {
     assert.match(agentSource, new RegExp(sharedClass), `${sharedClass} must be consumed by agent primitives`)
     assert.match(agentCss, new RegExp(`\\.${sharedClass}\\s*\\{`), `${sharedClass} base styles must live in @movscript/ui agent`)
     assert.doesNotMatch(uiCss, new RegExp(`\\.${sharedClass}\\s*\\{`), `${sharedClass} must not remain in aggregate styles`)
   }
+  assert.match(agentMessageUiSource, /\bms-agent-bubble\b/, 'message bubble primitive must be app-owned')
+  assert.match(agentMessageUiCss, /\.ms-agent-bubble\s*\{/, 'message bubble styles must be app-owned')
+  assert.doesNotMatch(agentCss, /\.ms-agent-bubble\s*\{/, 'message bubble styles must not remain package-owned')
   assert.match(agentCss, /\.ms-agent-media-thumb > img,[\s\S]*?\.ms-agent-media-thumb > video\s*\{[\s\S]*object-fit:\s*cover/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/run/attachment-preview')), false, 'agent attachment preview UI must be feature-owned')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/shell/attachment')), false, 'agent attachment preview styles must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/message')), false, 'agent message UI must be app-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/thread/message')), false, 'agent message styles must be app-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/shell/chat-message')), false, 'agent chat message styles must be app-owned')
   assert.doesNotMatch(agentSource, /AgentAttachmentPreview(?:Card|Media|Fallback|Body)/)
   assert.doesNotMatch(agentCss, /ms-agent-attachment-preview/)
   assert.match(attachmentPreviewUiCss, /\.agent-attachment-preview\s*\{/)
   assert.match(attachmentPreviewUiCss, /\.agent-attachment-preview__media > img,[\s\S]*?\.agent-attachment-preview__media > video\s*\{[\s\S]*object-fit:\s*contain/)
-  assert.match(agentSource, /ms-agent-pill ms-agent-status/)
-  assert.match(agentSource, /ms-agent-pill ms-agent-suggestion/)
-  assert.match(agentSource, /ms-agent-pill ms-agent-contextchip/)
+  assert.match(agentSource, /ms-type-label ms-agent-pill ms-agent-status/)
+  assert.match(agentSource, /ms-agent-pill ms-type-item ms-agent-suggestion/)
+  assert.match(agentSource, /ms-agent-pill ms-type-caption ms-agent-contextchip/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/context/styles.css')), false, 'agent context primitives must not live in a mixed root context stylesheet')
+  assert.doesNotMatch(agentStylesSource, /context\/styles\.css/)
+  assert.match(agentPrimitiveStylesSource, /@import "\.\/context\/styles\.css";/)
+  assert.match(agentPrimitiveContextCss, /\.ms-agent-context\s*\{/)
+  assert.match(agentPrimitiveContextCss, /\.ms-agent-contextchip\s*\{/)
+  assert.match(agentThreadSuggestionCss, /\.ms-agent-suggestion\s*\{/)
+  assert.doesNotMatch(agentPrimitiveContextCss, /\.ms-agent-suggestion\s*\{/)
+  assert.doesNotMatch(agentThreadSuggestionCss, /\.ms-agent-contextchip\s*\{/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-avatar\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-avatar\s*\{[^}]*align-items:\s*center/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-status\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-status\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-suggestion\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-suggestion\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-contextchip\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-contextchip\s*\{[^}]*line-height:/)
   assert.match(attachmentPreviewUiSource, /export const AgentAttachmentPreviewCard/)
   assert.match(attachmentPreviewUiSource, /export const AgentAttachmentPreviewMedia/)
   assert.match(attachmentPreviewUiSource, /export const AgentAttachmentPreviewFallback/)
   assert.match(attachmentPreviewUiSource, /export const AgentAttachmentPreviewBody/)
-  assert.match(agentSource, /export function AgentMessageSection/)
-  assert.match(agentCss, /\.ms-agent-message-section\s*\{/)
-  assert.match(agentCss, /\.ms-agent-message-section__summary\s*\{/)
+  assert.match(agentMessageUiSource, /export function AgentMessageSection/)
+  assert.match(agentMessageUiCss, /\.ms-agent-message-section\s*\{/)
+  assert.match(agentMessageUiCss, /\.ms-agent-message-section__summary\s*\{/)
   assert.match(agentSource, /export const AgentCodeBlock/)
   assert.match(agentSource, /export const AgentCodeBlockHeader/)
   assert.match(agentSource, /export const AgentCodeBlockTitle/)
@@ -3275,6 +3798,11 @@ test('agent message and pill primitives share internal base classes', () => {
     'AgentModelSetupCalloutDescription',
     'AgentModelSetupCalloutIcon',
     'AgentModelSetupCalloutTitle',
+  ]) {
+    assert.match(agentMessageUiSource, new RegExp(`export (?:const|function) ${exportName}\\b`), `${exportName} must be app-owned`)
+    assert.match(chatBubblesSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by agent chat bubbles`)
+  }
+  for (const exportName of [
     'ProviderSessionStatusContent',
     'ProviderSessionStatusDetail',
     'ProviderSessionStatusHeader',
@@ -3283,7 +3811,9 @@ test('agent message and pill primitives share internal base classes', () => {
     assert.match(agentSource, new RegExp(`export (?:const|function) ${exportName}\\b`), `${exportName} must be package-owned`)
     assert.match(chatBubblesSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by agent chat bubbles`)
   }
-  assert.match(agentSource, /ProviderSessionStatusSuccessIcon[\s\S]*?toneTextClass\("success"\)/)
+  assert.match(agentSource, /ProviderSessionStatusHeader[\s\S]*?"ms-action-row ms-type-caption ms-agent-session-status__header"/)
+  assert.match(agentSource, /ProviderSessionStatusSuccessIcon[\s\S]*?"ms-inline-center ms-agent-session-status__icon"[\s\S]*?toneTextClass\("success"\)/)
+  assert.match(agentSource, /ProviderSessionStatusDetail[\s\S]*?"ms-type-item ms-agent-session-status__detail"/)
   for (const sharedClass of [
     'ms-agent-chat-footer-badges',
     'ms-agent-chat-tiny-badge',
@@ -3291,11 +3821,20 @@ test('agent message and pill primitives share internal base classes', () => {
     'ms-agent-chat-result-stack',
     'ms-agent-chat-attachment-grid',
     'ms-agent-model-setup-callout',
+  ]) {
+    assert.match(agentMessageUiCss, cssClassSelectorPattern(sharedClass), `${sharedClass} styles must be app-owned`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(sharedClass), `${sharedClass} styles must not remain in @movscript/ui agent`)
+  }
+  for (const sharedClass of [
     'ms-agent-session-status',
-    'ms-agent-session-status__icon',
   ]) {
     assert.match(agentCss, cssClassSelectorPattern(sharedClass), `${sharedClass} styles must live in @movscript/ui agent`)
   }
+  assert.doesNotMatch(agentCss, /\.ms-agent-session-status__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-session-status__header\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-session-status__icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-session-status__icon\s*\{[^}]*flex-shrink:\s*0/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-session-status__detail\s*\{[^}]*font-size:/)
   assert.match(messageContentSource, /\bAgentInlineCode\b/)
   assert.match(messageContentSource, /\bAgentInlineResource\b/)
   assert.match(messageContentSource, /\bAgentMediaThumb\b/)
@@ -3311,7 +3850,7 @@ test('agent message and pill primitives share internal base classes', () => {
   assert.doesNotMatch(messageContentSource, /\bAgentSurfaceBlock\b/)
   assert.doesNotMatch(messageContentSource, /\bAppCodeBlock\b/)
   assert.doesNotMatch(messageContentSource, /\bButton\b/)
-  assert.match(messageContentSource, /export \{ AgentMessageSection \} from '@movscript\/ui\/business\/agent'/)
+  assert.match(messageContentSource, /export \{ AgentMessageSection \} from '@\/shared\/ui\/AgentMessageUi'/)
   assert.match(mentionEditorSource, /\bAgentMediaThumb\b/)
   assert.match(mentionEditorSource, /\bButton\b/)
   assert.match(mentionEditorSource, /variant="ghost" tone="danger" size="icon-xs"/, 'agent attachment removal must use package danger button tone')
@@ -3361,10 +3900,14 @@ test('agent message and pill primitives share internal base classes', () => {
 test('agent panel and page surfaces use package agent styles', () => {
   const agentCss = readAgentCss()
   const agentChatCss = readAgentChatCss()
+  const agentPackageBarrelSource = readProjectFile('packages/ui/src/components/business/agent/index.tsx')
   const primitiveFormCss = readProjectFile('packages/ui/src/components/primitives/form/styles.css')
   const agentChatShellViewSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatShellView.tsx')
   const agentChatShellViewCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatShellView.css')
-  const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
+  const agentConsoleSource = [
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
+  ].join('\n')
   const agentsPageSource = readProjectFile('apps/frontend/src/features/agent/components/AgentsPage.tsx')
   const modelProvidersPageSource = readProjectFile('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx')
   const agentConnectionsPageSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConnectionsPage.tsx')
@@ -3384,6 +3927,8 @@ test('agent panel and page surfaces use package agent styles', () => {
   const projectAgentModeSource = [
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
+    readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarParts.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeWorkspace.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx'),
@@ -3414,6 +3959,7 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentPanelThreadMessageUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentPanelThreadMessageUi.css')
   const agentChatItemsUiCss = readProjectFile('apps/frontend/src/features/agent/components/AgentChatItemsUi.css')
   const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
+  const agentComposerUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
   const projectAgentContentPanelSource = readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx')
 
@@ -3459,14 +4005,24 @@ test('agent panel and page surfaces use package agent styles', () => {
     '.ai-agent-panel-shell .ms-agent-tool',
     '.ai-agent-panel-shell details',
     '.ai-agent-panel-shell pre',
-    '.ai-agent-panel-shell .ms-agent-tool__header',
-    '.ai-agent-panel-shell .ms-agent-tool__title',
     '.ai-agent-panel-shell .ms-agent-empty',
     '.ai-agent-panel-shell code',
   ]) {
     assert.match(agentPanelProviderSessionUiCss, new RegExp(providerSessionSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${providerSessionSelector} styles must be owned by the app agent panel provider-session UI`)
     assert.doesNotMatch(agentCss, new RegExp(providerSessionSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${providerSessionSelector} styles must not remain in @movscript/ui agent`)
   }
+  for (const providerSessionToolVariable of [
+    '--agent-tool-header-min-width: 0',
+    '--agent-tool-header-overflow: hidden',
+    '--agent-tool-title-min-width: 0',
+    '--agent-tool-title-overflow: hidden',
+    '--agent-tool-title-text-overflow: ellipsis',
+    '--agent-tool-title-white-space: nowrap',
+  ]) {
+    assert.match(agentPanelProviderSessionUiCss, new RegExp(providerSessionToolVariable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${providerSessionToolVariable} override must be owned by the app agent panel provider-session UI`)
+  }
+  assert.doesNotMatch(agentPanelProviderSessionUiCss, /\.ai-agent-panel-shell \.ms-agent-tool__header/)
+  assert.doesNotMatch(agentPanelProviderSessionUiCss, /\.ai-agent-panel-shell \.ms-agent-tool__title/)
   for (const panelCardClass of [
     'ai-agent-panel-card',
     'ai-agent-panel-content-card',
@@ -3526,7 +4082,6 @@ test('agent panel and page surfaces use package agent styles', () => {
     'ai-agent-panel-chat-toolbar-actions',
     'ai-provider-controls',
     'ai-provider-controls__button',
-    'ai-provider-controls__menu',
     'ai-provider-mark',
     'ai-agent-program-header-actions',
     'project-agent-mode',
@@ -3534,6 +4089,7 @@ test('agent panel and page surfaces use package agent styles', () => {
     assert.match(agentChatToolbarUiCss, cssClassSelectorPattern(chatToolbarClass), `${chatToolbarClass} styles must be owned by the app agent chat toolbar UI`)
     assert.doesNotMatch(agentCss, cssClassSelectorPattern(chatToolbarClass), `${chatToolbarClass} styles must not remain in @movscript/ui agent`)
   }
+  assert.doesNotMatch(agentChatToolbarUiCss, /ai-provider-controls__menu/)
   for (const chatToolbarSelector of [
     '.ai-agent-panel-status-trigger[data-status-expanded="true"]',
     '.ai-agent-program-header-actions__status[data-active="true"]',
@@ -3564,10 +4120,17 @@ test('agent panel and page surfaces use package agent styles', () => {
   }
   for (const composerPanelSelector of [
     '.ms-agent-composer.ms-agent-composer--panel',
-    '.ms-agent-composer--panel .ms-agent-composer__rich-field',
   ]) {
     assert.match(agentComposerPanelUiCss, new RegExp(composerPanelSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${composerPanelSelector} must be owned by the app agent composer UI`)
   }
+  for (const composerPanelVariable of [
+    '--agent-composer-field-max-height: 260px',
+    '--agent-composer-field-min-height: 42px',
+    '--agent-composer-field-padding: 14px 18px 12px',
+  ]) {
+    assert.match(agentComposerPanelUiCss, new RegExp(composerPanelVariable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${composerPanelVariable} must be owned by the app agent composer UI`)
+  }
+  assert.doesNotMatch(agentComposerPanelUiCss, /\.ms-agent-composer--panel \.ms-agent-composer__rich-field/)
   assert.doesNotMatch(agentCss, /\.ms-agent-composer\.ms-agent-composer--panel/)
   assert.doesNotMatch(agentCss, /\.ms-agent-composer--panel \.ms-agent-composer__rich-field/)
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/panel/composer-mention')), false, 'agent composer panel styles must be feature-owned')
@@ -3627,6 +4190,8 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.doesNotMatch(agentCss, cssClassSelectorPattern('mention-editor'), 'shared mention editor base styles must not live in @movscript/ui agent CSS')
   assert.doesNotMatch(agentPageUiCss, cssClassSelectorPattern('mention-editor'), 'shared mention editor base styles must not live in app agent page CSS')
   assert.match(movScriptWorkspaceFilesSource, /from '@\/features\/agent\/components\/AgentPageWorkspaceUi'/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/agent/page')), false, 'agent page UI must not remain in packages/ui')
+  assert.doesNotMatch(agentPackageBarrelSource, /export \* from "\.\/page"/)
   for (const pageSource of [
     agentsPageSource,
     modelProvidersPageSource,
@@ -3640,7 +4205,9 @@ test('agent panel and page surfaces use package agent styles', () => {
     assert.match(pageSource, /from '@\/features\/agent\/components\/AgentPageUi'/)
     assert.doesNotMatch(pageSource, /from '@movscript\/ui\/business\/agent'[\s\S]*?AgentPage/)
   }
-  assert.match(agentSettingsSource, /from '@movscript\/ui\/business\/agent'/, 'agent settings page migration is intentionally deferred while it is under active rewrite')
+  assert.match(agentSettingsSource, /from '@\/features\/agent\/components\/AgentSettingsUi'/)
+  assert.match(agentSettingsSource, /from '@\/features\/agent\/components\/AgentPageUi'/)
+  assert.doesNotMatch(agentSettingsSource, /from '@movscript\/ui\/business\/agent'[\s\S]*?Agent(?:Settings|Page)/)
   assert.match(agentPageWorkspaceUiSource, /export function AgentWorkspacesPageBody/)
   assert.match(agentPageThreePaneUiSource, /export function AgentThreePanePageBody/)
   for (const migratedAgentPageClass of [
@@ -3695,10 +4262,13 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.match(agentModeFeatureSource, /AgentModeProjectGroupToggle[\s\S]*?<AgentNavItem/)
   assert.match(agentModeFeatureSource, /AgentModeConversationArchiveButton[\s\S]*?<Button/)
   assert.match(agentModeFeatureSource, /project-agent-mode agent-mode-root/)
+  assert.match(agentModeFeatureSource, /ms-inline-center agent-mode-icon/)
+  assert.match(agentModeFeatureSource, /ms-text-truncate agent-mode-label/)
   assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.sidebar\.css"/)
   assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.workspace\.css"/)
   assert.match(agentModeFeatureCss, /@import "\.\/AgentModeUi\.panels\.css"/)
   assert.match(agentModeFeatureSidebarCss, cssClassSelectorPattern('agent-mode-root'))
+  assert.doesNotMatch(agentModeFeatureSidebarCss, /\.agent-mode-label\s*\{[^}]*text-overflow:\s*ellipsis/)
   assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/index.tsx'), /export \* from "\.\/mode"/)
   assert.doesNotMatch(readProjectFile('packages/ui/src/components/business/agent/styles.css'), /@import "\.\/mode\/styles\.css"/)
   assert.doesNotMatch(projectAgentModeSource, /\b(?:Button|AgentNavItem|AgentConversationItem|Separator|Avatar|AvatarFallback)\b/)
@@ -3713,30 +4283,84 @@ test('agent layout primitives share internal layout classes', () => {
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const agentCss = readAgentCss()
   const agentChatHeaderSource = readProjectFile('apps/frontend/src/features/agent/components/AgentChatHeaderSection.tsx')
+  const agentComposerUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.tsx')
+  const agentMessageUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentMessageUi.tsx')
   const conversationTabsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConversationTabs.tsx')
   const projectAgentModeSource = [
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
+    readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarParts.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentModeWorkspace.tsx'),
     readProjectFile('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx'),
   ].join('\n')
   const agentModeFeatureSource = readProjectFile('apps/frontend/src/features/agent/components/AgentModeUi.tsx')
 
-  for (const sharedClass of ['ms-agent-container', 'ms-agent-bar', 'ms-agent-titleblock', 'ms-agent-actions', 'ms-agent-stack', 'ms-agent-cluster']) {
+  for (const sharedClass of ['ms-agent-container', 'ms-agent-bar', 'ms-agent-titleblock', 'ms-agent-actions']) {
     assert.match(agentSource, new RegExp(sharedClass), `${sharedClass} must be consumed by agent layout primitives`)
     assert.match(agentCss, cssClassSelectorPattern(sharedClass), `${sharedClass} base styles must live in @movscript/ui agent`)
     assert.doesNotMatch(uiCss, cssClassSelectorPattern(sharedClass), `${sharedClass} must not remain in aggregate styles`)
   }
+  for (const sharedClass of ['ms-agent-stack', 'ms-agent-cluster']) {
+    assert.doesNotMatch(agentSource, new RegExp(`\\b${sharedClass}(?=[\\s"])`), `${sharedClass} should be replaced by global layout utilities`)
+    assert.doesNotMatch(agentCss, cssClassSelectorPattern(sharedClass), `${sharedClass} should not duplicate global layout utilities`)
+    assert.doesNotMatch(agentComposerUiSource, new RegExp(`\\b${sharedClass}(?=[\\s"])`), `${sharedClass} should not be consumed by shared agent UI`)
+    assert.doesNotMatch(agentMessageUiSource, new RegExp(`\\b${sharedClass}(?=[\\s"])`), `${sharedClass} should not be consumed by shared agent UI`)
+  }
   assert.doesNotMatch(agentSource, /ms-agent-scrollarea/)
   assert.doesNotMatch(agentCss, cssClassSelectorPattern('ms-agent-scrollarea'))
   assert.match(agentSource, /ms-agent-container ms-agent-shell/)
+  assert.match(agentSource, /ms-grid-stack ms-agent-main/)
   assert.doesNotMatch(agentSource, /ms-agent-container ms-agent-work-surface/)
   assert.match(agentSource, /ms-agent-bar ms-agent-header/)
+  assert.match(agentSource, /ms-stack ms-agent-titleblock ms-agent-header__content/)
+  assert.match(agentSource, /ms-action-row ms-agent-actions ms-agent-header__actions/)
+  assert.match(agentSource, /ms-type-section ms-agent-text ms-text-truncate ms-agent-title/)
+  assert.match(agentSource, /ms-type-item ms-agent-text ms-text-truncate ms-agent-text--muted ms-agent-subtitle/)
+  assert.match(agentSource, /AgentStatus[\s\S]*?"ms-inline-center ms-agent-status__icon"/)
+  assert.match(uiCss, /\.ms-type-section\s*\{/)
+  assert.match(uiCss, /\.ms-type-item\s*\{/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-main\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-main\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-header__content\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-actions\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-subtitle\s*\{[^}]*font-size:/)
+  assert.match(agentSource, /ms-stack ms-agent-sidebar__section/)
+  assert.match(agentSource, /ms-type-label ms-agent-sidebar__title/)
+  assert.match(agentSource, /ms-control ms-type-item ms-agent-nav-item/)
+  assert.match(agentSource, /density === "compact" && "ms-type-label"/)
+  assert.match(agentSource, /ms-control ms-agent-conversation/)
+  assert.match(agentSource, /ms-stack ms-agent-conversation__body/)
+  assert.match(agentSource, /ms-stack ms-agent-thread/)
+  assert.match(agentSource, /ms-stack ms-center ms-agent-empty/)
+  assert.match(agentSource, /ms-inline-center ms-agent-conversation__icon/)
+  assert.match(agentSource, /ms-type-item ms-agent-conversation__title/)
+  assert.match(agentSource, /ms-type-label ms-agent-conversation__description/)
+  assert.match(agentSource, /ms-type-label ms-agent-conversation__meta/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-sidebar__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-sidebar__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-nav-item\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-nav-item\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-nav-item\[data-density="compact"\]\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-nav-item\[data-density="compact"\]\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-conversation\s*\{[^}]*cursor:\s*pointer/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-conversation\s*\{[^}]*transition:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-conversation__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-conversation__title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-conversation__description\s*,\s*\n\.ms-agent-conversation__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-conversation__description\s*,\s*\n\.ms-agent-conversation__meta\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-thread\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-thread\s*\{[^}]*flex-direction:\s*column/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-empty\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-empty\s*\{[^}]*align-items:\s*center/)
+  assert.doesNotMatch(agentCss, /\.ms-agent-empty\s*\{[^}]*justify-content:\s*center/)
   assert.doesNotMatch(agentSource, /ms-agent-bar ms-agent-work-header/)
-  assert.match(agentSource, /ms-agent-stack ms-agent-composer/)
-  assert.match(agentSource, /ms-agent-cluster ms-agent-message__meta/)
-  assert.match(agentSource, /ms-agent-cluster ms-agent-cluster--between ms-agent-composer__toolbar/)
+  assert.match(agentComposerUiSource, /ms-grid-stack ms-agent-composer/)
+  assert.match(agentMessageUiSource, /ms-action-row ms-agent-message__meta/)
+  assert.match(agentComposerUiSource, /ms-action-row ms-agent-cluster--between ms-agent-composer__toolbar/)
   assert.match(conversationTabsSource, /AgentConversationTabsPanel/)
   assert.match(readAgentChatSource(), /\bButton\b/)
   assert.match(readAgentChatSource(), /role="tab"[\s\S]*?className="ai-agent-panel-conversation-tab-main"/)
@@ -3758,31 +4382,38 @@ test('agent text primitives share internal text classes', () => {
   const agentSource = readAgentSource()
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const agentCss = readAgentCss()
-  const primitiveCss = readPrimitiveCss()
 
   for (const sharedClass of ['ms-agent-text', 'ms-agent-text--muted', 'ms-agent-text--meta']) {
     assert.match(agentSource, new RegExp(sharedClass), `${sharedClass} must be consumed by agent text primitives`)
     assert.match(agentCss, cssClassSelectorPattern(sharedClass), `${sharedClass} base styles must live in @movscript/ui agent`)
     assert.doesNotMatch(uiCss, cssClassSelectorPattern(sharedClass), `${sharedClass} must not remain in aggregate styles`)
   }
-  assert.match(agentSource, /ms-agent-text--truncate/)
-  assert.match(primitiveCss, cssClassSelectorPattern('ms-agent-text--truncate'))
-  assert.doesNotMatch(uiCss, cssClassSelectorPattern('ms-agent-text--truncate'))
-  assert.match(agentSource, /ms-agent-text ms-agent-text--truncate ms-agent-conversation__title/)
+  assert.match(uiCss, cssClassSelectorPattern('ms-text-truncate'))
+  assert.doesNotMatch(agentSource, /ms-agent-text--truncate/)
+  assert.doesNotMatch(agentCss, cssClassSelectorPattern('ms-agent-text--truncate'))
+  assert.doesNotMatch(readPrimitiveCss(), cssClassSelectorPattern('ms-agent-text--truncate'))
+  assert.doesNotMatch(agentCss, /\.ms-agent-nav-item__(?:icon|label|meta)\b/)
+  assert.match(agentSource, /ms-agent-text ms-text-truncate ms-type-item ms-agent-conversation__title/)
   assert.doesNotMatch(agentCss, cssClassSelectorPattern('ms-agent-conversation--editing'), 'unused conversation editing styles must not remain in @movscript/ui agent')
   assert.doesNotMatch(agentCss, cssClassSelectorPattern('ms-agent-conversation__title-input'), 'unused conversation title input styles must not remain in @movscript/ui agent')
-  assert.match(agentSource, /ms-agent-text ms-agent-text--truncate ms-agent-title/)
+  assert.match(agentSource, /ms-agent-text ms-text-truncate ms-agent-title/)
 })
 
 test('button and composer controls share internal control classes', () => {
   const buttonSource = readProjectFile('packages/ui/src/components/primitives/button.tsx')
-  const agentSource = readAgentSource()
+  const agentSidebarSource = readProjectFile('packages/ui/src/components/business/agent/shell/sidebar/index.tsx')
+  const agentComposerUiSource = readProjectFile('apps/frontend/src/shared/ui/AgentComposerUi.tsx')
   const primitiveCss = readPrimitiveCss()
 
   assert.match(buttonSource, /ms-control ms-button/)
-  assert.match(agentSource, /ms-control ms-agent-composer__action/)
-  assert.match(agentSource, /ms-control ms-agent-composer__submit/)
+  assert.match(agentSidebarSource, /ms-control ms-type-item ms-agent-nav-item/)
+  assert.match(agentSidebarSource, /ms-control ms-agent-conversation/)
+  assert.match(agentComposerUiSource, /ms-control ms-agent-composer__action/)
+  assert.match(agentComposerUiSource, /ms-control ms-agent-composer__submit/)
   assert.match(primitiveCss, /\.ms-control\s*\{/)
+  assert.doesNotMatch(primitiveCss, /\.ms-agent-conversation:focus-visible/)
+  assert.doesNotMatch(primitiveCss, /\.ms-agent-suggestion:focus-visible/)
+  assert.doesNotMatch(primitiveCss, /\.ms-agent-suggestion:disabled/)
 })
 
 test('form and menu primitives share internal control classes', () => {
@@ -3864,6 +4495,13 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   const canvasNodeDefinitionsSource = readProjectFile('apps/frontend/src/features/canvas/domain/nodeDefinitions.ts')
   const uiCanvasSource = readProjectFile('packages/ui/src/components/business/canvas/index.tsx')
   const uiCanvasCardSource = readProjectFile('packages/ui/src/components/business/canvas/card/index.tsx')
+  const canvasWorkflowUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasWorkflowUi.tsx')
+  const canvasContextMenuUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasContextMenuUi.tsx')
+  const canvasContextMenuUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasContextMenuUi.css')
+  const canvasEditorFlowUiSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.tsx')
+  const canvasEditorFlowUiCss = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasEditorFlowUi.css')
+  const canvasWorkflowReferenceCardSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasWorkflowReferenceCardUi.tsx')
+  const canvasWorkflowUiCss = readCanvasWorkflowFeatureCss()
   const canvasNodeCardFeatureSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasNodeCardUi.tsx')
   const uiCanvasCardShellSource = readProjectFile('packages/ui/src/components/business/canvas/card/shell/index.tsx')
   const uiCanvasCardNodeSource = [
@@ -3899,7 +4537,6 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   ].map(readProjectFile).join('\n')
   const uiCanvasCardSurfaceCss = readProjectFile('packages/ui/src/components/business/canvas/card/surface/styles.css')
   const uiCanvasCardPortCss = readProjectFile('packages/ui/src/components/business/canvas/card/port/styles.css')
-  const uiCanvasFlowCss = readProjectFile('packages/ui/src/components/business/canvas/flow/styles.css')
   const uiCanvasIOCss = readCanvasIOCss()
   const uiCanvasToolCss = readCanvasToolCss()
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
@@ -3949,6 +4586,48 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   ]) {
     assert.equal(existsSync(path.join(root, relativePath)), false, `${relativePath} must not exist because canvas does not support entity nodes`)
   }
+  for (const relativePath of [
+    'packages/ui/src/components/business/canvas/workflow/index.tsx',
+    'packages/ui/src/components/business/canvas/workflow/styles.css',
+    'packages/ui/src/components/business/canvas/card/node/workflow-reference/index.tsx',
+    'packages/ui/src/components/business/canvas/card/node/workflow-reference/styles.css',
+    'packages/ui/src/components/business/canvas/context-menu/index.tsx',
+    'packages/ui/src/components/business/canvas/context-menu/styles.css',
+    'packages/ui/src/components/business/canvas/flow/index.tsx',
+    'packages/ui/src/components/business/canvas/flow/styles.css',
+  ]) {
+    assert.equal(existsSync(path.join(root, relativePath)), false, `${relativePath} must not exist because canvas workflow UI is feature-owned`)
+  }
+  assert.doesNotMatch(uiCanvasSource, /from "\.\/workflow"/)
+  assert.doesNotMatch(uiCanvasSource, /from "\.\/flow"/)
+  assert.doesNotMatch(uiCanvasSource, /CanvasWorkflowReferenceCard/)
+  assert.doesNotMatch(uiCanvasSource, /CanvasContextMenu/)
+  assert.doesNotMatch(uiCanvasCardSource, /CanvasWorkflowReferenceCard/)
+  assert.doesNotMatch(uiCanvasCardNodeSource, /workflow-reference/)
+  assert.doesNotMatch(uiCanvasCss, /workflow\/styles\.css/)
+  assert.doesNotMatch(uiCanvasCss, /context-menu\/styles\.css/)
+  assert.doesNotMatch(uiCanvasCss, /flow\/styles\.css/)
+  assert.doesNotMatch(uiCanvasCardCss, /workflow-reference\/styles\.css/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /canvas-workflow-reference-card/)
+  assert.match(canvasWorkflowUiSource, /export \* from "\.\/CanvasWorkflowSidePanelUi"/)
+  assert.match(canvasWorkflowUiSource, /export \* from "\.\/CanvasWorkflowRunResultsUi"/)
+  assert.match(canvasWorkflowReferenceCardSource, /export function CanvasWorkflowReferenceCard/)
+  assert.match(canvasWorkflowReferenceCardSource, /CanvasCardShell/)
+  assert.match(canvasWorkflowReferenceCardSource, /CanvasPortDot/)
+  assert.match(canvasContextMenuUiSource, /export const CanvasContextMenuView/)
+  assert.match(canvasContextMenuUiSource, /AppSurfaceItem/)
+  assert.match(canvasContextMenuUiSource, /Button/)
+  assert.match(canvasContextMenuUiCss, /\.canvas-context-menu\s*\{/)
+  assert.match(canvasContextMenuUiCss, /\.canvas-context-menu--viewport\s*\{/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasSelectionFrame/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasDropOverlay/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasGroupFrame/)
+  assert.match(canvasEditorFlowUiSource, /export function CanvasGroupHeader/)
+  assert.match(canvasEditorFlowUiSource, /export const CanvasViewportActionButton/)
+  assert.match(canvasEditorFlowUiCss, /\.canvas-flow\s*\{/)
+  assert.match(canvasWorkflowUiCss, /\.canvas-workflow-history\s*\{/)
+  assert.match(canvasWorkflowUiCss, /\.canvas-workflow-side-panel\s*\{/)
+  assert.match(canvasWorkflowUiCss, /\.canvas-workflow-reference-card\s*\{/)
   assert.match(uiCanvasCardSource, /CanvasCardShell/)
   assert.doesNotMatch(uiCanvasCardSource, /CanvasNodeCard/)
   assert.match(canvasNodeCardFeatureSource, /CanvasNodeCard/)
@@ -4019,7 +4698,7 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.match(uiCanvasCardNodeSource, /export const canvasNodeSemanticSourceHandleStyle/)
   assert.match(uiCanvasCardNodeSource, /export const canvasNodeCardPortHandleStyle/)
   assert.match(uiCanvasCardSurfaceSource, /export function CanvasSurfaceItem/)
-  assert.match(uiCanvasCardShellSource, /CanvasCardShell[\s\S]*?<Surface[\s\S]*?className=\{cn\("canvas-card-shell"/)
+  assert.match(uiCanvasCardShellSource, /CanvasCardShell[\s\S]*?<Frame[\s\S]*?className=\{cn\("canvas-card-shell"/)
   assert.match(uiCanvasCardShellSource, /kind="card"[\s\S]*?emphasis="raised"[\s\S]*?interaction=\{selected \? "selected" : "none"\}/)
   assert.match(canvasNodeCardFeatureSource, /CanvasNodeCard[\s\S]*?<CanvasCardShell[\s\S]*?className=\{cn\("canvas-node-card"/)
   assert.match(canvasNodeCardFeatureSource, /CanvasNodeCardActionButton[\s\S]*?<Button[\s\S]*?className=\{cn\("canvas-node-card-action-button"/)
@@ -4033,38 +4712,88 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.match(canvasNodeCardFeatureSource, /CanvasNodeFrame[\s\S]*?className=\{cn\("canvas-node-frame"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodePromptInputView[\s\S]*?<CanvasNodePromptInputPanel[\s\S]*?<CanvasNodePromptEditor[\s\S]*?<CanvasNodeMentionMenu>/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodePromptInputPanel[\s\S]*?<AppSurfaceItem[\s\S]*?className=\{cn\("nodrag nowheel canvas-node-prompt-panel"/)
-  assert.match(uiCanvasCardNodeSource, /CanvasNodePromptEditor[\s\S]*?contentEditable[\s\S]*?className=\{cn\("canvas-node-prompt-editor mention-editor"/)
-  assert.match(uiCanvasCardNodeSource, /CanvasNodeMentionMenuItem[\s\S]*?<Button[\s\S]*?className=\{cn\("canvas-node-mention-menu-item"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodePromptEditor[\s\S]*?contentEditable[\s\S]*?className=\{cn\("ms-type-body canvas-node-prompt-editor mention-editor"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeMentionMenuEmpty[\s\S]*?className=\{cn\("ms-type-label canvas-node-mention-menu-empty"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeMentionMenuItem[\s\S]*?<Button[\s\S]*?className=\{cn\("ms-type-label canvas-node-mention-menu-item"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeMentionMenuItem[\s\S]*?className="ms-text-truncate canvas-node-mention-menu-item__label"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeMentionMenuItem[\s\S]*?className="ms-type-tiny canvas-node-mention-menu-item__meta"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeAttachmentItem[\s\S]*?<AppInlineMeta asChild[\s\S]*?className=\{cn\("canvas-node-attachment-item"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeAttachmentItem[\s\S]*?className="ms-text-truncate ms-type-label canvas-node-attachment-item__label"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeAttachmentStatus[\s\S]*?className=\{cn\("ms-type-tiny canvas-node-attachment-status"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeAttachmentHint[\s\S]*?className=\{cn\("ms-type-caption canvas-node-attachment-hint"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeApprovalStatus[\s\S]*?className=\{cn\("canvas-node-approval-status", toneTextClass\(tone\)/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeApprovalActionButton[\s\S]*?<Button[\s\S]*?className=\{cn\("canvas-node-approval-action-button", toneSurfaceClass\(actionTone\), toneTextClass\(actionTone\)/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeParamPanel[\s\S]*?<AppSurfaceItem[\s\S]*?className=\{cn\("nodrag nowheel canvas-node-param-panel"/)
-  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamSelect[\s\S]*?<NativeSelect[\s\S]*?className=\{cn\("canvas-node-param-control"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamHeader[\s\S]*?"ms-action-row ms-type-tiny canvas-node-param-header"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamField[\s\S]*?"ms-type-tiny canvas-node-param-field"/)
+  assert.match(uiCanvasCardNodeSource, /"ms-text-truncate canvas-node-param-field__label"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamSelect[\s\S]*?<NativeSelect[\s\S]*?className=\{cn\("ms-type-tiny canvas-node-param-control"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamInput[\s\S]*?<Input[\s\S]*?className=\{cn\("ms-type-tiny canvas-node-param-control"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamGrid[\s\S]*?className=\{cn\("ms-grid-stack canvas-node-param-grid"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamCheckbox[\s\S]*?<CheckboxField[\s\S]*?className=\{cn\("ms-action-row ms-type-tiny canvas-node-param-checkbox"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeParamExpandButton[\s\S]*?className=\{cn\("ms-type-tiny canvas-node-param-expand-button"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodePortList[\s\S]*?className=\{cn\("nodrag canvas-node-port-list"/)
-  assert.match(uiCanvasCardNodeSource, /CanvasNodePortRow[\s\S]*?<AppSurfaceItem[\s\S]*?className=\{cn\("canvas-node-port-row"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodePortList[\s\S]*?className="ms-grid-stack canvas-node-port-list__items"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodePortRow[\s\S]*?<AppSurfaceItem[\s\S]*?className=\{cn\("ms-action-row ms-type-tiny canvas-node-port-row"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodePortContent[\s\S]*?className=\{cn\("ms-action-row canvas-node-port-content"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodePortLabel[\s\S]*?className=\{cn\("ms-text-truncate canvas-node-port-label"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeSemanticPortRow[\s\S]*?<CanvasNodePortLabel>\{resolvedPort\.label\}<\/CanvasNodePortLabel>/)
   assert.match(uiCanvasCardNodeSource, /pairCanvasNodeSemanticPorts/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeSemanticPortRows[\s\S]*?<CanvasNodePortList/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeResultPanel[\s\S]*?<AppSurfaceItem[\s\S]*?className=\{cn\("nodrag nowheel canvas-node-result-panel"/)
-  assert.match(uiCanvasCardNodeSource, /CanvasNodeResultStage[\s\S]*?<AppMediaFrame[\s\S]*?className=\{cn\("canvas-node-result-stage"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeResultStage[\s\S]*?<AppMediaFrame[\s\S]*?className=\{cn\("canvas-node-result-stage", centered && "ms-center ms-type-label"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeResultMessage[\s\S]*?className=\{cn\("ms-center ms-type-label canvas-node-result-message"/)
   assert.match(canvasNodeCardFeatureSource, /CanvasNodeStatusPip[\s\S]*?className=\{cn\("canvas-node-status-pip", toneTextClass\(tone\)/)
   assert.match(canvasNodeCardFeatureSource, /CanvasNodeStatusPipView[\s\S]*?status === "running" \|\| status === "pending"[\s\S]*?<CanvasNodeStatusPip tone="warning" spinning>/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultHeader[\s\S]*?statusProps\?: StatusBadgeProps/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultHeader[\s\S]*?className=\{cn\("ms-stack canvas-node-text-result-header"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultHeader[\s\S]*?<StatusBadge[\s\S]*?\{\.\.\.statusVisualProps\}/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultHeader[\s\S]*?className="ms-action-row canvas-node-text-result-header__status"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultHeader[\s\S]*?className=\{cn\("ms-type-tiny canvas-node-text-result-badge"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultHeader[\s\S]*?className="ms-type-label canvas-node-text-result-prompt"/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultSurface[\s\S]*?className=\{cn\("ms-type-label canvas-node-text-result-surface"/)
+  assert.doesNotMatch(uiCanvasCardNodeSource, /(?<!ms-)type-(?:tiny|label) canvas-node-(?:result|text-result)/)
+  assert.match(uiCanvasCardNodeSource, /CanvasNodeTextResultSurface[\s\S]*?state === "loading" && "ms-center"/)
   assert.match(uiCanvasCardNodeSource, /CanvasNodeParamControlsView[\s\S]*?<CanvasNodeParamPanel[\s\S]*?<CanvasNodeParamHeader[\s\S]*?<CanvasNodeParamGrid/)
-  assert.match(uiCanvasCardSurfaceSource, /CanvasSurfaceItem[\s\S]*?<Surface[\s\S]*?asChild=\{asChild\}[\s\S]*?className=\{cn\("canvas-surface-item"/)
+  assert.match(uiCanvasCardSurfaceSource, /CanvasSurfaceItem[\s\S]*?<Frame[\s\S]*?asChild=\{asChild\}[\s\S]*?className=\{cn\("canvas-surface-item"/)
   assert.match(uiCanvasCardSurfaceSource, /emphasis=\{variant === "card" \? "raised" : variant === "muted" \? "muted" : "plain"\}/)
   assert.doesNotMatch(uiCanvasCardSurfaceCss, /\.canvas-surface-item\s*\{[^}]*--ui-surface-(?:background|border|radius)/)
   assert.doesNotMatch(uiCanvasCardSurfaceCss, /\.canvas-surface-item\[data-variant="(?:card|muted)"\]\s*\{[^}]*--ui-surface-background/)
   assert.match(uiCanvasCardPortSource, /export function CanvasPortDot/)
   assert.match(uiCanvasIOSource, /export function CanvasIOActionCard/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?className=\{cn\("ms-type-label canvas-io-action-card"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?<FrameHeader as="header"[\s\S]*?canvas-io-action-card__header/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?<FrameHeading className="canvas-io-action-card__heading"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?className="ms-action-row canvas-io-action-card__title-row"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?className="ms-frame__title ms-text-truncate ms-type-body canvas-io-action-card__title"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?className="ms-frame__description ms-text-truncate ms-type-caption canvas-io-action-card__subtitle"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?className="ms-grid-stack ms-type-tiny canvas-io-action-card__editable-field"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?className="ms-text-truncate">\{editableFields\.nameLabel\}/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?<Input[\s\S]*?className="ms-type-tiny"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?<NativeSelect[\s\S]*?className="ms-type-tiny"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?<FrameBody className="ms-grid-stack canvas-io-action-card__body"/)
+  assert.match(uiCanvasIOSource, /CanvasIOActionCard[\s\S]*?<FrameActions className="canvas-io-action-card__footer"/)
   assert.match(uiCanvasIOSource, /export function CanvasIOPortKindBadge/)
   assert.match(uiCanvasIOSource, /export function CanvasIOPortRow/)
+  assert.match(uiCanvasIOSource, /CanvasIOPortRow[\s\S]*?className="ms-action-row ms-type-tiny canvas-io-port-row"/)
+  assert.match(uiCanvasIOSource, /CanvasIOPortRow[\s\S]*?className="ms-text-truncate canvas-io-port-row__label"/)
   assert.match(uiCanvasIOSource, /export function CanvasIOMetaPill/)
+  assert.match(uiCanvasIOSource, /CanvasIOMetaPill[\s\S]*?className="ms-action-row ms-type-tiny canvas-io-meta-pill"/)
+  assert.match(uiCanvasIOSource, /CanvasIOMetaPill[\s\S]*?className="ms-text-truncate canvas-io-meta-pill__label"/)
+  assert.match(uiCanvasIOSource, /CanvasIOMetaPill[\s\S]*?className="ms-text-truncate canvas-io-meta-pill__value"/)
   assert.match(uiCanvasIOSource, /export function CanvasIOStateTile/)
+  assert.match(uiCanvasIOSource, /CanvasIOStateTile[\s\S]*?"ms-stack canvas-io-state-tile"/)
+  assert.match(uiCanvasIOSource, /CanvasIOStateTile[\s\S]*?className="ms-center canvas-io-state-tile__media"/)
+  assert.match(uiCanvasIOSource, /CanvasIOStateTile[\s\S]*?className="ms-inline-center canvas-io-state-tile__pending-icon"/)
+  assert.match(uiCanvasIOSource, /CanvasIOStateTile[\s\S]*?className="ms-inline-center canvas-io-state-tile__ready-icon"/)
+  assert.match(uiCanvasIOSource, /CanvasIOStateTile[\s\S]*?"ms-inline-center canvas-io-state-tile__empty-icon"/)
+  assert.match(uiCanvasIOSource, /CanvasIOStateTile[\s\S]*?"ms-text-truncate ms-type-tiny canvas-io-state-tile__label"/)
   assert.match(uiCanvasIOSource, /export function CanvasIOBodyBlock/)
+  assert.match(uiCanvasIOSource, /CanvasIOBodyBlock[\s\S]*?"ms-type-tiny canvas-io-body-block"/)
   assert.match(uiCanvasIOSource, /export function CanvasIOEmptyRow/)
+  assert.match(uiCanvasIOSource, /CanvasIOEmptyRow[\s\S]*?className="ms-action-row ms-type-tiny canvas-io-empty-row"/)
   assert.match(uiCanvasIOSource, /export function CanvasIOSectionTitle/)
+  assert.match(uiCanvasIOSource, /CanvasIOSectionTitle[\s\S]*?className="ms-action-row ms-type-tiny canvas-io-section-title"/)
   assert.match(uiCanvasToolSource, /export function CanvasToolActionCard/)
   assert.match(uiCanvasToolSource, /export function CanvasToolSourceBadge/)
   assert.match(uiCanvasToolSource, /export function CanvasToolStatusBadge/)
@@ -4073,6 +4802,19 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.match(uiCanvasToolSource, /export function CanvasToolOutputTile/)
   assert.match(uiCanvasToolSource, /export function CanvasToolEmptyRow/)
   assert.match(uiCanvasToolSource, /export function CanvasToolSectionTitle/)
+  assert.match(uiCanvasToolSource, /CanvasToolActionCardBody[\s\S]*?className="ms-grid-stack canvas-tool-action-card__body"/)
+  assert.match(uiCanvasToolSource, /CanvasToolActionCardBody[\s\S]*?className="ms-grid-stack canvas-tool-action-card__stack"/)
+  assert.match(uiCanvasToolSource, /CanvasToolActionCardBody[\s\S]*?className="ms-grid-stack canvas-tool-action-card__output-grid"/)
+  assert.match(uiCanvasToolSource, /CanvasToolEmptyRow[\s\S]*?className="ms-action-row ms-type-tiny canvas-tool-empty-row"/)
+  assert.match(uiCanvasToolSource, /CanvasToolSectionTitle[\s\S]*?className="ms-action-row ms-type-tiny canvas-tool-section-title"/)
+  assert.match(uiCanvasToolSource, /CanvasToolSlotRow[\s\S]*?"ms-action-row ms-type-tiny canvas-tool-slot-row"/)
+  assert.match(uiCanvasToolSource, /CanvasToolSlotRow[\s\S]*?"ms-inline-center canvas-tool-slot-row__icon"/)
+  assert.match(uiCanvasToolSource, /CanvasToolSlotRow[\s\S]*?className="ms-text-truncate canvas-tool-slot-row__label"/)
+  assert.match(uiCanvasToolSource, /CanvasToolSlotRow[\s\S]*?"ms-text-truncate canvas-tool-slot-row__summary"/)
+  assert.match(uiCanvasToolSource, /CanvasToolSlotRow[\s\S]*?className="ms-inline-center canvas-tool-slot-row__state-icon"/)
+  assert.match(uiCanvasToolSource, /CanvasToolConfigPill[\s\S]*?className="ms-action-row ms-type-tiny canvas-tool-config-pill"/)
+  assert.match(uiCanvasToolSource, /CanvasToolConfigPill[\s\S]*?className="ms-text-truncate canvas-tool-config-pill__label"/)
+  assert.match(uiCanvasToolSource, /CanvasToolConfigPill[\s\S]*?className="ms-text-truncate canvas-tool-config-pill__value"/)
   assert.match(uiCanvasToolSource, /export function canvasToolSlotStateLabel/)
   assert.match(uiCanvasToolSource, /export function canvasToolStatusIntent/)
   assert.match(uiCanvasToolSource, /export function canvasToolStatusKey/)
@@ -4082,7 +4824,7 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.doesNotMatch(uiCanvasToolSource, /<StatusBadge\b[^>]*\btone=/)
   assert.match(uiCanvasCss, /@import "\.\/card\/styles\.css";/)
   assert.doesNotMatch(uiCanvasCss, /@import "\.\/entity\/styles\.css";/)
-  assert.match(uiCanvasCss, /@import "\.\/flow\/styles\.css";/)
+  assert.doesNotMatch(uiCanvasCss, /@import "\.\/flow\/styles\.css";/)
   assert.match(uiCanvasCss, /@import "\.\/io\/styles\.css";/)
   assert.match(uiCanvasCss, /@import "\.\/tool\/styles\.css";/)
   assert.match(uiCanvasCardCss, /@import "\.\/shell\/styles\.css";/)
@@ -4110,19 +4852,115 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.match(uiCanvasCardNodeCss, /\.canvas-node-result-panel\s*\{/)
   assert.match(uiCanvasCardNodeCss, /\.canvas-node-result-stage\s*\{/)
   assert.match(uiCanvasCardNodeCss, /\.canvas-node-text-result-header\s*\{/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-row\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-row\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-list__items\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-content\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-content\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-content\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-port-label\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-grid\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-header\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-field\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-field__label\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-checkbox\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-param-(?:control|checkbox|expand-button)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-prompt-editor\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-prompt-editor\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-mention-menu-empty\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-mention-menu-item\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-mention-menu-item__label\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-mention-menu-item__meta\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-attachment-item__label\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-attachment-item__label\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-attachment-status\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-attachment-hint\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-result-stage\[data-centered="true"\]\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-result-message\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-text-result-header__status\s*\{[^}]*margin-bottom:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-text-result-prompt\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-text-result-surface\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasCardNodeCss, /\.canvas-node-text-result-surface\[data-state="loading"\]\s*\{[^}]*display:\s*flex/)
   assert.match(uiCanvasCardSurfaceCss, /\.canvas-surface-item\s*\{/)
   assert.match(uiCanvasCardPortCss, /\.canvas-port-dot\s*\{/)
-  assert.match(uiCanvasFlowCss, /\.canvas-flow\s*\{/)
+  assert.match(canvasEditorFlowUiCss, /\.canvas-flow\s*\{/)
   assert.match(uiCanvasIOCss, /\.canvas-io-port-kind-badge\s*\{/)
   assert.match(uiCanvasIOCss, /\.canvas-io-port-row\s*\{/)
   assert.match(uiCanvasIOCss, /\.canvas-io-state-tile\s*\{/)
   assert.match(uiCanvasIOCss, /\.canvas-io-body-block\s*\{/)
   assert.match(uiCanvasIOCss, /\.canvas-io-action-card\s*\{/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-section-title\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-section-title\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-section-title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-section-title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-meta-pill\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-meta-pill\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-meta-pill\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-meta-pill\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-meta-pill__(?:label|value)\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-empty-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-empty-row\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-empty-row\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-port-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-port-row\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-port-row\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-port-row\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-port-row__label\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile\s*\{[^}]*flex-direction:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile__media\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile__media\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile__(?:pending|ready|empty)-icon\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile__label\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile__label\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-state-tile__label\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-body-block\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-body-block\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__body\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__body\s*\{[^}]*gap:\s*var\(--ms-space-2\)/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__subtitle\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__editable-field\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__editable-field\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__editable-field\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__editable-field > span\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasIOCss, /\.canvas-io-action-card__editable-field \.(?:ms-input|ms-native-select)\s*\{[^}]*font-size:/)
   assert.match(uiCanvasToolCss, /\.canvas-tool-action-card\s*\{/)
   assert.match(uiCanvasToolCss, /\.canvas-tool-source-badge\s*\{/)
   assert.match(uiCanvasToolCss, /\.canvas-tool-slot-row\s*\{/)
   assert.match(uiCanvasToolCss, /\.canvas-tool-output-tile\s*\{/)
   assert.match(uiCanvasToolCss, /\.canvas-tool-config-pill\s*\{/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-action-card__body\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-action-card__stack\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-action-card__output-grid\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-empty-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-empty-row\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-empty-row\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-empty-row\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-section-title\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-section-title\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-section-title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-section-title\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row__(?:icon|state-icon)\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row__(?:icon|state-icon)\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row__(?:icon|state-icon)\s*\{[^}]*flex-shrink:\s*0/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row__(?:icon|state-icon) svg\s*\{[^}]*display:\s*block/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-slot-row__(?:label|summary)\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill__label\s*\{[^}]*min-width:\s*0/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-config-pill__(?:label|value)\s*\{[^}]*text-overflow:/)
   assert.doesNotMatch(uiCss, /\.canvas-card-shell\s*\{/)
   assert.match(uiCanvasToolSource, /\bCanvasToolSourceBadge\b/)
   assert.match(uiCanvasToolSource, /\bCanvasToolStatusBadge\b/)
@@ -4154,9 +4992,24 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.match(uiCanvasToolSource, /\bAppMediaFrame\b/)
   assert.match(uiCanvasIOSource, /\bAppMediaFrame\b/)
   assert.match(uiCanvasToolSource, /function CanvasToolOutputTile[\s\S]*?<CanvasSurfaceItem[\s\S]*?<Button[\s\S]*?data-output-port-id/)
+  assert.match(uiCanvasToolSource, /function CanvasToolOutputTile[\s\S]*?<Button[\s\S]*?align="start"[\s\S]*?data-output-port-id/)
+  assert.match(uiCanvasToolSource, /CanvasToolOutputTile[\s\S]*?"ms-stack canvas-tool-output-tile"/)
+  assert.match(uiCanvasToolSource, /CanvasToolOutputTile[\s\S]*?<AppMediaFrame variant="stage" className="ms-center canvas-tool-output-tile__media"/)
+  assert.match(uiCanvasToolSource, /CanvasToolOutputTile[\s\S]*?className="ms-action-row canvas-tool-output-tile__title-row"/)
+  assert.match(uiCanvasToolSource, /CanvasToolOutputTile[\s\S]*?className="ms-text-truncate ms-type-tiny canvas-tool-output-tile__label"/)
+  assert.match(uiCanvasToolSource, /CanvasToolOutputTile[\s\S]*?"ms-text-truncate ms-type-tiny canvas-tool-output-tile__summary"/)
   assert.match(uiCanvasIOSource, /function CanvasIOPortRow[\s\S]*?<AppSurfaceItem[\s\S]*?data-input-port-id/)
   assert.match(uiCanvasIOSource, /function CanvasIOStateTile[\s\S]*?<AppSurfaceItem[\s\S]*?<AppMediaFrame/)
   assert.doesNotMatch(uiCanvasToolSource, /<button\b/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile\s*\{[^}]*flex-direction/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__button\s*\{[^}]*justify-content:\s*flex-start/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__(?:label|summary)\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__(?:label|summary)\s*\{[^}]*white-space/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__(?:label|summary)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__(?:label|summary)\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__(?:pending|type|ready|empty)-icon\s*\{[^}]*flex-shrink:\s*0/)
+  assert.doesNotMatch(uiCanvasToolCss, /\.canvas-tool-output-tile__(?:pending|type|ready|empty)-icon svg\s*\{[^}]*display:\s*block/)
   for (const source of [uiCanvasIOSource]) {
     assert.match(source, /\bAppIconFrame\b/, 'canvas header icons must consume package icon frame')
     assert.doesNotMatch(source, /flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background\/80/)
@@ -4194,10 +5047,13 @@ test('projects shell primitives use @movscript/ui', () => {
   assert.match(projectPageFeatureSource, /function ProjectPageActionButton[\s\S]*?<Button/)
   assert.match(projectPageFeatureSource, /function ProjectPageEmptyState[\s\S]*?<AppEmptyState/)
   assert.match(projectPageFeatureSource, /function ProjectPageLocalAdminPrompt[\s\S]*?<AppStateMessage/)
+  assert.match(projectPageFeatureCss, /\.projects-region\s*\{/)
+  assert.match(projectPageFeatureCss, /\.projects-list-row\s*\{/)
   assert.match(projectPageFeatureCss, /\.project-page-local-admin-prompt\s*\{/)
   assert.doesNotMatch(projectPageFeatureCss, /\.project-overview-/)
   assert.equal(packageJson.exports['./business/project'], undefined, 'project UI domain must not be exported from packages/ui')
   assert.equal(packageJson.exports['./styles/business/project.css'], undefined, 'project UI stylesheet must not be exported from packages/ui')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/projects/styles.css')), false, 'project list page styles must be feature-owned')
   assert.doesNotMatch(projectsSource, /<Button\b/)
   assert.doesNotMatch(projectsSource, /\b(?:AppEmptyState|AppStateMessage)\b/)
   assert.doesNotMatch(projectsSource, /function EmptyState/)
@@ -4225,13 +5081,20 @@ test('projects shell primitives use @movscript/ui', () => {
 })
 
 test('onboarding and app settings use package surface primitives', () => {
-  const appSettingsSource = readProjectFile('apps/frontend/src/features/settings/components/AppSettingsPage.tsx')
+  const appSettingsSource = [
+    readProjectFile('apps/frontend/src/features/settings/components/AppSettingsPage.tsx'),
+    readProjectFile('apps/frontend/src/features/settings/components/AppSettingsSections.tsx'),
+  ].join('\n')
   const appSettingsUiSource = readProjectFile('apps/frontend/src/features/settings/components/AppSettingsUi.tsx')
   const appSettingsUiCss = readProjectFile('apps/frontend/src/features/settings/components/AppSettingsUi.css')
   const externalResourceSettingsSource = readProjectFile('apps/frontend/src/features/settings/components/ExternalResourceSourceSettingsSection.tsx')
   const authSource = readProjectFile('apps/frontend/src/features/auth/components/AuthPage.tsx')
+  const authUiSource = readProjectFile('apps/frontend/src/features/auth/components/AuthPageUi.tsx')
+  const authUiCss = readProjectFile('apps/frontend/src/features/auth/components/AuthPageUi.css')
   const inviteSource = readProjectFile('apps/frontend/src/features/auth/components/InvitePage.tsx')
   const onboardingSource = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPage.tsx')
+  const onboardingUiSource = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPageUi.tsx')
+  const onboardingUiCss = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPageUi.css')
   const uiAppSource = readAppSource()
   const uiAppCss = readAppCss()
 
@@ -4262,7 +5125,8 @@ test('onboarding and app settings use package surface primitives', () => {
     'AuthWorkModeRoot',
   ]) {
     assert.match(authSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by auth page`)
-    assert.match(uiAppSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be package-owned`)
+    assert.match(authUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be auth feature-owned`)
+    assert.doesNotMatch(uiAppSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui app business`)
   }
   for (const exportName of [
     'AppSettingsActionButton',
@@ -4302,20 +5166,13 @@ test('onboarding and app settings use package surface primitives', () => {
     'OnboardingWorkModeSummary',
   ]) {
     assert.match(onboardingSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by onboarding`)
-    assert.match(uiAppSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be package-owned`)
+    assert.match(onboardingUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be onboarding feature-owned`)
+    assert.doesNotMatch(uiAppSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui app business`)
   }
   for (const exportName of ['AppChoiceTile', 'AppIconFrame', 'AppSection', 'AppSurfaceItem', 'Button', 'Input', 'Label', 'WorkModeSwitchGuide', 'toneTextClass']) {
-    assert.match(uiAppSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by package onboarding components`)
+    assert.match(onboardingUiSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by onboarding feature UI components`)
   }
   for (const className of [
-    'onboarding-shell',
-    'onboarding-hero',
-    'onboarding-work-mode-summary',
-    'onboarding-launch-grid',
-    'onboarding-launch-tile',
-    'onboarding-form-section',
-    'onboarding-form-field',
-    'onboarding-form-actions',
     'auth-root',
     'auth-panel',
     'auth-work-mode-panel',
@@ -4328,7 +5185,21 @@ test('onboarding and app settings use package surface primitives', () => {
     'auth-submit-button',
     'auth-inline-meta',
   ]) {
-    assert.match(uiAppCss, cssClassSelectorPattern(className), `${className} style must remain package-owned`)
+    assert.match(authUiCss, cssClassSelectorPattern(className), `${className} style must be auth feature-owned`)
+    assert.doesNotMatch(uiAppCss, cssClassSelectorPattern(className), `${className} style must not remain in @movscript/ui app business CSS`)
+  }
+  for (const className of [
+    'onboarding-shell',
+    'onboarding-hero',
+    'onboarding-work-mode-summary',
+    'onboarding-launch-grid',
+    'onboarding-launch-tile',
+    'onboarding-form-section',
+    'onboarding-form-field',
+    'onboarding-form-actions',
+  ]) {
+    assert.match(onboardingUiCss, cssClassSelectorPattern(className), `${className} style must be onboarding feature-owned`)
+    assert.doesNotMatch(uiAppCss, cssClassSelectorPattern(className), `${className} style must not remain in @movscript/ui app business CSS`)
   }
   for (const className of [
     'app-settings-shell',
@@ -4345,8 +5216,18 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/settings')), false, 'app settings UI must be feature-owned')
   assert.doesNotMatch(uiAppSource, /from "\.\/settings"/, 'app settings module must not be re-exported from @movscript/ui app business')
   assert.doesNotMatch(uiAppCss, /settings\/styles\.css/, 'app settings CSS must not be imported by @movscript/ui app business CSS')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/onboarding/index.tsx')), false, 'onboarding page UI must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/onboarding/styles.css')), false, 'onboarding page CSS must be feature-owned')
+  assert.doesNotMatch(uiAppSource, /from "\.\/onboarding"/, 'onboarding module must not be re-exported from @movscript/ui app business')
+  assert.doesNotMatch(uiAppCss, /onboarding\/styles\.css/, 'onboarding CSS must not be imported by @movscript/ui app business CSS')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/auth/index.tsx')), false, 'auth page UI must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/auth/styles.css')), false, 'auth page CSS must be feature-owned')
+  assert.doesNotMatch(uiAppSource, /from "\.\/auth"/, 'auth module must not be re-exported from @movscript/ui app business')
+  assert.doesNotMatch(uiAppCss, /auth\/styles\.css/, 'auth CSS must not be imported by @movscript/ui app business CSS')
   assert.match(appSettingsSource, /from ['"]@\/features\/settings\/components\/AppSettingsUi['"]/)
   assert.match(externalResourceSettingsSource, /from ['"]@\/features\/settings\/components\/AppSettingsUi['"]/)
+  assert.match(authSource, /from ['"]@\/features\/auth\/components\/AuthPageUi['"]/)
+  assert.match(onboardingSource, /from ['"]@\/features\/onboarding\/components\/OnboardingPageUi['"]/)
   for (const source of [authSource, inviteSource, onboardingSource]) {
     assert.match(source, /from ['"]@movscript\/ui\/business\/app['"]/, 'Work mode consumers must import from @movscript/ui/business/app')
     assert.match(source, /\bWorkModePrompt\b/, 'Work mode prompt must be consumed from package UI')
@@ -4359,9 +5240,9 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.doesNotMatch(onboardingSource, /<(?:div|main|span|p|h1|h2)\b/)
   assert.doesNotMatch(onboardingSource, /min-h-screen bg-background/)
   assert.doesNotMatch(onboardingSource, /grid gap-3 md:grid-cols-2/)
-  assert.match(uiAppSource, /function AuthStateMessage[\s\S]*?<AppStateMessage/)
-  assert.match(uiAppSource, /function AuthInlineMeta[\s\S]*?<AppInlineMeta/)
-  assert.match(uiAppSource, /function AuthPasswordInput[\s\S]*?<AuthInput[\s\S]*?<Button/)
+  assert.match(authUiSource, /function AuthStateMessage[\s\S]*?<AppStateMessage/)
+  assert.match(authUiSource, /function AuthInlineMeta[\s\S]*?<AppInlineMeta/)
+  assert.match(authUiSource, /function AuthPasswordInput[\s\S]*?<AuthInput[\s\S]*?<Button/)
   assert.doesNotMatch(authSource, /\b(?:AppInlineMeta|AppStateMessage|Button|Input|Label)\b/)
   assert.doesNotMatch(authSource, /className=/)
   assert.doesNotMatch(authSource, /<(?:div|p|h1)\b/)
@@ -4371,9 +5252,23 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.equal(existsSync(path.join(root, 'apps/frontend/src/components/app/WorkModePrompt.tsx')), false)
   assert.match(uiAppSource, /export function WorkModePrompt/)
   assert.match(uiAppSource, /export function WorkModeSwitchGuide/)
+  assert.match(uiAppSource, /WorkModeSwitchGuide[\s\S]*?className="ms-action-row onboarding-switch-guide__bar"/)
+  assert.match(uiAppSource, /WorkModeSwitchGuide[\s\S]*?className="ms-center onboarding-switch-guide__button onboarding-switch-guide__button--current"/)
+  assert.match(uiAppSource, /WorkModeSwitchGuide[\s\S]*?className="ms-center onboarding-switch-guide__button onboarding-switch-guide__button--next"/)
   assert.match(uiAppSource, /function WorkModeCard[\s\S]*?<AppSurfaceItem asChild[\s\S]*?<Button[\s\S]*?onClick=\{\(\) => onSelect\(mode\)\}/)
+  assert.match(uiAppSource, /function WorkModeCard[\s\S]*?<Button[\s\S]*?align="start"/)
+  assert.match(uiAppSource, /function WorkModeCard[\s\S]*?className="ms-type-section work-mode-card__title"/)
+  assert.match(uiAppSource, /function WorkModeCard[\s\S]*?className="ms-inline-center ms-type-body work-mode-card__action"/)
   assert.match(uiAppCss, cssClassSelectorPattern('work-mode-prompt'))
   assert.match(uiAppCss, cssClassSelectorPattern('work-mode-card'))
+  assert.doesNotMatch(uiAppCss, /\.work-mode-card__button\s*\{[^}]*justify-content:\s*flex-start/)
+  assert.doesNotMatch(uiAppCss, /\.work-mode-card__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiAppCss, /\.work-mode-card__action\s*\{[^}]*display:\s*inline-flex/)
+  assert.doesNotMatch(uiAppCss, /\.work-mode-card__action\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiAppCss, /\.onboarding-switch-guide__bar\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiAppCss, /\.onboarding-switch-guide__bar\s*\{[^}]*align-items:/)
+  assert.doesNotMatch(uiAppCss, /\.onboarding-switch-guide__button\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiAppCss, /\.onboarding-switch-guide__button\s*\{[^}]*justify-content:/)
   assert.doesNotMatch(authSource, /<button\b/)
   assert.doesNotMatch(authSource, /inline-flex size-9 items-center justify-center rounded-md border border-border/)
   assert.doesNotMatch(authSource, /rounded-md border border-border bg-muted\/30/)
@@ -4558,7 +5453,10 @@ test('organization workspace pages use feature-owned semantic components', () =>
 })
 
 test('plugin tool page uses package form controls', () => {
-  const clientPluginsSource = readProjectFile('apps/frontend/src/features/plugins/components/ClientPluginsPage.tsx')
+  const clientPluginsSource = [
+    readProjectFile('apps/frontend/src/features/plugins/components/ClientPluginsPage.tsx'),
+    readProjectFile('apps/frontend/src/features/plugins/components/ClientPluginsPageViews.tsx'),
+  ].join('\n')
   const pluginToolSource = readProjectFile('apps/frontend/src/features/plugins/components/PluginToolPage.tsx')
   const pluginsFeatureSource = readProjectFile('apps/frontend/src/features/plugins/components/PluginsPageUi.tsx')
   const pluginsFeatureCss = readProjectFile('apps/frontend/src/features/plugins/components/PluginsPageUi.css')
@@ -4606,7 +5504,7 @@ test('plugin tool page uses package form controls', () => {
     assert.match(pluginToolSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by plugin tool page`)
     assert.match(pluginsFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
   }
-  for (const exportName of ['PluginBannerDismissAction', 'PluginButtonIcon', 'PluginCardSurface', 'PluginDialogSurface', 'PluginEmptyState', 'PluginFileInput', 'PluginSearchInput', 'PluginStateBanner', 'PluginStatusMeta', 'PluginTabButton', 'PluginTabCount', 'PluginTabGroup', 'PluginTagMeta', 'PluginToneText', 'Button']) {
+  for (const exportName of ['PluginBannerDismissAction', 'PluginButtonIcon', 'PluginCardSurface', 'PluginEmptyState', 'PluginFileInput', 'PluginSearchInput', 'PluginStateBanner', 'PluginStatusMeta', 'PluginTabButton', 'PluginTabCount', 'PluginTabGroup', 'PluginTagMeta', 'PluginToneText', 'Button']) {
     assert.match(clientPluginsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by client plugins page`)
   }
   for (const exportName of ['AppControlGroup', 'AppEmptyState', 'AppInlineMeta', 'AppStateMessage', 'AppSurfaceItem', 'toneTextClass']) {
@@ -4651,12 +5549,14 @@ test('top app controls use package form controls', () => {
   const backendBootBoundarySource = readProjectFile('apps/frontend/src/features/app-shell/application/BackendBootBoundary.tsx')
   const canvasShellRouteSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppCanvasEditorShellRoute.tsx')
   const shellLayoutSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppShellLayout.tsx')
+  const shellLayoutControlsSource = readProjectFile('apps/frontend/src/features/app-shell/application/AppShellLayoutControls.tsx')
   const appShellSource = [
     appSource,
     appRouteBoundariesSource,
     backendBootBoundarySource,
     canvasShellRouteSource,
     shellLayoutSource,
+    shellLayoutControlsSource,
   ].join('\n')
   const appTopControlsSource = readProjectFile('apps/frontend/src/features/app-shell/components/AppTopControls.tsx')
   const headerSource = readProjectFile('apps/frontend/src/features/app-shell/components/Header.tsx')
@@ -4668,6 +5568,8 @@ test('top app controls use package form controls', () => {
   const appShellWindowCss = readProjectFile('packages/ui/src/components/layout/app-shell/window/styles.css')
   const appShellSidebarCss = readProjectFile('packages/ui/src/components/layout/app-shell/sidebar/styles.css')
   const userProfileSource = readProjectFile('apps/frontend/src/features/user/components/UserProfilePage.tsx')
+  const userProfileUiSource = readProjectFile('apps/frontend/src/features/user/components/UserProfilePageUi.tsx')
+  const userProfileUiCss = readProjectFile('apps/frontend/src/features/user/components/UserProfilePageUi.css')
   const uiAppSource = readAppSource()
   const uiAppCss = readAppCss()
 
@@ -4677,8 +5579,22 @@ test('top app controls use package form controls', () => {
   assert.match(appRouteBoundariesSource, /\bAppErrorFallback\b/)
   assert.match(backendBootBoundarySource, /\bAppBackendBootOverlayFrame\b/)
   assert.match(uiAppSource, /function AppErrorFallback[\s\S]*?<AppIconFrame[\s\S]*?tone="danger"[\s\S]*?<Button/)
+  assert.match(uiAppSource, /function AppErrorFallback[\s\S]*?className=\{cn\("ms-stack ms-center app-error-fallback"/)
+  assert.match(uiAppSource, /function AppErrorFallback[\s\S]*?className="ms-type-body app-error-fallback__title"/)
+  assert.match(uiAppSource, /function AppErrorFallback[\s\S]*?className="ms-type-label app-error-fallback__message"/)
   assert.match(uiAppSource, /function AppBackendBootOverlay[\s\S]*?<AppSurfaceItem[\s\S]*?<AppIconFrame size="lg" tone=\{tone\}[\s\S]*?<AppInlineMeta/)
+  assert.match(uiAppSource, /function AppBackendBootOverlay[\s\S]*?className=\{cn\("ms-center app-backend-boot-overlay"/)
+  assert.match(uiAppSource, /function AppBackendBootOverlay[\s\S]*?className="ms-type-body app-backend-boot-card__title"/)
+  assert.match(uiAppSource, /function AppBackendBootOverlay[\s\S]*?className="ms-type-label app-backend-boot-card__description"/)
+  assert.match(uiAppSource, /function AppBackendBootOverlay[\s\S]*?className="ms-action-row app-backend-boot-card__actions"/)
   assert.match(uiAppSource, /function AppBackendBootActionButton[\s\S]*?<Button/)
+  assert.doesNotMatch(uiAppCss, /\.app-error-fallback\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiAppCss, /\.app-error-fallback\s*\{[^}]*flex-direction:\s*column/)
+  assert.doesNotMatch(uiAppCss, /\.app-error-fallback__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiAppCss, /\.app-error-fallback__message\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiAppCss, /\.app-backend-boot-overlay\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(uiAppCss, /\.app-backend-boot-card__title\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(uiAppCss, /\.app-backend-boot-card__actions\s*\{[^}]*display:\s*flex/)
   assert.match(appShellSource, /\bAppWindowIconButton\b/)
   assert.doesNotMatch(appShellSource, /\b(?:AppIconFrame|AppInlineMeta|AppSurfaceItem)\b/)
   assert.match(appRouteBoundariesSource, /class ErrorBoundary[\s\S]*?<AppErrorFallback/)
@@ -4686,7 +5602,8 @@ test('top app controls use package form controls', () => {
   assert.match(canvasShellRouteSource, /function CanvasHeaderTitle[\s\S]*?<Input[\s\S]*?value=\{effectiveCanvasName\}/)
   assert.match(canvasShellRouteSource, /function CanvasHeaderNavigation[\s\S]*?<AppWindowIconButton[\s\S]*?canvasBackPath\(search\)/)
   assert.match(canvasShellRouteSource, /function CanvasHeaderContextActions[\s\S]*?<AppWindowIconButton[\s\S]*?ROUTES\.resources/)
-  assert.match(shellLayoutSource, /const toolSidebarLayoutControls[\s\S]*?<AppWindowIconButton[\s\S]*?app-window-sidebar-toggle/)
+  assert.match(shellLayoutSource, /const toolSidebarLayoutControls[\s\S]*?<AppShellLeftPaneToggle/)
+  assert.match(shellLayoutControlsSource, /function AppShellLeftPaneToggle[\s\S]*?<AppWindowIconButton[\s\S]*?app-window-sidebar-toggle/)
   assert.doesNotMatch(appShellSource, /<button\b/)
   assert.doesNotMatch(appShellSource, /<input\b/)
   assert.doesNotMatch(appShellSource, /text-destructive/)
@@ -4696,8 +5613,17 @@ test('top app controls use package form controls', () => {
   assert.doesNotMatch(appShellSource, /app-window-sidebar-toggle flex shrink-0 items-center justify-center rounded-md text-muted-foreground/)
   assert.match(appTopControlsSource, /\bMoreHorizontal\b/)
   assert.match(appTopControlsSource, /className="app-top-global-menu"/)
-  assert.match(appTopControlsSource, /<DropdownMenuItem onSelect=\{switchMode\}>/)
-  assert.match(appTopControlsSource, /<AppTopMenuLeadingIcon icon=\{ModeIcon\} \/>/)
+  assert.match(appTopControlsSource, /<DropdownMenuItem onSelect=\{openSettings\}>/)
+  assert.match(appTopControlsSource, /<AppTopMenuLeadingIcon icon=\{Settings\} \/>/)
+  assert.match(appTopControlsSource, /<AppTopMenuLeadingIcon icon=\{item\.icon\} \/>/)
+  assert.match(appTopControlsSource, /className="ms-inline-center app-top-menu-item__update-dot"/)
+  assert.doesNotMatch(uiAppCss, /\.app-window-icon-button\s*\{[^}]*flex-shrink:/)
+  assert.doesNotMatch(uiAppCss, /\.app-top-menu-item__leading-icon\s*\{/)
+  assert.doesNotMatch(uiAppCss, /\.app-top-menu-item__leading-icon\s*\{[^}]*flex-shrink:/)
+  assert.doesNotMatch(uiAppCss, /\.app-top-menu-item__update-dot\s*\{[^}]*margin-left:/)
+  assert.doesNotMatch(uiAppCss, /\.app-top-menu-item__update-dot\s*\{[^}]*flex-shrink:/)
+  assert.doesNotMatch(uiAppCss, /\.app-pager__status\s*\{[^}]*font-variant-numeric:/)
+  assert.doesNotMatch(appTopControlsSource, /\bModeIcon\b/)
   assert.match(appTopControlsSource, /<Languages size=\{12\} \/>/)
   assert.match(appTopControlsSource, /<Palette size=\{12\} \/>/)
   assert.doesNotMatch(appTopControlsSource, /\bAppTopLanguageSelect\b/)
@@ -4746,20 +5672,27 @@ test('top app controls use package form controls', () => {
     'UserProfileShell',
   ]) {
     assert.match(userProfileSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by user profile page`)
-    assert.match(appShellLayoutSource + appShellWindowSource + appShellSidebarSource + uiAppSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be package-owned`)
+    assert.match(userProfileUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be user profile feature-owned`)
+    assert.doesNotMatch(appShellLayoutSource + appShellWindowSource + appShellSidebarSource + uiAppSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must not be exported from @movscript/ui`)
   }
   for (const className of [
-    'user-profile',
-    'user-profile-header',
-    'user-profile-card',
-    'user-profile-identity',
-    'user-profile-actions',
-    'user-profile-logout-button',
+    'account-profile',
+    'account-profile-header',
+    'account-profile-card',
+    'account-profile-identity',
+    'account-profile-actions',
+    'account-profile-logout-button',
   ]) {
-    assert.match(uiAppCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
+    assert.match(userProfileUiCss, cssClassSelectorPattern(className), `${className} style must be user profile feature-owned`)
+    assert.doesNotMatch(uiAppCss, cssClassSelectorPattern(className), `${className} style must not remain in @movscript/ui app CSS`)
   }
-  assert.match(uiAppSource, /\bAppAvatar\b/)
-  assert.match(uiAppSource, /\bButton\b/)
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/user-profile/index.tsx')), false, 'user profile UI must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/user-profile/styles.css')), false, 'user profile CSS must be feature-owned')
+  assert.doesNotMatch(uiAppSource, /from "\.\/user-profile"/, 'user profile module must not be re-exported from @movscript/ui app business')
+  assert.doesNotMatch(uiAppCss, /user-profile\/styles\.css/, 'user profile CSS must not be imported by @movscript/ui app business CSS')
+  assert.match(userProfileSource, /from ['"]@\/features\/user\/components\/UserProfilePageUi['"]/)
+  assert.match(userProfileUiSource, /\bAppAvatar\b/)
+  assert.match(userProfileUiSource, /\bButton\b/)
   assert.match(userProfileSource, /<UserProfileIdentity[\s\S]*?name=\{currentUser\?\.username\}/)
   assert.match(userProfileSource, /const logout = \(\) => \{[\s\S]*?setCurrentUser\(null\)[\s\S]*?\}/)
   assert.match(userProfileSource, /<UserProfileLogoutButton[\s\S]*?onClick=\{logout\}/)
@@ -4783,10 +5716,17 @@ test('project standards page UI is feature-owned, not project package API', () =
     readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsPage.tsx'),
     readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsPageParts.tsx'),
     readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsWorkspacePanels.tsx'),
+    readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsPromptPreviewAside.tsx'),
     readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel.tsx'),
   ].join('\n')
-  const projectStandardsFeatureSource = readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsUi.tsx')
-  const projectStandardsFeatureCss = readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsUi.css')
+  const projectStandardsFeatureSource = [
+    readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsUi.tsx'),
+    readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewUi.tsx'),
+  ].join('\n')
+  const projectStandardsFeatureCss = [
+    readProjectFile('apps/frontend/src/features/project-standards/components/ProjectStandardsUi.css'),
+    readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewUi.css'),
+  ].join('\n')
   const projectStandardsSemanticUiSource = readProjectFile('apps/frontend/src/features/project-standards/presentation/projectStandardsSemanticUi.ts')
 
   for (const exportName of ['CheckboxField', 'AppCodeBlock', 'AppInlineMeta', 'AppSurfaceItem', 'AppTextEmptyState', 'WorkbenchSurfaceItem', 'Input', 'Button', 'StatusBadge', 'DialogContent']) {
@@ -4816,6 +5756,12 @@ test('project standards page UI is feature-owned, not project package API', () =
     'ProjectWorkspaceReviewLoadingState',
     'ProjectWorkspaceReviewNoteList',
     'ProjectWorkspaceReviewStatusBadge',
+    'ProjectStandardsWorkspaceReviewArtifactList',
+    'ProjectStandardsWorkspaceReviewArtifactPanel',
+    'ProjectStandardsWorkspaceReviewFieldDiffList',
+    'ProjectStandardsWorkspaceReviewFieldDiffRow',
+    'ProjectStandardsWorkspaceReviewShell',
+    'ProjectStandardsWorkspaceReviewSummaryCallout',
   ]) {
     assert.match(standardsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by ProjectStandardsPage`)
     assert.match(projectStandardsFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
@@ -4865,6 +5811,7 @@ test('project standards page UI is feature-owned, not project package API', () =
 test('tools dialog UI is feature-owned, not tools package API', () => {
   const toolsDialogSource = [
     readProjectFile('apps/frontend/src/features/tools/components/ToolDialog.tsx'),
+    readProjectFile('apps/frontend/src/features/tools/components/ToolDialogHistorySection.tsx'),
     readProjectFile('apps/frontend/src/features/tools/components/ToolDialogJobPanels.tsx'),
   ].join('\n')
   const toolsDialogFeatureSource = readProjectFile('apps/frontend/src/features/tools/components/ToolDialogUi.tsx')
@@ -4908,21 +5855,23 @@ test('generation cards use package tone contracts', () => {
   const generationResultCardSource = readGenerationResultSource()
   const generationResultCardCss = readGenerationResultCss()
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
+  const generationCardUiSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCardUi.tsx')
   const generationCardsCss = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.css')
-  const sources = [generationCardsSource, genResultCardSource, genInputCardSource].join('\n')
+  const generationCardSources = [generationCardsSource, generationCardUiSource].join('\n')
+  const sources = [generationCardSources, genResultCardSource, genInputCardSource].join('\n')
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
 
   assert.doesNotMatch(sources, rawPaletteClassPattern)
-  assert.match(generationCardsSource, /AgentGenerated(?:Card|Item|IntentText|Stat)/)
-  assert.match(generationCardsSource, /toneTextClass/)
-  assert.match(generationCardsSource, /toneSurfaceClass/)
-  assert.match(generationCardsSource, /\bAgentGeneratedProgressBar\b/)
-  assert.match(generationCardsSource, /\bAgentGeneratedStatusBadge\b/)
-  assert.match(generationCardsSource, /function AgentGeneratedProgressBar[\s\S]*?<AppProgressBar/)
-  assert.match(generationCardsSource, /function AgentGeneratedStatusBadge[\s\S]*?<StatusBadge/)
-  assert.match(generationCardsSource, /function AgentGeneratedCard[\s\S]*?<AgentSurfaceBlock/)
-  assert.match(generationCardsSource, /function AgentGeneratedItem[\s\S]*?<AgentSurfaceBlock/)
-  assert.doesNotMatch(generationCardsSource, /\b(?:AgentGeneratedCallout|ReviewCallout)\b/)
+  assert.match(generationCardSources, /AgentGenerated(?:Card|Item|IntentText|Stat)/)
+  assert.match(generationCardUiSource, /toneTextClass/)
+  assert.match(generationCardUiSource, /toneSurfaceClass/)
+  assert.match(generationCardSources, /\bAgentGeneratedProgressBar\b/)
+  assert.match(generationCardSources, /\bAgentGeneratedStatusBadge\b/)
+  assert.match(generationCardUiSource, /function AgentGeneratedProgressBar[\s\S]*?<AppProgressBar/)
+  assert.match(generationCardUiSource, /function AgentGeneratedStatusBadge[\s\S]*?<StatusBadge/)
+  assert.match(generationCardUiSource, /function AgentGeneratedCard[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(generationCardUiSource, /function AgentGeneratedItem[\s\S]*?<AgentSurfaceBlock/)
+  assert.doesNotMatch(generationCardSources, /\b(?:AgentGeneratedCallout|ReviewCallout)\b/)
   assert.match(generationCardsCss, /\.agent-generated-card\s*\{/)
   assert.match(generationCardsCss, /\.agent-generated-status-badge\s*\{/)
   assert.match(genResultCardSource, /\bGenerationResultCard\b/)
@@ -4944,10 +5893,19 @@ test('generation cards use package tone contracts', () => {
 test('agent generation and provider session interactions use package tone contracts', () => {
   const generationDisplaySource = readProjectFile('apps/frontend/src/features/agent/domain/agentGenerationDisplay.ts')
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
+  const generationCardUiSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCardUi.tsx')
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const generationCardsCss = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.css')
+  const agentPlanOverviewShellSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/shell/index.tsx')
+  const agentPlanOverviewShellCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/shell/styles.css')
   const agentPlanOverviewTaskSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/task/index.tsx')
   const agentPlanOverviewTaskCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/task/styles.css')
+  const agentPlanOverviewItemSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/item/index.tsx')
+  const agentPlanOverviewItemCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/item/styles.css')
+  const agentPlanOverviewDisclosureSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/disclosure/index.tsx')
+  const agentPlanOverviewDisclosureCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/disclosure/styles.css')
+  const agentPlanOverviewFeedbackSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/feedback/index.tsx')
+  const agentPlanOverviewFeedbackCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/feedback/styles.css')
   const agentRunInteractionSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/index.tsx')
   const agentRunInteractionApprovalStatusSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/status/index.ts')
   const agentRunInteractionApprovalCardSource = readProjectFile('apps/frontend/src/features/agent/components/run-interaction-ui/card/index.tsx')
@@ -4959,11 +5917,15 @@ test('agent generation and provider session interactions use package tone contra
   const agentPackageIndexSource = readProjectFile('packages/ui/src/components/business/agent/index.tsx')
   const agentPackageStylesSource = readProjectFile('packages/ui/src/components/business/agent/styles.css')
   const agentSemanticUiSource = readProjectFile('apps/frontend/src/features/agent/presentation/agentSemanticUi.ts')
-  const providerSessionInteractionsSource = readProjectFile('apps/frontend/src/features/agent/components/providerSessionInteractions.tsx')
+  const providerSessionInteractionsSource = [
+    readProjectFile('apps/frontend/src/features/agent/components/providerSessionInteractions.tsx'),
+    readProjectFile('apps/frontend/src/features/agent/components/ProviderSessionRequestCards.tsx'),
+  ].join('\n')
   const movScriptWorkspaceFilesSource = readProjectFile('apps/frontend/src/features/agent/components/MovScriptWorkspaceFilesPage.tsx')
   const agentArtifactResultCardsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx')
   const sources = [
     generationCardsSource,
+    generationCardUiSource,
     pinnedStatusShelfSource,
     providerSessionInteractionsSource,
     movScriptWorkspaceFilesSource,
@@ -4978,20 +5940,78 @@ test('agent generation and provider session interactions use package tone contra
     movScriptWorkspaceFilesSource,
     agentArtifactResultCardsSource,
   ].join('\n'), /toneTextClass|toneSurfaceClass|accent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class/)
-  assert.match(generationCardsSource, /AgentGenerated(?:Card|Item|IntentText|Stat)/)
-  assert.match(generationCardsSource, /toneTextClass/)
-  assert.match(generationCardsSource, /toneSurfaceClass/)
-  assert.doesNotMatch(generationCardsSource, /\b(?:AgentGeneratedCallout|ReviewCallout)\b/)
+  const generationCardSources = `${generationCardsSource}\n${generationCardUiSource}`
+  assert.match(generationCardSources, /AgentGenerated(?:Card|Item|IntentText|Stat)/)
+  assert.match(generationCardUiSource, /toneTextClass/)
+  assert.match(generationCardUiSource, /toneSurfaceClass/)
+  assert.doesNotMatch(generationCardSources, /\b(?:AgentGeneratedCallout|ReviewCallout)\b/)
   assert.match(pinnedStatusShelfSource, /AgentPlanOverviewTaskStatusIcon/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewHeader[\s\S]*?"ms-action-row ms-agent-plan-overview__header"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewShell[\s\S]*?"ms-type-label ms-agent-plan-overview"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewTitle[\s\S]*?"ms-action-row ms-agent-plan-overview__title"/)
+  assert.match(agentPlanOverviewShellSource, /"ms-inline-center ms-agent-plan-overview__title-icon"/)
+  assert.match(agentPlanOverviewShellSource, /"ms-text-truncate ms-type-label ms-agent-plan-overview__title-text"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewStats[\s\S]*?"ms-type-tiny ms-agent-plan-overview__stats"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewDescription[\s\S]*?"ms-type-tiny ms-agent-plan-overview__description"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewStatusBadge[\s\S]*?"ms-type-tiny ms-agent-plan-overview__status"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewActionBar[\s\S]*?"ms-action-row ms-agent-plan-overview__actions"/)
+  assert.match(agentPlanOverviewShellSource, /AgentPlanOverviewActionButton[\s\S]*?"ms-type-tiny ms-agent-plan-overview__action"/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview__(?:stats|description|status|action)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview__description\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview__title\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview__title-text\s*\{[^}]*text-overflow/)
+  assert.doesNotMatch(agentPlanOverviewShellCss, /\.ms-agent-plan-overview__actions\s*\{[^}]*display:\s*flex/)
   assert.match(agentPlanOverviewTaskSource, /export const AgentPlanOverviewTaskStatusIcon/)
   assert.match(agentPlanOverviewTaskSource, /toneTextClass\(intent\)/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewList[\s\S]*?"ms-stack ms-agent-plan-overview-list"/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewTaskCard[\s\S]*?"ms-action-row ms-agent-plan-overview-task"/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewTaskStatusIcon[\s\S]*?"ms-inline-center ms-agent-plan-overview-task__status-icon"/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewTaskHeader[\s\S]*?"ms-action-row ms-agent-plan-overview-task__header"/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewTaskTitle[\s\S]*?"ms-text-truncate ms-type-tiny ms-agent-plan-overview-task__title"/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewTaskBadge[\s\S]*?"ms-type-tiny ms-agent-plan-overview-task__badge"/)
+  assert.match(agentPlanOverviewTaskSource, /AgentPlanOverviewTaskMeta[\s\S]*?"ms-action-row ms-type-tiny ms-agent-plan-overview-task__meta"/)
   assert.match(agentPlanOverviewTaskCss, cssClassSelectorPattern('ms-agent-plan-overview-task__status-icon'))
-  assert.match(generationCardsSource, /\bAgentGeneratedProgressBar\b/)
-  assert.match(generationCardsSource, /\bAgentGeneratedStatusBadge\b/)
-  assert.match(generationCardsSource, /function AgentGeneratedProgressBar[\s\S]*?<AppProgressBar/)
-  assert.match(generationCardsSource, /function AgentGeneratedStatusBadge[\s\S]*?<StatusBadge/)
-  assert.match(generationCardsSource, /function AgentGeneratedCard[\s\S]*?<AgentSurfaceBlock/)
-  assert.match(generationCardsSource, /function AgentGeneratedItem[\s\S]*?<AgentSurfaceBlock/)
+  assert.doesNotMatch(agentPlanOverviewTaskCss, /\.ms-agent-plan-overview-list\s*\{[^}]*display:\s*grid/)
+  assert.doesNotMatch(agentPlanOverviewTaskCss, /\.ms-agent-plan-overview-task\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPlanOverviewTaskCss, /\.ms-agent-plan-overview-task__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPlanOverviewTaskCss, /\.ms-agent-plan-overview-task__title\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(agentPlanOverviewTaskCss, /\.ms-agent-plan-overview-task__(?:title|badge|meta)\s*\{[^}]*font-size:/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewItemCard[\s\S]*?"ms-type-tiny ms-agent-plan-overview-item"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewItemHeader[\s\S]*?"ms-action-row ms-agent-plan-overview-item__header"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewItemTitle[\s\S]*?"ms-text-truncate ms-agent-plan-overview-item__title"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewItemActions[\s\S]*?"ms-action-row ms-agent-plan-overview-item__actions"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewMetaRow[\s\S]*?"ms-action-row ms-type-tiny ms-agent-plan-overview-meta-row"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewMetaText[\s\S]*?"ms-text-truncate ms-agent-plan-overview-meta-text"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewBadge[\s\S]*?"ms-text-truncate ms-type-tiny ms-agent-plan-overview-badge"/)
+  assert.match(agentPlanOverviewItemSource, /AgentPlanOverviewInlineActions[\s\S]*?"ms-action-row ms-agent-plan-overview-inline-actions"/)
+  assert.doesNotMatch(agentPlanOverviewItemCss, /\.ms-agent-plan-overview-item\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentPlanOverviewItemCss, /\.ms-agent-plan-overview-item__header\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(agentPlanOverviewItemCss, /\.ms-agent-plan-overview-item__title\s*\{[^}]*text-overflow:/)
+  assert.doesNotMatch(agentPlanOverviewItemCss, /\.ms-agent-plan-overview-(?:meta-row|badge)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentPlanOverviewItemCss, /\.ms-agent-plan-overview-(?:item__actions|inline-actions|meta-row)\s*\{[^}]*display:\s*flex/)
+  assert.match(agentPlanOverviewDisclosureSource, /AgentPlanOverviewDisclosureSummary[\s\S]*?"ms-action-row ms-type-tiny ms-agent-plan-overview-disclosure__summary"/)
+  assert.match(agentPlanOverviewDisclosureSource, /AgentPlanOverviewDisclosureBody[\s\S]*?"ms-stack ms-type-tiny ms-agent-plan-overview-disclosure__body"/)
+  assert.match(agentPlanOverviewDisclosureSource, /AgentPlanOverviewFilterRow[\s\S]*?"ms-action-row ms-agent-plan-overview-filter-row"/)
+  assert.doesNotMatch(agentPlanOverviewDisclosureCss, /\.ms-agent-plan-overview-disclosure__(?:summary|body)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentPlanOverviewDisclosureCss, /\.ms-agent-plan-overview-disclosure__(?:summary|body)\s*\{[^}]*display:\s*(?:flex|grid)/)
+  assert.doesNotMatch(agentPlanOverviewDisclosureCss, /\.ms-agent-plan-overview-filter-row\s*\{[^}]*display:\s*flex/)
+  assert.match(agentPlanOverviewFeedbackSource, /className="ms-type-tiny ms-agent-plan-overview-code__summary"/)
+  assert.match(agentPlanOverviewFeedbackSource, /className="ms-type-tiny ms-agent-plan-overview-code__content"/)
+  assert.match(agentPlanOverviewFeedbackSource, /AgentPlanOverviewNotice[\s\S]*?"ms-type-tiny ms-agent-plan-overview-notice"/)
+  assert.match(agentPlanOverviewFeedbackSource, /AgentPlanOverviewNoticeTitle[\s\S]*?"ms-text-truncate ms-agent-plan-overview-notice__title"/)
+  assert.match(agentPlanOverviewFeedbackSource, /AgentPlanOverviewText[\s\S]*?"ms-type-tiny ms-agent-plan-overview-text"/)
+  assert.match(agentPlanOverviewFeedbackSource, /AgentPlanOverviewWarningText[\s\S]*?"ms-type-tiny ms-agent-plan-overview-warning"/)
+  assert.doesNotMatch(agentPlanOverviewFeedbackCss, /\.ms-agent-plan-overview-(?:code__summary|code__content|notice|text|warning)\s*\{[^}]*font-size:/)
+  assert.doesNotMatch(agentPlanOverviewFeedbackCss, /\.ms-agent-plan-overview-(?:code__content|notice|text|warning)\s*\{[^}]*line-height:/)
+  assert.doesNotMatch(agentPlanOverviewFeedbackCss, /\.ms-agent-plan-overview-notice__title\s*\{[^}]*text-overflow:/)
+  assert.match(generationCardSources, /\bAgentGeneratedProgressBar\b/)
+  assert.match(generationCardSources, /\bAgentGeneratedStatusBadge\b/)
+  assert.match(generationCardUiSource, /function AgentGeneratedProgressBar[\s\S]*?<AppProgressBar/)
+  assert.match(generationCardUiSource, /function AgentGeneratedStatusBadge[\s\S]*?<StatusBadge/)
+  assert.match(generationCardUiSource, /function AgentGeneratedCard[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(generationCardUiSource, /function AgentGeneratedItem[\s\S]*?<AgentSurfaceBlock/)
   assert.match(generationCardsCss, /\.agent-generated-card\s*\{/)
   assert.match(generationCardsSource, /agentGenerationStatusRecipe/)
   assert.match(generationCardsSource, /agentGenerationStatusRecipe\(badge\.state\)/)
@@ -5079,11 +6099,17 @@ test('jobs status badges use package semantic status contracts', () => {
   const jobsSource = [
     readProjectFile('apps/frontend/src/features/jobs/components/JobsPage.tsx'),
     readProjectFile('apps/frontend/src/features/jobs/components/JobsPageParts.tsx'),
+    readProjectFile('apps/frontend/src/features/jobs/components/JobsPageCards.tsx'),
   ].join('\n')
   const jobsSemanticUiSource = readProjectFile('apps/frontend/src/features/jobs/presentation/jobsSemanticUi.ts')
   const primitiveBadgeSource = readProjectFile('packages/ui/src/components/primitives/badge.tsx')
-  const jobsPackageSource = readJobsSource()
-  const jobsPackageCss = readJobsCss()
+  const jobsPageUiSource = readProjectFile('apps/frontend/src/features/jobs/components/JobsPageUi.tsx')
+  const jobsPageUiCss = readProjectFile('apps/frontend/src/features/jobs/components/JobsPageUi.css')
+  const jobsDisplayUiSource = readJobsDisplayUiSource()
+  const jobsDisplayUiCss = readJobsCss()
+  const packageJson = JSON.parse(readProjectFile('packages/ui/package.json'))
+  const packageBusinessBarrel = readProjectFile('packages/ui/src/components/business/index.ts')
+  const frontendCssEntry = readProjectFile('apps/frontend/src/index.css')
   const rawStatusPillPattern = /inline-flex items-center gap-1 type-label .*rounded-full/
   const rawCardShellPattern = /rounded-(?:lg|xl) border border-border bg-(?:background|card)/
 
@@ -5124,43 +6150,100 @@ test('jobs status badges use package semantic status contracts', () => {
     assert.match(jobsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by jobs page`)
   }
   assert.doesNotMatch(jobsSource, /\bJobsHeader\b/)
-  assert.match(jobsPackageSource, /export function JobsPageShell/)
-  assert.match(jobsPackageSource, /export function JobsActionButton/)
-  assert.match(jobsPackageSource, /export function JobsLoadingState/)
-  assert.match(jobsPackageSource, /export function JobDetailCodeBlock/)
-  assert.match(jobsPackageSource, /export function JobDetailKeyValue/)
-  assert.match(jobsPackageSource, /export function JobCardShell/)
-  assert.match(jobsPackageSource, /export function JobGridMediaPreview/)
-  assert.match(jobsPackageSource, /export function JobListMediaPreview/)
-  assert.match(jobsPackageSource, /export function JobStatusBadge/)
-  assert.match(jobsPackageSource, /export function JobSpinIcon/)
-  assert.match(jobsPackageSource, /StatusBadgeProps/)
-  assert.match(jobsPackageSource, /\.\.\.statusProps/)
+  for (const exportName of [
+    'JobsActionButton',
+    'JobsCategorySection',
+    'JobsCollection',
+    'JobsCountPill',
+    'JobsEmptyState',
+    'JobsFilterBar',
+    'JobsFilterChipButton',
+    'JobsFilterDivider',
+    'JobsFilterGroup',
+    'JobsHeaderStatus',
+    'JobsLoadingState',
+    'JobsPageShell',
+    'JobsPager',
+    'JobsPagerButton',
+    'JobsSelectedDetailRegion',
+    'JobsViewToggle',
+  ]) {
+    assert.match(jobsPageUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be jobs feature-owned`)
+    assert.doesNotMatch(jobsDisplayUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must remain jobs feature-owned, not shared display UI`)
+  }
+  assert.match(jobsDisplayUiSource, /export function JobDetailCodeBlock/)
+  assert.match(jobsDisplayUiSource, /export function JobDetailKeyValue/)
+  assert.match(jobsDisplayUiSource, /export function JobCardShell/)
+  assert.match(jobsDisplayUiSource, /export function JobGridMediaPreview/)
+  assert.match(jobsDisplayUiSource, /export function JobListMediaPreview/)
+  assert.match(jobsDisplayUiSource, /export function JobStatusBadge/)
+  assert.match(jobsDisplayUiSource, /export function JobSpinIcon/)
+  assert.match(jobsDisplayUiSource, /StatusBadgeProps/)
+  assert.match(jobsDisplayUiSource, /\.\.\.statusProps/)
+  assert.match(jobsDisplayUiSource, /from "@movscript\/ui\/business\/app"/)
+  assert.match(jobsDisplayUiSource, /from "@movscript\/ui\/primitives"/)
+  assert.match(jobsSource, /from ['"]@\/shared\/ui\/JobDisplayUi['"]/)
+  assert.doesNotMatch(jobsSource, /@movscript\/ui\/business\/jobs/)
+  assert.equal(packageJson.exports['./business/jobs'], undefined, 'jobs display UI must not be exported from @movscript/ui')
+  assert.equal(packageJson.exports['./styles/business/jobs.css'], undefined, 'jobs display CSS must not be exported from @movscript/ui')
+  assert.doesNotMatch(packageBusinessBarrel, /export \* as jobs from "\.\/jobs"/)
+  assert.doesNotMatch(frontendCssEntry, /@movscript\/ui\/styles\/business\/jobs\.css/)
   assert.match(jobsSemanticUiSource, /jobStatusRecipe/)
   assert.match(jobsSource, /jobStatusRecipe\(status\)/)
   assert.doesNotMatch(jobsSource, /<JobStatusBadge\b[^>]*\btone=/)
-  assert.match(jobsPackageSource, /export const JobsFilterChipButton/)
-  assert.match(jobsPackageSource, /export const JobsPagerButton/)
-  assert.match(jobsPackageCss, /\.jobs-header\s*\{/)
-  assert.match(jobsPackageCss, /\.jobs-header-status\s*\{/)
-  assert.match(jobsPackageCss, /\.jobs-filter-chip-button\s*\{/)
-  assert.match(jobsPackageCss, /\.jobs-loading-state\s*\{/)
-  assert.match(jobsPackageCss, /\.jobs-action-button\s*\{/)
-  assert.match(jobsPackageCss, /\.jobs-pager-button\s*\{/)
-  assert.match(jobsPackageCss, /\.job-spin-icon\s*\{/)
-  assert.match(jobsPackageCss, /\.job-list-media-area__preview\s*\{/)
-  assert.match(jobsPackageCss, /\.job-list-media-area__preview > \*\s*\{[\s\S]*border-radius:\s*0/)
-  assert.match(jobsPackageCss, /\.job-grid-media-area\s*\{/)
-  assert.match(jobsPackageCss, /\.job-grid-media-area > \.job-grid-media-area__preview\s*\{/)
-  assert.match(jobsPackageCss, /\.jobs-pager\s*\{/)
+  assert.match(jobsPageUiSource, /function JobsEmptyState[\s\S]*?<AppEmptyState/)
+  assert.match(jobsPageUiSource, /function JobsActionButton[\s\S]*?<Button/)
+  assert.match(jobsPageUiCss, /\.jobs-header-status\s*\{/)
+  assert.match(jobsPageUiCss, /\.jobs-filter-chip-button\s*\{/)
+  assert.match(jobsPageUiCss, /\.jobs-loading-state\s*\{/)
+  assert.match(jobsPageUiCss, /\.jobs-action-button\s*\{/)
+  assert.match(jobsPageUiCss, /\.jobs-pager-button\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-spin-icon\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-list-media-area__preview\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-list-media-area__preview > \*\s*\{[\s\S]*border-radius:\s*0/)
+  assert.match(jobsDisplayUiCss, /\.job-grid-media-area\s*\{/)
+  assert.match(jobsDisplayUiCss, /\.job-grid-media-area > \.job-grid-media-area__preview\s*\{/)
+  assert.match(jobsPageUiCss, /\.jobs-pager\s*\{/)
   assert.match(jobsSource, /\bJobDetailKeyValue\b/)
-  assert.match(jobsPackageSource, /function JobDetailKeyValue[\s\S]*?<AppKeyValue/)
+  assert.match(jobsDisplayUiSource, /function JobDetailKeyValue[\s\S]*?<AppKeyValue/)
   assert.match(jobsSource, /JobsEmptyState/)
-  assert.match(jobsPackageSource, /function JobsEmptyState[\s\S]*?<AppEmptyState/)
   assert.match(jobsSource, /\bJobDetailCodeBlock\b/)
-  assert.match(jobsPackageSource, /function JobDetailCodeBlock[\s\S]*?<AppCodeBlock/)
+  assert.match(jobsDisplayUiSource, /function JobDetailCodeBlock[\s\S]*?<AppCodeBlock/)
   assert.match(jobsSource, /\bJobsActionButton\b/)
-  assert.match(jobsPackageSource, /function JobsActionButton[\s\S]*?<Button/)
+  for (const jobsLayoutPackageFile of [
+    'packages/ui/src/business/jobs.ts',
+    'packages/ui/src/styles/business/jobs.css',
+    'packages/ui/src/components/business/jobs/index.tsx',
+    'packages/ui/src/components/business/jobs/styles.css',
+    'packages/ui/src/components/business/jobs/status/index.tsx',
+    'packages/ui/src/components/business/jobs/status/styles.css',
+    'packages/ui/src/components/business/jobs/detail/index.tsx',
+    'packages/ui/src/components/business/jobs/detail/styles.css',
+    'packages/ui/src/components/business/jobs/card/index.tsx',
+    'packages/ui/src/components/business/jobs/card/styles.css',
+    'packages/ui/src/components/business/jobs/card/shell/index.tsx',
+    'packages/ui/src/components/business/jobs/card/shell/styles.css',
+    'packages/ui/src/components/business/jobs/card/header/index.tsx',
+    'packages/ui/src/components/business/jobs/card/header/styles.css',
+    'packages/ui/src/components/business/jobs/card/media/index.tsx',
+    'packages/ui/src/components/business/jobs/card/media/styles.css',
+    'packages/ui/src/components/business/jobs/card/state/index.tsx',
+    'packages/ui/src/components/business/jobs/card/state/styles.css',
+    'packages/ui/src/components/business/jobs/card/grid/index.tsx',
+    'packages/ui/src/components/business/jobs/card/grid/styles.css',
+    'packages/ui/src/components/business/jobs/layout/index.tsx',
+    'packages/ui/src/components/business/jobs/layout/styles.css',
+    'packages/ui/src/components/business/jobs/layout/shell/index.tsx',
+    'packages/ui/src/components/business/jobs/layout/header/index.tsx',
+    'packages/ui/src/components/business/jobs/layout/filters/index.tsx',
+    'packages/ui/src/components/business/jobs/layout/collection/index.tsx',
+    'packages/ui/src/components/business/jobs/layout/pager/index.tsx',
+  ]) {
+    assert.equal(existsSync(path.join(root, jobsLayoutPackageFile)), false, `${jobsLayoutPackageFile} must not remain in packages/ui`)
+  }
+  assert.match(readProjectFile('apps/frontend/src/features/jobs/components/JobsPage.tsx'), /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
+  assert.match(readProjectFile('apps/frontend/src/features/jobs/components/JobsPageParts.tsx'), /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
+  assert.match(readProjectFile('apps/frontend/src/features/jobs/components/JobsPageCards.tsx'), /from ['"]@\/features\/jobs\/components\/JobsPageUi['"]/)
   assert.doesNotMatch(jobsSource, /\bAppKeyValue\b/)
   assert.doesNotMatch(jobsSource, /\bAppCodeBlock\b/)
   assert.doesNotMatch(jobsSource, /\bAppStateMessage\b/)
@@ -5200,31 +6283,23 @@ test('scripts workspace surfaces use package structural primitives', () => {
   const scriptsSemanticUiSource = readProjectFile('apps/frontend/src/features/scripts/presentation/scriptsSemanticUi.ts')
   const scriptFormSource = readProjectFile('apps/frontend/src/features/scripts/components/ScriptForm.tsx')
   const entityCreateFormsSource = readProjectFile('apps/frontend/src/shared/ui/EntityCreateForms.tsx')
+  const scriptCreateFormUiSource = readProjectFile('apps/frontend/src/shared/ui/ScriptCreateFormUi.tsx')
+  const scriptCreateFormUiCss = readProjectFile('apps/frontend/src/shared/ui/ScriptCreateFormUi.css')
   const businessIndexSource = readProjectFile('packages/ui/src/components/business/index.ts')
-  const scriptsPackageSource = readProjectFile('packages/ui/src/components/business/scripts/index.tsx')
-  const scriptsPackageCss = readProjectFile('packages/ui/src/components/business/scripts/styles.css')
-  const scriptsCreateFormSource = readProjectFile('packages/ui/src/components/business/scripts/create-form/index.tsx')
-  const scriptsCreateFormCss = readProjectFile('packages/ui/src/components/business/scripts/create-form/styles.css')
-  const scriptsDetailHeaderSource = readProjectFile('packages/ui/src/components/business/scripts/detail-header/index.tsx')
-  const scriptsDetailHeaderCss = readProjectFile('packages/ui/src/components/business/scripts/detail-header/styles.css')
-  const scriptsTabsSource = readProjectFile('packages/ui/src/components/business/scripts/tabs/index.tsx')
-  const scriptsTabsCss = readProjectFile('packages/ui/src/components/business/scripts/tabs/styles.css')
-  const scriptsLibrarySource = readScriptsLibrarySource()
-  const scriptsLibraryCss = readScriptsLibraryCss()
-  const scriptsVersionSource = readProjectFile('packages/ui/src/components/business/scripts/version/index.tsx')
-  const scriptsVersionCss = readProjectFile('packages/ui/src/components/business/scripts/version/styles.css')
-  const scriptsPageFeatureSource = readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageUi.tsx')
-  const scriptsPageFeatureCss = readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPageUi.css')
-  const scriptsPagePackageDir = path.join(root, 'packages/ui/src/components/business/scripts/page')
+  const scriptsPageFeatureSource = readScriptsPageFeatureSource()
+  const scriptsPageFeatureCss = readScriptsPageFeatureCss()
+  const scriptsPackageDir = path.join(root, 'packages/ui/src/components/business/scripts')
+  const scriptsBusinessEntry = path.join(root, 'packages/ui/src/business/scripts.ts')
+  const scriptsStyleEntry = path.join(root, 'packages/ui/src/styles/business/scripts.css')
   const rawPanelShellPattern = /rounded-md border border-border bg-background p-3/
 
-  for (const exportName of ['ScriptWorkspaceShell', 'ScriptWorkspaceInspector', 'ScriptWorkspaceStat', 'ScriptMetricBox', 'ScriptVersionHistoryPanel', 'ScriptVersionEmptyState', 'ScriptProductionPanel', 'ScriptProductionNotice', 'ScriptCollaborationStack', 'ScriptAgentAssistPanel', 'ScriptReadinessPanel', 'ScriptWorkflowPanel', 'ScriptVersionBlockShell', 'ScriptVersionLineEditor', 'ScriptBlockCard', 'ScriptBlockSelectField', 'ScriptDetailHeader', 'ScriptDetailTabs', 'ScriptLibraryEmptyState', 'ScriptLibraryGroup', 'ScriptLibraryItem', 'ScriptLibraryRail', 'ScriptVersionCard', 'StatusBadge', 'Badge']) {
+  for (const exportName of ['ScriptWorkspaceShell', 'ScriptWorkspaceInspector', 'ScriptMetricBox', 'ScriptVersionHistoryPanel', 'ScriptVersionEmptyState', 'ScriptProductionPanel', 'ScriptProductionNotice', 'ScriptCollaborationStack', 'ScriptAgentAssistPanel', 'ScriptReadinessPanel', 'ScriptWorkflowPanel', 'ScriptVersionBlockShell', 'ScriptVersionLineEditor', 'ScriptBlockCard', 'ScriptBlockSelectField', 'ScriptDetailHeader', 'ScriptDetailTabs', 'ScriptVersionCard', 'StatusBadge', 'Badge']) {
     assert.match(scriptsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by scripts workspace`)
   }
   for (const removedPageLevelName of ['ScriptWorkspaceLayout', 'ScriptWorkspaceMain']) {
     assert.doesNotMatch(scriptsSource, new RegExp(`\\b${removedPageLevelName}\\b`), `${removedPageLevelName} should not be required by the scripts workspace`)
     assert.doesNotMatch(scriptsPageFeatureSource, new RegExp(`export (?:function|const) ${removedPageLevelName}\\b`), `${removedPageLevelName} should not remain as a feature wrapper`)
-    assert.doesNotMatch(scriptsPackageSource, new RegExp(`\\b${removedPageLevelName}\\b`), `${removedPageLevelName} must not be exported from packages/ui`)
+    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${removedPageLevelName}\\b`), `${removedPageLevelName} must not be exported from packages/ui`)
   }
   for (const exportName of ['AppPanel', 'AppProgressBar', 'AppMetricCard', 'AppEmptyState', 'AppStateMessage', 'AppSurfaceItem', 'NativeSelect', 'Textarea']) {
     assert.doesNotMatch(scriptsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be owned by scripts package components, not ScriptsPage`)
@@ -5249,20 +6324,18 @@ test('scripts workspace surfaces use package structural primitives', () => {
   ]) {
     assert.match(scriptFormSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by ScriptForm`)
     assert.match(scriptsPageFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
-    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must stay behind @movscript/ui/business/scripts`)
+    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui business`)
   }
   for (const exportName of [
     'ScriptEditorErrorText',
     'ScriptEditorHiddenFileInput',
     'ScriptEditorInlineMeta',
-    'ScriptEditorToolbar',
-    'ScriptEditorToolbarGroup',
   ]) {
     assert.match(scriptsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by scripts workspace`)
     assert.match(scriptsPageFeatureSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be feature-owned`)
-    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must stay behind @movscript/ui/business/scripts`)
+    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui business`)
   }
-  assert.match(businessIndexSource, /export \* as scripts from "\.\/scripts";/)
+  assert.doesNotMatch(businessIndexSource, /export \* as scripts from "\.\/scripts";/)
   assert.match(scriptsSource, /<ScriptEditorHiddenFileInput[\s\S]*?ref=\{fileInputRef\}[\s\S]*?type="file"/)
   assert.match(scriptFormSource, /<ScriptEditorSidePanel variant="muted">[\s\S]*?保存为版本/)
   assert.doesNotMatch(scriptFormSource, /\b(?:AppSurfaceItem|Button|Input|Label|Textarea|toneTextClass)\b/)
@@ -5274,43 +6347,36 @@ test('scripts workspace surfaces use package structural primitives', () => {
   assert.doesNotMatch(entityCreateFormsSource, /<Input\b/)
   assert.doesNotMatch(entityCreateFormsSource, /<Textarea\b/)
   assert.doesNotMatch(entityCreateFormsSource, /<Button\b/)
-  assert.match(scriptsCreateFormSource, /export function ScriptCreateFormShell/)
-  assert.match(scriptsCreateFormSource, /\bLabel\b/)
-  assert.match(scriptsCreateFormSource, /\bInput\b/)
-  assert.match(scriptsCreateFormSource, /\bTextarea\b/)
-  assert.match(scriptsCreateFormSource, /\bButton\b/)
-  assert.match(scriptsCreateFormCss, /\.script-create-form\s*\{/)
-  assert.match(scriptsPackageSource, /from "\.\/detail-header"/)
-  assert.match(scriptsPackageSource, /from "\.\/create-form"/)
-  assert.match(scriptsPackageSource, /from "\.\/tabs"/)
-  assert.match(scriptsPackageSource, /from "\.\/library"/)
-  assert.match(scriptsPackageSource, /from "\.\/version"/)
-  assert.doesNotMatch(scriptsPackageSource, /from "\.\/page"/)
-  assert.match(scriptsPackageCss, /@import "\.\/detail-header\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/create-form\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/tabs\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/library\/styles\.css";/)
-  assert.match(scriptsPackageCss, /@import "\.\/version\/styles\.css";/)
-  assert.doesNotMatch(scriptsPackageCss, /@import "\.\/page\/styles\.css";/)
-  assert.equal(existsSync(scriptsPagePackageDir), false, 'scripts page-level UI must not remain in packages/ui')
+  assert.match(entityCreateFormsSource, /from '@\/shared\/ui\/ScriptCreateFormUi'/)
+  assert.match(scriptCreateFormUiSource, /export function ScriptCreateFormShell/)
+  assert.match(scriptCreateFormUiSource, /\bLabel\b/)
+  assert.match(scriptCreateFormUiSource, /\bInput\b/)
+  assert.match(scriptCreateFormUiSource, /\bTextarea\b/)
+  assert.match(scriptCreateFormUiSource, /\bButton\b/)
+  assert.match(scriptCreateFormUiCss, /\.script-create-form\s*\{/)
+  assert.equal(existsSync(scriptsPackageDir), false, 'scripts UI must not remain in packages/ui')
+  assert.equal(existsSync(scriptsBusinessEntry), false, 'scripts business entry must not remain in @movscript/ui')
+  assert.equal(existsSync(scriptsStyleEntry), false, 'scripts CSS entry must not remain in @movscript/ui')
+  for (const scriptsLibraryPackageFile of [
+    'packages/ui/src/components/business/scripts/library/index.tsx',
+    'packages/ui/src/components/business/scripts/library/styles.css',
+    'packages/ui/src/components/business/scripts/library/rail/index.tsx',
+    'packages/ui/src/components/business/scripts/library/empty-state/index.tsx',
+    'packages/ui/src/components/business/scripts/library/group/index.tsx',
+    'packages/ui/src/components/business/scripts/library/item/index.tsx',
+  ]) {
+    assert.equal(existsSync(path.join(root, scriptsLibraryPackageFile)), false, `${scriptsLibraryPackageFile} must not remain in packages/ui`)
+  }
   assert.match(scriptsPageFeatureSource, /import "\.\/ScriptsPageUi\.css"/)
-  assert.match(scriptsDetailHeaderSource, /export function ScriptDetailHeader/)
-  assert.match(scriptsTabsSource, /export function ScriptDetailTabs/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryRail/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryEmptyState/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryGroup/)
-  assert.match(scriptsLibrarySource, /export function ScriptLibraryItem/)
-  assert.match(scriptsVersionSource, /export function ScriptVersionCard/)
-  assert.match(scriptsDetailHeaderCss, /\.script-detail-header\s*\{/)
-  assert.match(scriptsTabsCss, /\.script-detail-tabs\s*\{/)
-  assert.match(scriptsLibraryCss, /\.script-library-rail\s*\{/)
-  assert.match(scriptsLibraryCss, /\.script-library-empty\s*\{/)
-  assert.match(scriptsLibraryCss, /\.script-library-group\s*\{/)
-  assert.match(scriptsLibraryCss, /\.script-library-item\s*\{/)
-  assert.match(scriptsVersionCss, /\.script-version-card\s*\{/)
+  assert.match(scriptsPageFeatureSource, /export function ScriptDetailHeader/)
+  assert.match(scriptsPageFeatureSource, /export function ScriptDetailTabs/)
+  assert.match(scriptsPageFeatureSource, /export function ScriptVersionCard/)
+  assert.match(scriptsPageFeatureCss, /\.script-detail-header\s*\{/)
+  assert.match(scriptsPageFeatureCss, /\.script-detail-tabs\s*\{/)
+  assert.match(scriptsPageFeatureCss, /\.script-version-card\s*\{/)
   for (const componentName of ['ScriptWorkspaceShell', 'ScriptVersionHistoryPanel', 'ScriptProductionPanel', 'ScriptReadinessPanel', 'ScriptVersionLineEditor', 'ScriptBlockCard', 'ScriptBlockSelectField']) {
     assert.match(scriptsPageFeatureSource, new RegExp(`export function ${componentName}\\b`), `${componentName} must be feature-owned`)
-    assert.doesNotMatch(scriptsPackageSource, new RegExp(`\\b${componentName}\\b`), `${componentName} must not be exported from the scripts UI package entry`)
+    assert.doesNotMatch(businessIndexSource, new RegExp(`\\b${componentName}\\b`), `${componentName} must not be exported from @movscript/ui business`)
   }
   for (const selector of [
     'script-editor-form',
@@ -5331,16 +6397,13 @@ test('scripts workspace surfaces use package structural primitives', () => {
     'script-block-select-field',
   ]) {
     assert.match(scriptsPageFeatureCss, new RegExp(`\\.${selector}\\b`), `${selector} styles must be feature-owned`)
-    assert.doesNotMatch(scriptsPackageCss, new RegExp(`\\.${selector}\\b`), `${selector} styles must not be shipped from packages/ui`)
   }
 
-  assert.match(scriptsPageFeatureSource, /function ScriptWorkspaceStat[\s\S]*?AppMetricCard/)
   assert.match(scriptsPageFeatureSource, /function ScriptMetricBox[\s\S]*?AppMetricCard/)
   assert.match(scriptsSource, /function VersionStatusBadge[\s\S]*?StatusBadge/)
   assert.match(scriptsSource, /function ScriptStageBadge[\s\S]*?StatusBadge/)
   assert.match(scriptsSource, /function ScriptTypeBadge[\s\S]*?Badge/)
   for (const recipeName of [
-    'scriptLibraryStatusRecipe',
     'scriptReadinessRecipe',
     'scriptVersionStatusRecipe',
     'scriptStageRecipe',
@@ -5349,11 +6412,8 @@ test('scripts workspace surfaces use package structural primitives', () => {
     assert.match(scriptsSemanticUiSource, new RegExp(`export function ${recipeName}\\b`), `${recipeName} must be script semantic UI-owned`)
     assert.match(scriptsSource, new RegExp(`\\b${recipeName}\\b`), `${recipeName} must be consumed by scripts workspace`)
   }
-  assert.match(scriptsLibrarySource, /statusProps\?: StatusDotProps/)
-  assert.match(scriptsLibrarySource, /<StatusDot[\s\S]*?\{\.\.\.statusVisualProps\}/)
-  assert.doesNotMatch(scriptsLibrarySource, /\bstatusTone\b/)
-  assert.doesNotMatch(scriptsLibrarySource, /<StatusDot\b[^>]*\btone=/)
-  assert.match(scriptsSource, /<ScriptLibraryItem[\s\S]*?statusProps=\{scriptLibraryStatusRecipe\(hasVersions, bodyLength\)\}/)
+  assert.doesNotMatch(scriptsPageFeatureSource, /\bstatusTone\b/)
+  assert.doesNotMatch(scriptsPageFeatureSource, /<StatusDot\b[^>]*\btone=/)
   assert.doesNotMatch(scriptsSource, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(scriptsSource, /\bstatusTone=/)
   assert.doesNotMatch(scriptsSource, /\bSemanticTone\b/)
@@ -5378,9 +6438,8 @@ test('scripts workspace surfaces use package structural primitives', () => {
   assert.doesNotMatch(scriptFormSource, /<input\b/)
   assert.doesNotMatch(scriptFormSource, /text-destructive/)
   assert.doesNotMatch(scriptFormSource, /rounded-lg border border-border bg-muted\/40 p-3/)
-  assert.match(scriptsSource, /<ScriptDetailHeader[\s\S]*?badges=\{\([\s\S]*?<ScriptTypeBadge[\s\S]*?metrics=\{\(/)
+  assert.match(scriptsSource, /<ScriptDetailHeader[\s\S]*?badges=\{\([\s\S]*?<ScriptTypeBadge[\s\S]*?actions=\{\(/)
   assert.match(scriptsSource, /<ScriptDetailTabs[\s\S]*?activeKey=\{detailTab\}[\s\S]*?onSelect=\{\(key\) => setDetailTab\(key as ScriptDetailTab\)\}/)
-  assert.match(scriptsSource, /<ScriptLibraryRail[\s\S]*?<ScriptLibraryEmptyState[\s\S]*?<ScriptLibraryGroup[\s\S]*?<ScriptLibraryItem/)
   assert.match(scriptsSource, /<ScriptVersionCard[\s\S]*?versionLabel=\{`v\$\{version\.version_number \|\| version\.ID\}`\}[\s\S]*?toggleLabel=/)
   assert.match(scriptsSource, /latestVersion[\s\S]*?<ScriptProductionNotice title="将使用最新版本"/)
   assert.match(scriptsSource, /<ScriptWorkflowStep index="01" title="完善正文"/)
@@ -5521,7 +6580,7 @@ test('admin form feedback uses package semantic text components', () => {
 
   assert.match(uiAppSource, /function AppFeedbackText[\s\S]*?toneTextClass\(tone\)/, 'app feedback text must own semantic tone text mapping')
   assert.match(uiAppSource, /function AppRequiredMark[\s\S]*?toneTextClass\("danger"\)/, 'app required mark must own required danger text mapping')
-  assert.match(uiAppSource, /function AppStatusSurface[\s\S]*?data-tone=\{tone\}/, 'app status surface must own status container tone mapping')
+  assert.match(uiAppSource, /function AppStatusSurface[\s\S]*?<Surface[\s\S]*?tone=\{tone\}[\s\S]*?emphasis=\{appStatusSurfaceEmphasis\(emphasis\)\}/, 'app status surface must own status container tone mapping through Surface')
   assert.match(uiAppSource, /function AppStatusToggleButton[\s\S]*?data-selected=\{selected \? "true" : "false"\}/, 'app status toggle must own selected status tone mapping')
   assert.match(appDataTableSource, /tone\?: SemanticTone/, 'app data table row must expose semantic row tone')
   assert.match(appDataTableCss, /\.app-data-table__row\[data-tone="danger"\]/, 'app data table row must own semantic danger row styling')

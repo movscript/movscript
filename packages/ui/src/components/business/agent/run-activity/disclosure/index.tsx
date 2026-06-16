@@ -22,8 +22,8 @@ export function AgentRunActivityDisclosure({
   ...props
 }: AgentRunActivityDisclosureProps) {
   return (
-    <details className={cn("ms-agent-run-activity", className)} {...props}>
-      <summary className="ms-agent-run-activity__summary">
+    <details className={cn("ms-type-label ms-agent-run-activity", className)} {...props}>
+      <summary className="ms-action-row ms-agent-run-activity__summary">
         <AgentRunActivityTitle icon={icon}>{title}</AgentRunActivityTitle>
         <AgentRunActivityMeta>
           {action}
@@ -43,9 +43,9 @@ interface AgentRunActivityTitleProps extends React.HTMLAttributes<HTMLSpanElemen
 const AgentRunActivityTitle = React.forwardRef<HTMLSpanElement, AgentRunActivityTitleProps>(
   ({ className, icon, children, ...props }, ref) => {
     return (
-      <span ref={ref} className={cn("ms-agent-run-activity__title", className)} {...props}>
-        {icon ? <span className="ms-agent-run-activity__icon">{icon}</span> : null}
-        <span className="ms-agent-run-activity__title-text">{children}</span>
+      <span ref={ref} className={cn("ms-action-row ms-agent-run-activity__title", className)} {...props}>
+        {icon ? <span className="ms-inline-center ms-agent-run-activity__icon">{icon}</span> : null}
+        <span className="ms-text-truncate ms-agent-run-activity__title-text">{children}</span>
       </span>
     );
   }
@@ -55,7 +55,7 @@ AgentRunActivityTitle.displayName = "AgentRunActivityTitle";
 
 const AgentRunActivityMeta = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-run-activity__meta", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-action-row ms-agent-run-activity__meta", className)} {...props} />;
   }
 );
 
@@ -63,7 +63,7 @@ AgentRunActivityMeta.displayName = "AgentRunActivityMeta";
 
 const AgentRunActivitySummaryText = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
-    return <span ref={ref} className={cn("ms-agent-run-activity__summary-text", className)} {...props} />;
+    return <span ref={ref} className={cn("ms-type-tiny ms-agent-run-activity__summary-text", className)} {...props} />;
   }
 );
 
@@ -73,5 +73,5 @@ export function AgentRunActivityEmpty({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("ms-agent-run-activity-empty", className)} {...props} />;
+  return <div className={cn("ms-type-caption ms-agent-run-activity-empty", className)} {...props} />;
 }

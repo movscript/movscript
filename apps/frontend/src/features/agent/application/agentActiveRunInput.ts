@@ -6,6 +6,8 @@ import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 export interface SendActiveRunInputDeps {
   conversationId: string
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
   sessionId?: string
   run: AgentRun
@@ -27,7 +29,12 @@ export async function sendActiveRunInput(input: {
   }
   const providerSessionRunClient = providerSessionClient.forSession({
     sessionId,
-    ...(input.deps.workspaceDir?.trim() ? { workspaceDir: input.deps.workspaceDir.trim() } : {}),
+    ...(input.deps.movScriptHomeDir?.trim() || input.deps.workspaceDir?.trim()
+      ? {
+          movScriptHomeDir: input.deps.movScriptHomeDir?.trim() || input.deps.workspaceDir?.trim(),
+          workspaceDir: input.deps.movScriptHomeDir?.trim() || input.deps.workspaceDir?.trim(),
+        }
+      : {}),
   })
   try {
     const messageRunInput = {

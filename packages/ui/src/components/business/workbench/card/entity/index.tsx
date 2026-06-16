@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
-import { Surface } from "../../../../primitives";
+import { Frame } from "../../../../primitives";
 
 export function WorkbenchEntityCard({
   active,
@@ -24,7 +24,7 @@ export function WorkbenchEntityCard({
   action?: ReactNode;
 }) {
   return (
-    <Surface
+    <Frame
       as="button"
       type="button"
       kind="item"
@@ -52,6 +52,6 @@ export function WorkbenchEntityCard({
         </div>
       </div>
       {children}
-    </Surface>
+    </Frame>
   );
 }

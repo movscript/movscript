@@ -1,0 +1,98 @@
+.agent-settings-tool-permissions-diff {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-diff__item {
+  flex-wrap: nowrap;
+}
+
+.agent-settings-tool-permissions-diff__list {
+  display: grid;
+  gap: 6px;
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-diff__item {
+  padding: 6px var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-row {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-row__help,
+.agent-settings-tool-permissions-row__meta {
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-settings-tool-permissions-row__controls {
+  display: grid;
+  gap: var(--ms-space-2);
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-row__field-label {
+  display: block;
+  margin-bottom: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-weight: 500;
+}
+
+.agent-settings-tool-permissions-row__select {
+  height: 28px;
+}
+
+.agent-settings-tool-permissions-row__help {
+  margin: var(--ms-space-1) 0 0;
+}
+
+.agent-settings-tool-permissions-row__meta {
+  flex-wrap: wrap;
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-filter {
+  display: grid;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-filter__search,
+.agent-settings-tool-permissions-filter__select {
+  height: 28px;
+}
+
+.agent-settings-tool-permissions-filter__summary {
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-settings-tool-permissions-presets {
+  padding: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-presets__header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.agent-settings-tool-permissions-presets__empty {
+  margin: var(--ms-space-2) 0 0;
+}
+
+.agent-settings-tool-permissions-presets__list {
+  flex-wrap: wrap;
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-tool-permissions-presets__item {
+  padding: var(--ms-space-1);
+}
+
+.agent-settings-tool-permissions-presets__select {
+  max-width: 260px;
+}
+
+.agent-settings-tool-permissions-bulk {
+  flex-wrap: wrap;
+  padding: var(--ms-space-2);
+}

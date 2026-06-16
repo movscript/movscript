@@ -76,6 +76,20 @@ function emptyMCPContextSnapshot() {
   }
 }
 
+async function callTool(name, args, id = name) {
+  const response = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: {
+      name,
+      arguments: args,
+    },
+  })
+  assert.equal(response?.error, undefined, response?.error?.message)
+  return response.result.data
+}
+
 test('MCP initialize request returns the core JSON-RPC server identity', async () => {
   const response = await handleJSONRPC({
     jsonrpc: '2.0',
@@ -153,6 +167,9 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_query_assets'))
   assert.ok(tools.includes('domain_query_production_context'))
   assert.ok(tools.includes('domain_build_content_unit_backend_prompt'))
+  assert.ok(tools.includes('domain_read_production_timeline'))
+  assert.ok(tools.includes('domain_apply_production_timeline_commands'))
+  assert.ok(tools.includes('domain_compose_production_from_timeline'))
   assert.ok(tools.includes('domain_compose_scene_moment_from_edit_plan'))
   assert.ok(tools.includes('domain_read_content_unit_generation_prompt'))
   assert.ok(tools.includes('domain_read_content_unit_input_version'))
@@ -1480,6 +1497,11 @@ test('MCP content unit candidate flow writes source records and refreshes interp
       json: async () => ({}),
     })
 
+    if (parsed.pathname.endsWith('/decisions/query') && init.method === 'POST') {
+      return json((Array.isArray(body.target_refs) ? body.target_refs : [])
+        .map((targetRef) => decisionContexts.get(targetRef))
+        .filter(Boolean))
+    }
     if (parsed.pathname.endsWith('/decisions') && (init.method ?? 'GET') === 'GET') {
       return decisionContexts.has(parsed.searchParams.get('target_ref'))
         ? json(decisionContexts.get(parsed.searchParams.get('target_ref')))
@@ -1648,6 +1670,248 @@ test('MCP content unit candidate flow writes source records and refreshes interp
   } finally {
     globalThis.fetch = originalFetch
     updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (previousWorkspaceDir === undefined) {
+      delete process.env.MOVSCRIPT_WORKSPACE_DIR
+    } else {
+      process.env.MOVSCRIPT_WORKSPACE_DIR = previousWorkspaceDir
+    }
+    await rm(workspaceDir, { recursive: true, force: true })
+  }
+})
+
+test('MCP production timeline tools read and edit selected scene_moment outputs', async () => {
+  const previousWorkspaceDir = process.env.MOVSCRIPT_WORKSPACE_DIR
+  const originalFetch = globalThis.fetch
+  const originalFFmpegPath = process.env.FFMPEG_PATH
+  const originalLog = process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-production-timeline-'))
+  const logPath = join(workspaceDir, 'ffmpeg.jsonl')
+  const decisionContexts = new Map()
+  const selectionRequests = []
+  process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
+  process.env.FFMPEG_PATH = await writeFakeFFmpegTools(workspaceDir)
+  process.env.MOVSCRIPT_TEST_FFMPEG_LOG = logPath
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(String(url))
+    const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : {}
+    const json = (value, status = 200) => ({
+      status,
+      ok: status >= 200 && status < 300,
+      text: async () => JSON.stringify(value),
+      json: async () => value,
+    })
+    const notFound = () => ({
+      status: 404,
+      ok: false,
+      text: async () => '',
+      json: async () => ({}),
+    })
+
+    if (parsed.href === 'http://movscript.test/api/v1/resources/700/file') {
+      return new Response(Buffer.from('fake-scene-video'), {
+        status: 200,
+        headers: {
+          'content-type': 'video/mp4',
+          'content-length': '16',
+        },
+      })
+    }
+    if (parsed.href === 'http://movscript.test/api/v1/resources/upload') {
+      assert.equal(init.method, 'POST')
+      assert.ok(init.body instanceof FormData)
+      const file = init.body.get('file')
+      assert.ok(file instanceof Blob)
+      assert.equal(file.type, 'video/mp4')
+      assert.equal(file.name, 'final-pilot.mp4')
+      const derivative = JSON.parse(init.body.get('derivative'))
+      assert.equal(derivative.operation, 'video_compose')
+      assert.deepEqual(derivative.input_resource_ids, [700])
+      assert.equal(derivative.params.segments[0].source_resource_id, 700)
+      assert.equal(derivative.params.segments[0].start_sec, 1)
+      assert.equal(derivative.params.segments[0].end_sec, 7)
+      assert.equal(derivative.params.segments[0].duration_sec, 6)
+      return new Response(JSON.stringify({ ID: 701, name: file.name, mime_type: file.type }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    if (parsed.pathname.endsWith('/decisions/query') && init.method === 'POST') {
+      return json((Array.isArray(body.target_refs) ? body.target_refs : [])
+        .map((targetRef) => decisionContexts.get(targetRef))
+        .filter(Boolean))
+    }
+    if (parsed.pathname.endsWith('/decisions') && (init.method ?? 'GET') === 'GET') {
+      return decisionContexts.has(parsed.searchParams.get('target_ref'))
+        ? json(decisionContexts.get(parsed.searchParams.get('target_ref')))
+        : notFound()
+    }
+    if (parsed.pathname.endsWith('/decisions/candidates') && init.method === 'POST') {
+      const context = decisionContexts.get(body.target_ref) ?? {
+        schema: 'movscript.decision_context.v1',
+        target_kind: body.target_kind,
+        target_ref: body.target_ref,
+        candidates: [],
+      }
+      const candidateId = body.candidate?.id
+      context.candidates = [
+        ...context.candidates.filter((candidate) => String(candidate.id) !== String(candidateId)),
+        body.candidate,
+      ]
+      decisionContexts.set(body.target_ref, context)
+      return json(context)
+    }
+    if (parsed.pathname.endsWith('/decisions/selection') && init.method === 'PUT') {
+      const targetRef = body.target_ref
+      const context = decisionContexts.get(targetRef)
+      if (!context) return notFound()
+      selectionRequests.push(body)
+      context.selection = {
+        candidate_id: body.candidate_id,
+        resource_id: body.resource_id,
+        stale_policy: body.stale_policy ?? 'strict',
+        reason: body.reason,
+        selected_at: body.selected_at,
+      }
+      decisionContexts.set(targetRef, context)
+      return json(context)
+    }
+    return notFound()
+  }
+  try {
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    await callTool('domain_upsert_production', {
+      projectId: 10,
+      productionId: 'pilot',
+      production: { id: 'pilot', title: 'Pilot production' },
+    })
+    await callTool('domain_upsert_segment', {
+      projectId: 10,
+      productionId: 'pilot',
+      segmentId: 'opening',
+      segment: { id: 'opening', title: 'Opening', order: 1 },
+    })
+    await callTool('domain_upsert_scene_moment', {
+      projectId: 10,
+      productionId: 'pilot',
+      segmentId: 'opening',
+      sceneMomentId: 'rain_call',
+      sceneMoment: { id: 'rain_call', title: 'Rain call', order: 1 },
+    })
+    await callTool('domain_upsert_content_unit', {
+      projectId: 10,
+      unit: {
+        id: 'cu_rain_call',
+        title: 'Rain call scene output',
+        contentUnitType: 'scene_moment_ref',
+        outputKind: 'video',
+        sceneMomentRef: 'rain_call',
+      editPrompt: { text: 'Use the selected composed scene output.' },
+      },
+    })
+    await callTool('domain_upsert_content_unit', {
+      projectId: 10,
+      unit: {
+        id: 'cu_pilot_final',
+        title: 'Pilot final production',
+        contentUnitType: 'production_ref',
+        outputKind: 'video',
+        targetKind: 'production',
+        targetRef: 'pilot',
+        productionRef: 'pilot',
+        generationRole: 'composed_production',
+        editPrompt: { text: 'Compose the selected scene moment outputs into the final production.' },
+      },
+    })
+    await callTool('domain_create_content_candidate', {
+      projectId: 10,
+      contentUnitId: 'cu_rain_call',
+      candidateId: 'scene_cut_a',
+      source: 'manual',
+      status: 'succeeded',
+      outputs: [{ kind: 'video', resource_id: 700, mime_type: 'video/mp4', duration_sec: 9 }],
+      promptSnapshot: { text: 'Selected scene output.' },
+    })
+    await callTool('domain_decide_content_unit_candidate', {
+      projectId: 10,
+      contentUnitId: 'cu_rain_call',
+      candidateId: 'scene_cut_a',
+      decision: 'adopt',
+      reason: 'use scene for production assembly',
+    })
+
+    assert.equal(selectionRequests.at(-1)?.candidate_id, 'scene_cut_a')
+    assert.equal(selectionRequests.at(-1)?.resource_id, 700)
+
+    const interpret = await callTool('domain_interpret', { projectId: 10 })
+    assert.equal(interpret.status, 'refreshed')
+
+    const timeline = await callTool('domain_read_production_timeline', {
+      projectId: 10,
+      productionId: 'pilot',
+      now: '2026-06-16T00:00:00.000Z',
+    })
+
+    assert.equal(timeline.status, 'ok')
+    assert.equal(timeline.production_id, 'pilot')
+    assert.equal(timeline.blockers.length, 0)
+    assert.equal(timeline.timeline_document.schema, 'opencut.timeline.v1')
+    assert.equal(timeline.clips[0].resourceId, 700)
+    assert.equal(timeline.clips[0].contentUnitId, 'cu_rain_call')
+    assert.equal(timeline.compose_inputs[0].resource_id, 700)
+    assert.equal(timeline.compose_inputs[0].timeline_duration_sec, 9)
+
+    const edited = await callTool('domain_apply_production_timeline_commands', {
+      projectId: 10,
+      timeline_document: timeline.timeline_document,
+      commands: [{
+        type: 'update_element_trim',
+        elementId: timeline.timeline_document.project.scenes[0].tracks[0].elements[0].id,
+        trimStart: 1,
+        trimEnd: 2,
+        duration: 6,
+      }],
+    })
+
+    assert.equal(edited.status, 'ok')
+    assert.equal(edited.command_count, 1)
+    assert.equal(edited.compose_inputs[0].resource_id, 700)
+    assert.equal(edited.compose_inputs[0].trim_start_sec, 1)
+    assert.equal(edited.compose_inputs[0].trim_end_sec, 2)
+    assert.equal(edited.compose_inputs[0].duration_sec, 6)
+
+    const composed = await callTool('domain_compose_production_from_timeline', {
+      projectId: 10,
+      productionId: 'pilot',
+      contentUnitId: 'cu_pilot_final',
+      candidateId: 'production_final',
+      timeline_document: edited.timeline_document,
+      filename: 'final-pilot.mp4',
+      adopt: true,
+      reason: 'final assembly accepted',
+    })
+
+    assert.equal(composed.status, 'created')
+    assert.equal(composed.production_id, 'pilot')
+    assert.equal(composed.content_unit_id, 'cu_pilot_final')
+    assert.equal(composed.candidate_id, 'production_final')
+    assert.equal(composed.resource_id, 701)
+    assert.equal(composed.adopted, true)
+    assert.equal(composed.compose.duration_sec, 6)
+    assert.equal(composed.candidate.path, 'content_units/cu_pilot_final/candidates/production_final/content_candidate.json')
+    assert.equal(composed.candidate.record.outputs[0].resource_id, 701)
+    assert.equal(composed.candidate.record.outputs[0].metadata.operation, 'production_timeline_compose')
+    assert.equal(decisionContexts.get('content_units/cu_pilot_final')?.selection?.candidate_id, 'production_final')
+    assert.equal(decisionContexts.get('content_units/cu_pilot_final')?.selection?.resource_id, 701)
+    assert.equal(selectionRequests.at(-1)?.candidate_id, 'production_final')
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    updateMCPContextSnapshot(emptyMCPContextSnapshot())
+    if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = originalFFmpegPath
+    if (originalLog === undefined) delete process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+    else process.env.MOVSCRIPT_TEST_FFMPEG_LOG = originalLog
     if (previousWorkspaceDir === undefined) {
       delete process.env.MOVSCRIPT_WORKSPACE_DIR
     } else {

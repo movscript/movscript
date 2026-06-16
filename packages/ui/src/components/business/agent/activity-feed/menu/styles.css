@@ -1,7 +1,5 @@
 .ms-agent-activity-divider-actions {
-  display: inline-flex;
   flex: 0 0 auto;
-  align-items: center;
   opacity: 0;
   transition: opacity var(--ms-duration-fast) var(--ms-easing-standard);
 }
@@ -23,6 +21,5 @@
 }
 
 .ms-agent-activity-menu-icon {
-  display: inline-flex;
   margin-right: 8px;
 }

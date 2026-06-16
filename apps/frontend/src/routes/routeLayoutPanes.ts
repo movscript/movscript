@@ -1,16 +1,4 @@
 import {
-  AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
-  AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
-  AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-  AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
-  AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_DEFAULT_WIDTH,
-  AGENT_MODE_SIDEBAR_MAX_WIDTH,
-  AGENT_MODE_SIDEBAR_MIN_WIDTH,
-  AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
-  AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
-} from '@/features/agent/presentation/agentModePanelSizing'
-import {
   TOOL_WORKBENCH_RESOURCE_PANE_DEFAULT_WIDTH,
   TOOL_WORKBENCH_RESOURCE_PANE_ID,
   TOOL_WORKBENCH_RESOURCE_PANE_MIN_WIDTH,
@@ -43,8 +31,13 @@ import {
   CONTENT_CANVAS_TIMELINE_MIN_HEIGHT,
   CONTENT_CANVAS_TIMELINE_PANE_ID,
 } from '@/features/content/presentation/contentCanvasLayoutSpec'
-import { APP_SIDEBAR_DEFAULT_WIDTH, APP_SIDEBAR_MAX_WIDTH, APP_SIDEBAR_MIN_WIDTH, APP_SIDEBAR_WIDTH_STORAGE_KEY } from '@movscript/ui/layout'
 import type { RouteLayoutPaneSpec } from './routeLayoutTypes'
+import {
+  APP_SHELL_AGENT_PANES,
+  APP_SHELL_PROJECT_PANES,
+  APP_SHELL_SETTINGS_PANES,
+  APP_SHELL_TOOL_PANES,
+} from './routeAppShellPanes'
 
 export {
   CONTENT_CANVAS_INSPECTOR_DEFAULT_WIDTH,
@@ -69,20 +62,27 @@ export {
   CONTENT_CANVAS_TIMELINE_PANE_ID,
 } from '@/features/content/presentation/contentCanvasLayoutSpec'
 
-export const APP_SHELL_TOOL_SIDEBAR_PANE_ID = 'app-shell.tool-sidebar'
-export const APP_SHELL_SETTINGS_SIDEBAR_PANE_ID = 'app-shell.settings-sidebar'
-export const APP_SHELL_AGENT_SIDEBAR_PANE_ID = 'app-shell.agent-sidebar'
-export const APP_SHELL_AGENT_CONTENT_PANE_ID = 'app-shell.agent-content-pane'
-export const APP_SHELL_PROJECT_AGENT_PANE_ID = 'app-shell.project-agent-pane'
-export const APP_SHELL_PROJECT_AGENT_PANE_STATE_STORAGE_KEY = 'movscript.appShell.projectAgentPane.state'
-export const APP_SHELL_PROJECT_AGENT_PANE_WIDTH_STORAGE_KEY = 'movscript.appShell.projectAgentPane.width'
-export const APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY = 'movscript.appShell.settingsSidebar.width'
-export const APP_SHELL_TERMINAL_DOCK_PANE_ID = 'app-shell.terminal-dock'
-export const APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY = 'movscript.appShell.terminal.open'
-export const APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY = 'movscript.appShell.terminal.height'
-export const APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT = 300
-export const APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT = 236
-export const APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT = 520
+export {
+  APP_SHELL_AGENT_CONTENT_PANE_ID,
+  APP_SHELL_AGENT_PANES,
+  APP_SHELL_AGENT_SIDEBAR_PANE_ID,
+  APP_SHELL_PROJECT_AGENT_PANE_ID,
+  APP_SHELL_PROJECT_AGENT_PANE_STATE_STORAGE_KEY,
+  APP_SHELL_PROJECT_AGENT_PANE_WIDTH_STORAGE_KEY,
+  APP_SHELL_PROJECT_PANES,
+  APP_SHELL_SETTINGS_PANES,
+  APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
+  APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY,
+  APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
+  APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
+  APP_SHELL_TERMINAL_DOCK_PANE_ID,
+  APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
+  APP_SHELL_TOOL_PANES,
+  APP_SHELL_TOOL_SIDEBAR_PANE_ID,
+} from './routeAppShellPanes'
+
 export const AGENT_CONNECTION_THREADS_PANE_ID = 'agent.connections.threads-pane'
 export const AGENT_CONNECTION_EVENTS_PANE_ID = 'agent.connections.events-pane'
 export const AGENT_CONNECTION_RAW_PANE_ID = 'agent.connections.raw-pane'
@@ -96,156 +96,6 @@ export const CANVAS_WORKFLOW_PANE_WIDTH_STORAGE_KEY = 'movscript.canvas.workflow
 export const CANVAS_WORKFLOW_PANE_DEFAULT_WIDTH = 300
 export const CANVAS_WORKFLOW_PANE_MIN_WIDTH = 260
 export const CANVAS_WORKFLOW_PANE_MAX_WIDTH = 420
-
-export const APP_SHELL_TOOL_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: APP_SHELL_TOOL_SIDEBAR_PANE_ID,
-    side: 'left',
-    owner: 'app-shell',
-    defaultSize: APP_SIDEBAR_DEFAULT_WIDTH,
-    minSize: APP_SIDEBAR_MIN_WIDTH,
-    maxSize: APP_SIDEBAR_MAX_WIDTH,
-    collapsedSize: 0,
-    defaultState: 'default',
-    allowedStates: ['default', 'collapsed', 'hidden'],
-    storageKey: APP_SIDEBAR_WIDTH_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'offset-stack',
-  },
-  {
-    id: APP_SHELL_TERMINAL_DOCK_PANE_ID,
-    side: 'bottom',
-    owner: 'app-shell',
-    defaultSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-    defaultState: 'hidden',
-    allowedStates: ['default', 'hidden'],
-    storageKey: APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-    stateStorageKey: APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'none',
-  },
-]
-
-export const APP_SHELL_SETTINGS_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: APP_SHELL_SETTINGS_SIDEBAR_PANE_ID,
-    side: 'left',
-    owner: 'app-shell',
-    defaultSize: APP_SIDEBAR_DEFAULT_WIDTH,
-    minSize: APP_SIDEBAR_MIN_WIDTH,
-    maxSize: APP_SIDEBAR_MAX_WIDTH,
-    collapsedSize: 0,
-    defaultState: 'default',
-    allowedStates: ['default', 'collapsed', 'hidden'],
-    storageKey: APP_SHELL_SETTINGS_SIDEBAR_WIDTH_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'offset-stack',
-  },
-  {
-    id: APP_SHELL_TERMINAL_DOCK_PANE_ID,
-    side: 'bottom',
-    owner: 'app-shell',
-    defaultSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-    defaultState: 'hidden',
-    allowedStates: ['default', 'hidden'],
-    storageKey: APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-    stateStorageKey: APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'none',
-  },
-]
-
-export const APP_SHELL_PROJECT_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: APP_SHELL_PROJECT_AGENT_PANE_ID,
-    side: 'right',
-    owner: 'app-shell',
-    defaultSize: AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
-    minSize: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-    maxSize: AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
-    defaultState: 'collapsed',
-    allowedStates: ['default', 'collapsed'],
-    collapsedSize: 0,
-    storageKey: APP_SHELL_PROJECT_AGENT_PANE_WIDTH_STORAGE_KEY,
-    stateStorageKey: APP_SHELL_PROJECT_AGENT_PANE_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'offset-stack',
-  },
-  {
-    id: APP_SHELL_TERMINAL_DOCK_PANE_ID,
-    side: 'bottom',
-    owner: 'app-shell',
-    defaultSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-    defaultState: 'hidden',
-    allowedStates: ['default', 'hidden'],
-    storageKey: APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-    stateStorageKey: APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'none',
-  },
-]
-
-export const APP_SHELL_AGENT_PANES: RouteLayoutPaneSpec[] = [
-  {
-    id: APP_SHELL_AGENT_SIDEBAR_PANE_ID,
-    side: 'left',
-    owner: 'app-shell',
-    defaultSize: AGENT_MODE_SIDEBAR_DEFAULT_WIDTH,
-    minSize: AGENT_MODE_SIDEBAR_MIN_WIDTH,
-    maxSize: AGENT_MODE_SIDEBAR_MAX_WIDTH,
-    collapsedSize: 0,
-    defaultState: 'default',
-    allowedStates: ['default', 'hidden'],
-    storageKey: AGENT_MODE_SIDEBAR_WIDTH_STORAGE_KEY,
-    stateStorageKey: AGENT_MODE_SIDEBAR_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'offset-stack',
-  },
-  {
-    id: APP_SHELL_AGENT_CONTENT_PANE_ID,
-    side: 'right',
-    owner: 'app-shell',
-    defaultSize: AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
-    minSize: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-    maxSize: AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
-    defaultState: 'default',
-    allowedStates: ['default', 'collapsed'],
-    collapsedSize: 0,
-    storageKey: AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
-    stateStorageKey: AGENT_MODE_CONTENT_PANEL_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'offset-stack',
-  },
-  {
-    id: APP_SHELL_TERMINAL_DOCK_PANE_ID,
-    side: 'bottom',
-    owner: 'app-shell',
-    defaultSize: APP_SHELL_TERMINAL_DOCK_DEFAULT_HEIGHT,
-    minSize: APP_SHELL_TERMINAL_DOCK_MIN_HEIGHT,
-    maxSize: APP_SHELL_TERMINAL_DOCK_MAX_HEIGHT,
-    defaultState: 'hidden',
-    allowedStates: ['default', 'hidden'],
-    storageKey: APP_SHELL_TERMINAL_DOCK_HEIGHT_STORAGE_KEY,
-    stateStorageKey: APP_SHELL_TERMINAL_DOCK_STATE_STORAGE_KEY,
-    persistState: true,
-    collapsible: true,
-    overlapMode: 'none',
-  },
-]
 
 export const CANVAS_PANES: RouteLayoutPaneSpec[] = [
   {

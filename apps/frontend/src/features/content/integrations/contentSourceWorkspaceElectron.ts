@@ -37,18 +37,20 @@ export function createContentSourceWorkspaceRuntimePort(
       return requireContentWorkspaceEngineAPI('loadMovScriptEngineContentWorkspaceSnapshot')(projectInput(projectId))
     },
     async selectContentUnitCandidate(input) {
-      await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
-        ...projectInput(input.projectId),
-        contentUnitId: input.contentUnitId,
+	      await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: {},
+	        contentUnitId: input.contentUnitId,
         candidateId: input.candidateId,
         ...(input.resourceId ? { resourceId: input.resourceId } : {}),
         reason: input.reason,
       })
     },
     async createContentCandidate(input) {
-      const result = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
-        ...projectInput(input.projectId),
-        contentUnitId: input.contentUnitId,
+	      const result = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: {},
+	        contentUnitId: input.contentUnitId,
         candidateId: input.candidateId,
         source: input.source,
         status: input.status,
@@ -60,44 +62,50 @@ export function createContentSourceWorkspaceRuntimePort(
       return result as ContentCandidateRecord
     },
     async updateContentUnitEditPrompt(input) {
-      await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
-        ...projectInput(input.projectId),
-        targetPath: input.targetPath,
+	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        targetPath: input.targetPath,
         editPrompt: input.editPrompt,
       })
     },
     async updateExpressionUnit(input) {
-      await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
-        ...projectInput(input.projectId),
-        targetPath: input.targetPath,
+	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        targetPath: input.targetPath,
         patch: input.patch,
       })
     },
     async updateAudioCue(input) {
-      await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
-        ...projectInput(input.projectId),
-        targetPath: input.targetPath,
+	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        targetPath: input.targetPath,
         patch: input.patch,
       })
     },
     async updateEntityTransition(input) {
-      await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
-        ...projectInput(input.projectId),
-        targetPath: input.targetPath,
+	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        targetPath: input.targetPath,
         transition: input.transition,
       })
     },
     async updateStoryboardTimeline(input) {
-      await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
-        ...projectInput(input.projectId),
-        targetPath: input.targetPath,
+	      await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        targetPath: input.targetPath,
         timeline: input.timeline,
       })
     },
     async writeHierarchyNode(input) {
-      await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
-        ...projectInput(input.projectId),
-        targetPath: input.targetPath,
+	      await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
+	        ...projectInput(input.projectId),
+	        expectedWorkspaceVersions: { [input.targetPath]: null },
+	        targetPath: input.targetPath,
         record: input.record,
       })
     },
@@ -120,9 +128,10 @@ export async function selectContentSourceWorkspaceCandidate(input: {
   candidateId: string
   resourceId?: number
 }): Promise<void> {
-  await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
-    projectId: input.projectId,
-    ...buildContentSourceWorkspaceSelectionPatch(input),
+	  await requireContentWorkspaceEngineAPI('selectMovScriptEngineContentUnitCandidate')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: {},
+	    ...buildContentSourceWorkspaceSelectionPatch(input),
   })
 }
 
@@ -137,9 +146,10 @@ export async function createContentSourceWorkspaceCandidate(input: {
   resourceMimeType?: string
 }): Promise<CreatedContentSourceCandidate> {
   const plan = buildContentSourceWorkspaceCandidateCreatePlan(input)
-  const record = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
-    projectId: input.projectId,
-    ...plan,
+	  const record = await requireContentWorkspaceEngineAPI('createMovScriptEngineContentCandidate')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: {},
+	    ...plan,
   })
   return createdContentSourceCandidateFromRecord(record as ContentCandidateRecord, {
     candidateId: plan.candidateId,
@@ -152,9 +162,10 @@ export async function updateContentSourceWorkspaceEditPrompt(input: {
   targetPath: string
   text: string
 }): Promise<void> {
-  await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
-    projectId: input.projectId,
-    ...buildContentSourceWorkspaceEditPromptPatch(input),
+	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineContentUnitEditPrompt')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    ...buildContentSourceWorkspaceEditPromptPatch(input),
   })
 }
 
@@ -168,9 +179,10 @@ export async function updateContentSourceWorkspaceExpressionUnit(input: {
   speaker?: string
   note?: string
 }): Promise<void> {
-  await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
-    projectId: input.projectId,
-    ...buildContentSourceWorkspaceExpressionUnitPatch(input),
+	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineExpressionUnit')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    ...buildContentSourceWorkspaceExpressionUnitPatch(input),
   })
 }
 
@@ -185,9 +197,10 @@ export async function updateContentSourceWorkspaceAudioCue(input: {
   timing: Record<string, unknown>
   assetRefs: string[]
 }): Promise<void> {
-  await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
-    projectId: input.projectId,
-    ...buildContentSourceWorkspaceAudioCuePatch(input),
+	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineAudioCue')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    ...buildContentSourceWorkspaceAudioCuePatch(input),
   })
 }
 
@@ -196,9 +209,10 @@ export async function updateContentSourceWorkspaceTransition(input: {
   targetPath: string
   transition: HierarchyTransition
 }): Promise<void> {
-  await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
-    projectId: input.projectId,
-    ...buildContentSourceWorkspaceTransitionPatch(input),
+	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineTransition')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    ...buildContentSourceWorkspaceTransitionPatch(input),
   })
 }
 
@@ -207,9 +221,10 @@ export async function updateContentSourceWorkspaceStoryboardTimeline(input: {
   targetPath: string
   timeline: StoryboardTimeline
 }): Promise<void> {
-  await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
-    projectId: input.projectId,
-    ...buildContentSourceWorkspaceStoryboardTimelinePatch(input),
+	  await requireContentWorkspaceEngineAPI('updateMovScriptEngineStoryboardTimeline')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    ...buildContentSourceWorkspaceStoryboardTimelinePatch(input),
   })
 }
 
@@ -222,9 +237,10 @@ export async function createContentSourceWorkspaceHierarchyNode(input: {
   parentNode: HierarchyNode
 }): Promise<void> {
   const record = buildContentSourceWorkspaceHierarchyNodeRecord(input)
-  await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
-    projectId: input.projectId,
-    targetPath: input.targetPath,
+	  await requireContentWorkspaceEngineAPI('writeMovScriptEngineHierarchyNode')({
+	    projectId: input.projectId,
+	    expectedWorkspaceVersions: { [input.targetPath]: null },
+	    targetPath: input.targetPath,
     record,
   })
 }

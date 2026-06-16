@@ -309,8 +309,8 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
     routeId: 'agents.provider',
     pathnamePattern: ROUTES.agentProvider,
-    ...TOOL_DOCUMENT_ROUTE,
-    notes: 'Provider agent settings are a tabbed document page; upgrade only if a fixed provider inspector is introduced.',
+    ...AGENT_SETTINGS_DOCUMENT_ROUTE,
+    notes: 'Provider agent settings stay inside the Agent chrome so agent configuration never falls back to the tools sidebar.',
   }, (pathname) => /^\/agents\/[^/]+\/?$/.test(pathname)),
   route({
     routeId: 'workspace.config',

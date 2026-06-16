@@ -4,31 +4,20 @@ import './ResourcesPage.css'
 import { api } from '@/shared/infrastructure/api'
 import type { Project, RawResource, ResourceBinding, ResourceFolder, PaginatedResponse } from '@/types'
 import {
-  Upload, Trash2, Search,
-  FolderOpen, Share2,
   ChevronRight,
-  X as XIcon,
-  LayoutGrid, List, ChevronLeft,
-  CheckSquare,
+  ChevronLeft,
 } from 'lucide-react'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { downloadResource } from '@/shared/ui/resourceDownload'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/shared/ui/ResourceCandidateAttachPanel'
 import {
   ResourcePageActionButton,
-  ResourcePageActionGroup,
-  ResourcePageBulkActions,
-  ResourcePageFilterBar,
-  ResourcePageFlexibleSpace,
   ResourcePageHiddenFileInput,
   ResourcePageLayout,
   ResourcePageMain,
-  ResourcePageMutedText,
   ResourcePagePager,
-  ResourcePageSearchField,
   ResourceDialogSelect,
 } from '@/features/resources/components/ResourcePageUi'
-import { ProjectSurfaceHeader } from '@movscript/ui/layout'
 import { useTranslation } from 'react-i18next'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import { toast } from '@/shared/ui/toastStore'
@@ -50,12 +39,11 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { MoveDialog, RenameResourceDialog, ShareToProjectDialog } from '@/features/resources/components/ResourcesPageDialogs'
 import { ResourceBulkContextMenu } from '@/features/resources/components/ResourcesPageItems'
 import { ResourcesPageLibraryContent } from '@/features/resources/components/ResourcesPageLibraryContent'
+import { ResourcesPageToolbar } from '@/features/resources/components/ResourcesPageToolbar'
 import { VideoClipDialog } from '@/features/resources/components/ResourcesPageVideoClipDialog'
 import {
   DEFAULT_RESOURCE_PAGE_SIZE,
   RESOURCE_PAGE_SIZE_OPTIONS,
-  SCOPE_TABS,
-  TYPE_TABS,
   adjacentResource,
   paginateResources,
   projectScopeResources,
@@ -296,6 +284,10 @@ export function ResourceLibraryView({
     setShareProjectResources(resourcesToShare)
   }
 
+  function revokeSelectedProjectBindings() {
+    selectedProjectBindingIDs.forEach(id => revoke.mutate(id))
+  }
+
   function canAdoptToTeam(resource: RawResource) {
     return Boolean(currentOrgID && currentUser?.ID && resource.owner_id === currentUser.ID && !resource.org_id)
   }
@@ -315,141 +307,46 @@ export function ResourceLibraryView({
           }}
         />
 
-        <ProjectSurfaceHeader
-          icon={FolderOpen}
-          title={t('pages.resources.title', { defaultValue: '资源库' })}
-          description={t('pages.resources.description', { defaultValue: '统一管理个人、团队和项目引用资源。' })}
-          meta={<ResourcePageMutedText>{t('pages.resources.filesCount', { count: total })}</ResourcePageMutedText>}
-          actions={(
-            <>
-              <ResourcePageActionGroup>
-                <ResourcePageActionButton
-                  size="xs"
-                  variant={scope === 'personal' ? 'solid' : 'ghost'}
-                  onClick={() => setTab('mine')}
-                >
-                  {t('pages.resources.scopes.personal')}
-                </ResourcePageActionButton>
-                <ResourcePageActionButton
-                  size="xs"
-                  variant={scope === 'team' ? 'solid' : 'ghost'}
-                  onClick={() => setTab('team')}
-                  disabled={!currentOrgID}
-                >
-                  {t('pages.resources.scopes.team')}
-                </ResourcePageActionButton>
-                <ResourcePageActionButton
-                  size="xs"
-                  variant={scope === 'project' ? 'solid' : 'ghost'}
-                  onClick={() => setTab('project')}
-                  disabled={!currentProject?.ID}
-                >
-                  {t('pages.resources.scopes.project')}
-                </ResourcePageActionButton>
-              </ResourcePageActionGroup>
-              <ResourcePageActionGroup>
-                <ResourcePageActionButton
-                  size="icon-xs"
-                  variant={viewMode === 'grid' ? 'solid' : 'ghost'}
-                  onClick={() => setViewMode('grid')}
-                  title={t('pages.resources.gridTitle')}
-                >
-                  <LayoutGrid size={14} />
-                </ResourcePageActionButton>
-                <ResourcePageActionButton
-                  size="icon-xs"
-                  variant={viewMode === 'list' ? 'solid' : 'ghost'}
-                  onClick={() => setViewMode('list')}
-                  title={t('pages.resources.listTitle')}
-                >
-                  <List size={14} />
-                </ResourcePageActionButton>
-              </ResourcePageActionGroup>
-            </>
-          )}
+        <ResourcesPageToolbar
+          total={total}
+          scope={scope}
+          filter={filter}
+          search={search}
+          currentOrgID={currentOrgID}
+          currentProjectID={currentProject?.ID}
+          viewMode={viewMode}
+          selectionMode={selectionMode}
+          selectedCount={selectedIDs.length}
+          selectedResources={selectedResources}
+          selectedPersonalStagingCount={selectedPersonalStagingResources.length}
+          selectedProjectBindingCount={selectedProjectBindingIDs.length}
+          uploadPending={upload.isPending}
+          adoptToTeamPending={adoptToTeam.isPending}
+          shareToProjectPending={shareToProject.isPending}
+          revokePending={revoke.isPending}
+          isProjectScope={isProjectScope}
+          onScopeTabChange={setTab}
+          onScopeChange={(nextScope) => {
+            setScope(nextScope)
+            setPage(1)
+            setSelectedResourceIDs(new Set())
+          }}
+          onFilterChange={(nextFilter) => {
+            setFilter(nextFilter)
+            setPage(1)
+          }}
+          onSearchChange={(nextSearch) => {
+            setSearch(nextSearch)
+            setPage(1)
+          }}
+          onUploadClick={() => fileRef.current?.click()}
+          onViewModeChange={setViewMode}
+          onToggleSelectionMode={toggleSelectionMode}
+          onClearSelection={() => setSelectedResourceIDs(new Set())}
+          onShareResourcesToTeam={shareResourcesToTeam}
+          onShareResourcesToProject={openShareToProject}
+          onRevokeSelectedProjectBindings={revokeSelectedProjectBindings}
         />
-
-        <ResourcePageFilterBar>
-          <ResourcePageSearchField
-            icon={Search}
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder={t('pages.resources.searchFilesPlaceholder')}
-          />
-          <ResourcePageActionButton
-            size="sm"
-            onClick={() => fileRef.current?.click()}
-            disabled={upload.isPending}
-            hidden={isProjectScope}
-          >
-            <Upload size={14} />
-            {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
-          </ResourcePageActionButton>
-          <ResourcePageActionButton
-            size="sm"
-            variant={selectionMode ? 'solid' : 'outline'}
-            onClick={toggleSelectionMode}
-          >
-            {selectionMode ? <XIcon size={14} /> : <CheckSquare size={14} />}
-            {selectionMode ? t('common.cancel') : t('pages.resources.selectMode', { defaultValue: '选择' })}
-          </ResourcePageActionButton>
-          <ResourcePageActionGroup>
-            {SCOPE_TABS.map(tabItem => {
-              const disabled = (tabItem.requiresProject && !currentProject?.ID) || (tabItem.value === 'team' && !currentOrgID)
-              return (
-                <ResourcePageActionButton
-                  key={tabItem.value}
-                  size="xs"
-                  variant={scope === tabItem.value ? 'solid' : 'ghost'}
-                  onClick={() => { if (!disabled) { setScope(tabItem.value); setPage(1); setSelectedResourceIDs(new Set()) } }}
-                  disabled={disabled}
-                >
-                  {t(tabItem.labelKey)}
-                </ResourcePageActionButton>
-              )
-            })}
-          </ResourcePageActionGroup>
-          <ResourcePageActionGroup>
-            {TYPE_TABS.map(tabItem => (
-              <ResourcePageActionButton
-                key={tabItem.value}
-                size="xs"
-                variant={filter === tabItem.value ? 'solid' : 'ghost'}
-                onClick={() => { setFilter(tabItem.value); setPage(1) }}
-              >
-                {t(tabItem.labelKey)}
-              </ResourcePageActionButton>
-            ))}
-          </ResourcePageActionGroup>
-          <ResourcePageFlexibleSpace />
-          {selectedIDs.length > 0 && (
-            <ResourcePageBulkActions>
-              <ResourcePageMutedText>
-                {t('pages.resources.selectedCount', { count: selectedIDs.length, defaultValue: `${selectedIDs.length} selected` })}
-              </ResourcePageMutedText>
-              {selectedPersonalStagingResources.length > 0 && (
-                <ResourcePageActionButton variant="outline" size="sm" onClick={() => shareResourcesToTeam(selectedResources)} disabled={adoptToTeam.isPending}>
-                  <Share2 size={14} />
-                  {t('pages.resources.shareToTeam', { defaultValue: '加入团队资源库' })}
-                </ResourcePageActionButton>
-              )}
-              <ResourcePageActionButton variant="outline" size="sm" onClick={() => openShareToProject(selectedResources)} disabled={shareToProject.isPending}>
-                <FolderOpen size={14} />
-                {t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
-              </ResourcePageActionButton>
-              {isProjectScope && selectedProjectBindingIDs.length > 0 && (
-                <ResourcePageActionButton variant="ghost" tone="danger" size="sm" onClick={() => selectedProjectBindingIDs.forEach(id => revoke.mutate(id))} disabled={revoke.isPending}>
-                  <Trash2 size={14} />
-                  {t('pages.resources.revokeFromProject', { defaultValue: '移出项目' })}
-                </ResourcePageActionButton>
-              )}
-              <ResourcePageActionButton variant="outline" size="sm" onClick={() => setSelectedResourceIDs(new Set())}>
-                {t('common.cancel')}
-              </ResourcePageActionButton>
-            </ResourcePageBulkActions>
-          )}
-          <ResourcePageMutedText>{t('pages.resources.filesCount', { count: total })}</ResourcePageMutedText>
-        </ResourcePageFilterBar>
 
         <ResourcesPageLibraryContent
           isLoading={isLoading}

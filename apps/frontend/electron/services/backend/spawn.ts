@@ -20,7 +20,7 @@ export function spawnBackendProcess(): ChildProcess {
     database: env.DB_DRIVER,
     objectStorage: env.STORAGE_BACKEND,
     workspaceStorage: env.MOVSCRIPT_WORKSPACE_STORAGE_BACKEND || env.MOVSCRIPT_WORKSPACE_BACKEND,
-    aiGateway: env.MOVSCRIPT_AI_GATEWAY_PROVIDER,
+    aiGateway: 'local',
     cache: env.CACHE_BACKEND,
     gitHTTPRoot: env.MOVSCRIPT_GIT_HTTP_ROOT,
     gitBinary: env.MOVSCRIPT_GIT_BINARY,

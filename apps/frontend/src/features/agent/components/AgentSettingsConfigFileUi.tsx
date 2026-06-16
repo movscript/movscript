@@ -55,19 +55,19 @@ export function AgentSettingsConfigFileCard({
       data-preview={preview ? 'true' : undefined}
       className="agent-settings-config-file-card"
     >
-      <div className="agent-settings-config-file-card__header">
+      <div className="ms-action-row agent-settings-row-between">
         <div className="agent-settings-item-body">
-          <div className="agent-settings-config-file-card__title-row">
-            <p className="agent-settings-config-file-card__title">{name}</p>
+          <div className="ms-action-row agent-settings-title-row">
+            <p className="ms-text-truncate ms-type-label agent-settings-card-title">{name}</p>
             {current && currentLabel ? <StatusBadge intent="success" emphasis="soft">{currentLabel}</StatusBadge> : null}
             {preview && previewLabel ? <Badge>{previewLabel}</Badge> : null}
             <Badge variant="outline">{versionLabel}</Badge>
           </div>
-          <p className="agent-settings-config-file-card__id">{idLabel}</p>
+          <p className="ms-text-truncate ms-type-tiny agent-settings-card-meta">{idLabel}</p>
         </div>
       </div>
-      {description ? <p className="agent-settings-config-file-card__description">{description}</p> : null}
-      <div className="agent-settings-config-file-card__summary-grid">
+      {description ? <p className="ms-type-caption agent-settings-card-description">{description}</p> : null}
+      <div className="ms-type-tiny agent-settings-config-file-card__summary-grid">
         {summaryItems.map((item) => (
           <AgentSettingsConfigFileSummaryList key={item.id} item={item} />
         ))}
@@ -132,16 +132,16 @@ export function AgentSettingsConfigFileListButton({
         className="agent-settings-config-file-list-item__button"
       >
         <span className="agent-settings-config-file-list-item__header">
-          <span className="agent-settings-config-file-list-item__title">{name}</span>
+          <span className="ms-type-label agent-settings-card-title agent-settings-card-title--strong agent-settings-card-title--wrap">{name}</span>
           <span className="agent-settings-config-file-list-item__badges">
             {current && currentLabel ? <StatusBadge intent="success" emphasis="soft">{currentLabel}</StatusBadge> : null}
             {selected && selectedLabel ? <Badge variant="soft">{selectedLabel}</Badge> : null}
             <Badge variant="outline">{versionLabel}</Badge>
           </span>
         </span>
-        <span className="agent-settings-config-file-list-item__id">{idLabel}</span>
-        {description ? <span className="agent-settings-config-file-list-item__description">{description}</span> : null}
-        {summaryLabel ? <span className="agent-settings-config-file-list-item__summary">{summaryLabel}</span> : null}
+        <span className="ms-text-truncate ms-type-tiny agent-settings-card-meta">{idLabel}</span>
+        {description ? <span className="ms-type-caption agent-settings-card-description">{description}</span> : null}
+        {summaryLabel ? <span className="ms-text-truncate ms-type-tiny agent-settings-card-meta">{summaryLabel}</span> : null}
       </Button>
     </AgentSurfaceBlock>
   )
@@ -159,15 +159,15 @@ export function AgentSettingsConfigFileEditorHeader({
   actions?: ReactNode
 }) {
   return (
-    <div className="agent-settings-config-file-editor-header">
+    <div className="ms-action-row agent-settings-config-file-editor-header agent-settings-row-between">
       <div className="agent-settings-item-body">
-        <div className="agent-settings-config-file-editor-header__title-row">
-          <h2 className="agent-settings-config-file-editor-header__title">{title}</h2>
-          {badges ? <span className="agent-settings-config-file-editor-header__badges">{badges}</span> : null}
+        <div className="ms-action-row agent-settings-title-row">
+          <h2 className="ms-type-label agent-settings-card-title agent-settings-card-title--strong agent-settings-card-title--wrap">{title}</h2>
+          {badges ? <span className="ms-action-row agent-settings-action-group">{badges}</span> : null}
         </div>
-        {description ? <p className="agent-settings-config-file-editor-header__description">{description}</p> : null}
+        {description ? <p className="ms-type-caption agent-settings-item-detail">{description}</p> : null}
       </div>
-      {actions ? <div className="agent-settings-config-file-editor-header__actions">{actions}</div> : null}
+      {actions ? <div className="ms-action-row agent-settings-action-group">{actions}</div> : null}
     </div>
   )
 }
@@ -186,8 +186,8 @@ export function AgentSettingsConfigFileEditorSection({
     <AgentSurfaceBlock asChild variant="card" className={cn('agent-settings-config-file-editor-section', className)}>
       <section {...props}>
         <div className="agent-settings-config-file-editor-section__header">
-          <p className="agent-settings-config-file-editor-section__title">{title}</p>
-          {description ? <p className="agent-settings-config-file-editor-section__description">{description}</p> : null}
+          <p className="ms-text-truncate ms-type-label agent-settings-card-title agent-settings-card-title--strong">{title}</p>
+          {description ? <p className="ms-type-caption agent-settings-item-detail">{description}</p> : null}
         </div>
         <div className="agent-settings-config-file-editor-section__body">{children}</div>
       </section>
@@ -199,7 +199,7 @@ export function AgentSettingsConfigFileSummaryList({ item }: { item: AgentSettin
   return (
     <AgentSurfaceBlock variant="card" className="agent-settings-config-file-summary">
       <p className="agent-settings-config-file-summary__label">{item.label}</p>
-      <p className="agent-settings-config-file-summary__value">{item.value}</p>
+      <p className="ms-text-truncate agent-settings-config-file-summary__value">{item.value}</p>
     </AgentSurfaceBlock>
   )
 }
@@ -213,7 +213,7 @@ export function AgentSettingsConfigFileDiffPanel({
 }) {
   return (
     <AgentDataBlock>
-      <p className="agent-settings-item-title">{title}</p>
+      <p className="ms-type-label agent-settings-item-title">{title}</p>
       <div className="agent-settings-grid agent-settings-grid--two">
         {sections.map((section) => (
           <AgentSettingsConfigFileDiffSectionView key={section.id} section={section} />
@@ -225,7 +225,7 @@ export function AgentSettingsConfigFileDiffPanel({
 
 export function AgentSettingsConfigFileDiffSectionView({ section }: { section: AgentSettingsConfigFileDiffSection }) {
   return (
-    <AgentSurfaceBlock variant="card" className="agent-settings-config-file-diff-section">
+    <AgentSurfaceBlock variant="card" className="ms-type-tiny agent-settings-config-file-diff-section">
       <p className="agent-settings-config-file-diff-section__label">{section.label}</p>
       {section.lines.length > 0 ? (
         <div className="agent-settings-config-file-diff-section__lines">

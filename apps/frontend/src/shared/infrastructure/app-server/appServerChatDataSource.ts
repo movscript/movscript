@@ -1,4 +1,4 @@
-import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification, AgentChatProviderKind, AgentChatRunProfileSelection, AgentThreadExecutionSettings } from '@movscript/core/agent/chat'
+import type { AgentChatDataSource, AgentChatModelSelection, AgentChatProviderKind, AgentChatRunProfileSelection, AgentThreadExecutionSettings } from '@movscript/core/agent/chat'
 import type { AppServerJsonValue, SandboxPolicy } from '@/shared/infrastructure/app-server/appServerProtocol'
 import { MOVA_PROVIDER_ID, type MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 import {
@@ -10,6 +10,14 @@ import {
   agentChatTurnFromAppServerThreadTurnItem,
 } from '@/shared/infrastructure/app-server/appServerThreadTurnItemAdapter'
 import type { AppServerRpcClient } from '@/shared/infrastructure/app-server/appServerRpcClient'
+import {
+  appServerThreadIdFromParams,
+  createAppServerChatCapabilities,
+} from '@/shared/infrastructure/app-server/appServerChatCapabilities'
+import {
+  crossPageEventFromAppServerNotification,
+  publishCrossPageNotification,
+} from '@/shared/application/crossPageNotifications'
 import { workspaceDeveloperInstructionsParams } from '@/shared/infrastructure/app-server/appServerChatWorkspaceInstructions'
 import {
   appServerThreadReadIsBeforeFirstUserMessage,
@@ -199,9 +207,16 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
     },
     subscribeThread({ threadId, onNotification, onServerRequest }) {
       const disposeNotification = client.onNotification((notification) => {
-        const notificationThreadId = threadIdFromParams(notification.params)
+        const notificationThreadId = appServerThreadIdFromParams(notification.params)
         if (notificationThreadId !== threadId) return
-        onNotification?.(adapter.notification(notification, provider))
+        const agentNotification = adapter.notification(notification, provider)
+        publishCrossPageNotification(crossPageEventFromAppServerNotification({
+          notification,
+          agentNotification,
+          provider,
+          source: label,
+        }))
+        onNotification?.(agentNotification)
       })
       const disposeServerRequest = client.onServerRequest((request) => {
         const nextRequest = adapter.serverRequest(request)
@@ -217,9 +232,28 @@ export function createAppServerChatDataSource(client: AppServerRpcClient, option
     },
     subscribeServerRequests({ onServerRequest, onNotification }) {
       const disposeNotification = client.onNotification((notification) => {
-        if (notification.method !== 'serverRequest/resolved') return
-        if (!threadIdFromParams(notification.params)) return
-        onNotification?.(adapter.notification(notification, provider))
+        const threadId = appServerThreadIdFromParams(notification.params)
+        const isGlobalCapabilityEvent = notification.method.startsWith('mcpServer/')
+          || notification.method === 'account/updated'
+          || notification.method === 'account/rateLimits/updated'
+          || notification.method === 'account/login/completed'
+          || notification.method === 'remoteControl/status/changed'
+          || notification.method === 'externalAgentConfig/import/completed'
+          || notification.method === 'fs/changed'
+          || notification.method === 'warning'
+          || notification.method === 'guardianWarning'
+          || notification.method === 'deprecationNotice'
+          || notification.method === 'configWarning'
+        if (notification.method !== 'serverRequest/resolved' && !isGlobalCapabilityEvent) return
+        if (notification.method === 'serverRequest/resolved' && !threadId) return
+        const agentNotification = adapter.notification(notification, provider)
+        publishCrossPageNotification(crossPageEventFromAppServerNotification({
+          notification,
+          agentNotification,
+          provider,
+          source: label,
+        }))
+        onNotification?.(agentNotification)
       })
       const disposeServerRequest = client.onServerRequest((request) => {
         const nextRequest = adapter.serverRequest(request)
@@ -390,193 +424,4 @@ function threadFromLifecycleResponse(response: { thread?: unknown }, provider: A
   return response.thread && typeof response.thread === 'object'
     ? adapter.thread(response.thread as Parameters<typeof agentChatThreadFromAppServerThreadTurnItem>[0], provider)
     : response
-}
-
-function createAppServerChatCapabilities(client: AppServerRpcClient, provider: AgentChatProviderKind, adapter: AppServerChatMessageAdapter): AgentChatCapabilities {
-  const request = <T = unknown>(method: string, params?: unknown) => client.requestProtocol<T>(method, params)
-  return {
-    command: {
-      exec(input) {
-        const { raw, ...params } = input
-        return request('command/exec', { ...params, ...(raw ?? {}) })
-      },
-      write(input) {
-        const { dataBase64, ...params } = input
-        return request('command/exec/write', {
-          ...params,
-          deltaBase64: input.deltaBase64 ?? dataBase64 ?? undefined,
-        })
-      },
-      resize(input) {
-        const { rows, cols, ...params } = input
-        return request('command/exec/resize', params)
-      },
-      terminate(input) {
-        return request('command/exec/terminate', input)
-      },
-    },
-    fs: {
-      readFile(input) {
-        return request('fs/readFile', input)
-      },
-      writeFile(input) {
-        return request('fs/writeFile', input)
-      },
-      createDirectory(input) {
-        return request('fs/createDirectory', input)
-      },
-      readDirectory(input) {
-        return request('fs/readDirectory', input)
-      },
-      getMetadata(input) {
-        return request('fs/getMetadata', input)
-      },
-      copy(input) {
-        const { source, destination, ...params } = input
-        return request('fs/copy', {
-          ...params,
-          sourcePath: params.sourcePath ?? source,
-          destinationPath: params.destinationPath ?? destination,
-        })
-      },
-      remove(input) {
-        return request('fs/remove', input)
-      },
-      watch(input) {
-        return request('fs/watch', input)
-      },
-      unwatch(input) {
-        return request('fs/unwatch', input)
-      },
-    },
-    mcp: {
-      listServers(input = {}) {
-        return request('mcpServerStatus/list', input)
-      },
-      readResource(input) {
-        return request('mcpServer/resource/read', input)
-      },
-      callTool(input) {
-        return request('mcpServer/tool/call', input)
-      },
-      oauthLogin(input) {
-        return request('mcpServer/oauth/login', input)
-      },
-      reload() {
-        return request('config/mcpServer/reload')
-      },
-    },
-    plugins: {
-      list(input = {}) {
-        return request('plugin/list', input)
-      },
-      installed(input = {}) {
-        return request('plugin/installed', input)
-      },
-      install(input) {
-        return request('plugin/install', input)
-      },
-      uninstall(input) {
-        return request('plugin/uninstall', input)
-      },
-      read(input) {
-        return request('plugin/read', input)
-      },
-      readSkill(input) {
-        return request('plugin/skill/read', input)
-      },
-    },
-    skills: {
-      list(input = {}) {
-        return request('skills/list', input)
-      },
-      writeConfig(input) {
-        return request('skills/config/write', input)
-      },
-      setExtraRoots(input) {
-        return request('skills/extraRoots/set', input)
-      },
-    },
-    models: {
-      list(input = {}) {
-        return request('model/list', input)
-      },
-      readProviderCapabilities(input = {}) {
-        return request('modelProvider/capabilities/read', input)
-      },
-    },
-    config: {
-      read(input = {}) {
-        return request('config/read', input)
-      },
-      writeValue(input) {
-        return request('config/value/write', input)
-      },
-      writeBatch(input) {
-        return request('config/batchWrite', input)
-      },
-      listPermissionProfiles(input = {}) {
-        return request('permissionProfile/list', input)
-      },
-    },
-    account: {
-      read(input = {}) {
-        return request('account/read', input)
-      },
-      loginStart(input) {
-        return request('account/login/start', input)
-      },
-      loginCancel(input) {
-        return request('account/login/cancel', input)
-      },
-      logout() {
-        return request('account/logout')
-      },
-      readRateLimits() {
-        return request('account/rateLimits/read')
-      },
-    },
-    realtime: {
-      supported: true,
-      listVoices(input = {}) {
-        return request('thread/realtime/listVoices', input)
-      },
-      start(input) {
-        return request('thread/realtime/start', input)
-      },
-      appendAudio(input) {
-        return request('thread/realtime/appendAudio', input)
-      },
-      appendText(input) {
-        return request('thread/realtime/appendText', input)
-      },
-      stop(input) {
-        return request('thread/realtime/stop', input)
-      },
-      subscribe({ threadId, onNotification }) {
-        const dispose = client.onNotification((notification) => {
-          if (!notification.method.startsWith('thread/realtime/')) return
-          const notificationThreadId = threadIdFromParams(notification.params)
-          if (notificationThreadId !== threadId) return
-          onNotification(adapter.notification(notification, provider) as AgentChatNotification)
-        })
-        return dispose
-      },
-    },
-  }
-}
-
-function threadIdFromParams(params: unknown): string | undefined {
-  if (!params || typeof params !== 'object' || Array.isArray(params)) return undefined
-  const record = params as Record<string, unknown>
-  const value = record.threadId ?? record.thread_id
-  const threadId = stringId(value)
-  if (threadId) return threadId
-  const thread = record.thread
-  if (!thread || typeof thread !== 'object' || Array.isArray(thread)) return undefined
-  return stringId((thread as Record<string, unknown>).id)
-}
-
-function stringId(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

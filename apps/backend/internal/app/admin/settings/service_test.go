@@ -79,6 +79,11 @@ func TestAuthSettingsDefaultUpdateEncryptionAndMasking(t *testing.T) {
 			FromName:    " Movscript ",
 			UseStartTLS: true,
 		},
+		Turnstile: TurnstileSettings{
+			Enabled:   true,
+			SiteKey:   " turnstile-site ",
+			SecretKey: "turnstile-secret",
+		},
 	})
 	if err != nil {
 		t.Fatalf("UpdateAuthSettings returned error: %v", err)
@@ -94,7 +99,7 @@ func TestAuthSettingsDefaultUpdateEncryptionAndMasking(t *testing.T) {
 	if record.ValueJSON == "" || json.Valid([]byte(record.ValueJSON)) == false {
 		t.Fatalf("stored auth settings are not valid json: %q", record.ValueJSON)
 	}
-	if strings.Contains(record.ValueJSON, "smtp-secret") {
+	if strings.Contains(record.ValueJSON, "smtp-secret") || strings.Contains(record.ValueJSON, "turnstile-secret") {
 		t.Fatalf("stored auth settings leaked plaintext password: %s", record.ValueJSON)
 	}
 
@@ -105,6 +110,9 @@ func TestAuthSettingsDefaultUpdateEncryptionAndMasking(t *testing.T) {
 	if loaded.Email.Password != "smtp-secret" || !loaded.Email.PasswordSet {
 		t.Fatalf("loaded auth settings did not decrypt password: %#v", loaded.Email)
 	}
+	if loaded.Turnstile.SiteKey != "turnstile-site" || loaded.Turnstile.SecretKey != "turnstile-secret" || !loaded.Turnstile.SecretKeySet {
+		t.Fatalf("loaded auth settings did not decrypt turnstile secret: %#v", loaded.Turnstile)
+	}
 
 	publicSettings, err := service.PublicAuthSettings(context.Background())
 	if err != nil {
@@ -112,6 +120,9 @@ func TestAuthSettingsDefaultUpdateEncryptionAndMasking(t *testing.T) {
 	}
 	if publicSettings.Email.Password != "" || !publicSettings.Email.PasswordSet {
 		t.Fatalf("public auth settings did not mask password: %#v", publicSettings.Email)
+	}
+	if publicSettings.Turnstile.SecretKey != "" || !publicSettings.Turnstile.SecretKeySet {
+		t.Fatalf("public auth settings did not mask turnstile secret: %#v", publicSettings.Turnstile)
 	}
 }
 

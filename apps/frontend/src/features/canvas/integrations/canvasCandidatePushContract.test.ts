@@ -10,9 +10,15 @@ function frontendSourcePath(relativePath: string) {
 }
 
 test('canvas does not expose entity push actions', () => {
-  const typesSource = readFileSync(frontendSourcePath('types/index.ts'), 'utf8')
+  const typesSource = [
+    readFileSync(frontendSourcePath('types/index.ts'), 'utf8'),
+    readFileSync(frontendSourcePath('types/canvas.ts'), 'utf8'),
+  ].join('\n')
   const nodeDefinitionsSource = readFileSync(frontendSourcePath('features/canvas/domain/nodeDefinitions.ts'), 'utf8')
-  const source = readFileSync(frontendSourcePath('features/canvas/components/CanvasEditorPage.tsx'), 'utf8')
+  const source = [
+    readFileSync(frontendSourcePath('features/canvas/components/CanvasEditorPage.tsx'), 'utf8'),
+    readFileSync(frontendSourcePath('features/canvas/components/CanvasWorkspace.tsx'), 'utf8'),
+  ].join('\n')
   const integrationSource = readFileSync(frontendSourcePath('features/canvas/integrations/resources.ts'), 'utf8')
   const nodeUiSources = [
     'features/canvas/ui/CanvasNodes.tsx',

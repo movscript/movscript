@@ -1,7 +1,6 @@
 .app-window-icon-button {
   width: 20px;
   height: 20px;
-  flex-shrink: 0;
   border-radius: var(--ms-radius-control);
   color: var(--ms-color-muted-foreground);
 }
@@ -11,12 +10,8 @@
 }
 
 .app-top-controls {
-  display: flex;
   height: 34px;
-  min-width: 0;
   flex-shrink: 0;
-  align-items: center;
-  gap: var(--ms-space-2);
 }
 
 .app-top-controls[data-density="compact"] {
@@ -35,7 +30,7 @@
   width: 6px;
   height: 6px;
   border: 1px solid var(--ms-color-background);
-  border-radius: 999px;
+  border-radius: var(--ms-radius-full);
   background: var(--ms-color-danger);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ms-color-danger) 28%, transparent);
 }
@@ -78,75 +73,41 @@
 .app-top-menu-label__secondary,
 .app-top-menu-item__text {
   display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .app-top-menu-label__primary {
-  font-size: var(--ms-text-label);
   font-weight: 500;
-  line-height: var(--ms-leading-label);
 }
 
 .app-top-menu-label__icon-text {
-  display: inline-flex;
   min-width: 0;
-  align-items: center;
   gap: 6px;
 }
 
 .app-top-menu-label__secondary {
   margin-top: 2px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
 }
 
 .app-top-menu-item__text {
   flex: 1;
 }
 
-.app-top-menu-item__leading-icon {
-  margin-right: var(--ms-space-2);
-  flex-shrink: 0;
-}
-
 .app-top-menu-item__update-dot {
   width: 6px;
   height: 6px;
-  margin-left: var(--ms-space-2);
-  flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: var(--ms-radius-full);
   background: var(--ms-color-danger);
 }
 
 .app-pager {
-  display: flex;
   flex-shrink: 0;
-  align-items: center;
   justify-content: space-between;
-  gap: var(--ms-space-2);
   border-top: 1px solid var(--ms-color-border);
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: var(--ms-leading-caption);
-}
-
-.app-pager__summary,
-.app-pager__status {
-  min-width: 0;
-  white-space: nowrap;
 }
 
 .app-pager__controls {
-  display: flex;
   flex-shrink: 0;
-  align-items: center;
   gap: var(--ms-space-1);
-}
-
-.app-pager__status {
-  font-variant-numeric: tabular-nums;
 }

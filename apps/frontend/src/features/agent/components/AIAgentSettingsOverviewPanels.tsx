@@ -5,7 +5,7 @@ import {
   AgentSettingsPanel,
   AgentSettingsReadinessPanel,
   agentSettingsStatusRecipe,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { SettingsAuditTrailPanel } from '@/features/agent/components/AIAgentSettingsPageParts'
 import type {
   SettingsActionItem,

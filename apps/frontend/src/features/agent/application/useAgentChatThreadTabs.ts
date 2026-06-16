@@ -13,6 +13,7 @@ import {
   buildAgentChatThreadTabs,
   errorMessage,
   isAgentChatThread,
+  positiveInteger,
   resolveAgentChatNextThreadAfterClose,
   selectAgentChatClosedHistoryThreads,
 } from '@/features/agent/presentation/agentChatDataSourceShellModel'
@@ -26,7 +27,7 @@ interface UseAgentChatThreadTabsInput {
   markThreadClosed: (threadId: string, clearActive: boolean) => void
   markThreadOpen: (threadId: string) => void
   openThreadIds: Set<string>
-  projectId?: number
+  projectId?: unknown
   providerIdentity: ReturnType<typeof buildAgentChatProviderIdentity>
   readHistoryThread: (threadId: string) => Promise<{ thread: AgentChatThread; input: AgentChatThreadReadInput }>
   setActiveThreadIdValue: (threadId: string | null) => void
@@ -60,18 +61,19 @@ export function useAgentChatThreadTabs({
   upsertThreadReadResult,
   userId,
 }: UseAgentChatThreadTabsInput) {
+  const normalizedProjectId = useMemo(() => positiveInteger(projectId), [projectId])
   const openThreadCandidates = useMemo(() => buildAgentChatOpenThreadCandidates({
     activeThreadId,
     closedThreadIds,
     conversations,
     dataSource,
     openThreadIds,
-    projectId,
+    projectId: normalizedProjectId,
     providerIdentity,
     sourceThreadList,
     threads,
     userId,
-  }), [activeThreadId, closedThreadIds, conversations, dataSource, openThreadIds, projectId, providerIdentity, sourceThreadList, threads, userId])
+  }), [activeThreadId, closedThreadIds, conversations, dataSource, normalizedProjectId, openThreadIds, providerIdentity, sourceThreadList, threads, userId])
 
   const closeThreadTab = useCallback(async (threadId: string) => {
     const thread = threads.find((item) => item.id === threadId)
@@ -138,9 +140,9 @@ export function useAgentChatThreadTabs({
   const closedHistoryThreads = useMemo(() => selectAgentChatClosedHistoryThreads({
     closedThreadIds,
     conversations,
-    projectId,
+    projectId: normalizedProjectId,
     sourceThreadList,
-  }), [closedThreadIds, conversations, projectId, sourceThreadList])
+  }), [closedThreadIds, conversations, normalizedProjectId, sourceThreadList])
 
   return {
     closeThreadTab,

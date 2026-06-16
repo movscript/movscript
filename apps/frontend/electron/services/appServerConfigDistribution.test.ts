@@ -16,7 +16,7 @@ import {
 
 test('distributes provider account config into app-server config files', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -75,7 +75,7 @@ test('distributes provider account config into app-server config files', () => {
 
 test('distributes Mova account config from its own provider record into the Mova managed home', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mova-config-'))
-  const movaHome = join(workspaceDir, '.movscript', '.mova')
+  const movaHome = join(workspaceDir, '.mova')
   const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir)
   const movaConfigPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'mova' })
   writeMovScriptWorkspaceConfig(defaultPaths.configPath, {
@@ -131,7 +131,7 @@ test('distributes Mova account config from its own provider record into the Mova
 
 test('uses backend provider base URL for backendKey app-server config', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-provider-config-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -166,7 +166,7 @@ test('uses backend provider base URL for backendKey app-server config', () => {
 
 test('falls back to workspace backend base URL for existing backendKey app-server config', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-provider-existing-config-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptBackendConfig(workspaceDir, { baseURL: 'https://backend.example/api/v1' })
   writeMovScriptWorkspaceConfig(paths.configPath, {
@@ -200,7 +200,7 @@ test('falls back to workspace backend base URL for existing backendKey app-serve
 
 test('uses managed home provider when caller passes default provider key', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-default-key-config-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir)
   const codexPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
   writeMovScriptWorkspaceConfig(defaultPaths.configPath, {
@@ -239,7 +239,7 @@ test('uses managed home provider when caller passes default provider key', () =>
 
 test('uses backend session token for backend provider app-server auth', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-session-token-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
   writeMovScriptBackendAuth(workspaceDir, {
     token: 'mv1.backend-session-token',
@@ -276,7 +276,7 @@ test('uses backend session token for backend provider app-server auth', () => {
 
 test('rejects upstream provider keys for backend app-server gateway auth', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-upstream-key-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -310,7 +310,7 @@ test('rejects upstream provider keys for backend app-server gateway auth', () =>
 
 test('overwrites backend provider config.toml even when backend account is missing', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-no-account-config-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -341,7 +341,7 @@ test('overwrites backend provider config.toml even when backend account is missi
 
 test('distributes a custom app-server provider from its own managed provider profile config', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-claude-config-'))
-  const claudeHome = join(workspaceDir, '.movscript', '.claude')
+  const claudeHome = join(workspaceDir, '.claude')
   const claudeProfilePaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'claude' })
   writeMovScriptWorkspaceConfig(claudeProfilePaths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -385,7 +385,7 @@ test('distributes a custom app-server provider from its own managed provider pro
 
 test('infers Mova distribution from the managed Mova home when provider key is omitted', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mova-config-inferred-'))
-  const movaHome = join(workspaceDir, '.movscript', '.mova')
+  const movaHome = join(workspaceDir, '.mova')
   const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir)
   const movaConfigPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'mova' })
   writeMovScriptWorkspaceConfig(defaultPaths.configPath, {
@@ -429,7 +429,7 @@ test('infers Mova distribution from the managed Mova home when provider key is o
 
 test('infers custom app-server provider distribution from its managed provider home', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-studio-config-inferred-'))
-  const studioHome = join(workspaceDir, '.movscript', '.studio-agent')
+  const studioHome = join(workspaceDir, '.studio-agent')
   const studioConfigPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'studio-agent' })
   writeMovScriptWorkspaceConfig(studioConfigPaths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -458,7 +458,7 @@ test('infers custom app-server provider distribution from its managed provider h
 
 test('uses a provider profile config as app-server source while inheriting default runtime fields', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-profile-config-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir)
   const codexConfigPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
   writeMovScriptWorkspaceConfig(defaultPaths.configPath, {
@@ -496,7 +496,7 @@ test('uses a provider profile config as app-server source while inheriting defau
 
 test('inherits existing MovScript-managed provider auth when no explicit account is configured', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-no-key-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -527,7 +527,7 @@ test('inherits existing MovScript-managed provider auth when no explicit account
 
 test('keeps app-server launch hash stable across distribution timestamps', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-stable-hash-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -564,7 +564,7 @@ test('keeps app-server launch hash stable across distribution timestamps', () =>
 
 test('clears provider auth only when MovScript explicitly disables the account', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-none-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -599,7 +599,7 @@ test('clears provider auth only when MovScript explicitly disables the account',
 
 test('does not create provider home when no provider account can be projected', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-no-home-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -623,7 +623,7 @@ test('does not create provider home when no provider account can be projected', 
 
 test('inherits managed provider ChatGPT auth without forcing API key env', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-chatgpt-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -663,7 +663,7 @@ test('inherits managed provider ChatGPT auth without forcing API key env', () =>
 
 test('distributes user supplied provider base URL and API key', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-custom-key-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
@@ -696,7 +696,7 @@ test('distributes user supplied provider base URL and API key', () => {
 test('inherits local app-server home provider config and auth without copying a home-level model', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-local-'))
   const localHome = mkdtempSync(join(tmpdir(), 'movscript-local-home-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeFileSync(join(localHome, 'config.toml'), 'model = "local-codex-model"\nmodel_provider = "openai"\n')
   writeFileSync(join(localHome, 'auth.json'), JSON.stringify({
@@ -733,7 +733,7 @@ test('inherits local app-server home provider config and auth without copying a 
 test('maps legacy local provider home mode to Mova local-home distribution', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mova-config-legacy-local-'))
   const localHome = mkdtempSync(join(tmpdir(), 'movscript-legacy-local-home-'))
-  const movaHome = join(workspaceDir, '.movscript', '.mova')
+  const movaHome = join(workspaceDir, '.mova')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   const legacyMode = ['local', 'Codex'].join('')
   writeFileSync(join(localHome, 'auth.json'), JSON.stringify({
@@ -766,7 +766,7 @@ test('maps legacy local provider home mode to Mova local-home distribution', () 
 
 test('custom provider config mode does not overwrite user edited config files', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-manual-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   mkdirSync(codexHome, { recursive: true })
   writeFileSync(join(codexHome, 'config.toml'), 'model = "manual-model"\n')
@@ -796,7 +796,7 @@ test('custom provider config mode does not overwrite user edited config files', 
 
 test('changes distribution hash when only API key changes', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-config-key-change-'))
-  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const codexHome = join(workspaceDir, '.codex')
   const paths = resolveMovScriptWorkspacePaths(workspaceDir)
   writeMovScriptWorkspaceConfig(paths.configPath, {
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,

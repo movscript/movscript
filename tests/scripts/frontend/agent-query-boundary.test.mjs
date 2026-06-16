@@ -9,13 +9,18 @@ const agentSettingsModelControllerSource = readSource('apps/frontend/src/feature
 const agentsPageSource = [
   readSource('apps/frontend/src/features/agent/components/AgentsPage.tsx'),
   readSource('apps/frontend/src/features/agent/components/AgentsPageAppServerPanel.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentsPageAppServerPanelModel.tsx'),
 ].join('\n')
 const modelProvidersSource = readSource('apps/frontend/src/features/agent/components/ModelProvidersPage.tsx')
-const agentConsoleSource = readSource('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
+const agentConsoleSource = [
+  readSource('apps/frontend/src/features/agent/components/AgentConsolePage.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentConsolePageSections.tsx'),
+].join('\n')
 const agentConsoleCapabilityPanelsSource = readSource('apps/frontend/src/features/agent/components/AgentConsoleCapabilityPanels.tsx')
 const agentArtifactsSource = readSource('apps/frontend/src/features/agent/components/AgentArtifactResultCards.tsx')
 const agentBrowserSource = [
   readSource('apps/frontend/src/features/agent/components/AgentBrowserPanel.tsx'),
+  readSource('apps/frontend/src/features/agent/components/AgentBrowserPanelHeader.tsx'),
   readSource('apps/frontend/src/features/agent/components/AgentBrowserTabContent.tsx'),
   readSource('apps/frontend/src/features/agent/components/AgentBrowserPanelModel.ts'),
 ].join('\n')
@@ -25,6 +30,8 @@ const agentChatStoreBindingsSource = readSource('apps/frontend/src/features/agen
 const activePlanSnapshotSource = readSource('apps/frontend/src/features/agent/presentation/useAgentActivePlanSnapshot.ts')
 const agentPlanSnapshotCacheSource = readSource('apps/frontend/src/features/agent/application/agentPlanSnapshotQueryCache.ts')
 const agentSessionStoreSource = readSource('apps/frontend/src/features/agent/state/agentSessionStore.ts')
+const agentSessionTaskStateSource = readSource('apps/frontend/src/features/agent/state/agentSessionTaskState.ts')
+const agentSessionStoreTypesSource = readSource('apps/frontend/src/features/agent/state/agentSessionStoreTypes.ts')
 const agentSendCommitSource = readSource('apps/frontend/src/features/agent/application/agentSendCommit.ts')
 const agentSendCompletionSource = readSource('apps/frontend/src/features/agent/application/agentSendCompletion.ts')
 
@@ -93,6 +100,7 @@ test('provider thread mutations publish standard cache update results', () => {
 test('agent session store does not keep provider-session projection compatibility state', () => {
   for (const source of [
     agentSessionStoreSource,
+    agentSessionStoreTypesSource,
     agentChatStoreBindingsSource,
     agentSendCommitSource,
     agentSendCompletionSource,
@@ -107,8 +115,28 @@ test('agent session store does not keep provider-session projection compatibilit
     assert.doesNotMatch(source, /setProviderThreadId/)
     assert.doesNotMatch(source, /@deprecated/)
   }
-  assert.match(agentSessionStoreSource, /conversationThreadBindings: Record<string, AgentConversationThreadBinding>/)
-  assert.match(agentSessionStoreSource, /conversationRuntimeStates: Record<string, AgentConversationRuntimeState>/)
+  const persistedAgentSessionStoreLine = agentSessionStoreTypesSource
+    .split('\n')
+    .find((line) => line.startsWith('export type PersistedAgentSessionStore = ')) ?? ''
+  assert.equal(
+    persistedAgentSessionStoreLine,
+    "export type PersistedAgentSessionStore = Pick<AgentSessionStore, 'activeConversationIdsByUser' | 'conversationsById' | 'workspacesByUser'>",
+  )
+  assert.doesNotMatch(persistedAgentSessionStoreLine, /conversationRuntimeStates/)
+  assert.doesNotMatch(persistedAgentSessionStoreLine, /conversationThreadBindings/)
+  assert.match(agentSessionStoreSource, /partialize: persistedAgentSessionState/)
+  assert.match(agentSessionStoreSource, /activeConversationIdsByUser: persisted\?\.activeConversationIdsByUser \?\? \{\}/)
+  assert.match(agentSessionStoreSource, /conversationsById: persisted\?\.conversationsById \?\? \{\}/)
+  assert.match(agentSessionStoreSource, /workspacesByUser: persisted\?\.workspacesByUser \?\? \{\}/)
+  assert.doesNotMatch(agentSessionStoreSource, /conversationRuntimeStates: persisted\?\./)
+  assert.doesNotMatch(agentSessionStoreSource, /conversationThreadBindings: persisted\?\./)
+  assert.match(agentSessionStoreSource, /initialAgentSessionVolatileState\(\)/)
+  assert.match(agentSessionStoreSource, /enqueueAgentPageTask/)
+  assert.match(agentSessionTaskStateSource, /export function initialAgentSessionVolatileState/)
+  assert.match(agentSessionTaskStateSource, /conversationThreadBindings: Record<string, AgentConversationThreadBinding>/)
+  assert.match(agentSessionTaskStateSource, /conversationRuntimeStates: Record<string, AgentConversationRuntimeState>/)
+  assert.match(agentSessionTaskStateSource, /export function enqueueAgentPageTask/)
+  assert.match(agentSessionTaskStateSource, /export function updateAgentPageTaskFromProviderSession/)
   assert.match(agentSendCommitSource, /setConversationProviderSessionTreeId/)
   assert.match(agentSendCommitSource, /setConversationProviderThreadBindingId/)
 })

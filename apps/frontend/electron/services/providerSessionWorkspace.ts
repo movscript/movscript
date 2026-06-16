@@ -8,7 +8,8 @@ import {
   resolveMovScriptWorkspaceRootPaths,
 } from '@movscript/core/workspace/node'
 import type { ElectronProviderSessionSummary } from '../../src/shared/contracts/electronApi'
-import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
+import type { ElectronMovScriptHomeInput } from '../../src/shared/contracts/electronApi'
+import { resolveMovScriptHomeDir } from './movscriptHomeInput'
 
 export const MOVSCRIPT_PROVIDER_SESSION_SCHEMA = 'movscript.provider-session.v1'
 
@@ -26,8 +27,7 @@ export type ProviderSessionWorkspaceRecord = ElectronProviderSessionSummary & {
   statusUpdatedAt: string
 }
 
-export type ProviderSessionWorkspaceUpsertInput = {
-  workspaceDir?: string
+export type ProviderSessionWorkspaceUpsertInput = ElectronMovScriptHomeInput & {
   providerProfileKey?: string
   providerProfileId: string
   providerKey?: string
@@ -42,8 +42,8 @@ export type ProviderSessionWorkspaceUpsertInput = {
   now?: Date
 }
 
-export function listProviderSessionsFromWorkspace(input: { workspaceDir?: string; providerProfileKey?: string } = {}): { sessions: ElectronProviderSessionSummary[] } {
-  const workspaceDir = input.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir()
+export function listProviderSessionsFromWorkspace(input: ElectronMovScriptHomeInput & { providerProfileKey?: string } = {}): { sessions: ElectronProviderSessionSummary[] } {
+  const workspaceDir = resolveMovScriptHomeDir(input)
   const requestedProfile = normalizeMovScriptWorkspaceConfigDirName(input.providerProfileKey)
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(root)
@@ -72,7 +72,7 @@ export function listProviderSessionsFromWorkspace(input: { workspaceDir?: string
 }
 
 export function upsertProviderSessionInWorkspace(input: ProviderSessionWorkspaceUpsertInput): ProviderSessionWorkspaceRecord {
-  const workspaceDir = input.workspaceDir?.trim() || resolveDesktopDefaultMovScriptWorkspaceDir()
+  const workspaceDir = resolveMovScriptHomeDir(input)
   const providerProfileKey = normalizeMovScriptWorkspaceConfigDirName(input.providerProfileKey) ?? input.providerKey ?? 'default'
   const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: providerProfileKey })
   ensureMovScriptWorkspace(paths)
@@ -135,7 +135,7 @@ function providerSessionSummaryFromRecord(record: ProviderSessionWorkspaceRecord
       ...record.session,
       ...(projectId !== undefined ? { projectId } : {}),
     },
-    ...(record.workspaceDir ? { workspaceDir: record.workspaceDir } : {}),
+    ...(record.workspaceDir ? { movScriptHomeDir: record.workspaceDir, workspaceDir: record.workspaceDir } : {}),
     ...(record.workspaceContext ? { workspaceContext: record.workspaceContext } : {}),
     ...(record.providerSessionCwd ? { providerSessionCwd: record.providerSessionCwd } : {}),
     ...(record.state ? { state: { ...record.state, ...(projectId !== undefined ? { projectId } : {}) } } : {}),
@@ -189,7 +189,7 @@ function projectIdFromWorkspaceContext(context: ElectronProviderSessionSummary['
 function projectIdFromProviderSessionCwd(cwd: string | undefined): number | undefined {
   const normalized = cwd?.replace(/\\/g, '/')
   if (!normalized) return undefined
-  const match = /(?:^|\/)\.movscript\/(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
+  const match = /(?:^|\/)(?:\.movscript\/)?(?:local|user\/[^/]+|org\/[^/]+)\/projects\/project_(\d+)(?:\/|$)/.exec(normalized)
   if (!match?.[1]) return undefined
   const projectId = Number(match[1])
   return Number.isInteger(projectId) && projectId > 0 ? projectId : undefined

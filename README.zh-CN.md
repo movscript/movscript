@@ -5,7 +5,7 @@
 <h1 align="center">Movscript</h1>
 
 <p align="center">
-  面向短剧生产与 AI 辅助视频创作的 local-first 桌面工作台。
+  面向 Vibe Motion、AI 规划成片与自动剪辑的视频创作工具。
 </p>
 
 <p align="center">
@@ -29,7 +29,15 @@
 
 ## Movscript 是什么？
 
-Movscript 是一个开源社区版桌面生产工作台，面向创作者团队的本地创作、短剧生产和 AI 辅助视频工作流。它把项目策划、剧本、素材、分镜、镜头、生成任务、模型管理、插件和由 provider 支撑的助手工作流放在一个应用里。
+Movscript 是一个 Vibe Motion 创作工具：创作者不必先从时间线和关键帧开始，而是先描述意图、感觉、节奏和结构，再让系统把这些创意方向转化为可规划、可编辑、可预览的视频工作流。
+
+社区版是一个 local-first 桌面工作台，面向 AI 规划成片和自动剪辑。它把项目策划、剧本、素材、分镜、镜头、生成任务、模型管理、插件和由 provider 支撑的助手工作流放在一个应用里。
+
+Movscript 当前聚焦三个产品理念：
+
+- **Vibe Motion**：用感觉、节奏、视觉意图和结构来导演动态影像。
+- **AI 规划成片**：让 AI 把脚本和参考拆成场景、镜头、素材缺口、生成任务和剪辑计划。
+- **自动剪辑**：把生成或导入的镜头组织成可预览 rough cut，再继续审看、修改和精修。
 
 项目仍处于早期阶段。API、插件 manifest、工作区契约和 provider 行为在稳定版本发布前可能继续调整。当前更适合本地开发、工作流探索、插件集成和社区反馈。
 
@@ -63,7 +71,9 @@ http://localhost:8766/admin
 | --- | --- |
 | 桌面工作台 | Electron + Vite + React 本地生产应用 |
 | 后端 API | Go API server、数据库模型、AI adapters、生成任务与 worker 路径 |
-| 创作生产模型 | 项目、剧本、素材、分镜、镜头、关键帧、音频 cue 和 content unit |
+| Vibe Motion 模型 | 意图、节奏、结构、剧本、素材、分镜、镜头、关键帧、音频 cue 和 content unit |
+| AI 规划成片 | 剧本拆解、镜头规划、素材缺口识别、生成任务编排和剪辑计划交接 |
+| 自动剪辑 | rough cut 组织、候选审看、版本选择和 timeline-compatible output |
 | 助手工作流 | Provider-backed sessions、模型路由、领域工具、资源工具和生成工具 |
 | 工作区引擎 | Source review、interpret、diagnostics 和确定性 read-model refresh |
 | 管理后台 | 凭据、模型、路由、用户和运行设置 |
@@ -149,10 +159,10 @@ curl http://localhost:8765/health
 | 数据库 | PostgreSQL |
 | 对象存储 | MinIO |
 | Workspace backend | Gitea |
-| AI gateway | new-api |
+| AI gateway | Local mode |
 | 缓存 | Redis |
 
-`DB_DRIVER`、`STORAGE_BACKEND`、`MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`、`MOVSCRIPT_AI_GATEWAY_PROVIDER`、`CACHE_BACKEND` 等单项环境变量仍然可以覆盖 profile 默认值。
+`DB_DRIVER`、`STORAGE_BACKEND`、`MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`、`CACHE_BACKEND` 等单项环境变量仍然可以覆盖 profile 默认值。社区版 AI gateway 固定使用 Local mode；外部模型网关、计量和套餐绑定属于商业发行层。
 
 ### 观测栈
 

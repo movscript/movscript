@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -32,8 +32,11 @@ import {
   AuthTabs,
   AuthTagline,
   AuthTitle,
+  AuthTurnstileSlot,
   AuthWorkModePanel,
   AuthWorkModeRoot,
+} from '@/features/auth/components/AuthPageUi'
+import {
   WorkModePrompt,
   type WorkModeChoice
 } from '@movscript/ui/business/app'
@@ -44,8 +47,22 @@ type AuthConfig = {
   registration_enabled: boolean
   require_email_verification: boolean
   email_verification_enabled: boolean
+  turnstile?: {
+    enabled?: boolean
+    site_key?: string
+  }
   local_bootstrap_enabled: boolean
   bootstrap_required?: boolean
+}
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback'?: () => void; 'error-callback'?: () => void }) => string
+      reset: (widgetId?: string) => void
+      remove?: (widgetId: string) => void
+    }
+  }
 }
 
 export default function AuthPage() {
@@ -60,6 +77,8 @@ export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [challengeId, setChallengeId] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
   const [error, setError] = useState('')
   const [pendingSession, setPendingSession] = useState<AuthSession | null>(null)
 
@@ -72,10 +91,17 @@ export default function AuthPage() {
   const bootstrapRequired = !!config?.bootstrap_required
   const registrationEnabled = !!config?.registration_enabled || localMode || bootstrapRequired
   const requiresEmail = tab === 'register' && !localMode && !bootstrapRequired && !!config?.require_email_verification
+  const turnstileEnabled = !localMode && !bootstrapRequired && !!config?.turnstile?.enabled && !!config?.turnstile?.site_key
+  const turnstileReady = !turnstileEnabled || !!turnstileToken
+  const clearTurnstileChallenge = useCallback(() => {
+    setTurnstileToken('')
+    setTurnstileResetSignal((current) => current + 1)
+  }, [])
 
   const login = useMutation({
-    mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as AuthSession),
+    mutationFn: () => api.post('/auth/login', { username, password, turnstile: turnstileToken }).then((r) => r.data as AuthSession),
     onSuccess: finishAuth,
+    onSettled: () => { if (turnstileEnabled) clearTurnstileChallenge() },
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.loginFailed'))
   })
 
@@ -86,23 +112,27 @@ export default function AuthPage() {
       challengeId,
       code,
       localAdmin: localMode || bootstrapRequired,
+      turnstile: turnstileToken,
     }).then((r) => r.data as AuthSession),
     onSuccess: finishAuth,
+    onSettled: () => { if (turnstileEnabled) clearTurnstileChallenge() },
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
   })
   const startCode = useMutation({
-    mutationFn: () => api.post('/auth/code/start', { target: email, purpose: 'register' }).then((r) => r.data as { challengeId: string; expiresIn: number; devCode?: string }),
+    mutationFn: () => api.post('/auth/code/start', { target: email, purpose: 'register', turnstile: turnstileToken }).then((r) => r.data as { challengeId: string; expiresIn: number; devCode?: string }),
     onSuccess: (result) => {
       setChallengeId(result.challengeId)
       if (result.devCode) setCode(result.devCode)
       setError('')
     },
+    onSettled: () => { if (turnstileEnabled) clearTurnstileChallenge() },
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.codeSendFailed')),
   })
 
   function handleSubmit() {
     setError('')
     if (!username.trim() || !password) return
+    if (!turnstileReady) { setError(t('auth.turnstileRequired', { defaultValue: '请先完成人机验证' })); return }
     if (tab === 'register') {
       if (!registrationEnabled) { setError(t('auth.registrationClosed')); return }
       if (password !== confirm) { setError(t('auth.passwordMismatch')); return }
@@ -115,6 +145,7 @@ export default function AuthPage() {
 
   const loading = login.isPending || register.isPending
   const onEnter = (e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSubmit()
+  const resetTurnstile = useCallback(() => setTurnstileToken(''), [])
 
   async function finishAuth(session: AuthSession) {
     if (settings.onboardingCompleted) {
@@ -215,7 +246,7 @@ export default function AuthPage() {
                       }}
                       onKeyDown={onEnter}
                     />
-                    <AuthActionButton type="button" variant="outline" onClick={() => startCode.mutate()} disabled={startCode.isPending || !email.trim()}>
+                    <AuthActionButton type="button" variant="outline" onClick={() => startCode.mutate()} disabled={startCode.isPending || !email.trim() || !turnstileReady}>
                       {startCode.isPending ? t('auth.sendingCode') : t('auth.sendCode')}
                     </AuthActionButton>
                   </AuthEmailCodeRow>
@@ -231,11 +262,20 @@ export default function AuthPage() {
             </>
           )}
 
+          {turnstileEnabled && config?.turnstile?.site_key && (
+            <TurnstileWidget
+              siteKey={config.turnstile.site_key}
+              resetSignal={turnstileResetSignal}
+              onVerify={setTurnstileToken}
+              onReset={resetTurnstile}
+            />
+          )}
+
           {error && <AuthStateMessage tone="danger">{error}</AuthStateMessage>}
 
           <AuthSubmitButton
             onClick={handleSubmit}
-            disabled={loading || !username.trim() || !password}
+            disabled={loading || !username.trim() || !password || !turnstileReady}
           >
             {loading ? t('auth.pleaseWait') : tab === 'login' ? t('auth.login') : t('auth.register')}
           </AuthSubmitButton>
@@ -265,4 +305,65 @@ export default function AuthPage() {
       </AuthPanel>
     </AuthRoot>
   )
+}
+
+function TurnstileWidget({
+  siteKey,
+  resetSignal,
+  onVerify,
+  onReset,
+}: {
+  siteKey: string
+  resetSignal: number
+  onVerify: (token: string) => void
+  onReset: () => void
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const widgetIdRef = useRef<string>()
+
+  useEffect(() => {
+    let cancelled = false
+
+    function render() {
+      if (cancelled || !containerRef.current || !window.turnstile || widgetIdRef.current) return
+      widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        sitekey: siteKey,
+        callback: onVerify,
+        'expired-callback': onReset,
+        'error-callback': onReset,
+      })
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[data-movscript-turnstile="true"]')
+    if (existing) {
+      if (window.turnstile) render()
+      else existing.addEventListener('load', render, { once: true })
+    } else {
+      const script = document.createElement('script')
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+      script.async = true
+      script.defer = true
+      script.dataset.movscriptTurnstile = 'true'
+      script.addEventListener('load', render, { once: true })
+      document.head.appendChild(script)
+    }
+
+    return () => {
+      cancelled = true
+      if (widgetIdRef.current && window.turnstile?.remove) {
+        window.turnstile.remove(widgetIdRef.current)
+      }
+      widgetIdRef.current = undefined
+      onReset()
+    }
+  }, [onReset, onVerify, siteKey])
+
+  useEffect(() => {
+    if (widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current)
+      onReset()
+    }
+  }, [onReset, resetSignal])
+
+  return <AuthTurnstileSlot ref={containerRef} />
 }

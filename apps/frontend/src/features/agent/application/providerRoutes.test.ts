@@ -32,7 +32,7 @@ test('provider routes use provider instance ids without changing app-server prov
       id: 'studio-home',
       label: 'Studio Agent',
       providerKey: 'studio-agent',
-      home: '.movscript/.studio-agent',
+      home: '.studio-agent',
       lifecycle: 'movscript-owned',
     },
   }

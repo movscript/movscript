@@ -1,5 +1,28 @@
 import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode, ContentCanvasNodeKind } from '../domain/contentCanvasTypes'
 import type { ContentCanvasNodeLayout } from './contentCanvasLayout'
+import {
+  contentCanvasCollapsedSummaries,
+  contentCanvasHiddenEdgeSummaries,
+  type ContentCanvasCollapsedRelationSummary,
+  type ContentCanvasHiddenEdgeSummary,
+} from './contentCanvasViewSummaries'
+import {
+  issueNodeIdsForFilters,
+  issueNodeIdsForGraph,
+} from './contentCanvasViewPlanIssues'
+import {
+  applyContentCanvasEdgeBudget,
+  contentCanvasEdgeLabelIds,
+  contentCanvasEdgeMatchesFilter,
+  contentCanvasModeAllowsEdge,
+} from './contentCanvasViewPlanEdges'
+
+export type {
+  ContentCanvasCollapsedRelationSummary,
+  ContentCanvasHiddenEdgeSummary,
+} from './contentCanvasViewSummaries'
+
+export { contentCanvasModeAllowsEdge } from './contentCanvasViewPlanEdges'
 
 export type ContentCanvasViewMode = 'structure' | 'dependency' | 'issues'
 export type ContentCanvasImpactKind = 'created' | 'selected' | 'affected'
@@ -41,18 +64,6 @@ export interface ContentCanvasViewPlan {
   edgeLabelIds: Set<string>
   collapsedSummariesByNodeId: Record<string, ContentCanvasCollapsedRelationSummary[]>
   edgeSummariesByNodeId: Record<string, ContentCanvasHiddenEdgeSummary[]>
-}
-
-export interface ContentCanvasCollapsedRelationSummary {
-  kind: ContentCanvasNodeKind
-  count: number
-  label: string
-}
-
-export interface ContentCanvasHiddenEdgeSummary {
-  relation: ContentCanvasEdge['relation'] | 'hierarchy' | 'reference' | 'sequence'
-  count: number
-  label: string
 }
 
 const STRUCTURE_KINDS = new Set<ContentCanvasNodeKind>([
@@ -173,106 +184,6 @@ function shouldHideDefaultWorkOverlayNode(
   return (input.statusFilter ?? 'all') === 'all'
 }
 
-function applyContentCanvasEdgeBudget(
-  edges: ContentCanvasEdge[],
-  input: ContentCanvasViewPlanInput,
-  density: ContentCanvasDensity,
-): { edges: ContentCanvasEdge[]; hiddenEdges: ContentCanvasEdge[]; hiddenEdgeIds: Set<string> } {
-  const limit = input.edgeRenderLimit ?? defaultEdgeRenderLimitForDensity(density)
-  if (edges.length <= limit) return { edges, hiddenEdges: [], hiddenEdgeIds: new Set() }
-  const sorted = [...edges].sort((left, right) => edgeRenderRank(left, input) - edgeRenderRank(right, input))
-  const kept = sorted.slice(0, limit)
-  const keptIds = new Set(kept.map((edge) => edge.id))
-  const hiddenEdges = edges.filter((edge) => !keptIds.has(edge.id))
-  return {
-    edges: edges.filter((edge) => keptIds.has(edge.id)),
-    hiddenEdges,
-    hiddenEdgeIds: new Set(hiddenEdges.map((edge) => edge.id)),
-  }
-}
-
-function defaultEdgeRenderLimitForDensity(density: ContentCanvasDensity): number {
-  if (density === 'trace') return 450
-  if (density === 'workband') return 700
-  return 320
-}
-
-function edgeRenderRank(edge: ContentCanvasEdge, input: ContentCanvasViewPlanInput): number {
-  if (edge.source === input.selectedNodeId || edge.target === input.selectedNodeId) return 0
-  if (input.impactByNodeId[edge.source] || input.impactByNodeId[edge.target]) return 1
-  if (edge.state === 'stale' || edge.state === 'needs_candidate' || edge.state === 'missing') return 2
-  if (edge.relation === 'actor_work_item') return 3
-  if (edge.relation === 'work_item_target') return 3
-  if (edge.kind === 'hierarchy') return 3
-  if (edge.kind === 'sequence') return 4
-  if (edge.relation === 'content_unit_candidate' || edge.relation === 'selection_candidate') return 5
-  return 6
-}
-
-function contentCanvasEdgeMatchesFilter(edge: ContentCanvasEdge, filters: ReadonlySet<ContentCanvasEdgeFilter>): boolean {
-  return filters.has(edge.kind) || (edge.relation ? filters.has(edge.relation) : false)
-}
-
-function contentCanvasHiddenEdgeSummaries(
-  hiddenEdges: ContentCanvasEdge[],
-  visibleIds: ReadonlySet<string>,
-): Record<string, ContentCanvasHiddenEdgeSummary[]> {
-  const countsByNodeId = new Map<string, Map<ContentCanvasHiddenEdgeSummary['relation'], number>>()
-  for (const edge of hiddenEdges) {
-    const anchorId = visibleIds.has(edge.source) ? edge.source : visibleIds.has(edge.target) ? edge.target : undefined
-    if (!anchorId) continue
-    const relation = edge.relation ?? edge.kind
-    const counts = countsByNodeId.get(anchorId) ?? new Map<ContentCanvasHiddenEdgeSummary['relation'], number>()
-    counts.set(relation, (counts.get(relation) ?? 0) + 1)
-    countsByNodeId.set(anchorId, counts)
-  }
-  return Object.fromEntries(
-    [...countsByNodeId.entries()].map(([nodeId, counts]) => [
-      nodeId,
-      [...counts.entries()]
-        .sort(([left], [right]) => hiddenEdgeRelationRank(left) - hiddenEdgeRelationRank(right))
-        .map(([relation, count]) => ({
-          relation,
-          count,
-          label: hiddenEdgeRelationLabel(relation),
-        })),
-    ]),
-  )
-}
-
-function hiddenEdgeRelationRank(relation: ContentCanvasHiddenEdgeSummary['relation']): number {
-  if (relation === 'work_item_target') return 0
-  if (relation === 'actor_work_item') return 1
-  if (relation === 'hierarchy') return 2
-  if (relation === 'sequence') return 3
-  if (relation === 'content_unit_asset') return 4
-  if (relation === 'content_unit_candidate') return 5
-  if (relation === 'asset_downstream') return 6
-  if (relation === 'setting_state_reference') return 7
-  if (relation === 'expression_unit_shot' || relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return 8
-  if (relation === 'audio_cue_shot' || relation === 'audio_cue_storyboard' || relation === 'audio_cue_asset') return 9
-  return 11
-}
-
-function hiddenEdgeRelationLabel(relation: ContentCanvasHiddenEdgeSummary['relation']): string {
-  if (relation === 'work_item_target') return '处理边'
-  if (relation === 'actor_work_item') return '处理者边'
-  if (relation === 'hierarchy') return '结构边'
-  if (relation === 'sequence') return '顺序边'
-  if (relation === 'content_unit_asset') return '素材边'
-  if (relation === 'content_unit_candidate') return '候选边'
-  if (relation === 'asset_downstream') return '资产影响边'
-  if (relation === 'setting_state_reference') return '设定状态边'
-  if (relation === 'expression_unit_shot' || relation === 'expression_unit_storyboard' || relation === 'expression_unit_content_unit') return '表达约束边'
-  if (relation === 'audio_cue_shot' || relation === 'audio_cue_storyboard') return '声音约束边'
-  if (relation === 'audio_cue_asset') return '声音素材边'
-  if (relation === 'content_unit_keyframe') return '关键帧边'
-  if (relation === 'content_unit_storyboard') return '分镜边'
-  if (relation === 'candidate_resource') return '资源边'
-  if (relation === 'selection_candidate') return '选择边'
-  return '关系边'
-}
-
 function collapsedHiddenNodeIdsForGraph(
   graph: ContentCanvasGraph,
   layoutByNodeId: Record<string, Pick<ContentCanvasNodeLayout, 'collapsed'>>,
@@ -321,153 +232,6 @@ function collapsedDescendantNodeIds(graph: ContentCanvasGraph, nodeId: string): 
     }
   }
   return hidden
-}
-
-function contentCanvasCollapsedSummaries(
-  graph: ContentCanvasGraph,
-  visibleIds: ReadonlySet<string>,
-  hiddenNodeIds: ReadonlySet<string>,
-): Record<string, ContentCanvasCollapsedRelationSummary[]> {
-  const countsByAnchor = new Map<string, Map<ContentCanvasNodeKind, number>>()
-  for (const hiddenNodeId of hiddenNodeIds) {
-    const hiddenNode = nodeById(graph, hiddenNodeId)
-    if (!hiddenNode || !isAggregatedHiddenKind(hiddenNode.kind)) continue
-    const anchorId = anchorVisibleNodeForHiddenNode(graph, visibleIds, hiddenNodeId, 3)
-    if (!anchorId) continue
-    const counts = countsByAnchor.get(anchorId) ?? new Map<ContentCanvasNodeKind, number>()
-    counts.set(hiddenNode.kind, (counts.get(hiddenNode.kind) ?? 0) + 1)
-    countsByAnchor.set(anchorId, counts)
-  }
-  return Object.fromEntries(
-    [...countsByAnchor.entries()].map(([nodeId, counts]) => [
-      nodeId,
-      [...counts.entries()]
-        .sort(([left], [right]) => collapsedKindRank(left) - collapsedKindRank(right))
-        .map(([kind, count]) => ({
-          kind,
-          count,
-          label: collapsedKindLabel(kind),
-        })),
-    ]),
-  )
-}
-
-function anchorVisibleNodeForHiddenNode(
-  graph: ContentCanvasGraph,
-  visibleIds: ReadonlySet<string>,
-  hiddenNodeId: string,
-  maxDepth: number,
-): string | undefined {
-  const visited = new Set<string>([hiddenNodeId])
-  let frontier = new Set<string>([hiddenNodeId])
-  for (let depth = 0; depth < maxDepth; depth += 1) {
-    const next = new Set<string>()
-    for (const current of frontier) {
-      for (const edge of relatedEdgesForNode(graph, current)) {
-        const relatedId = edge.source === current ? edge.target : edge.source
-        if (visibleIds.has(relatedId)) return relatedId
-        if (!visited.has(relatedId)) {
-          visited.add(relatedId)
-          next.add(relatedId)
-        }
-      }
-    }
-    frontier = next
-    if (!frontier.size) break
-  }
-  return undefined
-}
-
-function isAggregatedHiddenKind(kind: ContentCanvasNodeKind): boolean {
-  return kind === 'content_unit'
-    || kind === 'candidate'
-    || kind === 'selection'
-    || kind === 'resource'
-    || kind === 'keyframe'
-    || kind === 'storyboard'
-    || kind === 'expression_unit'
-    || kind === 'audio_cue'
-    || kind === 'state'
-    || kind === 'work_item'
-}
-
-function collapsedKindRank(kind: ContentCanvasNodeKind): number {
-  if (kind === 'work_item') return 0
-  if (kind === 'content_unit') return 1
-  if (kind === 'keyframe') return 2
-  if (kind === 'storyboard') return 3
-  if (kind === 'expression_unit') return 4
-  if (kind === 'audio_cue') return 5
-  if (kind === 'state') return 6
-  if (kind === 'candidate') return 7
-  if (kind === 'selection') return 8
-  if (kind === 'resource') return 9
-  return 9
-}
-
-function collapsedKindLabel(kind: ContentCanvasNodeKind): string {
-  if (kind === 'work_item') return '工作项'
-  if (kind === 'content_unit') return '制作项'
-  if (kind === 'keyframe') return '关键帧'
-  if (kind === 'storyboard') return '分镜'
-  if (kind === 'expression_unit') return '表达'
-  if (kind === 'audio_cue') return '声音'
-  if (kind === 'state') return '状态'
-  if (kind === 'candidate') return '候选'
-  if (kind === 'selection') return '选择'
-  if (kind === 'resource') return '资源'
-  return '关系'
-}
-
-function issueNodeIdsForFilters(
-  graph: ContentCanvasGraph,
-  actor: ContentCanvasIssueActorFilter,
-  severity: ContentCanvasIssueSeverityFilter,
-  targetKind: ContentCanvasIssueTargetKindFilter,
-): Set<string> | undefined {
-  if (actor === 'all' && severity === 'all' && targetKind === 'all') return undefined
-  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
-  const matchingWorkItems = new Set(
-    graph.nodes
-      .filter((node) => node.kind === 'work_item' && workItemMatchesFilters(node, actor, severity, targetKind, graph, nodeById))
-      .map((node) => node.id),
-  )
-  const ids = new Set(matchingWorkItems)
-  for (const edge of graph.edges) {
-    if (edge.relation === 'work_item_target' && matchingWorkItems.has(edge.source)) ids.add(edge.target)
-    if (edge.relation === 'actor_work_item' && matchingWorkItems.has(edge.target)) ids.add(edge.source)
-  }
-  return ids
-}
-
-function workItemMatchesFilters(
-  node: ContentCanvasNode,
-  actor: ContentCanvasIssueActorFilter,
-  severity: ContentCanvasIssueSeverityFilter,
-  targetKind: ContentCanvasIssueTargetKindFilter,
-  graph: ContentCanvasGraph,
-  nodeById: Map<string, ContentCanvasNode>,
-): boolean {
-  const record = node.record
-  const itemActor = typeof record.recommendedActor === 'string' ? record.recommendedActor : undefined
-  const itemSeverity = typeof record.severity === 'string' ? record.severity : undefined
-  return (actor === 'all' || itemActor === actor)
-    && (severity === 'all' || itemSeverity === severity)
-    && workItemMatchesTargetKind(node, targetKind, graph, nodeById)
-}
-
-function workItemMatchesTargetKind(
-  node: ContentCanvasNode,
-  targetKind: ContentCanvasIssueTargetKindFilter,
-  graph: ContentCanvasGraph,
-  nodeById: Map<string, ContentCanvasNode>,
-): boolean {
-  if (targetKind === 'all') return true
-  if (node.record.targetKind === targetKind) return true
-  return graph.edges.some((edge) => {
-    if (edge.relation !== 'work_item_target' || edge.source !== node.id) return false
-    return nodeById.get(edge.target)?.kind === targetKind
-  })
 }
 
 function contentCanvasNodeMatchesStatusFilter(
@@ -557,39 +321,6 @@ export function contentCanvasModeNodeIds(
   const ids = new Set<string>([selectedNodeId])
   addNeighborhood(ids, graph, selectedNodeId, lodTier === 'focused' ? 1 : 2, TRACE_KINDS)
   return ids
-}
-
-function issueNodeIdsForGraph(
-  graph: ContentCanvasGraph,
-  impactByNodeId: Record<string, ContentCanvasImpactKind>,
-): Set<string> | undefined {
-  const issueNodeIds = new Set(
-    graph.nodes
-      .filter((node) => node.kind === 'work_item' || node.kind === 'actor' || node.status === 'missing' || Boolean(impactByNodeId[node.id]))
-      .map((node) => node.id),
-  )
-  for (const edge of graph.edges) {
-    if (edge.state === 'stale' || edge.state === 'needs_candidate' || edge.state === 'missing') {
-      issueNodeIds.add(edge.source)
-      issueNodeIds.add(edge.target)
-      continue
-    }
-    if (!issueNodeIds.has(edge.source) && !issueNodeIds.has(edge.target)) continue
-    issueNodeIds.add(edge.source)
-    issueNodeIds.add(edge.target)
-  }
-  return issueNodeIds.size > 0 ? issueNodeIds : undefined
-}
-
-export function contentCanvasModeAllowsEdge(
-  edge: ContentCanvasEdge,
-  mode: ContentCanvasViewMode,
-  density: ContentCanvasDensity = 'workband',
-): boolean {
-  if (mode === 'structure') return edge.kind === 'hierarchy' || edge.kind === 'sequence'
-  if (mode === 'issues') return edge.kind === 'reference'
-  if (density === 'overview') return edge.kind === 'hierarchy' || edge.kind === 'sequence' || edge.relation !== 'content_unit_candidate'
-  return true
 }
 
 function addNeighborhood(
@@ -698,25 +429,6 @@ function outgoingEdgesForNode(graph: ContentCanvasGraph, nodeId: string): Conten
 
 function nodeById(graph: ContentCanvasGraph, nodeId: string): ContentCanvasNode | undefined {
   return graph.indexes?.nodeById[nodeId] ?? graph.nodes.find((node) => node.id === nodeId)
-}
-
-function contentCanvasEdgeLabelIds(
-  graph: ContentCanvasGraph,
-  selectedNodeId: string | null,
-  impactByNodeId: Record<string, ContentCanvasImpactKind>,
-  density: ContentCanvasDensity,
-): Set<string> {
-  if (density !== 'trace' && !selectedNodeId) return new Set()
-  return new Set(
-    graph.edges
-      .filter((edge) => (
-        edge.source === selectedNodeId
-        || edge.target === selectedNodeId
-        || Boolean(impactByNodeId[edge.source])
-        || Boolean(impactByNodeId[edge.target])
-      ))
-      .map((edge) => edge.id),
-  )
 }
 
 function contentCanvasNodeMatchesQuery(node: ContentCanvasNode, needle: string): boolean {

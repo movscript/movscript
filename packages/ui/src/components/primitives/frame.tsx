@@ -14,9 +14,9 @@ export const Frame = React.forwardRef<HTMLElement, FrameProps>(
 
 Frame.displayName = "Frame";
 
-export const FrameHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-stack ms-frame__header", className)} {...props} />;
+export const FrameHeader = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement> & { as?: React.ElementType }>(
+  ({ as: Component = "div", className, ...props }, ref) => {
+    return <Component ref={ref} className={cn("ms-stack ms-frame__header", className)} {...props} />;
   },
 );
 

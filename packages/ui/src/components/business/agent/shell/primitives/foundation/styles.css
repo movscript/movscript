@@ -1,7 +1,4 @@
 .ms-agent-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border-radius: var(--ms-radius-full);
 }
 
@@ -17,12 +14,6 @@
 .ms-agent-text {
   min-width: 0;
   letter-spacing: 0;
-}
-
-.ms-agent-cluster {
-  display: flex;
-  min-width: 0;
-  align-items: center;
 }
 
 .ms-agent-titleblock {
@@ -44,9 +35,7 @@
   gap: 6px;
   border-radius: var(--ms-radius-full);
   padding: 4px 9px;
-  font-size: var(--ms-text-label);
   font-weight: 650;
-  line-height: 16px;
   white-space: nowrap;
 }
 

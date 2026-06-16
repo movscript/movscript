@@ -79,7 +79,7 @@ test('app-server manager exposes managed stdio endpoints without reserving a loc
       id: 'mova-movscript-home',
       providerKey: 'mova',
       executablePath: '/opt/mova/mova-app-server',
-      home: '.movscript/.mova',
+      home: '.mova',
     },
   })
   const messages: string[] = []
@@ -121,7 +121,7 @@ test('app-server manager stops stdio app-server by closing stdin before forcing 
       id: 'mova-movscript-home',
       providerKey: 'mova',
       executablePath: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
     },
   })
   const stoppedPromise = manager.stop('mova-movscript-home')
@@ -162,7 +162,7 @@ test('app-server manager emits realtime process logs', async () => {
       id: 'mova-movscript-home',
       providerKey: 'mova',
       executablePath: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
     },
   })
   ;(child.stdout as EventEmitter).emit('data', 'listening on ws://127.0.0.1:41234\n')
@@ -247,9 +247,9 @@ test('app-server manager reuses running app-server across timestamp-only config 
     defaultWorkspaceDir: () => workspaceDir,
   })
 
-  const first = await manager.ensure({ profile: { id: 'mova-movscript-home', providerKey: 'mova', executablePath: 'mova', home: '.movscript/.mova' } })
+  const first = await manager.ensure({ profile: { id: 'mova-movscript-home', providerKey: 'mova', executablePath: 'mova', home: '.mova' } })
   now = new Date('2026-06-04T01:02:04.000Z')
-  const second = await manager.ensure({ profile: { id: 'mova-movscript-home', providerKey: 'mova', executablePath: 'mova', home: '.movscript/.mova' } })
+  const second = await manager.ensure({ profile: { id: 'mova-movscript-home', providerKey: 'mova', executablePath: 'mova', home: '.mova' } })
 
   assert.equal(first.endpoint, 'ws://127.0.0.1:41234')
   assert.equal(second.endpoint, 'ws://127.0.0.1:41234')
@@ -297,7 +297,7 @@ test('app-server manager distributes config without launching app-server', () =>
       id: 'codex-movscript-home',
       providerKey: 'codex',
       executablePath: 'codex',
-      home: '.movscript/.codex',
+      home: '.codex',
     },
   })
 
@@ -325,7 +325,7 @@ test('app-server manager resolves dot workspaceDir against the managed workspace
         enabled: true,
         providerRef: 'backend:1',
         authSource: 'model-provider',
-        home: '.movscript/.codex',
+        home: '.codex',
         workspaceDir: '.',
         baseURL: 'http://localhost:8765/v1',
         config: { mode: 'backendKey', modelProviderRef: 'backend:1' },
@@ -347,7 +347,7 @@ test('app-server manager resolves dot workspaceDir against the managed workspace
       id: 'codex-movscript-home',
       providerKey: 'codex',
       executablePath: 'codex',
-      home: '.movscript/.codex',
+      home: '.codex',
       workspaceDir: '.',
     },
   })
@@ -417,7 +417,7 @@ test('app-server manager keeps multiple profiles for one provider key isolated b
       providerKey: 'mova',
       label: 'Mova Primary',
       executablePath: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
     },
   })
   const sandbox = await manager.ensure({
@@ -426,7 +426,7 @@ test('app-server manager keeps multiple profiles for one provider key isolated b
       providerKey: 'mova',
       label: 'Mova Sandbox',
       executablePath: 'mova',
-      home: '.movscript/.mova-sandbox',
+      home: '.mova-sandbox',
     },
   })
 
@@ -487,7 +487,7 @@ test('app-server manager accepts custom provider keys without Codex or Mova bind
       assert.equal(input.home, join(workspaceDir, '.claude'))
       return appServerDistributionFixture({
         providerKey: 'claude',
-        sourceConfigPath: '/workspace/.movscript/providers/claude/config.json',
+        sourceConfigPath: '/workspace/providers/claude/config.json',
         home: input.home,
         configTomlPath: join(input.home, 'config.toml'),
         authJsonPath: join(input.home, 'auth.json'),
@@ -531,7 +531,7 @@ test('app-server manager infers custom provider keys from managed profile ids', 
       assert.equal(input.home, join(workspaceDir, '.claude'))
       return appServerDistributionFixture({
         providerKey: 'claude',
-        sourceConfigPath: '/workspace/.movscript/providers/claude/config.json',
+        sourceConfigPath: '/workspace/providers/claude/config.json',
         home: input.home,
         configTomlPath: join(input.home, 'config.toml'),
         authJsonPath: join(input.home, 'auth.json'),
@@ -848,8 +848,8 @@ test('Mova app-server executable resolution discovers sibling debug app-server b
 
 test('Mova app-server executable resolution explains PATH fallback when discovery fails', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-mova-discovery-miss-'))
-  const cwd = join(root, 'enterprise', 'apps', 'frontend')
-  const sourceDir = join(root, 'enterprise', 'apps', 'frontend', 'out', 'main')
+  const cwd = join(root, 'packaged', 'apps', 'frontend')
+  const sourceDir = join(root, 'packaged', 'apps', 'frontend', 'out', 'main')
 
   const resolution = resolveAppServerExecutableResolution({
     provider: 'mova',
@@ -1003,8 +1003,8 @@ test('app-server manager treats persisted Codex PATH command as discoverable fal
 
 test('Codex app-server executable resolution explains PATH fallback when discovery fails', () => {
   const root = mkdtempSync(join(tmpdir(), 'movscript-codex-discovery-miss-'))
-  const cwd = join(root, 'enterprise', 'apps', 'frontend')
-  const sourceDir = join(root, 'enterprise', 'apps', 'frontend', 'out', 'main')
+  const cwd = join(root, 'packaged', 'apps', 'frontend')
+  const sourceDir = join(root, 'packaged', 'apps', 'frontend', 'out', 'main')
 
   const resolution = resolveAppServerExecutableResolution({
     provider: 'codex',
@@ -1056,7 +1056,7 @@ test('app-server manager preserves Mova spawn ENOENT diagnostics through readine
         id: 'mova-movscript-home',
         providerKey: 'mova',
         executablePath: 'mova',
-        home: '.movscript/.mova',
+        home: '.mova',
       },
     })
 
@@ -1134,7 +1134,7 @@ test('app-server manager surfaces quick-exit stderr in restart cooldown status',
     profile: {
       id: 'mova-movscript-home',
       providerKey: 'mova',
-      home: '.movscript/.mova',
+      home: '.mova',
     },
   })
 
@@ -1184,11 +1184,11 @@ function fakeWorkspaceDir(): string {
 
 function appServerDistributionFixture(patch: Partial<AppServerConfigDistribution> = {}): AppServerConfigDistribution {
   const providerKey = patch.providerKey ?? 'mova'
-  const home = patch.home ?? `/workspace/.movscript/.${providerKey}`
+  const home = patch.home ?? `/workspace/.${providerKey}`
   return {
     ok: true,
     providerKey,
-    sourceConfigPath: patch.sourceConfigPath ?? `/workspace/.movscript/providers/${providerKey}/config.json`,
+    sourceConfigPath: patch.sourceConfigPath ?? `/workspace/providers/${providerKey}/config.json`,
     home,
     configTomlPath: patch.configTomlPath ?? `${home}/config.toml`,
     authJsonPath: patch.authJsonPath ?? `${home}/auth.json`,
@@ -1272,8 +1272,8 @@ function appServerPluginFixture(patch: Partial<AppServerPluginBootstrap> = {}): 
     pluginName: 'movscript',
     pluginKey: 'movscript@movscript-bundled',
     pluginSourcePath: '/workspace/plugins/movscript',
-    marketplaceRoot: '/workspace/.movscript/.mova/.tmp/marketplaces/movscript-bundled',
-    installedPluginRoot: '/workspace/.movscript/.mova/plugins/cache/movscript-bundled/movscript/0.1.0',
+    marketplaceRoot: '/workspace/.mova/.tmp/marketplaces/movscript-bundled',
+    installedPluginRoot: '/workspace/.mova/plugins/cache/movscript-bundled/movscript/0.1.0',
     version: '0.1.0',
     hash: 'plugin-a',
     ...patch,

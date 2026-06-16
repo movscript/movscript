@@ -103,7 +103,7 @@ export default function MovScriptWorkspaceFilesPage() {
     retry: false,
   })
   const writeMutation = useMutation({
-    mutationFn: (input: { path: string; content: string }) => requireWorkspaceFilesAPI().write(input),
+    mutationFn: (input: { path: string; content: string; expectedVersion: string | null }) => requireWorkspaceFilesAPI().write(input),
     onSuccess: (file) => {
       setSelectedPath(file.path)
       setDraft(file.content)
@@ -168,12 +168,16 @@ export default function MovScriptWorkspaceFilesPage() {
     const normalized = normalizeRelativeSegment(name)
     if (!normalized) return
     const path = currentPath ? `${currentPath}/${normalized}` : normalized
-    writeMutation.mutate({ path, content: defaultFileContent(path) })
+    writeMutation.mutate({ path, content: defaultFileContent(path), expectedVersion: null })
   }
 
   function saveSelectedFile() {
     if (!selectedPath) return
-    writeMutation.mutate({ path: selectedPath, content: draft })
+    if (!selectedFile) {
+      setActionError('文件版本尚未加载，请刷新后再保存')
+      return
+    }
+    writeMutation.mutate({ path: selectedPath, content: draft, expectedVersion: selectedFile.version })
   }
 
   function deletePath(path: string) {
@@ -342,8 +346,8 @@ function StateRow({ icon, text, tone = 'muted' }: { icon?: ReactNode; text: stri
 }
 
 function workspacePathSummary(root?: ElectronMovScriptWorkspaceRootResult, error?: unknown): string {
-  if (root) return `${root.workspaceDir} / .movscript`
-  return error ? errorMessage(error) : '加载 MovScript Workspace Root'
+  if (root) return root.movScriptHomeDir
+  return error ? errorMessage(error) : '加载 MovScript Home'
 }
 
 function parentRelativePath(path: string): string {

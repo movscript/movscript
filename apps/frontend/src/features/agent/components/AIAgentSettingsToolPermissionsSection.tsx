@@ -14,7 +14,7 @@ import {
   AgentSettingsToolPermissionsBulkActionPanel,
   AgentSettingsToolPermissionsFilterPanel,
   AgentSettingsToolPermissionsFilterPresetPanel,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { AppInlineError } from '@movscript/ui/business/app'
 import type { ToolGrantWorkspace } from '@movscript/core/agent'
 import { AgentSettingsConfigFileEditorSection } from '@/features/agent/components/AgentSettingsConfigFileUi'

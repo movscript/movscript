@@ -23,8 +23,8 @@ export function AgentDiagnosticSummaryItem({
 }) {
   return (
     <AgentDataBlock className={cn("ms-agent-diagnostic-summary-item", className)}>
-      <div className="ms-agent-diagnostic-summary-item__label">{label}</div>
-      <div className="ms-agent-diagnostic-summary-item__value">{value}</div>
+      <div className="ms-type-tiny ms-agent-diagnostic-summary-item__label">{label}</div>
+      <div className="ms-text-truncate ms-type-caption ms-agent-diagnostic-summary-item__value">{value}</div>
     </AgentDataBlock>
   );
 }

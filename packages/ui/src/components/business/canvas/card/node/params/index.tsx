@@ -187,7 +187,7 @@ export function CanvasNodeParamHeader({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("canvas-node-param-header", className)} {...props}>
+    <div className={cn("ms-action-row ms-type-tiny canvas-node-param-header", className)} {...props}>
       {icon}
       <span>{children}</span>
     </div>
@@ -202,7 +202,7 @@ export function CanvasNodeParamGrid({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("canvas-node-param-grid", className)} {...props}>
+    <div className={cn("ms-grid-stack canvas-node-param-grid", className)} {...props}>
       {children}
     </div>
   );
@@ -218,8 +218,8 @@ export function CanvasNodeParamField({
   children: ReactNode;
 }) {
   return (
-    <label className={cn("canvas-node-param-field", className)} {...props}>
-      <span className="canvas-node-param-field__label">{label}</span>
+    <label className={cn("ms-type-tiny canvas-node-param-field", className)} {...props}>
+      <span className="ms-text-truncate canvas-node-param-field__label">{label}</span>
       {children}
     </label>
   );
@@ -227,7 +227,7 @@ export function CanvasNodeParamField({
 
 export const CanvasNodeParamSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, ...props }, ref) => (
-    <NativeSelect ref={ref} className={cn("canvas-node-param-control", className)} {...props} />
+    <NativeSelect ref={ref} className={cn("ms-type-tiny canvas-node-param-control", className)} {...props} />
   )
 );
 
@@ -235,7 +235,7 @@ CanvasNodeParamSelect.displayName = "CanvasNodeParamSelect";
 
 export const CanvasNodeParamInput = forwardRef<HTMLInputElement, InputProps & InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
-    <Input ref={ref} className={cn("canvas-node-param-control", className)} {...props} />
+    <Input ref={ref} className={cn("ms-type-tiny canvas-node-param-control", className)} {...props} />
   )
 );
 
@@ -243,7 +243,7 @@ CanvasNodeParamInput.displayName = "CanvasNodeParamInput";
 
 export const CanvasNodeParamCheckbox = forwardRef<HTMLInputElement, CheckboxFieldProps>(
   ({ className, ...props }, ref) => (
-    <CheckboxField ref={ref} className={cn("canvas-node-param-checkbox", className)} {...props} />
+    <CheckboxField ref={ref} className={cn("ms-action-row ms-type-tiny canvas-node-param-checkbox", className)} {...props} />
   )
 );
 
@@ -256,7 +256,7 @@ export const CanvasNodeParamExpandButton = forwardRef<HTMLButtonElement, ButtonP
       type={type}
       variant={variant}
       size={size}
-      className={cn("canvas-node-param-expand-button", className)}
+      className={cn("ms-type-tiny canvas-node-param-expand-button", className)}
       {...props}
     />
   )

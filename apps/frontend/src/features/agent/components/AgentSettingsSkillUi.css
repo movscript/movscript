@@ -1,0 +1,48 @@
+.agent-settings-skill-card {
+  min-width: 0;
+}
+
+.agent-settings-skill-card__meta {
+  color: var(--ms-color-muted-foreground);
+}
+
+.agent-settings-skill-card__workspace {
+  margin-top: var(--ms-space-2);
+  padding: 6px var(--ms-space-2);
+}
+
+.agent-settings-skill-card__toggle {
+  align-items: center;
+  cursor: pointer;
+}
+
+.agent-settings-skill-card__toggle--locked {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.agent-settings-skill-card__workspace-copy {
+  display: inline-flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.agent-settings-skill-card__instruction {
+  display: grid;
+  gap: var(--ms-space-1);
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-skill-card__instruction textarea {
+  min-height: 128px;
+  font-family: var(--ms-font-mono);
+}
+
+.agent-settings-skill-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ms-space-1);
+  margin-top: var(--ms-space-2);
+}

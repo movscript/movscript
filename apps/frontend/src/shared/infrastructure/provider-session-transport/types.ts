@@ -2,6 +2,8 @@ export type ProviderSessionTransportKind = 'http'
 
 export interface ProviderSessionTransportConfig {
   baseURL?: string
+  movScriptHomeDir?: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir?: string
   sessionId?: string
 }

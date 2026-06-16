@@ -26,6 +26,7 @@ import {
 import type { AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { selectActiveAgentConversationRegistryRecord } from '@movscript/core/agent'
+import { resolveAgentModelId } from '@/features/agent/application/agentDefaultModelSelection'
 import type { Project } from '@/types'
 
 export const APP_SERVER_THREAD_OPEN_EVENT = 'movscript:app-server-thread-open'
@@ -69,7 +70,7 @@ function AppServerChatShellContent({
     queryFn: () => fetchAgentBackendModels(),
   })
   const selectedModel = useMemo(() => {
-    const modelId = settings.modelId ?? textModels[0]?.id ?? null
+    const modelId = resolveAgentModelId({ models: textModels, selectedModelId: settings.modelId })
     return textModels.find((model) => model.id === modelId)
   }, [settings.modelId, textModels])
   const resolveModelForRequest = useCallback(() => ({

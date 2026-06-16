@@ -15,7 +15,7 @@ export function ResourceCandidateList({ children, className, ...props }: HTMLAtt
 
 export function ResourceCandidateEmpty({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <AppTextEmptyState className={cn("resource-candidate-attach__empty", className)} {...props}>
+    <AppTextEmptyState className={cn("ms-type-tiny resource-candidate-attach__empty", className)} {...props}>
       {children}
     </AppTextEmptyState>
   );
@@ -36,11 +36,11 @@ export function ResourceCandidateItem({
 }) {
   return (
     <WorkbenchSurfaceItem active={active} density="compact" className={cn("resource-candidate-item", className)} {...props}>
-      <div className="resource-candidate-item__row">
-        <p className="resource-candidate-item__name">{name}</p>
-        {badge ? <Badge variant="outline" className="resource-candidate-item__badge">{badge}</Badge> : null}
+      <div className="ms-action-row resource-candidate-item__row">
+        <p className="ms-text-truncate ms-type-tiny resource-candidate-item__name">{name}</p>
+        {badge ? <Badge variant="outline" className="ms-type-tiny resource-candidate-item__badge">{badge}</Badge> : null}
       </div>
-      {meta ? <p className="resource-candidate-item__meta">{meta}</p> : null}
+      {meta ? <p className="ms-text-truncate ms-type-tiny resource-candidate-item__meta">{meta}</p> : null}
     </WorkbenchSurfaceItem>
   );
 }

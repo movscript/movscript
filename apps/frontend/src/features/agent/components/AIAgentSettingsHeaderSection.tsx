@@ -15,7 +15,7 @@ import {
   AgentSettingsScopeRail,
   AgentSettingsSelectTrigger,
   AgentSettingsStatusBadge,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import { Select, SelectContent, SelectItem, SelectValue } from '@movscript/ui/primitives'
 import { agentConfigStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import type { ProviderProfileConfigOption } from '@/features/agent/application/agentSettingsProviderModel'

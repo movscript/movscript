@@ -13,6 +13,8 @@ const agentModePanelsCss = readSource('apps/frontend/src/features/agent/componen
 const projectAgentModeSource = [
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModePage.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebar.tsx'),
+  readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarModel.ts'),
+  readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarView.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeSidebarParts.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentModeWorkspace.tsx'),
   readSource('apps/frontend/src/features/agent/components/ProjectAgentContentPanel.tsx'),

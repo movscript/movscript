@@ -5,7 +5,7 @@
 <h1 align="center">Movscript</h1>
 
 <p align="center">
-  Local-first desktop workspace for short drama production and AI-assisted video creation.
+  Vibe Motion tool for AI-planned video creation and automatic editing.
 </p>
 
 <p align="center">
@@ -29,7 +29,15 @@
 
 ## What is Movscript?
 
-Movscript is an open-source community edition of a desktop production workspace for creator teams. It brings project planning, scripts, assets, storyboards, shots, generation jobs, model administration, plugins, and provider-backed assistant workflows into one application.
+Movscript is a Vibe Motion tool: a new way to create motion by describing intent, feeling, rhythm, and structure instead of starting from timelines and keyframes. It helps creators move from prompts, scripts, references, and creative direction to a planned, editable, previewable video workflow.
+
+The community edition is a local-first desktop workspace for AI-planned video creation and automatic editing. It brings project planning, scripts, assets, storyboards, shots, generation jobs, model administration, plugins, and provider-backed assistant workflows into one application.
+
+In practice, Movscript focuses on three product ideas:
+
+- **Vibe Motion**: direct the feeling, rhythm, visual intent, and structure of a moving piece.
+- **AI-planned cuts**: let AI turn scripts and references into scenes, shots, asset needs, generation tasks, and edit plans.
+- **Automatic editing**: assemble generated or imported shots into a rough cut that can be reviewed, revised, and refined.
 
 The project is still early. APIs, plugin manifests, workspace contracts, and provider behavior may change before a stable release. Today it is best suited for local development, workflow exploration, plugin integration, and community feedback.
 
@@ -63,7 +71,9 @@ http://localhost:8766/admin
 | --- | --- |
 | Desktop workspace | Electron + Vite + React application for local production work |
 | Backend API | Go API server, database models, AI adapters, generation jobs, and worker paths |
-| Creative production model | Projects, scripts, assets, storyboards, shots, keyframes, audio cues, and content units |
+| Vibe Motion model | Intent, rhythm, structure, scripts, assets, storyboards, shots, keyframes, audio cues, and content units |
+| AI planning | Script breakdown, shot planning, asset-gap discovery, generation task orchestration, and edit-plan handoff |
+| Automatic editing | Workspace structures for rough-cut assembly, candidate review, version selection, and timeline-compatible output |
 | Assistant workflows | Provider-backed sessions, model routing, domain tools, resource tools, and generation tools |
 | Workspace engine | Source review, interpretation, diagnostics, and deterministic read-model refresh |
 | Admin console | Credentials, models, routing, users, and operational settings |
@@ -149,10 +159,10 @@ Use `MOVSCRIPT_DEPENDENCY_PROFILE=external` to exercise service-backed integrati
 | Database | PostgreSQL |
 | Object storage | MinIO |
 | Workspace backend | Gitea |
-| AI gateway | new-api |
+| AI gateway | Local mode |
 | Cache | Redis |
 
-Individual environment variables such as `DB_DRIVER`, `STORAGE_BACKEND`, `MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`, `MOVSCRIPT_AI_GATEWAY_PROVIDER`, and `CACHE_BACKEND` can still override profile defaults.
+Individual environment variables such as `DB_DRIVER`, `STORAGE_BACKEND`, `MOVSCRIPT_WORKSPACE_STORAGE_BACKEND`, and `CACHE_BACKEND` can still override profile defaults. The community edition always uses the local AI gateway; external model gateways, metering, and plan binding belong to the commercial distribution layer.
 
 ### Observability
 

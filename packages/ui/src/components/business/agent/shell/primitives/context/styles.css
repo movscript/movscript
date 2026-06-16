@@ -1,0 +1,66 @@
+.ms-agent-context {
+  min-width: 0;
+  overflow: auto;
+  border-left: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  background: var(--ms-color-background);
+  padding: 12px;
+}
+
+.ms-agent-shell--compact .ms-agent-context {
+  padding: 10px;
+}
+
+.ms-agent-metric {
+  gap: 5px;
+  background: var(--ms-color-surface);
+  padding: 11px;
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.ms-agent-workspace {
+  min-height: 0;
+  gap: 12px;
+  padding: 14px;
+}
+
+.ms-agent-contextbar {
+  gap: 7px;
+}
+
+.ms-agent-contextchip {
+  min-width: 0;
+  gap: 6px;
+  border-radius: var(--ms-radius-md);
+  padding: 5px 8px;
+  font-weight: 650;
+}
+
+.ms-agent-contextchip > svg {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+}
+
+.ms-agent-contextchip--accent {
+  border-color: color-mix(in srgb, var(--ms-color-accent) 30%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  background: color-mix(in srgb, var(--ms-color-accent) 8%, var(--ms-color-surface));
+  color: var(--ms-color-accent);
+}
+
+.ms-agent-contextchip--success {
+  border-color: color-mix(in srgb, var(--ms-color-success) 30%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  background: color-mix(in srgb, var(--ms-color-success) 8%, var(--ms-color-surface));
+  color: var(--ms-color-success);
+}
+
+.ms-agent-contextchip--warning {
+  border-color: color-mix(in srgb, var(--ms-color-warning) 34%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  background: color-mix(in srgb, var(--ms-color-warning) 10%, var(--ms-color-surface));
+  color: var(--ms-color-warning);
+}
+
+.ms-agent-contextchip--danger {
+  border-color: color-mix(in srgb, var(--ms-color-danger) 32%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  background: color-mix(in srgb, var(--ms-color-danger) 8%, var(--ms-color-surface));
+  color: var(--ms-color-danger);
+}

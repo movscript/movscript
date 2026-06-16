@@ -1,13 +1,10 @@
 .ms-agent-plan-overview {
   margin-top: var(--agent-plan-overview-margin-top, 8px);
   padding: var(--agent-plan-overview-padding, 8px 10px);
-  font-size: var(--ms-text-label);
 }
 
 .ms-agent-plan-overview__header {
-  display: flex;
   min-width: 0;
-  align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-height: var(--agent-plan-overview-header-min-height, auto);
@@ -19,49 +16,33 @@
 }
 
 .ms-agent-plan-overview__title {
-  display: flex;
   min-width: 0;
-  align-items: center;
   gap: 6px;
   color: var(--ms-color-foreground);
   font-weight: 600;
 }
 
 .ms-agent-plan-overview__title-icon {
-  display: inline-flex;
   flex: 0 0 auto;
-}
-
-.ms-agent-plan-overview__title-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ms-agent-plan-overview__stats {
   margin-top: 2px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
 }
 
 .ms-agent-plan-overview__description {
   margin-top: 2px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-plan-overview__status {
   flex: 0 0 auto;
   padding: 0 6px;
-  font-size: var(--ms-text-tiny);
-  line-height: 16px;
 }
 
 .ms-agent-plan-overview__actions {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 4px;
   margin-top: 8px;
 }
@@ -69,7 +50,6 @@
 .ms-agent-plan-overview__action {
   padding-right: 6px;
   padding-left: 6px;
-  font-size: var(--ms-text-tiny);
 }
 
 .ms-agent-plan-overview__settings {

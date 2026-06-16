@@ -6,7 +6,7 @@ import { cn } from "../../../../../lib/cn";
 
 export const AgentDiagnosticBadge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   ({ className, variant = "outline", ...props }, ref) => {
-    return <Badge ref={ref} variant={variant} className={cn("ms-agent-diagnostic-badge", className)} {...props} />;
+    return <Badge ref={ref} variant={variant} className={cn("ms-type-tiny ms-agent-diagnostic-badge", className)} {...props} />;
   }
 );
 
@@ -14,7 +14,7 @@ AgentDiagnosticBadge.displayName = "AgentDiagnosticBadge";
 
 export const AgentDiagnosticStatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
   ({ className, ...props }, ref) => {
-    return <StatusBadge ref={ref} className={cn("ms-agent-diagnostic-badge", className)} {...props} />;
+    return <StatusBadge ref={ref} className={cn("ms-type-tiny ms-agent-diagnostic-badge", className)} {...props} />;
   }
 );
 

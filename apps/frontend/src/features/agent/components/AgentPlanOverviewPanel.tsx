@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Bot, ClipboardCheck, History, ListChecks, Loader2, Route } from 'lucide-react'
+import { ClipboardCheck, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -10,7 +10,6 @@ import {
   AgentPlanOverviewDisclosureBody,
   AgentPlanOverviewDisclosureSummary,
   AgentPlanOverviewErrorText,
-  AgentPlanOverviewFilterRow,
   AgentPlanOverviewHeader,
   AgentPlanOverviewHeaderBody,
   AgentPlanOverviewInlineActions,
@@ -37,13 +36,6 @@ import {
   AgentPlanOverviewWarningText
 } from '@movscript/ui/business/agent'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@movscript/ui/primitives'
-import {
   agentTaskStatusLabel,
   buildPlanArtifactSummary,
   buildPlanNameConflictViews,
@@ -53,13 +45,9 @@ import {
 } from '@/features/agent/domain/agentPlanUi'
 import { isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import { agentPlanStatusLabel, agentTraceView, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
+import { agentPlanStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import {
-  agentPlanDurationLabel,
-  agentStepStatusLabel,
-  agentStepTypeLabel,
-  formatAgentPlanDate,
   formatAgentPlanDurationLabel,
   runInteractionInputTypeLabel,
 } from '@/features/agent/presentation/AgentPlanOverviewPanelModel'
@@ -72,6 +60,7 @@ import {
   AgentPlanNameConflictsNotice,
   DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS,
 } from '@/features/agent/components/AgentPlanOverviewPanelSections'
+import { AgentPlanOverviewWorkerSection } from '@/features/agent/components/AgentPlanOverviewWorkerSection'
 import { providerSessionClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/providerSessionClient'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
@@ -241,7 +230,6 @@ export function AgentPlanOverviewPanel({
             const task = view.task
             const taskRunInteractionStatus = task.status === 'done' ? 'completed' : task.status === 'failed' || task.status === 'cancelled' ? 'failed' : 'in_progress'
             const taskStatusRecipe = agentRunInteractionStatusRecipe(taskRunInteractionStatus)
-            const workerStatusRecipe = view.worker ? agentRunStatusRecipe(view.worker.status) : undefined
             return (
               <AgentPlanOverviewTaskCard id={`agent-taskGraph-task-${task.id}`} key={task.id}>
                 <AgentPlanOverviewTaskStatusDot intent={taskStatusRecipe.intent} />
@@ -271,196 +259,22 @@ export function AgentPlanOverviewPanel({
                   {view.blocker && (
                     <AgentPlanOverviewWarningText>{view.blocker}</AgentPlanOverviewWarningText>
                   )}
-                  {view.worker && (
-                    <AgentPlanOverviewDisclosure>
-                      <AgentPlanOverviewDisclosureSummary>
-                        <Bot size={10} />
-                        <AgentPlanOverviewMetaText data-truncate="true">执行器 {view.subagentName ?? view.worker.subagentName ?? view.worker.id}</AgentPlanOverviewMetaText>
-                        <AgentPlanOverviewTaskBadge intent={workerStatusRecipe?.intent} emphasis={workerStatusRecipe?.emphasis}>
-                          {runStatusLabel(view.worker.status)}
-                        </AgentPlanOverviewTaskBadge>
-                      </AgentPlanOverviewDisclosureSummary>
-                      <AgentPlanOverviewDisclosureBody>
-                        <AgentPlanOverviewMetaRow>
-                          <AgentPlanOverviewMetaText data-truncate="true">运行 {view.worker.id}</AgentPlanOverviewMetaText>
-                          {view.worker.parentRunId && <AgentPlanOverviewMetaText data-truncate="true">上级 {view.worker.parentRunId}</AgentPlanOverviewMetaText>}
-                          {view.worker.taskId && <AgentPlanOverviewMetaText data-truncate="true">任务 {view.worker.taskId}</AgentPlanOverviewMetaText>}
-                          {typeof view.worker.progress === 'number' && <AgentPlanOverviewMetaText>{Math.round(Math.max(0, Math.min(1, view.worker.progress)) * 100)}%</AgentPlanOverviewMetaText>}
-                          <AgentPlanOverviewMetaText>{view.worker.stepCount} 个步骤</AgentPlanOverviewMetaText>
-                        </AgentPlanOverviewMetaRow>
-                        <AgentPlanOverviewMetaRow>
-                          {view.worker.startedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.startedAt}>开始 {formatAgentPlanDate(view.worker.startedAt, locale)}</AgentPlanOverviewMetaText>}
-                          {view.worker.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.completedAt}>完成 {formatAgentPlanDate(view.worker.completedAt, locale)}</AgentPlanOverviewMetaText>}
-                          {view.worker.failedAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.failedAt}>失败 {formatAgentPlanDate(view.worker.failedAt, locale)}</AgentPlanOverviewMetaText>}
-                          {view.worker.cancelledAt && <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.cancelledAt}>取消 {formatAgentPlanDate(view.worker.cancelledAt, locale)}</AgentPlanOverviewMetaText>}
-                          <AgentPlanOverviewMetaText data-truncate="true" title={view.worker.updatedAt}>更新 {formatAgentPlanDate(view.worker.updatedAt, locale)}</AgentPlanOverviewMetaText>
-                          {agentPlanDurationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt) && (
-                            <AgentPlanOverviewMetaText>耗时 {agentPlanDurationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt)}</AgentPlanOverviewMetaText>
-                          )}
-                        </AgentPlanOverviewMetaRow>
-                        {view.worker.error && (
-                          <AgentPlanOverviewErrorText>{view.worker.error}</AgentPlanOverviewErrorText>
-                        )}
-                        {view.worker.warnings.length > 0 && (
-                          <>
-                            {view.worker.warnings.slice(0, 3).map((warning) => <AgentPlanOverviewWarningText key={warning}>{warning}</AgentPlanOverviewWarningText>)}
-                          </>
-                        )}
-                        {view.worker.recentSteps.length > 0 && (
-                          <AgentPlanOverviewList>
-                            {view.worker.recentSteps.map((step) => (
-                              <AgentPlanOverviewItemCard key={step.id}>
-                                <AgentPlanOverviewItemHeader>
-                                  <AgentPlanOverviewItemTitle>{step.title}</AgentPlanOverviewItemTitle>
-                                  <AgentPlanOverviewMetaText>{agentStepStatusLabel(step.status)}</AgentPlanOverviewMetaText>
-                                </AgentPlanOverviewItemHeader>
-                                <AgentPlanOverviewMetaRow>
-                                  <AgentPlanOverviewMetaText>{agentStepTypeLabel(step.type)}</AgentPlanOverviewMetaText>
-                                  {step.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {step.toolName}</AgentPlanOverviewMetaText>}
-                                  {step.sandboxed && <AgentPlanOverviewMetaText>沙盒</AgentPlanOverviewMetaText>}
-                                  <AgentPlanOverviewMetaText data-truncate="true" title={step.createdAt}>创建 {formatAgentPlanDate(step.createdAt, locale)}</AgentPlanOverviewMetaText>
-                                  {step.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={step.completedAt}>完成 {formatAgentPlanDate(step.completedAt, locale)}</AgentPlanOverviewMetaText>}
-                                  {agentPlanDurationLabel(step.createdAt, step.completedAt) && <AgentPlanOverviewMetaText>耗时 {agentPlanDurationLabel(step.createdAt, step.completedAt)}</AgentPlanOverviewMetaText>}
-                                </AgentPlanOverviewMetaRow>
-                                {step.error && <AgentPlanOverviewErrorText>{step.error}</AgentPlanOverviewErrorText>}
-                              </AgentPlanOverviewItemCard>
-                            ))}
-                          </AgentPlanOverviewList>
-                        )}
-                        <AgentPlanOverviewInlineActions>
-                          <AgentPlanOverviewActionButton
-                            type="button"
-                            variant="ghost"
-                            onClick={() => navigate(ROUTES.agentConsole)}
-                          >
-                            <Route size={10} />
-                            Agent 控制台
-                          </AgentPlanOverviewActionButton>
-                          <AgentPlanOverviewActionButton
-                            type="button"
-                            variant="ghost"
-                            disabled={loadingTraceSummaryRunId === view.worker.id}
-                            onClick={() => loadTraceSummary(view.worker!.id)}
-                          >
-                            {loadingTraceSummaryRunId === view.worker.id ? <Loader2 size={10} className="animate-spin" /> : <ListChecks size={10} />}
-                            轨迹统计
-                          </AgentPlanOverviewActionButton>
-                          <AgentPlanOverviewActionButton
-                            type="button"
-                            variant="ghost"
-                            disabled={loadingTraceEventsRunId === view.worker.id}
-                            onClick={() => loadTraceEvents(view.worker!.id)}
-                          >
-                            {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
-                            运行事件
-                          </AgentPlanOverviewActionButton>
-                        </AgentPlanOverviewInlineActions>
-                        {traceSummaries[view.worker.id] && (
-                          <AgentPlanOverviewItemCard>
-                            <AgentPlanOverviewMetaRow>
-                              <AgentPlanOverviewMetaText>{traceSummaries[view.worker.id].total} 个事件</AgentPlanOverviewMetaText>
-                              {Object.entries(traceSummaries[view.worker.id].byKind).slice(0, 6).map(([kind, count]) => (
-                                <AgentPlanOverviewBadge key={kind}>
-                                  {traceKindLabel(kind as AgentTraceEvent['kind'])} {count}
-                                </AgentPlanOverviewBadge>
-                              ))}
-                            </AgentPlanOverviewMetaRow>
-                            {traceSummaries[view.worker.id].latestEvent && (() => {
-                              const latestView = agentTraceView(traceSummaries[view.worker.id].latestEvent!)
-                              return (
-                                <AgentPlanOverviewText>
-                                  最新 {latestView.title}
-                                </AgentPlanOverviewText>
-                              )
-                            })()}
-                          </AgentPlanOverviewItemCard>
-                        )}
-                        {traceSummaryErrors[view.worker.id] && (
-                          <AgentPlanOverviewErrorText>{traceSummaryErrors[view.worker.id]}</AgentPlanOverviewErrorText>
-                        )}
-                        {traceEventsByRunId[view.worker.id]?.length > 0 && (
-                          <AgentPlanOverviewList>
-                            {(() => {
-                              const events = traceEventsByRunId[view.worker!.id] ?? []
-                              const kinds = Array.from(new Set(events.map((event) => event.kind))).sort()
-                              const requestedKind = traceEventKindFilters[view.worker!.id] ?? 'all'
-                              const activeKind = requestedKind === 'all' || kinds.includes(requestedKind) ? requestedKind : 'all'
-                              const visibleEvents = activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)
-                              return (
-                                <AgentPlanOverviewFilterRow>
-                                  <AgentPlanOverviewMetaText>
-                                    显示 {visibleEvents.length}/{events.length}
-                                  </AgentPlanOverviewMetaText>
-                                  <Select
-                                    value={activeKind}
-                                    onValueChange={(next) => {
-                                      const filter = next === 'all' || kinds.includes(next as AgentTraceEvent['kind'])
-                                        ? next as 'all' | AgentTraceEvent['kind']
-                                        : 'all'
-                                      setTraceEventKindFilters((current) => ({ ...current, [view.worker!.id]: filter }))
-                                    }}
-                                  >
-                                    <SelectTrigger size="sm" className="h-6 w-32 max-w-full type-tiny">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">全部事件</SelectItem>
-                                      {kinds.map((kind) => (
-                                        <SelectItem key={kind} value={kind}>{traceKindLabel(kind)}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </AgentPlanOverviewFilterRow>
-                              )
-                            })()}
-                            {(() => {
-                              const events = traceEventsByRunId[view.worker!.id] ?? []
-                              const kinds = Array.from(new Set(events.map((event) => event.kind)))
-                              const requestedKind = traceEventKindFilters[view.worker!.id] ?? 'all'
-                              const activeKind = requestedKind === 'all' || kinds.includes(requestedKind) ? requestedKind : 'all'
-                              return (activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)).map((event) => {
-                                const eventView = agentTraceView(event)
-                                return (
-                                  <AgentPlanOverviewItemCard key={event.id}>
-                                    <AgentPlanOverviewItemHeader>
-                                      <AgentPlanOverviewItemTitle>{eventView.title}</AgentPlanOverviewItemTitle>
-                                      <AgentPlanOverviewMetaText>{traceEventStatusLabel(event.status)}</AgentPlanOverviewMetaText>
-                                    </AgentPlanOverviewItemHeader>
-                                    <AgentPlanOverviewMetaRow>
-                                      <AgentPlanOverviewMetaText>{eventView.categoryLabel}</AgentPlanOverviewMetaText>
-                                      <AgentPlanOverviewMetaText>{traceKindLabel(event.kind)}</AgentPlanOverviewMetaText>
-                                      {event.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {event.toolName}</AgentPlanOverviewMetaText>}
-                                      {event.stepId && <AgentPlanOverviewMetaText data-truncate="true">步骤 {event.stepId}</AgentPlanOverviewMetaText>}
-                                      <AgentPlanOverviewMetaText data-truncate="true" title={event.createdAt}>创建 {formatAgentPlanDate(event.createdAt, locale)}</AgentPlanOverviewMetaText>
-                                      {event.completedAt && <AgentPlanOverviewMetaText data-truncate="true" title={event.completedAt}>完成 {formatAgentPlanDate(event.completedAt, locale)}</AgentPlanOverviewMetaText>}
-                                      {agentPlanDurationLabel(event.createdAt, event.completedAt) && <AgentPlanOverviewMetaText>耗时 {agentPlanDurationLabel(event.createdAt, event.completedAt)}</AgentPlanOverviewMetaText>}
-                                    </AgentPlanOverviewMetaRow>
-                                    {eventView.behavior && <AgentPlanOverviewText>行为：{eventView.behavior}</AgentPlanOverviewText>}
-                                    {eventView.impact && <AgentPlanOverviewText>影响：{eventView.impact}</AgentPlanOverviewText>}
-                                    {eventView.summary && <AgentPlanOverviewText>摘要：{eventView.summary}</AgentPlanOverviewText>}
-                                  </AgentPlanOverviewItemCard>
-                                )
-                              })
-                            })()}
-                            {traceEventHasMoreByRunId[view.worker.id] && (
-                              <AgentPlanOverviewActionButton
-                                type="button"
-                                variant="ghost"
-                                disabled={loadingTraceEventsRunId === view.worker.id}
-                                onClick={() => loadTraceEvents(view.worker!.id, 'more')}
-                              >
-                                {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
-                                加载更多
-                              </AgentPlanOverviewActionButton>
-                            )}
-                          </AgentPlanOverviewList>
-                        )}
-                        {traceEventErrors[view.worker.id] && (
-                          <AgentPlanOverviewErrorText>{traceEventErrors[view.worker.id]}</AgentPlanOverviewErrorText>
-                        )}
-                      </AgentPlanOverviewDisclosureBody>
-                    </AgentPlanOverviewDisclosure>
-                  )}
+                  <AgentPlanOverviewWorkerSection
+                    view={view}
+                    locale={locale}
+                    traceSummaries={traceSummaries}
+                    loadingTraceSummaryRunId={loadingTraceSummaryRunId}
+                    traceSummaryErrors={traceSummaryErrors}
+                    traceEventsByRunId={traceEventsByRunId}
+                    traceEventHasMoreByRunId={traceEventHasMoreByRunId}
+                    loadingTraceEventsRunId={loadingTraceEventsRunId}
+                    traceEventErrors={traceEventErrors}
+                    traceEventKindFilters={traceEventKindFilters}
+                    onTraceEventKindFiltersChange={setTraceEventKindFilters}
+                    onLoadTraceSummary={loadTraceSummary}
+                    onLoadTraceEvents={loadTraceEvents}
+                    onOpenConsole={() => navigate(ROUTES.agentConsole)}
+                  />
                   {(view.pendingInputs.length > 0 || view.pendingApprovals.length > 0) && (
                     <AgentPlanOverviewDisclosure>
                       <AgentPlanOverviewDisclosureSummary>

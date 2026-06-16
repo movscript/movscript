@@ -70,8 +70,14 @@ test('agent console document pages use shared content flow primitives', () => {
   const agentsSource = [
     readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentsPageAppServerPanel.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentsPageAppServerPanelModel.tsx'), 'utf8'),
   ].join('\n')
   const pluginsSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPage.tsx'), 'utf8')
+  const pluginsViewSource = readFileSync(resolve('src/features/plugins/components/ClientPluginsPageViews.tsx'), 'utf8')
+  const pluginsLayoutSource = [
+    pluginsSource,
+    pluginsViewSource,
+  ].join('\n')
   const consoleSource = readFileSync(resolve('src/features/agent/components/AgentConsoleUi.tsx'), 'utf8')
   const consoleStyles = readFileSync(resolve('src/features/agent/components/AgentConsoleUi.css'), 'utf8')
   const realtimeLogUiSource = readFileSync(resolve('src/features/agent/components/AgentConsoleRealtimeLogUi.tsx'), 'utf8')
@@ -105,18 +111,18 @@ test('agent console document pages use shared content flow primitives', () => {
   assert.match(consoleStyles, /\.agent-console-tab-list \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/)
   assert.doesNotMatch(consoleStyles, /\.agent-console-log-stream \{/)
   assert.match(realtimeLogUiStyles, /\.agent-console-log-stream \{[\s\S]*overflow: auto;/)
-  assert.match(pluginsSource, /<PluginCardSurface key=\{entry\.key\} spacing="compact">/)
+  assert.match(pluginsViewSource, /<PluginCardSurface key=\{entry\.key\} spacing="compact">/)
   assert.match(pluginsSource, /PluginTabButton/)
   assert.match(pluginsSource, /PluginPageShellBody/)
-  assert.match(pluginsSource, /PluginSearchInput/)
+  assert.match(pluginsViewSource, /PluginSearchInput/)
   assert.match(pluginsSource, /PluginBannerDismissAction/)
-  assert.match(pluginsSource, /layout="marketplace"/)
-  assert.doesNotMatch(pluginsSource, /className="gap-2"/)
-  assert.doesNotMatch(pluginsSource, /className="gap-1\.5/)
-  assert.doesNotMatch(pluginsSource, /className="ml-auto/)
-  assert.doesNotMatch(pluginsSource, /plugin-empty-state--marketplace/)
-  assert.doesNotMatch(pluginsSource, /className="plugin-page-layout"/)
-  assert.doesNotMatch(pluginsSource, /animate-spin/)
+  assert.match(pluginsViewSource, /layout="marketplace"/)
+  assert.doesNotMatch(pluginsLayoutSource, /className="gap-2"/)
+  assert.doesNotMatch(pluginsLayoutSource, /className="gap-1\.5/)
+  assert.doesNotMatch(pluginsLayoutSource, /className="ml-auto/)
+  assert.doesNotMatch(pluginsLayoutSource, /plugin-empty-state--marketplace/)
+  assert.doesNotMatch(pluginsLayoutSource, /className="plugin-page-layout"/)
+  assert.doesNotMatch(pluginsLayoutSource, /animate-spin/)
   assert.match(pluginStyles, /\.plugin-card-surface\[data-spacing="compact"\] \{[\s\S]*gap: var\(--ms-space-2\);/)
   assert.match(pluginStyles, /\.plugin-empty-state\[data-layout="marketplace"\] \{[\s\S]*height: 320px;/)
   assert.match(pluginStyles, /\.plugin-tab-button \{[\s\S]*gap: 0\.375rem;/)

@@ -2,6 +2,12 @@ import React, { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
 import {
+  ProviderSessionStatusContent,
+  ProviderSessionStatusDetail,
+  ProviderSessionStatusHeader,
+  ProviderSessionStatusSuccessIcon
+} from '@movscript/ui/business/agent'
+import {
   AgentChatAttachmentGrid,
   AgentChatBubbleStack,
   AgentChatContentStack,
@@ -18,11 +24,7 @@ import {
   AgentModelSetupCalloutDescription,
   AgentModelSetupCalloutIcon,
   AgentModelSetupCalloutTitle,
-  ProviderSessionStatusContent,
-  ProviderSessionStatusDetail,
-  ProviderSessionStatusHeader,
-  ProviderSessionStatusSuccessIcon
-} from '@movscript/ui/business/agent'
+} from '@/shared/ui/AgentMessageUi'
 import { Button } from '@movscript/ui/primitives'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { toolNameFromToolCallStreamEvent } from '@/features/agent/domain/agentRunActivity'

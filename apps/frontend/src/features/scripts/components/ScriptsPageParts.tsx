@@ -1,33 +1,19 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { useTranslation } from 'react-i18next'
 import {
   Check,
-  FileText,
   GitBranch,
-  PanelRightClose,
-  Pencil,
   Plus,
   ScrollText,
-  X,
 } from 'lucide-react'
 import type { Script } from '@/types'
 import type { ScriptVersion } from '@/shared/infrastructure/api/scriptVersions'
 import { Badge, Button, StatusBadge } from '@movscript/ui/primitives'
-import {
-  ScriptLibraryEmptyState,
-  ScriptLibraryGroup,
-  ScriptLibraryItem,
-  ScriptLibraryRail,
-  ScriptVersionCard,
-} from '@movscript/ui/business/scripts'
 import {
   ScriptAgentAssistPanel,
   ScriptBlockCard,
   ScriptBlockGrid,
   ScriptBlockSelectField,
   ScriptCollaborationStack,
-  ScriptEditorFieldLabel,
-  ScriptEditorInput,
   ScriptMetricBox,
   ScriptProductionNotice,
   ScriptProductionPanel,
@@ -35,21 +21,19 @@ import {
   ScriptReadinessRow,
   ScriptVersionEmptyState,
   ScriptVersionBlockShell,
+  ScriptVersionCard,
   ScriptVersionHistoryPanel,
   ScriptVersionLineEditor,
   ScriptWorkflowPanel,
   ScriptWorkflowStep,
-  ScriptWorkspaceStat,
 } from '@/features/scripts/components/ScriptsPageUi'
 import {
   categoryLabel,
   formatDate,
   scriptEditorLines,
-  scriptLibraryItemMeta,
   scriptVersionSourceText,
 } from '@/features/scripts/presentation/scriptDisplayModel'
 import {
-  scriptLibraryStatusRecipe,
   scriptReadinessItemRecipe,
   scriptReadinessRecipe,
   scriptStageRecipe,
@@ -57,175 +41,6 @@ import {
 } from '@/features/scripts/presentation/scriptsSemanticUi'
 
 export type ScriptDetailTab = 'edit' | 'versions'
-
-type ScriptGroup = {
-  category: string
-  scripts: Script[]
-}
-
-export function ScriptsLibraryPanel({
-  scripts,
-  scriptGroups,
-  scriptVersionCounts,
-  totalBodyLength,
-  versionedScriptCount,
-  isLoading,
-  selectedId,
-  editingScriptTypeId,
-  scriptTypeWorkspace,
-  updateScriptCategoryPending,
-  onCollapseDetail,
-  onShowCreate,
-  onBeginScriptTypeEdit,
-  onCancelScriptTypeEdit,
-  onSaveScriptType,
-  onScriptTypeWorkspaceChange,
-  onSelectScript,
-}: {
-  scripts: Script[]
-  scriptGroups: ScriptGroup[]
-  scriptVersionCounts: Map<number, number>
-  totalBodyLength: number
-  versionedScriptCount: number
-  isLoading: boolean
-  selectedId: number | null
-  editingScriptTypeId: number | null
-  scriptTypeWorkspace: string
-  updateScriptCategoryPending: boolean
-  onCollapseDetail: () => void
-  onShowCreate: () => void
-  onBeginScriptTypeEdit: (script: Script) => void
-  onCancelScriptTypeEdit: () => void
-  onSaveScriptType: (script: Script) => void
-  onScriptTypeWorkspaceChange: (value: string) => void
-  onSelectScript: (scriptId: number | null) => void
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <ScriptLibraryRail
-      className="script-workbench-rail"
-      icon={<ScrollText size={14} />}
-      title="剧本编辑"
-      action={(
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="隐藏剧本正文"
-            aria-label="隐藏剧本正文"
-            onClick={onCollapseDetail}
-          >
-            <PanelRightClose size={14} />
-          </Button>
-          <Button size="icon-sm" onClick={onShowCreate} aria-label="新建剧本">
-            <Plus size={14} />
-          </Button>
-        </>
-      )}
-    >
-      <div className="script-workbench-status-strip">
-        <ScriptWorkspaceStat icon={FileText} label="稿件" value={scripts.length} />
-        <ScriptWorkspaceStat icon={GitBranch} label="有版本" value={versionedScriptCount} />
-        <ScriptMetricBox icon={ScrollText} label="正文" value={`${totalBodyLength} 字`} />
-      </div>
-      {isLoading ? (
-        <p className="px-2 py-4 type-label text-muted-foreground">{t('common.loadingShort')}</p>
-      ) : scripts.length === 0 ? (
-        <ScriptLibraryEmptyState
-          icon={<FileText size={24} />}
-          title={t('pages.scripts.empty')}
-          action={(
-            <Button variant="ghost" size="xs" onClick={onShowCreate}>
-              {t('pages.scripts.createOne')}
-            </Button>
-          )}
-        />
-      ) : (
-        <>
-          {scriptGroups.map((group) => (
-            <ScriptLibraryGroup key={group.category} label={group.category} count={group.scripts.length}>
-              {group.scripts.map((script) => {
-                const bodyLength = String(script.content || script.raw_source || '').trim().length
-                const hasVersions = (scriptVersionCounts.get(script.ID) ?? 0) > 0
-                const scriptTypeLabel = categoryLabel(script.script_type)
-                const isEditingType = editingScriptTypeId === script.ID
-                const editState = bodyLength > 0 ? '有正文' : '空稿'
-                return (
-                  <ScriptLibraryItem
-                    key={script.ID}
-                    active={selectedId === script.ID}
-                    statusProps={scriptLibraryStatusRecipe(hasVersions, bodyLength)}
-                    title={script.title}
-                    meta={scriptLibraryItemMeta({ bodyLength, scriptTypeLabel })}
-                    statusLabel={editState}
-                    editor={isEditingType ? (
-                      <div className="script-library-item__tag-editor" onClick={(event) => event.stopPropagation()}>
-                        <ScriptEditorFieldLabel htmlFor={`script-library-category-${script.ID}`} className="sr-only">分类标签</ScriptEditorFieldLabel>
-                        <ScriptEditorInput
-                          id={`script-library-category-${script.ID}`}
-                          placeholder="未分类"
-                          value={scriptTypeWorkspace}
-                          autoFocus
-                          onChange={(event) => onScriptTypeWorkspaceChange(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault()
-                              onSaveScriptType(script)
-                            }
-                            if (event.key === 'Escape') {
-                              onCancelScriptTypeEdit()
-                            }
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          aria-label="保存分类标签"
-                          disabled={updateScriptCategoryPending}
-                          onClick={() => onSaveScriptType(script)}
-                        >
-                          <Check size={13} />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="取消编辑分类标签"
-                          onClick={onCancelScriptTypeEdit}
-                        >
-                          <X size={13} />
-                        </Button>
-                      </div>
-                    ) : null}
-                    action={!isEditingType ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="script-library-item__tag-button"
-                        aria-label={`编辑分类标签：${scriptTypeLabel}`}
-                        title={`编辑分类标签：${scriptTypeLabel}`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onBeginScriptTypeEdit(script)
-                        }}
-                      >
-                        <Pencil size={11} />
-                      </Button>
-                    ) : null}
-                    onSelect={() => onSelectScript(selectedId === script.ID ? null : script.ID)}
-                  />
-                )
-              })}
-            </ScriptLibraryGroup>
-          ))}
-        </>
-      )}
-    </ScriptLibraryRail>
-  )
-}
 
 export function ScriptTypeBadge({ script }: { script: Script }) {
   return <Badge>{categoryLabel(script.script_type)}</Badge>

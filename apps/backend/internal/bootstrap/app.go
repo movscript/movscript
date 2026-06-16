@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	entitlementapp "github.com/movscript/movscript/internal/app/entitlement"
 	hubapp "github.com/movscript/movscript/internal/app/hub"
+	"github.com/movscript/movscript/internal/app/systemstream"
 	"github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/auth"
@@ -28,18 +29,19 @@ import (
 )
 
 type App struct {
-	Config        *config.Config
-	DB            *gorm.DB
-	Store         storage.Storage
-	Tokens        *auth.Manager
-	Registry      *ai.Registry
-	AIService     *ai.AIService
-	ImageVerifier ai.ImageVerificationClient
-	Cache         cache.Cache
-	VectorIndex   providercontract.VectorIndexProvider
-	Entitlements  entitlement.EntitlementService
-	Worker        *runner.Worker
-	Router        *gin.Engine
+	Config         *config.Config
+	DB             *gorm.DB
+	Store          storage.Storage
+	Tokens         *auth.Manager
+	Registry       *ai.Registry
+	AIService      *ai.AIService
+	ImageVerifier  ai.ImageVerificationClient
+	Cache          cache.Cache
+	VectorIndex    providercontract.VectorIndexProvider
+	Entitlements   entitlement.EntitlementService
+	SystemMessages *systemstream.Hub
+	Worker         *runner.Worker
+	Router         *gin.Engine
 }
 
 func New() (*App, error) {
@@ -100,34 +102,37 @@ func New() (*App, error) {
 		imageVerifier = ai.NewHTTPImageVerificationClient(cfg.ImageVerifyBaseURL, cfg.ImageVerifyAPIKey)
 	}
 	entitlements := entitlementapp.NewService(database, cfg)
-	worker := runner.NewWorker(database, aiService, store, encKey)
+	systemMessages := systemstream.NewHub()
+	worker := runner.NewWorker(database, aiService, store, encKey, systemMessages)
 
 	engine := router.New(router.Dependencies{
-		DB:            database,
-		Config:        cfg,
-		Store:         store,
-		Tokens:        tokens,
-		Registry:      registry,
-		AIService:     aiService,
-		ImageVerifier: imageVerifier,
-		Cache:         cacheStore,
-		VectorIndex:   vectorIndex,
-		Entitlements:  entitlements,
-		EncryptionKey: encKey,
+		DB:             database,
+		Config:         cfg,
+		Store:          store,
+		Tokens:         tokens,
+		Registry:       registry,
+		AIService:      aiService,
+		ImageVerifier:  imageVerifier,
+		Cache:          cacheStore,
+		VectorIndex:    vectorIndex,
+		Entitlements:   entitlements,
+		SystemMessages: systemMessages,
+		EncryptionKey:  encKey,
 	})
 
 	return &App{
-		Config:       cfg,
-		DB:           database,
-		Store:        store,
-		Tokens:       tokens,
-		Registry:     registry,
-		AIService:    aiService,
-		Cache:        cacheStore,
-		VectorIndex:  vectorIndex,
-		Entitlements: entitlements,
-		Worker:       worker,
-		Router:       engine,
+		Config:         cfg,
+		DB:             database,
+		Store:          store,
+		Tokens:         tokens,
+		Registry:       registry,
+		AIService:      aiService,
+		Cache:          cacheStore,
+		VectorIndex:    vectorIndex,
+		Entitlements:   entitlements,
+		SystemMessages: systemMessages,
+		Worker:         worker,
+		Router:         engine,
 	}, nil
 }
 

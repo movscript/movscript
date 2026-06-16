@@ -15,6 +15,7 @@ import {
   MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
   type MovScriptWorkspaceConfig,
 } from '../config.js'
+import type { ProviderCatalogConfigFile } from '../../agent/protocol.js'
 
 export const MOVSCRIPT_WORKSPACE_CONFIG_DIR_NAME = 'default'
 export const MOVSCRIPT_WORKSPACE_CACHE_DIR_NAME = 'cache'
@@ -79,6 +80,7 @@ export function readMovScriptWorkspaceConfig(configPath: string): MovScriptWorks
     schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     ...(isRecord(parsed.modelConfig) ? { modelConfig: parsed.modelConfig } : {}),
+    ...(normalizeAgentCatalogConfig(parsed.agentCatalog) ? { agentCatalog: normalizeAgentCatalogConfig(parsed.agentCatalog) } : {}),
     ...(normalizeWorkspaceCatalogConfig(parsed.catalog) ? { catalog: normalizeWorkspaceCatalogConfig(parsed.catalog) } : {}),
     ...(Array.isArray(parsed.toolProviders) ? { toolProviders: parsed.toolProviders.filter(isRecord) } : {}),
     ...(Array.isArray(parsed.modelProviders) ? { modelProviders: parsed.modelProviders.filter(isRecord) } : {}),
@@ -185,6 +187,27 @@ function normalizeWorkspaceCatalogConfig(value: unknown): MovScriptWorkspaceConf
     ...(stringField(value.configFilesDir) ? { configFilesDir: stringField(value.configFilesDir) } : {}),
   }
   return Object.keys(catalog).length > 0 ? catalog : undefined
+}
+
+function normalizeAgentCatalogConfig(value: unknown): MovScriptWorkspaceConfig['agentCatalog'] | undefined {
+  if (!isRecord(value)) return undefined
+  const configFiles = Array.isArray(value.configFiles)
+    ? value.configFiles.filter(isProviderCatalogConfigFile)
+    : undefined
+  const activeConfigFileId = stringField(value.activeConfigFileId)
+  const catalog = {
+    ...(activeConfigFileId ? { activeConfigFileId } : {}),
+    ...(configFiles && configFiles.length > 0 ? { configFiles } : {}),
+  }
+  return Object.keys(catalog).length > 0 ? catalog : undefined
+}
+
+function isProviderCatalogConfigFile(value: unknown): value is ProviderCatalogConfigFile {
+  if (!isRecord(value)) return false
+  if (value.schema !== 'movscript.agent.config_file.v1') return false
+  if (!stringField(value.id) || !stringField(value.name)) return false
+  if (!Array.isArray(value.enabledPackIds) || !Array.isArray(value.skillIds) || !Array.isArray(value.toolGrants)) return false
+  return true
 }
 
 function isNotFoundError(error: unknown): boolean {

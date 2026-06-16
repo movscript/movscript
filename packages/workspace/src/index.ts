@@ -79,6 +79,7 @@ export {
 
 export {
   MOVSCRIPT_DEFAULT_WORKSPACE_DIR_NAME,
+  MOVSCRIPT_SOURCE_WORKSPACE_CONTROL_DIR_NAME,
   MOVSCRIPT_WORKSPACE_DIR_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_FILE_NAME,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
@@ -86,6 +87,12 @@ export {
   type MovScriptWorkspaceContext,
   type MovScriptWorkspaceContextInput,
   type MovScriptWorkspaceContextPaths,
+  type MovScriptSourceWorkspaceContext,
+  type MovScriptSourceWorkspaceContextInput,
+  type MovScriptSourceWorkspaceContextPaths,
+  type MovScriptSourceWorkspaceRootManifest,
+  type MovScriptSourceWorkspaceRootPaths,
+  type MovScriptSourceWorkspaceScope,
   type MovScriptWorkspaceRootManifest,
   type MovScriptWorkspaceRootPaths,
   type MovScriptWorkspaceScope,

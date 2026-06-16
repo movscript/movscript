@@ -18,7 +18,7 @@ import {
   AgentSettingsStack,
   AgentSettingsTextarea,
   agentSettingsRecipe,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import {
   redactAgentTraceDebugText,
   type AgentSettingsSnapshot,

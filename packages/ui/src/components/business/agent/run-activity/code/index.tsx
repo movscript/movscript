@@ -16,8 +16,8 @@ export function AgentRunActivityCodeDisclosure({
 }: AgentRunActivityCodeDisclosureProps) {
   return (
     <details className={cn("ms-agent-run-activity-code", className)} {...props}>
-      <summary className="ms-agent-run-activity-code__summary">{title}</summary>
-      <AppCodeBlock className="ms-agent-run-activity-code__content">{children}</AppCodeBlock>
+      <summary className="ms-type-tiny ms-agent-run-activity-code__summary">{title}</summary>
+      <AppCodeBlock className="ms-type-tiny ms-agent-run-activity-code__content">{children}</AppCodeBlock>
     </details>
   );
 }

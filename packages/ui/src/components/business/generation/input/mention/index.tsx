@@ -15,7 +15,7 @@ export function GenerationMentionMenu({ children, className, ...props }: HTMLAtt
 
 export function GenerationMentionEmpty({ children, className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("generation-input-mention-menu__empty", className)} {...props}>
+    <p className={cn("generation-input-mention-menu__empty ms-type-label", className)} {...props}>
       {children}
     </p>
   );
@@ -44,7 +44,7 @@ export const GenerationMentionItem = forwardRef<HTMLButtonElement, ButtonProps &
     <AppMediaFrame variant="thumb" className="generation-input-mention-menu__thumb">
       {media}
     </AppMediaFrame>
-    <span className="generation-input-mention-menu__label">{label}</span>
+    <span className="generation-input-mention-menu__label ms-type-label ms-text-truncate">{label}</span>
   </Button>
 ));
 

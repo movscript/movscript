@@ -43,14 +43,14 @@ export function ResourceMediaDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         <DialogOverlay className="resource-media-dialog__overlay" />
-        <DialogContent hideClose className="resource-media-dialog__content">
-          <AppSurfaceItem className={cn("resource-media-dialog", !sidePanel && "resource-media-dialog--compact")}>
-            <div className="resource-media-dialog__header">
+        <DialogContent hideClose className="ms-center resource-media-dialog__content">
+          <AppSurfaceItem className={cn("ms-stack resource-media-dialog", !sidePanel && "resource-media-dialog--compact")}>
+            <div className="ms-action-row resource-media-dialog__header">
               <div className="resource-media-dialog__title-block">
-                <DialogTitle className="resource-media-dialog__title">{name}</DialogTitle>
+                <DialogTitle className="ms-text-truncate ms-type-body resource-media-dialog__title">{name}</DialogTitle>
                 {metadata ? <div className="resource-media-dialog__metadata">{metadata}</div> : null}
               </div>
-              <div className="resource-media-dialog__actions">
+              <div className="ms-action-row resource-media-dialog__actions">
                 <Button
                   type="button"
                   size="icon"
@@ -86,7 +86,7 @@ export function ResourceMediaDialog({
 
 export function ResourceMediaStage({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <AppMediaFrame variant="stage" className={cn("resource-media-stage", className)} {...props}>
+    <AppMediaFrame variant="stage" className={cn("ms-center resource-media-stage", className)} {...props}>
       {children}
     </AppMediaFrame>
   );

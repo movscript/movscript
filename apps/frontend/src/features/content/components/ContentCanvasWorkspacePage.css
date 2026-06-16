@@ -1,6 +1,7 @@
 @import './ContentCanvasWorkspacePage.base.css';
 @import './ContentCanvasWorkspacePage.sidebar.css';
 @import './ContentCanvasWorkspacePage.stage.css';
+@import './ContentCanvasWorkspacePage.setting-group.css';
 @import './ContentCanvasWorkspacePage.layout.css';
 @import './ContentCanvasWorkspacePage.inspector.css';
 @import './ContentCanvasWorkspacePage.timeline.css';

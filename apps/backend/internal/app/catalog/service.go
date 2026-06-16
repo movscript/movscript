@@ -16,6 +16,11 @@ type Service struct {
 
 const modelsCacheTTL = 5 * time.Minute
 
+type ListOptions struct {
+	ProviderVariants bool
+	RouteGroup       string
+}
+
 type PublicModel struct {
 	ID                uint                                      `json:"id"`
 	CredentialID      uint                                      `json:"credential_id"`
@@ -53,13 +58,24 @@ func NewService(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore 
 
 func (s *Service) ListByCapability(ctx context.Context, capability string, providerVariants ...bool) ([]PublicModel, error) {
 	variants := len(providerVariants) > 0 && providerVariants[0]
-	key := "models:capability:" + capability + modelsCacheVariantSuffix(variants)
+	return s.ListByCapabilityWithOptions(ctx, capability, ListOptions{ProviderVariants: variants})
+}
+
+func (s *Service) ListByCapabilityWithOptions(ctx context.Context, capability string, opts ListOptions) ([]PublicModel, error) {
+	key := "models:capability:" + capability + modelsCacheVariantSuffix(opts.ProviderVariants)
 	var cached []PublicModel
-	if ok, err := s.cache.GetJSON(ctx, key, &cached); err == nil && ok {
-		return cached, nil
+	cacheable := strings.TrimSpace(opts.RouteGroup) == ""
+	if cacheable {
+		if ok, err := s.cache.GetJSON(ctx, key, &cached); err == nil && ok {
+			return cached, nil
+		}
 	}
 	capabilities := splitCapabilityQuery(capability)
-	filter := providercontract.AIModelListFilter{Capabilities: capabilities, ProviderVariants: variants}
+	filter := providercontract.AIModelListFilter{
+		Capabilities:     capabilities,
+		ProviderVariants: opts.ProviderVariants,
+		RouteGroup:       strings.TrimSpace(opts.RouteGroup),
+	}
 	descriptors, err := s.catalog.ListModels(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -68,8 +84,15 @@ func (s *Service) ListByCapability(ctx context.Context, capability string, provi
 	for _, descriptor := range descriptors {
 		models = append(models, publicModelFromDescriptor(descriptor))
 	}
-	_ = s.cache.SetJSON(ctx, key, models, modelsCacheTTL)
+	if cacheable {
+		_ = s.cache.SetJSON(ctx, key, models, modelsCacheTTL)
+	}
 	return models, nil
+}
+
+func (s *Service) ListByCapabilityForRoute(ctx context.Context, capability string, routeGroup string, providerVariants ...bool) ([]PublicModel, error) {
+	variants := len(providerVariants) > 0 && providerVariants[0]
+	return s.ListByCapabilityWithOptions(ctx, capability, ListOptions{ProviderVariants: variants, RouteGroup: routeGroup})
 }
 
 func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) PublicModel {

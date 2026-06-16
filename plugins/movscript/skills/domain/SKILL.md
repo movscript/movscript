@@ -11,6 +11,12 @@ toolGrants:
   - mcp__movscript__domain_query_production_context
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
+  - mcp__movscript__domain_read_production_timeline
+  - mcp__movscript__domain_apply_production_timeline_commands
+  - mcp__movscript__domain_compose_production_from_timeline
+  - mcp__movscript__domain_read_scene_moment_timeline
+  - mcp__movscript__domain_apply_scene_moment_timeline_commands
+  - mcp__movscript__domain_compose_scene_moment_from_edit_plan
   - mcp__movscript__domain_read_content_unit_runtime_panel
   - mcp__movscript__domain_read_content_unit_generation_prompt
   - mcp__movscript__domain_read_content_unit_dependency_report
@@ -127,4 +133,4 @@ Do not directly edit:
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
 - Use stable ids and MovScript `resource_id` references for generated or uploaded media.
 - Preserve user-facing review boundaries. Generated or edited data is not stable product state until the relevant source or backend decision metadata records adoption/selection and has been interpreted successfully.
-- Current specialized `content_unit_type` adapters are `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref`, and `shot_ref`. Unknown types are valid generic production slots, but the interpreter does not track their upstream dependencies or stale state.
+- Current specialized `content_unit_type` adapters are `production_ref`, `segment_ref`, `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref` / `scene_moment_ref`, `expression_unit_ref`, and `shot_ref`. Unknown types are valid generic production slots, but the interpreter does not track their upstream dependencies or stale state.

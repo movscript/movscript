@@ -121,7 +121,7 @@ export function CanvasNodePortList({
 }) {
   return (
     <div className={cn("nodrag canvas-node-port-list", className)} {...props}>
-      <div className="canvas-node-port-list__items">{children}</div>
+      <div className="ms-grid-stack canvas-node-port-list__items">{children}</div>
       <span className="sr-only">{srLabel}</span>
     </div>
   );
@@ -139,7 +139,7 @@ export function CanvasNodePortRow({
   return (
     <AppSurfaceItem
       data-alignment={alignment}
-      className={cn("canvas-node-port-row", className)}
+      className={cn("ms-action-row ms-type-tiny canvas-node-port-row", className)}
       {...props}
     >
       {children}
@@ -157,7 +157,7 @@ export function CanvasNodePortContent({
   children: ReactNode;
 }) {
   return (
-    <div data-alignment={alignment} className={cn("canvas-node-port-content", className)} {...props}>
+    <div data-alignment={alignment} className={cn("ms-action-row canvas-node-port-content", className)} {...props}>
       {children}
     </div>
   );
@@ -171,7 +171,7 @@ export function CanvasNodePortLabel({
   children: ReactNode;
 }) {
   return (
-    <span className={cn("canvas-node-port-label", className)} {...props}>
+    <span className={cn("ms-text-truncate canvas-node-port-label", className)} {...props}>
       {children}
     </span>
   );

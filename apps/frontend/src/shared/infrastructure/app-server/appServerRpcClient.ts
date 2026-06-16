@@ -1,5 +1,4 @@
 import {
-  appServerTextInput,
   type AppServerJsonRpcId,
   type AppServerJsonRpcNotification,
   type AppServerJsonRpcResponse,
@@ -7,7 +6,6 @@ import {
   type AppServerNotificationHandler,
   type AppServerServerRequestHandler,
   type AppServerThreadListResponse,
-  type AppServerThreadSourceKind,
   type AppServerThreadReadResponse,
   type AppServerThreadTurnsListParams,
   type AppServerThreadTurnsListResponse,
@@ -24,16 +22,16 @@ import {
   type AppServerTurnSteerParams,
   type AppServerTurnSteerResponse,
 } from '@/shared/infrastructure/app-server/appServerProtocol'
-import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 import {
-  resolveAppServerProfile,
-  resolveDefaultProvider,
-  usesAppServerProtocol,
-  useProviderConfigStore,
+  appServerInitializeParams,
+  appServerTextTurnParams,
+  appServerThreadListParams,
+  appServerThreadReadParams,
+} from '@/shared/infrastructure/app-server/appServerRpcRequestParams'
+import {
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
 import {
-  appServerURL,
   debugAppServerRpc,
   shouldDebugAppServerRpcMethod,
   shouldDebugAppServerRpcNotification,
@@ -48,26 +46,36 @@ import {
   isJsonRpcId,
   isRecord,
 } from '@/shared/infrastructure/app-server/appServerRpcProtocolUtils'
-import type {
-  ElectronAppServerEnsureInput as ElectronAppServerEnsureInputContract,
-  ElectronAppServerProfile as ElectronAppServerProfileContract,
-  ElectronAppServerStatus as ElectronAppServerStatusContract,
-  ElectronAppServerStatusInput as ElectronAppServerStatusInputContract,
-  ElectronAppServerStopInput as ElectronAppServerStopInputContract,
-} from '@/shared/contracts/electronApi'
+import {
+  distributeAppServerConfig as distributeAppServerConfigFromLifecycle,
+  ensureAppServer as ensureAppServerFromLifecycle,
+  getAppServerStatus as getAppServerStatusFromLifecycle,
+  resolveAppServerEndpoint,
+  stopAppServer as stopAppServerFromLifecycle,
+  type ElectronAppServerEnsureInput,
+  type ElectronAppServerProfile,
+  type ElectronAppServerStatus,
+  type ElectronAppServerStatusInput,
+  type ElectronAppServerStopInput,
+} from '@/shared/infrastructure/app-server/appServerLifecycleClient'
 import {
   extractAgentConnectionDebugThreadId,
   recordAgentConnectionDebugEvent,
 } from '@/shared/infrastructure/agentConnectionDebugStore'
+import {
+  createAppServerRpcTransport,
+  type AppServerTransport,
+} from '@/shared/infrastructure/app-server/appServerRpcTransport'
 import type { AgentChatThreadReadInput } from '@movscript/core/agent/chat'
 
 export { appServerScopedEnvURLKeys, appServerURL } from '@/shared/infrastructure/app-server/appServerRpcClientConfig'
-
-export type ElectronAppServerProfile = ElectronAppServerProfileContract
-export type ElectronAppServerEnsureInput = ElectronAppServerEnsureInputContract
-export type ElectronAppServerStatus = ElectronAppServerStatusContract
-export type ElectronAppServerStatusInput = ElectronAppServerStatusInputContract
-export type ElectronAppServerStopInput = ElectronAppServerStopInputContract
+export type {
+  ElectronAppServerEnsureInput,
+  ElectronAppServerProfile,
+  ElectronAppServerStatus,
+  ElectronAppServerStatusInput,
+  ElectronAppServerStopInput,
+} from '@/shared/infrastructure/app-server/appServerLifecycleClient'
 
 type PendingRequest = {
   resolve: (value: unknown) => void
@@ -83,20 +91,7 @@ type DeferredServerRequest = {
   request: AppServerJsonRpcServerRequest
 }
 
-type AppServerTransport = {
-  send(payload: string): void | Promise<void>
-  close(): void | Promise<void>
-}
-
 let configuredClient: AppServerRpcClient | undefined
-const APP_SERVER_THREAD_LIST_SOURCE_KINDS: AppServerThreadSourceKind[] = [
-  'cli',
-  'vscode',
-  'exec',
-  'appServer',
-  'subAgent',
-  'unknown',
-]
 
 export function appServerRpcClientForURL(url: string): AppServerRpcClient {
   if (!configuredClient || configuredClient.url !== url) configuredClient = new AppServerRpcClient(url)
@@ -104,19 +99,7 @@ export function appServerRpcClientForURL(url: string): AppServerRpcClient {
 }
 
 export async function ensureAppServerURL(provider?: ProviderConfig): Promise<string | undefined> {
-  const activeProvider = provider ?? resolveDefaultProvider(useProviderConfigStore.getState().settings)
-  const explicitURL = appServerURL(activeProvider)
-  const electronApi = readElectronApi()
-  const ensureAppServer = electronApi?.ensureAppServer
-  if (ensureAppServer && activeProvider && usesAppServerProtocol(activeProvider)) {
-    const profile = resolveAppServerProfile(activeProvider)
-    const status = await ensureAppServer({
-      profile,
-    })
-    if (!status.ok || !status.endpoint) throw new Error(status.error || `${activeProvider.label} app-server failed to start: ${profile.id}`)
-    return status.endpoint
-  }
-  return explicitURL
+  return resolveAppServerEndpoint(provider)
 }
 
 export async function ensureAppServerRpcClient(provider?: ProviderConfig): Promise<AppServerRpcClient | undefined> {
@@ -126,19 +109,19 @@ export async function ensureAppServerRpcClient(provider?: ProviderConfig): Promi
 }
 
 export function getAppServerStatus(input?: ElectronAppServerStatusInput): Promise<ElectronAppServerStatus | undefined> {
-  return readElectronApi()?.getAppServerStatus?.(input) ?? Promise.resolve(undefined)
+  return getAppServerStatusFromLifecycle(input)
 }
 
 export function distributeAppServerConfig(input: ElectronAppServerEnsureInput): Promise<ElectronAppServerStatus | undefined> {
-  return readElectronApi()?.distributeAppServerConfig?.(input) ?? Promise.resolve(undefined)
+  return distributeAppServerConfigFromLifecycle(input)
 }
 
 export function ensureAppServer(input: ElectronAppServerEnsureInput): Promise<ElectronAppServerStatus | undefined> {
-  return readElectronApi()?.ensureAppServer?.(input) ?? Promise.resolve(undefined)
+  return ensureAppServerFromLifecycle(input)
 }
 
 export function stopAppServer(input?: ElectronAppServerStopInput): Promise<ElectronAppServerStatus | undefined> {
-  return readElectronApi()?.stopAppServer?.(input) ?? Promise.resolve(undefined)
+  return stopAppServerFromLifecycle(input)
 }
 
 export class AppServerRpcClient {
@@ -171,26 +154,12 @@ export class AppServerRpcClient {
 
   private async performInitialize(): Promise<void> {
     try {
-      await this.request('initialize', this.initializeParams())
+      await this.request('initialize', appServerInitializeParams())
     } catch (error) {
       if (!isAlreadyInitializedError(error)) throw error
     }
     await this.notify('initialized')
     this.initialized = true
-  }
-
-  private initializeParams() {
-    return {
-      clientInfo: {
-        name: 'movscript-frontend',
-        title: 'MovScript Frontend',
-        version: '0.1.0',
-      },
-      capabilities: {
-        experimentalApi: true,
-        requestAttestation: false,
-      },
-    }
   }
 
   async startThread(params: AppServerThreadStartParams = {}) {
@@ -200,29 +169,12 @@ export class AppServerRpcClient {
 
   async listThreads(input: { limit?: number; cursor?: string | null } = {}) {
     await this.initialize()
-    return this.request<AppServerThreadListResponse>('thread/list', compactRecord({
-      limit: input.limit ?? 50,
-      cursor: input.cursor ?? undefined,
-      sortKey: 'updated_at',
-      sortDirection: 'desc',
-      archived: false,
-      modelProviders: [],
-      sourceKinds: APP_SERVER_THREAD_LIST_SOURCE_KINDS,
-    }))
+    return this.request<AppServerThreadListResponse>('thread/list', appServerThreadListParams(input))
   }
 
   async readThread(threadId: string, input: AgentChatThreadReadInput = {}) {
     await this.initialize()
-    return this.request<AppServerThreadReadResponse>('thread/read', compactRecord({
-      threadId,
-      includeTurns: input.includeTurns ?? true,
-      afterTurnId: input.afterTurnId ?? undefined,
-      beforeTurnId: input.beforeTurnId ?? undefined,
-      afterItemId: input.afterItemId ?? undefined,
-      beforeItemId: input.beforeItemId ?? undefined,
-      limit: input.limit ?? undefined,
-      direction: input.direction ?? undefined,
-    }))
+    return this.request<AppServerThreadReadResponse>('thread/read', appServerThreadReadParams(threadId, input))
   }
 
   async listThreadTurns(input: AppServerThreadTurnsListParams) {
@@ -262,14 +214,7 @@ export class AppServerRpcClient {
   }
 
   async startTextTurn(input: Omit<AppServerTurnStartParams, 'input'> & { text: string }) {
-    const { text, ...params } = input
-    return this.startTurn({
-      ...params,
-      threadId: input.threadId,
-      clientUserMessageId: input.clientUserMessageId ?? undefined,
-      input: [appServerTextInput(text)],
-      ...(input.model?.trim() ? { model: input.model.trim() } : {}),
-    })
+    return this.startTurn(appServerTextTurnParams(input))
   }
 
   async requestProtocol<T = unknown>(method: string, params?: unknown): Promise<T> {
@@ -319,66 +264,17 @@ export class AppServerRpcClient {
   }
 
   private async createTransport(): Promise<AppServerTransport> {
-    const electronApi = readElectronApi()
-    if (electronApi?.appServerConnect
-      && electronApi.appServerSend
-      && electronApi.onAppServerMessage) {
-      return this.createElectronRelayTransport(electronApi)
-    }
-    return this.createBrowserWebSocketTransport()
-  }
-
-  private async createElectronRelayTransport(electronApi: NonNullable<ReturnType<typeof readElectronApi>>): Promise<AppServerTransport> {
-    const connect = electronApi.appServerConnect
-    const send = electronApi.appServerSend
-    const close = electronApi.appServerClose
-    const onMessage = electronApi.onAppServerMessage
-    const { connectionId } = await connect?.({ url: this.url }) ?? {}
-    if (!connectionId) throw new Error(`Failed to open app-server relay: ${this.url}`)
-    debugAppServerRpc('relay:connected', { url: this.url, connectionId }, { trace: false })
-    const unsubscribe = onMessage?.((message) => {
-      if (message.connectionId !== connectionId) return
-      if (message.kind === 'message') this.handleMessage(message.data)
-      if (message.kind === 'error') {
-        debugAppServerRpc('relay:error', { url: this.url, connectionId, error: message.error }, { trace: false })
-        this.failPending(new Error(message.error || `app-server relay failed: ${this.url}`))
-      }
-      if (message.kind === 'close') {
-        debugAppServerRpc('relay:closed', { url: this.url, connectionId }, { trace: false })
+    return createAppServerRpcTransport({
+      url: this.url,
+      onMessage: (data) => this.handleMessage(data),
+      onRelayError: (error) => this.failPending(error),
+      onClosed: (error) => {
         this.initialized = false
         this.initializePromise = undefined
         this.transport = undefined
-        this.failPending(new Error(`app-server relay closed: ${this.url}`))
-      }
-    })
-    return {
-      send: (payload) => send?.({ connectionId, payload }),
-      close: async () => {
-        unsubscribe?.()
-        debugAppServerRpc('relay:close-request', { url: this.url, connectionId }, { trace: false })
-        await close?.({ connectionId })
+        this.failPending(error)
       },
-    }
-  }
-
-  private async createBrowserWebSocketTransport(): Promise<AppServerTransport> {
-    if (typeof WebSocket === 'undefined') throw new Error('WebSocket is not available in this frontend runtime')
-    const socket = new WebSocket(this.url)
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener('open', () => resolve(), { once: true })
-      socket.addEventListener('error', () => reject(new Error(`Failed to connect app-server at ${this.url}`)), { once: true })
     })
-    socket.addEventListener('message', (event) => this.handleMessage(event.data))
-    socket.addEventListener('close', () => {
-      this.initialized = false
-      this.initializePromise = undefined
-      this.transport = undefined
-      this.failPending(new Error(`app-server disconnected: ${this.url}`))
-    })
-    return {
-      send: (payload) => socket.send(payload),
-      close: () => socket.close(),
-    }
   }
 
   private async request<T = unknown>(method: string, params?: unknown): Promise<T> {

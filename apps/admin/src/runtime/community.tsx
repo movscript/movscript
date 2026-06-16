@@ -12,4 +12,6 @@ export const runtimeCapabilities: AdminRuntimeCapabilities = {
   customPricingMode: false,
   userQuotaManagement: false,
   gatewayNewAPIGroup: false,
+  hideModelManagement: false,
+  modelManagementRedirect: undefined,
 }

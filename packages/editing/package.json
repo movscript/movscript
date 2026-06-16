@@ -1,0 +1,37 @@
+{
+  "name": "@movscript/editing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenCut-compatible editing protocol and service adapters for MovScript scene-moment timelines.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && find tests -name '*.test.mjs' -print | sort | xargs node --test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

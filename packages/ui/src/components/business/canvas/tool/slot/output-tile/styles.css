@@ -1,9 +1,6 @@
 .canvas-tool-output-tile {
   position: relative;
-  display: flex;
-  min-width: 0;
   height: 58px;
-  flex-direction: column;
   overflow: visible;
   padding: 0;
   text-align: left;
@@ -26,7 +23,6 @@
 .canvas-tool-output-tile__button {
   width: 100%;
   height: 100%;
-  justify-content: flex-start;
   overflow: visible;
   border-radius: inherit;
   padding: 0;
@@ -38,11 +34,8 @@
 }
 
 .canvas-tool-output-tile__media {
-  display: flex;
   min-height: 0;
   flex: 1 1 auto;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   border-top-left-radius: var(--ms-radius-card);
   border-top-right-radius: var(--ms-radius-card);
@@ -52,18 +45,7 @@
 .canvas-tool-output-tile__type-icon,
 .canvas-tool-output-tile__ready-icon,
 .canvas-tool-output-tile__empty-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
   color: var(--ms-color-muted-foreground);
-}
-
-.canvas-tool-output-tile__pending-icon svg,
-.canvas-tool-output-tile__type-icon svg,
-.canvas-tool-output-tile__ready-icon svg,
-.canvas-tool-output-tile__empty-icon svg {
-  display: block;
 }
 
 .canvas-tool-output-tile__type-icon {
@@ -85,30 +67,13 @@
   padding: var(--ms-space-1) 6px;
 }
 
-.canvas-tool-output-tile__title-row {
-  display: flex;
-  align-items: center;
-  gap: var(--ms-space-1);
-}
-
 .canvas-tool-output-tile__label {
-  min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--ms-text-tiny);
   font-weight: 500;
-  line-height: var(--ms-leading-tiny);
   color: var(--ms-color-foreground);
 }
 
 .canvas-tool-output-tile__summary {
   margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
   color: var(--ms-color-muted-foreground);
 }

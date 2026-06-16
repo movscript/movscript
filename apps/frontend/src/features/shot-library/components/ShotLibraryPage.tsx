@@ -2,24 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  Clapperboard,
   Film,
-  Search,
-  Sparkles,
-  Upload,
-  Video,
 } from 'lucide-react'
-import {
-  Button,
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-} from '@movscript/ui/primitives'
 import { api } from '@/shared/infrastructure/api'
 import { normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -52,21 +36,23 @@ import {
   buildShotGroupOptions,
   buildShotTagSuggestions,
   defaultImportGroupTitle,
-  formatDuration,
   importWorkspaceToManualUpdate,
   isWorkspaceSelected,
   shotEntryKey,
   tempResourceFromFile,
   uploadErrorMessage,
-  type ShotFacetOptions,
   type ShotImportSession,
   type ShotImportWorkspace,
   type ShotManualWorkspace,
 } from '@/features/shot-library/domain/shotLibraryWorkspaceModel'
-import { ShotFacetFilters, ShotLibraryMetric, ShotLibrarySourceBar } from '@/features/shot-library/components/ShotLibraryBrowserChrome'
 import { ShotImportDialog } from '@/features/shot-library/components/ShotLibraryImportDialog'
-import { ShotReferenceCard } from '@/features/shot-library/components/ShotLibraryReferenceCard'
 import { ShotReferenceDetail } from '@/features/shot-library/components/ShotLibraryReferenceDetail'
+import {
+  ShotLibraryBrowser,
+  ShotLibraryHeader,
+  ShotLibraryMetrics,
+  ShotLibraryToolbar,
+} from '@/features/shot-library/components/ShotLibraryPageSections'
 import {
   RESOURCE_LIBRARY_PAGE_SIZE,
   SHOT_IMPORT_WORKSPACE_REVEAL_DELAY_MS,
@@ -402,130 +388,43 @@ export default function ShotLibraryPage() {
         }}
       />
 
-      <section className="shot-library-page__header">
-        <div className="shot-library-page__title-block">
-          <div className="shot-library-page__eyebrow">
-            <Clapperboard size={14} />
-            <span>{t('pages.shotLibrary.eyebrow')}</span>
-          </div>
-          <h1>{t('pages.shotLibrary.title')}</h1>
-          <p>{t('pages.shotLibrary.description')}</p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => setImportDialogOpen(true)}
-          loading={confirmShotImport.isPending}
-          disabled={!uploadSource}
-        >
-          <Upload size={14} />
-          {confirmShotImport.isPending ? t('pages.shotLibrary.analyzing') : t('pages.shotLibrary.uploadShot')}
-        </Button>
-      </section>
+      <ShotLibraryHeader
+        saving={confirmShotImport.isPending}
+        disabled={!uploadSource}
+        onImport={() => setImportDialogOpen(true)}
+      />
 
-      <section className="shot-library-page__metrics" aria-label={t('pages.shotLibrary.metricsLabel')}>
-        <ShotLibraryMetric icon={Film} label={t('pages.shotLibrary.totalReferences')} value={String(entries.length)} />
-        <ShotLibraryMetric icon={Video} label={t('pages.shotLibrary.totalDuration')} value={formatDuration(totalDuration, i18n.language)} />
-        <ShotLibraryMetric icon={Sparkles} label={t('pages.shotLibrary.librarySources')} value={String(enabledSources.length)} />
-      </section>
+      <ShotLibraryMetrics
+        entryCount={entries.length}
+        totalDuration={totalDuration}
+        sourceCount={enabledSources.length}
+      />
 
-      <section className="shot-library-page__toolbar">
-        <div className="shot-library-page__toolbar-row">
-          <ShotLibrarySourceBar
-            sources={enabledSources}
-            activeSourceId={activeSourceId}
-            onSelect={setActiveSourceId}
-            failedSourceIds={new Set(failedSources.map(result => result.source.id))}
-          />
-          <div className="shot-library-page__search">
-            <Search size={14} />
-            <Input
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              placeholder={t('pages.shotLibrary.searchPlaceholder')}
-              aria-label={t('pages.shotLibrary.searchPlaceholder')}
-            />
-          </div>
-        </div>
-        <div className="shot-library-page__toolbar-row">
-          <ShotFacetFilters
-            options={facetOptions}
-            value={facetFilters}
-            onChange={setFacetFilters}
-          />
-        </div>
-      </section>
+      <ShotLibraryToolbar
+        sources={enabledSources}
+        activeSourceId={activeSourceId}
+        failedSourceIds={new Set(failedSources.map(result => result.source.id))}
+        query={query}
+        facetOptions={facetOptions}
+        facetFilters={facetFilters}
+        onSourceSelect={setActiveSourceId}
+        onQueryChange={setQuery}
+        onFacetFiltersChange={setFacetFilters}
+      />
 
       <section className="shot-library-page__body">
-        <div className="shot-library-page__library">
-          {failedSources.length > 0 ? (
-            <div className="shot-library-page__source-warning">
-              <AlertCircle size={14} />
-              <span>{t('pages.shotLibrary.sourceLoadFailed', { count: failedSources.length })}</span>
-            </div>
-          ) : null}
-
-          {entries.length === 0 ? (
-            <Card className="shot-library-page__empty">
-              <CardHeader>
-                <CardTitle>{t('pages.shotLibrary.emptyTitle')}</CardTitle>
-                <CardDescription>{t('pages.shotLibrary.emptyDescription')}</CardDescription>
-              </CardHeader>
-            </Card>
-          ) : isLoading ? (
-            <div className="shot-library-page__empty-inline">
-              <Sparkles size={16} />
-              <span>{t('common.loadingShort')}</span>
-            </div>
-          ) : visibleEntries.length === 0 ? (
-            <div className="shot-library-page__empty-inline">
-              <AlertCircle size={16} />
-              <span>{t('pages.shotLibrary.noMatches')}</span>
-            </div>
-          ) : (
-            <div className="shot-library-page__browser">
-              <div className="shot-library-page__grid">
-                {pagedVisibleEntries.map(entry => (
-                  <ShotReferenceCard
-                    key={shotEntryKey(entry)}
-                    entry={entry}
-                    active={shotEntryKey(entry) === (selected ? shotEntryKey(selected) : '')}
-                    onSelect={() => setSelectedKey(shotEntryKey(entry))}
-                  />
-                ))}
-              </div>
-              {visibleEntries.length > SHOT_LIBRARY_PAGE_SIZE ? (
-                <div className="shot-library-page__pager">
-                  <span>{t('pages.shotLibrary.libraryPageStatus', { page: normalizedShotPage, total: shotPageCount })}</span>
-                  <div>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="outline"
-                      disabled={normalizedShotPage <= 1}
-                      onClick={() => setShotPage(page => Math.max(1, page - 1))}
-                      aria-label={t('pages.resources.previousPage')}
-                      title={t('pages.resources.previousPage')}
-                    >
-                      <ChevronLeft size={14} />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="outline"
-                      disabled={normalizedShotPage >= shotPageCount}
-                      onClick={() => setShotPage(page => Math.min(shotPageCount, page + 1))}
-                      aria-label={t('pages.resources.nextPage')}
-                      title={t('pages.resources.nextPage')}
-                    >
-                      <ChevronRight size={14} />
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
+        <ShotLibraryBrowser
+          failedSourceCount={failedSources.length}
+          entriesCount={entries.length}
+          isLoading={isLoading}
+          visibleEntries={visibleEntries}
+          pagedVisibleEntries={pagedVisibleEntries}
+          selectedEntryKey={selected ? shotEntryKey(selected) : ''}
+          page={normalizedShotPage}
+          pageCount={shotPageCount}
+          onEntrySelect={(entry) => setSelectedKey(shotEntryKey(entry))}
+          onPageChange={setShotPage}
+        />
 
         <aside className="shot-library-page__detail" aria-label={t('pages.shotLibrary.detailTitle')}>
           {selected ? (

@@ -9,8 +9,6 @@ export * as agent from "./agent";
 export * as app from "./app";
 export * as canvas from "./canvas";
 export * as generation from "./generation";
-export * as jobs from "./jobs";
 export * as resource from "./resource";
 export * as review from "./review";
-export * as scripts from "./scripts";
 export * as workbench from "./workbench";

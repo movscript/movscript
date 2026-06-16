@@ -1,3 +1,5 @@
+import type { ElectronMovScriptHomeInput } from './electronApiWorkspace'
+
 export type ElectronPluginCatalogPackStoreDirs = {
   rootDir: string
   skillsDir: string
@@ -39,8 +41,7 @@ export type ElectronPluginCatalogPackPlugin = {
   paths: Partial<Record<'skills' | 'tools' | 'packs' | 'configFiles', string>>
 }
 
-export type ElectronProjectPluginInstallInput = {
-  workspaceDir?: string
+export type ElectronProjectPluginInstallInput = ElectronMovScriptHomeInput & {
   projectId?: string | number
   userId?: string | number
   orgId?: string | number
@@ -75,8 +76,7 @@ export type ElectronProjectLocalSkill = {
   enabledRepoPath?: string
 }
 
-export type ElectronProjectSkillToggleInput = {
-  workspaceDir?: string
+export type ElectronProjectSkillToggleInput = ElectronMovScriptHomeInput & {
   projectId?: string | number
   userId?: string | number
   orgId?: string | number
@@ -86,6 +86,8 @@ export type ElectronProjectSkillToggleInput = {
 
 export type ElectronProjectPluginSnapshot = {
   schema: 'movscript.project-plugins.v1'
+  movScriptHomeDir: string
+  /** @deprecated Use movScriptHomeDir for the desktop control/home directory. */
   workspaceDir: string
   projectCwd: string
   manifestPath: string

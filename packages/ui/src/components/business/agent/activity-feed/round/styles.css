@@ -14,13 +14,9 @@
 }
 
 .ms-agent-activity-round__header {
-  display: flex;
   min-width: 0;
-  align-items: center;
-  gap: 8px;
   margin-bottom: 4px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
 }
 
 .ms-agent-activity-round__rule {
@@ -31,37 +27,20 @@
 }
 
 .ms-agent-activity-round__label {
-  display: flex;
-  min-width: 0;
-  align-items: center;
   gap: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ms-agent-activity-round__label-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ms-agent-activity-round__pager {
-  display: inline-flex;
   flex: 0 0 auto;
-  align-items: center;
   gap: 2px;
   margin-left: 2px;
   color: var(--ms-color-muted-foreground);
 }
 
 .ms-agent-activity-round__pager-button {
-  display: inline-flex;
   width: 1.25rem;
   height: 1.25rem;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
   border-radius: var(--ms-radius-sm);
   background: color-mix(in srgb, var(--ms-color-background) 90%, transparent);
@@ -83,8 +62,6 @@
 .ms-agent-activity-round__pager-count {
   min-width: 2rem;
   text-align: center;
-  font-size: var(--ms-text-tiny);
-  font-variant-numeric: tabular-nums;
 }
 
 .ms-agent-activity-round__items > * + * {
@@ -100,5 +77,4 @@
 .ms-agent-activity-round__empty {
   padding: 4px 0;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
 }

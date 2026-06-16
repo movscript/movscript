@@ -12,7 +12,6 @@ import {
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const defaultManifest = 'binary-deps.manifest.json'
-const defaultEnterpriseManifest = '../enterprise/binary-deps.manifest.json'
 const defaultBranch = 'main'
 
 if (isDirectRun(import.meta.url)) {
@@ -114,11 +113,11 @@ export function resolveRemoteCommit(repository, branch = defaultBranch, env = pr
 
 function manifestPathsFor(root, options) {
   const paths = [resolve(root, options.manifest ?? defaultManifest)]
-  const enterpriseManifest = options.enterpriseManifest === false
-    ? undefined
-    : resolve(root, options.enterpriseManifest ?? defaultEnterpriseManifest)
-  if (enterpriseManifest && existsSync(enterpriseManifest) && !paths.includes(enterpriseManifest)) {
-    paths.push(enterpriseManifest)
+  for (const extraManifest of normalizeExtraManifests(options.extraManifests)) {
+    const extraManifestPath = resolve(root, extraManifest)
+    if (existsSync(extraManifestPath) && !paths.includes(extraManifestPath)) {
+      paths.push(extraManifestPath)
+    }
   }
   return paths
 }
@@ -127,9 +126,10 @@ function parseArgs(args, env, root) {
   return {
     branch: argValue(args, '--branch') ?? env.MOVSCRIPT_BINARY_DEPS_BRANCH ?? defaultBranch,
     dryRun: args.includes('--dry-run') || env.MOVSCRIPT_BINARY_DEPS_DRY_RUN === '1',
-    enterpriseManifest: args.includes('--no-enterprise')
-      ? false
-      : argValue(args, '--enterprise-manifest') ?? env.MOVSCRIPT_ENTERPRISE_BINARY_DEPS_MANIFEST,
+    extraManifests: [
+      ...argValues(args, '--extra-manifest'),
+      ...envList(env.MOVSCRIPT_BINARY_DEPS_EXTRA_MANIFESTS),
+    ],
     manifest: argValue(args, '--manifest') ?? env.MOVSCRIPT_BINARY_DEPS_MANIFEST ?? defaultManifest,
     root: resolve(argValue(args, '--root') ?? env.MOVSCRIPT_BINARY_DEPS_ROOT ?? root),
     token: argValue(args, '--token') ?? env.MOVSCRIPT_DEPS_TOKEN ?? env.GITHUB_TOKEN,
@@ -142,4 +142,30 @@ function argValue(args, name) {
   if (equalValue) return equalValue.slice(equalPrefix.length)
   const index = args.indexOf(name)
   return index >= 0 ? args[index + 1] : undefined
+}
+
+function argValues(args, name) {
+  const values = []
+  const equalPrefix = `${name}=`
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg.startsWith(equalPrefix)) {
+      values.push(arg.slice(equalPrefix.length))
+    } else if (arg === name && args[index + 1]) {
+      values.push(args[index + 1])
+      index += 1
+    }
+  }
+  return values.filter(Boolean)
+}
+
+function envList(value) {
+  if (!value) return []
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function normalizeExtraManifests(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value.filter(Boolean)
+  return [value]
 }

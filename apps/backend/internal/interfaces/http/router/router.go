@@ -63,6 +63,7 @@ func New(deps Dependencies) *gin.Engine {
 			registerResourceRoutes(protected, h)
 			registerAudioRoutes(protected, h)
 			registerJobRoutes(protected, h)
+			registerSystemStreamRoutes(protected, h)
 			registerPluginRoutes(protected, h)
 			registerCanvasRoutes(protected, h)
 			registerProjectRoutes(protected, db, h)

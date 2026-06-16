@@ -11,7 +11,6 @@ import (
 	domainai "github.com/movscript/movscript/internal/domain/ai"
 	infraai "github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
-	"github.com/movscript/movscript/internal/infra/newapi"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
@@ -62,9 +61,6 @@ func (s *Service) ListProviderInstances(ctx context.Context) ([]ProviderInstance
 }
 
 func (s *Service) TestProviderInstance(ctx context.Context, id string) (TestResult, error) {
-	if strings.TrimSpace(id) == "ai_gateway:new-api" {
-		return s.testNewAPIGatewayProviderInstance(ctx)
-	}
 	credentialID, ok := parseProviderInstanceCredentialID(id)
 	if ok {
 		return s.TestCredential(ctx, fmt.Sprintf("%d", credentialID))
@@ -74,31 +70,6 @@ func (s *Service) TestProviderInstance(ctx context.Context, id string) (TestResu
 		return s.testExternalResourceProviderInstance(ctx, externalSourceID)
 	}
 	return TestResult{}, ErrNotFound
-}
-
-func (s *Service) testNewAPIGatewayProviderInstance(ctx context.Context) (TestResult, error) {
-	start := time.Now()
-	_ = ctx
-	cfg := newapi.LoadConfigFromEnv()
-	if strings.TrimSpace(cfg.BaseURL) == "" {
-		return TestResult{
-			Success:   false,
-			Message:   "new-api gateway is not configured; set MOVSCRIPT_NEW_API_BASE_URL to the external new-api service",
-			LatencyMs: time.Since(start).Milliseconds(),
-		}, nil
-	}
-	if strings.TrimSpace(cfg.RelayTokenFallback) == "" && (strings.TrimSpace(cfg.AdminToken) == "" || cfg.AdminUserID <= 0) {
-		return TestResult{
-			Success:   false,
-			Message:   "new-api gateway is configured, but relay provisioning is incomplete; set MOVSCRIPT_NEW_API_RELAY_TOKEN or MOVSCRIPT_NEW_API_ADMIN_TOKEN with MOVSCRIPT_NEW_API_ADMIN_USER_ID",
-			LatencyMs: time.Since(start).Milliseconds(),
-		}, nil
-	}
-	return TestResult{
-		Success:   true,
-		Message:   fmt.Sprintf("new-api gateway ready: forwarding to %s", cfg.RelayBaseURL()),
-		LatencyMs: time.Since(start).Milliseconds(),
-	}, nil
 }
 
 func providerInstanceFromCredential(cred domainai.Credential) ProviderInstance {

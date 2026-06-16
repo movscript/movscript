@@ -57,7 +57,12 @@ async function collectWorkspaceDocuments(
     }
     if (!includeFile(entry.path)) continue
     const file = await fileRepository.read({ path: entry.path })
-    out.push({ path: file.path, data: parseWorkspaceDocument(file.path, file.content) })
+    out.push({
+      path: file.path,
+      data: parseWorkspaceDocument(file.path, file.content),
+      ...(file.version !== undefined ? { version: file.version } : {}),
+      ...(file.updatedAt !== undefined ? { updatedAt: file.updatedAt } : {}),
+    })
   }
 }
 

@@ -249,7 +249,7 @@ func TestAIServiceCallAuditorContractRecordsGatewayCall(t *testing.T) {
 		Context:        providercontract.AIUsageContext{OrgID: &orgID, ProjectID: &projectID},
 		ModelConfigID:  1,
 		CredentialID:   2,
-		Provider:       "new-api",
+		Provider:       "local",
 		OperationType:  "text",
 		PromptName:     "draft",
 		RequestModel:   "gpt-5.2",
@@ -275,7 +275,7 @@ func TestAIServiceCallAuditorContractRecordsGatewayCall(t *testing.T) {
 	if err := db.First(&log).Error; err != nil {
 		t.Fatalf("load call log: %v", err)
 	}
-	if log.UserID != 7 || log.Provider != "new-api" || log.Status != "success" || log.ResponseModel != "provider-gpt-5.2" {
+	if log.UserID != 7 || log.Provider != "local" || log.Status != "success" || log.ResponseModel != "provider-gpt-5.2" {
 		t.Fatalf("call log = %#v, want provider success with response model", log)
 	}
 	if log.InputTokens != 3 || log.OutputTokens != 2 || log.CachedInputTokens != 1 || log.ReasoningTokens != 4 {

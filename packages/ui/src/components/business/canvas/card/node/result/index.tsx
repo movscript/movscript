@@ -117,7 +117,7 @@ export function CanvasNodeResultStage({
       variant="stage"
       data-size={size}
       data-centered={centered ? "true" : undefined}
-      className={cn("canvas-node-result-stage", className)}
+      className={cn("canvas-node-result-stage", centered && "ms-center ms-type-label", className)}
       {...props}
     >
       {children}
@@ -135,7 +135,7 @@ export function CanvasNodeResultMessage({
   children: ReactNode;
 }) {
   return (
-    <div data-tone={tone} className={cn("canvas-node-result-message", className)} {...props}>
+    <div data-tone={tone} className={cn("ms-center ms-type-label canvas-node-result-message", className)} {...props}>
       {children}
     </div>
   );
@@ -155,13 +155,13 @@ export function CanvasNodeTextResultHeader({
   const { className: statusClassName, ...statusVisualProps } = statusProps ?? {};
 
   return (
-    <div className={cn("canvas-node-text-result-header", className)} {...props}>
-      <div className="canvas-node-text-result-header__status">
-        <StatusBadge className={cn("canvas-node-text-result-badge", statusClassName)} {...statusVisualProps}>
+    <div className={cn("ms-stack canvas-node-text-result-header", className)} {...props}>
+      <div className="ms-action-row canvas-node-text-result-header__status">
+        <StatusBadge className={cn("ms-type-tiny canvas-node-text-result-badge", statusClassName)} {...statusVisualProps}>
           {statusLabel}
         </StatusBadge>
       </div>
-      {prompt ? <p className="canvas-node-text-result-prompt">{prompt}</p> : null}
+      {prompt ? <p className="ms-type-label canvas-node-text-result-prompt">{prompt}</p> : null}
     </div>
   );
 }
@@ -196,7 +196,7 @@ export function CanvasNodeTextResultSurface({
       asChild={asChild}
       variant={state === "danger" ? undefined : "muted"}
       data-state={state}
-      className={cn("canvas-node-text-result-surface", className)}
+      className={cn("ms-type-label canvas-node-text-result-surface", state === "loading" && "ms-center", className)}
       {...props}
     >
       {children}

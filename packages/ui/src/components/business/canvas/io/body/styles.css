@@ -1,8 +1,6 @@
 .canvas-io-body-block {
   min-height: 48px;
   padding: 6px var(--ms-space-2);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
   color: var(--ms-color-foreground);
 }
 

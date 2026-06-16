@@ -150,11 +150,12 @@
   display: var(--ui-button-content-display, var(--ms-button-content-display, inline-flex));
   width: var(--ui-button-content-width, var(--ms-button-content-width, auto));
   min-width: var(--ui-button-content-min-width, var(--ms-button-content-min-width, 0));
-  flex: var(--ui-button-content-flex, var(--ms-button-content-flex, initial));
-  align-items: var(--ui-button-content-align-items, var(--ms-button-content-align-items, center));
+  flex: var(--ui-button-content-flex, initial);
+  align-items: var(--ui-button-content-align-items, center);
+  grid-template-columns: var(--ui-button-content-grid-template-columns, none);
   justify-content: center;
-  gap: inherit;
-  white-space: nowrap;
+  gap: var(--ui-button-content-gap, inherit);
+  white-space: var(--ui-button-content-white-space, nowrap);
 }
 
 .ms-button--full-width {

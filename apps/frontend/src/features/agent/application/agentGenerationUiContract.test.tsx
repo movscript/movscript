@@ -13,6 +13,7 @@ import type { AgentRun } from '@/shared/infrastructure/providerSessionClient'
 function readProviderSessionClientContractSource(): string {
   return [
     readFileSync(resolve('src/shared/infrastructure/providerSessionHttpClient.ts'), 'utf8'),
+    readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionRunClient.ts'), 'utf8'),
     readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionRunDebugClient.ts'), 'utf8'),
     readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionWorkspaceArtifactClient.ts'), 'utf8'),
     readFileSync(resolve('src/shared/infrastructure/provider-session-client/providerSessionHttpProtocol.ts'), 'utf8'),
@@ -25,6 +26,10 @@ function readAgentSettingsAppContractSource(): string {
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsPage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsConfigFilesPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsPageParts.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AIAgentSettingsApiModePanels.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AIAgentSettingsAuditPanel.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AIAgentSettingsDiffPanels.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AIAgentSettingsRows.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsSnapshotPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsHeaderSection.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsModelPanel.tsx'), 'utf8'),
@@ -37,9 +42,11 @@ function readAgentSettingsAppContractSource(): string {
     readFileSync(resolve('src/features/agent/components/AIAgentSettingsToolPermissionsSection.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsConfigFile.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsConfigFileManagement.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentSettingsConfigFileDiff.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsConfigFileExport.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsConfigFileWorkspaces.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsConfigFileTypes.ts'), 'utf8'),
+    readFileSync(resolve('src/features/agent/application/agentSettingsSnapshotImportSelection.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsProviderModel.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsActionItems.ts'), 'utf8'),
     readFileSync(resolve('src/features/agent/application/agentSettingsReadiness.ts'), 'utf8'),
@@ -57,7 +64,10 @@ function readAgentSettingsAppContractSource(): string {
 function readAgentSettingsContractSource(): string {
   return [
     readAgentSettingsAppContractSource(),
-    readFileSync(resolve('../../packages/ui/src/components/business/agent/settings/index.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentSettingsUi.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentSettingsStatusUi.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentSettingsSnapshotUi.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentSettingsToolPermissionsUi.tsx'), 'utf8'),
   ].join('\n')
 }
 
@@ -232,10 +242,10 @@ test('generated result card limits initially mounted media previews', () => {
   assertIncludes(source, 'setExpandedResults(true)')
   assertIncludes(source, 'lightweightVideoThumb')
   assertIncludes(source, 'surface="dark"')
-  assertIncludes(generatedMediaPreviewCss, '.ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb')
+  assertIncludes(generatedMediaPreviewCss, '.agent-generated-media-preview > .resource-media-thumb')
   assertIncludes(panelThreadMessageCss, 'width: calc(100% - 20px)')
   assertIncludes(panelThreadMessageCss, 'margin-left: 10px')
-  assertIncludes(panelThreadMessageCss, '.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > .resource-media-thumb')
+  assertIncludes(panelThreadMessageCss, '.ai-agent-panel-shell .ms-agent-message--assistant .agent-generated-media-preview > .resource-media-thumb')
   assertNotIncludes(source, 'generated.map((attachment)')
   assertNotIncludes(source, '<AgentGeneratedMediaPreview data-testid="agent-generated-media-preview" surface="dark">')
 })
@@ -251,6 +261,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   const navSource = readFileSync(resolve('src/features/agent/components/AgentConsoleNav.tsx'), 'utf8')
   const consoleSource = [
     readFileSync(resolve('src/features/agent/components/AgentConsolePage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentConsolePageSections.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentConsoleSessionIntegrationPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentConsoleRealtimeLogPanel.tsx'), 'utf8'),
   ].join('\n')
@@ -261,6 +272,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   const agentsSource = [
     readFileSync(resolve('src/features/agent/components/AgentsPage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentsPageAppServerPanel.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentsPageAppServerPanelModel.tsx'), 'utf8'),
   ].join('\n')
   const defaultAgentProviderSource = readFileSync(resolve('src/features/agent/application/defaultAgentProvider.ts'), 'utf8')
   const coreDefaultProviderSource = readFileSync(resolve('../../packages/core/src/agent/defaultProvider.ts'), 'utf8')
@@ -276,11 +288,15 @@ test('agent console architecture separates model providers, agents, plugins, and
   const workspaceConfigNodeSource = readFileSync(resolve('../../packages/core/src/workspace/node/config.ts'), 'utf8')
   const uiBusinessIndexSource = readFileSync(resolve('../../packages/ui/src/components/business/index.ts'), 'utf8')
   const agentPageUiSource = readFileSync(resolve('src/features/agent/components/AgentPageUi.tsx'), 'utf8')
-  const uiReviewWorkspaceSource = readFileSync(resolve('../../packages/ui/src/components/business/review/workspace/index.tsx'), 'utf8')
+  const projectStandardsWorkspaceReviewUiSource = readFileSync(resolve('src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewUi.tsx'), 'utf8')
+  const uiReviewSource = readFileSync(resolve('../../packages/ui/src/components/business/review/index.tsx'), 'utf8')
   const appSettingsSource = readFileSync(resolve('src/shared/contracts/appSettings.ts'), 'utf8')
   const coreAppSettingsSource = readFileSync(resolve('../../packages/core/src/shared/appSettings.ts'), 'utf8')
   const appSettingsStoreSource = readFileSync(resolve('src/shared/infrastructure/appSettingsStore.ts'), 'utf8')
-  const appSettingsPageSource = readFileSync(resolve('src/features/settings/components/AppSettingsPage.tsx'), 'utf8')
+  const appSettingsPageSource = [
+    readFileSync(resolve('src/features/settings/components/AppSettingsPage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/settings/components/AppSettingsSections.tsx'), 'utf8'),
+  ].join('\n')
   const settingsIpcSource = readFileSync(resolve('../../apps/frontend/electron/ipc/settingsIpc.ts'), 'utf8')
   const workspaceDefaultsSource = readFileSync(resolve('../../apps/frontend/electron/services/movscriptWorkspaceDefaults.ts'), 'utf8')
   const zh = readFileSync(resolve('src/i18n/locales/zh-CN.json'), 'utf8')
@@ -321,8 +337,9 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(navSource, "label: 'Plugins'")
   assertIncludes(navSource, "label: 'Workspace'")
   assertIncludes(navSource, "match: [ROUTES.workspaceConfig, ROUTES.workspaceReview]")
-  assertIncludes(consoleSource, 'title="Agent Runtime Sessions"')
-  assertIncludes(consoleSource, '按 runtime/profile 聚合会话实例')
+  assertIncludes(consoleSource, 'title="App Server"')
+  assertIncludes(consoleSource, 'Runtime ThreadRef 索引记录')
+  assertIncludes(consoleSource, 'title="Model Runtime"')
   assertIncludes(consoleSource, 'Runtime Endpoint')
   assertIncludes(consoleSource, 'Agent Runtime 会话')
   assertIncludes(consoleSource, 'runtime sessions + event stream')
@@ -433,7 +450,9 @@ test('agent console architecture separates model providers, agents, plugins, and
   assert.equal(packageJson.scripts?.[removedLegacyBuildWrapperScript], undefined)
   assert.equal(packageJson.scripts?.dev, 'pnpm --filter @movscript/desktop^... --if-present build && pnpm --filter @movscript/cli build && node scripts/dev-workspace.mjs')
 
-  assertIncludes(consoleSource, 'title="Agent Control Matrix"')
+  assertIncludes(consoleSource, 'title="当前 Agent 启动与配置"')
+  assertIncludes(consoleSource, '配置当前 Agent')
+  assertIncludes(consoleSource, '同一时间只会有一个 app-server Agent 生效')
   assertIncludes(consoleSource, '控制台是 Provider 生命周期入口')
   assertNotIncludes(consoleSource, '控制台是 Agent 生命周期入口')
   assertNotIncludes(consoleSource, '刷新 Agent 状态')
@@ -445,7 +464,7 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertNotIncludes(consoleSource, 'ROUTES.agentsCodex')
   assertNotIncludes(consoleSource, 'to={ROUTES.agentsMova}')
   assertIncludes(consoleSource, 'appServerProvidersForManagement.map((provider) =>')
-  assertIncludes(consoleSource, 'to={providerRoute(provider)}')
+  assertIncludes(consoleSource, 'to={hostedAgentsRoute}')
   assertNotIncludes(consoleSource, "provider.providerKind !== 'codex'")
   assertIncludes(controlCenterSource, 'appServerProvider,')
   assertNotIncludes(consoleSource, 'function AgentProvidersPanel')
@@ -467,10 +486,12 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(workspaceConfigIpcSource, "applyNullableField(next, 'providers', input.providers)")
   assertIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptWorkspaceConfig = {')
   assertIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptWorkspaceConfigSaveInput = {')
+  assertIncludes(electronWorkspaceApiSource, 'export type ElectronMovScriptHomeInput = {')
+  assertIncludes(electronWorkspaceApiSource, 'movScriptHomeDir?: string')
   assertIncludes(electronWorkspaceApiSource, 'providerProfileKey?: string')
-  assertIncludes(electronApiSource, 'getMovScriptWorkspaceRoot?: (input?: { workspaceDir?: string }) => Promise<ElectronMovScriptWorkspaceRootResult>')
-  assertIncludes(electronApiSource, 'getMovScriptWorkspaceConfig?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>')
-  assertIncludes(electronApiSource, 'listProviderSessions?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>')
+  assertIncludes(electronApiSource, 'getMovScriptWorkspaceRoot?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronMovScriptWorkspaceRootResult>')
+  assertIncludes(electronApiSource, 'getMovScriptWorkspaceConfig?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>')
+  assertIncludes(electronApiSource, 'listProviderSessions?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>')
   assertNotIncludes(electronApiSource, ['Electron', 'MovScript', 'Agent', 'Profile', 'Config'].join(''))
   assertNotIncludes(electronApiSource, ['get', 'MovScript', 'Agent', 'Profile', 'Config'].join(''))
   assertNotIncludes(electronApiSource, ['save', 'MovScript', 'Agent', 'Profile', 'Config'].join(''))
@@ -496,13 +517,15 @@ test('agent console architecture separates model providers, agents, plugins, and
   assertIncludes(uiBusinessIndexSource, 'export * as review')
   assertNotIncludes(uiBusinessIndexSource, 'AgentArtifactsPageBody')
   assertNotIncludes(uiBusinessIndexSource, 'ReviewWorkspaceArtifactList')
+  assertNotIncludes(uiReviewSource, 'ReviewWorkspaceArtifactList')
+  assertNotIncludes(uiReviewSource, './workspace')
   assertNotIncludes(agentPageUiSource, 'AgentArtifactsPageBody')
   assertNotIncludes(agentPageUiSource, 'AgentArtifactDetailCard')
   assertNotIncludes(agentPageUiSource, 'AgentArtifactMetaItem')
-  assertIncludes(uiReviewWorkspaceSource, 'ReviewWorkspaceArtifactList')
-  assertIncludes(uiReviewWorkspaceSource, 'ReviewWorkspaceArtifactPanel')
-  assertIncludes(uiReviewWorkspaceSource, 'ReviewWorkspaceWorkspaceList')
-  assertIncludes(uiReviewWorkspaceSource, 'ReviewWorkspaceWorkspacePanel')
+  assertIncludes(projectStandardsWorkspaceReviewUiSource, 'ProjectStandardsWorkspaceReviewArtifactList')
+  assertIncludes(projectStandardsWorkspaceReviewUiSource, 'ProjectStandardsWorkspaceReviewArtifactPanel')
+  assertIncludes(projectStandardsWorkspaceReviewUiSource, 'ProjectStandardsWorkspaceReviewFieldDiffList')
+  assertIncludes(projectStandardsWorkspaceReviewUiSource, 'ProjectStandardsWorkspaceReviewFieldDiffRow')
   assertIncludes(appSettingsSource, 'AppSettings')
   assertIncludes(appSettingsSource, "from '@movscript/core/shared'")
   assertIncludes(coreAppSettingsSource, 'movScriptWorkspaceDir?: string')
@@ -547,6 +570,7 @@ test('agent settings exposes provider model API mode controls', () => {
   const appSettingsSource = readAgentSettingsAppContractSource()
   const consoleSource = [
     readFileSync(resolve('src/features/agent/components/AgentConsolePage.tsx'), 'utf8'),
+    readFileSync(resolve('src/features/agent/components/AgentConsolePageSections.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentConsoleSessionIntegrationPanel.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/AgentConsoleCapabilityPanels.tsx'), 'utf8'),
   ].join('\n')
@@ -556,7 +580,7 @@ test('agent settings exposes provider model API mode controls', () => {
   const sendCompletionSource = readFileSync(resolve('src/features/agent/application/agentSendCompletion.ts'), 'utf8')
   const sendStreamSource = readFileSync(resolve('src/features/agent/application/agentSendStream.ts'), 'utf8')
   const runInteractionActionsSource = readFileSync(resolve('src/features/agent/application/agentRunInteractionActions.ts'), 'utf8')
-  const settingsCss = readFileSync(resolve('../../packages/ui/src/components/business/agent/settings/styles.css'), 'utf8')
+  const settingsCss = readFileSync(resolve('src/features/agent/components/AgentSettingsUi.css'), 'utf8')
   const zh = readFileSync(resolve('src/i18n/locales/zh-CN.json'), 'utf8')
   const en = readFileSync(resolve('src/i18n/locales/en-US.json'), 'utf8')
 
@@ -1097,8 +1121,10 @@ test('agent settings exposes provider model API mode controls', () => {
   assertIncludes(zh, '"allRoutesDisabled": "至少需要启用')
   assertIncludes(zh, '"modelRouteModel": "模型"')
   assertIncludes(zh, '"settingsSnapshotPanel": "配置导入 / 导出"')
-  assertIncludes(zh, '.movscript/providers/codex')
-  assertIncludes(zh, '.movscript/providers/mova')
+  assertIncludes(zh, 'providers/codex')
+  assertIncludes(zh, 'providers/mova')
+  assertIncludes(zh, '托管 app-server home 使用 .codex')
+  assertIncludes(zh, '托管 app-server home 使用 .mova')
   assertNotIncludes(zh, '配置 .movscript/.codex 下的 Codex 工作区档案')
   assertIncludes(zh, '"settingsSnapshotHelp": "导出会包含模型路由')
   assertIncludes(zh, '移除 Base URL 中的 URL 密钥凭据')
@@ -1246,8 +1272,10 @@ test('agent settings exposes provider model API mode controls', () => {
   assertIncludes(en, '"allRoutesDisabled": "Enable at least one')
   assertIncludes(en, '"modelRouteModel": "Model"')
   assertIncludes(en, '"settingsSnapshotPanel": "Config Import / Export"')
-  assertIncludes(en, '.movscript/providers/codex')
-  assertIncludes(en, '.movscript/providers/mova')
+  assertIncludes(en, 'providers/codex')
+  assertIncludes(en, 'providers/mova')
+  assertIncludes(en, 'managed app-server home is .codex')
+  assertIncludes(en, 'managed app-server home is .mova')
   assertNotIncludes(en, 'under .movscript/.codex')
   assertIncludes(en, '"settingsSnapshotHelp": "Export includes model routing')
   assertIncludes(en, 'strips secret URL credentials from Base URLs')

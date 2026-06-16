@@ -7,10 +7,8 @@ const uiBusinessAliases = {
   '@movscript/ui/business/app': resolve('../../packages/ui/src/business/app.ts'),
   '@movscript/ui/business/canvas': resolve('../../packages/ui/src/business/canvas.ts'),
   '@movscript/ui/business/generation': resolve('../../packages/ui/src/business/generation.ts'),
-  '@movscript/ui/business/jobs': resolve('../../packages/ui/src/business/jobs.ts'),
   '@movscript/ui/business/resource': resolve('../../packages/ui/src/business/resource.ts'),
   '@movscript/ui/business/review': resolve('../../packages/ui/src/business/review.ts'),
-  '@movscript/ui/business/scripts': resolve('../../packages/ui/src/business/scripts.ts'),
   '@movscript/ui/business/workbench': resolve('../../packages/ui/src/business/workbench.ts'),
 }
 const uiStyleAliases = {
@@ -22,10 +20,8 @@ const uiStyleAliases = {
   '@movscript/ui/styles/business/app.css': resolve('../../packages/ui/src/styles/business/app.css'),
   '@movscript/ui/styles/business/canvas.css': resolve('../../packages/ui/src/styles/business/canvas.css'),
   '@movscript/ui/styles/business/generation.css': resolve('../../packages/ui/src/styles/business/generation.css'),
-  '@movscript/ui/styles/business/jobs.css': resolve('../../packages/ui/src/styles/business/jobs.css'),
   '@movscript/ui/styles/business/resource.css': resolve('../../packages/ui/src/styles/business/resource.css'),
   '@movscript/ui/styles/business/review.css': resolve('../../packages/ui/src/styles/business/review.css'),
-  '@movscript/ui/styles/business/scripts.css': resolve('../../packages/ui/src/styles/business/scripts.css'),
   '@movscript/ui/styles/business/workbench.css': resolve('../../packages/ui/src/styles/business/workbench.css'),
 }
 

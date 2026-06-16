@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -40,7 +41,8 @@ func (h *ProjectHandler) gitProxyLocal(c *gin.Context, target projectrepoapp.Git
 	}
 
 	projectRoot := filepath.Join(root, target.Owner)
-	cmd := exec.CommandContext(c.Request.Context(), gitBinary, "http-backend")
+	backendBinary, backendArgs := gitHTTPBackendCommand(c.Request.Context(), gitBinary)
+	cmd := exec.CommandContext(c.Request.Context(), backendBinary, backendArgs...)
 	cmd.Env = append(os.Environ(),
 		"GIT_PROJECT_ROOT="+projectRoot,
 		"GIT_HTTP_EXPORT_ALL=1",
@@ -79,6 +81,34 @@ func (h *ProjectHandler) gitProxyLocal(c *gin.Context, target projectrepoapp.Git
 	copyGitProxyResponseHeaders(c.Writer.Header(), headers)
 	c.Status(status)
 	_, _ = c.Writer.Write(body)
+}
+
+func gitHTTPBackendCommand(ctx context.Context, gitBinary string) (string, []string) {
+	gitBinary = strings.TrimSpace(gitBinary)
+	if gitBinary == "" {
+		gitBinary = "git"
+	}
+	if filepath.Base(gitBinary) == "git-http-backend" {
+		return gitBinary, nil
+	}
+	if output, err := exec.CommandContext(ctx, gitBinary, "--exec-path").Output(); err == nil {
+		candidate := filepath.Join(strings.TrimSpace(string(output)), "git-http-backend")
+		if isExecutableFile(candidate) {
+			return candidate, nil
+		}
+	}
+	if candidate, err := exec.LookPath("git-http-backend"); err == nil {
+		return candidate, nil
+	}
+	return gitBinary, []string{"http-backend"}
+}
+
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode().Perm()&0111 != 0
 }
 
 func gitProxyLocalPathInfo(target projectrepoapp.GitProxyTarget, gitPath string) (string, error) {

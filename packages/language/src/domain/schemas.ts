@@ -461,9 +461,11 @@ export const contentUnitEntitySchema = {
   jsonSchema: entitySchema('content_unit', ['content_unit_type', 'output_kind', 'title'], {
     content_unit_type: { type: 'string', minLength: 1 },
     output_kind: { enum: ['image', 'video', 'audio', 'text', 'metadata'] },
-    target_kind: { enum: ['scene_moment', 'expression_unit', 'asset', 'content_unit', 'setting', 'metadata'] },
+    target_kind: { enum: ['production', 'segment', 'scene_moment', 'expression_unit', 'asset', 'content_unit', 'setting', 'metadata'] },
     target_ref: sourceRefSchema,
     generation_role: { type: 'string' },
+    production_ref: sourceRefSchema,
+    segment_ref: sourceRefSchema,
     scene_moment_ref: sourceRefSchema,
     expression_unit_ref: sourceRefSchema,
     content_unit_ref: sourceRefSchema,

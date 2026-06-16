@@ -161,10 +161,10 @@ function VideoThumb({ proxyUrl, fit, diagnosticLabel, onLoadedMetadata }: { prox
 function VideoPlaceholderThumb({ name, size }: { name: string; size?: number }) {
   return (
     <ResourceMediaFillFrame>
-      <div className="resource-media-video-placeholder">
+      <div className="ms-stack ms-center resource-media-video-placeholder">
         <PlayCircle size={24} />
-        <span>{name}</span>
-        {size ? <small>{formatVideoPlaceholderBytes(size)}</small> : null}
+        <span className="ms-text-truncate ms-type-caption">{name}</span>
+        {size ? <small className="ms-type-tiny">{formatVideoPlaceholderBytes(size)}</small> : null}
       </div>
     </ResourceMediaFillFrame>
   )

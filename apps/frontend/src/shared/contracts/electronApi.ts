@@ -21,7 +21,9 @@ import type {
   ElectronAdminAuthSessionInput,
   ElectronAppUpdateStatus,
   ElectronAppWindowContext,
+  ElectronAppSettingsSecrets,
   ElectronBackendAuthSessionInput,
+  ElectronRuntimeConfig,
   ElectronBackendStatus,
   ElectronEmbeddedBrowserBounds,
   ElectronEmbeddedBrowserState,
@@ -32,6 +34,7 @@ import type {
   ElectronLocalTerminalKillInput,
   ElectronLocalTerminalResizeInput,
   ElectronLocalTerminalWriteInput,
+  ElectronMovScriptHomeInput,
   ElectronMCPServerStatus,
   ElectronMovScriptEngineAudioCueInput,
   ElectronMovScriptEngineContentCandidateCreateInput,
@@ -56,6 +59,7 @@ import type {
   ElectronMovScriptEngineWorkspaceUpsertProjectStandardsInput,
   ElectronMovScriptEngineWorkspaceUpsertScriptInput,
   ElectronMovScriptEngineWorkspaceUpsertSettingInput,
+  ElectronMovScriptEngineWorkspaceUpdatedEvent,
   ElectronMovScriptWorkspaceConfig,
   ElectronMovScriptWorkspaceConfigSaveInput,
   ElectronMovScriptWorkspaceFileReadResult,
@@ -105,9 +109,12 @@ export type ElectronAPI = {
   updateMCPContext?: (snapshot: MCPContextUpdate) => Promise<void>
   getMCPStatus?: () => Promise<ElectronMCPServerStatus>
   setAppSettings?: (settings: AppSettings) => Promise<void>
+  getAppSettingsSecrets?: () => Promise<ElectronAppSettingsSecrets>
+  getRuntimeConfig?: () => Promise<ElectronRuntimeConfig>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
   testGenerationToolServer?: (server: Partial<GenerationToolServer>) => Promise<ElectronGenerationToolServerTestResult>
   onBackendStatus?: (handler: (status: ElectronBackendStatus) => void) => () => void
+  onCrossPageNotification?: (handler: (event: unknown) => void) => () => void
   getBackendStatus?: () => Promise<ElectronBackendStatus>
   setBackendAuthSession?: (session: ElectronBackendAuthSessionInput | null) => Promise<void>
   handleBackendAuthExpired?: () => Promise<ElectronAppWindowContext[]>
@@ -117,6 +124,7 @@ export type ElectronAPI = {
   openAppUpdateDownload?: () => Promise<ElectronAppUpdateStatus>
   onAppUpdateStatus?: (handler: (status: ElectronAppUpdateStatus) => void) => () => void
   openAdminConsole?: (input?: { baseURL?: string; path?: string; authSession?: ElectronAdminAuthSessionInput | null }) => Promise<{ url: string }>
+  openExternalURL?: (input: { url: string }) => Promise<{ url: string }>
   embeddedBrowserNavigate?: (input: { tabId?: string; url: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserActivate?: (input: { tabId: string; bounds?: ElectronEmbeddedBrowserBounds | null }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserSetBounds?: (input: { bounds?: ElectronEmbeddedBrowserBounds | null } | null) => Promise<ElectronEmbeddedBrowserState>
@@ -142,9 +150,9 @@ export type ElectronAPI = {
   resizeLocalTerminal?: (input: ElectronLocalTerminalResizeInput) => Promise<void>
   killLocalTerminal?: (input: ElectronLocalTerminalKillInput) => Promise<void>
   onLocalTerminalEvent?: (handler: (event: ElectronLocalTerminalEvent) => void) => () => void
-  listProviderSessions?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
-  getMovScriptWorkspaceRoot?: (input?: { workspaceDir?: string }) => Promise<ElectronMovScriptWorkspaceRootResult>
-  getMovScriptWorkspaceConfig?: (input?: { workspaceDir?: string; providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>
+  listProviderSessions?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<{ sessions: ElectronProviderSessionSummary[] }>
+  getMovScriptWorkspaceRoot?: (input?: ElectronMovScriptHomeInput) => Promise<ElectronMovScriptWorkspaceRootResult>
+  getMovScriptWorkspaceConfig?: (input?: ElectronMovScriptHomeInput & { providerProfileKey?: string }) => Promise<ElectronMovScriptWorkspaceConfig>
   saveMovScriptWorkspaceConfig?: (input: ElectronMovScriptWorkspaceConfigSaveInput) => Promise<ElectronMovScriptWorkspaceConfig>
   listMovScriptWorkspaceFiles?: (input?: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFilesListResult>
   readMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
@@ -179,6 +187,7 @@ export type ElectronAPI = {
   updateMovScriptEngineStoryboardTimeline?: (input: ElectronMovScriptEngineStoryboardTimelineInput) => Promise<void>
   writeMovScriptEngineHierarchyNode?: (input: ElectronMovScriptEngineHierarchyNodeWriteInput) => Promise<void>
   syncMovScriptEngineContentWorkspace?: (input: ElectronMovScriptEngineProjectInput) => Promise<void>
+  onMovScriptEngineWorkspaceUpdated?: (handler: (event: ElectronMovScriptEngineWorkspaceUpdatedEvent) => void) => () => void
   initProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   commitProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   pullProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
@@ -186,7 +195,7 @@ export type ElectronAPI = {
   listPluginCatalogPackPlugins?: () => Promise<{ dirs: ElectronPluginCatalogPackStoreDirs; plugins: ElectronPluginCatalogPackPlugin[] }>
   installPluginCatalogPack?: (input: ElectronPluginCatalogPackInstallInput) => Promise<ElectronPluginCatalogPackInstallResult>
   uninstallPluginCatalogPack?: (input: ElectronPluginCatalogPackUninstallInput) => Promise<ElectronPluginCatalogPackUninstallResult>
-  getProjectPluginSnapshot?: (input?: { workspaceDir?: string; projectId?: string | number; userId?: string | number; orgId?: string | number }) => Promise<ElectronProjectPluginSnapshot>
+  getProjectPluginSnapshot?: (input?: ElectronMovScriptHomeInput & { projectId?: string | number; userId?: string | number; orgId?: string | number }) => Promise<ElectronProjectPluginSnapshot>
   installProjectPlugin?: (input: ElectronProjectPluginInstallInput) => Promise<ElectronProjectPluginSnapshot>
   setProjectSkillEnabled?: (input: ElectronProjectSkillToggleInput) => Promise<ElectronProjectPluginSnapshot>
   clipVideo?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>

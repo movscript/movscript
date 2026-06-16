@@ -6,7 +6,7 @@ import { Button, type ButtonProps } from "../../../../primitives/button";
 
 export function GenerationActionBar({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("generation-input-actions", className)} {...props}>
+    <div className={cn("generation-input-actions ms-action-row", className)} {...props}>
       {children}
     </div>
   );
@@ -21,7 +21,7 @@ export function GenerationActionHint({
   icon?: ReactNode;
 }) {
   return (
-    <span className={cn("generation-input-actions__hint", className)} {...props}>
+    <span className={cn("generation-input-actions__hint ms-action-row ms-type-caption", className)} {...props}>
       {icon}
       {children}
     </span>

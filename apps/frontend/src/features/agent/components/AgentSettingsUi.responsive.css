@@ -1,0 +1,48 @@
+@media (min-width: 1024px) {
+  .agent-settings-layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+}
+
+@media (min-width: 640px) {
+  .agent-settings-form-grid[data-columns="two"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-settings-form-grid[data-columns="three"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .agent-settings-form-grid[data-columns="four"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .agent-settings-form-grid[data-columns="five"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .agent-settings-form-grid[data-columns="model"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .agent-settings-grid--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-settings-tool-permissions-row__controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-settings-snapshot-import__scope-grid,
+  .agent-settings-snapshot-summary__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-settings-tool-permissions-filter {
+    grid-template-columns: minmax(0, 1fr) 220px auto;
+  }
+
+  .agent-settings-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

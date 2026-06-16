@@ -1,8 +1,41 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { conversationIdForProviderThread } from '@/features/agent/domain/agentConversation'
 import { pageTaskStatusFromProviderSession, useAgentSessionStore } from './agentSessionStore'
+
+test('agent session store delegates conversation and task state transitions', () => {
+  const storeSource = readFileSync(resolve('src/features/agent/state/agentSessionStore.ts'), 'utf8')
+  const conversationStateSource = readFileSync(resolve('src/features/agent/state/agentSessionConversationState.ts'), 'utf8')
+  const taskStateSource = readFileSync(resolve('src/features/agent/state/agentSessionTaskState.ts'), 'utf8')
+
+  for (const helperName of [
+    'createProviderSessionConversationState',
+    'removeProviderSessionConversationState',
+    'updateConversationWorkspaceState',
+    'bindConversationToProviderThreadState',
+    'setConversationRunState',
+  ]) {
+    assert.match(storeSource, new RegExp(`\\b${helperName}\\b`))
+    assert.match(conversationStateSource, new RegExp(`export function ${helperName}\\b`))
+  }
+
+  for (const helperName of [
+    'enqueueAgentPageTask',
+    'claimNextQueuedAgentPageTask',
+    'updateAgentPageTaskFromProviderSession',
+    'settleAgentStandaloneTask',
+  ]) {
+    assert.match(storeSource, new RegExp(`\\b${helperName}\\b`))
+    assert.match(taskStateSource, new RegExp(`export function ${helperName}\\b`))
+  }
+
+  assert.doesNotMatch(storeSource, /Object\.entries\(state\.pageTasks\)\.filter/)
+  assert.doesNotMatch(storeSource, /run: compactRun\(run\)/)
+  assert.doesNotMatch(storeSource, /defaultConversationRuntimeState\(conversationId\)/)
+})
 
 test('conversationIdForProviderThread resolves conversation thread bindings first', () => {
   assert.equal(conversationIdForProviderThread({
@@ -246,6 +279,61 @@ test('setActiveConversation ignores duplicate active conversation ids', () => {
   useAgentSessionStore.getState().setActiveConversation('user_1', 'conv_1')
 
   assert.equal(useAgentSessionStore.getState().activeConversationIdsByUser, before)
+})
+
+test('agent session task actions preserve page task and standalone task lifecycles', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    conversationsById: {},
+    workspacesByUser: {},
+    conversationThreadBindings: {},
+    conversationRuntimeStates: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  const normalized = useAgentSessionStore.getState().enqueuePageTask({
+    requestId: 'task_1',
+    taskType: 'script',
+    message: 'Generate script',
+  })
+  assert.equal(normalized.requestId, 'task_1')
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.status, 'queued')
+
+  const claimed = useAgentSessionStore.getState().claimNextQueuedPageTask()
+  assert.equal(claimed?.requestId, 'task_1')
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.status, 'claimed')
+
+  useAgentSessionStore.getState().attachPageTaskConversation('task_1', 'conv_1')
+  useAgentSessionStore.getState().setPageTaskRunning('task_1', {
+    run: { id: 'run_1', threadId: 'thread_1', sessionId: 'session_1', status: 'in_progress' } as any,
+  })
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.conversationId, 'conv_1')
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.status, 'running')
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.threadId, 'thread_1')
+
+  useAgentSessionStore.getState().updatePageTaskFromProviderSession({
+    requestId: 'task_1',
+    run: { id: 'run_1', threadId: 'thread_1', sessionId: 'session_1', status: 'completed' } as any,
+  })
+  assert.equal(useAgentSessionStore.getState().pageTasks.task_1?.status, 'completed')
+  assert.equal(typeof useAgentSessionStore.getState().pageTasks.task_1?.settledAt, 'number')
+
+  useAgentSessionStore.getState().startStandaloneTask({
+    taskId: 'standalone_1',
+    taskType: 'review',
+    title: 'Review',
+    prompt: 'Review this',
+  })
+  useAgentSessionStore.getState().updateStandaloneTask('standalone_1', { result: 'partial' })
+  useAgentSessionStore.getState().settleStandaloneTask({
+    taskId: 'standalone_1',
+    status: 'completed',
+    result: 'done',
+  })
+
+  assert.equal(useAgentSessionStore.getState().standaloneTasks.standalone_1?.status, 'completed')
+  assert.equal(useAgentSessionStore.getState().standaloneTasks.standalone_1?.result, 'done')
 })
 
 test('pageTaskStatusFromProviderSession settles explicit panel payload statuses', () => {

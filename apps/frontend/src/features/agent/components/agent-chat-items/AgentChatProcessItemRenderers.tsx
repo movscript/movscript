@@ -1,7 +1,4 @@
 import {
-  AgentChatContentStack,
-  AgentChatMessage,
-  AgentMessageSection,
   AgentPlanOverviewList,
   AgentPlanOverviewTaskBadge,
   AgentPlanOverviewTaskBody,
@@ -9,6 +6,7 @@ import {
   AgentPlanOverviewTaskHeader,
   AgentPlanOverviewTaskTitle
 } from '@movscript/ui/business/agent'
+import { AgentChatContentStack, AgentChatMessage, AgentMessageSection } from '@/shared/ui/AgentMessageUi'
 import {
   type AgentChatThreadItem,
   agentChatPlanItemView,

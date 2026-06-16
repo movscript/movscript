@@ -15,9 +15,9 @@ export function ResourceMediaTextThumb({
 }) {
   return (
     <AppMediaFrame variant="fill" className={cn("resource-media-text-thumb", className)} {...props}>
-      <div className="resource-media-text-thumb__header">
+      <div className="ms-action-row resource-media-text-thumb__header">
         {icon}
-        <span>{name}</span>
+        <span className="ms-text-truncate ms-type-tiny">{name}</span>
       </div>
       {children}
     </AppMediaFrame>
@@ -38,7 +38,7 @@ export function ResourceMediaTextPreviewPanel({
     <AppMediaFrame variant="panel" className={cn("resource-media-text-preview", className)} {...props}>
       <div className="resource-media-text-preview__body">
         {loading ? (
-          <div className="resource-media-text-preview__loading">{loadingContent}</div>
+          <div className="ms-center ms-type-body resource-media-text-preview__loading">{loadingContent}</div>
         ) : children}
       </div>
     </AppMediaFrame>
@@ -55,7 +55,7 @@ export function ResourceMediaCodeBlock({
   className?: string;
 }) {
   return (
-    <AppCodeBlock className={cn("resource-media-code", `resource-media-code--${variant}`, className)}>
+    <AppCodeBlock className={cn("resource-media-code", variant === "thumb" ? "ms-type-tiny" : "ms-type-body", `resource-media-code--${variant}`, className)}>
       {children}
     </AppCodeBlock>
   );

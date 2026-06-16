@@ -190,7 +190,12 @@ function validateContentUnitRefs(
       message: `${contentUnitType} content_unit requires ${primaryFieldName}`,
     })
   }
-  if (primaryRefs.length > 1) {
+  const uniquePrimaryRefs: string[] = []
+  for (const ref of primaryRefs) {
+    if (uniquePrimaryRefs.some((primaryRef) => sameRefId(primaryRef, ref, primaryKind))) continue
+    uniquePrimaryRefs.push(ref)
+  }
+  if (uniquePrimaryRefs.length > 1) {
     issues.push({
       path: file.path,
       severity: 'error',

@@ -103,6 +103,10 @@ export function parsePromptRefsFromText(text: string | undefined, field: string)
 
 export function primaryRefKindForContentUnitType(contentUnitType: string): ContentUnitPromptRefKind | undefined {
   switch (contentUnitType) {
+    case 'production_ref':
+      return 'production'
+    case 'segment_ref':
+      return 'segment'
     case 'asset_ref':
       return 'asset'
     case 'keyframe_ref':
@@ -137,6 +141,10 @@ export function primaryRefIdsForContentUnitRecord(
       return compactStrings(record.keyframe_ref)
     case 'storyboard':
       return compactStrings(record.storyboard_ref)
+    case 'production':
+      return compactStrings(record.target_kind === 'production' ? record.target_ref : undefined, record.production_ref)
+    case 'segment':
+      return compactStrings(record.target_kind === 'segment' ? record.target_ref : undefined, record.segment_ref)
     case 'scene_moment':
       return compactStrings(record.target_kind === 'scene_moment' ? record.target_ref : undefined, record.scene_moment_ref, record.scence_moment_ref)
     case 'expression_unit':
@@ -180,6 +188,8 @@ export function outputKindForContentUnitType(contentUnitType: string, value: unk
       return 'image'
     case 'scence_moment_ref':
     case 'scene_moment_ref':
+    case 'production_ref':
+    case 'segment_ref':
     case 'shot_ref':
       return 'video'
     case 'expression_unit_ref':
@@ -197,6 +207,8 @@ export function expectedOutputKindForContentUnitType(contentUnitType: string): C
       return 'image'
     case 'scence_moment_ref':
     case 'scene_moment_ref':
+    case 'production_ref':
+    case 'segment_ref':
     case 'shot_ref':
       return 'video'
     case 'expression_unit_ref':
@@ -280,6 +292,8 @@ export function resolvePromptRefs(
 function promptRefKind(value: string | undefined): ContentUnitPromptRefKind | undefined {
   switch (value) {
     case 'asset':
+    case 'production':
+    case 'segment':
     case 'keyframe':
     case 'storyboard':
     case 'scene_moment':
@@ -328,7 +342,7 @@ export function readSelectedContentUnit(
 
 export function findEntityByRef(
   index: MovScriptWorkspaceDomainIndex,
-  entityKind: 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'shot' | 'storyboard' | 'keyframe',
+  entityKind: 'production' | 'segment' | 'asset' | 'setting' | 'setting_state' | 'scene_moment' | 'expression_unit' | 'shot' | 'storyboard' | 'keyframe',
   ref: unknown,
 ): MovScriptWorkspaceIndexedEntity | undefined {
   const value = idField(ref)

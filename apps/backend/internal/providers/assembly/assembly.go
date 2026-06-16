@@ -123,10 +123,16 @@ func BuildAIRegistry(ctx context.Context, db *gorm.DB, cfg *config.Config, encry
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	if err := ai.ConfigureLocalGatewayDefaults(ctx, db, cfg.AIGatewayProvider == providercontract.AdapterLocal); err != nil {
+	providerMode := providercontract.AdapterLocal
+	configureLocalDefaults := true
+	if mode, configureDefaults, ok := editionAIRegistryProviderMode(cfg); ok {
+		providerMode = mode
+		configureLocalDefaults = configureDefaults
+	}
+	if err := ai.ConfigureLocalGatewayDefaults(ctx, db, configureLocalDefaults); err != nil {
 		return nil, err
 	}
-	return ai.NewRegistryWithProviderMode(db, encryptionKey, cfg.AIGatewayProvider), nil
+	return ai.NewRegistryWithProviderMode(db, encryptionKey, providerMode), nil
 }
 
 func BuildWorkspaceRepositoryProvider(cfg *config.Config) WorkspaceRepositoryProvider {

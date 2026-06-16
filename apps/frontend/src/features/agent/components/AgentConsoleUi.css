@@ -147,16 +147,8 @@
   }
 
   .agent-console-main-grid[data-layout="control-logs"] {
-    flex: 1 1 auto;
     grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
     align-items: start;
-    overflow: hidden;
-  }
-
-  .agent-console-main-grid[data-layout="control-logs"] > .agent-console-main-column,
-  .agent-console-main-grid[data-layout="control-logs"] > .agent-console-sidebar {
-    min-height: 0;
-    overflow-y: auto;
   }
 }
 

@@ -6,10 +6,12 @@ import {
   AgentSettingsIcon,
   AgentSettingsMain,
   AgentSettingsStateMessage,
+} from '@/features/agent/components/AgentSettingsUi'
+import {
   AgentPageShell,
   AgentPageShellBody,
   AgentPageShellHeader,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentPageUi'
 import {
   SettingsSnapshotPanel,
 } from '@/features/agent/components/AIAgentSettingsSnapshotPanel'

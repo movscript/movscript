@@ -13,5 +13,5 @@ export function AgentRunActivityNotice({
   tone = "warning",
   ...props
 }: AgentRunActivityNoticeProps) {
-  return <ReviewCallout tone={tone} compact className={cn("ms-agent-run-activity-notice", className)} {...props} />;
+  return <ReviewCallout tone={tone} compact className={cn("ms-type-caption ms-agent-run-activity-notice", className)} {...props} />;
 }

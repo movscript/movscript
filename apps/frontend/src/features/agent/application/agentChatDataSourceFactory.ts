@@ -16,6 +16,7 @@ import {
 } from '@/shared/infrastructure/app-server/appServerRpcClient'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
+import { resolveAgentModelId } from '@/features/agent/application/agentDefaultModelSelection'
 import type { MovScriptWorkspaceContext } from '@/shared/infrastructure/providerConfigStore'
 
 export interface AgentChatDataSourceFactoryOptions {
@@ -73,7 +74,7 @@ async function currentAppServerRpcClient(provider: ProviderConfig) {
 
 function selectedAgentModel(textModels: Awaited<ReturnType<typeof fetchAgentBackendModels>>): AgentChatModelSelection {
   const settings = useAgentStore.getState().settings
-  const modelId = settings.modelId ?? textModels[0]?.id ?? null
+  const modelId = resolveAgentModelId({ models: textModels, selectedModelId: settings.modelId })
   const selectedModel = textModels.find((model) => model.id === modelId)
   return selectedModel ? { model: publicModelId(selectedModel) } : {}
 }

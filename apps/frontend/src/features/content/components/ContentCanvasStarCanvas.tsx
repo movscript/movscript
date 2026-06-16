@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { CircleDot, Image, Minus, Plus, Settings2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Minus, Plus, Settings2 } from 'lucide-react'
 import type { ContentCanvasNodePosition } from '../application/contentCanvasViewState'
 import type { ContentCanvasNode } from '../domain/contentCanvasTypes'
-import { CONTENT_CANVAS_SETTING_DRAG_TYPE, CANVAS_WORLD_HEIGHT, CANVAS_WORLD_WIDTH, type CandidateSelections, type RadialNode, type SceneSettingGroup, type StarCanvasAction } from './contentCanvasWorkspaceTypes'
-import { clampCanvasZoom, clampRadialCoordinate, clampRadialYCoordinate, iconForContentNode, mediaKindForNode, mediaKindLabel, nodeCandidateBadge, selectedCandidateForNode } from './contentCanvasWorkspaceModel'
+import { CONTENT_CANVAS_SETTING_DRAG_TYPE, CANVAS_WORLD_HEIGHT, CANVAS_WORLD_WIDTH, type CandidateSelections, type RadialNode, type SceneSettingGroup, type StarCanvasAction, type StarCanvasContextAction } from './contentCanvasWorkspaceTypes'
+import { candidateDecisionForNode, clampCanvasZoom, clampRadialCoordinate, clampRadialYCoordinate, iconForContentNode, mediaKindForNode, mediaKindLabel, selectedCandidateForNode } from './contentCanvasWorkspaceModel'
 
-export function StarCanvas({
+export function ContentCanvasStarCanvas({
   main,
   nodes,
   actions,
@@ -18,6 +18,7 @@ export function StarCanvas({
   settingGroups = [],
   groupedSettingIds,
   onDropSetting,
+  getNodeContextActions,
   onSettingGroupPositionCommit,
   onSelectSettingGroupNode,
 }: {
@@ -33,6 +34,7 @@ export function StarCanvas({
   settingGroups?: SceneSettingGroup[]
   groupedSettingIds?: Set<string>
   onDropSetting?: (settingId: string, position: ContentCanvasNodePosition) => void
+  getNodeContextActions?: (node: ContentCanvasNode) => StarCanvasContextAction[]
   onSettingGroupPositionCommit?: (group: SceneSettingGroup, position: ContentCanvasNodePosition) => void
   onSelectSettingGroupNode?: (node: ContentCanvasNode) => void
 }) {
@@ -44,6 +46,7 @@ export function StarCanvas({
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [panning, setPanning] = useState<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; actions: StarCanvasContextAction[] } | null>(null)
   const allNodes = useMemo(() => [main, ...nodes], [main, nodes])
   const visibleNodes = useMemo(() => (
     allNodes.map((node) => {
@@ -65,12 +68,7 @@ export function StarCanvas({
       const parent = node.parentId ? visibleNodeById.get(node.parentId) : undefined
       return { id: node.id, source: parent ?? visibleMain, target: node }
     }),
-    ...visibleSettingGroups.map((group) => ({
-      id: group.id,
-      source: visibleMain,
-      target: { x: group.x, y: group.y },
-    })),
-  ], [visibleChildren, visibleMain, visibleNodeById, visibleSettingGroups])
+  ], [visibleChildren, visibleMain, visibleNodeById])
   const worldPositionFromClientPoint = useCallback((clientX: number, clientY: number) => {
     const rect = worldRef.current?.getBoundingClientRect()
     if (!rect || rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 }
@@ -111,6 +109,7 @@ export function StarCanvas({
   }, [onDropSetting, worldPositionFromClientPoint])
   const handleCanvasPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
+    setContextMenu(null)
     if (event.target instanceof Element && event.target.closest('.content-canvas-radial-node, .content-canvas-setting-group')) return
     event.currentTarget.setPointerCapture(event.pointerId)
     setPanning({ pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y })
@@ -147,6 +146,7 @@ export function StarCanvas({
   }, [onResetLayout, resetViewport])
   const handleNodePointerDown = useCallback((node: RadialNode, event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return
+    setContextMenu(null)
     const pointerPosition = worldPositionFromClientPoint(event.clientX, event.clientY)
     event.currentTarget.setPointerCapture(event.pointerId)
     setDragging({
@@ -159,6 +159,20 @@ export function StarCanvas({
       moved: false,
     })
   }, [worldPositionFromClientPoint])
+  const handleNodeContextMenu = useCallback((node: RadialNode, event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!node.source || !getNodeContextActions) return
+    const actions = getNodeContextActions(node.source).filter((action) => !action.disabled && action.onClick)
+    if (!actions.length) return
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = event.currentTarget.closest('.content-canvas-star')?.getBoundingClientRect()
+    setContextMenu({
+      x: event.clientX - (rect?.left ?? 0),
+      y: event.clientY - (rect?.top ?? 0),
+      actions,
+    })
+    onSelect(node)
+  }, [getNodeContextActions, onSelect])
   const handleNodePointerMove = useCallback((node: RadialNode, event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!dragging || dragging.nodeId !== node.id || dragging.pointerId !== event.pointerId) return
     const distance = Math.hypot(event.clientX - dragging.startX, event.clientY - dragging.startY)
@@ -258,6 +272,7 @@ export function StarCanvas({
             onPointerDown={handleNodePointerDown}
             onPointerMove={handleNodePointerMove}
             onPointerUp={handleNodePointerUp}
+            onContextMenu={handleNodeContextMenu}
           />
           {visibleChildren.map((node) => (
             <RadialNodeCard
@@ -270,6 +285,7 @@ export function StarCanvas({
               onPointerDown={handleNodePointerDown}
               onPointerMove={handleNodePointerMove}
               onPointerUp={handleNodePointerUp}
+              onContextMenu={handleNodeContextMenu}
             />
           ))}
           {visibleSettingGroups.map((group) => (
@@ -288,6 +304,25 @@ export function StarCanvas({
           {!nodes.length && !settingGroups.length && <div className="content-canvas-star__empty">{emptyText}</div>}
         </div>
       </div>
+      {contextMenu ? (
+        <div
+          className="content-canvas-star-context-menu"
+          style={{ '--menu-x': `${contextMenu.x}px`, '--menu-y': `${contextMenu.y}px` } as CSSProperties}
+        >
+          {contextMenu.actions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              onClick={() => {
+                setContextMenu(null)
+                action.onClick?.()
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="content-canvas-star__zoom" aria-label="画布缩放控制">
         <button type="button" onClick={() => zoomBy(-0.1)} aria-label="缩小画布">
           <Minus size={13} aria-hidden="true" />
@@ -334,55 +369,137 @@ function SceneSettingGroupCard({
   onPointerMove: (group: SceneSettingGroup, event: ReactPointerEvent<HTMLElement>) => void
   onPointerUp: (group: SceneSettingGroup, event: ReactPointerEvent<HTMLElement>) => void
 }) {
-  const Icon = iconForContentNode(group.setting)
   const assetCount = group.states.reduce((total, item) => total + item.assets.length, 0)
+  const groupLayout = settingGroupLayout(settingGroupNodes(group))
+  const handleInnerNodePointer = (_node: RadialNode, event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+  }
+  const handleInnerNodeContextMenu = (_node: RadialNode, event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
   return (
     <section
       className="content-canvas-setting-group"
       data-selected={selected ? 'true' : undefined}
       data-dragging={dragging ? 'true' : undefined}
-      style={{ '--group-x': `${group.x}px`, '--group-y': `${group.y}px` } as CSSProperties}
+      style={{
+        '--group-x': `${group.x}px`,
+        '--group-y': `${group.y}px`,
+        '--group-width': `${groupLayout.width}px`,
+        '--group-height': `${groupLayout.height}px`,
+      } as CSSProperties}
       aria-label={`${group.setting.title} Setting 分组`}
       onPointerDown={(event) => onPointerDown(group, event)}
       onPointerMove={(event) => onPointerMove(group, event)}
       onPointerUp={(event) => onPointerUp(group, event)}
       onPointerCancel={(event) => onPointerUp(group, event)}
     >
-      <button type="button" className="content-canvas-setting-group__header" onClick={() => onSelectNode?.(group.setting)}>
-        <span className="content-canvas-setting-group__icon">
-          <Icon size={15} aria-hidden="true" />
-        </span>
-        <span>
-          <small>SETTING GROUP</small>
-          <strong>{group.setting.title}</strong>
-        </span>
-        <em>{group.states.length} State / {assetCount} Asset</em>
-      </button>
-      <div className="content-canvas-setting-group__body">
-        {group.states.length ? group.states.map((item) => (
-          <div key={item.state.id} className="content-canvas-setting-group__state">
-            <button type="button" onClick={() => onSelectNode?.(item.state)}>
-              <CircleDot size={12} aria-hidden="true" />
-              <span>{item.state.title}</span>
-            </button>
-            {item.assets.length ? (
-              <div className="content-canvas-setting-group__assets">
-                {item.assets.map((asset) => (
-                  <button key={asset.id} type="button" onClick={() => onSelectNode?.(asset)}>
-                    <Image size={11} aria-hidden="true" />
-                    <span>{asset.title}</span>
-                    <em>{nodeCandidateBadge(asset, candidateSelections)}</em>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        )) : (
-          <span className="content-canvas-setting-group__empty">这个 Setting 暂无 State / Asset</span>
-        )}
+      <div className="content-canvas-setting-group__frame" data-selected={selected ? 'true' : undefined}>
+        <div className="content-canvas-setting-group__header">
+          <span className="content-canvas-setting-group__marker" aria-hidden="true" />
+          <span className="content-canvas-setting-group__title">{group.setting.title}</span>
+          <span className="content-canvas-setting-group__meta">{group.states.length} State / {assetCount} Asset</span>
+        </div>
+        <div className="content-canvas-setting-group__nodes">
+          {groupLayout.nodes.map((node) => (
+            <RadialNodeCard
+              key={node.id}
+              node={node}
+              selected={selected}
+              candidateSelections={candidateSelections}
+              onSelect={(item) => item.source && onSelectNode?.(item.source)}
+              onPointerDown={handleInnerNodePointer}
+              onPointerMove={handleInnerNodePointer}
+              onPointerUp={handleInnerNodePointer}
+              onContextMenu={handleInnerNodeContextMenu}
+            />
+          ))}
+        </div>
       </div>
     </section>
   )
+}
+
+function settingGroupNodes(group: SceneSettingGroup): RadialNode[] {
+  const states = group.states
+  if (!states.length) return [radialNodeFromSettingGroupSource(group.setting, 0, 0, 'primary')]
+  const xFor = (index: number, total: number) => (index - (total - 1) / 2) * 190
+  return [
+    {
+      ...radialNodeFromSettingGroupSource(group.setting, 0, -112, 'primary'),
+      id: `${group.id}:setting:${group.setting.id}`,
+    },
+    ...states.flatMap((item, stateIndex) => {
+      const stateX = xFor(stateIndex, states.length)
+      const assets = item.assets.map((asset, assetIndex) => radialNodeFromSettingGroupSource(
+        asset,
+        stateX + xFor(assetIndex, Math.max(1, item.assets.length)) / Math.max(1, states.length),
+        112,
+        'asset',
+      ))
+      return [
+        radialNodeFromSettingGroupSource(item.state, stateX, 0, 'state'),
+        ...assets,
+      ]
+    }),
+  ].slice(0, 32)
+}
+
+function radialNodeFromSettingGroupSource(
+  node: ContentCanvasNode,
+  x: number,
+  y: number,
+  variant: RadialNode['variant'],
+): RadialNode {
+  const Icon = iconForContentNode(node)
+  return {
+    id: node.id,
+    code: node.kind === 'setting' ? 'SET' : node.kind === 'state' ? 'STA' : 'AST',
+    title: node.title,
+    description: node.summary || node.subtitle || node.sourcePath,
+    x,
+    y,
+    Icon,
+    variant,
+    source: node,
+  }
+}
+
+const SETTING_GROUP_NODE_WIDTH = 156
+const SETTING_GROUP_NODE_HEIGHT = 68
+const SETTING_GROUP_PADDING = 22
+const SETTING_GROUP_HEADER_HEIGHT = 34
+
+function settingGroupLayout(nodes: RadialNode[]) {
+  const bounds = settingGroupNodeBounds(nodes)
+  const centerX = (bounds.left + bounds.right) / 2
+  const centerY = (bounds.top + bounds.bottom) / 2
+  const width = Math.max(390, bounds.right - bounds.left + SETTING_GROUP_PADDING * 2)
+  const height = Math.max(320, bounds.bottom - bounds.top + SETTING_GROUP_HEADER_HEIGHT + SETTING_GROUP_PADDING * 2)
+  return {
+    width,
+    height,
+    nodes: nodes.map((node) => ({
+      ...node,
+      x: Math.round(node.x - centerX),
+      y: Math.round(node.y - centerY + SETTING_GROUP_HEADER_HEIGHT / 2),
+    })),
+  }
+}
+
+function settingGroupNodeBounds(nodes: RadialNode[]) {
+  return nodes.reduce((bounds, node) => ({
+    left: Math.min(bounds.left, node.x - SETTING_GROUP_NODE_WIDTH / 2),
+    right: Math.max(bounds.right, node.x + SETTING_GROUP_NODE_WIDTH / 2),
+    top: Math.min(bounds.top, node.y - SETTING_GROUP_NODE_HEIGHT / 2),
+    bottom: Math.max(bounds.bottom, node.y + SETTING_GROUP_NODE_HEIGHT / 2),
+  }), {
+    left: Number.POSITIVE_INFINITY,
+    right: Number.NEGATIVE_INFINITY,
+    top: Number.POSITIVE_INFINITY,
+    bottom: Number.NEGATIVE_INFINITY,
+  })
 }
 
 function RadialNodeCard({
@@ -394,6 +511,7 @@ function RadialNodeCard({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onContextMenu,
 }: {
   node: RadialNode
   selected?: boolean
@@ -403,8 +521,9 @@ function RadialNodeCard({
   onPointerDown: (node: RadialNode, event: ReactPointerEvent<HTMLButtonElement>) => void
   onPointerMove: (node: RadialNode, event: ReactPointerEvent<HTMLButtonElement>) => void
   onPointerUp: (node: RadialNode, event: ReactPointerEvent<HTMLButtonElement>) => void
+  onContextMenu: (node: RadialNode, event: ReactMouseEvent<HTMLButtonElement>) => void
 }) {
-  const candidateBadge = nodeCandidateBadge(node.source, candidateSelections)
+  const decision = candidateDecisionForNode(node.source, candidateSelections)
   const selectedCandidate = selectedCandidateForNode(node.source, candidateSelections)
   const mediaKind = mediaKindForNode(node.source)
   return (
@@ -414,12 +533,14 @@ function RadialNodeCard({
       data-variant={node.variant}
       data-selected={selected ? 'true' : undefined}
       data-dragging={dragging ? 'true' : undefined}
+      data-decision={decision?.tone}
       style={{ '--node-x': `${node.x}px`, '--node-y': `${node.y}px` } as CSSProperties}
       onClick={() => onSelect(node)}
       onPointerDown={(event) => onPointerDown(node, event)}
       onPointerMove={(event) => onPointerMove(node, event)}
       onPointerUp={(event) => onPointerUp(node, event)}
       onPointerCancel={(event) => onPointerUp(node, event)}
+      onContextMenu={(event) => onContextMenu(node, event)}
     >
       <span className="content-canvas-radial-node__icon">
         <node.Icon size={16} aria-hidden="true" />
@@ -431,9 +552,13 @@ function RadialNodeCard({
         </small>
         <strong>{node.title}</strong>
         <em>{selectedCandidate?.title || node.description}</em>
-        {candidateBadge ? <i>{candidateBadge}</i> : null}
+        {decision ? (
+          <i data-decision={decision.tone}>
+            <span>{decision.label}</span>
+            <b>{decision.candidateCount} 候选</b>
+          </i>
+        ) : null}
       </span>
     </button>
   )
 }
-

@@ -101,11 +101,11 @@ export function AgentModeProjectGroupToggle({ className, ...props }: ComponentPr
 }
 
 export function AgentModeIconSlot({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("agent-mode-icon", className)} {...props} />;
+  return <span className={cn("ms-inline-center agent-mode-icon", className)} {...props} />;
 }
 
 export function AgentModeLabel({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("agent-mode-label", className)} {...props} />;
+  return <span className={cn("ms-text-truncate agent-mode-label", className)} {...props} />;
 }
 
 export function AgentModeMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {

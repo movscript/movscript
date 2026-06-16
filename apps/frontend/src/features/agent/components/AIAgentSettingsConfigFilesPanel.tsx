@@ -6,7 +6,7 @@ import {
   AgentSettingsIcon,
   AgentSettingsPanel,
   AgentSettingsStateMessage,
-} from '@movscript/ui/business/agent'
+} from '@/features/agent/components/AgentSettingsUi'
 import type { SkillConfigWorkspace, ToolGrantWorkspace } from '@movscript/core/agent'
 import {
   ConfigFileDiffPanel,

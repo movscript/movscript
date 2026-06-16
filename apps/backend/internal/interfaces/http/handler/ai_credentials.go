@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -71,10 +70,6 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		Metadata:   credentialAuditMetadata(cred.ID, cred.AdapterType, cred.DisplayName, cred.BaseURL, cred.IsEnabled, cred.FilesAPIEnabled),
 	})
 	c.JSON(http.StatusCreated, cred)
-}
-
-func (h *AIHandler) newAPIGatewayMode() bool {
-	return h != nil && h.cfg != nil && strings.TrimSpace(h.cfg.AIGatewayProvider) == "new-api"
 }
 
 func (h *AIHandler) UpdateCredential(c *gin.Context) {
