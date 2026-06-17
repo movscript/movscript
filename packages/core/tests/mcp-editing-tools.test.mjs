@@ -351,6 +351,56 @@ test('MCP editing tools default a missing asset registry to an empty registry', 
   assert.equal(result.editing_project.timeline.tracks[0].id, 'track_main')
 })
 
+test('MCP editing tools normalize legacy asset registry shapes before mutation', async () => {
+  const baseProject = {
+    version: 1,
+    id: 'editing_project_legacy_assets',
+    projectId: 'project-tools',
+    title: 'Legacy assets cut',
+    source: { kind: 'manual' },
+    timeline: {
+      version: 1,
+      id: 'timeline_legacy_assets',
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      background: '#000000',
+      tracks: [],
+    },
+    createdAt: '2026-06-17T00:00:00.000Z',
+    updatedAt: '2026-06-17T00:00:00.000Z',
+    revision: 1,
+  }
+
+  const arrayAssets = await callTool('editing_timeline_add_track', {
+    editing_project: {
+      ...baseProject,
+      assets: [{
+        id: 'asset_intro',
+        sourceKind: 'local_file',
+        assetType: 'video',
+        localPath: '/tmp/intro.mp4',
+      }],
+    },
+    trackId: 'track_main',
+    type: 'video',
+  })
+  assert.deepEqual(arrayAssets.editing_project.assets.assets.map((asset) => asset.id), ['asset_intro'])
+  assert.equal(arrayAssets.editing_project.timeline.tracks[0].id, 'track_main')
+
+  const emptyObjectAssets = await callTool('editing_timeline_add_track', {
+    editing_project: {
+      ...baseProject,
+      id: 'editing_project_empty_assets_object',
+      assets: {},
+    },
+    trackId: 'track_empty_assets',
+    type: 'audio',
+  })
+  assert.deepEqual(emptyObjectAssets.editing_project.assets, { assets: [] })
+  assert.equal(emptyObjectAssets.editing_project.timeline.tracks[0].id, 'track_empty_assets')
+})
+
 test('MCP editing export candidate creation is explicit domain state, not an Electron runtime task', async () => {
   const hlsResponse = await callToolResponse('editing_export_create_candidate', {
     contentUnitId: 'cu_final_hls',

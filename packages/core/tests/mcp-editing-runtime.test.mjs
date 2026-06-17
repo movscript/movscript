@@ -313,6 +313,44 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
     assert.deepEqual(savedProjectWithoutAssets.editingProject.assets, { assets: [] })
     assert.deepEqual(capturedProjectSaves[1].editingProject.assets, { assets: [] })
 
+    const createdProject = await callTool('editing_project_create', {
+      projectId: 'project-1',
+      title: 'Runtime-created cut',
+      width: 1920,
+      height: 1080,
+      fps: 24,
+    })
+    assert.equal(createdProject.status, 'ok')
+    assert.equal(createdProject.editing_project.title, 'Runtime-created cut')
+    assert.equal(createdProject.projectPath, `/tmp/${createdProject.editing_project.id}.json`)
+    assert.equal(capturedProjectSaves.length, 3)
+    assert.equal(capturedProjectSaves[2].editingProject.id, createdProject.editing_project.id)
+    assert.equal(capturedProjectSaves[2].editingProject.projectId, 'project-1')
+    assert.equal(capturedProjectSaves[2].options, undefined)
+
+    const createdFromEditPlan = await callTool('editing_project_create_from_edit_plan', {
+      projectId: 'project-1',
+      title: 'Runtime edit plan cut',
+      editPlan: {
+        schema: 'movscript.edit_plan.v1',
+        productionId: 'pilot',
+        productionPath: 'productions/pilot',
+        sceneMomentId: 'rain_call',
+        sceneMomentPath: 'productions/pilot/scene_moments/rain_call',
+        target_ref: 'productions/pilot/scene_moments/rain_call',
+        status: 'ready_to_compose',
+        tracks: [],
+        compose_inputs: [],
+      },
+    })
+    assert.equal(createdFromEditPlan.status, 'ok')
+    assert.equal(createdFromEditPlan.editing_project.title, 'Runtime edit plan cut')
+    assert.equal(createdFromEditPlan.projectPath, `/tmp/${createdFromEditPlan.editing_project.id}.json`)
+    assert.equal(capturedProjectSaves.length, 4)
+    assert.equal(capturedProjectSaves[3].editingProject.id, createdFromEditPlan.editing_project.id)
+    assert.equal(capturedProjectSaves[3].editingProject.source.kind, 'movscript_edit_plan')
+    assert.equal(capturedProjectSaves[3].options, undefined)
+
     const loadedProject = await callTool('editing_project_get', {
       projectId: 'project-1',
       editingProjectId: 'edit_project_1',
@@ -628,6 +666,14 @@ test('MCP editing task tools delegate to the registered Electron editing runtime
 test('MCP editing task tools keep a diagnostic response when no Electron runtime is registered', async () => {
   const previous = setEditingRuntimePort(undefined)
   try {
+    const createdProject = await callTool('editing_project_create', {
+      projectId: 'project-1',
+      title: 'Unsaved fallback cut',
+    })
+    assert.equal(createdProject.status, 'ok')
+    assert.equal(createdProject.editing_project.title, 'Unsaved fallback cut')
+    assert.equal(createdProject.projectPath, undefined)
+
     const saveResult = await callTool('editing_project_save', {
       editing_project: editingProject(),
     })

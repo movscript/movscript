@@ -29,29 +29,44 @@ export async function editingProjectCreate(args: Record<string, unknown>) {
   const height = numericValue(args.height) ?? 1920
   const fps = numericValue(args.fps) ?? 30
   const background = stringValue(args.background) ?? '#000000'
+  const editingProject: MediaEditingProject = {
+    version: 1,
+    id: `editing_project_${Date.now()}`,
+    projectId,
+    title: stringValue(args.title) ?? 'Untitled edit',
+    source: { kind: 'manual' },
+    timeline: {
+      version: 1,
+      id: `timeline_${Date.now()}`,
+      fps,
+      width,
+      height,
+      background,
+      durationMs: 0,
+      tracks: [],
+    },
+    assets: { assets: [] },
+    createdAt: now,
+    updatedAt: now,
+    revision: 1,
+  }
+  return persistCreatedEditingProject(editingProject)
+}
+
+async function persistCreatedEditingProject(editingProject: MediaEditingProject) {
+  const runtime = getEditingRuntimePort()
+  if (runtime?.saveProject) {
+    const saved = await runtime.saveProject(editingProject as unknown as Record<string, unknown>)
+    const savedProject = saved.editingProject ?? saved.editing_project ?? editingProject
+    return {
+      ...saved,
+      editingProject: savedProject,
+      editing_project: savedProject,
+    }
+  }
   return {
     status: 'ok',
-    editing_project: {
-      version: 1,
-      id: `editing_project_${Date.now()}`,
-      projectId,
-      title: stringValue(args.title) ?? 'Untitled edit',
-      source: { kind: 'manual' },
-      timeline: {
-        version: 1,
-        id: `timeline_${Date.now()}`,
-        fps,
-        width,
-        height,
-        background,
-        durationMs: 0,
-        tracks: [],
-      },
-      assets: { assets: [] },
-      createdAt: now,
-      updatedAt: now,
-      revision: 1,
-    },
+    editing_project: editingProject,
   }
 }
 
@@ -68,10 +83,7 @@ export async function editingProjectCreateFromEditPlan(args: Record<string, unkn
     background: stringValue(args.background),
     defaultDurationMs,
   })
-  return {
-    status: 'ok',
-    editing_project: editingProject,
-  }
+  return persistCreatedEditingProject(editingProject)
 }
 
 export async function editingProjectAddAsset(args: Record<string, unknown>) {
@@ -763,6 +775,14 @@ function assertMediaEditingProjectEnvelope(project: Record<string, unknown>): vo
     throw new Error('editingProject.timeline must be a MediaTimelineRecipe v1 object')
   }
   if (project.assets === undefined) {
+    project.assets = { assets: [] }
+    return
+  }
+  if (Array.isArray(project.assets)) {
+    project.assets = { assets: project.assets }
+    return
+  }
+  if (isRecord(project.assets) && project.assets.assets === undefined && Object.keys(project.assets).length === 0) {
     project.assets = { assets: [] }
     return
   }

@@ -16,7 +16,7 @@ export function editingTools(): MCPTool[] {
   return [
     {
       name: 'editing_project_create',
-      description: 'Create an empty MovScript media editing project. This creates project data only; it does not render media or write content candidates.',
+      description: 'Create an empty MovScript media editing project. When an editing project store is available, the project is persisted immediately; otherwise the returned editing_project can be saved with editing_project_save. This does not render media or write content candidates.',
       inputSchema: objectSchema({
         ...projectLocator,
         title: { type: 'string' },
@@ -28,7 +28,7 @@ export function editingTools(): MCPTool[] {
     },
     {
       name: 'editing_project_create_from_edit_plan',
-      description: 'Create a MediaEditingProject from a MovScript edit_plan. This is the main handoff from domain planning into the dedicated editing tool family.',
+      description: 'Create a MediaEditingProject from a MovScript edit_plan. When an editing project store is available, the project is persisted immediately; otherwise the returned editing_project can be saved with editing_project_save. This is the main handoff from domain planning into the dedicated editing tool family.',
       inputSchema: objectSchema({
         ...projectLocator,
         editPlan: { type: 'object', additionalProperties: true, description: 'MovScript edit_plan artifact.' },
