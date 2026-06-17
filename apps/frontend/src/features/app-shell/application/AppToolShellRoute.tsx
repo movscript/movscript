@@ -8,6 +8,7 @@ import { Sidebar, clampSidebarWidth } from '@/features/app-shell/components/Side
 import { OrgGuard, RouteErrorBoundary, RouteSuspense } from '@/features/app-shell/application/AppRouteBoundaries'
 import {
   AgentTerminalPanel,
+  AudioGenPage,
   MotionImitationPage,
   MultiAnglePage,
   PluginToolPage,
@@ -227,6 +228,7 @@ export function ToolShellRoute() {
                 <Route index element={<Navigate to={ROUTES.tools.refImageGen} replace />} />
                 <Route path="ref-image-gen" element={<RefImageGenPage />} />
                 <Route path="ref-video-gen" element={<RefVideoGenPage />} />
+                <Route path="audio-gen" element={<AudioGenPage />} />
                 <Route path="motion-imitation" element={<MotionImitationPage />} />
                 <Route path="style-transfer" element={<StyleTransferPage />} />
                 <Route path="multi-angle" element={<MultiAnglePage />} />

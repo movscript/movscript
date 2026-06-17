@@ -1,12 +1,22 @@
 ---
 name: generation
-description: Generate MovScript image/video candidates from content units, enforce upstream selection gates, inspect reference-shot imitation via frames, and interpret candidate writes.
+description: Generate MovScript AI source resources and candidates from content units, including image, video, voiceover, music, sound effects, and subtitles; enforce upstream selection gates, inspect reference-shot imitation via frames, and interpret candidate writes.
 toolGrants:
   - mcp__movscript__system_model_list
   - mcp__movscript__system_generate_image
   - mcp__movscript__system_generate_image_job_get
+  - mcp__movscript__system_generate_image_job_get_batch
   - mcp__movscript__system_generate_video
   - mcp__movscript__system_generate_video_job_get
+  - mcp__movscript__system_generate_video_job_get_batch
+  - mcp__movscript__system_generate_voiceover
+  - mcp__movscript__system_generate_music
+  - mcp__movscript__system_generate_sfx
+  - mcp__movscript__system_generate_subtitle
+  - mcp__movscript__system_align_subtitle
+  - mcp__movscript__system_translate_subtitle
+  - mcp__movscript__generation_audio_job_get
+  - mcp__movscript__generation_audio_job_get_batch
   - mcp__movscript__system_focus_get
   - mcp__movscript__system_resource_library_query
   - mcp__movscript__system_resource_image_read
@@ -16,8 +26,6 @@ toolGrants:
   - mcp__movscript__system_resource_video_extract_frame_to_resource
   - mcp__movscript__system_resource_video_extract_frames_to_resources
   - mcp__movscript__system_resource_video_trim_to_resource
-  - mcp__movscript__system_resource_video_compose_to_resource
-  - mcp__movscript__system_resource_video_concat_to_resource
   - mcp__movscript__system_resource_video_contact_sheet_to_resource
   - mcp__movscript__system_resource_video_extract_audio_to_resource
   - mcp__movscript__system_resource_image_annotate
@@ -30,13 +38,7 @@ toolGrants:
   - mcp__movscript__domain_query_entities
   - mcp__movscript__domain_query_assets
   - mcp__movscript__domain_query_production_context
-  - mcp__movscript__domain_read_production_timeline
-  - mcp__movscript__domain_apply_production_timeline_commands
-  - mcp__movscript__domain_compose_production_from_timeline
   - mcp__movscript__domain_read_scene_moment_edit_plan
-  - mcp__movscript__domain_read_scene_moment_timeline
-  - mcp__movscript__domain_apply_scene_moment_timeline_commands
-  - mcp__movscript__domain_compose_scene_moment_from_edit_plan
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_content_unit_runtime_panel
   - mcp__movscript__domain_read_content_unit_generation_prompt
@@ -61,16 +63,18 @@ toolGrants:
 
 # Generation
 
-Use this skill when a user asks the provider to generate or plan generated images/videos through MovScript.
+Use this skill when a user asks the provider to generate or plan AI-created source resources through MovScript, including images, videos, voiceover, music, sound effects, and subtitles.
 
 ## Concepts
 
 - Generation tools do not infer project from session, cwd, route, or focus. Pass the intended `projectId`/`project_id` for project-scoped generation.
 - User and organization identity are handled by MovScript app/frontend state and the MCP service. Do not pass `userId`, `user_id`, `orgId`, or `org_id` to MCP tools.
 - Generation outputs are MovScript resources first. They become effective domain state only when written as backend candidates or selections.
+- Voiceover, music, sound effects, subtitle transcription, subtitle alignment, and subtitle translation are generation jobs, but placing, trimming, mixing, burning-in, rendering, packaging, and exporting them are editing jobs.
 - `input_resource_ids` and `reference_resource_ids` accept MovScript RawResource IDs, not MCP resource URIs, local paths, or external provider URLs.
 - Resource/media transform tools are intentionally business-neutral. Use `*_to_resource` tools to create reusable RawResources for generation inputs, references, review artifacts, or later candidate writes; do not expect these tools to update content units, candidates, or selections by themselves.
 - Resource/media transform uploads persist generic derivative metadata (`operation`, `input_resource_ids`, and params) on the created RawResource. Treat this as provenance, not domain acceptance.
+- Video/audio editing, stitching, timeline render, HLS packaging, transcode, reframe, subtitle burn-in, audio mixdown, and export import are editing concerns. Use the `editing` skill and `editing_*` tools for product editing; generation tools only create or prepare source resources.
 - Content unit prompts may carry project-wide style reference images from `project_standards.custom_rules[key=style_reference_images]`. Treat `style_reference_resource_ids` and `runtime_request.inputs[role=style_reference]` as house-style references for visual consistency; pass them as `reference_resource_ids` whenever the selected image/video model supports reference images.
 - Content unit artifact bundles contain runtime panel, input version, dependency report, and selection validity. Derive or read these before changing generated content when they are relevant.
 - Generated content-unit candidates and selections are backend decision metadata, not workspace source-file edits. Inspect/review and interpret after writing them when downstream artifact tools need refreshed decision context.
@@ -98,9 +102,9 @@ Use this skill when a user asks the provider to generate or plan generated image
 7. Call `system_model_list` before generation unless the user or UI already provided a valid `model_id`.
 8. Use `system_resource_library_query` when you need existing MovScript images/videos/text/audio. Only returned `RawResource.ID` values should be passed as `input_resource_ids` or `reference_resource_ids`.
 9. When you need to visually inspect an existing image RawResource, call `system_resource_image_read` with its resource ID. When you need to inspect a video RawResource, call `system_resource_video_extract_frames`; use `mode`, `timestamps_sec`, `range`, or `burst` parameters for fine-grained frame selection, and do not request or read the original video blob for vision.
-10. When a frame, crop, resized image, contact sheet, trimmed clip, extracted audio, or composed clip must be reused by generation or written as a candidate, create a RawResource with a `*_to_resource` tool: `system_resource_video_extract_frame_to_resource`, `system_resource_video_extract_frames_to_resources`, `system_resource_image_transform_to_resource`, `system_resource_video_contact_sheet_to_resource`, `system_resource_video_trim_to_resource`, `system_resource_video_extract_audio_to_resource`, or `system_resource_video_compose_to_resource`.
+10. When a frame, crop, resized image, contact sheet, trimmed clip, or extracted audio must be reused by generation or written as a candidate, create a RawResource with a neutral transform tool: `system_resource_video_extract_frame_to_resource`, `system_resource_video_extract_frames_to_resources`, `system_resource_image_transform_to_resource`, `system_resource_video_contact_sheet_to_resource`, `system_resource_video_trim_to_resource`, or `system_resource_video_extract_audio_to_resource`.
 11. When a generation needs a simple visual instruction layer, call `system_resource_image_annotate` with structured marks. The tool stores the annotated SVG at `artifact_path` and returns metadata only; call `system_resource_upload` with `artifact_path` so the guidance image becomes a RawResource.
-12. Use `domain_compose_scene_moment_from_edit_plan` when stitching selected expression-unit material candidates into a scene-moment output candidate. Use `system_resource_video_compose_to_resource` or `system_resource_video_concat_to_resource` only for manual resource-level drafts or pre-trimmed intermediate clips.
+12. When selected expression-unit materials must be stitched into a scene-moment or production video, switch to the `editing` skill. Create a `MediaEditingProject` with `editing_project_create_from_edit_plan`, render through `editing_task_render_create`, and only then explicitly import or write a candidate if the user/workflow asks for it.
 13. Use `system_shot_library_query` for camera, composition, motion, narrative, emotion, and production-pattern references. Treat shot-library records as prompt guidance unless they also include a usable MovScript RawResource ID.
 14. Use `system_external_resource_source_list` and `system_external_resource_search` only for external provider discovery. External results must be imported into MovScript before they can be used as generation resource IDs.
 15. For image requests, prefer supplementing keyframes when the shot is clear but visual anchors are missing; use `system_generate_image` for text-to-image and image-to-image only after the content unit and references are clear enough.
@@ -108,13 +112,16 @@ Use this skill when a user asks the provider to generate or plan generated image
 17. For storyboard or shot-image requests, prefer supplementing storyboard graph/panels when the shot is clear but storyboard assets are missing.
 18. For reference-shot imitation, extract frames across the full reference clip, materialize useful reference frames or contact sheets as RawResources when they will condition generation, analyze the shot, create/update shot/storyboard/keyframe structure, create a storyboard-panel or `storyboard_ref` content unit, and require selection before dependent video generation.
 19. For video requests, use `system_generate_video` for text-to-video and image-to-video after the focused scene-moment or visual-expression content unit is ready enough. Require selected upstream assets/keyframes/storyboards when continuity or visual anchoring gates were triggered; otherwise explain the risk and use the minimum viable references.
-20. Pass semantic upstream images/videos as `input_resource_ids` when they are conditioning inputs, and pass project style reference images as `reference_resource_ids` so new images/videos keep the same visual style, texture, color, and lighting. Include uploaded agent guidance images when useful.
-21. Poll with the matching `system_generate_*_job_get` tool until `terminal` is true.
-22. When a generated or transformed `output_resource_id` should become a content unit candidate, use `domain_create_content_candidate` or `domain_create_content_candidate_batch` with the content unit artifact input version and prompt snapshot. Omit `status` for successful completed outputs unless you are intentionally recording a non-default status.
-23. If the user is choosing among generated candidates, use `domain_decide_content_unit_candidate` with `decision: "adopt" | "reject" | "defer"`. Treat `adopt` as selection, `reject` as discarded candidate, and `defer` as unresolved candidate.
-24. Use `domain_select_content_unit_candidate` or its batch variant only for legacy/explicit workflows that confirm the candidate should become the chosen output/reference without the richer decision status.
-25. Use `domain_create_asset_slot_candidate`, `domain_create_keyframe_candidate`, or inline `domain_append_candidate` only for compatibility source-entity candidate flows.
-26. Run `domain_inspect` after content candidate/decision/selection writes, then run `domain_interpret` when downstream artifact tools need refreshed backend decision metadata. Use `domain_regeneration_plan` after interpret when the change may stale downstream generated media.
+20. For voiceover requests, use `system_generate_voiceover`. Pass script text in `prompt`, voice/language controls as explicit params, and selected reference audio only as MovScript `reference_resource_ids` when the model supports it.
+21. For music and sound-effect requests, use `system_generate_music` or `system_generate_sfx`. Treat the result as source audio; do not place it on a timeline, mix it, or write it as final domain state until the user/workflow asks.
+22. For subtitle requests, use `system_generate_subtitle` for audio/video transcription, `system_align_subtitle` for forced alignment, and `system_translate_subtitle` for translation. Pass source media or subtitle/script RawResource IDs as `input_resource_ids`; do not burn subtitles into video in generation.
+23. Pass semantic upstream images/videos/audio/subtitles as `input_resource_ids` when they are conditioning or source inputs, and pass project style/reference resources as `reference_resource_ids` when the selected model supports them. Include uploaded agent guidance images when useful.
+24. Poll image/video jobs with the matching `system_generate_*_job_get` tool and audio/subtitle jobs with `generation_audio_job_get` until `terminal` is true. When tracking multiple jobs, use `system_generate_image_job_get_batch`, `system_generate_video_job_get_batch`, or `generation_audio_job_get_batch` instead of issuing one call per job.
+25. When a generated or transformed `output_resource_id` should become a content unit candidate, use `domain_create_content_candidate` or `domain_create_content_candidate_batch` with the content unit artifact input version and prompt snapshot. Omit `status` for successful completed outputs unless you are intentionally recording a non-default status.
+26. If the user is choosing among generated candidates, use `domain_decide_content_unit_candidate` with `decision: "adopt" | "reject" | "defer"`. Treat `adopt` as selection, `reject` as discarded candidate, and `defer` as unresolved candidate.
+27. Use `domain_select_content_unit_candidate` or its batch variant only for legacy/explicit workflows that confirm the candidate should become the chosen output/reference without the richer decision status.
+28. Use `domain_create_asset_slot_candidate`, `domain_create_keyframe_candidate`, or inline `domain_append_candidate` only for compatibility source-entity candidate flows.
+29. Run `domain_inspect` after content candidate/decision/selection writes, then run `domain_interpret` when downstream artifact tools need refreshed backend decision metadata. Use `domain_regeneration_plan` after interpret when the change may stale downstream generated media.
 
 ## Notes
 

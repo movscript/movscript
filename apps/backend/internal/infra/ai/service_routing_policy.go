@@ -186,16 +186,16 @@ func modelIDRouteSelectionReason(preferred bool, budgetAware bool) string {
 	}
 }
 
-func legacyConfigRouteSelectionReason(preferred bool, budgetAware bool) string {
+func localProviderRouteSelectionReason(preferred bool, budgetAware bool) string {
 	switch {
 	case preferred && budgetAware:
-		return "legacy_model_config_id_preferred_adapter_budget_aware"
+		return "local_provider_preferred_adapter_budget_aware"
 	case preferred:
-		return "legacy_model_config_id_preferred_adapter"
+		return "local_provider_preferred_adapter"
 	case budgetAware:
-		return "legacy_model_config_id_budget_aware"
+		return "local_provider_budget_aware"
 	default:
-		return "legacy_model_config_id"
+		return "local_provider"
 	}
 }
 

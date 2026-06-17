@@ -232,7 +232,6 @@ export function normalizeOptionalProviderManifestCarrier<T extends { providerMan
 }
 
 export type ProviderModelConfigSaveInput = {
-  modelConfigId?: number
   model: string
   apiKind?: ProviderModelAPIKind
   baseURL?: string
@@ -264,15 +263,14 @@ export function providerModelConfigPublicFromWorkspaceConfig(modelConfig: Record
   return {
     configured: Boolean(input.model?.trim()),
     provider: 'backend-model-config',
-    ...(input.modelConfigId ? { modelConfigId: input.modelConfigId } : {}),
-    model: input.model || (input.modelConfigId ? `model_config:${input.modelConfigId}` : 'movscript-default-chat'),
+    model: input.model || 'movscript-default-chat',
     apiKind: input.apiKind ?? 'openai_responses',
     ...(input.baseURL ? { baseURL: input.baseURL } : {}),
     apiKeyConfigured: Boolean(input.apiKey?.trim()),
     useForChat: input.useForChat ?? true,
     useForPlanner: input.useForPlanner ?? true,
     updatedAt: typeof modelConfig.updatedAt === 'string' ? modelConfig.updatedAt : undefined,
-    source: input.model || input.modelConfigId ? 'file' : 'none',
+    source: input.model ? 'file' : 'none',
     credentialStatus: {
       required: Boolean(input.baseURL?.trim()),
       configured: Boolean(input.apiKey?.trim()),
@@ -283,10 +281,8 @@ export function providerModelConfigPublicFromWorkspaceConfig(modelConfig: Record
 }
 
 export function modelConfigInputFromRecord(value: Record<string, unknown>): ProviderModelConfigSaveInput {
-  const modelConfigId = positiveIntegerField(value.modelConfigId)
-  const model = stringField(value.model) || (modelConfigId ? `model_config:${modelConfigId}` : '')
+  const model = stringField(value.model) || ''
   return {
-    ...(modelConfigId ? { modelConfigId } : {}),
     model,
     ...(providerModelAPIKindField(value.apiKind) ? { apiKind: providerModelAPIKindField(value.apiKind) } : {}),
     ...(stringField(value.baseURL) ? { baseURL: stringField(value.baseURL) } : {}),
@@ -300,9 +296,6 @@ function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function positiveIntegerField(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
-}
 
 function providerModelAPIKindField(value: unknown): ProviderModelAPIKind | undefined {
   return typeof value === 'string' && (PROVIDER_MODEL_API_KINDS as readonly string[]).includes(value)

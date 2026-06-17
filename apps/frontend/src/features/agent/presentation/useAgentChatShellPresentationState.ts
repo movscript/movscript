@@ -21,9 +21,9 @@ interface UseAgentChatShellPresentationStateInput {
   error: string | null
   host?: 'dock-panel' | 'floating-panel' | 'immersive'
   modelOptions: PublicModel[]
-  onSelectedModelChange?: (modelId: number | null) => void
+  onSelectedModelChange?: (modelId: string | null) => void
   recentCapabilityEvents: AgentChatRuntimeRecentCapabilityEvent[]
-  selectedModelId?: number | null
+  selectedModelId?: string | null
   setProfilePresetId: Dispatch<SetStateAction<AgentRunProfilePresetId>>
   setThreadModelOverrides: Dispatch<SetStateAction<Record<string, string>>>
   surface: 'panel' | 'page'
@@ -69,7 +69,7 @@ export function useAgentChatShellPresentationState({
     setProfilePresetId,
   ])
 
-  const handleModelChange = useCallback((modelId: number | null) => {
+  const handleModelChange = useCallback((modelId: string | null) => {
     onSelectedModelChange?.(modelId)
     if (!activeThreadId) return
     setThreadModelOverrides((current) => updateAgentChatThreadModelOverrides({

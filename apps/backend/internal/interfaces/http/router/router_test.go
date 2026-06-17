@@ -71,10 +71,10 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"POST /api/v1/agent-runtime/permissions/:requestId/decision",
 		"POST /api/v1/audio/align",
 		"GET /api/v1/admin/projects",
-		"GET /api/v1/admin/debug/jobs",
 		"GET /api/hub/packages",
 		"GET /api/hub/packages/:id/download",
 	}
+	expected = append(expected, expectedEditionCoreRoutesForTest()...)
 
 	for _, route := range expected {
 		if !routes[route] {

@@ -65,7 +65,8 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
 
     try {
       const fallbackModel = models[0]
-      const modelId = state.modelId || (fallbackModel ? publicModelId(fallbackModel) : '')
+      const selectedModel = models.find((model) => publicModelId(model) === state.modelId) ?? fallbackModel
+      const modelId = state.modelId || (selectedModel ? publicModelId(selectedModel) : '')
       const jobType = resolveGenerationJobTypeFromResourceCount({
         outputType: capability,
         inputResourceCount: state.inputResources.length,

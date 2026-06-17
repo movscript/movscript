@@ -66,6 +66,31 @@ func newWorkerID() string {
 	return fmt.Sprintf("%s-%s", firstNonEmpty(os.Getenv("HOSTNAME"), "worker"), hex.EncodeToString(b[:]))
 }
 
+func (w *Worker) resolveJobModelRoute(ctx context.Context, job *persistencemodel.Job, capability string) (ai.ModelRoute, error) {
+	if w.aiService == nil {
+		return ai.ModelRoute{}, fmt.Errorf("ai service is required")
+	}
+	if job.RouteGroup != "" {
+		ctx = ai.WithProviderRouteGroup(ctx, job.RouteGroup)
+	}
+	modelConfigID := job.ModelConfigID
+	catalogEntryID := uint(0)
+	if job.AIModelCatalogEntryID != nil && *job.AIModelCatalogEntryID != 0 {
+		modelConfigID = 0
+		catalogEntryID = *job.AIModelCatalogEntryID
+	}
+	route, err := w.aiService.ResolveModelRoute(ai.ModelRouteRequest{
+		ModelConfigID:  modelConfigID,
+		CatalogEntryID: catalogEntryID,
+		Capability:     capability,
+		RouteGroup:     job.RouteGroup,
+	})
+	if err != nil {
+		return ai.ModelRoute{}, err
+	}
+	return route, nil
+}
+
 // cloudupService loads enabled cloud file configs from DB and builds a upload.Service.
 // Returns nil (no error) if no configs are enabled — callers must check HasUploaders().
 func (w *Worker) cloudupService() *upload.Service {
@@ -126,8 +151,8 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 		return err
 	}
-	imageData, videoData := w.loadInputResources(job)
-	sm.succeed(fmt.Sprintf("loaded %d image inputs and %d video inputs", len(imageData), len(videoData)))
+	imageData, videoData, audioData, textData := w.loadInputResources(job)
+	sm.succeed(fmt.Sprintf("loaded %d image inputs, %d video inputs, %d audio inputs, and %d text inputs", len(imageData), len(videoData), len(audioData), len(textData)))
 
 	sm.enter(StatePreparingRequest, "resolve model and debug context")
 
@@ -188,6 +213,24 @@ func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err er
 			return err
 		}
 		return w.runVideoJob(callCtx, debugCtx, job, params, imageData, videoData, sm, debugResult)
+
+	case ai.CapabilityAudioTTS:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
+		return w.runAudioTTSJob(callCtx, debugCtx, job, params, sm, debugResult)
+
+	case ai.CapabilityAudioMusic, ai.CapabilityAudioSFX:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
+		return w.runAudioGenerateJob(callCtx, debugCtx, job, params, sm, debugResult, outputType)
+
+	case ai.CapabilityAudioSTT, ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
+		return w.runSubtitleJob(callCtx, debugCtx, job, params, sm, debugResult, outputType, audioData, textData)
 
 	default:
 		return fmt.Errorf("unsupported output type %q", outputType)

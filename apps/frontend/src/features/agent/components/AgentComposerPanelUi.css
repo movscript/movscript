@@ -104,6 +104,10 @@
   box-shadow: none;
 }
 
+.ms-agent-composer .ai-agent-model-select.ms-field-control {
+  background: transparent;
+}
+
 .ai-agent-model-select {
   width: min(180px, 48vw);
   padding-inline: 10px 8px;
@@ -131,6 +135,11 @@
   display: inline-flex;
   min-width: 0;
   flex-direction: column;
+}
+
+.ai-agent-model-select__content .ai-agent-model-select__option .agent-identity-mark {
+  border-color: transparent;
+  background: transparent;
 }
 
 .ai-agent-model-select__id,

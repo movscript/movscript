@@ -32,11 +32,11 @@ test('resources page delegates context menu global dismiss listeners', () => {
   assert.doesNotMatch(contextMenuDismissSource, /window\.removeEventListener/)
 })
 
-test('resources page delegates video clip Electron API access', () => {
+test('resources page delegates resource trim Electron mediaPipeline access', () => {
   assert.match(resourcesPageSource, /from '@\/features\/resources\/components\/ResourcesPageVideoClipDialog'/)
   assert.doesNotMatch(resourcesPageSource, /from '@\/features\/resources\/application\/resourceVideoClipElectron'/)
   assert.match(videoClipDialogSource, /from '@\/features\/resources\/application\/resourceVideoClipElectron'/)
-  assert.match(videoClipDialogSource, /clipResourceVideo\(/)
+  assert.match(videoClipDialogSource, /trimResourceVideoSegment\(/)
   assert.match(videoClipDialogSource, /from '@\/features\/resources\/application\/useResourceVideoClipStatus'/)
   assert.match(videoClipDialogSource, /useResourceVideoClipStatus\(\)/)
   assert.doesNotMatch(videoClipDialogSource, /getResourceVideoClipStatus\(/)
@@ -44,12 +44,15 @@ test('resources page delegates video clip Electron API access', () => {
   assert.doesNotMatch(resourcesPageSource, /window\.api/)
   assert.doesNotMatch(videoClipDialogSource, /window\.api/)
 
-  assert.match(videoClipStatusHookSource, /getResourceVideoClipStatus\(\)/)
-  assert.match(videoClipStatusHookSource, /resourceVideoClipApiAvailable\(\)/)
-  assert.match(videoClipElectronSource, /readElectronApi\(\)\?\.clipVideo/)
-  assert.match(videoClipElectronSource, /readElectronApi\(\)\?\.getVideoClipStatus/)
+  assert.match(videoClipStatusHookSource, /getResourceMediaPipelineTrimStatus\(\)/)
+  assert.match(videoClipStatusHookSource, /resourceMediaPipelineTrimApiAvailable\(\)/)
+  assert.match(videoClipElectronSource, /renderMediaPipelineSingleClip/)
+  assert.match(videoClipElectronSource, /getMediaPipelineFFmpegStatus/)
+  assert.doesNotMatch(videoClipElectronSource, /api\?\.clipVideo/)
+  assert.doesNotMatch(videoClipElectronSource, /api\?\.getVideoClipStatus/)
+  assert.doesNotMatch(videoClipElectronSource, /\?\?/)
   assert.doesNotMatch(videoClipElectronSource, /window\.api/)
-  assert.match(videoClipElectronSource, /export function resourceVideoClipApiAvailable/)
+  assert.match(videoClipElectronSource, /export function resourceMediaPipelineTrimApiAvailable/)
 })
 
 test('resources video clip dialog delegates source blob loading lifecycle', () => {

@@ -77,7 +77,7 @@ export function buildBackendDefaultAgentProviderConfig<TModel extends AgentBacke
     ...(input.currentProvider ?? {}),
     enabled: input.currentProvider?.enabled === false ? false : true,
     providerRef,
-    authSource: 'model-provider',
+    configSource: 'backend',
     defaultModel: modelId,
     baseURL: `${input.apiBaseURL.replace(/\/+$/, '')}/v1`,
     config: {
@@ -110,6 +110,7 @@ export function hasExplicitAgentProviderConfig(provider: Record<string, unknown>
   if (provider.enabled === false) return true
   return Boolean(
     stringField(provider.providerRef)
+      || stringField(provider.configSource)
       || stringField(provider.authSource)
       || stringField(provider.baseURL)
       || stringField(provider.baseUrl)

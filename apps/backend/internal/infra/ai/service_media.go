@@ -6,10 +6,24 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-// CallImage calls an image generation model by AIModelConfig DB ID.
+// CallImage calls an image generation model by legacy AIModelConfig DB ID.
 // It accepts models with either "image" or "image_edit" capability.
 func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, req ImageRequest) (ImageResponse, error) {
 	return s.CallImageWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
+}
+
+func (s *AIService) CallImageWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req ImageRequest, usage UsageContext) (ImageResponse, error) {
+	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	for _, capability := range []string{CapabilityImage, CapabilityImageEdit} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return ImageResponse{}, err
+		}
+		if handled {
+			return s.callCatalogImageRuntime(ctx, userID, route, runtime, capability, req, usage)
+		}
+	}
+	return s.CallImageWithUsage(ctx, userID, route.ModelConfigID, req, usage)
 }
 
 func (s *AIService) CallImageWithUsage(ctx context.Context, userID, modelConfigID uint, req ImageRequest, usage UsageContext) (ImageResponse, error) {
@@ -66,7 +80,43 @@ func (s *AIService) CallImageWithUsage(ctx context.Context, userID, modelConfigI
 	return ImageResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
 }
 
-// CallVideo calls a video generation model by AIModelConfig DB ID.
+func (s *AIService) callCatalogImageRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, capability string, req ImageRequest, usage UsageContext) (ImageResponse, error) {
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	attemptReq := req
+	if capability == CapabilityImageEdit {
+		attemptReq.EditOnly = true
+	}
+	attemptReq.Model = route.ProviderModelID
+	if runtime.def.ImageEditField != "" {
+		attemptReq.ImageFieldName = runtime.def.ImageEditField
+	}
+	n := attemptReq.N
+	if n <= 0 {
+		n = 1
+	}
+	if usage.ReservationID == nil {
+		estimate := estimateUsageCost(runtime.config, runtime.def, "image", 0, 0, 0, n)
+		reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+		if err != nil {
+			return ImageResponse{}, err
+		}
+		usage.ReservationID = &reservation.ID
+	}
+	finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+	resp, err := runtime.provider.ImageGenerate(ctx, attemptReq)
+	finishAttempt(err)
+	if err != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+		return ImageResponse{}, err
+	}
+	estimate := estimateUsageCost(runtime.config, runtime.def, "image", 0, 0, 0, n)
+	if err := s.settleUsage(ctx, userID, route.ModelConfigID, estimate, usage); err != nil {
+		return ImageResponse{}, err
+	}
+	return resp, nil
+}
+
+// CallVideo calls a video generation model by legacy AIModelConfig DB ID.
 // It accepts models with any video capability: "video", "video_i2v", or "video_v2v".
 func (s *AIService) CallVideo(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
 	return s.CallVideoWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
@@ -125,6 +175,45 @@ func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigI
 	return VideoResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
 }
 
+func (s *AIService) CallVideoWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
+	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return VideoResponse{}, err
+		}
+		if handled {
+			return s.callCatalogVideoRuntime(ctx, userID, route, runtime, req, usage)
+		}
+	}
+	return s.CallVideoWithUsage(ctx, userID, route.ModelConfigID, req, usage)
+}
+
+func (s *AIService) callCatalogVideoRuntime(ctx context.Context, userID uint, route ModelRoute, runtime catalogRouteRuntime, req VideoRequest, usage UsageContext) (VideoResponse, error) {
+	ctx = withProviderSubject(ctx, userID, usage.OrgID)
+	attemptReq := req
+	prepareVideoRequest(&attemptReq, runtime.config, runtime.def)
+	if usage.ReservationID == nil {
+		estimate := estimateUsageCost(runtime.config, runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
+		reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+		if err != nil {
+			return VideoResponse{}, err
+		}
+		usage.ReservationID = &reservation.ID
+	}
+	finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+	resp, err := runtime.provider.VideoGenerate(ctx, attemptReq)
+	finishAttempt(err)
+	if err != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+		return VideoResponse{}, err
+	}
+	if err := s.settleVideoUsage(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
+		return VideoResponse{}, err
+	}
+	return resp, nil
+}
+
 // SupportsVideoTasks reports whether this model config can submit and poll
 // provider-side async video tasks separately.
 func (s *AIService) SupportsVideoTasks(modelConfigID uint) bool {
@@ -136,6 +225,20 @@ func (s *AIService) SupportsVideoTasks(modelConfigID uint) bool {
 	return ok
 }
 
+func (s *AIService) SupportsVideoTasksRoute(ctx context.Context, userID uint, route ModelRoute) bool {
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return false
+		}
+		if handled {
+			_, ok := runtime.provider.(VideoTaskProvider)
+			return ok
+		}
+	}
+	return s.SupportsVideoTasks(route.ModelConfigID)
+}
+
 // SupportsVideoTaskCancellation reports whether this model config can cancel
 // provider-side async video tasks.
 func (s *AIService) SupportsVideoTaskCancellation(modelConfigID uint) bool {
@@ -145,6 +248,20 @@ func (s *AIService) SupportsVideoTaskCancellation(modelConfigID uint) bool {
 	}
 	_, ok := provider.(VideoTaskCancelProvider)
 	return ok
+}
+
+func (s *AIService) SupportsVideoTaskCancellationRoute(ctx context.Context, userID uint, route ModelRoute) bool {
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return false
+		}
+		if handled {
+			_, ok := runtime.provider.(VideoTaskCancelProvider)
+			return ok
+		}
+	}
+	return s.SupportsVideoTaskCancellation(route.ModelConfigID)
 }
 
 // CallVideoStart submits an async provider video task exactly once.
@@ -200,6 +317,47 @@ func (s *AIService) CallVideoStartWithUsage(ctx context.Context, userID, modelCo
 		return VideoResponse{}, lastErr
 	}
 	return VideoResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
+}
+
+func (s *AIService) CallVideoStartWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, req VideoRequest, usage UsageContext) (VideoResponse, error) {
+	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return VideoResponse{}, err
+		}
+		if handled {
+			taskProvider, ok := runtime.provider.(VideoTaskProvider)
+			if !ok {
+				return VideoResponse{}, fmt.Errorf("catalog entry id=%d does not support async video task polling", route.CatalogEntryID)
+			}
+			ctx = withProviderSubject(ctx, userID, usage.OrgID)
+			attemptReq := req
+			prepareVideoRequest(&attemptReq, runtime.config, runtime.def)
+			if usage.ReservationID == nil {
+				estimate := estimateUsageCost(runtime.config, runtime.def, "video", 0, 0, positiveDuration(attemptReq.Duration, runtime.def), 1)
+				reservation, err := s.ReserveUsage(ctx, userID, route.ModelConfigID, estimate, usage)
+				if err != nil {
+					return VideoResponse{}, err
+				}
+				usage.ReservationID = &reservation.ID
+			}
+			finishAttempt := beginRuntimeProviderAttempt(route.ModelConfigID)
+			resp, err := taskProvider.VideoStart(ctx, attemptReq)
+			finishAttempt(err)
+			if err != nil {
+				_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
+				return VideoResponse{}, err
+			}
+			if resp.URL != "" || len(resp.ContentBytes) > 0 {
+				if err := s.settleVideoUsage(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
+					return VideoResponse{}, err
+				}
+			}
+			return resp, nil
+		}
+	}
+	return s.CallVideoStartWithUsage(ctx, userID, route.ModelConfigID, req, usage)
 }
 
 func (s *AIService) runtimeImageModelAttemptCandidates(modelConfigID uint) ([]runtimeModelCandidate, string, error) {
@@ -268,6 +426,38 @@ func (s *AIService) CallVideoPollWithUsage(ctx context.Context, userID, modelCon
 	return resp, nil
 }
 
+func (s *AIService) CallVideoPollWithRouteUsage(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
+	usage = usageWithCatalogEntry(usage, route.CatalogEntryID)
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return VideoResponse{}, err
+		}
+		if handled {
+			ctx = withProviderSubject(ctx, userID, usage.OrgID)
+			taskProvider, ok := runtime.provider.(VideoTaskProvider)
+			if !ok {
+				return VideoResponse{}, fmt.Errorf("catalog entry id=%d does not support async video task polling", route.CatalogEntryID)
+			}
+			resp, err := taskProvider.VideoPoll(ctx, VideoPollRequest{
+				Model:    route.ProviderModelID,
+				TaskID:   taskID,
+				TaskKind: taskKind,
+			})
+			if err != nil {
+				return resp, err
+			}
+			if resp.Status == VideoStatusSucceeded && (resp.URL != "" || len(resp.ContentBytes) > 0) {
+				if err := s.settleVideoUsage(ctx, userID, route.ModelConfigID, runtime.config, runtime.def, requestedDuration, resp.DurationSec, usage); err != nil {
+					return resp, err
+				}
+			}
+			return resp, nil
+		}
+	}
+	return s.CallVideoPollWithUsage(ctx, userID, route.ModelConfigID, taskID, taskKind, requestedDuration, usage)
+}
+
 // CallVideoCancel requests provider-side cancellation for an async video task.
 func (s *AIService) CallVideoCancel(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string) (VideoResponse, error) {
 	ctx = withProviderUserID(ctx, userID)
@@ -285,6 +475,28 @@ func (s *AIService) CallVideoCancel(ctx context.Context, userID, modelConfigID u
 		TaskKind: taskKind,
 	}
 	return cancelProvider.VideoCancel(ctx, req)
+}
+
+func (s *AIService) CallVideoCancelRoute(ctx context.Context, userID uint, route ModelRoute, taskID, taskKind string) (VideoResponse, error) {
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		runtime, handled, err := s.catalogRouteRuntime(ctx, userID, route, capability)
+		if err != nil {
+			return VideoResponse{}, err
+		}
+		if handled {
+			ctx = withProviderUserID(ctx, userID)
+			cancelProvider, ok := runtime.provider.(VideoTaskCancelProvider)
+			if !ok {
+				return VideoResponse{}, fmt.Errorf("catalog entry id=%d does not support async video task cancellation", route.CatalogEntryID)
+			}
+			return cancelProvider.VideoCancel(ctx, VideoCancelRequest{
+				Model:    route.ProviderModelID,
+				TaskID:   taskID,
+				TaskKind: taskKind,
+			})
+		}
+	}
+	return s.CallVideoCancel(ctx, userID, route.ModelConfigID, taskID, taskKind)
 }
 
 // GetFileUploader returns the provider-side Files API uploader configured for a persistencemodel.

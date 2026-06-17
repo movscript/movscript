@@ -175,7 +175,6 @@ export function useCanvasRuntimeExecutor({
       const model = await resolveCanvasRuntimeModel(data, 'text')
       const response = await generateCanvasRuntimeText({
         modelId: model.modelId,
-        modelConfigId: model.modelConfigId,
         prompt,
         params: data.params,
         projectId,

@@ -1,6 +1,6 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type { ContentSourceWorkspaceData } from '@movscript/core/content'
-import type { ContentCanvasCandidate, ContentCanvasProjectData, OpenCutTimelineDocumentLike } from '../domain/contentCanvasTypes'
+import type { ContentCanvasCandidate, ContentCanvasProjectData, MediaEditingProjectLike } from '../domain/contentCanvasTypes'
 import type { ContentCanvasWorkspaceGateway } from './contentCanvasWorkspaceGateway'
 
 export async function loadContentCanvasProject(
@@ -47,8 +47,8 @@ export async function loadContentCanvasProject(
   ])
 
   const contentUnitCandidates = contentWorkspaceData ? contentUnitCandidatesFromWorkspace(contentWorkspaceData) : {}
-  const editingTimelinesByNodeId = contentWorkspaceData
-    ? editingTimelinesByNodeIdFromWorkspace(contentWorkspaceData, sceneMoments, productions, projectId)
+  const editingProjectsByNodeId = contentWorkspaceData
+    ? editingProjectsByNodeIdFromWorkspace(contentWorkspaceData, sceneMoments, productions, projectId)
     : {}
   console.log('[content-canvas] load project content candidates', {
     projectId,
@@ -61,7 +61,7 @@ export async function loadContentCanvasProject(
       candidateCount: candidates.length,
       candidateIds: candidates.map((candidate) => candidate.id),
     })),
-    editingTimelineKeys: Object.keys(editingTimelinesByNodeId),
+    editingProjectKeys: Object.keys(editingProjectsByNodeId),
   })
 
   return {
@@ -80,30 +80,30 @@ export async function loadContentCanvasProject(
     audioCues: sortEntities(audioCues),
     assets: sortEntities(assetResult.assets),
     contentUnitCandidates: contentUnitCandidates,
-    editingTimelinesByNodeId,
+    editingProjectsByNodeId,
     assetReferenceUnits: contentWorkspaceData?.assetReferenceUnits,
     productionWorkPlan: contentWorkspaceData?.productionWorkPlan,
   }
 }
 
-function editingTimelinesByNodeIdFromWorkspace(
+function editingProjectsByNodeIdFromWorkspace(
   data: ContentSourceWorkspaceData,
   sceneMoments: MovScriptWorkspaceIndexedEntity[],
   productions: MovScriptWorkspaceIndexedEntity[],
   projectId: number,
-): Record<string, OpenCutTimelineDocumentLike> {
-  const output: Record<string, OpenCutTimelineDocumentLike> = {}
+): Record<string, MediaEditingProjectLike> {
+  const output: Record<string, MediaEditingProjectLike> = {}
   for (const timeline of data.editingTimelines ?? []) {
-    const document = timeline.timelineDocument as OpenCutTimelineDocumentLike
+    const editingProject = timeline.mediaEditingProject as MediaEditingProjectLike
     const targetId = String(timeline.targetId)
-    output[targetId] = document
-    output[`${timeline.targetKind}:${targetId}`] = document
+    output[targetId] = editingProject
+    output[`${timeline.targetKind}:${targetId}`] = editingProject
     const targets = timeline.targetKind === 'scene_moment' ? sceneMoments : productions
     const target = targets.find((item) =>
       String(item.id ?? item.record.ID ?? item.record.id ?? '') === targetId
       || (timeline.targetPath !== undefined && item.path === timeline.targetPath),
     )
-    if (target) output[contentCanvasNodeIdForEntity(target, projectId)] = document
+    if (target) output[contentCanvasNodeIdForEntity(target, projectId)] = editingProject
   }
   return output
 }

@@ -368,6 +368,7 @@ func viduVideoParams() []ParamDef {
 
 func elevenLabsTTSParams() []ParamDef {
 	return []ParamDef{
+		{Key: "voice", Label: "Voice ID", Type: "string", Default: ""},
 		{Key: "output_format", Label: "音频格式", Type: "select",
 			Options: []string{"mp3_44100_128", "mp3_22050_32", "pcm_16000", "ulaw_8000"}, Default: "mp3_44100_128"},
 		{Key: "stability", Label: "稳定度", Type: "number", Default: 0.5, Min: 0, Max: 1, Step: 0.01},
@@ -387,10 +388,12 @@ func elevenLabsSTTParams() []ParamDef {
 
 func openAICompatAudioSpeechParams() []ParamDef {
 	return []ParamDef{
+		{Key: "voice", Label: "音色", Type: "select",
+			Options: []string{"alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"}, Default: "alloy"},
 		{Key: "response_format", Label: "音频格式", Type: "select",
 			Options: []string{"mp3", "opus", "aac", "flac", "wav", "pcm"}, Default: "mp3"},
 		{Key: "speed", Label: "语速", Type: "number", Default: 1, Min: 0.25, Max: 4, Step: 0.01},
-		{Key: "instructions", Label: "语音指令", Type: "text", Default: ""},
+		{Key: "instructions", Label: "语音指令", Type: "string", Default: ""},
 	}
 }
 
@@ -400,6 +403,16 @@ func openAICompatAudioTranscribeParams() []ParamDef {
 			Options: []string{"json", "text", "srt", "verbose_json", "vtt"}, Default: "verbose_json"},
 		{Key: "prompt", Label: "提示词", Type: "text", Default: ""},
 		{Key: "temperature", Label: "温度", Type: "number", Default: 0, Min: 0, Max: 1, Step: 0.1},
+	}
+}
+
+func audioGenerationParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"1", "2", "3", "5", "8", "10", "15", "30"}, Default: "2"},
+		{Key: "output_format", Label: "音频格式", Type: "select",
+			Options: []string{"wav", "mp3"}, Default: "wav"},
+		{Key: "negative_prompt", Label: "负向提示词", Type: "text", Default: ""},
 	}
 }
 
@@ -414,6 +427,9 @@ var AdapterDefs = []AdapterDef{
 		ParamSets: []AdapterParamSet{
 			{Capability: CapabilityText, Params: commonTextParams()},
 			{Capability: CapabilityReasoning, Params: commonTextParams()},
+			{Capability: CapabilityAudioMusic, Params: audioGenerationParams()},
+			{Capability: CapabilityAudioSFX, Params: audioGenerationParams()},
+			{Capability: CapabilitySubTranslate, Params: commonTextParams()},
 		},
 	},
 	{

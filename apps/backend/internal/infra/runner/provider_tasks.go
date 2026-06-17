@@ -170,12 +170,16 @@ func (w *Worker) cancelProviderTask(ctx context.Context, job *persistencemodel.J
 	if taskID == "" {
 		return ai.VideoResponse{}, nil
 	}
-	if !w.aiService.SupportsVideoTaskCancellation(job.ModelConfigID) {
+	route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+	if err != nil {
+		return ai.VideoResponse{TaskID: taskID, TaskKind: taskKind}, err
+	}
+	if !w.aiService.SupportsVideoTaskCancellationRoute(ctx, job.UserID, route) {
 		return ai.VideoResponse{TaskID: taskID, TaskKind: taskKind}, fmt.Errorf("provider does not support video task cancellation")
 	}
 	cancelCtx, cancel := context.WithTimeout(ctx, providerPollTimeout)
 	defer cancel()
-	resp, err := w.aiService.CallVideoCancel(cancelCtx, job.UserID, job.ModelConfigID, taskID, taskKind)
+	resp, err := w.aiService.CallVideoCancelRoute(cancelCtx, job.UserID, route, taskID, taskKind)
 	if err != nil {
 		return resp, err
 	}
@@ -262,6 +266,46 @@ func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemod
 		return err
 	}
 	resourceID, err := w.saveResult(ctx, job, result.URL, result.MimeType)
+	if err != nil {
+		return fmt.Errorf("save result: %w", err)
+	}
+	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
+
+	sm.enter(StatePersistingSuccess, "mark job succeeded")
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status":             StatusSucceeded,
+		"output_resource_id": resourceID,
+		"finished_at":        &now,
+		"locked_by":          "",
+		"lease_until":        nil,
+	}
+	if debugResult != nil {
+		if b, err := json.Marshal(debugResult); err == nil {
+			updates["debug_info"] = string(b)
+		}
+	}
+	dbResult := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
+	if dbResult.RowsAffected == 0 && w.isJobCancelled(job.ID) {
+		sm.cancel("job cancelled")
+		return errJobCancelled
+	}
+	sm.succeed("job marked succeeded")
+	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
+	w.publishGenerationJobStatus(job, fmt.Sprintf("resource #%d", resourceID))
+	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
+	return nil
+}
+
+func (w *Worker) completeProviderBytes(ctx context.Context, job *persistencemodel.Job, data []byte, mimeType string, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+	sm.enter(StateSavingResult, "store provider bytes")
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
+	resourceID, err := w.saveBytes(ctx, job, data, mimeType)
 	if err != nil {
 		return fmt.Errorf("save result: %w", err)
 	}

@@ -145,7 +145,6 @@ export function canvasToolActionCardLabels(t: CanvasTranslator): CanvasToolActio
 
 export function selectedCanvasModel(data: CanvasNodeData, models: PublicModel[]) {
   return models.find((model) => publicModelId(model) === data.modelId)
-    ?? models.find((model) => model.id === data.modelDbId)
     ?? models[0]
     ?? null
 }
@@ -230,7 +229,7 @@ export function toolConfigItems(
 ): CanvasToolConfigItem[] {
   const params = canvasGenerationParamDefs(nodeType, outputType, selectedModel)
   const items = [
-    { id: 'model', label: '模型', value: selectedModel ? publicModelLabel(selectedModel) : data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
+    { id: 'model', label: '模型', value: selectedModel ? publicModelLabel(selectedModel) : data.modelId || '默认' },
     ...params.map((param) => ({
       id: param.key,
       label: param.label || param.key,

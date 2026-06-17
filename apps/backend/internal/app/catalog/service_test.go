@@ -13,6 +13,7 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 		models: []providercontract.AIModelDescriptor{{
 			ModelID:           "gpt-5.2",
 			ModelConfigID:     9,
+			CatalogEntryID:    42,
 			CredentialID:      7,
 			ModelDefID:        "gpt-5.2",
 			ModelIDOverride:   "provider-gpt-5.2",
@@ -50,8 +51,8 @@ func TestServiceListByCapabilityUsesGatewayModelCatalogContract(t *testing.T) {
 		t.Fatalf("filter = %#v, want provider variants text+reasoning", filter)
 	}
 	model := models[0]
-	if model.ID != 9 || model.CredentialID != 7 || model.ModelIDOverride != "provider-gpt-5.2" || model.ProviderName != "Primary provider" {
-		t.Fatalf("model = %#v, want compatible public model fields", model)
+	if model.ID != 42 || model.CatalogEntryID != 42 || model.CredentialID != 7 || model.ModelDefID != "gpt-5.2" || model.ModelIDOverride != "" || model.ProviderName != "Primary provider" {
+		t.Fatalf("model = %#v, want public catalog model fields without provider override", model)
 	}
 	if len(model.SupportedParams) != 1 || model.InputRequirements.Image.Max != 1 || model.ParamsSchema["type"] != "object" {
 		t.Fatalf("model contract fields = %#v, want params/input/schema preserved", model)

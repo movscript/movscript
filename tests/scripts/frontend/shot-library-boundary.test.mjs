@@ -28,7 +28,9 @@ test('shot library page delegates shot cut Electron API access', () => {
   assert.match(importPreparationSource, /await analyzeShotCuts\(/)
   assert.doesNotMatch(importPreparationSource, /window\.api/)
   assert.match(shotCutElectronSource, /export async function analyzeShotCuts/)
-  assert.match(shotCutElectronSource, /readElectronApi\(\)\?\.analyzeShotCuts/)
+  assert.match(shotCutElectronSource, /analyzeMediaPipelineShotCuts/)
+  assert.doesNotMatch(shotCutElectronSource, /api\?\.analyzeShotCuts/)
+  assert.doesNotMatch(shotCutElectronSource, /\?\?/)
   assert.doesNotMatch(shotCutElectronSource, /window\.api/)
 })
 

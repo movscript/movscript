@@ -33,6 +33,7 @@ export {
   loadWorkspaceFileSnapshots,
   resolveWorkspaceSource,
   workspaceSnapshotId,
+  writeDebugArtifacts,
   type CheckpointCommitOptions,
   type CheckpointCommitResult,
   type CheckpointSourceSnapshot,

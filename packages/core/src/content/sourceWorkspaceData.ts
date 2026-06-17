@@ -1,6 +1,6 @@
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type { MovScriptProductionWorkPlan } from '@movscript/interpreter'
-import type { OpenCutTimelineDocument } from '@movscript/editing'
+import type { MediaEditingProject } from '@movscript/editing'
 
 import type {
   AudioCue,
@@ -74,7 +74,7 @@ export interface ContentSourceWorkspaceEditingTimeline {
   targetPath?: string
   status?: string
   blockers?: unknown[]
-  timelineDocument: OpenCutTimelineDocument
+  mediaEditingProject: MediaEditingProject
 }
 
 export interface WorkspaceDocument {

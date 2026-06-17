@@ -185,7 +185,7 @@ export function buildAgentChatViewLayoutProps({
       onMentionEscape: () => composer.setMentionRange(null),
       onMentionSelect: composer.insertResourceMention,
       onMentionState: composer.updateMentionState,
-      onModelChange: (modelId: number | null) => composer.updateSettings({ modelId }),
+      onModelChange: (modelId: string | null) => composer.updateSettings({ modelId }),
       onCollaborationModeChange: (collaborationMode: 'default' | 'plan') => composer.updateSettings({ collaborationMode }),
       onGoalModeEnabledChange: (goalModeEnabled: boolean) => composer.updateSettings({ goalModeEnabled }),
       onRemoveAttachment: composer.removeAttachment,

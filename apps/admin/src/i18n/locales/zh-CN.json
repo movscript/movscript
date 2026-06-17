@@ -2171,8 +2171,10 @@
       "audio": "音频",
       "audioTTS": "文本转语音",
       "audioTranscribe": "语音转写",
+      "audioMusic": "音乐生成",
+      "audioSfx": "音效生成",
       "subtitleAlign": "字幕对齐",
-      "renderVideo": "视频渲染"
+      "subtitleTranslate": "字幕翻译"
     },
     "params": {
       "title": "生成参数",
@@ -2276,7 +2278,7 @@
       "enableCredentialTitle": "点击启用此凭据",
       "confirmEnableCredential": "确定启用凭据「{{name}}」？启用后可能开始承接模型请求。",
       "confirmDisableCredential": "确定禁用凭据「{{name}}」？依赖此凭据的模型会停止可用。",
-      "confirmDeleteCredential": "确定删除凭据「{{name}}」？关联模型配置会一并移除。",
+      "confirmDeleteCredential": "确定删除凭据「{{name}}」？关联本地 provider 路由会一并移除。",
       "confirmDeleteModel": "确定删除模型配置「{{name}}」？",
       "enabledMark": "● 已启用",
       "disabledMark": "○ 已禁用",
@@ -2289,9 +2291,11 @@
       "enabledModels": "已启用模型",
       "addModel": "添加模型",
       "viewProviders": "供应商配置",
+      "viewCatalog": "Catalog Entry",
       "viewGateway": "网关策略",
       "providersHint": "这里管理供应商凭据、模型能力、价格、容量和故障切换。相同优先级的模型会按容量权重轮询分发。",
       "newAPIGatewayProvidersHint": "当前使用商业版 new-api 转发。供应商 Base URL、Key、充值和套餐分组在 new-api 管理；这里只维护模型路由、能力、价格、容量和故障切换。",
+      "catalogHint": "Catalog Entry 是 MovScript 识别模型的标准档案；模型路由决定它实际落到本地 provider credential，或在商业版中落到 new-api 分组。",
       "gatewayHint": "这里补充网关路由策略。多 key 场景下，系统会在同优先级可用项之间轮询，避开已饱和供应商，并在错误时自动切换。",
       "gatewayRuleTitle": "轮询规则",
       "gatewayRuleBody": "同一优先级的可用模型不再随机挑选，而是按轮询顺序分发，方便多个 key 稳定分摊流量。",
@@ -2382,7 +2386,7 @@
       "noCredentialsHint": "暂无凭据配置，点击右上角「添加凭据」开始接入",
       "noNewAPIRoutesHint": "暂无模型路由，点击右上角「添加模型路由」开始配置",
       "newAPIGatewayRouteAuth": "new-api 转发",
-      "newAPIGatewayRouteAuthHint": "此路由不保存本地供应商密钥。运行时会按当前用户、订阅套餐或充值余额选择 new-api group 并转发请求。",
+      "newAPIGatewayRouteAuthHint": "此路由不保存本地供应商密钥。运行时会按当前用户、订阅套餐或充值余额选择 new-api 分组并转发请求。",
       "modelIdOverrideShortPlaceholder": "如 ep-xxx"
     },
     "credentials": {
@@ -2585,6 +2589,31 @@
       "previousPage": "上一页",
       "nextPage": "下一页"
     },
+    "modelCatalog": {
+      "createTitle": "创建 Catalog Entry",
+      "editTitle": "编辑 Catalog Entry",
+      "formHint": "定义系统识别模型的身份、supported params、计费和输入限制；下方路由再把它绑定到真实 provider 或 new-api 分组。",
+      "publicModelId": "Public Model ID",
+      "providerModelId": "Provider Model ID",
+      "displayName": "显示名称",
+      "shortName": "短名称",
+      "capabilities": "能力",
+      "enabled": "启用",
+      "disabled": "停用",
+      "acceptsImage": "接受图片输入",
+      "imageEditField": "图片编辑字段",
+      "create": "创建目录项",
+      "save": "保存目录项",
+      "empty": "暂无 Catalog Entry。",
+      "confirmDelete": "确定删除 Catalog Entry「{{name}}」？它的路由绑定也会被删除。",
+      "routes": "模型路由",
+      "addRoute": "添加路由",
+      "noRoutes": "暂无路由。Catalog Entry 需要至少一条路由才能被调用。",
+      "localProviderRoute": "Local Provider",
+      "newAPIRoute": "new-api 分组",
+      "routeGroup": "new-api 分组",
+      "pickCredential": "选择凭证"
+    },
     "gatewayKeys": {
       "title": "网关 API Key",
       "description": "为 OpenAI 兼容网关创建和管理调用 key，可限制项目、模型和 scope。",
@@ -2595,9 +2624,9 @@
       "namePlaceholder": "例如：剪辑工作流服务",
       "projectId": "项目 ID",
       "allProjects": "全部项目",
-      "models": "模型范围",
-      "allModels": "全部模型",
-      "modelHint": "未选择模型时允许使用所有已启用模型。",
+      "models": "Catalog Entry 范围",
+      "allModels": "全部 Catalog Entry",
+      "modelHint": "未选择 Catalog Entry 时允许使用所有已启用的 Catalog Entry。",
       "scopes": "Scope",
       "scope": "范围",
       "newAPIGroup": "网关分组",
@@ -2612,7 +2641,7 @@
       "enable": "启用",
       "disable": "禁用",
       "empty": "暂无网关 API Key",
-      "noModels": "暂无可限制的模型。先在供应商配置中启用模型。",
+      "noModels": "暂无可限制的 Catalog Entry。请先在模型目录中创建 Catalog Entry。",
       "createdOnce": "{{name}} 已创建。明文 Key 只会显示这一次。",
       "copy": "复制",
       "copied": "已复制",
@@ -2712,6 +2741,7 @@
       "userId": "用户 ID",
       "provider": "服务商",
       "model": "模型",
+      "modelId": "模型 ID",
       "type": "类型",
       "usage": "用量",
       "cost": "成本",
@@ -2949,8 +2979,7 @@
         "system": "系统概览",
         "providerSandbox": "服务商沙盒",
         "rawCall": "Raw 调用",
-        "jobs": "任务监控",
-        "connectivity": "连通性测试"
+        "jobs": "任务监控"
       },
       "system": {
         "title": "系统概览",
@@ -3051,7 +3080,7 @@
           "featureKey": "来源标识",
           "jobId": "任务 ID",
           "jobType": "任务类型",
-          "modelConfigId": "模型配置 ID",
+          "modelId": "模型 ID",
           "orgId": "组织 ID",
           "projectId": "项目 ID",
           "userId": "用户 ID"
@@ -3063,7 +3092,7 @@
           "inputResources": "输入资源",
           "jobId": "任务 ID",
           "jobType": "任务类型",
-          "modelConfigId": "模型配置 ID",
+          "modelId": "模型 ID",
           "modelDef": "模型定义",
           "orgId": "组织 ID",
           "outputResource": "输出资源",
@@ -3074,13 +3103,6 @@
           "status": "状态",
           "userId": "用户 ID"
         }
-      },
-      "connectivity": {
-        "title": "模型连通性测试",
-        "description": "对每个已配置模型发送真实 API 请求，验证凭据和网络连通性。",
-        "costWarning": "图像模型调试会实际调用生成接口，可能产生少量费用。",
-        "empty": "暂无已配置的模型",
-        "debugging": "调试中…"
       },
       "capabilities": {
         "text": "文生文",

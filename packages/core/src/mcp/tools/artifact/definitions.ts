@@ -1,0 +1,72 @@
+import type { MCPTool } from '../../protocol/types'
+import { objectSchema } from '../schema'
+
+export function artifactTools(): MCPTool[] {
+  return [
+    {
+      name: 'system_artifact_upload_export',
+      description: 'Upload a completed local export artifact as a neutral RawResource. This hosts an existing file only; it does not render media or write domain decisions. When resolving a completed Electron task by taskId, pass projectId for persisted workspace recovery. HLS manifests must use system_artifact_upload_hls_stream so manifest and segment files are hosted as a MediaStreamArtifact instead of one RawResource.',
+      inputSchema: objectSchema({
+        taskId: { type: 'string' },
+        task_id: { type: 'string' },
+        projectId: { type: 'string', description: 'Media workspace project id used with taskId for persisted task output recovery.' },
+        project_id: { type: 'string', description: 'Alias for projectId.' },
+        outputPath: { type: 'string' },
+        output_path: { type: 'string' },
+        filePath: { type: 'string' },
+        file_path: { type: 'string' },
+        filename: { type: 'string' },
+        mimeType: { type: 'string' },
+        mime_type: { type: 'string' },
+        folderId: { type: ['string', 'number'] },
+        folder_id: { type: ['string', 'number'] },
+        derivative: { type: 'object' },
+        operation: { type: 'string' },
+        tool: { type: 'string' },
+        inputResourceIds: { type: 'array', items: { type: ['string', 'number'] } },
+        input_resource_ids: { type: 'array', items: { type: ['string', 'number'] } },
+        sourceResourceId: { type: ['string', 'number'] },
+        source_resource_id: { type: ['string', 'number'] },
+        sourceResourceIds: { type: 'array', items: { type: ['string', 'number'] } },
+        source_resource_ids: { type: 'array', items: { type: ['string', 'number'] } },
+        params: { type: 'object' },
+      }),
+    },
+    {
+      name: 'system_artifact_upload_hls_stream',
+      description: 'Upload completed HLS manifest/segments as a neutral MediaStreamArtifact. This hosts an existing artifact only; it does not render media or write domain decisions. When resolving a completed Electron HLS task by taskId, pass projectId for persisted workspace output recovery.',
+      inputSchema: objectSchema({
+        taskId: { type: 'string' },
+        task_id: { type: 'string' },
+        manifestPath: { type: 'string' },
+        manifest_path: { type: 'string' },
+        segmentPaths: { type: 'array', items: { type: 'string' } },
+        segment_paths: { type: 'array', items: { type: 'string' } },
+        title: { type: 'string' },
+        projectId: { type: ['string', 'number'] },
+        project_id: { type: ['string', 'number'] },
+        sourceResourceId: { type: ['string', 'number'] },
+        source_resource_id: { type: ['string', 'number'] },
+        sourceDerivativeId: { type: ['string', 'number'] },
+        source_derivative_id: { type: ['string', 'number'] },
+        durationMs: { type: 'number' },
+        duration_ms: { type: 'number' },
+        width: { type: 'number' },
+        height: { type: 'number' },
+        expiresAt: { type: 'string' },
+        expires_at: { type: 'string' },
+        expiresInSeconds: { type: 'number' },
+        expires_in_seconds: { type: 'number' },
+      }),
+    },
+    {
+      name: 'system_artifact_get_stream',
+      description: 'Read MediaStreamArtifact metadata and playback URLs from backend hosting. This does not inspect or reinterpret the source timeline.',
+      inputSchema: objectSchema({
+        streamId: { type: ['string', 'number'] },
+        stream_id: { type: ['string', 'number'] },
+        id: { type: ['string', 'number'] },
+      }),
+    },
+  ]
+}

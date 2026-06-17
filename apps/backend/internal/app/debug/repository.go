@@ -3,6 +3,7 @@ package debug
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	domainai "github.com/movscript/movscript/internal/domain/ai"
@@ -41,7 +42,7 @@ func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainai.C
 
 func (r *gormRepository) ListJobs(ctx context.Context, filters JobFilters, limit, offset int) (JobPage, error) {
 	q := r.db.WithContext(ctx).Model(&persistencemodel.Job{}).Preload("OutputResource")
-	q = applyJobFilters(q, filters)
+	q = applyJobFilters(q, r.db, filters)
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -55,30 +56,43 @@ func (r *gormRepository) ListJobs(ctx context.Context, filters JobFilters, limit
 	return JobPage{Items: domainjob.JobsFromModels(items), Total: total}, nil
 }
 
-func applyJobFilters(q *gorm.DB, filters JobFilters) *gorm.DB {
+func applyJobFilters(q *gorm.DB, db *gorm.DB, filters JobFilters) *gorm.DB {
 	if filters.JobID != nil {
-		q = q.Where("id = ?", *filters.JobID)
+		q = q.Where("jobs.id = ?", *filters.JobID)
 	}
 	if filters.Status != "" {
-		q = q.Where("status = ?", filters.Status)
+		q = q.Where("jobs.status = ?", filters.Status)
 	}
 	if filters.JobType != "" {
-		q = q.Where("job_type = ?", filters.JobType)
+		q = q.Where("jobs.job_type = ?", filters.JobType)
 	}
 	if filters.FeatureKey != "" {
-		q = q.Where("feature_key = ?", filters.FeatureKey)
+		q = q.Where("jobs.feature_key = ?", filters.FeatureKey)
 	}
 	if filters.UserID != nil {
-		q = q.Where("user_id = ?", *filters.UserID)
+		q = q.Where("jobs.user_id = ?", *filters.UserID)
 	}
 	if filters.OrgID != nil {
-		q = q.Where("org_id = ?", *filters.OrgID)
+		q = q.Where("jobs.org_id = ?", *filters.OrgID)
 	}
 	if filters.ProjectID != nil {
-		q = q.Where("project_id = ?", *filters.ProjectID)
+		q = q.Where("jobs.project_id = ?", *filters.ProjectID)
 	}
-	if filters.ModelConfigID != nil {
-		q = q.Where("model_config_id = ?", *filters.ModelConfigID)
+	if strings.TrimSpace(filters.ModelID) != "" {
+		modelID := strings.TrimSpace(filters.ModelID)
+		clauses := []string{"jobs.request_context LIKE ?"}
+		args := []any{"%" + modelID + "%"}
+		if db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+			q = q.Joins("LEFT JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = jobs.ai_model_catalog_entry_id OR ai_model_catalog_entries.id = jobs.model_config_id")
+			clauses = append(clauses, "ai_model_catalog_entries.public_model_id = ?", "ai_model_catalog_entries.provider_model_id = ?")
+			args = append(args, modelID, modelID)
+		}
+		if db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+			q = q.Joins("LEFT JOIN ai_model_configs ON ai_model_configs.id = jobs.model_config_id")
+			clauses = append(clauses, "ai_model_configs.model_def_id = ?", "ai_model_configs.model_id_override = ?")
+			args = append(args, modelID, modelID)
+		}
+		q = q.Where(strings.Join(clauses, " OR "), args...)
 	}
 	return q
 }
@@ -138,9 +152,11 @@ func (r *gormRepository) ListLLMCallLogs(ctx context.Context, filter LLMCallLogF
 		return LLMCallLogPage{}, err
 	}
 	rows := make([]persistencemodel.LLMCallLog, 0)
-	if err := q.
-		Preload("User").
-		Preload("AIModelConfig").
+	query := q.Preload("User")
+	if r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		query = query.Preload("AIModelConfig")
+	}
+	if err := query.
 		Order("llm_call_logs.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -176,9 +192,11 @@ func (r *gormRepository) LLMCallLogSummary(ctx context.Context, filter LLMCallLo
 	recent := make([]persistencemodel.LLMCallLog, 0)
 	recentFilter := filter
 	recentFilter.Status = "error"
-	if err := r.filteredLLMCallLogQuery(ctx, recentFilter).
-		Preload("User").
-		Preload("AIModelConfig").
+	recentQuery := r.filteredLLMCallLogQuery(ctx, recentFilter).Preload("User")
+	if r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		recentQuery = recentQuery.Preload("AIModelConfig")
+	}
+	if err := recentQuery.
 		Order("llm_call_logs.id DESC").
 		Limit(8).
 		Find(&recent).Error; err != nil {
@@ -213,8 +231,16 @@ func (r *gormRepository) filteredLLMCallLogQuery(ctx context.Context, filter LLM
 	if filter.ProjectID != "" {
 		q = q.Where("llm_call_logs.project_id = ?", filter.ProjectID)
 	}
-	if filter.ModelConfigID != "" {
-		q = q.Where("llm_call_logs.ai_model_config_id = ?", filter.ModelConfigID)
+	if filter.ModelID != "" {
+		modelID := strings.TrimSpace(filter.ModelID)
+		clauses := []string{"llm_call_logs.request_model = ?", "llm_call_logs.response_model = ?"}
+		args := []any{modelID, modelID}
+		if r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+			q = q.Joins("LEFT JOIN ai_model_configs ON ai_model_configs.id = llm_call_logs.ai_model_config_id")
+			clauses = append(clauses, "ai_model_configs.model_def_id = ?", "ai_model_configs.model_id_override = ?")
+			args = append(args, modelID, modelID)
+		}
+		q = q.Where(strings.Join(clauses, " OR "), args...)
 	}
 	if filter.CredentialID != "" {
 		q = q.Where("llm_call_logs.credential_id = ?", filter.CredentialID)
@@ -292,7 +318,11 @@ func (r *gormRepository) UpdateLLMCallLogExpiration(ctx context.Context, id uint
 	if err := r.db.WithContext(ctx).Model(&row).Update("expires_at", expiresAt).Error; err != nil {
 		return LLMCallLog{}, err
 	}
-	if err := r.db.WithContext(ctx).Preload("User").Preload("AIModelConfig").First(&row, id).Error; err != nil {
+	query := r.db.WithContext(ctx).Preload("User")
+	if r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		query = query.Preload("AIModelConfig")
+	}
+	if err := query.First(&row, id).Error; err != nil {
 		return LLMCallLog{}, err
 	}
 	return llmCallLogFromModel(row), nil
@@ -314,7 +344,7 @@ func llmCallLogFromModel(row persistencemodel.LLMCallLog) LLMCallLog {
 		OrgID:             row.OrgID,
 		ProjectID:         row.ProjectID,
 		GatewayAPIKeyID:   row.GatewayAPIKeyID,
-		AIModelConfigID:   row.AIModelConfigID,
+		ModelID:           llmCallLogModelID(row),
 		CredentialID:      row.CredentialID,
 		OperationType:     row.OperationType,
 		PromptName:        row.PromptName,
@@ -339,15 +369,19 @@ func llmCallLogFromModel(row persistencemodel.LLMCallLog) LLMCallLog {
 	if row.User.ID != 0 {
 		item.User = &LLMCallLogUserRef{ID: row.User.ID, Username: row.User.Username, SystemRole: row.User.SystemRole}
 	}
-	if row.AIModelConfig.ID != 0 {
-		item.AIModelConfig = &LLMCallLogModelConfigRef{
-			ID:                row.AIModelConfig.ID,
-			CredentialID:      row.AIModelConfig.CredentialID,
-			ModelDefID:        row.AIModelConfig.ModelDefID,
-			ModelIDOverride:   row.AIModelConfig.ModelIDOverride,
-			CustomDisplayName: row.AIModelConfig.CustomDisplayName,
-			ShortName:         row.AIModelConfig.ShortName,
+	return item
+}
+
+func llmCallLogModelID(row persistencemodel.LLMCallLog) string {
+	for _, value := range []string{
+		row.ResponseModel,
+		row.RequestModel,
+		row.AIModelConfig.ModelIDOverride,
+		row.AIModelConfig.ModelDefID,
+	} {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
 		}
 	}
-	return item
+	return ""
 }

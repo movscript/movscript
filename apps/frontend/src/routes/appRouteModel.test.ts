@@ -24,7 +24,9 @@ test('app route layout spec is derived from pathname instead of the saved work m
   assert.equal(getAppRouteLayoutSpec('/app/settings').surface, 'settings')
   assert.equal(getAppRouteLayoutSpec('/app/settings').chrome, 'settings')
   assert.equal(getAppRouteLayoutSpec('/agent/settings').surface, 'settings')
-  assert.equal(getAppRouteLayoutSpec('/agent/settings').chrome, 'agent')
+  assert.equal(getAppRouteLayoutSpec('/agent/settings').chrome, 'settings')
+  assert.equal(getAppRouteLayoutSpec('/agents/mova').surface, 'settings')
+  assert.equal(getAppRouteLayoutSpec('/agents/mova').chrome, 'settings')
 })
 
 test('work mode route helpers keep canvas as a temporary surface', () => {
@@ -33,6 +35,8 @@ test('work mode route helpers keep canvas as a temporary surface', () => {
   assert.equal(workModeForRoute('/canvases/42', 'agent'), 'agent')
   assert.equal(workModeForRoute('/app/settings', 'agent'), 'agent')
   assert.equal(workModeForRoute('/agent/settings', 'agent'), 'agent')
+  assert.equal(workModeForRoute('/agents/mova', 'tool'), 'tool')
+  assert.equal(workModeForRoute('/agents/codex', 'project'), 'project')
   assert.equal(workModeForRoute('/agent', 'project'), 'project')
   assert.equal(routeForWorkMode('agent', true), '/project/agent')
   assert.equal(routeForWorkMode('project', true), '/project/home')

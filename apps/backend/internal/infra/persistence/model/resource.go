@@ -71,6 +71,29 @@ type ResourceDerivative struct {
 	Params           string      `gorm:"type:text;not null;default:'{}'" json:"params"`
 }
 
+type MediaStreamArtifact struct {
+	gorm.Model
+	OwnerID            uint       `gorm:"not null;index" json:"owner_id"`
+	Owner              User       `json:"owner,omitempty"`
+	OrgID              *uint      `gorm:"index" json:"org_id,omitempty"`
+	ProjectID          *uint      `gorm:"index" json:"project_id,omitempty"`
+	SourceResourceID   *uint      `gorm:"index" json:"source_resource_id,omitempty"`
+	SourceDerivativeID *uint      `gorm:"index" json:"source_derivative_id,omitempty"`
+	Title              string     `gorm:"default:''" json:"title,omitempty"`
+	Status             string     `gorm:"not null;default:'ready';index" json:"status"`
+	MimeType           string     `gorm:"not null;default:'application/vnd.apple.mpegurl'" json:"mime_type"`
+	StorageBackend     string     `gorm:"not null;default:'minio'" json:"storage_backend"`
+	ManifestStorageKey string     `gorm:"not null" json:"manifest_storage_key"`
+	BaseStoragePrefix  string     `gorm:"not null" json:"base_storage_prefix"`
+	Segments           string     `gorm:"type:text;not null;default:'[]'" json:"segments"`
+	DurationMs         int        `json:"duration_ms"`
+	Width              int        `json:"width"`
+	Height             int        `json:"height"`
+	ManifestURL        string     `gorm:"-" json:"manifest_url,omitempty"`
+	SegmentBaseURL     string     `gorm:"-" json:"segment_base_url,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+}
+
 type ResourceFolder struct {
 	gorm.Model
 	OwnerID        uint   `gorm:"not null" json:"owner_id"`

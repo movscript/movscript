@@ -138,9 +138,9 @@ func TestAIServiceRoutingPolicyContractFiltersRoutesByEstimatedBudget(t *testing
 	}
 }
 
-func TestAIServiceRoutingPolicyContractPrefersRequestedAdapterForLegacyConfigRoute(t *testing.T) {
+func TestAIServiceRoutingPolicyContractPrefersRequestedAdapterForLocalProviderRoute(t *testing.T) {
 	resetFailoverTestState()
-	db := testutil.OpenSQLite(t, "ai-routing-legacy-preferred-adapter-contract.db",
+	db := testutil.OpenSQLite(t, "ai-routing-local-provider-preferred-adapter-contract.db",
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
 	)
@@ -156,8 +156,8 @@ func TestAIServiceRoutingPolicyContractPrefersRequestedAdapterForLegacyConfigRou
 	if err != nil {
 		t.Fatalf("ResolveGatewayModelRoute() error = %v", err)
 	}
-	if route.ModelConfigID != 21 || route.SelectionReason != "legacy_model_config_id_preferred_adapter" {
-		t.Fatalf("route = %#v, want local provider preference from legacy config route", route)
+	if route.ModelConfigID != 21 || route.SelectionReason != "local_provider_preferred_adapter" {
+		t.Fatalf("route = %#v, want local provider preference from local provider route", route)
 	}
 }
 

@@ -31,7 +31,7 @@ func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 	createReq := authenticatedGatewayRequest(http.MethodPost, "/model-gateway/api-keys", fmt.Sprintf(`{
 		"name":"agent service",
 		"project_id":%d,
-		"allowed_model_ids":[1,2],
+		"allowed_catalog_entry_ids":[1,2],
 		"allowed_scopes":["model:chat"]
 	}`, project.ID))
 	createReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))

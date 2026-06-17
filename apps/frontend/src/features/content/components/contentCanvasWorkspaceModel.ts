@@ -1,4 +1,4 @@
-import type { ContentCanvasGraph, ContentCanvasNode, OpenCutTimelineDocumentLike, OpenCutTimelineElementLike } from '../domain/contentCanvasTypes'
+import type { ContentCanvasGraph, ContentCanvasNode, MediaEditingProjectLike, MediaTimelineClipLike } from '../domain/contentCanvasTypes'
 import type { CandidateDecision, CandidateSelections, RadialNode, SettingKind, TimelineItem, TimelineTrack, TimelineTrackKind, TreeNodeData } from './contentCanvasWorkspaceTypes'
 import { contentCanvasCodeForKind, contentCanvasGraphIndex } from './contentCanvasWorkspaceGraphModel'
 
@@ -80,26 +80,24 @@ export function sceneTimelineItemsFromGraph(
   ] satisfies TimelineTrack[]).filter((track) => track.items.length > 0)
 }
 
-export function timelineItemsFromOpenCutDocument(document: OpenCutTimelineDocumentLike | undefined): TimelineTrack[] {
-  if (document?.schema !== 'opencut.timeline.v1') return []
-  const scenes = document.project?.scenes ?? []
-  const scene = scenes.find((candidate) => candidate.id && candidate.id === document.project?.currentSceneId) ?? scenes[0]
-  if (!scene) return []
+export function timelineItemsFromMediaEditingProject(project: MediaEditingProjectLike | undefined): TimelineTrack[] {
+  if (project?.version !== 1) return []
+  const timeline = project.timeline
+  if (!timeline) return []
   const duration = Math.max(
     12,
-    numberField(document.project?.metadata?.duration) ?? 0,
-    ...scene.tracks?.flatMap((track) => (track.elements ?? []).map((element) =>
-      (numberField(element.startTime) ?? 0) + (numberField(element.duration) ?? 0),
+    (numberField(timeline.durationMs) ?? 0) / 1000,
+    ...timeline.tracks?.flatMap((track) => (track.clips ?? []).map((clip) =>
+      ((numberField(clip.timelineStartMs) ?? 0) + (numberField(clip.durationMs) ?? 0)) / 1000,
     )) ?? [],
   )
   const tracks: TimelineTrack[] = []
-  for (const track of scene.tracks ?? []) {
-    if (track.hidden === true) continue
-    const kind = timelineTrackKindForOpenCutTrack(track.type)
+  for (const track of timeline.tracks ?? []) {
+    if (track.locked === true) continue
+    const kind = timelineTrackKindForMediaTrack(track.type)
     if (!kind) continue
-    const items = (track.elements ?? [])
-      .filter((element) => element.hidden !== true)
-      .map((element, index) => timelineItemFromOpenCutElement(element, `${track.id ?? kind}_${index}`, duration))
+    const items = (track.clips ?? [])
+      .map((clip, index) => timelineItemFromMediaClip(clip, `${track.id ?? kind}_${index}`, duration))
       .filter((item): item is TimelineItem => item !== undefined)
       .sort((left, right) => (left.startSec ?? 0) - (right.startSec ?? 0) || left.id.localeCompare(right.id))
     if (items.length > 0) {
@@ -113,43 +111,48 @@ export function timelineItemsFromOpenCutDocument(document: OpenCutTimelineDocume
   return tracks.sort((left, right) => timelineTrackRank(left.kind) - timelineTrackRank(right.kind))
 }
 
-function timelineItemFromOpenCutElement(
-  element: OpenCutTimelineElementLike,
+function timelineItemFromMediaClip(
+  clip: MediaTimelineClipLike,
   fallbackId: string,
   totalDuration: number,
 ): TimelineItem | undefined {
-  const kind = timelineTrackKindForOpenCutElement(element.type)
+  const kind = timelineTrackKindForMediaClip(clip.assetType)
   if (!kind) return undefined
-  const startSec = numberField(element.startTime) ?? 0
-  const durationSec = Math.max(0.1, numberField(element.duration) ?? 4)
-  const movscript = element.metadata?.movscript
+  const startSec = (numberField(clip.timelineStartMs) ?? 0) / 1000
+  const durationSec = Math.max(0.1, (numberField(clip.durationMs) ?? 4000) / 1000)
+  const sourceStartSec = numberField(clip.sourceStartMs) !== undefined ? numberField(clip.sourceStartMs)! / 1000 : undefined
+  const sourceEndSec = numberField(clip.sourceEndMs) !== undefined ? numberField(clip.sourceEndMs)! / 1000 : undefined
+  const trimStartSec = sourceStartSec ?? 0
+  const movscript = clip.metadata?.movscript
+  const resourceId = numberField(clip.asset?.resourceId ?? movscript?.resourceId)
   return {
-    id: element.id ?? fallbackId,
-    title: element.name?.trim() || element.id || fallbackId,
+    id: clip.id ?? fallbackId,
+    title: clip.asset?.label?.trim() || clip.text?.content?.trim() || clip.id || fallbackId,
     type: kind === 'subtitle' ? 'text' : kind,
     startSec,
     durationSec,
-    trimStartSec: numberField(element.trimStart),
-    trimEndSec: numberField(element.trimEnd),
-    resourceId: numberField(movscript?.resourceId),
+    trimStartSec: sourceStartSec,
+    trimEndSec: sourceEndSec !== undefined ? Math.max(0, sourceEndSec - trimStartSec - durationSec) : undefined,
+    resourceId,
     contentUnitId: movscript?.contentUnitId !== undefined ? String(movscript.contentUnitId) : undefined,
-    status: movscript?.stale === true ? 'stale' : movscript?.selected === true ? 'selected' : numberField(movscript?.resourceId) !== undefined ? 'ready' : 'missing',
+    status: movscript?.stale === true ? 'stale' : movscript?.selected === true ? 'selected' : resourceId !== undefined ? 'ready' : 'missing',
     start: Math.min(94, Math.max(2, (startSec / totalDuration) * 94 + 2)),
     width: Math.max(6, Math.min(96, (durationSec / totalDuration) * 94)),
   }
 }
 
-function timelineTrackKindForOpenCutTrack(type: string | undefined): TimelineTrackKind | undefined {
+function timelineTrackKindForMediaTrack(type: string | undefined): TimelineTrackKind | undefined {
   if (type === 'video') return 'video'
+  if (type === 'image') return 'video'
   if (type === 'audio') return 'audio'
-  if (type === 'text') return 'subtitle'
+  if (type === 'text' || type === 'subtitle') return 'subtitle'
   return undefined
 }
 
-function timelineTrackKindForOpenCutElement(type: string | undefined): TimelineTrackKind | undefined {
+function timelineTrackKindForMediaClip(type: string | undefined): TimelineTrackKind | undefined {
   if (type === 'video' || type === 'image') return 'video'
   if (type === 'audio') return 'audio'
-  if (type === 'text') return 'subtitle'
+  if (type === 'text' || type === 'subtitle') return 'subtitle'
   return undefined
 }
 

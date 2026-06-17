@@ -15,6 +15,7 @@ import {
 } from './services/providerActivationHost'
 import { openHomeWindow } from './services/appWindowRegistry'
 import { installAdminProtocol, registerAdminProtocolPrivileges } from './adminWindow'
+import { installMediaProtocol, registerMediaProtocolPrivileges } from './mediaProtocol'
 import { installAppUpdateScheduler, uninstallAppUpdateScheduler } from './services/appUpdate'
 
 const desktopSmokeTest = process.argv.includes('--movscript-desktop-smoke-test') || process.env.MOVSCRIPT_DESKTOP_SMOKE_TEST === '1'
@@ -29,10 +30,12 @@ async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
 installChromiumRenderDiagnostics()
 installProviderActivationHost({ broadcastBackendStatus })
 registerAdminProtocolPrivileges()
+registerMediaProtocolPrivileges()
 
 app.whenReady().then(async () => {
   installApplicationMenu()
   installAdminProtocol()
+  installMediaProtocol()
   try {
     await bootstrapManagedServicesBeforeWindow()
   } catch (error) {

@@ -3,10 +3,12 @@ package media
 import "context"
 
 const (
-	CapabilityAudioTTS        = "audio_tts"
-	CapabilityAudioTranscribe = "audio_transcribe"
-	CapabilitySubtitleAlign   = "subtitle_align"
-	CapabilityRenderVideo     = "render_video"
+	CapabilityAudioTTS          = "audio_tts"
+	CapabilityAudioTranscribe   = "audio_transcribe"
+	CapabilityAudioMusic        = "audio_music"
+	CapabilityAudioSFX          = "audio_sfx"
+	CapabilitySubtitleAlign     = "subtitle_align"
+	CapabilitySubtitleTranslate = "subtitle_translate"
 )
 
 type TimingSource string
@@ -78,6 +80,31 @@ type TTSResponse struct {
 	ProviderRef string          `json:"provider_ref,omitempty"`
 }
 
+type AudioGenerationKind string
+
+const (
+	AudioGenerationKindMusic AudioGenerationKind = "music"
+	AudioGenerationKindSFX   AudioGenerationKind = "sfx"
+)
+
+type AudioGenerationRequest struct {
+	Kind           AudioGenerationKind `json:"kind"`
+	Prompt         string              `json:"prompt"`
+	NegativePrompt string              `json:"negative_prompt,omitempty"`
+	Language       string              `json:"language,omitempty"`
+	Model          string              `json:"model,omitempty"`
+	AudioFormat    string              `json:"audio_format,omitempty"`
+	DurationSec    int                 `json:"duration_sec,omitempty"`
+	Params         map[string]any      `json:"params,omitempty"`
+}
+
+type AudioGenerationResponse struct {
+	Audio       []byte `json:"-"`
+	MimeType    string `json:"mime_type"`
+	DurationMs  int    `json:"duration_ms"`
+	ProviderRef string `json:"provider_ref,omitempty"`
+}
+
 type TranscribeRequest struct {
 	AudioResourceID uint           `json:"audio_resource_id,omitempty"`
 	Audio           []byte         `json:"-"`
@@ -95,6 +122,16 @@ type AlignRequest struct {
 	Language        string         `json:"language,omitempty"`
 	Model           string         `json:"model,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
+}
+
+type TranslateSubtitleRequest struct {
+	SubtitleResourceID uint           `json:"subtitle_resource_id,omitempty"`
+	Subtitle           []byte         `json:"-"`
+	MimeType           string         `json:"mime_type,omitempty"`
+	SourceLanguage     string         `json:"source_language,omitempty"`
+	TargetLanguage     string         `json:"target_language"`
+	Model              string         `json:"model,omitempty"`
+	Params             map[string]any `json:"params,omitempty"`
 }
 
 type SubtitleResponse struct {
@@ -146,9 +183,17 @@ type TTSProvider interface {
 	Synthesize(ctx context.Context, req TTSRequest) (TTSResponse, error)
 }
 
+type AudioGenerationProvider interface {
+	GenerateAudio(ctx context.Context, req AudioGenerationRequest) (AudioGenerationResponse, error)
+}
+
 type SubtitleProvider interface {
 	Transcribe(ctx context.Context, req TranscribeRequest) (SubtitleResponse, error)
 	Align(ctx context.Context, req AlignRequest) (SubtitleResponse, error)
+}
+
+type SubtitleTranslateProvider interface {
+	TranslateSubtitle(ctx context.Context, req TranslateSubtitleRequest) (SubtitleResponse, error)
 }
 
 type Renderer interface {

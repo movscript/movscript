@@ -40,7 +40,7 @@ func (r *gormRepository) ListLogs(ctx context.Context, filter ListFilter) (Page,
 	rows := make([]persistencemodel.UsageLog, 0)
 	if err := q.
 		Preload("User").
-		Preload("AIModelConfig").
+		Preload("AIModelCatalogEntry").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&rows).Error; err != nil {
@@ -57,7 +57,7 @@ func (r *gormRepository) ExportLogs(ctx context.Context, filter ListFilter, limi
 	rows := make([]persistencemodel.UsageLog, 0)
 	if err := r.filteredQuery(ctx, filter).
 		Preload("User").
-		Preload("AIModelConfig").
+		Preload("AIModelCatalogEntry").
 		Order("usage_logs.id desc").
 		Limit(limit).
 		Find(&rows).Error; err != nil {
@@ -85,14 +85,15 @@ func (r *gormRepository) Summary(ctx context.Context, filter ListFilter) (Summar
 
 	topModels := make([]ModelSummary, 0)
 	if err := r.filteredQuery(ctx, filter).
-		Select("usage_logs.ai_model_config_id as model_config_id, " + usageSummarySelect("")).
-		Group("usage_logs.ai_model_config_id").
+		Select("usage_logs.ai_model_catalog_entry_id as ai_model_catalog_entry_id, " + usageSummarySelect("")).
+		Where("usage_logs.ai_model_catalog_entry_id IS NOT NULL").
+		Group("usage_logs.ai_model_catalog_entry_id").
 		Order("cost desc").
 		Limit(10).
 		Scan(&topModels).Error; err != nil {
 		return Summary{}, err
 	}
-	if err := r.fillModelRefs(ctx, topModels); err != nil {
+	if err := r.fillCatalogEntryRefs(ctx, topModels); err != nil {
 		return Summary{}, err
 	}
 
@@ -114,8 +115,15 @@ func (r *gormRepository) Summary(ctx context.Context, filter ListFilter) (Summar
 
 func (r *gormRepository) filteredQuery(ctx context.Context, filter ListFilter) *gorm.DB {
 	q := r.db.WithContext(ctx).
-		Model(&persistencemodel.UsageLog{}).
-		Joins("LEFT JOIN ai_model_configs ON ai_model_configs.id = usage_logs.ai_model_config_id")
+		Model(&persistencemodel.UsageLog{})
+	hasCatalogEntries := r.db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{})
+	hasLegacyConfigs := r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{})
+	if hasCatalogEntries {
+		q = q.Joins("LEFT JOIN ai_model_catalog_entries ON ai_model_catalog_entries.id = usage_logs.ai_model_catalog_entry_id")
+	}
+	if hasLegacyConfigs {
+		q = q.Joins("LEFT JOIN ai_model_configs ON ai_model_configs.id = usage_logs.ai_model_config_id")
+	}
 
 	if filter.UserID != "" {
 		q = q.Where("usage_logs.user_id = ?", filter.UserID)
@@ -126,11 +134,19 @@ func (r *gormRepository) filteredQuery(ctx context.Context, filter ListFilter) *
 	if filter.ProjectID != "" {
 		q = q.Where("usage_logs.project_id = ?", filter.ProjectID)
 	}
-	if filter.ModelConfigID != "" {
-		q = q.Where("usage_logs.ai_model_config_id = ?", filter.ModelConfigID)
+	if filter.ModelID != "" {
+		if hasCatalogEntries {
+			q = q.Where("ai_model_catalog_entries.public_model_id = ? OR ai_model_catalog_entries.provider_model_id = ?", filter.ModelID, filter.ModelID)
+		} else {
+			q = q.Where("1 = 0")
+		}
 	}
 	if filter.ProviderID != "" {
-		q = q.Where("ai_model_configs.credential_id = ?", filter.ProviderID)
+		if hasLegacyConfigs {
+			q = q.Where("ai_model_configs.credential_id = ?", filter.ProviderID)
+		} else {
+			q = q.Where("1 = 0")
+		}
 	}
 	if filter.GatewayKeyID != "" {
 		q = q.Where("usage_logs.gateway_api_key_id = ?", filter.GatewayKeyID)
@@ -161,34 +177,29 @@ func usageSummarySelect(prefix string) string {
 		"COALESCE(SUM(CASE WHEN " + prefix + ".operation_type = 'image' THEN " + prefix + ".image_count ELSE 0 END), 0) as image_count"
 }
 
-func (r *gormRepository) fillModelRefs(ctx context.Context, rows []ModelSummary) error {
+func (r *gormRepository) fillCatalogEntryRefs(ctx context.Context, rows []ModelSummary) error {
 	ids := make([]uint, 0, len(rows))
 	for _, row := range rows {
-		if row.ModelConfigID != 0 {
-			ids = append(ids, row.ModelConfigID)
+		if row.AIModelCatalogEntryID != nil && *row.AIModelCatalogEntryID != 0 {
+			ids = append(ids, *row.AIModelCatalogEntryID)
 		}
 	}
 	if len(ids) == 0 {
 		return nil
 	}
-	configs := make([]persistencemodel.AIModelConfig, 0, len(ids))
-	if err := r.db.WithContext(ctx).Find(&configs, ids).Error; err != nil {
+	entries := make([]persistencemodel.AIModelCatalogEntry, 0, len(ids))
+	if err := r.db.WithContext(ctx).Find(&entries, ids).Error; err != nil {
 		return err
 	}
-	byID := make(map[uint]ModelConfigRef, len(configs))
-	for _, cfg := range configs {
-		byID[cfg.ID] = ModelConfigRef{
-			ID:                cfg.ID,
-			CredentialID:      cfg.CredentialID,
-			ModelDefID:        cfg.ModelDefID,
-			ModelIDOverride:   cfg.ModelIDOverride,
-			CustomDisplayName: cfg.CustomDisplayName,
-			ShortName:         cfg.ShortName,
-		}
+	byID := make(map[uint]CatalogEntryRef, len(entries))
+	for _, entry := range entries {
+		byID[entry.ID] = catalogEntryRefFromModel(entry)
 	}
 	for i := range rows {
-		if ref, ok := byID[rows[i].ModelConfigID]; ok {
-			rows[i].AIModelConfig = &ref
+		if rows[i].AIModelCatalogEntryID != nil {
+			if ref, ok := byID[*rows[i].AIModelCatalogEntryID]; ok {
+				rows[i].AIModelCatalogEntry = &ref
+			}
 		}
 	}
 	return nil
@@ -230,36 +241,40 @@ func usageLogsFromModels(rows []persistencemodel.UsageLog) []Log {
 
 func usageLogFromModel(row persistencemodel.UsageLog) Log {
 	item := Log{
-		ID:                 row.ID,
-		UserID:             row.UserID,
-		OrgID:              row.OrgID,
-		AIModelConfigID:    row.AIModelConfigID,
-		UsageReservationID: row.UsageReservationID,
-		GatewayAPIKeyID:    row.GatewayAPIKeyID,
-		ProjectID:          row.ProjectID,
-		OperationType:      row.OperationType,
-		InputTokens:        row.InputTokens,
-		OutputTokens:       row.OutputTokens,
-		CachedInputTokens:  row.CachedInputTokens,
-		ReasoningTokens:    row.ReasoningTokens,
-		DurationSec:        row.DurationSec,
-		ImageCount:         row.ImageCount,
-		Cost:               row.Cost,
-		CreatedAt:          row.CreatedAt,
-		UpdatedAt:          row.UpdatedAt,
+		ID:                    row.ID,
+		UserID:                row.UserID,
+		OrgID:                 row.OrgID,
+		AIModelCatalogEntryID: row.AIModelCatalogEntryID,
+		UsageReservationID:    row.UsageReservationID,
+		GatewayAPIKeyID:       row.GatewayAPIKeyID,
+		ProjectID:             row.ProjectID,
+		OperationType:         row.OperationType,
+		InputTokens:           row.InputTokens,
+		OutputTokens:          row.OutputTokens,
+		CachedInputTokens:     row.CachedInputTokens,
+		ReasoningTokens:       row.ReasoningTokens,
+		DurationSec:           row.DurationSec,
+		ImageCount:            row.ImageCount,
+		Cost:                  row.Cost,
+		CreatedAt:             row.CreatedAt,
+		UpdatedAt:             row.UpdatedAt,
 	}
 	if row.User.ID != 0 {
 		item.User = &UserRef{ID: row.User.ID, Username: row.User.Username, SystemRole: row.User.SystemRole}
 	}
-	if row.AIModelConfig.ID != 0 {
-		item.AIModelConfig = &ModelConfigRef{
-			ID:                row.AIModelConfig.ID,
-			CredentialID:      row.AIModelConfig.CredentialID,
-			ModelDefID:        row.AIModelConfig.ModelDefID,
-			ModelIDOverride:   row.AIModelConfig.ModelIDOverride,
-			CustomDisplayName: row.AIModelConfig.CustomDisplayName,
-			ShortName:         row.AIModelConfig.ShortName,
-		}
+	if row.AIModelCatalogEntry != nil && row.AIModelCatalogEntry.ID != 0 {
+		ref := catalogEntryRefFromModel(*row.AIModelCatalogEntry)
+		item.AIModelCatalogEntry = &ref
 	}
 	return item
+}
+
+func catalogEntryRefFromModel(entry persistencemodel.AIModelCatalogEntry) CatalogEntryRef {
+	return CatalogEntryRef{
+		ID:              entry.ID,
+		PublicModelID:   entry.PublicModelID,
+		ProviderModelID: entry.ProviderModelID,
+		DisplayName:     entry.DisplayName,
+		ShortName:       entry.ShortName,
+	}
 }

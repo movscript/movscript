@@ -39,6 +39,7 @@ test('ensureDefaultAgentProviderFromBackend creates a backend provider from the 
   assert.equal(result.providerRef, 'backend:20')
   assert.equal(result.model, 'default-model')
   assert.equal(saves.length, 1)
+  assert.equal(saves[0]?.mova?.configSource, 'backend')
   assert.deepEqual(saves[0]?.mova?.config, { mode: 'backendKey', modelProviderRef: 'backend:20' })
   assert.deepEqual(saves[0]?.mova?.auth, { mode: 'backendKey', modelProviderRef: 'backend:20' })
   assert.deepEqual(saves[0]?.mova?.defaultAgentProvider, {

@@ -46,7 +46,7 @@ interface AgentComposerToolbarSectionProps {
   goalModeEnabled: boolean
   loading: boolean
   modelOptions: PublicModel[]
-  modelValue?: number | null
+  modelValue?: string | null
   profilePresetId: AgentRunProfilePresetId
   runProfile: { id: AgentRunProfilePresetId; label: string; description: string }
   showApprovalPresetSelector: boolean
@@ -64,7 +64,7 @@ interface AgentComposerToolbarSectionProps {
   onCollaborationModeChange?: (mode: 'default' | 'plan') => void
   onDebugBeforeSendChange: (next: boolean) => void
   onGoalModeEnabledChange?: (enabled: boolean) => void
-  onModelChange?: (modelId: number | null) => void
+  onModelChange?: (modelId: string | null) => void
   onProfilePresetChange: (profilePresetId: AgentRunProfilePresetId) => void
   onStopActiveRun: () => void
   onWorkspaceProjectChange?: (value: string) => void

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ElectronVideoClipStatus } from '@/shared/contracts/electronApi'
-import { getResourceVideoClipStatus, resourceVideoClipApiAvailable } from '@/features/resources/application/resourceVideoClipElectron'
+import { getResourceMediaPipelineTrimStatus, resourceMediaPipelineTrimApiAvailable } from '@/features/resources/application/resourceVideoClipElectron'
 
 export interface ResourceVideoClipStatusState extends Partial<ElectronVideoClipStatus> {
   loading: boolean
@@ -16,13 +16,13 @@ export function useResourceVideoClipStatus(): ResourceVideoClipStatusState {
 
   useEffect(() => {
     let active = true
-    if (!resourceVideoClipApiAvailable()) {
+    if (!resourceMediaPipelineTrimApiAvailable()) {
       setClipStatus({ loading: false, available: false, unavailableReason: 'desktop_unavailable' })
       return
     }
 
     setClipStatus({ loading: true, available: false })
-    getResourceVideoClipStatus()
+    getResourceMediaPipelineTrimStatus()
       .then((status) => {
         if (!active) return
         if (!status) {

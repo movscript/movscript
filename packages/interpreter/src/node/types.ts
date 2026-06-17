@@ -169,4 +169,5 @@ export interface MovScriptWorkspaceInterpretInput {
   now?: Date
   commit?: string
   checkpointHash?: string
+  debugArtifacts?: boolean
 }

@@ -61,8 +61,7 @@ export function normalizeProviderProfileConfigId(value: unknown): string {
 export function providerModelValue(models: PublicModel[], config: ProviderModelConfigPublic): string {
   const byPublicID = models.find((model) => publicModelId(model) === config.model)
   if (byPublicID) return publicModelId(byPublicID)
-  const byLegacyID = config.modelConfigId ? models.find((model) => model.id === config.modelConfigId) : undefined
-  return byLegacyID ? publicModelId(byLegacyID) : config.model
+  return config.model
 }
 
 export function modelDisplayName(models: PublicModel[], config: ProviderModelConfigPublic) {
@@ -144,7 +143,7 @@ export type ProviderModelSecretValidationIssue = 'model_id_secret' | 'base_url_s
 export type ProviderModelConfigRequest = Parameters<ProviderSessionClient['saveProviderModelConfig']>[0]
 export type ProviderModelOperationPlan = {
   request: ProviderModelConfigRequest
-  storedModelId: number | null
+  storedModelId: string | null
 }
 
 export function providerModelWorkspaceDraftFromConfig(input: {
@@ -177,9 +176,9 @@ export function clearedProviderModelWorkspaceDraft(input: {
   }
 }
 
-export function storedProviderModelWorkspaceId(models: PublicModel[], storedModelId: number | null | undefined): string | null {
+export function storedProviderModelWorkspaceId(models: PublicModel[], storedModelId: string | null | undefined): string | null {
   if (!storedModelId) return null
-  const storedModel = models.find((model) => model.id === storedModelId)
+  const storedModel = models.find((model) => publicModelId(model) === storedModelId)
   return storedModel ? publicModelId(storedModel) : null
 }
 
@@ -203,7 +202,6 @@ export function buildProviderModelConfigRequest(input: {
   useForPlanner: boolean
 }): ProviderModelConfigRequest {
   return {
-    ...(input.usesModelCatalog && input.selectedModel ? { modelConfigId: input.selectedModel.id } : {}),
     model: input.model,
     apiKind: input.apiKind,
     ...(input.baseURL ? { baseURL: input.baseURL } : {}),
@@ -216,7 +214,7 @@ export function buildProviderModelConfigRequest(input: {
 export function buildProviderModelOperationPlan(input: Parameters<typeof buildProviderModelConfigRequest>[0]): ProviderModelOperationPlan {
   return {
     request: buildProviderModelConfigRequest(input),
-    storedModelId: input.usesModelCatalog && input.selectedModel ? input.selectedModel.id : null,
+    storedModelId: input.usesModelCatalog && input.selectedModel ? publicModelId(input.selectedModel) : null,
   }
 }
 
@@ -239,10 +237,8 @@ export function providerConfigUsesModelCatalog(config: ProviderModelConfigPublic
 export function buildProviderModelConfigFromSnapshotModel(
   model: NonNullable<AgentSettingsSnapshot['model']>,
 ): Parameters<ProviderSessionClient['saveModelConfig']>[0] {
-  const platformModelId = model.platformModelId ? Number(model.platformModelId) : NaN
   return {
     model: model.model,
-    ...(Number.isFinite(platformModelId) ? { modelConfigId: platformModelId } : {}),
     ...(model.apiKind ? { apiKind: model.apiKind } : {}),
     ...(model.baseURL ? { baseURL: model.baseURL } : {}),
     useForChat: model.useForChat !== false,

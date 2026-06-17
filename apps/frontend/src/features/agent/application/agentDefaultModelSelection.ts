@@ -1,4 +1,5 @@
 import { selectDefaultAgentProviderModel } from '@/features/agent/application/defaultAgentProvider'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
 
 export function selectDefaultAgentModel(models: PublicModel[]): PublicModel | undefined {
@@ -7,11 +8,12 @@ export function selectDefaultAgentModel(models: PublicModel[]): PublicModel | un
 
 export function resolveAgentModelId(input: {
   models: PublicModel[]
-  selectedModelId?: number | null
-}): number | null {
+  selectedModelId?: string | null
+}): string | null {
   const explicit = input.selectedModelId
-  if (explicit !== undefined && explicit !== null && input.models.some((model) => model.id === explicit)) {
+  if (explicit !== undefined && explicit !== null && input.models.some((model) => publicModelId(model) === explicit)) {
     return explicit
   }
-  return selectDefaultAgentModel(input.models)?.id ?? null
+  const defaultModel = selectDefaultAgentModel(input.models)
+  return defaultModel ? publicModelId(defaultModel) : null
 }

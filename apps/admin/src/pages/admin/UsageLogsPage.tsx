@@ -35,7 +35,7 @@ type UsageTotals = {
 type UsageSummary = {
   totals: UsageTotals
   operations: Array<UsageTotals & { operation_type: string }>
-  top_models: Array<UsageTotals & { model_config_id: number; ai_model_config?: UsageLog['ai_model_config'] }>
+  top_models: Array<UsageTotals & { ai_model_catalog_entry?: UsageLog['ai_model_catalog_entry'] }>
   top_users: Array<UsageTotals & { user_id: number; user?: UsageLog['user'] }>
   generated_at: string
 }
@@ -79,12 +79,12 @@ function formatUsage(log: UsageLog): string {
 }
 
 function modelLabel(log: UsageLog): string {
-  return modelConfigLabel(log.ai_model_config, log.ai_model_config_id)
+  return catalogEntryLabel(log.ai_model_catalog_entry)
 }
 
-function modelConfigLabel(cfg: UsageLog['ai_model_config'], fallbackId: number): string {
-  if (!cfg) return `#${fallbackId}`
-  return cfg.short_name || cfg.custom_display_name || cfg.model_id_override || cfg.model_def_id || `#${cfg.ID}`
+function catalogEntryLabel(entry: UsageLog['ai_model_catalog_entry']): string {
+  if (!entry) return 'unknown model'
+  return entry.short_name || entry.display_name || entry.public_model_id || entry.provider_model_id || 'unknown model'
 }
 
 function formatCost(value: number | undefined, digits = 4): string {
@@ -111,7 +111,7 @@ export function UsageLogsPage() {
 
   const summaryParams = useMemo(() => ({
     provider_id: filters.providerId || undefined,
-    model_config_id: filters.modelConfigId || undefined,
+    model_id: filters.modelId.trim() || undefined,
     operation_type: filters.operationType || undefined,
     user_id: filters.userId.trim() || undefined,
     org_id: filters.orgId.trim() || undefined,
@@ -142,10 +142,6 @@ export function UsageLogsPage() {
   const summary = summaryQuery.data
   const credentials = credentialsQuery.data ?? []
   const pageCount = Math.max(1, Math.ceil(total / responsePageSize))
-  const models = credentials.flatMap((credential) =>
-    (credential.models ?? []).map((model) => ({ ...model, providerName: credential.display_name })),
-  )
-  const providerById = new Map(credentials.map((credential) => [credential.ID, credential.display_name]))
   const hasFilters = Object.values(filters).some((value) => value.trim() !== '')
   const queryError = credentialsQuery.error || logsQuery.error || summaryQuery.error
 
@@ -157,7 +153,6 @@ export function UsageLogsPage() {
 
   function updateFilter<K extends keyof UsageFilters>(key: K, value: UsageFilters[K]) {
     const next = { ...filters, [key]: value }
-    if (key === 'providerId') next.modelConfigId = ''
     setFilters(next)
     setPage(1)
     setSearchParams(usageSearchParams(next, 1), { replace: true })
@@ -176,8 +171,7 @@ export function UsageLogsPage() {
   }
 
   function providerLabel(log: UsageLog): string {
-    const credentialId = log.ai_model_config?.credential_id
-    return credentialId ? providerById.get(credentialId) ?? `#${credentialId}` : '-'
+    return log.ai_model_catalog_entry?.provider_model_id || '-'
   }
 
   async function exportCSV() {
@@ -242,22 +236,13 @@ export function UsageLogsPage() {
               <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>
             ))}
           </SelectField>
-          <SelectField label={t('admin.logs.model')} value={filters.modelConfigId} onChange={(value) => updateFilter('modelConfigId', value)}>
-            <option value="">{t('admin.logs.allModels')}</option>
-            {models
-              .filter((model) => !filters.providerId || String(model.credential_id) === filters.providerId)
-              .map((model) => (
-                <option key={model.ID} value={model.ID}>
-                  {model.short_name || model.custom_display_name || model.model_def_id} · {model.providerName}
-                </option>
-              ))}
-          </SelectField>
           <SelectField label={t('admin.logs.type')} value={filters.operationType} onChange={(value) => updateFilter('operationType', value)}>
             <option value="">{t('admin.logs.allOperations')}</option>
             {['text', 'image', 'video'].map((type) => (
               <option key={type} value={type}>{t(`admin.logs.operations.${type}`, { defaultValue: type })}</option>
             ))}
           </SelectField>
+          <FilterField label={t('admin.logs.modelId')} value={filters.modelId} onChange={(value) => updateFilter('modelId', value)} placeholder="gpt-5.2" />
           <FilterField label={t('admin.logs.userId')} value={filters.userId} onChange={(value) => updateFilter('userId', value)} placeholder="42" />
           <FilterField label={t('admin.logs.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value)} placeholder="1" />
           <FilterField label={t('admin.logs.projectId')} value={filters.projectId} onChange={(value) => updateFilter('projectId', value)} placeholder="128" />
@@ -303,10 +288,10 @@ export function UsageLogsPage() {
         <SummaryBreakdown title={t('admin.logs.summary.topModels')}>
           {(summary?.top_models ?? []).length === 0 ? (
             <SummaryEmpty />
-          ) : summary?.top_models.slice(0, 5).map((row) => (
+          ) : summary?.top_models.slice(0, 5).map((row, index) => (
             <SummaryRow
-              key={row.model_config_id}
-              label={modelConfigLabel(row.ai_model_config, row.model_config_id)}
+              key={`${catalogEntryLabel(row.ai_model_catalog_entry)}:${index}`}
+              label={catalogEntryLabel(row.ai_model_catalog_entry)}
               value={formatCost(row.cost)}
               detail={t('admin.logs.summary.recordCount', { count: formatCost(row.records, 0) })}
             />

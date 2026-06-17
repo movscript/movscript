@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
@@ -61,4 +62,38 @@ func TestResolveModelForCapabilityFallsBackToRoutingWhenCatalogIsEmpty(t *testin
 	if routes.routeRequest.ModelID != "logical-chat" || routes.routeRequest.Capability != ai.CapabilityText {
 		t.Fatalf("routing request = %#v, want logical-chat text lookup", routes.routeRequest)
 	}
+}
+
+func TestListChatModelsFiltersGatewayKeyAllowedCatalogEntries(t *testing.T) {
+	catalog := &fakeGatewayModelCatalog{
+		models: []providercontract.AIModelDescriptor{
+			{ModelID: "public-a", ModelConfigID: 101, CatalogEntryID: 1, Capabilities: []string{ai.CapabilityText}},
+			{ModelID: "public-b", ModelConfigID: 102, CatalogEntryID: 2, Capabilities: []string{ai.CapabilityText}},
+		},
+	}
+	service := &Service{catalog: catalog, policy: &PolicyService{}}
+	key := &domaingateway.APIKey{
+		AllowedScopes:          `["model:chat"]`,
+		AllowedCatalogEntryIDs: `[2]`,
+	}
+
+	models, err := service.ListChatModels(context.Background(), Principal{Key: key})
+	if err != nil {
+		t.Fatalf("ListChatModels() error = %v", err)
+	}
+	if len(models) != 1 || models[0].CatalogEntryID != 2 || models[0].ModelID != "public-b" {
+		t.Fatalf("models = %#v, want only allowed catalog entry 2", models)
+	}
+}
+
+type fakeGatewayModelCatalog struct {
+	models []providercontract.AIModelDescriptor
+}
+
+func (f *fakeGatewayModelCatalog) ListModels(context.Context, providercontract.AIModelListFilter) ([]providercontract.AIModelDescriptor, error) {
+	return f.models, nil
+}
+
+func (f *fakeGatewayModelCatalog) ResolveModel(context.Context, providercontract.AIModelResolveRequest) (providercontract.AIModelBinding, error) {
+	return providercontract.AIModelBinding{}, errors.New("not implemented")
 }

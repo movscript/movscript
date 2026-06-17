@@ -71,10 +71,15 @@ scene_moment
 -> generated/imported material candidates
 -> user/workflow selects material candidates
 -> interpreted edit_plan groups selected resources into tracks
--> domain_compose_scene_moment_from_edit_plan writes a scene-moment-level video candidate
+-> editing_project_create_from_edit_plan creates a MediaEditingProject
+-> editing_timeline_* adjusts tracks/clips when needed
+-> editing_task_render_create renders through Electron mediaPipeline
+-> editing_export_import_resource uploads the finished local export
+-> editing_export_create_candidate explicitly writes the RawResource-backed scene-moment video candidate
+-> HLS MediaStreamArtifact outputs stay hosted previews until domain candidate schema supports stream outputs
 ```
 
-Use the composed path when cross-shot voice, subtitles, sound design, visual consistency, or local regeneration matters.
+Use the editing path when cross-shot voice, subtitles, sound design, visual consistency, or local regeneration matters. `domain_compose_scene_moment_from_edit_plan` is not an available product editing path.
 
 ## Storyboards and Keyframes
 

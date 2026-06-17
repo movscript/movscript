@@ -14,7 +14,7 @@ import {
   MAX_CLIP_DURATION_MS,
   parseClipTimecode,
 } from '@/features/resources/domain/videoClipUi'
-import { clipResourceVideo } from '@/features/resources/application/resourceVideoClipElectron'
+import { trimResourceVideoSegment } from '@/features/resources/application/resourceVideoClipElectron'
 import { clipErrorMessage, sourceErrorMessage } from '@/features/resources/application/resourceVideoClipMessages'
 import { useResourceVideoClipSource } from '@/features/resources/application/useResourceVideoClipSource'
 import { useResourceVideoClipStatus } from '@/features/resources/application/useResourceVideoClipStatus'
@@ -99,7 +99,7 @@ export function VideoClipDialog({
       setClipPhase('preparing')
       const sourceData = await sourceBlob.arrayBuffer()
       setClipPhase('clipping')
-      const result = await clipResourceVideo({
+      const result = await trimResourceVideoSegment({
         sourceData,
         sourceName: resource.name,
         startMs,
@@ -219,7 +219,7 @@ export function VideoClipDialog({
       <ResourceDialogContent size="clip" hideClose>
           <ResourceDialogHeader
             icon={Scissors}
-            title={t('pages.resources.clipVideoTitle')}
+            title={t('pages.resources.trimVideoSegmentTitle')}
             close={(
             <ResourceDialogCloseButton
               disabled={isBusy}

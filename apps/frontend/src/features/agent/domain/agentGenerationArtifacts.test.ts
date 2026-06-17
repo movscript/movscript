@@ -158,7 +158,6 @@ test('generationParamAuditsFromRun extracts MCP model contract audit data', () =
         jobId: 101,
         param_validation: {
           audit_version: 1,
-          model_config_id: 42,
           model_contract_loaded: true,
           params_schema_loaded: true,
           params_schema_rule_count: 2,
@@ -209,7 +208,6 @@ test('generationParamAuditsFromRun extracts MCP model contract audit data', () =
     stepId: 'step_0',
     jobId: 101,
     auditVersion: 1,
-    modelConfigId: 42,
     modelContractLoaded: true,
     paramsSchemaLoaded: true,
     paramsSchemaRuleCount: 2,
@@ -259,7 +257,6 @@ test('generationParamAuditsFromRun extracts audit data from repaired generation 
         repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
         param_validation: {
           audit_version: 1,
-          model_config_id: 42,
           model_contract_loaded: true,
           params_schema_loaded: true,
           params_schema_rule_count: 4,
@@ -285,7 +282,6 @@ test('generationParamAuditsFromRun extracts audit data from repaired generation 
     stepId: 'step_0',
     jobId: 101,
     auditVersion: 1,
-    modelConfigId: 42,
     modelContractLoaded: true,
     paramsSchemaLoaded: true,
     paramsSchemaRuleCount: 4,
@@ -313,7 +309,6 @@ test('generationParamAuditsFromRun preserves null suggested fixes for parameter 
         jobId: 102,
         param_validation: {
           audit_version: 1,
-          model_config_id: 42,
           model_contract_loaded: true,
           params_schema_loaded: true,
           supported_params: ['duration', 'frames'],

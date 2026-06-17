@@ -7,6 +7,7 @@ import { fetchAgentBackendModels } from '@/features/agent/application/agentModel
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
 import { resourceKeys } from '@/features/resources/application/resourceQueryKeys'
 import { resolveAgentModelId } from '@/features/agent/application/agentDefaultModelSelection'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 
 interface UseAgentChatDataSourcesInput {
   settings: AgentSettings
@@ -28,12 +29,12 @@ export function useAgentChatDataSources({
 
   useEffect(() => {
     if (textModels.length <= 0 || settings.modelId === null) return
-    const exists = textModels.some((model) => model.id === settings.modelId)
+    const exists = textModels.some((model) => publicModelId(model) === settings.modelId)
     if (!exists) updateSettings({ modelId: null })
   }, [settings.modelId, textModels, updateSettings])
 
   const modelId = resolveAgentModelId({ models: textModels, selectedModelId: settings.modelId })
-  const activeModel = textModels.find((model) => model.id === modelId)
+  const activeModel = textModels.find((model) => publicModelId(model) === modelId)
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
 
   return {

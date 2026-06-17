@@ -269,21 +269,29 @@ type chatCompletionStreamEvent struct {
 }
 
 type createGatewayAPIKeyRequest struct {
-	Name            string                            `json:"name" binding:"required"`
-	ProjectID       *uint                             `json:"project_id"`
-	AllowedModelIDs []uint                            `json:"allowed_model_ids"`
-	AllowedScopes   []string                          `json:"allowed_scopes"`
-	Runtime         gatewayAPIKeyCreateRuntimeRequest `json:"runtime,omitempty"`
+	Name                   string                            `json:"name" binding:"required"`
+	ProjectID              *uint                             `json:"project_id"`
+	AllowedCatalogEntryIDs []uint                            `json:"allowed_catalog_entry_ids"`
+	AllowedScopes          []string                          `json:"allowed_scopes"`
+	Runtime                gatewayAPIKeyCreateRuntimeRequest `json:"runtime,omitempty"`
 }
 
 type updateGatewayAPIKeyRequest struct {
-	Name            *string                           `json:"name"`
-	ProjectID       *uint                             `json:"project_id"`
-	ProjectIDSet    bool                              `json:"-"`
-	AllowedModelIDs []uint                            `json:"allowed_model_ids"`
-	AllowedScopes   []string                          `json:"allowed_scopes"`
-	IsEnabled       *bool                             `json:"is_enabled"`
-	Runtime         gatewayAPIKeyUpdateRuntimeRequest `json:"runtime,omitempty"`
+	Name                   *string                           `json:"name"`
+	ProjectID              *uint                             `json:"project_id"`
+	ProjectIDSet           bool                              `json:"-"`
+	AllowedCatalogEntryIDs []uint                            `json:"allowed_catalog_entry_ids"`
+	AllowedScopes          []string                          `json:"allowed_scopes"`
+	IsEnabled              *bool                             `json:"is_enabled"`
+	Runtime                gatewayAPIKeyUpdateRuntimeRequest `json:"runtime,omitempty"`
+}
+
+func (r createGatewayAPIKeyRequest) allowedCatalogEntryIDs() []uint {
+	return r.AllowedCatalogEntryIDs
+}
+
+func (r updateGatewayAPIKeyRequest) allowedCatalogEntryIDs() []uint {
+	return r.AllowedCatalogEntryIDs
 }
 
 func (r *updateGatewayAPIKeyRequest) UnmarshalJSON(data []byte) error {
@@ -303,7 +311,27 @@ func (r *updateGatewayAPIKeyRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type gatewayAPIKeyCreateResponse struct {
+type gatewayAPIKeyResponse struct {
 	domaingateway.APIKey
+	AllowedCatalogEntryIDs string `json:"allowed_catalog_entry_ids"`
+}
+
+type gatewayAPIKeyCreateResponse struct {
+	gatewayAPIKeyResponse
 	Key string `json:"key"`
+}
+
+func newGatewayAPIKeyResponse(key domaingateway.APIKey) gatewayAPIKeyResponse {
+	return gatewayAPIKeyResponse{
+		APIKey:                 key,
+		AllowedCatalogEntryIDs: key.AllowedCatalogEntryIDs,
+	}
+}
+
+func gatewayAPIKeyResponses(keys []domaingateway.APIKey) []gatewayAPIKeyResponse {
+	responses := make([]gatewayAPIKeyResponse, 0, len(keys))
+	for _, key := range keys {
+		responses = append(responses, newGatewayAPIKeyResponse(key))
+	}
+	return responses
 }

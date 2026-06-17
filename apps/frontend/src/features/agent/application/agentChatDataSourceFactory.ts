@@ -75,6 +75,6 @@ async function currentAppServerRpcClient(provider: ProviderConfig) {
 function selectedAgentModel(textModels: Awaited<ReturnType<typeof fetchAgentBackendModels>>): AgentChatModelSelection {
   const settings = useAgentStore.getState().settings
   const modelId = resolveAgentModelId({ models: textModels, selectedModelId: settings.modelId })
-  const selectedModel = textModels.find((model) => model.id === modelId)
+  const selectedModel = textModels.find((model) => publicModelId(model) === modelId)
   return selectedModel ? { model: publicModelId(selectedModel) } : {}
 }

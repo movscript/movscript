@@ -10,7 +10,6 @@ export default function App() {
   const userHydrated = useUserStore((s) => s.hydrated)
   const settingsHydrated = useAppSettingsStore((s) => s.hydrated)
   const windowContextHydrated = useAppWindowContextStore((s) => s.hydrated)
-  const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
 
   return (
     <>
@@ -20,7 +19,7 @@ export default function App() {
       ) : user ? (
         <AuthenticatedAppRouter />
       ) : (
-        <AnonymousAppRouter onboardingCompleted={onboardingCompleted} />
+        <AnonymousAppRouter />
       )}
     </>
   )

@@ -23,6 +23,7 @@ type ListOptions struct {
 
 type PublicModel struct {
 	ID                uint                                      `json:"id"`
+	CatalogEntryID    uint                                      `json:"catalog_entry_id,omitempty"`
 	CredentialID      uint                                      `json:"credential_id"`
 	ModelID           string                                    `json:"model_id"`
 	DisplayName       string                                    `json:"display_name"`
@@ -43,6 +44,13 @@ type PublicModel struct {
 	SupportedParams   []map[string]any                          `json:"supported_params,omitempty"`
 	InputRequirements providercontract.AIModelInputRequirements `json:"input_requirements,omitempty"`
 	ParamsSchema      map[string]any                            `json:"params_schema,omitempty"`
+}
+
+func visibleModelID(modelConfigID uint, catalogEntryID uint) uint {
+	if catalogEntryID != 0 {
+		return catalogEntryID
+	}
+	return modelConfigID
 }
 
 func NewService(modelCatalog providercontract.AIGatewayModelCatalog, cacheStore ...cache.Cache) *Service {
@@ -96,8 +104,15 @@ func (s *Service) ListByCapabilityForRoute(ctx context.Context, capability strin
 }
 
 func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) PublicModel {
+	modelDefID := descriptor.ModelDefID
+	modelIDOverride := descriptor.ModelIDOverride
+	if descriptor.CatalogEntryID != 0 {
+		modelDefID = descriptor.ModelID
+		modelIDOverride = ""
+	}
 	return PublicModel{
-		ID:                descriptor.ModelConfigID,
+		ID:                visibleModelID(descriptor.ModelConfigID, descriptor.CatalogEntryID),
+		CatalogEntryID:    descriptor.CatalogEntryID,
 		CredentialID:      descriptor.CredentialID,
 		ModelID:           descriptor.ModelID,
 		DisplayName:       descriptor.DisplayName,
@@ -110,8 +125,8 @@ func publicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) Pu
 		IsDefault:         descriptor.IsDefault,
 		LogicalModelID:    descriptor.LogicalModelID,
 		ProviderVariants:  descriptor.ProviderVariants,
-		ModelDefID:        descriptor.ModelDefID,
-		ModelIDOverride:   descriptor.ModelIDOverride,
+		ModelDefID:        modelDefID,
+		ModelIDOverride:   modelIDOverride,
 		Priority:          descriptor.Priority,
 		CapacityWeight:    descriptor.CapacityWeight,
 		MaxConcurrency:    descriptor.MaxConcurrency,

@@ -38,7 +38,7 @@ export type ConversationWorkspace = AgentConversationWorkspace
 
 export interface AgentSettings {
   activeProviderProfileConfigId: AgentSettingsProviderProfileConfigId
-  modelId: number | null
+  modelId: string | null
   collaborationMode: 'default' | 'plan'
   goalModeEnabled: boolean
   includeProjectContext: boolean
@@ -489,8 +489,7 @@ export function appendSettingsAuditEntry(
   return normalizeSettingsAuditTrail([normalized, ...current])
 }
 
-function normalizePersistedModelId(input: unknown): number | null {
+function normalizePersistedModelId(input: unknown): string | null {
   if (input === null || input === undefined) return null
-  const numeric = Number(input)
-  return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
+  return typeof input === 'string' && input.trim() ? input.trim() : null
 }

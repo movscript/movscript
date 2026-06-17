@@ -96,7 +96,7 @@ function CanvasGenerationParamControls({
     onChange: (value: string) => {
       const model = models.find((item) => publicModelId(item) === value)
       if (!model) return
-      data.onUpdateModelId?.(publicModelId(model), model.id)
+      data.onUpdateModelId?.(publicModelId(model))
       data.onUpdateParams?.(canvasDefaultParamValues(canvasGenerationParamDefs(nodeType, outputType, model)))
     },
   } : undefined

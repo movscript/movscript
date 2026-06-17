@@ -106,7 +106,7 @@ export function AgentControlMatrixPanel({
 
       {error ? <AgentConsoleInlineError>{error}</AgentConsoleInlineError> : null}
 
-      <AgentConsoleGrid columns="server">
+      <AgentConsoleGrid columns="single">
         <AgentConsoleLocalToolCard invalid={Boolean(error) || !appServerEnabled}>
           <AgentConsoleLocalToolHeader>
             <AgentConsoleLocalToolCopy>

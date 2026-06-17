@@ -83,6 +83,20 @@ import type {
   ElectronProviderSessionSummary,
   ElectronShotCutInput,
   ElectronShotCutResult,
+  ElectronMediaPipelineTaskLogs,
+  ElectronMediaPipelineTaskEvent,
+  ElectronMediaPipelineCapabilities,
+  ElectronMediaEditingProjectGetResult,
+  ElectronMediaEditingProjectSaveResult,
+  ElectronMediaExportImportInput,
+  ElectronMediaExportImportResult,
+  ElectronMediaExportSaveLocalInput,
+  ElectronMediaExportSaveLocalResult,
+  ElectronMediaHlsPublishInput,
+  ElectronMediaHlsPublishResult,
+  ElectronMediaPipelineEditingProject,
+  ElectronMediaPipelineTaskRequest,
+  ElectronMediaPipelineTaskState,
   ElectronTimelineVideoInput,
   ElectronTimelineVideoResult,
   ElectronVideoClipInput,
@@ -198,9 +212,20 @@ export type ElectronAPI = {
   getProjectPluginSnapshot?: (input?: ElectronMovScriptHomeInput & { projectId?: string | number; userId?: string | number; orgId?: string | number }) => Promise<ElectronProjectPluginSnapshot>
   installProjectPlugin?: (input: ElectronProjectPluginInstallInput) => Promise<ElectronProjectPluginSnapshot>
   setProjectSkillEnabled?: (input: ElectronProjectSkillToggleInput) => Promise<ElectronProjectPluginSnapshot>
-  clipVideo?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
-  exportTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
-  getVideoClipStatus?: () => Promise<ElectronVideoClipStatus>
-  analyzeShotCuts?: (input: ElectronShotCutInput) => Promise<ElectronShotCutResult>
+  renderMediaPipelineSingleClip?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
+  renderMediaPipelineTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
+  getMediaPipelineFFmpegStatus?: () => Promise<ElectronVideoClipStatus>
+  analyzeMediaPipelineShotCuts?: (input: ElectronShotCutInput) => Promise<ElectronShotCutResult>
+  saveMediaEditingProject?: (input: { editingProject?: ElectronMediaPipelineEditingProject; editing_project?: ElectronMediaPipelineEditingProject }) => Promise<ElectronMediaEditingProjectSaveResult>
+  getMediaEditingProject?: (input: { projectId?: string; project_id?: string; editingProjectId?: string; editing_project_id?: string }) => Promise<ElectronMediaEditingProjectGetResult>
+  importMediaExportResource?: (input: ElectronMediaExportImportInput) => Promise<ElectronMediaExportImportResult>
+  saveMediaExportLocal?: (input: ElectronMediaExportSaveLocalInput) => Promise<ElectronMediaExportSaveLocalResult>
+  publishMediaHlsStream?: (input: ElectronMediaHlsPublishInput) => Promise<ElectronMediaHlsPublishResult>
+  getMediaPipelineCapabilities?: () => Promise<ElectronMediaPipelineCapabilities>
+  createMediaPipelineTask?: (input: ElectronMediaPipelineTaskRequest) => Promise<ElectronMediaPipelineTaskState>
+  getMediaPipelineTask?: (input: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => Promise<ElectronMediaPipelineTaskState | null>
+  cancelMediaPipelineTask?: (input: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => Promise<ElectronMediaPipelineTaskState>
+  getMediaPipelineTaskLogs?: (input: { taskId?: string; task_id?: string; projectId?: string; project_id?: string }) => Promise<ElectronMediaPipelineTaskLogs>
+  onMediaPipelineTaskEvent?: (handler: (event: ElectronMediaPipelineTaskEvent) => void) => () => void
   onMCPOpenRoute?: (handler: (route: string) => void) => () => void
 }

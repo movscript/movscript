@@ -17,19 +17,15 @@ func TestServiceUsesGatewayAuditLogReaderContract(t *testing.T) {
 	reader := &fakeAuditLogReader{
 		page: providercontract.AIGatewayCallLogPage{
 			Items: []providercontract.AIGatewayCallLog{{
-				ID:              1,
-				UserID:          7,
-				AIModelConfigID: 9,
-				CredentialID:    11,
-				OperationType:   "text",
-				Status:          "success",
-				InputTokens:     3,
-				OutputTokens:    2,
-				CreatedAt:       now,
-				AIModelConfig: &providercontract.AIGatewayCallLogModelConfigRef{
-					ID:         9,
-					ModelDefID: "gpt-5.2",
-				},
+				ID:            1,
+				UserID:        7,
+				ModelID:       "gpt-5.2",
+				CredentialID:  11,
+				OperationType: "text",
+				Status:        "success",
+				InputTokens:   3,
+				OutputTokens:  2,
+				CreatedAt:     now,
 			}},
 			Total:    1,
 			Page:     2,
@@ -50,7 +46,7 @@ func TestServiceUsesGatewayAuditLogReaderContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListLLMCallLogs() error = %v", err)
 	}
-	if page.Total != 1 || page.Page != 2 || len(page.Items) != 1 || page.Items[0].AIModelConfig.ModelDefID != "gpt-5.2" {
+	if page.Total != 1 || page.Page != 2 || len(page.Items) != 1 || page.Items[0].ModelID != "gpt-5.2" {
 		t.Fatalf("page = %#v, want reader data mapped to debug shape", page)
 	}
 	summary, err := service.LLMCallLogSummary(context.Background(), filter)
@@ -62,6 +58,39 @@ func TestServiceUsesGatewayAuditLogReaderContract(t *testing.T) {
 	}
 	if len(reader.filters) != 2 || reader.filters[0].CredentialID != "11" || reader.filters[0].Status != "success" || reader.filters[0].Page != 2 {
 		t.Fatalf("reader filters = %#v, want mapped filters", reader.filters)
+	}
+}
+
+func TestListLLMCallLogsWithoutLegacyModelConfigTable(t *testing.T) {
+	db := testutil.OpenSQLite(t, "debug-llm-no-legacy-model-config.db", &persistencemodel.User{}, &persistencemodel.LLMCallLog{})
+	row := persistencemodel.LLMCallLog{
+		UserID:        7,
+		CredentialID:  3,
+		OperationType: "text",
+		RequestModel:  "gpt-5.2",
+		ResponseModel: "gpt-5.2",
+		Status:        "success",
+		LatencyMs:     12,
+	}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("seed llm call log: %v", err)
+	}
+
+	service := NewService(db)
+	page, err := service.ListLLMCallLogs(context.Background(), LLMCallLogFilter{ModelID: "gpt-5.2"})
+	if err != nil {
+		t.Fatalf("ListLLMCallLogs() without legacy model config table error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ModelID != "gpt-5.2" {
+		t.Fatalf("page = %#v, want request/response model fallback", page)
+	}
+
+	summary, err := service.LLMCallLogSummary(context.Background(), LLMCallLogFilter{ModelID: "gpt-5.2"})
+	if err != nil {
+		t.Fatalf("LLMCallLogSummary() without legacy model config table error = %v", err)
+	}
+	if summary.Total != 1 || summary.Success != 1 {
+		t.Fatalf("summary = %#v, want one successful call", summary)
 	}
 }
 
@@ -134,9 +163,9 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	orgID := uint(2)
 	otherOrgID := uint(3)
 	jobs := []persistencemodel.Job{
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed},
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "image", FeatureKey: "ref_image_gen", Status: domainjob.StatusSucceeded},
-		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.fast"}`},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "image", FeatureKey: "ref_image_gen", Status: domainjob.StatusSucceeded, RequestContext: `{"model_id":"image.fast"}`},
+		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed, RequestContext: `{"model_id":"video.slow"}`},
 	}
 	if err := db.Create(&jobs).Error; err != nil {
 		t.Fatalf("seed jobs: %v", err)
@@ -144,14 +173,14 @@ func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
 	service := NewService(db)
 
 	items, total, err := service.ListJobDetails(context.Background(), JobFilters{
-		JobID:         &jobs[0].ID,
-		Status:        domainjob.StatusFailed,
-		JobType:       "video_i2v",
-		FeatureKey:    "ref_video_gen",
-		UserID:        uintPtr(7),
-		OrgID:         &orgID,
-		ProjectID:     &projectID,
-		ModelConfigID: uintPtr(4),
+		JobID:      &jobs[0].ID,
+		Status:     domainjob.StatusFailed,
+		JobType:    "video_i2v",
+		FeatureKey: "ref_video_gen",
+		UserID:     uintPtr(7),
+		OrgID:      &orgID,
+		ProjectID:  &projectID,
+		ModelID:    "video.fast",
 	}, 20, 0)
 	if err != nil {
 		t.Fatalf("ListJobDetails returned error: %v", err)

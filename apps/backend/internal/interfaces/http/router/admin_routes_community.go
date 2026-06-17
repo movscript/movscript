@@ -1,40 +1,22 @@
 package router
 
-import (
-	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/infra/observability"
-)
+import "github.com/gin-gonic/gin"
 
 func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	// adapters and model presets (read-only UI templates, not used at runtime)
 	admin.GET("/adapters", h.ai.ListAdapters)
 	admin.GET("/model-presets", h.ai.ListModelPresets)
+	admin.GET("/model-catalog", h.ai.ListModelCatalogEntries)
+	admin.POST("/model-catalog", h.ai.CreateModelCatalogEntry)
+	admin.PUT("/model-catalog/:id", h.ai.UpdateModelCatalogEntry)
+	admin.DELETE("/model-catalog/:id", h.ai.DeleteModelCatalogEntry)
+	admin.POST("/model-catalog/:id/route-bindings", h.ai.CreateModelRouteBinding)
+	admin.PUT("/model-catalog/:id/route-bindings/:bindingId", h.ai.UpdateModelRouteBinding)
+	admin.DELETE("/model-catalog/:id/route-bindings/:bindingId", h.ai.DeleteModelRouteBinding)
 
-	// credentials (one per adapter type)
-	admin.GET("/provider-instances", h.ai.ListProviderInstances)
-	admin.GET("/provider-instances/:id/config", h.ai.GetProviderInstanceConfig)
-	admin.PUT("/provider-instances/:id/config", h.ai.UpdateProviderInstanceConfig)
-	admin.POST("/provider-instances/:id/config/apply", h.ai.ApplyProviderInstanceConfig)
-	admin.POST("/provider-instances/:id/config/activate", h.ai.ActivateProviderInstanceConfig)
-	admin.POST("/provider-instances/:id/test", h.ai.TestProviderInstance)
-	admin.GET("/credentials", h.ai.ListCredentials)
-	admin.POST("/credentials", h.ai.CreateCredential)
-	admin.PUT("/credentials/:id", h.ai.UpdateCredential)
-	admin.DELETE("/credentials/:id", h.ai.DeleteCredential)
-	admin.POST("/credentials/:id/test", h.ai.TestCredential)
-	admin.GET("/credentials/:id/remote-models", h.ai.ListRemoteModels)
-
-	// model configs (admin-declared model activation per credential)
-	admin.GET("/credentials/:id/models", h.ai.ListModelConfigs)
-	admin.POST("/credentials/:id/models", h.ai.CreateModelConfig)
-	admin.PUT("/credentials/:id/models/:modelId", h.ai.UpdateModelConfig)
-	admin.DELETE("/credentials/:id/models/:modelId", h.ai.DeleteModelConfig)
-	admin.POST("/credentials/:id/models/:modelId/test", h.ai.TestModelConfig)
-	admin.POST("/credentials/:id/models/:modelId/debug", h.ai.DebugModelConfig)
-
-	// flat model-config patch (no credential_id in path)
-	admin.PATCH("/model-configs/:id", h.ai.PatchModelConfig)
-	admin.POST("/model-configs/preview-contract", h.ai.PreviewModelConfigContract)
+	if !editionUsesModelCatalogOnly() {
+		registerLegacyAIProviderAdminRoutes(admin, h)
+	}
 
 	// user management
 	admin.GET("/overview", h.adminOverview.Summary)
@@ -66,8 +48,8 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/audit-logs/summary", h.audit.Summary)
 	admin.GET("/audit-logs/export", h.audit.Export)
 	admin.GET("/audit-logs", h.audit.List)
-	admin.GET("/usage-logs/summary", h.usageAdmin.Summary)
-	admin.GET("/usage-logs/export", h.usageAdmin.Export)
+	admin.GET("/usage-logs/summary", adminUsageSummaryHandler(h))
+	admin.GET("/usage-logs/export", adminUsageExportHandler(h))
 	admin.GET("/usage-logs", adminUsageListHandler(h))
 	admin.GET("/projects", h.projects.AdminList)
 	admin.POST("/projects", h.projects.AdminCreate)
@@ -87,6 +69,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/resource-storage/resources/:id/file", h.resourceAdmin.ServeFile)
 	admin.DELETE("/resource-storage/resources/:id", h.resourceAdmin.DeleteResource)
 	admin.POST("/resource-storage/blobs/gc", h.resourceAdmin.CollectUnusedBlobs)
+	admin.POST("/resource-storage/media-streams/gc", h.mediaStreams.CleanupExpired)
 
 	// shot vector library management
 	admin.GET("/shot-vectors/stats", h.shotReferences.AdminVectorStats)
@@ -101,25 +84,23 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.POST("/cloud-file-configs/:id/test", h.cloudFileConfig.Test)
 	admin.DELETE("/cloud-file-configs/:id", h.cloudFileConfig.Delete)
 
-	// debug
-	admin.POST("/debug/raw-call", h.debug.RawCall)
-	admin.POST("/debug/provider-call", h.debug.ProviderCall)
-	admin.GET("/debug/llm-calls", h.debug.ListLLMCallLogs)
-	admin.GET("/debug/llm-calls/summary", h.debug.LLMCallLogSummary)
-	admin.GET("/debug/llm-calls/settings", h.debug.GetLLMCallLogSettings)
-	admin.PUT("/debug/llm-calls/settings", h.debug.UpdateLLMCallLogSettings)
-	admin.POST("/debug/llm-calls/purge-expired", h.debug.PurgeExpiredLLMCallLogs)
-	admin.PATCH("/debug/llm-calls/:id/expiration", h.debug.UpdateLLMCallLogExpiration)
-	admin.GET("/debug/jobs", h.debug.ListJobs)
-	admin.GET("/debug/job-stats", h.debug.JobStats)
-	admin.GET("/debug/health", h.debug.SystemHealth)
-	admin.GET("/debug/model-runtime-health", h.debug.ModelRuntimeHealth)
-	admin.GET("/debug/health-settings", h.debug.GetHealthSettings)
-	admin.PUT("/debug/health-settings", h.debug.UpdateHealthSettings)
-	admin.GET("/debug/agent-telemetry", h.agentTelemetry.Snapshot)
-	admin.GET("/debug/jobs/:id", h.debug.GetJob)
-	admin.POST("/debug/jobs/:id/cancel", h.jobs.AdminCancel)
-	admin.POST("/debug/jobs/:id/retry", h.jobs.AdminRetry)
-	admin.DELETE("/debug/jobs/:id", h.jobs.AdminDelete)
-	admin.GET("/debug/metrics", observability.MetricsSnapshotHandler(observability.DefaultHTTPMetrics()))
+	registerAdminDebugRoutes(admin, h)
+}
+
+func registerLegacyAIProviderAdminRoutes(admin *gin.RouterGroup, h handlers) {
+	// Community local-provider model management. Enterprise new-api mode uses
+	// /model-catalog and intentionally does not register these routes.
+	admin.GET("/provider-instances", h.ai.ListProviderInstances)
+	admin.GET("/provider-instances/:id/config", h.ai.GetProviderInstanceConfig)
+	admin.PUT("/provider-instances/:id/config", h.ai.UpdateProviderInstanceConfig)
+	admin.POST("/provider-instances/:id/config/apply", h.ai.ApplyProviderInstanceConfig)
+	admin.POST("/provider-instances/:id/config/activate", h.ai.ActivateProviderInstanceConfig)
+	admin.POST("/provider-instances/:id/test", h.ai.TestProviderInstance)
+	admin.GET("/credentials", h.ai.ListCredentials)
+	admin.POST("/credentials", h.ai.CreateCredential)
+	admin.PUT("/credentials/:id", h.ai.UpdateCredential)
+	admin.DELETE("/credentials/:id", h.ai.DeleteCredential)
+	admin.POST("/credentials/:id/test", h.ai.TestCredential)
+	admin.GET("/credentials/:id/remote-models", h.ai.ListRemoteModels)
+
 }

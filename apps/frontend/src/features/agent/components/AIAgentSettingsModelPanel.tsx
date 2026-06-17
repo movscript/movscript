@@ -1,6 +1,6 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Save, TestTube2, Trash2 } from 'lucide-react'
+import { Loader2, Save, SlidersHorizontal, TestTube2, Trash2 } from 'lucide-react'
 import { AgentDataBlock } from '@movscript/ui/business/agent'
 import {
   AgentSettingsActionButton,
@@ -125,6 +125,10 @@ export function AIAgentSettingsModelPanel({
   onSwitchToResponses: () => void
 }) {
   const { t } = useTranslation()
+  const hasAdvancedModelConfig = Boolean(baseURLValue) || selectedApiKind !== 'openai_responses' || usesManualModelId || modelRouteIssues.length > 0
+  const [advancedControlsOpen, setAdvancedControlsOpen] = useState(false)
+  const [advancedControlsCollapsed, setAdvancedControlsCollapsed] = useState(false)
+  const showAdvancedControls = hasAdvancedModelConfig ? !advancedControlsCollapsed : advancedControlsOpen
 
   return (
     <AgentSettingsPanel
@@ -132,70 +136,11 @@ export function AIAgentSettingsModelPanel({
       title={t('agents.settings.modelPanel')}
     >
       <AgentSettingsFieldHelp>{t('agents.settings.sectionDescriptions.model')}</AgentSettingsFieldHelp>
-      <ApiModeCapabilityMatrix apiKind={selectedApiKind} t={t} />
-      <AgentSettingsFormGrid columns="model">
-        <AgentSettingsFormField>
-          <AgentSettingsFieldLabel>{t('agents.settings.apiKindLabel')}</AgentSettingsFieldLabel>
-          <Select
-            value={selectedApiKind}
-            onValueChange={(value) => {
-              const apiKind = value as ProviderModelAPIKind
-              setSelectedApiKind(apiKind)
-            }}
-          >
-            <AgentSettingsSelectTrigger>
-              <SelectValue placeholder={t('agents.settings.selectApiKind')} />
-            </AgentSettingsSelectTrigger>
-            <SelectContent>
-              {API_KIND_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.labelKey)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <AgentSettingsFieldHelp>
-            {t(API_KIND_OPTIONS.find((option) => option.value === selectedApiKind)?.descriptionKey ?? API_KIND_OPTIONS[0].descriptionKey)}
-          </AgentSettingsFieldHelp>
-        </AgentSettingsFormField>
-
-        <AgentSettingsFormField>
-          <AgentSettingsFieldLabel>{t('agents.settings.baseUrlLabel')}</AgentSettingsFieldLabel>
-          <AgentSettingsInput
-            value={baseURL}
-            onChange={(event) => setBaseURL(event.target.value)}
-            placeholder={apiKindBaseURLPlaceholder(selectedApiKind)}
-          />
-          <AgentSettingsFieldHelp>{t('agents.settings.baseUrlHelp')}</AgentSettingsFieldHelp>
-          {modelBaseURLHasSecret && (
-            <AgentSettingsCallout data-testid="agent-settings-base-url-secret-warning" tone="danger" compact>
-              {t('agents.settings.baseUrlSecretsBlocked')}
-              <AgentSettingsActionButton
-                size="xs"
-                variant="outline"
-                onClick={onStripModelBaseURLSecrets}
-                data-testid="agent-settings-strip-base-url-secrets"
-              >
-                {t('agents.settings.quickFixes.stripSensitiveBaseURLQuery')}
-              </AgentSettingsActionButton>
-            </AgentSettingsCallout>
-          )}
-          {usesManualModelId && baseURLValue && !usesBackendCompatibleBaseURL && (
-            <AgentSettingsFormField>
-              <AgentSettingsFieldLabel>{t('agents.settings.providerApiKeyLabel')}</AgentSettingsFieldLabel>
-              <AgentSettingsInput
-                value={modelApiKey}
-                onChange={(event) => setModelApiKey(event.target.value)}
-                placeholder={effectiveConfig?.apiKeyConfigured ? t('agents.settings.providerApiKeyConfiguredPlaceholder') : t('agents.settings.providerApiKeyPlaceholder')}
-                type="password"
-                autoComplete="off"
-                data-testid="agent-settings-provider-api-key"
-              />
-              <AgentSettingsFieldHelp>{t('agents.settings.providerCredentialHelp')}</AgentSettingsFieldHelp>
-            </AgentSettingsFormField>
-          )}
-        </AgentSettingsFormField>
-      </AgentSettingsFormGrid>
+      <AgentSettingsCallout compact tone={usesModelCatalog ? 'neutral' : 'warning'}>
+        {usesModelCatalog
+          ? '默认使用后端模型目录。多数情况下只需要选择模型，然后保存并测试。'
+          : '当前正在使用自定义模型服务，需要保留高级模型路由设置。'}
+      </AgentSettingsCallout>
 
       <AgentSettingsFormField>
         <AgentSettingsFieldLabel>
@@ -240,28 +185,117 @@ export function AIAgentSettingsModelPanel({
         )}
       </AgentSettingsFormField>
 
-      <AgentSettingsFormGrid columns="two">
-        <AgentSettingsToggleRow checked={useForChat} onChange={setUseForChat} title={t('agents.settings.useForChat')} description={t('agents.settings.useForChatHelp')} />
-        <AgentSettingsToggleRow checked={useForPlanner} onChange={setUseForPlanner} title={t('agents.settings.useForPlanner')} description={t('agents.settings.useForPlannerHelp')} />
-      </AgentSettingsFormGrid>
-      {modelRouteIssues.length > 0 && (
-        <AgentSettingsCallout tone="warning" compact>
-          {modelRouteIssues.map((issue) => t(`agents.settings.modelRouteIssues.${issue}`)).join('\n')}
-        </AgentSettingsCallout>
-      )}
-      <ModelCompatibilityProbePanel probes={modelCompatibilityProbes} />
-      <ApiModeMigrationGuide
-        apiKind={selectedApiKind}
-        onSwitchToResponses={onSwitchToResponses}
-      />
-      <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchTaskGraph} />
-      {usesModelCatalog && selectedModel && (
-        <AgentSettingsFormGrid columns="two">
-          <AgentSettingsKeyValue label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
-          <AgentSettingsKeyValue label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
-          <AgentSettingsKeyValue label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
-          <AgentSettingsKeyValue label={t('agents.settings.fields.configId')} value={`#${selectedModel.id}`} />
-        </AgentSettingsFormGrid>
+      <AgentSettingsActionRow>
+        <AgentSettingsActionButton
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (hasAdvancedModelConfig) {
+              setAdvancedControlsCollapsed((collapsed) => !collapsed)
+              return
+            }
+            setAdvancedControlsOpen((open) => !open)
+          }}
+          data-testid="agent-settings-advanced-model-routing-toggle"
+        >
+          <SlidersHorizontal size={14} />
+          {showAdvancedControls ? '隐藏高级模型路由' : '高级模型路由'}
+        </AgentSettingsActionButton>
+        <AgentSettingsInlineNote>
+          {hasAdvancedModelConfig ? '当前配置包含自定义路由，已自动展开。' : 'API 协议、Base URL 和用途路由仅在需要时调整。'}
+        </AgentSettingsInlineNote>
+      </AgentSettingsActionRow>
+
+      {showAdvancedControls && (
+        <>
+          <ApiModeCapabilityMatrix apiKind={selectedApiKind} t={t} />
+          <AgentSettingsFormGrid columns="model">
+            <AgentSettingsFormField>
+              <AgentSettingsFieldLabel>{t('agents.settings.apiKindLabel')}</AgentSettingsFieldLabel>
+              <Select
+                value={selectedApiKind}
+                onValueChange={(value) => {
+                  const apiKind = value as ProviderModelAPIKind
+                  setSelectedApiKind(apiKind)
+                }}
+              >
+                <AgentSettingsSelectTrigger>
+                  <SelectValue placeholder={t('agents.settings.selectApiKind')} />
+                </AgentSettingsSelectTrigger>
+                <SelectContent>
+                  {API_KIND_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <AgentSettingsFieldHelp>
+                {t(API_KIND_OPTIONS.find((option) => option.value === selectedApiKind)?.descriptionKey ?? API_KIND_OPTIONS[0].descriptionKey)}
+              </AgentSettingsFieldHelp>
+            </AgentSettingsFormField>
+
+            <AgentSettingsFormField>
+              <AgentSettingsFieldLabel>{t('agents.settings.baseUrlLabel')}</AgentSettingsFieldLabel>
+              <AgentSettingsInput
+                value={baseURL}
+                onChange={(event) => setBaseURL(event.target.value)}
+                placeholder={apiKindBaseURLPlaceholder(selectedApiKind)}
+              />
+              <AgentSettingsFieldHelp>{t('agents.settings.baseUrlHelp')}</AgentSettingsFieldHelp>
+              {modelBaseURLHasSecret && (
+                <AgentSettingsCallout data-testid="agent-settings-base-url-secret-warning" tone="danger" compact>
+                  {t('agents.settings.baseUrlSecretsBlocked')}
+                  <AgentSettingsActionButton
+                    size="xs"
+                    variant="outline"
+                    onClick={onStripModelBaseURLSecrets}
+                    data-testid="agent-settings-strip-base-url-secrets"
+                  >
+                    {t('agents.settings.quickFixes.stripSensitiveBaseURLQuery')}
+                  </AgentSettingsActionButton>
+                </AgentSettingsCallout>
+              )}
+              {usesManualModelId && baseURLValue && !usesBackendCompatibleBaseURL && (
+                <AgentSettingsFormField>
+                  <AgentSettingsFieldLabel>{t('agents.settings.providerApiKeyLabel')}</AgentSettingsFieldLabel>
+                  <AgentSettingsInput
+                    value={modelApiKey}
+                    onChange={(event) => setModelApiKey(event.target.value)}
+                    placeholder={effectiveConfig?.apiKeyConfigured ? t('agents.settings.providerApiKeyConfiguredPlaceholder') : t('agents.settings.providerApiKeyPlaceholder')}
+                    type="password"
+                    autoComplete="off"
+                    data-testid="agent-settings-provider-api-key"
+                  />
+                  <AgentSettingsFieldHelp>{t('agents.settings.providerCredentialHelp')}</AgentSettingsFieldHelp>
+                </AgentSettingsFormField>
+              )}
+            </AgentSettingsFormField>
+          </AgentSettingsFormGrid>
+
+          <AgentSettingsFormGrid columns="two">
+            <AgentSettingsToggleRow checked={useForChat} onChange={setUseForChat} title={t('agents.settings.useForChat')} description={t('agents.settings.useForChatHelp')} />
+            <AgentSettingsToggleRow checked={useForPlanner} onChange={setUseForPlanner} title={t('agents.settings.useForPlanner')} description={t('agents.settings.useForPlannerHelp')} />
+          </AgentSettingsFormGrid>
+          {modelRouteIssues.length > 0 && (
+            <AgentSettingsCallout tone="warning" compact>
+              {modelRouteIssues.map((issue) => t(`agents.settings.modelRouteIssues.${issue}`)).join('\n')}
+            </AgentSettingsCallout>
+          )}
+          <ModelCompatibilityProbePanel probes={modelCompatibilityProbes} />
+          <ApiModeMigrationGuide
+            apiKind={selectedApiKind}
+            onSwitchToResponses={onSwitchToResponses}
+          />
+          <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchTaskGraph} />
+          {usesModelCatalog && selectedModel && (
+            <AgentSettingsFormGrid columns="two">
+              <AgentSettingsKeyValue label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
+              <AgentSettingsKeyValue label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
+              <AgentSettingsKeyValue label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
+            </AgentSettingsFormGrid>
+          )}
+        </>
       )}
       <AgentSettingsActionRow>
         <AgentSettingsActionButton onClick={onSave} disabled={!canSaveModelConfig || saving || modelRouteIssues.length > 0 || modelBaseURLHasSecret}>

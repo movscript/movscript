@@ -2,7 +2,7 @@ import type { RawResource } from './resources'
 
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video'
-export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
+export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'audio_tts'
 export type SemanticEntityKind = 'script' | 'segment' | 'scene_moment' | 'setting' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
@@ -25,13 +25,10 @@ export interface CanvasNodeModelDiagnostics {
   next_actions?: string[]
   raw_model_fields?: Record<string, unknown>
   data_model_id?: string
-  data_model_db_id?: number
   executable?: boolean
   executable_model_id?: string
-  executable_model_db_id?: number
   available_model_count: number
   available_models?: Array<{
-    id: number
     model_id: string
     display_name: string
     is_default?: boolean
@@ -39,7 +36,6 @@ export interface CanvasNodeModelDiagnostics {
   }>
   route?: {
     model_id: string
-    model_config_id: number
     provider_model_id?: string
     selection_reason?: string
   }
@@ -233,13 +229,12 @@ export interface CanvasPortValue {
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
 
-export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'subtitle_align' | 'render_video'
+export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_music' | 'audio_sfx' | 'subtitle_align' | 'subtitle_translate'
 
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
   modelId?: string
-  modelDbId?: number
   prompt?: string
   inputResourceIds?: number[]
   aspectRatio?: string
@@ -253,7 +248,6 @@ export interface CanvasNodeData {
   resource?: RawResource
   prompt?: string
   modelId?: string      // public logical model ID preferred for routing
-  modelDbId?: number    // legacy AIModelConfig primary key kept for old canvases/audit
   referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
   referencedCanvasName?: string                          // denormalized workflow name for reference card display
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards

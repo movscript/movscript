@@ -95,6 +95,11 @@ test('core generation job decisions derive effective job type from model capabil
     model: { capabilities: ['video_i2v'] },
     attachments: [],
   }), 'video_i2v')
+  assert.equal(resolveGenerationJobType({
+    outputType: 'audio',
+    model: { capabilities: ['audio_tts'] },
+    attachments: [],
+  }), 'audio_tts')
 })
 
 test('core generation job decisions expose model media support and param defaults', () => {
@@ -142,6 +147,10 @@ test('core generation job decisions derive resource-count job types and capabili
     outputType: 'image',
     inputResourceCount: 2,
   }), 'image_edit')
+  assert.equal(resolveGenerationCapabilityForResourceCount({
+    outputType: 'audio',
+    inputResourceCount: 0,
+  }), 'audio_tts')
 })
 
 test('core generation canvas params choose model params before node defaults', () => {

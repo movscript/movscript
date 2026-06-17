@@ -2,7 +2,7 @@
   "name": "@movscript/editing",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenCut-compatible editing protocol and service adapters for MovScript scene-moment timelines.",
+  "description": "MovScript media editing project schema and Electron-oriented timeline services.",
   "license": "MIT",
   "type": "module",
   "files": [

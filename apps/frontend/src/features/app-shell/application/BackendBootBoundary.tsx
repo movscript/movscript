@@ -38,7 +38,7 @@ export function BackendBootBoundary() {
     }
   }, [settings.apiBaseURL])
 
-  const isRecoveryRoute = pathname === ROUTES.appSettings || pathname === '/onboarding'
+  const isRecoveryRoute = pathname === ROUTES.appSettings
 
   if (settings.launchMode !== 'local' || isRecoveryRoute) return null
   if (status?.state === 'ready') return null

@@ -44,16 +44,7 @@ func (r *gormRepository) Summary(ctx context.Context, now time.Time) (Summary, e
 		return Summary{}, err
 	}
 
-	if summary.Models.Credentials, err = countRows(db, &persistencemodel.AICredential{}, ""); err != nil {
-		return Summary{}, err
-	}
-	if summary.Models.EnabledCredentials, err = countRows(db, &persistencemodel.AICredential{}, "is_enabled = ?", true); err != nil {
-		return Summary{}, err
-	}
-	if summary.Models.Configs, err = countRows(db, &persistencemodel.AIModelConfig{}, ""); err != nil {
-		return Summary{}, err
-	}
-	if summary.Models.EnabledConfigs, err = countRows(db, &persistencemodel.AIModelConfig{}, "is_enabled = ?", true); err != nil {
+	if summary.Models, err = countModelSummary(db); err != nil {
 		return Summary{}, err
 	}
 

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { Bot, BriefcaseBusiness, Cable, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AudioLines, Bot, BriefcaseBusiness, Cable, CircleUserRound, Clapperboard, GitBranch, HardDrive, Image as ImageIcon, Plug, Settings, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { AccountSettingsPageTab } from '@/features/app-shell/components/AccountSettingsDialog'
@@ -36,6 +36,7 @@ export function toolRouteHeaderTitle(pathname: string): ReactNode | undefined {
     { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },
     { match: (value) => value === ROUTES.tools.refImageGen, icon: ImageIcon, title: i18n.t('sidebar.items.refImageGen') },
     { match: (value) => value === ROUTES.tools.refVideoGen, icon: Video, title: i18n.t('sidebar.items.refVideoGen') },
+    { match: (value) => value === ROUTES.tools.audioGen, icon: AudioLines, title: i18n.t('sidebar.items.audioGen') },
     { match: (value) => value === ROUTES.tools.motionImitation, icon: Workflow, title: i18n.t('sidebar.items.motionImitation') },
     { match: (value) => value === ROUTES.tools.styleTransfer, icon: Zap, title: i18n.t('sidebar.items.styleTransfer') },
     { match: (value) => value === ROUTES.tools.multiAngle, icon: Workflow, title: i18n.t('sidebar.items.multiAngle') },
@@ -61,6 +62,7 @@ export function accountSettingsTabForLocation(pathname: string, search: string):
   if (pathname === ROUTES.user) return 'profile'
   if (pathname === ROUTES.orgSettings) return 'workspace'
   if (pathname === ROUTES.agentConsole) return 'console'
+  if (pathname === ROUTES.agentSettings || /^\/agents\/[^/]+\/?$/.test(pathname)) return 'console:agents'
   if (pathname !== ROUTES.appSettings) return undefined
 
   const runtimeTab = new URLSearchParams(search).get('tab')
@@ -106,7 +108,7 @@ export function accountSettingsRouteHeaderTitle(tab: AccountSettingsPageTab): Re
 }
 
 function isAccountSettingsShellPath(pathname: string): boolean {
-  return accountSettingsTabForLocation(pathname, '') !== undefined || pathname === ROUTES.agentSettings
+  return accountSettingsTabForLocation(pathname, '') !== undefined
 }
 
 function normalizeSettingsReturnPath(value: unknown): string | undefined {

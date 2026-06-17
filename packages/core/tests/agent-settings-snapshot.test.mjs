@@ -24,7 +24,6 @@ test('core settings snapshot exports model, config files, provider-session limit
     config: {
       configured: true,
       provider: 'backend-model-config',
-      modelConfigId: 7,
       model: 'gpt-test',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
@@ -53,7 +52,7 @@ test('core settings snapshot exports model, config files, provider-session limit
   assert.equal(snapshot.schemaVersion, AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION)
   assert.equal(snapshot.schemaUrl, AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL)
   assert.equal(snapshot.model?.model, 'gpt-test')
-  assert.equal(snapshot.model?.platformModelId, '7')
+  assert.equal(snapshot.model?.catalogEntryId, undefined)
   assert.equal(snapshot.activeConfigFileId, 'base')
   assert.equal(snapshot.configFiles?.[0]?.approvalDefaults?.write, 'on_write')
   assert.equal(snapshot.providerSessionLimits?.maxHistoryMessages, 16)
@@ -64,14 +63,13 @@ test('core settings snapshot exports model, config files, provider-session limit
   assert.equal(snapshot.toolPermissionOverrides?.[0]?.toolGrants[0]?.approval, 'on_write')
 })
 
-test('core settings snapshot accepts legacy runtime limits as provider-session limits', () => {
-  const snapshot = parseSettingsSnapshot(JSON.stringify(settingsSnapshotFixture({
-    runtimeLimits: { maxHistoryMessages: 8, executionMode: 'standard' },
-  })))
-
-  assert.equal(snapshot.providerSessionLimits?.maxHistoryMessages, 8)
-  assert.equal(snapshot.providerSessionLimits?.executionMode, 'standard')
-  assert.equal(snapshot.runtimeLimits?.maxHistoryMessages, 8)
+test('core settings snapshot rejects legacy runtime limits', () => {
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify(settingsSnapshotFixture({
+      runtimeLimits: { maxHistoryMessages: 8, executionMode: 'standard' },
+    }))),
+    /runtimeLimits is not supported/,
+  )
 })
 
 test('core settings snapshot strips URL secrets and omits secret model IDs', () => {
@@ -192,8 +190,7 @@ test('core settings snapshot validates imported references and unsafe changes', 
 test('core settings snapshot validates missing backend model references', () => {
   const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
     model: {
-      model: 'model_config:404',
-      platformModelId: '404',
+      model: 'missing-model',
       apiKind: 'openai_chat_completions',
     },
   }), {
@@ -203,7 +200,24 @@ test('core settings snapshot validates missing backend model references', () => 
     skills: [],
   })
 
-  assert.match(issues.map((issue) => issue.message).join('\n'), /model model_config:404 not found/)
+  assert.match(issues.map((issue) => issue.message).join('\n'), /model missing-model not found/)
+})
+
+test('core settings snapshot validates catalog entry model references', () => {
+  const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
+    model: {
+      model: 'gpt-catalog',
+      catalogEntryId: '42',
+      apiKind: 'openai_chat_completions',
+    },
+  }), {
+    textModels: [modelFixture(7, { catalog_entry_id: 42, model_id: 'gpt-catalog' })],
+    configFiles: [configFileFixture()],
+    currentConfigFile: configFileFixture(),
+    skills: [],
+  })
+
+  assert.deepEqual(issues, [])
 })
 
 function skillFixture(id, patch = {}) {
@@ -221,7 +235,7 @@ function modelFixture(id, patch = {}) {
   return {
     id,
     credential_id: 1,
-    model_id: `model_config:${id}`,
+    model_id: `gpt-${id}`,
     display_name: `Model ${id}`,
     capabilities: ['text'],
     accepts_image_input: false,

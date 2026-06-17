@@ -16,6 +16,10 @@ func (r *Registry) editionBuildProvider(_ persistencemodel.AICredential, _ *Mode
 	return nil, false, nil
 }
 
+func (r *Registry) editionBuildGatewayProvider() (Provider, bool, error) {
+	return nil, false, nil
+}
+
 func (r *Registry) editionFileUploader(_ context.Context, _ uint, _ persistencemodel.AIModelConfig) (FileUploader, bool) {
 	return nil, false
 }

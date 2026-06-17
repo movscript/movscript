@@ -5,16 +5,19 @@ import type {
 } from '@/shared/contracts/electronApi'
 import { readElectronApi } from '@/shared/infrastructure/electronApiAccess'
 
-export function resourceVideoClipApiAvailable(): boolean {
-  return typeof readElectronApi()?.clipVideo === 'function'
+export function resourceMediaPipelineTrimApiAvailable(): boolean {
+  const api = readElectronApi()
+  return typeof api?.renderMediaPipelineSingleClip === 'function'
 }
 
-export async function clipResourceVideo(input: ElectronVideoClipInput): Promise<ElectronVideoClipResult | undefined> {
+export async function trimResourceVideoSegment(input: ElectronVideoClipInput): Promise<ElectronVideoClipResult | undefined> {
   if (typeof window === 'undefined') return undefined
-  return readElectronApi()?.clipVideo?.(input)
+  const api = readElectronApi()
+  return api?.renderMediaPipelineSingleClip?.(input)
 }
 
-export async function getResourceVideoClipStatus(): Promise<ElectronVideoClipStatus | undefined> {
+export async function getResourceMediaPipelineTrimStatus(): Promise<ElectronVideoClipStatus | undefined> {
   if (typeof window === 'undefined') return undefined
-  return readElectronApi()?.getVideoClipStatus?.()
+  const api = readElectronApi()
+  return api?.getMediaPipelineFFmpegStatus?.()
 }

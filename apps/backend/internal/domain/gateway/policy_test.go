@@ -44,28 +44,28 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 
 func TestAPIKeyApplyUpdate(t *testing.T) {
 	key := NewAPIKey(NewAPIKeySpec{
-		Name:            "Original",
-		KeyPrefix:       "mgw_prefix",
-		KeyHash:         "hash",
-		OwnerUserID:     1,
-		AllowedModelIDs: []uint{1},
-		AllowedScopes:   []string{"model:chat"},
+		Name:                   "Original",
+		KeyPrefix:              "mgw_prefix",
+		KeyHash:                "hash",
+		OwnerUserID:            1,
+		AllowedCatalogEntryIDs: []uint{1},
+		AllowedScopes:          []string{"model:chat"},
 	})
 	name := " Updated "
 	enabled := false
 
 	key.ApplyUpdate(APIKeyUpdateSpec{
-		Name:            &name,
-		AllowedModelIDs: []uint{2, 3},
-		AllowedScopes:   []string{"*"},
-		IsEnabled:       &enabled,
+		Name:                   &name,
+		AllowedCatalogEntryIDs: []uint{2, 3},
+		AllowedScopes:          []string{"*"},
+		IsEnabled:              &enabled,
 	})
 
 	if key.Name != "Updated" {
 		t.Fatalf("Name = %q, want Updated", key.Name)
 	}
-	if key.AllowedModelIDs != "[2,3]" {
-		t.Fatalf("AllowedModelIDs = %q, want [2,3]", key.AllowedModelIDs)
+	if key.AllowedCatalogEntryIDs != "[2,3]" {
+		t.Fatalf("AllowedCatalogEntryIDs = %q, want [2,3]", key.AllowedCatalogEntryIDs)
 	}
 	if key.AllowedScopes != `["*"]` {
 		t.Fatalf("AllowedScopes = %q, want [\"*\"]", key.AllowedScopes)

@@ -217,22 +217,13 @@ export interface AuditLog {
   DeletedAt?: string
 }
 
-export interface UsageLogModelConfig {
-  ID: number
-  credential_id: number
-  model_def_id: string
-  model_id_override?: string
-  custom_display_name?: string
-  short_name?: string
-}
-
 export interface UsageLog {
   ID: number
   user_id: number
   user?: User
   org_id?: number
-  ai_model_config_id: number
-  ai_model_config?: UsageLogModelConfig
+  ai_model_catalog_entry_id?: number
+  ai_model_catalog_entry?: AIModelCatalogEntry
   usage_reservation_id?: number
   gateway_api_key_id?: number
   project_id?: number
@@ -256,8 +247,7 @@ export interface LLMCallLog {
   org_id?: number
   project_id?: number
   gateway_api_key_id?: number
-  ai_model_config_id: number
-  ai_model_config?: UsageLogModelConfig
+  model_id?: string
   credential_id: number
   operation_type: string
   prompt_name?: string
@@ -287,7 +277,7 @@ export interface GatewayAPIKey {
   owner_user_id: number
   org_id?: number
   project_id?: number
-  allowed_model_ids: string
+  allowed_catalog_entry_ids: string
   allowed_scopes: string
   is_enabled: boolean
   new_api_group?: string
@@ -308,7 +298,6 @@ export interface AICredential {
   base_url: string
   masked_key: string
   is_enabled: boolean
-  models?: AIModelConfig[]
   files_api_enabled: boolean
   files_api_base_url: string
   files_api_masked_key: string
@@ -387,30 +376,40 @@ export interface ProviderInstanceConfigActivationResult {
   latency_ms: number
 }
 
-// AIModelConfig registers a model and stores all metadata + admin credit prices.
-export interface AIModelConfig {
+export interface AIModelRouteBinding {
   ID: number
-  credential_id: number
-  model_def_id: string           // the API model ID (e.g. "gpt-4o", "gemini-2.0-flash")
-  model_id_override: string      // optional override for the API-level model ID (e.g. Volcengine ep-xxx)
+  catalog_entry_id: number
+  source_type: 'local_provider' | 'new_api' | string
+  route_group: string
+  credential_id?: number
   is_enabled: boolean
   priority: number
   capacity_weight: number
   max_concurrency: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface AIModelCatalogEntry {
+  ID: number
+  public_model_id: string
+  provider_model_id: string
+  display_name: string
+  short_name: string
+  is_enabled: boolean
+  capabilities: string
+  pricing_mode: string
+  accepts_image: boolean
+  max_input_images: number
+  max_input_videos: number
+  image_edit_field: string
+  supported_params: string
   credits_input_per_1m: number
   credits_output_per_1m: number
   credits_per_image: number
   credits_per_second: number
   credits_per_call: number
-  custom_display_name: string
-  short_name: string
-  custom_capabilities: string    // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
-  custom_pricing_mode: string    // "per_token"|"per_image"|"per_second"|"per_call"
-  custom_accepts_image: boolean
-  custom_max_input_images: number
-  custom_max_input_videos: number
-  custom_image_edit_field: string
-  custom_supported_params: string // JSON: ParamDef[] or ModelParamProfile
+  route_bindings?: AIModelRouteBinding[]
   CreatedAt: string
   UpdatedAt: string
 }
@@ -687,12 +686,11 @@ export interface Job {
   ID: number
   user_id: number
   org_id?: number
-  model_config_id: number
-  model_config?: AIModelConfig
+  model_id?: string
   provider_name?: string
   model_display?: string
   model_identifier?: string
-  job_type: string  // image | image_edit | video | video_i2v | video_v2v
+  job_type: string  // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_music | audio_sfx | subtitle_align | subtitle_translate
   feature_key?: string  // source/audit key supplied by the caller
   title?: string
   status: JobStatus
@@ -924,12 +922,12 @@ export interface CanvasPortValue {
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
 
-export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'subtitle_align' | 'render_video'
+export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio' | 'audio_tts' | 'audio_transcribe' | 'audio_music' | 'audio_sfx' | 'subtitle_align' | 'subtitle_translate'
 
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
-  modelDbId?: number
+  modelDbId?: number // legacy route record id kept for older canvases
   pluginToolKey?: string
   prompt?: string
   inputResourceIds?: number[]
@@ -943,7 +941,7 @@ export interface CanvasNodeData {
   resourceId?: number
   resource?: RawResource
   prompt?: string
-  modelDbId?: number   // AIModelConfig primary key (preferred routing)
+  modelDbId?: number   // legacy route record id kept for older canvases
   referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards
   status?: CanvasTaskStatus

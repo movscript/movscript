@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, ArrowRight, Database, FileText, LayoutDashboard } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, ArrowRight, Database, FilePlus2, FileText, LayoutDashboard } from 'lucide-react'
 import { AppContentLayout, ProjectSurfaceHeader } from '@movscript/ui/layout'
 import { Badge, Button, StatusBadge } from '@movscript/ui/primitives'
 
@@ -15,7 +15,11 @@ import {
   projectOverviewNextActionLabel,
 } from '@/features/project/presentation/projectOverviewModel'
 import { scriptKeys } from '@/features/scripts/application/scriptQueryKeys'
-import { listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
+import { createWorkspaceScript, listWorkspaceScripts } from '@/features/scripts/application/scriptWorkspaceRepository'
+import {
+  invalidateScriptMutationResult,
+  scriptCreatedResult,
+} from '@/features/scripts/application/scriptMutationInvalidation'
 import {
   projectBlockedSummaryRecipe,
 } from '@/features/project/presentation/projectSemanticUi'
@@ -27,8 +31,9 @@ import {
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { workspaceOwnerContext } from '@/shared/infrastructure/session/workspaceOwnerContext'
-import { ROUTES } from '@/routes/projectRoutes'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import type { Script } from '@/types'
+import { toast } from '@/shared/ui/toastStore'
 import { requireWorkspaceRootAPI } from '@/features/agent/application/movScriptWorkspaceElectron'
 import {
   loadProjectPluginSnapshot,
@@ -41,6 +46,8 @@ import {
 } from '@/features/plugins/components/PluginsPageUi'
 
 export default function ProjectOverviewPage() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
   const [skillTogglingId, setSkillTogglingId] = useState<string>()
@@ -91,6 +98,26 @@ export default function ProjectOverviewPage() {
   const overviewModel = useMemo(() => buildProjectOverviewModel({ data, project }), [data, project])
   const projectSkills = projectPluginsQuery.data?.skills ?? []
   const scripts = useMemo(() => (scriptsQuery.data ?? []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID), [scriptsQuery.data])
+  const createScript = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('请选择项目')
+      const scriptNumber = scripts.length + 1
+      return createWorkspaceScript(projectId, {
+        title: `新剧本 ${scriptNumber}`,
+        script_type: 'uncategorized',
+        content: '',
+        raw_source: '',
+        summary: '',
+      }, workspaceContext)
+    },
+    onSuccess: (created) => {
+      invalidateScriptMutationResult(queryClient, scriptCreatedResult({ projectId, changedIds: [created.ID] }))
+      toast.success('剧本已创建')
+      navigate(withRouteParams(ROUTES.project.scripts, { script_id: created.ID }))
+    },
+    onError: () => toast.error('创建剧本失败，请重试'),
+  })
+  const nextActionIsScriptWorkbench = overviewModel.nextLane?.definition.id === 'orchestration_production'
 
   return (
     <AppContentLayout variant="contained" width="wide" contentClassName="space-y-5 py-5">
@@ -114,12 +141,24 @@ export default function ProjectOverviewPage() {
                 切换项目
               </Link>
             </Button>
-            <Button asChild className="gap-2">
-              <Link to={overviewModel.nextLane?.definition.route ?? ROUTES.project.scripts}>
-                {overviewModel.nextLane ? projectOverviewNextActionLabel(overviewModel.nextLane.definition) : '进入工作台'}
-                <ArrowRight size={14} />
-              </Link>
-            </Button>
+            {nextActionIsScriptWorkbench ? (
+              <Button
+                type="button"
+                className="gap-2"
+                disabled={createScript.isPending || !projectId}
+                onClick={() => createScript.mutate()}
+              >
+                <FilePlus2 size={14} />
+                {createScript.isPending ? '创建中' : '添加剧本'}
+              </Button>
+            ) : (
+              <Button asChild className="gap-2">
+                <Link to={overviewModel.nextLane?.definition.route ?? ROUTES.project.home}>
+                  {overviewModel.nextLane ? projectOverviewNextActionLabel(overviewModel.nextLane.definition) : '进入工作台'}
+                  <ArrowRight size={14} />
+                </Link>
+              </Button>
+            )}
           </>
         )}
       />
@@ -159,11 +198,16 @@ export default function ProjectOverviewPage() {
               从一份剧本进入编辑、版本管理和后续编排上下文。
             </p>
           </div>
-          <Button asChild size="sm" variant="outline" className="gap-2">
-            <Link to={ROUTES.project.scripts}>
-              打开剧本工作台
-              <ArrowRight size={14} />
-            </Link>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            disabled={createScript.isPending || !projectId}
+            onClick={() => createScript.mutate()}
+          >
+            <FilePlus2 size={14} />
+            {createScript.isPending ? '创建中' : '添加剧本'}
           </Button>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -171,7 +215,7 @@ export default function ProjectOverviewPage() {
             <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">正在读取剧本...</div>
           ) : scripts.length === 0 ? (
             <div className="rounded-md border border-border bg-muted/20 p-4 type-label text-muted-foreground">
-              当前项目还没有剧本。进入剧本工作台后可以创建或导入正文。
+              当前项目还没有剧本。点击添加剧本后会直接进入这份剧本的编辑工作台。
             </div>
           ) : scripts.map((script) => (
             <ProjectOverviewScriptCard key={script.ID} script={script} />

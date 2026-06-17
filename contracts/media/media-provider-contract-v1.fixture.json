@@ -37,6 +37,52 @@
           ]
         }
       ]
+    },
+    {
+      "capability": "audio_music",
+      "models": [
+        {
+          "modelId": "example-music-v1",
+          "displayName": "Example Music v1",
+          "features": [],
+          "supportedLanguages": ["zh-CN", "en-US"],
+          "supportedFormats": ["wav", "mp3"],
+          "supportedParams": [
+            { "key": "style", "type": "string" },
+            { "key": "duration", "type": "number", "default": 10, "min": 1, "max": 30, "step": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "audio_sfx",
+      "models": [
+        {
+          "modelId": "example-sfx-v1",
+          "displayName": "Example SFX v1",
+          "features": [],
+          "supportedFormats": ["wav", "mp3"],
+          "supportedParams": [
+            { "key": "duration", "type": "number", "default": 2, "min": 1, "max": 10, "step": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "subtitle_translate",
+      "models": [
+        {
+          "modelId": "example-subtitle-translate-v1",
+          "displayName": "Example Subtitle Translate v1",
+          "features": [],
+          "supportedLanguages": ["zh-CN", "en-US", "ja-JP"],
+          "supportedFormats": ["srt", "vtt", "json"],
+          "supportedParams": [
+            { "key": "source_language", "type": "string" },
+            { "key": "target_language", "type": "string" }
+          ]
+        }
+      ]
     }
   ]
 }

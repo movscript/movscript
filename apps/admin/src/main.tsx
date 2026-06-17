@@ -11,15 +11,7 @@ import { AppFeedbackText } from '@movscript/ui/business/app'
 import { UiDebugInspector } from '@movscript/ui/debug'
 import { AppWindowControls, AppWindowHeader, AppWindowMacTrafficLights } from '@movscript/ui/layout'
 import { Button } from '@movscript/ui/primitives'
-import AdminPage, { CloudFileConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
-import { AuditLogsPage } from '@admin/pages/admin/AuditLogsPage'
-import { DebugPage } from '@admin/pages/admin/DebugPage'
-import { UsageLogsPage } from '@admin/pages/admin/UsageLogsPage'
-import { UserManagementPage } from '@admin/pages/admin/UserManagementPage'
-import { OrgManagementPage } from '@admin/pages/admin/OrgManagementPage'
-import { ShotVectorPage } from '@admin/pages/admin/ShotVectorPage'
-import { SystemSettingsPage } from '@admin/pages/admin/SystemSettingsPage'
-import { runtimeCapabilities, runtimeNavItems, runtimeRoutes } from '@admin-runtime'
+import { runtimeBaseRoutes, runtimeCapabilities, runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
 import { APP_SETTINGS_STORAGE_KEY, normalizeAPIBaseURL } from '@/lib/config'
@@ -243,6 +235,11 @@ const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: bool
 
 const runtimeRoutePaths = new Set(runtimeRoutes.map((route) => route.path))
 const runtimeNavPaths = new Set(runtimeNavItems.map((item) => item.to))
+const disabledBaseRoutePaths = new Set(runtimeCapabilities.disabledBaseRoutes ?? [])
+
+function adminBaseRouteDisabled(path: string) {
+  return disabledBaseRoutePaths.has(path)
+}
 
 const adminBasename = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
   ? '/admin'
@@ -429,6 +426,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     ...baseNavItems
+      .filter((item) => !adminBaseRouteDisabled(item.to))
       .filter((item) => !(runtimeCapabilities.hideModelManagement && item.to === '/models'))
       .filter((item) => !runtimeNavPaths.has(item.to))
       .map((item) => ({ ...item, label: t(item.labelKey) })),
@@ -533,6 +531,14 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   )
 }
 
+function LazyAdminPage({ children }: { children: React.ReactNode }) {
+  return (
+    <React.Suspense fallback={<AppFeedbackText>加载管理页面...</AppFeedbackText>}>
+      {children}
+    </React.Suspense>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter basename={adminBasename}>
@@ -540,23 +546,19 @@ function App() {
       <UiDebugInspector />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<AdminShell><AdminPage /></AdminShell>} />
-        <Route path="/models" element={runtimeCapabilities.hideModelManagement ? <Navigate to={runtimeCapabilities.modelManagementRedirect || '/'} replace /> : <AdminShell><ModelManagementPage /></AdminShell>} />
-        {!runtimeRoutePaths.has('/user-management') && (
-          <Route path="/user-management" element={<AdminShell><UserManagementPage /></AdminShell>} />
+        {runtimeCapabilities.hideModelManagement && runtimeCapabilities.modelManagementRedirect && !runtimeRoutePaths.has('/models') && (
+          <Route path="/models" element={<Navigate to={runtimeCapabilities.modelManagementRedirect} replace />} />
         )}
-        <Route path="/orgs" element={<AdminShell><OrgManagementPage /></AdminShell>} />
-        <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />
-        <Route path="/audit-logs" element={<AdminShell><AuditLogsPage /></AdminShell>} />
-        <Route path="/usage-logs" element={<AdminShell><UsageLogsPage /></AdminShell>} />
-        <Route path="/shot-vectors" element={<AdminShell><ShotVectorPage /></AdminShell>} />
-        <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
-        <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
-        <Route path="/settings" element={<AdminShell><SystemSettingsPage /></AdminShell>} />
+        {runtimeBaseRoutes
+          .filter((route) => !runtimeRoutePaths.has(route.path))
+          .filter((route) => !adminBaseRouteDisabled(route.path))
+          .filter((route) => !(runtimeCapabilities.hideModelManagement && route.path === '/models'))
+          .map((route) => (
+            <Route key={route.path} path={route.path} element={<AdminShell><LazyAdminPage>{route.element}</LazyAdminPage></AdminShell>} />
+          ))}
         {runtimeRoutes.map((route) => (
           <Route key={route.path} path={route.path} element={<AdminShell>{route.element}</AdminShell>} />
         ))}
-        <Route path="/debug" element={<AdminShell><DebugPage /></AdminShell>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

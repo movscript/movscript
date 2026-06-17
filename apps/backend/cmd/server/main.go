@@ -24,6 +24,7 @@ func main() {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 	app.StartWorkers(workerCtx, 4)
+	app.StartMediaStreamCleanup(workerCtx)
 
 	observability.Logger().Info("server_listening", slog.String("port", app.Config.ServerPort))
 	if err := app.Router.Run(":" + app.Config.ServerPort); err != nil {

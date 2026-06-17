@@ -35,6 +35,7 @@ export const ROUTES = {
   tools: {
     refImageGen: '/tools/ref-image-gen',
     refVideoGen: '/tools/ref-video-gen',
+    audioGen: '/tools/audio-gen',
     motionImitation: '/tools/motion-imitation',
     styleTransfer: '/tools/style-transfer',
     multiAngle: '/tools/multi-angle',

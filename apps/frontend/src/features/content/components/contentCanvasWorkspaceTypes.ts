@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import type { ContentCanvasNode, ContentCanvasNodeKind, OpenCutTimelineDocumentLike } from '../domain/contentCanvasTypes'
+import type { ContentCanvasNode, ContentCanvasNodeKind, MediaEditingProjectLike } from '../domain/contentCanvasTypes'
 import type { ContentCanvasSettingKind } from '../application/contentCanvasCommands'
 
 export type SettingKind =
@@ -117,7 +117,7 @@ export type TimelineTrack = {
   items: TimelineItem[]
 }
 
-export type { OpenCutTimelineDocumentLike }
+export type { MediaEditingProjectLike }
 
 export const ASSET_PROMPTS: Record<string, string> = {}
 export const CANVAS_WORLD_WIDTH = 760

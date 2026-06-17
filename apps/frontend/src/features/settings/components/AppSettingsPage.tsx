@@ -35,7 +35,6 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
   const currentProject = useProjectStore((s) => s.current)
   const settings = useAppSettingsStore((s) => s.settings)
   const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
-  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
   const setMovScriptWorkspaceDir = useAppSettingsStore((s) => s.setMovScriptWorkspaceDir)
   const setShotLibrarySources = useAppSettingsStore((s) => s.setShotLibrarySources)
@@ -74,12 +73,6 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
     } else if (normalizeAPIBaseURL(apiBaseURL) === currentLocalURL) {
       setAPIBaseURLInput(getDefaultAPIBaseURL())
     }
-  }
-
-  function chooseWorkMode(mode: AppSettings['workMode']) {
-    setWorkMode(mode)
-    if (!user) return
-    navigate(routeForWorkMode(mode, !!currentProject))
   }
 
   function saveSettings() {
@@ -173,7 +166,6 @@ export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' }
       apiBaseURL={apiBaseURL}
       canOpenAdmin={canOpenAdmin}
       chooseLaunchMode={chooseLaunchMode}
-      chooseWorkMode={chooseWorkMode}
       collectResourceBlobs={(dryRun) => void collectResourceBlobs(dryRun)}
       hasChanged={hasChanged}
       isValid={isValid}

@@ -9,7 +9,6 @@ import {
 
 export interface CanvasRuntimeTextRequest {
   modelId?: string
-  modelConfigId?: number
   prompt: string
   params?: Record<string, unknown>
   projectId?: number
@@ -24,24 +23,40 @@ export interface CanvasRuntimeGenerationRequest {
   projectId?: number
 }
 
-export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string) {
-  if (data.modelId || data.modelDbId) {
-    return { modelId: data.modelId, modelConfigId: data.modelDbId }
+type ResolvedCanvasRuntimeModel = {
+  modelId?: string
+}
+
+export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string): Promise<ResolvedCanvasRuntimeModel> {
+  if (data.modelId) {
+    const model = await findCanvasRuntimeModel(data, capability)
+    if (model) return resolvedCanvasRuntimeModel(model)
+    return {}
   }
   const models = await api.get('/models', { params: { capability } }).then((r) => r.data as PublicModel[])
   const model = models.find((item) => item.is_default) ?? models[0]
   if (!model) return {}
-  return { modelId: publicModelId(model), modelConfigId: model.id }
+  return resolvedCanvasRuntimeModel(model)
+}
+
+async function findCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string): Promise<PublicModel | undefined> {
+  const models = await api.get('/models', { params: { capability } }).then((r) => r.data as PublicModel[])
+  return models.find((model) => publicModelId(model) === data.modelId)
+}
+
+function resolvedCanvasRuntimeModel(model: PublicModel): ResolvedCanvasRuntimeModel {
+  return {
+    modelId: publicModelId(model),
+  }
 }
 
 export async function generateCanvasRuntimeText(input: CanvasRuntimeTextRequest) {
   const response = await api.post('/canvas-runtime/text', {
     model_id: input.modelId,
-    model_config_id: input.modelConfigId,
     prompt: input.prompt,
     params: input.params ?? {},
     project_id: input.projectId,
-  }).then((r) => r.data as { text: string; model_id?: string; model_config_id?: number })
+  }).then((r) => r.data as { text: string; model_id?: string })
   return response
 }
 

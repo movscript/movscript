@@ -9,10 +9,16 @@ import {
   overlayMovScriptDecisionDocuments,
 } from '@movscript/workspace/repository'
 import {
+  MOVSCRIPT_ASSET_INDEX_PATH,
+  MOVSCRIPT_DOMAIN_INDEX_PATH,
+  MOVSCRIPT_DOMAIN_TREE_PATH,
+  MOVSCRIPT_EDITOR_STATE_PATH,
   MOVSCRIPT_INTERPRET_CURRENT_DIR,
+  MOVSCRIPT_RELATION_GRAPH_PATH,
 } from '@movscript/workspace/layout'
 import {
   resolveWorkspaceSource,
+  writeDebugArtifacts,
 } from './sourceStore.js'
 import {
   deriveV1RegenerationPlan,
@@ -106,6 +112,30 @@ export async function interpretMovScriptWorkspace(input: MovScriptWorkspaceInter
     interpretationId,
     createdAt: now.toISOString(),
   })
+  const impactReportPath = `.interpret/reviews/impact-report_${interpretationId}.json`
+  const manifest: MovScriptWorkspaceInterpretManifest = {
+    schema: 'movscript.workspace-interpret.v1',
+    interpretationId,
+    interpretedAt: now.toISOString(),
+    source: {
+      sourcePath: source.rootPath,
+      sourceMode: source.mode,
+      sourceFileHashes: Object.fromEntries(editFiles.map((file) => [file.relativePath, file.hash])),
+    },
+    output: {
+      currentPath: MOVSCRIPT_INTERPRET_CURRENT_DIR,
+      domainIndexPath: MOVSCRIPT_DOMAIN_INDEX_PATH,
+      domainTreePath: MOVSCRIPT_DOMAIN_TREE_PATH,
+      editorStatePath: MOVSCRIPT_EDITOR_STATE_PATH,
+      assetIndexPath: MOVSCRIPT_ASSET_INDEX_PATH,
+      relationGraphPath: MOVSCRIPT_RELATION_GRAPH_PATH,
+      impactReportPath,
+    },
+    review,
+  }
+  if (input.debugArtifacts !== false) {
+    await writeDebugArtifacts(input.fileRepository, artifacts, index, manifest, impactReportPath)
+  }
 
   return {
     schema: 'movscript.workspace-interpret-result.v1',
@@ -114,6 +144,7 @@ export async function interpretMovScriptWorkspace(input: MovScriptWorkspaceInter
     review,
     index,
     productionWorkPlan: artifacts.productionWorkPlan,
+    ...(input.debugArtifacts !== false ? { manifest } : {}),
   }
 }
 

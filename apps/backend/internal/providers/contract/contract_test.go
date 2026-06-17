@@ -63,6 +63,9 @@ func (fakeAIGateway) VideoCancel(context.Context, VideoCancelRequest) (VideoResp
 func (fakeAIGateway) Synthesize(context.Context, media.TTSRequest) (media.TTSResponse, error) {
 	return media.TTSResponse{}, nil
 }
+func (fakeAIGateway) GenerateAudio(context.Context, media.AudioGenerationRequest) (media.AudioGenerationResponse, error) {
+	return media.AudioGenerationResponse{}, nil
+}
 func (fakeAIGateway) Transcribe(context.Context, media.TranscribeRequest) (media.SubtitleResponse, error) {
 	return media.SubtitleResponse{}, nil
 }
@@ -136,6 +139,7 @@ var (
 	_ AIGatewayVideoTaskProvider       = fakeAIGateway{}
 	_ AIGatewayVideoTaskCancelProvider = fakeAIGateway{}
 	_ AIGatewayAudioSpeechProvider     = fakeAIGateway{}
+	_ AIGatewayAudioGenerationProvider = fakeAIGateway{}
 	_ AIGatewayAudioSubtitleProvider   = fakeAIGateway{}
 	_ AIGatewayFileUploader            = fakeAIGatewayFileUploader{}
 	_ VectorIndexProvider              = fakeVectorIndex{}

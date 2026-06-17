@@ -16,17 +16,18 @@ func TestServiceUsesGatewayUsageReporterContract(t *testing.T) {
 	reporter := &fakeUsageReporter{
 		page: providercontract.AIGatewayUsageLogPage{
 			Items: []providercontract.AIGatewayUsageLog{{
-				ID:              1,
-				UserID:          7,
-				AIModelConfigID: 9,
-				OperationType:   "text",
-				InputTokens:     3,
-				OutputTokens:    2,
-				Cost:            0.5,
-				CreatedAt:       now,
-				AIModelConfig: &providercontract.AIGatewayUsageModelConfigRef{
-					ID:         9,
-					ModelDefID: "gpt-5.2",
+				ID:                    1,
+				UserID:                7,
+				AIModelCatalogEntryID: uintPtr(19),
+				OperationType:         "text",
+				InputTokens:           3,
+				OutputTokens:          2,
+				Cost:                  0.5,
+				CreatedAt:             now,
+				AIModelCatalogEntry: &providercontract.AIGatewayUsageCatalogEntryRef{
+					ID:            19,
+					PublicModelID: "gpt-5.2",
+					DisplayName:   "GPT 5.2",
 				},
 			}},
 			Total:    1,
@@ -45,7 +46,7 @@ func TestServiceUsesGatewayUsageReporterContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if page.Total != 1 || page.Page != 2 || len(page.Items) != 1 || page.Items[0].AIModelConfig.ModelDefID != "gpt-5.2" {
+	if page.Total != 1 || page.Page != 2 || len(page.Items) != 1 || page.Items[0].AIModelCatalogEntry.PublicModelID != "gpt-5.2" {
 		t.Fatalf("page = %#v, want reporter data mapped to admin shape", page)
 	}
 	exported, err := service.Export(context.Background(), filter, 100)
@@ -71,7 +72,7 @@ func TestServiceUsesGatewayUsageReporterContract(t *testing.T) {
 }
 
 func TestSummaryAggregatesFilteredUsage(t *testing.T) {
-	db := testutil.OpenSQLite(t, "adminusage.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.UsageLog{})
+	db := testutil.OpenSQLite(t, "adminusage.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AIModelCatalogEntry{}, &persistencemodel.UsageLog{})
 	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
 	userA := createUsageUser(t, db, "alice")
 	userB := createUsageUser(t, db, "bob")
@@ -79,10 +80,12 @@ func TestSummaryAggregatesFilteredUsage(t *testing.T) {
 	credB := createUsageCredential(t, db, "gemini")
 	modelA := createUsageModel(t, db, credA.ID, "gpt-4o")
 	modelB := createUsageModel(t, db, credB.ID, "gemini")
-	textLog := createUsageLog(t, db, userA.ID, modelA.ID, "text", 100, 200, 0, 0, 1.5, now.Add(-time.Hour))
-	imageLog := createUsageLog(t, db, userA.ID, modelA.ID, "image", 0, 0, 0, 2, 4, now.Add(-2*time.Hour))
-	createUsageLog(t, db, userB.ID, modelB.ID, "video", 0, 0, 8, 0, 9, now.Add(-3*time.Hour))
-	createUsageLog(t, db, userA.ID, modelA.ID, "text", 10, 20, 0, 0, 0.5, now.AddDate(0, 0, -40))
+	entryA := createUsageCatalogEntry(t, db, "gpt-4o", "provider-gpt-4o", "GPT 4o")
+	entryB := createUsageCatalogEntry(t, db, "gemini", "provider-gemini", "Gemini")
+	textLog := createUsageLog(t, db, userA.ID, modelA.ID, &entryA.ID, "text", 100, 200, 0, 0, 1.5, now.Add(-time.Hour))
+	imageLog := createUsageLog(t, db, userA.ID, modelA.ID, &entryA.ID, "image", 0, 0, 0, 2, 4, now.Add(-2*time.Hour))
+	createUsageLog(t, db, userB.ID, modelB.ID, &entryB.ID, "video", 0, 0, 8, 0, 9, now.Add(-3*time.Hour))
+	createUsageLog(t, db, userA.ID, modelA.ID, &entryA.ID, "text", 10, 20, 0, 0, 0.5, now.AddDate(0, 0, -40))
 	gatewayKeyID := uint(21)
 	otherGatewayKeyID := uint(22)
 	setUsageGatewayKey(t, db, textLog, gatewayKeyID)
@@ -100,7 +103,7 @@ func TestSummaryAggregatesFilteredUsage(t *testing.T) {
 	if len(summary.Operations) != 2 || summary.Operations[0].OperationType != "image" || summary.Operations[0].Cost != 4 {
 		t.Fatalf("unexpected operations: %+v", summary.Operations)
 	}
-	if len(summary.TopModels) != 1 || summary.TopModels[0].AIModelConfig == nil || summary.TopModels[0].AIModelConfig.ModelDefID != "gpt-4o" {
+	if len(summary.TopModels) != 1 || summary.TopModels[0].AIModelCatalogEntry == nil || summary.TopModels[0].AIModelCatalogEntry.PublicModelID != "gpt-4o" {
 		t.Fatalf("unexpected top models: %+v", summary.TopModels)
 	}
 	if len(summary.TopUsers) != 1 || summary.TopUsers[0].User == nil || summary.TopUsers[0].User.Username != "alice" {
@@ -120,7 +123,7 @@ func TestSummaryAggregatesFilteredUsage(t *testing.T) {
 	if len(keySummary.Operations) != 1 || keySummary.Operations[0].OperationType != "text" {
 		t.Fatalf("unexpected gateway key operations: %+v", keySummary.Operations)
 	}
-	if len(keySummary.TopModels) != 1 || keySummary.TopModels[0].ModelConfigID != modelA.ID {
+	if len(keySummary.TopModels) != 1 || keySummary.TopModels[0].AIModelCatalogEntryID == nil || *keySummary.TopModels[0].AIModelCatalogEntryID != entryA.ID {
 		t.Fatalf("unexpected gateway key top models: %+v", keySummary.TopModels)
 	}
 	if len(keySummary.TopUsers) != 1 || keySummary.TopUsers[0].UserID != userA.ID {
@@ -176,17 +179,27 @@ func createUsageModel(t *testing.T, db *gorm.DB, credentialID uint, modelDefID s
 	return model
 }
 
-func createUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, operation string, inputTokens int, outputTokens int, durationSec int, imageCount int, cost float64, createdAt time.Time) persistencemodel.UsageLog {
+func createUsageCatalogEntry(t *testing.T, db *gorm.DB, publicModelID string, providerModelID string, displayName string) persistencemodel.AIModelCatalogEntry {
+	t.Helper()
+	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: publicModelID, ProviderModelID: providerModelID, DisplayName: displayName, IsEnabled: true}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry %q: %v", publicModelID, err)
+	}
+	return entry
+}
+
+func createUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, catalogEntryID *uint, operation string, inputTokens int, outputTokens int, durationSec int, imageCount int, cost float64, createdAt time.Time) persistencemodel.UsageLog {
 	t.Helper()
 	log := persistencemodel.UsageLog{
-		UserID:          userID,
-		AIModelConfigID: modelConfigID,
-		OperationType:   operation,
-		InputTokens:     inputTokens,
-		OutputTokens:    outputTokens,
-		DurationSec:     durationSec,
-		ImageCount:      imageCount,
-		Cost:            cost,
+		UserID:                userID,
+		AIModelConfigID:       modelConfigID,
+		AIModelCatalogEntryID: catalogEntryID,
+		OperationType:         operation,
+		InputTokens:           inputTokens,
+		OutputTokens:          outputTokens,
+		DurationSec:           durationSec,
+		ImageCount:            imageCount,
+		Cost:                  cost,
 	}
 	if err := db.Create(&log).Error; err != nil {
 		t.Fatalf("create usage log: %v", err)
@@ -195,6 +208,10 @@ func createUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, 
 		t.Fatalf("set usage timestamp: %v", err)
 	}
 	return log
+}
+
+func uintPtr(value uint) *uint {
+	return &value
 }
 
 func setUsageGatewayKey(t *testing.T, db *gorm.DB, log persistencemodel.UsageLog, gatewayKeyID uint) {

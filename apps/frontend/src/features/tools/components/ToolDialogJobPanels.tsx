@@ -96,7 +96,7 @@ function DebugPanel({ job }: { job: Job }) {
       <div className="space-y-1">
         <KV label="Job ID" value={String(job.ID)} />
         <KV label={t('tools.debug.status')} value={job.status} color={job.status === 'failed' ? 'danger' : job.status === 'succeeded' ? 'success' : undefined} />
-        <KV label={t('tools.debug.configId')} value={String(job.model_config_id)} />
+        <KV label={t('agents.model', { defaultValue: 'Model' })} value={job.model_identifier || job.model_display || '-'} />
         {job.started_at && <KV label={t('tools.debug.started')} value={new Date(job.started_at).toLocaleTimeString(i18n.language)} />}
         {job.finished_at && <KV label={t('tools.debug.finished')} value={new Date(job.finished_at).toLocaleTimeString(i18n.language)} />}
         {job.error_msg && <KV label={t('common.error')} value={job.error_msg} color="danger" />}
@@ -174,7 +174,7 @@ export function GenerationCard({
   debugMode,
 }: {
   job: Job
-  outputType: 'image' | 'video'
+  outputType: 'image' | 'video' | 'audio'
   onReuse: () => void
   debugMode: boolean
 }) {

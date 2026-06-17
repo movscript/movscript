@@ -109,7 +109,7 @@ export function AccountSettingsPageSidebar({
               fullWidth
               align="start"
               className="account-settings-page__nav-button"
-              data-active={activeTab === tab.key ? 'true' : undefined}
+              data-active={settingsSidebarTabActive(activeTab, tab.key) ? 'true' : undefined}
               onClick={() => selectTab(tab.key)}
             >
               <AppSidebarNavItemContent icon={Icon} label={label} />
@@ -176,6 +176,11 @@ function AccountSettingsSidebarFrame({
       ) : null}
     </AppSidebarShell>
   )
+}
+
+function settingsSidebarTabActive(activeTab: AccountSettingsPageTab, tab: AccountSettingsPageTab): boolean {
+  if (activeTab === tab) return true
+  return tab === 'console' && activeTab.startsWith('console:')
 }
 
 export function AccountSettingsPageContent({

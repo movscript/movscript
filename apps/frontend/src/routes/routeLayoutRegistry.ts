@@ -77,16 +77,6 @@ interface RouteLayoutRegistryEntry extends RouteLayoutSpec {
 
 const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
   route({
-    routeId: 'onboarding',
-    pathnamePattern: '/onboarding',
-    kind: 'page',
-    surface: 'tool',
-    scrollMode: 'document',
-    shellLayout: 'flush',
-    panes: [],
-    notes: 'Standalone onboarding recovery surface; it must not depend on app shell panes.',
-  }, exact('/onboarding')),
-  route({
     routeId: 'invite',
     pathnamePattern: ROUTES.invite,
     kind: 'page',
@@ -183,6 +173,11 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     ...TOOL_WORKSPACE_ROUTE,
     panes: [...TOOL_WORKSPACE_ROUTE.panes, ...TOOL_WORKBENCH_PANES],
   }, exact(ROUTES.tools.refVideoGen)),
+  route({
+    routeId: 'tools.audioGen',
+    pathnamePattern: ROUTES.tools.audioGen,
+    ...TOOL_WORKSPACE_ROUTE,
+  }, exact(ROUTES.tools.audioGen)),
   route({
     routeId: 'tools.motionImitation',
     pathnamePattern: ROUTES.tools.motionImitation,
@@ -310,7 +305,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     routeId: 'agents.provider',
     pathnamePattern: ROUTES.agentProvider,
     ...AGENT_SETTINGS_DOCUMENT_ROUTE,
-    notes: 'Provider agent settings stay inside the Agent chrome so agent configuration never falls back to the tools sidebar.',
+    notes: 'Provider agent settings stay inside the neutral settings chrome so switching agent configuration never changes the active work mode.',
   }, (pathname) => /^\/agents\/[^/]+\/?$/.test(pathname)),
   route({
     routeId: 'workspace.config',
@@ -328,7 +323,7 @@ const routeLayoutRegistry: RouteLayoutRegistryEntry[] = [
     routeId: 'agent.settings',
     pathnamePattern: ROUTES.agentSettings,
     ...AGENT_SETTINGS_DOCUMENT_ROUTE,
-    notes: 'Agent Settings is a neutral settings surface rendered inside the Agent chrome.',
+    notes: 'Agent Settings is a neutral settings surface; it must not enter Agent work mode.',
   }, exact(ROUTES.agentSettings)),
 ]
 

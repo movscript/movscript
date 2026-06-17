@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Image, Plus, TextCursorInput, type LucideIcon } from 'lucide-react'
-import { getAPIBaseURL } from '@/shared/infrastructure/config'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
+import { ResourceFileVideo } from '@/shared/ui/ResourceFileVideo'
 import { CONTENT_CANVAS_EXPRESSION_UNIT_KIND_OPTIONS, type ContentCanvasCreateNodeInput, type ContentCanvasExpressionUnitKind } from '../application/contentCanvasCommands'
 import type { ContentCanvasCandidate, ContentCanvasNode } from '../domain/contentCanvasTypes'
 import type { CandidateSelections, InspectorSelection, RadialNode, TimelineTrack, TreeNodeData } from './contentCanvasWorkspaceTypes'
@@ -495,10 +496,10 @@ type PromptReferenceItem = {
 
 function PromptReferenceThumb({ reference }: { reference: PromptReferenceItem }) {
   if (reference.resourceId !== undefined && reference.mediaType === 'image') {
-    return <img src={resourceFileUrl(reference.resourceId)} alt={reference.title} loading="lazy" />
+    return <ResourceFileImage resourceId={reference.resourceId} alt={reference.title} loading="lazy" />
   }
   if (reference.resourceId !== undefined && reference.mediaType === 'video') {
-    return <video src={resourceFileUrl(reference.resourceId)} muted playsInline preload="metadata" />
+    return <ResourceFileVideo resourceId={reference.resourceId} muted playsInline preload="metadata" />
   }
   const Icon = reference.node ? iconForContentNode(reference.node) : Image
   return (
@@ -589,10 +590,6 @@ function mediaTypeForReference(resourceKind: string | undefined, artifactRef: st
   if (value.includes('audio') || /\.(mp3|wav|m4a|aac|ogg)(\?|#|$)/.test(value)) return 'audio'
   if (value.includes('image') || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/.test(value)) return 'image'
   return 'file'
-}
-
-function resourceFileUrl(resourceId: number) {
-  return `${getAPIBaseURL()}/api/v1/resources/${resourceId}/file`
 }
 
 function CandidateDecisionPanel({
@@ -849,7 +846,7 @@ export function SceneTimeline({ emptyText, items, title }: { emptyText: string; 
       <div className="content-canvas-timeline__header">
         <div>
           <strong>{title}</strong>
-          <span>OpenCut-compatible MVP view · {formatSeconds(totalDuration)} total</span>
+          <span>Media editing project view · {formatSeconds(totalDuration)} total</span>
         </div>
       </div>
       <div className="content-canvas-timeline__ruler" aria-hidden="true">

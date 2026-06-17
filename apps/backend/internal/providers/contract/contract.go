@@ -251,6 +251,14 @@ type TextStreamEvent struct {
 	Done           bool
 }
 
+type ResponsesStreamEvent struct {
+	Type  string
+	Raw   string
+	Usage TokenUsage
+	Error string
+	Done  bool
+}
+
 type TokenUsage struct {
 	InputTokens       int
 	OutputTokens      int
@@ -416,7 +424,8 @@ type AIModelListFilter struct {
 
 type AIModelDescriptor struct {
 	ModelID           string                   `json:"model_id"`
-	ModelConfigID     uint                     `json:"model_config_id,omitempty"`
+	ModelConfigID     uint                     `json:"-"`
+	CatalogEntryID    uint                     `json:"catalog_entry_id,omitempty"`
 	CredentialID      uint                     `json:"credential_id,omitempty"`
 	ProviderModelID   string                   `json:"provider_model_id,omitempty"`
 	ModelDefID        string                   `json:"model_def_id,omitempty"`
@@ -440,14 +449,16 @@ type AIModelDescriptor struct {
 }
 
 type AIModelResolveRequest struct {
-	ModelID       string `json:"model_id,omitempty"`
-	ModelConfigID uint   `json:"model_config_id,omitempty"`
-	Capability    string `json:"capability"`
+	ModelID        string `json:"model_id,omitempty"`
+	ModelConfigID  uint   `json:"-"`
+	CatalogEntryID uint   `json:"catalog_entry_id,omitempty"`
+	Capability     string `json:"capability"`
 }
 
 type AIModelBinding struct {
 	ModelID         string `json:"model_id"`
-	ModelConfigID   uint   `json:"model_config_id"`
+	ModelConfigID   uint   `json:"-"`
+	CatalogEntryID  uint   `json:"catalog_entry_id,omitempty"`
 	ProviderModelID string `json:"provider_model_id"`
 	Capability      string `json:"capability"`
 	AdapterType     string `json:"adapter_type,omitempty"`
@@ -462,7 +473,8 @@ type AIGatewayModelCatalog interface {
 
 type AIGatewayRouteRequest struct {
 	ModelID               string          `json:"model_id,omitempty"`
-	ModelConfigID         uint            `json:"model_config_id,omitempty"`
+	ModelConfigID         uint            `json:"-"`
+	CatalogEntryID        uint            `json:"catalog_entry_id,omitempty"`
 	Capability            string          `json:"capability"`
 	PreferredAdapterTypes []string        `json:"preferred_adapter_types,omitempty"`
 	EstimatedUsage        AIUsageEstimate `json:"estimated_usage,omitempty"`
@@ -471,7 +483,11 @@ type AIGatewayRouteRequest struct {
 
 type AIGatewayModelRoute struct {
 	ModelID         string  `json:"model_id"`
-	ModelConfigID   uint    `json:"model_config_id"`
+	ModelConfigID   uint    `json:"-"`
+	CatalogEntryID  uint    `json:"catalog_entry_id,omitempty"`
+	CredentialID    uint    `json:"credential_id,omitempty"`
+	SourceType      string  `json:"source_type,omitempty"`
+	RouteGroup      string  `json:"route_group,omitempty"`
 	ProviderModelID string  `json:"provider_model_id"`
 	Capability      string  `json:"capability,omitempty"`
 	SelectionReason string  `json:"selection_reason,omitempty"`
@@ -526,7 +542,7 @@ type AIUsageReservation struct {
 	ID              uint    `json:"id"`
 	UserID          uint    `json:"user_id"`
 	OrgID           *uint   `json:"org_id,omitempty"`
-	AIModelConfigID uint    `json:"ai_model_config_id"`
+	AIModelConfigID uint    `json:"-"`
 	GatewayAPIKeyID *uint   `json:"gateway_api_key_id,omitempty"`
 	ProjectID       *uint   `json:"project_id,omitempty"`
 	JobID           *uint   `json:"job_id,omitempty"`
@@ -540,14 +556,14 @@ type AIUsageReservation struct {
 
 type AIUsageReserveRequest struct {
 	UserID        uint            `json:"user_id"`
-	ModelConfigID uint            `json:"model_config_id"`
+	ModelConfigID uint            `json:"-"`
 	Estimate      AIUsageEstimate `json:"estimate"`
 	Context       AIUsageContext  `json:"context"`
 }
 
 type AIUsageSettleRequest struct {
 	UserID        uint            `json:"user_id"`
-	ModelConfigID uint            `json:"model_config_id"`
+	ModelConfigID uint            `json:"-"`
 	Estimate      AIUsageEstimate `json:"estimate"`
 	Context       AIUsageContext  `json:"context"`
 }
@@ -595,7 +611,8 @@ type AIGatewayUsageLogFilter struct {
 	UserID        string     `json:"user_id,omitempty"`
 	OrgID         string     `json:"org_id,omitempty"`
 	ProjectID     string     `json:"project_id,omitempty"`
-	ModelConfigID string     `json:"model_config_id,omitempty"`
+	ModelConfigID string     `json:"-"`
+	ModelID       string     `json:"model_id,omitempty"`
 	ProviderID    string     `json:"provider_id,omitempty"`
 	GatewayKeyID  string     `json:"gateway_api_key_id,omitempty"`
 	OperationType string     `json:"operation_type,omitempty"`
@@ -631,26 +648,36 @@ type AIGatewayUsageModelConfigRef struct {
 	ShortName         string `json:"short_name"`
 }
 
+type AIGatewayUsageCatalogEntryRef struct {
+	ID              uint   `json:"ID"`
+	PublicModelID   string `json:"public_model_id"`
+	ProviderModelID string `json:"provider_model_id"`
+	DisplayName     string `json:"display_name"`
+	ShortName       string `json:"short_name"`
+}
+
 type AIGatewayUsageLog struct {
-	ID                 uint                          `json:"ID"`
-	UserID             uint                          `json:"user_id"`
-	OrgID              *uint                         `json:"org_id,omitempty"`
-	AIModelConfigID    uint                          `json:"ai_model_config_id"`
-	UsageReservationID *uint                         `json:"usage_reservation_id,omitempty"`
-	GatewayAPIKeyID    *uint                         `json:"gateway_api_key_id,omitempty"`
-	ProjectID          *uint                         `json:"project_id,omitempty"`
-	OperationType      string                        `json:"operation_type"`
-	InputTokens        int                           `json:"input_tokens"`
-	OutputTokens       int                           `json:"output_tokens"`
-	CachedInputTokens  int                           `json:"cached_input_tokens"`
-	ReasoningTokens    int                           `json:"reasoning_tokens"`
-	DurationSec        int                           `json:"duration_sec"`
-	ImageCount         int                           `json:"image_count"`
-	Cost               float64                       `json:"cost"`
-	User               *AIGatewayUsageUserRef        `json:"user,omitempty"`
-	AIModelConfig      *AIGatewayUsageModelConfigRef `json:"ai_model_config,omitempty"`
-	CreatedAt          time.Time                     `json:"CreatedAt"`
-	UpdatedAt          time.Time                     `json:"UpdatedAt"`
+	ID                    uint                           `json:"ID"`
+	UserID                uint                           `json:"user_id"`
+	OrgID                 *uint                          `json:"org_id,omitempty"`
+	AIModelConfigID       uint                           `json:"-"`
+	UsageReservationID    *uint                          `json:"usage_reservation_id,omitempty"`
+	GatewayAPIKeyID       *uint                          `json:"gateway_api_key_id,omitempty"`
+	ProjectID             *uint                          `json:"project_id,omitempty"`
+	OperationType         string                         `json:"operation_type"`
+	InputTokens           int                            `json:"input_tokens"`
+	OutputTokens          int                            `json:"output_tokens"`
+	CachedInputTokens     int                            `json:"cached_input_tokens"`
+	ReasoningTokens       int                            `json:"reasoning_tokens"`
+	DurationSec           int                            `json:"duration_sec"`
+	ImageCount            int                            `json:"image_count"`
+	Cost                  float64                        `json:"cost"`
+	User                  *AIGatewayUsageUserRef         `json:"user,omitempty"`
+	AIModelConfig         *AIGatewayUsageModelConfigRef  `json:"-"`
+	AIModelCatalogEntryID *uint                          `json:"ai_model_catalog_entry_id,omitempty"`
+	AIModelCatalogEntry   *AIGatewayUsageCatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
+	CreatedAt             time.Time                      `json:"CreatedAt"`
+	UpdatedAt             time.Time                      `json:"UpdatedAt"`
 }
 
 type AIGatewayUsageLogPage struct {
@@ -666,8 +693,10 @@ type AIGatewayUsageOperationSummary struct {
 }
 
 type AIGatewayUsageModelSummary struct {
-	ModelConfigID uint                          `json:"model_config_id"`
-	AIModelConfig *AIGatewayUsageModelConfigRef `json:"ai_model_config,omitempty"`
+	ModelConfigID         uint                           `json:"-"`
+	AIModelConfig         *AIGatewayUsageModelConfigRef  `json:"-"`
+	AIModelCatalogEntryID *uint                          `json:"ai_model_catalog_entry_id,omitempty"`
+	AIModelCatalogEntry   *AIGatewayUsageCatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
 	AIGatewayUsageTotals
 }
 
@@ -694,7 +723,7 @@ type AIGatewayUsageReporter interface {
 type AIGatewayCallAuditInput struct {
 	UserID           uint           `json:"user_id"`
 	Context          AIUsageContext `json:"context"`
-	ModelConfigID    uint           `json:"model_config_id"`
+	ModelConfigID    uint           `json:"-"`
 	CredentialID     uint           `json:"credential_id"`
 	Provider         string         `json:"provider,omitempty"`
 	OperationType    string         `json:"operation_type"`
@@ -719,7 +748,7 @@ type AIGatewayCallLogFilter struct {
 	UserID          string     `json:"user_id,omitempty"`
 	OrgID           string     `json:"org_id,omitempty"`
 	ProjectID       string     `json:"project_id,omitempty"`
-	ModelConfigID   string     `json:"model_config_id,omitempty"`
+	ModelID         string     `json:"model_id,omitempty"`
 	CredentialID    string     `json:"credential_id,omitempty"`
 	GatewayAPIKeyID string     `json:"gateway_api_key_id,omitempty"`
 	OperationType   string     `json:"operation_type,omitempty"`
@@ -740,45 +769,35 @@ type AIGatewayCallLogUserRef struct {
 	SystemRole string `json:"system_role"`
 }
 
-type AIGatewayCallLogModelConfigRef struct {
-	ID                uint   `json:"ID"`
-	CredentialID      uint   `json:"credential_id"`
-	ModelDefID        string `json:"model_def_id"`
-	ModelIDOverride   string `json:"model_id_override"`
-	CustomDisplayName string `json:"custom_display_name"`
-	ShortName         string `json:"short_name"`
-}
-
 type AIGatewayCallLog struct {
-	ID                uint                            `json:"ID"`
-	RequestID         string                          `json:"request_id,omitempty"`
-	UserID            uint                            `json:"user_id"`
-	User              *AIGatewayCallLogUserRef        `json:"user,omitempty"`
-	OrgID             *uint                           `json:"org_id,omitempty"`
-	ProjectID         *uint                           `json:"project_id,omitempty"`
-	GatewayAPIKeyID   *uint                           `json:"gateway_api_key_id,omitempty"`
-	AIModelConfigID   uint                            `json:"ai_model_config_id"`
-	AIModelConfig     *AIGatewayCallLogModelConfigRef `json:"ai_model_config,omitempty"`
-	CredentialID      uint                            `json:"credential_id"`
-	OperationType     string                          `json:"operation_type"`
-	PromptName        string                          `json:"prompt_name,omitempty"`
-	Provider          string                          `json:"provider,omitempty"`
-	RequestModel      string                          `json:"request_model,omitempty"`
-	ResponseModel     string                          `json:"response_model,omitempty"`
-	Status            string                          `json:"status"`
-	Error             string                          `json:"error,omitempty"`
-	LatencyMs         int64                           `json:"latency_ms"`
-	InputTokens       int                             `json:"input_tokens"`
-	OutputTokens      int                             `json:"output_tokens"`
-	CachedInputTokens int                             `json:"cached_input_tokens"`
-	ReasoningTokens   int                             `json:"reasoning_tokens"`
-	RequestJSON       string                          `json:"request_json,omitempty"`
-	ResponseJSON      string                          `json:"response_json,omitempty"`
-	PayloadTruncated  bool                            `json:"payload_truncated"`
-	ExpiresAt         *time.Time                      `json:"expires_at,omitempty"`
-	RetentionDays     int                             `json:"retention_days"`
-	CreatedAt         time.Time                       `json:"CreatedAt"`
-	UpdatedAt         time.Time                       `json:"UpdatedAt"`
+	ID                uint                     `json:"ID"`
+	RequestID         string                   `json:"request_id,omitempty"`
+	UserID            uint                     `json:"user_id"`
+	User              *AIGatewayCallLogUserRef `json:"user,omitempty"`
+	OrgID             *uint                    `json:"org_id,omitempty"`
+	ProjectID         *uint                    `json:"project_id,omitempty"`
+	GatewayAPIKeyID   *uint                    `json:"gateway_api_key_id,omitempty"`
+	ModelID           string                   `json:"model_id,omitempty"`
+	CredentialID      uint                     `json:"credential_id"`
+	OperationType     string                   `json:"operation_type"`
+	PromptName        string                   `json:"prompt_name,omitempty"`
+	Provider          string                   `json:"provider,omitempty"`
+	RequestModel      string                   `json:"request_model,omitempty"`
+	ResponseModel     string                   `json:"response_model,omitempty"`
+	Status            string                   `json:"status"`
+	Error             string                   `json:"error,omitempty"`
+	LatencyMs         int64                    `json:"latency_ms"`
+	InputTokens       int                      `json:"input_tokens"`
+	OutputTokens      int                      `json:"output_tokens"`
+	CachedInputTokens int                      `json:"cached_input_tokens"`
+	ReasoningTokens   int                      `json:"reasoning_tokens"`
+	RequestJSON       string                   `json:"request_json,omitempty"`
+	ResponseJSON      string                   `json:"response_json,omitempty"`
+	PayloadTruncated  bool                     `json:"payload_truncated"`
+	ExpiresAt         *time.Time               `json:"expires_at,omitempty"`
+	RetentionDays     int                      `json:"retention_days"`
+	CreatedAt         time.Time                `json:"CreatedAt"`
+	UpdatedAt         time.Time                `json:"UpdatedAt"`
 }
 
 type AIGatewayCallLogPage struct {
@@ -809,7 +828,7 @@ type AIGatewayAuditLogReader interface {
 
 type AIGatewayProviderProbeRequest struct {
 	CredentialID  uint `json:"credential_id,omitempty"`
-	ModelConfigID uint `json:"model_config_id,omitempty"`
+	ModelConfigID uint `json:"-"`
 }
 
 type AIGatewayProviderProbeResult struct {
@@ -820,7 +839,7 @@ type AIGatewayProviderProbeResult struct {
 }
 
 type AIGatewayRuntimeHealth struct {
-	ModelConfigID       uint       `json:"model_config_id"`
+	ModelConfigID       uint       `json:"-"`
 	ModelID             string     `json:"model_id"`
 	ModelDefID          string     `json:"model_def_id"`
 	ProviderName        string     `json:"provider_name"`
@@ -860,6 +879,10 @@ type AIGatewayResponsesProvider interface {
 	ResponsesGenerate(ctx context.Context, req ResponsesRequest) (TextResponse, error)
 }
 
+type AIGatewayResponsesStreamProvider interface {
+	ResponsesStream(ctx context.Context, req ResponsesRequest) (<-chan ResponsesStreamEvent, error)
+}
+
 type AIGatewayVideoTaskProvider interface {
 	VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error)
 	VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error)
@@ -870,6 +893,8 @@ type AIGatewayVideoTaskCancelProvider interface {
 }
 
 type AIGatewayAudioSpeechProvider = media.TTSProvider
+
+type AIGatewayAudioGenerationProvider = media.AudioGenerationProvider
 
 type AIGatewayAudioSubtitleProvider = media.SubtitleProvider
 

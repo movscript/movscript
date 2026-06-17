@@ -41,7 +41,7 @@ interface UseAgentChatShellCoreStateInput {
   onGoalModeEnabledChange?: (enabled: boolean) => void
   readActiveThreadId?: () => string | null
   resolveModelForRequest: () => AgentChatModelSelection
-  selectedModelId?: number | null
+  selectedModelId?: string | null
   threadScopeKey: string
   userId: string
 }

@@ -18,17 +18,32 @@ export async function backendGet(path: string): Promise<any> {
   return res.json()
 }
 
-export async function backendGetBinary(path: string, options: { maxBytes?: number } = {}): Promise<{ bytes: Buffer; contentType?: string; contentLength?: number }> {
+export interface BackendBinaryProgress {
+  path: string
+  receivedBytes: number
+  totalBytes?: number
+  done: boolean
+}
+
+export async function backendGetBinary(path: string, options: {
+  maxBytes?: number
+  onProgress?: (progress: BackendBinaryProgress) => void
+} = {}): Promise<{ bytes: Buffer; contentType?: string; contentLength?: number }> {
   const headers = backendHeaders()
   const res = await fetch(`${getMovScriptBackendAPIBaseURL()}${path}`, { headers })
   if (!res.ok) {
     throw await BackendHTTPError.fromResponse('GET', path, res)
   }
-  const contentLength = Number(res.headers.get('content-length'))
+  const contentLengthHeader = res.headers.get('content-length')
+  const contentLength = contentLengthHeader === null ? NaN : Number(contentLengthHeader)
   if (options.maxBytes !== undefined && Number.isFinite(contentLength) && contentLength > options.maxBytes) {
     throw new Error(`backend GET ${path} returned content-length ${contentLength}, above maxBytes=${options.maxBytes}`)
   }
-  const bytes = Buffer.from(await res.arrayBuffer())
+  const bytes = await readBinaryResponse(path, res, {
+    maxBytes: options.maxBytes,
+    contentLength: Number.isFinite(contentLength) ? contentLength : undefined,
+    onProgress: options.onProgress,
+  })
   if (options.maxBytes !== undefined && bytes.length > options.maxBytes) {
     throw new Error(`backend GET ${path} returned ${bytes.length} bytes, above maxBytes=${options.maxBytes}`)
   }
@@ -37,6 +52,55 @@ export async function backendGetBinary(path: string, options: { maxBytes?: numbe
     ...(res.headers.get('content-type') ? { contentType: res.headers.get('content-type') ?? undefined } : {}),
     ...(Number.isFinite(contentLength) ? { contentLength } : {}),
   }
+}
+
+async function readBinaryResponse(
+  path: string,
+  res: Response,
+  options: {
+    maxBytes?: number
+    contentLength?: number
+    onProgress?: (progress: BackendBinaryProgress) => void
+  },
+): Promise<Buffer> {
+  if (!res.body) {
+    const bytes = Buffer.from(await res.arrayBuffer())
+    options.onProgress?.({
+      path,
+      receivedBytes: bytes.length,
+      ...(options.contentLength !== undefined ? { totalBytes: options.contentLength } : {}),
+      done: true,
+    })
+    return bytes
+  }
+
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let receivedBytes = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+    receivedBytes += value.byteLength
+    if (options.maxBytes !== undefined && receivedBytes > options.maxBytes) {
+      throw new Error(`backend GET ${path} returned more than maxBytes=${options.maxBytes}`)
+    }
+    chunks.push(value)
+    options.onProgress?.({
+      path,
+      receivedBytes,
+      ...(options.contentLength !== undefined ? { totalBytes: options.contentLength } : {}),
+      done: false,
+    })
+  }
+  const bytes = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
+  options.onProgress?.({
+    path,
+    receivedBytes,
+    ...(options.contentLength !== undefined ? { totalBytes: options.contentLength } : {}),
+    done: true,
+  })
+  return bytes
 }
 
 export async function backendPost(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {

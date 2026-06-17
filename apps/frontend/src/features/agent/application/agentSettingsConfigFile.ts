@@ -131,8 +131,12 @@ export function settingsSnapshotImportRequirementsForSnapshot(snapshot: AgentSet
   return {
     needsCatalog: Boolean(snapshot?.configFiles || providerSessionLimits || snapshot?.activeConfigFileId || snapshot?.skillConfig || snapshot?.toolPermissionOverrides),
     needsCapabilities: Boolean(snapshot?.toolPermissionOverrides),
-    needsModelCatalog: Boolean(snapshot?.model?.model.startsWith('model_config:') || snapshot?.model?.platformModelId),
+    needsModelCatalog: snapshotModelNeedsCatalog(snapshot?.model),
   }
+}
+
+function snapshotModelNeedsCatalog(model: AgentSettingsSnapshot['model'] | undefined): boolean {
+  return Boolean(model?.model && !model.baseURL)
 }
 
 export function settingsSnapshotReferenceIssuesForImport(input: {
@@ -163,7 +167,7 @@ export function settingsSnapshotImportPreflightErrorForSnapshot(input: {
   capabilities?: ProviderSessionCapabilitiesResponse
 }): string | null {
   const providerSessionLimits = snapshotProviderSessionLimits(input.snapshot)
-  const needsModelCatalog = Boolean(input.snapshot.model?.model.startsWith('model_config:') || input.snapshot.model?.platformModelId)
+  const needsModelCatalog = snapshotModelNeedsCatalog(input.snapshot.model)
   const needsCatalog = Boolean(input.snapshot.configFiles || providerSessionLimits || input.snapshot.activeConfigFileId || input.snapshot.skillConfig || input.snapshot.toolPermissionOverrides)
   const needsCapabilities = Boolean(input.snapshot.toolPermissionOverrides)
   if (needsModelCatalog && !input.textModels) {

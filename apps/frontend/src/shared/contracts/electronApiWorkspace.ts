@@ -17,6 +17,7 @@ export type ElectronMovScriptWorkspaceConfig = {
   updatedAt: string
   modelConfig?: Record<string, unknown>
   agentCatalog?: MovScriptWorkspaceConfig['agentCatalog']
+  agentSelection?: MovScriptWorkspaceConfig['agentSelection']
   toolProviders?: Array<Record<string, unknown>>
   modelProviders?: Array<Record<string, unknown>>
   permissions?: Record<string, unknown>
@@ -34,6 +35,7 @@ export type ElectronMovScriptWorkspaceConfigSaveInput = {
   providerProfileKey?: string
   modelConfig?: Record<string, unknown> | null
   agentCatalog?: MovScriptWorkspaceConfig['agentCatalog'] | null
+  agentSelection?: MovScriptWorkspaceConfig['agentSelection'] | null
   toolProviders?: Array<Record<string, unknown>> | null
   modelProviders?: Array<Record<string, unknown>> | null
   permissions?: Record<string, unknown> | null

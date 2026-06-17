@@ -2288,8 +2288,10 @@
       "audio": "Audio",
       "audioTTS": "Text to Speech",
       "audioTranscribe": "Transcription",
+      "audioMusic": "Music",
+      "audioSfx": "Sound Effects",
       "subtitleAlign": "Subtitle Alignment",
-      "renderVideo": "Video Rendering"
+      "subtitleTranslate": "Subtitle Translation"
     },
     "params": {
       "title": "Generation Parameters",
@@ -2393,7 +2395,7 @@
       "enableCredentialTitle": "Enable this credential",
       "confirmEnableCredential": "Enable credential \"{{name}}\"? It may start serving model requests.",
       "confirmDisableCredential": "Disable credential \"{{name}}\"? Models depending on it will stop being available.",
-      "confirmDeleteCredential": "Delete credential \"{{name}}\"? Related model configs will also be removed.",
+      "confirmDeleteCredential": "Delete credential \"{{name}}\"? Related local provider routes will also be removed.",
       "confirmDeleteModel": "Delete model config \"{{name}}\"?",
       "enabledMark": "● Enabled",
       "disabledMark": "○ Disabled",
@@ -2406,9 +2408,11 @@
       "enabledModels": "Enabled Models",
       "addModel": "Add Model",
       "viewProviders": "Provider Config",
+      "viewCatalog": "Catalog Entries",
       "viewGateway": "Gateway Strategy",
       "providersHint": "Manage provider credentials, model capabilities, pricing, capacity, and failover here. Models with the same priority are distributed by capacity-weighted rotation.",
       "newAPIGatewayProvidersHint": "Commercial new-api forwarding is active. Provider Base URLs, keys, recharge, and plan groups are managed in new-api; this page only manages model routes, capabilities, pricing, capacity, and failover.",
+      "catalogHint": "Catalog Entries define the models MovScript recognizes. Routes decide whether a Catalog Entry resolves to a local provider credential or, in commercial editions, a new-api group.",
       "gatewayHint": "This view covers gateway routing policy. Multiple keys at the same priority rotate across available candidates, avoid saturated providers, and fail over on errors.",
       "gatewayRuleTitle": "Rotation rule",
       "gatewayRuleBody": "Models at the same priority are no longer picked randomly. They are distributed in round-robin order so multiple keys can share traffic more evenly.",
@@ -2702,6 +2706,31 @@
       "previousPage": "Previous",
       "nextPage": "Next"
     },
+    "modelCatalog": {
+      "createTitle": "Create Catalog Entry",
+      "editTitle": "Edit Catalog Entry",
+      "formHint": "Define the semantic model identity, supported params, pricing, and input limits. Routes below bind it to a real provider or group.",
+      "publicModelId": "Public Model ID",
+      "providerModelId": "Provider Model ID",
+      "displayName": "Display name",
+      "shortName": "Short name",
+      "capabilities": "Capabilities",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "acceptsImage": "Accepts image input",
+      "imageEditField": "Image edit field",
+      "create": "Create Entry",
+      "save": "Save Entry",
+      "empty": "No Catalog Entries yet.",
+      "confirmDelete": "Delete Catalog Entry \"{{name}}\"? Its route bindings will also be removed.",
+      "routes": "Model Routes",
+      "addRoute": "Add Route",
+      "noRoutes": "No routes. This Catalog Entry cannot be used until it has a route.",
+      "localProviderRoute": "Local Provider",
+      "newAPIRoute": "New API Group",
+      "routeGroup": "Route group",
+      "pickCredential": "Pick credential"
+    },
     "gatewayKeys": {
       "title": "Gateway API Keys",
       "description": "Create and manage keys for the OpenAI-compatible gateway, with optional project, model, and scope limits.",
@@ -2712,9 +2741,9 @@
       "namePlaceholder": "Example: editing workflow service",
       "projectId": "Project ID",
       "allProjects": "All projects",
-      "models": "Model scope",
-      "allModels": "All models",
-      "modelHint": "When no model is selected, all enabled models are allowed.",
+      "models": "Catalog Entry scope",
+      "allModels": "All Catalog Entries",
+      "modelHint": "When no Catalog Entry is selected, every enabled Catalog Entry is allowed.",
       "scopes": "Scopes",
       "scope": "Scope",
       "newAPIGroup": "Gateway group",
@@ -2729,7 +2758,7 @@
       "enable": "Enable",
       "disable": "Disable",
       "empty": "No gateway API keys",
-      "noModels": "No models are available to limit. Enable models in provider configuration first.",
+      "noModels": "No Catalog Entries are available to limit. Create Catalog Entries in the model catalog first.",
       "createdOnce": "{{name}} was created. The raw key is shown only once.",
       "copy": "Copy",
       "copied": "Copied",
@@ -2829,6 +2858,7 @@
       "userId": "User ID",
       "provider": "Provider",
       "model": "Model",
+      "modelId": "Model ID",
       "type": "Type",
       "usage": "Usage",
       "cost": "Cost",
@@ -3066,8 +3096,7 @@
         "system": "System Overview",
         "providerSandbox": "Provider Sandbox",
         "rawCall": "Raw Call",
-        "jobs": "Job Monitor",
-        "connectivity": "Connectivity Test"
+        "jobs": "Job Monitor"
       },
       "system": {
         "title": "System Overview",
@@ -3168,7 +3197,7 @@
           "featureKey": "Source key",
           "jobId": "Job ID",
           "jobType": "Job type",
-          "modelConfigId": "Model config ID",
+          "modelId": "Model ID",
           "orgId": "Org ID",
           "projectId": "Project ID",
           "userId": "User ID"
@@ -3180,7 +3209,7 @@
           "inputResources": "Input Resources",
           "jobId": "Job ID",
           "jobType": "Job Type",
-          "modelConfigId": "Model Config ID",
+          "modelId": "Model ID",
           "modelDef": "Model Def",
           "orgId": "Org ID",
           "outputResource": "Output Resource",
@@ -3191,13 +3220,6 @@
           "status": "Status",
           "userId": "User ID"
         }
-      },
-      "connectivity": {
-        "title": "Model Connectivity Test",
-        "description": "Send real API requests for each configured model to verify credentials and network connectivity.",
-        "costWarning": "Image model debugging calls generation APIs and may incur a small cost.",
-        "empty": "No configured models",
-        "debugging": "Debugging..."
       },
       "capabilities": {
         "text": "Text to Text",

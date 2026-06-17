@@ -1,6 +1,7 @@
 import type { MCPTool } from '../../protocol/types.js'
 import { focusTools } from '../../tools/focus/definitions.js'
 import { domainTools } from '../../tools/domain/definitions.js'
+import { editingTools } from '../../tools/editing/definitions.js'
 import { projectTools } from '../../tools/project/index.js'
 import { modelTools } from '../../tools/model/definitions.js'
 import { generationTools } from '../../tools/generation/definitions.js'
@@ -8,34 +9,37 @@ import { shotLibraryTools } from '../../tools/shot-library/definitions.js'
 import { resourceLibraryTools } from '../../tools/resource-library/definitions.js'
 import { resourceMediaTools } from '../../tools/resource-media/definitions.js'
 import { externalResourceTools } from '../../tools/external-resources/definitions.js'
+import { artifactTools } from '../../tools/artifact/definitions.js'
 
 export function listTools(): MCPTool[] {
-  const legacyProjectTools = projectTools()
-  const legacyGenerationTools = generationTools()
-  const legacyResourceLibraryTools = resourceLibraryTools()
-  const legacyResourceMediaTools = resourceMediaTools()
-  const legacyShotLibraryTools = shotLibraryTools()
-  const legacyExternalResourceTools = externalResourceTools()
+  const baseProjectTools = projectTools()
+  const baseGenerationTools = generationTools()
+  const baseResourceLibraryTools = resourceLibraryTools()
+  const baseResourceMediaTools = resourceMediaTools()
+  const baseShotLibraryTools = shotLibraryTools()
+  const baseExternalResourceTools = externalResourceTools()
   return [
     ...systemTools({
       focus: focusTools(),
       models: modelTools(),
-      generation: legacyGenerationTools,
-      resourceLibrary: legacyResourceLibraryTools,
-      resourceMedia: legacyResourceMediaTools,
-      shotLibrary: legacyShotLibraryTools,
-      externalResources: legacyExternalResourceTools,
-      project: legacyProjectTools,
+      generation: baseGenerationTools,
+      resourceLibrary: baseResourceLibraryTools,
+      resourceMedia: baseResourceMediaTools,
+      shotLibrary: baseShotLibraryTools,
+      externalResources: baseExternalResourceTools,
+      project: baseProjectTools,
     }),
     ...domainTools(),
+    ...editingTools(),
+    ...artifactTools(),
     ...focusTools(),
     ...modelTools(),
-    ...legacyResourceLibraryTools,
-    ...legacyResourceMediaTools,
-    ...legacyShotLibraryTools,
-    ...legacyExternalResourceTools,
-    ...legacyGenerationTools,
-    ...legacyProjectTools,
+    ...baseResourceLibraryTools,
+    ...baseResourceMediaTools,
+    ...baseShotLibraryTools,
+    ...baseExternalResourceTools,
+    ...baseGenerationTools,
+    ...baseProjectTools,
   ]
 }
 
@@ -60,6 +64,15 @@ function systemTools(input: {
       generation_video_generate: 'system_generate_video',
       generation_video_job_get: 'system_generate_video_job_get',
       generation_video_job_get_batch: 'system_generate_video_job_get_batch',
+      generation_audio_generate: 'generation_audio_generate',
+      generation_voiceover_generate: 'system_generate_voiceover',
+      generation_music_generate: 'system_generate_music',
+      generation_sfx_generate: 'system_generate_sfx',
+      generation_subtitle_generate: 'system_generate_subtitle',
+      generation_subtitle_align: 'system_align_subtitle',
+      generation_subtitle_translate: 'system_translate_subtitle',
+      generation_audio_job_get: 'generation_audio_job_get',
+      generation_audio_job_get_batch: 'generation_audio_job_get_batch',
     }),
     ...renameTools(input.resourceLibrary, { movscript_resource_library_query: 'system_resource_library_query' }),
     ...renameTools(input.resourceMedia, {

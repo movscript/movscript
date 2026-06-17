@@ -271,8 +271,7 @@ test('settings snapshot import preflight delegates catalog requirements', () => 
 test('settings snapshot write plan combines provider model and config file writes', () => {
   const snapshot = settingsSnapshotFixture({
     model: {
-      model: 'model_config:12',
-      platformModelId: '12',
+      model: 'gpt-deep',
       apiKind: 'openai_responses',
       useForChat: true,
       useForPlanner: false,
@@ -287,8 +286,7 @@ test('settings snapshot write plan combines provider model and config file write
     t,
   })
 
-  assert.equal(plan.providerModelConfig?.modelConfigId, 12)
-  assert.equal(plan.providerModelConfig?.model, 'model_config:12')
+  assert.equal(plan.providerModelConfig?.model, 'gpt-deep')
   assert.equal(plan.providerModelConfig?.useForPlanner, false)
   assert.equal(plan.requiresProviderSession, true)
   assert.equal(plan.writesProviderCatalog, true)
@@ -347,7 +345,7 @@ test('settings snapshot write commit saves catalog writes, activates snapshot ta
   const snapshot = settingsSnapshotFixture({
     activeConfigFileId: 'config_file.target',
     configFiles: [configFileFixture({ id: 'config_file.target', name: 'Target' })],
-    model: { model: 'model_config:12', platformModelId: '12' },
+    model: { model: 'gpt-deep' },
   })
   const plan = buildSettingsSnapshotWritePlan({
     snapshot,
@@ -366,7 +364,7 @@ test('settings snapshot write commit saves catalog writes, activates snapshot ta
 
   assert.deepEqual(calls, [
     'ensureRunning',
-    'saveModel:model_config:12',
+    'saveModel:gpt-deep',
     'save:config_file.target:true',
     'refetchProviderModelConfig',
     'refetchCatalog',

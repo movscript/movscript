@@ -29,7 +29,7 @@ func llmCallLogFilterToContract(filter LLMCallLogFilter) providercontract.AIGate
 		UserID:          filter.UserID,
 		OrgID:           filter.OrgID,
 		ProjectID:       filter.ProjectID,
-		ModelConfigID:   filter.ModelConfigID,
+		ModelID:         filter.ModelID,
 		CredentialID:    filter.CredentialID,
 		GatewayAPIKeyID: filter.GatewayAPIKeyID,
 		OperationType:   filter.OperationType,
@@ -50,7 +50,7 @@ func llmCallLogFilterFromContract(filter providercontract.AIGatewayCallLogFilter
 		UserID:          filter.UserID,
 		OrgID:           filter.OrgID,
 		ProjectID:       filter.ProjectID,
-		ModelConfigID:   filter.ModelConfigID,
+		ModelID:         filter.ModelID,
 		CredentialID:    filter.CredentialID,
 		GatewayAPIKeyID: filter.GatewayAPIKeyID,
 		OperationType:   filter.OperationType,
@@ -109,8 +109,7 @@ func llmCallLogToContract(row LLMCallLog) providercontract.AIGatewayCallLog {
 		OrgID:             row.OrgID,
 		ProjectID:         row.ProjectID,
 		GatewayAPIKeyID:   row.GatewayAPIKeyID,
-		AIModelConfigID:   row.AIModelConfigID,
-		AIModelConfig:     llmModelRefToContract(row.AIModelConfig),
+		ModelID:           row.ModelID,
 		CredentialID:      row.CredentialID,
 		OperationType:     row.OperationType,
 		PromptName:        row.PromptName,
@@ -143,8 +142,7 @@ func llmCallLogFromContract(row providercontract.AIGatewayCallLog) LLMCallLog {
 		OrgID:             row.OrgID,
 		ProjectID:         row.ProjectID,
 		GatewayAPIKeyID:   row.GatewayAPIKeyID,
-		AIModelConfigID:   row.AIModelConfigID,
-		AIModelConfig:     llmModelRefFromContract(row.AIModelConfig),
+		ModelID:           row.ModelID,
 		CredentialID:      row.CredentialID,
 		OperationType:     row.OperationType,
 		PromptName:        row.PromptName,
@@ -212,32 +210,4 @@ func llmUserRefFromContract(ref *providercontract.AIGatewayCallLogUserRef) *LLMC
 		return nil
 	}
 	return &LLMCallLogUserRef{ID: ref.ID, Username: ref.Username, SystemRole: ref.SystemRole}
-}
-
-func llmModelRefToContract(ref *LLMCallLogModelConfigRef) *providercontract.AIGatewayCallLogModelConfigRef {
-	if ref == nil {
-		return nil
-	}
-	return &providercontract.AIGatewayCallLogModelConfigRef{
-		ID:                ref.ID,
-		CredentialID:      ref.CredentialID,
-		ModelDefID:        ref.ModelDefID,
-		ModelIDOverride:   ref.ModelIDOverride,
-		CustomDisplayName: ref.CustomDisplayName,
-		ShortName:         ref.ShortName,
-	}
-}
-
-func llmModelRefFromContract(ref *providercontract.AIGatewayCallLogModelConfigRef) *LLMCallLogModelConfigRef {
-	if ref == nil {
-		return nil
-	}
-	return &LLMCallLogModelConfigRef{
-		ID:                ref.ID,
-		CredentialID:      ref.CredentialID,
-		ModelDefID:        ref.ModelDefID,
-		ModelIDOverride:   ref.ModelIDOverride,
-		CustomDisplayName: ref.CustomDisplayName,
-		ShortName:         ref.ShortName,
-	}
 }

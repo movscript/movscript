@@ -62,6 +62,18 @@ func (r *Registry) BuildForCredential(cred persistencemodel.AICredential) (Provi
 	return r.buildProvider(cred, fakeDef)
 }
 
+// BuildForGatewayProvider constructs the configured gateway-level Provider
+// without going through an admin credential row.
+func (r *Registry) BuildForGatewayProvider() (Provider, error) {
+	if r.providerMode == AdapterLocal || r.providerMode == "local" || r.providerMode == "" {
+		return NewLocalAdapter(), nil
+	}
+	if provider, handled, err := r.editionBuildGatewayProvider(); handled || err != nil {
+		return provider, err
+	}
+	return nil, fmt.Errorf("ai gateway provider %q is not supported", r.providerMode)
+}
+
 func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelDef) (Provider, error) {
 	if r.providerFactory != nil {
 		return r.providerFactory(cred, def)

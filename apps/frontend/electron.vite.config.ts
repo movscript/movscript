@@ -114,6 +114,7 @@ const allAlias = {
 
 const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
 const disableRendererHmr = process.env.MOVSCRIPT_FRONTEND_NO_HMR === '1'
+const forceRendererOptimizeDeps = process.env.MOVSCRIPT_FRONTEND_FORCE_OPTIMIZE_DEPS === '1'
 const ignoredMovScriptRuntimeWatchPaths = [
   '**/.movscript/**/.tmp/**',
   '**/.movscript-dev/**/.movscript/**/.tmp/**',
@@ -173,7 +174,7 @@ export default defineConfig(() => {
         },
       },
       optimizeDeps: {
-        force: true,
+        force: forceRendererOptimizeDeps,
       },
       build: {
         rollupOptions: {

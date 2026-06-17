@@ -88,6 +88,8 @@ func (s *AIService) ResolveRuntimeGenerationModel(modelConfigID uint, outputType
 		return s.resolveRuntimeModelAnyCapability(modelConfigID, []string{outputType})
 	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
 		return s.resolveRuntimeModelAnyCapability(modelConfigID, []string{outputType})
+	case CapabilityAudioTTS, CapabilityAudioSTT, CapabilityAudioMusic, CapabilityAudioSFX, CapabilitySubAlign, CapabilitySubTranslate:
+		return s.resolveRuntimeModelAnyCapability(modelConfigID, []string{outputType})
 	default:
 		return 0, fmt.Errorf("unsupported runtime output type %q", outputType)
 	}
@@ -119,7 +121,9 @@ type runtimeModelCandidate struct {
 type ModelRouteRequest struct {
 	ModelID               string
 	ModelConfigID         uint
+	CatalogEntryID        uint
 	Capability            string
+	RouteGroup            string
 	PreferredAdapterTypes []string
 	EstimatedUsage        UsageEstimate
 	MaxEstimatedCost      float64
@@ -127,7 +131,11 @@ type ModelRouteRequest struct {
 
 type ModelRoute struct {
 	ModelID         string
-	ModelConfigID   uint
+	ModelConfigID   uint // resolved compatibility route id for legacy clients
+	CatalogEntryID  uint
+	CredentialID    uint
+	SourceType      string
+	RouteGroup      string
 	ProviderModelID string
 	SelectionReason string
 	EstimatedCost   float64
@@ -192,6 +200,19 @@ func (s *AIService) OpenAIProxyTargetForCapability(ctx context.Context, userID u
 	}, nil
 }
 
+func (s *AIService) OpenAIProxyTargetForRoute(ctx context.Context, userID uint, route ModelRoute, requiredCap string) (OpenAIProxyTarget, error) {
+	if strings.TrimSpace(route.RouteGroup) != "" {
+		ctx = WithProviderRouteGroup(ctx, strings.TrimSpace(route.RouteGroup))
+	}
+	if target, handled, err := s.editionOpenAIProxyTargetForCatalogRoute(ctx, userID, route, requiredCap); handled || err != nil {
+		if err != nil {
+			return OpenAIProxyTarget{}, err
+		}
+		return target, nil
+	}
+	return s.OpenAIProxyTargetForCapability(ctx, userID, route.ModelConfigID, requiredCap)
+}
+
 func (s *AIService) ResolveModelRoute(req ModelRouteRequest) (ModelRoute, error) {
 	plan, err := s.ResolveModelRoutePlan(req)
 	if err != nil {
@@ -210,6 +231,15 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 	}
 	modelID := strings.TrimSpace(req.ModelID)
 	if modelID != "" {
+		if plan, handled, err := s.resolveCatalogModelRoutePlan(req, capability, modelID); handled || err != nil {
+			if err != nil {
+				return ModelRoutePlan{}, err
+			}
+			return plan, nil
+		}
+		if s.editionModelCatalogOnly() {
+			return ModelRoutePlan{}, fmt.Errorf("catalog model %q not found for capability %s", modelID, capability)
+		}
 		candidates, err := s.runtimeModelCandidatesByModelID(modelID, capability)
 		if err != nil {
 			return ModelRoutePlan{}, err
@@ -231,8 +261,20 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 			SelectionReason: selectionReason,
 		}, nil
 	}
-	if req.ModelConfigID == 0 {
+	if req.ModelConfigID == 0 && req.CatalogEntryID == 0 {
 		return ModelRoutePlan{}, fmt.Errorf("model_id is required")
+	}
+	if plan, handled, err := s.resolveCatalogModelRoutePlan(req, capability, ""); handled || err != nil {
+		if err != nil {
+			return ModelRoutePlan{}, err
+		}
+		return plan, nil
+	}
+	if req.CatalogEntryID != 0 {
+		return ModelRoutePlan{}, fmt.Errorf("catalog entry id=%d not found for capability %s", req.CatalogEntryID, capability)
+	}
+	if s.editionModelCatalogOnly() {
+		return ModelRoutePlan{}, fmt.Errorf("catalog_entry_id is required for catalog-only routing")
 	}
 	candidates, err := s.runtimeModelCandidates(req.ModelConfigID, capability)
 	if err != nil {
@@ -247,7 +289,7 @@ func (s *AIService) ResolveModelRoutePlan(req ModelRouteRequest) (ModelRoutePlan
 		return ModelRoutePlan{}, err
 	}
 	ordered := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
-	selectionReason := legacyConfigRouteSelectionReason(preferred, budgetAware)
+	selectionReason := localProviderRouteSelectionReason(preferred, budgetAware)
 	return ModelRoutePlan{
 		ModelID:         ordered[0].logicalID,
 		Capability:      capability,
@@ -267,6 +309,7 @@ func modelRoutesFromCandidates(candidates []runtimeModelCandidate, capability st
 		routes = append(routes, ModelRoute{
 			ModelID:         candidate.logicalID,
 			ModelConfigID:   candidate.cfg.ID,
+			SourceType:      persistencemodel.ModelRouteSourceLocalProvider,
 			ProviderModelID: resolveModelID(candidate.cfg, def),
 			SelectionReason: reason,
 			EstimatedCost:   estimatedRuntimeCandidateCost(candidate, capability, estimate),
@@ -292,7 +335,9 @@ func (s *AIService) ResolveTextModelRoute(modelID string) (ModelRoute, error) {
 
 func (s *AIService) ResolveGenerationModelRoute(modelID string, outputType string) (ModelRoute, error) {
 	switch outputType {
-	case CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
+	case CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V,
+		CapabilityAudioTTS, CapabilityAudioSTT, CapabilityAudioMusic, CapabilityAudioSFX,
+		CapabilitySubAlign, CapabilitySubTranslate:
 		return s.ResolveModelRoute(ModelRouteRequest{ModelID: modelID, Capability: outputType})
 	default:
 		return ModelRoute{}, fmt.Errorf("unsupported runtime output type %q", outputType)
@@ -500,7 +545,7 @@ func beginRuntimeProviderAttempt(modelConfigID uint) func(error) {
 }
 
 type RuntimeProviderHealth struct {
-	ModelConfigID       uint       `json:"model_config_id"`
+	ModelConfigID       uint       `json:"-"`
 	ModelID             string     `json:"model_id"`
 	ModelDefID          string     `json:"model_def_id"`
 	ProviderName        string     `json:"provider_name"`

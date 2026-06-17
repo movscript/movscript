@@ -6,38 +6,9 @@ export interface AICredential {
   base_url: string
   masked_key: string
   is_enabled: boolean
-  models?: AIModelConfig[]
   files_api_enabled: boolean
   files_api_base_url: string
   files_api_masked_key: string
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-// AIModelConfig registers a model and stores all metadata + admin credit prices.
-export interface AIModelConfig {
-  ID: number
-  credential_id: number
-  model_def_id: string           // the API model ID (e.g. "gpt-4o", "gemini-2.0-flash")
-  model_id_override: string      // optional override for the API-level model ID (e.g. Volcengine ep-xxx)
-  is_enabled: boolean
-  priority: number
-  capacity_weight: number
-  max_concurrency: number
-  credits_input_per_1m: number
-  credits_output_per_1m: number
-  credits_per_image: number
-  credits_per_second: number
-  credits_per_call: number
-  custom_display_name: string
-  short_name: string
-  custom_capabilities: string    // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
-  custom_pricing_mode: string    // "per_token"|"per_image"|"per_second"|"per_call"
-  custom_accepts_image: boolean
-  custom_max_input_images: number
-  custom_max_input_videos: number
-  custom_image_edit_field: string
-  custom_supported_params: string // JSON: ParamDef[] or ModelParamProfile
   CreatedAt: string
   UpdatedAt: string
 }
@@ -140,6 +111,7 @@ export interface ModelInputRequirements {
 // PublicModel is the user-facing model representation.
 export interface PublicModel {
   id: number
+  catalog_entry_id?: number
   credential_id: number        // parent AICredential ID (for admin inline edit)
   model_id: string             // public logical model ID used by callers
   display_name: string

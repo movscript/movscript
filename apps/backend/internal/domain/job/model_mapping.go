@@ -1,47 +1,53 @@
 package job
 
 import (
+	"encoding/json"
+	"strings"
+
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func JobFromModel(job persistencemodel.Job) Job {
 	domainJob := Job{
-		ID:                  job.ID,
-		UserID:              job.UserID,
-		OrgID:               job.OrgID,
-		ModelConfigID:       job.ModelConfigID,
-		JobType:             job.JobType,
-		FeatureKey:          job.FeatureKey,
-		Title:               job.Title,
-		Status:              job.Status,
-		AttemptCount:        job.AttemptCount,
-		MaxAttempts:         job.MaxAttempts,
-		NextRunAt:           job.NextRunAt,
-		Prompt:              job.Prompt,
-		ExtraParams:         job.ExtraParams,
-		AspectRatio:         job.AspectRatio,
-		Duration:            job.Duration,
-		RequestContext:      job.RequestContext,
-		InputResourceID:     job.InputResourceID,
-		InputResourceIDs:    job.InputResourceIDs,
-		OutputResourceID:    job.OutputResourceID,
-		UsageReservationID:  job.UsageReservationID,
-		ProviderTaskID:      job.ProviderTaskID,
-		ProviderTaskKind:    job.ProviderTaskKind,
-		ProviderTaskStatus:  job.ProviderTaskStatus,
-		ErrorMsg:            job.ErrorMsg,
-		DebugInfo:           job.DebugInfo,
-		ExecutionState:      job.ExecutionState,
-		LockedBy:            job.LockedBy,
-		LeaseUntil:          job.LeaseUntil,
-		LastHeartbeatAt:     job.LastHeartbeatAt,
-		StartedAt:           job.StartedAt,
-		FinishedAt:          job.FinishedAt,
-		ProjectID:           job.ProjectID,
-		ProviderTaskHistory: job.ProviderTaskHistory,
-		StateTrace:          job.StateTrace,
-		CreatedAt:           job.CreatedAt,
-		UpdatedAt:           job.UpdatedAt,
+		ID:                    job.ID,
+		UserID:                job.UserID,
+		OrgID:                 job.OrgID,
+		ModelConfigID:         job.ModelConfigID,
+		AIModelCatalogEntryID: job.AIModelCatalogEntryID,
+		ModelID:               ModelIDFromRequestContext(job.RequestContext),
+		RouteGroup:            job.RouteGroup,
+		JobType:               job.JobType,
+		FeatureKey:            job.FeatureKey,
+		Title:                 job.Title,
+		Status:                job.Status,
+		AttemptCount:          job.AttemptCount,
+		MaxAttempts:           job.MaxAttempts,
+		NextRunAt:             job.NextRunAt,
+		Prompt:                job.Prompt,
+		ExtraParams:           job.ExtraParams,
+		AspectRatio:           job.AspectRatio,
+		Duration:              job.Duration,
+		RequestContext:        job.RequestContext,
+		InputResourceID:       job.InputResourceID,
+		InputResourceIDs:      job.InputResourceIDs,
+		OutputResourceID:      job.OutputResourceID,
+		UsageReservationID:    job.UsageReservationID,
+		ProviderTaskID:        job.ProviderTaskID,
+		ProviderTaskKind:      job.ProviderTaskKind,
+		ProviderTaskStatus:    job.ProviderTaskStatus,
+		ErrorMsg:              job.ErrorMsg,
+		DebugInfo:             job.DebugInfo,
+		ExecutionState:        job.ExecutionState,
+		LockedBy:              job.LockedBy,
+		LeaseUntil:            job.LeaseUntil,
+		LastHeartbeatAt:       job.LastHeartbeatAt,
+		StartedAt:             job.StartedAt,
+		FinishedAt:            job.FinishedAt,
+		ProjectID:             job.ProjectID,
+		ProviderTaskHistory:   job.ProviderTaskHistory,
+		StateTrace:            job.StateTrace,
+		CreatedAt:             job.CreatedAt,
+		UpdatedAt:             job.UpdatedAt,
 	}
 	if job.DeletedAt.Valid {
 		deletedAt := job.DeletedAt.Time
@@ -52,6 +58,26 @@ func JobFromModel(job persistencemodel.Job) Job {
 		domainJob.OutputResource = &resource
 	}
 	return domainJob
+}
+
+func ModelIDFromRequestContext(requestContext string) string {
+	var body map[string]any
+	if err := json.Unmarshal([]byte(requestContext), &body); err != nil {
+		return ""
+	}
+	for _, key := range []string{"model_id", "modelId"} {
+		if value, ok := body[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	if route, ok := body["route"].(map[string]any); ok {
+		for _, key := range []string{"model_id", "modelId"} {
+			if value, ok := route[key].(string); ok && strings.TrimSpace(value) != "" {
+				return strings.TrimSpace(value)
+			}
+		}
+	}
+	return ""
 }
 
 func (job Job) ToModel() persistencemodel.Job {
@@ -65,6 +91,8 @@ func (job Job) ApplyToModel(target *persistencemodel.Job) {
 	target.UserID = job.UserID
 	target.OrgID = job.OrgID
 	target.ModelConfigID = job.ModelConfigID
+	target.AIModelCatalogEntryID = job.AIModelCatalogEntryID
+	target.RouteGroup = job.RouteGroup
 	target.JobType = job.JobType
 	target.FeatureKey = job.FeatureKey
 	target.Title = job.Title

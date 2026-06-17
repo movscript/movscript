@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -152,15 +154,38 @@ func (h *JobHandler) writeJobActionError(c *gin.Context, err error) {
 }
 
 func jobActionAuditMetadata(job domainjob.Job) map[string]any {
-	return map[string]any{
-		"job_id":          job.ID,
-		"user_id":         job.UserID,
-		"org_id":          job.OrgID,
-		"project_id":      job.ProjectID,
-		"model_config_id": job.ModelConfigID,
-		"job_type":        job.JobType,
-		"feature_key":     job.FeatureKey,
-		"status":          job.Status,
-		"attempt_count":   job.AttemptCount,
+	metadata := map[string]any{
+		"job_id":        job.ID,
+		"user_id":       job.UserID,
+		"org_id":        job.OrgID,
+		"project_id":    job.ProjectID,
+		"job_type":      job.JobType,
+		"feature_key":   job.FeatureKey,
+		"status":        job.Status,
+		"attempt_count": job.AttemptCount,
 	}
+	if modelID := jobActionModelID(job.RequestContext); modelID != "" {
+		metadata["model_id"] = modelID
+	}
+	return metadata
+}
+
+func jobActionModelID(requestContext string) string {
+	var body map[string]any
+	if err := json.Unmarshal([]byte(requestContext), &body); err != nil {
+		return ""
+	}
+	for _, key := range []string{"model_id", "modelId"} {
+		if value, ok := body[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	if route, ok := body["route"].(map[string]any); ok {
+		for _, key := range []string{"model_id", "modelId"} {
+			if value, ok := route[key].(string); ok && strings.TrimSpace(value) != "" {
+				return strings.TrimSpace(value)
+			}
+		}
+	}
+	return ""
 }

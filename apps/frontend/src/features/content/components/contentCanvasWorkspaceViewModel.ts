@@ -10,7 +10,7 @@ import {
   reconcileContentCanvasInspectorSelection,
   sceneSettingGroupsUsedByScene,
   sceneTimelineItemsFromGraph,
-  timelineItemsFromOpenCutDocument,
+  timelineItemsFromMediaEditingProject,
   SCENE_MAIN_NODE,
   settingKindFromNode,
   uniqueContentNodes,
@@ -51,13 +51,13 @@ export function buildContentCanvasWorkspaceViewModel({
   const sceneRelationNodes = activeScene ? radialNodesAround(activeScene, graphIndex, ['expression_unit', 'shot', 'keyframe', 'storyboard', 'audio_cue']) : []
   const settingRelationNodes = activeSetting ? radialNodesAround(activeSetting, graphIndex, ['state', 'asset']) : []
   const tree = contentCanvasStructureTree(graph, activeScene?.id, activeProductionId ?? undefined)
-  const openCutTimeline = activeScene ? timelineItemsFromOpenCutDocument(projectData?.editingTimelinesByNodeId?.[activeScene.id]) : []
-  const productionOpenCutTimeline = activeProductionId
-    ? timelineItemsFromOpenCutDocument(projectData?.editingTimelinesByNodeId?.[activeProductionId])
+  const mediaProjectTimeline = activeScene ? timelineItemsFromMediaEditingProject(projectData?.editingProjectsByNodeId?.[activeScene.id]) : []
+  const productionMediaProjectTimeline = activeProductionId
+    ? timelineItemsFromMediaEditingProject(projectData?.editingProjectsByNodeId?.[activeProductionId])
     : []
-  const timelineItems = productionOpenCutTimeline.length > 0
-    ? productionOpenCutTimeline
-    : activeScene ? (openCutTimeline.length > 0 ? openCutTimeline : sceneTimelineItemsFromGraph(activeScene, graphIndex)) : []
+  const timelineItems = productionMediaProjectTimeline.length > 0
+    ? productionMediaProjectTimeline
+    : activeScene ? (mediaProjectTimeline.length > 0 ? mediaProjectTimeline : sceneTimelineItemsFromGraph(activeScene, graphIndex)) : []
   const timelineTitle = activeProductionId && activeProduction ? `${activeProduction.title} Timeline` : 'Scene Moment Timeline'
   const timelineEmptyText = activeProductionId
     ? '当前 Production 暂无可剪辑片段'

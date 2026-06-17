@@ -11,6 +11,7 @@ import (
 
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -90,6 +91,20 @@ func TestClaimLocalJobWritesWorkerLease(t *testing.T) {
 	}
 	if claimed.AttemptCount != 1 {
 		t.Fatalf("attempt_count = %d, want 1", claimed.AttemptCount)
+	}
+}
+
+func TestWorkerLegacyModelHelpersSkipMissingProviderTables(t *testing.T) {
+	db := testutil.OpenSQLite(t, "worker_catalog_only.db", &model.Job{}, &model.AIModelCatalogEntry{})
+	worker := NewWorker(db, nil, nil, nil)
+	if db.Migrator().HasTable(&model.AIModelConfig{}) || db.Migrator().HasTable(&model.AICredential{}) {
+		t.Fatal("catalog-only worker test should not create legacy provider tables")
+	}
+	if got := worker.modelAdapterType(42); got != "" {
+		t.Fatalf("modelAdapterType() = %q, want empty when legacy provider tables are absent", got)
+	}
+	if cfg := worker.loadModelConfig(42); cfg != nil {
+		t.Fatalf("loadModelConfig() = %#v, want nil when legacy provider tables are absent", cfg)
 	}
 }
 
@@ -220,6 +235,105 @@ func TestRequeueStaleRunningJobsClearsExpiredLease(t *testing.T) {
 	}
 	if reloaded.LeaseUntil != nil {
 		t.Fatalf("lease_until = %v, want nil", reloaded.LeaseUntil)
+	}
+}
+
+func TestWorkerExecutesOrthogonalSubtitleJobTypesAsResourceOutputs(t *testing.T) {
+	db := testutil.OpenSQLite(t, "runner_p3_subtitle_jobs.db",
+		&model.Job{},
+		&model.RawResource{},
+		&model.ResourceBlob{},
+		&model.AICredential{},
+		&model.AIModelConfig{},
+		&model.UsageReservation{},
+		&model.UsageLog{},
+	)
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileSystemStorage: %v", err)
+	}
+	cred := model.AICredential{
+		Model:       gorm.Model{ID: 1},
+		AdapterType: ai.AdapterLocal,
+		DisplayName: "Local subtitle runner",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	worker := NewWorker(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), store, nil)
+	audioInputJob := &model.Job{UserID: 42, Title: "source audio"}
+	audioResourceID, err := worker.saveBytes(context.Background(), audioInputJob, []byte("wav"), "audio/wav")
+	if err != nil {
+		t.Fatalf("save input audio: %v", err)
+	}
+
+	cases := []struct {
+		capability string
+		want       string
+		withAudio  bool
+	}{
+		{capability: ai.CapabilityAudioSTT, want: "transcribed", withAudio: true},
+		{capability: ai.CapabilitySubAlign, want: "hello world", withAudio: true},
+		{capability: ai.CapabilitySubTranslate, want: "[local subtitle translation:zh-CN]\nhello world\n", withAudio: false},
+	}
+	for index, tc := range cases {
+		cfg := model.AIModelConfig{
+			Model:              gorm.Model{ID: uint(100 + index)},
+			CredentialID:       cred.ID,
+			ModelDefID:         "local-" + tc.capability,
+			ModelIDOverride:    "provider-" + tc.capability,
+			CustomCapabilities: tc.capability,
+			CustomPricingMode:  string(ai.PricingPerCall),
+			IsEnabled:          true,
+		}
+		if err := db.Create(&cfg).Error; err != nil {
+			t.Fatalf("create model config %s: %v", tc.capability, err)
+		}
+		job := model.Job{
+			UserID:        42,
+			ModelConfigID: cfg.ID,
+			JobType:       tc.capability,
+			Status:        StatusRunning,
+			MaxAttempts:   1,
+			Title:         "subtitle " + tc.capability,
+			Prompt:        "hello world",
+			ExtraParams:   `{"target_language":"zh-CN","language":"en-US","script":"hello world"}`,
+		}
+		if tc.withAudio {
+			job.InputResourceID = &audioResourceID
+		}
+		if err := db.Create(&job).Error; err != nil {
+			t.Fatalf("create job %s: %v", tc.capability, err)
+		}
+		if err := worker.execute(context.Background(), &job); err != nil {
+			t.Fatalf("execute %s: %v", tc.capability, err)
+		}
+
+		var reloaded model.Job
+		if err := db.First(&reloaded, job.ID).Error; err != nil {
+			t.Fatalf("reload job %s: %v", tc.capability, err)
+		}
+		if reloaded.Status != StatusSucceeded {
+			t.Fatalf("%s status = %q, want %q", tc.capability, reloaded.Status, StatusSucceeded)
+		}
+		if reloaded.OutputResourceID == nil {
+			t.Fatalf("%s did not store an output resource id", tc.capability)
+		}
+		var output model.RawResource
+		if err := db.First(&output, *reloaded.OutputResourceID).Error; err != nil {
+			t.Fatalf("load output resource for %s: %v", tc.capability, err)
+		}
+		if output.Type != "text" || output.MimeType != "text/plain" {
+			t.Fatalf("%s output resource type/mime = %q/%q", tc.capability, output.Type, output.MimeType)
+		}
+		data, _, _, err := worker.readResourceBytes(output)
+		if err != nil {
+			t.Fatalf("read output resource for %s: %v", tc.capability, err)
+		}
+		if string(data) != tc.want {
+			t.Fatalf("%s output = %q, want %q", tc.capability, string(data), tc.want)
+		}
 	}
 }
 

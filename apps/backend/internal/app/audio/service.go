@@ -29,16 +29,16 @@ type Service struct {
 }
 
 type TTSInput struct {
-	UserID        uint
-	OrgID         *uint
-	ModelConfigID uint
-	Text          string
-	Voice         string
-	Language      string
-	Model         string
-	AudioFormat   string
-	Filename      string
-	Params        json.RawMessage
+	UserID      uint
+	OrgID       *uint
+	ModelID     string
+	Text        string
+	Voice       string
+	Language    string
+	Model       string
+	AudioFormat string
+	Filename    string
+	Params      json.RawMessage
 }
 
 type TTSResult struct {
@@ -50,7 +50,7 @@ type TTSResult struct {
 type TranscribeInput struct {
 	UserID          uint
 	OrgID           *uint
-	ModelConfigID   uint
+	ModelID         string
 	AudioResourceID uint
 	Language        string
 	Model           string
@@ -60,7 +60,7 @@ type TranscribeInput struct {
 type AlignInput struct {
 	UserID          uint
 	OrgID           *uint
-	ModelConfigID   uint
+	ModelID         string
 	AudioResourceID uint
 	Script          string
 	Language        string
@@ -86,8 +86,9 @@ func (s *Service) Synthesize(ctx context.Context, input TTSInput) (TTSResult, er
 	if input.UserID == 0 {
 		return TTSResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	if input.ModelConfigID == 0 {
-		return TTSResult{}, fmt.Errorf("%w: model_config_id is required", ErrInvalidRequest)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityAudioTTS)
+	if err != nil {
+		return TTSResult{}, err
 	}
 	text := strings.TrimSpace(input.Text)
 	if text == "" {
@@ -109,7 +110,7 @@ func (s *Service) Synthesize(ctx context.Context, input TTSInput) (TTSResult, er
 		AudioFormat: strings.TrimSpace(input.AudioFormat),
 		Params:      params,
 	}
-	resp, err := s.aiService.CallTTS(ctx, input.UserID, input.ModelConfigID, req, ai.UsageContext{OrgID: input.OrgID})
+	resp, err := s.aiService.CallTTSWithRouteUsage(ctx, input.UserID, route, req, ai.UsageContext{OrgID: input.OrgID})
 	if err != nil {
 		return TTSResult{}, fmt.Errorf("%w: %v", ErrProvider, err)
 	}
@@ -160,8 +161,9 @@ func (s *Service) Transcribe(ctx context.Context, input TranscribeInput) (Transc
 	if input.UserID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	if input.ModelConfigID == 0 {
-		return TranscribeResult{}, fmt.Errorf("%w: model_config_id is required", ErrInvalidRequest)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilityAudioSTT)
+	if err != nil {
+		return TranscribeResult{}, err
 	}
 	if input.AudioResourceID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: audio_resource_id is required", ErrInvalidRequest)
@@ -174,7 +176,7 @@ func (s *Service) Transcribe(ctx context.Context, input TranscribeInput) (Transc
 	if err != nil {
 		return TranscribeResult{}, err
 	}
-	resp, err := s.aiService.CallTranscribe(ctx, input.UserID, input.ModelConfigID, media.TranscribeRequest{
+	resp, err := s.aiService.CallTranscribeWithRouteUsage(ctx, input.UserID, route, media.TranscribeRequest{
 		AudioResourceID: input.AudioResourceID,
 		Audio:           data,
 		MimeType:        mimeType,
@@ -196,8 +198,9 @@ func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult
 	if input.UserID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: user is required", ErrInvalidRequest)
 	}
-	if input.ModelConfigID == 0 {
-		return TranscribeResult{}, fmt.Errorf("%w: model_config_id is required", ErrInvalidRequest)
+	route, err := s.resolveAudioRoute(ctx, input.UserID, input.ModelID, ai.CapabilitySubAlign, ai.CapabilityAudioSTT)
+	if err != nil {
+		return TranscribeResult{}, err
 	}
 	if input.AudioResourceID == 0 {
 		return TranscribeResult{}, fmt.Errorf("%w: audio_resource_id is required", ErrInvalidRequest)
@@ -214,7 +217,7 @@ func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult
 	if err != nil {
 		return TranscribeResult{}, err
 	}
-	resp, err := s.aiService.CallAlign(ctx, input.UserID, input.ModelConfigID, media.AlignRequest{
+	resp, err := s.aiService.CallAlignWithRouteUsage(ctx, input.UserID, route, media.AlignRequest{
 		AudioResourceID: input.AudioResourceID,
 		Audio:           data,
 		MimeType:        mimeType,
@@ -231,6 +234,31 @@ func (s *Service) Align(ctx context.Context, input AlignInput) (TranscribeResult
 		Text:        strings.TrimSpace(string(resp.Content)),
 		ProviderRef: resp.ProviderRef,
 	}, nil
+}
+
+func (s *Service) resolveAudioRoute(ctx context.Context, userID uint, modelID string, capabilities ...string) (ai.ModelRoute, error) {
+	if s.aiService == nil {
+		return ai.ModelRoute{}, fmt.Errorf("%w: ai service is not configured", ErrInvalidRequest)
+	}
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return ai.ModelRoute{}, fmt.Errorf("%w: model_id is required", ErrInvalidRequest)
+	}
+	var lastErr error
+	for _, capability := range capabilities {
+		route, err := s.aiService.ResolveModelRoute(ai.ModelRouteRequest{
+			ModelID:    modelID,
+			Capability: capability,
+		})
+		if err == nil {
+			return route, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return ai.ModelRoute{}, fmt.Errorf("%w: %v", ErrProvider, lastErr)
+	}
+	return ai.ModelRoute{}, fmt.Errorf("%w: no audio capability requested", ErrInvalidRequest)
 }
 
 func (s *Service) loadAudioResource(ctx context.Context, resourceID uint, userID uint, orgID *uint) ([]byte, string, error) {

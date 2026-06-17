@@ -87,7 +87,7 @@ function visibleContextLabels(labels: string[], isUser: boolean): string[] {
     const restoredProviderSessionPattern = new RegExp([
       '^',
       '(?:',
-      ['已恢复(?:本地\\s*', 'Runtime', '| Provider 会话)'].join(''),
+      ['已恢复(?:本地\\s*', 'Runtime', '|\\s*Runtime\\s*会话| Provider 会话)'].join(''),
       '|',
       ['Restored (?:', 'Local ', 'Runtime', '|Provider Session)'].join(''),
       '|Restored',

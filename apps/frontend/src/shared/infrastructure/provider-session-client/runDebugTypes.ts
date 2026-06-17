@@ -338,7 +338,6 @@ export interface AgentRunGenerationView {
     providerName?: string
     modelDisplay?: string
     modelIdentifier?: string
-    modelConfigId?: number
     status: string
     stage?: string
     progress?: number
@@ -370,7 +369,6 @@ export interface AgentRunGenerationView {
     providerName?: string
     modelDisplay?: string
     modelIdentifier?: string
-    modelConfigId?: number
     status?: string
     stage?: string
   }>

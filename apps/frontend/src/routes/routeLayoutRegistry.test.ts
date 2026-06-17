@@ -129,11 +129,10 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/resources').scrollMode), 'auto')
   assert.match(routeLayoutSpecForPathname('/resources').notes ?? '', /shared resource drag contract/)
   assert.equal(routeLayoutSpecForPathname('/agents/mova').surface, 'settings')
-  assert.equal(routeLayoutSpecForPathname('/agents/mova').chrome, 'agent')
+  assert.equal(routeLayoutSpecForPathname('/agents/mova').chrome, 'settings')
   assert.equal(routeLayoutSpecForPathname('/agents/mova').scrollMode, 'document')
   assert.equal(appRouteViewportScrollForMode(routeLayoutSpecForPathname('/agents/mova').scrollMode), 'auto')
 
-  assert.equal(routeLayoutSpecForPathname('/onboarding').shellLayout, 'flush')
   assert.equal(routeLayoutSpecForPathname('/invite/abc123').scrollMode, 'document')
 
   for (const pathname of ['/app/settings', '/user', '/org/settings', '/agent']) {
@@ -154,9 +153,10 @@ test('route layout registry separates canvas, agent, document, redirect, and ove
   for (const pathname of ['/agent/settings', '/agents/mova']) {
     const agentSettingsRoute = routeLayoutSpecForPathname(pathname)
     assert.equal(agentSettingsRoute.surface, 'settings')
-    assert.equal(agentSettingsRoute.chrome, 'agent')
+    assert.equal(agentSettingsRoute.chrome, 'settings')
     assert.equal(agentSettingsRoute.preserveWorkMode, true)
-    assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
+    assert.ok(agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_SETTINGS_SIDEBAR_PANE_ID))
+    assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_AGENT_SIDEBAR_PANE_ID))
     assert.ok(!agentSettingsRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
   }
 })
@@ -219,6 +219,12 @@ test('route layout registry declares shared tool workbench resource panes', () =
     assert.equal(resourcePane?.expandMode, 'after-max')
     assert.equal(resourcePane?.overlapMode, 'pane-surface')
   }
+
+  const audioRoute = routeLayoutSpecForPathname('/tools/audio-gen')
+  assert.equal(audioRoute.surface, 'tool')
+  assert.equal(audioRoute.scrollMode, 'workspace')
+  assert.ok(audioRoute.panes.some((pane) => pane.id === APP_SHELL_TOOL_SIDEBAR_PANE_ID))
+  assert.ok(!audioRoute.panes.some((pane) => pane.id === TOOL_WORKBENCH_RESOURCE_PANE_ID))
 })
 
 test('route layout registry declares content managed panes', () => {

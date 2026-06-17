@@ -19,7 +19,6 @@ export type ParamRuleTypeSummary = {
 export type AgentCompactParamContract = {
   contract_version: 1
   id?: number
-  model_config_id?: number
   display_name?: string
   short_name?: string
   logical_model_id?: string

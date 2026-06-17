@@ -260,7 +260,7 @@ export function AgentConsoleGrid({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
-  columns?: "auto" | "two" | "three" | "server" | "identity" | "runtime" | "auth";
+  columns?: "auto" | "single" | "two" | "three" | "server" | "identity" | "runtime" | "auth";
 }) {
   return <div data-columns={columns} className={cn("agent-console-grid", className)} {...props} />;
 }
@@ -341,6 +341,49 @@ export function AgentConsoleTabButton({
   active?: boolean;
 }) {
   return <Button size="sm" variant={active ? "solid" : "outline"} className={cn("agent-console-tab-button", className)} {...props} />;
+}
+
+export function AgentConsoleAgentList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-console-agent-list", className)} {...props} />;
+}
+
+export function AgentConsoleAgentListRow({
+  active = false,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  active?: boolean;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      data-active={active ? "true" : undefined}
+      className={cn("agent-console-agent-list-row", className)}
+      {...props}
+    />
+  );
+}
+
+export function AgentConsoleAgentSwitch({
+  checked,
+  className,
+  ...props
+}: ComponentProps<"button"> & {
+  checked: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      data-checked={checked ? "true" : undefined}
+      className={cn("agent-console-agent-switch", className)}
+      {...props}
+    >
+      <span className="agent-console-agent-switch__thumb" />
+    </button>
+  );
 }
 
 export function AgentConsoleSavedAt({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {

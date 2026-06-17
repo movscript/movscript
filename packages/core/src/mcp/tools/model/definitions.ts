@@ -5,10 +5,10 @@ export function modelTools(): MCPTool[] {
   return [
     {
       name: 'generation_model_list',
-      description: 'List enabled generation models for a runtime capability. Use image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, video_v2v for video-to-video, audio_tts for voiceover generation, audio_transcribe for STT, subtitle_align for subtitle alignment, and render_video for renderer capabilities. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before calling generation provider tools.',
+      description: 'List enabled generation models for an AI runtime capability. Use text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, audio_music, audio_sfx, subtitle_align, or subtitle_translate. Timeline render belongs to editing_* and Electron mediaPipeline, not generation model capabilities. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before calling generation provider tools.',
       inputSchema: objectSchema(
         {
-          capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, subtitle_align, or render_video.' },
+          capability: { type: 'string', description: 'Optional AI capability filter such as text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, audio_music, audio_sfx, subtitle_align, or subtitle_translate.' },
           provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
           include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
         }

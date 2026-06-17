@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const repoRoot = process.cwd()
 const mediaDir = path.join(repoRoot, 'contracts', 'media')
-const expectedCapabilities = ['audio_tts', 'audio_transcribe', 'subtitle_align', 'render_video']
+const expectedCapabilities = ['audio_tts', 'audio_transcribe', 'audio_music', 'audio_sfx', 'subtitle_align', 'subtitle_translate']
 
 test('media artifacts fixture preserves voiceover, subtitle, timing, and render relationships', async () => {
   const schema = JSON.parse(await readFile(path.join(mediaDir, 'media-artifacts-v1.schema.json'), 'utf8'))
@@ -44,7 +44,7 @@ test('media pipeline capability names are shared across contracts and runtime de
     backendAI: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'infra', 'ai', 'feature.go'), 'utf8'),
     backendJob: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'domain', 'job', 'helpers.go'), 'utf8'),
     coreAgentProtocol: await readFile(path.join(repoRoot, 'packages', 'core', 'src', 'agent', 'protocol.ts'), 'utf8'),
-    frontendTypes: await readFile(path.join(repoRoot, 'apps', 'frontend', 'src', 'types', 'index.ts'), 'utf8'),
+    frontendTypes: await readFile(path.join(repoRoot, 'apps', 'frontend', 'src', 'types', 'canvas.ts'), 'utf8'),
     adminTypes: await readFile(path.join(repoRoot, 'apps', 'admin', 'src', 'types', 'index.ts'), 'utf8'),
     modelAliases: await readFile(path.join(repoRoot, 'packages', 'core', 'src', 'mcp', 'tools', 'model', 'contracts', 'capability.ts'), 'utf8'),
   }
@@ -57,7 +57,10 @@ test('media pipeline capability names are shared across contracts and runtime de
 
   assert.match(files.modelAliases, /text_to_speech[\s\S]*audio_tts/)
   assert.match(files.modelAliases, /speech_to_text[\s\S]*audio_transcribe/)
+  assert.match(files.modelAliases, /music_generation[\s\S]*audio_music/)
+  assert.match(files.modelAliases, /sound_effect_generation[\s\S]*audio_sfx/)
   assert.match(files.modelAliases, /forced_alignment[\s\S]*subtitle_align/)
+  assert.match(files.modelAliases, /subtitle_translation[\s\S]*subtitle_translate/)
   assert.match(files.modelAliases, /ffmpeg_render[\s\S]*render_video/)
 })
 
@@ -90,7 +93,18 @@ test('media provider contract fixture describes abstract provider capabilities w
 
   const capabilities = new Set(fixture.capabilities.map((item) => item.capability))
   assert.ok(capabilities.has('audio_tts'))
+  assert.ok(capabilities.has('audio_transcribe') || capabilities.has('subtitle_align'))
+  assert.ok(capabilities.has('audio_music'))
+  assert.ok(capabilities.has('audio_sfx'))
   assert.ok(capabilities.has('subtitle_align'))
+  assert.ok(capabilities.has('subtitle_translate'))
+  assert.equal(capabilities.has('render_video'), false)
+
+  const schemaCapabilities = schema.$defs.capabilityContract.properties.capability.enum
+  assert.ok(schemaCapabilities.includes('audio_music'))
+  assert.ok(schemaCapabilities.includes('audio_sfx'))
+  assert.ok(schemaCapabilities.includes('subtitle_translate'))
+  assert.equal(schemaCapabilities.includes('render_video'), false)
 
   const tts = fixture.capabilities.find((item) => item.capability === 'audio_tts')
   assert.ok(tts.models[0].features.includes('word_timestamps'))
@@ -104,10 +118,11 @@ test('backend media domain exposes abstract provider interfaces only', async () 
   for (const declaration of [
     'type TTSProvider interface',
     'type SubtitleProvider interface',
-    'type Renderer interface',
+    'type AudioGenerationProvider interface',
+    'type SubtitleTranslateProvider interface',
     'type TTSRequest struct',
     'type AlignRequest struct',
-    'type RenderRecipe struct',
+    'type TranslateSubtitleRequest struct',
   ]) {
     assert.ok(providerContract.includes(declaration), `backend media contract should include ${declaration}`)
   }

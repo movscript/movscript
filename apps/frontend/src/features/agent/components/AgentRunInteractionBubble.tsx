@@ -286,6 +286,7 @@ function generationJobApprovalView(approval: ProviderSessionApprovalRequest): Ge
 function isGenerationSubmitApproval(toolName: string | undefined, kind: string | undefined): boolean {
   return toolName === 'generation_image_generate'
     || toolName === 'generation_video_generate'
+    || toolName === 'generation_audio_generate'
     || toolName === 'generation_job_create'
     || (toolName === 'core_work_start' && kind === 'generation_job')
 }

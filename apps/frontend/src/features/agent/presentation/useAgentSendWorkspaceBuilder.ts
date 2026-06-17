@@ -48,7 +48,7 @@ export interface UseAgentSendWorkspaceBuilderInput {
   systemPrompt: string
   contextLabels: string[]
   providerThreadId: string
-  modelId: number | null
+  modelId: string | null
   activeModel?: PublicModel
   activeConversationManifest?: ProviderManifest
   externalTask?: AgentPageTaskState | null

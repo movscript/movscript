@@ -770,8 +770,8 @@
       "nextPage": "Next",
       "edit": "Edit",
       "renameResource": "Rename resource",
-      "clipVideo": "Clip",
-      "clipVideoTitle": "Clip video segment",
+      "trimVideoSegment": "Trim segment",
+      "trimVideoSegmentTitle": "Trim video segment",
       "clipLoadingSource": "Loading source video...",
       "clipLoadProgress": "{{loaded}} / {{total}}",
       "clipRetryLoad": "Retry load",
@@ -1187,6 +1187,8 @@
         "generation_image_job_get": "Inspect image generation job",
         "generation_video_generate": "Submit video generation",
         "generation_video_job_get": "Inspect video generation job",
+        "generation_audio_generate": "Submit audio generation",
+        "generation_audio_job_get": "Inspect audio generation job",
         "generation_job_create": "Create generation job",
         "core_memory_create": "Create memory",
         "movscript_project_create": "Create project",
@@ -3598,6 +3600,11 @@
         "description": "Generate a new video from reference video.",
         "promptPlaceholder": "Describe the video you want to generate... Type @ to reference images or videos from the resource library"
       },
+      "audioGen": {
+        "name": "Audio Generation",
+        "description": "Generate voiceover, dialogue, or audio draft assets from text.",
+        "promptPlaceholder": "Enter the script to synthesize..."
+      },
       "motionImitation": {
         "name": "Motion Imitation",
         "description": "Transfer motion from a reference video to the target character and generate a new motion video.",
@@ -3613,6 +3620,11 @@
         "description": "Transfer the reference image's art style onto the content image and generate a new stylized image.",
         "promptPlaceholder": "Describe the target content. AI will redraw it using the reference image's style... Type @ to reference images from the resource library"
       }
+    },
+    "capabilities": {
+      "image": "Image tool",
+      "video": "Video tool",
+      "audio": "Audio tool"
     }
   },
   "plugins": {
@@ -3734,7 +3746,9 @@
       "imageEdit": "Image Edit",
       "video": "Text to Video",
       "videoI2V": "Image to Video",
-      "videoV2V": "Video to Video"
+      "videoV2V": "Video to Video",
+      "audioTTS": "Text to Speech",
+      "audioSTT": "Audio Transcription"
     },
     "params": {
       "title": "Generation Parameters",
@@ -4036,7 +4050,6 @@
           "inputResources": "Input Resources",
           "jobId": "Job ID",
           "jobType": "Job Type",
-          "modelConfigId": "Model Config ID",
           "modelDef": "Model Def",
           "outputResource": "Output Resource",
           "providerTaskId": "Provider Task ID",
@@ -4183,6 +4196,7 @@
       "canvas": "Canvas",
       "refImageGen": "Reference Image",
       "refVideoGen": "Reference Video",
+      "audioGen": "Audio Generation",
       "motionImitation": "Motion Imitation",
       "styleTransfer": "Style Transfer",
       "multiAngle": "Multi-angle",

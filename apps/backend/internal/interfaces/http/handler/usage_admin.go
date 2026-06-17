@@ -76,7 +76,7 @@ func (h *UsageAdminHandler) parseFilter(c *gin.Context) (adminusage.ListFilter, 
 		UserID:        c.Query("user_id"),
 		OrgID:         c.Query("org_id"),
 		ProjectID:     c.Query("project_id"),
-		ModelConfigID: c.Query("model_config_id"),
+		ModelID:       c.Query("model_id"),
 		ProviderID:    c.Query("provider_id"),
 		GatewayKeyID:  c.Query("gateway_api_key_id"),
 		OperationType: c.Query("operation_type"),
@@ -102,19 +102,20 @@ func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
 
 func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"id", "created_at", "user_id", "username", "org_id", "project_id", "model_config_id", "model", "operation_type", "input_tokens", "output_tokens", "cached_input_tokens", "reasoning_tokens", "duration_sec", "image_count", "cost", "usage_reservation_id", "gateway_api_key_id"})
+	_ = cw.Write([]string{"id", "created_at", "user_id", "username", "org_id", "project_id", "public_model_id", "provider_model_id", "model", "operation_type", "input_tokens", "output_tokens", "cached_input_tokens", "reasoning_tokens", "duration_sec", "image_count", "cost", "usage_reservation_id", "gateway_api_key_id"})
 	for _, row := range rows {
 		model := ""
-		if row.AIModelConfig != nil {
-			model = row.AIModelConfig.ShortName
+		publicModelID := ""
+		providerModelID := ""
+		if row.AIModelCatalogEntry != nil {
+			publicModelID = row.AIModelCatalogEntry.PublicModelID
+			providerModelID = row.AIModelCatalogEntry.ProviderModelID
+			model = row.AIModelCatalogEntry.ShortName
 			if model == "" {
-				model = row.AIModelConfig.CustomDisplayName
+				model = row.AIModelCatalogEntry.DisplayName
 			}
 			if model == "" {
-				model = row.AIModelConfig.ModelIDOverride
-			}
-			if model == "" {
-				model = row.AIModelConfig.ModelDefID
+				model = publicModelID
 			}
 		}
 		username := ""
@@ -128,7 +129,8 @@ func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 			csvCell(username),
 			uintPtrCSV(row.OrgID),
 			uintPtrCSV(row.ProjectID),
-			uintCSV(row.AIModelConfigID),
+			csvCell(publicModelID),
+			csvCell(providerModelID),
 			csvCell(model),
 			csvCell(row.OperationType),
 			strconv.Itoa(row.InputTokens),

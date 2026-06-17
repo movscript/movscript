@@ -1,4 +1,5 @@
 import type { ContentCanvasCandidateRecord, ContentCanvasNodeRecord } from './contentCanvasStore'
+import { resourceFileUrl } from '@/shared/ui/resourceFileUrl'
 
 export type ContentCanvasNodeMedia = {
   url: string
@@ -22,7 +23,7 @@ function contentCanvasResourceMediaForFields(
   if (resourceId === undefined) return undefined
   return {
     resourceId,
-    url: `/api/v1/resources/${resourceId}/file`,
+    url: resourceFileUrl(resourceId) ?? '',
     type: contentCanvasResourceMediaType({
       kind: 'candidate',
       resourceKind: input.resourceKind,

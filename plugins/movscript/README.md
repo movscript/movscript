@@ -9,6 +9,7 @@ MovScript keeps a provider-neutral manifest and also ships the upstream compatib
 - `skills/domain/SKILL.md`
 - `skills/project/SKILL.md`
 - `skills/planning/SKILL.md`
+- `skills/editing/SKILL.md`
 - `skills/generation/SKILL.md`
 - `skills/review/SKILL.md`
 - compatibility guidance at `skills/workspace/SKILL.md`
@@ -21,8 +22,9 @@ Inside a MovScript project workspace, the selected local folder is the project r
 The bridge now exposes these MCP surfaces to app-server providers:
 
 - MCP resources: `resources/list` and `resources/read` are forwarded to MovScript Desktop when it is running. These are read-only context/catalog entries, not generation input resources.
-- System tools: `system_focus_get`, `system_project_create`, `system_model_list`, `system_generate_image`, `system_generate_video`, generation job polling, resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
+- System tools: `system_focus_get`, `system_project_create`, `system_model_list`, `system_generate_image`, `system_generate_video`, audio/subtitle generation, generation job polling, resource-library search, shot-library search, external media search, image/video inspection, annotation, and resource upload.
 - Domain tools: `domain_get_model`, `domain_overview`, `domain_query_*`, `domain_read_*`, `domain_upsert_*`, `domain_update_*`, candidate tools, `domain_inspect`, `domain_interpret`, and `domain_regeneration_plan`. Planning upserts cover production, segment, scene_moment, shot, keyframe, storyboard, audio_cue, expression_unit, and content_unit source records. `domain_inspect` diagnoses current source; `domain_interpret` validates source and can refresh diagnostic artifacts; `domain_review` is compatibility-only.
+- Editing tools: `editing_project_*`, `editing_timeline_*`, `editing_runtime_capabilities_get`, `editing_task_*`, and `editing_export_*`. These operate on MovScript `MediaEditingProject` data and dispatch local render/HLS/transcode/reframe work to Electron `mediaPipeline`; resource-level media utilities are only for neutral material preparation, not product editing.
 
 MovScript uses three separate media concepts in the plugin contract:
 
@@ -32,7 +34,9 @@ MovScript uses three separate media concepts in the plugin contract:
 - Shot reference library: searchable shot-reference records for camera, composition, movement, narrative, emotion, and production patterns. Use `system_shot_library_query`; these records are prompt/reference guidance, not generic resource-library files.
 - External media search: configured providers such as Pexels or Pixabay. Use `system_external_resource_source_list` and `system_external_resource_search`; results must be imported into MovScript before they become generation-ready `RawResource` IDs.
 
-For `tools/list`, the bridge asks MovScript Desktop for the full dynamic tool list. If Desktop is not reachable during provider startup, the bridge still advertises a static fallback set for system, domain, resource/query, and image/video generation tools so the provider can discover the intended interface. Actual tool calls still require MovScript Desktop MCP to be reachable.
+For `tools/list`, the bridge asks MovScript Desktop for the full dynamic tool list. If Desktop is not reachable during provider startup, the bridge still advertises a static bootstrap tool set for system, domain, resource/query, image/video/audio/subtitle generation, artifact hosting, and editing tools so the provider can discover the intended interface. Actual tool calls still require MovScript Desktop MCP to be reachable.
+
+The static bootstrap set also advertises the dedicated `editing_*` tool family. Runtime task tools still require MovScript Desktop/Electron to be running because `editing_task_*` work is executed by Electron `mediaPipeline`, not by the provider process or backend server.
 
 The app-server provider starts the bridge by itself, but it does not start MovScript Desktop. Start MovScript Desktop first, or otherwise run the core MCP server, before using workspace, project/script, or generation tools.
 

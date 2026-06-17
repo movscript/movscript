@@ -304,11 +304,11 @@ export const SETTINGS_WORKSPACE_ROUTE = {
 export const AGENT_SETTINGS_DOCUMENT_ROUTE = {
   kind: 'page' as const,
   surface: 'settings' as const,
-  chrome: 'agent' as const,
+  chrome: 'settings' as const,
   preserveWorkMode: true,
   scrollMode: 'document' as const,
   shellLayout: 'stacked' as const,
-  panes: APP_SHELL_AGENT_PANES,
+  panes: APP_SHELL_SETTINGS_PANES,
 }
 
 export const PROJECT_WORKSPACE_ROUTE = {

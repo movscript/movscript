@@ -23,6 +23,7 @@ import {
   AgentConsoleLogSummaryLabel,
   AgentConsoleLogSummaryValue,
 } from '@/features/agent/components/AgentConsoleRealtimeLogUi'
+import { appServerAccountSourceLabel } from '@/features/agent/application/appServerConfigDisplay'
 import { subscribeAppServerLogs } from '@/features/agent/application/appServerLogElectron'
 import type { ElectronAppServerConfigStatus, ElectronAppServerLogEvent, ElectronAppServerStatus, ElectronMovScriptWorkspaceContext } from '@/shared/contracts/electronApi'
 
@@ -172,8 +173,7 @@ function formatWorkspaceContext(context?: ElectronMovScriptWorkspaceContext): st
 }
 
 function formatAppServerAccount(config?: ElectronAppServerConfigStatus): string {
-  if (!config) return '-'
-  return `${config.accountSource}${config.apiKeyConfigured ? ' / api key' : ''}`
+  return appServerAccountSourceLabel(config)
 }
 
 function formatAppServerLogProfiles(profiles: AppServerLogProfile[]): string {

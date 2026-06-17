@@ -14,6 +14,8 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   generation_image_job_get: '查看图像生成任务',
   generation_video_generate: '提交视频生成',
   generation_video_job_get: '查看视频生成任务',
+  generation_audio_generate: '提交音频生成',
+  generation_audio_job_get: '查看音频生成任务',
   movscript_shot_library_query: '查询镜头库',
   movscript_shot_group_create: '创建镜头组',
   movscript_shot_group_get: '读取镜头组',
@@ -32,6 +34,45 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   generation_job_create: '创建生成任务',
   core_memory_create: '创建记忆',
   movscript_project_create: '创建项目',
+  movscript_resource_video_trim_to_resource: '中立裁剪视频资源',
+  movscript_resource_video_compose_to_resource: '资源级合成视频',
+  movscript_resource_video_concat_to_resource: '资源级拼接视频',
+  system_resource_video_trim_to_resource: '中立裁剪视频资源',
+  system_resource_video_compose_to_resource: '资源级合成视频',
+  system_resource_video_concat_to_resource: '资源级拼接视频',
+  domain_read_scene_moment_timeline: '读取场景剪辑交接',
+  domain_read_production_timeline: '读取成片剪辑交接',
+  editing_project_create: '创建剪辑项目',
+  editing_project_create_from_edit_plan: '从剪辑计划创建项目',
+  editing_project_get: '读取剪辑项目',
+  editing_project_update_settings: '更新剪辑项目设置',
+  editing_project_add_asset: '添加剪辑素材',
+  editing_project_remove_asset: '移除剪辑素材',
+  editing_project_save: '保存剪辑项目',
+  editing_timeline_apply_commands: '批量应用剪辑命令',
+  editing_timeline_add_track: '添加剪辑轨道',
+  editing_timeline_remove_track: '移除剪辑轨道',
+  editing_timeline_add_clip: '添加剪辑片段',
+  editing_timeline_update_clip: '更新剪辑片段',
+  editing_timeline_split_clip: '切分剪辑片段',
+  editing_timeline_move_clip: '移动剪辑片段',
+  editing_timeline_delete_clip: '删除剪辑片段',
+  editing_timeline_validate: '校验剪辑时间线',
+  editing_runtime_capabilities_get: '检查本地剪辑能力',
+  editing_task_render_create: '创建剪辑渲染任务',
+  editing_task_hls_create: '创建 HLS 打包任务',
+  editing_task_transcode_create: '创建本地转码任务',
+  editing_task_reframe_create: '创建画幅重构任务',
+  editing_task_get: '查看剪辑任务',
+  editing_task_cancel: '取消剪辑任务',
+  editing_task_logs_get: '读取剪辑任务日志',
+  editing_export_save_local: '保存本地剪辑导出',
+  editing_export_import_resource: '导入剪辑导出资源',
+  editing_export_publish_hls: '发布剪辑 HLS',
+  editing_export_create_candidate: '创建剪辑候选',
+  system_artifact_upload_export: '上传导出产物',
+  system_artifact_upload_hls_stream: '发布托管 HLS',
+  system_artifact_get_stream: '读取托管媒体流',
   core_memory_delete: '删除记忆',
   read_file: '读取文件',
   search_file: '搜索文件',
@@ -89,6 +130,22 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'agent.work.write': '提交异步任务',
   'agent.skills.manage': '管理 Agent 技能',
   'asset.candidate.write': '写入素材候选',
+  'editing.project.read': '读取剪辑项目',
+  'editing.project.write': '写入剪辑项目',
+  'editing.timeline.read': '读取剪辑时间线',
+  'editing.timeline.write': '写入剪辑时间线',
+  'editing.runtime.read': '读取本地剪辑能力',
+  'editing.task.read': '读取剪辑任务',
+  'editing.task.write': '执行剪辑任务',
+  'editing.task.cancel': '取消剪辑任务',
+  'editing.export.read': '读取剪辑导出',
+  'editing.export.write': '写入剪辑导出',
+  'editing.candidate.write': '写入剪辑候选',
+  'artifact.export.write': '上传导出产物',
+  'artifact.stream.write': '发布托管媒体流',
+  'artifact.stream.read': '读取托管媒体流',
+  'artifact.write': '写入产物托管',
+  'artifact.read': '读取产物托管',
   'workspace.apply': '提交工作区修改',
   'workspace.read': '读取工作区',
   'workspace.write': '写入工作区',
@@ -110,8 +167,9 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
 
 export function agentToolNameLabel(toolName: string | undefined, t?: AgentToolDisplayTranslator): string {
   if (!toolName) return '-'
-  const fallback = TOOL_NAME_LABELS_ZH[toolName] ?? formatUnknownToolName(toolName)
-  const key = TOOL_NAME_I18N_KEYS[toolName]
+  const normalized = normalizeAgentToolName(toolName)
+  const fallback = TOOL_NAME_LABELS_ZH[normalized] ?? formatUnknownToolName(normalized)
+  const key = TOOL_NAME_I18N_KEYS[normalized]
   return key && t ? t(key, { defaultValue: fallback }) : fallback
 }
 
@@ -141,37 +199,55 @@ function businessPermissionLabel(permission: string): string | undefined {
       ? '工作区'
       : parts.includes('memory')
         ? '记忆'
-        : parts.includes('generation')
-          ? '生成任务'
-          : parts.includes('model')
-            ? '模型'
-            : parts.includes('reference')
-              ? '参考源'
-              : undefined
-  const target = parts.includes('assets')
-    ? '素材'
-    : parts.includes('artifact') || parts.includes('artifacts')
-      ? '产物'
-      : parts.includes('thread') || parts.includes('threads')
-        ? '线程'
-        : ''
+        : parts.includes('editing')
+          ? '剪辑'
+          : parts.includes('artifact') || parts.includes('artifacts')
+            ? '产物托管'
+            : parts.includes('generation')
+              ? '生成任务'
+              : parts.includes('model')
+                ? '模型'
+                : parts.includes('reference')
+                  ? '参考源'
+                  : undefined
+  const target = parts.includes('timeline')
+    ? '时间线'
+    : parts.includes('runtime')
+      ? '能力'
+      : parts.includes('task')
+        ? '任务'
+        : parts.includes('export')
+          ? '导出'
+          : parts.includes('stream') || parts.includes('streams')
+            ? '媒体流'
+            : parts.includes('candidate')
+              ? '候选'
+              : parts.includes('assets')
+                ? '素材'
+                : parts.includes('thread') || parts.includes('threads')
+                  ? '线程'
+                  : ''
   const action = parts.includes('create')
     ? '创建'
     : parts.includes('cancel')
       ? '取消'
-      : parts.includes('write')
-        ? '写入'
-        : parts.includes('read')
-          ? '读取'
-          : parts.includes('execute')
-            ? '执行'
-            : parts.includes('delete')
-              ? '删除'
-              : parts.includes('generate')
-                ? '生成'
-                : parts.includes('apply')
-                  ? '应用'
-                  : undefined
+      : parts.includes('upload')
+        ? '上传'
+        : parts.includes('publish')
+          ? '发布'
+          : parts.includes('write')
+            ? '写入'
+            : parts.includes('read')
+              ? '读取'
+              : parts.includes('execute')
+                ? '执行'
+                : parts.includes('delete')
+                  ? '删除'
+                  : parts.includes('generate')
+                    ? '生成'
+                    : parts.includes('apply')
+                      ? '应用'
+                      : undefined
   if (!domain || !action) return undefined
   return `${domain}${target}${action}`
 }
@@ -183,6 +259,10 @@ function formatUnknownToolName(toolName: string): string {
     .filter(Boolean)
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(' ') || toolName
+}
+
+function normalizeAgentToolName(toolName: string): string {
+  return toolName.replace(/^mcp__movscript__/, '')
 }
 
 function permissionI18nKey(permission: string): string {

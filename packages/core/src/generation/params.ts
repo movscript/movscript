@@ -1,6 +1,6 @@
 import type { GenerationParamValue } from './jobPayload.js'
 
-export type GenerationOutputType = 'image' | 'video' | 'text'
+export type GenerationOutputType = 'image' | 'video' | 'audio' | 'text'
 export type GenerationParamControlType = 'select' | 'number' | 'boolean' | 'string'
 
 export interface GenerationParamDef {
@@ -118,6 +118,31 @@ const TEXT_MAX_TOKENS_PARAM: GenerationParamDef = {
   default: 4096,
 }
 
+const AUDIO_VOICE_PARAM: GenerationParamDef = {
+  key: 'voice',
+  label: 'Voice',
+  type: 'string',
+  default: '',
+}
+
+const AUDIO_FORMAT_PARAM: GenerationParamDef = {
+  key: 'response_format',
+  label: 'Audio format',
+  type: 'select',
+  options: ['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm'],
+  default: 'mp3',
+}
+
+const AUDIO_SPEED_PARAM: GenerationParamDef = {
+  key: 'speed',
+  label: 'Speed',
+  type: 'number',
+  min: 0.25,
+  max: 4,
+  step: 0.01,
+  default: 1,
+}
+
 const VIEW_COUNT_PARAM: GenerationParamDef = {
   key: 'max_images',
   label: 'Views',
@@ -135,6 +160,7 @@ const PRESERVE_IDENTITY_PARAM: GenerationParamDef = {
 
 const COMMON_IMAGE_PARAMS = [ASPECT_RATIO_PARAM, IMAGE_QUALITY_PARAM, IMAGE_STRENGTH_PARAM, SEED_PARAM]
 const COMMON_VIDEO_PARAMS = [ASPECT_RATIO_PARAM, DURATION_PARAM, VIDEO_RESOLUTION_PARAM, CAMERA_FIXED_PARAM, SEED_PARAM]
+const COMMON_AUDIO_PARAMS = [AUDIO_VOICE_PARAM, AUDIO_FORMAT_PARAM, AUDIO_SPEED_PARAM]
 const COMMON_TEXT_PARAMS = [TEXT_TEMPERATURE_PARAM, TEXT_MAX_TOKENS_PARAM]
 
 const NODE_PARAM_DEFS: Record<string, GenerationParamDef[] | undefined> = {
@@ -145,6 +171,8 @@ const NODE_PARAM_DEFS: Record<string, GenerationParamDef[] | undefined> = {
   video: COMMON_VIDEO_PARAMS,
   ref_video_gen: COMMON_VIDEO_PARAMS,
   motion_imitation: [ASPECT_RATIO_PARAM, DURATION_PARAM, VIDEO_RESOLUTION_PARAM, PRESERVE_IDENTITY_PARAM, SEED_PARAM],
+  audio_tts: COMMON_AUDIO_PARAMS,
+  audio_gen: COMMON_AUDIO_PARAMS,
   text: COMMON_TEXT_PARAMS,
   text_gen: COMMON_TEXT_PARAMS,
 }
@@ -157,6 +185,7 @@ export function canvasGenerationParamDefs(
   if (model?.supported_params && model.supported_params.length > 0) return model.supported_params
   if (nodeType === 'ai_gen') {
     if (outputType === 'video') return COMMON_VIDEO_PARAMS
+    if (outputType === 'audio') return COMMON_AUDIO_PARAMS
     if (outputType === 'text') return COMMON_TEXT_PARAMS
     return COMMON_IMAGE_PARAMS
   }

@@ -35,7 +35,7 @@ export type {
 } from '@movscript/core/agent/protocol'
 
 export interface AgentConversationTranscriptMessageMetaShape {
-  modelId?: number | null
+  modelId?: string | null
   agentName?: string
   permissionMode?: string
   contextLabels?: string[]

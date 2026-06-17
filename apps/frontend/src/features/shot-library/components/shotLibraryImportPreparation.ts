@@ -1,4 +1,4 @@
-import { analyzeShotCuts } from '@/features/shot-library/application/shotCutElectron'
+import { analyzeMediaPipelineShotCuts } from '@/features/shot-library/application/shotCutElectron'
 import {
   buildImportWorkspaces,
   optionalNumber,
@@ -65,7 +65,7 @@ async function buildLocalImportWorkspaces(
 ): Promise<ShotImportWorkspace[]> {
   if (!metadata.durationSec) return buildImportWorkspaces(resource, metadata)
   try {
-    const result = await analyzeShotCuts({
+    const result = await analyzeMediaPipelineShotCuts({
       sourceData,
       sourceName: resource.name,
       durationSec: metadata.durationSec,

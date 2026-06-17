@@ -1,81 +1,134 @@
 ---
 name: editing
-description: Compose selected MovScript content-unit candidates into a scene_moment output using derived edit plans, video/audio resource tools, and final scene-moment candidate writes.
+description: Create MovScript MediaEditingProjects, edit timelines, run Electron mediaPipeline tasks, and explicitly import/export editing artifacts without writing candidate decisions by default.
 toolGrants:
   - mcp__movscript__system_focus_get
+  - mcp__movscript__system_resource_library_query
   - mcp__movscript__system_resource_video_probe
-  - mcp__movscript__system_resource_video_trim_to_resource
-  - mcp__movscript__system_resource_video_extract_audio_to_resource
-  - mcp__movscript__system_resource_video_compose_to_resource
-  - mcp__movscript__system_resource_video_concat_to_resource
   - mcp__movscript__domain_overview
   - mcp__movscript__domain_query_production_context
-  - mcp__movscript__domain_read_production_timeline
-  - mcp__movscript__domain_apply_production_timeline_commands
-  - mcp__movscript__domain_compose_production_from_timeline
   - mcp__movscript__domain_read_scene_moment_edit_plan
-  - mcp__movscript__domain_read_scene_moment_timeline
-  - mcp__movscript__domain_apply_scene_moment_timeline_commands
-  - mcp__movscript__domain_compose_scene_moment_from_edit_plan
-  - mcp__movscript__domain_derive_content_unit_artifact
-  - mcp__movscript__domain_read_content_unit_generation_prompt
+  - mcp__movscript__domain_read_production_timeline
   - mcp__movscript__domain_create_content_candidate
   - mcp__movscript__domain_decide_content_unit_candidate
   - mcp__movscript__domain_select_content_unit_candidate
   - mcp__movscript__domain_inspect
   - mcp__movscript__domain_interpret
   - mcp__movscript__domain_regeneration_plan
+  - mcp__movscript__editing_project_create
+  - mcp__movscript__editing_project_create_from_edit_plan
+  - mcp__movscript__editing_project_get
+  - mcp__movscript__editing_project_update_settings
+  - mcp__movscript__editing_project_add_asset
+  - mcp__movscript__editing_project_remove_asset
+  - mcp__movscript__editing_project_save
+  - mcp__movscript__editing_timeline_add_track
+  - mcp__movscript__editing_timeline_remove_track
+  - mcp__movscript__editing_timeline_add_clip
+  - mcp__movscript__editing_timeline_update_clip
+  - mcp__movscript__editing_timeline_split_clip
+  - mcp__movscript__editing_timeline_move_clip
+  - mcp__movscript__editing_timeline_delete_clip
+  - mcp__movscript__editing_timeline_apply_commands
+  - mcp__movscript__editing_timeline_validate
+  - mcp__movscript__editing_runtime_capabilities_get
+  - mcp__movscript__editing_task_render_create
+  - mcp__movscript__editing_task_hls_create
+  - mcp__movscript__editing_task_transcode_create
+  - mcp__movscript__editing_task_reframe_create
+  - mcp__movscript__editing_task_get
+  - mcp__movscript__editing_task_cancel
+  - mcp__movscript__editing_task_logs_get
+  - mcp__movscript__editing_export_save_local
+  - mcp__movscript__editing_export_import_resource
+  - mcp__movscript__editing_export_publish_hls
+  - mcp__movscript__editing_export_create_candidate
+  - mcp__movscript__system_artifact_upload_export
+  - mcp__movscript__system_artifact_upload_hls_stream
+  - mcp__movscript__system_artifact_get_stream
 ---
 
 # Editing
 
-Use this skill when the user asks to cut, compose, align, stitch, render, or automatically edit a MovScript scene moment or a whole production from generated or selected content-unit candidates.
+Use this skill when the user asks to cut, trim, compose, align, stitch, render, export, or revise a MovScript video timeline.
+
+The default editing path is the dedicated `editing_*` tool family. Editing runs through MovScript `MediaEditingProject` and Electron `mediaPipeline`, not through backend composition tools.
 
 ## Concepts
 
-- `scene_moment` is the final expression aggregation unit. It may be generated directly, or composed from selected expression-unit materials.
-- `expression_unit` is a multimodal material intent inside a scene moment: visual shot material, dialogue, narration, subtitle, sfx, music, ambience, interaction, or metadata.
-- `content_unit` is the generation task that creates candidates for a scene moment or expression unit.
-- `edit_plan` is derived domain artifact context. It groups selected content-unit candidates into video, voice, subtitle, audio, image, and metadata tracks for a scene moment.
-- `timeline_document` is an OpenCut-compatible MVP editing document derived from `edit_plan`. It is the handoff shape for UI or MCP agents to trim, split, move, delete, or insert timeline elements.
-- Composition consumes selected RawResource IDs from `edit_plan.compose_inputs`. It does not accept unselected generated resources as stable materials.
-- `domain_compose_scene_moment_from_edit_plan` is the default MVP render path: it composes the selected or edited video track, writes the scene-moment output candidate, and can optionally adopt it.
-- `domain_read_production_timeline` is the production assembly path: it turns selected scene_moment output candidates into an OpenCut-compatible timeline for final ordering, trimming, and stitching.
-- `domain_compose_production_from_timeline` writes the final production video as a candidate on a production output content unit.
+- `MediaEditingProject` is the top-level editing object. It owns project identity, source/provenance, asset registry, timeline, revision, and workspace binding.
+- `MediaTimelineRecipe` is the timeline inside the project. It contains tracks and clips, but it is not the user's whole editing project.
+- `MediaAssetDescriptor` points to a RawResource, generated resource, local file, or bytes-backed source. Asset registration is separate from placing a clip on the timeline.
+- `editing_project_*` creates, reads, saves, and expands editing projects.
+- `editing_project_update_settings` changes project-level editing settings; `editing_project_remove_asset` only removes unused asset references.
+- `editing_timeline_*` mutates tracks and clips. These tools only change project data; they do not render, call AI providers, or write candidates.
+- `editing_task_*` schedules Electron mediaPipeline tasks. MP4 render, HLS packaging, transcode, and mechanical reframe execute locally in Electron when runtime IPC is connected.
+- Subtitle burn-in is an editing concern: text/subtitle clips may use ASS/libass rendering, and subtitle assets such as `.ass`, `.ssa`, `.srt`, or `.vtt` are burned locally by Electron during render.
+- `editing_export_*` handles completed editing artifacts. Export import uploads a local artifact as RawResource; HLS publish uploads manifest/segments as a MediaStreamArtifact; candidate creation remains an explicit separate action.
+- `edit_plan` is domain-derived context from selected content-unit candidates. Use it as input to `editing_project_create_from_edit_plan`, not as the final editing protocol.
+
+Do not use `timeline_document` or historical third-party fields as the main workflow contract. They are historical artifacts, not the MovScript editing model.
 
 ## Workflow
 
-1. Resolve focus with `system_focus_get` when the project or scene moment is ambiguous.
-2. Use `domain_query_production_context` to find the target `scene_moment` and its content units when needed.
-3. Run or request `domain_interpret` if content units, candidates, or selections changed and the current edit plan may be stale.
-4. Call `domain_read_scene_moment_timeline` with `sceneMomentId` when the user needs cuts, trims, timing changes, or UI handoff. Call `domain_read_scene_moment_edit_plan` only for raw diagnostic inspection.
-5. If `edit_plan.status` is `missing_selection`, stop and report blockers by content unit. Generate/select missing material candidates before composing.
-6. Inspect `timeline_document.project.scenes[].tracks`. Use video track elements as primary picture. Current MVP composition preserves voice/audio/subtitle tracks in candidate metadata; strict multi-track mixing is a later composition capability.
-7. Use `system_resource_video_probe` when you need durations before trimming or aligning.
-8. Apply edits with `domain_apply_scene_moment_timeline_commands`. Supported command types include `update_element_trim`, `update_element_duration`, `update_element_start_time`, `move_element`, `split_elements`, `delete_elements`, and `insert_element`.
-9. Prefer `domain_compose_scene_moment_from_edit_plan` with `sceneMomentId`, the scene-moment output `contentUnitId`, optional edited `timeline_document`, and `adopt: true` when the user wants the composed scene output selected immediately.
-10. For whole-production editing, call `domain_read_production_timeline` with `productionId`. If it returns blockers, finish or select the blocked scene_moment output candidates first, then run `domain_interpret` and read the production timeline again.
-11. Apply final assembly edits with `domain_apply_production_timeline_commands`, then call `domain_compose_production_from_timeline` with a `production_ref` video output `contentUnitId`, optional edited `timeline_document`, and `adopt: true` when the final video should be selected.
-12. Use `system_resource_video_trim_to_resource`, `system_resource_video_concat_to_resource`, or `system_resource_video_compose_to_resource` only when you need manual resource-level drafts before writing a candidate.
-13. Manual scene path: treat the composed RawResource as a new candidate for a scene-moment-level content unit such as `content_unit_type: scene_moment_ref`, `target_kind: scene_moment`, `target_ref: <scene_moment>`, `output_kind: video`, and `generation_role: composed_scene_moment`. For whole-production outputs, use `content_unit_type: production_ref`, `target_kind: production`, `target_ref: <production>`, `output_kind: video`, and `generation_role: composed_production`.
-14. Run `domain_inspect` and `domain_interpret` after candidate/decision writes when downstream UI or agents must see the new selected scene-moment or production output.
+1. Resolve focus with `system_focus_get` when project, production, or scene moment is ambiguous.
+2. Use `domain_query_production_context` and `domain_read_scene_moment_edit_plan` to find selected material candidates and diagnose missing selections.
+3. If required expression-unit materials are missing or unselected, stop and ask for generation/selection first unless the user explicitly wants an unstable draft.
+4. Create the editing project:
+   - Use `editing_project_create_from_edit_plan` when a MovScript `edit_plan` exists.
+   - Use `editing_project_create` for a manual project or imported local media.
+5. Add extra materials with `editing_project_add_asset` before putting them on the timeline.
+   - Use `editing_project_remove_asset` only for assets that no clip still references.
+   - Use `editing_project_update_settings` for canvas, fps, background, title, or workspace binding changes.
+6. Edit the timeline with the smallest applicable `editing_timeline_*` tool:
+   - add/remove tracks with `editing_timeline_add_track` and `editing_timeline_remove_track`,
+   - add clips with `editing_timeline_add_clip`,
+   - adjust trim, duration, placement, fit, opacity, volume, text, or metadata with `editing_timeline_update_clip`,
+   - split, move, or delete clips with `editing_timeline_split_clip`, `editing_timeline_move_clip`, and `editing_timeline_delete_clip`,
+   - use `editing_timeline_apply_commands` only when batching multiple command objects is more concise.
+7. Run `editing_timeline_validate` after meaningful timeline changes.
+8. Persist the project with `editing_project_save`. Read it later with `editing_project_get`.
+9. Before local render/package work, call `editing_runtime_capabilities_get` to verify Electron `mediaPipeline` and FFmpeg availability.
+10. Render or package through Electron:
+   - use `editing_task_render_create` for MP4 timeline render,
+   - place subtitle assets on a `subtitle` track with `assetType: "subtitle"` and `subtitle.format` when subtitles should be burned into the render; use `subtitle.format: "ass"` or `subtitle.renderer: "ass"` for ASS/libass styling,
+   - use `editing_task_hls_create` for HLS when available; pass `output.hlsVariants` for adaptive renditions such as `[{ "name": "360p", "width": 640, "height": 360, "videoBitrateKbps": 900 }]`,
+   - use `editing_task_transcode_create` or `editing_task_reframe_create` for source-level deterministic tasks.
+11. Poll `editing_task_get` with `projectId` and `taskId`; use `editing_task_logs_get` with the same `projectId` for FFmpeg/task diagnostics so Electron can recover persisted task manifests/logs after an app restart. Use `editing_task_cancel` with `projectId` and `taskId` when the user asks to stop a task; if the app restarted, Electron can recover the persisted manifest and write back a clear canceled diagnostic.
+12. Use `editing_export_save_local` with `savePath` to copy a completed single-file Electron task output to a user-selected local file path, or with `saveDirectory` to copy a complete HLS bundle locally. For HLS, pass `hlsDirectory` when available so the runtime can merge directory-discovered manifest/playlist/init/segment files with any explicit `segmentPaths`. Without `savePath` / `saveDirectory`, use it only to report/confirm an existing local output path. This never uploads resources or writes candidates. If render output should enter the resource library, either set `output.importToResource` on the render request or call `editing_export_import_resource` for an existing local output path. Use `system_artifact_upload_export` only for a completed export artifact that is already outside the editing task workflow. If HLS output should be served for preview/playback, call `editing_export_publish_hls` after `editing_task_hls_create` succeeds; use `system_artifact_upload_hls_stream` only for a completed HLS artifact that is already outside the editing task workflow. When any export or artifact tool resolves an Electron task by `taskId`, pass the matching `projectId` as well; this applies to `editing_export_save_local`, `editing_export_import_resource`, `editing_export_publish_hls`, `system_artifact_upload_export`, and `system_artifact_upload_hls_stream`.
+13. Only create or select a domain candidate when the user/workflow explicitly asks to record the edited result:
+    - use `domain_create_content_candidate` or `editing_export_create_candidate` for RawResource-backed candidate creation,
+    - treat HLS `MediaStreamArtifact` outputs as hosted previews for now; writing HLS stream outputs as candidates requires a future domain candidate schema extension,
+    - use `domain_decide_content_unit_candidate` with `adopt`, `reject`, or `defer` for user-facing decisions,
+    - run `domain_inspect` and `domain_interpret` when downstream domain state must see the new candidate/selection.
 
 ## Rules
 
-- Do not compose from candidates that are not selected unless the user explicitly asks for an unstable draft.
-- Keep timeline edits in the OpenCut-compatible document until composition. Do not hand-edit `.interpret/**/edit_plan.json`; it is derived diagnostic output and will be regenerated.
-- Do not use a direct scene-moment video candidate as proof that expression-unit materials were aligned. Direct scene-moment generation and composed scene-moment output are separate production strategies.
-- Voice alignment is primarily an edit-plan/composition responsibility. The current MVP composes the picture track and records voice/subtitle/audio materials; lip-sync strictness requires the visual content unit to reference selected voice audio before video generation, or a later lip-sync/reanimation step.
-- If one dialogue or narration spans multiple visual materials, generate/select the voice once from the verbal expression unit, then compose visual track items around that selected voice resource.
-- Prefer composing at scene-moment scope first. Production-level final assembly should consume selected scene_moment output candidates through `domain_read_production_timeline`, not raw unselected shot or expression-unit materials.
+- Use `editing_*` for all product editing. `domain_compose_scene_moment_from_edit_plan` and `domain_compose_production_from_timeline` are not available editing paths; do not plan around them. Do not use resource-level video utilities as the editing path.
+- Use backend resource/media transform tools only for neutral preparation such as frame extraction, image transforms, or diagnostic probes. They must not be treated as product timeline render.
+- Do not call AI generation tools from this skill unless the user asks to create missing source material. Generation outputs must enter candidate/selection flow before becoming stable dependencies.
+- Do not automatically create, adopt, or select candidates after a render succeeds. Render success, RawResource upload, and domain adoption are separate user/workflow decisions.
+- Do not edit `.interpret/**` or generated `edit_plan` artifacts directly. They are diagnostic context and can be regenerated.
+- Do not put local paths, external URLs, or binary payloads in domain JSON. Local files belong in `MediaAssetDescriptor` / Electron workspace flow; stable domain state should reference RawResource IDs.
+- When the MCP process is not running inside Electron, runtime tools return `ELECTRON_EDITING_RUNTIME_REQUIRED`. Report that Electron mediaPipeline is required instead of falling back to backend render.
+- Keep provenance: preserve scene moment, production, content unit, selected candidate, and resource IDs on the editing project or exported candidate metadata.
+
+## Non-Editing Utilities
+
+The old backend composition tools are intentionally unavailable:
+
+- `domain_compose_scene_moment_from_edit_plan`
+- `domain_compose_production_from_timeline`
+
+Resource-level media utilities are outside this skill's default editing grants. If the user asks for normal editing, create/edit/render a `MediaEditingProject` with `editing_*`. If they explicitly ask for neutral material preparation, switch to the appropriate resource/generation workflow instead of treating that operation as editing.
 
 ## Output
 
 When reporting an editing result, include:
 
-- scene moment id and edit-plan status,
-- production id when composing the whole product,
-- composed resource id when created,
-- target scene-moment or production content unit id,
-- whether the composed candidate was adopted/selected,
-- remaining blockers such as missing selections, stale selections, or missing resource ids.
+- project id and editing project id,
+- timeline validation status and remaining blockers,
+- task id, task status, progress, and output path/resource id when rendering,
+- whether the artifact was only exported/imported or also written as a domain candidate,
+- whether any candidate was adopted/selected,
+- next actionable step, such as continue timeline edits, render, inspect logs, import export, or record a candidate decision.

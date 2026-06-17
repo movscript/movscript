@@ -88,7 +88,7 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), store)
 	resp, err := service.Align(context.Background(), AlignInput{
 		UserID:          42,
-		ModelConfigID:   cfg.ID,
+		ModelID:         cfg.ModelDefID,
 		AudioResourceID: resource.ID,
 		Script:          "hello world",
 		Language:        "en",
@@ -107,5 +107,45 @@ func TestAlignLoadsAudioResourceAndCallsSubtitleAlignModel(t *testing.T) {
 	}
 	if resp.Text != "hello world" || resp.Timing.Language != "en" {
 		t.Fatalf("Align() response = %+v, want transcript and timing language", resp)
+	}
+}
+
+func TestResolveAudioRouteUsesCatalogEntryIDWithoutLegacyModelConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "app-audio-catalog-route.db",
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
+	entry := persistencemodel.AIModelCatalogEntry{
+		PublicModelID:   "voice-fast",
+		ProviderModelID: "provider-voice-v1",
+		DisplayName:     "Voice Fast",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityAudioTTS,
+		PricingMode:     string(ai.PricingPerCall),
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&persistencemodel.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     persistencemodel.ModelRouteSourceNewAPI,
+		RouteGroup:     "priority",
+		IsEnabled:      true,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+	if db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) || db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+		t.Fatal("catalog audio route test should not create legacy provider tables")
+	}
+
+	service := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)), nil)
+	ctx := ai.WithProviderRouteGroup(context.Background(), "priority")
+	route, err := service.resolveAudioRoute(ctx, 42, "voice-fast", ai.CapabilityAudioTTS)
+	if err != nil {
+		t.Fatalf("resolveAudioRoute() error = %v", err)
+	}
+	if route.CatalogEntryID != entry.ID || route.ProviderModelID != "provider-voice-v1" || route.ModelID != "voice-fast" {
+		t.Fatalf("route = %#v, want catalog entry route", route)
 	}
 }

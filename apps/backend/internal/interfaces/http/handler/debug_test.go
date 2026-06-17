@@ -184,13 +184,13 @@ func TestDebugListJobsFiltersScopeAndRejectsInvalidIDs(t *testing.T) {
 	otherProjectID := uint(13)
 	orgID := uint(2)
 	if err := db.Create(&[]persistencemodel.Job{
-		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: "failed"},
-		{UserID: 8, OrgID: &orgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "image", FeatureKey: "ref_image_gen", Status: "failed"},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: "failed", RequestContext: `{"model_id":"video.fast"}`},
+		{UserID: 8, OrgID: &orgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "image", FeatureKey: "ref_image_gen", Status: "failed", RequestContext: `{"model_id":"image.fast"}`},
 	}).Error; err != nil {
 		t.Fatalf("seed jobs: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?job_id=1&status=failed&project_id=12&user_id=7&job_type=video_i2v&feature_key=ref_video_gen", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?job_id=1&status=failed&project_id=12&user_id=7&job_type=video_i2v&feature_key=ref_video_gen&model_id=video.fast", nil)
 	res := httptest.NewRecorder()
 	router.ServeHTTP(res, req)
 
@@ -206,6 +206,12 @@ func TestDebugListJobsFiltersScopeAndRejectsInvalidIDs(t *testing.T) {
 	}
 	if len(jobs) != 1 || jobs[0].UserID != 7 || jobs[0].ProjectID == nil || *jobs[0].ProjectID != projectID {
 		t.Fatalf("unexpected filtered jobs: %+v", jobs)
+	}
+	if jobs[0].ModelID != "video.fast" {
+		t.Fatalf("job model_id = %q, want video.fast", jobs[0].ModelID)
+	}
+	if strings.Contains(res.Body.String(), "model_config_id") {
+		t.Fatalf("debug jobs response exposed model_config_id: %s", res.Body.String())
 	}
 
 	invalid := httptest.NewRecorder()

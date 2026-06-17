@@ -31,6 +31,6 @@ If extracted or edited media must become an input, reference, candidate output, 
 - `system_resource_video_contact_sheet_to_resource` for reusable overview images.
 - `system_resource_video_trim_to_resource` for clip ranges.
 - `system_resource_video_extract_audio_to_resource` for audio tracks or ranges.
-- `system_resource_video_compose_to_resource` or `system_resource_video_concat_to_resource` for one combined MP4 from several video resources.
+- `system_resource_video_compose_to_resource` or `system_resource_video_concat_to_resource` only for resource-level drafts or neutral resource utilities. For product editing, create a `MediaEditingProject` and use `editing_*` tools through Electron `mediaPipeline`.
 
 These resource/media operations are not business candidate operations. After creating the RawResource, write content-unit candidate or selection metadata separately when the output should affect domain state.

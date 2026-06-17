@@ -21,8 +21,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 
 	var req struct {
 		ModelID          string `json:"model_id"`
-		ModelConfigID    uint   `json:"model_config_id"` // legacy fallback; new callers should send model_id
-		JobType          string `json:"job_type"`        // image | image_edit | video | video_i2v | video_v2v
+		JobType          string `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v | audio_tts
 		FeatureKey       string `json:"feature_key"`
 		Title            string `json:"title"`
 		Prompt           string `json:"prompt"`
@@ -42,7 +41,6 @@ func (h *JobHandler) Create(c *gin.Context) {
 		UserID:           user.ID,
 		OrgID:            currentOrgID(c),
 		ModelID:          req.ModelID,
-		ModelConfigID:    req.ModelConfigID,
 		JobType:          req.JobType,
 		FeatureKey:       req.FeatureKey,
 		Title:            req.Title,

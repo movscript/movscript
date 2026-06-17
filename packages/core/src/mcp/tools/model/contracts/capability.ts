@@ -11,8 +11,10 @@ export function normalizeModelCapabilityAlias(value: string | undefined): string
     case 'audio':
     case 'audio_tts':
     case 'audio_transcribe':
+    case 'audio_music':
+    case 'audio_sfx':
     case 'subtitle_align':
-    case 'render_video':
+    case 'subtitle_translate':
       return normalized
     case 'text_to_image':
     case 'image_generation':
@@ -44,19 +46,34 @@ export function normalizeModelCapabilityAlias(value: string | undefined): string
     case 'text_to_speech':
     case 'voiceover':
     case 'voiceover_generation':
+    case 'audio_voiceover':
       return 'audio_tts'
     case 'speech_to_text':
     case 'stt':
     case 'transcription':
+    case 'subtitle':
+    case 'subtitle_generate':
+    case 'generate_subtitle':
+    case 'transcribe_subtitle':
       return 'audio_transcribe'
+    case 'music':
+    case 'music_generation':
+    case 'generate_music':
+      return 'audio_music'
+    case 'sfx':
+    case 'sound_effect':
+    case 'sound_effects':
+    case 'sound_effect_generation':
+    case 'generate_sfx':
+      return 'audio_sfx'
     case 'forced_alignment':
     case 'subtitle_alignment':
     case 'align_subtitles':
       return 'subtitle_align'
-    case 'video_render':
-    case 'ffmpeg_render':
-    case 'render':
-      return 'render_video'
+    case 'subtitle_translation':
+    case 'translate_subtitles':
+    case 'translate_subtitle':
+      return 'subtitle_translate'
     default:
       return undefined
   }

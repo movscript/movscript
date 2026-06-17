@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,12 +168,12 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 
 	svc := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
 	_, err := svc.EnqueueGeneration(context.Background(), EnqueueInput{
-		UserID:        1,
-		ModelConfigID: cfg.ID,
-		JobType:       ai.CapabilityVideo,
-		Prompt:        "make a shot",
-		ExtraParams:   `{"frames":29}`,
-		Duration:      5,
+		UserID:      1,
+		ModelID:     cfg.ModelDefID,
+		JobType:     ai.CapabilityVideo,
+		Prompt:      "make a shot",
+		ExtraParams: `{"frames":29}`,
+		Duration:    5,
 	})
 	if err == nil {
 		t.Fatal("expected generation param conflict error")
@@ -187,6 +188,110 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 	value, ok := validationErr.SuggestedFix["frames"]
 	if !ok || value != nil {
 		t.Fatalf("expected frames suggested fix to be nil for removal, got %#v", validationErr.SuggestedFix)
+	}
+}
+
+func TestServiceEnqueueGenerationUsesCatalogRouteWithoutLegacyModelConfig(t *testing.T) {
+	db := openJobRepositoryTestDB(t)
+	defaultEntry := model.AIModelCatalogEntry{
+		PublicModelID:   "image-fast",
+		ProviderModelID: "provider-image-default",
+		DisplayName:     "Image Fast Default",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityImage,
+		PricingMode:     string(ai.PricingPerImage),
+		CreditsPerImage: 2,
+	}
+	if err := db.Create(&defaultEntry).Error; err != nil {
+		t.Fatalf("create default catalog entry: %v", err)
+	}
+	entry := model.AIModelCatalogEntry{
+		PublicModelID:   "image-fast",
+		ProviderModelID: "provider-image-v2",
+		DisplayName:     "Image Fast",
+		IsEnabled:       true,
+		Capabilities:    ai.CapabilityImage,
+		PricingMode:     string(ai.PricingPerImage),
+		CreditsPerImage: 2,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if err := db.Create(&model.AIModelRouteBinding{
+		CatalogEntryID: defaultEntry.ID,
+		SourceType:     model.ModelRouteSourceNewAPI,
+		RouteGroup:     "default",
+		IsEnabled:      true,
+		Priority:       10,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create default route binding: %v", err)
+	}
+	if err := db.Create(&model.AIModelRouteBinding{
+		CatalogEntryID: entry.ID,
+		SourceType:     model.ModelRouteSourceNewAPI,
+		RouteGroup:     "priority",
+		IsEnabled:      true,
+		Priority:       1,
+		CapacityWeight: 1,
+	}).Error; err != nil {
+		t.Fatalf("create route binding: %v", err)
+	}
+
+	svc := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
+	ctx := ai.WithProviderRouteGroup(context.Background(), "priority")
+	job, err := svc.EnqueueGeneration(ctx, EnqueueInput{
+		UserID:  1,
+		ModelID: "image-fast",
+		JobType: ai.CapabilityImage,
+		Prompt:  "draw",
+	})
+	if err != nil {
+		t.Fatalf("EnqueueGeneration() error = %v", err)
+	}
+	if job.ModelConfigID != entry.ID {
+		t.Fatalf("job model config id = %d, want catalog entry id %d", job.ModelConfigID, entry.ID)
+	}
+	if job.AIModelCatalogEntryID == nil || *job.AIModelCatalogEntryID != entry.ID {
+		t.Fatalf("job catalog entry id = %v, want %d", job.AIModelCatalogEntryID, entry.ID)
+	}
+	if job.RouteGroup != "priority" {
+		t.Fatalf("job route group = %q, want priority", job.RouteGroup)
+	}
+	if !strings.Contains(job.RequestContext, "provider-image-v2") || !strings.Contains(job.RequestContext, model.ModelRouteSourceNewAPI) {
+		t.Fatalf("request context = %s, want provider model and new-api source", job.RequestContext)
+	}
+}
+
+func TestGormRepositoryResponseLookupsUsesCatalogWithoutLegacyProviderTables(t *testing.T) {
+	db := testutil.OpenSQLite(t, "job_repository_catalog_only.db", &model.Job{}, &model.RawResource{}, &model.AIModelCatalogEntry{})
+	repo := &gormRepository{db: db}
+	entry := model.AIModelCatalogEntry{
+		PublicModelID:   "image-fast",
+		ProviderModelID: "provider-image-v2",
+		DisplayName:     "Image Fast",
+		IsEnabled:       true,
+	}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
+	if db.Migrator().HasTable(&model.AIModelConfig{}) || db.Migrator().HasTable(&model.AICredential{}) {
+		t.Fatal("catalog-only lookup test should not create legacy provider tables")
+	}
+
+	lookups, err := repo.ResponseLookups(context.Background(), nil, []uint{entry.ID})
+	if err != nil {
+		t.Fatalf("ResponseLookups() error = %v", err)
+	}
+	if _, ok := lookups.ConfigsByID[entry.ID]; ok {
+		t.Fatal("ResponseLookups loaded legacy model config in catalog-only schema")
+	}
+	catalog, ok := lookups.CatalogEntriesByID[entry.ID]
+	if !ok {
+		t.Fatalf("catalog lookup missing entry %d", entry.ID)
+	}
+	if catalog.PublicModelID != "image-fast" || catalog.ProviderModelID != "provider-image-v2" {
+		t.Fatalf("catalog lookup = %#v", catalog)
 	}
 }
 
@@ -242,5 +347,5 @@ func TestGormRepositoryLoadInputResourcesAllowsTeamResourceWithoutSharing(t *tes
 
 func openJobRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.Organization{}, &model.RawResource{}, &model.ResourceFolder{}, &model.AICredential{}, &model.AIModelConfig{})
+	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.Organization{}, &model.RawResource{}, &model.ResourceFolder{}, &model.AICredential{}, &model.AIModelConfig{}, &model.AIModelCatalogEntry{}, &model.AIModelRouteBinding{}, &model.UsageReservation{}, &model.UsageLog{})
 }

@@ -7,11 +7,17 @@ export interface MovScriptWorkspaceAgentCatalogConfig {
   configFiles?: ProviderCatalogConfigFile[]
 }
 
+export interface MovScriptWorkspaceAgentSelectionConfig {
+  defaultProviderId?: string
+  newConversationProviderId?: string
+}
+
 export interface MovScriptWorkspaceConfig {
   schema: typeof MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA
   updatedAt: string
   modelConfig?: Record<string, unknown>
   agentCatalog?: MovScriptWorkspaceAgentCatalogConfig
+  agentSelection?: MovScriptWorkspaceAgentSelectionConfig
   catalog?: {
     skillsDir?: string
     toolsDir?: string

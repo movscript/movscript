@@ -153,12 +153,11 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
                   <AgentGeneratedItemMeta>
                     {[job.status, job.stage, generationOutputResourceLabel(job)].filter(Boolean).join(' · ')}
                   </AgentGeneratedItemMeta>
-                  {(job.providerName || job.modelDisplay || job.modelIdentifier || job.modelConfigId !== undefined) && (
+                  {(job.providerName || job.modelDisplay || job.modelIdentifier) && (
                     <AgentGeneratedItemMeta>
                       {[
                         job.providerName,
                         job.modelDisplay ?? job.modelIdentifier,
-                        job.modelConfigId !== undefined ? `model #${job.modelConfigId}` : undefined,
                       ].filter(Boolean).join(' · ')}
                     </AgentGeneratedItemMeta>
                   )}
@@ -211,7 +210,6 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
               <AgentGeneratedItemHeader>
                 <AgentGeneratedItemTitle>
                   {audit.jobId !== undefined ? `Job #${audit.jobId}` : `生成提交 ${index + 1}`}
-                  {audit.modelConfigId !== undefined ? ` · model #${audit.modelConfigId}` : ''}
                 </AgentGeneratedItemTitle>
                 <AgentGeneratedStatusBadge intent={auditRecipe.intent} emphasis={auditRecipe.emphasis}>
                   {droppedCount > 0 ? `过滤 ${droppedCount}` : '已匹配'}
@@ -414,7 +412,6 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
               {[
                 latest.providerName,
                 latest.modelDisplay ?? latest.modelIdentifier,
-                latest.modelConfigId !== undefined ? `model #${latest.modelConfigId}` : undefined,
               ].filter(Boolean).join(' · ')}
             </AgentGeneratedItemMeta>
           )}

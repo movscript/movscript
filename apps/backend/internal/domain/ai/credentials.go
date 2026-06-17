@@ -26,7 +26,7 @@ type Credential struct {
 	MaskedKey            string        `json:"masked_key"`
 	IsEnabled            bool          `json:"is_enabled"`
 	OrgID                *uint         `json:"org_id,omitempty"`
-	Models               []ModelConfig `json:"models,omitempty"`
+	Models               []ModelConfig `json:"-"`
 	FilesAPIEnabled      bool          `json:"files_api_enabled"`
 	FilesAPIBaseURL      string        `json:"files_api_base_url"`
 	FilesAPIEncryptedKey string        `json:"-"`

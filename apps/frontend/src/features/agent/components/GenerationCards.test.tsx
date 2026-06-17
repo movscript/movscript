@@ -116,7 +116,6 @@ test('GenerationParamAuditCard renders preflight suggested fixes', () => {
       {
         stepId: 'step-1',
         jobId: 12,
-        modelConfigId: 34,
         modelContractLoaded: true,
         paramsSchemaLoaded: true,
         paramsSchemaRuleCount: 3,
@@ -167,7 +166,6 @@ test('GenerationParamAuditCard renders null suggested fixes as parameter removal
       {
         stepId: 'step-1',
         jobId: 12,
-        modelConfigId: 34,
         modelContractLoaded: true,
         paramsSchemaLoaded: true,
         supportedParams: ['duration', 'frames'],

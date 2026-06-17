@@ -13,6 +13,7 @@ type ToolCall = providercontract.ToolCall
 type ToolCallDelta = providercontract.ToolCallDelta
 type ToolFunction = providercontract.ToolFunction
 type TextStreamEvent = providercontract.TextStreamEvent
+type ResponsesStreamEvent = providercontract.ResponsesStreamEvent
 type TokenUsage = providercontract.TokenUsage
 type ImageRequest = providercontract.ImageRequest
 type ImageResponse = providercontract.ImageResponse
@@ -37,6 +38,7 @@ const (
 type Provider = providercontract.AIGatewayProvider
 type TextStreamProvider = providercontract.AIGatewayTextStreamProvider
 type ResponsesProvider = providercontract.AIGatewayResponsesProvider
+type ResponsesStreamProvider = providercontract.AIGatewayResponsesStreamProvider
 type VideoTaskProvider = providercontract.AIGatewayVideoTaskProvider
 type VideoTaskCancelProvider = providercontract.AIGatewayVideoTaskCancelProvider
 type AudioSpeechProvider = providercontract.AIGatewayAudioSpeechProvider

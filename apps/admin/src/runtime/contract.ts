@@ -34,4 +34,5 @@ export interface AdminRuntimeCapabilities {
   gatewayNewAPIGroup: boolean
   hideModelManagement?: boolean
   modelManagementRedirect?: string
+  disabledBaseRoutes?: string[]
 }

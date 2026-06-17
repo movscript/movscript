@@ -35,6 +35,7 @@ import {
   AgentConsoleToolbar,
 } from '@/features/agent/components/AgentConsoleUi'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
+import { appServerAccountSourceLabel } from '@/features/agent/application/appServerConfigDisplay'
 import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
 import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
 import {
@@ -42,7 +43,10 @@ import {
   defaultProviderConfigDraft,
   fallbackAppServerProvider,
   providerConfigDraftFromWorkspaceConfig,
+  providerDraftSourceMode,
   providerDisplayTitle,
+  providerSourceModeDescription,
+  providerSourceModeLabel,
   ProviderSelect,
   providerSelectionValue,
   saveProviderConfig,
@@ -127,6 +131,8 @@ export function AppServerPanel({
   const running = Boolean(status?.ok && status.running)
   const statusConfig = status?.config
   const configLocked = running
+  const selectedProviderOption = providerOptions.find((option) => option.id === draft.providerRef)
+  const sourceMode = providerDraftSourceMode(draft, selectedProviderOption)
 
   useEffect(() => {
     if (!workspaceConfig) return
@@ -217,12 +223,12 @@ export function AppServerPanel({
       <AgentConsoleStack spacing="loose">
         {configLocked ? (
           <AgentConsoleCallout compact tone="warning">
-            {title} 运行中：停止 app-server 后才能修改 provider 和账号来源。
+            {title} 运行中：停止 app-server 后才能修改配置来源。
           </AgentConsoleCallout>
         ) : null}
-        {draft.authSource === 'model-provider' && providerOptions.find((option) => option.id === draft.providerRef)?.source === 'backend' ? (
-          <AgentConsoleCallout compact tone="warning">
-            Backend Provider 会作为引用保存；当前 {title} 启动链路不能直接读取后端 API Key，如需立即启动请使用本机 app-server 账号文件或 Local Provider。
+        {sourceMode === 'backend' ? (
+          <AgentConsoleCallout compact tone="neutral">
+            后端模式会把 MovScript 后端网关写入托管配置；如果当前后端会话或 gateway key 不可用，启动会在预检阶段失败。
           </AgentConsoleCallout>
         ) : null}
 
@@ -249,12 +255,18 @@ export function AppServerPanel({
           </AgentConsoleLocalToolHeader>
           <AgentConsoleLocalToolFields disabled={!resolved.enabled || configLocked}>
             <ProviderSelect value={providerSelectionValue(draft)} options={providerOptions} disabled={!resolved.enabled || configLocked} onChange={(nextDraft) => setDraft((current) => ({ ...current, ...nextDraft }))} />
+            <AgentConsoleCallout compact tone="neutral">
+              {providerSourceModeLabel(sourceMode)}：{providerSourceModeDescription(sourceMode, selectedProviderOption)}
+            </AgentConsoleCallout>
+            <AgentConsoleCallout compact tone="neutral">
+              {title} 的运行时配置只来自 MovScript 托管的 {profile.home}/config.toml 和 {profile.home}/auth.json；这里的选项只负责便捷替换账号与模型相关字段。
+            </AgentConsoleCallout>
             <AgentConsoleCallout compact tone={running ? 'success' : status?.error ? 'warning' : 'neutral'}>
               {running ? `运行中：${status?.endpoint ?? '-'}` : status?.error ?? `${title} app-server 尚未启动。`}
             </AgentConsoleCallout>
             {statusConfig ? (
               <AgentConsoleCallout compact tone={statusConfig.accountConfigured ? 'success' : 'warning'}>
-                {statusConfig.baseURL} / provider={statusConfig.accountSource} / account={statusConfig.accountConfigured ? 'configured' : 'missing'}
+                {statusConfig.baseURL} / 来源={appServerAccountSourceLabel(statusConfig)} / 账号={statusConfig.accountConfigured ? '已配置' : '缺失'}
               </AgentConsoleCallout>
             ) : null}
           </AgentConsoleLocalToolFields>
@@ -289,7 +301,7 @@ export function AppServerPanel({
         <AgentConsoleDivider>
           <AgentConsoleIntroRow>
             <AgentConsoleDescription>
-              {title} 的 app-server 生命周期由 MovScript 托管；账号和 Base URL 从 workspace 的 provider 配置投影到托管 home，并在启动时传给 app-server 进程。
+              这里选择 Agent 配置写入来源并管理 app-server 生命周期。常规使用可选本机、自定义或后端，运行时始终读取托管配置文件。
             </AgentConsoleDescription>
             <AgentConsoleToolbar>
               <AgentConsoleStatusBadge intent="neutral" emphasis="soft">profile={profile.id}</AgentConsoleStatusBadge>

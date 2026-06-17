@@ -19,7 +19,6 @@ import type {
 export interface ProviderSessionWorkspaceScopeContext extends ProviderSessionWorkspaceScopeInput {}
 
 export interface ProviderModelConfigSaveInput {
-  modelConfigId?: number
   model: string
   apiKind?: ProviderModelAPIKind
   baseURL?: string
@@ -30,7 +29,6 @@ export interface ProviderModelConfigSaveInput {
 
 function modelConfigSaveInputRecord(input: ProviderModelConfigSaveInput): Record<string, unknown> {
   return {
-    ...(input.modelConfigId !== undefined ? { modelConfigId: input.modelConfigId } : {}),
     model: input.model,
     ...(input.apiKind !== undefined ? { apiKind: input.apiKind } : {}),
     ...(input.baseURL !== undefined ? { baseURL: input.baseURL } : {}),

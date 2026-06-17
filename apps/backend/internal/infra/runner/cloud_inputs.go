@@ -73,6 +73,9 @@ func (w *Worker) preparePublicMediaReferences(job *persistencemodel.Job, mediaLi
 }
 
 func (w *Worker) modelAdapterType(modelConfigID uint) string {
+	if w == nil || w.db == nil || !w.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) || !w.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+		return ""
+	}
 	var row struct {
 		AdapterType string
 	}
@@ -151,7 +154,7 @@ func (w *Worker) ensureCloudUpload(job *persistencemodel.Job, media ai.MediaData
 		if uploader := w.aiService.GetFileUploader(ctx, job.UserID, job.ModelConfigID); uploader != nil {
 			fileID, err := uploader.UploadFile(ctx, media.Bytes, filename, mimeType, "")
 			if err == nil && fileID != "" {
-				key := fmt.Sprintf("ai_model_config:%d", job.ModelConfigID)
+				key := fmt.Sprintf("ai_route:%d", job.ModelConfigID)
 				cache[key] = cacheEntry{FileID: fileID, UploadedAt: time.Now()}
 				if b, err := json.Marshal(cache); err == nil {
 					w.db.Model(&resource).Update("cloud_uploads", string(b))

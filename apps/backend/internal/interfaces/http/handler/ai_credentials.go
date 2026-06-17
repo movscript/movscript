@@ -40,12 +40,10 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown adapter type: " + req.AdapterType})
 		return
 	}
-	if !h.newAPIGatewayMode() {
-		for _, field := range def.CredFields {
-			if field.Required && req.Credentials[field.Key] == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "missing required credential: " + field.Key})
-				return
-			}
+	for _, field := range def.CredFields {
+		if field.Required && req.Credentials[field.Key] == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing required credential: " + field.Key})
+			return
 		}
 	}
 

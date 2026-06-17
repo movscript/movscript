@@ -12,39 +12,39 @@ const (
 )
 
 type NewAPIKeySpec struct {
-	Name            string
-	KeyPrefix       string
-	KeyHash         string
-	OwnerUserID     uint
-	OrgID           *uint
-	ProjectID       *uint
-	AllowedModelIDs []uint
-	AllowedScopes   []string
+	Name                   string
+	KeyPrefix              string
+	KeyHash                string
+	OwnerUserID            uint
+	OrgID                  *uint
+	ProjectID              *uint
+	AllowedCatalogEntryIDs []uint
+	AllowedScopes          []string
 }
 
 type APIKeyUpdateSpec struct {
-	Name            *string
-	ProjectID       *uint
-	ProjectIDSet    bool
-	AllowedModelIDs []uint
-	AllowedScopes   []string
-	IsEnabled       *bool
+	Name                   *string
+	ProjectID              *uint
+	ProjectIDSet           bool
+	AllowedCatalogEntryIDs []uint
+	AllowedScopes          []string
+	IsEnabled              *bool
 }
 
 type APIKey struct {
-	ID              uint       `json:"ID"`
-	Name            string     `json:"name"`
-	KeyPrefix       string     `json:"key_prefix"`
-	KeyHash         string     `json:"-"`
-	OwnerUserID     uint       `json:"owner_user_id"`
-	OrgID           *uint      `json:"org_id,omitempty"`
-	ProjectID       *uint      `json:"project_id,omitempty"`
-	AllowedModelIDs string     `json:"allowed_model_ids"`
-	AllowedScopes   string     `json:"allowed_scopes"`
-	IsEnabled       bool       `json:"is_enabled"`
-	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
-	CreatedAt       time.Time  `json:"CreatedAt"`
-	UpdatedAt       time.Time  `json:"UpdatedAt"`
+	ID                     uint       `json:"ID"`
+	Name                   string     `json:"name"`
+	KeyPrefix              string     `json:"key_prefix"`
+	KeyHash                string     `json:"-"`
+	OwnerUserID            uint       `json:"owner_user_id"`
+	OrgID                  *uint      `json:"org_id,omitempty"`
+	ProjectID              *uint      `json:"project_id,omitempty"`
+	AllowedCatalogEntryIDs string     `json:"allowed_catalog_entry_ids"`
+	AllowedScopes          string     `json:"allowed_scopes"`
+	IsEnabled              bool       `json:"is_enabled"`
+	LastUsedAt             *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt              time.Time  `json:"CreatedAt"`
+	UpdatedAt              time.Time  `json:"UpdatedAt"`
 
 	APIKeyRuntimeFields
 }
@@ -55,15 +55,15 @@ func NewAPIKey(spec NewAPIKeySpec) APIKey {
 		scopes = []string{DefaultAPIScopeChat}
 	}
 	return APIKey{
-		Name:            strings.TrimSpace(spec.Name),
-		KeyPrefix:       spec.KeyPrefix,
-		KeyHash:         spec.KeyHash,
-		OwnerUserID:     spec.OwnerUserID,
-		OrgID:           spec.OrgID,
-		ProjectID:       spec.ProjectID,
-		AllowedModelIDs: mustJSONString(spec.AllowedModelIDs),
-		AllowedScopes:   mustJSONString(scopes),
-		IsEnabled:       true,
+		Name:                   strings.TrimSpace(spec.Name),
+		KeyPrefix:              spec.KeyPrefix,
+		KeyHash:                spec.KeyHash,
+		OwnerUserID:            spec.OwnerUserID,
+		OrgID:                  spec.OrgID,
+		ProjectID:              spec.ProjectID,
+		AllowedCatalogEntryIDs: mustJSONString(spec.AllowedCatalogEntryIDs),
+		AllowedScopes:          mustJSONString(scopes),
+		IsEnabled:              true,
 	}
 }
 
@@ -74,8 +74,8 @@ func (key *APIKey) ApplyUpdate(spec APIKeyUpdateSpec) {
 	if spec.ProjectIDSet {
 		key.ProjectID = spec.ProjectID
 	}
-	if spec.AllowedModelIDs != nil {
-		key.AllowedModelIDs = mustJSONString(spec.AllowedModelIDs)
+	if spec.AllowedCatalogEntryIDs != nil {
+		key.AllowedCatalogEntryIDs = mustJSONString(spec.AllowedCatalogEntryIDs)
 	}
 	if spec.AllowedScopes != nil {
 		key.AllowedScopes = mustJSONString(spec.AllowedScopes)
@@ -98,14 +98,20 @@ func KeyAllowsScope(key *APIKey, scope string) bool {
 	return false
 }
 
-func KeyAllowsModel(key *APIKey, modelConfigID uint) bool {
-	ids := parseUintArray(key.AllowedModelIDs)
+func KeyAllowsCatalogEntry(key *APIKey, catalogEntryID uint) bool {
+	return KeyAllowsAnyCatalogEntry(key, catalogEntryID)
+}
+
+func KeyAllowsAnyCatalogEntry(key *APIKey, catalogEntryIDs ...uint) bool {
+	ids := parseUintArray(key.AllowedCatalogEntryIDs)
 	if len(ids) == 0 {
 		return true
 	}
 	for _, id := range ids {
-		if id == modelConfigID {
-			return true
+		for _, catalogEntryID := range catalogEntryIDs {
+			if catalogEntryID != 0 && id == catalogEntryID {
+				return true
+			}
 		}
 	}
 	return false

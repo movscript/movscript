@@ -1,4 +1,3 @@
-import type { AIModelConfig } from './ai'
 import type { RawResource } from './resources'
 
 export interface DebugHTTPExchange {
@@ -60,12 +59,11 @@ export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancel
 export interface Job {
   ID: number
   user_id: number
-  model_config_id: number
-  model_config?: AIModelConfig
+  model_id?: string
   provider_name?: string
   model_display?: string
   model_identifier?: string
-  job_type: string  // image | image_edit | video | video_i2v | video_v2v
+  job_type: string  // image | image_edit | video | video_i2v | video_v2v | audio_tts | audio_transcribe | audio_music | audio_sfx | subtitle_align | subtitle_translate
   feature_key?: string  // source/audit key supplied by the caller
   title?: string
   status: JobStatus

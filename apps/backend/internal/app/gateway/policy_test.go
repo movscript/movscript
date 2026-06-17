@@ -42,7 +42,7 @@ func TestUsageContextIncludesAPIKeyAndProject(t *testing.T) {
 
 func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
 	models := []ChatModel{
-		{ID: 4, ModelDefID: "gpt-like", ModelIDOverride: "public-name"},
+		{ID: 4, ModelID: "public-name", ModelDefID: "provider-hidden-def", ModelIDOverride: "provider-hidden-override"},
 		{ID: 5, ModelDefID: "provider-hidden", LogicalModelID: "logical-name"},
 	}
 
@@ -56,13 +56,14 @@ func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
 		t.Fatalf("expected override model, got id=%d name=%q err=%v", id, name, err)
 	}
 
-	id, name, err = ResolveTextModel(models, "model_config:4", 0, nil)
-	if err != nil || id != 4 || name != "model_config:4" {
-		t.Fatalf("expected model_config model, got id=%d name=%q err=%v", id, name, err)
-	}
-
 	id, name, err = ResolveTextModel(models, "logical-name", 0, nil)
 	if err != nil || id != 5 || name != "logical-name" {
 		t.Fatalf("expected logical model, got id=%d name=%q err=%v", id, name, err)
+	}
+
+	for _, hiddenProviderID := range []string{"model_config:4", "provider-hidden", "provider-hidden-def", "provider-hidden-override"} {
+		if id, name, err = ResolveTextModel(models, hiddenProviderID, 0, nil); err == nil {
+			t.Fatalf("ResolveTextModel(%q) = id=%d name=%q nil error, want provider id rejected", hiddenProviderID, id, name)
+		}
 	}
 }

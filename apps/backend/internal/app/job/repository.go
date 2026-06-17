@@ -122,9 +122,10 @@ func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {
 
 func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {
 	lookups := ResponseLookups{
-		ResourcesByID:   map[uint]domainjob.RawResource{},
-		ConfigsByID:     map[uint]domainjob.AIModelConfig{},
-		CredentialsByID: map[uint]domainjob.AICredential{},
+		ResourcesByID:      map[uint]domainjob.RawResource{},
+		ConfigsByID:        map[uint]domainjob.AIModelConfig{},
+		CatalogEntriesByID: map[uint]ModelCatalogEntryLookup{},
+		CredentialsByID:    map[uint]domainjob.AICredential{},
 	}
 	if len(resourceIDs) > 0 {
 		resources := make([]persistencemodel.RawResource, 0)
@@ -137,20 +138,35 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 	}
 	credentialIDSet := map[uint]bool{}
 	if len(modelConfigIDs) > 0 {
-		configs := make([]persistencemodel.AIModelConfig, 0)
-		if err := r.db.WithContext(ctx).Where("id IN ?", modelConfigIDs).Find(&configs).Error; err != nil {
+		if r.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+			configs := make([]persistencemodel.AIModelConfig, 0)
+			if err := r.db.WithContext(ctx).Where("id IN ?", modelConfigIDs).Find(&configs).Error; err != nil {
+				return lookups, err
+			}
+			for _, cfg := range configs {
+				lookups.ConfigsByID[cfg.ID] = domainjob.AIModelConfigFromModel(cfg)
+				credentialIDSet[cfg.CredentialID] = true
+			}
+		}
+		catalogEntries := make([]persistencemodel.AIModelCatalogEntry, 0)
+		if err := r.db.WithContext(ctx).Where("id IN ?", modelConfigIDs).Find(&catalogEntries).Error; err != nil {
 			return lookups, err
 		}
-		for _, cfg := range configs {
-			lookups.ConfigsByID[cfg.ID] = domainjob.AIModelConfigFromModel(cfg)
-			credentialIDSet[cfg.CredentialID] = true
+		for _, entry := range catalogEntries {
+			lookups.CatalogEntriesByID[entry.ID] = ModelCatalogEntryLookup{
+				ID:              entry.ID,
+				PublicModelID:   entry.PublicModelID,
+				ProviderModelID: entry.ProviderModelID,
+				DisplayName:     entry.DisplayName,
+				ShortName:       entry.ShortName,
+			}
 		}
 	}
 	credentialIDs := make([]uint, 0, len(credentialIDSet))
 	for id := range credentialIDSet {
 		credentialIDs = append(credentialIDs, id)
 	}
-	if len(credentialIDs) > 0 {
+	if len(credentialIDs) > 0 && r.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
 		creds := make([]persistencemodel.AICredential, 0)
 		if err := r.db.WithContext(ctx).Where("id IN ?", credentialIDs).Find(&creds).Error; err != nil {
 			return lookups, err
@@ -163,6 +179,9 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 }
 
 func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error) {
+	if !r.db.Migrator().HasTable(&persistencemodel.AICredential{}) {
+		return domainjob.AICredential{}, ErrNotFound
+	}
 	var cred persistencemodel.AICredential
 	if err := r.db.WithContext(ctx).First(&cred, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

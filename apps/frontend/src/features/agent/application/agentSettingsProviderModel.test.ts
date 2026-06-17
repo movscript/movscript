@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildProviderModelConfigFromSnapshotModel,
   buildProviderModelOperationPlan,
   buildProviderModelTestRequest,
   clearedProviderModelWorkspaceDraft,
@@ -12,15 +13,14 @@ import type { ProviderModelConfigPublic } from '@/shared/infrastructure/provider
 import type { PublicModel } from '@/types'
 
 const textModels: PublicModel[] = [
-  model({ id: 11, model_id: 'model_config:11', display_name: 'Fast Text' }),
-  model({ id: 12, model_id: 'model_config:12', display_name: 'Deep Text' }),
+  model({ id: 11, catalog_entry_id: 1011, model_id: 'gpt-fast', display_name: 'Fast Text' }),
+  model({ id: 12, model_id: 'gpt-deep', display_name: 'Deep Text' }),
 ]
 
 test('provider model workspace draft follows backend catalog config', () => {
   const draft = providerModelWorkspaceDraftFromConfig({
     config: providerConfig({
-      modelConfigId: 12,
-      model: 'model_config:12',
+      model: 'gpt-deep',
       apiKind: 'openai_chat_completions',
       useForChat: true,
       useForPlanner: false,
@@ -31,8 +31,8 @@ test('provider model workspace draft follows backend catalog config', () => {
   })
 
   assert.deepEqual(draft, {
-    selectedModelId: 'model_config:12',
-    directModelId: 'model_config:12',
+    selectedModelId: 'gpt-deep',
+    directModelId: 'gpt-deep',
     selectedApiKind: 'openai_chat_completions',
     baseURL: '',
     useForChat: true,
@@ -64,9 +64,9 @@ test('provider model workspace draft keeps manual model ids out of catalog selec
   })
 })
 
-test('stored provider model workspace id maps legacy numeric ids to public ids', () => {
-  assert.equal(storedProviderModelWorkspaceId(textModels, 11), 'model_config:11')
-  assert.equal(storedProviderModelWorkspaceId(textModels, 999), null)
+test('stored provider model workspace id uses public model ids', () => {
+  assert.equal(storedProviderModelWorkspaceId(textModels, 'gpt-fast'), 'gpt-fast')
+  assert.equal(storedProviderModelWorkspaceId(textModels, 'missing-model'), null)
   assert.equal(storedProviderModelWorkspaceId(textModels, null), null)
 })
 
@@ -103,7 +103,7 @@ test('provider model operation plan builds catalog requests and stored ids', () 
   const plan = buildProviderModelOperationPlan({
     selectedModel: textModels[0],
     usesModelCatalog: true,
-    model: 'model_config:11',
+    model: 'gpt-fast',
     apiKind: 'openai_responses',
     baseURL: '',
     apiKey: '  secret  ',
@@ -113,14 +113,27 @@ test('provider model operation plan builds catalog requests and stored ids', () 
 
   assert.deepEqual(plan, {
     request: {
-      modelConfigId: 11,
-      model: 'model_config:11',
+      model: 'gpt-fast',
       apiKind: 'openai_responses',
       apiKey: 'secret',
       useForChat: true,
       useForPlanner: false,
     },
-    storedModelId: 11,
+    storedModelId: 'gpt-fast',
+  })
+})
+
+test('snapshot model import uses public model id', () => {
+  assert.deepEqual(buildProviderModelConfigFromSnapshotModel({
+    model: 'gpt-fast',
+    apiKind: 'openai_responses',
+    useForChat: true,
+    useForPlanner: false,
+  }), {
+    model: 'gpt-fast',
+    apiKind: 'openai_responses',
+    useForChat: true,
+    useForPlanner: false,
   })
 })
 
@@ -147,7 +160,7 @@ function providerConfig(patch: Partial<ProviderModelConfigPublic>): ProviderMode
   return {
     configured: true,
     provider: 'backend-model-config',
-    model: 'model_config:11',
+    model: 'gpt-fast',
     apiKind: 'openai_responses',
     apiKeyConfigured: false,
     useForChat: true,
@@ -163,7 +176,7 @@ function providerConfig(patch: Partial<ProviderModelConfigPublic>): ProviderMode
   }
 }
 
-function model(patch: Pick<PublicModel, 'id' | 'model_id' | 'display_name'>): PublicModel {
+function model(patch: Pick<PublicModel, 'id' | 'model_id' | 'display_name'> & Partial<PublicModel>): PublicModel {
   return {
     credential_id: 1,
     capabilities: ['text'],

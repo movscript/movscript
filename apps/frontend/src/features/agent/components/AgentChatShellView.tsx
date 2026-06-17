@@ -36,7 +36,7 @@ type AgentChatVisibleItem = AgentChatRuntimeView['visibleItems'][number]
 interface AgentChatShellViewProps {
   activeThread: AgentChatThread | null
   activeThreadId: string | null
-  activeThreadModelValue: number | null | undefined
+  activeThreadModelValue: string | null | undefined
   canSend: boolean
   canShowOlderThreadItems: boolean
   canStopActiveTurn: boolean
@@ -52,7 +52,7 @@ interface AgentChatShellViewProps {
   endpoint?: string
   error: string | null
   goalModeEnabled: boolean
-  handleModelChange: (modelId: number | null) => void
+  handleModelChange: (modelId: string | null) => void
   handleProfilePresetChange: (profilePresetId: AgentRunProfilePresetId) => void
   hasChatContent: boolean
   hideComposerWorkspaceProjectSelector: boolean

@@ -13,10 +13,10 @@ import { createMCPAPI } from './api/mcp'
 import { createMovScriptEngineAPI } from './api/movscriptEngine'
 import { createMovScriptWorkspaceAPI } from './api/movscriptWorkspace'
 import { createSettingsAPI } from './api/settings'
-import { createVideoAPI } from './api/video'
 import { createWindowAPI } from './api/window'
 import { createLocalTerminalAPI } from './api/localTerminal'
 import { createCrossPageNotificationAPI } from './api/crossPageNotifications'
+import { createMediaPipelineAPI } from './api/mediaPipeline'
 
 export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Platform): ElectronAPI {
   return {
@@ -37,6 +37,6 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createMovScriptWorkspaceAPI(ipcRenderer),
     ...createAppServerAPI(ipcRenderer),
     ...createLocalTerminalAPI(ipcRenderer),
-    ...createVideoAPI(ipcRenderer),
+    ...createMediaPipelineAPI(ipcRenderer),
   }
 }

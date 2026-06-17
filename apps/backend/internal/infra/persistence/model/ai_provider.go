@@ -13,7 +13,7 @@ type AICredential struct {
 	MaskedKey    string          `gorm:"-" json:"masked_key"`
 	IsEnabled    bool            `gorm:"default:true" json:"is_enabled"`
 	OrgID        *uint           `gorm:"index" json:"org_id,omitempty"`
-	Models       []AIModelConfig `gorm:"foreignKey:CredentialID" json:"models,omitempty"`
+	Models       []AIModelConfig `gorm:"foreignKey:CredentialID" json:"-"`
 
 	FilesAPIEnabled      bool   `gorm:"default:false" json:"files_api_enabled"`
 	FilesAPIBaseURL      string `json:"files_api_base_url"`

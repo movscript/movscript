@@ -7,7 +7,6 @@ export interface GenerationProgressState {
   providerName?: string
   modelDisplay?: string
   modelIdentifier?: string
-  modelConfigId?: number
   status: string
   stage?: string
   progress?: number
@@ -26,7 +25,6 @@ export interface GenerationMediaMetadata {
   providerName?: string
   modelDisplay?: string
   modelIdentifier?: string
-  modelConfigId?: number
   status?: string
   stage?: string
 }
@@ -158,7 +156,6 @@ export function generationProgressListFromEvents(events: GenerationTraceEventLik
       ...(typeof generation.providerName === 'string' ? { providerName: generation.providerName } : {}),
       ...(typeof generation.modelDisplay === 'string' ? { modelDisplay: generation.modelDisplay } : {}),
       ...(typeof generation.modelIdentifier === 'string' ? { modelIdentifier: generation.modelIdentifier } : {}),
-      ...(typeof generation.modelConfigId === 'number' ? { modelConfigId: generation.modelConfigId } : {}),
       status,
       ...(typeof generation.stage === 'string' ? { stage: generation.stage } : {}),
       ...(typeof generation.progress === 'number' ? { progress: generation.progress } : {}),
@@ -239,7 +236,6 @@ function generationMetadataFromRecord(generation: Record<string, unknown>): Gene
     ...(typeof generation.providerName === 'string' ? { providerName: generation.providerName } : {}),
     ...(typeof generation.modelDisplay === 'string' ? { modelDisplay: generation.modelDisplay } : {}),
     ...(typeof generation.modelIdentifier === 'string' ? { modelIdentifier: generation.modelIdentifier } : {}),
-    ...(typeof generation.modelConfigId === 'number' ? { modelConfigId: generation.modelConfigId } : {}),
     ...(typeof generation.status === 'string' ? { status: generation.status } : {}),
     ...(typeof generation.stage === 'string' ? { stage: generation.stage } : {}),
   }

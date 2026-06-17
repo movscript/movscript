@@ -15,6 +15,7 @@ type handlers struct {
 	auth              *handler.AuthHandler
 	ai                *handler.AIHandler
 	resources         *handler.ResourceHandler
+	mediaStreams      *handler.MediaStreamHandler
 	externalResources *handler.ExternalResourceHandler
 	shotReferences    *handler.ShotReferenceHandler
 	resourceFolders   *handler.ResourceFolderHandler
@@ -60,6 +61,7 @@ func newHandlers(deps Dependencies) handlers {
 		auth:              handler.NewAuthHandlerWithConfigAndEncryption(db, tokens, cfg, deps.EncryptionKey),
 		ai:                handler.NewAIHandlerWithConfig(db, cfg, cfg.EncryptionKey, registry),
 		resources:         handler.NewResourceHandler(db, store, imageVerifier, cfg.MaxUploadBytes, cacheStore),
+		mediaStreams:      handler.NewMediaStreamHandler(db, store, cfg.MaxUploadBytes),
 		externalResources: handler.NewExternalResourceHandler(db, cfg.EncryptionKey),
 		shotReferences:    handler.NewShotReferenceHandlerWithVectorIndex(db, store, imageVerifier, deps.VectorIndex, cfg.MaxUploadBytes, cacheStore),
 		resourceFolders:   handler.NewResourceFolderHandler(db, cacheStore),

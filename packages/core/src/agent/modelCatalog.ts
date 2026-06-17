@@ -2,6 +2,7 @@ export const AGENT_BACKEND_MODEL_CAPABILITY_QUERY = 'text,reasoning'
 
 export interface AgentBackendPublicModel {
   id: number
+  catalog_entry_id?: number
   credential_id?: number
   model_id?: string
   display_name?: string
@@ -55,7 +56,7 @@ export function mergeAgentBackendModels<TModel extends AgentBackendPublicModel>(
 }
 
 export function publicAgentBackendModelId(model: Pick<AgentBackendPublicModel, 'id' | 'model_id' | 'logical_model_id' | 'model_def_id'>): string {
-  return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `model_config:${model.id}`
+  return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `backend.model.${model.id}`
 }
 
 function mergeCapabilities(left: string[], right: string[]): string[] {

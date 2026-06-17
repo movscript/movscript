@@ -28,6 +28,7 @@ test('core default agent provider decision creates backend provider config from 
     model: 'default-model',
   })
   assert.equal(decision.providerConfig?.enabled, true)
+  assert.equal(decision.providerConfig?.configSource, 'backend')
   assert.equal(decision.providerConfig?.baseURL, 'http://localhost:8765/api/v1')
   assert.deepEqual(decision.providerConfig?.config, { mode: 'backendKey', modelProviderRef: 'backend:20' })
   assert.deepEqual(decision.providerConfig?.auth, { mode: 'backendKey', modelProviderRef: 'backend:20' })

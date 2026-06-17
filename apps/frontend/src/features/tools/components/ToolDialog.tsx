@@ -12,6 +12,7 @@ import {
   PanelRightClose,
   FolderArchive,
   Image as ImageIcon,
+  AudioLines,
   Video,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -64,6 +65,7 @@ function buildGenerationJobTitle(jobType: string): string {
     video: '文生视频',
     video_i2v: '参考生视频',
     video_v2v: '视频迁移',
+    audio_tts: '音频生成',
   }
   return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
 }
@@ -72,16 +74,21 @@ function buildGenerationJobTitle(jobType: string): string {
 
 export interface ToolDialogDef {
   nodeType: NodeType
-  capability: 'image' | 'video'
+  capability: 'image' | 'video' | 'audio'
   toolName: string
   toolDescription: string
-  inputType: 'image' | 'video' | 'image+video'
+  inputType: 'none' | 'image' | 'video' | 'image+video'
   inputSlots?: InputSlotDef[]
-  outputType: 'image' | 'video'
+  outputType: 'image' | 'video' | 'audio'
   promptPlaceholder?: string
   layout?: 'default' | 'reference-workbench'
   resourcePane?: ReactNode
   showHistory?: boolean
+}
+
+interface ReferenceWorkbenchPaneControl {
+  collapsed: boolean
+  collapse: () => void
 }
 
 export function ToolDialog({
@@ -98,23 +105,15 @@ export function ToolDialog({
   showHistory = true,
 }: ToolDialogDef) {
   const { t } = useTranslation()
-  const location = useLocation()
-  const routeLayout = routeLayoutSpecForPathname(location.pathname)
   const qc = useQueryClient()
   const [prompt, setPrompt] = useState('')
   const [attachments, setAttachments] = useState<RawResource[]>([])
-  const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [extraParams, setExtraParams] = useState<Record<string, string | number | boolean>>({})
   const [uploading, setUploading] = useState(false)
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [debugMode, setDebugMode] = useState(false)
-  const resourcePaneController = useRouteLayoutOverlapPaneController({
-    routeLayout,
-    paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID,
-    resizeEdge: 'left',
-    ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
-  })
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = layout === 'reference-workbench' ? 6 : 10
 
@@ -137,6 +136,7 @@ export function ToolDialog({
     if (inputType === 'video') {
       return [{ key: 'source_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: true, maxCount: 1 }]
     }
+    if (inputType === 'none') return []
     return [
       { key: 'reference_images', label: t('tools.inputs.referenceImages', { defaultValue: '参考图片' }), type: 'image', required: false, maxCount: 0 },
       { key: 'source_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: false, maxCount: 1 },
@@ -271,30 +271,41 @@ export function ToolDialog({
   const selectedResourceIds = attachments.map((a) => a.ID)
   const capabilityLabel = capability === 'video'
     ? t('tools.capabilities.video', { defaultValue: 'Video tool' })
-    : t('tools.capabilities.image', { defaultValue: 'Image tool' })
-  const resourcePaneLabel = resourcePaneController.collapsed
-    ? t('tools.page.resourcePaneHidden', { defaultValue: '资源库已隐藏' })
-    : t('tools.page.resourcePaneVisible', { defaultValue: '资源库已展开' })
+    : capability === 'audio'
+      ? t('tools.capabilities.audio', { defaultValue: 'Audio tool' })
+      : t('tools.capabilities.image', { defaultValue: 'Image tool' })
   const inputOutputLabel = t('tools.page.inputOutputLabel', {
     defaultValue: '{{input}} to {{output}}',
     input: inputType,
     output: outputType,
   })
-  const resourcePaneNode = resourcePane ?? (
+  const mediaInputType: 'none' | 'image' | 'video' | 'image+video' = inputType === 'none'
+    ? 'none'
+    : inputType === 'image+video'
+      ? 'image+video'
+      : showImageInput
+        ? 'image'
+        : outputType === 'video'
+          ? 'video'
+          : 'image'
+  const resourcePanelInputType: 'image' | 'video' | 'image+video' = inputSlots
+    ? 'image+video'
+    : inputType === 'image+video'
+      ? 'image+video'
+      : showImageInput
+        ? 'image'
+        : outputType === 'video'
+          ? 'video'
+          : 'image'
+  const resourcePaneNode = inputType === 'none' ? null : resourcePane ?? (
       <ResourcePanel
-        inputType={
-          inputSlots
-            ? 'image+video'
-            : inputType === 'image+video'
-            ? 'image+video'
-            : (showImageInput ? 'image' : outputType)
-        }
+        inputType={resourcePanelInputType}
         selectedIds={selectedResourceIds}
         onSelect={addAttachment}
       />
     )
 
-  const mainPane = (
+  const renderMainPane = (resourcePaneController?: ReferenceWorkbenchPaneControl) => (
     <ToolDialogMain
       onDragOver={(event) => {
         if (!acceptResourceDropDragOver(event.dataTransfer)) return
@@ -317,7 +328,7 @@ export function ToolDialog({
               <p className="type-tiny text-muted-foreground">{toolDescription}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {layout === 'reference-workbench' && !resourcePaneController.collapsed ? (
+              {resourcePaneController && !resourcePaneController.collapsed ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -371,7 +382,7 @@ export function ToolDialog({
             isRunning={isRunning}
             canGenerate={canGenerate}
             selectedModelId={selectedModelId}
-            inputType={inputType === 'image+video' ? 'image+video' : showImageInput ? 'image' : outputType}
+            inputType={mediaInputType}
             promptPlaceholder={promptPlaceholder}
             uploading={uploading}
             imageEditRequired={modelAcceptsImageInput}
@@ -397,55 +408,15 @@ export function ToolDialog({
 
   if (layout === 'reference-workbench') {
     return (
-      <ToolDialogFrame className="tool-dialog-frame--reference-workbench">
-        <ToolDialogProgramHeader>
-          <ToolDialogProgramHeaderText>
-            <ToolDialogProgramTitle>{toolName}</ToolDialogProgramTitle>
-            <ToolDialogProgramDescription>{toolDescription}</ToolDialogProgramDescription>
-          </ToolDialogProgramHeaderText>
-          <ToolDialogProgramMeta>
-            <ToolDialogProgramMetaItem icon={capability === 'video' ? <Video size={13} /> : <ImageIcon size={13} />}>
-              {capabilityLabel}
-            </ToolDialogProgramMetaItem>
-            <ToolDialogProgramMetaItem icon={<Wand2 size={13} />}>
-              {inputOutputLabel}
-            </ToolDialogProgramMetaItem>
-            <ToolDialogProgramMetaItem icon={<FolderArchive size={13} />}>
-              {resourcePaneLabel}
-            </ToolDialogProgramMetaItem>
-          </ToolDialogProgramMeta>
-        </ToolDialogProgramHeader>
-        <ToolDialogBody
-          className="tool-dialog-body--reference-workbench"
-          {...resourcePaneController.groupProps}
-        >
-          {mainPane}
-          {!resourcePaneController.collapsed ? (
-            <ToolDialogResourcePane
-              overlapState={resourcePaneController.overlapState}
-              resizeHandleProps={{
-                ...resourcePaneController.resizeHandleProps,
-              }}
-            >
-              {resourcePaneNode}
-            </ToolDialogResourcePane>
-          ) : null}
-          {resourcePaneController.collapsed ? (
-            <OverlapPaneRevealButton
-              action="show"
-              label={t('common.show', { defaultValue: '显示' })}
-              onClick={resourcePaneController.show}
-            />
-          ) : null}
-          {resourcePaneController.expanded ? (
-            <OverlapPaneRevealButton
-              action="restore"
-              label={t('common.restore', { defaultValue: '还原' })}
-              onClick={resourcePaneController.restore}
-            />
-          ) : null}
-        </ToolDialogBody>
-      </ToolDialogFrame>
+      <ReferenceWorkbenchToolDialog
+        capability={capability}
+        capabilityLabel={capabilityLabel}
+        inputOutputLabel={inputOutputLabel}
+        renderMainPane={renderMainPane}
+        resourcePaneNode={resourcePaneNode}
+        toolDescription={toolDescription}
+        toolName={toolName}
+      />
     )
   }
 
@@ -457,7 +428,93 @@ export function ToolDialog({
         {resourcePaneNode}
 
         {/* Right: scrollable content — drop zone for resources */}
+        {renderMainPane()}
+      </ToolDialogBody>
+    </ToolDialogFrame>
+  )
+}
+
+interface ReferenceWorkbenchToolDialogProps {
+  capability: ToolDialogDef['capability']
+  capabilityLabel: string
+  inputOutputLabel: string
+  renderMainPane: (resourcePaneController: ReferenceWorkbenchPaneControl) => ReactNode
+  resourcePaneNode: ReactNode
+  toolDescription: string
+  toolName: string
+}
+
+function ReferenceWorkbenchToolDialog({
+  capability,
+  capabilityLabel,
+  inputOutputLabel,
+  renderMainPane,
+  resourcePaneNode,
+  toolDescription,
+  toolName,
+}: ReferenceWorkbenchToolDialogProps) {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const routeLayout = routeLayoutSpecForPathname(location.pathname)
+  const resourcePaneController = useRouteLayoutOverlapPaneController({
+    routeLayout,
+    paneId: TOOL_WORKBENCH_RESOURCE_PANE_ID,
+    resizeEdge: 'left',
+    ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
+  })
+  const resourcePaneLabel = resourcePaneController.collapsed
+    ? t('tools.page.resourcePaneHidden', { defaultValue: '资源库已隐藏' })
+    : t('tools.page.resourcePaneVisible', { defaultValue: '资源库已展开' })
+  const mainPane = renderMainPane(resourcePaneController)
+
+  return (
+    <ToolDialogFrame className="tool-dialog-frame--reference-workbench">
+      <ToolDialogProgramHeader>
+        <ToolDialogProgramHeaderText>
+          <ToolDialogProgramTitle>{toolName}</ToolDialogProgramTitle>
+          <ToolDialogProgramDescription>{toolDescription}</ToolDialogProgramDescription>
+        </ToolDialogProgramHeaderText>
+        <ToolDialogProgramMeta>
+          <ToolDialogProgramMetaItem icon={capability === 'video' ? <Video size={13} /> : capability === 'audio' ? <AudioLines size={13} /> : <ImageIcon size={13} />}>
+            {capabilityLabel}
+          </ToolDialogProgramMetaItem>
+          <ToolDialogProgramMetaItem icon={<Wand2 size={13} />}>
+            {inputOutputLabel}
+          </ToolDialogProgramMetaItem>
+          <ToolDialogProgramMetaItem icon={<FolderArchive size={13} />}>
+            {resourcePaneLabel}
+          </ToolDialogProgramMetaItem>
+        </ToolDialogProgramMeta>
+      </ToolDialogProgramHeader>
+      <ToolDialogBody
+        className="tool-dialog-body--reference-workbench"
+        {...resourcePaneController.groupProps}
+      >
         {mainPane}
+        {!resourcePaneController.collapsed ? (
+          <ToolDialogResourcePane
+            overlapState={resourcePaneController.overlapState}
+            resizeHandleProps={{
+              ...resourcePaneController.resizeHandleProps,
+            }}
+          >
+            {resourcePaneNode}
+          </ToolDialogResourcePane>
+        ) : null}
+        {resourcePaneController.collapsed ? (
+          <OverlapPaneRevealButton
+            action="show"
+            label={t('common.show', { defaultValue: '显示' })}
+            onClick={resourcePaneController.show}
+          />
+        ) : null}
+        {resourcePaneController.expanded ? (
+          <OverlapPaneRevealButton
+            action="restore"
+            label={t('common.restore', { defaultValue: '还原' })}
+            onClick={resourcePaneController.restore}
+          />
+        ) : null}
       </ToolDialogBody>
     </ToolDialogFrame>
   )

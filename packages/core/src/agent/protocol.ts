@@ -138,7 +138,7 @@ export function createAgentTelemetryLogSample(input: {
 }
 
 export type MediaTimingSource = 'tts_timing' | 'forced_align' | 'stt' | 'manual'
-export type MediaPipelineCapability = 'audio_tts' | 'audio_transcribe' | 'subtitle_align' | 'render_video'
+export type MediaPipelineCapability = 'audio_tts' | 'audio_transcribe' | 'audio_music' | 'audio_sfx' | 'subtitle_align' | 'subtitle_translate'
 export type SubtitleFormat = 'srt' | 'vtt' | 'ass' | 'json'
 export type AudioFormat = 'mp3' | 'wav' | 'aac' | 'opus' | 'flac'
 export type RenderOutputFormat = 'mp4' | 'mov' | 'webm'
@@ -156,7 +156,6 @@ export type MediaProviderFeature =
   | 'speed_control'
   | 'pitch_control'
   | 'forced_alignment'
-  | 'burn_in_subtitles'
 
 export interface MediaProviderParamDef {
   key: string
@@ -538,7 +537,7 @@ export interface ProviderManifest {
   model?: {
     provider?: string
     modelId?: string
-    platformModelId?: number
+    catalogEntryId?: number
   }
   metadata?: Record<string, JSONValue>
 }
@@ -603,7 +602,7 @@ export interface ProviderCatalogConfigFile {
   model?: {
     provider: string
     modelId: string
-    platformModelId?: string
+    catalogEntryId?: string
     routes?: unknown[]
   }
   limits?: ProviderConfigFileLimits
@@ -870,7 +869,6 @@ export interface ProviderModelCapabilityRoutePublic {
   capability: ProviderModelCapability
   configured: boolean
   provider?: 'backend-model-config'
-  modelConfigId?: number
   model?: string
   source: ProviderModelRouteSource
 }
@@ -878,7 +876,6 @@ export interface ProviderModelCapabilityRoutePublic {
 export interface ProviderModelConfigPublic {
   configured: boolean
   provider: 'backend-model-config'
-  modelConfigId?: number
   model: string
   apiKind: ProviderModelAPIKind
   baseURL?: string
@@ -946,7 +943,6 @@ export interface ProviderModelTestResult {
   provider: string
   model: string
   apiKind: ProviderModelAPIKind
-  modelConfigId?: number
   latencyMs: number
   content: string
   request: ProviderModelRequestSnapshotPublic
@@ -1904,11 +1900,10 @@ export interface AgentAttachment {
     contentUnitId?: string | number
     candidateId?: string | number
     resourceId?: number
-    providerName?: string
-    modelDisplay?: string
-    modelIdentifier?: string
-    modelConfigId?: number
-    status?: string
+  providerName?: string
+  modelDisplay?: string
+  modelIdentifier?: string
+  status?: string
     stage?: string
   }
 }
@@ -2011,7 +2006,7 @@ export type ProviderSessionStatusMessage =
   | ProviderSessionStatusLightMessage
 
 export interface AgentChatMessageMeta {
-  modelId?: number | null
+  modelId?: string | null
   agentName?: string
   contextLabels?: string[]
   promptEligibility?: 'include' | 'exclude'
@@ -2194,7 +2189,6 @@ export interface AgentGenerationJob {
   providerName?: string
   modelDisplay?: string
   modelIdentifier?: string
-  modelConfigId?: number
   status: string
   stage?: string
   progress?: number
@@ -2211,7 +2205,6 @@ export interface AgentGenerationParamAudit {
   stepId?: string
   jobId?: number
   auditVersion?: number
-  modelConfigId?: number
   modelContractLoaded: boolean
   paramsSchemaLoaded: boolean
   paramsSchemaRuleCount?: number

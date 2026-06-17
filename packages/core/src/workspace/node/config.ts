@@ -81,6 +81,7 @@ export function readMovScriptWorkspaceConfig(configPath: string): MovScriptWorks
     updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     ...(isRecord(parsed.modelConfig) ? { modelConfig: parsed.modelConfig } : {}),
     ...(normalizeAgentCatalogConfig(parsed.agentCatalog) ? { agentCatalog: normalizeAgentCatalogConfig(parsed.agentCatalog) } : {}),
+    ...(normalizeAgentSelectionConfig(parsed.agentSelection) ? { agentSelection: normalizeAgentSelectionConfig(parsed.agentSelection) } : {}),
     ...(normalizeWorkspaceCatalogConfig(parsed.catalog) ? { catalog: normalizeWorkspaceCatalogConfig(parsed.catalog) } : {}),
     ...(Array.isArray(parsed.toolProviders) ? { toolProviders: parsed.toolProviders.filter(isRecord) } : {}),
     ...(Array.isArray(parsed.modelProviders) ? { modelProviders: parsed.modelProviders.filter(isRecord) } : {}),
@@ -200,6 +201,22 @@ function normalizeAgentCatalogConfig(value: unknown): MovScriptWorkspaceConfig['
     ...(configFiles && configFiles.length > 0 ? { configFiles } : {}),
   }
   return Object.keys(catalog).length > 0 ? catalog : undefined
+}
+
+function normalizeAgentSelectionConfig(value: unknown): MovScriptWorkspaceConfig['agentSelection'] | undefined {
+  if (!isRecord(value)) return undefined
+  const defaultProviderId = providerSelectionIdField(value.defaultProviderId)
+  const newConversationProviderId = providerSelectionIdField(value.newConversationProviderId)
+  const selection = {
+    ...(defaultProviderId ? { defaultProviderId } : {}),
+    ...(newConversationProviderId ? { newConversationProviderId } : {}),
+  }
+  return Object.keys(selection).length > 0 ? selection : undefined
+}
+
+function providerSelectionIdField(value: unknown): string | undefined {
+  const id = stringField(value)?.toLowerCase()
+  return id && /^[a-z][a-z0-9_-]{0,63}$/.test(id) ? id : undefined
 }
 
 function isProviderCatalogConfigFile(value: unknown): value is ProviderCatalogConfigFile {

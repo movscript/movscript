@@ -222,3 +222,24 @@ test('workspace config stores Electron-managed agent catalog state', () => {
   assert.equal(config.agentCatalog?.configFiles?.[0]?.id, 'agent-default')
   assert.deepEqual(config.agentCatalog?.configFiles?.[0]?.toolGrants, [{ name: 'shell', mode: 'read' }])
 })
+
+test('workspace config stores Electron-managed agent selection state', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-agent-selection-'))
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir)
+  ensureMovScriptWorkspace(paths)
+
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: 'movscript.workspace-config.v2',
+    updatedAt: '2026-06-09T00:00:00.000Z',
+    agentSelection: {
+      defaultProviderId: 'codex',
+      newConversationProviderId: 'codex',
+    },
+  })
+
+  const config = readMovScriptWorkspaceConfig(paths.configPath)
+  assert.deepEqual(config.agentSelection, {
+    defaultProviderId: 'codex',
+    newConversationProviderId: 'codex',
+  })
+})

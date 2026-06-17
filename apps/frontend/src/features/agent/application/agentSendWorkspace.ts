@@ -32,7 +32,7 @@ export interface AgentSendWorkspace {
   visibleUserContent: string
   attachments: AgentAttachment[]
   model: {
-    id: number | null
+    id: string | null
     name?: string
     providerModelId?: string
     provider?: string
@@ -149,7 +149,7 @@ export interface BuildProviderSessionSendWorkspaceInput {
   systemPrompt: string
   contextLabels: string[]
   providerThreadId?: string
-  modelId: number | null
+  modelId: string | null
   activeModel?: PublicModel
   activeConversationManifest?: ProviderManifest
   externalTask?: AgentPageTaskState | null
@@ -325,7 +325,7 @@ export async function buildProviderSessionSendWorkspace(input: BuildProviderSess
 
 export function buildDebugHttpRequests(options: {
   baseURL: string
-  modelId: number | null
+  modelId: string | null
   modelName?: string
   messages: AgentSendWorkspace['outbound']['messages']
   providerSession?: AgentSendProviderSessionScope

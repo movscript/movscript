@@ -7,12 +7,21 @@ import { getOptionalString } from '../../../tools/shared/params.js'
 
 export async function listModels(args: Record<string, unknown>): Promise<unknown> {
   const rawCapability = getOptionalString(args, 'capability')
-  const capability = normalizeModelCapabilityAlias(rawCapability) ?? rawCapability
+  const capability = normalizeModelCapabilityAlias(rawCapability)
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true
 
+  const defaultCapabilities = ['text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'audio_music', 'audio_sfx', 'subtitle_align', 'subtitle_translate']
+  if (rawCapability && !capability) {
+    return {
+      count: 0,
+      queries: [],
+      model_contracts: [],
+      models: [],
+    }
+  }
   const queries = capability
     ? [{ label: `capability:${capability}`, path: `/models?capability=${encodeURIComponent(capability)}${providerVariants ? '&provider_variants=true' : ''}` }]
-    : ['text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'subtitle_align', 'render_video'].map((item) => ({
+    : defaultCapabilities.map((item) => ({
       label: `capability:${item}`,
       path: `/models?capability=${encodeURIComponent(item)}${providerVariants ? '&provider_variants=true' : ''}`,
     }))

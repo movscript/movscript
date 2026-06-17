@@ -155,7 +155,7 @@ function ResourceItemDropdownMenu({
         {!isSharedView && resourceType === 'video' && onClip && (
           <DropdownMenuItem onSelect={onClip}>
             <Scissors size={14} />
-            {t('pages.resources.clipVideo')}
+            {t('pages.resources.trimVideoSegment')}
           </DropdownMenuItem>
         )}
         {onDelete && (

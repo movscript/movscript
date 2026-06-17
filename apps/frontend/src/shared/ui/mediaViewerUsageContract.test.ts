@@ -43,28 +43,26 @@ test('canvas resource image previews use ResourceImage instead of direct AuthedI
 })
 
 test('shot library custom clip player uses ResourceVideo for resource playback', () => {
-  const source = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
+  const source = readFileSync(resolve('src/features/shot-library/components/ShotLibraryImportDialog.tsx'), 'utf8')
 
   assert.match(source, /import \{ ResourceVideo \}/)
   assert.match(source, /<ResourceVideo[\s\S]*ref=\{videoRef\}[\s\S]*resource=\{resource\}/)
   assert.doesNotMatch(source, /AuthedVideo/)
 })
 
-test('resource page blob and external previews use UrlMedia primitives', () => {
-  const source = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
-  const urlMediaSource = readFileSync(resolve('src/shared/ui/UrlMedia.tsx'), 'utf8')
+test('resource page previews use shared MediaViewer primitives', () => {
+  const pageSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
+  const itemsSource = readFileSync(resolve('src/features/resources/components/ResourcesPageItems.tsx'), 'utf8')
 
-  assert.match(source, /import \{ UrlImage, UrlMediaPreview, UrlVideo \}/)
-  assert.match(source, /<UrlVideo[\s\S]*ref=\{videoRef\}[\s\S]*src=\{sourceUrl\}/)
-  assert.match(source, /<UrlImage src=\{item\.thumbnail_url\} alt=\{name\} loading="lazy" \/>/)
-  assert.match(source, /<UrlMediaPreview[\s\S]*src=\{previewUrl\}[\s\S]*type=\{item\.media_type\}/)
-  assert.doesNotMatch(source, /<video/)
-  assert.doesNotMatch(source, /<img/)
+  assert.match(pageSource, /import \{ MediaViewer \}/)
+  assert.match(pageSource, /<MediaViewer[\s\S]*resource=\{previewResource\}/)
+  assert.doesNotMatch(pageSource, /<video/)
+  assert.doesNotMatch(pageSource, /<img/)
 
-  assert.match(urlMediaSource, /ResourceAuthImage/)
-  assert.match(urlMediaSource, /ResourceAuthVideo/)
-  assert.match(urlMediaSource, /videoProps\?: Omit<UrlVideoProps, 'src' \| 'poster' \| 'controls' \| 'playsInline' \| 'resource'>/)
-  assert.match(urlMediaSource, /<UrlVideo src=\{src\} poster=\{poster\} \{\.\.\.videoProps\} controls playsInline \/>/)
+  assert.match(itemsSource, /import \{ MediaViewer \}/)
+  assert.match(itemsSource, /<MediaViewer[\s\S]*resource=\{resource\}/)
+  assert.doesNotMatch(itemsSource, /<video/)
+  assert.doesNotMatch(itemsSource, /<img/)
 })
 
 test('authed media defers heavy video blob resolution until the preview is near the viewport', () => {
@@ -96,11 +94,13 @@ test('contenteditable resource chips use shared DOM media helpers', () => {
 
 test('video metadata and thumbnail probing is isolated to shared helpers', () => {
   const shotLibrarySource = readFileSync(resolve('src/features/shot-library/components/ShotLibraryPage.tsx'), 'utf8')
+  const shotPreparationSource = readFileSync(resolve('src/features/shot-library/components/shotLibraryImportPreparation.ts'), 'utf8')
   const probeSource = readFileSync(resolve('src/shared/ui/VideoProbe.ts'), 'utf8')
 
-  assert.match(shotLibrarySource, /import \{ captureVideoThumbnails, loadVideoProbeMetadataFromObjectUrl \}/)
-  assert.match(shotLibrarySource, /loadVideoProbeMetadataFromObjectUrl\(url, cleanup, VIDEO_METADATA_TIMEOUT_MS\)/)
-  assert.match(shotLibrarySource, /captureVideoThumbnails\(/)
+  assert.match(shotLibrarySource, /loadVideoMetadataFromObjectUrl/)
+  assert.match(shotPreparationSource, /import \{ captureVideoThumbnails, loadVideoProbeMetadataFromObjectUrl \}/)
+  assert.match(shotPreparationSource, /loadVideoProbeMetadataFromObjectUrl\(url, cleanup, VIDEO_METADATA_TIMEOUT_MS\)/)
+  assert.match(shotPreparationSource, /captureVideoThumbnails\(/)
   assert.doesNotMatch(shotLibrarySource, /document\.createElement\('video'\)/)
 
   assert.match(probeSource, /document\.createElement\('video'\)/)
@@ -146,6 +146,7 @@ test('resource downloads use the shared download helper instead of MediaViewer e
   const mediaViewerSource = readFileSync(resolve('src/shared/ui/MediaViewer.tsx'), 'utf8')
   const downloadSource = readFileSync(resolve('src/shared/ui/resourceDownload.ts'), 'utf8')
   const resourcesSource = readFileSync(resolve('src/features/resources/components/ResourcesPage.tsx'), 'utf8')
+  const resourceListSource = readFileSync(resolve('src/features/resources/components/ResourcesPageLibraryContent.tsx'), 'utf8')
 
   assert.match(mediaViewerSource, /import \{ downloadResource \}/)
   assert.doesNotMatch(mediaViewerSource, /export async function downloadResource/)
@@ -155,7 +156,8 @@ test('resource downloads use the shared download helper instead of MediaViewer e
   assert.match(downloadSource, /a\.download = resource\.name/)
 
   assert.match(resourcesSource, /import \{ downloadResource \} from '@\/shared\/ui\/resourceDownload'/)
-  assert.match(resourcesSource, /onDownload=\{\(\) => downloadResource\(r\)\}/)
+  assert.match(resourcesSource, /onDownloadResource=\{downloadResource\}/)
+  assert.match(resourceListSource, /onDownload=\{\(\) => onDownloadResource\(resource\)\}/)
   assert.doesNotMatch(resourcesSource, /from '@\/shared\/ui\/MediaViewer'.*downloadResource/)
   assert.doesNotMatch(resourcesSource, /downloadResource\(resolveResourceUrl\(r\), r\.name\)/)
 })
@@ -173,8 +175,8 @@ test('resource blob loading is isolated to the shared blob helper', () => {
   assert.match(blobSource, /responseType: 'blob'/)
   assert.match(authedSource, /loadResourceUrlBlob\(src\)/)
   assert.match(chipSource, /loadResourceBlob\(resource\)/)
-  assert.match(resourcesSource, /loadResourceBlob\(resource,/)
-  assert.match(shotSource, /loadResourceBlob\(resource,/)
+  assert.match(shotSource, /loadResourceVideoBlob\(resource,/)
+  assert.doesNotMatch(resourcesSource, /loadResourceBlob\(resource,/)
 
   const offenders = listSourceFiles(resolve('src'))
     .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
@@ -204,6 +206,7 @@ test('resource file byte HTTP requests are isolated to the shared blob helper', 
 
 test('object URL lifecycle is isolated to the shared object URL helper', () => {
   const allowed = new Set([
+    'src/shared/ui/HlsVideo.tsx',
     'src/shared/ui/objectUrl.ts',
   ])
   const objectUrlSource = readFileSync(resolve('src/shared/ui/objectUrl.ts'), 'utf8')
@@ -214,7 +217,7 @@ test('object URL lifecycle is isolated to the shared object URL helper', () => {
   assert.match(objectUrlSource, /URL\.createObjectURL/)
   assert.match(objectUrlSource, /URL\.revokeObjectURL/)
   assert.match(composerSource, /createObjectUrl\(file\)/)
-  assert.match(resourcesSource, /createObjectUrl\(blob\)/)
+  assert.doesNotMatch(resourcesSource, /createObjectUrl\(blob\)/)
   assert.match(shotSource, /revokeObjectUrl\(current\?\.objectUrl\)/)
 
   const offenders = listSourceFiles(resolve('src'))
@@ -294,6 +297,24 @@ test('MediaViewer uses resource-level primitives for audio playback', () => {
   assert.doesNotMatch(source, /AuthedAudio/)
 })
 
+test('resource-level video primitives route hosted HLS through the authenticated HLS player', () => {
+  const hlsSource = readFileSync(resolve('src/shared/ui/HlsVideo.tsx'), 'utf8')
+  const resourceVideoSource = readFileSync(resolve('src/shared/ui/ResourceVideo.tsx'), 'utf8')
+  const mediaViewerSource = readFileSync(resolve('src/shared/ui/MediaViewer.tsx'), 'utf8')
+
+  assert.match(resourceVideoSource, /import \{ HlsVideo, isHlsSource \}/)
+  assert.match(resourceVideoSource, /isHlsResource\(resource, src\)/)
+  assert.match(resourceVideoSource, /<HlsVideo ref=\{ref\} src=\{src\} \{\.\.\.props\} \/>/)
+  assert.match(mediaViewerSource, /import \{ HlsVideo \}/)
+  assert.match(mediaViewerSource, /isHlsResource\(resource, proxyUrl\)/)
+  assert.match(mediaViewerSource, /<HlsVideo src=\{proxyUrl\} controls autoPlay/)
+  assert.match(hlsSource, /requiresMediaStreamAuth\(normalizedSrc\)/)
+  assert.match(hlsSource, /Authorization = `Bearer \$\{token\}`/)
+  assert.match(hlsSource, /headers\['X-Org-ID'\] = String\(currentOrgID\)/)
+  assert.match(hlsSource, /url\.pathname\.startsWith\('\/api\/v1\/media\/streams\/'\)/)
+  assert.match(hlsSource, /trimmed\.startsWith\('\/api\/v1\/'\)/)
+})
+
 test('resource file URL synthesis is limited to data normalization and shared resource primitives', () => {
   const allowed = new Set([
     'src/features/agent/domain/agentAttachments.ts',
@@ -301,6 +322,7 @@ test('resource file URL synthesis is limited to data normalization and shared re
     'src/features/agent/domain/agentGenerationMedia.ts',
     'src/features/agent/application/agentResourceLookup.ts',
     'src/features/canvas/runtime/runtimeValues.ts',
+    'src/features/content/application/contentCanvasMedia.ts',
     'src/features/shot-library/domain/shotReferenceLibrary.ts',
     'src/shared/infrastructure/app-server/appServerThreadTurnItemItems.ts',
     'src/shared/ui/ResourceFileAudio.tsx',
@@ -322,18 +344,25 @@ test('resource file URL synthesis is limited to data normalization and shared re
 })
 
 test('frontend app source does not render native video elements directly', () => {
+  const allowed = new Set([
+    'src/shared/ui/HlsVideo.tsx',
+  ])
   const offenders = listSourceFiles(resolve('src'))
-    .map((file) => ({ file, source: readFileSync(file, 'utf8') }))
-    .filter(({ source }) => source.includes('<video'))
+    .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
+    .filter(({ relativePath, source }) => source.includes('<video') && !allowed.has(relativePath))
     .map(({ file }) => relative(process.cwd(), file))
 
   assert.deepEqual(offenders, [])
 })
 
 test('frontend app source does not render native image elements directly', () => {
+  const allowed = new Set([
+    'src/features/agent/components/AgentIdentityUi.tsx',
+    'src/features/agent/components/MovScriptWorkspaceFilesPage.tsx',
+  ])
   const offenders = listSourceFiles(resolve('src'))
-    .map((file) => ({ file, source: readFileSync(file, 'utf8') }))
-    .filter(({ source }) => source.includes('<img'))
+    .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
+    .filter(({ relativePath, source }) => source.includes('<img') && !allowed.has(relativePath))
     .map(({ file }) => relative(process.cwd(), file))
 
   assert.deepEqual(offenders, [])

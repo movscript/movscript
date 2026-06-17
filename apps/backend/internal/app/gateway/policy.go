@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
@@ -13,6 +12,7 @@ const DefaultChatModel = domaingateway.DefaultChatModel
 
 type ChatModel struct {
 	ID              uint
+	CatalogEntryID  uint
 	ModelID         string
 	ModelDefID      string
 	ModelIDOverride string
@@ -26,11 +26,18 @@ func KeyAllowsScope(key *domaingateway.APIKey, scope string) bool {
 	return domaingateway.KeyAllowsScope(key, scope)
 }
 
-func KeyAllowsModel(key *domaingateway.APIKey, modelConfigID uint) bool {
+func KeyAllowsCatalogEntry(key *domaingateway.APIKey, catalogEntryID uint) bool {
 	if key == nil {
 		return false
 	}
-	return domaingateway.KeyAllowsModel(key, modelConfigID)
+	return domaingateway.KeyAllowsCatalogEntry(key, catalogEntryID)
+}
+
+func KeyAllowsAnyCatalogEntry(key *domaingateway.APIKey, catalogEntryIDs ...uint) bool {
+	if key == nil {
+		return false
+	}
+	return domaingateway.KeyAllowsAnyCatalogEntry(key, catalogEntryIDs...)
 }
 
 func KeyAllowsProject(key *domaingateway.APIKey, requestedProjectID *uint) bool {
@@ -55,22 +62,8 @@ func ResolveTextModel(models []ChatModel, requestedModel string, defaultID uint,
 		return defaultID, DefaultChatModel, defaultErr
 	}
 
-	if strings.HasPrefix(requested, "model_config:") {
-		rawID := strings.TrimPrefix(requested, "model_config:")
-		id, err := strconv.ParseUint(rawID, 10, 64)
-		if err != nil || id == 0 {
-			return 0, requested, fmt.Errorf("model %q not found", requested)
-		}
-		for _, m := range models {
-			if m.ID == uint(id) {
-				return uint(id), requested, nil
-			}
-		}
-		return 0, requested, fmt.Errorf("model %q not found", requested)
-	}
-
 	for _, m := range models {
-		if requested == ModelID(m) || requested == m.ModelDefID || requested == m.ModelIDOverride || requested == m.LogicalModelID {
+		if requested == ModelID(m) || requested == m.LogicalModelID {
 			return m.ID, requested, nil
 		}
 	}
@@ -89,9 +82,6 @@ func ModelID(m ChatModel) string {
 	}
 	if m.ModelDefID != "" {
 		return m.ModelDefID
-	}
-	if m.ID > 0 {
-		return fmt.Sprintf("model_config:%d", m.ID)
 	}
 	return ""
 }

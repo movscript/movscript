@@ -109,9 +109,11 @@ function providerSessionApprovalImpactI18nText(approval: ApprovalLike, t: TFunct
   const previewSideEffect = approvalPreviewSideEffectText(approval.preview)
   if (previewSideEffect) return t('agents.chat.task.approvalImpact.previewApply', { sideEffect: previewSideEffect })
 
-  switch (approval.toolName) {
+  const toolName = normalizeToolName(approval.toolName)
+  switch (toolName) {
     case 'generation_image_generate':
     case 'generation_video_generate':
+    case 'generation_audio_generate':
     case 'generation_job_create':
       return t('agents.chat.task.approvalImpact.generationCreate')
     case 'generation_job_cancel':
@@ -124,12 +126,38 @@ function providerSessionApprovalImpactI18nText(approval: ApprovalLike, t: TFunct
       return t('agents.chat.task.approvalImpact.workStart', { defaultValue: 'Approving will submit async provider work; generation jobs may consume quota and subagent runs start worker agents.' })
     case 'core_work_cancel':
       return t('agents.chat.task.approvalImpact.workCancel', { defaultValue: 'Approving will cancel async provider work; unfinished outputs or worker follow-up may not be produced.' })
+    case 'system_artifact_upload_export':
+    case 'system_artifact_upload_hls_stream':
+      return t('agents.chat.task.approvalImpact.artifactWrite', { defaultValue: 'Approving will host a completed export or HLS artifact; it will not render media or write business candidates.' })
+    case 'system_artifact_get_stream':
+      return t('agents.chat.task.approvalImpact.artifactRead', { defaultValue: 'Approving will only read hosted media stream metadata or playback URLs.' })
     default:
       break
   }
 
   const permission = approval.permission ?? ''
   if (permission === 'workspace.apply') return t('agents.chat.task.approvalImpact.workspaceApply')
+  if (permission.includes('editing.task') && !permission.includes('read')) {
+    return t('agents.chat.task.approvalImpact.editingTask', { defaultValue: 'Approving will run a local editing task through Electron mediaPipeline; the backend will not perform timeline rendering.' })
+  }
+  if (permission.includes('editing.candidate')) {
+    return t('agents.chat.task.approvalImpact.editingCandidate', { defaultValue: 'Approving will write a RawResource editing export as a business candidate; it will not automatically adopt the result.' })
+  }
+  if (permission.includes('editing.export')) {
+    return t('agents.chat.task.approvalImpact.editingExport', { defaultValue: 'Approving will process an editing export or resource import; it will not automatically write a business candidate.' })
+  }
+  if (permission.includes('editing.timeline') || permission.includes('editing.project')) {
+    return t('agents.chat.task.approvalImpact.editingProject', { defaultValue: 'Approving will modify MediaEditingProject or timeline data without rendering media or calling AI providers.' })
+  }
+  if (permission.includes('editing.runtime')) {
+    return t('agents.chat.task.approvalImpact.editingRuntime', { defaultValue: 'Approving will only read local editing runtime capabilities.' })
+  }
+  if (permission.includes('artifact') && (permission.includes('write') || permission.includes('upload') || permission.includes('publish'))) {
+    return t('agents.chat.task.approvalImpact.artifactWrite', { defaultValue: 'Approving will host a completed export or HLS artifact; it will not render media or write business candidates.' })
+  }
+  if (permission.includes('artifact') && permission.includes('read')) {
+    return t('agents.chat.task.approvalImpact.artifactRead', { defaultValue: 'Approving will only read hosted media stream metadata or playback URLs.' })
+  }
   if (permission.includes('generation')) return t('agents.chat.task.approvalImpact.generationGeneric')
   if (permission.includes('project') && permission.includes('write')) return t('agents.chat.task.approvalImpact.projectWrite')
   if (permission.includes('workspace') && permission.includes('write')) return t('agents.chat.task.approvalImpact.workspaceWrite')
@@ -150,6 +178,10 @@ function approvalPreviewSideEffectText(preview: unknown): string | null {
 function approvalArgs(approval: ProviderSessionApprovalRequest): Record<string, unknown> | undefined {
   if (!('args' in approval) || !approval.args || typeof approval.args !== 'object' || Array.isArray(approval.args)) return undefined
   return approval.args as Record<string, unknown>
+}
+
+function normalizeToolName(toolName: string | undefined): string | undefined {
+  return toolName?.replace(/^mcp__movscript__/, '')
 }
 
 function inputAnswerChoiceLabels(request: ProviderSessionInputRequest): string[] {

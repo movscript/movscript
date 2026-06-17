@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 
@@ -175,13 +176,14 @@ if (testFiles.length === 0) {
 }
 
 const needsTsx = testFiles.some((file) => /\.(?:ts|tsx)$/.test(file));
-if (needsTsx && !canResolveFromCwd("tsx")) {
+const tsxImport = needsTsx ? resolveTsxImport() : undefined;
+if (needsTsx && !tsxImport) {
   console.error(tsxMissingMessage());
   process.exit(1);
 }
 
 const nodeArgs = needsTsx
-  ? ["--import", "tsx", "--test"]
+  ? ["--import", tsxImport, "--test"]
   : ["--test"];
 
 if (testNamePattern) {
@@ -206,13 +208,33 @@ if (result.error) {
 
 process.exit(result.status ?? 1);
 
-function canResolveFromCwd(packageName) {
-  try {
-    createRequire(resolve(cwd, "package.json")).resolve(packageName);
-    return true;
-  } catch {
-    return false;
+function resolveTsxImport() {
+  const resolved = resolvePackageFromManifest(resolve(cwd, "package.json"), "tsx");
+  if (resolved) return resolved;
+
+  for (const manifest of workspaceTsxProviderManifests()) {
+    const fallback = resolvePackageFromManifest(manifest, "tsx");
+    if (fallback) return fallback;
   }
+
+  return undefined;
+}
+
+function resolvePackageFromManifest(manifestPath, packageName) {
+  try {
+    return pathToFileURL(createRequire(manifestPath).resolve(packageName)).href;
+  } catch {
+    return undefined;
+  }
+}
+
+function workspaceTsxProviderManifests() {
+  const root = workspaceRoot();
+  if (!root) return [];
+  return [
+    resolve(root, "apps/frontend/package.json"),
+    resolve(root, "apps/cli/package.json"),
+  ].filter((manifest) => existsSync(manifest));
 }
 
 function tsxMissingMessage() {

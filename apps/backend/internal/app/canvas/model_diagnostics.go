@@ -24,17 +24,14 @@ type NodeModelDiagnostics struct {
 	NextActions         []string                   `json:"next_actions,omitempty"`
 	RawModelFields      map[string]any             `json:"raw_model_fields,omitempty"`
 	DataModelID         string                     `json:"data_model_id,omitempty"`
-	DataModelDbID       uint                       `json:"data_model_db_id,omitempty"`
 	Executable          bool                       `json:"executable"`
 	ExecutableModelID   string                     `json:"executable_model_id,omitempty"`
-	ExecutableModelDbID uint                       `json:"executable_model_db_id,omitempty"`
 	AvailableModelCount int                        `json:"available_model_count"`
 	AvailableModels     []NodeModelDiagnosticModel `json:"available_models,omitempty"`
 	Route               *NodeModelDiagnosticRoute  `json:"route,omitempty"`
 }
 
 type NodeModelDiagnosticModel struct {
-	ID           uint     `json:"id"`
 	ModelID      string   `json:"model_id"`
 	DisplayName  string   `json:"display_name"`
 	IsDefault    bool     `json:"is_default,omitempty"`
@@ -43,7 +40,6 @@ type NodeModelDiagnosticModel struct {
 
 type NodeModelDiagnosticRoute struct {
 	ModelID         string `json:"model_id"`
-	ModelConfigID   uint   `json:"model_config_id"`
 	ProviderModelID string `json:"provider_model_id,omitempty"`
 	SelectionReason string `json:"selection_reason,omitempty"`
 }
@@ -81,13 +77,11 @@ func (h *Service) DiagnoseNodeModel(ctx context.Context, canvasID uint, nodeID s
 		}
 	}
 	diag.DataModelID = strings.TrimSpace(nd.ModelID)
-	diag.DataModelDbID = nd.ModelDbID
 
 	if nd.ExecutableSpec != nil {
 		diag.Executable = true
 		diag.Capability = strings.TrimSpace(nd.ExecutableSpec.Capability)
 		diag.ExecutableModelID = strings.TrimSpace(nd.ExecutableSpec.ModelID)
-		diag.ExecutableModelDbID = nd.ExecutableSpec.ModelDbID
 		h.fillAvailableModels(ctx, &diag)
 		h.diagnoseExecutableSpecRoute(ctx, &diag, nd.ExecutableSpec)
 		return diag, nil
@@ -112,18 +106,17 @@ func (h *Service) diagnoseNodeRoute(ctx context.Context, diag *NodeModelDiagnost
 	}
 
 	modelID := strings.TrimSpace(nd.ModelID)
-	if modelID == "" && nd.ModelDbID == 0 {
+	if modelID == "" {
 		diag.Status = "missing_model_selection"
-		diag.Problems = append(diag.Problems, "node data has empty modelId and modelDbId")
+		diag.Problems = append(diag.Problems, "node data has empty modelId")
 		addRawFieldProblems(diag)
 		diag.NextActions = append(diag.NextActions, fmt.Sprintf("Select a model that supports capability %q.", diag.Capability))
 		return
 	}
 
 	route, err := h.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
-		ModelID:       modelID,
-		ModelConfigID: nd.ModelDbID,
-		Capability:    diag.Capability,
+		ModelID:    modelID,
+		Capability: diag.Capability,
 	})
 	if err != nil {
 		diag.Status = "route_error"
@@ -147,18 +140,16 @@ func (h *Service) diagnoseExecutableSpecRoute(ctx context.Context, diag *NodeMod
 	}
 
 	modelID := strings.TrimSpace(spec.ModelID)
-	modelDbID := spec.ModelDbID
-	if modelID == "" && modelDbID == 0 {
+	if modelID == "" {
 		diag.Status = "missing_model_selection"
-		diag.Problems = append(diag.Problems, "executableSpec has empty modelId and modelDbId")
+		diag.Problems = append(diag.Problems, "executableSpec has empty modelId")
 		diag.NextActions = append(diag.NextActions, "Set executableSpec.modelId when creating this node.")
 		return
 	}
 
 	route, err := h.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
-		ModelID:       modelID,
-		ModelConfigID: modelDbID,
-		Capability:    diag.Capability,
+		ModelID:    modelID,
+		Capability: diag.Capability,
 	})
 	if err != nil {
 		diag.Status = "route_error"
@@ -185,7 +176,6 @@ func (h *Service) fillAvailableModels(ctx context.Context, diag *NodeModelDiagno
 	diag.AvailableModels = make([]NodeModelDiagnosticModel, 0, limit)
 	for _, model := range descriptors[:limit] {
 		diag.AvailableModels = append(diag.AvailableModels, NodeModelDiagnosticModel{
-			ID:           model.ModelConfigID,
 			ModelID:      model.ModelID,
 			DisplayName:  model.DisplayName,
 			IsDefault:    model.IsDefault,
@@ -198,7 +188,6 @@ func setDiagnosticRoute(diag *NodeModelDiagnostics, route providercontract.AIGat
 	diag.Status = "ok"
 	diag.Route = &NodeModelDiagnosticRoute{
 		ModelID:         route.ModelID,
-		ModelConfigID:   route.ModelConfigID,
 		ProviderModelID: route.ProviderModelID,
 		SelectionReason: route.SelectionReason,
 	}
@@ -235,14 +224,17 @@ func addRawFieldProblems(diag *NodeModelDiagnostics) {
 	if _, ok := diag.RawModelFields["model_id"]; ok {
 		diag.Problems = append(diag.Problems, "node data contains model_id, but canvas runtime expects camelCase modelId")
 	}
+	if _, ok := diag.RawModelFields["modelDbId"]; ok {
+		diag.Problems = append(diag.Problems, "node data contains legacy modelDbId; canvas runtime now expects public modelId")
+	}
 	if _, ok := diag.RawModelFields["model_db_id"]; ok {
-		diag.Problems = append(diag.Problems, "node data contains model_db_id, but canvas runtime expects camelCase modelDbId")
+		diag.Problems = append(diag.Problems, "node data contains legacy model_db_id; canvas runtime now expects public modelId")
 	}
 	if _, ok := diag.RawModelFields["modelConfigId"]; ok {
-		diag.Problems = append(diag.Problems, "node data contains modelConfigId, but canvas runtime expects modelDbId")
+		diag.Problems = append(diag.Problems, "node data contains legacy modelConfigId; canvas runtime now expects public modelId")
 	}
 	if _, ok := diag.RawModelFields["model_config_id"]; ok {
-		diag.Problems = append(diag.Problems, "node data contains model_config_id, but canvas runtime expects modelDbId")
+		diag.Problems = append(diag.Problems, "node data contains legacy model_config_id; canvas runtime now expects public modelId")
 	}
 }
 

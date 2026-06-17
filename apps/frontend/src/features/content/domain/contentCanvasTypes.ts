@@ -70,38 +70,38 @@ export interface ContentCanvasCandidate {
   notes: string
 }
 
-export type OpenCutTimelineDocumentLike = {
-  schema?: string
-  project?: {
-    currentSceneId?: string
-    metadata?: {
-      duration?: number
-    }
-    scenes?: Array<{
+export type MediaEditingProjectLike = {
+  version?: number
+  id?: string
+  title?: string
+  timeline?: {
+    durationMs?: number
+    tracks?: Array<{
       id?: string
       name?: string
-      tracks?: Array<{
-        id?: string
-        name?: string
-        type?: string
-        hidden?: boolean
-        muted?: boolean
-        elements?: OpenCutTimelineElementLike[]
-      }>
+      type?: string
+      locked?: boolean
+      muted?: boolean
+      clips?: MediaTimelineClipLike[]
     }>
   }
 }
 
-export type OpenCutTimelineElementLike = {
+export type MediaTimelineClipLike = {
   id?: string
-  name?: string
-  type?: string
-  startTime?: number
-  duration?: number
-  trimStart?: number
-  trimEnd?: number
-  hidden?: boolean
+  assetType?: string
+  timelineStartMs?: number
+  durationMs?: number
+  sourceStartMs?: number
+  sourceEndMs?: number
   muted?: boolean
+  text?: {
+    content?: string
+  }
+  asset?: {
+    resourceId?: number
+    label?: string
+  }
   metadata?: {
     movscript?: {
       resourceId?: number
@@ -200,7 +200,7 @@ export interface ContentCanvasProjectData {
   settingStates?: MovScriptWorkspaceIndexedEntity[]
   audioCues?: MovScriptWorkspaceIndexedEntity[]
   contentUnitCandidates: Record<string, ContentCanvasCandidate[]>
-  editingTimelinesByNodeId?: Record<string, OpenCutTimelineDocumentLike>
+  editingProjectsByNodeId?: Record<string, MediaEditingProjectLike>
   assetReferenceUnits?: ContentSourceWorkspaceData['assetReferenceUnits']
   productionWorkPlan?: ProductionWorkPlanView
 }

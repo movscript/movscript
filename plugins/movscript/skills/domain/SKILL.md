@@ -12,11 +12,7 @@ toolGrants:
   - mcp__movscript__domain_derive_content_unit_artifact
   - mcp__movscript__domain_read_preview_timeline
   - mcp__movscript__domain_read_production_timeline
-  - mcp__movscript__domain_apply_production_timeline_commands
-  - mcp__movscript__domain_compose_production_from_timeline
   - mcp__movscript__domain_read_scene_moment_timeline
-  - mcp__movscript__domain_apply_scene_moment_timeline_commands
-  - mcp__movscript__domain_compose_scene_moment_from_edit_plan
   - mcp__movscript__domain_read_content_unit_runtime_panel
   - mcp__movscript__domain_read_content_unit_generation_prompt
   - mcp__movscript__domain_read_content_unit_dependency_report
@@ -92,6 +88,7 @@ Open `references/domain-story.md` when the task depends on the meaning of produc
 - Prefer `domain_decide_content_unit_candidate` when recording a user-facing generated-candidate choice. Use `decision: "adopt"` for 采纳, `decision: "reject"` for 放弃, and `decision: "defer"` for 待定. Use direct selection tools only for legacy or explicitly confirmed selection flows.
 - For completed generated content-unit candidates, omit `status`; the backend defaults it to `succeeded`. If status is needed, use only `queued`, `running`, `succeeded`, `failed`, `canceled`, or `imported`; do not use workflow words such as `completed`, `ready`, `selected`, or `accepted`.
 - Interpreter steps: `domain_inspect`, `domain_interpret`, `domain_regeneration_plan`. `domain_review` is compatibility-only.
+- `domain_compose_scene_moment_from_edit_plan` and `domain_compose_production_from_timeline` are not available editing paths. For video editing, use the `editing` skill and the `editing_*` tool family so timeline render runs through Electron `mediaPipeline`.
 
 ## Edit Workflow
 
@@ -133,4 +130,5 @@ Do not directly edit:
 - Do not store resource binaries, external provider URLs, or generation job runtime state in domain JSON.
 - Use stable ids and MovScript `resource_id` references for generated or uploaded media.
 - Preserve user-facing review boundaries. Generated or edited data is not stable product state until the relevant source or backend decision metadata records adoption/selection and has been interpreted successfully.
+- Do not use domain compose tools to satisfy ordinary cutting, trimming, stitching, or rendering requests. Domain tools may hand off context and record explicit candidates/decisions, but editing tools own timeline mutations and mediaPipeline tasks.
 - Current specialized `content_unit_type` adapters are `production_ref`, `segment_ref`, `asset_ref`, `keyframe_ref`, `storyboard_ref`, `scence_moment_ref` / `scene_moment_ref`, `expression_unit_ref`, and `shot_ref`. Unknown types are valid generic production slots, but the interpreter does not track their upstream dependencies or stale state.

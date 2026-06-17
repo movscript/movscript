@@ -4,7 +4,18 @@ import { getOptionalNumeric, getOptionalString, numericValues } from '../../../t
 import { isRecord } from '../../../tools/shared/record.js'
 import { resolveMCPRequiredProjectId } from '../workspace/locator.js'
 
-type GenerationJobType = 'image' | 'image_edit' | 'video' | 'video_i2v'
+type GenerationJobType =
+  | 'image'
+  | 'image_edit'
+  | 'video'
+  | 'video_i2v'
+  | 'video_v2v'
+  | 'audio_tts'
+  | 'audio_music'
+  | 'audio_sfx'
+  | 'audio_transcribe'
+  | 'subtitle_align'
+  | 'subtitle_translate'
 
 type BuiltGenerationRequest = {
   prompt: string
@@ -67,6 +78,54 @@ export async function getVideoGenerationJob(args: Record<string, unknown>): Prom
 
 export async function getVideoGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
   return getGenerationJobs('video', args)
+}
+
+export async function generateAudio(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_tts', 'audio_tts', 'electron.generation.audio')
+}
+
+export async function generateVoiceover(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_tts', 'audio_tts', 'electron.generation.voiceover')
+}
+
+export async function generateMusic(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_music', 'audio_music', 'electron.generation.music')
+}
+
+export async function generateSfx(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_sfx', 'audio_sfx', 'electron.generation.sfx')
+}
+
+export async function generateSubtitle(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'audio_transcribe', 'audio_transcribe', 'electron.generation.subtitle')
+}
+
+export async function alignSubtitle(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'subtitle_align', 'subtitle_align', 'electron.generation.subtitle_align')
+}
+
+export async function translateSubtitle(args: Record<string, unknown>): Promise<unknown> {
+  return generateAudioLike(args, 'subtitle_translate', 'subtitle_translate', 'electron.generation.subtitle_translate')
+}
+
+async function generateAudioLike(
+  args: Record<string, unknown>,
+  jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_transcribe' | 'subtitle_align' | 'subtitle_translate'>,
+  fallbackCapability: string,
+  featureKey: string,
+): Promise<unknown> {
+  const built = buildAudioRequest(args, jobType)
+  const selection = await resolveModelSelection(args, built.jobType, fallbackCapability)
+  const submitted = await submitGenerationJob(args, selection, built, featureKey)
+  return generationSubmitResult('audio', submitted.job, 'generation_audio_job_get', submitted.paramAudit)
+}
+
+export async function getAudioGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  return generationJobGetResult('audio', await getGenerationJob(normalizedJobId(args)))
+}
+
+export async function getAudioGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
+  return getGenerationJobs('audio', args)
 }
 
 function buildImageRequest(args: Record<string, unknown>): BuiltGenerationRequest {
@@ -154,18 +213,54 @@ function buildVideoRequest(args: Record<string, unknown>): BuiltGenerationReques
   }
 }
 
+function buildAudioRequest(args: Record<string, unknown>, jobType: Extract<GenerationJobType, 'audio_tts' | 'audio_music' | 'audio_sfx' | 'audio_transcribe' | 'subtitle_align' | 'subtitle_translate'> = 'audio_tts'): BuiltGenerationRequest {
+  const prompt = promptArg(args)
+  const refIds = resourceIds(args.input_resource_ids) ?? resourceIds(args.reference_resource_ids) ?? []
+  const params = { ...extraParamsArg(args.extra_params) }
+  const explicitParamKeys = new Set(Object.keys(params))
+  const defaultParamKeys = new Set<string>()
+  assignStringParam(args, params, explicitParamKeys, 'voice')
+  assignStringParam(args, params, explicitParamKeys, 'language')
+  assignStringParam(args, params, explicitParamKeys, 'model')
+  assignStringParam(args, params, explicitParamKeys, 'audio_format')
+  assignStringParam(args, params, explicitParamKeys, 'response_format')
+  assignStringParam(args, params, explicitParamKeys, 'output_format')
+  assignStringParam(args, params, explicitParamKeys, 'instructions')
+  assignStringParam(args, params, explicitParamKeys, 'target_language')
+  assignStringParam(args, params, explicitParamKeys, 'source_language')
+  assignStringParam(args, params, explicitParamKeys, 'subtitle_format')
+  assignStringParam(args, params, explicitParamKeys, 'style')
+  const speed = getOptionalNumeric(args, 'speed')
+  if (speed !== undefined) {
+    params.speed = speed
+    explicitParamKeys.add('speed')
+  }
+
+  return {
+    prompt,
+    refIds,
+    jobType,
+    timeoutMs: getOptionalNumeric(args, 'timeout_ms') ?? 180_000,
+    params,
+    explicitParamKeys,
+    defaultParamKeys,
+  }
+}
+
 async function resolveModelSelection(args: Record<string, unknown>, primaryCapability: string, fallbackCapability: string): Promise<ModelSelection> {
   const explicit = getOptionalString(args, 'model_id')
   if (explicit) {
     const models = await modelsForCapabilities([primaryCapability, fallbackCapability])
-    return { modelId: explicit, model: models.find((model) => modelMatchesPublicId(model, explicit)) }
+    const model = models.find((model) => modelMatchesPublicId(model, explicit))
+    return { modelId: explicit, model }
   }
 
   const primary = await modelsForCapability(primaryCapability)
   const fallback = primary.length > 0 ? primary : await modelsForCapability(fallbackCapability)
   const modelId = modelPublicId(fallback[0])
   if (!modelId) throw new Error(`No enabled generation model is configured for ${primaryCapability}`)
-  return { modelId, model: isRecord(fallback[0]) ? fallback[0] : undefined }
+  const model = isRecord(fallback[0]) ? fallback[0] : undefined
+  return { modelId, model }
 }
 
 async function modelsForCapability(capability: string): Promise<unknown[]> {
@@ -217,22 +312,23 @@ async function getGenerationJob(jobId: number): Promise<Record<string, unknown>>
   return normalizeJob(job)
 }
 
-function generationSubmitResult(kind: 'image' | 'video', job: Record<string, unknown>, monitorTool: string, paramAudit: ParamAuditItem[] = []): Record<string, unknown> {
+function generationSubmitResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>, monitorTool: string, paramAudit: ParamAuditItem[] = []): Record<string, unknown> {
   const jobId = idField(job.id) ?? idField(job.ID)
   if (jobId === undefined) throw new Error('Generation job create did not return a valid job id')
+  const kindLabel = generationKindLabel(kind)
   return {
     status: 'submitted',
     terminal: false,
     jobId,
     job_id: jobId,
     monitor: { tool: monitorTool, args: { jobId } },
-    message: `${kind === 'image' ? 'Image' : 'Video'} generation job submitted (Job #${jobId})`,
+    message: `${kindLabel} generation job submitted (Job #${jobId})`,
     job,
     ...(paramAudit.length > 0 ? { param_audit: paramAudit, paramAudit } : {}),
   }
 }
 
-function generationJobGetResult(kind: 'image' | 'video', job: Record<string, unknown>): Record<string, unknown> {
+function generationJobGetResult(kind: 'image' | 'video' | 'audio', job: Record<string, unknown>): Record<string, unknown> {
   const jobId = idField(job.id) ?? idField(job.ID)
   if (jobId === undefined) throw new Error('Generation job response does not include a valid job id')
   const status = stringField(job.status) ?? 'unknown'
@@ -245,12 +341,12 @@ function generationJobGetResult(kind: 'image' | 'video', job: Record<string, unk
     outputResourceIds,
     output_resource_ids: outputResourceIds,
     ...(outputResourceIds[0] ? { output_resource_id: outputResourceIds[0], outputResourceId: outputResourceIds[0] } : {}),
-    message: `${kind === 'image' ? 'Image' : 'Video'} generation job #${jobId} status: ${status}`,
+    message: `${generationKindLabel(kind)} generation job #${jobId} status: ${status}`,
     job,
   }
 }
 
-async function getGenerationJobs(kind: 'image' | 'video', args: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function getGenerationJobs(kind: 'image' | 'video' | 'audio', args: Record<string, unknown>): Promise<Record<string, unknown>> {
   const jobIds = normalizedJobIds(args)
   const items: Record<string, unknown>[] = []
   for (let index = 0; index < jobIds.length; index += 1) {
@@ -294,6 +390,12 @@ async function getGenerationJobs(kind: 'image' | 'video', args: Record<string, u
     items,
     message: `${successItems.length}/${jobIds.length} ${kind} generation job(s) loaded.`,
   }
+}
+
+function generationKindLabel(kind: 'image' | 'video' | 'audio'): string {
+  if (kind === 'image') return 'Image'
+  if (kind === 'video') return 'Video'
+  return 'Audio'
 }
 
 function normalizeJob(job: Record<string, unknown>): Record<string, unknown> {
@@ -583,8 +685,6 @@ function modelMatchesPublicId(model: Record<string, unknown>, publicId: string):
     stringField(model.model_def_id),
     idField(model.id) !== undefined ? `backend.model.${idField(model.id)}` : undefined,
     idField(model.ID) !== undefined ? `backend.model.${idField(model.ID)}` : undefined,
-    idField(model.id) !== undefined ? `model_config:${idField(model.id)}` : undefined,
-    idField(model.ID) !== undefined ? `model_config:${idField(model.ID)}` : undefined,
   ]
   return ids.includes(publicId)
 }

@@ -1,12 +1,13 @@
 import type { GenerationParamValue } from './jobPayload.js'
 
-export type GenerationJobOutputType = 'image' | 'video' | 'text'
+export type GenerationJobOutputType = 'image' | 'video' | 'audio' | 'text'
 export type GenerationResolvedJobType =
   | 'image'
   | 'image_edit'
   | 'video'
   | 'video_i2v'
   | 'video_v2v'
+  | 'audio_tts'
   | 'text'
   | (string & {})
 
@@ -69,6 +70,7 @@ export function resolveGenerationJobType(input: ResolveGenerationJobTypeInput): 
     if (caps.includes('video_i2v') && !caps.includes('video')) return 'video_i2v'
     if (caps.includes('video_v2v') && !caps.includes('video')) return 'video_v2v'
   }
+  if (input.outputType === 'audio') return 'audio_tts'
   return input.outputType
 }
 
@@ -82,6 +84,7 @@ export function resolveGenerationJobTypeFromResourceCount(
     if (preferredVideoJobType) return preferredVideoJobType
     return hasInputResource ? 'video_i2v' : 'video'
   }
+  if (input.outputType === 'audio') return 'audio_tts'
   return input.outputType
 }
 

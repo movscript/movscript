@@ -377,6 +377,7 @@ export async function trimResourceVideoToResource(args: Record<string, unknown>)
     })
     return {
       status: 'created',
+      compatibility: neutralVideoResourcePreparationCompatibility(),
       source_resource_id: resourceId,
       video_resource_id: uploaded.resource_id,
       resource_id: uploaded.resource_id,
@@ -471,6 +472,7 @@ export async function composeResourceVideosToResource(args: Record<string, unkno
     const durationSec = segments.reduce((total, item) => total + (numberParam(item.duration_sec) ?? 0), 0)
     return {
       status: 'created',
+      compatibility: resourceLevelVideoUtility(),
       video_resource_id: uploaded.resource_id,
       resource_id: uploaded.resource_id,
       mime_type: 'video/mp4',
@@ -2086,6 +2088,24 @@ function batchStatus(successCount: number, failedCount: number): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function neutralVideoResourcePreparationCompatibility(): Record<string, unknown> {
+  return {
+    kind: 'neutral_resource_preparation',
+    message: 'This tool derives a reusable RawResource for references, drafts, or generation inputs. It is not the product editing path and does not update MediaEditingProject, candidates, selections, or shot state.',
+    recommended_workflow: 'For timeline trim, render, export, and candidate creation use MediaEditingProject plus editing_* through Electron mediaPipeline.',
+    recommended_tool_family: 'editing_*',
+  }
+}
+
+function resourceLevelVideoUtility(): Record<string, unknown> {
+  return {
+    kind: 'resource_level_video_utility',
+    message: 'This tool composes generic video RawResources into another RawResource. It is not the product editing path.',
+    recommended_workflow: 'For product timeline editing, stitching, render, HLS packaging, export, and candidate creation use MediaEditingProject plus editing_* through Electron mediaPipeline.',
+    recommended_tool_family: 'editing_*',
+  }
 }
 
 function clampInteger(value: number, min: number, max: number): number {

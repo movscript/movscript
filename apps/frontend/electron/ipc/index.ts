@@ -14,11 +14,11 @@ import { registerDialogIpcHandlers } from './dialogIpc'
 import { registerMCPIpcHandlers } from './mcpIpc'
 import { registerMovScriptWorkspaceConfigIpcHandlers } from './movscriptWorkspaceConfigIpc'
 import { registerSettingsIpcHandlers } from './settingsIpc'
-import { registerVideoIpcHandlers } from './videoIpc'
 import { registerWindowIpcHandlers } from './windowIpc'
 import { registerProviderSessionsIpcHandlers } from './providerSessionsIpc'
 import { registerProjectGitIpcHandlers } from './projectGitIpc'
 import { registerLocalTerminalIpcHandlers } from './localTerminalIpc'
+import { registerMediaPipelineIpcHandlers } from './mediaPipelineIpc'
 
 export interface IpcHandlerDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -45,5 +45,5 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerProviderSessionsIpcHandlers()
   registerAppServerIpcHandlers()
   registerLocalTerminalIpcHandlers()
-  registerVideoIpcHandlers()
+  registerMediaPipelineIpcHandlers()
 }

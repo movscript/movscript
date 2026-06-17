@@ -36,6 +36,7 @@ const CORE_TOOL_NAMES = new Set([
   'core_work_cancel',
   'generation_image_generate',
   'generation_video_generate',
+  'generation_audio_generate',
   'generation_job_create',
 ])
 
@@ -124,6 +125,10 @@ function toolEventCoveredByStep(
 }
 
 export function toolActivityItem(record: ToolActivityRecord): AgentActivityItem {
+  if (isEditingTool(record.toolName)) return editingToolActivityBlock(record)
+  if (isArtifactTool(record.toolName)) return artifactToolActivityBlock(record)
+  if (isDomainEditingHandoffTool(record.toolName)) return domainEditingHandoffActivityBlock(record)
+  if (isResourceVideoCompatibilityTool(record.toolName)) return resourceVideoCompatibilityActivityBlock(record)
   if (CORE_TOOL_NAMES.has(record.toolName)) return coreToolActivityBlock(record)
   return {
     id: record.id,
@@ -221,9 +226,52 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
   return block(record, fallbackToolKind(record.toolName), agentToolNameLabel(record.toolName), compactLines([statusLine]))
 }
 
+function editingToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockItem {
+  const failed = record.status === 'failed' || record.status === 'blocked' || !!record.error
+  const statusLine = failed ? record.error ?? record.summary ?? '执行失败' : record.summary
+  const normalized = normalizeToolName(record.toolName)
+  const family = editingToolFamily(normalized)
+  const lines = compactLines([
+    editingToolDescription(family),
+    statusLine,
+  ])
+  return block(record, editingToolKind(family, normalized), agentToolNameLabel(record.toolName), lines)
+}
+
+function artifactToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockItem {
+  const failed = record.status === 'failed' || record.status === 'blocked' || !!record.error
+  const statusLine = failed ? record.error ?? record.summary ?? '执行失败' : record.summary
+  const normalized = normalizeToolName(record.toolName)
+  const lines = compactLines([
+    artifactToolDescription(normalized),
+    statusLine,
+  ])
+  return block(record, artifactToolKind(normalized), agentToolNameLabel(record.toolName), lines)
+}
+
+function domainEditingHandoffActivityBlock(record: ToolActivityRecord): AgentActivityBlockItem {
+  const failed = record.status === 'failed' || record.status === 'blocked' || !!record.error
+  const statusLine = failed ? record.error ?? record.summary ?? '执行失败' : record.summary
+  return block(record, 'read', agentToolNameLabel(record.toolName), compactLines([
+    domainEditingHandoffDescription(),
+    statusLine,
+  ]))
+}
+
+function resourceVideoCompatibilityActivityBlock(record: ToolActivityRecord): AgentActivityBlockItem {
+  const failed = record.status === 'failed' || record.status === 'blocked' || !!record.error
+  const statusLine = failed ? record.error ?? record.summary ?? '执行失败' : record.summary
+  const normalized = normalizeToolName(record.toolName)
+  return block(record, 'write', agentToolNameLabel(record.toolName), compactLines([
+    resourceVideoCompatibilityDescription(normalized),
+    statusLine,
+  ]))
+}
+
 function isGenerationSubmitTool(toolName: string): boolean {
   return toolName === 'generation_image_generate'
     || toolName === 'generation_video_generate'
+    || toolName === 'generation_audio_generate'
     || toolName === 'generation_job_create'
 }
 
@@ -253,19 +301,23 @@ function toolDebugDetail(record: ToolActivityRecord): AgentActivityDebugDetail |
 function fallbackToolText(record: ToolActivityRecord): string {
   const label = agentToolNameLabel(record.toolName)
   const prefix = statusPrefix(record.status)
+  const normalized = normalizeToolName(record.toolName)
   if (record.error) return `${label}失败：${record.error}`
   if (isReadTool(record.toolName)) return `${prefix}读取数据：${label}`
-  if (record.toolName.includes('search')) return `${prefix}搜索数据：${label}`
-  if (record.toolName.includes('list')) return `${prefix}查看列表：${label}`
-  if (record.toolName.includes('create') || record.toolName.includes('start') || record.toolName.includes('spawn')) return `${prefix}启动任务：${label}`
-  if (record.toolName.includes('apply') || record.toolName.includes('attach') || record.toolName.includes('edit')) return `${prefix}写入数据：${label}`
+  if (normalized.includes('search')) return `${prefix}搜索数据：${label}`
+  if (normalized.includes('list')) return `${prefix}查看列表：${label}`
+  if (normalized.includes('create') || normalized.includes('start') || normalized.includes('spawn')) return `${prefix}启动任务：${label}`
+  if (normalized.includes('apply') || normalized.includes('attach') || normalized.includes('edit')) return `${prefix}写入数据：${label}`
   return `${prefix}${label}`
 }
 
 function fallbackToolKind(toolName: string): AgentActivityKind {
-  if (toolName.startsWith('workspace_')) return 'workspace'
-  if (toolName.includes('apply') || toolName.includes('attach') || toolName.includes('edit') || toolName.includes('delete')) return 'write'
-  if (toolName.includes('generation') || toolName.includes('operation') || toolName.includes('subagent')) return 'task'
+  const normalized = normalizeToolName(toolName)
+  if (isEditingTool(normalized)) return editingToolKind(editingToolFamily(normalized), normalized)
+  if (isArtifactTool(normalized)) return artifactToolKind(normalized)
+  if (normalized.startsWith('workspace_')) return 'workspace'
+  if (normalized.includes('apply') || normalized.includes('attach') || normalized.includes('edit') || normalized.includes('delete')) return 'write'
+  if (normalized.includes('generation') || normalized.includes('operation') || normalized.includes('subagent')) return 'task'
   if (isReadTool(toolName)) return 'read'
   return 'system'
 }
@@ -277,12 +329,89 @@ function statusPrefix(status: string): string {
 }
 
 function isReadTool(toolName: string) {
-  return toolName.includes('read')
-    || toolName.includes('get')
-    || toolName.includes('query')
-    || toolName.includes('list')
-    || toolName.includes('search')
-    || toolName.includes('inspect')
+  const normalized = normalizeToolName(toolName)
+  return normalized.includes('read')
+    || normalized.includes('get')
+    || normalized.includes('query')
+    || normalized.includes('list')
+    || normalized.includes('search')
+    || normalized.includes('inspect')
+}
+
+function isEditingTool(toolName: string): boolean {
+  return normalizeToolName(toolName).startsWith('editing_')
+}
+
+function isArtifactTool(toolName: string): boolean {
+  return normalizeToolName(toolName).startsWith('system_artifact_')
+}
+
+function isDomainEditingHandoffTool(toolName: string): boolean {
+  const normalized = normalizeToolName(toolName)
+  return normalized === 'domain_read_scene_moment_timeline'
+    || normalized === 'domain_read_production_timeline'
+}
+
+function isResourceVideoCompatibilityTool(toolName: string): boolean {
+  const normalized = normalizeToolName(toolName)
+  return normalized === 'movscript_resource_video_trim_to_resource'
+    || normalized === 'movscript_resource_video_compose_to_resource'
+    || normalized === 'movscript_resource_video_concat_to_resource'
+    || normalized === 'system_resource_video_trim_to_resource'
+    || normalized === 'system_resource_video_compose_to_resource'
+    || normalized === 'system_resource_video_concat_to_resource'
+}
+
+function normalizeToolName(toolName: string): string {
+  return toolName.replace(/^mcp__movscript__/, '')
+}
+
+function editingToolFamily(toolName: string): 'project' | 'timeline' | 'runtime' | 'task' | 'export' {
+  if (toolName.startsWith('editing_project_')) return 'project'
+  if (toolName.startsWith('editing_timeline_')) return 'timeline'
+  if (toolName.startsWith('editing_runtime_')) return 'runtime'
+  if (toolName.startsWith('editing_task_')) return 'task'
+  return 'export'
+}
+
+function editingToolKind(family: 'project' | 'timeline' | 'runtime' | 'task' | 'export', toolName: string): AgentActivityKind {
+  if (family === 'runtime') return 'read'
+  if (family === 'task') return toolName.endsWith('_get') || toolName.endsWith('_logs_get') ? 'read' : 'task'
+  if (family === 'project' && toolName.endsWith('_get')) return 'read'
+  if (family === 'timeline' && toolName.endsWith('_validate')) return 'read'
+  return 'write'
+}
+
+function editingToolDescription(family: 'project' | 'timeline' | 'runtime' | 'task' | 'export'): string {
+  switch (family) {
+    case 'project': return '正在处理 MediaEditingProject 项目数据。'
+    case 'timeline': return '正在修改或校验剪辑时间线。'
+    case 'runtime': return '正在检查 Electron mediaPipeline 与 FFmpeg 能力。'
+    case 'task': return '正在通过 Electron mediaPipeline 处理本地媒体任务。'
+    case 'export': return '正在处理剪辑导出、本地保存、资源导入或 RawResource 候选写入。'
+  }
+}
+
+function artifactToolKind(toolName: string): AgentActivityKind {
+  return toolName.endsWith('_get_stream') || toolName.endsWith('_get') ? 'read' : 'write'
+}
+
+function artifactToolDescription(toolName: string): string {
+  if (toolName === 'system_artifact_upload_export') return '正在把已完成的本地导出上传为 RawResource。'
+  if (toolName === 'system_artifact_upload_hls_stream') return '正在发布已完成的 HLS manifest/segments 为托管媒体流。'
+  if (toolName === 'system_artifact_get_stream') return '正在读取托管媒体流的播放信息。'
+  return '正在处理已完成产物的托管信息。'
+}
+
+function domainEditingHandoffDescription(): string {
+  return '正在读取 domain 到 MediaEditingProject 的交接数据；实际剪辑应继续使用 editing_*。'
+}
+
+function resourceVideoCompatibilityDescription(toolName: string): string {
+  if (toolName.endsWith('_trim_to_resource')) {
+    return '这是中立视频素材准备，会生成新的 RawResource；不能替代剪辑时间线裁剪。'
+  }
+  return '这是资源级视频合成工具，只生成新的 RawResource；产品剪辑、拼接和导出应使用 editing_* 与 Electron mediaPipeline。'
 }
 
 function workToolTitle(toolName: string): string {

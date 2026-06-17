@@ -10,7 +10,13 @@ import {
   readNodeMovScriptGitSourceFiles,
 } from '@movscript/workspace/node'
 import {
+  MOVSCRIPT_ASSET_INDEX_PATH,
+  MOVSCRIPT_DOMAIN_INDEX_PATH,
+  MOVSCRIPT_DOMAIN_TREE_PATH,
+  MOVSCRIPT_EDITOR_STATE_PATH,
   MOVSCRIPT_INTERPRET_CURRENT_DIR,
+  MOVSCRIPT_INTERPRET_MANIFESTS_DIR,
+  MOVSCRIPT_RELATION_GRAPH_PATH,
   isMovScriptContentUnitDecisionPath,
   isMovScriptNonSourceRootDirectory,
   isMovScriptSourceDocumentPath,
@@ -18,8 +24,17 @@ import {
   normalizeWorkspacePath,
 } from '@movscript/workspace/layout'
 import type {
+  MovScriptWorkspaceDomainIndex,
+} from '@movscript/workspace/indexer'
+import type {
   MovScriptFileSnapshot,
 } from '../fileChanges/index.js'
+import type {
+  MovScriptWorkspaceDerivedArtifacts,
+} from '../artifacts/index.js'
+import type {
+  MovScriptWorkspaceInterpretManifest,
+} from './types.js'
 
 export const MOVSCRIPT_CHECKPOINT_DIR = '.movscript/checkpoints'
 export const MOVSCRIPT_CHECKPOINT_CURRENT_SOURCE_DIR = `${MOVSCRIPT_CHECKPOINT_DIR}/current/source`
@@ -153,6 +168,61 @@ export async function commitCheckpoint(
   return { id: checkpointHash, source: 'snapshot' }
 }
 
+export async function writeDebugArtifacts(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  artifacts: MovScriptWorkspaceDerivedArtifacts,
+  index: MovScriptWorkspaceDomainIndex,
+  manifest: MovScriptWorkspaceInterpretManifest,
+  impactReportPath: string,
+): Promise<void> {
+  const files = new Map<string, string>()
+  for (const document of index.documents) {
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${normalizeWorkspacePath(document.path)}`, serializeWorkspaceDocument(document.data))
+  }
+  files.set(MOVSCRIPT_DOMAIN_INDEX_PATH, serializeWorkspaceDocument(index))
+  files.set(MOVSCRIPT_DOMAIN_TREE_PATH, serializeWorkspaceDocument(artifacts.domainTree))
+  files.set(MOVSCRIPT_ASSET_INDEX_PATH, serializeWorkspaceDocument(artifacts.assetIndex))
+  files.set(MOVSCRIPT_RELATION_GRAPH_PATH, serializeWorkspaceDocument(artifacts.relationGraph))
+  files.set(MOVSCRIPT_EDITOR_STATE_PATH, serializeWorkspaceDocument({
+    schema: 'movscript.editor-state.v1',
+    interpretation_id: manifest.interpretationId,
+    interpreted_at: manifest.interpretedAt,
+    source_status: {
+      ready_to_interpret: manifest.review.readyToInterpret ?? true,
+      issue_count: manifest.review.issues?.length ?? 0,
+    },
+    summary: manifest.review.summary,
+    contentUnitRuntimePanels: artifacts.contentUnitArtifacts.map(editorStateRuntimePanel),
+    content_unit_runtime_panels: artifacts.contentUnitArtifacts.map(editorStateRuntimePanel),
+  }))
+
+  for (const previewTimeline of artifacts.previewTimelines) {
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${normalizeWorkspacePath(previewTimeline.productionPath)}/preview_timeline.json`, serializeWorkspaceDocument(previewTimeline))
+  }
+  for (const editPlan of artifacts.editPlans) {
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${normalizeWorkspacePath(editPlan.sceneMomentPath)}/edit_plan.json`, serializeWorkspaceDocument(editPlan))
+  }
+  for (const bundle of artifacts.contentUnitArtifacts) {
+    const contentUnitDir = normalizeWorkspacePath(bundle.contentUnitPath).replace(/\/content_unit\.json$/, '')
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${contentUnitDir}/runtime_panel.json`, serializeWorkspaceDocument(bundle.runtimePanel))
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${contentUnitDir}/generation_prompt.json`, serializeWorkspaceDocument(bundle.generationPrompt))
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${contentUnitDir}/dependency_report.json`, serializeWorkspaceDocument(bundle.dependencyReport))
+    files.set(`${MOVSCRIPT_INTERPRET_CURRENT_DIR}/${contentUnitDir}/selection_validity.json`, serializeWorkspaceDocument(bundle.selectionValidity))
+  }
+
+  for (const path of await listRepositoryFiles(fileRepository, MOVSCRIPT_INTERPRET_CURRENT_DIR)) {
+    if (!files.has(path)) await fileRepository.delete({ path })
+  }
+  for (const [path, content] of files) {
+    await fileRepository.write({ path, content })
+  }
+  await fileRepository.write({ path: impactReportPath, content: serializeWorkspaceDocument(artifacts.impactReport) })
+  await fileRepository.write({
+    path: `${MOVSCRIPT_INTERPRET_MANIFESTS_DIR}/${manifest.interpretationId}.json`,
+    content: serializeWorkspaceDocument(manifest),
+  })
+}
+
 export function workspaceSnapshotId(files: readonly WorkspaceFileSnapshot[]): string {
   return files.length === 0 ? 'empty-working-tree' : sha256(files.map((file) => `${file.relativePath}:${file.hash}`).join('\n'))
 }
@@ -216,6 +286,35 @@ async function writeSnapshotCheckpoint(
   })
 }
 
+async function listRepositoryFiles(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  rootPath: string,
+): Promise<string[]> {
+  const files: string[] = []
+  await collectRepositoryFiles(fileRepository, normalizeWorkspacePath(rootPath), files)
+  return files.sort((left, right) => left.localeCompare(right))
+}
+
+async function collectRepositoryFiles(
+  fileRepository: MovScriptWorkspaceFileRepository,
+  path: string,
+  out: string[],
+): Promise<void> {
+  let listed: Awaited<ReturnType<MovScriptWorkspaceFileRepository['list']>>
+  try {
+    listed = await fileRepository.list({ path })
+  } catch {
+    return
+  }
+  for (const entry of listed.entries) {
+    if (entry.kind === 'directory') {
+      await collectRepositoryFiles(fileRepository, entry.path, out)
+      continue
+    }
+    out.push(normalizeWorkspacePath(entry.path))
+  }
+}
+
 async function collectWorkspaceFileSnapshots(
   fileRepository: MovScriptWorkspaceFileRepository,
   rootPath: string,
@@ -256,6 +355,32 @@ async function readJsonFile<T>(
   } catch {
     return undefined
   }
+}
+
+function serializeWorkspaceDocument(value: unknown): string {
+  if (typeof value === 'string') return value
+  return `${JSON.stringify(jsonSerializable(value), null, 2)}\n`
+}
+
+function editorStateRuntimePanel(bundle: MovScriptWorkspaceDerivedArtifacts['contentUnitArtifacts'][number]): Record<string, unknown> {
+  return {
+    ...bundle.runtimePanel,
+    contentUnitId: bundle.contentUnitId,
+    contentUnitPath: bundle.contentUnitPath,
+    content_unit_id: bundle.runtimePanel.content_unit_id ?? bundle.contentUnitId,
+    content_unit_path: bundle.contentUnitPath,
+  }
+}
+
+function jsonSerializable(value: unknown): unknown {
+  if (value instanceof Map) {
+    return Object.fromEntries(Array.from(value.entries()).map(([key, item]) => [String(key), jsonSerializable(item)]))
+  }
+  if (Array.isArray(value)) return value.map(jsonSerializable)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, jsonSerializable(item)]))
+  }
+  return value
 }
 
 function relativeWorkspacePath(rootPath: string, path: string): string {

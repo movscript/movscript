@@ -37,6 +37,7 @@ function saveWorkspaceConfig(input: ElectronMovScriptWorkspaceConfigSaveInput): 
   }
   applyNullableField(next, 'modelConfig', input.modelConfig)
   applyNullableField(next, 'agentCatalog', input.agentCatalog)
+  applyNullableField(next, 'agentSelection', input.agentSelection)
   applyNullableField(next, 'toolProviders', input.toolProviders)
   applyNullableField(next, 'modelProviders', input.modelProviders)
   applyNullableField(next, 'permissions', input.permissions)

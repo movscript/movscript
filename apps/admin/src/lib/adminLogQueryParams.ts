@@ -11,7 +11,7 @@ export type AuditLogFilters = {
 
 export type UsageFilters = {
   providerId: string
-  modelConfigId: string
+  modelId: string
   operationType: string
   userId: string
   orgId: string
@@ -44,7 +44,7 @@ export const emptyAuditLogFilters: AuditLogFilters = {
 
 export const emptyUsageFilters: UsageFilters = {
   providerId: '',
-  modelConfigId: '',
+  modelId: '',
   operationType: '',
   userId: '',
   orgId: '',
@@ -106,7 +106,7 @@ export function auditSearchParams(filters: AuditLogFilters, page: number): URLSe
 export function usageFiltersFromSearchParams(params: URLSearchParams): UsageFilters {
   return {
     providerId: params.get('provider_id') ?? '',
-    modelConfigId: params.get('model_config_id') ?? '',
+    modelId: params.get('model_id') ?? '',
     operationType: params.get('operation_type') ?? '',
     userId: params.get('user_id') ?? '',
     orgId: params.get('org_id') ?? '',
@@ -119,9 +119,9 @@ export function usageFiltersFromSearchParams(params: URLSearchParams): UsageFilt
 
 export function usageSearchParams(filters: UsageFilters, page: number): URLSearchParams {
   return searchParamsFromPairs([
-    ['provider_id', filters.providerId],
-    ['model_config_id', filters.modelConfigId],
-    ['operation_type', filters.operationType],
+    ['provider_id', filters.providerId.trim()],
+    ['model_id', filters.modelId.trim()],
+    ['operation_type', filters.operationType.trim()],
     ['user_id', filters.userId.trim()],
     ['org_id', filters.orgId.trim()],
     ['project_id', filters.projectId.trim()],
@@ -148,7 +148,7 @@ export function auditLogsHref(filters: AuditLogHrefFilters = {}, page = 1): stri
 export function usageLogsHref(filters: UsageLogHrefFilters = {}, page = 1): string {
   const params = usageSearchParams({
     providerId: hrefValue(filters.providerId),
-    modelConfigId: hrefValue(filters.modelConfigId),
+    modelId: hrefValue(filters.modelId),
     operationType: hrefValue(filters.operationType),
     userId: hrefValue(filters.userId),
     orgId: hrefValue(filters.orgId),

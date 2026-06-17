@@ -19,7 +19,7 @@ func applyAPIKeyRuntimeCreateFields(key *domaingateway.APIKey, input APIKeyCreat
 func applyAPIKeyRuntimeUpdateFields(key *domaingateway.APIKey, input APIKeyUpdateRuntimeInput) {}
 
 func apiKeyUpdateColumns() []string {
-	return []string{"name", "project_id", "allowed_model_ids", "allowed_scopes", "is_enabled"}
+	return []string{"name", "project_id", "allowed_catalog_entry_ids", "allowed_scopes", "is_enabled"}
 }
 
 func (p *PolicyService) enforceKeyRuntimeLimits(ctx context.Context, key *domaingateway.APIKey, estimatedCost float64) error {

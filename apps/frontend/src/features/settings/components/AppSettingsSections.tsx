@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Bot, CheckCircle2, Clapperboard, HardDrive, LayoutDashboard, RefreshCw, Server, Settings, Wrench } from 'lucide-react'
+import { CheckCircle2, Clapperboard, HardDrive, RefreshCw, Server, Settings } from 'lucide-react'
 import { Textarea } from '@movscript/ui/primitives'
 import {
   AppSettingsActionButton,
@@ -29,7 +29,6 @@ interface AppSettingsContentProps {
   apiBaseURL: string
   canOpenAdmin: boolean
   chooseLaunchMode: (mode: AppSettings['launchMode']) => void
-  chooseWorkMode: (mode: AppSettings['workMode']) => void
   collectResourceBlobs: (dryRun: boolean) => void
   hasChanged: boolean
   isValid: boolean
@@ -68,7 +67,6 @@ export function AppSettingsContent({
   apiBaseURL,
   canOpenAdmin,
   chooseLaunchMode,
-  chooseWorkMode,
   collectResourceBlobs,
   hasChanged,
   isValid,
@@ -124,38 +122,6 @@ export function AppSettingsContent({
                 onClick={() => chooseLaunchMode(mode)}
                 title={mode === 'cloud' ? t('appSettings.cloudMode') : t('appSettings.localMode')}
                 detail={mode === 'cloud' ? t('appSettings.cloudModeHelp') : t('appSettings.localModeHelp')}
-              />
-            )
-          })}
-        </AppSettingsChoiceGrid>
-      </AppSettingsSection>
-
-      <AppSettingsSection
-        icon={Bot}
-        title={t('appSettings.workModeTitle')}
-        description={t('appSettings.workModeHint')}
-      >
-        <AppSettingsChoiceGrid>
-          {(['project', 'tool', 'agent'] as const).map((mode) => {
-            const selected = settings.workMode === mode
-            const Icon = mode === 'agent' ? Bot : mode === 'tool' ? Wrench : LayoutDashboard
-            return (
-              <AppSettingsChoiceTile
-                key={mode}
-                type="button"
-                selected={selected}
-                onClick={() => chooseWorkMode(mode)}
-                icon={<Icon size={14} />}
-                title={mode === 'agent'
-                  ? t('appSettings.agentWorkMode')
-                  : mode === 'tool'
-                    ? t('appSettings.toolWorkMode', { defaultValue: '工具模式' })
-                    : t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
-                detail={mode === 'agent'
-                  ? t('appSettings.agentWorkModeHelp')
-                  : mode === 'tool'
-                    ? t('appSettings.toolWorkModeHelp', { defaultValue: '直接进入工具、资源和任务入口，不显示右侧 AI 会话面板。' })
-                    : t('appSettings.projectWorkModeHelp', { defaultValue: '选择项目后进入项目总览，再进入剧本、编排和项目规范。' })}
               />
             )
           })}

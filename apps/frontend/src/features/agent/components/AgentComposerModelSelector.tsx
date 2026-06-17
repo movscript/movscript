@@ -7,12 +7,13 @@ import {
 } from '@movscript/ui/primitives'
 import type { PublicModel } from '@/types'
 import { selectDefaultAgentModel } from '@/features/agent/application/agentDefaultModelSelection'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 
 export interface AgentComposerModelSelectorProps {
   disabled?: boolean
   modelOptions: PublicModel[]
-  modelValue?: number | null
-  onModelChange?: (modelId: number | null) => void
+  modelValue?: string | null
+  onModelChange?: (modelId: string | null) => void
 }
 
 export function AgentComposerModelSelector({
@@ -24,13 +25,13 @@ export function AgentComposerModelSelector({
   if (modelOptions.length === 0 || modelValue === undefined || !onModelChange) return null
 
   const defaultModel = selectDefaultAgentModel(modelOptions)
-  const selectedModel = modelOptions.find((model) => model.id === modelValue) ?? defaultModel
+  const selectedModel = modelOptions.find((model) => publicModelId(model) === modelValue) ?? defaultModel
   const selectedModelId = selectedModel ? agentComposerModelId(selectedModel) : undefined
 
   return (
     <Select
-      value={modelValue === null ? 'auto' : String(modelValue)}
-      onValueChange={(value) => onModelChange(value === 'auto' ? null : Number(value))}
+      value={modelValue === null ? 'auto' : modelValue}
+      onValueChange={(value) => onModelChange(value === 'auto' ? null : value)}
       disabled={disabled}
     >
       <SelectTrigger size="sm" className="ai-agent-model-select h-7 max-w-[180px] min-w-0 type-tiny">
@@ -38,7 +39,7 @@ export function AgentComposerModelSelector({
           <span className="ai-agent-model-select__id">{selectedModelId ?? 'Auto model'}</span>
         </span>
       </SelectTrigger>
-      <SelectContent align="end" className="min-w-64">
+      <SelectContent align="end" className="ai-agent-model-select__content min-w-64">
         <SelectItem value="auto">
           <span className="ai-agent-model-select__option">
             {selectedModelId ? <IdentityMark kind="model" id={selectedModelId} /> : null}
@@ -49,7 +50,7 @@ export function AgentComposerModelSelector({
           </span>
         </SelectItem>
         {modelOptions.map((model) => (
-          <SelectItem key={model.id} value={String(model.id)}>
+          <SelectItem key={publicModelId(model)} value={publicModelId(model)}>
             <span className="ai-agent-model-select__option">
               <IdentityMark kind="model" id={agentComposerModelId(model)} />
               <span className="ai-agent-model-select__option-copy">
@@ -65,5 +66,5 @@ export function AgentComposerModelSelector({
 }
 
 function agentComposerModelId(model: PublicModel): string {
-  return model.model_id?.trim() || model.logical_model_id?.trim() || model.model_def_id?.trim() || `model_config:${model.id}`
+  return publicModelId(model)
 }

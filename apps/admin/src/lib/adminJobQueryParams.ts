@@ -3,25 +3,25 @@ export type JobMonitorFilters = {
   status: string
   jobType: string
   featureKey: string
+  modelId: string
   userId: string
   orgId: string
   projectId: string
-  modelConfigId: string
 }
 
-export type DebugTab = 'system' | 'llm-calls' | 'provider-sandbox' | 'raw-call' | 'jobs' | 'connectivity'
+export type DebugTab = 'system' | 'llm-calls' | 'provider-sandbox' | 'raw-call' | 'jobs'
 
-export const DEBUG_TABS: DebugTab[] = ['system', 'llm-calls', 'provider-sandbox', 'raw-call', 'jobs', 'connectivity']
+export const DEBUG_TABS: DebugTab[] = ['system', 'llm-calls', 'provider-sandbox', 'raw-call', 'jobs']
 
 export const emptyJobMonitorFilters: JobMonitorFilters = {
   jobId: '',
   status: '',
   jobType: '',
   featureKey: '',
+  modelId: '',
   userId: '',
   orgId: '',
   projectId: '',
-  modelConfigId: '',
 }
 
 const JOB_FILTER_QUERY_KEYS = [
@@ -29,10 +29,10 @@ const JOB_FILTER_QUERY_KEYS = [
   'status',
   'job_type',
   'feature_key',
+  'model_id',
   'user_id',
   'org_id',
   'project_id',
-  'model_config_id',
   'page',
 ]
 
@@ -57,10 +57,10 @@ export function jobFiltersFromSearchParams(params: URLSearchParams): JobMonitorF
     status: params.get('status') ?? '',
     jobType: params.get('job_type') ?? '',
     featureKey: params.get('feature_key') ?? '',
+    modelId: params.get('model_id') ?? '',
     userId: params.get('user_id') ?? '',
     orgId: params.get('org_id') ?? '',
     projectId: params.get('project_id') ?? '',
-    modelConfigId: params.get('model_config_id') ?? '',
   }
 }
 
@@ -71,10 +71,10 @@ export function jobSearchParams(filters: JobMonitorFilters, page: number): URLSe
     ['status', filters.status],
     ['job_type', filters.jobType.trim()],
     ['feature_key', filters.featureKey.trim()],
+    ['model_id', filters.modelId.trim()],
     ['user_id', filters.userId.trim()],
     ['org_id', filters.orgId.trim()],
     ['project_id', filters.projectId.trim()],
-    ['model_config_id', filters.modelConfigId.trim()],
   ]
   for (const [key, value] of pairs) {
     if (value) params.set(key, value)

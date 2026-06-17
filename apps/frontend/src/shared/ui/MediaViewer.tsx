@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { X, Maximize2, Download, FileAudio, FileText, File, PlayCircle } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
+import { HlsVideo } from '@/shared/ui/HlsVideo'
 import { ResourceAudio } from '@/shared/ui/ResourceAudio'
+import { isHlsResource } from '@/shared/ui/ResourceVideo'
 import { downloadResource } from '@/shared/ui/resourceDownload'
 import { loadResourceTextUrl } from '@/shared/ui/resourceText'
 import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
@@ -48,6 +50,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const proxyUrl = resolveResourceUrl(resource)
+  const isHlsVideo = resource.type === 'video' && isHlsResource(resource, proxyUrl)
 
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
@@ -82,7 +85,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       {resource.type === 'video' ? (
         lightweightVideoThumb
           ? <VideoPlaceholderThumb name={resource.name} size={resource.size} />
-          : <VideoThumb proxyUrl={proxyUrl} fit={fit} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} onLoadedMetadata={onVideoLoadedMetadata} />
+          : <VideoThumb proxyUrl={proxyUrl} fit={fit} hls={isHlsVideo} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} onLoadedMetadata={onVideoLoadedMetadata} />
       ) : resource.type === 'audio' ? (
         <IconThumb icon={<FileAudio size={24} />} />
       ) : resource.type === 'text' ? (
@@ -112,7 +115,9 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       onDownload={() => downloadResource(resource)}
     >
       {resource.type === 'video' ? (
-        <AuthedVideo src={proxyUrl} controls autoPlay diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:lightbox`} />
+        isHlsVideo
+          ? <HlsVideo src={proxyUrl} controls autoPlay diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:lightbox`} />
+          : <AuthedVideo src={proxyUrl} controls autoPlay diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:lightbox`} />
       ) : resource.type === 'audio' ? (
         <ResourceMediaAudioPanel icon={<FileAudio size={18} />} name={resource.name}>
           <ResourceAudio resource={resource} controls autoPlay />
@@ -150,10 +155,12 @@ function ImageThumb({ proxyUrl, alt, diagnosticLabel, thumbnailMaxSize, onLoad }
   return <AuthedImage src={proxyUrl} alt={alt} diagnosticLabel={diagnosticLabel} thumbnailMaxSize={thumbnailMaxSize} onLoad={onLoad} />
 }
 
-function VideoThumb({ proxyUrl, fit, diagnosticLabel, onLoadedMetadata }: { proxyUrl: string; fit: 'cover' | 'contain'; diagnosticLabel?: string; onLoadedMetadata?: ReactEventHandler<HTMLVideoElement> }) {
+function VideoThumb({ proxyUrl, fit, hls, diagnosticLabel, onLoadedMetadata }: { proxyUrl: string; fit: 'cover' | 'contain'; hls?: boolean; diagnosticLabel?: string; onLoadedMetadata?: ReactEventHandler<HTMLVideoElement> }) {
   return (
     <ResourceMediaFillFrame fit={fit}>
-      <AuthedVideo src={proxyUrl} muted playsInline preload="metadata" diagnosticLabel={diagnosticLabel} onLoadedMetadata={onLoadedMetadata} />
+      {hls
+        ? <HlsVideo src={proxyUrl} muted playsInline preload="metadata" diagnosticLabel={diagnosticLabel} onLoadedMetadata={onLoadedMetadata} />
+        : <AuthedVideo src={proxyUrl} muted playsInline preload="metadata" diagnosticLabel={diagnosticLabel} onLoadedMetadata={onLoadedMetadata} />}
     </ResourceMediaFillFrame>
   )
 }

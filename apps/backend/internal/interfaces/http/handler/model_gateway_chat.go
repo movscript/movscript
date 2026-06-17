@@ -565,8 +565,8 @@ func writeGatewayChatError(c *gin.Context, err error, param string) {
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to call chat models", "insufficient_permissions", "", "insufficient_scope")
 	case errors.Is(err, modelgatewayapp.ErrModelNotFound):
 		writeOpenAIError(c, http.StatusNotFound, err.Error(), "invalid_request_error", "model", "model_not_found")
-	case errors.Is(err, modelgatewayapp.ErrModelNotAllowed):
-		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this model", "insufficient_permissions", "model", "model_not_allowed")
+	case errors.Is(err, modelgatewayapp.ErrCatalogEntryNotAllowed):
+		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this catalog entry", "insufficient_permissions", "model", "catalog_entry_not_allowed")
 	case errors.Is(err, modelgatewayapp.ErrProjectNotAllowed):
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this project scope", "insufficient_permissions", "project_id", "project_not_allowed")
 	case errors.Is(err, modelgatewayapp.ErrUnsupportedParameter):

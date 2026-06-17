@@ -4,19 +4,19 @@ import persistencemodel "github.com/movscript/movscript/internal/infra/persisten
 
 func APIKeyFromModel(key persistencemodel.GatewayAPIKey) APIKey {
 	target := APIKey{
-		ID:              key.ID,
-		Name:            key.Name,
-		KeyPrefix:       key.KeyPrefix,
-		KeyHash:         key.KeyHash,
-		OwnerUserID:     key.OwnerUserID,
-		OrgID:           key.OrgID,
-		ProjectID:       key.ProjectID,
-		AllowedModelIDs: key.AllowedModelIDs,
-		AllowedScopes:   key.AllowedScopes,
-		IsEnabled:       key.IsEnabled,
-		LastUsedAt:      key.LastUsedAt,
-		CreatedAt:       key.CreatedAt,
-		UpdatedAt:       key.UpdatedAt,
+		ID:                     key.ID,
+		Name:                   key.Name,
+		KeyPrefix:              key.KeyPrefix,
+		KeyHash:                key.KeyHash,
+		OwnerUserID:            key.OwnerUserID,
+		OrgID:                  key.OrgID,
+		ProjectID:              key.ProjectID,
+		AllowedCatalogEntryIDs: key.AllowedCatalogEntryIDs,
+		AllowedScopes:          key.AllowedScopes,
+		IsEnabled:              key.IsEnabled,
+		LastUsedAt:             key.LastUsedAt,
+		CreatedAt:              key.CreatedAt,
+		UpdatedAt:              key.UpdatedAt,
 	}
 	applyAPIKeyRuntimeFromModel(&target, key)
 	return target
@@ -36,7 +36,7 @@ func (key APIKey) ApplyToModel(target *persistencemodel.GatewayAPIKey) {
 	target.OwnerUserID = key.OwnerUserID
 	target.OrgID = key.OrgID
 	target.ProjectID = key.ProjectID
-	target.AllowedModelIDs = key.AllowedModelIDs
+	target.AllowedCatalogEntryIDs = key.AllowedCatalogEntryIDs
 	target.AllowedScopes = key.AllowedScopes
 	target.IsEnabled = key.IsEnabled
 	target.LastUsedAt = key.LastUsedAt

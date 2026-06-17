@@ -134,7 +134,7 @@ export function AgentCapabilityHealthPanel({
       {capabilityHealth.providers.length === 0 ? (
         <AgentConsoleEmptyText>启动任一 app-server provider 后，控制台会读取统一能力入口并汇总 Tools、Skills、Plugins 和 MCP 状态。</AgentConsoleEmptyText>
       ) : (
-        <AgentConsoleGrid columns="server">
+        <AgentConsoleGrid columns="single">
           {capabilityHealth.providers.map((provider) => (
             <AgentCapabilityHealthCard key={provider.providerId} provider={provider} />
           ))}

@@ -14,7 +14,7 @@ type LLMCallLog struct {
 	ProjectID       *uint  `gorm:"index" json:"project_id,omitempty"`
 	GatewayAPIKeyID *uint  `gorm:"index" json:"gateway_api_key_id,omitempty"`
 
-	AIModelConfigID uint `gorm:"not null;index" json:"ai_model_config_id"`
+	AIModelConfigID uint `gorm:"not null;index" json:"-"`
 	CredentialID    uint `gorm:"not null;index" json:"credential_id"`
 
 	OperationType string `gorm:"not null;index;size:64" json:"operation_type"`
@@ -37,5 +37,5 @@ type LLMCallLog struct {
 	ExpiresAt        *time.Time    `gorm:"index" json:"expires_at,omitempty"`
 	RetentionDays    int           `gorm:"default:0" json:"retention_days"`
 	User             User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	AIModelConfig    AIModelConfig `gorm:"foreignKey:AIModelConfigID" json:"ai_model_config,omitempty"`
+	AIModelConfig    AIModelConfig `gorm:"foreignKey:AIModelConfigID;-:migration" json:"-"`
 }

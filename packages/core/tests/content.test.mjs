@@ -477,7 +477,7 @@ test('core content source workspace builds project workbench data without deskto
   assert.equal(findHierarchyNode(data.hierarchyTree, 'storyboard/main')?.storyboardTimeline?.caption, 'Phone glow.')
 })
 
-test('core content source workspace exposes production OpenCut timelines from preview selections', async () => {
+test('core content source workspace exposes production MediaEditingProject timelines from preview selections', async () => {
   const production = entity('production', 'pilot', 'productions/pilot/production.json', { title: 'Pilot' })
   const moment = entity('scene_moment', 'rain_call', 'productions/pilot/segments/opening/scene_moments/rain_call/scene_moment.json', { title: 'Rain call', order: 1 })
   const contentUnit = entity('content_unit', 'cu_rain_call', 'content_units/cu_rain_call/content_unit.json', {
@@ -541,12 +541,12 @@ test('core content source workspace exposes production OpenCut timelines from pr
   assert.equal(productionTimeline?.targetId, 'pilot')
   assert.equal(productionTimeline?.status, 'ready_to_compose')
   assert.equal(productionTimeline?.blockers?.length, 0)
-  assert.equal(productionTimeline?.timelineDocument.schema, 'opencut.timeline.v1')
-  const track = productionTimeline?.timelineDocument.project.scenes[0]?.tracks[0]
+  assert.equal(productionTimeline?.mediaEditingProject.version, 1)
+  const track = productionTimeline?.mediaEditingProject.timeline.tracks[0]
   assert.equal(track?.type, 'video')
-  assert.equal(track?.elements[0]?.mediaId, 'movscript_resource_612')
-  assert.equal(track?.elements[0]?.duration, 7)
-  assert.equal(track?.elements[0]?.metadata?.movscript?.targetKind, 'production')
+  assert.equal(track?.clips[0]?.asset?.id, 'movscript_resource_612')
+  assert.equal(track?.clips[0]?.durationMs, 7000)
+  assert.equal(track?.clips[0]?.metadata?.movscript?.targetKind, 'production')
 })
 
 test('core content source workspace plans writes independently from desktop services', () => {

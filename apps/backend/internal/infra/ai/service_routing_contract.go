@@ -2,15 +2,18 @@ package ai
 
 import (
 	"context"
+	"fmt"
 
 	providercontract "github.com/movscript/movscript/internal/providers/contract"
 )
 
-func (s *AIService) ResolveGatewayModelRoute(_ context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoute, error) {
+func (s *AIService) ResolveGatewayModelRoute(ctx context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoute, error) {
 	route, err := s.ResolveModelRoute(ModelRouteRequest{
 		ModelID:               request.ModelID,
 		ModelConfigID:         request.ModelConfigID,
+		CatalogEntryID:        request.CatalogEntryID,
 		Capability:            request.Capability,
+		RouteGroup:            providerRouteGroupFromContext(ctx),
 		PreferredAdapterTypes: request.PreferredAdapterTypes,
 		EstimatedUsage:        usageEstimateFromContract(request.EstimatedUsage),
 		MaxEstimatedCost:      request.MaxEstimatedCost,
@@ -21,11 +24,13 @@ func (s *AIService) ResolveGatewayModelRoute(_ context.Context, request provider
 	return modelRouteToContract(route, request.Capability), nil
 }
 
-func (s *AIService) ResolveGatewayModelRoutePlan(_ context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoutePlan, error) {
+func (s *AIService) ResolveGatewayModelRoutePlan(ctx context.Context, request providercontract.AIGatewayRouteRequest) (providercontract.AIGatewayModelRoutePlan, error) {
 	plan, err := s.ResolveModelRoutePlan(ModelRouteRequest{
 		ModelID:               request.ModelID,
 		ModelConfigID:         request.ModelConfigID,
+		CatalogEntryID:        request.CatalogEntryID,
 		Capability:            request.Capability,
+		RouteGroup:            providerRouteGroupFromContext(ctx),
 		PreferredAdapterTypes: request.PreferredAdapterTypes,
 		EstimatedUsage:        usageEstimateFromContract(request.EstimatedUsage),
 		MaxEstimatedCost:      request.MaxEstimatedCost,
@@ -46,16 +51,31 @@ func (s *AIService) ResolveGatewayModelRoutePlan(_ context.Context, request prov
 	}, nil
 }
 
-func (s *AIService) ResolveGatewayTextModelRoute(_ context.Context, modelID string) (providercontract.AIGatewayModelRoute, error) {
-	route, err := s.ResolveTextModelRoute(modelID)
-	if err != nil {
-		return providercontract.AIGatewayModelRoute{}, err
+func (s *AIService) ResolveGatewayTextModelRoute(ctx context.Context, modelID string) (providercontract.AIGatewayModelRoute, error) {
+	var lastErr error
+	for _, capability := range textRuntimeCapabilities() {
+		route, err := s.ResolveModelRoute(ModelRouteRequest{
+			ModelID:    modelID,
+			Capability: capability,
+			RouteGroup: providerRouteGroupFromContext(ctx),
+		})
+		if err == nil {
+			return modelRouteToContract(route, capability), nil
+		}
+		lastErr = err
 	}
-	return modelRouteToContract(route, CapabilityText), nil
+	if lastErr != nil {
+		return providercontract.AIGatewayModelRoute{}, lastErr
+	}
+	return providercontract.AIGatewayModelRoute{}, fmt.Errorf("no text runtime capability requested")
 }
 
-func (s *AIService) ResolveGatewayGenerationModelRoute(_ context.Context, modelID string, outputType string) (providercontract.AIGatewayModelRoute, error) {
-	route, err := s.ResolveGenerationModelRoute(modelID, outputType)
+func (s *AIService) ResolveGatewayGenerationModelRoute(ctx context.Context, modelID string, outputType string) (providercontract.AIGatewayModelRoute, error) {
+	route, err := s.ResolveModelRoute(ModelRouteRequest{
+		ModelID:    modelID,
+		Capability: outputType,
+		RouteGroup: providerRouteGroupFromContext(ctx),
+	})
 	if err != nil {
 		return providercontract.AIGatewayModelRoute{}, err
 	}
@@ -66,6 +86,10 @@ func modelRouteToContract(route ModelRoute, capability string) providercontract.
 	return providercontract.AIGatewayModelRoute{
 		ModelID:         route.ModelID,
 		ModelConfigID:   route.ModelConfigID,
+		CatalogEntryID:  route.CatalogEntryID,
+		CredentialID:    route.CredentialID,
+		SourceType:      route.SourceType,
+		RouteGroup:      route.RouteGroup,
 		ProviderModelID: route.ProviderModelID,
 		Capability:      capability,
 		SelectionReason: route.SelectionReason,

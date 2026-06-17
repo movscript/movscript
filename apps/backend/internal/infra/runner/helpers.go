@@ -137,8 +137,10 @@ func typeFromMime(mime string) string {
 		return "video"
 	case strings.HasPrefix(mime, "audio/"):
 		return "audio"
+	case strings.HasPrefix(mime, "text/"), strings.Contains(mime, "json"), strings.Contains(mime, "subrip"):
+		return "text"
 	}
-	return "image"
+	return "file"
 }
 
 func extFromMime(mime string) string {
@@ -153,15 +155,46 @@ func extFromMime(mime string) string {
 		return "mp4"
 	case "video/webm":
 		return "webm"
+	case "audio/mpeg":
+		return "mp3"
+	case "audio/wav", "audio/x-wav":
+		return "wav"
+	case "audio/ogg":
+		return "ogg"
+	case "audio/aac":
+		return "aac"
+	case "audio/flac":
+		return "flac"
+	case "audio/mp4", "audio/m4a":
+		return "m4a"
+	case "application/x-subrip":
+		return "srt"
+	case "text/vtt":
+		return "vtt"
+	case "text/x-ass":
+		return "ass"
+	case "text/plain":
+		return "txt"
+	case "application/json":
+		return "json"
 	default:
 		if strings.HasPrefix(mime, "image/") {
 			return "png"
 		}
-		return "mp4"
+		if strings.HasPrefix(mime, "audio/") {
+			return "mp3"
+		}
+		if strings.HasPrefix(mime, "text/") || strings.Contains(mime, "json") {
+			return "txt"
+		}
+		return "bin"
 	}
 }
 
 func (w *Worker) loadModelConfig(id uint) *persistencemodel.AIModelConfig {
+	if w == nil || w.db == nil || !w.db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		return nil
+	}
 	var cfg persistencemodel.AIModelConfig
 	if err := w.db.First(&cfg, id).Error; err != nil {
 		return nil

@@ -17,7 +17,7 @@ import type {
 } from '@/shared/infrastructure/providerSessionClient'
 import type { PublicModel } from '@/types'
 
-export type AppServerAuthSource = 'model-provider' | 'local-home' | 'managed-home' | 'custom-config' | 'none'
+export type AppServerConfigSource = 'local-machine' | 'custom-service' | 'backend'
 
 export const PROVIDER_LOCAL_HOME_COMPAT_MODE = ['local', 'Codex'].join('')
 
@@ -34,8 +34,10 @@ export type ProviderOption = {
 
 export type ProviderConfigDraft = {
   providerRef: string
-  authSource: AppServerAuthSource
+  source: AppServerConfigSource
 }
+
+export type AgentModelSourceMode = AppServerConfigSource
 
 export function activeProviderKeyFromPath(pathname: string, providers: ProviderConfig[]): string | undefined {
   const key = pathname.match(/^\/agents\/([^/?#]+)/)?.[1]
@@ -90,45 +92,82 @@ export function ProviderSelect({
   value: string
   options: ProviderOption[]
   disabled: boolean
-  onChange: (value: Pick<ProviderConfigDraft, 'authSource' | 'providerRef'>) => void
+  onChange: (value: Pick<ProviderConfigDraft, 'source' | 'providerRef'>) => void
 }) {
   const selectedProviderRef = value.startsWith('provider:') ? value.slice('provider:'.length) : ''
   const selectedProviderMissing = Boolean(selectedProviderRef) && !options.some((option) => option.id === selectedProviderRef)
+  const backendOptions = options.filter((option) => option.source === 'backend')
+  const localOptions = options.filter((option) => option.source === 'local')
   return (
-    <AgentConsoleSelectField label="Provider" value={value} disabled={disabled} onChange={(event) => onChange(providerSelectionDraft(event.target.value, options))}>
-      <option value="auth:local-home">复用本机 app-server 账号文件</option>
-      <option value="auth:managed-home">复用 MovScript 托管账号文件</option>
-      {selectedProviderMissing ? <option value={value}>已保存的 Model Provider：{selectedProviderRef}</option> : null}
-      {options.map((option) => (
+    <AgentConsoleSelectField label="配置来源" value={value} disabled={disabled} onChange={(event) => onChange(providerSelectionDraft(event.target.value, options))}>
+      <option value="source:local-machine">本机 - 复用本机账号文件</option>
+      {localOptions.map((option) => (
         <option key={option.id} value={`provider:${option.id}`}>
-          {option.label} - {option.detail}
+          自定义 - {providerOptionChoiceDetail(option)}
         </option>
       ))}
-      <option value="auth:custom-config">手动维护 config.toml / auth.json</option>
-      <option value="auth:none">不配置账号</option>
+      {backendOptions.map((option) => (
+        <option key={option.id} value={`provider:${option.id}`}>
+          后端 - {providerOptionChoiceDetail(option)}
+        </option>
+      ))}
+      {selectedProviderMissing ? <option value={value}>已保存的 Model Provider：{selectedProviderRef}</option> : null}
     </AgentConsoleSelectField>
   )
 }
 
-export function providerSelectionValue(draft: ProviderConfigDraft): string {
-  return draft.authSource === 'model-provider' && draft.providerRef
-    ? `provider:${draft.providerRef}`
-    : `auth:${draft.authSource}`
+export function providerDraftSourceMode(draft: ProviderConfigDraft, provider?: ProviderOption): AgentModelSourceMode {
+  if (provider && draft.source === 'backend' && provider.source !== 'backend') return 'custom-service'
+  if (provider && draft.source === 'custom-service' && provider.source === 'backend') return 'backend'
+  return draft.source
 }
 
-export function providerSelectionDraft(value: string, options: ProviderOption[]): Pick<ProviderConfigDraft, 'authSource' | 'providerRef'> {
+export function providerSourceModeLabel(mode: AgentModelSourceMode): string {
+  switch (mode) {
+    case 'backend':
+      return '后端'
+    case 'local-machine':
+      return '本机'
+    case 'custom-service':
+      return '自定义'
+  }
+}
+
+export function providerSourceModeDescription(mode: AgentModelSourceMode, provider?: ProviderOption): string {
+  switch (mode) {
+    case 'backend':
+      return provider
+        ? `把 MovScript 后端网关写入托管配置，当前选择 ${provider.label}。`
+        : '把 MovScript 后端网关写入托管配置。'
+    case 'local-machine':
+      return '从这台机器已有账号文件读取账号，并同步到 MovScript 托管配置。'
+    case 'custom-service':
+      return provider
+        ? `把自定义兼容服务写入托管配置：${provider.label}。`
+        : '把自定义兼容服务写入托管配置。'
+  }
+}
+
+export function providerSelectionValue(draft: ProviderConfigDraft): string {
+  return draft.source !== 'local-machine' && draft.providerRef
+    ? `provider:${draft.providerRef}`
+    : `source:${draft.source}`
+}
+
+export function providerSelectionDraft(value: string, options: ProviderOption[]): Pick<ProviderConfigDraft, 'source' | 'providerRef'> {
   if (value.startsWith('provider:')) {
     const providerRef = value.slice('provider:'.length)
+    const option = options.find((item) => item.id === providerRef) ?? options[0]
     return {
-      authSource: 'model-provider',
-      providerRef: options.some((option) => option.id === providerRef) ? providerRef : options[0]?.id ?? '',
+      source: option?.source === 'backend' ? 'backend' : 'custom-service',
+      providerRef: option?.id ?? '',
     }
   }
-  const authSource = value.slice('auth:'.length)
-  if (authSource === 'local-home' || authSource === 'managed-home' || authSource === 'custom-config' || authSource === 'none') {
-    return { authSource, providerRef: options[0]?.id ?? '' }
+  const source = value.slice('source:'.length)
+  if (source === 'local-machine' || source === 'custom-service' || source === 'backend') {
+    return { source, providerRef: defaultProviderRefForSource(source, options) }
   }
-  return { authSource: 'local-home', providerRef: options[0]?.id ?? '' }
+  return { source: 'local-machine', providerRef: defaultProviderRefForSource('local-machine', options) }
 }
 
 export function providerDisplayTitle(providerKey: string): string {
@@ -138,7 +177,7 @@ export function providerDisplayTitle(providerKey: string): string {
 export function defaultProviderConfigDraft(): ProviderConfigDraft {
   return {
     providerRef: '',
-    authSource: 'local-home',
+    source: 'local-machine',
   }
 }
 
@@ -165,9 +204,12 @@ export function fallbackAppServerProvider(providerKey: string): ProviderConfig {
 export async function saveProviderConfig(client: ProviderSessionClient, key: string, record: Record<string, unknown>, currentConfig: MovScriptWorkspaceConfig | undefined): Promise<void> {
   const config = currentConfig ?? await client.getWorkspaceConfig()
   const currentProvider = isRecord(config.providers?.[key]) ? { ...config.providers[key] } : {}
+  delete currentProvider.authSource
+  delete currentProvider.configSource
   delete currentProvider.providerRef
   delete currentProvider.baseURL
   delete currentProvider.baseUrl
+  delete currentProvider.defaultModel
   delete currentProvider.home
   delete currentProvider.workspaceDir
   await client.saveWorkspaceConfig({
@@ -188,61 +230,45 @@ export function providerConfigDraftFromWorkspaceConfig(
   providerOptions: ProviderOption[],
 ): ProviderConfigDraft {
   const record = isRecord(config?.providers?.[key]) ? config.providers[key] : {}
+  const source = appServerConfigSourceFromRecord(record)
   return {
-    providerRef: stringField(record.providerRef) ?? providerOptions[0]?.id ?? fallback.providerRef,
-    authSource: appServerAuthSourceFromRecord(record),
+    providerRef: stringField(record.providerRef) ?? defaultProviderRefForSource(source, providerOptions) ?? fallback.providerRef,
+    source,
   }
 }
 
 export function buildAppServerRecord(draft: ProviderConfigDraft, provider: ProviderOption | undefined, enabled: boolean, profile?: ProviderConfig['appServerProfile']): Record<string, unknown> {
   const base = {
     enabled,
-    authSource: draft.authSource,
-    ...(draft.authSource === 'model-provider' && draft.providerRef ? { providerRef: draft.providerRef } : {}),
+    configSource: draft.source,
+    ...(draft.source !== 'local-machine' && draft.providerRef ? { providerRef: draft.providerRef } : {}),
     ...(profile?.compatibilityHomeEnvNames?.length ? { appServer: { compatibilityHomeEnvNames: profile.compatibilityHomeEnvNames } } : {}),
   }
-  switch (draft.authSource) {
-    case 'local-home':
+  switch (draft.source) {
+    case 'local-machine':
       return {
         ...base,
         config: { mode: 'local-home' },
         auth: { mode: 'local-home' },
       }
-    case 'managed-home':
+    case 'custom-service':
       return {
         ...base,
-        config: { mode: 'auto' },
-        auth: { mode: 'auto' },
+        ...(provider?.baseURL ? { baseURL: provider.baseURL } : {}),
+        ...(provider?.defaultModel ? { defaultModel: provider.defaultModel } : {}),
+        config: { mode: 'customApiKey', ...(provider?.baseURL ? { baseURL: provider.baseURL } : {}) },
+        auth: {
+          mode: 'apiKey',
+          ...(provider?.apiKey ? { apiKey: provider.apiKey } : {}),
+          ...(provider?.baseURL ? { baseURL: provider.baseURL } : {}),
+        },
       }
-    case 'model-provider':
-      if (provider?.source === 'local' && provider.apiKey) {
-        return {
-          ...base,
-          config: { mode: 'customApiKey' },
-          auth: {
-            mode: 'apiKey',
-            apiKey: provider.apiKey,
-            ...(provider.baseURL ? { baseURL: provider.baseURL } : {}),
-          },
-        }
-      }
+    case 'backend':
       return {
         ...base,
         baseURL: resolveBackendProviderBaseURL(),
         config: { mode: 'backendKey', modelProviderRef: draft.providerRef },
         auth: { mode: 'backendKey', modelProviderRef: draft.providerRef },
-      }
-    case 'custom-config':
-      return {
-        ...base,
-        config: { mode: 'customConfig' },
-        auth: { mode: 'customConfig' },
-      }
-    case 'none':
-      return {
-        ...base,
-        config: { mode: 'none' },
-        auth: { mode: 'none' },
       }
   }
 }
@@ -272,6 +298,10 @@ function groupBackendProviders(models: PublicModel[]): ProviderOption[] {
   })
 }
 
+function providerOptionChoiceDetail(option: ProviderOption): string {
+  return `${option.label} (${option.detail})`
+}
+
 function safeDecodeURIComponent(value: string): string {
   try {
     return decodeURIComponent(value)
@@ -284,17 +314,25 @@ function resolveBackendProviderBaseURL(): string {
   return `${getAPIBaseURL()}/v1`
 }
 
-function appServerAuthSourceFromRecord(record: Record<string, unknown>): AppServerAuthSource {
-  const explicit = stringField(record.authSource)
-  if (explicit === 'model-provider' || explicit === 'local-home' || explicit === 'managed-home' || explicit === 'custom-config' || explicit === 'none') {
-    return explicit
+function appServerConfigSourceFromRecord(record: Record<string, unknown>): AppServerConfigSource {
+  const explicit = stringField(record.configSource)
+  if (explicit === 'local-machine' || explicit === 'custom-service' || explicit === 'backend') return explicit
+  const legacyAuthSource = stringField(record.authSource)
+  if (legacyAuthSource === 'local-home' || legacyAuthSource === 'managed-home' || legacyAuthSource === 'custom-config' || legacyAuthSource === 'none') return 'local-machine'
+  if (legacyAuthSource === 'model-provider') {
+    return stringField(record.providerRef)?.startsWith('backend:') ? 'backend' : 'custom-service'
   }
   const mode = stringField(recordField(record, 'config')?.mode) ?? stringField(recordField(record, 'auth')?.mode)
-  if (mode === PROVIDER_LOCAL_HOME_COMPAT_MODE || mode === 'local-home') return 'local-home'
-  if (mode === 'customApiKey' || mode === 'apiKey' || mode === 'backendKey' || mode === 'backend-api-key') return 'model-provider'
-  if (mode === 'customConfig' || mode === 'custom-config' || mode === 'manual') return 'custom-config'
-  if (mode === 'none') return 'none'
-  return 'managed-home'
+  if (mode === PROVIDER_LOCAL_HOME_COMPAT_MODE || mode === 'local-home') return 'local-machine'
+  if (mode === 'backendKey' || mode === 'backend-api-key') return 'backend'
+  if (mode === 'customApiKey' || mode === 'apiKey') return 'custom-service'
+  return 'local-machine'
+}
+
+function defaultProviderRefForSource(source: AppServerConfigSource, options: ProviderOption[]): string {
+  if (source === 'backend') return options.find((option) => option.source === 'backend')?.id ?? options[0]?.id ?? ''
+  if (source === 'custom-service') return options.find((option) => option.source === 'local')?.id ?? options[0]?.id ?? ''
+  return options[0]?.id ?? ''
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

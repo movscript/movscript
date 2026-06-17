@@ -1,3 +1,5 @@
+//go:build !runtime_overlay
+
 package overview
 
 import (

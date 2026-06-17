@@ -130,20 +130,45 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   const previewSideEffect = approvalPreviewSideEffect(approval.preview)
   if (previewSideEffect) return `批准后会执行预览变更：${previewSideEffect}`
 
-  switch (approval.toolName) {
+  const toolName = normalizeToolName(approval.toolName)
+  switch (toolName) {
     case 'generation_image_generate': return '批准后会提交图像生成任务，可能消耗生成额度。'
     case 'generation_video_generate': return '批准后会提交视频生成任务，可能消耗生成额度。'
+    case 'generation_audio_generate': return '批准后会提交音频生成任务，可能消耗生成额度。'
     case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_project_create': return '批准后会创建项目数据。'
     case 'core_memory_delete': return '批准后会删除记忆，后续运行将无法再引用它。'
     case 'core_work_start': return '批准后会提交异步任务；生成任务可能消耗额度，子 agent 任务会启动 worker run。'
     case 'core_work_cancel': return '批准后会取消异步任务；未完成的输出或子 agent 后续执行可能不再产生。'
+    case 'movscript_resource_video_trim_to_resource':
+    case 'system_resource_video_trim_to_resource':
+      return '批准后会派生一个裁剪后的视频 RawResource；这只是中立素材准备，不会修改剪辑项目或写入候选。'
+    case 'movscript_resource_video_compose_to_resource':
+    case 'movscript_resource_video_concat_to_resource':
+    case 'system_resource_video_compose_to_resource':
+    case 'system_resource_video_concat_to_resource':
+      return '批准后会执行资源级视频合成并生成 RawResource；它不会修改剪辑项目，产品剪辑应使用 editing_* 和 Electron mediaPipeline。'
+    case 'domain_read_scene_moment_timeline':
+    case 'domain_read_production_timeline':
+      return '批准后只会读取 domain 到 MediaEditingProject 的交接数据；实际剪辑应继续使用 editing_*。'
+    case 'system_artifact_upload_export':
+    case 'system_artifact_upload_hls_stream':
+      return '批准后会托管已完成的导出或 HLS 产物；不会执行剪辑，也不会写入业务候选。'
+    case 'system_artifact_get_stream':
+      return '批准后只会读取已托管媒体流的元数据或播放地址。'
     default: break
   }
 
   const permission = approval.permission ?? ''
   if (permission === 'workspace.apply') return '批准后会提交工作区修改，并交给前端审阅视图接收。'
+  if (permission.includes('editing.task') && !permission.includes('read')) return '批准后会通过 Electron mediaPipeline 执行本地剪辑任务；后端不会承担剪辑渲染。'
+  if (permission.includes('editing.candidate')) return '批准后会把 RawResource 剪辑导出写为业务候选；不会自动采纳为最终结果。'
+  if (permission.includes('editing.export')) return '批准后会处理剪辑导出或资源导入；不会自动写入业务候选。'
+  if (permission.includes('editing.timeline') || permission.includes('editing.project')) return '批准后会修改 MediaEditingProject 或剪辑时间线数据，不会直接渲染或调用 AI。'
+  if (permission.includes('editing.runtime')) return '批准后只会读取本地剪辑运行时能力。'
+  if (permission.includes('artifact') && (permission.includes('write') || permission.includes('upload') || permission.includes('publish'))) return '批准后会托管已完成的导出或 HLS 产物；不会执行剪辑，也不会写入业务候选。'
+  if (permission.includes('artifact') && permission.includes('read')) return '批准后只会读取已托管媒体流的元数据或播放地址。'
   if (permission.includes('generation')) return '批准后会影响生成任务。'
   if (permission.includes('project') && permission.includes('write')) return '批准后会写入项目数据。'
   if (permission.includes('workspace') && permission.includes('write')) return '批准后会写入工作区数据。'
@@ -174,6 +199,10 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function normalizeToolName(toolName: string | undefined): string | undefined {
+  return toolName?.replace(/^mcp__movscript__/, '')
 }
 
 function unknownLabel(scope: string, value: string): string {

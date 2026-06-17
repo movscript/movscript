@@ -1,11 +1,13 @@
 import {
-  useMemo,
-  type ReactNode } from 'react'
+  useEffect,
+  useRef,
+  useMemo } from 'react'
 import { Link,
-  NavLink,
-  useLocation } from 'react-router-dom'
+  useLocation,
+  useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Cable,
+  ChevronRight,
   RefreshCw } from 'lucide-react'
 import {
   AgentPageShell,
@@ -23,13 +25,15 @@ import {
   AgentConsoleHeaderTitleRow,
   AgentConsoleInlineError,
   AgentConsoleStack,
+  AgentConsoleAgentList,
+  AgentConsoleAgentListRow,
+  AgentConsoleAgentSwitch,
   AgentConsoleStatusBadge,
   AgentConsoleSyncBadge,
-  AgentConsoleTabButton,
-  AgentConsoleTabList,
 } from '@/features/agent/components/AgentConsoleUi'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
   activeProviderKeyFromPath,
   AppServerPanel,
@@ -39,6 +43,10 @@ import {
 } from '@/features/agent/components/AgentsPageAppServerPanel'
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
+import {
+  agentProviderSettingsWithWorkspaceSelection,
+  commitAgentProviderActivation,
+} from '@/features/agent/application/agentProviderActivation'
 import {
   appServerKey,
   providerRouteKey,
@@ -53,17 +61,25 @@ import {
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
 import { ProviderSessionClient, providerSessionClient } from '@/shared/infrastructure/providerSessionClient'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 
 export default function AgentsPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const savedSettings = useProviderConfigStore((state) => state.settings)
   const setSettings = useProviderConfigStore((state) => state.setSettings)
+  const currentUser = useUserStore((state) => state.currentUser)
+  const setActiveConversation = useAgentSessionStore((state) => state.setActiveConversation)
+  const hydratedAgentSelectionUpdatedAtRef = useRef<string | null>(null)
   const settings = useMemo(() => normalizeProviderSettings(savedSettings), [savedSettings])
   const providers = settings.providers
   const appServerProviders = useMemo(() => providers.filter(usesAppServerProtocol), [providers])
+  const selectedProvider = appServerProviders.find((provider) => provider.id === settings.defaultProviderId)
+    ?? appServerProviders.find((provider) => provider.enabled)
+    ?? appServerProviders[0]
   const activeProviderKey = activeProviderKeyFromPath(location.pathname, appServerProviders)
-    ?? (appServerProviders[0] ? providerRouteKey(appServerProviders[0]) : MOVA_PROVIDER_ID)
+    ?? (selectedProvider ? providerRouteKey(selectedProvider) : appServerProviders[0] ? providerRouteKey(appServerProviders[0]) : MOVA_PROVIDER_ID)
   const activeProvider = appServerProviders.find((provider) => providerMatchesRouteKey(provider, activeProviderKey))
   const activeAppServerKey = activeProvider ? appServerKey(activeProvider) : activeProviderKey
   const enabledCount = enabledProviders(settings).length
@@ -87,6 +103,14 @@ export default function AgentsPage() {
     return buildProviderOptions(defaultWorkspaceConfigQuery.data, backendModelsQuery.data ?? [])
   }, [defaultWorkspaceConfigQuery.data, backendModelsQuery.data])
 
+  useEffect(() => {
+    const config = defaultWorkspaceConfigQuery.data
+    if (!config?.agentSelection || hydratedAgentSelectionUpdatedAtRef.current === config.updatedAt) return
+    hydratedAgentSelectionUpdatedAtRef.current = config.updatedAt
+    const nextSettings = agentProviderSettingsWithWorkspaceSelection(useProviderConfigStore.getState().settings, config.agentSelection)
+    setSettings(nextSettings)
+  }, [defaultWorkspaceConfigQuery.data, setSettings])
+
   function patchProvider(id: string, patch: Partial<ProviderConfig>) {
     const provider = providers.find((item) => item.id === id)
       ?? DEFAULT_PROVIDER_SETTINGS.providers.find((item) => item.id === id)
@@ -105,6 +129,20 @@ export default function AgentsPage() {
     void Promise.all([defaultWorkspaceConfigQuery.refetch(), workspaceConfigQuery.refetch(), backendModelsQuery.refetch()])
   }
 
+  function activateProvider(provider: ProviderConfig) {
+    void commitAgentProviderActivation({
+      settings,
+      provider,
+      ...(currentUser?.ID ? { userId: String(currentUser.ID) } : {}),
+      setSettings,
+      setActiveConversation,
+      saveWorkspaceConfig: async (input) => {
+        await providerSessionClient.saveWorkspaceConfig(input)
+        await defaultWorkspaceConfigQuery.refetch()
+      },
+    })
+  }
+
   return (
     <AgentPageShell data-testid="agents-page">
       <AgentPageShellHeader>
@@ -113,13 +151,13 @@ export default function AgentsPage() {
             <AgentConsoleHeaderTitleRow>
               <IdentityMark kind="agent" id="mova" />
               <AgentConsoleHeaderTitle>当前 Agent</AgentConsoleHeaderTitle>
-              <AgentConsoleStatusBadge intent={enabledCount > 0 ? 'success' : 'warning'} emphasis="soft">
-                {activeProvider?.label ?? '未选择'}
+              <AgentConsoleStatusBadge intent={selectedProvider ? 'success' : 'warning'} emphasis="soft">
+                {selectedProvider?.label ?? '未选择'}
               </AgentConsoleStatusBadge>
               {(defaultWorkspaceConfigQuery.isLoading || workspaceConfigQuery.isLoading || backendModelsQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              选择唯一生效的 app-server Agent，并管理账号来源和运行生命周期；运行中配置会锁定。
+              列表中的开关只负责选择唯一生效的 app-server Agent；点击列表项进入对应配置。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -141,19 +179,49 @@ export default function AgentsPage() {
 
       <AgentConsoleDocumentBody>
         <AgentConsoleStack spacing="loose">
-          <AgentConsoleTabList>
+          <AgentConsoleAgentList aria-label="Agent 切换列表">
             {appServerProviders.map((provider) => {
               const key = providerRouteKey(provider)
+              const current = provider.id === settings.defaultProviderId
+              const viewing = providerMatchesRouteKey(provider, activeProviderKey)
               return (
-                <AgentTabButton key={provider.id} to={providerRoute(key)} active={providerMatchesRouteKey(provider, activeProviderKey)} icon={<Cable size={14} />}>
-                  <IdentityBadge kind="agent" id={key} label={provider.label} size="xs" />
-                </AgentTabButton>
+                <AgentConsoleAgentListRow
+                  key={provider.id}
+                  active={viewing}
+                  onClick={() => navigate(providerRoute(key))}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    navigate(providerRoute(key))
+                  }}
+                  aria-label={`配置 ${provider.label}`}
+                >
+                  <span className="agent-console-local-tool-card__copy">
+                    <span className="agent-console-local-tool-card__title">{provider.label}</span>
+                    <span className="agent-console-local-tool-card__detail">
+                      <IdentityBadge kind="agent" id={key} label={key} size="xs" /> {viewing ? '正在配置' : '点击修改配置'}
+                    </span>
+                  </span>
+                  <AgentConsoleStatusBadge intent={current ? 'success' : provider.enabled ? 'neutral' : 'warning'} emphasis="soft">
+                    {current ? '当前启用' : provider.enabled ? '可切换' : '已停用'}
+                  </AgentConsoleStatusBadge>
+                  <AgentConsoleAgentSwitch
+                    checked={current}
+                    disabled={!provider.enabled || current}
+                    aria-label={`启用 ${provider.label}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (!current) activateProvider(provider)
+                    }}
+                  />
+                  <ChevronRight size={16} aria-hidden="true" />
+                </AgentConsoleAgentListRow>
               )
             })}
-          </AgentConsoleTabList>
+          </AgentConsoleAgentList>
 
           <AgentConsoleCallout compact tone="neutral">
-            同一时间只会有一个 Agent 生效。当前选择：{activeProvider?.label ?? activeProviderKey}。
+            同一时间只会有一个 Agent 生效。当前选择：{selectedProvider?.label ?? settings.defaultProviderId}。已配置可用项：{enabledCount}。
           </AgentConsoleCallout>
 
           {defaultWorkspaceConfigQuery.error ? <AgentConsoleInlineError>{errorMessage(defaultWorkspaceConfigQuery.error)}</AgentConsoleInlineError> : null}
@@ -173,17 +241,6 @@ export default function AgentsPage() {
         </AgentConsoleStack>
       </AgentConsoleDocumentBody>
     </AgentPageShell>
-  )
-}
-
-function AgentTabButton({ to, active, icon, children }: { to: string; active: boolean; icon: ReactNode; children: ReactNode }) {
-  return (
-    <AgentConsoleTabButton asChild active={active}>
-      <NavLink to={to}>
-        {icon}
-        {children}
-      </NavLink>
-    </AgentConsoleTabButton>
   )
 }
 

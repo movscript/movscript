@@ -282,7 +282,7 @@ func (w *Worker) resourceURL(id *uint) (string, error) {
 
 // loadInputResources reads all input resource bytes from storage, classified by type.
 // It reads both the new InputResourceIDs JSON array and the legacy InputResourceID field.
-func (w *Worker) loadInputResources(job *persistencemodel.Job) (imageData, videoData []ai.MediaData) {
+func (w *Worker) loadInputResources(job *persistencemodel.Job) (imageData, videoData, audioData, textData []ai.MediaData) {
 	ids := parseResourceIDs(job.InputResourceIDs)
 	// Append legacy single ID if not already in the list.
 	if job.InputResourceID != nil {
@@ -298,12 +298,12 @@ func (w *Worker) loadInputResources(job *persistencemodel.Job) (imageData, video
 		}
 	}
 	if len(ids) == 0 {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 
 	var resources []persistencemodel.RawResource
 	if err := w.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 	// Preserve order of ids.
 	byID := make(map[uint]persistencemodel.RawResource, len(resources))
@@ -326,9 +326,13 @@ func (w *Worker) loadInputResources(job *persistencemodel.Job) (imageData, video
 			imageData = append(imageData, md)
 		case "video":
 			videoData = append(videoData, md)
+		case "audio":
+			audioData = append(audioData, md)
+		case "text", "subtitle":
+			textData = append(textData, md)
 		}
 	}
-	return imageData, videoData
+	return imageData, videoData, audioData, textData
 }
 
 // readResourceBytes reads a resource's bytes directly from the internal resource store.

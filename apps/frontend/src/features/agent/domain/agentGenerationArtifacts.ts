@@ -76,6 +76,7 @@ function isGenerationResourceTool(toolName: unknown) {
     || toolName === 'generation_job_get'
     || toolName === 'generation_image_job_get'
     || toolName === 'generation_video_job_get'
+    || toolName === 'generation_audio_job_get'
     || toolName === 'generation_job_wait'
     || toolName === 'generation_job_list'
 }
@@ -83,6 +84,7 @@ function isGenerationResourceTool(toolName: unknown) {
 function isGenerationSubmitTool(toolName: unknown) {
   return toolName === 'generation_image_generate'
     || toolName === 'generation_video_generate'
+    || toolName === 'generation_audio_generate'
     || toolName === 'generation_job_create'
 }
 
@@ -110,7 +112,6 @@ function generationParamAuditFromToolResult(result: unknown): Omit<ChatGeneratio
   const resultRecord = isRecord(result) ? result : undefined
   return {
     auditVersion: numericField(audit, 'audit_version') ?? numericField(audit, 'auditVersion'),
-    modelConfigId: numericField(audit, 'model_config_id') ?? numericField(audit, 'modelConfigId'),
     modelContractLoaded: audit.model_contract_loaded === true || audit.modelContractLoaded === true,
     paramsSchemaLoaded: audit.params_schema_loaded === true || audit.paramsSchemaLoaded === true,
     paramsSchemaRuleCount: numericField(audit, 'params_schema_rule_count') ?? numericField(audit, 'paramsSchemaRuleCount'),

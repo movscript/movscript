@@ -46,7 +46,6 @@ import {
   ModelProvidersPage,
   MovScriptWorkspaceFilesPage,
   MovScriptWorkspaceReviewPage,
-  OnboardingPage,
   OrgSelectPage,
   ProjectOverviewPage,
   ProjectStandardsPage,
@@ -57,7 +56,7 @@ import {
 
 const AppRouter = typeof window !== 'undefined' && window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 
-export function AnonymousAppRouter({ onboardingCompleted }: { onboardingCompleted: boolean }) {
+export function AnonymousAppRouter() {
   return (
     <ErrorBoundary>
       <AppRouter>
@@ -69,8 +68,7 @@ export function AnonymousAppRouter({ onboardingCompleted }: { onboardingComplete
           <Routes>
             <Route path={ROUTES.invite} element={<InvitePage />} />
             <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
+            <Route path="*" element={<AuthPage />} />
           </Routes>
         </RouteSuspense>
       </AppRouter>

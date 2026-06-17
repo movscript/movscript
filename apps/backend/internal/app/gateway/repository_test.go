@@ -14,12 +14,12 @@ func TestGormRepositoryUpdateAPIKeyPersistsDomainFields(t *testing.T) {
 	db := openModelGatewayRepositoryTestDB(t)
 	repo := &gormRepository{db: db}
 	key := domaingateway.NewAPIKey(domaingateway.NewAPIKeySpec{
-		Name:            "Original",
-		KeyPrefix:       "mgw_prefix",
-		KeyHash:         "hash",
-		OwnerUserID:     1,
-		AllowedModelIDs: []uint{1},
-		AllowedScopes:   []string{"model:chat"},
+		Name:                   "Original",
+		KeyPrefix:              "mgw_prefix",
+		KeyHash:                "hash",
+		OwnerUserID:            1,
+		AllowedCatalogEntryIDs: []uint{1},
+		AllowedScopes:          []string{"model:chat"},
 	})
 	if err := repo.CreateAPIKey(context.Background(), &key); err != nil {
 		t.Fatalf("CreateAPIKey() error = %v", err)
@@ -29,12 +29,12 @@ func TestGormRepositoryUpdateAPIKeyPersistsDomainFields(t *testing.T) {
 	enabled := false
 	projectID := uint(9)
 	key.ApplyUpdate(domaingateway.APIKeyUpdateSpec{
-		Name:            &name,
-		ProjectID:       &projectID,
-		ProjectIDSet:    true,
-		AllowedModelIDs: []uint{2, 3},
-		AllowedScopes:   []string{"*"},
-		IsEnabled:       &enabled,
+		Name:                   &name,
+		ProjectID:              &projectID,
+		ProjectIDSet:           true,
+		AllowedCatalogEntryIDs: []uint{2, 3},
+		AllowedScopes:          []string{"*"},
+		IsEnabled:              &enabled,
 	})
 	if err := repo.UpdateAPIKey(context.Background(), &key); err != nil {
 		t.Fatalf("UpdateAPIKey() error = %v", err)
@@ -47,8 +47,8 @@ func TestGormRepositoryUpdateAPIKeyPersistsDomainFields(t *testing.T) {
 	if row.Name != "Updated" {
 		t.Fatalf("Name = %q, want Updated", row.Name)
 	}
-	if row.AllowedModelIDs != "[2,3]" {
-		t.Fatalf("AllowedModelIDs = %q, want [2,3]", row.AllowedModelIDs)
+	if row.AllowedCatalogEntryIDs != "[2,3]" {
+		t.Fatalf("AllowedCatalogEntryIDs = %q, want [2,3]", row.AllowedCatalogEntryIDs)
 	}
 	if row.AllowedScopes != `["*"]` {
 		t.Fatalf("AllowedScopes = %q, want [\"*\"]", row.AllowedScopes)

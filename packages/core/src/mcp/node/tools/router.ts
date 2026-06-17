@@ -1,12 +1,14 @@
 import { getFocus } from './focus/actions'
 import {
+  artifactGetStream,
+  artifactUploadExport,
+  artifactUploadHlsStream,
+} from './artifact/actions.js'
+import {
   domainAppendCandidate,
   domainBuildContentUnitBackendPrompt,
-  domainComposeSceneMomentFromEditPlan,
-  domainComposeProductionFromTimeline,
   domainInterpretContentUnitArtifact,
   domainInterpret,
-  domainApplyProductionTimelineCommands,
   domainCreateAssetSlotCandidate,
   domainCreateContentCandidate,
   domainCreateContentCandidateBatch,
@@ -28,9 +30,10 @@ import {
   domainReadContentUnitSelectionValidity,
   domainReadPreviewTimeline,
   domainReadProductionTimeline,
+  domainReadProductionEditPlan,
   domainReadSceneMomentEditPlan,
+  domainCreateEditingProjectContext,
   domainReadSceneMomentTimeline,
-  domainApplySceneMomentTimelineCommands,
   domainReadProductionWorkPlan,
   domainReadScriptSource,
   domainRegenerationPlan,
@@ -58,10 +61,49 @@ import {
   domainUpsertShot,
   domainUpsertStoryboard,
 } from './domain/actions.js'
+import {
+  editingProjectCreate,
+  editingProjectAddAsset,
+  editingProjectCreateFromEditPlan,
+  editingProjectGet,
+  editingProjectRemoveAsset,
+  editingProjectSave,
+  editingProjectUpdateSettings,
+  editingExportCreateCandidate,
+  editingExportImportResource,
+  editingExportPublishHls,
+  editingExportSaveLocal,
+  editingRuntimeCapabilitiesGet,
+  editingTaskCancel,
+  editingTaskGet,
+  editingTaskHlsCreate,
+  editingTaskLogsGet,
+  editingTaskReframeCreate,
+  editingTaskRenderCreate,
+  editingTaskTranscodeCreate,
+  editingTimelineAddClip,
+  editingTimelineAddTrack,
+  editingTimelineApplyCommands,
+  editingTimelineDeleteClip,
+  editingTimelineMoveClip,
+  editingTimelineRemoveTrack,
+  editingTimelineSplitClip,
+  editingTimelineUpdateClip,
+  editingTimelineValidate,
+} from './editing/actions.js'
 import { listModels } from './model/actions'
 import {
   generateImage,
+  alignSubtitle,
+  generateAudio,
+  generateMusic,
+  generateSfx,
+  generateSubtitle,
   generateVideo,
+  generateVoiceover,
+  translateSubtitle,
+  getAudioGenerationJob,
+  getAudioGenerationJobs,
   getImageGenerationJob,
   getImageGenerationJobs,
   getVideoGenerationJob,
@@ -130,6 +172,30 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'system_generate_video_job_get_batch':
     case 'generation_video_job_get_batch':
       return toolText(await getVideoGenerationJobs(args))
+    case 'generation_audio_generate':
+      return toolText(await generateAudio(args))
+    case 'system_generate_voiceover':
+    case 'generation_voiceover_generate':
+      return toolText(await generateVoiceover(args))
+    case 'system_generate_music':
+    case 'generation_music_generate':
+      return toolText(await generateMusic(args))
+    case 'system_generate_sfx':
+    case 'generation_sfx_generate':
+      return toolText(await generateSfx(args))
+    case 'system_generate_subtitle':
+    case 'generation_subtitle_generate':
+      return toolText(await generateSubtitle(args))
+    case 'system_align_subtitle':
+    case 'generation_subtitle_align':
+      return toolText(await alignSubtitle(args))
+    case 'system_translate_subtitle':
+    case 'generation_subtitle_translate':
+      return toolText(await translateSubtitle(args))
+    case 'generation_audio_job_get':
+      return toolText(await getAudioGenerationJob(args))
+    case 'generation_audio_job_get_batch':
+      return toolText(await getAudioGenerationJobs(args))
     case 'system_resource_library_query':
     case 'movscript_resource_library_query':
       return toolText(await queryResourceLibrary(args))
@@ -195,6 +261,12 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'system_external_resource_search':
     case 'movscript_external_resource_search':
       return toolText(await searchExternalResources(args))
+    case 'system_artifact_upload_export':
+      return toolText(await artifactUploadExport(args))
+    case 'system_artifact_upload_hls_stream':
+      return toolText(await artifactUploadHlsStream(args))
+    case 'system_artifact_get_stream':
+      return toolText(await artifactGetStream(args))
     case 'domain_get_model':
       return toolText(await domainGetModel(args))
     case 'domain_query_entities':
@@ -219,16 +291,12 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await domainReadProductionTimeline(args))
     case 'domain_read_scene_moment_edit_plan':
       return toolText(await domainReadSceneMomentEditPlan(args))
+    case 'domain_read_production_edit_plan':
+      return toolText(await domainReadProductionEditPlan(args))
+    case 'domain_create_editing_project_context':
+      return toolText(await domainCreateEditingProjectContext(args))
     case 'domain_read_scene_moment_timeline':
       return toolText(await domainReadSceneMomentTimeline(args))
-    case 'domain_apply_production_timeline_commands':
-      return toolText(await domainApplyProductionTimelineCommands(args))
-    case 'domain_apply_scene_moment_timeline_commands':
-      return toolText(await domainApplySceneMomentTimelineCommands(args))
-    case 'domain_compose_production_from_timeline':
-      return toolText(await domainComposeProductionFromTimeline(args))
-    case 'domain_compose_scene_moment_from_edit_plan':
-      return toolText(await domainComposeSceneMomentFromEditPlan(args))
     case 'domain_read_content_unit_runtime_panel':
       return toolText(await domainReadContentUnitRuntimePanel(args))
     case 'domain_read_content_unit_generation_prompt':
@@ -310,6 +378,62 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return interpretToolText(await domainInterpret(args))
     case 'domain_regeneration_plan':
       return toolText(await domainRegenerationPlan(args))
+    case 'editing_project_create':
+      return toolText(await editingProjectCreate(args))
+    case 'editing_project_create_from_edit_plan':
+      return toolText(await editingProjectCreateFromEditPlan(args))
+    case 'editing_project_add_asset':
+      return toolText(await editingProjectAddAsset(args))
+    case 'editing_project_remove_asset':
+      return toolText(await editingProjectRemoveAsset(args))
+    case 'editing_project_get':
+      return toolText(await editingProjectGet(args))
+    case 'editing_project_update_settings':
+      return toolText(await editingProjectUpdateSettings(args))
+    case 'editing_project_save':
+      return toolText(await editingProjectSave(args))
+    case 'editing_timeline_apply_commands':
+      return toolText(await editingTimelineApplyCommands(args))
+    case 'editing_timeline_add_track':
+      return toolText(await editingTimelineAddTrack(args))
+    case 'editing_timeline_remove_track':
+      return toolText(await editingTimelineRemoveTrack(args))
+    case 'editing_timeline_add_clip':
+      return toolText(await editingTimelineAddClip(args))
+    case 'editing_timeline_update_clip':
+      return toolText(await editingTimelineUpdateClip(args))
+    case 'editing_timeline_split_clip':
+      return toolText(await editingTimelineSplitClip(args))
+    case 'editing_timeline_move_clip':
+      return toolText(await editingTimelineMoveClip(args))
+    case 'editing_timeline_delete_clip':
+      return toolText(await editingTimelineDeleteClip(args))
+    case 'editing_timeline_validate':
+      return toolText(await editingTimelineValidate(args))
+    case 'editing_runtime_capabilities_get':
+      return toolText(await editingRuntimeCapabilitiesGet(args))
+    case 'editing_task_render_create':
+      return toolText(await editingTaskRenderCreate(args))
+    case 'editing_task_hls_create':
+      return toolText(await editingTaskHlsCreate(args))
+    case 'editing_task_transcode_create':
+      return toolText(await editingTaskTranscodeCreate(args))
+    case 'editing_task_reframe_create':
+      return toolText(await editingTaskReframeCreate(args))
+    case 'editing_task_get':
+      return toolText(await editingTaskGet(args))
+    case 'editing_task_cancel':
+      return toolText(await editingTaskCancel(args))
+    case 'editing_task_logs_get':
+      return toolText(await editingTaskLogsGet(args))
+    case 'editing_export_import_resource':
+      return toolText(await editingExportImportResource(args))
+    case 'editing_export_save_local':
+      return toolText(await editingExportSaveLocal(args))
+    case 'editing_export_publish_hls':
+      return toolText(await editingExportPublishHls(args))
+    case 'editing_export_create_candidate':
+      return toolText(await editingExportCreateCandidate(args))
     case 'system_project_create':
     case 'movscript_project_create':
       return toolText(await createProject(args))

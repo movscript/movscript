@@ -19,7 +19,11 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	if job.ProviderTaskID != "" {
 		return w.pollVideoProviderTask(ctx, debugCtx, job, dur, sm, debugResult)
 	}
-	if w.aiService.SupportsVideoTasks(job.ModelConfigID) {
+	route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+	if err != nil {
+		return err
+	}
+	if w.aiService.SupportsVideoTasksRoute(ctx, job.UserID, route) {
 		return w.submitVideoProviderTask(ctx, debugCtx, job, req, sm, debugResult)
 	}
 	return w.callVideoProvider(ctx, debugCtx, job, req, sm, debugResult)
@@ -44,7 +48,7 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		ReturnLastFrame:       params.BoolPtr("return_last_frame"),
 		ServiceTier:           params.String("service_tier"),
 		ExecutionExpiresAfter: params.Int("execution_expires_after"),
-		Workspace:                 params.BoolPtr("workspace"),
+		Workspace:             params.BoolPtr("workspace"),
 		WebSearch:             params.Bool("web_search"),
 		MovementAmplitude:     params.String("movement_amplitude"),
 		OffPeak:               params.BoolPtr("off_peak"),
@@ -63,7 +67,11 @@ func (w *Worker) pollVideoProviderTask(ctx context.Context, debugCtx context.Con
 		return err
 	}
 	resp, err := callProviderWithTimeout(debugCtx, providerPollTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-		return w.aiService.CallVideoPollWithUsage(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, duration, w.usageContext(job))
+		route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+		if err != nil {
+			return ai.VideoResponse{}, err
+		}
+		return w.aiService.CallVideoPollWithRouteUsage(ctx, job.UserID, route, job.ProviderTaskID, job.ProviderTaskKind, duration, w.usageContext(job))
 	})
 	w.saveDebugInfo(job, debugResult)
 	w.appendProviderTaskEvent(job, "poll", resp, err)
@@ -104,7 +112,11 @@ func (w *Worker) pollVideoProviderTask(ctx context.Context, debugCtx context.Con
 func (w *Worker) submitVideoProviderTask(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, req ai.VideoRequest, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	sm.enter(StateSubmittingProviderTask, "submit async video provider task")
 	resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-		return w.aiService.CallVideoStartWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
+		route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+		if err != nil {
+			return ai.VideoResponse{}, err
+		}
+		return w.aiService.CallVideoStartWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
 	w.saveDebugInfo(job, debugResult)
 	w.appendProviderTaskEvent(job, "submit", resp, err)
@@ -140,8 +152,12 @@ func (w *Worker) callVideoProvider(ctx context.Context, debugCtx context.Context
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
+	route, err := w.resolveJobModelRoute(ctx, job, job.JobType)
+	if err != nil {
+		return err
+	}
 	resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-		return w.aiService.CallVideoWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
+		return w.aiService.CallVideoWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)

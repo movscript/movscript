@@ -170,7 +170,6 @@ function compactGenerationTraceData(value: unknown): Record<string, unknown> | u
     'providerName',
     'modelDisplay',
     'modelIdentifier',
-    'modelConfigId',
     'status',
     'stage',
     'progress',

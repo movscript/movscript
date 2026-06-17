@@ -45,7 +45,6 @@ export function buildGenerationAppBootstrapScenario(
   const providerName = kind === 'video' ? 'Sanitized Video Provider' : 'Sanitized Image Provider'
   const modelDisplay = kind === 'video' ? 'Provider Video Model' : 'Provider Image Model'
   const modelIdentifier = kind === 'video' ? 'provider-video-v1' : 'provider-image-v2'
-  const modelConfigId = kind === 'video' ? 82 : 81
 
   const userMessage: ChatMessage = {
     id: 'message-user-generation-e2e',
@@ -76,7 +75,6 @@ export function buildGenerationAppBootstrapScenario(
             providerName,
             modelDisplay,
             modelIdentifier,
-            modelConfigId,
             status: 'succeeded',
             stage: 'completed',
           },
@@ -89,7 +87,6 @@ export function buildGenerationAppBootstrapScenario(
             providerName,
             modelDisplay,
             modelIdentifier,
-            modelConfigId,
             status: 'succeeded',
             stage: 'completed',
             progress: 100,
@@ -116,7 +113,6 @@ export function buildGenerationAppBootstrapScenario(
             providerName,
             modelDisplay,
             modelIdentifier,
-            modelConfigId,
             status: 'failed',
             stage: 'failed',
             progress: 47,
@@ -141,7 +137,6 @@ export function buildGenerationAppBootstrapScenario(
             providerName,
             modelDisplay,
             modelIdentifier,
-            modelConfigId,
             status: 'timeout',
             stage: 'timeout',
             progress: 47,
@@ -191,7 +186,6 @@ export function buildGenerationAppBootstrapScenario(
           providerName,
           modelDisplay,
           modelIdentifier,
-          modelConfigId,
           status: outcome === 'success' ? 'running' : outcome === 'timeout' ? 'timeout' : 'failed',
           stage: outcome === 'success' ? 'rendering' : outcome === 'timeout' ? 'timeout' : 'failed',
           progress: 47,

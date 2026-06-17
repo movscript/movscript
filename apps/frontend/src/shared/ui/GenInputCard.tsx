@@ -107,8 +107,8 @@ export interface GenInputCardProps {
   onUpload: (file: File) => void
   isRunning: boolean
   canGenerate: boolean
-  selectedModelId: number | null
-  inputType: 'image' | 'video' | 'image+video'
+  selectedModelId: string | null
+  inputType: 'none' | 'image' | 'video' | 'image+video'
   promptPlaceholder?: string
   uploading: boolean
   imageEditRequired?: boolean
@@ -155,6 +155,7 @@ export function GenInputCard({
   const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
 
+  const acceptsMediaInput = inputType !== 'none'
   const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? IMAGE_UPLOAD_ACCEPT : MEDIA_UPLOAD_ACCEPT
 
   const mentionResources = attachments
@@ -278,7 +279,7 @@ export function GenInputCard({
           }
         />
 
-        {mentionQuery !== null && (
+        {acceptsMediaInput && mentionQuery !== null && (
           <GenerationMentionMenu>
             {mentionResources.length === 0 ? (
               <GenerationMentionEmpty>
@@ -337,7 +338,7 @@ export function GenInputCard({
             )
           })}
         </GenerationSlotList>
-      ) : attachments.length > 0 ? (
+      ) : acceptsMediaInput && attachments.length > 0 ? (
         /* Legacy flat attachment list */
         <GenerationAttachmentList>
           {attachments.map((r, i) => (
@@ -396,35 +397,39 @@ export function GenInputCard({
       {/* Action bar */}
       <AgentComposerToolbar>
         <div className="ms-agent-composer__toolstrip flex min-w-0 flex-1 flex-wrap items-center gap-1">
-          <AgentComposerAction
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            aria-label={t('shared.genInput.addToLibrary')}
-            title={t('shared.genInput.addToLibrary')}
-          >
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          </AgentComposerAction>
-          <GenerationHiddenFileInput
-            ref={fileRef}
-            accept={accept}
-            onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
-          />
-          <AgentComposerAction
-            onClick={() => {
-              const el = editorRef.current
-              if (!el) return
-              el.focus()
-              document.execCommand('insertText', false, '@')
-              setMentionQuery('')
-            }}
-            aria-label={t('shared.genInput.mention')}
-            title={t('shared.genInput.mention')}
-          >
-            <AtSign size={14} />
-          </AgentComposerAction>
-          <GenerationActionHint data-variant="library" icon={<Library size={12} />}>
-            {t('shared.genInput.libraryOnlyHint')}
-          </GenerationActionHint>
+          {acceptsMediaInput ? (
+            <>
+              <AgentComposerAction
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                aria-label={t('shared.genInput.addToLibrary')}
+                title={t('shared.genInput.addToLibrary')}
+              >
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              </AgentComposerAction>
+              <GenerationHiddenFileInput
+                ref={fileRef}
+                accept={accept}
+                onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+              />
+              <AgentComposerAction
+                onClick={() => {
+                  const el = editorRef.current
+                  if (!el) return
+                  el.focus()
+                  document.execCommand('insertText', false, '@')
+                  setMentionQuery('')
+                }}
+                aria-label={t('shared.genInput.mention')}
+                title={t('shared.genInput.mention')}
+              >
+                <AtSign size={14} />
+              </AgentComposerAction>
+              <GenerationActionHint data-variant="library" icon={<Library size={12} />}>
+                {t('shared.genInput.libraryOnlyHint')}
+              </GenerationActionHint>
+            </>
+          ) : null}
         </div>
         <div className="ms-agent-composer__submit-group">
           <GenerationActionHint data-variant="shortcut">⌘ + Enter</GenerationActionHint>

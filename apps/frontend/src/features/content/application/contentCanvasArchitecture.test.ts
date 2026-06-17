@@ -79,64 +79,62 @@ import {
   radialNodeFromContentNode,
   reconcileContentCanvasInspectorSelection,
   sceneSettingGroupFromNode,
-  timelineItemsFromOpenCutDocument,
+  timelineItemsFromMediaEditingProject,
 } from '../components/contentCanvasWorkspaceModel'
 import {
   buildContentCanvasGraph,
 } from '../domain/contentCanvasGraph'
 import type { ContentCanvasEdge, ContentCanvasGraph, ContentCanvasNode } from '../domain/contentCanvasTypes'
 
-test('content canvas timeline renders OpenCut-compatible timeline documents', () => {
-  const tracks = timelineItemsFromOpenCutDocument({
-    schema: 'opencut.timeline.v1',
-    project: {
-      currentSceneId: 'scene_1',
-      metadata: { duration: 12 },
-      scenes: [{
-        id: 'scene_1',
-        tracks: [
-          {
-            id: 'voice',
-            type: 'audio',
-            elements: [{
-              id: 'voice_1',
-              name: 'Narration',
-              type: 'audio',
-              startTime: 0,
-              duration: 6,
-              trimStart: 1,
-              trimEnd: 0.5,
-              metadata: { movscript: { resourceId: 21, contentUnitId: 'cu_voice', selected: true } },
-            }],
-          },
-          {
-            id: 'picture',
-            type: 'video',
-            elements: [{
-              id: 'clip_1',
-              name: 'Opening shot',
-              type: 'video',
-              startTime: 2,
-              duration: 4,
-              trimStart: 0.25,
-              trimEnd: 0,
-              metadata: { movscript: { resourceId: 34, contentUnitId: 'cu_scene', selected: true } },
-            }],
-          },
-          {
-            id: 'subs',
-            type: 'text',
-            elements: [{
-              id: 'caption_1',
-              name: 'Caption',
-              type: 'text',
-              startTime: 2,
-              duration: 3,
-              metadata: { movscript: { contentUnitId: 'cu_caption', stale: true } },
-            }],
-          },
-        ],
-      }],
+test('content canvas timeline renders MediaEditingProject timelines', () => {
+  const tracks = timelineItemsFromMediaEditingProject({
+    version: 1,
+    id: 'edit_scene_1',
+    title: 'Scene 1',
+    timeline: {
+      durationMs: 12000,
+      tracks: [
+        {
+          id: 'voice',
+          type: 'audio',
+          clips: [{
+            id: 'voice_1',
+            assetType: 'audio',
+            asset: { resourceId: 21, label: 'Narration' },
+            timelineStartMs: 0,
+            durationMs: 6000,
+            sourceStartMs: 1000,
+            sourceEndMs: 7500,
+            metadata: { movscript: { resourceId: 21, contentUnitId: 'cu_voice', selected: true } },
+          }],
+        },
+        {
+          id: 'picture',
+          type: 'video',
+          clips: [{
+            id: 'clip_1',
+            assetType: 'video',
+            asset: { resourceId: 34, label: 'Opening shot' },
+            timelineStartMs: 2000,
+            durationMs: 4000,
+            sourceStartMs: 250,
+            sourceEndMs: 4250,
+            metadata: { movscript: { resourceId: 34, contentUnitId: 'cu_scene', selected: true } },
+          }],
+        },
+        {
+          id: 'subs',
+          type: 'subtitle',
+          clips: [{
+            id: 'caption_1',
+            assetType: 'text',
+            text: { content: 'Caption' },
+            timelineStartMs: 2000,
+            durationMs: 3000,
+            metadata: { movscript: { contentUnitId: 'cu_caption', stale: true } },
+          }],
+        },
+      ],
     },
   })
 
@@ -161,46 +159,42 @@ test('content canvas project loader maps workspace editing timelines to scene an
     path: 'productions/pilot/segments/intro/scene_moments/rain_call/scene_moment.json',
     record: { id: 'rain_call', title: 'Rain call' },
   }
-  const timelineDocument = {
-    schema: 'opencut.timeline.v1',
-    project: {
-      currentSceneId: 'scene_moment_rain_call',
-      metadata: { duration: 8 },
-      scenes: [{
-        id: 'scene_moment_rain_call',
-        tracks: [{
-          id: 'video',
-          type: 'video',
-          elements: [{
-            id: 'clip_1',
-            name: 'Rain call clip',
-            type: 'video',
-            startTime: 0,
-            duration: 8,
-            metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
-          }],
+  const editingProject = {
+    version: 1,
+    id: 'edit_rain_call',
+    title: 'Rain call',
+    timeline: {
+      durationMs: 8000,
+      tracks: [{
+        id: 'video',
+        type: 'video',
+        clips: [{
+          id: 'clip_1',
+          assetType: 'video',
+          asset: { resourceId: 55, label: 'Rain call clip' },
+          timelineStartMs: 0,
+          durationMs: 8000,
+          metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
         }],
       }],
     },
   }
-  const productionTimelineDocument = {
-    schema: 'opencut.timeline.v1',
-    project: {
-      currentSceneId: 'production_pilot',
-      metadata: { duration: 8 },
-      scenes: [{
-        id: 'production_pilot',
-        tracks: [{
-          id: 'video',
-          type: 'video',
-          elements: [{
-            id: 'production_clip_1',
-            name: 'Rain call clip',
-            type: 'video',
-            startTime: 0,
-            duration: 8,
-            metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
-          }],
+  const productionEditingProject = {
+    version: 1,
+    id: 'edit_pilot',
+    title: 'Pilot',
+    timeline: {
+      durationMs: 8000,
+      tracks: [{
+        id: 'video',
+        type: 'video',
+        clips: [{
+          id: 'production_clip_1',
+          assetType: 'video',
+          asset: { resourceId: 55, label: 'Rain call clip' },
+          timelineStartMs: 0,
+          durationMs: 8000,
+          metadata: { movscript: { resourceId: 55, contentUnitId: 'cu_rain_call', selected: true } },
         }],
       }],
     },
@@ -229,23 +223,23 @@ test('content canvas project loader maps workspace editing timelines to scene an
         targetId: 'rain_call',
         targetPath: sceneMoment.path,
         status: 'ready_to_compose',
-        timelineDocument,
+        mediaEditingProject: editingProject,
       }, {
         targetKind: 'production',
         targetId: 'pilot',
         targetPath: production.path,
         status: 'ready_to_compose',
-        timelineDocument: productionTimelineDocument,
+        mediaEditingProject: productionEditingProject,
       }],
     }),
   } as never
 
   const project = await loadContentCanvasProject(7, gateway)
 
-  assert.equal(project.editingTimelinesByNodeId?.rain_call, timelineDocument)
-  assert.equal(project.editingTimelinesByNodeId?.['scene_moment:rain_call'], timelineDocument)
-  assert.equal(project.editingTimelinesByNodeId?.pilot, productionTimelineDocument)
-  assert.equal(project.editingTimelinesByNodeId?.['production:pilot'], productionTimelineDocument)
+  assert.equal(project.editingProjectsByNodeId?.rain_call, editingProject)
+  assert.equal(project.editingProjectsByNodeId?.['scene_moment:rain_call'], editingProject)
+  assert.equal(project.editingProjectsByNodeId?.pilot, productionEditingProject)
+  assert.equal(project.editingProjectsByNodeId?.['production:pilot'], productionEditingProject)
 })
 
 test('content canvas view plan delegates hidden relation summaries', () => {

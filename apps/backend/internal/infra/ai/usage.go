@@ -3,10 +3,12 @@ package ai
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
+
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"time"
 )
 
 const (
@@ -22,11 +24,12 @@ func lockingUpdate() clause.Locking {
 }
 
 type UsageContext struct {
-	OrgID           *uint
-	ProjectID       *uint
-	GatewayAPIKeyID *uint
-	JobID           *uint
-	ReservationID   *uint
+	OrgID                 *uint
+	ProjectID             *uint
+	GatewayAPIKeyID       *uint
+	JobID                 *uint
+	ReservationID         *uint
+	AIModelCatalogEntryID *uint
 }
 
 type UsageEstimate struct {
@@ -50,6 +53,22 @@ func (s *AIService) EstimateTextCost(modelConfigID uint, req TextRequest) (Usage
 	return estimateUsageCost(cfg, def, "text", inputTokens, outputTokens, 0, 1), nil
 }
 
+func (s *AIService) EstimateTextRouteCost(ctx context.Context, userID uint, route ModelRoute, req TextRequest) (UsageEstimate, error) {
+	_ = userID
+	for _, capability := range textRuntimeCapabilities() {
+		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
+		if err != nil {
+			return UsageEstimate{}, err
+		}
+		if handled {
+			inputTokens := estimateTextInputTokens(req)
+			outputTokens := maxPositive(req.MaxTokens, 1024)
+			return estimateUsageCost(definition.config, definition.def, "text", inputTokens, outputTokens, 0, 1), nil
+		}
+	}
+	return s.EstimateTextCost(route.ModelConfigID, req)
+}
+
 func (s *AIService) EstimateImageCost(modelConfigID uint, req ImageRequest) (UsageEstimate, error) {
 	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityImage)
 	if err != nil {
@@ -64,6 +83,24 @@ func (s *AIService) EstimateImageCost(modelConfigID uint, req ImageRequest) (Usa
 		n = 1
 	}
 	return estimateUsageCost(cfg, def, "image", 0, 0, 0, n), nil
+}
+
+func (s *AIService) EstimateImageRouteCost(ctx context.Context, userID uint, route ModelRoute, req ImageRequest) (UsageEstimate, error) {
+	_ = userID
+	for _, capability := range []string{CapabilityImage, CapabilityImageEdit} {
+		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
+		if err != nil {
+			return UsageEstimate{}, err
+		}
+		if handled {
+			n := req.N
+			if n <= 0 {
+				n = 1
+			}
+			return estimateUsageCost(definition.config, definition.def, "image", 0, 0, 0, n), nil
+		}
+	}
+	return s.EstimateImageCost(route.ModelConfigID, req)
 }
 
 func (s *AIService) EstimateVideoCost(modelConfigID uint, req VideoRequest) (UsageEstimate, error) {
@@ -81,21 +118,97 @@ func (s *AIService) EstimateVideoCost(modelConfigID uint, req VideoRequest) (Usa
 	return estimateUsageCost(cfg, def, "video", 0, 0, duration, 1), nil
 }
 
+func (s *AIService) EstimateVideoRouteCost(ctx context.Context, userID uint, route ModelRoute, req VideoRequest) (UsageEstimate, error) {
+	_ = userID
+	for _, capability := range []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
+		if err != nil {
+			return UsageEstimate{}, err
+		}
+		if handled {
+			duration := req.Duration
+			if duration <= 0 {
+				duration = definition.def.DefaultDurSec
+			}
+			if duration <= 0 {
+				duration = 1
+			}
+			return estimateUsageCost(definition.config, definition.def, "video", 0, 0, duration, 1), nil
+		}
+	}
+	return s.EstimateVideoCost(route.ModelConfigID, req)
+}
+
+func (s *AIService) EstimateAudioTTSCost(modelConfigID uint) (UsageEstimate, error) {
+	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityAudioTTS)
+	if err != nil {
+		return UsageEstimate{}, err
+	}
+	return estimateUsageCost(cfg, def, CapabilityAudioTTS, 0, 0, 0, 1), nil
+}
+
+func (s *AIService) EstimateCapabilityPerCallCost(modelConfigID uint, capability string) (UsageEstimate, error) {
+	cfg, _, def, err := s.loadConfig(modelConfigID, capability)
+	if err != nil {
+		return UsageEstimate{}, err
+	}
+	return estimateUsageCost(cfg, def, capability, 0, 0, 0, 1), nil
+}
+
+func (s *AIService) EstimateCapabilityPerCallRouteCost(ctx context.Context, userID uint, route ModelRoute, capability string) (UsageEstimate, error) {
+	_ = userID
+	definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
+	if err != nil {
+		return UsageEstimate{}, err
+	}
+	if handled {
+		return estimateUsageCost(definition.config, definition.def, capability, 0, 0, 0, 1), nil
+	}
+	return s.EstimateCapabilityPerCallCost(route.ModelConfigID, capability)
+}
+
+func (s *AIService) EstimateAudioGenerateCost(modelConfigID uint, capability string, durationSec int) (UsageEstimate, error) {
+	if !isAudioGenerationCapability(capability) {
+		return UsageEstimate{}, fmt.Errorf("unsupported audio generation capability %q", capability)
+	}
+	cfg, _, def, err := s.loadConfig(modelConfigID, capability)
+	if err != nil {
+		return UsageEstimate{}, err
+	}
+	return estimateUsageCost(cfg, def, capability, 0, 0, positiveAudioDuration(durationSec, def), 1), nil
+}
+
+func (s *AIService) EstimateAudioGenerateRouteCost(ctx context.Context, userID uint, route ModelRoute, capability string, durationSec int) (UsageEstimate, error) {
+	_ = userID
+	if !isAudioGenerationCapability(capability) {
+		return UsageEstimate{}, fmt.Errorf("unsupported audio generation capability %q", capability)
+	}
+	definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
+	if err != nil {
+		return UsageEstimate{}, err
+	}
+	if handled {
+		return estimateUsageCost(definition.config, definition.def, capability, 0, 0, positiveAudioDuration(durationSec, definition.def), 1), nil
+	}
+	return s.EstimateAudioGenerateCost(route.ModelConfigID, capability, durationSec)
+}
+
 func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext) (*persistencemodel.UsageReservation, error) {
 	if estimate.ImageCount <= 0 {
 		estimate.ImageCount = 1
 	}
 	if estimate.Cost <= 0 {
 		reservation := persistencemodel.UsageReservation{
-			UserID:          userID,
-			OrgID:           usage.OrgID,
-			AIModelConfigID: modelConfigID,
-			GatewayAPIKeyID: usage.GatewayAPIKeyID,
-			ProjectID:       usage.ProjectID,
-			JobID:           usage.JobID,
-			OperationType:   estimate.OperationType,
-			EstimatedCost:   0,
-			Status:          ReservationStatusReserved,
+			UserID:                userID,
+			OrgID:                 usage.OrgID,
+			AIModelConfigID:       modelConfigID,
+			AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
+			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
+			ProjectID:             usage.ProjectID,
+			JobID:                 usage.JobID,
+			OperationType:         estimate.OperationType,
+			EstimatedCost:         0,
+			Status:                ReservationStatusReserved,
 		}
 		if err := s.db.WithContext(ctx).Create(&reservation).Error; err != nil {
 			return nil, err
@@ -109,15 +222,16 @@ func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint
 			return err
 		}
 		reservation = persistencemodel.UsageReservation{
-			UserID:          userID,
-			OrgID:           usage.OrgID,
-			AIModelConfigID: modelConfigID,
-			GatewayAPIKeyID: usage.GatewayAPIKeyID,
-			ProjectID:       usage.ProjectID,
-			JobID:           usage.JobID,
-			OperationType:   estimate.OperationType,
-			EstimatedCost:   estimate.Cost,
-			Status:          ReservationStatusReserved,
+			UserID:                userID,
+			OrgID:                 usage.OrgID,
+			AIModelConfigID:       modelConfigID,
+			AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
+			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
+			ProjectID:             usage.ProjectID,
+			JobID:                 usage.JobID,
+			OperationType:         estimate.OperationType,
+			EstimatedCost:         estimate.Cost,
+			Status:                ReservationStatusReserved,
 		}
 		return tx.Create(&reservation).Error
 	})
@@ -186,50 +300,53 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 			}
 		}
 		entry := persistencemodel.UsageLog{
-			UserID:             userID,
-			OrgID:              firstUint(usage.OrgID, reservation.OrgID),
-			AIModelConfigID:    modelConfigID,
-			UsageReservationID: usage.ReservationID,
-			GatewayAPIKeyID:    usage.GatewayAPIKeyID,
-			ProjectID:          usage.ProjectID,
-			OperationType:      estimate.OperationType,
-			InputTokens:        estimate.InputTokens,
-			OutputTokens:       estimate.OutputTokens,
-			CachedInputTokens:  estimate.CachedInputTokens,
-			ReasoningTokens:    estimate.ReasoningTokens,
-			DurationSec:        estimate.DurationSec,
-			ImageCount:         estimate.ImageCount,
-			Cost:               estimate.Cost,
+			UserID:                userID,
+			OrgID:                 firstUint(usage.OrgID, reservation.OrgID),
+			AIModelConfigID:       modelConfigID,
+			AIModelCatalogEntryID: firstUint(usage.AIModelCatalogEntryID, reservation.AIModelCatalogEntryID),
+			UsageReservationID:    usage.ReservationID,
+			GatewayAPIKeyID:       usage.GatewayAPIKeyID,
+			ProjectID:             usage.ProjectID,
+			OperationType:         estimate.OperationType,
+			InputTokens:           estimate.InputTokens,
+			OutputTokens:          estimate.OutputTokens,
+			CachedInputTokens:     estimate.CachedInputTokens,
+			ReasoningTokens:       estimate.ReasoningTokens,
+			DurationSec:           estimate.DurationSec,
+			ImageCount:            estimate.ImageCount,
+			Cost:                  estimate.Cost,
 		}
 		if err := tx.Create(&entry).Error; err != nil {
 			return err
 		}
 		return tx.Model(&reservation).Updates(map[string]any{
-			"ai_model_config_id": modelConfigID,
-			"status":             ReservationStatusSettled,
-			"actual_cost":        estimate.Cost,
-			"usage_log_id":       entry.ID,
-			"updated_at":         time.Now(),
+			"ai_model_config_id":        modelConfigID,
+			"ai_model_catalog_entry_id": entry.AIModelCatalogEntryID,
+			"status":                    ReservationStatusSettled,
+			"actual_cost":               estimate.Cost,
+			"usage_log_id":              entry.ID,
+			"updated_at":                time.Now(),
 		}).Error
 	})
 }
 
 func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext, reservationID *uint) error {
 	entry := persistencemodel.UsageLog{
-		UserID:             userID,
-		OrgID:              usage.OrgID,
-		AIModelConfigID:    modelConfigID,
-		UsageReservationID: reservationID,
-		GatewayAPIKeyID:    usage.GatewayAPIKeyID,
-		ProjectID:          usage.ProjectID,
-		OperationType:      estimate.OperationType,
-		InputTokens:        estimate.InputTokens,
-		OutputTokens:       estimate.OutputTokens,
-		CachedInputTokens:  estimate.CachedInputTokens,
-		ReasoningTokens:    estimate.ReasoningTokens,
-		DurationSec:        estimate.DurationSec,
-		ImageCount:         estimate.ImageCount,
-		Cost:               estimate.Cost,
+		UserID:                userID,
+		OrgID:                 usage.OrgID,
+		AIModelConfigID:       modelConfigID,
+		AIModelCatalogEntryID: usage.AIModelCatalogEntryID,
+		UsageReservationID:    reservationID,
+		GatewayAPIKeyID:       usage.GatewayAPIKeyID,
+		ProjectID:             usage.ProjectID,
+		OperationType:         estimate.OperationType,
+		InputTokens:           estimate.InputTokens,
+		OutputTokens:          estimate.OutputTokens,
+		CachedInputTokens:     estimate.CachedInputTokens,
+		ReasoningTokens:       estimate.ReasoningTokens,
+		DurationSec:           estimate.DurationSec,
+		ImageCount:            estimate.ImageCount,
+		Cost:                  estimate.Cost,
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if estimate.Cost > 0 {
@@ -239,6 +356,13 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 		}
 		return tx.Create(&entry).Error
 	})
+}
+
+func usageWithCatalogEntry(usage UsageContext, catalogEntryID uint) UsageContext {
+	if catalogEntryID != 0 && usage.AIModelCatalogEntryID == nil {
+		usage.AIModelCatalogEntryID = &catalogEntryID
+	}
+	return usage
 }
 
 func estimateUsageCost(cfg persistencemodel.AIModelConfig, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {

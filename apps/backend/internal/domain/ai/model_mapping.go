@@ -3,10 +3,6 @@ package ai
 import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
 func CredentialFromModel(credential persistencemodel.AICredential) Credential {
-	models := make([]ModelConfig, 0, len(credential.Models))
-	for _, config := range credential.Models {
-		models = append(models, ModelConfigFromModel(config))
-	}
 	return Credential{
 		ID:                   credential.ID,
 		AdapterType:          credential.AdapterType,
@@ -16,7 +12,6 @@ func CredentialFromModel(credential persistencemodel.AICredential) Credential {
 		MaskedKey:            credential.MaskedKey,
 		IsEnabled:            credential.IsEnabled,
 		OrgID:                credential.OrgID,
-		Models:               models,
 		FilesAPIEnabled:      credential.FilesAPIEnabled,
 		FilesAPIBaseURL:      credential.FilesAPIBaseURL,
 		FilesAPIEncryptedKey: credential.FilesAPIEncryptedKey,
@@ -43,10 +38,6 @@ func (credential Credential) ApplyToModel(target *persistencemodel.AICredential)
 	target.MaskedKey = credential.MaskedKey
 	target.IsEnabled = credential.IsEnabled
 	target.OrgID = credential.OrgID
-	target.Models = make([]persistencemodel.AIModelConfig, 0, len(credential.Models))
-	for _, config := range credential.Models {
-		target.Models = append(target.Models, config.ToModel())
-	}
 	target.FilesAPIEnabled = credential.FilesAPIEnabled
 	target.FilesAPIBaseURL = credential.FilesAPIBaseURL
 	target.FilesAPIEncryptedKey = credential.FilesAPIEncryptedKey

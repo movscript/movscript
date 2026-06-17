@@ -55,7 +55,7 @@ func TestAuditLogExportUsesFiltersAndSanitizesCSVCells(t *testing.T) {
 
 func TestUsageLogExportUsesFiltersAndSanitizesCSVCells(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db := testutil.OpenSQLite(t, "handler-usage-export.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.UsageLog{})
+	db := testutil.OpenSQLite(t, "handler-usage-export.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AIModelCatalogEntry{}, &persistencemodel.UsageLog{})
 	user := persistencemodel.User{Username: "=cmd"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
@@ -68,15 +68,19 @@ func TestUsageLogExportUsesFiltersAndSanitizesCSVCells(t *testing.T) {
 	if err := db.Create(&model).Error; err != nil {
 		t.Fatalf("create model config: %v", err)
 	}
+	entry := persistencemodel.AIModelCatalogEntry{PublicModelID: "text-public", ProviderModelID: "text-provider", DisplayName: "+model", IsEnabled: true}
+	if err := db.Create(&entry).Error; err != nil {
+		t.Fatalf("create catalog entry: %v", err)
+	}
 	gatewayKeyID := uint(21)
 	otherGatewayKeyID := uint(22)
-	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, GatewayAPIKeyID: &gatewayKeyID, OperationType: "text", InputTokens: 10, OutputTokens: 2, Cost: 0.5}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, AIModelCatalogEntryID: &entry.ID, GatewayAPIKeyID: &gatewayKeyID, OperationType: "text", InputTokens: 10, OutputTokens: 2, Cost: 0.5}).Error; err != nil {
 		t.Fatalf("create usage log: %v", err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, GatewayAPIKeyID: &otherGatewayKeyID, OperationType: "text", InputTokens: 1, OutputTokens: 1, Cost: 1.5}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, AIModelCatalogEntryID: &entry.ID, GatewayAPIKeyID: &otherGatewayKeyID, OperationType: "text", InputTokens: 1, OutputTokens: 1, Cost: 1.5}).Error; err != nil {
 		t.Fatalf("create second usage log: %v", err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, GatewayAPIKeyID: &gatewayKeyID, OperationType: "image", ImageCount: 1, Cost: 2}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, AIModelCatalogEntryID: &entry.ID, GatewayAPIKeyID: &gatewayKeyID, OperationType: "image", ImageCount: 1, Cost: 2}).Error; err != nil {
 		t.Fatalf("create third usage log: %v", err)
 	}
 	h := NewUsageAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))

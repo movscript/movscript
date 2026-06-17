@@ -1,0 +1,41 @@
+{
+  "name": "generation_audio_job_get",
+  "description": "Synchronously fetch the latest state of an audio generation job submitted by generation_audio_generate.",
+  "permission": "generation.audio.read",
+  "risk": "read",
+  "source": "mcp",
+  "capability": "generation.audio.status",
+  "projectScoped": true,
+  "allowedRunRoles": ["planner"],
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["jobId"],
+    "properties": {
+      "jobId": { "type": "number", "minimum": 1 },
+      "job_id": { "type": "number", "minimum": 1 }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["status", "jobId", "terminal"],
+    "properties": {
+      "status": { "type": "string" },
+      "jobId": { "type": "number" },
+      "job_id": { "type": "number" },
+      "terminal": { "type": "boolean" },
+      "outputResourceIds": { "type": "array", "items": { "type": "number" } },
+      "output_resource_ids": { "type": "array", "items": { "type": "number" } },
+      "job": { "type": "object" }
+    }
+  },
+  "defaults": { "grant": "allow", "approval": "never" },
+  "execution": {
+    "readOnly": true,
+    "destructive": false,
+    "concurrencySafe": true,
+    "interruptBehavior": "block",
+    "resultRefStrategy": "summary_ref"
+  }
+}

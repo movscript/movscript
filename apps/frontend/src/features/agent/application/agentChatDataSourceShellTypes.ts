@@ -35,8 +35,8 @@ export interface AgentChatDataSourceShellProps {
   modelOptions?: PublicModel[]
   currentProject?: Project | null
   hideComposerWorkspaceProjectSelector?: boolean
-  selectedModelId?: number | null
-  onSelectedModelChange?: (modelId: number | null) => void
+  selectedModelId?: string | null
+  onSelectedModelChange?: (modelId: string | null) => void
   collaborationMode?: AgentChatCollaborationMode
   goalModeEnabled?: boolean
   onCollaborationModeChange?: (mode: AgentChatCollaborationMode) => void

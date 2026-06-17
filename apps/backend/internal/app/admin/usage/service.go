@@ -24,7 +24,7 @@ type ListFilter struct {
 	UserID        string
 	OrgID         string
 	ProjectID     string
-	ModelConfigID string
+	ModelID       string
 	ProviderID    string
 	GatewayKeyID  string
 	OperationType string
@@ -58,8 +58,8 @@ type OperationSummary struct {
 }
 
 type ModelSummary struct {
-	ModelConfigID uint            `json:"model_config_id"`
-	AIModelConfig *ModelConfigRef `gorm:"-" json:"ai_model_config,omitempty"`
+	AIModelCatalogEntryID *uint            `json:"ai_model_catalog_entry_id,omitempty"`
+	AIModelCatalogEntry   *CatalogEntryRef `gorm:"-" json:"ai_model_catalog_entry,omitempty"`
 	UsageTotals
 }
 
@@ -92,26 +92,34 @@ type ModelConfigRef struct {
 	ShortName         string `json:"short_name"`
 }
 
+type CatalogEntryRef struct {
+	ID              uint   `json:"ID"`
+	PublicModelID   string `json:"public_model_id"`
+	ProviderModelID string `json:"provider_model_id"`
+	DisplayName     string `json:"display_name"`
+	ShortName       string `json:"short_name"`
+}
+
 type Log struct {
-	ID                 uint            `json:"ID"`
-	UserID             uint            `json:"user_id"`
-	OrgID              *uint           `json:"org_id,omitempty"`
-	AIModelConfigID    uint            `json:"ai_model_config_id"`
-	UsageReservationID *uint           `json:"usage_reservation_id,omitempty"`
-	GatewayAPIKeyID    *uint           `json:"gateway_api_key_id,omitempty"`
-	ProjectID          *uint           `json:"project_id,omitempty"`
-	OperationType      string          `json:"operation_type"`
-	InputTokens        int             `json:"input_tokens"`
-	OutputTokens       int             `json:"output_tokens"`
-	CachedInputTokens  int             `json:"cached_input_tokens"`
-	ReasoningTokens    int             `json:"reasoning_tokens"`
-	DurationSec        int             `json:"duration_sec"`
-	ImageCount         int             `json:"image_count"`
-	Cost               float64         `json:"cost"`
-	User               *UserRef        `json:"user,omitempty"`
-	AIModelConfig      *ModelConfigRef `json:"ai_model_config,omitempty"`
-	CreatedAt          time.Time       `json:"CreatedAt"`
-	UpdatedAt          time.Time       `json:"UpdatedAt"`
+	ID                    uint             `json:"ID"`
+	UserID                uint             `json:"user_id"`
+	OrgID                 *uint            `json:"org_id,omitempty"`
+	AIModelCatalogEntryID *uint            `json:"ai_model_catalog_entry_id,omitempty"`
+	UsageReservationID    *uint            `json:"usage_reservation_id,omitempty"`
+	GatewayAPIKeyID       *uint            `json:"gateway_api_key_id,omitempty"`
+	ProjectID             *uint            `json:"project_id,omitempty"`
+	OperationType         string           `json:"operation_type"`
+	InputTokens           int              `json:"input_tokens"`
+	OutputTokens          int              `json:"output_tokens"`
+	CachedInputTokens     int              `json:"cached_input_tokens"`
+	ReasoningTokens       int              `json:"reasoning_tokens"`
+	DurationSec           int              `json:"duration_sec"`
+	ImageCount            int              `json:"image_count"`
+	Cost                  float64          `json:"cost"`
+	User                  *UserRef         `json:"user,omitempty"`
+	AIModelCatalogEntry   *CatalogEntryRef `json:"ai_model_catalog_entry,omitempty"`
+	CreatedAt             time.Time        `json:"CreatedAt"`
+	UpdatedAt             time.Time        `json:"UpdatedAt"`
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (Page, error) {
@@ -153,7 +161,7 @@ func usageFilterToContract(filter ListFilter) providercontract.AIGatewayUsageLog
 		UserID:        filter.UserID,
 		OrgID:         filter.OrgID,
 		ProjectID:     filter.ProjectID,
-		ModelConfigID: filter.ModelConfigID,
+		ModelID:       filter.ModelID,
 		ProviderID:    filter.ProviderID,
 		GatewayKeyID:  filter.GatewayKeyID,
 		OperationType: filter.OperationType,

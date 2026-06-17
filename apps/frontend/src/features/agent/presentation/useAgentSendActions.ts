@@ -37,7 +37,7 @@ export interface UseAgentSendActionsInput {
   activePendingInputRequest: PendingInputRequestRef | null | undefined
   canAnswerPendingInputWithText: boolean
   canSendActiveRunInput: boolean
-  modelId: number | null
+  modelId: string | null
   threadControl?: Partial<AgentThreadControlState>
   workspaceContext?: MovScriptWorkspaceContext
   debugBeforeSend: boolean

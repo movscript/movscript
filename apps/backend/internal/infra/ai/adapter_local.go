@@ -1,11 +1,16 @@
 package ai
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"html"
+	"math"
 	"strings"
+
+	"github.com/movscript/movscript/internal/domain/media"
 )
 
 type LocalAdapter struct{}
@@ -62,6 +67,71 @@ func (a *LocalAdapter) VideoGenerate(_ context.Context, req VideoRequest) (Video
 	}, nil
 }
 
+func (a *LocalAdapter) GenerateAudio(_ context.Context, req media.AudioGenerationRequest) (media.AudioGenerationResponse, error) {
+	durationSec := req.DurationSec
+	if durationSec <= 0 {
+		durationSec = 2
+	}
+	if durationSec > 30 {
+		durationSec = 30
+	}
+	frequency := 220.0
+	providerKind := string(req.Kind)
+	if req.Kind == media.AudioGenerationKindSFX {
+		frequency = 880.0
+		providerKind = "sfx"
+	} else if providerKind == "" {
+		providerKind = "music"
+	}
+	audio := localToneWAV(durationSec, frequency, req.Kind == media.AudioGenerationKindSFX)
+	return media.AudioGenerationResponse{
+		Audio:       audio,
+		MimeType:    "audio/wav",
+		DurationMs:  durationSec * 1000,
+		ProviderRef: "local:" + providerKind + ":" + base64.RawURLEncoding.EncodeToString([]byte(truncateLocalText(strings.TrimSpace(req.Prompt), 16))),
+	}, nil
+}
+
+func (a *LocalAdapter) Transcribe(_ context.Context, req media.TranscribeRequest) (media.SubtitleResponse, error) {
+	return media.SubtitleResponse{
+		Content:     []byte("transcribed"),
+		MimeType:    "text/plain",
+		Format:      "txt",
+		ProviderRef: "local:audio_transcribe",
+	}, nil
+}
+
+func (a *LocalAdapter) Align(_ context.Context, req media.AlignRequest) (media.SubtitleResponse, error) {
+	content := strings.TrimSpace(req.Script)
+	if content == "" {
+		content = "aligned"
+	}
+	return media.SubtitleResponse{
+		Content:     []byte(content),
+		MimeType:    "text/plain",
+		Format:      "txt",
+		ProviderRef: "local:subtitle_align",
+	}, nil
+}
+
+func (a *LocalAdapter) TranslateSubtitle(_ context.Context, req media.TranslateSubtitleRequest) (media.SubtitleResponse, error) {
+	target := strings.TrimSpace(req.TargetLanguage)
+	if target == "" {
+		target = "und"
+	}
+	source := strings.TrimSpace(string(req.Subtitle))
+	if source == "" {
+		source = "subtitle text"
+	}
+	content := fmt.Sprintf("[local subtitle translation:%s]\n%s\n", target, source)
+	return media.SubtitleResponse{
+		Content:     []byte(content),
+		MimeType:    "text/plain",
+		Format:      "txt",
+		ProviderRef: "local:subtitle_translate:" + target,
+	}, nil
+}
+
 func (a *LocalAdapter) Ping(_ context.Context) error {
 	return nil
 }
@@ -92,4 +162,35 @@ func truncateLocalText(value string, limit int) string {
 		return string(runes)
 	}
 	return string(runes[:limit])
+}
+
+func localToneWAV(durationSec int, frequency float64, pulse bool) []byte {
+	const sampleRate = 16000
+	const channels = 1
+	const bitsPerSample = 16
+	sampleCount := durationSec * sampleRate
+	dataSize := sampleCount * channels * bitsPerSample / 8
+	var out bytes.Buffer
+	out.WriteString("RIFF")
+	_ = binary.Write(&out, binary.LittleEndian, uint32(36+dataSize))
+	out.WriteString("WAVE")
+	out.WriteString("fmt ")
+	_ = binary.Write(&out, binary.LittleEndian, uint32(16))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(channels))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(sampleRate))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(sampleRate*channels*bitsPerSample/8))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(channels*bitsPerSample/8))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(bitsPerSample))
+	out.WriteString("data")
+	_ = binary.Write(&out, binary.LittleEndian, uint32(dataSize))
+	for i := 0; i < sampleCount; i++ {
+		amplitude := 0.18
+		if pulse && (i/(sampleRate/8))%2 == 1 {
+			amplitude = 0.02
+		}
+		sample := int16(math.Sin(2*math.Pi*frequency*float64(i)/sampleRate) * amplitude * math.MaxInt16)
+		_ = binary.Write(&out, binary.LittleEndian, sample)
+	}
+	return out.Bytes()
 }

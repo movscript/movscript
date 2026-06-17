@@ -142,8 +142,14 @@ func providerInstanceAIGatewayCapabilities(def *infraai.AdapterDef) []string {
 			add("audio.speech")
 		case infraai.CapabilityAudioSTT:
 			add("audio.transcribe")
+		case infraai.CapabilityAudioMusic:
+			add("audio.music")
+		case infraai.CapabilityAudioSFX:
+			add("audio.sfx")
 		case infraai.CapabilitySubAlign:
 			add("audio.align")
+		case infraai.CapabilitySubTranslate:
+			add("subtitle.translate")
 		}
 	}
 	return out

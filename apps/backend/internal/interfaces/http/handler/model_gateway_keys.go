@@ -21,7 +21,7 @@ func (h *ModelGatewayHandler) ListAPIKeys(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": keys})
+	c.JSON(http.StatusOK, gin.H{"items": gatewayAPIKeyResponses(keys)})
 }
 
 func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
@@ -36,13 +36,13 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 	result, err := h.service.CreateAPIKey(c.Request.Context(), modelgatewayapp.CreateAPIKeyInput{
-		OwnerUserID:     user.ID,
-		OrgID:           currentOrgID(c),
-		Name:            req.Name,
-		ProjectID:       req.ProjectID,
-		AllowedModelIDs: req.AllowedModelIDs,
-		AllowedScopes:   req.AllowedScopes,
-		Runtime:         req.Runtime.toAppInput(),
+		OwnerUserID:            user.ID,
+		OrgID:                  currentOrgID(c),
+		Name:                   req.Name,
+		ProjectID:              req.ProjectID,
+		AllowedCatalogEntryIDs: req.allowedCatalogEntryIDs(),
+		AllowedScopes:          req.AllowedScopes,
+		Runtime:                req.Runtime.toAppInput(),
 	})
 	if err != nil {
 		writeGatewayAPIKeyError(c, err)
@@ -56,7 +56,7 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		ProjectID:  result.Key.ProjectID,
 		Metadata:   gatewayAPIKeyAuditMetadata(result.Key),
 	})
-	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{APIKey: result.Key, Key: result.RawKey})
+	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{gatewayAPIKeyResponse: newGatewayAPIKeyResponse(result.Key), Key: result.RawKey})
 }
 
 func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
@@ -71,16 +71,16 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		return
 	}
 	key, err := h.service.UpdateAPIKey(c.Request.Context(), modelgatewayapp.UpdateAPIKeyInput{
-		ID:              parseID(c.Param("id")),
-		OwnerUserID:     user.ID,
-		OrgID:           currentOrgID(c),
-		Name:            req.Name,
-		ProjectID:       req.ProjectID,
-		ProjectIDSet:    req.ProjectIDSet,
-		AllowedModelIDs: req.AllowedModelIDs,
-		AllowedScopes:   req.AllowedScopes,
-		IsEnabled:       req.IsEnabled,
-		Runtime:         req.Runtime.toAppInput(),
+		ID:                     parseID(c.Param("id")),
+		OwnerUserID:            user.ID,
+		OrgID:                  currentOrgID(c),
+		Name:                   req.Name,
+		ProjectID:              req.ProjectID,
+		ProjectIDSet:           req.ProjectIDSet,
+		AllowedCatalogEntryIDs: req.allowedCatalogEntryIDs(),
+		AllowedScopes:          req.AllowedScopes,
+		IsEnabled:              req.IsEnabled,
+		Runtime:                req.Runtime.toAppInput(),
 	})
 	if err != nil {
 		writeGatewayAPIKeyError(c, err)
@@ -94,7 +94,7 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		ProjectID:  key.ProjectID,
 		Metadata:   gatewayAPIKeyAuditMetadata(key),
 	})
-	c.JSON(http.StatusOK, key)
+	c.JSON(http.StatusOK, newGatewayAPIKeyResponse(key))
 }
 
 func (h *ModelGatewayHandler) DeleteAPIKey(c *gin.Context) {
@@ -137,14 +137,14 @@ func writeGatewayAPIKeyError(c *gin.Context, err error) {
 
 func gatewayAPIKeyAuditMetadata(key domaingateway.APIKey) map[string]any {
 	return map[string]any{
-		"api_key_id":        key.ID,
-		"name":              key.Name,
-		"key_prefix":        key.KeyPrefix,
-		"owner_user_id":     key.OwnerUserID,
-		"org_id":            key.OrgID,
-		"project_id":        key.ProjectID,
-		"allowed_model_ids": key.AllowedModelIDs,
-		"allowed_scopes":    key.AllowedScopes,
-		"is_enabled":        key.IsEnabled,
+		"api_key_id":                key.ID,
+		"name":                      key.Name,
+		"key_prefix":                key.KeyPrefix,
+		"owner_user_id":             key.OwnerUserID,
+		"org_id":                    key.OrgID,
+		"project_id":                key.ProjectID,
+		"allowed_catalog_entry_ids": key.AllowedCatalogEntryIDs,
+		"allowed_scopes":            key.AllowedScopes,
+		"is_enabled":                key.IsEnabled,
 	}
 }

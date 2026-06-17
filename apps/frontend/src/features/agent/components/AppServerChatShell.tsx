@@ -11,6 +11,7 @@ import {
 import { fetchAgentBackendModels } from '@/features/agent/application/agentModelCatalogApi'
 import { agentModelKeys } from '@/features/agent/application/agentModelQueryKeys'
 import { ensureDefaultAgentProviderFromBackend } from '@/features/agent/application/defaultAgentProvider'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 import { useAgentThreadRegistryHydration } from '@/features/agent/application/useAgentThreadRegistryHydration'
 import { publishAgentChatThreadOpen } from '@/features/agent/application/agentChatThreadBridge'
 import { useAgentStore } from '@/features/agent/state/agentStore'
@@ -24,7 +25,6 @@ import {
   type MovScriptWorkspaceContext,
 } from '@/shared/infrastructure/providerConfigStore'
 import type { AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
-import { publicModelId } from '@/shared/domain/modelDisplay'
 import { selectActiveAgentConversationRegistryRecord } from '@movscript/core/agent'
 import { resolveAgentModelId } from '@/features/agent/application/agentDefaultModelSelection'
 import type { Project } from '@/types'
@@ -71,7 +71,7 @@ function AppServerChatShellContent({
   })
   const selectedModel = useMemo(() => {
     const modelId = resolveAgentModelId({ models: textModels, selectedModelId: settings.modelId })
-    return textModels.find((model) => model.id === modelId)
+    return textModels.find((model) => publicModelId(model) === modelId)
   }, [settings.modelId, textModels])
   const resolveModelForRequest = useCallback(() => ({
     ...(selectedModel ? { model: publicModelId(selectedModel) } : {}),

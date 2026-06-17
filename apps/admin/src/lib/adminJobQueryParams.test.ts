@@ -20,7 +20,7 @@ test('debugTabFromSearchParams defaults to system unless job filters are present
 
 test('hasJobFilterSearchParams detects all job drilldown query params', () => {
   assert.equal(hasJobFilterSearchParams(new URLSearchParams()), false)
-  for (const key of ['job_id', 'status', 'job_type', 'feature_key', 'user_id', 'org_id', 'project_id', 'model_config_id', 'page']) {
+  for (const key of ['job_id', 'status', 'job_type', 'feature_key', 'user_id', 'org_id', 'project_id', 'page']) {
     assert.equal(hasJobFilterSearchParams(new URLSearchParams(`${key}=1`)), true, key)
   }
 })
@@ -34,7 +34,7 @@ test('jobMonitorPageFromSearchParams normalizes missing and invalid pages', () =
 })
 
 test('jobFiltersFromSearchParams parses job filter params', () => {
-  const filters = jobFiltersFromSearchParams(new URLSearchParams('job_id=42&status=failed&job_type=video&feature_key=video_v2v&user_id=7&org_id=3&project_id=4&model_config_id=9'))
+  const filters = jobFiltersFromSearchParams(new URLSearchParams('job_id=42&status=failed&job_type=video&feature_key=video_v2v&user_id=7&org_id=3&project_id=4'))
   assert.deepEqual(filters, {
     jobId: '42',
     status: 'failed',
@@ -43,7 +43,6 @@ test('jobFiltersFromSearchParams parses job filter params', () => {
     userId: '7',
     orgId: '3',
     projectId: '4',
-    modelConfigId: '9',
   })
 })
 
@@ -62,7 +61,6 @@ test('jobUrlSearchParams adds jobs tab and page when needed', () => {
   const serialized = jobUrlSearchParams({
     ...emptyJobMonitorFilters,
     projectId: ' 4 ',
-    modelConfigId: '9',
   }, 2)
-  assert.equal(serialized.toString(), 'project_id=4&model_config_id=9&page=2&tab=jobs')
+  assert.equal(serialized.toString(), 'project_id=4&page=2&tab=jobs')
 })

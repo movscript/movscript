@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	entitlementapp "github.com/movscript/movscript/internal/app/entitlement"
 	hubapp "github.com/movscript/movscript/internal/app/hub"
+	mediastreamapp "github.com/movscript/movscript/internal/app/mediastream"
 	"github.com/movscript/movscript/internal/app/systemstream"
 	"github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/ai"
@@ -143,6 +145,43 @@ func (a *App) StartWorkers(ctx context.Context, workers int) {
 	a.Worker.Start(ctx, workers)
 }
 
+func (a *App) StartMediaStreamCleanup(ctx context.Context) {
+	if a == nil || a.DB == nil || a.Store == nil {
+		return
+	}
+	interval := mediaStreamCleanupInterval()
+	if interval <= 0 {
+		return
+	}
+	limit := mediaStreamCleanupLimit()
+	service := mediastreamapp.NewService(a.DB, a.Store)
+	go service.RunExpiredCleanupLoop(ctx, mediastreamapp.CleanupLoopOptions{
+		Interval: interval,
+		Limit:    limit,
+		OnResult: func(result mediastreamapp.CleanupExpiredResult) {
+			if result.Candidates == 0 && result.Deleted == 0 {
+				return
+			}
+			observability.Logger().Info(
+				"media_stream_expired_gc_completed",
+				slog.String("backend", result.Backend),
+				slog.Int("candidates", result.Candidates),
+				slog.Int("deleted", result.Deleted),
+				slog.Int("objects_deleted", result.ObjectsDeleted),
+				slog.Int64("freed_bytes", result.FreedBytes),
+			)
+		},
+		OnError: func(err error) {
+			observability.Logger().Warn("media_stream_expired_gc_failed", slog.String("error", err.Error()))
+		},
+	})
+	observability.Logger().Info(
+		"media_stream_expired_gc_started",
+		slog.Duration("interval", interval),
+		slog.Int("limit", limit),
+	)
+}
+
 func shouldRunStartupMigrations() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MOVSCRIPT_AUTO_MIGRATE"))) {
 	case "1", "true", "yes", "on":
@@ -150,4 +189,31 @@ func shouldRunStartupMigrations() bool {
 	default:
 		return false
 	}
+}
+
+func mediaStreamCleanupInterval() time.Duration {
+	value := strings.TrimSpace(os.Getenv("MOVSCRIPT_MEDIA_STREAM_GC_INTERVAL_SECONDS"))
+	if value == "" {
+		return 0
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func mediaStreamCleanupLimit() int {
+	value := strings.TrimSpace(os.Getenv("MOVSCRIPT_MEDIA_STREAM_GC_LIMIT"))
+	if value == "" {
+		return 100
+	}
+	limit, err := strconv.Atoi(value)
+	if err != nil || limit <= 0 {
+		return 100
+	}
+	if limit > 1000 {
+		return 1000
+	}
+	return limit
 }

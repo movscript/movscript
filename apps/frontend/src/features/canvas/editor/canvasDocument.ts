@@ -97,9 +97,8 @@ export async function buildCanvasSavePayload({
       const defaultModel = request ? defaultModels.get(request.capability) : undefined
       const dataToSave = {
         ...rest,
-        ...(defaultModel && !rest.modelId && !rest.modelDbId ? {
+        ...(defaultModel && !rest.modelId ? {
           modelId: publicModelId(defaultModel),
-          modelDbId: defaultModel.id,
         } : {}),
       }
       return {
@@ -141,7 +140,7 @@ async function defaultModelsForCanvasSave(nodes: Node[]) {
   const capabilityRequests = new Map<string, { capability: string }>()
   for (const node of nodes) {
     const data = node.data as Partial<CanvasNodeData>
-    if (data.modelId || data.modelDbId) continue
+    if (data.modelId) continue
     const request = modelCapabilityForCanvasNode(node.type, data)
     if (request) capabilityRequests.set(request.capability, request)
   }

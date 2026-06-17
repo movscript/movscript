@@ -234,7 +234,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 title="从项目 Home 选择一份剧本开始创作"
                 action={(
                   <Button asChild variant="outline" size="sm">
-                    <Link to={ROUTES.project.agent}>返回项目模式</Link>
+                    <Link to={ROUTES.project.home}>返回项目 Home</Link>
                   </Button>
                 )}
               />

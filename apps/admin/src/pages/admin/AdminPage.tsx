@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
+import type { AICredential, AIModelCatalogEntry, AdapterDef, ModelPreset, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse, ProviderInstance, ProviderInstanceConfigActivationResult, ProviderInstanceConfigApplyResult, ProviderInstanceConfigDraft, ProviderInstancesResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug, Download } from 'lucide-react'
@@ -21,9 +21,9 @@ import { AppStateMessage } from '@movscript/ui/business/app'
 import { AppStatusSurface } from '@movscript/ui/business/app'
 import { AppStatusToggleButton } from '@movscript/ui/business/app'
 import { StatusBadge, type StatusBadgeProps } from '@movscript/ui/primitives'
-import { Tabs, TabsList, TabsTrigger } from '@movscript/ui/primitives'
 import { ActiveOrgSelect } from '@/components/admin/ActiveOrgSelect'
 import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
+import { CatalogParamBuilder } from '@/components/admin/CatalogParamBuilder'
 import { runtimeCapabilities, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
 import { useTranslation } from 'react-i18next'
 import { translateAPIRequestError, translateApiError } from '@/lib/apiError'
@@ -31,7 +31,6 @@ import { publicModelLabel } from '@/lib/modelDisplay'
 import {
   cloudFileConfigToggleConfirmKey,
   credentialToggleConfirmKey,
-  modelConfigDisplayName,
   nextCredentialEnabledState,
 } from '@/lib/adminActionGuards'
 import { emptyJobMonitorFilters, jobUrlSearchParams } from '@/lib/adminJobQueryParams'
@@ -88,38 +87,36 @@ function credentialFieldLabel(key: string, fallback: string, t: (key: string, op
   return t(`admin.credentialFields.${key}`, { defaultValue: fallback })
 }
 
-function runtimeModelConfigFromAdmin(cred: AICredential, cfg: AIModelConfig, defaultBaseURL?: string) {
-  return {
-    schema: 'movscript.runtimeModelConfig.v1',
-    provider: 'openai-compatible',
-    baseURL: cred.base_url || defaultBaseURL || '',
-    model: cfg.model_id_override || cfg.model_def_id,
-    useForChat: true,
-    useForPlanner: true,
-    source: {
-      credentialId: cred.ID,
-      credentialName: cred.display_name,
-      adapterType: cred.adapter_type,
-      modelConfigId: cfg.ID,
-      modelName: cfg.custom_display_name || cfg.short_name || cfg.model_def_id,
-    },
-    note: 'API key is not included because admin credentials are masked in the browser. Paste this into admin Agent Debug and enter the key there if needed.',
-  }
-}
-
-type ModelEditForm = {
+type CatalogEntryForm = {
+  public_model_id: string
+  provider_model_id: string
   display_name: string
   short_name: string
-  model_id_override: string
-  priority: string
-  capacity_weight: string
-  max_concurrency: string
+  is_enabled: boolean
   capabilities: string[]
   pricing_mode: string
   accepts_image: boolean
   max_input_images: number
   max_input_videos: number
+  image_edit_field: string
   supported_params: string
+  price: PriceForm
+}
+
+type CatalogRouteForm = {
+  source_type: 'local_provider' | 'new_api'
+  route_group: string
+  credential_id: string
+  is_enabled: boolean
+  priority: string
+  capacity_weight: string
+  max_concurrency: string
+}
+
+type CatalogEntryTemplate = {
+  id: string
+  label: string
+  form: CatalogEntryForm
 }
 
 const PRICING_LABEL_KEYS: Record<string, string> = {
@@ -140,32 +137,28 @@ function inputLimitErrors(maxInputImages: number, maxInputVideos: number, t: (ke
   return errors
 }
 
-function modelConfigCapabilities(config: Pick<AIModelConfig, 'custom_capabilities'>): string[] {
-  return config.custom_capabilities.split(',').map((capability) => capability.trim()).filter(Boolean)
-}
-
-function isAgentTextModelConfig(config: Pick<AIModelConfig, 'custom_capabilities' | 'is_enabled'>): boolean {
-  if (!config.is_enabled) return false
-  const capabilities = modelConfigCapabilities(config)
-  return capabilities.includes('text') || capabilities.includes('reasoning')
-}
-
-function defaultAgentModelConfigId(credentials: AICredential[]): number | null {
-  const candidates = credentials.flatMap((credential) => credential.models ?? []).filter(isAgentTextModelConfig)
-  if (candidates.length === 0) return null
-  const [selected] = [...candidates].sort((left, right) => (
-    (right.priority ?? 0) - (left.priority ?? 0) || left.ID - right.ID
-  ))
-  return selected?.ID ?? null
-}
-
-function nextDefaultAgentModelPriority(credentials: AICredential[]): number {
-  const candidates = credentials.flatMap((credential) => credential.models ?? []).filter(isAgentTextModelConfig)
-  return Math.max(0, ...candidates.map((config) => config.priority ?? 0)) + 1
-}
-
 const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
 const canUseGatewayNewAPIGroup = runtimeCapabilities.gatewayNewAPIGroup
+const disabledBaseRoutePaths = new Set(runtimeCapabilities.disabledBaseRoutes ?? [])
+
+const CATALOG_ENTRY_TEMPLATES: CatalogEntryTemplate[] = [
+  { id: 'text', label: 'Text', form: catalogEntryTemplateForm({ capabilities: ['text'], pricing_mode: 'per_token' }) },
+  { id: 'image', label: 'Image', form: catalogEntryTemplateForm({ capabilities: ['image'], pricing_mode: 'per_image' }) },
+  { id: 'video', label: 'Video', form: catalogEntryTemplateForm({ capabilities: ['video'], pricing_mode: 'per_second' }) },
+  { id: 'tts', label: 'TTS', form: catalogEntryTemplateForm({ capabilities: ['audio_tts'], pricing_mode: 'per_call' }) },
+]
+
+function adminBaseRouteDisabled(path: string): boolean {
+  return disabledBaseRoutePaths.has(path)
+}
+
+function catalogEntryTemplateForm(patch: Partial<CatalogEntryForm>): CatalogEntryForm {
+  return { ...emptyCatalogEntryForm(), ...patch, price: { ...defaultPriceForm(), ...patch.price } }
+}
+
+function cloneCatalogEntryForm(form: CatalogEntryForm): CatalogEntryForm {
+  return { ...form, capabilities: [...form.capabilities], price: { ...form.price } }
+}
 
 type PriceDef = {
   pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
@@ -193,7 +186,7 @@ function refPriceHint(def: PriceDef, t: (key: string, values?: Record<string, un
 type GatewayKeyForm = {
   name: string
   projectId: string
-  allowedModelIds: number[]
+  allowedCatalogEntryIds: number[]
   allowedScopes: string[]
   newAPIGroup: string
 }
@@ -201,7 +194,7 @@ type GatewayKeyForm = {
 const DEFAULT_GATEWAY_SCOPES = ['model:chat']
 
 function emptyGatewayKeyForm(): GatewayKeyForm {
-  return { name: '', projectId: '', allowedModelIds: [], allowedScopes: DEFAULT_GATEWAY_SCOPES, newAPIGroup: '' }
+  return { name: '', projectId: '', allowedCatalogEntryIds: [], allowedScopes: DEFAULT_GATEWAY_SCOPES, newAPIGroup: '' }
 }
 
 function parseGatewayJSON<T>(raw: string, fallback: T): T {
@@ -213,17 +206,29 @@ function parseGatewayJSON<T>(raw: string, fallback: T): T {
   }
 }
 
-function gatewayModelLabel(model: AIModelConfig, credentials: AICredential[]): string {
-  const credential = credentials.find((item) => item.ID === model.credential_id)
-  const name = model.short_name || model.custom_display_name || model.model_id_override || model.model_def_id || `#${model.ID}`
-  return credential ? `${name} · ${credential.display_name}` : name
+function gatewayKeyCatalogEntryIDs(key: GatewayAPIKey): number[] {
+  return parseGatewayJSON<number[]>(key.allowed_catalog_entry_ids || '', [])
+}
+
+function gatewayCatalogEntryLabel(entry: AIModelCatalogEntry): string {
+  return entry.display_name || entry.short_name || entry.public_model_id || `#${entry.ID}`
+}
+
+function gatewayCatalogEntryDetail(entry: AIModelCatalogEntry): string {
+  const capabilities = entry.capabilities.split(',').map((item) => item.trim()).filter(Boolean)
+  const routeCount = entry.route_bindings?.length ?? 0
+  return [
+    entry.public_model_id,
+    capabilities.length > 0 ? capabilities.join(', ') : '',
+    `${routeCount} route${routeCount === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' · ')
 }
 
 function toGatewayPayload(form: GatewayKeyForm, includeProjectClear = false) {
   const payload: Record<string, unknown> = {
     name: form.name.trim(),
     project_id: form.projectId.trim() ? Number(form.projectId) : includeProjectClear ? null : undefined,
-    allowed_model_ids: form.allowedModelIds,
+    allowed_catalog_entry_ids: form.allowedCatalogEntryIds,
     allowed_scopes: form.allowedScopes.length ? form.allowedScopes : DEFAULT_GATEWAY_SCOPES,
   }
   if (canUseGatewayNewAPIGroup) {
@@ -232,7 +237,7 @@ function toGatewayPayload(form: GatewayKeyForm, includeProjectClear = false) {
   return payload
 }
 
-function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] }) {
+function GatewayAPIKeysSection() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
@@ -243,13 +248,16 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
   const [copied, setCopied] = useState(false)
   const [gatewayKeyError, setGatewayKeyError] = useState('')
 
-  const models = credentials.flatMap((credential) => credential.models ?? [])
-
   const { data, isLoading, isFetching, refetch, error: gatewayKeysQueryError } = useQuery<{ items: GatewayAPIKey[] }>({
     queryKey: ['model-gateway', 'api-keys'],
     queryFn: () => api.get('/model-gateway/api-keys').then((r) => r.data),
   })
   const keys = data?.items ?? []
+  const { data: catalogEntries = [], error: catalogEntriesQueryError } = useQuery<AIModelCatalogEntry[]>({
+    queryKey: ['admin', 'model-catalog'],
+    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
+  })
+  const modelAccessEntries = catalogEntries
 
   const createKey = useMutation({
     mutationFn: (form: GatewayKeyForm) => api.post('/model-gateway/api-keys', toGatewayPayload(form)).then((r) => r.data as GatewayAPIKeyCreateResponse),
@@ -288,7 +296,7 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
     setEditForm({
       name: key.name,
       projectId: key.project_id ? String(key.project_id) : '',
-      allowedModelIds: parseGatewayJSON<number[]>(key.allowed_model_ids, []),
+      allowedCatalogEntryIds: gatewayKeyCatalogEntryIDs(key),
       allowedScopes: parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES),
       newAPIGroup: key.new_api_group ?? '',
     })
@@ -302,10 +310,10 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
   }
 
   function toggleModel(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, modelID: number) {
-    const next = form.allowedModelIds.includes(modelID)
-      ? form.allowedModelIds.filter((id) => id !== modelID)
-      : [...form.allowedModelIds, modelID]
-    onChange({ ...form, allowedModelIds: next })
+    const next = form.allowedCatalogEntryIds.includes(modelID)
+      ? form.allowedCatalogEntryIds.filter((id) => id !== modelID)
+      : [...form.allowedCatalogEntryIds, modelID]
+    onChange({ ...form, allowedCatalogEntryIds: next })
   }
 
   function toggleScope(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, scope: string) {
@@ -359,14 +367,19 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
         <div>
           <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.models')}</Label>
           <div className="max-h-44 overflow-auto rounded-md border border-border bg-background p-2">
-            {models.length === 0 ? (
+            {catalogEntriesQueryError ? (
+              <p className="px-2 py-3 text-xs text-destructive">{translateAPIRequestError(catalogEntriesQueryError)}</p>
+            ) : modelAccessEntries.length === 0 ? (
               <p className="px-2 py-3 text-xs text-muted-foreground">{t('admin.gatewayKeys.noModels')}</p>
             ) : (
               <div className="grid gap-1 md:grid-cols-2">
-                {models.map((model) => (
-                  <label key={model.ID} className="flex min-w-0 items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/60">
-                    <input type="checkbox" checked={form.allowedModelIds.includes(model.ID)} onChange={() => toggleModel(form, onChange, model.ID)} className="rounded" />
-                    <span className="truncate">{gatewayModelLabel(model, credentials)}</span>
+                {modelAccessEntries.map((entry) => (
+                  <label key={entry.ID} className="flex min-w-0 items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/60">
+                    <input type="checkbox" checked={form.allowedCatalogEntryIds.includes(entry.ID)} onChange={() => toggleModel(form, onChange, entry.ID)} className="rounded" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{gatewayCatalogEntryLabel(entry)}</span>
+                      <span className="block truncate text-[10px] text-muted-foreground">{gatewayCatalogEntryDetail(entry)}</span>
+                    </span>
                   </label>
                 ))}
               </div>
@@ -457,7 +470,7 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
           </thead>
           <tbody className="divide-y divide-border">
             {keys.map((key) => {
-              const modelIDs = parseGatewayJSON<number[]>(key.allowed_model_ids, [])
+              const catalogEntryIDs = gatewayKeyCatalogEntryIDs(key)
               const scopes = parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES)
               return (
                 <tr key={key.ID} className="align-top hover:bg-card/70">
@@ -473,7 +486,7 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{key.key_prefix}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     <div>{t('admin.gatewayKeys.projectId')}: {key.project_id ? `#${key.project_id}` : t('admin.gatewayKeys.allProjects')}</div>
-                    <div>{t('admin.gatewayKeys.models')}: {modelIDs.length ? modelIDs.map((id) => `#${id}`).join(', ') : t('admin.gatewayKeys.allModels')}</div>
+                    <div>{t('admin.gatewayKeys.models')}: {catalogEntryIDs.length ? catalogEntryIDs.map((id) => `#${id}`).join(', ') : t('admin.gatewayKeys.allModels')}</div>
                     <div>{t('admin.gatewayKeys.scopes')}: {scopes.join(', ')}</div>
                     {canUseGatewayNewAPIGroup && (
                       <div>{t('admin.gatewayKeys.newAPIGroup')}: {key.new_api_group?.trim() || t('admin.gatewayKeys.newAPIGroupDefault')}</div>
@@ -757,6 +770,277 @@ function CredentialForm({
   )
 }
 
+function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [catalogForm, setCatalogForm] = useState<CatalogEntryForm>(() => emptyCatalogEntryForm())
+  const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null)
+  const [routeFormFor, setRouteFormFor] = useState<number | null>(null)
+  const [routeForm, setRouteForm] = useState<CatalogRouteForm>(() => emptyCatalogRouteForm(credentials[0]?.ID))
+  const [catalogError, setCatalogError] = useState('')
+
+  const catalogQuery = useQuery<AIModelCatalogEntry[]>({
+    queryKey: ['admin', 'model-catalog'],
+    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
+  })
+  const entries = catalogQuery.data ?? []
+  const localProviders = credentials.filter((credential) => credential.is_enabled)
+
+  const saveCatalogEntry = useMutation({
+    mutationFn: ({ id, form }: { id?: number; form: CatalogEntryForm }) => {
+      const payload = catalogEntryPayload(form)
+      return id
+        ? api.put(`/admin/model-catalog/${id}`, payload).then((r) => r.data)
+        : api.post('/admin/model-catalog', payload).then((r) => r.data)
+    },
+    onMutate: () => setCatalogError(''),
+    onSuccess: () => {
+      setCatalogError('')
+      setEditingCatalogId(null)
+      setCatalogForm(emptyCatalogEntryForm())
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
+  })
+
+  const deleteCatalogEntry = useMutation({
+    mutationFn: (id: number) => api.delete(`/admin/model-catalog/${id}`),
+    onMutate: () => setCatalogError(''),
+    onSuccess: () => {
+      setCatalogError('')
+      setEditingCatalogId(null)
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
+  })
+
+  const createRouteBinding = useMutation({
+    mutationFn: ({ entryId, form }: { entryId: number; form: CatalogRouteForm }) =>
+      api.post(`/admin/model-catalog/${entryId}/route-bindings`, catalogRoutePayload(form)).then((r) => r.data),
+    onMutate: () => setCatalogError(''),
+    onSuccess: () => {
+      setCatalogError('')
+      setRouteFormFor(null)
+      setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID))
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
+  })
+
+  const deleteRouteBinding = useMutation({
+    mutationFn: ({ entryId, bindingId }: { entryId: number; bindingId: number }) =>
+      api.delete(`/admin/model-catalog/${entryId}/route-bindings/${bindingId}`),
+    onMutate: () => setCatalogError(''),
+    onSuccess: () => {
+      setCatalogError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'model-catalog'] })
+    },
+    onError: (err: any) => setCatalogError(translateAPIRequestError(err)),
+  })
+
+  function startEdit(entry: AIModelCatalogEntry) {
+    setEditingCatalogId(entry.ID)
+    setCatalogForm(catalogEntryFormFromEntry(entry))
+  }
+
+  function cancelEdit() {
+    setEditingCatalogId(null)
+    setCatalogForm(emptyCatalogEntryForm())
+  }
+
+  function toggleCatalogCapability(capability: string) {
+    const next = catalogForm.capabilities.includes(capability)
+      ? catalogForm.capabilities.filter((item) => item !== capability)
+      : [...catalogForm.capabilities, capability]
+    setCatalogForm({ ...catalogForm, capabilities: next, pricing_mode: inferPricingMode(next) })
+  }
+
+  function openRouteForm(entryId: number) {
+    setRouteFormFor(entryId)
+    setRouteForm(emptyCatalogRouteForm(localProviders[0]?.ID))
+  }
+
+  const catalogInputErrors = inputLimitErrors(catalogForm.max_input_images, catalogForm.max_input_videos, t)
+  const canSaveCatalog = catalogForm.public_model_id.trim() && catalogForm.provider_model_id.trim() && catalogInputErrors.length === 0
+  const canSaveRoute = routeForm.source_type === 'new_api'
+    ? Boolean(routeFormFor && routeForm.route_group.trim())
+    : Boolean(routeFormFor && routeForm.credential_id.trim())
+
+  return (
+    <div className="space-y-4">
+      <ModelRouteMatrix entries={entries} credentials={credentials} onOpenRouteForm={openRouteForm} />
+
+      <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">{editingCatalogId ? t('admin.modelCatalog.editTitle') : t('admin.modelCatalog.createTitle')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('admin.modelCatalog.formHint')}</p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {!editingCatalogId && CATALOG_ENTRY_TEMPLATES.map((template) => (
+              <Button key={template.id} type="button" variant="outline" size="sm" onClick={() => setCatalogForm(cloneCatalogEntryForm(template.form))}>
+                {template.label}
+              </Button>
+            ))}
+            {editingCatalogId && (
+              <Button type="button" variant="outline" size="sm" onClick={cancelEdit}>{t('common.cancel')}</Button>
+            )}
+          </div>
+        </div>
+        {catalogError && <AppInlineError>{catalogError}</AppInlineError>}
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.publicModelId')}</Label>
+            <Input value={catalogForm.public_model_id} onChange={(event) => setCatalogForm({ ...catalogForm, public_model_id: event.target.value })} className="h-8 text-xs font-mono" placeholder="gpt-4.1" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.providerModelId')}</Label>
+            <Input value={catalogForm.provider_model_id} onChange={(event) => setCatalogForm({ ...catalogForm, provider_model_id: event.target.value })} className="h-8 text-xs font-mono" placeholder="gpt-4.1" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.displayName')}</Label>
+            <Input value={catalogForm.display_name} onChange={(event) => setCatalogForm({ ...catalogForm, display_name: event.target.value })} className="h-8 text-xs" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.shortName')}</Label>
+            <Input value={catalogForm.short_name} onChange={(event) => setCatalogForm({ ...catalogForm, short_name: event.target.value })} className="h-8 text-xs" />
+          </div>
+        </div>
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.capabilities')}</Label>
+          <div className="flex flex-wrap gap-2">
+            {MODEL_CAPABILITIES.map((capability) => (
+              <label key={capability} className="flex h-8 items-center gap-2 rounded-md border border-border px-2 text-xs">
+                <input type="checkbox" checked={catalogForm.capabilities.includes(capability)} onChange={() => toggleCatalogCapability(capability)} className="rounded" />
+                <span>{t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="flex h-8 items-center gap-2 text-xs">
+            <input type="checkbox" checked={catalogForm.is_enabled} onChange={(event) => setCatalogForm({ ...catalogForm, is_enabled: event.target.checked })} />
+            {t('admin.modelCatalog.enabled')}
+          </label>
+          <label className="flex h-8 items-center gap-2 text-xs">
+            <input type="checkbox" checked={catalogForm.accepts_image} onChange={(event) => setCatalogForm({ ...catalogForm, accepts_image: event.target.checked })} />
+            {t('admin.modelCatalog.acceptsImage')}
+          </label>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.pricingMode')}</Label>
+            <select value={catalogForm.pricing_mode} onChange={(event) => setCatalogForm({ ...catalogForm, pricing_mode: event.target.value })} className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+              {Object.entries(PRICING_LABEL_KEYS).map(([value, labelKey]) => <option key={value} value={value}>{t(labelKey)}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputImages')}</Label>
+            <Input type="number" value={catalogForm.max_input_images} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_images: Number(event.target.value) })} className="h-8 text-xs" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.models.maxInputVideos')}</Label>
+            <Input type="number" value={catalogForm.max_input_videos} onChange={(event) => setCatalogForm({ ...catalogForm, max_input_videos: Number(event.target.value) })} className="h-8 text-xs" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.modelCatalog.imageEditField')}</Label>
+            <Input value={catalogForm.image_edit_field} onChange={(event) => setCatalogForm({ ...catalogForm, image_edit_field: event.target.value })} className="h-8 text-xs font-mono" placeholder="image[]" />
+          </div>
+        </div>
+        {catalogInputErrors.map((message) => <AppFeedbackText key={message}>{message}</AppFeedbackText>)}
+        <PriceFields def={{ pricing_mode: catalogForm.pricing_mode }} form={catalogForm.price} onChange={(price) => setCatalogForm({ ...catalogForm, price })} />
+        <CatalogParamBuilder value={catalogForm.supported_params} onChange={(supported_params) => setCatalogForm({ ...catalogForm, supported_params })} />
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={() => saveCatalogEntry.mutate({ id: editingCatalogId ?? undefined, form: catalogForm })} disabled={saveCatalogEntry.isPending || !canSaveCatalog}>
+            {saveCatalogEntry.isPending ? t('common.saving') : editingCatalogId ? t('admin.modelCatalog.save') : t('admin.modelCatalog.create')}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {catalogQuery.error && <AppInlineError>{translateAPIRequestError(catalogQuery.error)}</AppInlineError>}
+        {entries.length === 0 && !catalogQuery.isLoading && (
+          <p className="rounded-lg border border-border bg-background p-6 text-center text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
+        )}
+        {entries.map((entry) => (
+          <div key={entry.ID} className="rounded-lg border border-border bg-background p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">{gatewayCatalogEntryLabel(entry)}</p>
+                  <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>{entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}</StatusBadge>
+                  <span className="text-xs text-muted-foreground font-mono">{entry.public_model_id}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{entry.provider_model_id} · {gatewayCatalogEntryDetail(entry)}</p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => startEdit(entry)}>{t('common.edit')}</Button>
+                <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => {
+                  if (window.confirm(t('admin.modelCatalog.confirmDelete', { name: gatewayCatalogEntryLabel(entry) }))) deleteCatalogEntry.mutate(entry.ID)
+                }}>
+                  {t('common.delete')}
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {modelCatalogCapabilities(entry).map((capability) => (
+                <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
+                  {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
+                </StatusBadge>
+              ))}
+            </div>
+            <div className="rounded-md border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <p className="text-xs font-medium text-muted-foreground">{t('admin.modelCatalog.routes')}</p>
+                <button onClick={() => openRouteForm(entry.ID)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  <Plus size={11} /> {t('admin.modelCatalog.addRoute')}
+                </button>
+              </div>
+              <div className="divide-y divide-border">
+                {(entry.route_bindings ?? []).length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-muted-foreground">{t('admin.modelCatalog.noRoutes')}</p>
+                ) : (entry.route_bindings ?? []).map((binding) => (
+                  <div key={binding.ID} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
+                      <p className="truncate text-muted-foreground">
+                        {binding.source_type === 'new_api' ? binding.route_group : `credential #${binding.credential_id ?? '-'}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
+                      </p>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => deleteRouteBinding.mutate({ entryId: entry.ID, bindingId: binding.ID })}>
+                      {t('common.delete')}
+                    </Button>
+                  </div>
+                ))}
+                {routeFormFor === entry.ID && (
+                  <div className="grid gap-2 px-3 py-3 md:grid-cols-[150px_minmax(0,1fr)_110px_110px_120px_auto]">
+                    <select value={routeForm.source_type} onChange={(event) => setRouteForm({ ...routeForm, source_type: event.target.value as CatalogRouteForm['source_type'] })} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+                      <option value="local_provider">{t('admin.modelCatalog.localProviderRoute')}</option>
+                      {canUseGatewayNewAPIGroup && <option value="new_api">{t('admin.modelCatalog.newAPIRoute')}</option>}
+                    </select>
+                    {routeForm.source_type === 'new_api' ? (
+                      <Input value={routeForm.route_group} onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
+                    ) : (
+                      <select value={routeForm.credential_id} onChange={(event) => setRouteForm({ ...routeForm, credential_id: event.target.value })} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+                        <option value="">{t('admin.modelCatalog.pickCredential')}</option>
+                        {localProviders.map((credential) => <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>)}
+                      </select>
+                    )}
+                    <Input value={routeForm.priority} onChange={(event) => setRouteForm({ ...routeForm, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
+                    <Input value={routeForm.capacity_weight} onChange={(event) => setRouteForm({ ...routeForm, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
+                    <Input value={routeForm.max_concurrency} onChange={(event) => setRouteForm({ ...routeForm, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
+                    <Button type="button" size="sm" disabled={!canSaveRoute || createRouteBinding.isPending} onClick={() => createRouteBinding.mutate({ entryId: entry.ID, form: routeForm })}>
+                      {t('common.save')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Credit price form for activating a model ─────────────────────────────────
 
 interface PriceForm {
@@ -769,7 +1053,6 @@ interface PriceForm {
 }
 
 interface RuntimeProviderHealth {
-  model_config_id: number
   model_id: string
   model_def_id: string
   provider_name: string
@@ -796,6 +1079,100 @@ interface RuntimeProviderHealthResponse {
 
 function defaultPriceForm(): PriceForm {
   return { model_id_override: '', credits_input_per_1m: 0, credits_output_per_1m: 0, credits_per_image: 0, credits_per_second: 0, credits_per_call: 0 }
+}
+
+function emptyCatalogEntryForm(): CatalogEntryForm {
+  return {
+    public_model_id: '',
+    provider_model_id: '',
+    display_name: '',
+    short_name: '',
+    is_enabled: true,
+    capabilities: ['text'],
+    pricing_mode: 'per_token',
+    accepts_image: false,
+    max_input_images: 0,
+    max_input_videos: 0,
+    image_edit_field: '',
+    supported_params: '',
+    price: defaultPriceForm(),
+  }
+}
+
+function catalogEntryFormFromEntry(entry: AIModelCatalogEntry): CatalogEntryForm {
+  return {
+    public_model_id: entry.public_model_id,
+    provider_model_id: entry.provider_model_id,
+    display_name: entry.display_name,
+    short_name: entry.short_name ?? '',
+    is_enabled: entry.is_enabled,
+    capabilities: modelCatalogCapabilities(entry),
+    pricing_mode: entry.pricing_mode || inferPricingMode(modelCatalogCapabilities(entry)),
+    accepts_image: Boolean(entry.accepts_image),
+    max_input_images: entry.max_input_images ?? 0,
+    max_input_videos: entry.max_input_videos ?? 0,
+    image_edit_field: entry.image_edit_field ?? '',
+    supported_params: entry.supported_params ?? '',
+    price: {
+      model_id_override: '',
+      credits_input_per_1m: entry.credits_input_per_1m ?? 0,
+      credits_output_per_1m: entry.credits_output_per_1m ?? 0,
+      credits_per_image: entry.credits_per_image ?? 0,
+      credits_per_second: entry.credits_per_second ?? 0,
+      credits_per_call: entry.credits_per_call ?? 0,
+    },
+  }
+}
+
+function catalogEntryPayload(form: CatalogEntryForm): Record<string, unknown> {
+  return {
+    public_model_id: form.public_model_id.trim(),
+    provider_model_id: form.provider_model_id.trim(),
+    display_name: form.display_name.trim() || form.public_model_id.trim(),
+    short_name: form.short_name.trim(),
+    is_enabled: form.is_enabled,
+    capabilities: form.capabilities.join(','),
+    pricing_mode: form.pricing_mode,
+    accepts_image: form.accepts_image,
+    max_input_images: form.max_input_images,
+    max_input_videos: form.max_input_videos,
+    image_edit_field: form.image_edit_field.trim(),
+    supported_params: form.supported_params.trim(),
+    credits_input_per_1m: form.price.credits_input_per_1m,
+    credits_output_per_1m: form.price.credits_output_per_1m,
+    credits_per_image: form.price.credits_per_image,
+    credits_per_second: form.price.credits_per_second,
+    credits_per_call: form.price.credits_per_call,
+  }
+}
+
+function emptyCatalogRouteForm(credentialID?: number): CatalogRouteForm {
+  return {
+    source_type: 'local_provider',
+    route_group: '',
+    credential_id: credentialID ? String(credentialID) : '',
+    is_enabled: true,
+    priority: '0',
+    capacity_weight: '1',
+    max_concurrency: '0',
+  }
+}
+
+function catalogRoutePayload(form: CatalogRouteForm): Record<string, unknown> {
+  const isNewAPI = form.source_type === 'new_api'
+  return {
+    source_type: form.source_type,
+    route_group: isNewAPI ? form.route_group.trim() : '',
+    credential_id: !isNewAPI && form.credential_id ? Number(form.credential_id) : undefined,
+    is_enabled: form.is_enabled,
+    priority: parseInt(form.priority, 10) || 0,
+    capacity_weight: Math.max(1, parseInt(form.capacity_weight, 10) || 1),
+    max_concurrency: Math.max(0, parseInt(form.max_concurrency, 10) || 0),
+  }
+}
+
+function modelCatalogCapabilities(entry: Pick<AIModelCatalogEntry, 'capabilities'>): string[] {
+  return entry.capabilities.split(',').map((capability) => capability.trim()).filter(Boolean)
 }
 
 function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; onChange: (f: PriceForm) => void }) {
@@ -852,7 +1229,7 @@ function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; 
 function inferPricingMode(caps: string[]) {
   if (caps.some((c) => c === 'image' || c === 'image_edit')) return 'per_image'
   if (caps.some((c) => c.startsWith('video'))) return 'per_second'
-  if (caps.some((c) => c === 'audio' || c.startsWith('audio_') || c === 'subtitle_align' || c === 'render_video')) return 'per_call'
+  if (caps.some((c) => c === 'audio' || c.startsWith('audio_') || c === 'subtitle_align' || c === 'subtitle_translate')) return 'per_call'
   return 'per_token'
 }
 
@@ -1015,28 +1392,10 @@ function ParamConfigBuilder({
   const hiddenAuditErrorCount = Math.max(0, audit.errors.length - visibleAuditErrors.length)
   const visibleAuditWarnings = audit.warnings.slice(0, 4)
   const hiddenAuditWarningCount = Math.max(0, audit.warnings.length - visibleAuditWarnings.length)
-  const backendPreviewSkipped = !!adapterType && capabilities.length > 0 && audit.errors.length > 0
-  const contractPreview = useQuery<{
-    supported_params?: ParamDef[]
-    params_schema_rule_count?: number
-    agent_contract?: AgentCompactParamContract
-  }>({
-    queryKey: ['admin', 'model-contract-preview', adapterType ?? '', capabilities.join(','), acceptsImageInput === true, maxInputImages ?? 0, maxInputVideos ?? 0, value],
-    queryFn: () => api.post('/admin/model-configs/preview-contract', {
-      adapter_type: adapterType ?? '',
-      custom_capabilities: capabilities.join(','),
-      custom_accepts_image: acceptsImageInput === true,
-      custom_max_input_images: maxInputImages ?? 0,
-      custom_max_input_videos: maxInputVideos ?? 0,
-      custom_supported_params: value,
-    }).then((r) => r.data),
-    enabled: !!adapterType && capabilities.length > 0 && audit.errors.length === 0,
-    staleTime: 1000,
-    retry: false,
-  })
-  const backendPreviewRuleTypes = summarizeParamRuleTypes(contractPreviewParams(contractPreview.data))
   const fallbackInputRequirements = agentInputRequirementsForAdmin(capabilities, acceptsImageInput === true, maxInputImages ?? 0, maxInputVideos ?? 0)
-  const backendPreviewAgentContract = contractPreview.data?.agent_contract ?? buildAgentCompactParamContract(contractPreviewParams(contractPreview.data), fallbackInputRequirements)
+  const contractPreviewParams = audit.errors.length === 0 ? audit.params : []
+  const contractPreviewRuleTypes = summarizeParamRuleTypes(contractPreviewParams)
+  const contractPreviewAgentContract = buildAgentCompactParamContract(contractPreviewParams, fallbackInputRequirements)
 
   const setMode = (next: 'inherit' | 'profile' | 'override' | 'none') => {
     if (next === 'inherit') onChange('')
@@ -1153,42 +1512,38 @@ function ParamConfigBuilder({
         )}
       </AppStatusSurface>
       {adapterType && capabilities.length > 0 && (
-        <AppStatusSurface tone={contractPreview.isError ? 'danger' : 'neutral'} className="space-y-1">
+        <AppStatusSurface tone={audit.errors.length > 0 ? 'danger' : 'neutral'} className="space-y-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{t('admin.params.backendPreview.title')}</span>
-            {backendPreviewSkipped && <span>{t('admin.params.backendPreview.skipped')}</span>}
-            {contractPreview.isFetching && <span>{t('admin.params.backendPreview.loading')}</span>}
-            {contractPreview.data && <span>{t('admin.params.backendPreview.valid')}</span>}
-            {contractPreview.data && (
+            {audit.errors.length > 0 && <span>{t('admin.params.backendPreview.skipped')}</span>}
+            {audit.errors.length === 0 && <span>{t('admin.params.backendPreview.valid')}</span>}
+            {audit.errors.length === 0 && (
               <>
-                <span>{t('admin.params.audit.params', { count: contractPreview.data.supported_params?.length ?? 0 })}</span>
-                <span>{t('admin.params.audit.rules', { count: contractPreview.data.params_schema_rule_count ?? 0 })}</span>
+                <span>{t('admin.params.audit.params', { count: contractPreviewParams.length })}</span>
+                <span>{t('admin.params.audit.rules', { count: audit.schemaRuleCount })}</span>
               </>
             )}
           </div>
-          {contractPreview.data?.supported_params && contractPreview.data.supported_params.length > 0 && (
+          {contractPreviewParams.length > 0 && (
             <>
               <div className="font-mono text-[11px] text-muted-foreground break-all">
-                {contractPreview.data.supported_params.map((param) => param.key).join(', ')}
+                {contractPreviewParams.map((param) => param.key).join(', ')}
               </div>
-              {backendPreviewRuleTypes.total > 0 && (
+              {contractPreviewRuleTypes.total > 0 && (
                 <div className="text-[11px] text-muted-foreground">
-                  {formatParamRuleTypeSummary(backendPreviewRuleTypes, t)}
+                  {formatParamRuleTypeSummary(contractPreviewRuleTypes, t)}
                 </div>
               )}
               <div className="text-[11px] text-muted-foreground">
                 {t('admin.params.backendPreview.agentContract', {
-                  version: backendPreviewAgentContract.contract_version,
-                  keys: backendPreviewAgentContract.supported_param_keys.join(', ') || t('admin.params.noneValue'),
+                  version: contractPreviewAgentContract.contract_version,
+                  keys: contractPreviewAgentContract.supported_param_keys.join(', ') || t('admin.params.noneValue'),
                 })}
               </div>
-              <CopyCompactContractButton contract={backendPreviewAgentContract} />
+              <CopyCompactContractButton contract={contractPreviewAgentContract} />
             </>
           )}
-          {contractPreview.isError && (
-            <div>{t('admin.params.backendPreview.error', { error: translateApiError((contractPreview.error as any)?.response?.data) })}</div>
-          )}
-          {backendPreviewSkipped && (
+          {audit.errors.length > 0 && (
             <div>{t('admin.params.backendPreview.skippedHint')}</div>
           )}
         </AppStatusSurface>
@@ -1242,10 +1597,6 @@ function CopyCompactContractButton({ contract }: { contract: unknown }) {
       {copied ? t('admin.params.backendPreview.copiedAgentContract') : t('admin.params.backendPreview.copyAgentContract')}
     </button>
   )
-}
-
-function contractPreviewParams(data?: { supported_params?: ParamDef[] }): ParamDef[] {
-  return Array.isArray(data?.supported_params) ? data.supported_params : []
 }
 
 function formatParamRuleTypeSummary(summary: ParamRuleTypeSummary, t: (key: string, options?: Record<string, unknown>) => string): string {
@@ -1437,12 +1788,289 @@ function ProviderInstanceConfigDraftPanel({ instance }: { instance: ProviderInst
   )
 }
 
-// ── Model Management Tab ──────────────────────────────────────────────────────
+// ── Model Management ──────────────────────────────────────────────────────────
 
-export function ModelManagementPage() {
+type ModelManagementViewMode = 'providers' | 'catalog' | 'gateway'
+
+type ModelTopologyCounts = {
+  providers: number
+  catalogEntries: number
+  routeBindings: number
+}
+
+function ModelTopologyNav({
+  value,
+  onChange,
+  counts,
+}: {
+  value: ModelManagementViewMode
+  onChange: (value: ModelManagementViewMode) => void
+  counts: ModelTopologyCounts
+}) {
+  const { t } = useTranslation()
+  const items: Array<{
+    value: ModelManagementViewMode
+    icon: typeof KeyRound
+    title: string
+    subtitle: string
+    count: string
+  }> = [
+    {
+      value: 'providers',
+      icon: KeyRound,
+      title: t('admin.models.topologyProvidersTitle', { defaultValue: 'Provider / Auth' }),
+      subtitle: t('admin.models.topologyProvidersSubtitle', { defaultValue: 'Base URL、API Key 与连接状态' }),
+      count: t('admin.models.topologyProvidersCount', { defaultValue: '{{count}} 个 provider', count: counts.providers }),
+    },
+    {
+      value: 'catalog',
+      icon: FolderKanban,
+      title: t('admin.models.topologyCatalogTitle', { defaultValue: 'Catalog Entry' }),
+      subtitle: t('admin.models.topologyCatalogSubtitle', { defaultValue: '系统识别的模型身份、能力与参数' }),
+      count: t('admin.models.topologyCatalogCount', { defaultValue: '{{count}} 个 entry', count: counts.catalogEntries }),
+    },
+    {
+      value: 'gateway',
+      icon: Settings2,
+      title: t('admin.models.topologyRoutesTitle', { defaultValue: 'Model Route' }),
+      subtitle: t('admin.models.topologyRoutesSubtitle', { defaultValue: '从 Catalog Entry 路由到 provider 或 new-api 分组' }),
+      count: t('admin.models.topologyRoutesCount', { defaultValue: '{{count}} 条 route', count: counts.routeBindings }),
+    },
+  ]
+
+  return (
+    <div className="grid gap-2 md:grid-cols-3">
+      {items.map((item, index) => {
+        const Icon = item.icon
+        const selected = value === item.value
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            className={cn(
+              'group relative min-h-[104px] rounded-lg border bg-background p-3 text-left transition-colors',
+              selected ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/30',
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <AppIconFrame tone={selected ? 'info' : 'neutral'} size="sm">
+                <Icon size={15} />
+              </AppIconFrame>
+              <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {index + 1}
+              </span>
+            </div>
+            <p className="mt-3 text-sm font-medium text-foreground">{item.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.subtitle}</p>
+            <p className="mt-2 text-[11px] font-medium text-muted-foreground">{item.count}</p>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ModelRouteMatrix({
+  entries,
+  credentials,
+  onOpenRouteForm,
+}: {
+  entries: AIModelCatalogEntry[]
+  credentials: AICredential[]
+  onOpenRouteForm: (entryId: number) => void
+}) {
+  const { t } = useTranslation()
+  const credentialByID = new Map(credentials.map((credential) => [credential.ID, credential]))
+  const enabledEntries = entries.filter((entry) => entry.is_enabled).length
+  const routeBindings = entries.flatMap((entry) => (entry.route_bindings ?? []).map((binding) => ({ entry, binding })))
+  const newAPIRoutes = routeBindings.filter((item) => item.binding.source_type === 'new_api').length
+  const localRoutes = routeBindings.filter((item) => item.binding.source_type !== 'new_api').length
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">{t('admin.models.routeMatrixTitle', { defaultValue: 'Catalog Entry → Model Route' })}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('admin.models.routeMatrixHint', { defaultValue: '先定义系统识别的模型，再把它路由到本地 provider 或商业版 new-api 分组。' })}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+          <span className="rounded-md border border-border bg-background px-2 py-1">
+            {t('admin.models.routeMatrixEnabledEntries', { defaultValue: '{{count}} 个启用 entry', count: enabledEntries })}
+          </span>
+          <span className="rounded-md border border-border bg-background px-2 py-1">
+            {t('admin.models.routeMatrixLocalRoutes', { defaultValue: '{{count}} 条 provider route', count: localRoutes })}
+          </span>
+          <span className="rounded-md border border-border bg-background px-2 py-1">
+            {t('admin.models.routeMatrixNewAPIRoutes', { defaultValue: '{{count}} 条 new-api 分组绑定', count: newAPIRoutes })}
+          </span>
+        </div>
+      </div>
+      <div className="divide-y divide-border">
+        {entries.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('admin.modelCatalog.empty')}</p>
+        ) : entries.map((entry) => {
+          const routes = entry.route_bindings ?? []
+          return (
+            <div key={entry.ID} className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,1.4fr)_auto]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-sm font-medium text-foreground">{gatewayCatalogEntryLabel(entry)}</p>
+                  <StatusBadge intent={entry.is_enabled ? 'success' : 'neutral'}>
+                    {entry.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
+                  </StatusBadge>
+                </div>
+                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{entry.public_model_id}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {modelCatalogCapabilities(entry).slice(0, 4).map((capability) => (
+                    <StatusBadge key={capability} intent={CAPABILITY_STATUS_INTENT[capability] ?? 'neutral'}>
+                      {t(CAPABILITY_TRANSLATION_KEYS[capability] ?? capability)}
+                    </StatusBadge>
+                  ))}
+                </div>
+              </div>
+              <div className="min-w-0 space-y-1.5">
+                {routes.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                    {t('admin.modelCatalog.noRoutes')}
+                  </p>
+                ) : routes.map((binding) => {
+                  const credential = binding.credential_id ? credentialByID.get(binding.credential_id) : undefined
+                  const routeLabel = binding.source_type === 'new_api'
+                    ? (binding.route_group || t('admin.modelCatalog.defaultRouteGroup', { defaultValue: '默认分组' }))
+                    : (credential?.display_name || `credential #${binding.credential_id ?? '-'}`)
+                  return (
+                    <div key={binding.ID} className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-foreground">
+                          {binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}
+                          <span className="ml-2 font-normal text-muted-foreground">{routeLabel}</span>
+                        </p>
+                        <p className="mt-0.5 truncate text-muted-foreground">
+                          priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1} · concurrency {binding.max_concurrency ?? '-'}
+                        </p>
+                      </div>
+                      <StatusBadge intent={binding.is_enabled ? 'success' : 'neutral'}>
+                        {binding.is_enabled ? t('admin.modelCatalog.enabled') : t('admin.modelCatalog.disabled')}
+                      </StatusBadge>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex items-start justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => onOpenRouteForm(entry.ID)}>
+                  <Plus size={13} className="mr-1.5" />
+                  {t('admin.modelCatalog.addRoute')}
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function CommunityModelCatalogPage() {
+  const { t } = useTranslation()
+  const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
+    queryKey: ['admin', 'credentials'],
+    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
+  })
+  const { data: entries = [], error: catalogQueryError } = useQuery<AIModelCatalogEntry[]>({
+    queryKey: ['admin', 'model-catalog'],
+    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
+  })
+  const routeBindings = entries.reduce((sum, entry) => sum + (entry.route_bindings?.length ?? 0), 0)
+  const queryError = credentialsQueryError || catalogQueryError
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">{t('admin.modelCatalog.pageTitle', { defaultValue: '模型目录' })}</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {t('admin.modelCatalog.pageDescription', { defaultValue: '按 Provider/Auth、Catalog Entry、Model Route 三层维护模型调用心智。社区版路由到本地 provider；商业版可进一步路由到 new-api 分组。' })}
+        </p>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-3">
+        <ModelTopologyCard
+          index={1}
+          icon={KeyRound}
+          title={t('admin.models.topologyProvidersTitle', { defaultValue: 'Provider / Auth' })}
+          subtitle={t('admin.models.topologyProvidersSubtitle', { defaultValue: 'Base URL、API Key 与连接状态' })}
+          count={t('admin.models.topologyProvidersCount', { defaultValue: '{{count}} 个 provider', count: credentials.length })}
+        />
+        <ModelTopologyCard
+          index={2}
+          icon={FolderKanban}
+          title={t('admin.models.topologyCatalogTitle', { defaultValue: 'Catalog Entry' })}
+          subtitle={t('admin.models.topologyCatalogSubtitle', { defaultValue: '系统识别的模型身份、能力与参数' })}
+          count={t('admin.models.topologyCatalogCount', { defaultValue: '{{count}} 个 entry', count: entries.length })}
+          selected
+        />
+        <ModelTopologyCard
+          index={3}
+          icon={Settings2}
+          title={t('admin.models.topologyRoutesTitle', { defaultValue: 'Model Route' })}
+          subtitle={t('admin.models.topologyRoutesSubtitle', { defaultValue: '从 Catalog Entry 路由到 provider 或 new-api 分组' })}
+          count={t('admin.models.topologyRoutesCount', { defaultValue: '{{count}} 条 route', count: routeBindings })}
+        />
+      </div>
+
+      {queryError && (
+        <AppInlineError className="flex items-start gap-2">
+          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+          <span>{translateAPIRequestError(queryError)}</span>
+        </AppInlineError>
+      )}
+
+      <ModelCatalogSection credentials={credentials} />
+    </div>
+  )
+}
+
+function ModelTopologyCard({
+  index,
+  icon: Icon,
+  title,
+  subtitle,
+  count,
+  selected = false,
+}: {
+  index: number
+  icon: typeof KeyRound
+  title: string
+  subtitle: string
+  count: string
+  selected?: boolean
+}) {
+  return (
+    <div className={cn(
+      'min-h-[104px] rounded-lg border bg-background p-3',
+      selected ? 'border-primary bg-primary/5' : 'border-border',
+    )}>
+      <div className="flex items-start justify-between gap-3">
+        <AppIconFrame tone={selected ? 'info' : 'neutral'} size="sm">
+          <Icon size={15} />
+        </AppIconFrame>
+        <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">
+          {index}
+        </span>
+      </div>
+      <p className="mt-3 text-sm font-medium text-foreground">{title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
+      <p className="mt-2 text-[11px] font-medium text-muted-foreground">{count}</p>
+    </div>
+  )
+}
+
+export function ModelManagementPage({ initialView = 'providers' }: { initialView?: ModelManagementViewMode } = {}) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [viewMode, setViewMode] = useState<'providers' | 'gateway'>('providers')
+  const [viewMode, setViewMode] = useState<ModelManagementViewMode>(initialView)
   const [addStep, setAddStep] = useState<'idle' | 'pick' | 'fill'>('idle')
   const [selectedAdapter, setSelectedAdapter] = useState<AdapterDef | null>(null)
   const [relayHint, setRelayHint] = useState<string | null>(null)
@@ -1451,32 +2079,6 @@ export function ModelManagementPage() {
   const [showKey, setShowKey] = useState<Record<number, boolean>>({})
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [testingId, setTestingId] = useState<string | null>(null)
-  // Add-model panel state per credential
-  const [addingFor, setAddingFor] = useState<number | null>(null)
-  const [addModelId, setAddModelId] = useState('')
-  const [addDisplayName, setAddDisplayName] = useState('')
-  const [addShortName, setAddShortName] = useState('')
-  const [addCapabilities, setAddCapabilities] = useState<string[]>(['text'])
-  const [addPricingMode, setAddPricingMode] = useState('per_token')
-  const [addAcceptsImage, setAddAcceptsImage] = useState(false)
-  const [addMaxInputImages, setAddMaxInputImages] = useState(0)
-  const [addMaxInputVideos, setAddMaxInputVideos] = useState(0)
-  const [addImageEditField, setAddImageEditField] = useState('')
-  const [addSupportedParams, setAddSupportedParams] = useState('')
-  const [addPriority, setAddPriority] = useState('0')
-  const [addCapacityWeight, setAddCapacityWeight] = useState('1')
-  const [addMaxConcurrency, setAddMaxConcurrency] = useState('0')
-  const [addPriceForm, setAddPriceForm] = useState<PriceForm>(defaultPriceForm())
-  const [showPresets, setShowPresets] = useState(false)
-  // Remote model fetch state (within add panel)
-  const [remoteModels, setRemoteModels] = useState<string[]>([])
-  const [remoteFetching, setRemoteFetching] = useState(false)
-  const [remoteError, setRemoteError] = useState('')
-  // Editing existing model config
-  const [editingConfig, setEditingConfig] = useState<AIModelConfig | null>(null)
-  const [editForm, setEditForm] = useState<ModelEditForm>({
-    display_name: '', short_name: '', model_id_override: '', priority: '0', capacity_weight: '1', max_concurrency: '0', capabilities: [], pricing_mode: 'per_token', accepts_image: false, max_input_images: 0, max_input_videos: 0, supported_params: '',
-  })
   // Files API editing state
   const [filesAPIEditFor, setFilesAPIEditFor] = useState<number | null>(null)
   const [filesAPIEditEnabled, setFilesAPIEditEnabled] = useState(false)
@@ -1496,7 +2098,7 @@ export function ModelManagementPage() {
     queryFn: () => api.get('/admin/adapters').then((r) => r.data),
   })
 
-  const { data: presets = [], error: presetsQueryError } = useQuery<ModelPreset[]>({
+  const { error: presetsQueryError } = useQuery<ModelPreset[]>({
     queryKey: ['admin', 'model-presets'],
     queryFn: () => api.get('/admin/model-presets').then((r) => r.data),
   })
@@ -1504,6 +2106,11 @@ export function ModelManagementPage() {
   const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
     queryKey: ['admin', 'credentials'],
     queryFn: () => api.get('/admin/credentials').then((r) => r.data),
+  })
+
+  const { data: topologyCatalogEntries = [] } = useQuery<AIModelCatalogEntry[]>({
+    queryKey: ['admin', 'model-catalog'],
+    queryFn: () => api.get('/admin/model-catalog').then((r) => r.data),
   })
 
   const { data: providerInstancesData, error: providerInstancesQueryError } = useQuery<ProviderInstancesResponse>({
@@ -1526,6 +2133,11 @@ export function ModelManagementPage() {
     enabled: viewMode === 'gateway',
     refetchInterval: viewMode === 'gateway' ? 5000 : false,
   })
+  const topologyCounts: ModelTopologyCounts = {
+    providers: credentials.length,
+    catalogEntries: topologyCatalogEntries.length,
+    routeBindings: topologyCatalogEntries.reduce((sum, entry) => sum + (entry.route_bindings?.length ?? 0), 0),
+  }
 
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
@@ -1582,134 +2194,7 @@ export function ModelManagementPage() {
     onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
-  const addModel = useMutation({
-    mutationFn: ({ credId, modelId, displayName, shortName, capabilities, pricingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, priority, capacityWeight, maxConcurrency, data }: {
-      credId: number; modelId: string; displayName: string; shortName: string; capabilities: string[]
-      pricingMode: string; acceptsImage: boolean; maxInputImages: number; maxInputVideos: number
-      imageEditField: string; supportedParams: string; priority: string; capacityWeight: string; maxConcurrency: string; data: PriceForm
-    }) =>
-      api.post(`/admin/credentials/${credId}/models`, {
-        model_def_id: modelId,
-        priority: parseInt(priority, 10) || 0,
-        capacity_weight: Math.max(1, parseInt(capacityWeight, 10) || 1),
-        max_concurrency: Math.max(0, parseInt(maxConcurrency, 10) || 0),
-        custom_display_name: displayName || modelId,
-        short_name: shortName,
-        custom_capabilities: capabilities.join(','),
-        custom_pricing_mode: pricingMode,
-        custom_accepts_image: acceptsImage,
-        custom_max_input_images: maxInputImages,
-        custom_max_input_videos: maxInputVideos,
-        custom_image_edit_field: imageEditField,
-        custom_supported_params: supportedParams,
-        credits_input_per_1m: data.credits_input_per_1m,
-        credits_output_per_1m: data.credits_output_per_1m,
-        credits_per_image: data.credits_per_image,
-        credits_per_second: data.credits_per_second,
-        credits_per_call: data.credits_per_call,
-      }),
-    onMutate: () => setModelAdminError(''),
-    onSuccess: () => {
-      setModelAdminError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-      closeAddPanel()
-    },
-    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
-  })
-
-  const updateModelConfig = useMutation({
-    mutationFn: ({ modelId, data }: { modelId: number; data: typeof editForm }) =>
-      api.patch(`/admin/model-configs/${modelId}`, {
-        custom_display_name: data.display_name,
-        short_name: data.short_name,
-        model_id_override: data.model_id_override,
-        priority: parseInt(data.priority, 10) || 0,
-        capacity_weight: Math.max(1, parseInt(data.capacity_weight, 10) || 1),
-        max_concurrency: Math.max(0, parseInt(data.max_concurrency, 10) || 0),
-        custom_capabilities: data.capabilities.join(','),
-        custom_pricing_mode: data.pricing_mode,
-        custom_accepts_image: data.accepts_image,
-        custom_max_input_images: data.max_input_images,
-        custom_max_input_videos: data.max_input_videos,
-        custom_supported_params: data.supported_params,
-      }),
-    onMutate: () => setModelAdminError(''),
-    onSuccess: () => {
-      setModelAdminError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-      setEditingConfig(null)
-    },
-    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
-  })
-
-  const setDefaultAgentModel = useMutation({
-    mutationFn: ({ modelId, priority }: { modelId: number; priority: number }) =>
-      api.patch(`/admin/model-configs/${modelId}`, { priority }),
-    onMutate: () => setModelAdminError(''),
-    onSuccess: () => {
-      setModelAdminError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-    },
-    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
-  })
-
-  const deleteModelConfig = useMutation({
-    mutationFn: ({ credId, modelId }: { credId: number; modelId: number }) =>
-      api.delete(`/admin/credentials/${credId}/models/${modelId}`),
-    onMutate: () => setModelAdminError(''),
-    onSuccess: () => {
-      setModelAdminError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-    },
-    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
-  })
-
-  function openAddPanel(credId: number) {
-    const defaultCaps = ['text']
-    setAddingFor(credId)
-    setAddModelId('')
-    setAddDisplayName('')
-    setAddShortName('')
-    setAddCapabilities(defaultCaps)
-    setAddPricingMode('per_token')
-    setAddAcceptsImage(false)
-    setAddMaxInputImages(0)
-    setAddMaxInputVideos(0)
-    setAddImageEditField('')
-    setAddSupportedParams('')
-    setAddPriority('0')
-    setAddCapacityWeight('1')
-    setAddMaxConcurrency('0')
-    setAddPriceForm(defaultPriceForm())
-    setRemoteModels([])
-    setRemoteError('')
-    setShowPresets(false)
-  }
-
-  const addEffectivePricingMode = canUseCustomPricingMode ? addPricingMode : inferPricingMode(addCapabilities)
-  const editEffectivePricingMode = canUseCustomPricingMode ? editForm.pricing_mode : inferPricingMode(editForm.capabilities)
   const modelQueryError = adaptersQueryError || presetsQueryError || credentialsQueryError || providerInstancesQueryError
-
-  function closeAddPanel() {
-    setAddingFor(null)
-    setRemoteModels([])
-    setRemoteError('')
-    setShowPresets(false)
-  }
-
-  async function fetchRemoteModels(credId: number) {
-    setRemoteFetching(true)
-    setRemoteError('')
-    setRemoteModels([])
-    try {
-      const res = await api.get(`/admin/credentials/${credId}/remote-models`).then((r) => r.data)
-      setRemoteModels(res.models ?? [])
-    } catch (e: any) {
-      setRemoteError(translateAPIRequestError(e))
-    } finally {
-      setRemoteFetching(false)
-    }
-  }
 
   async function runTest(key: string, fn: () => Promise<TestResult>) {
     setTestingId(key)
@@ -1750,13 +2235,6 @@ export function ModelManagementPage() {
     }
   }
 
-  function confirmDeleteModelConfig(cred: AICredential, cfg: AIModelConfig) {
-    const name = modelConfigDisplayName(cfg)
-    if (window.confirm(t('admin.models.confirmDeleteModel', { name }))) {
-      deleteModelConfig.mutate({ credId: cred.ID, modelId: cfg.ID })
-    }
-  }
-
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
@@ -1764,18 +2242,16 @@ export function ModelManagementPage() {
           <h2 className="text-base font-semibold text-foreground">{t('admin.models.title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">{t('admin.models.description')}</p>
         </div>
-        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'providers' | 'gateway')}>
-          <TabsList>
-            <TabsTrigger value="providers">{t('admin.models.viewProviders')}</TabsTrigger>
-            <TabsTrigger value="gateway">{t('admin.models.viewGateway')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
+
+      <ModelTopologyNav value={viewMode} onChange={setViewMode} counts={topologyCounts} />
 
       <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
         {viewMode === 'providers'
           ? (isNewAPIGatewayMode ? t('admin.models.newAPIGatewayProvidersHint') : t('admin.models.providersHint'))
-          : t('admin.models.gatewayHint')}
+          : viewMode === 'catalog'
+            ? t('admin.models.catalogHint')
+            : t('admin.models.gatewayHint')}
       </div>
 
       {modelAdminError && (
@@ -1915,14 +2391,6 @@ export function ModelManagementPage() {
               </div>
             </div>
           )}
-          {credentials.some((cred) => (cred.models ?? []).some(isAgentTextModelConfig)) && (
-            <div className="rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{t('admin.models.agentDefaultModelTitle', { defaultValue: 'Agent 默认模型' })}</span>
-              <span className="ml-2">
-                {t('admin.models.agentDefaultModelHint', { defaultValue: '用户会话框的自动模型会优先使用这里标记的文本/推理模型。' })}
-              </span>
-            </div>
-          )}
           {credentials.map((cred) => {
           const providerInstance = providerInstanceByCredentialId.get(cred.ID)
           const testKey = providerInstance ? `provider-instance-${providerInstance.id}` : `cred-${cred.ID}`
@@ -1981,9 +2449,6 @@ export function ModelManagementPage() {
                     <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                       {getAdapterLabel(cred.adapter_type)}
                     </span>
-                    {cred.models && cred.models.length > 0 && (
-                      <span className="text-xs text-muted-foreground">{t('admin.models.modelsCount', { count: cred.models.length })}</span>
-                    )}
                     {providerInstance && (
                       <span className="text-xs text-muted-foreground">
                         {t('admin.models.providerInstanceSecrets', { configured: configuredSecrets, total: totalSecrets })}
@@ -2036,7 +2501,7 @@ export function ModelManagementPage() {
                 </Button>
               </div>
 
-              {/* Expanded: model configs + add panel */}
+              {/* Expanded: provider auth and catalog handoff */}
               {expandedId === cred.ID && (
                 <div className="border-t border-border px-4 py-3 space-y-3 bg-card">
 	                  <div className="border border-border rounded-lg bg-background p-3 space-y-2">
@@ -2115,654 +2580,15 @@ export function ModelManagementPage() {
 	                    )}
 	                  </div>
 
-	                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">{t('admin.models.enabledModels')}</p>
-                    {addingFor !== cred.ID && (
-                      <button
-                        onClick={() => openAddPanel(cred.ID)}
-                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                      >
-                        <Plus size={12} /> {t('admin.models.addModel')}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Add model panel */}
-                  {addingFor === cred.ID && (() => {
-                    const capLabels: Record<string, string> = Object.fromEntries(
-                      MODEL_CAPABILITIES.map((cap) => [cap, t(CAPABILITY_TRANSLATION_KEYS[cap] ?? cap)])
-                    )
-                    // Filter presets to this credential's adapter type.
-                    const credAdapter = cred.adapter_type
-                    const currentAdapter = adapters.find((a) => a.adapter_type === credAdapter)
-                    const addParamAudit = buildParamContractAudit(addSupportedParams, adapterParamsForCapabilities(currentAdapter, addCapabilities))
-                    const addInputLimitErrors = inputLimitErrors(addMaxInputImages, addMaxInputVideos, t)
-                    const addInputLimitsValid = addInputLimitErrors.length === 0
-                    const filteredPresets = presets.filter(p => p.adapter_type === credAdapter)
-
-                    function applyPreset(preset: ModelPreset) {
-                      setAddModelId(preset.model_id)
-                      setAddDisplayName(preset.display_name)
-                      setAddShortName('')
-                      setAddCapabilities(preset.capabilities)
-                      setAddPricingMode(preset.pricing_mode ?? inferPricingMode(preset.capabilities))
-                      setAddAcceptsImage(preset.accepts_image_input ?? false)
-                      setAddMaxInputImages(preset.max_input_images ?? 0)
-                      setAddMaxInputVideos(preset.max_input_videos ?? 0)
-                      setAddImageEditField(preset.image_edit_field ?? '')
-                      setAddSupportedParams(Array.isArray(preset.supported_params) ? serializeParamDefs(preset.supported_params) : '')
-                      setShowPresets(false)
-                    }
-
-                    return (
-                      <div className="border border-border rounded bg-background p-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium text-foreground">{t('admin.models.addModel')}</p>
-                          <div className="flex items-center gap-2">
-                            {filteredPresets.length > 0 && (
-                              <button
-                                onClick={() => setShowPresets(!showPresets)}
-                                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                              >
-                                <Sparkles size={11} />
-                                {showPresets ? t('admin.models.collapsePresets') : t('admin.models.pickPreset')}
-                              </button>
-                            )}
-                            <button
-                              onClick={() => fetchRemoteModels(cred.ID)}
-                              disabled={remoteFetching}
-                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-50"
-                            >
-                              <RefreshCw size={11} className={remoteFetching ? 'animate-spin' : ''} />
-                              {t('admin.models.fetchFromApi')}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Preset list — filtered by adapter type */}
-                        {showPresets && filteredPresets.length > 0 && (
-                          <div className="border border-border rounded bg-muted/20 p-2 space-y-1 max-h-48 overflow-y-auto">
-                            <p className="text-[10px] text-muted-foreground mb-1">{t('admin.models.presetHint')}</p>
-                            {filteredPresets.map((preset) => (
-                              <button
-                                key={preset.id}
-                                onClick={() => applyPreset(preset)}
-                                className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors flex items-center justify-between gap-2"
-                              >
-                                <span className="font-medium truncate">{preset.display_name}</span>
-                                <span className="flex shrink-0 items-center gap-1.5">
-                                  {Array.isArray(preset.supported_params) && preset.supported_params.length > 0 && (
-                                    <span className="rounded border border-border bg-background px-1.5 py-0 text-[10px] leading-4 text-muted-foreground">
-                                      {t('admin.models.presetParams', { count: preset.supported_params.length })}
-                                    </span>
-                                  )}
-                                  <span className="text-muted-foreground font-mono">{preset.model_id}</span>
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Model ID input with remote list */}
-                        <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.modelIdLabel')}</Label>
-                          <input
-                            className="w-full text-xs border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring font-mono"
-                            value={addModelId}
-                            onChange={(e) => setAddModelId(e.target.value)}
-                            placeholder={t('admin.models.modelIdPlaceholder')}
-                          />
-                        </div>
-
-                        {remoteError && <AppFeedbackText>{remoteError}</AppFeedbackText>}
-
-                        {remoteModels.length > 0 && (
-                          <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {remoteModels.map((modelId) => (
-                              <button
-                                key={modelId}
-                                onClick={() => setAddModelId(modelId)}
-                                className={cn(
-                                  'w-full text-left rounded px-2 py-1 text-xs font-mono transition-colors border',
-                                  addModelId === modelId ? 'bg-accent border-border' : 'hover:bg-muted/50 border-transparent'
-                                )}
-                              >
-                                {modelId}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
-                          <input
-                            className="w-full text-xs border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                            value={addDisplayName}
-                            onChange={(e) => setAddDisplayName(e.target.value)}
-                            placeholder={addModelId || t('admin.models.displayNamePlaceholder')}
-                          />
-                        </div>
-
-                        <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.shortName')}</Label>
-                          <input
-                            className="w-full text-xs border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                            value={addShortName}
-                            onChange={(e) => setAddShortName(e.target.value)}
-                            placeholder={t('admin.models.shortNamePlaceholder')}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.priority')}</Label>
-                            <Input
-                              type="number"
-                              step={1}
-                              className="text-xs h-8"
-                              value={addPriority}
-                              onChange={(e) => setAddPriority(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capacityWeight')}</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              step={1}
-                              className="text-xs h-8"
-                              value={addCapacityWeight}
-                              onChange={(e) => setAddCapacityWeight(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.maxConcurrency')}</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={1}
-                              className="text-xs h-8"
-                              value={addMaxConcurrency}
-                              onChange={(e) => setAddMaxConcurrency(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capabilitiesLabel')}</Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(capLabels).map(([cap, label]) => (
-                              <button
-                                key={cap}
-                                onClick={() => {
-                                  const next = addCapabilities.includes(cap)
-                                    ? addCapabilities.filter(c => c !== cap)
-                                    : [...addCapabilities, cap]
-                                  if (next.length > 0) {
-                                    setAddCapabilities(next)
-                                    setAddPricingMode(inferPricingMode(next))
-                                    const needsImage = next.some(c => c === 'image_edit' || c === 'video_i2v' || c === 'video_v2v')
-                                    setAddAcceptsImage(needsImage)
-                                    setAddSupportedParams('')
-                                  }
-                                }}
-                                className={cn(
-                                  'text-xs px-2 py-0.5 rounded border transition-colors',
-                                  addCapabilities.includes(cap)
-                                    ? 'border-ring bg-accent text-foreground'
-                                    : 'border-border text-muted-foreground hover:border-ring/50'
-                                )}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {canUseCustomPricingMode && (
-                          <div>
-                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
-                            <div className="flex gap-2 flex-wrap">
-                              {([
-                                { value: 'per_token', label: t('admin.pricingMode.perToken') },
-                                { value: 'per_image', label: t('admin.pricingMode.perImage') },
-                                { value: 'per_second', label: t('admin.pricingMode.perSecond') },
-                                { value: 'per_call', label: t('admin.pricingMode.perCall') },
-                              ]).map(opt => (
-                                <button
-                                  key={opt.value}
-                                  onClick={() => setAddPricingMode(opt.value)}
-                                  className={cn(
-                                    'text-xs px-2 py-0.5 rounded border transition-colors',
-                                    addPricingMode === opt.value
-                                      ? 'border-ring bg-accent text-foreground'
-                                      : 'border-border text-muted-foreground hover:border-ring/50'
-                                  )}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Image/video input config */}
-                        <div className="flex flex-wrap gap-3 items-center">
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={addAcceptsImage}
-                              onChange={e => setAddAcceptsImage(e.target.checked)}
-                              className="rounded"
-                            />
-                            {t('admin.models.acceptsImageInput')}
-                          </label>
-                          {addAcceptsImage && (
-                            <div className="flex items-center gap-1.5">
-                              <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
-                              <Input
-                                type="number"
-                                min={-1}
-                                step={1}
-                                controlSize="sm"
-                                invalid={!isValidInputLimit(addMaxInputImages)}
-                                className="w-16 text-xs"
-                                value={addMaxInputImages}
-                                onChange={e => setAddMaxInputImages(Number(e.target.value))}
-                                placeholder="1"
-                              />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1.5">
-                            <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
-                            <Input
-                              type="number"
-                              min={-1}
-                              step={1}
-                              controlSize="sm"
-                              invalid={!isValidInputLimit(addMaxInputVideos)}
-                              className="w-16 text-xs"
-                              value={addMaxInputVideos}
-                              onChange={e => setAddMaxInputVideos(Number(e.target.value))}
-                              placeholder="0"
-                            />
-                          </div>
-                          <span className="text-[11px] text-muted-foreground">{t('admin.models.inputLimitHint')}</span>
-                        </div>
-                        {addInputLimitErrors.length > 0 && (
-                          <AppFeedbackText as="div" className="space-y-0.5">
-                            {addInputLimitErrors.map((error) => <p key={error}>{error}</p>)}
-                          </AppFeedbackText>
-                        )}
-
-	                        <ParamConfigBuilder
-	                          value={addSupportedParams}
-	                          onChange={setAddSupportedParams}
-	                          adapterParams={adapterParamsForCapabilities(currentAdapter, addCapabilities)}
-	                          adapterType={currentAdapter?.adapter_type}
-	                          capabilities={addCapabilities}
-	                          acceptsImageInput={addAcceptsImage}
-	                          maxInputImages={addMaxInputImages}
-	                          maxInputVideos={addMaxInputVideos}
-	                        />
-
-                        <PriceFields def={{ pricing_mode: addEffectivePricingMode }} form={addPriceForm} onChange={setAddPriceForm} />
-
-                        {addModel.isError && (
-                          <AppFeedbackText>{translateApiError((addModel.error as any)?.response?.data)}</AppFeedbackText>
-                        )}
-
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => addModel.mutate({
-                              credId: cred.ID,
-                              modelId: addModelId.trim(),
-                              displayName: addDisplayName.trim(),
-                              shortName: addShortName.trim(),
-                              capabilities: addCapabilities,
-                              pricingMode: addEffectivePricingMode,
-                              acceptsImage: addAcceptsImage,
-                              maxInputImages: addMaxInputImages,
-                              maxInputVideos: addMaxInputVideos,
-                              imageEditField: addImageEditField,
-                              supportedParams: addSupportedParams,
-                              priority: addPriority,
-                              capacityWeight: addCapacityWeight,
-                              maxConcurrency: addMaxConcurrency,
-                              data: addPriceForm,
-                            })}
-                            disabled={addModel.isPending || !addModelId.trim() || addCapabilities.length === 0 || !addInputLimitsValid || addParamAudit.errors.length > 0}
-                            size="sm"
-                            className="flex-1"
-                          >
-                            {addModel.isPending ? '…' : t('admin.models.add')}
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={closeAddPanel}>{t('common.cancel')}</Button>
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  {/* Active model config rows */}
-                  {(cred.models ?? []).map((cfg) => {
-                    const modelTestKey = `model-${cfg.ID}`
-                    const modelTestRes = testResults[modelTestKey]
-                    const isEditing = editingConfig?.ID === cfg.ID
-                    const displayName = cfg.custom_display_name || cfg.model_def_id
-                    const selectorName = cfg.short_name || displayName
-                    const caps = modelConfigCapabilities(cfg)
-                    const pricing = cfg.custom_pricing_mode || ''
-                    const editParamAudit = isEditing ? buildParamContractAudit(editForm.supported_params, adapterParamsForCapabilities(adapter, editForm.capabilities)) : null
-                    const editInputLimitErrors = inputLimitErrors(editForm.max_input_images, editForm.max_input_videos, t)
-                    const editInputLimitsValid = editInputLimitErrors.length === 0
-                    const isAgentTextModel = isAgentTextModelConfig(cfg)
-                    const agentDefaultModelId = defaultAgentModelConfigId(credentials)
-                    const isAgentDefaultModel = isAgentTextModel && cfg.ID === agentDefaultModelId
-
-                    return (
-                      <div key={cfg.ID} className="border border-border rounded bg-background">
-                        <div className="flex items-center gap-2 px-3 py-2 text-xs">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-foreground">{selectorName}</span>
-                            {cfg.short_name && cfg.short_name !== displayName && (
-                              <span className="ml-2 text-muted-foreground">{displayName}</span>
-                            )}
-                            {cfg.model_id_override && (
-                              <span className="ml-2 font-mono text-muted-foreground text-xs">{cfg.model_id_override}</span>
-                            )}
-                          </div>
-                          {caps.length > 0 && (
-                            <div className="flex flex-wrap items-center justify-end gap-1">
-                              {caps.map((cap) => (
-                                <StatusBadge key={cap} intent={CAPABILITY_STATUS_INTENT[cap] ?? 'neutral'} className="text-xs">
-                                  {CAPABILITY_TRANSLATION_KEYS[cap] ? t(CAPABILITY_TRANSLATION_KEYS[cap]) : cap}
-                                </StatusBadge>
-                              ))}
-                            </div>
-                          )}
-                          {pricing && (
-                            <span className="text-muted-foreground/50">{PRICING_LABEL_KEYS[pricing] ? t(PRICING_LABEL_KEYS[pricing]) : pricing}</span>
-                          )}
-                          {isAgentDefaultModel && (
-                            <Badge tone="success">{t('admin.models.agentDefaultModelBadge', { defaultValue: 'Agent 默认' })}</Badge>
-                          )}
-                          {isAgentTextModel && (
-                            <button
-                              onClick={() => setDefaultAgentModel.mutate({
-                                modelId: cfg.ID,
-                                priority: nextDefaultAgentModelPriority(credentials),
-                              })}
-                              disabled={setDefaultAgentModel.isPending || isAgentDefaultModel}
-                              className="text-muted-foreground/50 hover:text-foreground border border-border rounded px-1.5 py-0.5 disabled:opacity-50"
-                            >
-                              {isAgentDefaultModel
-                                ? t('admin.models.agentDefaultModelCurrent', { defaultValue: '当前默认' })
-                                : t('admin.models.setAgentDefaultModel', { defaultValue: '设为 Agent 默认' })}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => runTest(modelTestKey, () =>
-                              api.post(`/admin/credentials/${cred.ID}/models/${cfg.ID}/test`, {}).then((r) => r.data)
-                            )}
-                            disabled={testingId === modelTestKey}
-                            className="text-muted-foreground/50 hover:text-foreground border border-border rounded px-1.5 py-0.5"
-                          >
-                            {testingId === modelTestKey ? '…' : t('admin.models.test')}
-                          </button>
-                          {modelTestRes && (
-                            <AppFeedbackText as="span" tone={modelTestRes.success ? 'neutral' : 'danger'}>
-                              {modelTestRes.success ? '✓' : '✗'}
-                            </AppFeedbackText>
-                          )}
-                          <button
-                            onClick={() => navigator.clipboard.writeText(JSON.stringify(runtimeModelConfigFromAdmin(cred, cfg, adapter?.default_base_url), null, 2))}
-                            className="text-muted-foreground/50 hover:text-foreground"
-                            title="Copy runtime model config"
-                          >
-                            <Copy size={12} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              const nextCaps = modelConfigCapabilities(cfg)
-                              setEditingConfig(cfg)
-                              setEditForm({
-                                display_name: cfg.custom_display_name,
-                                short_name: cfg.short_name,
-                                model_id_override: cfg.model_id_override,
-                                priority: String(cfg.priority ?? 0),
-                                capacity_weight: String(cfg.capacity_weight ?? 1),
-                                max_concurrency: String(cfg.max_concurrency ?? 0),
-                                capabilities: nextCaps,
-                                pricing_mode: cfg.custom_pricing_mode || 'per_token',
-                                accepts_image: cfg.custom_accepts_image,
-                                max_input_images: cfg.custom_max_input_images,
-                                max_input_videos: cfg.custom_max_input_videos,
-                                supported_params: cfg.custom_supported_params || '',
-                              })
-                            }}
-                            className="text-muted-foreground/50 hover:text-foreground"
-                          >
-                            {t('admin.models.edit')}
-                          </button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            intent="danger"
-                            onClick={() => confirmDeleteModelConfig(cred, cfg)}
-                          >
-                            <Trash2 size={12} />
-                          </Button>
-                        </div>
-
-                        {isEditing && (
-                          <div className="border-t border-border px-3 py-2 space-y-2 bg-card">
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
-                                <Input
-                                  className="text-xs"
-                                  value={editForm.display_name}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, display_name: e.target.value }))}
-                                  placeholder={cfg.model_def_id}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.shortName')}</Label>
-                                <Input
-                                  className="text-xs"
-                                  value={editForm.short_name}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, short_name: e.target.value }))}
-                                  placeholder={t('admin.models.shortNamePlaceholder')}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('common.modelIdOverride')}</Label>
-                                <Input
-                                  className="text-xs font-mono"
-                                  value={editForm.model_id_override}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, model_id_override: e.target.value }))}
-                                  placeholder={t('admin.models.modelIdOverrideShortPlaceholder', { defaultValue: 'e.g. ep-xxx' })}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.priority')}</Label>
-                                <Input
-                                  type="number"
-                                  step={1}
-                                  className="text-xs"
-                                  value={editForm.priority}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value }))}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capacityWeight')}</Label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  step={1}
-                                  className="text-xs"
-                                  value={editForm.capacity_weight}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, capacity_weight: e.target.value }))}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.maxConcurrency')}</Label>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  className="text-xs"
-                                  value={editForm.max_concurrency}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, max_concurrency: e.target.value }))}
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capabilitiesLabel')}</Label>
-                              <div className="flex flex-wrap gap-1.5">
-                                {MODEL_CAPABILITIES.map((cap) => {
-                                  const labelKey = CAPABILITY_TRANSLATION_KEYS[cap] ?? cap
-                                  const active = editForm.capabilities.includes(cap)
-                                  return (
-                                    <button
-                                      key={cap}
-                                      onClick={() => {
-                                        const next = active
-                                          ? editForm.capabilities.filter((c) => c !== cap)
-                                          : [...editForm.capabilities, cap]
-                                        if (next.length > 0) {
-                                          setEditForm((f) => ({
-                                            ...f,
-                                            capabilities: next,
-                                            supported_params: '',
-                                          }))
-                                        }
-                                      }}
-                                      className={cn(
-                                        'text-xs px-2 py-0.5 rounded border transition-colors',
-                                        active ? 'border-ring bg-accent text-foreground' : 'border-border text-muted-foreground hover:border-ring/50'
-                                      )}
-                                    >
-                                      {t(labelKey)}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          {canUseCustomPricingMode && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
-                              <div className="flex gap-1.5 flex-wrap">
-                                {([
-                                  { value: 'per_token', label: t('admin.pricingMode.perToken') },
-                                  { value: 'per_image', label: t('admin.pricingMode.perImage') },
-                                  { value: 'per_second', label: t('admin.pricingMode.perSecond') },
-                                  { value: 'per_call', label: t('admin.pricingMode.perCall') },
-                                ]).map((opt) => (
-                                  <button
-                                    key={opt.value}
-                                    onClick={() => setEditForm((f) => ({ ...f, pricing_mode: opt.value }))}
-                                    className={cn(
-                                      'text-xs px-2 py-0.5 rounded border transition-colors',
-                                      editForm.pricing_mode === opt.value ? 'border-ring bg-accent text-foreground' : 'border-border text-muted-foreground hover:border-ring/50'
-                                    )}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                            <div className="flex flex-wrap gap-3 items-center">
-                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={editForm.accepts_image}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, accepts_image: e.target.checked }))}
-                                  className="rounded"
-                                />
-                                {t('admin.models.acceptsImageInput')}
-                              </label>
-                              {editForm.accepts_image && (
-                                <div className="flex items-center gap-1.5">
-                                  <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
-                                  <Input
-                                    type="number"
-                                    min={-1}
-                                    step={1}
-                                    controlSize="sm"
-                                    invalid={!isValidInputLimit(editForm.max_input_images)}
-                                    className="w-16 text-xs"
-                                    value={editForm.max_input_images}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, max_input_images: Number(e.target.value) }))}
-                                    placeholder="1"
-                                  />
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1.5">
-                                <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
-                                <Input
-                                  type="number"
-                                  min={-1}
-                                  step={1}
-                                  controlSize="sm"
-                                  invalid={!isValidInputLimit(editForm.max_input_videos)}
-                                  className="w-16 text-xs"
-                                  value={editForm.max_input_videos}
-                                  onChange={(e) => setEditForm((f) => ({ ...f, max_input_videos: Number(e.target.value) }))}
-                                  placeholder="0"
-                                />
-                              </div>
-                              <span className="text-[11px] text-muted-foreground">{t('admin.models.inputLimitHint')}</span>
-                            </div>
-                            {editInputLimitErrors.length > 0 && (
-                              <AppFeedbackText as="div" className="space-y-0.5">
-                                {editInputLimitErrors.map((error) => <p key={error}>{error}</p>)}
-                              </AppFeedbackText>
-                            )}
-	                          <ParamConfigBuilder
-	                            value={editForm.supported_params}
-	                            onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
-	                            adapterParams={adapterParamsForCapabilities(adapter, editForm.capabilities)}
-	                            adapterType={adapter?.adapter_type}
-	                            capabilities={editForm.capabilities}
-	                            acceptsImageInput={editForm.accepts_image}
-	                            maxInputImages={editForm.max_input_images}
-	                            maxInputVideos={editForm.max_input_videos}
-	                          />
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={() => updateModelConfig.mutate({
-                                  modelId: cfg.ID,
-                                  data: {
-                                    ...editForm,
-                                    pricing_mode: canUseCustomPricingMode ? editForm.pricing_mode : editEffectivePricingMode,
-                                  },
-                                })}
-                                disabled={updateModelConfig.isPending || !editInputLimitsValid || (editParamAudit?.errors.length ?? 0) > 0}
-                                size="sm"
-                                className="flex-1"
-                              >
-                                {t('common.save')}
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => setEditingConfig(null)}>
-                                {t('common.cancel')}
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {(!cred.models || cred.models.length === 0) && addingFor !== cred.ID && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('admin.models.noModelsHint')}
+	                  <div className="rounded-md border border-border bg-background p-3 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">{t('admin.models.catalogOwnsModelsTitle', { defaultValue: '模型身份由 Catalog Entry 管理' })}</p>
+                    <p className="mt-1 leading-relaxed">
+                      {t('admin.models.catalogOwnsModelsHint', { defaultValue: 'Provider 只保存 base URL、API Key 和连接状态。模型能力、参数、价格与到该 provider 的路由请在 Catalog Entry 中维护。' })}
                     </p>
-                  )}
+                    <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setViewMode('catalog')}>
+                      {t('admin.models.viewCatalog')}
+                    </Button>
+                  </div>
 
                   {/* Files API config — shown only for adapters that support it */}
 	                  {!isNewAPIGatewayMode && adapter?.supports_files_api && (() => {
@@ -2873,8 +2699,12 @@ export function ModelManagementPage() {
         </div>
       )}
 
+      {viewMode === 'catalog' && <ModelCatalogSection credentials={credentials} />}
+
       {viewMode === 'gateway' && (
         <div className="space-y-4">
+          <ModelRouteMatrix entries={topologyCatalogEntries} credentials={credentials} onOpenRouteForm={() => setViewMode('catalog')} />
+
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-lg border border-border bg-background p-4">
               <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayRuleTitle')}</p>
@@ -2898,7 +2728,7 @@ export function ModelManagementPage() {
             onRefresh={() => runtimeHealthQuery.refetch()}
           />
 
-          <GatewayAPIKeysSection credentials={credentials} />
+          <GatewayAPIKeysSection />
         </div>
       )}
     </div>
@@ -2919,7 +2749,11 @@ function RuntimeModelHealthSection({
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
-  const sorted = [...items].sort((a, b) => runtimeHealthRank(b) - runtimeHealthRank(a) || b.priority - a.priority || a.model_config_id - b.model_config_id)
+  const sorted = [...items].sort((a, b) => (
+    runtimeHealthRank(b) - runtimeHealthRank(a) ||
+    b.priority - a.priority ||
+    runtimeHealthKey(a).localeCompare(runtimeHealthKey(b))
+  ))
 
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -2957,14 +2791,13 @@ function RuntimeModelHealthSection({
               {sorted.map((item) => {
                 const state = runtimeHealthState(item, t)
                 return (
-                  <tr key={item.model_config_id} className="align-top">
+                  <tr key={runtimeHealthKey(item)} className="align-top">
                     <td className="px-4 py-2">
                       <p className="font-medium text-foreground">{item.provider_name || '-'}</p>
                       <p className="font-mono text-[11px] text-muted-foreground">{item.adapter_type}</p>
                     </td>
                     <td className="px-3 py-2">
                       <p className="font-mono text-foreground">{item.model_id || item.model_def_id || '-'}</p>
-                      <p className="text-[11px] text-muted-foreground">#{item.model_config_id}</p>
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       <p>{t('admin.models.runtimeHealthPriorityValue', { value: item.priority })}</p>
@@ -3008,6 +2841,10 @@ function runtimeHealthRank(item: RuntimeProviderHealth) {
   if (item.saturated) return 2
   if (item.failures > 0) return 1
   return 0
+}
+
+function runtimeHealthKey(item: RuntimeProviderHealth) {
+  return [item.provider_name, item.adapter_type, item.model_id || item.model_def_id].join(':')
 }
 
 function runtimeHealthState(item: RuntimeProviderHealth, t: (key: string, options?: Record<string, unknown>) => string): {
@@ -3747,7 +3584,7 @@ function ProjectDetailMetric({ label, value, detail }: { label: string; value: s
   )
 }
 
-// ── Tab 4: 功能模型配置 ────────────────────────────────────────────────────────
+// ── Model capability labels ───────────────────────────────────────────────────
 
 const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
   text: 'admin.capabilities.text',
@@ -3760,8 +3597,10 @@ const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
   audio: 'admin.capabilities.audio',
   audio_tts: 'admin.capabilities.audioTTS',
   audio_transcribe: 'admin.capabilities.audioTranscribe',
+  audio_music: 'admin.capabilities.audioMusic',
+  audio_sfx: 'admin.capabilities.audioSfx',
   subtitle_align: 'admin.capabilities.subtitleAlign',
-  render_video: 'admin.capabilities.renderVideo',
+  subtitle_translate: 'admin.capabilities.subtitleTranslate',
 }
 
 const MODEL_CAPABILITIES = [
@@ -3774,6 +3613,10 @@ const MODEL_CAPABILITIES = [
   'video_v2v',
   'audio_tts',
   'audio_transcribe',
+  'audio_music',
+  'audio_sfx',
+  'subtitle_align',
+  'subtitle_translate',
 ] as const
 
 const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
@@ -3787,8 +3630,10 @@ const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
   audio: 'info',
   audio_tts: 'info',
   audio_transcribe: 'info',
+  audio_music: 'info',
+  audio_sfx: 'info',
   subtitle_align: 'info',
-  render_video: 'neutral',
+  subtitle_translate: 'info',
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────
@@ -5211,20 +5056,20 @@ export default function AdminPage() {
       icon: FolderKanban,
       href: '/projects',
     },
-    {
+    ...(!adminBaseRouteDisabled('/debug') ? [{
       label: t('admin.home.metrics.queuedJobs'),
       value: formatAdminNumber(queuedJobs),
       detail: t('admin.home.metrics.failedJobs', { count: formatAdminNumber(overview?.jobs.failed) }),
       icon: Sparkles,
       href: jobMonitorHref,
-    },
-    {
+    }] : []),
+    ...(!adminBaseRouteDisabled('/usage-logs') ? [{
       label: t('admin.home.metrics.usage7d'),
       value: formatAdminCredits(overview?.usage.cost_7d),
       detail: t('admin.home.metrics.usage30d', { cost: formatAdminCredits(overview?.usage.cost_30d) }),
       icon: BarChart3,
       href: usage7dHref,
-    },
+    }] : []),
     {
       label: t('admin.home.metrics.storage'),
       value: formatAdminBytes(overview?.resources.bytes),
@@ -5241,10 +5086,10 @@ export default function AdminPage() {
     { label: t('admin.tabs.orgs'), detail: t('admin.home.sections.orgs'), icon: Building2, href: '/orgs' },
     { label: t('admin.tabs.projects'), detail: t('admin.home.sections.projects', { count: formatAdminNumber(overview?.projects.total) }), icon: FolderKanban, href: '/projects' },
     { label: t('admin.tabs.auditLogs'), detail: t('admin.home.sections.auditLogs', { count: formatAdminNumber(overview?.audits.total) }), icon: ScrollText, href: '/audit-logs' },
-    { label: t('admin.tabs.logs'), detail: t('admin.home.sections.usageLogs', { count: formatAdminNumber(overview?.usage.records) }), icon: BarChart3, href: '/usage-logs' },
+    ...(!adminBaseRouteDisabled('/usage-logs') ? [{ label: t('admin.tabs.logs'), detail: t('admin.home.sections.usageLogs', { count: formatAdminNumber(overview?.usage.records) }), icon: BarChart3, href: '/usage-logs' }] : []),
     { label: t('admin.tabs.storage'), detail: t('admin.home.sections.storage', { count: formatAdminNumber(overview?.resources.total) }), icon: HardDrive, href: '/storage' },
     { label: t('admin.tabs.cloudFiles'), detail: t('admin.home.sections.cloudFiles'), icon: CloudUpload, href: '/cloud-files' },
-    { label: t('admin.tabs.debug'), detail: t('admin.home.sections.debug'), icon: Bug, href: '/debug?tab=system' },
+    ...(!adminBaseRouteDisabled('/debug') ? [{ label: t('admin.tabs.debug'), detail: t('admin.home.sections.debug'), icon: Bug, href: '/debug?tab=system' }] : []),
     ...runtimeSectionCards,
   ]
 

@@ -56,6 +56,13 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.PUT("/resources/:id", h.resources.Update)
 	protected.POST("/resources/:id/verify-image", h.resources.VerifyImage)
 	protected.DELETE("/resources/:id", h.resources.Delete)
+
+	protected.POST("/media/streams/uploads", h.mediaStreams.Upload)
+	protected.GET("/media/streams/:id", h.mediaStreams.Get)
+	protected.GET("/media/streams/:id/manifest.m3u8", h.mediaStreams.ServeManifest)
+	protected.GET("/media/streams/:id/presigned.m3u8", h.mediaStreams.ServePresignedManifest)
+	protected.GET("/media/streams/:id/segments/:name", h.mediaStreams.ServeSegment)
+
 	protected.GET("/external-resource-sources", h.externalResources.ListSources)
 	protected.POST("/external-resource-sources", h.externalResources.CreateSource)
 	protected.PATCH("/external-resource-sources/:id", h.externalResources.UpdateSource)

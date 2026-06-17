@@ -344,7 +344,7 @@
   padding: var(--ms-space-2);
 }
 
-.ms-agent-chat-media-tile-image {
+.ms-agent-chat-media-tile__image {
   display: block;
   width: auto;
   height: auto;
@@ -353,7 +353,7 @@
   object-fit: contain;
 }
 
-.ms-agent-chat-media-tile-video {
+.ms-agent-chat-media-tile__video {
   display: block;
   width: auto;
   height: auto;
@@ -363,12 +363,12 @@
   object-fit: contain;
 }
 
-.ms-agent-chat-media-tile-audio {
+.ms-agent-chat-media-tile__audio {
   display: block;
   width: min(100%, 360px);
 }
 
-.ms-agent-chat-media-tile-caption {
+.ms-agent-chat-media-tile__caption {
   min-width: 0;
   margin-top: var(--ms-space-2);
   overflow: hidden;

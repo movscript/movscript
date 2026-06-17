@@ -20,6 +20,7 @@ import {
   listTools,
   readResourceImageForVision,
   transformResourceImageToResource,
+  trimResourceVideoToResource,
   updateMCPContextSnapshot,
   uploadAgentImageResource,
   uploadAgentImageResources,
@@ -136,7 +137,9 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
     id: 'tools',
     method: 'tools/list',
   })
-  const tools = (toolsResponse?.result?.tools ?? []).map((tool) => tool.name)
+  const toolList = toolsResponse?.result?.tools ?? []
+  const tools = toolList.map((tool) => tool.name)
+  const toolsByName = new Map(toolList.map((tool) => [tool.name, tool]))
   assert.ok(tools.includes('system_focus_get'))
   assert.ok(tools.includes('system_project_create'))
   assert.ok(tools.includes('system_model_list'))
@@ -144,6 +147,12 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_generate_image_job_get_batch'))
   assert.ok(tools.includes('system_generate_video'))
   assert.ok(tools.includes('system_generate_video_job_get_batch'))
+  assert.ok(tools.includes('system_generate_voiceover'))
+  assert.ok(tools.includes('system_generate_music'))
+  assert.ok(tools.includes('system_generate_sfx'))
+  assert.ok(tools.includes('system_generate_subtitle'))
+  assert.ok(tools.includes('system_align_subtitle'))
+  assert.ok(tools.includes('system_translate_subtitle'))
   assert.ok(tools.includes('system_resource_library_query'))
   assert.ok(tools.includes('system_resource_image_transform_to_resource'))
   assert.ok(tools.includes('system_resource_video_extract_frames'))
@@ -155,6 +164,13 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('system_resource_video_concat_to_resource'))
   assert.ok(tools.includes('system_resource_video_contact_sheet_to_resource'))
   assert.ok(tools.includes('system_resource_video_extract_audio_to_resource'))
+  assert.match(String(toolsByName.get('system_resource_video_trim_to_resource')?.description), /Neutral resource preparation/)
+  assert.match(String(toolsByName.get('system_resource_video_trim_to_resource')?.description), /not the product editing path/)
+  assert.match(String(toolsByName.get('system_resource_video_trim_to_resource')?.description), /editing_\* tools through Electron mediaPipeline/)
+  assert.match(String(toolsByName.get('system_resource_video_compose_to_resource')?.description), /Resource-level video utility/)
+  assert.match(String(toolsByName.get('system_resource_video_compose_to_resource')?.description), /not the product editing path/)
+  assert.match(String(toolsByName.get('system_resource_video_concat_to_resource')?.description), /Resource-level video utility/)
+  assert.match(String(toolsByName.get('system_resource_video_concat_to_resource')?.description), /not the product editing path/)
   assert.ok(tools.includes('system_shot_library_query'))
   assert.ok(tools.includes('system_shot_group_create'))
   assert.ok(tools.includes('system_shot_group_get'))
@@ -168,9 +184,10 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('domain_query_production_context'))
   assert.ok(tools.includes('domain_build_content_unit_backend_prompt'))
   assert.ok(tools.includes('domain_read_production_timeline'))
-  assert.ok(tools.includes('domain_apply_production_timeline_commands'))
-  assert.ok(tools.includes('domain_compose_production_from_timeline'))
-  assert.ok(tools.includes('domain_compose_scene_moment_from_edit_plan'))
+  assert.equal(tools.includes('domain_apply_production_timeline_commands'), false)
+  assert.equal(tools.includes('domain_apply_scene_moment_timeline_commands'), false)
+  assert.equal(tools.includes('domain_compose_production_from_timeline'), false)
+  assert.equal(tools.includes('domain_compose_scene_moment_from_edit_plan'), false)
   assert.ok(tools.includes('domain_read_content_unit_generation_prompt'))
   assert.ok(tools.includes('domain_read_content_unit_input_version'))
   assert.ok(tools.includes('domain_read_production_work_plan'))
@@ -235,6 +252,15 @@ test('MCP discovery exposes core MovScript tools and resources', async () => {
   assert.ok(tools.includes('generation_image_job_get_batch'))
   assert.ok(tools.includes('generation_video_generate'))
   assert.ok(tools.includes('generation_video_job_get_batch'))
+  assert.ok(tools.includes('generation_audio_generate'))
+  assert.ok(tools.includes('generation_voiceover_generate'))
+  assert.ok(tools.includes('generation_music_generate'))
+  assert.ok(tools.includes('generation_sfx_generate'))
+  assert.ok(tools.includes('generation_subtitle_generate'))
+  assert.ok(tools.includes('generation_subtitle_align'))
+  assert.ok(tools.includes('generation_subtitle_translate'))
+  assert.ok(tools.includes('generation_audio_job_get'))
+  assert.ok(tools.includes('generation_audio_job_get_batch'))
 
   const resourcesResponse = await handleJSONRPC({
     jsonrpc: '2.0',
@@ -358,8 +384,21 @@ test('MCP project-scoped tool schemas expose explicit project id arguments', () 
     'domain_query_entities',
     'generation_image_generate',
     'generation_video_generate',
+    'generation_audio_generate',
+    'generation_voiceover_generate',
+    'generation_music_generate',
+    'generation_sfx_generate',
+    'generation_subtitle_generate',
+    'generation_subtitle_align',
+    'generation_subtitle_translate',
     'system_generate_image',
     'system_generate_video',
+    'system_generate_voiceover',
+    'system_generate_music',
+    'system_generate_sfx',
+    'system_generate_subtitle',
+    'system_align_subtitle',
+    'system_translate_subtitle',
   ]) {
     const schema = tools.find((tool) => tool.name === name)?.inputSchema
     assert.ok(schema, `${name} schema should be exposed`)
@@ -567,6 +606,87 @@ test('MCP video frame extraction can materialize a frame as a RawResource', asyn
   }
 })
 
+test('MCP video trim creates a neutral prepared video RawResource', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'movscript-trim-resource-'))
+  const logPath = join(tempDir, 'ffmpeg.jsonl')
+  const originalFetch = globalThis.fetch
+  const originalFFmpegPath = process.env.FFMPEG_PATH
+  const originalLog = process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+  setMovScriptBackendAPIBaseURL('http://movscript.test')
+  const requests = []
+  try {
+    process.env.FFMPEG_PATH = await writeFakeFFmpegTools(tempDir)
+    process.env.MOVSCRIPT_TEST_FFMPEG_LOG = logPath
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      requests.push({ url, method: init?.method ?? 'GET' })
+      if (url === 'http://movscript.test/api/v1/resources/42/file') {
+        return new Response(Buffer.from('fake-video'), {
+          status: 200,
+          headers: {
+            'content-type': 'video/mp4',
+            'content-length': '10',
+          },
+        })
+      }
+      if (url === 'http://movscript.test/api/v1/resources/upload') {
+        assert.equal(init?.method, 'POST')
+        assert.ok(init.body instanceof FormData)
+        const file = init.body.get('file')
+        assert.ok(file instanceof Blob)
+        assert.equal(file.type, 'video/mp4')
+        assert.equal(file.name, 'clip.mp4')
+        assert.deepEqual(JSON.parse(init.body.get('derivative')), {
+          operation: 'video_trim',
+          tool: 'movscript_resource_video_trim_to_resource',
+          input_resource_ids: [42],
+          params: {
+            start_sec: 1,
+            end_sec: 4,
+            mode: 'accurate',
+          },
+        })
+        return new Response(JSON.stringify({ ID: 602, name: file.name, mime_type: file.type }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    }
+
+    const result = await trimResourceVideoToResource({
+      resource_id: 42,
+      start_sec: 1,
+      end_sec: 4,
+      filename: 'clip.mp4',
+    })
+
+    assert.equal(result.status, 'created')
+    assert.equal(result.compatibility.kind, 'neutral_resource_preparation')
+    assert.equal(result.compatibility.recommended_tool_family, 'editing_*')
+    assert.match(result.compatibility.recommended_workflow, /MediaEditingProject/)
+    assert.equal(result.source_resource_id, 42)
+    assert.equal(result.video_resource_id, 602)
+    assert.equal(result.resource_id, 602)
+    assert.equal(result.duration_sec, 3)
+    assert.deepEqual(requests.map((item) => `${item.method} ${item.url}`), [
+      'GET http://movscript.test/api/v1/resources/42/file',
+      'POST http://movscript.test/api/v1/resources/upload',
+    ])
+
+    const toolCalls = readFileSync(logPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+    assert.ok(toolCalls.some((call) => call.tool === 'ffmpeg' && call.args.includes('-ss') && call.args.includes('1.000')))
+  } finally {
+    globalThis.fetch = originalFetch
+    setMovScriptBackendAPIBaseURL('http://localhost:8765')
+    if (originalFFmpegPath === undefined) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = originalFFmpegPath
+    if (originalLog === undefined) delete process.env.MOVSCRIPT_TEST_FFMPEG_LOG
+    else process.env.MOVSCRIPT_TEST_FFMPEG_LOG = originalLog
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('MCP video composition creates a new video RawResource from ordered resource clips', async () => {
   const tempDir = mkdtempSync(join(tmpdir(), 'movscript-compose-resource-'))
   const logPath = join(tempDir, 'ffmpeg.jsonl')
@@ -649,6 +769,9 @@ test('MCP video composition creates a new video RawResource from ordered resourc
     })
 
     assert.equal(result.status, 'created')
+    assert.equal(result.compatibility.kind, 'resource_level_video_utility')
+    assert.equal(result.compatibility.recommended_tool_family, 'editing_*')
+    assert.match(result.compatibility.recommended_workflow, /Electron mediaPipeline/)
     assert.equal(result.video_resource_id, 601)
     assert.equal(result.resource_id, 601)
     assert.equal(result.duration_sec, 9)
@@ -1688,6 +1811,7 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
   const logPath = join(workspaceDir, 'ffmpeg.jsonl')
   const decisionContexts = new Map()
   const selectionRequests = []
+  const composeUploads = []
   process.env.MOVSCRIPT_WORKSPACE_DIR = workspaceDir
   process.env.FFMPEG_PATH = await writeFakeFFmpegTools(workspaceDir)
   process.env.MOVSCRIPT_TEST_FFMPEG_LOG = logPath
@@ -1718,23 +1842,8 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
       })
     }
     if (parsed.href === 'http://movscript.test/api/v1/resources/upload') {
-      assert.equal(init.method, 'POST')
-      assert.ok(init.body instanceof FormData)
-      const file = init.body.get('file')
-      assert.ok(file instanceof Blob)
-      assert.equal(file.type, 'video/mp4')
-      assert.equal(file.name, 'final-pilot.mp4')
-      const derivative = JSON.parse(init.body.get('derivative'))
-      assert.equal(derivative.operation, 'video_compose')
-      assert.deepEqual(derivative.input_resource_ids, [700])
-      assert.equal(derivative.params.segments[0].source_resource_id, 700)
-      assert.equal(derivative.params.segments[0].start_sec, 1)
-      assert.equal(derivative.params.segments[0].end_sec, 7)
-      assert.equal(derivative.params.segments[0].duration_sec, 6)
-      return new Response(JSON.stringify({ ID: 701, name: file.name, mime_type: file.type }), {
-        status: 201,
-        headers: { 'content-type': 'application/json' },
-      })
+      composeUploads.push({ method: init.method })
+      assert.fail('production timeline handoff must not call backend compose/upload')
     }
     if (parsed.pathname.endsWith('/decisions/query') && init.method === 'POST') {
       return json((Array.isArray(body.target_refs) ? body.target_refs : [])
@@ -1846,6 +1955,24 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     const interpret = await callTool('domain_interpret', { projectId: 10 })
     assert.equal(interpret.status, 'refreshed')
 
+    const productionEditPlan = await callTool('domain_read_production_edit_plan', {
+      projectId: 10,
+      productionId: 'pilot',
+    })
+    assert.equal(productionEditPlan.status, 'ok')
+    assert.equal(productionEditPlan.edit_plan.schema, 'movscript.edit_plan.v1')
+    assert.equal(productionEditPlan.edit_plan.tracks[0].items[0].resource_id, 700)
+    assert.equal(productionEditPlan.context.resources[0].resource_id, 700)
+
+    const editingContext = await callTool('domain_create_editing_project_context', {
+      projectId: 10,
+      productionId: 'pilot',
+    })
+    assert.equal(editingContext.status, 'ok')
+    assert.equal(editingContext.target_kind, 'production')
+    assert.equal(editingContext.edit_plan.schema, 'movscript.edit_plan.v1')
+    assert.equal(editingContext.context.selected_candidates[0].candidate_id, 'scene_cut_a')
+
     const timeline = await callTool('domain_read_production_timeline', {
       projectId: 10,
       productionId: 'pilot',
@@ -1855,55 +1982,38 @@ test('MCP production timeline tools read and edit selected scene_moment outputs'
     assert.equal(timeline.status, 'ok')
     assert.equal(timeline.production_id, 'pilot')
     assert.equal(timeline.blockers.length, 0)
-    assert.equal(timeline.timeline_document.schema, 'opencut.timeline.v1')
+    assert.equal(timeline.media_editing_project.version, 1)
     assert.equal(timeline.clips[0].resourceId, 700)
     assert.equal(timeline.clips[0].contentUnitId, 'cu_rain_call')
     assert.equal(timeline.compose_inputs[0].resource_id, 700)
     assert.equal(timeline.compose_inputs[0].timeline_duration_sec, 9)
+    const composeUploadCountBeforeRemovedCalls = composeUploads.length
+    const selectionRequestCountBeforeRemovedCalls = selectionRequests.length
 
-    const edited = await callTool('domain_apply_production_timeline_commands', {
-      projectId: 10,
-      timeline_document: timeline.timeline_document,
-      commands: [{
-        type: 'update_element_trim',
-        elementId: timeline.timeline_document.project.scenes[0].tracks[0].elements[0].id,
-        trimStart: 1,
-        trimEnd: 2,
-        duration: 6,
-      }],
-    })
-
-    assert.equal(edited.status, 'ok')
-    assert.equal(edited.command_count, 1)
-    assert.equal(edited.compose_inputs[0].resource_id, 700)
-    assert.equal(edited.compose_inputs[0].trim_start_sec, 1)
-    assert.equal(edited.compose_inputs[0].trim_end_sec, 2)
-    assert.equal(edited.compose_inputs[0].duration_sec, 6)
-
-    const composed = await callTool('domain_compose_production_from_timeline', {
-      projectId: 10,
-      productionId: 'pilot',
-      contentUnitId: 'cu_pilot_final',
-      candidateId: 'production_final',
-      timeline_document: edited.timeline_document,
-      filename: 'final-pilot.mp4',
-      adopt: true,
-      reason: 'final assembly accepted',
-    })
-
-    assert.equal(composed.status, 'created')
-    assert.equal(composed.production_id, 'pilot')
-    assert.equal(composed.content_unit_id, 'cu_pilot_final')
-    assert.equal(composed.candidate_id, 'production_final')
-    assert.equal(composed.resource_id, 701)
-    assert.equal(composed.adopted, true)
-    assert.equal(composed.compose.duration_sec, 6)
-    assert.equal(composed.candidate.path, 'content_units/cu_pilot_final/candidates/production_final/content_candidate.json')
-    assert.equal(composed.candidate.record.outputs[0].resource_id, 701)
-    assert.equal(composed.candidate.record.outputs[0].metadata.operation, 'production_timeline_compose')
-    assert.equal(decisionContexts.get('content_units/cu_pilot_final')?.selection?.candidate_id, 'production_final')
-    assert.equal(decisionContexts.get('content_units/cu_pilot_final')?.selection?.resource_id, 701)
-    assert.equal(selectionRequests.at(-1)?.candidate_id, 'production_final')
+    for (const removedTool of [
+      'domain_apply_production_timeline_commands',
+      'domain_apply_scene_moment_timeline_commands',
+      'domain_compose_production_from_timeline',
+      'domain_compose_scene_moment_from_edit_plan',
+    ]) {
+      const removedResponse = await handleJSONRPC({
+        jsonrpc: '2.0',
+        id: `removed-${removedTool}`,
+        method: 'tools/call',
+        params: {
+          name: removedTool,
+          arguments: {
+            projectId: 10,
+            media_editing_project: timeline.media_editing_project,
+            timeline_document: { schema: 'movscript.legacy_timeline.v1' },
+          },
+        },
+      })
+      assert.equal(removedResponse?.error?.code, -32000)
+      assert.match(removedResponse?.error?.message ?? '', new RegExp(`Unknown tool: ${removedTool}`))
+    }
+    assert.equal(composeUploads.length, composeUploadCountBeforeRemovedCalls)
+    assert.equal(selectionRequests.length, selectionRequestCountBeforeRemovedCalls)
   } finally {
     globalThis.fetch = originalFetch
     setMovScriptBackendAPIBaseURL('http://localhost:8765')

@@ -35,6 +35,8 @@ test('app sidebar resizing is owned by the shared layout controller', () => {
 
   assert.match(sidebarSource, /useResizablePanel\(\{[\s\S]*resizeEdge: 'right'[\s\S]*collapseMode: 'after-min'/)
   assert.match(sidebarSource, /\{\.{3}sidebarResize\.resizeHandleProps\}[\s\S]*side="right"/)
+  assert.match(sidebarSource, /ROUTES\.tools\.audioGen/)
+  assert.match(sidebarSource, /sidebar\.items\.audioGen/)
   assert.doesNotMatch(sidebarSource, /resizeStart/)
   assert.doesNotMatch(sidebarSource, /setResizing/)
   assert.doesNotMatch(sidebarSource, /document\.body\.style\.cursor/)

@@ -71,7 +71,7 @@ func (h *AudioHandler) listAudioModels(c *gin.Context, capability string) ([]ai.
 }
 
 func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabilities ...string) ([]ai.PublicModel, error) {
-	seen := map[uint]bool{}
+	seen := map[string]bool{}
 	models := []ai.PublicModel{}
 	for _, capability := range capabilities {
 		next, err := h.listAudioModels(c, capability)
@@ -79,10 +79,20 @@ func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabiliti
 			return nil, err
 		}
 		for _, model := range next {
-			if seen[model.ID] {
+			key := model.ModelID
+			if key == "" {
+				key = model.LogicalModelID
+			}
+			if key == "" {
+				key = model.ModelDefID
+			}
+			if key == "" {
 				continue
 			}
-			seen[model.ID] = true
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
 			models = append(models, model)
 		}
 	}
@@ -90,8 +100,15 @@ func (h *AudioHandler) listAudioModelsForCapabilities(c *gin.Context, capabiliti
 }
 
 func audioPublicModelFromDescriptor(descriptor providercontract.AIModelDescriptor) ai.PublicModel {
+	modelDefID := descriptor.ModelDefID
+	modelIDOverride := descriptor.ModelIDOverride
+	if descriptor.CatalogEntryID != 0 {
+		modelDefID = descriptor.ModelID
+		modelIDOverride = ""
+	}
 	return ai.PublicModel{
-		ID:                descriptor.ModelConfigID,
+		ID:                audioPublicModelVisibleID(descriptor.ModelConfigID, descriptor.CatalogEntryID),
+		CatalogEntryID:    descriptor.CatalogEntryID,
 		CredentialID:      descriptor.CredentialID,
 		ModelID:           descriptor.ModelID,
 		DisplayName:       descriptor.DisplayName,
@@ -104,8 +121,8 @@ func audioPublicModelFromDescriptor(descriptor providercontract.AIModelDescripto
 		IsDefault:         descriptor.IsDefault,
 		LogicalModelID:    descriptor.LogicalModelID,
 		ProviderVariants:  descriptor.ProviderVariants,
-		ModelDefID:        descriptor.ModelDefID,
-		ModelIDOverride:   descriptor.ModelIDOverride,
+		ModelDefID:        modelDefID,
+		ModelIDOverride:   modelIDOverride,
 		Priority:          descriptor.Priority,
 		CapacityWeight:    descriptor.CapacityWeight,
 		MaxConcurrency:    descriptor.MaxConcurrency,
@@ -117,6 +134,13 @@ func audioPublicModelFromDescriptor(descriptor providercontract.AIModelDescripto
 	}
 }
 
+func audioPublicModelVisibleID(modelConfigID uint, catalogEntryID uint) uint {
+	if catalogEntryID != 0 {
+		return catalogEntryID
+	}
+	return modelConfigID
+}
+
 func (h *AudioHandler) Synthesize(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
@@ -124,30 +148,30 @@ func (h *AudioHandler) Synthesize(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ModelConfigID uint            `json:"model_config_id"`
-		Text          string          `json:"text"`
-		Voice         string          `json:"voice"`
-		Language      string          `json:"language"`
-		Model         string          `json:"model"`
-		AudioFormat   string          `json:"audio_format"`
-		Filename      string          `json:"filename"`
-		Params        json.RawMessage `json:"params"`
+		ModelID     string          `json:"model_id"`
+		Text        string          `json:"text"`
+		Voice       string          `json:"voice"`
+		Language    string          `json:"language"`
+		Model       string          `json:"model"`
+		AudioFormat string          `json:"audio_format"`
+		Filename    string          `json:"filename"`
+		Params      json.RawMessage `json:"params"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 	result, err := h.service.Synthesize(c.Request.Context(), appaudio.TTSInput{
-		UserID:        user.ID,
-		OrgID:         currentOrgID(c),
-		ModelConfigID: req.ModelConfigID,
-		Text:          req.Text,
-		Voice:         req.Voice,
-		Language:      req.Language,
-		Model:         req.Model,
-		AudioFormat:   req.AudioFormat,
-		Filename:      req.Filename,
-		Params:        req.Params,
+		UserID:      user.ID,
+		OrgID:       currentOrgID(c),
+		ModelID:     req.ModelID,
+		Text:        req.Text,
+		Voice:       req.Voice,
+		Language:    req.Language,
+		Model:       req.Model,
+		AudioFormat: req.AudioFormat,
+		Filename:    req.Filename,
+		Params:      req.Params,
 	})
 	if err != nil {
 		writeAudioError(c, err)
@@ -164,7 +188,7 @@ func (h *AudioHandler) Transcribe(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ModelConfigID   uint            `json:"model_config_id"`
+		ModelID         string          `json:"model_id"`
 		AudioResourceID uint            `json:"audio_resource_id"`
 		Language        string          `json:"language"`
 		Model           string          `json:"model"`
@@ -177,7 +201,7 @@ func (h *AudioHandler) Transcribe(c *gin.Context) {
 	result, err := h.service.Transcribe(c.Request.Context(), appaudio.TranscribeInput{
 		UserID:          user.ID,
 		OrgID:           currentOrgID(c),
-		ModelConfigID:   req.ModelConfigID,
+		ModelID:         req.ModelID,
 		AudioResourceID: req.AudioResourceID,
 		Language:        req.Language,
 		Model:           req.Model,
@@ -197,7 +221,7 @@ func (h *AudioHandler) Align(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ModelConfigID   uint            `json:"model_config_id"`
+		ModelID         string          `json:"model_id"`
 		AudioResourceID uint            `json:"audio_resource_id"`
 		Script          string          `json:"script"`
 		Language        string          `json:"language"`
@@ -211,7 +235,7 @@ func (h *AudioHandler) Align(c *gin.Context) {
 	result, err := h.service.Align(c.Request.Context(), appaudio.AlignInput{
 		UserID:          user.ID,
 		OrgID:           currentOrgID(c),
-		ModelConfigID:   req.ModelConfigID,
+		ModelID:         req.ModelID,
 		AudioResourceID: req.AudioResourceID,
 		Script:          req.Script,
 		Language:        req.Language,

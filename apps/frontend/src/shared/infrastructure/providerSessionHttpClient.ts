@@ -308,7 +308,6 @@ export class ProviderSessionClient extends ProviderSessionRunClient {
   }
 
   saveModelConfig(input: {
-    modelConfigId?: number
     model: string
     apiKind?: ProviderModelAPIKind
     baseURL?: string
@@ -345,7 +344,6 @@ export class ProviderSessionClient extends ProviderSessionRunClient {
 
   testModelConfig(input: {
     message?: string
-    modelConfigId?: number
     model?: string
     apiKind?: ProviderModelAPIKind
     baseURL?: string

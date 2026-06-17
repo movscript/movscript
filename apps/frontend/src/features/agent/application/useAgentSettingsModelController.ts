@@ -50,8 +50,8 @@ interface UseAgentSettingsModelControllerInput {
   client: ProviderSessionClient
   providerProfileConfigId: string
   recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void
-  storedModelId: number | null | undefined
-  updateAgentSettings: (settings: { modelId: number | null }) => void
+  storedModelId: string | null | undefined
+  updateAgentSettings: (settings: { modelId: string | null }) => void
 }
 
 export function useAgentSettingsModelController({

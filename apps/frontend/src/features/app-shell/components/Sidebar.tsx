@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   AppWindow,
+  AudioLines,
   CirclePlay,
   FolderArchive,
   Home,
@@ -125,6 +126,7 @@ export function Sidebar({
           <NavItem to={ROUTES.canvases} icon={AppWindow} label={t('sidebar.items.canvas')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.refImageGen} icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.refVideoGen} icon={CirclePlay} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.audioGen} icon={AudioLines} label={t('sidebar.items.audioGen')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />

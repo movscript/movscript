@@ -105,7 +105,7 @@ function makeJob(id: number, jobType: string, status: string, prompt: string, pa
     ID: id,
     user_id: 1001,
     project_id: 123,
-    model_config_id: 31,
+    model_id: 'video-fast',
     job_type: jobType,
     status,
     prompt,

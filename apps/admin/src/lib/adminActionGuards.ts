@@ -1,4 +1,4 @@
-import type { AICredential, AIModelConfig } from '@/types'
+import type { AICredential } from '@/types'
 
 export type AdminModelCredentialToggleConfirmKey =
   | 'admin.models.confirmEnableCredential'
@@ -23,10 +23,6 @@ export function credentialToggleConfirmKey(credential: Pick<AICredential, 'is_en
   return nextCredentialEnabledState(credential)
     ? 'admin.models.confirmEnableCredential'
     : 'admin.models.confirmDisableCredential'
-}
-
-export function modelConfigDisplayName(config: Pick<AIModelConfig, 'custom_display_name' | 'model_def_id'>): string {
-  return config.custom_display_name || config.model_def_id
 }
 
 export function jobActionConfirmKey(action: AdminJobAction): AdminJobActionConfirmKey {

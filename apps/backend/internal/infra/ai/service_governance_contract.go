@@ -188,7 +188,7 @@ func (s *AIService) providerForProbe(request providercontract.AIGatewayProviderP
 		provider, err := s.registry.BuildForCredential(cred)
 		return provider, health, err
 	}
-	return nil, health, fmt.Errorf("credential_id or model_config_id is required")
+	return nil, health, fmt.Errorf("credential_id is required")
 }
 
 func usageContextFromContract(input providercontract.AIUsageContext) UsageContext {

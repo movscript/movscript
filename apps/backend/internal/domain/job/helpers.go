@@ -8,15 +8,17 @@ import (
 )
 
 const (
-	CapabilityImage     = "image"
-	CapabilityImageEdit = "image_edit"
-	CapabilityVideo     = "video"
-	CapabilityVideoI2V  = "video_i2v"
-	CapabilityVideoV2V  = "video_v2v"
-	CapabilityAudioTTS  = "audio_tts"
-	CapabilityAudioSTT  = "audio_transcribe"
-	CapabilitySubAlign  = "subtitle_align"
-	CapabilityRender    = "render_video"
+	CapabilityImage        = "image"
+	CapabilityImageEdit    = "image_edit"
+	CapabilityVideo        = "video"
+	CapabilityVideoI2V     = "video_i2v"
+	CapabilityVideoV2V     = "video_v2v"
+	CapabilityAudioTTS     = "audio_tts"
+	CapabilityAudioSTT     = "audio_transcribe"
+	CapabilityAudioMusic   = "audio_music"
+	CapabilityAudioSFX     = "audio_sfx"
+	CapabilitySubAlign     = "subtitle_align"
+	CapabilitySubTranslate = "subtitle_translate"
 )
 
 type ModelConfigInput struct {
@@ -166,62 +168,67 @@ type VideoCostRequest struct {
 }
 
 type NewQueuedJobSpec struct {
-	UserID             uint
-	OrgID              *uint
-	ModelConfigID      uint
-	JobType            string
-	FeatureKey         string
-	Title              string
-	Prompt             string
-	ExtraParams        string
-	AspectRatio        string
-	Duration           int
-	RequestContext     string
-	InputResourceID    *uint
-	InputResourceIDs   string
-	UsageReservationID *uint
-	ProjectID          *uint
+	UserID                uint
+	OrgID                 *uint
+	ModelConfigID         uint
+	AIModelCatalogEntryID *uint
+	RouteGroup            string
+	JobType               string
+	FeatureKey            string
+	Title                 string
+	Prompt                string
+	ExtraParams           string
+	AspectRatio           string
+	Duration              int
+	RequestContext        string
+	InputResourceID       *uint
+	InputResourceIDs      string
+	UsageReservationID    *uint
+	ProjectID             *uint
 }
 
 type Job struct {
-	ID                  uint         `json:"ID"`
-	UserID              uint         `json:"user_id"`
-	OrgID               *uint        `json:"org_id,omitempty"`
-	ModelConfigID       uint         `json:"model_config_id"`
-	JobType             string       `json:"job_type"`
-	FeatureKey          string       `json:"feature_key,omitempty"`
-	Title               string       `json:"title,omitempty"`
-	Status              string       `json:"status"`
-	AttemptCount        int          `json:"attempt_count"`
-	MaxAttempts         int          `json:"max_attempts"`
-	NextRunAt           *time.Time   `json:"next_run_at,omitempty"`
-	Prompt              string       `json:"prompt"`
-	ExtraParams         string       `json:"extra_params,omitempty"`
-	AspectRatio         string       `json:"aspect_ratio,omitempty"`
-	Duration            int          `json:"duration,omitempty"`
-	RequestContext      string       `json:"request_context,omitempty"`
-	InputResourceID     *uint        `json:"input_resource_id,omitempty"`
-	InputResourceIDs    string       `json:"input_resource_ids,omitempty"`
-	OutputResourceID    *uint        `json:"output_resource_id,omitempty"`
-	UsageReservationID  *uint        `json:"usage_reservation_id,omitempty"`
-	ProviderTaskID      string       `json:"provider_task_id,omitempty"`
-	ProviderTaskKind    string       `json:"provider_task_kind,omitempty"`
-	ProviderTaskStatus  string       `json:"provider_task_status,omitempty"`
-	ProviderTaskHistory string       `json:"provider_task_history,omitempty"`
-	ErrorMsg            string       `json:"error_msg,omitempty"`
-	DebugInfo           string       `json:"debug_info,omitempty"`
-	ExecutionState      string       `json:"execution_state,omitempty"`
-	StateTrace          string       `json:"state_trace,omitempty"`
-	LockedBy            string       `json:"locked_by,omitempty"`
-	LeaseUntil          *time.Time   `json:"lease_until,omitempty"`
-	LastHeartbeatAt     *time.Time   `json:"last_heartbeat_at,omitempty"`
-	StartedAt           *time.Time   `json:"started_at,omitempty"`
-	FinishedAt          *time.Time   `json:"finished_at,omitempty"`
-	ProjectID           *uint        `json:"project_id,omitempty"`
-	OutputResource      *RawResource `json:"output_resource,omitempty"`
-	CreatedAt           time.Time    `json:"CreatedAt"`
-	UpdatedAt           time.Time    `json:"UpdatedAt"`
-	DeletedAt           *time.Time   `json:"DeletedAt"`
+	ID                    uint         `json:"ID"`
+	UserID                uint         `json:"user_id"`
+	OrgID                 *uint        `json:"org_id,omitempty"`
+	ModelConfigID         uint         `json:"-"`
+	AIModelCatalogEntryID *uint        `json:"ai_model_catalog_entry_id,omitempty"`
+	ModelID               string       `json:"model_id,omitempty"`
+	RouteGroup            string       `json:"route_group,omitempty"`
+	JobType               string       `json:"job_type"`
+	FeatureKey            string       `json:"feature_key,omitempty"`
+	Title                 string       `json:"title,omitempty"`
+	Status                string       `json:"status"`
+	AttemptCount          int          `json:"attempt_count"`
+	MaxAttempts           int          `json:"max_attempts"`
+	NextRunAt             *time.Time   `json:"next_run_at,omitempty"`
+	Prompt                string       `json:"prompt"`
+	ExtraParams           string       `json:"extra_params,omitempty"`
+	AspectRatio           string       `json:"aspect_ratio,omitempty"`
+	Duration              int          `json:"duration,omitempty"`
+	RequestContext        string       `json:"request_context,omitempty"`
+	InputResourceID       *uint        `json:"input_resource_id,omitempty"`
+	InputResourceIDs      string       `json:"input_resource_ids,omitempty"`
+	OutputResourceID      *uint        `json:"output_resource_id,omitempty"`
+	UsageReservationID    *uint        `json:"usage_reservation_id,omitempty"`
+	ProviderTaskID        string       `json:"provider_task_id,omitempty"`
+	ProviderTaskKind      string       `json:"provider_task_kind,omitempty"`
+	ProviderTaskStatus    string       `json:"provider_task_status,omitempty"`
+	ProviderTaskHistory   string       `json:"provider_task_history,omitempty"`
+	ErrorMsg              string       `json:"error_msg,omitempty"`
+	DebugInfo             string       `json:"debug_info,omitempty"`
+	ExecutionState        string       `json:"execution_state,omitempty"`
+	StateTrace            string       `json:"state_trace,omitempty"`
+	LockedBy              string       `json:"locked_by,omitempty"`
+	LeaseUntil            *time.Time   `json:"lease_until,omitempty"`
+	LastHeartbeatAt       *time.Time   `json:"last_heartbeat_at,omitempty"`
+	StartedAt             *time.Time   `json:"started_at,omitempty"`
+	FinishedAt            *time.Time   `json:"finished_at,omitempty"`
+	ProjectID             *uint        `json:"project_id,omitempty"`
+	OutputResource        *RawResource `json:"output_resource,omitempty"`
+	CreatedAt             time.Time    `json:"CreatedAt"`
+	UpdatedAt             time.Time    `json:"UpdatedAt"`
+	DeletedAt             *time.Time   `json:"DeletedAt"`
 }
 
 // Job status constants match the jobs.status DB column values.
@@ -285,23 +292,25 @@ func BuildListSpec(filter ListFilter) ListSpec {
 
 func NewQueuedJob(spec NewQueuedJobSpec) Job {
 	return Job{
-		UserID:             spec.UserID,
-		OrgID:              spec.OrgID,
-		ModelConfigID:      spec.ModelConfigID,
-		JobType:            spec.JobType,
-		FeatureKey:         spec.FeatureKey,
-		Title:              spec.Title,
-		Status:             StatusPending,
-		MaxAttempts:        DefaultMaxAttempts,
-		Prompt:             spec.Prompt,
-		ExtraParams:        spec.ExtraParams,
-		AspectRatio:        spec.AspectRatio,
-		Duration:           spec.Duration,
-		RequestContext:     spec.RequestContext,
-		InputResourceID:    spec.InputResourceID,
-		InputResourceIDs:   spec.InputResourceIDs,
-		UsageReservationID: spec.UsageReservationID,
-		ProjectID:          spec.ProjectID,
+		UserID:                spec.UserID,
+		OrgID:                 spec.OrgID,
+		ModelConfigID:         spec.ModelConfigID,
+		AIModelCatalogEntryID: spec.AIModelCatalogEntryID,
+		RouteGroup:            spec.RouteGroup,
+		JobType:               spec.JobType,
+		FeatureKey:            spec.FeatureKey,
+		Title:                 spec.Title,
+		Status:                StatusPending,
+		MaxAttempts:           DefaultMaxAttempts,
+		Prompt:                spec.Prompt,
+		ExtraParams:           spec.ExtraParams,
+		AspectRatio:           spec.AspectRatio,
+		Duration:              spec.Duration,
+		RequestContext:        spec.RequestContext,
+		InputResourceID:       spec.InputResourceID,
+		InputResourceIDs:      spec.InputResourceIDs,
+		UsageReservationID:    spec.UsageReservationID,
+		ProjectID:             spec.ProjectID,
 	}
 }
 

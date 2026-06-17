@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -18,18 +19,21 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 	router, db := newTestJobActionRouter(t)
 	orgID := uint(2)
 	projectID := uint(12)
+	catalogEntryID := uint(101)
 
 	failedJob := seedJob(t, db, persistencemodel.Job{
-		UserID:        7,
-		OrgID:         &orgID,
-		ProjectID:     &projectID,
-		ModelConfigID: 11,
-		JobType:       domainjob.CapabilityImage,
-		Status:        domainjob.StatusFailed,
-		AttemptCount:  1,
-		MaxAttempts:   3,
-		Prompt:        "Generate a poster",
-		ErrorMsg:      "provider failed",
+		UserID:                7,
+		OrgID:                 &orgID,
+		ProjectID:             &projectID,
+		ModelConfigID:         11,
+		AIModelCatalogEntryID: &catalogEntryID,
+		JobType:               domainjob.CapabilityImage,
+		Status:                domainjob.StatusFailed,
+		AttemptCount:          1,
+		MaxAttempts:           3,
+		Prompt:                "Generate a poster",
+		ErrorMsg:              "provider failed",
+		RequestContext:        `{"model_id":"image-fast","route":{"model_id":"image-fast"}}`,
 	})
 	deleteJob := seedJob(t, db, persistencemodel.Job{
 		UserID:        8,
@@ -54,6 +58,7 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 		t.Fatalf("expected retry audit log")
 	}
 	assertJobActionAuditScope(t, db, "job.admin_retried", orgID, projectID)
+	assertJobActionAuditModelID(t, db, "job.admin_retried", "image-fast")
 	var retried persistencemodel.Job
 	if err := db.First(&retried, failedJob.ID).Error; err != nil {
 		t.Fatalf("load retried job: %v", err)
@@ -80,6 +85,27 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 	}
 	if deletedCount != 1 {
 		t.Fatalf("deleted job count = %d, want 1", deletedCount)
+	}
+}
+
+func assertJobActionAuditModelID(t *testing.T, db *gorm.DB, action string, modelID string) {
+	t.Helper()
+	var row persistencemodel.AuditLog
+	if err := db.Where("action = ?", action).First(&row).Error; err != nil {
+		t.Fatalf("load audit log for %s: %v", action, err)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(row.Metadata), &metadata); err != nil {
+		t.Fatalf("decode audit metadata: %v", err)
+	}
+	if got, ok := metadata["model_id"].(string); !ok || got != modelID {
+		t.Fatalf("%s audit model_id = %#v, want %q", action, metadata["model_id"], modelID)
+	}
+	if _, ok := metadata["catalog_entry_id"]; ok {
+		t.Fatalf("%s audit metadata exposed catalog_entry_id: %#v", action, metadata)
+	}
+	if _, ok := metadata["model_config_id"]; ok {
+		t.Fatalf("%s audit metadata exposed model_config_id: %#v", action, metadata)
 	}
 }
 

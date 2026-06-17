@@ -53,6 +53,13 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 	expected := []string{
 		"GET /api/v1/admin/adapters",
 		"GET /api/v1/admin/model-presets",
+		"GET /api/v1/admin/model-catalog",
+		"POST /api/v1/admin/model-catalog",
+		"PUT /api/v1/admin/model-catalog/:id",
+		"DELETE /api/v1/admin/model-catalog/:id",
+		"POST /api/v1/admin/model-catalog/:id/route-bindings",
+		"PUT /api/v1/admin/model-catalog/:id/route-bindings/:bindingId",
+		"DELETE /api/v1/admin/model-catalog/:id/route-bindings/:bindingId",
 		"GET /api/v1/admin/provider-instances",
 		"GET /api/v1/admin/provider-instances/:id/config",
 		"PUT /api/v1/admin/provider-instances/:id/config",
@@ -65,14 +72,6 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 		"DELETE /api/v1/admin/credentials/:id",
 		"POST /api/v1/admin/credentials/:id/test",
 		"GET /api/v1/admin/credentials/:id/remote-models",
-		"GET /api/v1/admin/credentials/:id/models",
-		"POST /api/v1/admin/credentials/:id/models",
-		"PUT /api/v1/admin/credentials/:id/models/:modelId",
-		"DELETE /api/v1/admin/credentials/:id/models/:modelId",
-		"POST /api/v1/admin/credentials/:id/models/:modelId/test",
-		"POST /api/v1/admin/credentials/:id/models/:modelId/debug",
-		"PATCH /api/v1/admin/model-configs/:id",
-		"POST /api/v1/admin/model-configs/preview-contract",
 		"GET /api/v1/admin/overview",
 		"GET /api/v1/admin/users",
 		"GET /api/v1/admin/settings/auth",
@@ -119,6 +118,7 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 		"GET /api/v1/admin/resource-storage/resources/:id/file",
 		"DELETE /api/v1/admin/resource-storage/resources/:id",
 		"POST /api/v1/admin/resource-storage/blobs/gc",
+		"POST /api/v1/admin/resource-storage/media-streams/gc",
 		"GET /api/v1/admin/shot-vectors/stats",
 		"GET /api/v1/admin/shot-vectors/search",
 		"GET /api/v1/admin/shot-vectors/metrics",
@@ -147,6 +147,21 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 	for _, route := range expected {
 		if !routes[route] {
 			t.Fatalf("expected admin route %q to be registered", route)
+		}
+	}
+
+	for _, route := range []string{
+		"GET /api/v1/admin/credentials/:id/models",
+		"POST /api/v1/admin/credentials/:id/models",
+		"PUT /api/v1/admin/credentials/:id/models/:modelId",
+		"DELETE /api/v1/admin/credentials/:id/models/:modelId",
+		"POST /api/v1/admin/credentials/:id/models/:modelId/test",
+		"POST /api/v1/admin/credentials/:id/models/:modelId/debug",
+		"PATCH /api/v1/admin/model-configs/:id",
+		"POST /api/v1/admin/model-configs/preview-contract",
+	} {
+		if routes[route] {
+			t.Fatalf("legacy model-config route %q should not be registered", route)
 		}
 	}
 }

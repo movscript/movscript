@@ -1,11 +1,10 @@
 import type { NodeMovScriptEngine } from '@movscript/engine/node'
 import {
-  createOpenCutTimelineFromMovScriptEditPlan,
-  defaultOpenCutTransform,
+  createMediaEditingProjectFromMovScriptEditPlan,
+  type MediaAssetDescriptor,
+  type MediaClip,
+  type MediaEditingProject,
   type MovScriptEditPlanArtifact,
-  type OpenCutTimelineDocument,
-  type OpenCutVideoElement,
-  type OpenCutVideoTrack,
 } from '@movscript/editing'
 import type { MovScriptWorkspaceIndexedEntity } from '@movscript/workspace'
 import type {
@@ -52,9 +51,9 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
       if (sceneMomentId === undefined) return undefined
       const editPlan = await service.readSceneMomentEditPlan(sceneMomentId).catch(() => undefined)
       if (!isRecord(editPlan)) return undefined
-      const timelineDocument = createOpenCutTimelineFromMovScriptEditPlan(editPlan as unknown as MovScriptEditPlanArtifact, {
-        projectName: String(editPlan.productionId ?? 'MovScript'),
-        sceneName: String(sceneMoment.record.title ?? editPlan.sceneMomentId ?? sceneMomentId),
+      const mediaEditingProject = createMediaEditingProjectFromMovScriptEditPlan(editPlan as unknown as MovScriptEditPlanArtifact, {
+        projectId: String(editPlan.productionId ?? 'MovScript'),
+        title: String(sceneMoment.record.title ?? editPlan.sceneMomentId ?? sceneMomentId),
       })
       return {
         targetKind: 'scene_moment',
@@ -62,7 +61,7 @@ export async function loadContentSourceWorkspaceSnapshotFromEngine(
         targetPath: sceneMoment.path,
         status: typeof editPlan.status === 'string' ? editPlan.status : undefined,
         blockers: Array.isArray(editPlan.blockers) ? editPlan.blockers : undefined,
-        timelineDocument,
+        mediaEditingProject,
       }
     }),
   )).filter(isDefined)
@@ -155,17 +154,19 @@ function productionTimelineFromPreview(input: {
     targetPath: production?.path ?? input.previewTimeline.productionPath,
     status: blockers.length > 0 ? 'blocked' : 'ready_to_compose',
     blockers,
-    timelineDocument: openCutProductionTimelineDocument({
+    mediaEditingProject: productionMediaEditingProject({
       productionId: input.previewTimeline.productionId,
       productionTitle: stringField(production?.record.title) ?? String(input.previewTimeline.productionId),
+      productionPath: production?.path ?? input.previewTimeline.productionPath,
       clips,
     }),
   }
 }
 
-function openCutProductionTimelineDocument(input: {
+function productionMediaEditingProject(input: {
   productionId: string | number
   productionTitle: string
+  productionPath?: string
   clips: Array<{
     id: string
     title: string
@@ -176,26 +177,18 @@ function openCutProductionTimelineDocument(input: {
     resourceId: number
     durationSec: number
   }>
-}): OpenCutTimelineDocument {
+}): MediaEditingProject {
   const now = new Date().toISOString()
-  let cursor = 0
-  const elements = input.clips.map((clip): OpenCutVideoElement => {
-    const duration = Math.max(0.1, clip.durationSec)
-    const element: OpenCutVideoElement = {
-      id: clip.id,
-      name: clip.title,
-      type: 'video',
-      mediaId: `movscript_resource_${clip.resourceId}`,
-      duration,
-      startTime: cursor,
-      trimStart: 0,
-      trimEnd: 0,
-      sourceDuration: duration,
-      muted: false,
-      hidden: false,
-      transform: defaultOpenCutTransform(),
-      opacity: 1,
-      effects: [],
+  let cursorMs = 0
+  const assets: MediaAssetDescriptor[] = []
+  const clips = input.clips.map((clip): MediaClip => {
+    const durationMs = Math.max(1, Math.round(clip.durationSec * 1000))
+    const asset: MediaAssetDescriptor = {
+      id: `movscript_resource_${clip.resourceId}`,
+      sourceKind: 'backend_resource',
+      assetType: 'video',
+      resourceId: clip.resourceId,
+      label: clip.title,
       metadata: {
         movscript: {
           sceneMomentId: clip.sceneMomentId,
@@ -212,48 +205,66 @@ function openCutProductionTimelineDocument(input: {
         },
       },
     }
-    cursor += duration
-    return element
+    assets.push(asset)
+    const mediaClip: MediaClip = {
+      id: clip.id,
+      assetType: 'video',
+      asset,
+      timelineStartMs: cursorMs,
+      durationMs,
+      sourceStartMs: 0,
+      sourceEndMs: durationMs,
+      fit: 'cover',
+      opacity: 1,
+      muted: false,
+      metadata: asset.metadata,
+    }
+    cursorMs += durationMs
+    return mediaClip
   })
-  const track: OpenCutVideoTrack = {
-    id: 'track_production_video_0',
-    name: 'production video',
-    type: 'video',
-    elements,
-    isMain: true,
-    muted: false,
-    hidden: false,
-  }
   return {
-    schema: 'opencut.timeline.v1',
-    protocol: { upstream: 'opencut', compatibility: 'timeline', version: 1 },
-    project: {
-      metadata: {
-        id: `movscript_production_${String(input.productionId)}`,
-        name: input.productionTitle,
-        duration: cursor,
-        createdAt: now,
-        updatedAt: now,
-      },
-      scenes: [{
-        id: `production_${String(input.productionId)}`,
-        name: input.productionTitle,
-        isMain: true,
-        tracks: [track],
-        bookmarks: [],
-        createdAt: now,
-        updatedAt: now,
-      }],
-      currentSceneId: `production_${String(input.productionId)}`,
-      settings: {
-        fps: 30,
-        canvasSize: { width: 1920, height: 1080 },
-        originalCanvasSize: null,
-        background: { type: 'color', color: '#000000' },
-      },
-      version: 1,
-      timelineViewState: { zoomLevel: 1, scrollLeft: 0, playheadTime: 0 },
+    version: 1,
+    id: `editing_project_production_${String(input.productionId)}`,
+    projectId: `movscript_production_${String(input.productionId)}`,
+    title: input.productionTitle,
+    source: {
+      kind: 'movscript_edit_plan',
+      productionId: String(input.productionId),
+      contentUnitIds: input.clips.map((clip) => String(clip.contentUnitId)),
     },
+    assets: { assets },
+    timeline: {
+      version: 1,
+      id: `timeline_production_${String(input.productionId)}`,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      background: '#000000',
+      durationMs: cursorMs,
+      tracks: [{
+        id: 'track_production_video_0',
+        name: 'production video',
+        type: 'video',
+        zIndex: 0,
+        muted: false,
+        locked: false,
+        clips,
+      }],
+      metadata: {
+        targetKind: 'production',
+        targetRef: String(input.productionId),
+        productionPath: input.productionPath,
+      },
+    },
+    provenance: {
+      targetRef: String(input.productionId),
+      productionPath: input.productionPath,
+      selectedCandidateIds: input.clips.flatMap((clip) => clip.candidateId === undefined ? [] : [String(clip.candidateId)]),
+      inputResourceIds: input.clips.map((clip) => clip.resourceId),
+    },
+    createdAt: now,
+    updatedAt: now,
+    revision: 1,
   }
 }
 

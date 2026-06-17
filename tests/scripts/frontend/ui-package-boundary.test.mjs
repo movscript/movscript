@@ -5080,7 +5080,7 @@ test('projects shell primitives use @movscript/ui', () => {
   }
 })
 
-test('onboarding and app settings use package surface primitives', () => {
+test('auth and app settings use package surface primitives', () => {
   const appSettingsSource = [
     readProjectFile('apps/frontend/src/features/settings/components/AppSettingsPage.tsx'),
     readProjectFile('apps/frontend/src/features/settings/components/AppSettingsSections.tsx'),
@@ -5092,9 +5092,6 @@ test('onboarding and app settings use package surface primitives', () => {
   const authUiSource = readProjectFile('apps/frontend/src/features/auth/components/AuthPageUi.tsx')
   const authUiCss = readProjectFile('apps/frontend/src/features/auth/components/AuthPageUi.css')
   const inviteSource = readProjectFile('apps/frontend/src/features/auth/components/InvitePage.tsx')
-  const onboardingSource = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPage.tsx')
-  const onboardingUiSource = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPageUi.tsx')
-  const onboardingUiCss = readProjectFile('apps/frontend/src/features/onboarding/components/OnboardingPageUi.css')
   const uiAppSource = readAppSource()
   const uiAppCss = readAppCss()
 
@@ -5151,27 +5148,6 @@ test('onboarding and app settings use package surface primitives', () => {
     assert.match(appSettingsUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be settings feature-owned`)
     assert.doesNotMatch(uiAppSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui app business`)
   }
-  for (const exportName of [
-    'OnboardingActionButton',
-    'OnboardingFieldError',
-    'OnboardingFormActions',
-    'OnboardingFormField',
-    'OnboardingFormInput',
-    'OnboardingFormSection',
-    'OnboardingHero',
-    'OnboardingLaunchGrid',
-    'OnboardingLaunchTile',
-    'OnboardingMain',
-    'OnboardingShell',
-    'OnboardingWorkModeSummary',
-  ]) {
-    assert.match(onboardingSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by onboarding`)
-    assert.match(onboardingUiSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be onboarding feature-owned`)
-    assert.doesNotMatch(uiAppSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not be exported from @movscript/ui app business`)
-  }
-  for (const exportName of ['AppChoiceTile', 'AppIconFrame', 'AppSection', 'AppSurfaceItem', 'Button', 'Input', 'Label', 'WorkModeSwitchGuide', 'toneTextClass']) {
-    assert.match(onboardingUiSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by onboarding feature UI components`)
-  }
   for (const className of [
     'auth-root',
     'auth-panel',
@@ -5186,19 +5162,6 @@ test('onboarding and app settings use package surface primitives', () => {
     'auth-inline-meta',
   ]) {
     assert.match(authUiCss, cssClassSelectorPattern(className), `${className} style must be auth feature-owned`)
-    assert.doesNotMatch(uiAppCss, cssClassSelectorPattern(className), `${className} style must not remain in @movscript/ui app business CSS`)
-  }
-  for (const className of [
-    'onboarding-shell',
-    'onboarding-hero',
-    'onboarding-work-mode-summary',
-    'onboarding-launch-grid',
-    'onboarding-launch-tile',
-    'onboarding-form-section',
-    'onboarding-form-field',
-    'onboarding-form-actions',
-  ]) {
-    assert.match(onboardingUiCss, cssClassSelectorPattern(className), `${className} style must be onboarding feature-owned`)
     assert.doesNotMatch(uiAppCss, cssClassSelectorPattern(className), `${className} style must not remain in @movscript/ui app business CSS`)
   }
   for (const className of [
@@ -5218,6 +5181,8 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.doesNotMatch(uiAppCss, /settings\/styles\.css/, 'app settings CSS must not be imported by @movscript/ui app business CSS')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/onboarding/index.tsx')), false, 'onboarding page UI must be feature-owned')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/onboarding/styles.css')), false, 'onboarding page CSS must be feature-owned')
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/onboarding/components/OnboardingPage.tsx')), false, 'standalone onboarding page must not exist')
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/pages/onboarding/OnboardingPage.tsx')), false, 'standalone onboarding route page must not exist')
   assert.doesNotMatch(uiAppSource, /from "\.\/onboarding"/, 'onboarding module must not be re-exported from @movscript/ui app business')
   assert.doesNotMatch(uiAppCss, /onboarding\/styles\.css/, 'onboarding CSS must not be imported by @movscript/ui app business CSS')
   assert.equal(existsSync(path.join(root, 'packages/ui/src/components/business/app/auth/index.tsx')), false, 'auth page UI must be feature-owned')
@@ -5227,19 +5192,13 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.match(appSettingsSource, /from ['"]@\/features\/settings\/components\/AppSettingsUi['"]/)
   assert.match(externalResourceSettingsSource, /from ['"]@\/features\/settings\/components\/AppSettingsUi['"]/)
   assert.match(authSource, /from ['"]@\/features\/auth\/components\/AuthPageUi['"]/)
-  assert.match(onboardingSource, /from ['"]@\/features\/onboarding\/components\/OnboardingPageUi['"]/)
-  for (const source of [authSource, inviteSource, onboardingSource]) {
+  for (const source of [authSource, inviteSource]) {
     assert.match(source, /from ['"]@movscript\/ui\/business\/app['"]/, 'Work mode consumers must import from @movscript/ui/business/app')
     assert.match(source, /\bWorkModePrompt\b/, 'Work mode prompt must be consumed from package UI')
   }
   assert.match(inviteSource, /\bAppIconFrame\b/, 'Invite page icon frame must consume package icon frame')
   assert.match(inviteSource, /\bAppInlineError\b/, 'Invite page errors must use package inline error component')
   assert.doesNotMatch(inviteSource, /\btoneTextClass\b/, 'Invite page errors must not reach into package tone helpers')
-  assert.doesNotMatch(onboardingSource, /\b(?:AppChoiceTile|AppIconFrame|AppSection|AppSurfaceItem|Button|Input|Label|WorkModeSwitchGuide|toneTextClass)\b/)
-  assert.doesNotMatch(onboardingSource, /className=/)
-  assert.doesNotMatch(onboardingSource, /<(?:div|main|span|p|h1|h2)\b/)
-  assert.doesNotMatch(onboardingSource, /min-h-screen bg-background/)
-  assert.doesNotMatch(onboardingSource, /grid gap-3 md:grid-cols-2/)
   assert.match(authUiSource, /function AuthStateMessage[\s\S]*?<AppStateMessage/)
   assert.match(authUiSource, /function AuthInlineMeta[\s\S]*?<AppInlineMeta/)
   assert.match(authUiSource, /function AuthPasswordInput[\s\S]*?<AuthInput[\s\S]*?<Button/)
@@ -5282,7 +5241,7 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.match(appSettingsSource, /<AppSettingsEndpointSurface[\s\S]*?value=\{isValid \? `\$\{normalized\}\/api\/v1` : '-'\}/)
   assert.match(appSettingsSource, /<AppSettingsBackButton[\s\S]*?<ArrowLeft/)
   assert.match(appSettingsSource, /<AppSettingsChoiceTile[\s\S]*?onClick=\{\(\) => chooseLaunchMode\(mode\)\}/)
-  assert.match(appSettingsSource, /<AppSettingsChoiceTile[\s\S]*?onClick=\{\(\) => chooseWorkMode\(mode\)\}/)
+  assert.doesNotMatch(appSettingsSource, /chooseWorkMode/)
   assert.match(appSettingsUiSource, /function AppSettingsField[\s\S]*?<Label/)
   assert.match(appSettingsUiSource, /const AppSettingsInput[\s\S]*?<Input/)
   assert.match(appSettingsUiSource, /const AppSettingsChoiceTile[\s\S]*?<AppChoiceTile/)
@@ -5293,14 +5252,7 @@ test('onboarding and app settings use package surface primitives', () => {
   assert.doesNotMatch(appSettingsSource, /rounded-\[inherit\]/)
   assert.doesNotMatch(inviteSource, /w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0/)
   assert.doesNotMatch(inviteSource, /text-destructive/)
-  assert.doesNotMatch(onboardingSource, /rounded-lg border border-border bg-card/)
-  assert.doesNotMatch(onboardingSource, /<button\b/)
-  assert.doesNotMatch(onboardingSource, /rounded-\[inherit\]/)
-  assert.doesNotMatch(onboardingSource, /flex size-10 items-center justify-center rounded-md bg-primary\/10/)
-  assert.doesNotMatch(onboardingSource, /text-destructive/)
   assert.match(uiAppSource, /toneTextClass\("danger"\)/)
-  assert.match(onboardingSource, /<OnboardingLaunchTile[\s\S]*?onClick=\{\(\) => setMode\('local'\)\}/)
-  assert.match(onboardingSource, /<OnboardingLaunchTile[\s\S]*?onClick=\{\(\) => setMode\('cloud'\)\}/)
   assert.doesNotMatch(uiAppSource, /rounded-lg border border-border bg-card/)
   assert.doesNotMatch(uiAppSource, /<button\b/)
   assert.doesNotMatch(uiAppSource, /flex size-10 items-center justify-center rounded-md bg-primary\/10/)

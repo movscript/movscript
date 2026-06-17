@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -10,9 +11,10 @@ import (
 
 // PublicModel is the user-facing model representation.
 type PublicModel struct {
-	ID                uint           `json:"id"`            // AIModelConfig primary key
-	CredentialID      uint           `json:"credential_id"` // parent AICredential ID (for admin edit)
-	ModelID           string         `json:"model_id"`      // public logical model ID used by callers
+	ID                uint           `json:"id"`                         // visible catalog entry id when catalog routing is used
+	CatalogEntryID    uint           `json:"catalog_entry_id,omitempty"` // explicit catalog entry id when catalog routing is used
+	CredentialID      uint           `json:"credential_id"`              // parent AICredential ID (for admin edit)
+	ModelID           string         `json:"model_id"`                   // public logical model ID used by callers
 	DisplayName       string         `json:"display_name"`
 	ShortName         string         `json:"short_name,omitempty"`
 	ProviderName      string         `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
@@ -33,6 +35,13 @@ type PublicModel struct {
 	ParamsSchema      map[string]any `json:"params_schema,omitempty"`
 
 	providerVariantIDs []uint
+}
+
+func publicModelVisibleID(modelConfigID uint, catalogEntryID uint) uint {
+	if catalogEntryID != 0 {
+		return catalogEntryID
+	}
+	return modelConfigID
 }
 
 type ModelInputRequirement struct {
@@ -125,7 +134,7 @@ func mergeModelInputRequirement(left, right ModelInputRequirement) ModelInputReq
 }
 
 // AIService is the unified entry point for all AI calls.
-// It routes by AIModelConfig DB ID, logs usage, and deducts user credits.
+// It routes by public model id or compatibility route id, logs usage, and deducts user credits.
 type AIService struct {
 	registry *Registry
 	db       *gorm.DB
@@ -155,6 +164,16 @@ type GenerationPreflightResult struct {
 	Config           persistencemodel.AIModelConfig
 	Def              *ModelDef
 	NormalizedParams map[string]any
+}
+
+type GenerationRoutePreflightRequest struct {
+	Route       ModelRoute
+	OutputType  string
+	ExtraParams string
+	AspectRatio string
+	Duration    int
+	ImageCount  int
+	VideoCount  int
 }
 
 type TextPreflightResult struct {
@@ -199,6 +218,42 @@ func (s *AIService) PreflightGeneration(req GenerationPreflightRequest) (Generat
 	}, nil
 }
 
+func (s *AIService) PreflightGenerationRoute(ctx context.Context, userID uint, req GenerationRoutePreflightRequest) (GenerationPreflightResult, error) {
+	_ = userID
+	definition, handled, err := s.catalogRouteDefinition(ctx, req.Route, req.OutputType)
+	if err != nil {
+		return GenerationPreflightResult{}, err
+	}
+	if !handled {
+		return s.PreflightGeneration(GenerationPreflightRequest{
+			ModelConfigID: req.Route.ModelConfigID,
+			OutputType:    req.OutputType,
+			ExtraParams:   req.ExtraParams,
+			AspectRatio:   req.AspectRatio,
+			Duration:      req.Duration,
+			ImageCount:    req.ImageCount,
+			VideoCount:    req.VideoCount,
+		})
+	}
+	if err := ValidateGenRequest(definition.def, GenRequest{
+		ModelConfigID: req.Route.ModelConfigID,
+		OutputType:    req.OutputType,
+		ImageCount:    req.ImageCount,
+		VideoCount:    req.VideoCount,
+	}); err != nil {
+		return GenerationPreflightResult{}, err
+	}
+	params, err := ValidateAndNormalizeGenerationParams(definition.def, req.OutputType, req.ExtraParams, req.AspectRatio, req.Duration)
+	if err != nil {
+		return GenerationPreflightResult{}, err
+	}
+	return GenerationPreflightResult{
+		Config:           definition.config,
+		Def:              definition.def,
+		NormalizedParams: params,
+	}, nil
+}
+
 // PreflightText validates text model capability and text request parameters.
 // It also normalizes validated params back into req so callers can pass the
 // same TextRequest to CallText/CallTextStream.
@@ -210,14 +265,41 @@ func (s *AIService) PreflightText(modelConfigID uint, req *TextRequest) (TextPre
 	if err != nil {
 		return TextPreflightResult{}, err
 	}
+	if err := preflightTextRequest(def, capability, req); err != nil {
+		return TextPreflightResult{}, err
+	}
+	return TextPreflightResult{Config: &cfg, Def: def}, nil
+}
+
+func (s *AIService) PreflightTextRoute(ctx context.Context, userID uint, route ModelRoute, req *TextRequest) (TextPreflightResult, error) {
+	_ = userID
+	if req == nil {
+		return TextPreflightResult{}, fmt.Errorf("text request is required")
+	}
+	for _, capability := range textRuntimeCapabilities() {
+		definition, handled, err := s.catalogRouteDefinition(ctx, route, capability)
+		if err != nil {
+			return TextPreflightResult{}, err
+		}
+		if handled {
+			if err := preflightTextRequest(definition.def, capability, req); err != nil {
+				return TextPreflightResult{}, err
+			}
+			return TextPreflightResult{Config: &definition.config, Def: definition.def}, nil
+		}
+	}
+	return s.PreflightText(route.ModelConfigID, req)
+}
+
+func preflightTextRequest(def *ModelDef, capability string, req *TextRequest) error {
 	rawParams := textRequestParamsForValidation(*req)
 	params, err := ValidateAndNormalizeGenerationParams(def, capability, marshalParamsForValidation(rawParams), "", 0)
 	if err != nil {
-		return TextPreflightResult{}, err
+		return err
 	}
 	req.IsReasoning = req.IsReasoning || modelHasCapability(def, CapabilityReasoning)
 	applyTextPreflightParams(req, params)
-	return TextPreflightResult{Config: &cfg, Def: def}, nil
+	return nil
 }
 
 func textRequestParamsForValidation(req TextRequest) map[string]any {

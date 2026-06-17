@@ -50,17 +50,17 @@ test('audit filters parse and serialize URL search params', () => {
 })
 
 test('usage filters parse and serialize URL search params', () => {
-  const filters = usageFiltersFromSearchParams(new URLSearchParams('provider_id=1&model_config_id=2&operation_type=image&user_id=7&org_id=3&project_id=4&gateway_api_key_id=9&page=2'))
+  const filters = usageFiltersFromSearchParams(new URLSearchParams('provider_id=1&model_id=gpt-5.2&operation_type=image&user_id=7&org_id=3&project_id=4&gateway_api_key_id=9&page=2'))
   assert.equal(filters.providerId, '1')
-  assert.equal(filters.modelConfigId, '2')
+  assert.equal(filters.modelId, 'gpt-5.2')
   assert.equal(filters.operationType, 'image')
   assert.equal(filters.userId, '7')
   assert.equal(filters.orgId, '3')
   assert.equal(filters.projectId, '4')
   assert.equal(filters.gatewayApiKeyId, '9')
 
-  const serialized = usageSearchParams({ ...emptyUsageFilters, userId: ' 7 ', orgId: '3', gatewayApiKeyId: ' 9 ', operationType: 'text' }, 1)
-  assert.equal(serialized.toString(), 'operation_type=text&user_id=7&org_id=3&gateway_api_key_id=9')
+  const serialized = usageSearchParams({ ...emptyUsageFilters, modelId: ' gpt-5.2 ', userId: ' 7 ', orgId: '3', gatewayApiKeyId: ' 9 ', operationType: 'text' }, 1)
+  assert.equal(serialized.toString(), 'model_id=gpt-5.2&operation_type=text&user_id=7&org_id=3&gateway_api_key_id=9')
 })
 
 test('log href helpers serialize filters and omit empty values', () => {
@@ -76,7 +76,7 @@ test('log href helpers serialize filters and omit empty values', () => {
 
   assert.equal(usageLogsHref(), '/usage-logs')
   assert.equal(
-    usageLogsHref({ userId: ' 7 ', orgId: 3, gatewayApiKeyId: 21 }),
-    '/usage-logs?user_id=7&org_id=3&gateway_api_key_id=21',
+    usageLogsHref({ modelId: ' gpt-5.2 ', userId: ' 7 ', orgId: 3, gatewayApiKeyId: 21 }),
+    '/usage-logs?model_id=gpt-5.2&user_id=7&org_id=3&gateway_api_key_id=21',
   )
 })

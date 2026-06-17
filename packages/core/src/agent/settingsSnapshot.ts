@@ -73,7 +73,7 @@ export interface ProviderManifest {
   model?: {
     provider?: string
     modelId?: string
-    platformModelId?: number
+    catalogEntryId?: number
   }
   metadata?: Record<string, AgentSettingsSnapshotJSONValue>
 }
@@ -126,7 +126,7 @@ export interface ProviderCatalogConfigFile {
   model?: {
     provider: string
     modelId: string
-    platformModelId?: string
+    catalogEntryId?: string
     routes?: unknown[]
   }
   limits?: ProviderConfigFileLimits
@@ -144,7 +144,6 @@ export interface ProviderModelCapabilityRoutePublic {
   capability: ProviderModelCapability
   configured: boolean
   provider?: 'backend-model-config'
-  modelConfigId?: number
   model?: string
   source: ProviderModelRouteSource
 }
@@ -152,7 +151,6 @@ export interface ProviderModelCapabilityRoutePublic {
 export interface ProviderModelConfigPublic {
   configured: boolean
   provider: 'backend-model-config'
-  modelConfigId?: number
   model: string
   apiKind: ProviderModelAPIKind
   baseURL?: string
@@ -185,7 +183,7 @@ export type AgentSettingsSnapshot = {
   exportedAt: string
   model?: {
     model: string
-    platformModelId?: string
+    catalogEntryId?: string
     apiKind?: ProviderModelAPIKind
     baseURL?: string
     useForChat?: boolean
@@ -229,7 +227,6 @@ function buildSnapshotModel(config: ProviderModelConfigPublic | null): AgentSett
   if (hasSensitiveTextSecret(config.model)) return undefined
   return {
     model: config.model,
-    ...(typeof config.modelConfigId === 'number' ? { platformModelId: String(config.modelConfigId) } : {}),
     ...(config.apiKind ? { apiKind: config.apiKind } : {}),
     ...(config.baseURL ? { baseURL: stripSensitiveURLSecrets(config.baseURL) } : {}),
     useForChat: config.useForChat,
@@ -373,7 +370,7 @@ function cloneSnapshotConfigFileModel(model: NonNullable<ProviderCatalogConfigFi
   return {
     provider: model.provider,
     modelId: model.modelId,
-    ...(model.platformModelId ? { platformModelId: model.platformModelId } : {}),
+    ...(model.catalogEntryId ? { catalogEntryId: model.catalogEntryId } : {}),
     ...(Array.isArray(model.routes) ? { routes: JSON.parse(JSON.stringify(model.routes)) as unknown[] } : {}),
   }
 }
@@ -382,7 +379,7 @@ function validateSnapshotModelReference(
   model: NonNullable<AgentSettingsSnapshot['model']>,
   textModels: AgentSettingsPublicModel[] | undefined,
 ): AgentSettingsSnapshotReferenceIssue[] {
-  if (!model.model.startsWith('model_config:') && !model.platformModelId) return []
+  if (!model.model && !model.catalogEntryId) return []
   if (!textModels) {
     return [{
       path: 'model.model',
@@ -390,15 +387,11 @@ function validateSnapshotModelReference(
     }]
   }
   const byPublicId = textModels.some((item) => publicAgentBackendModelId(item) === model.model)
-  const platformModelId = model.platformModelId ? Number(model.platformModelId) : NaN
-  const byPlatformModelId = Number.isFinite(platformModelId)
-    ? textModels.some((item) => item.id === platformModelId)
+  const catalogEntryId = model.catalogEntryId ? Number(model.catalogEntryId) : NaN
+  const byCatalogEntryId = Number.isFinite(catalogEntryId)
+    ? textModels.some((item) => item.catalog_entry_id === catalogEntryId || item.id === catalogEntryId)
     : false
-  const modelConfigIdMatch = /^model_config:(\d+)$/.exec(model.model)
-  const byModelConfigModel = modelConfigIdMatch
-    ? textModels.some((item) => item.id === Number(modelConfigIdMatch[1]))
-    : false
-  if (byPublicId || byPlatformModelId || byModelConfigModel) return []
+  if (byPublicId || byCatalogEntryId) return []
   return [{
     path: 'model.model',
     message: `model ${model.model} not found`,
@@ -406,14 +399,14 @@ function validateSnapshotModelReference(
 }
 
 function parseSnapshotModel(input: Record<string, unknown>): NonNullable<AgentSettingsSnapshot['model']> {
-  assertAllowedKeys(input, 'agent settings snapshot model', ['model', 'platformModelId', 'apiKind', 'baseURL', 'useForChat', 'useForPlanner'])
+  assertAllowedKeys(input, 'agent settings snapshot model', ['model', 'catalogEntryId', 'apiKind', 'baseURL', 'useForChat', 'useForPlanner'])
   const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : ''
   if (!model) throw new Error('agent settings snapshot model.model is required')
   const apiKind = parseSnapshotAPIKind(input.apiKind)
   if (hasSensitiveTextSecret(model)) {
     throw new Error('agent settings snapshot model.model must not include API keys, bearer tokens, or secret URL credentials')
   }
-  const platformModelId = parseOptionalNonEmptyString(input.platformModelId, 'agent settings snapshot model.platformModelId')
+  const catalogEntryId = parseOptionalNonEmptyString(input.catalogEntryId, 'agent settings snapshot model.catalogEntryId')
   const baseURL = parseOptionalNonEmptyString(input.baseURL, 'agent settings snapshot model.baseURL')
   if (hasSensitiveURLSecret(baseURL)) {
     throw new Error('agent settings snapshot model.baseURL must not include secret URL credentials')
@@ -429,7 +422,7 @@ function parseSnapshotModel(input: Record<string, unknown>): NonNullable<AgentSe
   }
   return {
     model,
-    ...(platformModelId ? { platformModelId } : {}),
+    ...(catalogEntryId ? { catalogEntryId } : {}),
     ...(apiKind ? { apiKind } : {}),
     ...(baseURL ? { baseURL } : {}),
     ...(typeof input.useForChat === 'boolean' ? { useForChat: input.useForChat } : {}),
@@ -559,11 +552,11 @@ function parseSnapshotApprovalDefaults(input: unknown, label: string): NonNullab
 
 function parseSnapshotConfigFileModel(input: unknown, configFileIndex: number): NonNullable<ProviderCatalogConfigFile['model']> {
   if (!isRecord(input)) throw new Error(`agent settings snapshot configFiles ${configFileIndex} model must be an object`)
-  assertAllowedKeys(input, `agent settings snapshot configFiles ${configFileIndex} model`, ['provider', 'modelId', 'platformModelId', 'routes'])
+  assertAllowedKeys(input, `agent settings snapshot configFiles ${configFileIndex} model`, ['provider', 'modelId', 'catalogEntryId', 'routes'])
   return {
     provider: parseRequiredNonEmptyString(input.provider, `agent settings snapshot configFiles ${configFileIndex} model.provider`),
     modelId: parseRequiredNonEmptyString(input.modelId, `agent settings snapshot configFiles ${configFileIndex} model.modelId`),
-    ...(input.platformModelId !== undefined ? { platformModelId: parseRequiredNonEmptyString(input.platformModelId, `agent settings snapshot configFiles ${configFileIndex} model.platformModelId`) } : {}),
+    ...(input.catalogEntryId !== undefined ? { catalogEntryId: parseRequiredNonEmptyString(input.catalogEntryId, `agent settings snapshot configFiles ${configFileIndex} model.catalogEntryId`) } : {}),
     ...(input.routes !== undefined ? { routes: parseSnapshotJSONArray(input.routes, `agent settings snapshot configFiles ${configFileIndex} model.routes`) } : {}),
   }
 }

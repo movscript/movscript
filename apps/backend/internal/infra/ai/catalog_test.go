@@ -156,6 +156,18 @@ func TestOpenAICompatAdapterDefaultsIncludeAudioAndAlignParams(t *testing.T) {
 	}
 }
 
+func TestLocalAdapterDefaultsIncludeAudioGenerationParams(t *testing.T) {
+	musicParams := DefaultParamsForAdapter(AdapterLocal, []string{CapabilityAudioMusic})
+	if !hasParam(musicParams, "duration") || !hasParam(musicParams, "output_format") || !hasParam(musicParams, "negative_prompt") {
+		t.Fatalf("local music params = %#v, want duration, output_format, negative_prompt", musicParams)
+	}
+
+	sfxParams := DefaultParamsForAdapter(AdapterLocal, []string{CapabilityAudioSFX})
+	if !hasParam(sfxParams, "duration") || !hasParam(sfxParams, "output_format") || !hasParam(sfxParams, "negative_prompt") {
+		t.Fatalf("local sfx params = %#v, want duration, output_format, negative_prompt", sfxParams)
+	}
+}
+
 func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {
 	aliasKeys := map[string]bool{}
 	for alias := range generationParamAliasMap() {

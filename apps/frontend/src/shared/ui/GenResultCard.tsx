@@ -61,7 +61,7 @@ export interface GenResultCardProps {
   prompt?: string
   status: 'idle' | 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
   outputResource?: RawResource
-  outputType: 'image' | 'video'
+  outputType: 'image' | 'video' | 'audio'
   error?: string
   timestamp?: string
   onReuse?: () => void
@@ -202,13 +202,11 @@ function getContextParams(job: Job, snapshot: JobContextSnapshot | null): Record
 function getModelLabel(job: Job, snapshot: JobContextSnapshot | null) {
   const name = snapshot?.model?.display_name ||
     job.model_display ||
-    job.model_config?.custom_display_name ||
-    job.model_config?.model_def_id ||
-    (job.model_config_id ? `#${job.model_config_id}` : '')
+    job.model_id ||
+    ''
   const identifier = snapshot?.model?.identifier ||
     job.model_identifier ||
-    job.model_config?.model_id_override ||
-    job.model_config?.model_def_id ||
+    job.model_id ||
     ''
   const provider = snapshot?.model?.provider_name || job.provider_name || ''
   return { name, identifier, provider }

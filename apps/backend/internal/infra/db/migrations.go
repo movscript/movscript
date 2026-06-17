@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -52,12 +53,14 @@ func RegisteredMigrations() []Migration {
 					&persistencemodel.UserGroupMember{},
 					&persistencemodel.OrgInvitation{},
 					&persistencemodel.Project{},
-					&persistencemodel.AICredential{},
 					&persistencemodel.ResourceFolder{},
 					&persistencemodel.GatewayAPIKey{},
 					&persistencemodel.UsageLog{},
 					&persistencemodel.UsageReservation{},
 					&persistencemodel.AuditLog{},
+				}
+				if legacyAIProviderSchemaEnabled() {
+					models = append(models, &persistencemodel.AICredential{})
 				}
 				models = append(models, runtimeMigrationModels()...)
 				if err := db.AutoMigrate(models...); err != nil {
@@ -218,6 +221,9 @@ func RegisteredMigrations() []Migration {
 			Version: "000024",
 			Name:    "add_ai_model_capacity_config",
 			Up: func(db *gorm.DB) error {
+				if !legacyAIProviderSchemaEnabled() && !db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+					return nil
+				}
 				return db.AutoMigrate(&persistencemodel.AIModelConfig{})
 			},
 		},
@@ -360,6 +366,78 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.ResourceDerivative{})
 			},
 		},
+		{
+			Version: "000044",
+			Name:    "add_model_catalog_and_route_bindings",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&persistencemodel.AIModelCatalogEntry{}, &persistencemodel.AIModelRouteBinding{}); err != nil {
+					return err
+				}
+				return backfillModelCatalogFromLocalProviderConfigs(db)
+			},
+		},
+		{
+			Version: "000045",
+			Name:    "add_usage_model_catalog_entry_refs",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&persistencemodel.UsageLog{}, &persistencemodel.UsageReservation{}); err != nil {
+					return err
+				}
+				return backfillUsageModelCatalogEntryRefs(db)
+			},
+		},
+		{
+			Version: "000046",
+			Name:    "add_job_route_group",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.Job{})
+			},
+		},
+		{
+			Version: "000047",
+			Name:    "enforce_unique_active_model_route_bindings",
+			Up: func(db *gorm.DB) error {
+				return enforceUniqueActiveModelRouteBindings(db)
+			},
+		},
+		{
+			Version: "000048",
+			Name:    "rename_gateway_api_key_model_allowlist_to_catalog_entries",
+			Up: func(db *gorm.DB) error {
+				return renameGatewayAPIKeyAllowlistColumn(db)
+			},
+		},
+		{
+			Version: "000049",
+			Name:    "add_media_stream_artifacts",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.MediaStreamArtifact{})
+			},
+		},
+		{
+			Version: "000050",
+			Name:    "enforce_unique_active_model_catalog_entries",
+			Up: func(db *gorm.DB) error {
+				return enforceUniqueActiveModelCatalogEntries(db)
+			},
+		},
+		{
+			Version: "000051",
+			Name:    "scope_model_route_binding_unique_index_by_credential",
+			Up: func(db *gorm.DB) error {
+				return replaceModelRouteBindingUniqueIndexWithCredentialScope(db)
+			},
+		},
+		{
+			Version: "000052",
+			Name:    "add_job_model_catalog_entry_refs",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&persistencemodel.Job{}); err != nil {
+					return err
+				}
+				return backfillJobModelCatalogEntryRefs(db)
+			},
+		},
 	}
 	return append(core, editionMigrations()...)
 }
@@ -367,6 +445,9 @@ func RegisteredMigrations() []Migration {
 func renameAIModelConfigPricingModeColumn(db *gorm.DB) error {
 	migrator := db.Migrator()
 	if !migrator.HasTable(&persistencemodel.AIModelConfig{}) {
+		if !legacyAIProviderSchemaEnabled() {
+			return nil
+		}
 		return db.AutoMigrate(&persistencemodel.AIModelConfig{})
 	}
 	if !migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") {
@@ -393,6 +474,268 @@ func renameAIModelConfigPricingModeColumn(db *gorm.DB) error {
 		return fmt.Errorf("drop ai_model_configs.custom_billing_mode: column still exists")
 	}
 	return nil
+}
+
+func renameGatewayAPIKeyAllowlistColumn(db *gorm.DB) error {
+	migrator := db.Migrator()
+	if !migrator.HasTable(&persistencemodel.GatewayAPIKey{}) {
+		return db.AutoMigrate(&persistencemodel.GatewayAPIKey{})
+	}
+	hasLegacy := migrator.HasColumn(&persistencemodel.GatewayAPIKey{}, "allowed_model_ids")
+	hasCatalog := migrator.HasColumn(&persistencemodel.GatewayAPIKey{}, "allowed_catalog_entry_ids")
+	if !hasLegacy {
+		if !hasCatalog {
+			return db.AutoMigrate(&persistencemodel.GatewayAPIKey{})
+		}
+		return nil
+	}
+	if !hasCatalog {
+		if err := migrator.RenameColumn(&persistencemodel.GatewayAPIKey{}, "allowed_model_ids", "allowed_catalog_entry_ids"); err != nil {
+			return fmt.Errorf("rename gateway_api_keys.allowed_model_ids: %w", err)
+		}
+		return remapGatewayAPIKeyAllowlistToCatalogEntries(db)
+	}
+	if err := db.Exec(`UPDATE gateway_api_keys SET allowed_catalog_entry_ids = allowed_model_ids WHERE COALESCE(allowed_catalog_entry_ids, '') IN ('', '[]') AND COALESCE(allowed_model_ids, '') <> ''`).Error; err != nil {
+		return fmt.Errorf("copy gateway api key catalog allowlist: %w", err)
+	}
+	if err := remapGatewayAPIKeyAllowlistToCatalogEntries(db); err != nil {
+		return err
+	}
+	if err := migrator.DropColumn(&persistencemodel.GatewayAPIKey{}, "allowed_model_ids"); err != nil {
+		return fmt.Errorf("drop gateway_api_keys.allowed_model_ids: %w", err)
+	}
+	if migrator.HasColumn(&persistencemodel.GatewayAPIKey{}, "allowed_model_ids") && db.Dialector.Name() == "sqlite" {
+		if err := db.Exec(`ALTER TABLE gateway_api_keys DROP COLUMN allowed_model_ids`).Error; err != nil {
+			return fmt.Errorf("drop gateway_api_keys.allowed_model_ids with sqlite fallback: %w", err)
+		}
+	}
+	if migrator.HasColumn(&persistencemodel.GatewayAPIKey{}, "allowed_model_ids") {
+		return fmt.Errorf("drop gateway_api_keys.allowed_model_ids: column still exists")
+	}
+	return nil
+}
+
+func remapGatewayAPIKeyAllowlistToCatalogEntries(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	type apiKeyAllowlistRow struct {
+		ID                     uint
+		AllowedCatalogEntryIDs string
+	}
+	var rows []apiKeyAllowlistRow
+	if err := db.Table("gateway_api_keys").
+		Select("id, allowed_catalog_entry_ids").
+		Where("COALESCE(allowed_catalog_entry_ids, '') NOT IN ('', '[]')").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list gateway api key catalog allowlists: %w", err)
+	}
+	for _, row := range rows {
+		ids, changed, err := remapLocalModelConfigIDsToCatalogEntryIDs(db, row.AllowedCatalogEntryIDs)
+		if err != nil {
+			return fmt.Errorf("remap gateway api key %d allowlist: %w", row.ID, err)
+		}
+		if !changed {
+			continue
+		}
+		body, err := json.Marshal(ids)
+		if err != nil {
+			return fmt.Errorf("marshal gateway api key %d catalog allowlist: %w", row.ID, err)
+		}
+		if err := db.Table("gateway_api_keys").Where("id = ?", row.ID).Update("allowed_catalog_entry_ids", string(body)).Error; err != nil {
+			return fmt.Errorf("update gateway api key %d catalog allowlist: %w", row.ID, err)
+		}
+	}
+	return nil
+}
+
+func remapLocalModelConfigIDsToCatalogEntryIDs(db *gorm.DB, raw string) ([]uint, bool, error) {
+	var ids []uint
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &ids); err != nil {
+		return nil, false, err
+	}
+	out := make([]uint, 0, len(ids))
+	seen := map[uint]bool{}
+	changed := false
+	for _, id := range ids {
+		mappedID := id
+		var route struct {
+			CatalogEntryID uint
+		}
+		err := db.Table("ai_model_route_bindings").
+			Select("catalog_entry_id").
+			Where("local_model_config_id = ? AND deleted_at IS NULL", id).
+			Order("id ASC").
+			Limit(1).
+			Scan(&route).Error
+		if err != nil {
+			return nil, false, err
+		}
+		if route.CatalogEntryID != 0 {
+			mappedID = route.CatalogEntryID
+		}
+		if mappedID != id {
+			changed = true
+		}
+		if mappedID == 0 || seen[mappedID] {
+			if mappedID != 0 {
+				changed = true
+			}
+			continue
+		}
+		seen[mappedID] = true
+		out = append(out, mappedID)
+	}
+	return out, changed, nil
+}
+
+func backfillModelCatalogFromLocalProviderConfigs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		return nil
+	}
+	var rows []persistencemodel.AIModelConfig
+	if err := db.Model(&persistencemodel.AIModelConfig{}).
+		Where("ai_model_configs.deleted_at IS NULL").
+		Order("ai_model_configs.id ASC").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		publicModelID := strings.TrimSpace(row.ModelDefID)
+		providerModelID := firstNonEmptyString(row.ModelIDOverride, row.ModelDefID)
+		if publicModelID == "" || providerModelID == "" {
+			continue
+		}
+		entry := persistencemodel.AIModelCatalogEntry{
+			PublicModelID:      publicModelID,
+			ProviderModelID:    providerModelID,
+			DisplayName:        firstNonEmptyString(row.CustomDisplayName, publicModelID),
+			ShortName:          strings.TrimSpace(row.ShortName),
+			IsEnabled:          row.IsEnabled,
+			Capabilities:       defaultString(strings.TrimSpace(row.CustomCapabilities), "text"),
+			PricingMode:        strings.TrimSpace(row.CustomPricingMode),
+			AcceptsImage:       row.CustomAcceptsImage,
+			MaxInputImages:     row.CustomMaxInputImages,
+			MaxInputVideos:     row.CustomMaxInputVideos,
+			ImageEditField:     strings.TrimSpace(row.CustomImageEditField),
+			SupportedParams:    strings.TrimSpace(row.CustomSupportedParams),
+			CreditsInputPer1M:  row.CreditsInputPer1M,
+			CreditsOutputPer1M: row.CreditsOutputPer1M,
+			CreditsPerImage:    row.CreditsPerImage,
+			CreditsPerSecond:   row.CreditsPerSecond,
+			CreditsPerCall:     row.CreditsPerCall,
+		}
+		if err := db.Where("public_model_id = ? AND provider_model_id = ?", entry.PublicModelID, entry.ProviderModelID).FirstOrCreate(&entry).Error; err != nil {
+			return err
+		}
+		credentialID := row.CredentialID
+		localConfigID := row.ID
+		binding := persistencemodel.AIModelRouteBinding{
+			CatalogEntryID:     entry.ID,
+			SourceType:         persistencemodel.ModelRouteSourceLocalProvider,
+			CredentialID:       &credentialID,
+			IsEnabled:          row.IsEnabled,
+			Priority:           row.Priority,
+			CapacityWeight:     normalizePositiveInt(row.CapacityWeight, 1),
+			MaxConcurrency:     row.MaxConcurrency,
+			LocalModelConfigID: &localConfigID,
+		}
+		if err := db.Where("local_model_config_id = ?", localConfigID).FirstOrCreate(&binding).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func backfillUsageModelCatalogEntryRefs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return nil
+	}
+	if err := backfillUsageModelCatalogEntryRef(db, "usage_logs"); err != nil {
+		return err
+	}
+	return backfillUsageModelCatalogEntryRef(db, "usage_reservations")
+}
+
+func backfillJobModelCatalogEntryRefs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return nil
+	}
+	return backfillModelCatalogEntryRefColumn(db, "jobs", "model_config_id", "ai_model_catalog_entry_id")
+}
+
+func backfillUsageModelCatalogEntryRef(db *gorm.DB, table string) error {
+	return backfillModelCatalogEntryRefColumn(db, table, "ai_model_config_id", "ai_model_catalog_entry_id")
+}
+
+func backfillModelCatalogEntryRefColumn(db *gorm.DB, table string, legacyModelConfigColumn string, catalogEntryColumn string) error {
+	if !db.Migrator().HasTable(table) {
+		return nil
+	}
+	if !db.Migrator().HasColumn(table, catalogEntryColumn) {
+		return nil
+	}
+	if db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		condition := fmt.Sprintf(`%s.%s IS NULL
+		AND EXISTS (
+			SELECT 1 FROM ai_model_route_bindings route_bindings
+			WHERE route_bindings.local_model_config_id = %s.%s
+				AND route_bindings.deleted_at IS NULL
+		)`, table, catalogEntryColumn, table, legacyModelConfigColumn)
+		update := fmt.Sprintf(`UPDATE %s SET %s = (
+			SELECT route_bindings.catalog_entry_id
+			FROM ai_model_route_bindings route_bindings
+			WHERE route_bindings.local_model_config_id = %s.%s
+				AND route_bindings.deleted_at IS NULL
+			ORDER BY route_bindings.id ASC
+			LIMIT 1
+		) WHERE %s`, table, catalogEntryColumn, table, legacyModelConfigColumn, condition)
+		if err := db.Exec(update).Error; err != nil {
+			return fmt.Errorf("backfill %s.%s from local provider route bindings: %w", table, catalogEntryColumn, err)
+		}
+	}
+	condition := fmt.Sprintf(`%s.%s IS NULL
+		AND EXISTS (
+			SELECT 1 FROM ai_model_catalog_entries catalog_entries
+			WHERE catalog_entries.id = %s.%s
+				AND catalog_entries.deleted_at IS NULL
+		)`, table, catalogEntryColumn, table, legacyModelConfigColumn)
+	if db.Migrator().HasTable(&persistencemodel.AIModelConfig{}) {
+		condition += fmt.Sprintf(`
+		AND NOT EXISTS (
+			SELECT 1 FROM ai_model_configs legacy_configs
+			WHERE legacy_configs.id = %s.%s
+				AND legacy_configs.deleted_at IS NULL
+		)`, table, legacyModelConfigColumn)
+	}
+	if err := db.Exec(fmt.Sprintf(`UPDATE %s SET %s = %s WHERE %s`, table, catalogEntryColumn, legacyModelConfigColumn, condition)).Error; err != nil {
+		return fmt.Errorf("backfill %s.%s: %w", table, catalogEntryColumn, err)
+	}
+	return nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func defaultString(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return strings.TrimSpace(value)
+}
+
+func normalizePositiveInt(value int, fallback int) int {
+	if value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func createJobRunnerIndexes(db *gorm.DB) error {
@@ -504,6 +847,161 @@ func createRawResourceNameUniqueIndexes(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+const activeModelRouteBindingUniqueIndex = "uidx_ai_model_route_bindings_active_route"
+const activeModelCatalogEntryUniqueIndex = "uidx_ai_model_catalog_entries_active_model_ids"
+
+func enforceUniqueActiveModelRouteBindings(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	if err := db.AutoMigrate(&persistencemodel.AIModelRouteBinding{}); err != nil {
+		return err
+	}
+	if err := softDeleteDuplicateActiveModelRouteBindings(db); err != nil {
+		return err
+	}
+	if db.Dialector.Name() != "postgres" && db.Dialector.Name() != "sqlite" {
+		return nil
+	}
+	return createPartialUniqueIndex(
+		db,
+		&persistencemodel.AIModelRouteBinding{},
+		activeModelRouteBindingUniqueIndex,
+		"ai_model_route_bindings",
+		modelRouteBindingUniqueIndexColumns(),
+		"deleted_at IS NULL",
+	)
+}
+
+func replaceModelRouteBindingUniqueIndexWithCredentialScope(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+		return nil
+	}
+	if db.Migrator().HasIndex(&persistencemodel.AIModelRouteBinding{}, activeModelRouteBindingUniqueIndex) {
+		if err := db.Migrator().DropIndex(&persistencemodel.AIModelRouteBinding{}, activeModelRouteBindingUniqueIndex); err != nil {
+			return fmt.Errorf("drop %s: %w", activeModelRouteBindingUniqueIndex, err)
+		}
+	}
+	return enforceUniqueActiveModelRouteBindings(db)
+}
+
+func modelRouteBindingUniqueIndexColumns() string {
+	return "catalog_entry_id, source_type, route_group, COALESCE(credential_id, 0)"
+}
+
+func modelRouteBindingCredentialIDValue(id *uint) uint {
+	if id == nil {
+		return 0
+	}
+	return *id
+}
+
+func softDeleteDuplicateActiveModelRouteBindings(db *gorm.DB) error {
+	stmt := `
+UPDATE ai_model_route_bindings
+SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE deleted_at IS NULL
+  AND id NOT IN (
+    SELECT keep_id FROM (
+      SELECT MIN(id) AS keep_id
+      FROM ai_model_route_bindings
+      WHERE deleted_at IS NULL
+      GROUP BY catalog_entry_id, source_type, route_group, COALESCE(credential_id, 0)
+    ) active_routes
+  )`
+	if err := db.Exec(stmt).Error; err != nil {
+		return fmt.Errorf("soft-delete duplicate active model route bindings: %w", err)
+	}
+	return nil
+}
+
+func enforceUniqueActiveModelCatalogEntries(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.AIModelCatalogEntry{}) {
+		return nil
+	}
+	if err := db.AutoMigrate(&persistencemodel.AIModelCatalogEntry{}); err != nil {
+		return err
+	}
+	if err := mergeDuplicateActiveModelCatalogEntries(db); err != nil {
+		return err
+	}
+	if db.Dialector.Name() != "postgres" && db.Dialector.Name() != "sqlite" {
+		return nil
+	}
+	return createPartialUniqueIndex(
+		db,
+		&persistencemodel.AIModelCatalogEntry{},
+		activeModelCatalogEntryUniqueIndex,
+		"ai_model_catalog_entries",
+		"public_model_id, provider_model_id",
+		"deleted_at IS NULL",
+	)
+}
+
+func mergeDuplicateActiveModelCatalogEntries(db *gorm.DB) error {
+	var entries []persistencemodel.AIModelCatalogEntry
+	if err := db.
+		Unscoped().
+		Where("deleted_at IS NULL").
+		Order("public_model_id ASC, provider_model_id ASC, id ASC").
+		Find(&entries).Error; err != nil {
+		return fmt.Errorf("list active model catalog entries: %w", err)
+	}
+	keepers := map[string]uint{}
+	for _, entry := range entries {
+		key := strings.TrimSpace(entry.PublicModelID) + "\x00" + strings.TrimSpace(entry.ProviderModelID)
+		if key == "\x00" {
+			continue
+		}
+		keepID, ok := keepers[key]
+		if !ok {
+			keepers[key] = entry.ID
+			continue
+		}
+		if err := mergeDuplicateModelCatalogEntry(db, entry.ID, keepID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func mergeDuplicateModelCatalogEntry(db *gorm.DB, duplicateID uint, keepID uint) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		var bindings []persistencemodel.AIModelRouteBinding
+		if tx.Migrator().HasTable(&persistencemodel.AIModelRouteBinding{}) {
+			if err := tx.
+				Where("catalog_entry_id = ? AND deleted_at IS NULL", duplicateID).
+				Order("id ASC").
+				Find(&bindings).Error; err != nil {
+				return fmt.Errorf("list duplicate catalog entry bindings: %w", err)
+			}
+			for _, binding := range bindings {
+				var existing int64
+				if err := tx.Model(&persistencemodel.AIModelRouteBinding{}).
+					Where("catalog_entry_id = ? AND source_type = ? AND route_group = ? AND COALESCE(credential_id, 0) = ? AND deleted_at IS NULL", keepID, binding.SourceType, binding.RouteGroup, modelRouteBindingCredentialIDValue(binding.CredentialID)).
+					Count(&existing).Error; err != nil {
+					return fmt.Errorf("check duplicate catalog entry binding: %w", err)
+				}
+				if existing > 0 {
+					if err := tx.Delete(&persistencemodel.AIModelRouteBinding{}, binding.ID).Error; err != nil {
+						return fmt.Errorf("soft-delete duplicate catalog entry binding %d: %w", binding.ID, err)
+					}
+					continue
+				}
+				if err := tx.Model(&persistencemodel.AIModelRouteBinding{}).
+					Where("id = ?", binding.ID).
+					Update("catalog_entry_id", keepID).Error; err != nil {
+					return fmt.Errorf("move catalog entry binding %d: %w", binding.ID, err)
+				}
+			}
+		}
+		if err := tx.Delete(&persistencemodel.AIModelCatalogEntry{}, duplicateID).Error; err != nil {
+			return fmt.Errorf("soft-delete duplicate catalog entry %d: %w", duplicateID, err)
+		}
+		return nil
+	})
 }
 
 func migrateShotReferenceGroups(db *gorm.DB) error {
@@ -748,6 +1246,9 @@ func RunMigrations(db *gorm.DB) error {
 	if err := db.AutoMigrate(&AppliedMigration{}); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
+	if err := editionRepairLegacyMigrationRecords(db); err != nil {
+		return err
+	}
 
 	applied, err := loadAppliedMigrations(db)
 	if err != nil {
@@ -895,6 +1396,8 @@ func allModels() []any {
 		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.LLMCallLog{},
@@ -903,6 +1406,7 @@ func allModels() []any {
 		&persistencemodel.ResourceBlob{},
 		&persistencemodel.RawResource{},
 		&persistencemodel.ResourceDerivative{},
+		&persistencemodel.MediaStreamArtifact{},
 		&persistencemodel.ExternalResourceSource{},
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
@@ -928,6 +1432,7 @@ func allModels() []any {
 		&persistencemodel.UserGroupMember{},
 		&persistencemodel.OrgInvitation{},
 	}
+	entities = editionCoreSchemaModels(entities)
 	return append(entities, runtimeMigrationModels()...)
 }
 
@@ -943,6 +1448,8 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.DecisionContext{},
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 		&persistencemodel.LLMCallLog{},
@@ -951,6 +1458,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.ResourceBlob{},
 		&persistencemodel.RawResource{},
 		&persistencemodel.ResourceDerivative{},
+		&persistencemodel.MediaStreamArtifact{},
 		&persistencemodel.ExternalResourceSource{},
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
@@ -976,5 +1484,6 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.UserGroupMember{},
 		&persistencemodel.OrgInvitation{},
 	}
+	entities = editionCoreSchemaModels(entities)
 	return append(entities, runtimeMigrationModels()...)
 }

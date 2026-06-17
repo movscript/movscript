@@ -274,7 +274,7 @@ export function resourceMediaTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_video_trim_to_resource',
-      description: 'Trim a MovScript video RawResource to a new MP4 video RawResource. This is a stable media operation and does not update any business candidate or shot state.',
+      description: 'Neutral resource preparation: trim a MovScript video RawResource to a new MP4 video RawResource for references, drafts, or generation inputs. This is not the product editing path; normal timeline trim, render, export, and candidate creation should use MediaEditingProject plus editing_* tools through Electron mediaPipeline. This tool does not update any business candidate, selection, or shot state.',
       inputSchema: objectSchema({
         resource_id: { type: 'number', description: 'MovScript video RawResource ID.' },
         resourceId: { type: 'number', description: 'Camel-case alias for resource_id.' },
@@ -300,7 +300,7 @@ export function resourceMediaTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_video_compose_to_resource',
-      description: 'Compose video RawResources in sequence into a new MP4 video RawResource. Items are generic media clips, not business shots; each may specify start/end/duration, volume, and muted.',
+      description: 'Resource-level video utility: compose video RawResources in sequence into a new MP4 video RawResource. Items are generic media clips, not business shots; each may specify start/end/duration, volume, and muted. This is not the product editing path; normal timeline editing, render, HLS packaging, transcode, reframe, and export should use MediaEditingProject plus editing_* tools through Electron mediaPipeline.',
       inputSchema: objectSchema({
         items: {
           type: 'array',
@@ -319,7 +319,7 @@ export function resourceMediaTools(): MCPTool[] {
     },
     {
       name: 'movscript_resource_video_concat_to_resource',
-      description: 'Alias for movscript_resource_video_compose_to_resource for simple ordered concatenation into a new MP4 video RawResource.',
+      description: 'Resource-level video utility: alias for movscript_resource_video_compose_to_resource for simple ordered concatenation into a new MP4 video RawResource. This is not the product editing path; normal timeline editing, render, HLS packaging, transcode, reframe, and export should use MediaEditingProject plus editing_* tools through Electron mediaPipeline.',
       inputSchema: objectSchema({
         items: {
           type: 'array',

@@ -24,8 +24,12 @@ func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, par
 		}
 	}
 	sm.enter(StateCallingProvider, "call image provider")
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityImage)
+	if err != nil {
+		return providerResult{}, err
+	}
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
-		return w.aiService.CallImageWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
+		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
 	if err != nil {
 		return providerResult{}, fmt.Errorf("image generation: %w", err)
@@ -53,8 +57,12 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job,
 		}
 	}
 	sm.enter(StateCallingProvider, "call image edit provider")
+	route, err := w.resolveJobModelRoute(ctx, job, ai.CapabilityImageEdit)
+	if err != nil {
+		return providerResult{}, err
+	}
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
-		return w.aiService.CallImageWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
+		return w.aiService.CallImageWithRouteUsage(ctx, job.UserID, route, req, w.usageContext(job))
 	})
 	if err != nil {
 		return providerResult{}, fmt.Errorf("image generation: %w", err)

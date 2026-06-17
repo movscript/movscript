@@ -37,7 +37,7 @@ func usageFilterFromContract(filter providercontract.AIGatewayUsageLogFilter) Li
 		UserID:        filter.UserID,
 		OrgID:         filter.OrgID,
 		ProjectID:     filter.ProjectID,
-		ModelConfigID: filter.ModelConfigID,
+		ModelID:       filter.ModelID,
 		ProviderID:    filter.ProviderID,
 		GatewayKeyID:  filter.GatewayKeyID,
 		OperationType: filter.OperationType,
@@ -84,49 +84,49 @@ func usageLogsFromContract(rows []providercontract.AIGatewayUsageLog) []Log {
 
 func usageLogToContract(row Log) providercontract.AIGatewayUsageLog {
 	return providercontract.AIGatewayUsageLog{
-		ID:                 row.ID,
-		UserID:             row.UserID,
-		OrgID:              row.OrgID,
-		AIModelConfigID:    row.AIModelConfigID,
-		UsageReservationID: row.UsageReservationID,
-		GatewayAPIKeyID:    row.GatewayAPIKeyID,
-		ProjectID:          row.ProjectID,
-		OperationType:      row.OperationType,
-		InputTokens:        row.InputTokens,
-		OutputTokens:       row.OutputTokens,
-		CachedInputTokens:  row.CachedInputTokens,
-		ReasoningTokens:    row.ReasoningTokens,
-		DurationSec:        row.DurationSec,
-		ImageCount:         row.ImageCount,
-		Cost:               row.Cost,
-		User:               usageUserRefToContract(row.User),
-		AIModelConfig:      usageModelRefToContract(row.AIModelConfig),
-		CreatedAt:          row.CreatedAt,
-		UpdatedAt:          row.UpdatedAt,
+		ID:                    row.ID,
+		UserID:                row.UserID,
+		OrgID:                 row.OrgID,
+		AIModelCatalogEntryID: row.AIModelCatalogEntryID,
+		UsageReservationID:    row.UsageReservationID,
+		GatewayAPIKeyID:       row.GatewayAPIKeyID,
+		ProjectID:             row.ProjectID,
+		OperationType:         row.OperationType,
+		InputTokens:           row.InputTokens,
+		OutputTokens:          row.OutputTokens,
+		CachedInputTokens:     row.CachedInputTokens,
+		ReasoningTokens:       row.ReasoningTokens,
+		DurationSec:           row.DurationSec,
+		ImageCount:            row.ImageCount,
+		Cost:                  row.Cost,
+		User:                  usageUserRefToContract(row.User),
+		AIModelCatalogEntry:   usageCatalogEntryRefToContract(row.AIModelCatalogEntry),
+		CreatedAt:             row.CreatedAt,
+		UpdatedAt:             row.UpdatedAt,
 	}
 }
 
 func usageLogFromContract(row providercontract.AIGatewayUsageLog) Log {
 	return Log{
-		ID:                 row.ID,
-		UserID:             row.UserID,
-		OrgID:              row.OrgID,
-		AIModelConfigID:    row.AIModelConfigID,
-		UsageReservationID: row.UsageReservationID,
-		GatewayAPIKeyID:    row.GatewayAPIKeyID,
-		ProjectID:          row.ProjectID,
-		OperationType:      row.OperationType,
-		InputTokens:        row.InputTokens,
-		OutputTokens:       row.OutputTokens,
-		CachedInputTokens:  row.CachedInputTokens,
-		ReasoningTokens:    row.ReasoningTokens,
-		DurationSec:        row.DurationSec,
-		ImageCount:         row.ImageCount,
-		Cost:               row.Cost,
-		User:               usageUserRefFromContract(row.User),
-		AIModelConfig:      usageModelRefFromContract(row.AIModelConfig),
-		CreatedAt:          row.CreatedAt,
-		UpdatedAt:          row.UpdatedAt,
+		ID:                    row.ID,
+		UserID:                row.UserID,
+		OrgID:                 row.OrgID,
+		AIModelCatalogEntryID: row.AIModelCatalogEntryID,
+		UsageReservationID:    row.UsageReservationID,
+		GatewayAPIKeyID:       row.GatewayAPIKeyID,
+		ProjectID:             row.ProjectID,
+		OperationType:         row.OperationType,
+		InputTokens:           row.InputTokens,
+		OutputTokens:          row.OutputTokens,
+		CachedInputTokens:     row.CachedInputTokens,
+		ReasoningTokens:       row.ReasoningTokens,
+		DurationSec:           row.DurationSec,
+		ImageCount:            row.ImageCount,
+		Cost:                  row.Cost,
+		User:                  usageUserRefFromContract(row.User),
+		AIModelCatalogEntry:   usageCatalogEntryRefFromContract(row.AIModelCatalogEntry),
+		CreatedAt:             row.CreatedAt,
+		UpdatedAt:             row.UpdatedAt,
 	}
 }
 
@@ -146,9 +146,9 @@ func usageSummaryToContract(summary Summary) providercontract.AIGatewayUsageSumm
 	}
 	for _, row := range summary.TopModels {
 		out.TopModels = append(out.TopModels, providercontract.AIGatewayUsageModelSummary{
-			ModelConfigID:        row.ModelConfigID,
-			AIModelConfig:        usageModelRefToContract(row.AIModelConfig),
-			AIGatewayUsageTotals: usageTotalsToContract(row.UsageTotals),
+			AIModelCatalogEntryID: row.AIModelCatalogEntryID,
+			AIModelCatalogEntry:   usageCatalogEntryRefToContract(row.AIModelCatalogEntry),
+			AIGatewayUsageTotals:  usageTotalsToContract(row.UsageTotals),
 		})
 	}
 	for _, row := range summary.TopUsers {
@@ -177,9 +177,9 @@ func usageSummaryFromContract(summary providercontract.AIGatewayUsageSummary) Su
 	}
 	for _, row := range summary.TopModels {
 		out.TopModels = append(out.TopModels, ModelSummary{
-			ModelConfigID: row.ModelConfigID,
-			AIModelConfig: usageModelRefFromContract(row.AIModelConfig),
-			UsageTotals:   usageTotalsFromContract(row.AIGatewayUsageTotals),
+			AIModelCatalogEntryID: row.AIModelCatalogEntryID,
+			AIModelCatalogEntry:   usageCatalogEntryRefFromContract(row.AIModelCatalogEntry),
+			UsageTotals:           usageTotalsFromContract(row.AIGatewayUsageTotals),
 		})
 	}
 	for _, row := range summary.TopUsers {
@@ -257,5 +257,31 @@ func usageModelRefFromContract(ref *providercontract.AIGatewayUsageModelConfigRe
 		ModelIDOverride:   ref.ModelIDOverride,
 		CustomDisplayName: ref.CustomDisplayName,
 		ShortName:         ref.ShortName,
+	}
+}
+
+func usageCatalogEntryRefToContract(ref *CatalogEntryRef) *providercontract.AIGatewayUsageCatalogEntryRef {
+	if ref == nil {
+		return nil
+	}
+	return &providercontract.AIGatewayUsageCatalogEntryRef{
+		ID:              ref.ID,
+		PublicModelID:   ref.PublicModelID,
+		ProviderModelID: ref.ProviderModelID,
+		DisplayName:     ref.DisplayName,
+		ShortName:       ref.ShortName,
+	}
+}
+
+func usageCatalogEntryRefFromContract(ref *providercontract.AIGatewayUsageCatalogEntryRef) *CatalogEntryRef {
+	if ref == nil {
+		return nil
+	}
+	return &CatalogEntryRef{
+		ID:              ref.ID,
+		PublicModelID:   ref.PublicModelID,
+		ProviderModelID: ref.ProviderModelID,
+		DisplayName:     ref.DisplayName,
+		ShortName:       ref.ShortName,
 	}
 }

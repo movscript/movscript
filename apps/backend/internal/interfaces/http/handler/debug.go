@@ -128,19 +128,15 @@ func debugJobFiltersFromQuery(c *gin.Context) (debugapp.JobFilters, bool) {
 	if !ok {
 		return debugapp.JobFilters{}, false
 	}
-	modelConfigID, ok := optionalDebugJobUintQuery(c, "model_config_id")
-	if !ok {
-		return debugapp.JobFilters{}, false
-	}
 	return debugapp.JobFilters{
-		JobID:         jobID,
-		Status:        c.Query("status"),
-		JobType:       c.Query("job_type"),
-		FeatureKey:    c.Query("feature_key"),
-		UserID:        userID,
-		OrgID:         orgID,
-		ProjectID:     projectID,
-		ModelConfigID: modelConfigID,
+		JobID:      jobID,
+		Status:     c.Query("status"),
+		JobType:    c.Query("job_type"),
+		FeatureKey: c.Query("feature_key"),
+		UserID:     userID,
+		OrgID:      orgID,
+		ProjectID:  projectID,
+		ModelID:    c.Query("model_id"),
 	}, true
 }
 
@@ -289,7 +285,7 @@ func (h *DebugHandler) llmCallLogFilter(c *gin.Context) (debugapp.LLMCallLogFilt
 		UserID:          c.Query("user_id"),
 		OrgID:           c.Query("org_id"),
 		ProjectID:       c.Query("project_id"),
-		ModelConfigID:   c.Query("model_config_id"),
+		ModelID:         c.Query("model_id"),
 		CredentialID:    c.Query("credential_id"),
 		GatewayAPIKeyID: c.Query("gateway_api_key_id"),
 		OperationType:   c.Query("operation_type"),

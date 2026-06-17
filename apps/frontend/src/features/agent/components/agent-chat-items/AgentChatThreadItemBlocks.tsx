@@ -79,7 +79,7 @@ export function AgentChatImagePreviewGrid({
               loading="lazy"
               decoding="async"
               thumbnailMaxSize={AGENT_CHAT_IMAGE_PREVIEW_THUMBNAIL_MAX_SIZE}
-              className="ms-agent-chat-media-tile-image"
+              className="ms-agent-chat-media-tile__image"
             />
           </a>
         ))}
@@ -117,7 +117,7 @@ export function AgentChatMediaPreviewGrid({
                 controls
                 playsInline
                 preload="metadata"
-                className="ms-agent-chat-media-tile-video"
+                className="ms-agent-chat-media-tile__video"
               />
             ) : (
               <ResourceFileAudio
@@ -125,10 +125,10 @@ export function AgentChatMediaPreviewGrid({
                 aria-label={item.label}
                 controls
                 preload="metadata"
-                className="ms-agent-chat-media-tile-audio"
+                className="ms-agent-chat-media-tile__audio"
               />
             )}
-            <div className="ms-agent-chat-media-tile-caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
+            <div className="ms-agent-chat-media-tile__caption" title={item.mimeType ? `${item.label} ${item.mimeType}` : item.label}>
               {item.mimeType ? `${item.label} ${item.mimeType}` : item.label}
             </div>
           </div>

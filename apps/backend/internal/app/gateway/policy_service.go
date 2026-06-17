@@ -21,12 +21,12 @@ func (p *PolicyService) CanListChatModels(principal Principal) error {
 	return p.ensureChatScope(principal, "list")
 }
 
-func (p *PolicyService) CanCallChat(ctx context.Context, principal Principal, modelConfigID uint, projectID *uint, estimatedCost float64) error {
+func (p *PolicyService) CanCallChat(ctx context.Context, principal Principal, projectID *uint, estimatedCost float64, catalogEntryIDs ...uint) error {
 	if err := p.ensureChatScope(principal, "call"); err != nil {
 		return err
 	}
-	if principal.Key != nil && !KeyAllowsModel(principal.Key, modelConfigID) {
-		return ErrModelNotAllowed
+	if principal.Key != nil && !KeyAllowsAnyCatalogEntry(principal.Key, catalogEntryIDs...) {
+		return ErrCatalogEntryNotAllowed
 	}
 	if principal.Key != nil && !KeyAllowsProject(principal.Key, projectID) {
 		return ErrProjectNotAllowed

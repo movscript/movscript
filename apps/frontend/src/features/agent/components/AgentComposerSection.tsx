@@ -76,7 +76,7 @@ export interface AgentComposerSectionProps {
   goalState?: AgentThreadGoalState | null
   hideWorkspaceProjectSelector?: boolean
   modelOptions?: PublicModel[]
-  modelValue?: number | null
+  modelValue?: string | null
   queuedInputs?: AgentChatQueuedInputPreviewItem[]
   queuedInputsCollapsed?: boolean
   queuedInputSteerEnabled?: boolean
@@ -103,7 +103,7 @@ export interface AgentComposerSectionProps {
   onMentionState: MentionStateHandler
   onCollaborationModeChange?: (mode: 'default' | 'plan') => void
   onGoalModeEnabledChange?: (enabled: boolean) => void
-  onModelChange?: (modelId: number | null) => void
+  onModelChange?: (modelId: string | null) => void
   onProfilePresetChange?: (profilePresetId: AgentRunProfilePresetId) => void
   onQueuedInputCollapseChange?: (collapsed: boolean) => void
   onQueuedInputDelete?: (id: string) => void

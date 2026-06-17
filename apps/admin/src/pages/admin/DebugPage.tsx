@@ -168,9 +168,8 @@ function toRFC3339(value: string, endOfMinute = false): string | undefined {
   return date.toISOString()
 }
 
-function modelConfigLabel(cfg: LLMCallLog['ai_model_config'], fallbackId: number): string {
-  if (!cfg) return `#${fallbackId}`
-  return cfg.short_name || cfg.custom_display_name || cfg.model_id_override || cfg.model_def_id || `#${cfg.ID}`
+function llmCallModelLabel(item: LLMCallLog): string {
+  return item.model_id || item.response_model || item.request_model || 'unknown model'
 }
 
 function formatLLMJSON(raw?: string): string {
@@ -200,7 +199,6 @@ type LLMCallFilters = {
   operationType: string
   provider: string
   promptName: string
-  modelConfigId: string
   credentialId: string
   userId: string
   orgId: string
@@ -217,7 +215,6 @@ const emptyLLMCallFilters: LLMCallFilters = {
   operationType: '',
   provider: '',
   promptName: '',
-  modelConfigId: '',
   credentialId: '',
   userId: '',
   orgId: '',
@@ -244,7 +241,6 @@ function LLMCallLogsSection() {
     operation_type: filters.operationType || undefined,
     provider: filters.provider || undefined,
     prompt_name: filters.promptName.trim() || undefined,
-    model_config_id: filters.modelConfigId.trim() || undefined,
     credential_id: filters.credentialId.trim() || undefined,
     user_id: filters.userId.trim() || undefined,
     org_id: filters.orgId.trim() || undefined,
@@ -386,7 +382,6 @@ function LLMCallLogsSection() {
           <FilterInput label={t('admin.debug.llmCalls.operation', { defaultValue: '类型' })} value={filters.operationType} onChange={(value) => updateFilter('operationType', value)} placeholder="text/responses" />
           <FilterInput label="Provider" value={filters.provider} onChange={(value) => updateFilter('provider', value)} placeholder="openai_compat" />
           <FilterInput label="Prompt" value={filters.promptName} onChange={(value) => updateFilter('promptName', value)} />
-          <FilterInput label={t('admin.debug.jobs.filters.modelConfigId')} value={filters.modelConfigId} onChange={(value) => updateFilter('modelConfigId', value)} />
           <FilterInput label={t('admin.debug.llmCalls.credentialId', { defaultValue: '凭据 ID' })} value={filters.credentialId} onChange={(value) => updateFilter('credentialId', value)} />
           <FilterInput label={t('admin.debug.jobs.filters.userId')} value={filters.userId} onChange={(value) => updateFilter('userId', value)} />
           <FilterInput label={t('admin.debug.jobs.filters.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value)} />
@@ -432,8 +427,8 @@ function LLMCallLogsSection() {
                   <tr key={item.ID} className="align-top">
                     <td className="px-3 py-2 text-muted-foreground">{formatDateTime(item.CreatedAt)}</td>
                     <td className="px-3 py-2">
-                      <div className="font-medium text-foreground">{modelConfigLabel(item.ai_model_config, item.ai_model_config_id)}</div>
-                      <div className="mt-0.5 text-muted-foreground">{item.provider || '-'} · #{item.ai_model_config_id}</div>
+                      <div className="font-medium text-foreground">{llmCallModelLabel(item)}</div>
+                      <div className="mt-0.5 text-muted-foreground">{item.provider || '-'}</div>
                     </td>
                     <td className="px-3 py-2">
                       <div className="max-w-[180px] truncate text-foreground">{item.prompt_name || '-'}</div>
@@ -1462,7 +1457,7 @@ function JobMonitorSection() {
           <JobFilterField label={t('admin.debug.jobs.filters.userId')} value={filters.userId} onChange={(value) => updateFilter('userId', value.replace(/\D/g, ''))} placeholder="42" />
           <JobFilterField label={t('admin.debug.jobs.filters.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value.replace(/\D/g, ''))} placeholder="1" />
           <JobFilterField label={t('admin.debug.jobs.filters.projectId')} value={filters.projectId} onChange={(value) => updateFilter('projectId', value.replace(/\D/g, ''))} placeholder="128" />
-          <JobFilterField label={t('admin.debug.jobs.filters.modelConfigId')} value={filters.modelConfigId} onChange={(value) => updateFilter('modelConfigId', value.replace(/\D/g, ''))} placeholder="4" />
+          <JobFilterField label={t('admin.debug.jobs.filters.modelId')} value={filters.modelId} onChange={(value) => updateFilter('modelId', value)} placeholder="video.fast" />
           <JobFilterField label={t('admin.debug.jobs.filters.jobType')} value={filters.jobType} onChange={(value) => updateFilter('jobType', value)} placeholder="video_i2v" />
           <JobFilterField label={t('admin.debug.jobs.filters.featureKey')} value={filters.featureKey} onChange={(value) => updateFilter('featureKey', value)} placeholder="ref_video_gen" />
         </div>
@@ -1588,10 +1583,10 @@ function JobMonitorSection() {
                     {[
                       [t('admin.debug.jobs.fields.jobId'), String(job.ID)],
                       [t('admin.debug.jobs.fields.userId'), `#${job.user_id}`],
-                      [t('admin.debug.jobs.fields.orgId'), job.org_id ? `#${job.org_id}` : '—'],
-                      [t('admin.debug.jobs.fields.projectId'), job.project_id ? `#${job.project_id}` : '—'],
-                      [t('admin.debug.jobs.fields.modelConfigId'), String(job.model_config_id)],
-                      [t('admin.debug.jobs.fields.jobType'), job.job_type],
+	                      [t('admin.debug.jobs.fields.orgId'), job.org_id ? `#${job.org_id}` : '—'],
+	                      [t('admin.debug.jobs.fields.projectId'), job.project_id ? `#${job.project_id}` : '—'],
+	                      [t('admin.debug.jobs.fields.modelId'), job.model_id || '—'],
+	                      [t('admin.debug.jobs.fields.jobType'), job.job_type],
                       [t('admin.debug.jobs.fields.featureKey'), job.feature_key || '—'],
                       [t('admin.debug.jobs.fields.status'), t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })],
                       [t('admin.debug.jobs.fields.executionState'), job.execution_state ? (STATE_LABEL_KEYS[job.execution_state] ? t(STATE_LABEL_KEYS[job.execution_state]) : job.execution_state) : '—'],
@@ -1716,128 +1711,6 @@ function JobFilterField({ label, value, onChange, placeholder }: { label: string
     <div>
       <Label className="mb-1 block text-xs text-muted-foreground">{label}</Label>
       <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-8 text-xs" />
-    </div>
-  )
-}
-
-// ── Section 3: Model Connectivity Test (existing DebugTab logic) ──────────────
-
-
-interface ModelDebugState { loading: boolean; result: DebugCallResult | null }
-
-function ModelConnectivitySection() {
-  const { t } = useTranslation()
-  const [states, setStates] = useState<Record<string, ModelDebugState>>({})
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
-
-  const { data: credentials = [] } = useQuery<AICredential[]>({
-    queryKey: ['admin', 'credentials'],
-    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
-  })
-
-  const allModels = credentials.flatMap((cred) =>
-    (cred.models ?? []).map((cfg) => ({ cred, cfg }))
-  )
-
-  async function runDebug(credId: number, modelId: number, key: string) {
-    setStates((s) => ({ ...s, [key]: { loading: true, result: null } }))
-    setExpandedKey(key)
-    try {
-      const result: DebugCallResult = await api.post(`/admin/credentials/${credId}/models/${modelId}/debug`, {}).then((r) => r.data)
-      setStates((s) => ({ ...s, [key]: { loading: false, result } }))
-    } catch (e: unknown) {
-      const msg = translateApiError((e as any)?.response?.data)
-      setStates((s) => ({
-        ...s,
-        [key]: { loading: false, result: { success: false, model_id: '', endpoint: '', method: '', request_body: '', response_status: 0, response_body: '', latency_ms: 0, error: msg } },
-      }))
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-sm font-medium text-foreground">{t('admin.debug.connectivity.title')}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {t('admin.debug.connectivity.description')}
-          <AppFeedbackText as="span" tone="warning" className="ml-1">{t('admin.debug.connectivity.costWarning')}</AppFeedbackText>
-        </p>
-      </div>
-
-      {allModels.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">{t('admin.debug.connectivity.empty')}</p>
-      )}
-
-      <div className="space-y-2">
-        {allModels.map(({ cred, cfg }) => {
-          const key = `${cred.ID}-${cfg.ID}`
-          const state = states[key]
-          const isExpanded = expandedKey === key
-          const modelID = cfg.model_id_override || cfg.model_def_id
-
-          return (
-            <div key={key} className="border border-border rounded-lg bg-background overflow-hidden">
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-foreground">{cfg.custom_display_name || cfg.model_def_id}</span>
-                    <span className="text-xs text-muted-foreground">{cred.display_name}</span>
-                    {cred.base_url && <span className="text-xs font-mono text-muted-foreground/60 truncate max-w-48">{cred.base_url}</span>}
-                  </div>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{modelID}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    if (isExpanded && !state?.loading) setExpandedKey(null)
-                    else runDebug(cred.ID, cfg.ID, key)
-                  }}
-                  disabled={state?.loading}
-                  className="text-xs border border-border rounded px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-ring transition-colors disabled:opacity-50 shrink-0"
-                >
-                  {state?.loading ? t('admin.debug.connectivity.debugging') : t('admin.models.test')}
-                </button>
-              </div>
-
-              {isExpanded && state && !state.loading && state.result && (
-                <div className="border-t border-border px-4 py-3 bg-card">
-                  <div className="flex items-center gap-2 mb-2">
-                    <StatusBadge intent={state.result.success ? 'success' : 'danger'} className="text-xs">
-                      {state.result.success ? t('admin.debug.success') : t('admin.debug.failed')}
-                    </StatusBadge>
-                    {state.result.response_status > 0 && (
-                      <StatusBadge intent={debugHttpStatusIntent(state.result.response_status)} className="text-xs">
-                        HTTP {state.result.response_status}
-                      </StatusBadge>
-                    )}
-                    <span className="text-xs text-muted-foreground">{state.result.latency_ms}ms</span>
-                    {state.result.error && <AppFeedbackText as="span" className="truncate">{state.result.error}</AppFeedbackText>}
-                  </div>
-                    <HttpExchange
-                      method={state.result.method}
-                      url={state.result.endpoint}
-                      headers={state.result.request_headers}
-                      body={state.result.request_body}
-                      promptName={state.result.prompt_name}
-                      systemPrompt={state.result.system_prompt}
-                      userPrompt={state.result.user_prompt}
-                      compiledPrompt={state.result.compiled_prompt}
-                      promptMessages={state.result.prompt_messages}
-                      responseStatus={state.result.response_status}
-                      responseBody={state.result.response_body}
-                    latencyMs={state.result.latency_ms}
-                    error={state.result.error}
-                  />
-                </div>
-              )}
-              {isExpanded && state?.loading && (
-                <div className="border-t border-border px-4 py-3 bg-card">
-                  <p className="text-xs text-muted-foreground">{t('admin.debug.callingApi')}</p>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -2299,7 +2172,6 @@ export function DebugPage() {
           <TabsTrigger value="provider-sandbox">{t('admin.debug.tabs.providerSandbox')}</TabsTrigger>
           <TabsTrigger value="raw-call">{t('admin.debug.tabs.rawCall')}</TabsTrigger>
           <TabsTrigger value="jobs">{t('admin.debug.tabs.jobs')}</TabsTrigger>
-          <TabsTrigger value="connectivity">{t('admin.debug.tabs.connectivity')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="system" className="mt-4">
@@ -2320,10 +2192,6 @@ export function DebugPage() {
 
         <TabsContent value="jobs" className="mt-4">
           <JobMonitorSection />
-        </TabsContent>
-
-        <TabsContent value="connectivity" className="mt-4">
-          <ModelConnectivitySection />
         </TabsContent>
       </Tabs>
     </div>

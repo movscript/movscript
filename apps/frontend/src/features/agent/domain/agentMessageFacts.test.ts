@@ -56,7 +56,6 @@ test('buildAgentMessageFacts exposes assistant meta as view model fields', () =>
       generationParamAudits: [{
         stepId: 'step_1',
         jobId: 42,
-        modelConfigId: 7,
         modelContractLoaded: true,
         paramsSchemaLoaded: true,
         paramsSchemaRuleCount: 1,
@@ -95,7 +94,6 @@ test('buildAgentMessageFacts exposes assistant meta as view model fields', () =>
   assert.deepEqual(result.contextLabels, ['Project'])
   assert.equal(result.timelineActivity?.runId, 'run_1')
   assert.equal(result.generationJobs[0]?.jobId, 42)
-  assert.equal(result.generationParamAudits[0]?.modelConfigId, 7)
   assert.equal(result.generationValidationErrors[0]?.code, 'INVALID_INPUT_COUNT')
   assert.equal(result.workspaceArtifacts[0]?.workspaceId, 'workspace_1')
 })

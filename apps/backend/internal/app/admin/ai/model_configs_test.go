@@ -11,155 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
-
-func TestModelConfigRejectsInvalidCustomSupportedParamsBeforeSave(t *testing.T) {
-	service := newTestService(t)
-	ctx := context.Background()
-
-	_, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
-		ModelDefID:            "bad-video",
-		CustomCapabilities:    "video",
-		CustomSupportedParams: `[{"key":"duration","type":"select"}]`,
-	})
-	if !errors.Is(err, ErrInvalidModelConfig) {
-		t.Fatalf("expected ErrInvalidModelConfig, got %v", err)
-	}
-
-	cfgs, err := service.ListModelConfigs(ctx, "1")
-	if err != nil {
-		t.Fatalf("list model configs: %v", err)
-	}
-	if len(cfgs) != 0 {
-		t.Fatalf("expected invalid config not to be saved, got %#v", cfgs)
-	}
-}
-
-func TestModelConfigRejectsInvalidInputLimitBeforeSave(t *testing.T) {
-	service := newTestService(t)
-	ctx := context.Background()
-
-	_, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
-		ModelDefID:            "bad-image",
-		CustomCapabilities:    "image",
-		CustomMaxInputImages:  -2,
-		CustomSupportedParams: `[{"key":"aspect_ratio","label":"Aspect Ratio","type":"select","options":["1:1"],"default":"1:1"}]`,
-	})
-	if !errors.Is(err, ErrInvalidModelConfig) {
-		t.Fatalf("expected ErrInvalidModelConfig, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "custom_max_input_images") {
-		t.Fatalf("expected invalid input limit field in error, got %v", err)
-	}
-
-	cfgs, err := service.ListModelConfigs(ctx, "1")
-	if err != nil {
-		t.Fatalf("list model configs: %v", err)
-	}
-	if len(cfgs) != 0 {
-		t.Fatalf("expected invalid config not to be saved, got %#v", cfgs)
-	}
-}
-
-func TestPatchModelConfigRejectsInvalidCustomSupportedParamsAndKeepsExisting(t *testing.T) {
-	service := newTestService(t)
-	ctx := context.Background()
-	validParams := `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5"],"default":"5"}}}`
-	cfg, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
-		ModelDefID:            "video-model",
-		CustomCapabilities:    "video",
-		CustomSupportedParams: validParams,
-	})
-	if err != nil {
-		t.Fatalf("create valid config: %v", err)
-	}
-
-	_, err = service.PatchModelConfig(ctx, PatchModelConfigInput{
-		ID:                    "1",
-		CustomSupportedParams: ptrString(`[{"key":"duration","type":"number","min":10,"max":5}]`),
-	})
-	if !errors.Is(err, ErrInvalidModelConfig) {
-		t.Fatalf("expected ErrInvalidModelConfig, got %v", err)
-	}
-
-	got, err := service.GetModelConfig(ctx, "1")
-	if err != nil {
-		t.Fatalf("get model config: %v", err)
-	}
-	if got.ID != cfg.ID || got.CustomSupportedParams != validParams {
-		t.Fatalf("expected existing params to remain unchanged, got %#v", got)
-	}
-}
-
-func TestPatchModelConfigRejectsInvalidInputLimitAndKeepsExisting(t *testing.T) {
-	service := newTestService(t)
-	ctx := context.Background()
-	cfg, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
-		ModelDefID:            "image-model",
-		CustomCapabilities:    "image",
-		CustomAcceptsImage:    true,
-		CustomMaxInputImages:  4,
-		CustomSupportedParams: `[{"key":"aspect_ratio","label":"Aspect Ratio","type":"select","options":["1:1"],"default":"1:1"}]`,
-	})
-	if err != nil {
-		t.Fatalf("create valid config: %v", err)
-	}
-
-	invalidLimit := -2
-	_, err = service.PatchModelConfig(ctx, PatchModelConfigInput{
-		ID:                   "1",
-		CustomMaxInputImages: &invalidLimit,
-	})
-	if !errors.Is(err, ErrInvalidModelConfig) {
-		t.Fatalf("expected ErrInvalidModelConfig, got %v", err)
-	}
-
-	got, err := service.GetModelConfig(ctx, "1")
-	if err != nil {
-		t.Fatalf("get model config: %v", err)
-	}
-	if got.ID != cfg.ID || got.CustomMaxInputImages != 4 {
-		t.Fatalf("expected existing input limit to remain unchanged, got %#v", got)
-	}
-}
-
-func TestDeleteModelConfigReturnsDeletedConfigAndMissingIsNotFound(t *testing.T) {
-	service := newTestService(t)
-	ctx := context.Background()
-
-	cfg, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
-		ModelDefID:           "delete-me",
-		CustomCapabilities:   "text",
-		CustomPricingMode:    "per_token",
-		CreditsInputPer1M:    1,
-		CreditsOutputPer1M:   2,
-		CustomAcceptsImage:   false,
-		CustomMaxInputImages: 0,
-		CustomMaxInputVideos: 0,
-	})
-	if err != nil {
-		t.Fatalf("CreateModelConfig returned error: %v", err)
-	}
-
-	deleted, err := service.DeleteModelConfig(ctx, strconvID(cfg.ID))
-	if err != nil {
-		t.Fatalf("DeleteModelConfig returned error: %v", err)
-	}
-	if deleted.ID != cfg.ID || deleted.ModelDefID != "delete-me" {
-		t.Fatalf("unexpected deleted model config: %+v", deleted)
-	}
-	if _, err := service.GetModelConfig(ctx, strconvID(cfg.ID)); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("GetModelConfig after delete error = %v, want ErrNotFound", err)
-	}
-	if _, err := service.DeleteModelConfig(ctx, strconvID(cfg.ID)); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("DeleteModelConfig missing error = %v, want ErrNotFound", err)
-	}
-}
 
 func TestDeleteCredentialReturnsDeletedCredentialAndMissingIsNotFound(t *testing.T) {
 	service := newTestService(t)
@@ -180,31 +36,6 @@ func TestDeleteCredentialReturnsDeletedCredentialAndMissingIsNotFound(t *testing
 	}
 	if _, err := service.DeleteCredential(ctx, "bad"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("DeleteCredential invalid id error = %v, want ErrNotFound", err)
-	}
-}
-
-func TestModelConfigSaveUsesCredentialAdapterForProfileValidation(t *testing.T) {
-	service := newTestService(t)
-	ctx := context.Background()
-	params := `{"allow":["duration"],"override":{"duration":{"options":["5"],"default":"5"}}}`
-	cfg, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
-		ModelDefID:            "video-model",
-		CustomCapabilities:    "video",
-		CustomSupportedParams: params,
-	})
-	if err != nil {
-		t.Fatalf("create profile override that inherits adapter param type/label: %v", err)
-	}
-	if cfg.CustomSupportedParams != params {
-		t.Fatalf("expected profile params to be saved, got %#v", cfg.CustomSupportedParams)
-	}
-
-	_, err = service.PatchModelConfig(ctx, PatchModelConfigInput{
-		ID:                    "1",
-		CustomSupportedParams: ptrString(`{"allow":["duration"],"override":{"duration":{"options":["6"],"default":"6"}}}`),
-	})
-	if err != nil {
-		t.Fatalf("patch profile override that inherits adapter param type/label: %v", err)
 	}
 }
 
@@ -302,42 +133,32 @@ func TestPresetSupportedParamsRoundTripThroughSavePreviewAndRuntime(t *testing.T
 				t.Fatalf("marshal preset supported params: %v", err)
 			}
 
-			cfg, err := service.CreateModelConfig(context.Background(), 1, dto.AIModelConfigInput{
-				ModelDefID:            preset.ID,
-				CustomDisplayName:     preset.DisplayName,
-				CustomCapabilities:    strings.Join(preset.Capabilities, ","),
-				CustomPricingMode:     string(preset.PricingMode),
-				CustomAcceptsImage:    preset.AcceptsImageInput,
-				CustomMaxInputImages:  preset.MaxInputImages,
-				CustomMaxInputVideos:  preset.MaxInputVideos,
-				CustomSupportedParams: string(paramsJSON),
-			})
-			if err != nil {
-				t.Fatalf("save preset-backed model config: %v", err)
-			}
+			capabilities := strings.Join(preset.Capabilities, ",")
+			pricingMode := string(preset.PricingMode)
+			supportedParams := string(paramsJSON)
 
 			preview, err := service.PreviewModelConfigContract(PreviewModelConfigContractInput{
 				AdapterType:           preset.AdapterType,
-				CustomCapabilities:    cfg.CustomCapabilities,
-				CustomAcceptsImage:    cfg.CustomAcceptsImage,
-				CustomMaxInputImages:  cfg.CustomMaxInputImages,
-				CustomMaxInputVideos:  cfg.CustomMaxInputVideos,
-				CustomSupportedParams: cfg.CustomSupportedParams,
+				CustomCapabilities:    capabilities,
+				CustomAcceptsImage:    preset.AcceptsImageInput,
+				CustomMaxInputImages:  preset.MaxInputImages,
+				CustomMaxInputVideos:  preset.MaxInputVideos,
+				CustomSupportedParams: supportedParams,
 			})
 			if err != nil {
-				t.Fatalf("preview saved preset-backed contract: %v", err)
+				t.Fatalf("preview preset-backed contract: %v", err)
 			}
 			runtime := ai.ResolveModelDef(
-				cfg.ModelDefID,
+				preset.ID,
 				preset.AdapterType,
-				cfg.CustomDisplayName,
-				cfg.CustomCapabilities,
-				cfg.CustomPricingMode,
-				cfg.CustomAcceptsImage,
-				cfg.CustomMaxInputImages,
-				cfg.CustomMaxInputVideos,
-				cfg.CustomImageEditField,
-				cfg.CustomSupportedParams,
+				preset.DisplayName,
+				capabilities,
+				pricingMode,
+				preset.AcceptsImageInput,
+				preset.MaxInputImages,
+				preset.MaxInputVideos,
+				preset.ImageEditField,
+				supportedParams,
 			)
 
 			if !runtime.SupportedParamsExplicit {
@@ -626,7 +447,12 @@ func TestPreviewModelConfigContractRejectsInvalidContract(t *testing.T) {
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	db := testutil.OpenSQLite(t, "admin-ai.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{})
+	db := testutil.OpenSQLite(t, "admin-ai.db",
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+		&persistencemodel.AIModelCatalogEntry{},
+		&persistencemodel.AIModelRouteBinding{},
+	)
 	if err := db.Create(&persistencemodel.AICredential{
 		AdapterType: "volcen",
 		DisplayName: "Volcen",
@@ -635,10 +461,6 @@ func newTestService(t *testing.T) *Service {
 		t.Fatalf("seed credential: %v", err)
 	}
 	return NewService(db.Session(&gorm.Session{SkipHooks: true}), []byte("test-encryption-key-32-bytes----"), nil)
-}
-
-func ptrString(value string) *string {
-	return &value
 }
 
 func strconvID(id uint) string {

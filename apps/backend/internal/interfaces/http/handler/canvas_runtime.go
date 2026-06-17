@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -26,11 +25,10 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 	}
 
 	var req struct {
-		ModelID       string         `json:"model_id"`
-		ModelConfigID uint           `json:"model_config_id"`
-		Prompt        string         `json:"prompt"`
-		Params        map[string]any `json:"params"`
-		ProjectID     *uint          `json:"project_id"`
+		ModelID   string         `json:"model_id"`
+		Prompt    string         `json:"prompt"`
+		Params    map[string]any `json:"params"`
+		ProjectID *uint          `json:"project_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -42,7 +40,7 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 		return
 	}
 
-	route, err := h.resolveCanvasRuntimeTextRoute(c, req.ModelID, req.ModelConfigID)
+	route, err := h.resolveCanvasRuntimeTextRoute(c, req.ModelID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -55,7 +53,17 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 		Temperature: floatParam(req.Params, "temperature", -1),
 		JSONMode:    boolParam(req.Params, "json_mode", false),
 	}
-	resp, err := h.aiService.CallTextWithUsage(c.Request.Context(), user.ID, route.ModelConfigID, textReq, ai.UsageContext{
+	resp, err := h.aiService.CallTextWithRouteUsage(c.Request.Context(), user.ID, ai.ModelRoute{
+		ModelID:         route.ModelID,
+		ModelConfigID:   route.ModelConfigID,
+		CatalogEntryID:  route.CatalogEntryID,
+		CredentialID:    route.CredentialID,
+		SourceType:      route.SourceType,
+		RouteGroup:      route.RouteGroup,
+		ProviderModelID: route.ProviderModelID,
+		SelectionReason: route.SelectionReason,
+		EstimatedCost:   route.EstimatedCost,
+	}, textReq, ai.UsageContext{
 		OrgID:     currentOrgID(c),
 		ProjectID: req.ProjectID,
 	})
@@ -64,45 +72,22 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"type":            "text",
-		"text":            resp.Content,
-		"model_id":        route.ModelID,
-		"model_config_id": route.ModelConfigID,
-		"usage":           resp.Usage,
+		"type":     "text",
+		"text":     resp.Content,
+		"model_id": route.ModelID,
+		"usage":    resp.Usage,
 	})
 }
 
-func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(c *gin.Context, modelID string, modelConfigID uint) (providercontract.AIGatewayModelRoute, error) {
+func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(c *gin.Context, modelID string) (providercontract.AIGatewayModelRoute, error) {
 	if h.aiRouting == nil {
 		return providercontract.AIGatewayModelRoute{}, errors.New("ai routing policy is not configured")
 	}
 	ctx := c.Request.Context()
-	if strings.TrimSpace(modelID) != "" && modelConfigID == 0 {
+	if strings.TrimSpace(modelID) != "" {
 		return h.aiRouting.ResolveGatewayTextModelRoute(ctx, modelID)
 	}
-	if modelConfigID == 0 {
-		return h.aiRouting.ResolveGatewayTextModelRoute(ctx, "")
-	}
-	return resolveCanvasRuntimeModelConfigTextRoute(ctx, h.aiRouting, modelID, modelConfigID)
-}
-
-func resolveCanvasRuntimeModelConfigTextRoute(ctx context.Context, routing providercontract.AIGatewayRoutingPolicy, modelID string, modelConfigID uint) (providercontract.AIGatewayModelRoute, error) {
-	var lastErr error
-	for _, capability := range []string{ai.CapabilityText, ai.CapabilityReasoning} {
-		route, err := routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
-			ModelID:       modelID,
-			ModelConfigID: modelConfigID,
-			Capability:    capability,
-		})
-		if err == nil {
-			return route, nil
-		}
-		lastErr = err
-	}
-	if lastErr != nil {
-		return providercontract.AIGatewayModelRoute{}, lastErr
-	}
-	return providercontract.AIGatewayModelRoute{}, errors.New("text model route is not available")
+	return providercontract.AIGatewayModelRoute{}, errors.New("model_id is required")
 }
 
 func intParam(params map[string]any, key string, fallback int) int {

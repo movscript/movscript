@@ -23,6 +23,8 @@
 .agent-console-intro-row,
 .agent-console-toolbar,
 .agent-console-tab-list,
+.agent-console-agent-list,
+.agent-console-agent-list-row,
 .agent-console-local-tool-card,
 .agent-console-local-tool-card__header,
 .agent-console-local-tool-card__copy,
@@ -181,6 +183,97 @@
 
 .agent-console-tab-button {
   gap: var(--ms-space-2);
+}
+
+.agent-console-agent-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-lg);
+  background: var(--ms-color-surface);
+}
+
+.agent-console-agent-list-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--ms-space-3);
+  padding: var(--ms-space-3);
+  border: 0;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-console-agent-list-row:last-child {
+  border-bottom: 0;
+}
+
+.agent-console-agent-list-row:hover,
+.agent-console-agent-list-row:focus-visible {
+  background: color-mix(in srgb, var(--ms-color-muted) 34%, transparent);
+}
+
+.agent-console-agent-list-row[data-active="true"] {
+  background: color-mix(in srgb, var(--ms-color-primary) 9%, var(--ms-color-surface));
+}
+
+.agent-console-agent-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex: 0 0 44px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 80%, var(--ms-color-muted-foreground));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ms-color-muted) 76%, transparent);
+  cursor: pointer;
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    border-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-console-agent-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.agent-console-agent-switch[data-checked="true"] {
+  border-color: var(--ms-color-primary);
+  background: var(--ms-color-primary);
+}
+
+.agent-console-agent-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--ms-color-surface);
+  box-shadow: var(--ms-shadow-sm);
+  transition: transform var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.agent-console-agent-switch[data-checked="true"] .agent-console-agent-switch__thumb {
+  transform: translateX(18px);
+}
+
+@media (max-width: 640px) {
+  .agent-console-agent-list-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .agent-console-agent-list-row > .agent-console-status-badge {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
 }
 
 .agent-console-grid {
@@ -557,4 +650,16 @@
 
 .agent-console-inline-link:hover {
   text-decoration: underline;
+}
+
+.agent-console-inline-option {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: var(--ms-space-1);
+  margin-right: var(--ms-space-3);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+  white-space: nowrap;
 }

@@ -20,7 +20,6 @@ const headerSource = readSource('apps/frontend/src/features/app-shell/components
 const appWindowControllerSource = readSource('apps/frontend/src/features/app-shell/application/useAppWindowController.ts')
 const projectGitHeaderActionsSource = readSource('apps/frontend/src/features/app-shell/components/ProjectGitHeaderActions.tsx')
 const projectGitWorkspaceSource = readSource('apps/frontend/src/features/project/application/projectGitWorkspace.ts')
-const onboardingPageSource = readSource('apps/frontend/src/features/onboarding/components/OnboardingPage.tsx')
 const appSettingsStoreSource = readSource('apps/frontend/src/shared/infrastructure/appSettingsStore.ts')
 const browserStorageSource = readSource('apps/frontend/src/shared/infrastructure/browserStorage.ts')
 
@@ -47,7 +46,7 @@ test('app shell delegates backend boot, project required flow, and global naviga
   assert.doesNotMatch(appSource, /GlobalNavigationEffects/)
   assert.match(appSource, /<AppStartupTasks settingsHydrated=\{settingsHydrated\} \/>/)
   assert.match(appSource, /<AuthenticatedAppRouter \/>/)
-  assert.match(appSource, /<AnonymousAppRouter onboardingCompleted=\{onboardingCompleted\} \/>/)
+  assert.match(appSource, /<AnonymousAppRouter \/>/)
 })
 
 test('app shell boundary modules keep side-effect ownership explicit', () => {
@@ -116,8 +115,6 @@ test('app shell components delegate Electron API access to boundary modules', ()
   assert.match(projectGitWorkspaceSource, /pullProjectGitWorkspace/)
   assert.match(projectGitWorkspaceSource, /pushProjectGitWorkspace/)
 
-  assert.doesNotMatch(onboardingPageSource, /window\.api/)
-  assert.match(onboardingPageSource, /saveElectronAppSettings/)
   assert.match(appSettingsStoreSource, /export async function saveElectronAppSettings/)
   assert.match(appSettingsStoreSource, /readElectronApi\(\)\?\.setAppSettings/)
   assert.doesNotMatch(appSettingsStoreSource, /window\.api/)

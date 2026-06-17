@@ -84,45 +84,57 @@ type InputResourcesResult struct {
 }
 
 type ResponseLookups struct {
-	ResourcesByID   map[uint]domainjob.RawResource
-	ConfigsByID     map[uint]domainjob.AIModelConfig
-	CredentialsByID map[uint]domainjob.AICredential
+	ResourcesByID      map[uint]domainjob.RawResource
+	ConfigsByID        map[uint]domainjob.AIModelConfig
+	CatalogEntriesByID map[uint]ModelCatalogEntryLookup
+	CredentialsByID    map[uint]domainjob.AICredential
+}
+
+type ModelCatalogEntryLookup struct {
+	ID              uint
+	PublicModelID   string
+	ProviderModelID string
+	DisplayName     string
+	ShortName       string
 }
 
 type CreateInput struct {
-	UserID             uint
-	OrgID              *uint
-	ModelConfigID      uint
-	JobType            string
-	FeatureKey         string
-	Title              string
-	Prompt             string
-	ExtraParams        string
-	AspectRatio        string
-	Duration           int
-	RequestContext     string
-	InputResourceID    *uint
-	InputResourceIDs   string
-	UsageReservationID *uint
-	ProjectID          *uint
+	UserID                uint
+	OrgID                 *uint
+	ModelConfigID         uint
+	AIModelCatalogEntryID *uint
+	RouteGroup            string
+	JobType               string
+	FeatureKey            string
+	Title                 string
+	Prompt                string
+	ExtraParams           string
+	AspectRatio           string
+	Duration              int
+	RequestContext        string
+	InputResourceID       *uint
+	InputResourceIDs      string
+	UsageReservationID    *uint
+	ProjectID             *uint
 }
 
 type EnqueueInput struct {
-	UserID           uint
-	OrgID            *uint
-	ModelID          string
-	ModelConfigID    uint
-	JobType          string
-	FeatureKey       string
-	Title            string
-	Prompt           string
-	ExtraParams      string
-	AspectRatio      string
-	Duration         int
-	InputResourceID  *uint
-	InputResourceIDs []uint
-	ProjectID        *uint
-	CreatedAt        time.Time
+	UserID                uint
+	OrgID                 *uint
+	ModelID               string
+	ModelConfigID         uint
+	AIModelCatalogEntryID *uint
+	JobType               string
+	FeatureKey            string
+	Title                 string
+	Prompt                string
+	ExtraParams           string
+	AspectRatio           string
+	Duration              int
+	InputResourceID       *uint
+	InputResourceIDs      []uint
+	ProjectID             *uint
+	CreatedAt             time.Time
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
@@ -147,7 +159,25 @@ func (s *Service) GetCredential(ctx context.Context, id uint) (domainjob.AICrede
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (domainjob.Job, error) {
 	input.Title = strings.TrimSpace(input.Title)
-	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input))
+	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec{
+		UserID:                input.UserID,
+		OrgID:                 input.OrgID,
+		ModelConfigID:         input.ModelConfigID,
+		AIModelCatalogEntryID: input.AIModelCatalogEntryID,
+		RouteGroup:            input.RouteGroup,
+		JobType:               input.JobType,
+		FeatureKey:            input.FeatureKey,
+		Title:                 input.Title,
+		Prompt:                input.Prompt,
+		ExtraParams:           input.ExtraParams,
+		AspectRatio:           input.AspectRatio,
+		Duration:              input.Duration,
+		RequestContext:        input.RequestContext,
+		InputResourceID:       input.InputResourceID,
+		InputResourceIDs:      input.InputResourceIDs,
+		UsageReservationID:    input.UsageReservationID,
+		ProjectID:             input.ProjectID,
+	})
 	return s.repo.Create(ctx, job)
 }
 
@@ -160,7 +190,10 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	}
 	switch input.JobType {
 	case ai.CapabilityImage, ai.CapabilityImageEdit,
-		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V,
+		ai.CapabilityAudioTTS, ai.CapabilityAudioSTT,
+		ai.CapabilityAudioMusic, ai.CapabilityAudioSFX,
+		ai.CapabilitySubAlign, ai.CapabilitySubTranslate:
 	default:
 		return domainjob.Job{}, InvalidJobTypeError{JobType: input.JobType}
 	}
@@ -178,14 +211,15 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if err != nil {
 		return domainjob.Job{}, err
 	}
-	preflight, err := s.ai.PreflightGeneration(ai.GenerationPreflightRequest{
-		ModelConfigID: route.ModelConfigID,
-		OutputType:    input.JobType,
-		ExtraParams:   input.ExtraParams,
-		AspectRatio:   input.AspectRatio,
-		Duration:      input.Duration,
-		ImageCount:    inputResources.ImageCount,
-		VideoCount:    inputResources.VideoCount,
+	aiRoute := aiRouteFromGateway(route)
+	preflight, err := s.ai.PreflightGenerationRoute(ctx, input.UserID, ai.GenerationRoutePreflightRequest{
+		Route:       aiRoute,
+		OutputType:  input.JobType,
+		ExtraParams: input.ExtraParams,
+		AspectRatio: input.AspectRatio,
+		Duration:    input.Duration,
+		ImageCount:  inputResources.ImageCount,
+		VideoCount:  inputResources.VideoCount,
 	})
 	if err != nil {
 		return domainjob.Job{}, err
@@ -194,9 +228,9 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		return domainjob.Job{}, err
 	}
 
-	cred, err := s.GetCredential(ctx, preflight.Config.CredentialID)
+	cred, err := s.credentialForRouteSnapshot(ctx, route, preflight.Config.CredentialID)
 	if err != nil {
-		return domainjob.Job{}, ErrCredentialNotFound
+		return domainjob.Job{}, err
 	}
 
 	inputResourceIDsJSON := ""
@@ -226,11 +260,15 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		CreatedAt:      createdAt,
 	})
 
-	estimate, err := s.estimateJobCost(preflight.Config.ID, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
+	estimate, err := s.estimateJobRouteCost(ctx, input.UserID, aiRoute, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
 	if err != nil {
 		return domainjob.Job{}, err
 	}
-	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, preflight.Config.ID, estimate, ai.UsageContext{OrgID: input.OrgID, ProjectID: input.ProjectID})
+	usage := ai.UsageContext{OrgID: input.OrgID, ProjectID: input.ProjectID}
+	if route.CatalogEntryID != 0 {
+		usage.AIModelCatalogEntryID = &route.CatalogEntryID
+	}
+	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, route.ModelConfigID, estimate, usage)
 	if err != nil {
 		if errors.Is(err, ai.ErrUsageLimitExceeded) {
 			return domainjob.Job{}, err
@@ -239,21 +277,23 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	}
 
 	job, err := s.Create(ctx, CreateInput{
-		UserID:             input.UserID,
-		OrgID:              input.OrgID,
-		ModelConfigID:      preflight.Config.ID,
-		JobType:            input.JobType,
-		FeatureKey:         input.FeatureKey,
-		Title:              strings.TrimSpace(input.Title),
-		Prompt:             input.Prompt,
-		ExtraParams:        input.ExtraParams,
-		AspectRatio:        input.AspectRatio,
-		Duration:           input.Duration,
-		RequestContext:     requestContext,
-		InputResourceID:    legacyInputID,
-		InputResourceIDs:   inputResourceIDsJSON,
-		UsageReservationID: &reservation.ID,
-		ProjectID:          input.ProjectID,
+		UserID:                input.UserID,
+		OrgID:                 input.OrgID,
+		ModelConfigID:         route.ModelConfigID,
+		AIModelCatalogEntryID: catalogEntryIDPtr(route.CatalogEntryID),
+		RouteGroup:            route.RouteGroup,
+		JobType:               input.JobType,
+		FeatureKey:            input.FeatureKey,
+		Title:                 strings.TrimSpace(input.Title),
+		Prompt:                input.Prompt,
+		ExtraParams:           input.ExtraParams,
+		AspectRatio:           input.AspectRatio,
+		Duration:              input.Duration,
+		RequestContext:        requestContext,
+		InputResourceID:       legacyInputID,
+		InputResourceIDs:      inputResourceIDsJSON,
+		UsageReservationID:    &reservation.ID,
+		ProjectID:             input.ProjectID,
 	})
 	if err != nil {
 		_ = s.ai.ReleaseReservation(ctx, reservation.ID, "gen job create failed")
@@ -267,14 +307,69 @@ func (s *Service) resolveGenerationModelRoute(ctx context.Context, input Enqueue
 	if s.routing == nil {
 		return providercontract.AIGatewayModelRoute{}, errors.New("ai routing policy is required")
 	}
+	if input.AIModelCatalogEntryID != nil && *input.AIModelCatalogEntryID != 0 {
+		return s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
+			CatalogEntryID: *input.AIModelCatalogEntryID,
+			Capability:     input.JobType,
+		})
+	}
 	modelID := strings.TrimSpace(input.ModelID)
 	if modelID != "" {
 		return s.routing.ResolveGatewayGenerationModelRoute(ctx, modelID, input.JobType)
 	}
-	return s.routing.ResolveGatewayModelRoute(ctx, providercontract.AIGatewayRouteRequest{
-		ModelConfigID: input.ModelConfigID,
-		Capability:    input.JobType,
-	})
+	return providercontract.AIGatewayModelRoute{}, errors.New("model_id is required")
+}
+
+func catalogEntryIDPtr(id uint) *uint {
+	if id == 0 {
+		return nil
+	}
+	return &id
+}
+
+func aiRouteFromGateway(route providercontract.AIGatewayModelRoute) ai.ModelRoute {
+	return ai.ModelRoute{
+		ModelID:         route.ModelID,
+		ModelConfigID:   route.ModelConfigID,
+		CatalogEntryID:  route.CatalogEntryID,
+		CredentialID:    route.CredentialID,
+		SourceType:      route.SourceType,
+		RouteGroup:      route.RouteGroup,
+		ProviderModelID: route.ProviderModelID,
+		SelectionReason: route.SelectionReason,
+		EstimatedCost:   route.EstimatedCost,
+	}
+}
+
+func (s *Service) credentialForRouteSnapshot(ctx context.Context, route providercontract.AIGatewayModelRoute, credentialID uint) (domainjob.AICredential, error) {
+	if credentialID != 0 {
+		cred, err := s.GetCredential(ctx, credentialID)
+		if err == nil {
+			return cred, nil
+		}
+		if route.SourceType == "" {
+			return domainjob.AICredential{}, ErrCredentialNotFound
+		}
+	}
+	if route.CredentialID != 0 {
+		cred, err := s.GetCredential(ctx, route.CredentialID)
+		if err == nil {
+			return cred, nil
+		}
+	}
+	display := strings.TrimSpace(route.SourceType)
+	if display == "" {
+		display = "catalog"
+	}
+	if route.ProviderModelID != "" {
+		display += " / " + route.ProviderModelID
+	}
+	return domainjob.AICredential{
+		ID:          route.CredentialID,
+		AdapterType: route.SourceType,
+		DisplayName: display,
+		IsEnabled:   true,
+	}, nil
 }
 
 func (s *Service) requireImageVerification(def *ai.ModelDef, resources []domainjob.InputResource) error {
@@ -293,6 +388,15 @@ func (s *Service) requireImageVerification(def *ai.ModelDef, resources []domainj
 }
 
 func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
+	if jobType == ai.CapabilityAudioTTS {
+		return s.ai.EstimateAudioTTSCost(modelConfigID)
+	}
+	if jobType == ai.CapabilityAudioMusic || jobType == ai.CapabilityAudioSFX {
+		return s.ai.EstimateAudioGenerateCost(modelConfigID, jobType, duration)
+	}
+	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
+		return s.ai.EstimateCapabilityPerCallCost(modelConfigID, jobType)
+	}
 	kind, imageReq, videoReq, err := CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
 	if err != nil {
 		return ai.UsageEstimate{}, err
@@ -302,6 +406,30 @@ func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration i
 		return s.ai.EstimateImageCost(modelConfigID, imageReq)
 	case domainjob.CostRequestVideo:
 		return s.ai.EstimateVideoCost(modelConfigID, videoReq)
+	default:
+		return ai.UsageEstimate{}, err
+	}
+}
+
+func (s *Service) estimateJobRouteCost(ctx context.Context, userID uint, route ai.ModelRoute, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
+	if jobType == ai.CapabilityAudioTTS {
+		return s.ai.EstimateAudioTTSCost(route.ModelConfigID)
+	}
+	if jobType == ai.CapabilityAudioMusic || jobType == ai.CapabilityAudioSFX {
+		return s.ai.EstimateAudioGenerateRouteCost(ctx, userID, route, jobType, duration)
+	}
+	if jobType == ai.CapabilityAudioSTT || jobType == ai.CapabilitySubAlign || jobType == ai.CapabilitySubTranslate {
+		return s.ai.EstimateCapabilityPerCallRouteCost(ctx, userID, route, jobType)
+	}
+	kind, imageReq, videoReq, err := CostRequest(route.ModelConfigID, jobType, duration, extraParams, aspectRatio)
+	if err != nil {
+		return ai.UsageEstimate{}, err
+	}
+	switch kind {
+	case domainjob.CostRequestImage:
+		return s.ai.EstimateImageRouteCost(ctx, userID, route, imageReq)
+	case domainjob.CostRequestVideo:
+		return s.ai.EstimateVideoRouteCost(ctx, userID, route, videoReq)
 	default:
 		return ai.UsageEstimate{}, err
 	}
@@ -395,14 +523,18 @@ func (s *Service) cancelValidatedJob(ctx context.Context, job domainjob.Job, mar
 	if job.Status == domainjob.StatusCancelled {
 		return job, nil
 	}
-	if !s.ai.SupportsVideoTaskCancellation(job.ModelConfigID) {
+	route, err := s.resolveJobModelRoute(ctx, job, job.JobType)
+	if err != nil {
+		return job, err
+	}
+	if !s.ai.SupportsVideoTaskCancellationRoute(ctx, job.UserID, route) {
 		return job, ErrUnsupportedProviderCancel
 	}
 
 	providerStatus := ai.VideoStatusCancelled
 	message := "cancelled by user"
 	if job.ProviderTaskID != "" {
-		resp, err := s.ai.CallVideoCancel(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind)
+		resp, err := s.ai.CallVideoCancelRoute(ctx, job.UserID, route, job.ProviderTaskID, job.ProviderTaskKind)
 		if err != nil {
 			return job, wrapErr(ErrProviderCancellationFailed, err)
 		}
@@ -410,14 +542,32 @@ func (s *Service) cancelValidatedJob(ctx context.Context, job domainjob.Job, mar
 		message = FirstNonEmpty(resp.Message, message)
 	}
 
-	job, err := markCancelled(providerStatus, message)
+	cancelledJob, err := markCancelled(providerStatus, message)
 	if err != nil {
-		return job, err
+		return cancelledJob, err
 	}
-	if job.UsageReservationID != nil {
-		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, fallbackMessage)
+	if cancelledJob.UsageReservationID != nil {
+		_ = s.ai.ReleaseReservation(ctx, *cancelledJob.UsageReservationID, fallbackMessage)
 	}
-	return job, nil
+	return cancelledJob, nil
+}
+
+func (s *Service) resolveJobModelRoute(ctx context.Context, job domainjob.Job, capability string) (ai.ModelRoute, error) {
+	if strings.TrimSpace(job.RouteGroup) != "" {
+		ctx = ai.WithProviderRouteGroup(ctx, strings.TrimSpace(job.RouteGroup))
+	}
+	catalogEntryID := uint(0)
+	modelConfigID := job.ModelConfigID
+	if job.AIModelCatalogEntryID != nil && *job.AIModelCatalogEntryID != 0 {
+		catalogEntryID = *job.AIModelCatalogEntryID
+		modelConfigID = 0
+	}
+	return s.ai.ResolveModelRoute(ai.ModelRouteRequest{
+		ModelConfigID:  modelConfigID,
+		CatalogEntryID: catalogEntryID,
+		Capability:     capability,
+		RouteGroup:     strings.TrimSpace(job.RouteGroup),
+	})
 }
 
 func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error) {
