@@ -102,7 +102,7 @@ test('agent chat model selection prefers thread overrides then execution setting
     baseSelection: { modelProvider: 'provider-a' },
     modelIdForOption,
     modelOptions,
-    selectedModelId: 2,
+    selectedModelId: 'model-b',
     threadModelOverrides: {},
   }), {
     modelProvider: 'provider-a',
@@ -113,7 +113,7 @@ test('agent chat model selection prefers thread overrides then execution setting
     baseSelection: {},
     modelIdForOption,
     modelOptions,
-    selectedModelId: 1,
+    selectedModelId: 'model-a',
     thread: { id: 'thread-a', executionSettings: { model: 'model-from-thread' } },
     threadModelOverrides: { 'thread-a': 'model-override' },
   }), {
@@ -123,15 +123,15 @@ test('agent chat model selection prefers thread overrides then execution setting
   assert.equal(resolveAgentChatActiveModelValue({
     modelIdForOption,
     modelOptions,
-    selectedModelId: 1,
+    selectedModelId: 'model-a',
     thread: { executionSettings: { model: 'model-b' } },
     threadId: 'thread-a',
     threadModelOverrides: {},
-  }), 2)
+  }), 'model-b')
 
   assert.deepEqual(updateAgentChatThreadModelOverrides({
     current: { 'thread-a': 'model-a' },
-    modelId: 2,
+    modelId: 'model-b',
     modelIdForOption,
     modelOptions,
     threadId: 'thread-a',

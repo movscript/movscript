@@ -51,18 +51,13 @@ import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { IdentityBadge, IdentityMark } from '@/features/agent/components/AgentIdentityUi'
 import {
   createAgentModelCatalogEntry,
-  createAgentModelRouteBinding,
-  deleteAgentModelRouteBinding,
   fetchAgentBackendModels,
   fetchAgentModelCatalogEntries,
   stringifyAgentModelSupportedParams,
   updateAgentModelCatalogEntry,
-  updateAgentModelRouteBinding,
   type AgentModelCatalogEntry,
   type AgentModelCatalogEntryInput,
   type AgentModelRouteBinding,
-  type AgentModelRouteBindingInput,
-  type AgentModelRouteSourceType,
 } from '@/features/agent/application/agentModelCatalogApi'
 import { agentProviderKeys } from '@/features/agent/application/agentQueryKeys'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
@@ -107,18 +102,6 @@ type CatalogDraft = {
   imageEditField: string
   supportedParams: ParamDef[]
 }
-type RouteDraft = {
-  id?: number
-  catalogEntryId: string
-  sourceType: AgentModelRouteSourceType
-  routeGroup: string
-  credentialID: string
-  isEnabled: boolean
-  priority: string
-  capacityWeight: string
-  maxConcurrency: string
-}
-
 const DEFAULT_PROVIDER: WorkspaceModelProvider = {
   id: 'openai',
   label: 'OpenAI',
@@ -280,9 +263,6 @@ export default function ModelProvidersPage() {
   const [catalogDraft, setCatalogDraft] = useState<CatalogDraft>(() => catalogDraftFromTemplate(CATALOG_ENTRY_TEMPLATES[0]))
   const [catalogSaveStatus, setCatalogSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [catalogSaveError, setCatalogSaveError] = useState<string | null>(null)
-  const [routeDraft, setRouteDraft] = useState<RouteDraft>(() => routeDraftFromEntry())
-  const [routeSaveStatus, setRouteSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'deleting'>('idle')
-  const [routeSaveError, setRouteSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (workspaceConfigQuery.data) setProviders(normalizeWorkspaceModelProviders(workspaceConfigQuery.data))
@@ -291,15 +271,10 @@ export default function ModelProvidersPage() {
   const backendProviders = useMemo(() => groupBackendModelProviders(backendModelsQuery.data ?? []), [backendModelsQuery.data])
   const catalogEntries = modelCatalogQuery.data ?? []
   const routeBindings = useMemo(() => flattenCatalogRouteBindings(catalogEntries), [catalogEntries])
-  const localCredentialProviders = useMemo(() => backendProviders.filter((provider) => provider.credentialId), [backendProviders])
   const localOverrideCount = providers.filter((provider) => provider.enabled).length
   const enabledCount = backendProviders.length + localOverrideCount
   const invalidCount = providers.filter((provider) => provider.enabled && !modelProviderIsValid(provider)).length
   const canSave = invalidCount === 0
-
-  useEffect(() => {
-    if (!routeDraft.catalogEntryId && catalogEntries[0]) setRouteDraft(routeDraftFromEntry(catalogEntries[0], localCredentialProviders[0]))
-  }, [catalogEntries, localCredentialProviders, routeDraft.catalogEntryId])
 
   function patchProvider(id: string, patch: Partial<WorkspaceModelProvider>) {
     setProviders((current) => current.map((provider) => provider.id === id ? { ...provider, ...patch } : provider))
@@ -418,60 +393,6 @@ export default function ModelProvidersPage() {
     }
   }
 
-  function editRouteBinding(entry: AgentModelCatalogEntry, binding: AgentModelRouteBinding) {
-    setRouteDraft(routeDraftFromBinding(entry, binding))
-    setRouteSaveError(null)
-    setRouteSaveStatus('idle')
-  }
-
-  function newRouteBinding(entry: AgentModelCatalogEntry | undefined = catalogEntries[0]) {
-    setRouteDraft(routeDraftFromEntry(entry, localCredentialProviders[0]))
-    setRouteSaveError(null)
-    setRouteSaveStatus('idle')
-  }
-
-  function patchRouteDraft(patch: Partial<RouteDraft>) {
-    setRouteDraft((current) => ({ ...current, ...patch }))
-    setRouteSaveError(null)
-    setRouteSaveStatus('idle')
-  }
-
-  async function saveRouteBinding() {
-    const catalogEntryId = Number(routeDraft.catalogEntryId)
-    const input = routeDraftToInput(routeDraft)
-    if (!catalogEntryId || !routeDraftIsComplete(routeDraft) || routeSaveStatus === 'saving') return
-    setRouteSaveStatus('saving')
-    setRouteSaveError(null)
-    try {
-      if (routeDraft.id) {
-        await updateAgentModelRouteBinding(catalogEntryId, routeDraft.id, input)
-      } else {
-        await createAgentModelRouteBinding(catalogEntryId, input)
-      }
-      await modelCatalogQuery.refetch()
-      setRouteSaveStatus('saved')
-      window.setTimeout(() => setRouteSaveStatus('idle'), 1800)
-    } catch (error) {
-      setRouteSaveStatus('idle')
-      setRouteSaveError(errorMessage(error))
-    }
-  }
-
-  async function removeRouteBinding(entry: AgentModelCatalogEntry, binding: AgentModelRouteBinding) {
-    if (routeSaveStatus === 'deleting') return
-    setRouteSaveStatus('deleting')
-    setRouteSaveError(null)
-    try {
-      await deleteAgentModelRouteBinding(entry.id, binding.id)
-      await modelCatalogQuery.refetch()
-      if (routeDraft.id === binding.id) newRouteBinding(catalogEntries.find((item) => item.id !== entry.id) ?? entry)
-      setRouteSaveStatus('idle')
-    } catch (error) {
-      setRouteSaveStatus('idle')
-      setRouteSaveError(errorMessage(error))
-    }
-  }
-
   return (
     <AgentPageShell data-testid="model-providers-page">
       <AgentPageShellHeader>
@@ -486,7 +407,7 @@ export default function ModelProvidersPage() {
               {(workspaceConfigQuery.isLoading || backendModelsQuery.isLoading || modelCatalogQuery.isLoading) && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              按 Provider/new-api、Catalog 和 Route 三层管理模型调用。Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到本地 credential 还是 new-api group。
+              按 Provider、Catalog 和 Route 三层管理模型调用。Provider 保存认证和上游来源，Catalog 保存系统识别的模型身份，Route 决定请求实际落到哪组 credential。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -522,7 +443,7 @@ export default function ModelProvidersPage() {
           <AgentConsoleStack spacing="loose">
             <AgentConsoleIntroRow>
               <AgentConsoleDescription>
-                社区版和商业版共用这三层：Provider/new-api 保存认证和上游来源，Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到 provider 或 new-api 分组的映射。
+                社区版通过 Provider credential 和 route group 组织调用来源；Catalog Entry 保存模型身份、能力和参数，Route 保存 Catalog 到供应商凭据组的映射。
               </AgentConsoleDescription>
               <AgentConsoleToolbar>
                 {MODEL_PROVIDER_LAYERS.map((layer) => (
@@ -552,7 +473,7 @@ export default function ModelProvidersPage() {
 
         {activeLayer === 'providers' ? (
         <AgentConsolePanel
-          title="Provider / new-api"
+          title="Provider"
           icon={<Database size={14} />}
           action={(
             <AgentConsolePanelActions>
@@ -565,7 +486,7 @@ export default function ModelProvidersPage() {
           <AgentConsoleStack spacing="loose">
             <AgentConsoleIntroRow>
               <AgentConsoleDescription>
-                Provider/new-api 是运行时来源层。社区版通常是固定 API Key 的 local provider；商业版在 new-api endpoint 下继续细分 group 和动态 key 策略。
+                Provider 是运行时来源层。社区版使用本地后端保存 API Key、base URL 和 adapter，并通过 route group 组织不同供应商组。
               </AgentConsoleDescription>
               <AgentConsoleToolbar>
                 <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
@@ -577,7 +498,7 @@ export default function ModelProvidersPage() {
             {backendModelsQuery.error ? <AgentConsoleInlineError>{errorMessage(backendModelsQuery.error)}</AgentConsoleInlineError> : null}
             {!backendModelsQuery.error && backendProviders.length === 0 ? (
               <AgentConsoleCallout tone="warning" compact>
-                后端当前没有返回可用模型。请先配置 Provider/new-api，再创建 Catalog Entry 和 Route。
+                后端当前没有返回可用模型。请先配置 Provider，再创建 Catalog Entry 和 Route。
               </AgentConsoleCallout>
             ) : null}
 
@@ -631,7 +552,7 @@ export default function ModelProvidersPage() {
             <AgentConsoleStack spacing="loose">
               <AgentConsoleIntroRow>
                 <AgentConsoleDescription>
-                  Catalog Entry 是系统识别模型的列表，两版保持一致。这里承载能力、supported params、输入要求和定价；它不表达使用哪个 key 或 new-api 分组。
+                  Catalog Entry 是系统识别模型的列表。这里承载能力、supported params、输入要求和定价；它不表达使用哪个 key 或路由分组。
                 </AgentConsoleDescription>
                 <AgentConsoleToolbar>
                   <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => newCatalogEntry()}>
@@ -815,22 +736,18 @@ export default function ModelProvidersPage() {
             <AgentConsoleStack spacing="loose">
               <AgentConsoleIntroRow>
                 <AgentConsoleDescription>
-                  模型路由决定用户选择 Catalog Entry 后实际落到哪里。社区版路由到 local provider；商业版可以路由到 new-api 分组，并按用户、项目或 key 策略动态解析认证。
+                  模型路由决定用户选择 Catalog Entry 后实际落到哪里。这里仅展示当前路由，新增和调整请在 Admin 中完成。
                 </AgentConsoleDescription>
                 <AgentConsoleToolbar>
-                  <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => newRouteBinding()} disabled={catalogEntries.length === 0}>
-                    <Plus size={14} />
-                    新建路由
-                  </AgentConsoleActionButton>
                   <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
-                    catalog 到 provider/group
+                    Admin 管理
                   </AgentConsoleStatusBadge>
                 </AgentConsoleToolbar>
               </AgentConsoleIntroRow>
               {modelCatalogQuery.error ? <AgentConsoleInlineError>{errorMessage(modelCatalogQuery.error)}</AgentConsoleInlineError> : null}
               {!modelCatalogQuery.error && routeBindings.length === 0 ? (
                 <AgentConsoleCallout tone="warning" compact>
-                  当前没有模型路由。Catalog Entry 需要至少一条 local provider 或 new-api group 绑定后才能被调用。
+                  当前没有模型路由。Catalog Entry 需要至少一条 provider credential 绑定后才能被调用，请在 Admin 中配置。
                 </AgentConsoleCallout>
               ) : null}
               <AgentConsoleGrid columns="server">
@@ -847,8 +764,8 @@ export default function ModelProvidersPage() {
                         <AgentConsoleStatusBadge intent={binding.is_enabled && entry.is_enabled ? 'success' : 'neutral'} emphasis="soft">
                           {binding.is_enabled && entry.is_enabled ? '可用' : '停用'}
                         </AgentConsoleStatusBadge>
-                        <AgentConsoleStatusBadge intent={isNewAPIRoute(binding) ? 'success' : 'neutral'} emphasis="soft">
-                          {isNewAPIRoute(binding) ? '商业版分组' : '社区版 provider'}
+                        <AgentConsoleStatusBadge intent="neutral" emphasis="soft">
+                          {isNewAPIRoute(binding) ? 'Provider group' : 'Provider credential'}
                         </AgentConsoleStatusBadge>
                       </AgentConsoleLocalToolControls>
                     </AgentConsoleLocalToolHeader>
@@ -857,101 +774,15 @@ export default function ModelProvidersPage() {
                         Catalog：{entry.public_model_id} 到 {entry.provider_model_id}
                       </AgentConsoleCallout>
                       <AgentConsoleCallout compact>
-                        Target：{isNewAPIRoute(binding) ? `new-api group ${binding.route_group}` : `credential ${binding.credential_id ?? '-'}`}
+                        Target：{isNewAPIRoute(binding) ? `group ${binding.route_group}` : `credential ${binding.credential_id ?? '-'}${binding.route_group ? ` / group ${binding.route_group}` : ''}`}
                       </AgentConsoleCallout>
                       <AgentConsoleCallout compact>
                         Priority：{binding.priority ?? 0} / Capacity：{binding.capacity_weight ?? 1} / Concurrency：{(binding.max_concurrency ?? 0) || '不限'}
                       </AgentConsoleCallout>
                     </AgentConsoleLocalToolFields>
-                    <AgentConsoleLocalToolActions>
-                      <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => editRouteBinding(entry, binding)}>
-                        编辑路由
-                      </AgentConsoleActionButton>
-                      <AgentConsoleActionButton type="button" size="sm" variant="outline" intent="danger" onClick={() => void removeRouteBinding(entry, binding)} disabled={routeSaveStatus === 'deleting'}>
-                        <Trash2 size={14} />
-                        删除路由
-                      </AgentConsoleActionButton>
-                    </AgentConsoleLocalToolActions>
                   </AgentConsoleLocalToolCard>
                 ))}
               </AgentConsoleGrid>
-              <AgentConsoleLocalToolCard invalid={!routeDraftIsComplete(routeDraft)}>
-                <AgentConsoleLocalToolHeader>
-                  <AgentConsoleLocalToolCopy>
-                    <AgentConsoleLocalToolTitle>{routeDraft.id ? '编辑模型路由' : '新建模型路由'}</AgentConsoleLocalToolTitle>
-                    <AgentConsoleLocalToolDetail>
-                      社区版路由到 local provider credential；商业版 new-api group 在商业控制台中维护。
-                    </AgentConsoleLocalToolDetail>
-                  </AgentConsoleLocalToolCopy>
-                  <AgentConsoleLocalToolControls>
-                    {routeSaveStatus === 'saved' ? <AgentConsoleSavedText>已保存</AgentConsoleSavedText> : null}
-                    <AgentConsoleStatusBadge intent={routeDraft.id ? 'success' : 'neutral'} emphasis="soft">
-                      {routeDraft.id ? `#${routeDraft.id}` : 'draft'}
-                    </AgentConsoleStatusBadge>
-                  </AgentConsoleLocalToolControls>
-                </AgentConsoleLocalToolHeader>
-                <AgentConsoleLocalToolFields>
-                  <AgentConsoleGrid columns="server">
-                    <AgentConsoleSelectField label="Catalog Entry" value={routeDraft.catalogEntryId} onChange={(event) => patchRouteDraft({ catalogEntryId: event.target.value })} disabled={Boolean(routeDraft.id)}>
-                      <option value="">选择目录项</option>
-                      {catalogEntries.map((entry) => (
-                        <option key={entry.id} value={entry.id}>{entry.display_name || entry.public_model_id}</option>
-                      ))}
-                    </AgentConsoleSelectField>
-                    <AgentConsoleSelectField label="Source Type" value={routeDraft.sourceType} onChange={(event) => patchRouteDraft({ sourceType: event.target.value as AgentModelRouteSourceType })}>
-                      <option value="local_provider">Local Provider</option>
-                    </AgentConsoleSelectField>
-                    <AgentConsoleSelectField label="Local Credential" value={routeDraft.credentialID} onChange={(event) => patchRouteDraft({ credentialID: event.target.value })} disabled={isNewAPIRouteSource(routeDraft.sourceType)}>
-                      <option value="">选择本地 Provider</option>
-                      {localCredentialProviders.map((provider) => (
-                        <option key={provider.id} value={provider.credentialId}>{provider.label} #{provider.credentialId}</option>
-                      ))}
-                    </AgentConsoleSelectField>
-                    <AgentConsoleFormField label="New API Group" value={routeDraft.routeGroup} onChange={(event) => patchRouteDraft({ routeGroup: event.target.value })} placeholder="default / vip / image" disabled={!isNewAPIRouteSource(routeDraft.sourceType)} />
-                    <AgentConsoleFormField label="Priority" type="number" value={routeDraft.priority} onChange={(event) => patchRouteDraft({ priority: event.target.value })} />
-                    <AgentConsoleFormField label="Capacity Weight" type="number" value={routeDraft.capacityWeight} onChange={(event) => patchRouteDraft({ capacityWeight: event.target.value })} />
-                    <AgentConsoleFormField label="Max Concurrency" type="number" value={routeDraft.maxConcurrency} onChange={(event) => patchRouteDraft({ maxConcurrency: event.target.value })} placeholder="0 表示不限" />
-                  </AgentConsoleGrid>
-                  <AgentConsoleCallout compact>
-                    <label className="agent-console-inline-option">
-                      <input type="checkbox" checked={routeDraft.isEnabled} onChange={(event) => patchRouteDraft({ isEnabled: event.target.checked })} />
-                      启用路由
-                    </label>
-                  </AgentConsoleCallout>
-                  <AgentConsoleCallout compact>
-                    {routePreview(routeDraft, catalogEntries, localCredentialProviders)}
-                  </AgentConsoleCallout>
-                  {routeSaveError ? <AgentConsoleCallout tone="danger" compact>保存失败：{routeSaveError}</AgentConsoleCallout> : null}
-                  {!routeDraftIsComplete(routeDraft) ? (
-                    <AgentConsoleCallout tone="warning" compact>
-                      请选择 Catalog Entry，并为 local provider 选择 credential，或为 new-api 填写 group。
-                    </AgentConsoleCallout>
-                  ) : null}
-                </AgentConsoleLocalToolFields>
-                <AgentConsoleLocalToolActions>
-                  <AgentConsoleActionButton type="button" size="sm" onClick={() => void saveRouteBinding()} disabled={routeSaveStatus === 'saving' || routeSaveStatus === 'deleting' || !routeDraftIsComplete(routeDraft)}>
-                    <Save size={14} />
-                    {routeSaveStatus === 'saving' ? '保存中...' : routeDraft.id ? '保存路由' : '创建路由'}
-                  </AgentConsoleActionButton>
-                  {routeDraft.id ? (
-                    <AgentConsoleActionButton
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      intent="danger"
-                      onClick={() => {
-                        const entry = catalogEntries.find((item) => item.id === Number(routeDraft.catalogEntryId))
-                        const binding = entry?.route_bindings?.find((item) => item.id === routeDraft.id)
-                        if (entry && binding) void removeRouteBinding(entry, binding)
-                      }}
-                      disabled={routeSaveStatus === 'deleting'}
-                    >
-                      <Trash2 size={14} />
-                      删除当前路由
-                    </AgentConsoleActionButton>
-                  ) : null}
-                </AgentConsoleLocalToolActions>
-              </AgentConsoleLocalToolCard>
             </AgentConsoleStack>
           </AgentConsolePanel>
         ) : null}
@@ -972,7 +803,7 @@ export default function ModelProvidersPage() {
             <AgentConsoleStack spacing="loose">
               <AgentConsoleIntroRow>
                 <AgentConsoleDescription>
-                  高级本地覆盖只保存在当前 runtime profile config 中，用于临时接入后端 AI Gateway 之外的模型服务。团队和正式环境应优先使用 Provider/new-api 配置和 Route。
+                  高级本地覆盖只保存在当前 runtime profile config 中，用于临时接入后端 AI Gateway 之外的模型服务。团队和正式环境应优先使用 Admin 中的 Provider 和 Route 配置。
                 </AgentConsoleDescription>
                 <AgentConsoleToolbar>
                   <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={addProvider}>
@@ -1055,8 +886,8 @@ const MODEL_PROVIDER_LAYERS: Array<{
 }> = [
   {
     id: 'providers',
-    label: 'Provider / new-api',
-    detail: '本地 provider credential、new-api endpoint/group 和上游认证来源。',
+    label: 'Provider',
+    detail: '本地 provider credential、base URL 和上游认证来源。',
     edition: '两版共享',
     icon: Database,
   },
@@ -1070,8 +901,8 @@ const MODEL_PROVIDER_LAYERS: Array<{
   {
     id: 'routes',
     label: '模型路由',
-    detail: '把 Catalog Entry 映射到 provider 或 new-api group。',
-    edition: '商业版更细',
+    detail: '把 Catalog Entry 映射到 provider credential 或 route group。',
+    edition: 'Admin 管理',
     icon: Route,
   },
 ]
@@ -1097,62 +928,6 @@ function ModelProviderLayerButton({
       {layer.label}
     </AgentConsoleActionButton>
   )
-}
-
-function routeDraftFromEntry(entry?: AgentModelCatalogEntry, provider?: BackendModelProvider): RouteDraft {
-  return {
-    catalogEntryId: entry ? String(entry.id) : '',
-    sourceType: 'local_provider',
-    routeGroup: '',
-    credentialID: provider?.credentialId ? String(provider.credentialId) : '',
-    isEnabled: true,
-    priority: '0',
-    capacityWeight: '1',
-    maxConcurrency: '0',
-  }
-}
-
-function routeDraftFromBinding(entry: AgentModelCatalogEntry, binding: AgentModelRouteBinding): RouteDraft {
-  return {
-    id: binding.id,
-    catalogEntryId: String(entry.id),
-    sourceType: binding.source_type,
-    routeGroup: binding.route_group ?? '',
-    credentialID: binding.credential_id ? String(binding.credential_id) : '',
-    isEnabled: binding.is_enabled,
-    priority: String(binding.priority ?? 0),
-    capacityWeight: String(binding.capacity_weight ?? 1),
-    maxConcurrency: String(binding.max_concurrency ?? 0),
-  }
-}
-
-function routeDraftToInput(draft: RouteDraft): AgentModelRouteBindingInput {
-  const isNewAPI = isNewAPIRouteSource(draft.sourceType)
-  return {
-    source_type: isNewAPI ? 'new_api' : 'local_provider',
-    ...(isNewAPI ? { route_group: draft.routeGroup.trim() } : {}),
-    ...(!isNewAPI && optionalNumber(draft.credentialID) ? { credential_id: optionalNumber(draft.credentialID) } : {}),
-    is_enabled: draft.isEnabled,
-    priority: integerNumber(draft.priority, 0),
-    capacity_weight: integerNumber(draft.capacityWeight, 1),
-    max_concurrency: integerNumber(draft.maxConcurrency, 0),
-  }
-}
-
-function routeDraftIsComplete(draft: RouteDraft): boolean {
-  if (!Number(draft.catalogEntryId)) return false
-  if (isNewAPIRouteSource(draft.sourceType)) return Boolean(draft.routeGroup.trim())
-  return Boolean(Number(draft.credentialID))
-}
-
-function routePreview(draft: RouteDraft, entries: AgentModelCatalogEntry[], providers: BackendModelProvider[]): string {
-  const entry = entries.find((item) => item.id === Number(draft.catalogEntryId))
-  const entryLabel = entry?.display_name || entry?.public_model_id || 'Catalog Entry'
-  if (isNewAPIRouteSource(draft.sourceType)) {
-    return `${entryLabel} -> new-api group ${draft.routeGroup.trim() || '-'}`
-  }
-  const provider = providers.find((item) => item.credentialId === Number(draft.credentialID))
-  return `${entryLabel} -> local provider ${provider?.label ?? 'credential'} #${draft.credentialID || '-'}`
 }
 
 function catalogDraftFromTemplate(template: CatalogEntryTemplate | undefined): CatalogDraft {
@@ -1263,11 +1038,6 @@ function optionalNumber(value: unknown): number | undefined {
   return Number.isFinite(numberValue) ? numberValue : undefined
 }
 
-function integerNumber(value: string, fallback: number): number {
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
 function positiveInteger(value: string): number {
   const parsed = Number.parseInt(value, 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
@@ -1351,7 +1121,7 @@ function supportedParamsSummary(value: string | undefined): string {
 }
 
 function routeSourceLabel(source: string): string {
-  if (isNewAPIRouteSource(source)) return 'New API Group'
+  if (isNewAPIRouteSource(source)) return 'Provider Group'
   if (source === 'local_provider') return 'Local Provider'
   return source || 'Provider'
 }

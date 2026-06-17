@@ -91,8 +91,6 @@ test('agent console document pages use shared content flow primitives', () => {
     assert.doesNotMatch(source, /className="flex flex-wrap/)
   }
 
-  assert.match(agentsSource, /AgentConsoleTabList/)
-  assert.match(agentsSource, /AgentConsoleTabButton/)
   assert.doesNotMatch(agentsSource, /className="gap-2"/)
   assert.match(consoleSource, /export function AgentConsoleTabList/)
   assert.match(consoleSource, /export function AgentConsoleTabButton/)

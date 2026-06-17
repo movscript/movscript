@@ -332,6 +332,7 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
   const dataSourceShellSource = readFileSync(resolve('src/features/agent/components/AgentChatDataSourceShell.tsx'), 'utf8')
   const threadTabsSource = readFileSync(resolve('src/features/agent/application/useAgentChatThreadTabs.ts'), 'utf8')
   const shellModelSource = readAgentChatShellModelSource()
+  const projectAgentSidebarModelSource = readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebarModel.ts'), 'utf8')
   const projectAgentSource = [
     readFileSync(resolve('src/features/agent/components/ProjectAgentModePage.tsx'), 'utf8'),
     readFileSync(resolve('src/features/agent/components/ProjectAgentModeSidebar.tsx'), 'utf8'),
@@ -341,7 +342,7 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
   const agentModeOpenConversationsSource = sourceBetween(projectAgentSource, 'const rawOpenConversations = useMemo', 'const providerSessionStatusLights')
   const conversationsByScopeSource = sourceBetween(projectAgentSource, 'const conversationsByScope = useMemo', 'const { projectGroups, chatConversations } = conversationsByScope')
 
-  assert.match(openThreadCandidatesSource, /buildAgentChatOpenThreadCandidates\(\{[\s\S]*conversations,[\s\S]*projectId,[\s\S]*providerIdentity,[\s\S]*sourceThreadList,[\s\S]*threads,[\s\S]*userId/)
+  assert.match(openThreadCandidatesSource, /buildAgentChatOpenThreadCandidates\(\{[\s\S]*conversations,[\s\S]*projectId: normalizedProjectId,[\s\S]*providerIdentity,[\s\S]*sourceThreadList,[\s\S]*threads,[\s\S]*userId/)
   assert.match(shellModelSource, /export function buildAgentChatOpenThreadCandidates/)
   assert.match(shellModelSource, /record\.open !== false/)
   assert.match(shellModelSource, /!record\.archived/)
@@ -355,11 +356,12 @@ test('agent chat detailed tabs and agent mode groups share registry-open convers
   assert.doesNotMatch(dataSourceShellSource, /function agentChatThreadFromRegistryRecord/)
   assert.match(dataSourceShellSource, /from '@\/features\/agent\/application\/useAgentChatThreadTabs'/)
   assert.match(dataSourceShellSource, /useAgentChatThreadTabs\(\{[\s\S]*conversations,[\s\S]*projectId: currentProject\?\.ID,[\s\S]*providerIdentity,[\s\S]*sourceThreadList,[\s\S]*threads,[\s\S]*userId,[\s\S]*\}\)/)
-  assert.match(openThreadCandidatesSource, /const normalizedProjectId = useMemo\(\(\) => positiveInteger\(projectId\), \[projectId\]\)/)
+  assert.match(threadTabsSource, /const normalizedProjectId = useMemo\(\(\) => positiveInteger\(projectId\), \[projectId\]\)/)
   assert.match(agentModeOpenConversationsSource, /conversation\.archived !== true && conversationsById\[conversation\.id\]\?\.open !== false/)
-  assert.match(conversationsByScopeSource, /for \(const conversation of openConversations\)/)
-  assert.match(conversationsByScopeSource, /const projectId = conversationProjectId\(conversation, \{[\s\S]*conversationsById/)
-  assert.match(conversationsByScopeSource, /\}, \[conversationThreadBindings, conversationsById,/)
+  assert.match(conversationsByScopeSource, /buildProjectAgentModeConversationScopes\(\{/)
+  assert.match(projectAgentSidebarModelSource, /for \(const conversation of input\.openConversations\)/)
+  assert.match(projectAgentSidebarModelSource, /const projectId = conversationProjectId\(conversation, \{[\s\S]*conversationsById/)
+  assert.match(conversationsByScopeSource, /\}\), \[conversationThreadBindings, conversationsById,/)
 })
 
 test('agent chat pending server requests survive shell remounts without stale replay', () => {

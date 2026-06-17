@@ -91,7 +91,6 @@ movscript/
 ├── apps/cli/              Movscript 命令行工具
 ├── packages/              共享 UI、tokens、workspace、interpreter 和领域包
 ├── plugins/               第一方 app-server 插件示例
-├── contracts/             机器可读 API、media、agent 和 telemetry 契约
 ├── docs/                  架构说明、审计记录和原型
 └── docker-compose.yml     可选 PostgreSQL、MinIO、Redis、Gitea、Prometheus、Grafana 服务
 ```
@@ -226,7 +225,7 @@ pnpm --filter @movscript/desktop verify:app-server -- --provider mova
 | App-server plugin | [plugins/movscript/README.md](plugins/movscript/README.md) |
 | Observability | [apps/backend/observability/README.md](apps/backend/observability/README.md) |
 | 架构说明 | [docs/](docs/) |
-| 机器可读契约 | [contracts/](contracts/) |
+| 上线前清理原则 | [docs/release-cleanup-principles.zh-CN.md](docs/release-cleanup-principles.zh-CN.md) |
 
 ## 社区版范围
 

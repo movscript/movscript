@@ -35,12 +35,12 @@ test('normalizeAgentSettings falls back from invalid persisted planner dispatch 
 
 test('normalizeAgentSettings falls back from invalid persisted base settings', () => {
   const settings = normalizeAgentSettings({
-    modelId: 'bad' as unknown as number,
+    modelId: 'current-model',
     includeProjectContext: 'yes' as unknown as boolean,
     includeRecentResources: 1 as unknown as boolean,
   })
 
-  assert.equal(settings.modelId, null)
+  assert.equal(settings.modelId, 'current-model')
   assert.equal(settings.includeProjectContext, true)
   assert.equal(settings.includeRecentResources, true)
 })
@@ -62,23 +62,16 @@ test('normalizeAgentSettings defaults the active provider profile config to Mova
   assert.equal(normalizeAgentSettings({}).activeProviderProfileConfigId, 'mova')
 })
 
-test('normalizeAgentSettings migrates compatibility active workspace profile ids to provider profile config ids', () => {
-  assert.equal(normalizeAgentSettings({ activeWorkspaceProfileId: 'mova' }).activeProviderProfileConfigId, 'mova')
-  assert.equal(normalizeAgentSettings({ activeWorkspaceProfileId: 'studio-agent' }).activeProviderProfileConfigId, 'studio-agent')
-  assert.equal(normalizeAgentSettings({ activeWorkspaceProfileId: '.codex' }).activeProviderProfileConfigId, 'mova')
-  assert.equal(normalizeAgentSettings({ activeWorkspaceConfigId: 'codex' }).activeProviderProfileConfigId, 'codex')
-})
-
 test('normalizeAgentSettings preserves custom provider profile config ids', () => {
   assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: 'claude' }).activeProviderProfileConfigId, 'claude')
   assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: 'studio-agent' }).activeProviderProfileConfigId, 'studio-agent')
   assert.equal(normalizeAgentSettings({ activeProviderProfileConfigId: '../bad' }).activeProviderProfileConfigId, 'mova')
 })
 
-test('normalizeAgentSettings accepts numeric persisted model ids', () => {
-  assert.equal(normalizeAgentSettings({ modelId: 42 }).modelId, 42)
-  assert.equal(normalizeAgentSettings({ modelId: '42' as unknown as number }).modelId, 42)
-  assert.equal(normalizeAgentSettings({ modelId: -1 }).modelId, null)
+test('normalizeAgentSettings keeps current string model ids only', () => {
+  assert.equal(normalizeAgentSettings({ modelId: 'gpt-current' }).modelId, 'gpt-current')
+  assert.equal(normalizeAgentSettings({ modelId: 42 as unknown as string }).modelId, null)
+  assert.equal(normalizeAgentSettings({ modelId: '' }).modelId, null)
 })
 
 test('normalizeAgentSettings normalizes persisted tool permission filter presets', () => {

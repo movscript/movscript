@@ -137,7 +137,6 @@ function inputLimitErrors(maxInputImages: number, maxInputVideos: number, t: (ke
 }
 
 const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
-const canUseGatewayNewAPIGroup = runtimeCapabilities.gatewayNewAPIGroup
 const disabledBaseRoutePaths = new Set(runtimeCapabilities.disabledBaseRoutes ?? [])
 
 const CATALOG_ENTRY_TEMPLATES: CatalogEntryTemplate[] = [
@@ -653,7 +652,9 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                     <div className="min-w-0">
                       <p className="font-medium text-foreground">{binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}</p>
                       <p className="truncate text-muted-foreground">
-                        {binding.source_type === 'new_api' ? binding.route_group : `credential #${binding.credential_id ?? '-'}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
+                        {binding.source_type === 'new_api'
+                          ? binding.route_group
+                          : `credential #${binding.credential_id ?? '-'}${binding.route_group ? ` · group ${binding.route_group}` : ''}`} · priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1}
                       </p>
                     </div>
                     <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => deleteRouteBinding.mutate({ entryId: entry.ID, bindingId: binding.ID })}>
@@ -662,19 +663,12 @@ function ModelCatalogSection({ credentials }: { credentials: AICredential[] }) {
                   </div>
                 ))}
                 {routeFormFor === entry.ID && (
-                  <div className="grid gap-2 px-3 py-3 md:grid-cols-[150px_minmax(0,1fr)_110px_110px_120px_auto]">
-                    <select value={routeForm.source_type} onChange={(event) => setRouteForm({ ...routeForm, source_type: event.target.value as CatalogRouteForm['source_type'] })} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-                      <option value="local_provider">{t('admin.modelCatalog.localProviderRoute')}</option>
-                      {canUseGatewayNewAPIGroup && <option value="new_api">{t('admin.modelCatalog.newAPIRoute')}</option>}
+                  <div className="grid gap-2 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_110px_120px_auto]">
+                    <select value={routeForm.credential_id} onChange={(event) => setRouteForm({ ...routeForm, credential_id: event.target.value, source_type: 'local_provider' })} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+                      <option value="">{t('admin.modelCatalog.pickCredential')}</option>
+                      {localProviders.map((credential) => <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>)}
                     </select>
-                    {routeForm.source_type === 'new_api' ? (
-                      <Input value={routeForm.route_group} onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
-                    ) : (
-                      <select value={routeForm.credential_id} onChange={(event) => setRouteForm({ ...routeForm, credential_id: event.target.value })} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
-                        <option value="">{t('admin.modelCatalog.pickCredential')}</option>
-                        {localProviders.map((credential) => <option key={credential.ID} value={credential.ID}>{credential.display_name}</option>)}
-                      </select>
-                    )}
+                    <Input value={routeForm.route_group} onChange={(event) => setRouteForm({ ...routeForm, route_group: event.target.value, source_type: 'local_provider' })} placeholder={t('admin.modelCatalog.routeGroup')} className="h-8 text-xs" />
                     <Input value={routeForm.priority} onChange={(event) => setRouteForm({ ...routeForm, priority: event.target.value })} placeholder="priority" className="h-8 text-xs" />
                     <Input value={routeForm.capacity_weight} onChange={(event) => setRouteForm({ ...routeForm, capacity_weight: event.target.value })} placeholder="capacity" className="h-8 text-xs" />
                     <Input value={routeForm.max_concurrency} onChange={(event) => setRouteForm({ ...routeForm, max_concurrency: event.target.value })} placeholder="concurrency" className="h-8 text-xs" />
@@ -815,7 +809,7 @@ function catalogRoutePayload(form: CatalogRouteForm): Record<string, unknown> {
   const isNewAPI = form.source_type === 'new_api'
   return {
     source_type: form.source_type,
-    route_group: isNewAPI ? form.route_group.trim() : '',
+    route_group: form.route_group.trim(),
     credential_id: !isNewAPI && form.credential_id ? Number(form.credential_id) : undefined,
     is_enabled: form.is_enabled,
     priority: parseInt(form.priority, 10) || 0,
@@ -1477,7 +1471,6 @@ function ModelRouteMatrix({
   const credentialByID = new Map(credentials.map((credential) => [credential.ID, credential]))
   const enabledEntries = entries.filter((entry) => entry.is_enabled).length
   const routeBindings = entries.flatMap((entry) => (entry.route_bindings ?? []).map((binding) => ({ entry, binding })))
-  const newAPIRoutes = routeBindings.filter((item) => item.binding.source_type === 'new_api').length
   const localRoutes = routeBindings.filter((item) => item.binding.source_type !== 'new_api').length
 
   return (
@@ -1486,7 +1479,7 @@ function ModelRouteMatrix({
         <div>
           <p className="text-sm font-medium text-foreground">{t('admin.models.routeMatrixTitle', { defaultValue: 'Catalog Entry → Model Route' })}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {t('admin.models.routeMatrixHint', { defaultValue: '先定义系统识别的模型，再把它路由到本地 provider 或商业版 new-api 分组。' })}
+            {t('admin.models.routeMatrixHint', { defaultValue: '先定义系统识别的模型，再把它路由到 provider credential 和 route group。' })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -1495,9 +1488,6 @@ function ModelRouteMatrix({
           </span>
           <span className="rounded-md border border-border bg-background px-2 py-1">
             {t('admin.models.routeMatrixLocalRoutes', { defaultValue: '{{count}} 条 provider route', count: localRoutes })}
-          </span>
-          <span className="rounded-md border border-border bg-background px-2 py-1">
-            {t('admin.models.routeMatrixNewAPIRoutes', { defaultValue: '{{count}} 条 new-api 分组绑定', count: newAPIRoutes })}
           </span>
         </div>
       </div>
@@ -1534,12 +1524,13 @@ function ModelRouteMatrix({
                   const routeLabel = binding.source_type === 'new_api'
                     ? (binding.route_group || t('admin.modelCatalog.defaultRouteGroup', { defaultValue: '默认分组' }))
                     : (credential?.display_name || `credential #${binding.credential_id ?? '-'}`)
+                  const groupLabel = binding.route_group ? ` · group ${binding.route_group}` : ''
                   return (
                     <div key={binding.ID} className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-xs">
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">
                           {binding.source_type === 'new_api' ? t('admin.modelCatalog.newAPIRoute') : t('admin.modelCatalog.localProviderRoute')}
-                          <span className="ml-2 font-normal text-muted-foreground">{routeLabel}</span>
+                          <span className="ml-2 font-normal text-muted-foreground">{routeLabel}{groupLabel}</span>
                         </p>
                         <p className="mt-0.5 truncate text-muted-foreground">
                           priority {binding.priority ?? 0} · capacity {binding.capacity_weight ?? 1} · concurrency {binding.max_concurrency ?? '-'}

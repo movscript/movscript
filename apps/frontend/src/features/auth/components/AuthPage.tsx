@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Bot, LayoutDashboard, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { api } from '@/shared/infrastructure/api'
 import { authKeys } from '@/features/auth/application/authQueryKeys'
 import { getAPIBaseURL, isLocalLaunchMode } from '@/shared/infrastructure/config'
@@ -11,7 +11,6 @@ import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/shared/infrastructure/session/userStore'
 import {
   AuthActionButton,
-  AuthBrandMark,
   AuthEmailCodeField,
   AuthEmailCodeRow,
   AuthField,
@@ -33,13 +32,7 @@ import {
   AuthTagline,
   AuthTitle,
   AuthTurnstileSlot,
-  AuthWorkModePanel,
-  AuthWorkModeRoot,
 } from '@/features/auth/components/AuthPageUi'
-import {
-  WorkModePrompt,
-  type WorkModeChoice
-} from '@movscript/ui/business/app'
 
 type Tab = 'login' | 'register'
 
@@ -69,7 +62,6 @@ export default function AuthPage() {
   const { t } = useTranslation()
   const setSession = useUserStore((s) => s.setSession)
   const settings = useAppSettingsStore((s) => s.settings)
-  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const [tab, setTab] = useState<Tab>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -80,7 +72,6 @@ export default function AuthPage() {
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
   const [error, setError] = useState('')
-  const [pendingSession, setPendingSession] = useState<AuthSession | null>(null)
 
   const authConfig = useQuery<AuthConfig>({
     queryKey: authKeys.config,
@@ -148,40 +139,7 @@ export default function AuthPage() {
   const resetTurnstile = useCallback(() => setTurnstileToken(''), [])
 
   async function finishAuth(session: AuthSession) {
-    if (settings.onboardingCompleted) {
-      setSession(session)
-      return
-    }
-    setPendingSession(session)
-  }
-
-  async function completeLogin(mode: WorkModeChoice) {
-    if (!pendingSession) return
-    setWorkMode(mode)
-    setSession(pendingSession)
-  }
-
-  if (pendingSession) {
-    return (
-      <AuthWorkModeRoot>
-        <AuthWorkModePanel>
-          <AuthBrandMark>Movscript</AuthBrandMark>
-          <WorkModePrompt
-            agentIcon={Bot}
-            projectIcon={LayoutDashboard}
-            title={t('auth.workModeTitle')}
-            description={t('auth.workModeDescription')}
-            agentTitle={t('appSettings.agentWorkMode')}
-            agentDescription={t('onboarding.workMode.agentDescription')}
-            agentAction={t('onboarding.workMode.agentAction')}
-            projectTitle={t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
-            projectDescription={t('onboarding.workMode.projectDescription')}
-            projectAction={t('onboarding.workMode.projectAction')}
-            onSelect={completeLogin}
-          />
-        </AuthWorkModePanel>
-      </AuthWorkModeRoot>
-    )
+    setSession(session)
   }
 
   return (

@@ -2722,7 +2722,7 @@
       "routes": "Model Routes",
       "addRoute": "Add Route",
       "noRoutes": "No routes. This Catalog Entry cannot be used until it has a route.",
-      "localProviderRoute": "Local Provider",
+      "localProviderRoute": "Provider Credential",
       "newAPIRoute": "New API Group",
       "routeGroup": "Route group",
       "pickCredential": "Pick credential"

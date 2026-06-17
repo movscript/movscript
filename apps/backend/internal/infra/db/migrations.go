@@ -68,7 +68,7 @@ func RunMigrations(db *gorm.DB) error {
 	if err := db.AutoMigrate(&AppliedMigration{}); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
-	if err := editionRepairLegacyMigrationRecords(db); err != nil {
+	if err := editionBeforeMigrations(db); err != nil {
 		return err
 	}
 

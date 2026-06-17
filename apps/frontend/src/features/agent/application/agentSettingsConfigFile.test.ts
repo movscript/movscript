@@ -139,7 +139,6 @@ test('provider config file commit plan runs save, refetches catalogs, and return
   })
 
   assert.deepEqual(calls, [
-    'ensureRunning',
     'save:config_file.custom:true',
     'refetchCatalog',
     'refetchCapabilities',
@@ -165,10 +164,8 @@ test('provider config file commit plan runs delete and activate operations', asy
   })
 
   assert.deepEqual(calls, [
-    'ensureRunning',
     'delete:config_file.custom',
     'refetchCatalog',
-    'ensureRunning',
     'activate:config_file.custom',
     'refetchCatalog',
   ])
@@ -416,7 +413,6 @@ test('provider config file commit plan returns restore next backup', async () =>
   })
 
   assert.deepEqual(calls, [
-    'ensureRunning',
     'save:config_file.test:true',
     'refetchCatalog',
     'refetchCapabilities',
@@ -484,7 +480,6 @@ function settingsSnapshotFixture(patch: Partial<AgentSettingsSnapshot> = {}): Ag
   return {
     schema: 'movscript.agent.settings.snapshot.v1',
     schemaVersion: 1,
-    schemaUrl: 'https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json',
     exportedAt: '2026-06-15T00:00:00.000Z',
     ...patch,
   }

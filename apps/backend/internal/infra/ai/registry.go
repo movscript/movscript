@@ -60,7 +60,7 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 	if r.providerFactory != nil {
 		return r.providerFactory(cred, def)
 	}
-	if r.providerMode == "local" || cred.AdapterType == AdapterLocal {
+	if cred.AdapterType == AdapterLocal {
 		return NewLocalAdapter(), nil
 	}
 	if provider, handled, err := r.editionBuildProvider(cred, def); handled || err != nil {

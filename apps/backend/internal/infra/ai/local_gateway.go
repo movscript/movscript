@@ -17,6 +17,9 @@ func ConfigureLocalGatewayDefaults(ctx context.Context, db *gorm.DB, enabled boo
 	if db == nil {
 		return nil
 	}
+	if !enabled {
+		return removeManagedLocalGatewayDefaults(ctx, db)
+	}
 	var cred persistencemodel.AICredential
 	err := db.WithContext(ctx).
 		Where("adapter_type = ? AND display_name = ? AND base_url = ?", AdapterLocal, ManagedLocalGatewayName, "movscript://local").
@@ -24,9 +27,6 @@ func ConfigureLocalGatewayDefaults(ctx context.Context, db *gorm.DB, enabled boo
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
-		}
-		if !enabled {
-			return nil
 		}
 		cred = persistencemodel.AICredential{
 			AdapterType: AdapterLocal,
@@ -37,16 +37,13 @@ func ConfigureLocalGatewayDefaults(ctx context.Context, db *gorm.DB, enabled boo
 		if err := db.WithContext(ctx).Create(&cred).Error; err != nil {
 			return err
 		}
-	} else if cred.IsEnabled != enabled {
+	} else if !cred.IsEnabled {
 		if err := db.WithContext(ctx).Model(&cred).Update("is_enabled", enabled).Error; err != nil {
 			return err
 		}
 		cred.IsEnabled = enabled
 	}
 
-	if !enabled {
-		return nil
-	}
 	var entry persistencemodel.AIModelCatalogEntry
 	err = db.WithContext(ctx).
 		Where("public_model_id = ? AND provider_model_id = ?", ManagedLocalGatewayModel, ManagedLocalGatewayModel).
@@ -110,4 +107,26 @@ func ConfigureLocalGatewayDefaults(ctx context.Context, db *gorm.DB, enabled boo
 		"priority":        100,
 		"capacity_weight": 1,
 	}).Error
+}
+
+func removeManagedLocalGatewayDefaults(ctx context.Context, db *gorm.DB) error {
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var entries []persistencemodel.AIModelCatalogEntry
+		if err := tx.
+			Where("public_model_id = ? AND provider_model_id = ? AND display_name = ?", ManagedLocalGatewayModel, ManagedLocalGatewayModel, "MovScript Local").
+			Find(&entries).Error; err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if err := tx.Where("catalog_entry_id = ?", entry.ID).Delete(&persistencemodel.AIModelRouteBinding{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Delete(&entry).Error; err != nil {
+				return err
+			}
+		}
+		return tx.
+			Where("adapter_type = ? AND display_name = ? AND base_url = ?", AdapterLocal, ManagedLocalGatewayName, "movscript://local").
+			Delete(&persistencemodel.AICredential{}).Error
+	})
 }

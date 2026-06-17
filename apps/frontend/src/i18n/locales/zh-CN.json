@@ -1552,7 +1552,6 @@
       "bundleFields": {
         "schema": "Debug Bundle 的稳定机器可读标识。",
         "schemaVersion": "Debug Bundle 结构版本，用于自动解析和兼容性判断。",
-        "schemaUrl": "Debug Bundle schema 的公开位置，便于问题上报系统校验。",
         "triageItems": "按优先级整理的只读问题分诊结果，用于快速判断下一步检查哪里。",
         "remediationTaskGraph": "只读下一步路由，指向设置、运行详情、Preview 或仅观察检查。",
         "observationCoverage": "诊断包覆盖了哪些观测信号，以及每项是否缺失。",

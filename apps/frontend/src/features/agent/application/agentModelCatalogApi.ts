@@ -39,6 +39,17 @@ export type AgentModelCatalogEntry = {
   route_bindings?: AgentModelRouteBinding[]
 }
 
+type AgentModelRouteBindingResponse = Omit<AgentModelRouteBinding, 'id'> & {
+  id?: number
+  ID?: number
+}
+
+type AgentModelCatalogEntryResponse = Omit<AgentModelCatalogEntry, 'id' | 'route_bindings'> & {
+  id?: number
+  ID?: number
+  route_bindings?: AgentModelRouteBindingResponse[]
+}
+
 export type AgentModelCatalogEntryInput = {
   public_model_id: string
   provider_model_id: string
@@ -76,28 +87,28 @@ export function fetchAgentBackendModels(
 }
 
 export async function fetchAgentModelCatalogEntries(): Promise<AgentModelCatalogEntry[]> {
-  const response = await api.get<AgentModelCatalogEntry[]>('/admin/model-catalog')
-  return response.data
+  const response = await api.get<AgentModelCatalogEntryResponse[]>('/admin/model-catalog')
+  return normalizeAgentModelCatalogEntries(response.data)
 }
 
 export async function createAgentModelCatalogEntry(input: AgentModelCatalogEntryInput): Promise<AgentModelCatalogEntry> {
-  const response = await api.post<AgentModelCatalogEntry>('/admin/model-catalog', input)
-  return response.data
+  const response = await api.post<AgentModelCatalogEntryResponse>('/admin/model-catalog', input)
+  return normalizeAgentModelCatalogEntry(response.data)
 }
 
 export async function updateAgentModelCatalogEntry(id: number, input: AgentModelCatalogEntryInput): Promise<AgentModelCatalogEntry> {
-  const response = await api.put<AgentModelCatalogEntry>(`/admin/model-catalog/${id}`, input)
-  return response.data
+  const response = await api.put<AgentModelCatalogEntryResponse>(`/admin/model-catalog/${id}`, input)
+  return normalizeAgentModelCatalogEntry(response.data)
 }
 
 export async function createAgentModelRouteBinding(catalogEntryId: number, input: AgentModelRouteBindingInput): Promise<AgentModelRouteBinding> {
-  const response = await api.post<AgentModelRouteBinding>(`/admin/model-catalog/${catalogEntryId}/route-bindings`, input)
-  return response.data
+  const response = await api.post<AgentModelRouteBindingResponse>(`/admin/model-catalog/${catalogEntryId}/route-bindings`, input)
+  return normalizeAgentModelRouteBinding(response.data)
 }
 
 export async function updateAgentModelRouteBinding(catalogEntryId: number, bindingId: number, input: AgentModelRouteBindingInput): Promise<AgentModelRouteBinding> {
-  const response = await api.put<AgentModelRouteBinding>(`/admin/model-catalog/${catalogEntryId}/route-bindings/${bindingId}`, input)
-  return response.data
+  const response = await api.put<AgentModelRouteBindingResponse>(`/admin/model-catalog/${catalogEntryId}/route-bindings/${bindingId}`, input)
+  return normalizeAgentModelRouteBinding(response.data)
 }
 
 export async function deleteAgentModelRouteBinding(catalogEntryId: number, bindingId: number): Promise<void> {
@@ -106,4 +117,31 @@ export async function deleteAgentModelRouteBinding(catalogEntryId: number, bindi
 
 export function stringifyAgentModelSupportedParams(params: ParamDef[]): string {
   return JSON.stringify(params.filter((param) => param.key.trim()), null, 2)
+}
+
+export function normalizeAgentModelCatalogEntries(entries: AgentModelCatalogEntryResponse[]): AgentModelCatalogEntry[] {
+  return entries.map(normalizeAgentModelCatalogEntry)
+}
+
+export function normalizeAgentModelCatalogEntry(entry: AgentModelCatalogEntryResponse): AgentModelCatalogEntry {
+  const { ID: _legacyID, route_bindings: routeBindings, ...rest } = entry
+  return {
+    ...rest,
+    id: normalizedId(entry),
+    route_bindings: routeBindings?.map(normalizeAgentModelRouteBinding),
+  }
+}
+
+export function normalizeAgentModelRouteBinding(binding: AgentModelRouteBindingResponse): AgentModelRouteBinding {
+  const { ID: _legacyID, ...rest } = binding
+  return {
+    ...rest,
+    id: normalizedId(binding),
+  }
+}
+
+function normalizedId(record: { id?: number; ID?: number }): number {
+  const id = record.id ?? record.ID
+  if (typeof id === 'number' && Number.isFinite(id)) return id
+  throw new Error('model catalog response is missing a numeric ID')
 }

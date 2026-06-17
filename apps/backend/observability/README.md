@@ -68,10 +68,9 @@ Grafana provisions all JSON dashboards under `grafana/dashboards`. The current d
 - `MovScript Overview`: first-screen system health, HTTP/Agent/frontend status, and active alerts.
 - `Mova`: assistant client operations, provider spans, phase latency, slow stages, local storage/trace store health, and failure evidence.
 - `MovScript Frontend`: Web Vitals, frontend errors, network latency, Long Task, frontend storage latency, Agent send-stage latency, and composer input latency.
-- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and app-server compatibility panels.
+- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and app-server panels.
 - `MovScript Infrastructure`: host CPU/memory/disk/network, container CPU/memory, and scrape target health.
 - `MovScript Alerts`: firing/pending alerts, telemetry rejection, down targets, and alert evidence.
-- `Movscript Backend`: legacy combined dashboard retained temporarily for compatibility while the split dashboards settle.
 
 The dashboards intentionally avoid hardcoded route or phase lists. New backend routes, Agent operation kinds, Agent stages, and frontend areas appear automatically as long as they use the existing low-cardinality metric labels.
 

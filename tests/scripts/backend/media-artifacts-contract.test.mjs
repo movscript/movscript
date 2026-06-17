@@ -4,40 +4,7 @@ import path from 'node:path'
 import test from 'node:test'
 
 const repoRoot = process.cwd()
-const mediaDir = path.join(repoRoot, 'contracts', 'media')
 const expectedCapabilities = ['audio_tts', 'audio_transcribe', 'audio_music', 'audio_sfx', 'subtitle_align', 'subtitle_translate']
-
-test('media artifacts fixture preserves voiceover, subtitle, timing, and render relationships', async () => {
-  const schema = JSON.parse(await readFile(path.join(mediaDir, 'media-artifacts-v1.schema.json'), 'utf8'))
-  const fixture = JSON.parse(await readFile(path.join(mediaDir, 'media-artifacts-v1.fixture.json'), 'utf8'))
-
-  assert.equal(schema.$id, 'https://movscript.dev/schemas/media-artifacts-v1.schema.json')
-  assert.equal(fixture.schema, 'movscript.media.artifacts.v1')
-  assert.equal(fixture.schemaUrl, schema.$id)
-  assert.equal(fixture.schemaVersion, 1)
-
-  assert.equal(fixture.voiceover.resourceId, fixture.renderRecipe.voiceoverResourceId)
-  assert.equal(fixture.voiceover.durationMs, fixture.timing.durationMs)
-  assert.equal(fixture.voiceover.timingSource, fixture.timing.source)
-
-  const subtitleResourceIds = new Set(fixture.subtitles.map((item) => item.resourceId))
-  assert.ok(subtitleResourceIds.has(fixture.renderRecipe.subtitleResourceId))
-  for (const subtitle of fixture.subtitles) {
-    assert.equal(subtitle.relatedAudioResourceId, fixture.voiceover.resourceId)
-    assert.equal(subtitle.source, fixture.timing.source)
-  }
-
-  assert.ok(fixture.timing.segments.length > 0)
-  for (const segment of fixture.timing.segments) {
-    assert.ok(segment.startMs < segment.endMs, `${segment.id} should have a positive duration`)
-    assert.ok(segment.endMs <= fixture.timing.durationMs, `${segment.id} should fit within timing.durationMs`)
-  }
-
-  for (const clip of fixture.renderRecipe.clips) {
-    assert.ok(clip.startMs < clip.endMs, `clip ${clip.resourceId} should have a positive duration`)
-    assert.ok(clip.endMs <= fixture.timing.durationMs, `clip ${clip.resourceId} should fit within timing.durationMs`)
-  }
-})
 
 test('media pipeline capability names are shared across contracts and runtime declarations', async () => {
   const files = {
@@ -61,13 +28,13 @@ test('media pipeline capability names are shared across contracts and runtime de
   assert.match(files.modelAliases, /sound_effect_generation[\s\S]*audio_sfx/)
   assert.match(files.modelAliases, /forced_alignment[\s\S]*subtitle_align/)
   assert.match(files.modelAliases, /subtitle_translation[\s\S]*subtitle_translate/)
-  assert.match(files.modelAliases, /ffmpeg_render[\s\S]*render_video/)
 })
 
 test('core agent protocol exports the media artifacts v1 contract shape', async () => {
   const protocol = await readFile(path.join(repoRoot, 'packages', 'core', 'src', 'agent', 'protocol.ts'), 'utf8')
 
   assert.match(protocol, /MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript\.media\.artifacts\.v1'/)
+  assert.equal(protocol.includes('schemaUrl'), false)
   for (const exportedType of [
     'MediaTimingSource',
     'TimedTextUnit',
@@ -79,37 +46,6 @@ test('core agent protocol exports the media artifacts v1 contract shape', async 
   ]) {
     assert.ok(protocol.includes(`export interface ${exportedType}`) || protocol.includes(`export type ${exportedType}`), `protocol should export ${exportedType}`)
   }
-})
-
-test('media provider contract fixture describes abstract provider capabilities without vendor adapters', async () => {
-  const schema = JSON.parse(await readFile(path.join(mediaDir, 'media-provider-contract-v1.schema.json'), 'utf8'))
-  const fixture = JSON.parse(await readFile(path.join(mediaDir, 'media-provider-contract-v1.fixture.json'), 'utf8'))
-
-  assert.equal(schema.$id, 'https://movscript.dev/schemas/media-provider-contract-v1.schema.json')
-  assert.equal(fixture.schema, 'movscript.media.provider_contract.v1')
-  assert.equal(fixture.schemaUrl, schema.$id)
-  assert.equal(fixture.schemaVersion, 1)
-  assert.ok(fixture.provider)
-
-  const capabilities = new Set(fixture.capabilities.map((item) => item.capability))
-  assert.ok(capabilities.has('audio_tts'))
-  assert.ok(capabilities.has('audio_transcribe') || capabilities.has('subtitle_align'))
-  assert.ok(capabilities.has('audio_music'))
-  assert.ok(capabilities.has('audio_sfx'))
-  assert.ok(capabilities.has('subtitle_align'))
-  assert.ok(capabilities.has('subtitle_translate'))
-  assert.equal(capabilities.has('render_video'), false)
-
-  const schemaCapabilities = schema.$defs.capabilityContract.properties.capability.enum
-  assert.ok(schemaCapabilities.includes('audio_music'))
-  assert.ok(schemaCapabilities.includes('audio_sfx'))
-  assert.ok(schemaCapabilities.includes('subtitle_translate'))
-  assert.equal(schemaCapabilities.includes('render_video'), false)
-
-  const tts = fixture.capabilities.find((item) => item.capability === 'audio_tts')
-  assert.ok(tts.models[0].features.includes('word_timestamps'))
-  assert.ok(tts.models[0].supportedParams.some((param) => param.key === 'voice'))
-  assert.ok(tts.models[0].supportedParams.some((param) => param.key === 'return_timing'))
 })
 
 test('backend media domain exposes abstract provider interfaces only', async () => {

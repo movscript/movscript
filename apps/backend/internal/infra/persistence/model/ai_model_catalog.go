@@ -24,8 +24,8 @@ type AIModelCatalogEntry struct {
 	MaxInputVideos     int                   `gorm:"default:0" json:"max_input_videos"`
 	ImageEditField     string                `gorm:"default:''" json:"image_edit_field"`
 	SupportedParams    string                `gorm:"type:text" json:"supported_params"`
-	CreditsInputPer1M  float64               `gorm:"default:0" json:"credits_input_per_1m"`
-	CreditsOutputPer1M float64               `gorm:"default:0" json:"credits_output_per_1m"`
+	CreditsInputPer1M  float64               `gorm:"column:credits_input_per_1m;default:0" json:"credits_input_per_1m"`
+	CreditsOutputPer1M float64               `gorm:"column:credits_output_per_1m;default:0" json:"credits_output_per_1m"`
 	CreditsPerImage    float64               `gorm:"default:0" json:"credits_per_image"`
 	CreditsPerSecond   float64               `gorm:"default:0" json:"credits_per_second"`
 	CreditsPerCall     float64               `gorm:"default:0" json:"credits_per_call"`

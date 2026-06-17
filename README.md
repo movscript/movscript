@@ -91,7 +91,6 @@ movscript/
 ├── apps/cli/              Movscript command-line tool
 ├── packages/              Shared UI, tokens, workspace, interpreter, and domain packages
 ├── plugins/               First-party app-server plugin example
-├── contracts/             Machine-readable API, media, agent, and telemetry contracts
 ├── docs/                  Architecture notes, audits, and prototypes
 └── docker-compose.yml     Optional local PostgreSQL, MinIO, Redis, Gitea, Prometheus, and Grafana services
 ```
@@ -226,7 +225,7 @@ pnpm --filter @movscript/desktop verify:app-server -- --provider mova
 | App-server plugin | [plugins/movscript/README.md](plugins/movscript/README.md) |
 | Observability | [apps/backend/observability/README.md](apps/backend/observability/README.md) |
 | Architecture notes | [docs/](docs/) |
-| Machine-readable contracts | [contracts/](contracts/) |
+| Release cleanup principles | [docs/release-cleanup-principles.zh-CN.md](docs/release-cleanup-principles.zh-CN.md) |
 
 ## Community Scope
 

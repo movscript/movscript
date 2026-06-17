@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 
 const cwd = process.cwd();
+const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rawArgs = process.argv.slice(2);
 let suiteName;
 let testNamePattern;
@@ -183,7 +184,7 @@ if (needsTsx && !tsxImport) {
 }
 
 const nodeArgs = needsTsx
-  ? ["--import", tsxImport, "--test"]
+  ? ["--import", pathToFileURL(resolve(scriptDir, "node-test-css-loader.mjs")).href, "--import", tsxImport, "--test"]
   : ["--test"];
 
 if (testNamePattern) {

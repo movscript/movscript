@@ -177,6 +177,18 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, req ResponsesReques
 		})
 		return nil, err
 	}
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	if !strings.Contains(contentType, "text/event-stream") {
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		err := fmt.Errorf("openai responses stream expected text/event-stream from %s, got %q: %s", a.responsesEndpoint(), resp.Header.Get("Content-Type"), string(respBody))
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Text.Model, Endpoint: a.responsesEndpoint(), Method: "POST",
+			RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
+			LatencyMs: latency, Error: err.Error(),
+		})
+		return nil, err
+	}
 
 	out := make(chan ResponsesStreamEvent)
 	go func() {

@@ -1552,7 +1552,6 @@
       "bundleFields": {
         "schema": "Stable machine-readable identifier for this Debug Bundle.",
         "schemaVersion": "Debug Bundle structure version for automated parsing and compatibility checks.",
-        "schemaUrl": "Public location of the Debug Bundle schema for issue-report validation.",
         "triageItems": "Prioritized read-only triage results for deciding what to inspect next.",
         "remediationTaskGraph": "Read-only next-step routing that points to Settings, run details, Preview, or observation-only review.",
         "observationCoverage": "Which observation signals this diagnostic bundle covers, and whether each one is missing.",

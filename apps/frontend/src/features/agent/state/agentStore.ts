@@ -246,10 +246,7 @@ function createAgentStorePersistStorage(): PersistStorage<AgentStorePersistedSta
   }
 }
 
-type PersistedAgentSettings = Partial<AgentSettings> & {
-  activeWorkspaceConfigId?: unknown
-  activeWorkspaceProfileId?: unknown
-}
+type PersistedAgentSettings = Partial<AgentSettings>
 
 export function normalizeAgentSettings(settings?: PersistedAgentSettings | null): AgentSettings {
   return normalizeAgentSettingsWithOptions(settings)
@@ -263,8 +260,6 @@ export function normalizeAgentSettingsWithOptions(
     ...DEFAULT_AGENT_SETTINGS,
     ...settings,
     activeProviderProfileConfigId: settings?.activeProviderProfileConfigId
-      ?? settings?.activeWorkspaceConfigId
-      ?? settings?.activeWorkspaceProfileId
       ?? DEFAULT_AGENT_SETTINGS.activeProviderProfileConfigId,
   }
   const workerOptions = [1, 2, 3, 4]

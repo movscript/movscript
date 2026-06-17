@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL,
   AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
   buildSettingsSnapshot,
   parseSettingsSnapshot,
@@ -13,7 +12,6 @@ function settingsSnapshotFixture(patch = {}) {
   return {
     schema: 'movscript.agent.settings.snapshot.v1',
     schemaVersion: AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
-    schemaUrl: AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL,
     exportedAt: '2026-05-18T00:00:00.000Z',
     ...patch,
   }
@@ -50,7 +48,6 @@ test('core settings snapshot exports model, config files, provider-session limit
   })
 
   assert.equal(snapshot.schemaVersion, AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION)
-  assert.equal(snapshot.schemaUrl, AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL)
   assert.equal(snapshot.model?.model, 'gpt-test')
   assert.equal(snapshot.model?.catalogEntryId, undefined)
   assert.equal(snapshot.activeConfigFileId, 'base')

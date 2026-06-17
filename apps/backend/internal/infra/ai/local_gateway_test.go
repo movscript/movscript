@@ -58,7 +58,7 @@ func TestConfigureLocalGatewayDefaultsEnablesDeterministicLocalProvider(t *testi
 	}
 }
 
-func TestConfigureLocalGatewayDefaultsDisablesManagedLocalProvider(t *testing.T) {
+func TestConfigureLocalGatewayDefaultsRemovesManagedLocalProvider(t *testing.T) {
 	db := testutil.OpenSQLite(t, "ai-local-gateway-disable.db",
 		&persistencemodel.AICredential{},
 		&persistencemodel.AIModelCatalogEntry{},
@@ -68,14 +68,34 @@ func TestConfigureLocalGatewayDefaultsDisablesManagedLocalProvider(t *testing.T)
 		t.Fatalf("enable local gateway defaults: %v", err)
 	}
 	if err := ConfigureLocalGatewayDefaults(context.Background(), db, false); err != nil {
-		t.Fatalf("disable local gateway defaults: %v", err)
+		t.Fatalf("remove local gateway defaults: %v", err)
 	}
 
-	var cred persistencemodel.AICredential
-	if err := db.Where("adapter_type = ? AND display_name = ?", AdapterLocal, ManagedLocalGatewayName).First(&cred).Error; err != nil {
-		t.Fatalf("load managed local credential: %v", err)
+	var credentialCount int64
+	if err := db.Model(&persistencemodel.AICredential{}).
+		Where("adapter_type = ? AND display_name = ? AND base_url = ?", AdapterLocal, ManagedLocalGatewayName, "movscript://local").
+		Count(&credentialCount).Error; err != nil {
+		t.Fatalf("count managed local credential: %v", err)
 	}
-	if cred.IsEnabled {
-		t.Fatal("managed local credential should be disabled when local gateway provider is disabled")
+	if credentialCount != 0 {
+		t.Fatalf("managed local credential count = %d, want 0", credentialCount)
+	}
+
+	var entryCount int64
+	if err := db.Model(&persistencemodel.AIModelCatalogEntry{}).
+		Where("public_model_id = ? AND provider_model_id = ?", ManagedLocalGatewayModel, ManagedLocalGatewayModel).
+		Count(&entryCount).Error; err != nil {
+		t.Fatalf("count managed local catalog entry: %v", err)
+	}
+	if entryCount != 0 {
+		t.Fatalf("managed local catalog entry count = %d, want 0", entryCount)
+	}
+
+	var bindingCount int64
+	if err := db.Model(&persistencemodel.AIModelRouteBinding{}).Count(&bindingCount).Error; err != nil {
+		t.Fatalf("count managed local route bindings: %v", err)
+	}
+	if bindingCount != 0 {
+		t.Fatalf("managed local route binding count = %d, want 0", bindingCount)
 	}
 }

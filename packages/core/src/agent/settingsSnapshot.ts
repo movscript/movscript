@@ -170,7 +170,6 @@ export type SkillConfigWorkspace = { id: string; enabled: boolean }
 export type ConfigFileToolPermissionOverrides = { configFileId: string; toolGrants: ToolGrantWorkspace[] }
 export const AGENT_SETTINGS_SNAPSHOT_SCHEMA = 'movscript.agent.settings.snapshot.v1'
 export const AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION = 1
-export const AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL = 'https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json'
 export type AgentSettingsSnapshotReferenceIssue = {
   path: string
   message: string
@@ -179,7 +178,6 @@ export type AgentSettingsSnapshotReferenceIssue = {
 export type AgentSettingsSnapshot = {
   schema: typeof AGENT_SETTINGS_SNAPSHOT_SCHEMA
   schemaVersion: typeof AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION
-  schemaUrl: typeof AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL
   exportedAt: string
   model?: {
     model: string
@@ -208,7 +206,6 @@ export function buildSettingsSnapshot(input: {
   return {
     schema: AGENT_SETTINGS_SNAPSHOT_SCHEMA,
     schemaVersion: AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
-    schemaUrl: AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL,
     exportedAt: new Date().toISOString(),
     ...(model ? { model } : {}),
     ...(input.configFileId ? { activeConfigFileId: input.configFileId } : {}),
@@ -243,13 +240,11 @@ export function parseSettingsSnapshot(text: string): AgentSettingsSnapshot {
   }
   if (!isRecord(parsed)) throw new Error('agent settings snapshot must be a JSON object')
   if (parsed.schema !== AGENT_SETTINGS_SNAPSHOT_SCHEMA) throw new Error('unsupported agent settings snapshot schema')
-  assertAllowedKeys(parsed, 'agent settings snapshot', ['schema', 'schemaVersion', 'schemaUrl', 'exportedAt', 'model', 'activeConfigFileId', 'configFiles', 'providerSessionLimits', 'skillConfig', 'toolPermissionOverrides'])
+  assertAllowedKeys(parsed, 'agent settings snapshot', ['schema', 'schemaVersion', 'exportedAt', 'model', 'activeConfigFileId', 'configFiles', 'providerSessionLimits', 'skillConfig', 'toolPermissionOverrides'])
   if (parsed.schemaVersion !== undefined && parsed.schemaVersion !== AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION) throw new Error('unsupported agent settings snapshot schemaVersion')
-  if (parsed.schemaUrl !== undefined && parsed.schemaUrl !== AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL) throw new Error('unsupported agent settings snapshot schemaUrl')
   const snapshot: AgentSettingsSnapshot = {
     schema: AGENT_SETTINGS_SNAPSHOT_SCHEMA,
     schemaVersion: AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
-    schemaUrl: AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL,
     exportedAt: parseOptionalDateString(parsed.exportedAt, 'agent settings snapshot exportedAt') ?? new Date().toISOString(),
   }
   if (parsed.model !== undefined) {

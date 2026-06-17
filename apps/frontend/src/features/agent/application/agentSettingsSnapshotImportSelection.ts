@@ -43,7 +43,6 @@ export function selectSettingsSnapshotForImport(
   return {
     schema: snapshot.schema,
     schemaVersion: snapshot.schemaVersion,
-    schemaUrl: snapshot.schemaUrl,
     exportedAt: snapshot.exportedAt,
     ...(selected.has('model') && snapshot.model ? { model: { ...snapshot.model } } : {}),
     ...(selected.has('configFile') && snapshot.activeConfigFileId ? { activeConfigFileId: snapshot.activeConfigFileId } : {}),

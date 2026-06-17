@@ -185,7 +185,6 @@ export interface MediaCapabilityContract {
 export interface MediaProviderContractV1 {
   schema: typeof MEDIA_PROVIDER_CONTRACT_V1_SCHEMA
   schemaVersion: 1
-  schemaUrl: 'https://movscript.dev/schemas/media-provider-contract-v1.schema.json'
   provider: string
   displayName?: string
   capabilities: MediaCapabilityContract[]
@@ -262,7 +261,6 @@ export interface RenderRecipe {
 export interface MediaArtifactsV1 {
   schema: typeof MEDIA_ARTIFACTS_V1_SCHEMA
   schemaVersion: 1
-  schemaUrl: 'https://movscript.dev/schemas/media-artifacts-v1.schema.json'
   projectId?: number
   voiceover: VoiceoverResourceRef
   timing: TimingMetadata

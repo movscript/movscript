@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Bot, Building2, LayoutDashboard } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { api } from '@/shared/infrastructure/api'
@@ -14,8 +14,6 @@ import { Label } from '@movscript/ui/primitives'
 import { translateApiError } from '@/shared/infrastructure/apiError'
 import type { AuthSession } from '@/shared/infrastructure/session/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { WorkModePrompt, type WorkModeChoice } from '@movscript/ui/business/app'
 
 export default function InvitePage() {
   const { t } = useTranslation()
@@ -26,13 +24,11 @@ export default function InvitePage() {
   const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
   const setOrgMemberships = useUserStore((s) => s.setOrgMemberships)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
-  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
-  const [pendingSession, setPendingSession] = useState<(AuthSession & { org_id?: number }) | null>(null)
 
   const { data: invite, isLoading, isError } = useQuery({
     queryKey: authKeys.invitation(token),
@@ -46,8 +42,7 @@ export default function InvitePage() {
       api.post(`/invitations/${token}/accept`, body).then((r) => r.data),
     onSuccess: async (data: AuthSession & { org_id?: number }) => {
       if (!currentUser) {
-        setPendingSession(data)
-        return
+        setSession(data)
       }
       const orgId = data.org_id ?? invite?.org_id
       if (orgId) {
@@ -76,18 +71,6 @@ export default function InvitePage() {
     }
   }
 
-  async function completeInviteLogin(mode: WorkModeChoice) {
-    if (!pendingSession) return
-    setWorkMode(mode)
-    setSession(pendingSession)
-    const orgId = pendingSession.org_id ?? invite?.org_id
-    if (orgId) {
-      setCurrentOrg(orgId)
-      setCurrentProject(null)
-    }
-    navigate(ROUTES.projects, { replace: true })
-  }
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -102,29 +85,6 @@ export default function InvitePage() {
         <div className="text-center">
           <p className="type-body font-medium text-foreground mb-1">{t('invite.invalidTitle')}</p>
           <p className="type-label text-muted-foreground">{t('invite.invalidDescription')}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (pendingSession) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground">
-        <div className="w-full max-w-4xl">
-          <p className="mb-2 type-body font-medium text-primary">Movscript</p>
-          <WorkModePrompt
-            agentIcon={Bot}
-            projectIcon={LayoutDashboard}
-            title={t('auth.workModeTitle')}
-            description={t('auth.workModeDescription')}
-            agentTitle={t('appSettings.agentWorkMode')}
-            agentDescription={t('onboarding.workMode.agentDescription')}
-            agentAction={t('onboarding.workMode.agentAction')}
-            projectTitle={t('appSettings.projectWorkMode', { defaultValue: '项目模式' })}
-            projectDescription={t('onboarding.workMode.projectDescription')}
-            projectAction={t('onboarding.workMode.projectAction')}
-            onSelect={completeInviteLogin}
-          />
         </div>
       </div>
     )

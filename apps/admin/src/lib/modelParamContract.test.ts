@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import {
   type AgentCompactParamContract,
@@ -148,8 +146,15 @@ test('agent compact contract type accepts schema-derived fixture fields', () => 
   assert.equal(frames?.description, 'Frame count must match 25 + 4n.')
 })
 
-test('model param admin aliases match the shared manifest', () => {
-  const aliases = loadModelParamAliasManifest()
+test('model param admin aliases normalize current provider parameter names', () => {
+  const aliases = {
+    duration_seconds: 'duration',
+    size: 'image_size',
+    guidance_scale: 'prompt_strength',
+    max_images: 'image_count',
+    camera_fixed: 'fixed_camera',
+    generate_audio: 'audio',
+  }
   const params = parseParamDefs(serializeParamDefs(Object.entries(aliases).map(([key]) => ({
     key,
     label: key,
@@ -191,12 +196,83 @@ test('catalog template supported params serialize into custom supported params',
   assert.deepEqual(audit.params[1]?.json_schema, { enum: [29, 33, 37] })
 })
 
-function loadModelParamAliasManifest(): Record<string, string> {
-  return JSON.parse(readFileSync(resolve(process.cwd(), '../../contracts/model-param-aliases.json'), 'utf8')) as Record<string, string>
-}
-
 function loadAgentCompactContractFixture(): Record<string, any> {
-  return JSON.parse(readFileSync(resolve(process.cwd(), '../../contracts/agent/agent-compact-contract-v1.fixture.json'), 'utf8')) as Record<string, any>
+  return {
+    contract_version: 1,
+    supported_param_keys: [
+      'frames',
+      'image_count',
+      'resolution',
+      'return_last_frame',
+      'sequential_image_generation',
+      'workspace',
+    ],
+    supported_params: [
+      {
+        key: 'workspace',
+        label: 'Workspace',
+        type: 'boolean',
+      },
+      {
+        key: 'resolution',
+        label: 'Resolution',
+        type: 'select',
+        options: ['360p', '480p'],
+        default: '480p',
+        conditional_enum: [
+          {
+            when_param: 'workspace',
+            when_value: true,
+            options: ['480p'],
+          },
+        ],
+      },
+      {
+        key: 'frames',
+        label: 'Frames',
+        type: 'number',
+        enum: [29, 33, 37],
+        min: 0,
+        max: 0,
+        step: 4,
+        description: 'Frame count must match 25 + 4n.',
+        conflicts_with: ['resolution'],
+      },
+      {
+        key: 'return_last_frame',
+        label: 'Return Last Frame',
+        type: 'boolean',
+        default: false,
+        conditional_const: [
+          {
+            when_param: 'workspace',
+            when_value: true,
+            value: false,
+          },
+        ],
+      },
+      {
+        key: 'sequential_image_generation',
+        label: 'Sequential',
+        type: 'select',
+        options: ['disabled', 'auto'],
+      },
+      {
+        key: 'image_count',
+        label: 'Image Count',
+        type: 'number',
+        default: 1,
+        min: 1,
+        max: 15,
+        requires_value: [
+          {
+            param: 'sequential_image_generation',
+            value: 'auto',
+          },
+        ],
+      },
+    ],
+  }
 }
 
 function compactFixtureSubsetForAdmin(fixture: Record<string, any>): Record<string, any> {

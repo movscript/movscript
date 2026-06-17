@@ -31,7 +31,7 @@ const defaultSettings: AppSettings = {
   apiBaseURL: getDefaultAPIBaseURL(),
   launchMode: 'cloud',
   workMode: 'project',
-  onboardingCompleted: false,
+  onboardingCompleted: true,
 }
 
 function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings {

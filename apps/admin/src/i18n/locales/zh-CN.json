@@ -2605,9 +2605,9 @@
       "routes": "模型路由",
       "addRoute": "添加路由",
       "noRoutes": "暂无路由。Catalog Entry 需要至少一条路由才能被调用。",
-      "localProviderRoute": "Local Provider",
+      "localProviderRoute": "Provider Credential",
       "newAPIRoute": "new-api 分组",
-      "routeGroup": "new-api 分组",
+      "routeGroup": "路由组",
       "pickCredential": "选择凭证"
     },
     "gatewayKeys": {

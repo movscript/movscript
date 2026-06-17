@@ -124,7 +124,7 @@ func BuildAIRegistry(ctx context.Context, db *gorm.DB, cfg *config.Config, encry
 		cfg = &config.Config{}
 	}
 	providerMode := providercontract.AdapterLocal
-	configureLocalDefaults := true
+	configureLocalDefaults := false
 	if mode, configureDefaults, ok := editionAIRegistryProviderMode(cfg); ok {
 		providerMode = mode
 		configureLocalDefaults = configureDefaults

@@ -63,7 +63,7 @@ go test ./...
 ## Documentation Standards
 
 - Keep public docs in `docs/`; keep design history and maintainer-only context in `memory/`.
-- Keep machine-readable contracts and fixtures in `contracts/`, not in `docs/`.
+- Keep current machine-readable boundaries close to their runtime owners and tests. Do not add standalone contract fixtures unless a released import/export or wire format actually consumes them.
 - Prefer updating the consolidated docs index instead of adding narrow one-off guides.
 - Document current behavior first. If a section describes a workspace, move it to `memory/` or label it clearly.
 

@@ -119,6 +119,15 @@ func TestRunMigrationsInitializesFormalBaselineSchema(t *testing.T) {
 		}
 	}
 
+	for _, column := range []string{
+		"credits_input_per_1m",
+		"credits_output_per_1m",
+	} {
+		if !db.Migrator().HasColumn(&model.AIModelCatalogEntry{}, column) {
+			t.Fatalf("expected baseline model catalog column %q to exist", column)
+		}
+	}
+
 	pending, err = PendingMigrations(db)
 	if err != nil {
 		t.Fatalf("PendingMigrations() after run error = %v", err)

@@ -49,7 +49,6 @@ function snapshotFixture() {
   return {
     schema: 'movscript.agent.settings.snapshot.v1',
     schemaVersion: 1,
-    schemaUrl: 'https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json',
     exportedAt: '2026-06-15T00:00:00.000Z',
   }
 }
